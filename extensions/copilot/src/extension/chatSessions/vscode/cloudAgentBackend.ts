@@ -70,6 +70,9 @@ export interface CloudAgentBackend {
 
 	fetchTaskContent(taskId: string): Promise<TaskContent | undefined>;
 
+	/** History only. Undefined for ordinary tasks; empty when an automation's display prompt is unavailable. */
+	getInitialAutomationPrompt(task: AgentTaskGetResponse): Promise<string | undefined>;
+
 	fetchTaskEvents(taskId: string): Promise<readonly AgentTaskSessionEvent[]>;
 
 	sendFollowUpToTask(taskId: string, prompt: string): Promise<boolean>;

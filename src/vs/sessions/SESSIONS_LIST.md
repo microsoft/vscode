@@ -13,7 +13,8 @@ This specification defines stable placement and state-ownership rules. Row styli
 | Concern | Owner |
 |---------|-------|
 | Session catalog and lifecycle | `ISessionsManagementService` |
-| Pin, per-sort ordering, and automation-session listing state | `ISessionsListModelService` |
+| Pin, per-sort ordering, automation-session listing state, and sessions provisionally left out of the list | `ISessionsListModelService` |
+| Undo of changes made from the list, and completing provisional changes | `ISessionsListUndoService` |
 | Order of a session's nested chats | The session's provider |
 | Custom groups, group and grouping-section appearance, nesting, automatic-section parents, mixed child order, and session membership | `ISessionGroupsService` |
 | Top-level custom group and grouping-section order | `ISessionSectionOrderService` |
@@ -61,7 +62,7 @@ Archived
   reordering are ordinary persisted list state.
 - A session a nested chat was moved to joins the custom group of the session it was moved from, whatever started the move, unless it already has a placement of its own. It keeps ordinary placement when that session has no group.
 
-The active session remains visible even when an ordinary filter would otherwise exclude it. Inbox workspace/environment scope is strict: an out-of-scope active session is hidden from the list without closing its conversation.
+The active session remains visible even when an ordinary filter, the "+N more" cap of its section, or the "+N more" entry that holds less recent folders would otherwise exclude it. Inbox workspace/environment scope is strict: an out-of-scope active session is hidden from the list without closing its conversation.
 
 A caller can acquire a disposable reveal of a session row or its archive action for onboarding. The list temporarily includes that session despite ordinary filters and presentation caps, expands its section, and exposes the requested spotlight target. A reveal outside the current Inbox scope fails explicitly without changing the scope. An archive-action reveal also keeps the action visible without hover or focus. A workspace reveal targets the header of the workspace section that contains the session, or the session row when the list is not grouped by workspace. Releasing the reveal restores normal filtering and action visibility without changing the user's saved filters.
 
@@ -86,10 +87,6 @@ User-created groups and the date sections share a user-managed order below the f
 ### Environment grouping
 
 Environment grouping uses the provider-neutral environment identity, combining sessions across harnesses and workspaces on This Computer, in Cloud, or on the same remote host. Environment sections otherwise follow workspace sections' user-managed ordering and capping rules. Their identities remain stable across display-name changes.
-
-### Worktree grouping
-
-Worktree grouping is offered only by a host that asks for it (the editor window's Agents viewlet, through `allowWorktreeGrouping`); a view that does not offer it, such as the Agents window's, keeps its default. It places each session by the local folder its main chat works in, as the provider reports it: the main checkouts first, then the worktrees, each by their latest activity, then an "Other" section for sessions without a local folder. Sections are identified by the folder URI, named by the folder and the branch the provider reports, and show the full path on hover. They otherwise follow workspace sections' ordering, nesting and capping rules.
 
 ### Inbox grouping
 
@@ -129,9 +126,19 @@ New Nested Session opens the New Session composer for a nested chat of any sessi
 
 ### Archived sessions
 
-Archiving removes custom-group membership. Restoring a session does not restore its former membership, except when undoing a bulk archive from the list: that operation restores the captured membership if the group still exists. User-facing archive terminology may vary, but the underlying archived state and placement rule do not.
+Archiving removes custom-group membership. Restoring a session does not restore its former membership, except when undoing an archive from the list's Undo notice: that operation restores the captured membership if the group still exists. User-facing archive terminology may vary, but the underlying archived state and placement rule do not.
+
+The archived section lists its sessions and standalone archived chats by update time, most recent first, whatever the list's sorting and without manual sort keys. Agent Host providers count archiving and restoring a session or chat as an update, so their most recently archived items come first.
 
 Providers may defer archived inventory until the archived section is expanded. Showing archived items in the filter exposes the section even without cached rows, but does not itself request inventory. The list acquires management-owned discovery demand while that section is expanded and visible; collapsing or hiding it releases demand without discarding cached history. Local tree refreshes do not refresh provider inventory.
+
+### Deleted sessions
+
+Providers can't restore deleted sessions, so deleting sessions from the list is a provisional change (see [Undo](#undo)): `ISessionsListModelService` leaves them out of the list and the window stops showing them, without Reopen Closed Chat or Session bringing them back, and the management service deletes them only once Undo is no longer offered. Undo lists them again without involving the provider. Where Undo can't be offered, such as in the web, the sessions are deleted right away, and the confirmation says that it can't be undone.
+
+## Undo
+
+`ISessionsListUndoService` offers Undo for changes made from the list, in the notice of the window's Sessions view (the most recently rendered one that is visible, if there are several), which presents it. A change joins the notice that offers to undo changes of the same kind, which then counts them all, restarts its countdown, and undoes all of them, latest first, also where they changed the same sessions; a change of another kind replaces the notice, ending Undo for the changes it offered. A change that can't be reverted once made stays provisional while Undo is offered for it, and completes once Undo no longer is: when its notice expires, is dismissed or replaced, its Sessions view goes away, or the window closes, which waits for it. The web can't wait as a page unloads, and leaving the page may be cancelled, so there such a change completes right away instead. Without a visible Sessions view, such as one that is collapsed or in a hidden sidebar, a change completes right away; and the notice's countdown pauses while its view is hidden, so that Undo doesn't run out where the user can't reach it. Callers that tell the user beforehand whether Undo is offered, such as in a confirmation, ask `canOfferUndo`.
 
 ## Durable user intent
 
@@ -190,7 +197,7 @@ While side chats show in the main window's side pane (`ISideChatPlacementService
 
 ## Persistence
 
-List presentation state is profile-scoped user state, kept in the storage of the window's own profile: the editor window's Sessions view does not share it with the Agents window. This includes grouping, sorting, filtering, section and nested-session collapse, the show more or show less choice of each capped workspace, repository, or environment section, the Chats section, and custom group, pins, automation sessions shown in the list, custom groups with their nesting, automatic-section parents and mixed child order, manual sort keys, and top-level section order. A nested session starts expanded, and the user's later collapse or expansion choice persists across list and window recreation. Storage keys are private implementation details; other components change list state through the owning service API.
+List presentation state is profile-scoped, kept in the storage of the window's own profile: the editor window's Sessions view does not share it with the Agents window. User state, which Settings Sync roams across devices with UI State, includes grouping, sorting, filtering, section and nested-session collapse, the show more or show less choice of each capped workspace, repository, or environment section, the Chats section, pins, automation sessions shown in the list, and manual sort keys. Custom groups with their appearance, nesting, membership, automatic-section parents and mixed child order, and the top-level section order are machine state that stays on the device, because they refer to sessions and sections that are largely specific to it. They were user state before, so until a device holds groups or an order the user made, or adopted the previously synced value, loading adopts that value once it holds groups or an order, also when Settings Sync downloads it later. Sessions that this device or the synced value left ungrouped stay ungrouped, also before the device adopts anything, so they do not join the group of the session that created them. The synced value stays in place for older builds. A nested session starts expanded, and the user's later collapse or expansion choice persists across list and window recreation. Storage keys are private implementation details; other components change list state through the owning service API.
 
 Pinned canvases are not list state: their rows mirror `IPinnedCanvasService`, which persists them per workspace. Like Automations, they appear in the separate navigation list when it is shown, and otherwise directly below Automations in the sessions tree; they are absent while there are no pins. With `sessions.list.canvasesSection` enabled, they are instead listed under a Canvases header that follows Automations while chat and canvases are enabled. In the separate navigation list, the header and its pins are rows of that list, and choosing the header runs **New Canvas...**; otherwise the Canvases section is a collapsible section of the sessions tree that shows a placeholder while nothing is pinned. Its **New Canvas...** header action starts a session with a canvas (see `SESSIONS.md`) and pins that canvas. It lists the canvases of a canvas draft (see `SESSIONS.md`), so no chat is needed first, and shows the ones `ISessionCanvasCatalogService` remembers from the previous listing while the draft lists them.
 

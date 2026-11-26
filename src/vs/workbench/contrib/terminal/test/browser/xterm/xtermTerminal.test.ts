@@ -9,7 +9,7 @@ import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { timeout } from '../../../../../../base/common/async.js';
 import { Color, RGBA } from '../../../../../../base/common/color.js';
 import { Emitter } from '../../../../../../base/common/event.js';
-import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { ImmortalReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isMacintosh } from '../../../../../../base/common/platform.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -20,17 +20,22 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { ITerminalCommand, TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { CommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/commandDetectionCapability.js';
 import { PartialCommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/partialCommandDetectionCapability.js';
+import { TerminalLocation } from '../../../../../../platform/terminal/common/terminal.js';
 import { TerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { TestColorTheme, TestThemeService } from '../../../../../../platform/theme/test/common/testThemeService.js';
-import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from '../../../../../common/theme.js';
+import { MODERN_SIDE_BAR_BACKGROUND, PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from '../../../../../common/theme.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../../../common/views.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { LayoutSettings } from '../../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
+import { TerminalInstanceColorProvider } from '../../../browser/terminalInstance.js';
 import { XtermTerminal } from '../../../browser/xterm/xtermTerminal.js';
 import { ITerminalConfiguration } from '../../../common/terminal.js';
 import { registerColors, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_INACTIVE_SELECTION_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR, TERMINAL_SELECTION_FOREGROUND_COLOR } from '../../../common/terminalColorRegistry.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { TestLifecycleService } from '../../../../../test/common/workbenchTestServices.js';
-import { TestWebglAddon, TestXtermAddonImporter } from './xtermTestUtils.js';
+import { TestViewDescriptorService, TestWebglAddon, TestXtermAddonImporter } from './xtermTestUtils.js';
 import { stub } from 'sinon';
 import { registerTestIframe } from '../../../../../../base/test/browser/testWindow.js';
 
@@ -680,6 +685,73 @@ suite('XtermTerminal', () => {
 	});
 
 	suite('theme', () => {
+		test('sidebar background follows Modern UI and preserves terminal and other location colors', async () => {
+			const viewDescriptorService = new TestViewDescriptorService();
+			instantiationService.stub(IViewDescriptorService, viewDescriptorService);
+			const target = new ImmortalReference<TerminalLocation | undefined>(TerminalLocation.Panel);
+			const provider = instantiationService.createInstance(TerminalInstanceColorProvider, target);
+			const theme = new TestColorTheme({
+				[PANEL_BACKGROUND]: '#112233',
+				[SIDE_BAR_BACKGROUND]: '#101010',
+				[MODERN_SIDE_BAR_BACKGROUND]: '#ff000080',
+				'editor.background': '#abcdef',
+			});
+			themeService.setTheme(theme);
+			xterm = store.add(instantiationService.createInstance(XtermTerminal, undefined, XTermBaseCtor, {
+				cols: 80,
+				rows: 30,
+				xtermAddonImporter: new TestXtermAddonImporter(),
+				xtermColorProvider: provider,
+				capabilities: store.add(new TerminalCapabilityStore()),
+				disableShellIntegrationReporting: true,
+			}, undefined));
+			const read = () => xterm.raw.options.theme?.background;
+			const panel = read();
+			viewDescriptorService.moveTerminalToLocation(ViewContainerLocation.Sidebar);
+			xterm.updateTheme();
+			const legacy = read();
+			await configurationService.setUserConfiguration(LayoutSettings.MODERN_UI, true);
+			configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+				override affectsConfiguration(section: string): boolean {
+					return section === LayoutSettings.MODERN_UI;
+				}
+			});
+			const modern = read();
+			themeService.setTheme(new TestColorTheme({ [SIDE_BAR_BACKGROUND]: '#101010' }));
+			const unset = read();
+			themeService.setTheme(theme);
+			instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: true });
+			const sessionsProvider = instantiationService.createInstance(TerminalInstanceColorProvider, target);
+			const sessions = sessionsProvider.getBackgroundColor(theme)?.toString();
+			viewDescriptorService.moveTerminalToLocation(ViewContainerLocation.AuxiliaryBar);
+			xterm.updateTheme();
+			const auxiliary = read();
+			target.object = TerminalLocation.Editor;
+			xterm.updateTheme();
+			const editor = read();
+			target.object = TerminalLocation.Panel;
+			themeService.setTheme(new TestColorTheme({ [TERMINAL_BACKGROUND_COLOR]: '#123456', [MODERN_SIDE_BAR_BACKGROUND]: '#ffffff' }));
+			const explicitTerminal = read();
+			themeService.setTheme(theme);
+			await configurationService.setUserConfiguration(LayoutSettings.MODERN_UI, false);
+			configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+				override affectsConfiguration(section: string): boolean {
+					return section === LayoutSettings.MODERN_UI;
+				}
+			});
+			deepStrictEqual({ panel, legacy, modern, unset, sessions, auxiliary, editor, explicitTerminal, restored: read() }, {
+				panel: '#112233',
+				legacy: '#101010',
+				modern: '#870707',
+				unset: '#101010',
+				sessions: '#101010',
+				auxiliary: '#870707',
+				editor: '#abcdef',
+				explicitTerminal: '#123456',
+				restored: '#101010',
+			});
+		});
+
 		test('should apply correct background color based on getBackgroundColor', () => {
 			themeService.setTheme(new TestColorTheme({
 				[PANEL_BACKGROUND]: '#ff0000',

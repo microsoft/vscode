@@ -43,6 +43,8 @@ export class MultiDiffEditorWithFileListWidget extends Disposable {
 	private readonly _fileList = this._register(new MutableDisposable<MultiDiffEditorFileList>());
 	private _width = 0;
 	private _fileListIndex = 1;
+	/** Whether the editor that shows the widget is visible, see {@link setVisible}. */
+	private _visible = true;
 	readonly isFileListVisible: IObservable<boolean>;
 	/** Width the user wants for the list; the split view may temporarily squeeze it when space is short. */
 	private _preferredFileListWidth: number;
@@ -138,6 +140,7 @@ export class MultiDiffEditorWithFileListWidget extends Disposable {
 				this._fileList.clear();
 			} else if (!this._fileList.value) {
 				this._fileList.value = this._instantiationService.createInstance(MultiDiffEditorFileList, this._fileListContainer, this.multiDiffEditorWidget, fileListViewMode);
+				this._fileList.value.setVisible(this._visible);
 			}
 			if (this._splitView.isViewVisible(this._fileListIndex) !== visible) {
 				this._splitView.setViewVisible(this._fileListIndex, visible);
@@ -157,6 +160,15 @@ export class MultiDiffEditorWithFileListWidget extends Disposable {
 	/** Moves keyboard focus to the file list. Does nothing while the list is hidden. */
 	focusFileList(): void {
 		this._fileList.value?.focus();
+	}
+
+	/**
+	 * Called when the editor that shows the widget is shown or hidden. Like the Source Control view, a hidden file list
+	 * keeps no structural changes.
+	 */
+	setVisible(visible: boolean): void {
+		this._visible = visible;
+		this._fileList.value?.setVisible(visible);
 	}
 
 	/** Gives the list its preferred width back, as far as the diffs' minimum width allows. */

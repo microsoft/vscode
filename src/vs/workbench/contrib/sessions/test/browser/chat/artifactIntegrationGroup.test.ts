@@ -31,7 +31,7 @@ import { ArtifactIntegrationGroup, getArtifactGroupRowActions, getArtifactIntegr
 import { ArtifactIntegrationPillSources, collapseArtifactIntegrationAliases, getArtifactIntegrationAliasKey, getArtifactIntegrationGroupId, getArtifactIntegrationGroupKey, IArtifactIntegrationPillItem, layoutArtifactIntegrationPills } from '../../../browser/chat/artifactIntegrationPillSources.js';
 import { ArtifactIntegrationPresentation, IArtifactDetailsHost } from '../../../browser/chat/artifactIntegrationPresentation.js';
 
-function snapshot(id: string, changes: { readonly group?: { readonly icon: string; readonly color?: string; readonly priority: number }; readonly groupLabel?: string; readonly sections?: readonly { readonly id: string; readonly label: string; readonly icon: string }[]; readonly automation?: boolean; readonly integrationId?: string } = {}): ArtifactSnapshot {
+function snapshot(id: string, changes: { readonly group?: { readonly icon: string; readonly color?: string; readonly priority: number }; readonly groupLabel?: string; readonly sections?: readonly { readonly id: string; readonly label: string; readonly icon: string }[]; readonly automation?: boolean; readonly integrationId?: string; readonly label?: string; readonly description?: string } = {}): ArtifactSnapshot {
 	const integrationId = changes.integrationId ?? 'experiments';
 	const contribution: ArtifactContributionSnapshot = {
 		integrationId, label: 'Experiment', ...(changes.groupLabel ? { groupLabel: changes.groupLabel } : {}),
@@ -40,7 +40,7 @@ function snapshot(id: string, changes: { readonly group?: { readonly icon: strin
 		configuration: { revision: 0, values: { analyze: !!changes.automation }, generations: {}, disablements: {} },
 		view: {
 			availability: { kind: 'available' },
-			main: { icon: { id: 'beaker', colorId: 'charts.green' }, label: `#${id}`, description: `Experiment ${id} is running`, detailsId: 'main' },
+			main: { icon: { id: 'beaker', colorId: 'charts.green' }, label: changes.label ?? `#${id}`, description: changes.description ?? `Experiment ${id} is running`, detailsId: 'main' },
 			groupId: 'experiments',
 			...(changes.group ? { group: { icon: { id: changes.group.icon, colorId: changes.group.color }, priority: changes.group.priority } } : {}),
 			sections: (changes.sections ?? []).map(section => ({ id: section.id, label: section.label, icon: { id: section.icon }, description: `${section.label} for ${id}`, detailsId: section.id })),
@@ -234,7 +234,7 @@ suite('Artifact Integration Groups', () => {
 			member(snapshot('1', { groupLabel: 'Experiments', group: { icon: 'git-pull-request', priority: 1 }, sections: [{ id: 'checks', label: '3/5', icon: 'error' }] })),
 			member(snapshot('2', { groupLabel: 'Experiments', group: { icon: 'git-pull-request-error', priority: 2 }, automation: true })),
 		]);
-		const group = store.add(instantiation.createInstance(ArtifactIntegrationGroup, 'experiments', members, detailsHost));
+		const group = store.add(instantiation.createInstance(ArtifactIntegrationGroup, members, detailsHost));
 		const widget = store.add(instantiation.createInstance(ChatPillsWidget, { pills: derived(reader => [group.pill]) }, undefined));
 		const row = append(host, $('.chat-pills-row'));
 		row.style.cssText = 'position:absolute;left:20px;bottom:40px;';
@@ -285,6 +285,28 @@ suite('Artifact Integration Groups', () => {
 				focused: 'Open #1',
 			},
 		});
+	});
+
+	test('leads a row\'s hover with its full label while the row truncates it, unless the description contains it', () => {
+		const f = fixture();
+		const long = 'Marking one file reviewed runs many git processes and resolves the same context and working tree several times per click';
+		f.members.set([
+			...f.members.get(),
+			f.member(snapshot('3', { groupLabel: 'Experiments', label: long })),
+			f.member(snapshot('4', { groupLabel: 'Experiments', label: long, description: `Proposed: ${long}` })),
+		], undefined);
+		f.button().click();
+		const hover = (row: HTMLElement) => {
+			const options = f.hovers.get(row.querySelector<HTMLElement>('.artifact-group-row-main')!)!;
+			const content = (typeof options === 'function' ? options() : options).content;
+			return isHTMLElement(content) ? [...content.children].map(child => child.textContent) : content;
+		};
+		assert.deepStrictEqual(f.rows().map(hover), [
+			'Experiment 1 is running',
+			'Experiment 2 is running',
+			[long, 'Experiment 3 is running'],
+			`Proposed: ${long}`,
+		]);
 	});
 
 	test('navigates rows and controls with the keyboard, opens the artifact or a status list, and returns focus on Escape', () => {
@@ -447,7 +469,7 @@ suite('Artifact Integration Groups', () => {
 		assert.deepStrictEqual({ grouped, shrunk, pinned, unpinned: labels() }, {
 			grouped: ['3 Experiments', 'Recorded ref'],
 			shrunk: { labels: ['2 Experiments', 'Recorded ref'], samePill: true },
-			pinned: { labels: ['Recorded 1', 'Recorded ref', 'Recorded 2'], menu: ['chatInputPills.artifacts.unpin.2', 'remove.2'] },
+			pinned: { labels: ['Recorded 1', 'Recorded ref', 'Recorded 2'], menu: ['chatInputPills.artifacts.unpin', 'remove.2'] },
 			unpinned: ['2 Experiments', 'Recorded ref'],
 		});
 	});
@@ -525,7 +547,7 @@ suite('Artifact Integration Groups', () => {
 		items.set([...items.get(), item(bound('withAutopilot', 'step', true))], undefined);
 		assert.deepStrictEqual({ grouped, pinned, unpinned, withAutopilot: labels() }, {
 			grouped: ['2 Experiments'],
-			pinned: { labels: ['Recorded a', 'Recorded c'], menu: ['chatInputPills.artifacts.unpin.a', 'remove.a'] },
+			pinned: { labels: ['Recorded a', 'Recorded c'], menu: ['chatInputPills.artifacts.unpin', 'remove.a'] },
 			unpinned: { labels: ['2 Experiments'], saved: [] },
 			withAutopilot: ['3 Experiments'],
 		});

@@ -20,6 +20,9 @@ variables:
   - template: product-build-variables.yml@self
     parameters:
       VSCODE_PUBLISH: false
+  # Only builds of main and release/* branches get the signing, publishing and release service connections.
+  - name: VSCODE_PRIVILEGED_CONNECTIONS
+    value: ${{ or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/')) }}
 
 name: "$(Date:yyyyMMdd).$(Rev:r) (insider)"
 
@@ -61,3 +64,4 @@ extends:
           VSCODE_RUN_APISCAN: ${{ parameters.VSCODE_RUN_TSA }}
           VSCODE_PUBLISH: false
           VSCODE_RELEASE: false
+          VSCODE_PRIVILEGED_CONNECTIONS: ${{ variables.VSCODE_PRIVILEGED_CONNECTIONS }}

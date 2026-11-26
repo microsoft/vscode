@@ -150,6 +150,7 @@ suite('AgentPlugin enablement', () => {
 	function makePlugin(uri: URI, label: string, fromMarketplace?: IMarketplacePlugin): IAgentPlugin {
 		return {
 			uri,
+			discovery: 'configured',
 			format: PluginFormat.Copilot,
 			label,
 			enablement: observableValue('testPluginEnablement', ContributionEnablementState.EnabledProfile),

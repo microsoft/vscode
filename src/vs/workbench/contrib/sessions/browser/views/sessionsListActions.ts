@@ -26,17 +26,20 @@ import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/k
 import { WorkbenchListFocusContextKey } from '../../../../../platform/list/browser/listService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatEntitlementContextKeys } from '../../../../services/chat/common/chatEntitlementService.js';
-import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
+import { IsSessionsWindowContext, WorkbenchScopeContext } from '../../../../common/contextkeys.js';
+import { IHostService } from '../../../../services/host/browser/host.js';
 import { SessionsCategories } from '../../common/categories.js';
 import { AutomationSessionsListMode, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../../common/sessionConfig.js';
-import { ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID, ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSION_GROUP_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, HOLD_INBOX_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, RESUME_INBOX_SESSION_COMMAND_ID, SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
+import { ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID, ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSION_GROUP_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, HOLD_INBOX_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, OPEN_SESSION_SECTION_FOLDER_IN_NEW_WINDOW_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, RESUME_INBOX_SESSION_COMMAND_ID, SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
 import { IsPhoneLayoutContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, SessionActiveChatCanArchiveContext, SessionActiveChatIsUntitledContext, SessionHeaderTargetsChatContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext, SessionItemIsMultiSelectionContext, SessionsListPromoteNewChatActionContext } from '../../common/contextkeys.js';
-import { getSessionListChats, isAutomationSession, SessionItemInboxStateContext, SessionItemCanAcknowledgeContext, SessionItemCanMergePullRequestContext, SessionItemCanImportContext, SessionItemContextMenuId, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionItemOrganizeMenuGroup, SessionItemHasUnreadNestedSessionsContext, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, ISessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemCanMoveDownContext, SessionChatItemCanMoveUpContext, SessionChatItemCanSetReadStateContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionChatItemIsStandaloneContext, SessionChatItemIsUntitledContext, SessionsListFocusedChatItemContext, SessionsListSearchOpenContext } from './sessionsList.js';
+import { getSessionListChats, isAutomationSession } from './sessionsListHelpers.js';
+import { SessionItemInboxStateContext, SessionItemCanAcknowledgeContext, SessionItemCanMergePullRequestContext, SessionItemCanImportContext, SessionItemContextMenuId, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionItemOrganizeMenuGroup, SessionItemHasUnreadNestedSessionsContext, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasRootFolderContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, ISessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemCanMoveDownContext, SessionChatItemCanMoveUpContext, SessionChatItemCanSetReadStateContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionChatItemIsStandaloneContext, SessionChatItemIsUntitledContext, SessionsListFocusedChatItemContext, SessionsListSearchOpenContext } from './sessionsListCommon.js';
 import { getChatCapabilities, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionGroupsService } from '../sessionGroupsService.js';
 import { ISessionsListModelService } from '../sessionsListModelService.js';
+import { ISessionsListUndoService } from '../sessionsListUndoService.js';
 import { ISessionComparisonService } from '../../common/sessionComparison.js';
-import { ChatViewSessionsListTitleContext, IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsView, SessionsViewSortingContext, sessionsViewOffersGrouping, EditorWindowSessionsContext, SessionsViewFocusedContext, getActiveSessionsView, getSessionsViewResolver, ISessionsViewLocator, openSessionsView } from '../views/sessionsView.js';
+import { ChatViewSessionsListTitleContext, IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSortingContext, sessionsViewOffersGrouping, EditorWindowSessionsContext, SessionsViewFocusedContext, getActiveSessionsView, ISessionsViewLocator, openSessionsView } from '../views/sessionsView.js';
 import { Menus, SessionHeaderMenus, SessionsViewShowGroup } from '../menus.js';
 import { SESSIONS_LIST_MARK_READ_COMMAND_ID, SESSIONS_LIST_MARK_UNREAD_COMMAND_ID } from '../../../../common/chatSessionCommands.js';
 import { ISessionsNavigationService } from '../sessionsNavigationService.js';
@@ -73,7 +76,7 @@ async function archiveSessionsWithUndo(
 	wording: ChatSessionArchiveActionWording,
 	sessionsManagementService: ISessionsManagementService,
 	groupsService: ISessionGroupsService,
-	getSessionsView: () => SessionsView | undefined,
+	undoService: ISessionsListUndoService,
 	comparisonService: ISessionComparisonService,
 ): Promise<void> {
 	const archived: { session: ISession; groupId: string | undefined }[] = [];
@@ -97,11 +100,12 @@ async function archiveSessionsWithUndo(
 		if (archived.length > 0) {
 			const removedComparisonGroups = new Map([...comparisonGroups].filter(([groupId]) => !groupsService.getGroup(groupId)));
 			const restoredGroupIds = new Map<string, string>();
-			const message = wording === ChatSessionArchiveActionWording.MarkAsDone
-				? localize('sessionsMarkedDone', "{0} marked done", archived.length)
-				: localize('sessionsArchived', "{0} archived", archived.length);
-			getSessionsView()?.listNotification?.show({
-				message,
+			undoService.offerUndo({
+				kind: 'archiveSessions',
+				count: archived.length,
+				message: count => wording === ChatSessionArchiveActionWording.MarkAsDone
+					? localize('sessionsMarkedDone', "{0} marked done", count)
+					: localize('sessionsArchived', "{0} archived", count),
 				help: localize('archiveNoticeHelp', "This notice appears after marking sessions done or archiving them. Undo restores the sessions and their previous custom groups, if those groups still exist. It does not restart stopped requests."),
 				undo: async () => {
 					for (const [groupId, comparisonId] of removedComparisonGroups) {
@@ -115,7 +119,10 @@ async function archiveSessionsWithUndo(
 						const current = sessionsManagementService.getSession(session.resource);
 						if (current?.isArchived.get()) {
 							await sessionsManagementService.unarchiveSession(current);
-							const restoredGroupId = groupId ? restoredGroupIds.get(groupId) ?? groupId : undefined;
+							// A comparison's group may have come back under another id, such as by undoing a later archive.
+							const comparisonId = groupId ? comparisonGroups.get(groupId) : undefined;
+							const comparisonGroupId = comparisonId ? comparisonService.getComparison(comparisonId)?.groupId : undefined;
+							const restoredGroupId = groupId ? restoredGroupIds.get(groupId) ?? comparisonGroupId ?? groupId : undefined;
 							if (restoredGroupId && groupsService.getGroup(restoredGroupId) && !groupsService.getGroupOfSession(current.sessionId)) {
 								groupsService.addToGroup(current.sessionId, restoredGroupId);
 							}
@@ -130,20 +137,32 @@ async function archiveSessionsWithUndo(
 }
 
 /**
- * Deletes a custom group and offers Undo when subgroups or nested sections are affected.
+ * Deletes a custom group and its subgroups, offering Undo. Undo also restores the comparisons whose groups it deleted.
  */
-function deleteSessionGroupWithUndo(groupId: string, groupsService: ISessionGroupsService, getSessionsView: () => SessionsView | undefined): void {
+function deleteSessionGroupWithUndo(groupId: string, groupsService: ISessionGroupsService, comparisonService: ISessionComparisonService, undoService: ISessionsListUndoService): void {
+	const subtreeIds = new Set(groupsService.getTree().getSubtree(groupId).map(group => group.id));
+	const comparisonIds = comparisonService.comparisons.get()
+		.filter(comparison => comparison.archivedAt === undefined && subtreeIds.has(comparison.groupId))
+		.map(comparison => comparison.id);
 	const deleted = groupsService.deleteGroup(groupId);
-	if (!deleted || (deleted.groups.length < 2 && deleted.sectionMembership.size === 0)) {
+	if (!deleted) {
 		return;
 	}
-	getSessionsView()?.listNotification?.show({
-		message: deleted.groups.length === 1
+	undoService.offerUndo({
+		kind: 'deleteSessionGroups',
+		count: deleted.groups.length,
+		message: count => count === 1
 			? localize('sessionGroupDeleted', "Group deleted")
-			: localize('sessionGroupsDeleted', "{0} groups deleted", deleted.groups.length),
-		help: localize('deleteGroupsNoticeHelp', "This notice appears after deleting a group that contains subgroups or nested sections. Undo restores the groups, their order, and their sessions and sections, except sessions that were marked done or items moved to another group since."),
+			: localize('sessionGroupsDeleted', "{0} groups deleted", count),
+		help: localize('deleteGroupsNoticeHelp', "This notice appears after deleting groups. Undo restores the groups, their order, and their sessions and sections, except sessions that were marked done or items moved to another group since."),
 		undo: async () => {
 			groupsService.restoreGroups(deleted);
+			// Deleting a comparison's group archived the comparison.
+			for (const comparisonId of comparisonIds) {
+				if (comparisonService.getComparison(comparisonId)?.archivedAt !== undefined) {
+					comparisonService.restoreComparison(comparisonId);
+				}
+			}
 			status(localize('sessionGroupsRestored', "Groups restored."));
 		},
 	});
@@ -231,7 +250,7 @@ abstract class BaseArchiveSectionAction extends Action2 {
 		const storageService = accessor.get(IStorageService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const groupsService = accessor.get(ISessionGroupsService);
-		const getSessionsView = getSessionsViewResolver(accessor);
+		const undoService = accessor.get(ISessionsListUndoService);
 		const comparisonService = accessor.get(ISessionComparisonService);
 
 		const skipConfirmation = storageService.getBoolean(ConfirmArchiveStorageKey, StorageScope.PROFILE, false);
@@ -256,7 +275,7 @@ abstract class BaseArchiveSectionAction extends Action2 {
 			}
 		}
 
-		await archiveSessionsWithUndo(context.sessions, this.wording, sessionsManagementService, groupsService, getSessionsView, comparisonService);
+		await archiveSessionsWithUndo(context.sessions, this.wording, sessionsManagementService, groupsService, undoService, comparisonService);
 	}
 }
 
@@ -310,7 +329,7 @@ abstract class BaseArchiveSessionsInGroupAction extends Action2 {
 		const storageService = accessor.get(IStorageService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const groupsService = accessor.get(ISessionGroupsService);
-		const getSessionsView = getSessionsViewResolver(accessor);
+		const undoService = accessor.get(ISessionsListUndoService);
 		const comparisonService = accessor.get(ISessionComparisonService);
 		const comparison = context.comparison ? comparisonService.getComparison(context.comparison.id) : undefined;
 		// A group's sessions include those of its subgroups.
@@ -346,7 +365,7 @@ abstract class BaseArchiveSessionsInGroupAction extends Action2 {
 			}
 		}
 
-		await archiveSessionsWithUndo(sessions, this.wording, sessionsManagementService, groupsService, getSessionsView, comparisonService);
+		await archiveSessionsWithUndo(sessions, this.wording, sessionsManagementService, groupsService, undoService, comparisonService);
 	}
 }
 
@@ -380,22 +399,24 @@ function getFocusedSessionListTargets(accessor: ServicesAccessor): readonly ISes
 	return getActiveSessionsView(accessor)?.sessionsControl?.getFocusedSessions();
 }
 
-function triageSessions(modelService: ISessionsListModelService, getSessionsView: () => SessionsView | undefined, sessions: readonly ISession[], action: SessionInboxAction): void {
+function triageSessions(modelService: ISessionsListModelService, undoService: ISessionsListUndoService, sessions: readonly ISession[], action: SessionInboxAction): void {
 	const targets = sessions.filter(session => !session.isArchived.get());
 	if (!targets.length) {
 		return;
 	}
 	const undo = modelService.setInboxState(targets, action);
-	const message = action === undefined ? localize('inboxResumed', "{0} returned to inbox", targets.length)
-		: action === 'done' ? localize('inboxAcknowledged', "{0} acknowledged", targets.length)
-			: action === 'hold' ? localize('inboxHeld', "{0} put on hold", targets.length)
-				: localize('inboxSnoozed', "{0} snoozed", targets.length);
+	const getMessage = (count: number) => action === undefined ? localize('inboxResumed', "{0} returned to inbox", count)
+		: action === 'done' ? localize('inboxAcknowledged', "{0} acknowledged", count)
+			: action === 'hold' ? localize('inboxHeld', "{0} put on hold", count)
+				: localize('inboxSnoozed', "{0} snoozed", count);
 	if (targets.length === 1 || action === 'done') {
-		status(message);
+		status(getMessage(targets.length));
 		return;
 	}
-	getSessionsView()?.listNotification?.show({
-		message,
+	undoService.offerUndo({
+		kind: action === undefined ? 'inboxResume' : action === 'hold' ? 'inboxHold' : 'inboxSnooze',
+		count: targets.length,
+		message: getMessage,
 		help: localize('inboxTriageHelp', "This changes only Inbox mode. It does not stop or archive sessions. Undo restores the previous triage state unless it has changed since."),
 		showCountdown: true,
 		undo: async () => { undo(); status(localize('inboxTriageUndone', "Inbox change undone.")); },
@@ -403,7 +424,7 @@ function triageSessions(modelService: ISessionsListModelService, getSessionsView
 }
 
 abstract class BaseArchiveSessionAction extends Action2 {
-	constructor(wording: ChatSessionArchiveActionWording) {
+	constructor(private readonly wording: ChatSessionArchiveActionWording) {
 		const action = getChatSessionArchiveActionPresentation(wording).archive;
 		super({
 			id: ARCHIVE_SESSION_COMMAND_ID,
@@ -436,6 +457,9 @@ abstract class BaseArchiveSessionAction extends Action2 {
 		const configurationService = accessor.get(IConfigurationService);
 		const accessibilityService = accessor.get(IAccessibilityService);
 		const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
+		const groupsService = accessor.get(ISessionGroupsService);
+		const comparisonService = accessor.get(ISessionComparisonService);
+		const undoService = accessor.get(ISessionsListUndoService);
 		if (
 			sessions.length > 0
 			&& configurationService.getValue<boolean>(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING)
@@ -443,7 +467,7 @@ abstract class BaseArchiveSessionAction extends Action2 {
 		) {
 			void accessibilitySignalService.playSignal(AccessibilitySignal.confetti);
 		}
-		throwArchiveErrors(await sessionsManagementService.archiveSessions(sessions));
+		await archiveSessionsWithUndo(sessions, this.wording, sessionsManagementService, groupsService, undoService, comparisonService);
 	}
 }
 
@@ -924,14 +948,15 @@ function createSessionsListActions(): DisposableStore {
 		getChatSessionArchiveActionWording(accessor.get(IConfigurationService)),
 		accessor.get(ISessionsManagementService),
 		accessor.get(ISessionGroupsService),
-		getSessionsViewResolver(accessor),
+		accessor.get(ISessionsListUndoService),
 		accessor.get(ISessionComparisonService),
 	)));
 
 	store.add(CommandsRegistry.registerCommand(DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, (accessor, groupId: string) => deleteSessionGroupWithUndo(
 		groupId,
 		accessor.get(ISessionGroupsService),
-		getSessionsViewResolver(accessor),
+		accessor.get(ISessionComparisonService),
+		accessor.get(ISessionsListUndoService),
 	)));
 
 	store.add(registerAction2(class ShowSessionApplicationFiltersAction extends Action2 {
@@ -1060,6 +1085,34 @@ function createSessionsListActions(): DisposableStore {
 		group: '4_manage',
 		order: 1,
 		when: ContextKeyExpr.equals(SessionSectionTypeContext.key, 'external'),
+	}));
+
+	// Opens the root folder of a workspace or repository section in a new editor window; offered in windows that list all sessions
+	store.add(registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: OPEN_SESSION_SECTION_FOLDER_IN_NEW_WINDOW_COMMAND_ID,
+				title: localize2('openSectionFolderInNewWindow', "Open in New Window"),
+				precondition: ChatContextKeys.enabled,
+				menu: [{
+					id: Menus.SessionSectionContext,
+					group: 'navigation',
+					order: 1,
+					when: ContextKeyExpr.and(
+						ChatContextKeys.enabled,
+						WorkbenchScopeContext.isEqualTo('all'),
+						ContextKeyExpr.or(...['workspace', 'repository'].map(type => ContextKeyExpr.equals(SessionSectionTypeContext.key, type))),
+						SessionSectionHasRootFolderContext,
+					),
+				}],
+			});
+		}
+		async run(accessor: ServicesAccessor, section?: ISessionSection): Promise<void> {
+			const folderUri = section?.rootFolder;
+			if (folderUri) {
+				await accessor.get(IHostService).openWindow([{ folderUri }], { forceNewWindow: true });
+			}
+		}
 	}));
 
 	store.add(MenuRegistry.appendMenuItem(Menus.SessionsViewShow, {
@@ -1368,7 +1421,7 @@ function createSessionsListActions(): DisposableStore {
 			const sessionGroupsService = accessor.get(ISessionGroupsService);
 			const hasSubgroups = sessionGroupsService.getTree().getSubgroups(context.group.id).length > 0;
 			if (!hasSubgroups && sessionGroupsService.getSectionIdsInGroup(context.group.id).length === 0 && sessionGroupsService.getSessionIdsInGroup(context.group.id).length === 0) {
-				sessionGroupsService.deleteGroup(context.group.id);
+				deleteSessionGroupWithUndo(context.group.id, sessionGroupsService, accessor.get(ISessionComparisonService), accessor.get(ISessionsListUndoService));
 			}
 		}
 	}));
@@ -1467,7 +1520,7 @@ function createSessionsListActions(): DisposableStore {
 			});
 		}
 		run(accessor: ServicesAccessor, context?: ISession | ISession[]): void {
-			triageSessions(accessor.get(ISessionsListModelService), getSessionsViewResolver(accessor), getSessionActionTargets(accessor, context), 'done');
+			triageSessions(accessor.get(ISessionsListModelService), accessor.get(ISessionsListUndoService), getSessionActionTargets(accessor, context), 'done');
 		}
 	}));
 
@@ -1487,7 +1540,7 @@ function createSessionsListActions(): DisposableStore {
 			});
 		}
 		run(accessor: ServicesAccessor, context?: ISession | ISession[]): void {
-			triageSessions(accessor.get(ISessionsListModelService), getSessionsViewResolver(accessor), getSessionActionTargets(accessor, context), undefined);
+			triageSessions(accessor.get(ISessionsListModelService), accessor.get(ISessionsListUndoService), getSessionActionTargets(accessor, context), undefined);
 		}
 	}));
 
@@ -1510,7 +1563,7 @@ function createSessionsListActions(): DisposableStore {
 			const sessions = getSessionActionTargets(accessor, context);
 			const quickInput = accessor.get(IQuickInputService);
 			const modelService = accessor.get(ISessionsListModelService);
-			const getSessionsView = getSessionsViewResolver(accessor);
+			const undoService = accessor.get(ISessionsListUndoService);
 			const now = new Date();
 			const morning = (days: number) => new Date(now.getFullYear(), now.getMonth(), now.getDate() + days, 9).getTime();
 			const picked = await quickInput.pick([
@@ -1547,7 +1600,7 @@ function createSessionsListActions(): DisposableStore {
 			} else {
 				action = picked.value;
 			}
-			triageSessions(modelService, getSessionsView, sessions, action);
+			triageSessions(modelService, undoService, sessions, action);
 		}
 	}));
 
@@ -1598,7 +1651,7 @@ function createSessionsListActions(): DisposableStore {
 			});
 		}
 		run(accessor: ServicesAccessor, context?: ISession | ISession[]): void {
-			triageSessions(accessor.get(ISessionsListModelService), getSessionsViewResolver(accessor), getSessionActionTargets(accessor, context), 'hold');
+			triageSessions(accessor.get(ISessionsListModelService), accessor.get(ISessionsListUndoService), getSessionActionTargets(accessor, context), 'hold');
 		}
 	}));
 
@@ -1656,10 +1709,22 @@ function createSessionsListActions(): DisposableStore {
 			if (sessions.length === 0) {
 				return;
 			}
-			accessor.get(ISessionsListModelService).hideAutomationSessions(sessions);
-			status(sessions.length === 1
-				? localize('automationSessionHiddenFromList', "{0} is now shown only in Automations.", sessions[0].title.get())
-				: localize('automationSessionsHiddenFromList', "{0} sessions are now shown only in Automations.", sessions.length));
+			const undo = accessor.get(ISessionsListModelService).hideAutomationSessions(sessions);
+			const offered = accessor.get(ISessionsListUndoService).offerUndo({
+				kind: 'hideAutomationSessions',
+				count: sessions.length,
+				message: count => localize('automationSessionsHiddenNotice', "{0} hidden from the Sessions list", count),
+				help: localize('automationSessionsHiddenNoticeHelp', "This notice appears after hiding automation sessions from the Sessions list. They are still shown in Automations. Undo lists them in the Sessions list again, except sessions you have shown or hidden since."),
+				undo: async () => {
+					undo();
+					status(localize('automationSessionsHiddenUndone', "Sessions listed again."));
+				},
+			});
+			if (!offered) {
+				status(sessions.length === 1
+					? localize('automationSessionHiddenFromList', "{0} is now shown only in Automations.", sessions[0].title.get())
+					: localize('automationSessionsHiddenFromList', "{0} sessions are now shown only in Automations.", sessions.length));
+			}
 		}
 	}));
 
@@ -1828,24 +1893,48 @@ function createSessionsListActions(): DisposableStore {
 
 			const dialogService = accessor.get(IDialogService);
 			const sessionsManagementService = accessor.get(ISessionsManagementService);
+			const navigationService = accessor.get(ISessionsNavigationService);
+			const listModelService = accessor.get(ISessionsListModelService);
+			const undoService = accessor.get(ISessionsListUndoService);
 
+			// Without Undo, such as in the web, the sessions are deleted right away.
+			const undoable = undoService.canOfferUndo({ commits: true });
 			const confirmed = await dialogService.confirm({
 				message: sessions.length === 1
 					? localize('deleteSession.confirm', "Are you sure you want to delete this session?")
 					: localize('deleteSessions.confirm', "Are you sure you want to delete {0} sessions?", sessions.length),
-				detail: localize('deleteSession.detail', "This action cannot be undone."),
+				detail: undoable ? undefined : localize('deleteSession.detail', "This action cannot be undone."),
 				primaryButton: localize('deleteSession.delete', "Delete")
 			});
 			if (!confirmed.confirmed) {
 				return;
 			}
 
-			try {
-				await sessionsManagementService.deleteSessions(sessions);
-			} catch (err) {
-				dialogService.error(sessions.length === 1
-					? localize('deleteSession.error', "Failed to delete the session: {0}", toErrorMessage(err))
-					: localize('deleteSessions.error', "Failed to delete the sessions: {0}", toErrorMessage(err)));
+			// Providers can't restore deleted sessions, so deleting waits until it can no longer be undone.
+			const hidden = listModelService.hideSessionsProvisionally(sessions);
+			const offered = undoService.offerUndo({
+				kind: 'deleteSessions',
+				count: sessions.length,
+				message: count => localize('sessionsDeleted', "{0} deleted", count),
+				help: localize('deleteSessionsNoticeHelp', "This notice appears after deleting sessions. The sessions are deleted when the notice disappears. Undo keeps them."),
+				undo: async () => {
+					hidden.dispose();
+					status(localize('sessionsDeleteUndone', "Sessions restored."));
+				},
+				commit: async () => {
+					try {
+						await sessionsManagementService.deleteSessions(sessions);
+					} catch (err) {
+						dialogService.error(sessions.length === 1
+							? localize('deleteSession.error', "Failed to delete the session: {0}", toErrorMessage(err))
+							: localize('deleteSessions.error', "Failed to delete the sessions: {0}", toErrorMessage(err)));
+					} finally {
+						hidden.dispose();
+					}
+				},
+			});
+			if (offered) {
+				await Promise.all(sessions.map(session => navigationService.closeSession(session)));
 			}
 		}
 	}));
@@ -1892,40 +1981,6 @@ function createSessionsListActions(): DisposableStore {
 			when: ContextKeyExpr.and(ChatContextKeys.enabled, IsSessionsWindowContext),
 		}));
 	}
-
-	const OffersWorktreeGroupingContext = ContextKeyExpr.and(IsSessionsWindowContext.negate(), sessionsViewOffersGrouping(SessionsGrouping.Worktree));
-	const GroupedByWorktreeContext = ContextKeyExpr.and(OffersWorktreeGroupingContext, SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Worktree));
-
-	store.add(registerAction2(class GroupByWorktreeAction extends Action2 {
-		constructor() {
-			super({
-				id: 'sessionsViewPane.groupByWorktree',
-				title: localize2('groupByWorktree', "Worktree"),
-				category: SessionsCategories.Sessions,
-				toggled: SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Worktree),
-				precondition: OffersWorktreeGroupingContext,
-				menu: [{ id: Menus.SessionsViewGrouping, group: '1_group', order: 3.5, when: OffersWorktreeGroupingContext }],
-			});
-		}
-		override run(accessor: ServicesAccessor) {
-			const view = getActiveSessionsView(accessor);
-			view?.setGrouping(SessionsGrouping.Worktree);
-		}
-	}));
-
-	// Worktree grouping caps its sections as the other groupings by section do, which Show switches between Recent and All
-	store.add(MenuRegistry.appendMenuItem(Menus.SessionsViewShow, {
-		command: { id: 'sessionsViewPane.showRecentSessions', title: localize2('recent', "Recent"), toggled: IsWorkspaceGroupCappedContext },
-		group: SessionsViewShowGroup.Capping,
-		order: 0,
-		when: GroupedByWorktreeContext,
-	}));
-	store.add(MenuRegistry.appendMenuItem(Menus.SessionsViewShow, {
-		command: { id: 'sessionsViewPane.showAllSessions', title: localize2('all', "All"), toggled: IsWorkspaceGroupCappedContext.negate() },
-		group: SessionsViewShowGroup.Capping,
-		order: 1,
-		when: GroupedByWorktreeContext,
-	}));
 
 	return store;
 }

@@ -35,52 +35,33 @@ suite('CommandCenterLabel', () => {
 		return { element, label: disposables.add(new CommandCenterLabel(element, hoverDelegate, hoverService)) };
 	}
 
-	test('renders the location icon, name and branch group', () => {
+	test('renders the name, then the location icon and label, read once and described by the hover with the description', () => {
 		const hovers: string[] = [];
 		const { element, label } = createLabel(hovers);
 
 		label.update('repo', createLocation('feature-branch'));
-		label.dispose();
-
-		assert.deepStrictEqual({
+		const withDescription = {
 			hasLocation: element.classList.contains('has-folder-location'),
 			aria: element.getAttribute('aria-label'),
-			name: element.querySelector('.folder-location-name')?.textContent,
-			hasIcon: !!element.querySelector('.folder-location-icon'),
-			branch: element.querySelector('.folder-location-branch')?.textContent,
-			hovers,
-			hasBranchIcon: !!element.querySelector('.folder-location-branch-icon'),
-		}, {
-			hasLocation: true,
-			aria: 'repo, branch feature-branch',
-			name: 'repo',
-			hasIcon: true,
-			branch: 'feature-branch',
-			hovers: ['feature-branch', 'disposed'],
-			hasBranchIcon: true,
-		});
-	});
-
-	test('renders the folder-with-branch icon by default and the location own icon otherwise', () => {
-		const iconClass = (icon: typeof Codicon.gitBranch | undefined) => {
-			const { element, label } = createLabel();
-			label.update('repo', { ...createLocation(), icon });
-			return /codicon-(git-branch-checkout|git-branch)\b/.exec(element.querySelector('.folder-location-icon')?.className ?? '')?.[1];
+			text: element.textContent,
+			nameHasIcon: !!element.querySelector('.folder-location-name .codicon'),
+			groupIcon: !!element.querySelector('.folder-location-group > .folder-location-icon.codicon-git-branch'),
 		};
+		label.update('repo', createLocation());
+		label.dispose();
 
-		assert.deepStrictEqual([iconClass(Codicon.gitBranchCheckout), iconClass(undefined), iconClass(Codicon.gitBranch)], ['git-branch-checkout', 'git-branch-checkout', 'git-branch']);
+		assert.deepStrictEqual([withDescription, element.getAttribute('aria-label'), hovers], [
+			{ hasLocation: true, aria: 'repo, Folder Location, feature', text: 'repo·feature', nameHasIcon: false, groupIcon: true },
+			'repo, Folder Location, feature',
+			[`feature (alternate location of 'repo')\nfeature-branch`, 'disposed', `feature (alternate location of 'repo')`, 'disposed'],
+		]);
 	});
 
-	test('without a description has no branch group', () => {
+	test('renders the location own icon', () => {
 		const { element, label } = createLabel();
+		label.update('repo', { ...createLocation(), icon: Codicon.worktree });
 
-		label.update('repo', createLocation());
-
-		assert.deepStrictEqual({
-			aria: element.getAttribute('aria-label'),
-			hasBranchGroup: !!element.querySelector('.folder-location-branch-group'),
-			name: element.querySelector('.folder-location-name')?.textContent,
-		}, { aria: 'repo', hasBranchGroup: false, name: 'repo' });
+		assert.deepStrictEqual([...element.querySelectorAll('.codicon')].map(icon => icon.classList.contains('codicon-worktree')), [true]);
 	});
 
 	test('resets to plain text at the primary location', () => {

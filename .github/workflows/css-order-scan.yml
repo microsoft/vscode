@@ -8,7 +8,6 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 concurrency:
   group: css-order-scan-${{ github.ref }}
@@ -21,6 +20,10 @@ jobs:
     # The scan stops localizing after its own time budget (below) and still
     # writes a report; this is the hard stop if anything hangs.
     timeout-minutes: 180
+    # id-token: write requests the OIDC token that authenticates the upload to the screenshot service
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

@@ -8,13 +8,15 @@ import { extname, join } from '../../../../../base/common/path.js';
 import assert from 'assert';
 import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { EditorAutoIndentStrategy } from '../../../../../editor/common/config/editorOptions.js';
+import { getIndentForEnter } from '../../../../../editor/common/languages/autoIndent.js';
 import { ILanguageConfigurationService } from '../../../../../editor/common/languages/languageConfigurationRegistry.js';
 import { getReindentEditOperations } from '../../../../../editor/contrib/indentation/common/indentation.js';
 import { IRelaxedTextModelCreationOptions, createModelServices, instantiateTextModel } from '../../../../../editor/test/common/testTextModel.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILanguageConfiguration, LanguageConfigurationFileHandler } from '../../common/languageConfigurationExtensionPoint.js';
 import { parse } from '../../../../../base/common/json.js';
-import { IRange } from '../../../../../editor/common/core/range.js';
+import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { ISingleEditOperation } from '../../../../../editor/common/core/editOperation.js';
 import { trimTrailingWhitespace } from '../../../../../editor/common/commands/trimTrailingWhitespaceCommand.js';
 import { execSync } from 'child_process';
@@ -170,6 +172,56 @@ suite('Language Configuration Parsing', () => {
 			})),
 			[{ open: 'begin', close: 'end', beforeText: { source: '(?:^|\\s)begin$', flags: 'i' } }]
 		);
+	});
+});
+
+suite('Auto-Indentation - Ruby', () => {
+	let disposables: DisposableStore;
+
+	setup(() => {
+		disposables = new DisposableStore();
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('indent after a block with a hash in a quoted argument', () => {
+		const instantiationService = disposables.add(createModelServices(disposables));
+		const languageId = 'ruby-test';
+		disposables.add(instantiationService.get(ILanguageService).registerLanguage({ id: languageId }));
+
+		const configPath = join(FileAccess.asFileUri('').fsPath, '..', 'extensions', 'ruby', 'language-configuration.json');
+		const config: ILanguageConfiguration = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+		const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+		disposables.add(languageConfigurationService.register(languageId, LanguageConfigurationFileHandler.extractValidConfig(languageId, config)));
+
+		const lines = [
+			`method('#foo') do`,
+			'method("#foo") do',
+			'method("escaped \\"#foo") do',
+			`method('it\\'s #foo') do`,
+			'method(`echo #foo`) do',
+			`method('#foo') do |argument|`,
+			`method('#foo') do # comment`,
+			`method('foo') do`,
+			`method('#foo') # do`,
+			'method("# do")',
+			'# method("#foo") do',
+		];
+		const indentConverter = {
+			shiftIndent: (indentation: string) => indentation + '  ',
+			unshiftIndent: (indentation: string) => indentation.slice(0, -2)
+		};
+		const result = lines.map(line => {
+			const model = disposables.add(instantiateTextModel(instantiationService, line, languageId));
+			const column = model.getLineMaxColumn(1);
+			return getIndentForEnter(EditorAutoIndentStrategy.Full, model, new Range(1, column, 1, column), indentConverter, languageConfigurationService)?.afterEnter;
+		});
+
+		assert.deepStrictEqual(result, ['  ', '  ', '  ', '  ', '  ', '  ', '  ', '  ', '', '', '']);
 	});
 });
 

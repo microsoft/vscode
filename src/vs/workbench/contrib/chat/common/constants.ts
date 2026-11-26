@@ -166,8 +166,10 @@ export enum ChatConfiguration {
 	ChatClosedPromoNotification = 'chat.closedPromoNotification',
 	TitleBarSignInEnabled = 'chat.titleBar.signIn.enabled',
 	WelcomePageSignInEnabled = 'chat.welcomePage.signIn.enabled',
+	WelcomePageSignInStyle = 'chat.welcomePage.signIn.style',
 	WelcomePageAgentsWindowGraphic = 'chat.welcomePage.agentsWindowGraphic',
 	WelcomePageAgentsWindowSectionStyle = 'chat.welcomePage.agentsWindowSectionStyle',
+	WelcomePageCardSurface = 'chat.welcomePage.cardSurface',
 	TitleBarOpenInAgentsWindowEnabled = 'chat.titleBar.openInAgentsWindow.enabled',
 	OpenInAgentsWindowTransferDraft = 'chat.experimental.openInAgentsWindow.transferDraft',
 	AgentsParallelWorkBannerEnabled = 'chat.agentsParallelWorkBanner.enabled',
@@ -241,6 +243,31 @@ export const enum ChatClosedPromoNotification {
 	CopilotIconPopup = 'copilotIconPopup',
 }
 
+/** How the Welcome page asks signed-out users to sign in with GitHub. */
+export const enum WelcomeSignInStyle {
+	/** A button at the bottom of the page. The default. */
+	Button = 'button',
+	/** A card at the bottom of the page that lists what GitHub Copilot does once signed in. */
+	CopilotCard = 'copilotCard',
+	/** A card at the bottom of the page that lists what working with GitHub brings: pull requests, issues, repositories and Copilot. */
+	GitHubCard = 'githubCard',
+	/** A card at the bottom of the page that sums up what signing in brings in one sentence. */
+	CompactCard = 'compactCard',
+}
+
+/** Reads the sign-in style, falling back to the setting's default, {@link WelcomeSignInStyle.Button}. */
+export function getWelcomeSignInStyle(configurationService: IConfigurationService): WelcomeSignInStyle {
+	const style = configurationService.getValue<WelcomeSignInStyle>(ChatConfiguration.WelcomePageSignInStyle);
+	switch (style) {
+		case WelcomeSignInStyle.CopilotCard:
+		case WelcomeSignInStyle.GitHubCard:
+		case WelcomeSignInStyle.CompactCard:
+			return style;
+		default:
+			return WelcomeSignInStyle.Button;
+	}
+}
+
 /** The graphic that explains the Agents window on the Welcome page. */
 export const enum AgentsWindowGraphicVariant {
 	None = 'none',
@@ -293,6 +320,21 @@ export function getAgentsWindowSectionStyle(configurationService: IConfiguration
 		default:
 			return AgentsWindowSectionStyle.Outline;
 	}
+}
+
+/** The surface of the Welcome page's cards that promote a feature, such as the {@link AgentsWindowGraphicVariant.Banner}. */
+export const enum WelcomePageCardSurface {
+	/** The walkthrough tiles' surface. The default. */
+	Neutral = 'neutral',
+	/** A surface tinted with the accent color. */
+	Tint = 'tint',
+}
+
+/** Reads the card surface, falling back to the setting's default, {@link WelcomePageCardSurface.Neutral}. */
+export function getWelcomePageCardSurface(configurationService: IConfigurationService): WelcomePageCardSurface {
+	return configurationService.getValue<WelcomePageCardSurface>(ChatConfiguration.WelcomePageCardSurface) === WelcomePageCardSurface.Tint
+		? WelcomePageCardSurface.Tint
+		: WelcomePageCardSurface.Neutral;
 }
 
 export const AGENT_SESSION_CLEANUP_SETTINGS_TAG = 'agentSessionCleanup';
@@ -835,6 +877,8 @@ function getVisibleNonLocalEditorChatSessionTypes(
 }
 
 export const MANAGE_CHAT_COMMAND_ID = 'workbench.action.chat.manage';
+/** The editor that lists model routers, which opens beside the Language Models editor. {@link MANAGE_CHAT_COMMAND_ID} takes it to show that one of the two. */
+export const MODEL_ROUTERS_EDITOR_ID = 'workbench.editor.modelRouters';
 export const CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID = 'workbench.action.chat.openAgentHostChat';
 export { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, getAgentHostSessionResource } from '../../../../platform/agentHost/common/agentHostSessionIdentity.js';
 

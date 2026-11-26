@@ -7,15 +7,14 @@ import { SequencerByKey } from '../../../base/common/async.js';
 import { Disposable, DisposableMap, IReference, ReferenceCollection } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { buildUncommittedChangesetUri, changesetSession, parseChangesetUri } from '../common/changesetUri.js';
-import { isAhpChatChannel, parseSubagentSessionUri } from '../common/state/sessionState.js';
+import { isAhpChatChannel } from '../common/state/sessionState.js';
 import { DEFAULT_AGENT_HOST_WATCH_EXCLUDES, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { resolveSessionRepositories } from './agentHostSessionRepositories.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
-import { getEffectiveWorkingDirectories, getEffectiveWorkingDirectory } from './agentConfigurationService.js';
+import { getEffectiveWorkingDirectories } from './agentConfigurationService.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
-import { resolveBranchChangesetScopeForSource } from './agentHostBranchChangesetScope.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
 /**
@@ -56,13 +55,11 @@ class WatchInterestReferenceCollection extends ReferenceCollection<string> {
  * root-level watcher sharing, and refresh fanout.
  *
  * We only monitor roots while at least one client is subscribed to a session or
- * static changeset that needs fresh changeset counts. We do not monitor while a
- * session on that root is actively running a turn: agent/tool edits made during
- * the turn are captured by the turn lifecycle, and the static changesets are
- * recomputed once when the turn completes. Watching during the turn would add
- * duplicate file-system noise without improving correctness. Idle sessions
- * sharing the root are refreshed once it is watched again, since changes made
- * meanwhile (by the agent or e.g. a `git pull` in a terminal) went unobserved.
+ * static changeset that needs fresh changeset counts. Roots stay monitored while
+ * a session on them runs a turn: the turn lifecycle only sees the edits of
+ * file-edit tools, not the files a terminal command writes, and a long-running
+ * command would otherwise leave them out of the Git-backed changesets until the
+ * turn ends.
  */
 export class ChangesetFileMonitorCoordinator extends Disposable {
 
@@ -86,16 +83,7 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 	private readonly _rootSessions = new Map<string, Set<string>>();
 	/** Repository-root URI string to the shared monitor acquisition. */
 	private readonly _rootWatchAcquisitions = this._register(new DisposableMap<string>());
-	/** Repository-root URI string to the canonical repository root URI. */
-	private readonly _rootUris = new Map<string, URI>();
-	/** Active session URI string to repository-root URI strings. */
-	private readonly _activeSessionRoots = new Map<string, Set<string>>();
-	/** Repository-root URI string to sessions currently active against that root. */
-	private readonly _rootActiveSessions = new Map<string, Set<string>>();
-	/** Active sessions whose repository root cannot yet be resolved. */
-	private readonly _unresolvedActiveSessions = new Set<string>();
 	private readonly _watchAttachmentSequencer = new SequencerByKey<string>();
-	private readonly _activeTurnSequencer = new SequencerByKey<string>();
 
 	constructor(
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
@@ -155,11 +143,17 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 	 * Re-attach a session's root watchers when its effective working-directory
 	 * set changes (a folder added or removed, e.g. in the Editor Window). The
 	 * signature guard in `_attachWatcherIfPossible` makes an unchanged set a
-	 * no-op, so this is cheap; an active (mid-turn) session is instead re-attached
-	 * by the turn lifecycle on turn end.
+	 * no-op, so this is cheap.
 	 */
 	onSessionWorkingDirectoriesChanged(sessionStr: string): void {
 		this._retryWatchAttachment(sessionStr);
+	}
+
+	/** Retries the watches still waiting for a root watcher, such as one whose acquisition failed. Roots that are already watched keep their watcher. */
+	retryPendingWatches(): void {
+		for (const sessionStr of [...this._pendingWatchInterest]) {
+			this._retryWatchAttachment(sessionStr);
+		}
 	}
 
 	onSessionDisposed(sessionStr: string): void {
@@ -170,29 +164,7 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 				this.untrackSessionChanges(subscription);
 			}
 		}
-		this._resumeRoots(this._removeActiveSession(sessionStr));
 		this._destroyWatchInterest(sessionStr);
-	}
-
-	onSessionTurnActiveChanged(sessionStr: string, active: boolean): void {
-		const watchOwners = new Set([
-			sessionStr,
-			resolveBranchChangesetScopeForSource(this._stateManager, sessionStr).ownerUri,
-		]);
-		for (const [owner, source] of this._watchSources) {
-			if (source === sessionStr) {
-				watchOwners.add(owner);
-			}
-		}
-		for (const owner of watchOwners) {
-			this._activeTurnSequencer.queue(owner, async () => {
-				if (active) {
-					await this._markSessionActive(owner);
-				} else {
-					this._markSessionInactive(owner);
-				}
-			});
-		}
 	}
 
 	private _destroyWatchInterest(sessionStr: string): void {
@@ -201,7 +173,7 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 	}
 
 	private _retryWatchAttachment(sessionStr: string): void {
-		if (this._shouldAttachSession(sessionStr) || this._pendingWatchInterest.has(sessionStr)) {
+		if (this._hasWatchInterest(sessionStr) || this._pendingWatchInterest.has(sessionStr)) {
 			this._attachWatcherIfPossible(sessionStr);
 		}
 	}
@@ -212,7 +184,7 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 
 	private _attachWatcherIfPossible(sessionStr: string): void {
 		this._watchAttachmentSequencer.queue(sessionStr, async () => {
-			if (!this._shouldAttachSession(sessionStr)) {
+			if (!this._hasWatchInterest(sessionStr)) {
 				return;
 			}
 			const source = this._watchSources.get(sessionStr) ?? sessionStr;
@@ -241,7 +213,7 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 				return;
 			}
 			const { gitRepositories } = await resolveSessionRepositories(workingDirectoryUris, this._gitService);
-			if (!this._shouldAttachSession(sessionStr)) {
+			if (!this._hasWatchInterest(sessionStr)) {
 				return;
 			}
 			if (gitRepositories.length === 0) {
@@ -260,9 +232,9 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 			desiredRoots.set(repositoryRoot.toString(), repositoryRoot);
 		}
 
-		// Detach from roots this session no longer resolves to (runs on each re-attach). An idle
+		// Detach from roots this session no longer resolves to (runs on each re-attach). A
 		// subscribed session re-attaches as soon as its working-directory set changes (via
-		// `onSessionWorkingDirectoriesChanged`); an active session re-attaches at turn end.
+		// `onSessionWorkingDirectoriesChanged`).
 		const current = this._sessionRoots.get(sessionStr);
 		if (current) {
 			for (const rootStr of [...current]) {
@@ -284,7 +256,6 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 			if (!sessions) {
 				sessions = new Set<string>();
 				this._rootSessions.set(rootStr, sessions);
-				this._rootUris.set(rootStr, repositoryRoot);
 			}
 			sessions.add(sessionStr);
 			sessionRoots.add(rootStr);
@@ -325,7 +296,6 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 		sessions.delete(sessionStr);
 		if (sessions.size === 0) {
 			this._rootSessions.delete(rootStr);
-			this._rootUris.delete(rootStr);
 			this._rootWatchAcquisitions.deleteAndDispose(rootStr);
 		}
 	}
@@ -355,15 +325,10 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 	private _onRootsChanged(rootStrs: Iterable<string>): void {
 		const sessionsToRefresh = new Set<string>();
 		for (const rootStr of rootStrs) {
-			if (this._isRootActive(rootStr)) {
-				continue;
-			}
 			for (const session of this._rootSessions.get(rootStr) ?? []) {
 				const source = this._watchSources.get(session) ?? session;
 				if (this._hasWatchInterest(session)
 					&& this._sessionRoots.get(session)?.has(rootStr)
-					&& !this._activeSessionRoots.has(session)
-					&& !this._unresolvedActiveSessions.has(session)
 					&& this._stateManager.getSessionState(source)) {
 					sessionsToRefresh.add(session);
 				}
@@ -371,43 +336,22 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 		}
 
 		for (const session of sessionsToRefresh) {
-			// Always refresh from the PRIMARY working directory, never the changed root: branch/PR is a
+			// The service refreshes from the key's PRIMARY working directory, never the changed root: branch/PR is a
 			// primary-repo concept, while the downstream summary recompute re-diffs EVERY repo — so a
 			// secondary change still reflects without mis-attributing its branch/PR. Throttled downstream.
 			const source = this._watchSources.get(session) ?? session;
-			const primaryWorkingDirectory = getEffectiveWorkingDirectory(this._stateManager, source);
-			if (!primaryWorkingDirectory) {
-				continue;
-			}
-			let primaryWorkingDirectoryUri: URI;
-			try {
-				primaryWorkingDirectoryUri = URI.parse(primaryWorkingDirectory);
-			} catch (err) {
-				this._logService.warn(`[ChangesetFileMonitorCoordinator] Failed to parse primary working directory URI for ${session}: ${primaryWorkingDirectory}`, err);
-				continue;
-			}
 			// Edits to files that were already modified leave the Git state as it was.
-			void this._gitStateService.refreshSessionGitState(source, primaryWorkingDirectoryUri, undefined, { force: true });
+			void this._gitStateService.refreshSessionGitState(source, undefined, { force: true });
 		}
-	}
-
-	private _shouldAttachSession(sessionStr: string): boolean {
-		return this._hasWatchInterest(sessionStr)
-			&& !this._activeSessionRoots.has(sessionStr)
-			&& !this._unresolvedActiveSessions.has(sessionStr);
-	}
-
-	private _isRootActive(rootStr: string): boolean {
-		return (this._rootActiveSessions.get(rootStr)?.size ?? 0) > 0;
 	}
 
 	/**
 	 * Ensures a shared watcher exists for a root. Returns false only when
 	 * acquisition failed (the caller retries that root later); an
-	 * already-watched or turn-suspended active root counts as handled.
+	 * already-watched root counts as handled.
 	 */
 	private _ensureRootWatcher(rootStr: string, repositoryRoot: URI): boolean {
-		if (this._isRootActive(rootStr) || this._rootWatchAcquisitions.has(rootStr)) {
+		if (this._rootWatchAcquisitions.has(rootStr)) {
 			return true;
 		}
 		const sessions = this._rootSessions.get(rootStr);
@@ -426,96 +370,5 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 		}
 		this._rootWatchAcquisitions.set(rootStr, rootWatchAcquisition);
 		return true;
-	}
-
-	private _suspendRootWatcher(rootStr: string): void {
-		this._rootWatchAcquisitions.deleteAndDispose(rootStr);
-	}
-
-	private async _markSessionActive(sessionStr: string): Promise<void> {
-		this._removeActiveSession(sessionStr);
-		this._pendingWatchInterest.delete(sessionStr);
-		const repositoryRoots = await this._resolveActivityRepositoryRoots(sessionStr);
-		if (repositoryRoots.length === 0) {
-			this._unresolvedActiveSessions.add(sessionStr);
-			this._releaseSessionRoots(sessionStr);
-			return;
-		}
-		const rootStrs = new Set<string>();
-		for (const repositoryRoot of repositoryRoots) {
-			const rootStr = repositoryRoot.toString();
-			rootStrs.add(rootStr);
-			let activeSessions = this._rootActiveSessions.get(rootStr);
-			if (!activeSessions) {
-				activeSessions = new Set<string>();
-				this._rootActiveSessions.set(rootStr, activeSessions);
-			}
-			activeSessions.add(sessionStr);
-			this._rootUris.set(rootStr, repositoryRoot);
-			this._suspendRootWatcher(rootStr);
-		}
-		this._activeSessionRoots.set(sessionStr, rootStrs);
-		this._releaseSessionRoots(sessionStr);
-	}
-
-	private _markSessionInactive(sessionStr: string): void {
-		this._resumeRoots(this._removeActiveSession(sessionStr));
-		if (this._hasWatchInterest(sessionStr) || this._pendingWatchInterest.has(sessionStr)) {
-			this._attachWatcherIfPossible(sessionStr);
-		}
-	}
-
-	/** Resumes roots no longer suspended by a turn and catches up each idle session once. */
-	private _resumeRoots(rootStrs: ReadonlySet<string>): void {
-		for (const rootStr of rootStrs) {
-			const repositoryRoot = this._rootUris.get(rootStr);
-			if (!repositoryRoot || this._isRootActive(rootStr)) {
-				continue;
-			}
-			this._ensureRootWatcher(rootStr, repositoryRoot);
-		}
-		this._onRootsChanged(rootStrs);
-	}
-
-	private _removeActiveSession(sessionStr: string): ReadonlySet<string> {
-		this._unresolvedActiveSessions.delete(sessionStr);
-		const rootStrs = this._activeSessionRoots.get(sessionStr);
-		if (!rootStrs) {
-			return new Set();
-		}
-		this._activeSessionRoots.delete(sessionStr);
-		for (const rootStr of rootStrs) {
-			const activeSessions = this._rootActiveSessions.get(rootStr);
-			if (activeSessions) {
-				activeSessions.delete(sessionStr);
-				if (activeSessions.size === 0) {
-					this._rootActiveSessions.delete(rootStr);
-				}
-			}
-		}
-		return rootStrs;
-	}
-
-	private async _resolveActivityRepositoryRoots(sessionStr: string): Promise<readonly URI[]> {
-		const source = this._watchSources.get(sessionStr) ?? sessionStr;
-		let workingDirectories = getEffectiveWorkingDirectories(this._stateManager, source);
-		if (!workingDirectories?.length) {
-			const parsedSubagent = parseSubagentSessionUri(source);
-			workingDirectories = parsedSubagent
-				? getEffectiveWorkingDirectories(this._stateManager, parsedSubagent.parentSession.toString())
-				: undefined;
-		}
-		if (!workingDirectories?.length) {
-			return [];
-		}
-		const workingDirectoryUris: URI[] = [];
-		for (const workingDirectory of workingDirectories) {
-			try {
-				workingDirectoryUris.push(URI.parse(workingDirectory));
-			} catch (err) {
-				this._logService.warn(`[ChangesetFileMonitorCoordinator] Failed to parse active working directory URI for ${sessionStr}: ${workingDirectory}`, err);
-			}
-		}
-		return (await resolveSessionRepositories(workingDirectoryUris, this._gitService)).gitRepositories;
 	}
 }

@@ -665,6 +665,29 @@ suite('Session Artifacts', () => {
 		});
 	}
 
+	test('names artifact row actions by what they do, not by the artifact they act on', () => {
+		const artifacts: readonly ISessionArtifact[] = [
+			{ id: 'https://github.com/microsoft/vscode/pull/12', kind: SessionArtifactKind.PullRequest, label: 'PR #12', isArtifact: true, link: URI.parse('https://github.com/microsoft/vscode/pull/12') },
+			{ id: '/home/alice/repo/report.md', kind: SessionArtifactKind.File, label: 'report.md', uri: URI.file('/home/alice/repo/report.md'), isArtifact: true },
+			{ id: 'my-server:/home/bob/demo.mp4', kind: SessionArtifactKind.File, label: 'demo.mp4', uri: toAgentHostUri(URI.file('/home/bob/demo.mp4'), 'my-server'), isArtifact: true },
+			{ id: 'https://example.com/dashboard', kind: SessionArtifactKind.Resource, label: 'Dashboard', uri: URI.parse('https://example.com/dashboard'), isArtifact: true },
+		];
+
+		const entries = buildSessionArtifactSections(artifacts, {
+			...actions,
+			revealInOS: () => { },
+			downloadResource: async () => { },
+			remove: async () => { },
+		}, labelService, true, new Set()).flatMap(section => section.entries);
+
+		assert.deepStrictEqual(entries.map(entry => [...entry.toolbarActions ?? [], ...entry.hoverActions ?? [], ...entry.promotedAction ? [entry.promotedAction] : []].map(action => action.id)), [
+			['sessions.artifacts.copyLink', 'sessions.artifacts.remove'],
+			['sessions.artifacts.revealInOS', 'sessions.artifacts.copyFilePath', 'sessions.artifacts.copyFileRelativePath', 'sessions.artifacts.remove'],
+			['sessions.artifacts.download', 'sessions.artifacts.copyFilePath', 'sessions.artifacts.copyFileRelativePath', 'sessions.artifacts.remove'],
+			['sessions.artifacts.copyResourceUri', 'sessions.artifacts.remove'],
+		]);
+	});
+
 	test('reads files as paths and leaves every other location whole', () => {
 		const locations = [
 			URI.file('/home/alice/repo/src/app.ts'),

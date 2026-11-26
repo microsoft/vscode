@@ -45,5 +45,6 @@ export function createPullRequestMessage(options: ISessionPullRequestChatOptions
 		options.autoMergeMethod
 			? localize('createPR.message.autoMerge', "Enable GitHub auto-merge using {0}, so the pull request merges when required checks and approvals pass. Do not bypass these requirements.", mergeMethods[options.autoMergeMethod])
 			: localize('createPR.message.manualMerge', "Do not merge the pull request or enable GitHub auto-merge."),
+		...(options.autopilot ? [localize('createPR.message.autopilot', "Record the pull request as an artifact. Its Autopilot rules are turned on once this request finishes, so do not change its automation yourself.")] : []),
 	].join('\n\n');
 }

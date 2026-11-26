@@ -236,8 +236,9 @@ export class ArtifactIntegrationService extends Disposable implements IArtifactI
 		}
 		const stored = this.ledger.state.get().bindings.find(binding => binding.session === session && binding.artifact.id === artifactId)?.artifact;
 		const current = sessionState.artifacts.find(artifact => artifact.id === artifactId);
+		// A stored origin was captured when the binding was first changed and is kept; a binding stored without one adopts the current origin.
 		const artifact = current
-			? stored?.resource === current.resource ? { ...current, origin: stored.origin } : current
+			? stored?.resource === current.resource ? { ...current, origin: stored.origin ?? current.origin } : current
 			: sessionState.availability.kind !== 'available' ? stored : undefined;
 		if (!artifact) {
 			reference.dispose();
@@ -366,6 +367,23 @@ class ArtifactModel extends Disposable implements IArtifactModel {
 			initial = false;
 		}));
 		await this.refresh();
+		// Integrations read the origin when they bind, so an artifact that gains its first origin is bound again. That
+		// cancels active work, so it waits until the artifact's runs settle. An origin the model has is never replaced.
+		this._register(autorun(reader => {
+			const current = this.sessionReference.object.read(reader).artifacts.find(artifact => artifact.id === this.artifact.id && artifact.resource === this.artifact.resource);
+			if (this.artifact.origin || !current?.origin) {
+				return;
+			}
+			const state = this.ledger.state.read(reader);
+			const bindingIds = new Set(state.bindings.filter(binding => binding.session === this.session && binding.artifact.id === this.artifact.id).map(binding => binding.id));
+			if (state.runs.some(run => bindingIds.has(run.bindingId) && !isArtifactRunSettled(run))) {
+				return;
+			}
+			this.artifact = { ...this.artifact, origin: current.origin };
+			this.bindings.clearAndDisposeAll();
+			this.bindingsChanged.trigger(undefined);
+			void this.refresh().catch(error => this.logService.error('[ArtifactIntegrations] Could not refresh integrations', error));
+		}));
 		this._register(autorun(reader => {
 			this.bindingsChanged.read(reader);
 			const state = this.ledger.state.read(reader);
@@ -640,6 +658,14 @@ class ArtifactBinding extends Disposable {
 					}
 					state.bindings = state.bindings.map(candidate => candidate.id === this.id
 						? { ...candidate, options: reconciled.options, configuration: reconciled.configuration } : candidate);
+				});
+			}
+			const origin = this.artifact.origin;
+			if (origin && !stored.artifact.origin && stored.artifact.resource === this.artifact.resource) {
+				// A binding stored before its artifact had an origin captures the one it gained; a captured origin never changes.
+				await this.ledger.transact(state => {
+					state.bindings = state.bindings.map(candidate => candidate.id === this.id && !candidate.artifact.origin
+						? { ...candidate, artifact: { ...candidate.artifact, origin } } : candidate);
 				});
 			}
 		}

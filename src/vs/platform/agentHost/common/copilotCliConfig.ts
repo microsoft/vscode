@@ -68,6 +68,8 @@ export const enum CopilotCliConfigKey {
 	Opus48Prompt = 'opus48Prompt',
 	/** Send the system prompt in the runtime's stability-ordered prompt-cache layout. Off by default. */
 	StabilityOrderedPrompt = 'stabilityOrderedPrompt',
+	/** Offer the runtime's client-side `run_program` tool for programmatic tool calling. Off by default. */
+	ProgrammaticToolCalling = 'programmaticToolCalling',
 	/** Run the runtime's purpose-built secret detection model in `/security-review`. Off by default. */
 	SecurityReviewSecretDetection = 'securityReviewSecretDetection',
 	/** Ask GPT and Auto sessions for brief user-visible progress updates before and between tool calls. Off by default. */
@@ -154,6 +156,8 @@ export const CopilotLocalIndexEnabledSettingId = 'github.copilot.chat.localIndex
 export const AgentHostOpus48PromptEnabledSettingId = 'chat.agentHost.opus48Prompt.enabled';
 
 export const CopilotStabilityOrderedPromptEnabledSettingId = 'chat.copilot.stabilityOrderedPrompt.enabled';
+
+export const CopilotProgrammaticToolCallingEnabledSettingId = 'chat.copilot.programmaticToolCalling.enabled';
 
 export const CopilotSecurityReviewSecretDetectionEnabledSettingId = 'chat.copilot.securityReview.secretDetection.enabled';
 
@@ -387,6 +391,12 @@ export const copilotCliConfigSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.stabilityOrderedPrompt.title', "Stability-Ordered System Prompt"),
 		description: localize('agentHost.config.stabilityOrderedPrompt.description', "When enabled, Copilot SDK sessions order the system prompt by how often each section changes, so sessions with the same tools and workspace can reuse each other's prompt cache. This moves per-session sections, such as the environment and session folder, to the end of the system prompt."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.ProgrammaticToolCalling]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.programmaticToolCalling.title', "Programmatic Tool Calling"),
+		description: localize('agentHost.config.programmaticToolCalling.description', "When enabled, Copilot SDK sessions offer a run_program tool that runs a sandboxed JavaScript program to call other tools and return a reduced result, and the system prompt explains when to use it. Tool calls inside a program keep their normal permissions. Replaces model-hosted programmatic tool calling."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.SecurityReviewSecretDetection]: schemaProperty<boolean>({

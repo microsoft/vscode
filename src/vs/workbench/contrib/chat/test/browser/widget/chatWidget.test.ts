@@ -92,10 +92,55 @@ import { IChatSessionsService, ResolvedChatSessionsExtensionPoint, SessionType }
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { createTextModel } from '../../../../../../editor/test/common/testTextModel.js';
 import { MockChatModel } from '../../common/model/mockChatModel.js';
+import '../../../../modernUI/browser/media/sidebarColors.css';
 
 suite('ChatWidget', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('chat surface colors follow scoped side bar theme overrides', () => {
+		const root = dom.append(document.body, dom.$('.monaco-workbench.modern-ui'));
+		root.style.cssText = '--vscode-sideBar-background: #ffffff; --vscode-sideBar-foreground: #000000; --vscode-modernSideBar-background: #000000; --vscode-modernSideBar-foreground: #ffffff; --vscode-panel-background: #123456;';
+		store.add(toDisposable(() => root.remove()));
+
+		const actual = ['sidebar', 'auxiliarybar'].map(part => {
+			const sidebar = dom.append(root, dom.$(`.part.${part}`));
+			const container = dom.append(sidebar, dom.$('.interactive-session'));
+			const message = dom.append(container, dom.$('.interactive-item-container'));
+			message.style.backgroundColor = 'var(--vscode-chat-list-background)';
+			const styles = { listForeground: 'sideBar.foreground', listBackground: 'sideBar.background', overlayBackground: 'sideBar.background', inputEditorBackground: 'sideBar.background', resultEditorBackground: 'editor.background' };
+			const widget = Object.assign(Object.create(ChatWidget.prototype), {
+				container,
+				styles,
+				editorOptions: { configuration: { resultEditor: {} } },
+			}) as ChatWidget;
+			const update = Reflect.get(ChatWidget.prototype, 'onDidStyleChange') as (this: ChatWidget) => void;
+			update.call(widget);
+			const read = () => {
+				const style = dom.getWindow(message).getComputedStyle(message);
+				return [style.backgroundColor, style.color];
+			};
+			const modern = read();
+			root.classList.remove('modern-ui');
+			const legacy = read();
+			root.classList.add('modern-ui');
+			const restored = read();
+			root.style.removeProperty('--vscode-modernSideBar-background');
+			root.style.removeProperty('--vscode-modernSideBar-foreground');
+			const unset = read();
+			root.style.setProperty('--vscode-modernSideBar-background', '#000000');
+			root.style.setProperty('--vscode-modernSideBar-foreground', '#ffffff');
+			widget.setStyles({ ...styles, listBackground: 'panel.background' });
+			return { modern, legacy, restored, unset, changedBackground: read() };
+		});
+		assert.deepStrictEqual(actual, Array.from({ length: 2 }, () => ({
+			modern: ['rgb(0, 0, 0)', 'rgb(255, 255, 255)'],
+			legacy: ['rgb(255, 255, 255)', 'rgb(0, 0, 0)'],
+			restored: ['rgb(0, 0, 0)', 'rgb(255, 255, 255)'],
+			unset: ['rgb(255, 255, 255)', 'rgb(0, 0, 0)'],
+			changedBackground: ['rgb(18, 52, 86)', 'rgb(255, 255, 255)'],
+		})));
+	});
 
 	test('updates the empty-chat welcome title when agents share a greeting', () => {
 		const message = observableValue<string | undefined>('message', 'Hello');
@@ -226,6 +271,8 @@ suite('ChatWidget', () => {
 		requestInProgress.set(true);
 		hasActiveRequest.set(true);
 		const toolbarStates: { requestInProgress: boolean; hasActiveRequest: boolean }[] = [];
+		let listViewModel: ChatViewModel | undefined = viewModel;
+		const listViewModelsOnRefresh: (string | undefined)[] = [];
 		const inputPart = upcastPartial<ChatInputPart>({
 			sandboxToggleChecked: derived(reader => selectedChat.read(reader) === sandboxedChat),
 			currentModeObs: observableValue('mode', upcastPartial<ReturnType<ChatInputPart['currentModeObs']['get']>>({ id: 'agent' })),
@@ -243,7 +290,10 @@ suite('ChatWidget', () => {
 			inputPartDisposable: { value: inputPart },
 			configurationService: new TestConfigurationService(),
 			chatSessionsService: upcastPartial<IChatSessionsService>({ getChatSessionContribution: () => undefined }),
-			listWidget: { updateRendererOptions: (options: IChatListItemRendererOptions) => { rendererOptions.push(options.responseIdentity); } },
+			listWidget: {
+				updateRendererOptions: (options: IChatListItemRendererOptions) => { rendererOptions.push(options.responseIdentity); },
+				setViewModel: (value: ChatViewModel | undefined) => { listViewModel = value; },
+			},
 			rerenderListIfConnected: () => { },
 			container: dom.$('div'),
 			viewModelDisposables: store.add(new DisposableStore()),
@@ -252,14 +302,14 @@ suite('ChatWidget', () => {
 			updateSessionStateIndicator: () => { },
 			clearGettingStartedTip: () => { },
 			updateWorkingProgressBorder: () => { },
-			onDidChangeItems: () => { },
+			onDidChangeItems: () => { listViewModelsOnRefresh.push(listViewModel?.sessionResource.toString()); },
 			_hasPendingRequestsContextKey: { set: () => { } },
 			requestInProgress,
 			hasActiveRequest,
 			_chatSessionSupportsRenameContextKey: { set: () => { } },
 			viewOptions: { isSessionsWindow: true },
 		});
-		return { widget, resource, get placeholder() { return placeholder; }, editorPlaceholders, rendererOptions, modelPools, toolbarStates };
+		return { widget, resource, get placeholder() { return placeholder; }, editorPlaceholders, rendererOptions, modelPools, toolbarStates, listViewModelsOnRefresh };
 	}
 
 	test('restores the sandbox label when switching between chats with the same placeholder', () => {
@@ -278,6 +328,13 @@ suite('ChatWidget', () => {
 		const harness = createRespondentWidget(true);
 		harness.widget.setModel(undefined);
 		assert.deepStrictEqual(harness.toolbarStates, [{ requestInProgress: false, hasActiveRequest: false }]);
+	});
+
+	test('unbinding releases the outgoing view model from the transcript list before it refreshes', () => {
+		// A disposed view model still lists its chat's pending requests, which would otherwise show while the next chat loads.
+		const harness = createRespondentWidget(true);
+		harness.widget.setModel(undefined);
+		assert.deepStrictEqual(harness.listViewModelsOnRefresh, [undefined]);
 	});
 
 	test('presents a chat answered by another agent with that agent, and restores its session type\'s presentation', () => {
@@ -1381,6 +1438,8 @@ suite('ChatWidget', () => {
 			chatSessionsService: { getChatSessionContribution: () => undefined },
 			welcomePart: store.add(new MutableDisposable()),
 			welcomeMessageContainer: container,
+			welcomeContentContainer: dom.$('.chat-welcome-content'),
+			welcomeContentSpacer: dom.$('.chat-welcome-content-spacer'),
 			instantiationService: {
 				createInstance: (_ctor: object, content: IChatViewWelcomeContent) => {
 					contents.push(content);
@@ -3145,14 +3204,16 @@ suite('ChatWidget - acceptInput submission', () => {
 		assert.deepStrictEqual({ requests: fixture.chatService.sendRequest.callCount }, { requests: 1 });
 	});
 
-	for (const changeModel of [true, false]) {
-		test(`inline edits submit their own picker settings without changing the main composer (${changeModel ? 'different model' : 'same model'})`, async () => {
+	for (const scenario of ['latest', 'unchanged', 'fallback', 'older', 'queued', 'rejected', 'composer configuration changed', 'composer model switched back'] as const) {
+		test(`inline edit model selection on resubmit (${scenario})`, async () => {
 			const fixture = createSubmissionWidget();
 			await fixture.configurationService.setUserConfiguration('chat.editRequests', 'inline');
 			const mainModelId = 'agent-host-copilot:gpt-5.6-sol-fast';
-			const editedModelId = changeModel ? 'agent-host-copilot:claude-haiku-5.5' : mainModelId;
+			const editedModelId = 'agent-host-copilot:claude-haiku-5.5';
 			const mainConfiguration = { thinkingLevel: 'medium', contextSize: 272000 };
 			const editedConfiguration = { thinkingLevel: 'high', contextSize: 1000000 };
+			const keepsEditedModel = scenario === 'latest' || scenario === 'older';
+			const expectedComposerConfiguration = scenario === 'composer configuration changed' ? { ...mainConfiguration, thinkingLevel: 'low' } : mainConfiguration;
 			const mainModeInfo: ChatInputPart['currentModeInfo'] = {
 				kind: ChatModeKind.Ask,
 				isBuiltin: true,
@@ -3171,19 +3232,28 @@ suite('ChatWidget - acceptInput submission', () => {
 			const mainMode = constObservable(upcastPartial<IChatMode>({ id: 'ask' }));
 			const editedMode = constObservable(upcastPartial<IChatMode>({ id: 'edited-agent', agents: constObservable(['edited-subagent']) }));
 			const editedTools = { editedTool: true, otherTool: false };
-			const intendedModel: IIntendedModelSelection = { modelId: mainModelId, reason: ModelSelectionReason.UserSelection };
+			let composerModelId = mainModelId;
+			let composerModelSelectionRevision = 0;
+			const intendedModel = (): IIntendedModelSelection => ({ modelId: composerModelId, reason: ModelSelectionReason.UserSelection });
 			Object.defineProperties(fixture.input, {
-				currentLanguageModel: { value: mainModelId },
+				currentLanguageModel: { get: () => composerModelId },
 				currentModeInfo: { value: mainModeInfo },
 				currentModeObs: { value: mainMode },
-				dnd: { value: { setDisabledOverlay: () => { } } },
 			});
 			fixture.input.getModelConfiguration.returns(mainConfiguration);
+			fixture.input.switchModelByIdentifier.callsFake((id, _storeSelection, _userAction, configuration) => {
+				composerModelId = id;
+				fixture.input.getModelConfiguration.withArgs(id).returns(configuration);
+				return true;
+			});
 			fixture.inputPartDisposable.value = upcastPartial<ChatInputPart>({
+				get currentLanguageModel() { return composerModelId; },
+				get modelSelectionRevision() { return composerModelSelectionRevision; },
 				dnd: upcastPartial<ChatInputPart['dnd']>({ setDisabledOverlay: () => { } }),
 				clearToolConfirmationCarousel: fixture.input.clearToolConfirmationCarousel,
 				toggleChatInputOverlay: fixture.input.toggleChatInputOverlay,
 				setEditing: fixture.input.setEditing,
+				switchModelByIdentifier: fixture.input.switchModelByIdentifier,
 				setCurrentLanguageModel: fixture.input.setCurrentLanguageModel,
 				requestModelByIdentifier: fixture.input.requestModelByIdentifier,
 				setChatMode: fixture.input.setChatMode,
@@ -3191,8 +3261,19 @@ suite('ChatWidget - acceptInput submission', () => {
 				focus: fixture.input.focus,
 				dispose: () => { },
 			});
-			Object.defineProperty(fixture.original.model.inputModel, 'intendedModel', { value: intendedModel });
+			Object.defineProperty(fixture.original.model.inputModel, 'intendedModel', { get: intendedModel });
 			Object.defineProperty(fixture.original.model, 'setCheckpoint', { value: () => { } });
+			if (scenario === 'older') {
+				Object.defineProperty(fixture.original.model, 'getRequests', {
+					value: () => [
+						upcastPartial<IChatRequestModel>({ id: 'existing-request' }),
+						upcastPartial<IChatRequestModel>({ id: 'latest-request' }),
+					]
+				});
+			}
+			if (scenario === 'rejected') {
+				fixture.chatService.sendRequest.onFirstCall().resolves({ kind: 'rejected', reason: 'test rejection' });
+			}
 
 			const inlineInput = store.add(new MutableDisposable<ChatInputPart>());
 			inlineInput.value = upcastPartial<ChatInputPart>({
@@ -3200,6 +3281,7 @@ suite('ChatWidget - acceptInput submission', () => {
 				getAttachedContext: fixture.input.getAttachedContext,
 				getAttachedAndImplicitContext: fixture.input.getAttachedAndImplicitContext,
 				currentLanguageModel: editedModelId,
+				hasUserSelectedModel: scenario !== 'fallback',
 				getModelConfiguration: () => editedConfiguration,
 				currentModeKind: ChatModeKind.Agent,
 				currentModeInfo: editedModeInfo,
@@ -3210,7 +3292,11 @@ suite('ChatWidget - acceptInput submission', () => {
 				getPromptText: () => 'Edited request',
 				dispose: () => { },
 			});
-			let editing: IChatRequestViewModel | undefined = upcastPartial<IChatRequestViewModel>({ id: 'existing-request' });
+			let editing: IChatRequestViewModel | undefined = upcastPartial<IChatRequestViewModel>({
+				id: scenario === 'queued' ? 'queued-request' : 'existing-request',
+				modelId: scenario === 'unchanged' ? editedModelId : mainModelId,
+				pendingKind: scenario === 'queued' ? ChatRequestQueueKind.Queued : undefined,
+			});
 			Object.defineProperties(fixture.original.viewModel, {
 				editing: { get: () => editing },
 				setEditing: { value: (request: IChatRequestViewModel | undefined) => { editing = request; } },
@@ -3231,7 +3317,29 @@ suite('ChatWidget - acceptInput submission', () => {
 				_requestToolsSources: { value: new WeakMap() },
 			});
 
-			await fixture.widget.acceptInput();
+			if (scenario === 'composer configuration changed' || scenario === 'composer model switched back') {
+				const sendStarted = new DeferredPromise<void>();
+				const sendResult = new DeferredPromise<ChatSendResult>();
+				fixture.chatService.sendRequest.onFirstCall().callsFake(() => {
+					void sendStarted.complete();
+					return sendResult.p;
+				});
+				const resubmitting = fixture.widget.acceptInput();
+				await sendStarted.p;
+				if (scenario === 'composer configuration changed') {
+					fixture.input.getModelConfiguration.withArgs(mainModelId).returns(expectedComposerConfiguration);
+					composerModelSelectionRevision++;
+				} else {
+					for (const modelId of [editedModelId, mainModelId]) {
+						composerModelId = modelId;
+						composerModelSelectionRevision++;
+					}
+				}
+				await sendResult.complete(fixture.sent);
+				await resubmitting;
+			} else {
+				await fixture.widget.acceptInput();
+			}
 			await fixture.widget.acceptInput('Follow up', { preserveInput: true });
 
 			const requests = fixture.chatService.sendRequest.getCalls().map(call => {
@@ -3251,7 +3359,8 @@ suite('ChatWidget - acceptInput submission', () => {
 				mainSelection: fixture.widget.getSelectedModelRequestOptions(),
 				mainMode: fixture.widget.input.currentModeInfo,
 				intendedModel: fixture.original.model.inputModel.intendedModel,
-				mainPickerWrites: [
+				modelSwitches: fixture.input.switchModelByIdentifier.getCalls().map(call => call.args),
+				otherPickerWrites: [
 					fixture.input.setCurrentLanguageModel.callCount,
 					fixture.input.requestModelByIdentifier.callCount,
 					fixture.input.setChatMode.callCount,
@@ -3268,17 +3377,21 @@ suite('ChatWidget - acceptInput submission', () => {
 					instructions: { modeKind: ChatModeKind.Agent, enabledTools: editedTools, enabledSubAgents: ['edited-subagent'] },
 				}, {
 					input: 'Follow up',
-					model: mainModelId,
-					configuration: mainConfiguration,
+					model: keepsEditedModel ? editedModelId : mainModelId,
+					configuration: keepsEditedModel ? editedConfiguration : expectedComposerConfiguration,
 					mode: ChatModeKind.Ask,
 					modeInfo: mainModeInfo,
 					tools: {},
 					instructions: { modeKind: ChatModeKind.Ask, enabledTools: undefined, enabledSubAgents: undefined },
 				}],
-				mainSelection: { userSelectedModelId: mainModelId, userSelectedModelConfiguration: mainConfiguration },
+				mainSelection: {
+					userSelectedModelId: keepsEditedModel ? editedModelId : mainModelId,
+					userSelectedModelConfiguration: keepsEditedModel ? editedConfiguration : expectedComposerConfiguration,
+				},
 				mainMode: mainModeInfo,
-				intendedModel,
-				mainPickerWrites: [0, 0, 0, 0],
+				intendedModel: { modelId: keepsEditedModel ? editedModelId : mainModelId, reason: ModelSelectionReason.UserSelection },
+				modelSwitches: keepsEditedModel ? [[editedModelId, false, true, editedConfiguration]] : [],
+				otherPickerWrites: [0, 0, 0, 0],
 			});
 		});
 	}

@@ -16,6 +16,7 @@ import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IAgentHostConnectionsService, IAgentHostSessionIdentity } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { Context } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -79,7 +80,17 @@ suite('Chat editor Copy Link', () => {
 			connectionAuthority: 'server', backendSession: URI.parse('ahp-session://provider/session?tenant=one'),
 		}]);
 		await new CopyChatSessionLinkAction().run(services.instantiationService, { groupId: 1, editorIndex: 0 });
-		assert.deepStrictEqual(services.written, ['agent-host-session://ahp-session/session?connectionAuthority=server&session=ahp-session%3A%2F%2Fprovider%2Fsession%3Ftenant%253Done&chat=peer%20chat']);
+		assert.deepStrictEqual({
+			written: services.written,
+			backend: parseOpenSessionLinkUri(services.written[0])?.toString(),
+			authority: parseOpenSessionLinkConnectionAuthority(services.written[0]),
+			chat: parseOpenSessionLinkChatId(services.written[0]),
+		}, {
+			written: ['agent-host-session://ahp-session/session?connectionAuthority=server&session=ahp-session%3A%2F%2Fprovider%2Fsession%3Ftenant%25253Done&chat=peer%20chat'],
+			backend: URI.parse('ahp-session://provider/session?tenant=one').toString(),
+			authority: 'server',
+			chat: 'peer chat',
+		});
 	});
 
 	test('waits for the provisional backend instead of copying the untitled UI identity', async () => {

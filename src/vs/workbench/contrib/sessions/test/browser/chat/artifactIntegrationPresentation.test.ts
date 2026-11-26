@@ -507,8 +507,8 @@ suite('Artifact Integration Presentation', () => {
 			stateActions: [{ id: 'deploy', label: 'Deploy', primary: true, enabled: true, run: () => { commands.push('deploy'); } }],
 			generalActions: [{ id: 'copy', label: 'Copy Link', run: () => { commands.push('copy'); } }],
 			autopilot: [{
-				id: 'delivery', title: 'Autopilot', expanded: true, checked: false, disabled: false, summary: '0 of 1 on', toggleLabel: 'All Available Autopilot Rules', description: 'Deploy automatically when healthy.',
-				rules: [{ id: 'autoDeploy', label: 'Deploy When Healthy', description: 'Wait for healthy checks.', checked: false, disabled: false, pending: false, setEnabled: async value => { commands.push(`rule:${value}`); } }],
+				id: 'delivery', title: 'Autopilot', expanded: true, checked: false, disabled: false, summary: '0 of 1 on', toggleLabel: 'Toggle All Autopilot Rules', description: 'Deploy automatically when healthy.',
+				rules: [{ id: 'autoDeploy', label: 'Deploy When Healthy', description: 'Wait for healthy checks.', checked: false, disabled: false, setEnabled: async value => { commands.push(`rule:${value}`); } }],
 				setExpanded: expanded => { commands.push(`expand:${expanded}`); }, setEnabled: async value => { commands.push(`group:${value}`); },
 			}],
 			activities: { expanded: false, loading: false, items: [], summary: '0 loaded', message: '', setExpanded: () => { } }, sections: [], accessibleText: 'Deployment\nHealth\nDeploy\nAutopilot',
@@ -1465,7 +1465,7 @@ suite('Artifact Integration Presentation', () => {
 	test('a group dropdown keeps the member details it replaces, so its active section closes them and another section switches them', async () => {
 		const f = fixture();
 		const members = [f.artifact('first'), f.artifact('second')];
-		const group = store.add(f.instantiation.createInstance(ArtifactIntegrationGroup, 'group', constObservable(members.map(a => ({ presentation: a.presentation, entry: a.base }))), f.controller));
+		const group = store.add(f.instantiation.createInstance(ArtifactIntegrationGroup, constObservable(members.map(a => ({ presentation: a.presentation, entry: a.base }))), f.controller));
 		const item = group.pill.createActionViewItem!({});
 		assert.ok(item instanceof BaseActionViewItem);
 		store.add(item);
@@ -1523,18 +1523,8 @@ suite('Artifact Integration Presentation', () => {
 		const quickInput = store.add(f.instantiation.createInstance(QuickInputService));
 		f.instantiation.stub(IQuickInputService, quickInput);
 		const a = f.artifact();
-		updateContribution(a, contribution => ({
-			...contribution,
-			options: [{
-				id: 'merge', kind: 'enum', label: 'Merge Automatically', description: 'Choose an automatic merge policy.',
-				actionIds: ['merge'], maxAttempts: 1, defaultValue: 'off', disabledValue: 'off',
-				choices: [{ value: 'off', label: 'Off' }, { value: 'ready', label: 'When Ready' }],
-			}],
-			configuration: { ...contribution.configuration, values: { merge: 'off' } },
-		}));
 		const panel = await open(f, a);
-		button(panel, 'Autopilot').click();
-		button(panel, 'When Ready').click();
+		const picked = quickInput.pick([{ label: 'When Ready' }]);
 		await timeout(0);
 		const quickWidget = f.host.querySelector<HTMLElement>('.quick-input-widget')!;
 		const context = f.contextView.getContextViewElement();
@@ -1553,6 +1543,7 @@ suite('Artifact Integration Presentation', () => {
 			configured: a.configured,
 		}, { quickPickVisible: true, quickPickAbove: true, samePanel: true, overlaps: true, pickerReceivesPointer: true, configured: [] });
 		await quickInput.cancel();
+		await picked;
 		await timeout(0);
 	});
 
@@ -2353,12 +2344,27 @@ suite('Artifact Integration Presentation', () => {
 			return a.container.querySelector<HTMLElement>('.artifact-pill-sections [aria-label^="Show Autopilot:"]');
 		}
 
+		function choices(panel: HTMLElement): HTMLElement[] {
+			return [...panel.querySelectorAll<HTMLElement>('.artifact-autopilot-choices [role="radio"]')];
+		}
+
+		function choice(panel: HTMLElement, label: string): HTMLElement {
+			const result = choices(panel).find(choice => choice.textContent === label);
+			assert.ok(result, `Missing choice: ${label}`);
+			return result;
+		}
+
+		/** The selected choice of each enum rule, in order. */
+		function selectedChoices(panel: HTMLElement): (string | null)[] {
+			return [...panel.querySelectorAll('.artifact-autopilot-choices')].map(group => group.querySelector('[aria-checked="true"]')?.textContent ?? null);
+		}
+
 		function useEnumAutomation(a: Artifact, value = 'off'): void {
 			updateContribution(a, contribution => ({
 				...contribution, options: [{
 					id: 'merge', kind: 'enum', label: 'Merge Automatically When Ready', description: 'Choose a merge policy.',
 					actionIds: ['merge'], maxAttempts: 1, defaultValue: 'off', disabledValue: 'off',
-					choices: [{ value: 'off', label: 'Off' }, { value: 'always', label: 'Always' }, { value: 'ifUnchanged', label: 'When No Changes Were Made' }],
+					choices: [{ value: 'off', label: 'Off' }, { value: 'ifUnchanged', label: 'When Not Changed', description: 'Merges only while unchanged.' }, { value: 'always', label: 'Always' }],
 				}],
 				configuration: { ...contribution.configuration, values: { merge: value } },
 			}));
@@ -2373,7 +2379,7 @@ suite('Artifact Integration Presentation', () => {
 				options: [...contribution.options.filter(option => option.id !== 'merge'), {
 					id: 'merge', kind: 'enum', label: 'Merge Policy', description: 'Choose when merging is allowed.',
 					actionIds: ['merge'], maxAttempts: 1, defaultValue: 'never', disabledValue: 'never',
-					choices: [{ value: 'never', label: 'Off' }, { value: 'always', label: 'Always' }, { value: 'ifUnchanged', label: 'When No Changes Were Made' }],
+					choices: [{ value: 'never', label: 'Off' }, { value: 'ifUnchanged', label: 'When Not Changed' }, { value: 'always', label: 'Always' }],
 				}, {
 					id: 'shared', kind: 'boolean', label: 'Repair Both', description: 'Repair checks and reviews.',
 					actionIds: ['fix', 'reviews'], maxAttempts: 1, defaultValue: false,
@@ -2433,7 +2439,7 @@ suite('Artifact Integration Presentation', () => {
 				labels, lastSection, focused, expanded, focusedAgain, samePanel, views: f.contextShows(),
 				badgeRemoved: !automationBadge(a), restoredToMain: getActiveElement() === a.main,
 			}, {
-				labels: { badge: 'Show Autopilot: 1 enabled', master: 'All Available Autopilot Rules', help: true },
+				labels: { badge: 'Show Autopilot: 1 enabled', master: 'Toggle All Autopilot Rules', help: true },
 				lastSection: true, focused: true, expanded: 'true', focusedAgain: true, samePanel: true, views: 1, badgeRemoved: true, restoredToMain: true,
 			});
 		});
@@ -2648,29 +2654,72 @@ suite('Artifact Integration Presentation', () => {
 			});
 		});
 
-		test('the whole heading except the master switch toggles expansion and shows hover feedback', async () => {
+		test('the whole heading except the Toggle All switch and its label toggles expansion and shows hover feedback', async () => {
 			const f = fixture();
 			const a = f.artifact();
 			const panel = await open(f, a);
 			const group = panel.querySelector<HTMLElement>('.artifact-autopilot-group')!;
 			const heading = group.querySelector<HTMLElement>('.artifact-card-heading')!;
 			const master = heading.querySelector<HTMLButtonElement>('[role="switch"]')!;
-			const expanded = () => group.querySelector('.artifact-card-disclosure')!.getAttribute('aria-expanded');
-			const states: { expanded: string | null; controlHovered?: boolean }[] = [];
+			const toggleAll = master.parentElement!;
+			const label = toggleAll.querySelector('label')!;
+			const state = () => ({
+				expanded: group.querySelector('.artifact-card-disclosure')!.getAttribute('aria-expanded'), checked: master.getAttribute('aria-checked'),
+				controlHovered: heading.classList.contains('artifact-card-heading-control-hovered'),
+			});
 			heading.querySelector<HTMLElement>('.artifact-autopilot-summary')!.click();
 			await settle(f);
-			states.push({ expanded: expanded() });
+			const states = [state()];
+			toggleAll.dispatchEvent(new MouseEvent('mouseenter'));
 			master.click();
 			await settle(f);
-			master.dispatchEvent(new MouseEvent('mouseenter'));
-			states.push({ expanded: expanded(), controlHovered: heading.classList.contains('artifact-card-heading-control-hovered') });
-			master.dispatchEvent(new MouseEvent('mouseleave'));
+			states.push(state());
+			// Activating a label focuses its control as a pointer would, which hides the keyboard focus ring from
+			// every later test in the page. A switch that already has focus does not get focused again.
+			master.focus();
+			label.click();
+			await settle(f);
+			states.push(state());
+			toggleAll.dispatchEvent(new MouseEvent('mouseleave'));
 			heading.click();
 			await settle(f);
-			states.push({ expanded: expanded(), controlHovered: heading.classList.contains('artifact-card-heading-control-hovered') });
-			assert.deepStrictEqual({ states, configured: a.configured.length, focused: getActiveElement() === group.querySelector('.artifact-card-disclosure') }, {
-				states: [{ expanded: 'true' }, { expanded: 'true', controlHovered: true }, { expanded: 'false', controlHovered: false }],
-				configured: 1, focused: true,
+			states.push(state());
+			assert.deepStrictEqual({
+				label: label.textContent, states,
+				configured: a.configured.length, focused: getActiveElement() === group.querySelector('.artifact-card-disclosure'),
+			}, {
+				label: 'Toggle All',
+				states: [
+					{ expanded: 'true', checked: 'false', controlHovered: false },
+					{ expanded: 'true', checked: 'true', controlHovered: true },
+					{ expanded: 'true', checked: 'false', controlHovered: true },
+					{ expanded: 'false', checked: 'false', controlHovered: false },
+				],
+				configured: 2, focused: true,
+			});
+		});
+
+		test('a card disclosure shows its focus ring for keyboard focus but not for pointer focus', async function () {
+			// Hidden Electron windows do not match focus pseudo-classes; run this check in a browser.
+			if (!mainWindow.document.hasFocus()) {
+				this.skip();
+			}
+			const f = fixture();
+			const panel = await open(f, f.artifact());
+			const disclosure = button(panel, 'Autopilot');
+			const ring = () => ({ focusVisible: disclosure.matches(':focus-visible'), outline: mainWindow.getComputedStyle(disclosure).outlineStyle });
+			// Avoid inheriting focus-visible from the element that opening the details focused.
+			const active = getActiveElement();
+			if (isHTMLElement(active)) {
+				active.blur();
+			}
+			disclosure.focus({ focusVisible: false });
+			const pointer = ring();
+			disclosure.blur();
+			disclosure.focus({ focusVisible: true });
+			assert.deepStrictEqual({ pointer, keyboard: ring() }, {
+				pointer: { focusVisible: false, outline: 'none' },
+				keyboard: { focusVisible: true, outline: 'solid' },
 			});
 		});
 
@@ -2700,244 +2749,242 @@ suite('Artifact Integration Presentation', () => {
 			});
 		});
 
-		test('tabbed enum choices can be prepared while off and enabled without another picker', async () => {
+		test('enum rules show every choice before their label, as tall as a switch row, and save the selected one', async () => {
 			const f = fixture();
-			const quickInput = store.add(f.instantiation.createInstance(QuickInputService));
-			f.instantiation.stub(IQuickInputService, quickInput);
 			const a = f.artifact();
 			useEnumAutomation(a);
-			let panel = await open(f, a);
+			const panel = await open(f, a);
 			button(panel, 'Autopilot').click();
-			const initialPicker = button(panel, 'Always');
-			const initial = { visible: !initialPicker.hidden, grant: a.snapshot.get().contributions[0].configuration.values.merge, badge: automationBadge(a)?.textContent ?? null };
-			initialPicker.click();
-			await settle(f);
-			await quickInput.cancel();
-			await settle(f);
-			const cancelled = { value: initialPicker.textContent, writes: a.configured.length };
-			initialPicker.click();
-			await settle(f);
-			const choice = f.host.querySelectorAll<HTMLElement>('.quick-input-widget .monaco-list-row')[1];
-			choice.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
-			choice.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1, button: 0 }));
-			await settle(f);
-			const accessible = f.controller.getAccessibilityProvider(AccessibleViewType.View);
-			const prepared = {
-				value: button(panel, 'When No Changes Were Made').textContent, grant: a.snapshot.get().contributions[0].configuration.values.merge,
-				writes: a.configured.length, badge: automationBadge(a)?.textContent ?? null,
-				accessible: accessible?.provideContent().includes('Off; selected policy: When No Changes Were Made'),
+			const rule = panel.querySelector<HTMLElement>('.artifact-autopilot-rule')!;
+			const label = rule.querySelector<HTMLElement>('.artifact-autopilot-rule-label')!;
+			const radio = rule.querySelector<HTMLElement>('[role="radiogroup"]')!;
+			const initial = {
+				choices: choices(panel).map(choice => choice.textContent), selected: selectedChoices(panel),
+				labelledBy: radio.getAttribute('aria-labelledby') === label.id ? label.textContent : null,
+				choicesFirst: radio.parentElement?.firstElementChild === radio && radio.nextElementSibling === label,
+				labelAfterChoices: label.getBoundingClientRect().left > radio.getBoundingClientRect().right, noSwitch: !rule.querySelector('[role="switch"]'),
+				height: Math.round(radio.getBoundingClientRect().height), badge: automationBadge(a)?.textContent ?? null,
 			};
-			accessible?.dispose();
-			escape(panel);
-			panel = await open(f, a);
-			const picker = button(panel, 'When No Changes Were Made');
-			const toggle = panel.querySelector<HTMLButtonElement>('.artifact-autopilot-rule [role="switch"]')!;
-			toggle.click();
-			await settle(f);
-			const enabled = {
-				checked: toggle.getAttribute('aria-checked'), choice: picker.hidden,
-				dropdown: picker.getAttribute('aria-haspopup'), chevron: !!picker.querySelector('.codicon-chevron-down'),
-				afterToggle: picker.getBoundingClientRect().left > toggle.getBoundingClientRect().right, noPicker: !quickInput.currentQuickInput,
-			};
-			picker.click();
-			await settle(f);
-			const choices = [...f.host.querySelectorAll('.quick-input-widget .monaco-list-row')].map(row => row.textContent);
-			const selectedPolicy = f.host.querySelector('.quick-input-widget .monaco-list-row.focused')?.textContent;
-			const firstChoice = f.host.querySelector<HTMLElement>('.quick-input-widget .monaco-list-row')!;
-			firstChoice.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
-			firstChoice.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1, button: 0 }));
-			await settle(f);
-			toggle.click();
-			await settle(f);
-			const disabled = { state: toggle.getAttribute('aria-checked'), value: picker.textContent, visible: !picker.hidden, noPicker: !quickInput.currentQuickInput };
-			toggle.click();
-			await settle(f);
-			assert.deepStrictEqual({
-				initial, cancelled, prepared, enabled, choices, selectedPolicy, disabled,
-				reenabled: toggle.getAttribute('aria-checked'), noPicker: !quickInput.currentQuickInput,
-				samePanel: f.host.querySelector('.artifact-integration-panel') === panel, configured: a.configured, actions: a.invoked,
-			}, {
-				initial: { visible: true, grant: 'off', badge: null }, cancelled: { value: 'Always', writes: 0 },
-				prepared: { value: 'When No Changes Were Made', grant: 'off', writes: 0, badge: null, accessible: true },
-				enabled: { checked: 'true', choice: false, dropdown: 'listbox', chevron: true, afterToggle: true, noPicker: true },
-				choices: ['Always', 'When No Changes Were Made'], selectedPolicy: 'When No Changes Were Made',
-				disabled: { state: 'false', value: 'Always', visible: true, noPicker: true }, reenabled: 'true', noPicker: true, samePanel: true,
+			const selections = [];
+			for (const label of ['Always', 'When Not Changed', 'Off']) {
+				choice(panel, label).click();
+				await settle(f);
+				const accessible = f.controller.getAccessibilityProvider(AccessibleViewType.View);
+				const content = accessible?.provideContent() ?? '';
+				const hover = f.hovers.get(rule.querySelector<HTMLElement>('.artifact-autopilot-rule-label')!);
+				const hoverContent = typeof hover === 'function' ? hover().content : hover?.content;
+				selections.push({
+					selected: selectedChoices(panel), badge: automationBadge(a)?.textContent ?? null,
+					accessible: content.includes(`Merge Automatically When Ready: ${label}.`),
+					// The mode's explanation, on the label's hover and in the Accessible View.
+					mode: [content, String(hoverContent)].map(text => /Mode: [^.]+\.(?: Merges only while unchanged\.)?/.exec(text)?.[0] ?? null),
+				});
+				accessible?.dispose();
+			}
+			assert.deepStrictEqual({ initial, selections, configured: a.configured, actions: a.invoked, samePanel: f.host.querySelector('.artifact-integration-panel') === panel }, {
+				initial: {
+					choices: ['Off', 'When Not Changed', 'Always'], selected: ['Off'], labelledBy: 'Merge Automatically When Ready',
+					choicesFirst: true, labelAfterChoices: true, noSwitch: true, height: 24, badge: null,
+				},
+				selections: [
+					{ selected: ['Always'], badge: '1', accessible: true, mode: ['Mode: Always.', 'Mode: Always.'] },
+					{ selected: ['When Not Changed'], badge: '1', accessible: true, mode: ['Mode: When Not Changed. Merges only while unchanged.', 'Mode: When Not Changed. Merges only while unchanged.'] },
+					{ selected: ['Off'], badge: null, accessible: true, mode: [null, null] },
+				],
 				configured: [
-					{ integrationId: 'test', revision: 4, values: { merge: 'ifUnchanged' } },
-					{ integrationId: 'test', revision: 5, values: { merge: 'always' } },
+					{ integrationId: 'test', revision: 4, values: { merge: 'always' } },
+					{ integrationId: 'test', revision: 5, values: { merge: 'ifUnchanged' } },
 					{ integrationId: 'test', revision: 6, values: { merge: 'off' } },
-					{ integrationId: 'test', revision: 7, values: { merge: 'always' } },
-				], actions: [],
+				],
+				actions: [], samePanel: true,
 			});
 		});
 
-		test('tabbed bulk enablement uses the displayed enum choices without a policy picker', async () => {
+		test('enum choices move focus with the arrow keys, keep it across refreshes, and save only on Enter or Space', async () => {
 			const f = fixture();
-			let picks = 0;
-			f.instantiation.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
-				override readonly pick: IQuickInputService['pick'] = async () => { picks++; return undefined; };
-			}());
-			const configured = [];
-			for (const [id, value, label] of [['default', 'always', 'Always'], ['prepared', 'ifUnchanged', 'When No Changes Were Made']]) {
+			const a = f.artifact();
+			useEnumAutomation(a);
+			const panel = await open(f, a);
+			button(panel, 'Autopilot').click();
+			const press = (key: string, keyCode: number) => getActiveElement()!.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, bubbles: true }));
+			const tabStops = () => choices(panel).filter(choice => choice.tabIndex === 0).map(choice => choice.textContent);
+			const initialTabStops = tabStops();
+			choice(panel, 'Off').focus();
+			press('ArrowRight', 39);
+			press('ArrowRight', 39);
+			updateContribution(a, contribution => ({ ...contribution, view: { ...contribution.view } }));
+			await settle(f);
+			const moved = { focused: getActiveElement()?.textContent, selected: selectedChoices(panel), writes: a.configured.length };
+			press('ArrowLeft', 37);
+			press('Enter', 13);
+			await settle(f);
+			assert.deepStrictEqual({ initialTabStops, moved, focused: getActiveElement()?.textContent, selected: selectedChoices(panel), tabStops: tabStops(), configured: a.configured }, {
+				initialTabStops: ['Off'], moved: { focused: 'Always', selected: ['Off'], writes: 0 },
+				focused: 'When Not Changed', selected: ['When Not Changed'], tabStops: ['When Not Changed'],
+				configured: [{ integrationId: 'test', revision: 4, values: { merge: 'ifUnchanged' } }],
+			});
+		});
+
+		test('an update that selects another enum choice keeps the tab stop on the focused one, so Tab still wraps', async () => {
+			const f = fixture();
+			const a = f.artifact();
+			useEnumAutomation(a);
+			const panel = await open(f, a);
+			button(panel, 'Autopilot').click();
+			const press = (key: string, keyCode: number) => getActiveElement()!.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, bubbles: true }));
+			choice(panel, 'Off').focus();
+			press('ArrowRight', 39);
+			press('ArrowRight', 39);
+			// Selected by another client while focus is on Always.
+			updateContribution(a, contribution => ({ ...contribution, configuration: { ...contribution.configuration, revision: 5, values: { merge: 'ifUnchanged' } } }));
+			await settle(f);
+			const updated = {
+				focused: getActiveElement()?.textContent, selected: selectedChoices(panel),
+				tabStops: choices(panel).filter(choice => choice.tabIndex === 0).map(choice => choice.textContent),
+			};
+			press('Tab', 9);
+			assert.deepStrictEqual({ updated, wrapped: getActiveElement() === panel.querySelector('.artifact-details-title-link'), writes: a.configured }, {
+				updated: { focused: 'Always', selected: ['When Not Changed'], tabStops: ['Always'] }, wrapped: true, writes: [],
+			});
+		});
+
+		test('enum choices wrap onto more rows in a narrow panel instead of being clipped', async () => {
+			const f = fixture();
+			const a = f.artifact();
+			useEnumAutomation(a);
+			const panel = await open(f, a);
+			button(panel, 'Autopilot').click();
+			const radio = panel.querySelector<HTMLElement>('.artifact-autopilot-choices')!;
+			const content = radio.closest<HTMLElement>('.artifact-card-content')!;
+			const layout = () => {
+				const bounds = content.getBoundingClientRect();
+				const options = choices(panel).map(choice => choice.getBoundingClientRect());
+				return {
+					wrapped: new Set(options.map(option => Math.round(option.top))).size > 1,
+					inside: options.every(option => option.left >= bounds.left && option.right <= bounds.right),
+					reachable: choices(panel).every(choice => {
+						const option = choice.getBoundingClientRect();
+						return choice.contains(mainWindow.document.elementFromPoint(option.left + option.width / 2, option.top + option.height / 2));
+					}),
+				};
+			};
+			const wide = layout();
+			panel.style.width = '200px';
+			const narrow = layout();
+			assert.deepStrictEqual({ wide, narrow }, {
+				wide: { wrapped: false, inside: true, reachable: true },
+				narrow: { wrapped: true, inside: true, reachable: true },
+			});
+		});
+
+		test('turning on all rules uses the last choice of an enum rule, else its first one that turns it on', async () => {
+			const f = fixture();
+			const results = [];
+			for (const [id, last] of [['first', undefined], ['last', 'always']] as const) {
 				const a = f.artifact(id);
 				useEnumAutomation(a);
-				if (id === 'prepared') {
-					a.presentation.viewState.preparedPolicies.set(JSON.stringify(['test', 'merge']), value);
+				if (last) {
+					a.presentation.viewState.lastChoices.set(JSON.stringify(['test', 'merge']), last);
 				}
 				const panel = await open(f, a);
-				const picker = button(panel, label);
-				panel.querySelector<HTMLElement>('.artifact-card-heading [role="switch"]')!.click();
+				const master = panel.querySelector<HTMLElement>('.artifact-card-heading [role="switch"]')!;
+				master.click();
 				await settle(f);
-				configured.push({ value: picker.textContent, writes: a.configured, checked: panel.querySelector('.artifact-card-heading [role="switch"]')?.getAttribute('aria-checked') });
+				results.push({ selected: selectedChoices(panel), writes: a.configured, checked: master.getAttribute('aria-checked') });
 			}
-			assert.deepStrictEqual({ picks, configured }, {
-				picks: 0,
-				configured: [
-					{ value: 'Always', writes: [{ integrationId: 'test', revision: 4, values: { merge: 'always' } }], checked: 'true' },
-					{ value: 'When No Changes Were Made', writes: [{ integrationId: 'test', revision: 4, values: { merge: 'ifUnchanged' } }], checked: 'true' },
-				],
-			});
+			assert.deepStrictEqual(results, [
+				{ selected: ['When Not Changed'], writes: [{ integrationId: 'test', revision: 4, values: { merge: 'ifUnchanged' } }], checked: 'true' },
+				{ selected: ['Always'], writes: [{ integrationId: 'test', revision: 4, values: { merge: 'always' } }], checked: 'true' },
+			]);
 		});
 
-		test('prepared enum choices are provider-qualified and follow authoritative enabled values', async () => {
+		test('enum choices follow authoritative values and remember the last enabled one per provider', async () => {
 			const f = fixture();
 			const a = f.artifact();
 			useEnumAutomation(a);
 			const first = a.snapshot.get().contributions[0];
 			a.snapshot.set({ ...a.snapshot.get(), contributions: [first, { ...first, integrationId: 'other', label: 'Other Provider' }] }, undefined);
-			a.presentation.viewState.preparedPolicies.set(JSON.stringify(['test', 'merge']), 'ifUnchanged');
 			const panel = await open(f, a);
-			const values = () => [...panel.querySelectorAll('.artifact-autopilot-policy')].map(picker => picker.textContent);
-			const prepared = values();
-			a.snapshot.set({
+			const initial = selectedChoices(panel);
+			const setMerge = (merge: string) => a.snapshot.set({
 				...a.snapshot.get(), contributions: a.snapshot.get().contributions.map(contribution => contribution.integrationId === 'test'
-					? { ...contribution, configuration: { ...contribution.configuration, values: { merge: 'always' } } } : contribution),
+					? { ...contribution, configuration: { ...contribution.configuration, values: { merge } } } : contribution),
 			}, undefined);
+			setMerge('always');
 			await settle(f);
-			const enabled = values();
-			updateContribution(a, contribution => ({ ...contribution, configuration: { ...contribution.configuration, values: { merge: 'off' } } }));
+			const enabled = selectedChoices(panel);
+			setMerge('off');
 			await settle(f);
-			assert.deepStrictEqual({ prepared, enabled, disabled: values(), writes: a.configured }, {
-				prepared: ['When No Changes Were Made', 'Always'], enabled: ['Always', 'Always'], disabled: ['Always', 'Always'], writes: [],
+			assert.deepStrictEqual({ initial, enabled, disabled: selectedChoices(panel), lastChoices: [...a.presentation.viewState.lastChoices], writes: a.configured }, {
+				initial: ['Off', 'Off'], enabled: ['Always', 'Off'], disabled: ['Off', 'Off'], lastChoices: [[JSON.stringify(['test', 'merge']), 'always']], writes: [],
 			});
 		});
 
-		test('an off-state policy picker cannot overwrite consent enabled by another update', async () => {
+		test('another choice for an enabled rule cannot re-enable it after another update turns it off', async () => {
 			const f = fixture();
-			const quickInput = store.add(f.instantiation.createInstance(QuickInputService));
-			f.instantiation.stub(IQuickInputService, quickInput);
-			const a = f.artifact();
-			useEnumAutomation(a);
-			const panel = await open(f, a);
-			button(panel, 'Autopilot').click();
-			button(panel, 'Always').click();
-			await settle(f);
-			updateContribution(a, contribution => ({ ...contribution, configuration: { ...contribution.configuration, revision: 5, values: { merge: 'always' } } }));
-			const choice = f.host.querySelectorAll<HTMLElement>('.quick-input-widget .monaco-list-row')[1];
-			choice.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
-			choice.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1, button: 0 }));
-			await settle(f);
-			assert.deepStrictEqual({
-				value: button(panel, 'Always').textContent, grant: a.snapshot.get().contributions[0].configuration.values.merge,
-				writes: a.configured, errors: f.errors, pickerClosed: !quickInput.currentQuickInput,
-			}, {
-				value: 'Always', grant: 'always', writes: [],
-				errors: ['The artifact operation failed: This Autopilot rule changed while selecting a policy. Choose the policy again.'],
-				pickerClosed: true,
-			});
-		});
-
-		test('a policy picked for an enabled rule cannot re-enable it after another update turns it off', async () => {
-			const f = fixture();
-			const quickInput = store.add(f.instantiation.createInstance(QuickInputService));
-			f.instantiation.stub(IQuickInputService, quickInput);
 			const a = f.artifact();
 			useEnumAutomation(a, 'always');
 			updateContribution(a, contribution => ({
 				...contribution,
 				options: [{ id: 'fix', kind: 'boolean', label: 'Auto Fix CI', description: 'Repair failed checks.', actionIds: ['fix'], maxAttempts: 3, defaultValue: false }, ...contribution.options],
-				configuration: { ...contribution.configuration, revision: 5, values: { fix: false, merge: 'always' } },
+				configuration: { ...contribution.configuration, revision: 7, values: { fix: false, merge: 'always' } },
 			}));
 			const panel = await open(f, a);
 			button(panel, 'Autopilot').click();
-			const choose = async (label: string) => {
-				button(panel, label).click();
-				await settle(f);
-				return () => {
-					const choice = f.host.querySelectorAll<HTMLElement>('.quick-input-widget .monaco-list-row')[1];
-					choice.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
-					choice.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1, button: 0 }));
-				};
-			};
-			const turnOffMerge = (revision: number) => updateContribution(a, contribution => ({
-				...contribution, configuration: { ...contribution.configuration, revision, values: { ...contribution.configuration.values, merge: 'off' } },
-			}));
-
-			// Turned off while the picker is open.
-			const pickWhileOpen = await choose('Always');
-			turnOffMerge(6);
-			pickWhileOpen();
-			await settle(f);
-			const whilePicking = { writes: a.configured.length, merge: a.snapshot.get().contributions[0].configuration.values.merge };
-
-			// Turned off after the pick, while its write waits for an earlier write.
-			updateContribution(a, contribution => ({ ...contribution, configuration: { ...contribution.configuration, revision: 7, values: { ...contribution.configuration.values, merge: 'always' } } }));
-			await settle(f);
+			// The new choice waits for an earlier write, and is turned off meanwhile.
 			const earlierWrite = new DeferredPromise<void>();
 			a.setConfigureResult(earlierWrite.p);
-			panel.querySelectorAll<HTMLElement>('.artifact-autopilot-rule [role="switch"]')[0].click();
+			panel.querySelector<HTMLElement>('.artifact-autopilot-rule [role="switch"]')!.click();
 			await settle(f);
-			const pickBeforeWrite = await choose('Always');
-			pickBeforeWrite();
+			choice(panel, 'When Not Changed').click();
 			await settle(f);
-			turnOffMerge(8);
+			const shown = selectedChoices(panel);
+			updateContribution(a, contribution => ({ ...contribution, configuration: { ...contribution.configuration, revision: 8, values: { ...contribution.configuration.values, merge: 'off' } } }));
 			await earlierWrite.complete();
 			await settle(f);
-
 			assert.deepStrictEqual({
-				whilePicking, writes: a.configured, values: a.snapshot.get().contributions[0].configuration.values,
-				merge: panel.querySelectorAll('.artifact-autopilot-rule [role="switch"]')[1].getAttribute('aria-checked'),
-				policy: panel.querySelector('.artifact-autopilot-policy')?.textContent, errors: f.errors,
+				shown, writes: a.configured, values: a.snapshot.get().contributions[0].configuration.values, selected: selectedChoices(panel),
+				lastChoice: a.presentation.viewState.lastChoices.get(JSON.stringify(['test', 'merge'])), errors: f.errors,
 			}, {
-				whilePicking: { writes: 0, merge: 'off' },
-				writes: [{ integrationId: 'test', revision: 7, values: { fix: true } }],
-				values: { fix: true, merge: 'off' }, merge: 'false', policy: 'When No Changes Were Made',
-				errors: [
-					'The artifact operation failed: This Autopilot rule changed while selecting a policy. Choose the policy again.',
-					'The artifact operation failed: Merge Automatically When Ready was turned off before its new policy was saved, so it stays off. Turning it on again uses the selected policy.',
-				],
+				shown: ['When Not Changed'], writes: [{ integrationId: 'test', revision: 7, values: { fix: true } }],
+				values: { fix: true, merge: 'off' }, selected: ['Off'], lastChoice: 'ifUnchanged',
+				errors: ['The artifact operation failed: Merge Automatically When Ready was turned off before your choice was saved, so it stays off. Select the mode again to turn it on.'],
 			});
 		});
 
-		test('enum choices stay visible while unavailable and failed enablement does not discard the prepared value', async () => {
+		test('enum choices stay visible but unavailable, with their label explaining why, and a failed choice shows the saved one again', async () => {
 			const f = fixture();
-			let picks = 0;
-			f.instantiation.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
-				override readonly pick: IQuickInputService['pick'] = async () => { picks++; return undefined; };
-			}());
 			const a = f.artifact();
 			useEnumAutomation(a);
-			a.presentation.viewState.preparedPolicies.set(JSON.stringify(['test', 'merge']), 'ifUnchanged');
 			const panel = await open(f, a);
 			button(panel, 'Autopilot').click();
-			const toggle = panel.querySelector<HTMLButtonElement>('.artifact-autopilot-rule [role="switch"]')!;
-			const picker = button(panel, 'When No Changes Were Made');
 			a.setConfigureResult(Promise.reject(new Error('Consent revision changed')));
-			toggle.click();
+			choice(panel, 'Always').click();
 			await settle(f);
-			const failed = { checked: toggle.getAttribute('aria-checked'), choice: picker.textContent, badge: automationBadge(a)?.textContent ?? null };
+			const failed = { selected: selectedChoices(panel), badge: automationBadge(a)?.textContent ?? null };
 			updateContribution(a, contribution => ({ ...contribution, view: { ...contribution.view, automationAvailability: [{ id: 'merge', available: false, unavailableReason: 'Refresh required.' }] } }));
 			await settle(f);
+			choice(panel, 'When Not Changed').click();
+			await settle(f);
+			const label = panel.querySelector<HTMLElement>('.artifact-autopilot-rule-label')!;
 			assert.deepStrictEqual({
-				failed, visible: !picker.hidden, pickerDisabled: picker.getAttribute('aria-disabled'), switchDisabled: toggle.disabled,
-				picks, errors: f.errors,
+				failed, choices: choices(panel).map(choice => ({ label: choice.textContent, disabled: choice.getAttribute('aria-disabled'), tabIndex: choice.tabIndex })),
+				label: { tabIndex: label.tabIndex, reason: label.getAttribute('aria-description')?.endsWith('Refresh required.') },
+				selected: selectedChoices(panel), writes: a.configured, errors: f.errors,
 			}, {
-				failed: { checked: 'false', choice: 'When No Changes Were Made', badge: null }, visible: true, pickerDisabled: 'true', switchDisabled: true,
-				picks: 0, errors: ['The artifact operation failed: Consent revision changed'],
+				failed: { selected: ['Off'], badge: null },
+				choices: [
+					{ label: 'Off', disabled: 'true', tabIndex: -1 },
+					{ label: 'When Not Changed', disabled: 'true', tabIndex: -1 },
+					{ label: 'Always', disabled: 'true', tabIndex: -1 },
+				],
+				label: { tabIndex: 0, reason: true }, selected: ['Off'],
+				writes: [{ integrationId: 'test', revision: 4, values: { merge: 'always' } }],
+				errors: ['The artifact operation failed: Consent revision changed'],
 			});
 		});
 
-		test('an enum with no enabled choices cannot grant consent and explains its visible disabled picker', async () => {
+		test('an enum with no enabled choices cannot grant consent', async () => {
 			const f = fixture();
 			const a = f.artifact();
 			useEnumAutomation(a);
@@ -2946,13 +2993,11 @@ suite('Artifact Integration Presentation', () => {
 			}));
 			const panel = await open(f, a);
 			button(panel, 'Autopilot').click();
-			const picker = button(panel, 'No Available Policies');
-			const toggle = panel.querySelector<HTMLButtonElement>('.artifact-autopilot-rule [role="switch"]')!;
-			toggle.click();
+			choice(panel, 'Off').click();
 			assert.deepStrictEqual({
-				visible: !picker.hidden, pickerDisabled: picker.getAttribute('aria-disabled'), switchDisabled: toggle.disabled,
+				choices: choices(panel).map(choice => ({ label: choice.textContent, disabled: choice.getAttribute('aria-disabled') })),
 				masterDisabled: panel.querySelector<HTMLButtonElement>('.artifact-card-heading [role="switch"]')?.disabled, writes: a.configured,
-			}, { visible: true, pickerDisabled: 'true', switchDisabled: true, masterDisabled: true, writes: [] });
+			}, { choices: [{ label: 'Off', disabled: 'true' }], masterDisabled: true, writes: [] });
 		});
 
 		test('list-owned icons remain visible when compact sections and list items disappear', async () => {

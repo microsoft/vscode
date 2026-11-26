@@ -9,6 +9,7 @@ import { ILabelRenderer } from '../../../base/browser/ui/dropdown/dropdown.js';
 import { getBaseLayerHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate2.js';
 import { getDefaultHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IAction } from '../../../base/common/actions.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { IActionWidgetService } from '../../actionWidget/browser/actionWidget.js';
 import { ActionWidgetDropdown, IActionWidgetDropdownOptions } from '../../actionWidget/browser/actionWidgetDropdown.js';
@@ -23,6 +24,9 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 export class ActionWidgetDropdownActionViewItem extends BaseActionViewItem {
 	private actionWidgetDropdown: ActionWidgetDropdown | undefined;
 	private actionItem: HTMLElement | null = null;
+	private readonly _onDidChangeDropdownVisibility = this._register(new Emitter<boolean>());
+	/** Fires as the dropdown opens and closes. */
+	protected readonly onDidChangeDropdownVisibility: Event<boolean> = this._onDidChangeDropdownVisibility.event;
 	constructor(
 		action: IAction,
 		private readonly actionWidgetOptions: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'>,
@@ -45,6 +49,7 @@ export class ActionWidgetDropdownActionViewItem extends BaseActionViewItem {
 		this.actionWidgetDropdown = this._register(new ActionWidgetDropdown(container, { ...this.actionWidgetOptions, labelRenderer }, this._actionWidgetService, this._keybindingService, this._telemetryService));
 		this._register(this.actionWidgetDropdown.onDidChangeVisibility(visible => {
 			this.element?.setAttribute('aria-expanded', `${visible}`);
+			this._onDidChangeDropdownVisibility.fire(visible);
 		}));
 
 		this.updateTooltip();

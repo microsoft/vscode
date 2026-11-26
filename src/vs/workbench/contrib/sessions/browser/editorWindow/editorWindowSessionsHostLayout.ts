@@ -21,6 +21,9 @@ export class EditorWindowSessionsHostLayout implements ISessionsHostLayoutServic
 	// Its editor parts are the workbench's, which draw no editor header row
 	readonly editorPartDrawsEditorHeaders = false;
 
+	// Its window shows no session of its own, so the editors that show one bind its context and offer its actions
+	readonly editorsBindSessionContext = true;
+
 	private suppressions = 0;
 
 	constructor(@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService) { }

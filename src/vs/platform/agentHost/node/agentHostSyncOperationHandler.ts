@@ -23,9 +23,10 @@ export class AgentHostSyncOperationHandler implements IChangesetOperationHandler
 
 	public static readonly OPERATION_SYNC = AGENT_HOST_SYNC_CHANGESET_OPERATION_ID;
 
+	readonly changesGitState = true;
+
 	constructor(
 		private readonly _getSessionState: (sessionKey: string) => SessionState | undefined,
-		private readonly _onSynced: (sessionKey: string, source?: IAgentHostCredentialSource) => Promise<void>,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
 		@ILogService private readonly _logService: ILogService,
@@ -39,8 +40,7 @@ export class AgentHostSyncOperationHandler implements IChangesetOperationHandler
 		return scope ? this._gitHubService.captureSessionCredentialSource(scope.sourceUri, source, scope.sessionUri, true) : source;
 	}
 
-	async invoke(params: InvokeChangesetOperationParams, token: CancellationToken, source?: IAgentHostCredentialSource): Promise<InvokeChangesetOperationResult> {
-		source = this.captureCredentialSource(params, source);
+	async invoke(params: InvokeChangesetOperationParams, token: CancellationToken): Promise<InvokeChangesetOperationResult> {
 		const parsed = parseChangesetUri(params.channel);
 		if (!parsed) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Not a changeset URI: ${params.channel}`);
@@ -102,12 +102,6 @@ export class AgentHostSyncOperationHandler implements IChangesetOperationHandler
 		} catch (err) {
 			this._throwIfCancelled(token);
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Failed to sync changes: ${err instanceof Error ? err.message : String(err)}`);
-		}
-
-		try {
-			await this._onSynced(parsed.ownerUri, source);
-		} catch (err) {
-			this._logService.warn(`[AgentHostSyncOperationHandler] Post-sync refresh failed for ${parsed.ownerUri}: ${err instanceof Error ? err.message : String(err)}`);
 		}
 
 		return { message: { markdown: localize('agentHost.changeset.sync.synced', "Synced changes.") } };

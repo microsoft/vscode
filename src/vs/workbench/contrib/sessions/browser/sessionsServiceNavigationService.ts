@@ -5,7 +5,7 @@
 
 import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ISessionGridPane } from '../../../services/sessions/browser/sessionGridPane.js';
+import { ISessionGridPane, SessionGridPaneKind } from '../../../services/sessions/browser/sessionGridPane.js';
 import { ISessionHost } from '../../../services/sessions/browser/sessionHost.js';
 import { IChat, ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
@@ -64,6 +64,22 @@ export class SessionsServiceNavigationService implements ISessionsNavigationServ
 			if (openChat) {
 				await this.sessionsService.closeChat(activeSession, openChat);
 			}
+		}
+	}
+
+	async closeSession(session: ISession): Promise<void> {
+		// Reopen Closed Chat or Session must not bring back a session that is going away, nor lose what it reopens instead.
+		this.sessionsService.forgetClosedSession(session);
+		const panes = () => this.sessionsService.panes.get().filter(pane => pane.session.get()?.sessionId === session.sessionId);
+		// A detached pane closes by returning its chat to the session's slot, which then leaves the grid with the session.
+		for (const pane of panes()) {
+			if (pane.kind === SessionGridPaneKind.Detached) {
+				this.sessionsService.closePane(pane);
+			}
+		}
+		// Closing a session the grid does not show would still cancel a pending open or restore.
+		if (panes().length > 0) {
+			this.sessionsService.closeSession(session, { skipHistory: true });
 		}
 	}
 }

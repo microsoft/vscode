@@ -50,6 +50,16 @@ export class AutomationsClient implements IAutomationsClient {
 		}, cancellationToken, response => parseAutomationDetail(response.data, automationId));
 	}
 
+	getRevisionPrompt(repository: RepositoryRef, automationId: string, revisionId: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<string> {
+		return this._client.request({
+			domain: 'automations',
+			method: 'GET',
+			path: `${automationPath(repository, automationId)}/revisions/${pathSegment(revisionId)}`,
+			expectedStatus: 200,
+			options,
+		}, cancellationToken, response => parseRevisionPrompt(response.data).snapshot.prompt);
+	}
+
 	getConfiguration(repository: RepositoryRef, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<AutomationRepositoryConfiguration> {
 		return this._client.request({
 			domain: 'automations',
@@ -155,6 +165,8 @@ export class AutomationsClient implements IAutomationsClient {
 function automationPath(repository: RepositoryRef, automationId: string): string {
 	return `${repositoryPath(repository)}/automations/${pathSegment(automationId)}`;
 }
+
+const parseRevisionPrompt = parse.copyObject({ snapshot: parse.copyObject({ prompt: parse.string }) });
 
 const parseAutomationRepositoryConfiguration = parse.object<AutomationRepositoryConfiguration>({
 	automations_enabled: parse.boolean,

@@ -590,6 +590,19 @@ suite('SessionsListModelService', () => {
 		assert.deepStrictEqual(sessions.map(session => service.getInboxState(session)?.kind), ['done', 'done']);
 	});
 
+	test('undoing overlapping snoozes with different deadlines latest first, as one notice does, restores each session as it was before both', () => {
+		const first = createSession('first');
+		const second = createSession('second');
+		const third = createSession('third');
+		sessions.push(first, second, third);
+		service.setInboxState([third], 'hold');
+		const undoEarlier = service.setInboxState([first, second], Date.now() + 60_000);
+		const undoLater = service.setInboxState([first, second, third], Date.now() + 120_000);
+		undoLater();
+		undoEarlier();
+		assert.deepStrictEqual(sessions.map(session => service.getInboxState(session)?.kind), [undefined, undefined, 'hold']);
+	});
+
 	test('rejects invalid inbox deadlines without changing existing state', () => {
 		const session = createSession('triage');
 		service.setInboxState([session], 'done');
@@ -848,6 +861,61 @@ suite('SessionsListModelService', () => {
 			afterHiddenReply: { listed: false, stored: JSON.stringify(['automation']) },
 			afterExplicitShow: { listed: true, stored: undefined },
 			afterDeletion: undefined,
+		});
+	});
+
+	test('provisionally hidden sessions are not listed until every hold on them is released', () => {
+		const session = createSession('session');
+		const automation = createSession('automation', SessionStatus.Completed, { isAutomation: true });
+		service.showAutomationSessions([automation]);
+		const changes: string[] = [];
+		disposables.add(service.onDidChange(event => changes.push(...event.changes.map(change => `${change.kind} ${change.sessionId}`))));
+		const listed = () => [session, automation].filter(candidate => service.isSessionListed(candidate)).map(candidate => candidate.sessionId);
+		const first = service.hideSessionsProvisionally([session, automation]);
+		const second = service.hideSessionsProvisionally([session]);
+		const whileHeld = listed();
+		first.dispose();
+		const afterFirst = listed();
+		second.dispose();
+		second.dispose();
+
+		assert.deepStrictEqual({ whileHeld, afterFirst, released: listed(), changes }, {
+			whileHeld: [],
+			afterFirst: ['automation'],
+			released: ['session', 'automation'],
+			changes: [
+				'provisionallyHidden session', 'provisionallyHidden automation',
+				'provisionallyHidden automation',
+				'provisionallyHidden session',
+			],
+		});
+	});
+
+	test('undoing a hide lists each automation session as it was before: explicitly shown, by the setting, or still hidden', () => {
+		const [shown, bySetting, alreadyHidden] = ['shown', 'bySetting', 'alreadyHidden'].map(id => createSession(id, SessionStatus.Completed, { isAutomation: true }));
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		configurationService.setUserConfiguration(SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, AutomationSessionsListMode.Always);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: key => key === SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING,
+			affectedKeys: new Set([SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING]),
+			change: { keys: [SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING], overrides: [] },
+			source: ConfigurationTarget.USER,
+		});
+		const state = () => ({
+			listed: [shown, bySetting, alreadyHidden].filter(session => service.isSessionListed(session)).map(session => session.sessionId),
+			shown: storageService.get('sessionsListControl.shownAutomationSessions', StorageScope.PROFILE),
+			hidden: storageService.get('sessionsListControl.hiddenAutomationSessions', StorageScope.PROFILE),
+		});
+		service.showAutomationSessions([shown]);
+		service.hideAutomationSessions([alreadyHidden]);
+		const before = state();
+		const undo = service.hideAutomationSessions([shown, bySetting, alreadyHidden]);
+		const hidden = state();
+		undo();
+
+		assert.deepStrictEqual({ hidden, undone: state() }, {
+			hidden: { listed: [], shown: undefined, hidden: JSON.stringify(['alreadyHidden', 'shown', 'bySetting']) },
+			undone: before,
 		});
 	});
 

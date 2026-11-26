@@ -1,0 +1,35 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Capture the existing side bar colors on the workbench before exposing the
+ * optional Modern UI colors to side bar descendants. Keeping the original
+ * values here lets unset overrides preserve the current theme appearance.
+ */
+.monaco-workbench.modern-ui {
+	--modern-ui-sidebar-background: var(--vscode-sideBar-background);
+	--modern-ui-sidebar-foreground: var(--vscode-sideBar-foreground);
+	--modern-ui-sidebar-section-header-foreground: var(--vscode-sideBarSectionHeader-foreground);
+}
+
+.monaco-workbench.modern-ui :is(.part.sidebar, .part.auxiliarybar) {
+	--modern-ui-sidebar-original-foreground: var(--modern-ui-sidebar-foreground, var(--vscode-foreground));
+	--vscode-sideBar-background: var(--modern-ui-opaque-sidebar-background, var(--vscode-modernSideBar-background, var(--modern-ui-sidebar-background)));
+	--vscode-sideBar-foreground: var(--vscode-modernSideBar-foreground, var(--modern-ui-sidebar-foreground));
+	background-color: var(--modern-ui-opaque-sidebar-background, var(--vscode-modernSideBar-background, var(--modern-ui-sidebar-background))) !important;
+	color: var(--vscode-modernSideBar-foreground, var(--modern-ui-sidebar-foreground, var(--vscode-foreground))) !important;
+}
+
+.monaco-workbench.modern-ui.floating-panels :is(.part.sidebar, .part.auxiliarybar) {
+	--modern-ui-sidebar-original-foreground: var(--modern-ui-sidebar-foreground, var(--vscode-surface-foreground, var(--vscode-foreground)));
+}
+
+.monaco-workbench.modern-ui :is(.part.sidebar, .part.auxiliarybar) > .title > .title-label {
+	color: var(--modern-ui-sidebar-original-foreground);
+}
+
+.monaco-workbench.modern-ui:not(.floating-panels) :is(.part.sidebar, .part.auxiliarybar) {
+	border-color: var(--vscode-modernSideBar-border, var(--vscode-sideBar-border, var(--vscode-contrastBorder, transparent))) !important;
+}

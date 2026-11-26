@@ -1814,6 +1814,68 @@ suite('Artifact Integrations', () => {
 		assert.deepStrictEqual(reopened.object.snapshot.get().artifact.origin, artifact.origin);
 	}));
 
+	test('a binding stored without an origin captures the first origin when reopened, unless its account changed', () => run(async store => {
+		const f = fixture(store, codeAction, new MemoryStorage(), { ...artifact, origin: undefined });
+		const first = store.add(await f.service.acquireArtifact('session', artifact.id));
+		await first.object.configure('test', 0, { automatic: false });
+		first.dispose();
+		await f.service.whenIdle();
+		const storedOrigin = () => f.service.ledger.state.get().bindings[0].artifact.origin;
+		f.session.set({ ...f.session.get(), artifacts: [artifact] }, undefined);
+		f.setCredentialScope('account-b');
+		const otherAccount = store.add(await f.service.acquireArtifact('session', artifact.id));
+		const afterOtherAccount = storedOrigin();
+		otherAccount.dispose();
+		await f.service.whenIdle();
+		f.setCredentialScope('account-a');
+		const reopened = store.add(await f.service.acquireArtifact('session', artifact.id));
+		await f.service.whenIdle();
+		const adopted = { snapshot: reopened.object.snapshot.get().artifact.origin, binding: f.bindings.at(-1)?.context.artifact.origin, stored: storedOrigin() };
+		reopened.dispose();
+		await f.service.whenIdle();
+		f.session.set({ ...f.session.get(), artifacts: [{ ...artifact, origin: { chat: 'replacement-chat' } }] }, undefined);
+		const replaced = store.add(await f.service.acquireArtifact('session', artifact.id));
+		assert.deepStrictEqual({ afterOtherAccount, adopted, kept: replaced.object.snapshot.get().artifact.origin }, {
+			afterOtherAccount: undefined,
+			adopted: { snapshot: artifact.origin, binding: artifact.origin, stored: artifact.origin },
+			kept: artifact.origin,
+		});
+	}));
+
+	test('an acquired artifact that gains its first origin is bound again once its runs settle, and keeps that origin', () => run(async store => {
+		const started = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		const action: ArtifactAction = {
+			...codeAction,
+			prepare: async () => ({ kind: 'ready', value: { run: async () => { void started.complete(); await release.p; return { kind: 'completed', summary: 'Done' }; } } }),
+		};
+		const f = fixture(store, action, new MemoryStorage(), { ...artifact, origin: undefined });
+		const reference = store.add(await f.service.acquireArtifact('session', artifact.id));
+		await reference.object.invoke('test', 'act', 'chat', 'request');
+		await started.p;
+		f.session.set({ ...f.session.get(), artifacts: [artifact] }, undefined);
+		await timeout(0);
+		const whileRunning = f.bindings.map(binding => binding.context.artifact.origin);
+		await release.complete();
+		await waitForState(reference.object.snapshot, snapshot => !!snapshot.artifact.origin && snapshot.contributions[0]?.view.availability.kind === 'available');
+		f.session.set({ ...f.session.get(), artifacts: [{ ...artifact, origin: { chat: 'replacement-chat' } }] }, undefined);
+		await timeout(0);
+		await f.service.whenIdle();
+		assert.deepStrictEqual({
+			whileRunning,
+			runs: reference.object.snapshot.get().runs.map(run => run.state),
+			bindings: f.bindings.map(binding => binding.context.artifact.origin),
+			snapshot: reference.object.snapshot.get().artifact.origin,
+			stored: f.service.ledger.state.get().bindings[0].artifact.origin,
+		}, {
+			whileRunning: [undefined],
+			runs: ['completed'],
+			bindings: [undefined, artifact.origin],
+			snapshot: artifact.origin,
+			stored: artifact.origin,
+		});
+	}));
+
 	test('history is paged independently of the bounded live snapshot', () => run(async store => {
 		const f = fixture(store);
 		const reference = store.add(await f.service.acquireArtifact('session', artifact.id));

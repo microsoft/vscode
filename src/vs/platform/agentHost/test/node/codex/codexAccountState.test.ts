@@ -13,33 +13,33 @@ suite('CodexAccountState', () => {
 
 	test('maps ChatGPT identities as human accounts', () => {
 		assert.deepStrictEqual(
-			codexAccountStateFromResponse({ account: { type: 'chatgpt', email: 'private@example.com', planType: 'plus' }, requiresOpenaiAuth: true, workspaceRouting: null }),
+			codexAccountStateFromResponse({ account: { type: 'chatgpt', email: 'private@example.com', planType: 'plus', workspaceName: null }, userId: null, requiresOpenaiAuth: true, workspaceRouting: null }),
 			{ usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', email: 'private@example.com', planType: 'plus', requiresOpenaiAuth: true },
 		);
 		assert.deepStrictEqual(
-			codexAccountStateFromResponse({ account: { type: 'chatgpt', email: null, planType: 'team' }, requiresOpenaiAuth: true, workspaceRouting: null }),
+			codexAccountStateFromResponse({ account: { type: 'chatgpt', email: null, planType: 'team', workspaceName: null }, userId: null, requiresOpenaiAuth: true, workspaceRouting: null }),
 			{ usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', email: undefined, planType: 'team', requiresOpenaiAuth: true },
 		);
 	});
 
 	test('distinguishes required sign-in from providers without OpenAI auth', () => {
 		assert.deepStrictEqual(
-			codexAccountStateFromResponse({ account: null, requiresOpenaiAuth: true, workspaceRouting: null }),
+			codexAccountStateFromResponse({ account: null, userId: null, requiresOpenaiAuth: true, workspaceRouting: null }),
 			{ usageSource: 'openai', status: 'signedOut', requiresOpenaiAuth: true },
 		);
 		assert.deepStrictEqual(
-			codexAccountStateFromResponse({ account: null, requiresOpenaiAuth: false, workspaceRouting: null }),
+			codexAccountStateFromResponse({ account: null, userId: null, requiresOpenaiAuth: false, workspaceRouting: null }),
 			{ usageSource: 'openai', status: 'unavailable', requiresOpenaiAuth: false },
 		);
 	});
 
 	test('does not classify API key or Bedrock credentials as human accounts', () => {
 		assert.deepStrictEqual(
-			codexAccountStateFromResponse({ account: { type: 'apiKey' }, requiresOpenaiAuth: true, workspaceRouting: null }),
+			codexAccountStateFromResponse({ account: { type: 'apiKey' }, userId: null, requiresOpenaiAuth: true, workspaceRouting: null }),
 			{ usageSource: 'openai', status: 'unavailable', authType: 'apiKey', requiresOpenaiAuth: true },
 		);
 		assert.deepStrictEqual(
-			codexAccountStateFromResponse({ account: { type: 'amazonBedrock', usesCodexManagedCredentials: true }, requiresOpenaiAuth: false, workspaceRouting: null }),
+			codexAccountStateFromResponse({ account: { type: 'amazonBedrock', usesCodexManagedCredentials: true }, userId: null, requiresOpenaiAuth: false, workspaceRouting: null }),
 			{ usageSource: 'openai', status: 'unavailable', authType: 'other', requiresOpenaiAuth: false },
 		);
 	});

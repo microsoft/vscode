@@ -25,7 +25,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { AgentsVoiceSettingId, AgentsVoiceStorageKeys } from '../../../agentsVoice/common/agentsVoice.js';
 import { IVoiceTranscriptEntryMetadata, IVoiceTranscriptStore, IVoiceTranscriptTurn, VoiceTranscriptKind } from '../../../agentsVoice/common/voiceTranscriptStore.js';
-import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoiceFatalDisconnect, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceFeedbackPayload, IVoiceFeedbackTranscriptTurn, IVoiceTranscription, IVoiceTurnAutoEnded, IVoiceNarrationAck, IVoiceNarrationSignal, isVoiceCheckpointId, VoiceCheckpointId, VoiceConfirmationType, VoiceNarrationKind, IVoiceSessionPending, IVoicePendingQuestion, derivePendingId, getVoiceToolApprovalCommand, getVoiceRecentTurns, isPendingIdResolved, restoreResolvedPendingId, VOICE_AGENT_PROGRESS_SETTING } from '../../common/voiceClient/voiceClientService.js';
+import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoiceFatalDisconnect, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceTranscription, IVoiceTurnAutoEnded, IVoiceNarrationAck, IVoiceNarrationSignal, isVoiceCheckpointId, VoiceCheckpointId, VoiceConfirmationType, VoiceNarrationKind, IVoiceSessionPending, IVoicePendingQuestion, derivePendingId, getVoiceToolApprovalCommand, getVoiceRecentTurns, isPendingIdResolved, restoreResolvedPendingId, VOICE_AGENT_PROGRESS_SETTING } from '../../common/voiceClient/voiceClientService.js';
 import { voiceCloseCodeInfo, VoiceCloseCode } from '../../common/voiceClient/voiceCloseCodes.js';
 import { getVoiceConfirmationType, isPendingVoiceQuestionnaireInvocation, isVoiceQuestionnaireInvocation } from '../../common/voiceClient/voiceConfirmation.js';
 import { IMicCaptureService, IPttDiagnostic, isMicrophonePermissionDeniedError } from './micCaptureService.js';
@@ -279,14 +279,6 @@ export interface IVoiceSessionController {
 	finishListeningAndSubmitTo(session: URI): void;
 
 	/**
-	 * Mark a session as having been cancelled by the user from VS Code UI. The
-	 * next state-change detected for this session (typically the chat model
-	 * transitioning to `idle`) will be suppressed so the backend doesn't
-	 * narrate a status update the user already knows about.
-	 */
-	markUserCancelled(sessionId: string): void;
-
-	/**
 	 * Set the target session for transcription. When set, transcriptions are
 	 * sent to this session instead of the currently active one.
 	 */
@@ -316,12 +308,6 @@ export interface IVoiceSessionController {
 	 * view-model change event fired.
 	 */
 	activateSession(resource: URI): void;
-
-	/**
-	 * Submit user feedback along with full diagnostic data (transcript history,
-	 * client state, environment info). Returns success/failure.
-	 */
-	submitFeedback(feedbackText: string): Promise<{ ok: boolean; error?: string }>;
 
 	/** DEV ONLY: Simulate a connected session with fake transcript for UI testing. */
 	simulateConnection(): void;
@@ -671,13 +657,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	// --- Session state tracking for explicit change notifications ---
 	private readonly _prevSessionStates = new Map<string, { state: string; detail: string; pendingId: string; confirmationType?: VoiceConfirmationType; lastResponseSummary: string }>();
 
-	// Sessions the user explicitly cancelled from VS Code UI. We swallow the
-	// NEXT state change for each (typically the chat model going `idle`) so the
-	// backend doesn't narrate "the session became idle" right after the user
-	// already hit Stop. Stored with a safety expiry in case the cancellation
-	// never produces a state change.
-	private readonly _userCancelledSessions = new Map<string, ReturnType<typeof setTimeout>>();
-	private static readonly _USER_CANCEL_SUPPRESS_MS = 10_000;
 	/** After a focus-change discard, drop a stray backend `send_to_chat` for
 	 *  this long so late-finalized buffered speech isn't misrouted. */
 	private static readonly _DISCARD_SEND_SUPPRESS_MS = 2_000;
@@ -1586,14 +1565,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 							if (currentState === 'idle' && !!normalizedSummary) {
 								this._sessionsAwaitingResponseSummary.delete(sessionId);
 							}
-							const cancelExpiry = this._userCancelledSessions.get(sessionId);
-							if (cancelExpiry) {
-								this.logService.trace(`[voice] autorun swallowing transition (user-cancelled) id=${sessionId.slice(-32)}`);
-								clearTimeout(cancelExpiry);
-								this._userCancelledSessions.delete(sessionId);
-							} else {
-								stateChanges.push({ sessionId, currentState, label, detail, confirmationType, lastResponseSummary, fromState: prev?.state ?? currentState, fromDetail: prev?.detail ?? '', fromConfirmationType: prev?.confirmationType, fromResponseSummary: prev?.lastResponseSummary ?? '', pendingId, fromPendingId: prev?.pendingId ?? '' });
-							}
+							stateChanges.push({ sessionId, currentState, label, detail, confirmationType, lastResponseSummary, fromState: prev?.state ?? currentState, fromDetail: prev?.detail ?? '', fromConfirmationType: prev?.confirmationType, fromResponseSummary: prev?.lastResponseSummary ?? '', pendingId, fromPendingId: prev?.pendingId ?? '' });
 						}
 						if (currentState !== 'unknown') {
 							// Preserve a known summary rather than clobbering it with ''
@@ -1680,21 +1652,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 									continue;
 								}
 								this._sessionsAwaitingResponseSummary.delete(sessionId);
-								if (!this._userCancelledSessions.has(sessionId)) {
-									stateChanges.push({ sessionId, currentState, label: s.label || 'Untitled session', lastResponseSummary: cachedSummary, fromState: prev?.state ?? currentState, fromDetail: prev?.detail ?? '', fromConfirmationType: prev?.confirmationType, fromResponseSummary: prev?.lastResponseSummary ?? '', pendingId: '', fromPendingId: prev?.pendingId ?? '' });
-								}
+								stateChanges.push({ sessionId, currentState, label: s.label || 'Untitled session', lastResponseSummary: cachedSummary, fromState: prev?.state ?? currentState, fromDetail: prev?.detail ?? '', fromConfirmationType: prev?.confirmationType, fromResponseSummary: prev?.lastResponseSummary ?? '', pendingId: '', fromPendingId: prev?.pendingId ?? '' });
 								this._prevSessionStates.set(sessionId, { state: currentState, detail: '', pendingId: '', lastResponseSummary: cachedSummary ?? '' });
 								continue;
 							}
 
 							if (isStateTransition) {
-								const cancelExpiry = this._userCancelledSessions.get(sessionId);
-								if (cancelExpiry) {
-									clearTimeout(cancelExpiry);
-									this._userCancelledSessions.delete(sessionId);
-								} else {
-									stateChanges.push({ sessionId, currentState, label: s.label || 'Untitled session', fromState: prev?.state ?? currentState, fromDetail: prev?.detail ?? '', fromConfirmationType: prev?.confirmationType, fromResponseSummary: prev?.lastResponseSummary ?? '', pendingId: '', fromPendingId: prev?.pendingId ?? '' });
-								}
+								stateChanges.push({ sessionId, currentState, label: s.label || 'Untitled session', fromState: prev?.state ?? currentState, fromDetail: prev?.detail ?? '', fromConfirmationType: prev?.confirmationType, fromResponseSummary: prev?.lastResponseSummary ?? '', pendingId: '', fromPendingId: prev?.pendingId ?? '' });
 							}
 							if (currentState !== 'unknown') {
 								// Preserve a known summary rather than clobbering with ''
@@ -2507,8 +2471,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._cancelledPendingNarrationIds.clear();
 		this._awaitingReplyForSession = undefined;
 		this._prevSessionStates.clear();
-		for (const t of this._userCancelledSessions.values()) { clearTimeout(t); }
-		this._userCancelledSessions.clear();
 		for (const t of this._confirmationFlushWatchdogs.values()) { clearTimeout(t); }
 		this._confirmationFlushWatchdogs.clear();
 		if (this._stateChangeEmitTimer) { clearTimeout(this._stateChangeEmitTimer); this._stateChangeEmitTimer = undefined; }
@@ -3277,17 +3239,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		});
 	}
 
-	markUserCancelled(sessionId: string): void {
-		this._cancelVoiceProgress(sessionId);
-		this._preemptCheckpointPlayback(sessionId);
-		const existing = this._userCancelledSessions.get(sessionId);
-		if (existing) { clearTimeout(existing); }
-		const expiry = setTimeout(() => {
-			this._userCancelledSessions.delete(sessionId);
-		}, VoiceSessionController._USER_CANCEL_SUPPRESS_MS);
-		this._userCancelledSessions.set(sessionId, expiry);
-	}
-
 	setTargetSession(resource: URI | undefined): void {
 		this._prepareDirectVoiceForInputChange(resource);
 		this._hasDraftTarget.set(false, undefined);
@@ -3933,8 +3884,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				if (accepted) {
 					// Surface response in floating window
 					this._watchResponseForFloatingWindow(responseResource);
-					// Open the floating window so user can see the response
-					this.commandService.executeCommand('_agentsVoice.openWindow').catch(() => { /* ignore */ });
 					// Keep the session model loaded until the response completes
 					// so the autorun can observe state transitions and trigger narration.
 					const model = this.chatService.getSession(responseResource);
@@ -6650,16 +6599,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 
 			if (isStateChange || isDetailChange || isResponseSummaryChange) {
-				const cancelExpiry = this._userCancelledSessions.get(sessionId);
-				if (cancelExpiry) {
-					clearTimeout(cancelExpiry);
-					this._userCancelledSessions.delete(sessionId);
-				} else {
-					if (isDetailChange) {
-						this.voiceClientService.invalidateSessionCache(sessionId);
-					}
-					stateChanges.push({ sessionId, currentState, label: s.label || 'Untitled session', detail, confirmationType, lastResponseSummary });
+				if (isDetailChange) {
+					this.voiceClientService.invalidateSessionCache(sessionId);
 				}
+				stateChanges.push({ sessionId, currentState, label: s.label || 'Untitled session', detail, confirmationType, lastResponseSummary });
 			}
 			if (currentState !== 'unknown') {
 				// Preserve a known summary rather than clobbering with '' so a
@@ -7663,67 +7606,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 	private _getMachineId(): string {
 		return (this.environmentService as { machineId?: string }).machineId ?? 'unknown';
-	}
-
-	// --- Feedback ---
-
-	async submitFeedback(feedbackText: string): Promise<{ ok: boolean; error?: string }> {
-		let userId = this._userLogin;
-		if (!userId) {
-			try {
-				const sessions = await this.authenticationService.getSessions('github');
-				userId = sessions[0]?.account.label ?? 'unknown';
-			} catch {
-				userId = 'unknown';
-			}
-		}
-		let transcriptHistory: IVoiceFeedbackTranscriptTurn[] = [];
-		try {
-			const turns = await this.voiceTranscriptStore.loadTurns(userId);
-			transcriptHistory = turns.map(t => ({
-				role: t.role,
-				text: t.text,
-				timestamp: t.timestamp,
-			}));
-		} catch (err) {
-			this.logService.warn('[voice] failed to load transcript history for feedback', err);
-		}
-
-		const sessions = this.agentSessionsService.model.sessions.filter(s => !s.isArchived());
-		const clientSessionState: Record<string, unknown> = {
-			voiceState: this._voiceState.get(),
-			isConnected: this._isConnected.get(),
-			isConnecting: this._isConnecting.get(),
-			isReconnecting: this._isReconnecting.get(),
-			pendingToolConfirmations: this._pendingToolConfirmations.get().map(tc => ({
-				type: tc.type,
-				sessionLabel: tc.sessionLabel,
-				description: tc.description,
-			})),
-			activeSessions: sessions.map(s => ({
-				id: s.resource.toString(),
-				label: s.label,
-				status: s.status,
-			})),
-		};
-
-		const clientEnvironment: Record<string, unknown> = {
-			machineId: this._getMachineId(),
-		};
-
-		const payload: IVoiceFeedbackPayload = {
-			feedbackText,
-			machineId: this._getMachineId(),
-			userId,
-			sessionId: this.voiceClientService.currentSessionId ?? '',
-			submissionId: generateUuid(),
-			transcriptHistory,
-			clientSessionState,
-			clientEnvironment,
-			timestamp: new Date().toISOString(),
-		};
-
-		return this.voiceClientService.submitFeedback(payload);
 	}
 }
 

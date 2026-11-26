@@ -32,6 +32,7 @@ export const PICK_CANVAS_TO_ADD_TO_SIDEBAR_COMMAND_ID = 'workbench.action.agentS
 export const REMOVE_CANVAS_FROM_SIDEBAR_COMMAND_ID = 'workbench.action.agentSessions.removeCanvasFromSidebar';
 export const GO_TO_PINNED_CANVAS_CHAT_COMMAND_ID = 'workbench.action.agentSessions.goToPinnedCanvasChat';
 export const CLOSE_PINNED_CANVAS_COMMAND_ID = 'workbench.action.agentSessions.closePinnedCanvas';
+export const CLOSE_SIDEBAR_PINNED_CANVAS_COMMAND_ID = 'workbench.action.agentSessions.closeSidebarPinnedCanvas';
 
 /** Canvases can be pinned in the Agents window while chat and canvases are enabled. */
 export const pinnedCanvasesAvailable = ContextKeyExpr.and(
@@ -226,32 +227,36 @@ class GoToPinnedCanvasChatAction extends Action2 {
 	}
 }
 
-class ClosePinnedCanvasAction extends Action2 {
-	constructor() {
+abstract class BaseClosePinnedCanvasAction extends Action2 {
+	constructor(id: string, menu: { readonly id: MenuId; readonly group: string; readonly order: number }, private readonly markChatDone: boolean) {
 		super({
-			id: CLOSE_PINNED_CANVAS_COMMAND_ID,
+			id,
 			title: localize2('closePinnedCanvas', "Close Canvas"),
 			icon: Codicon.close,
 			precondition: ContextKeyExpr.and(pinnedCanvasesAvailable, PinnedCanvasConnectedContext),
-			menu: [{
-				id: Menus.SidebarCanvasContext,
-				group: '4_manage',
-				order: 10,
-				when: pinnedCanvasesAvailable,
-			}, {
-				id: AgentsWindowMenus.CustomViewCanvas,
-				group: '4_manage',
-				order: 10,
-				when: pinnedCanvasesAvailable,
-			}],
+			menu: [{ ...menu, when: pinnedCanvasesAvailable }],
 		});
 	}
 
 	async run(accessor: ServicesAccessor, arg?: unknown): Promise<void> {
 		const entry = getPinnedCanvas(accessor, arg);
 		if (entry) {
-			await accessor.get(IPinnedCanvasService).closeCanvas(entry);
+			await accessor.get(IPinnedCanvasService).closeCanvas(entry, { markChatDone: this.markChatDone });
 		}
+	}
+}
+
+/** Closes the canvas the canvas page shows. */
+class ClosePinnedCanvasAction extends BaseClosePinnedCanvasAction {
+	constructor() {
+		super(CLOSE_PINNED_CANVAS_COMMAND_ID, { id: AgentsWindowMenus.CustomViewCanvas, group: '4_manage', order: 10 }, false);
+	}
+}
+
+/** Closes the canvas of a sidebar row. A canvas closed from the sidebar is done, and so is its chat. */
+class CloseSidebarPinnedCanvasAction extends BaseClosePinnedCanvasAction {
+	constructor() {
+		super(CLOSE_SIDEBAR_PINNED_CANVAS_COMMAND_ID, { id: Menus.SidebarCanvasContext, group: '4_manage', order: 10 }, true);
 	}
 }
 
@@ -303,4 +308,5 @@ registerAction2(AddCanvasToSidebarAction);
 registerAction2(RemoveCanvasFromSidebarAction);
 registerAction2(GoToPinnedCanvasChatAction);
 registerAction2(ClosePinnedCanvasAction);
+registerAction2(CloseSidebarPinnedCanvasAction);
 registerAction2(PickCanvasToAddToSidebarAction);

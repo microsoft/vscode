@@ -30,12 +30,12 @@ interface EntityInfo {
 	readonly body?: readonly tt.Node[];
 	/** The nodes to list as children, such as the members of a class or the properties of an object literal. */
 	readonly members?: readonly tt.Node[];
-	/** The statements to list children from, which form the body of a namespace or of a suite. */
+	/** The statements to list children from, which form the body of a namespace, a suite or a callable. */
 	readonly statements?: readonly tt.Statement[];
 	/** Items to list as children that are neither members nor statements, such as a test that a suite's expression body registers. */
 	readonly nested?: readonly EntityInfo[];
-	/** Whether the item is a suite, whose statements only contribute their tests and suites. */
-	readonly isSuite?: boolean;
+	/** Which of the statements contribute children, see {@link StatementScope}. All statements of a namespace do. */
+	readonly scope?: StatementScope;
 	readonly isTest?: boolean;
 	/** Whether the item has no declared name, like a call or a test, but a name derived from its code. */
 	readonly isAnonymous?: boolean;
@@ -79,6 +79,13 @@ interface ChildSpan {
 }
 
 type Side = 'original' | 'modified';
+
+/**
+ * Which statements contribute children. All statements of a file or of a namespace do. The code of a callable, such as a
+ * function, a method or a test, belongs to it, except the types that it declares, and the code of a suite belongs to
+ * it, except its types, tests and suites.
+ */
+type StatementScope = 'module' | 'suite' | 'callable';
 
 /**
  * Parses both texts without a project and matches named siblings and conservative name-only renames
@@ -144,8 +151,8 @@ export function computeStructuralDiff(args: StructuralDiffRequestArgs, token: tt
  * Collects the items of a file. The statements of the file and of namespaces contribute declarations and tests, and
  * classes, interfaces, enums and object literals contribute their members. The other statements of the file or of a
  * namespace, such as registrations, form one item of top-level code, which lists the calls and assignments among them.
- * The code of functions and of other expressions, such as callbacks, belongs to the enclosing item, except that suites
- * list their tests.
+ * The code of functions and of other expressions, such as callbacks, belongs to the enclosing item, except that
+ * functions, methods, tests and suites list the types that they declare, and suites list their tests.
  */
 function collectSource(file: tt.SourceFile, checkCancellation: () => void): Source {
 	const root: Entity = {
@@ -206,18 +213,18 @@ function collectSource(file: tt.SourceFile, checkCancellation: () => void): Sour
 			}
 		}
 		for (const statement of info.statements ?? []) {
-			visitStatement(statement, entity, info.isSuite === true);
+			visitStatement(statement, entity, info.scope ?? 'module');
 		}
 		for (const nested of info.nested ?? []) {
 			addEntity(entity, nested);
 		}
 	};
-	const visitStatement = (node: tt.Statement, parent: Entity, isSuite: boolean): void => {
+	const visitStatement = (node: tt.Statement, parent: Entity, scope: StatementScope): void => {
 		checkCancellation();
 		const nested = getNestedStatements(node);
-		if (nested !== undefined && isSuite) {
+		if (nested !== undefined && scope !== 'module') {
 			for (const statement of nested) {
-				visitStatement(statement, parent, true);
+				visitStatement(statement, parent, scope);
 			}
 			return;
 		}
@@ -228,14 +235,15 @@ function collectSource(file: tt.SourceFile, checkCancellation: () => void): Sour
 			const spanCount = code.spans.length;
 			const childCount = parent.children.length;
 			for (const statement of nested) {
-				visitStatement(statement, parent, false);
+				visitStatement(statement, parent, 'module');
 			}
 			code.spans.splice(spanCount, code.spans.length - spanCount, ...subtractSpans(nodeSpanWithDocComments(node, file), parent.children.slice(childCount).map(child => child.span)));
 			return;
 		}
-		if (isSuite) {
-			// Hooks, helpers and the other statements of a suite belong to the suite, which only lists its tests.
-			const info = ts.isExpressionStatement(node) ? getTestInfo(node, file) : undefined;
+		if (scope !== 'module') {
+			// The other code of a callable or a suite, such as its helpers and hooks, belongs to it.
+			const info = isTypeDeclaration(node) ? getStatementInfo(node, file)
+				: scope === 'suite' && ts.isExpressionStatement(node) ? getTestInfo(node, file) : undefined;
 			if (info !== undefined) {
 				addEntity(parent, info);
 			}
@@ -274,7 +282,7 @@ function collectSource(file: tt.SourceFile, checkCancellation: () => void): Sour
 		}
 	};
 	for (const statement of file.statements) {
-		visitStatement(statement, root, false);
+		visitStatement(statement, root, 'module');
 	}
 	for (const [parent, groups] of statementGroups) {
 		for (const [kind, { spans, members }] of groups) {
@@ -362,7 +370,7 @@ function getStatementInfo(node: tt.Statement, file: tt.SourceFile): EntityInfo |
 		}
 		return ts.isClassDeclaration(node)
 			? { ...base, name, nameNode: node.name, kind: StructuralDiffSymbolKind.Class, languageKind: 'class', members: node.members }
-			: { ...base, name, nameNode: node.name, kind: StructuralDiffSymbolKind.Function, languageKind: 'function', body: node.body && [node.body] };
+			: { ...base, name, nameNode: node.name, kind: StructuralDiffSymbolKind.Function, languageKind: 'function', ...getCallableBody(node.body) };
 	}
 	if (ts.isInterfaceDeclaration(node)) {
 		return { ...base, name: node.name.getText(file), nameNode: node.name, kind: StructuralDiffSymbolKind.Interface, languageKind: 'interface', members: node.members };
@@ -398,13 +406,13 @@ function getMemberInfo(node: tt.Node, file: tt.SourceFile): EntityInfo | undefin
 	}
 	const base = { rangeNode: node };
 	if (ts.isConstructorDeclaration(node)) {
-		return { ...base, name: 'constructor', kind: StructuralDiffSymbolKind.Constructor, languageKind: 'constructor', body: node.body && [node.body] };
+		return { ...base, name: 'constructor', kind: StructuralDiffSymbolKind.Constructor, languageKind: 'constructor', ...getCallableBody(node.body) };
 	}
 	if (ts.isMethodDeclaration(node) || ts.isMethodSignature(node)) {
-		return { ...base, name: node.name.getText(file), nameNode: node.name, kind: StructuralDiffSymbolKind.Method, languageKind: 'method', body: ts.isMethodDeclaration(node) && node.body !== undefined ? [node.body] : undefined };
+		return { ...base, name: node.name.getText(file), nameNode: node.name, kind: StructuralDiffSymbolKind.Method, languageKind: 'method', ...getCallableBody(ts.isMethodDeclaration(node) ? node.body : undefined) };
 	}
 	if (ts.isGetAccessorDeclaration(node) || ts.isSetAccessorDeclaration(node)) {
-		return { ...base, name: node.name.getText(file), nameNode: node.name, kind: StructuralDiffSymbolKind.Property, languageKind: ts.isGetAccessorDeclaration(node) ? 'getter' : 'setter', body: node.body && [node.body] };
+		return { ...base, name: node.name.getText(file), nameNode: node.name, kind: StructuralDiffSymbolKind.Property, languageKind: ts.isGetAccessorDeclaration(node) ? 'getter' : 'setter', ...getCallableBody(node.body) };
 	}
 	if (ts.isPropertySignature(node)) {
 		return { ...base, name: node.name.getText(file), nameNode: node.name, kind: StructuralDiffSymbolKind.Property, languageKind: 'property', members: getTypeMembers(node.type) };
@@ -413,7 +421,7 @@ function getMemberInfo(node: tt.Node, file: tt.SourceFile): EntityInfo | undefin
 		return { ...base, name: node.name.getText(file), nameNode: node.name, kind: StructuralDiffSymbolKind.EnumMember, languageKind: 'enum-member', body: node.initializer && [node.initializer] };
 	}
 	if (ts.isClassStaticBlockDeclaration(node)) {
-		return { ...base, name: 'static', kind: StructuralDiffSymbolKind.Method, languageKind: 'static-block', body: [node.body] };
+		return { ...base, name: 'static', kind: StructuralDiffSymbolKind.Method, languageKind: 'static-block', ...getCallableBody(node.body) };
 	}
 	if (ts.isCallSignatureDeclaration(node) || ts.isConstructSignatureDeclaration(node) || ts.isIndexSignatureDeclaration(node)) {
 		const name = ts.isCallSignatureDeclaration(node) ? '(call)' : ts.isConstructSignatureDeclaration(node) ? '(new)' : '[index]';
@@ -433,7 +441,7 @@ function getValueInfo(base: Pick<EntityInfo, 'name' | 'nameNode' | 'rangeNode'>,
 	}
 	const initializer = tss.Nodes.skipOuterExpressions(value);
 	if (isFunctionValue(initializer)) {
-		return { ...base, kind: StructuralDiffSymbolKind.Function, languageKind: ts.isArrowFunction(initializer) ? 'arrow-function' : 'function', body: [initializer.body] };
+		return { ...base, kind: StructuralDiffSymbolKind.Function, languageKind: ts.isArrowFunction(initializer) ? 'arrow-function' : 'function', ...getCallableBody(initializer.body) };
 	}
 	if (ts.isClassExpression(initializer)) {
 		return { ...base, kind: StructuralDiffSymbolKind.Class, languageKind: 'class', members: initializer.members };
@@ -449,6 +457,21 @@ function getValueInfo(base: Pick<EntityInfo, 'name' | 'nameNode' | 'rangeNode'>,
 
 function getTypeMembers(type: tt.TypeNode | undefined): readonly tt.Node[] | undefined {
 	return type !== undefined && ts.isTypeLiteralNode(type) ? type.members : undefined;
+}
+
+/**
+ * Returns the implementation of a callable, such as a function or a method, which is its body, and the statements of
+ * the body, which list the types that the callable declares.
+ */
+function getCallableBody(body: tt.ConciseBody | undefined): Pick<EntityInfo, 'body' | 'statements' | 'scope'> {
+	return body === undefined ? {} : { body: [body], statements: ts.isBlock(body) ? body.statements : undefined, scope: 'callable' };
+}
+
+/**
+ * Returns whether a statement declares a type, which callables and suites list, although their other code belongs to them.
+ */
+function isTypeDeclaration(node: tt.Statement): boolean {
+	return ts.isInterfaceDeclaration(node) || ts.isTypeAliasDeclaration(node) || ts.isEnumDeclaration(node);
 }
 
 /**
@@ -921,7 +944,8 @@ function unwrapExpression(node: tt.Expression): tt.Expression {
 /**
  * Returns the item of a statement that registers a suite or a test, such as `test('title', () => {})`, which is named
  * by its title, or of such a registration that is the expression body of a suite, as in
- * `suite('title', () => test('title', () => {}))`. A suite lists its tests and suites as children.
+ * `suite('title', () => test('title', () => {}))`. A suite lists its tests and suites as children, and both list the
+ * types that they declare.
  */
 function getTestInfo(node: tt.ExpressionStatement | tt.Expression, file: tt.SourceFile): EntityInfo | undefined {
 	const test = getTestCall(unwrapExpression(ts.isExpressionStatement(node) ? node.expression : node));
@@ -939,9 +963,9 @@ function getTestInfo(node: tt.ExpressionStatement | tt.Expression, file: tt.Sour
 		kind: isSuite ? StructuralDiffSymbolKind.Class : StructuralDiffSymbolKind.Method,
 		languageKind: test.kind,
 		body: [body, ...test.trailingArguments],
-		statements: isSuite && ts.isBlock(body) ? body.statements : undefined,
+		statements: ts.isBlock(body) ? body.statements : undefined,
 		nested: nested === undefined ? undefined : [nested],
-		isSuite,
+		scope: isSuite ? 'suite' : 'callable',
 		isTest: true,
 		isAnonymous: true,
 	};

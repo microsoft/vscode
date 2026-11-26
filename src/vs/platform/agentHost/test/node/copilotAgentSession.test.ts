@@ -1530,6 +1530,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	platform?: NodeJS.Platform;
 	githubToken?: string;
 	githubCredentials?: CopilotGitHubSessionCredentials;
+	accountContext?: CopilotSessionLaunchPlan['accountContext'];
 	copilotApiEndpoint?: string;
 	gitService?: IAgentHostGitService;
 	gitHubEndpointService?: IAgentHostGitHubEndpointService;
@@ -1576,7 +1577,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	/** Receives the session before it initializes, so tests can dispose a session whose initialization fails. */
 	onSessionCreated?: (session: CopilotAgentSession) => void;
 	/** Called the first time the session starts root work. */
-	onRootWorkStarted?: () => void;
+	onHistoryRewritten?: () => void;
+	onHostInstructionsDelivered?: () => void;
 	/** The shared Computer Use permission setup the agent hands to the session. */
 	computerUsePermissionSetup?: () => CopilotComputerUsePermissionSetup | undefined;
 	/** The client's plugins, as `plugins.list` reports them. */
@@ -1669,6 +1671,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		snapshot: options?.clientSnapshot ?? { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 		shellManager: options?.shellManager,
 		githubCredentials: options?.githubCredentials ?? CopilotGitHubSessionCredentials.fromToken(options?.githubToken),
+		accountContext: options?.accountContext,
 		isEphemeral: options?.isEphemeral,
 		disabledRootMcpServers: options?.disabledRootMcpServers,
 		hasScopedEditSurface: options?.hasScopedEditSurface,
@@ -2007,7 +2010,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			launchPlan,
 			shellManager: options?.shellManager,
 			clientSnapshot: options?.clientSnapshot,
-			onRootWorkStarted: options?.onRootWorkStarted,
+			onHistoryRewritten: options?.onHistoryRewritten,
+			onHostInstructionsDelivered: options?.onHostInstructionsDelivered,
 			builtinPluginDirectories: options?.builtinPluginDirectories,
 			getUserMcpServers: options?.getUserMcpServers ?? (options?.getUserMcpServerNames ? async () => Object.fromEntries(
 				[...await options.getUserMcpServerNames!()].map(name => [name, { type: 'http' as const, url: 'https://mcp.example.com' }]),
@@ -2179,53 +2183,111 @@ suite('CopilotAgentSession', () => {
 		assert.deepStrictEqual({ before, after: session.isHeldInUse }, { before: false, after: true });
 	});
 
-	suite('reports the first root work, once', () => {
-		const notification = (kind: object, overrides?: { agentId: string }) => (mockSession: MockCopilotSession) =>
-			mockSession.fire('system.notification', { content: '<system_notification>\nDone\n</system_notification>', kind } as SessionEventPayload<'system.notification'>['data'], overrides);
-		const shellCompleted = { type: 'shell_completed', shellId: 'shell-a', exitCode: 0, description: 'sleep 6' };
+	test('reports each rewrite of its history: a compaction, a truncation and a rewind, but not a message or a subagent\'s compaction', async () => {
+		let rewrites = 0;
+		const { mockSession } = await createAgentSession(disposables, { resume: true, onHistoryRewritten: () => rewrites++ });
+		const after = (fire: () => void) => {
+			fire();
+			return rewrites;
+		};
+		assert.deepStrictEqual({
+			message: after(() => mockSession.fire('user.message', { content: 'Hello.', messageId: 'message-1', turnId: 'sdk-turn' } as SessionEventPayload<'user.message'>['data'])),
+			subagentCompaction: after(() => mockSession.fire('session.compaction_complete', { success: true } as SessionEventPayload<'session.compaction_complete'>['data'], { agentId: 'subagent' })),
+			compaction: after(() => mockSession.fire('session.compaction_complete', { success: true } as SessionEventPayload<'session.compaction_complete'>['data'])),
+			truncation: after(() => mockSession.fire('session.truncation', {} as SessionEventPayload<'session.truncation'>['data'])),
+			rewind: after(() => mockSession.fire('session.snapshot_rewind', { upToEventId: 'user-0', eventsRemoved: 1 })),
+		}, { message: 0, subagentCompaction: 0, compaction: 1, truncation: 2, rewind: 3 });
+	});
 
-		const starts: Record<string, (session: CopilotAgentSession, mockSession: MockCopilotSession) => void | Promise<void>> = {
-			'a sent message': session => session.send('hello', undefined, 'turn-1'),
-			'a root message the runtime received on its own': (_session, mockSession) => mockSession.fire('user.message', { content: 'Play one move.', messageId: 'provider-message', turnId: 'provider-sdk-turn' } as SessionEventPayload<'user.message'>['data']),
-			'a root message while a host turn is still pending': (session, mockSession) => {
-				session.resetTurnState('turn-pending');
+	test('host instructions reach the agent with the prompt hook, or with the prompt itself when managed policy suppresses hooks, and count as delivered once the runtime echoes that prompt', async () => {
+		interface ISendCase {
+			readonly prompt?: string;
+			/** A managed hook policy keeps the runtime from calling the prompt hook. */
+			readonly suppressHooks?: boolean;
+			/** The runtime rejects the send. */
+			readonly rejected?: boolean;
+			/** The runtime records the prompt. It does not when the send is rejected, a hook blocks it, or it is a command. */
+			readonly echoed?: boolean;
+			/** A root message the runtime starts on its own arrives afterwards. */
+			readonly thenOtherMessage?: boolean;
+			/** The id of a root message the runtime echoes while the send is still in flight. */
+			readonly echoedDuringSend?: string;
+			/** The turn also goes idle while the send is still in flight. */
+			readonly idleDuringSend?: boolean;
+			/** The runtime does not start the fleet. */
+			readonly fleetNotStarted?: boolean;
+		}
+		const sendWith = async ({ prompt = 'hello', suppressHooks = false, rejected = false, echoed = true, thenOtherMessage = false, echoedDuringSend, idleDuringSend = false, fleetNotStarted = false }: ISendCase) => {
+			let delivered = 0;
+			const { session, runtime, mockSession } = await createAgentSession(disposables, { onHostInstructionsDelivered: () => delivered++ });
+			mockSession.commandListResult = { commands: [{ name: 'fleet', kind: 'builtin', description: 'Start fleet', allowDuringAgentExecution: false }] };
+			if (suppressHooks) {
+				runtime.onSessionEvent?.({
+					type: 'session.managed_settings_resolved', id: 'policy', timestamp: new Date(0).toISOString(), parentId: null, ephemeral: true,
+					data: { source: 'server', serverManaged: true, deviceManaged: false, bypassPermissionsDisabled: false, failClosed: false, managedKeys: ['allowManagedHooksOnly'], settings: { allowManagedHooksOnly: true } },
+				});
+			}
+			if (echoedDuringSend) {
+				mockSession.onSend = () => {
+					mockSession.fire('user.message', { content: prompt, messageId: echoedDuringSend, turnId: 'sdk-turn' } as SessionEventPayload<'user.message'>['data']);
+					if (idleDuringSend) {
+						mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+					}
+				};
+			}
+			mockSession.fleetStartResult = { started: !fleetNotStarted };
+			if (rejected) {
+				const closed = Promise.reject(new Error('The connection closed.'));
+				closed.catch(() => { });
+				mockSession.sendGate = closed;
+			}
+			await session.send(prompt, undefined, 'turn-1', 'interactive', undefined, AgentHostClientType.Unknown, ['A note.']).catch(() => { });
+			// A command's turn is over without a prompt, so the hook then runs for a prompt the runtime starts on its own.
+			const hook = suppressHooks || prompt.startsWith('/fleet') ? undefined : session.handleUserPromptSubmitted()?.additionalContext;
+			const beforeEcho = delivered;
+			if (echoed) {
+				mockSession.fire('user.message', { content: prompt, messageId: 'message-1', turnId: 'sdk-turn' } as SessionEventPayload<'user.message'>['data']);
+			}
+			if (thenOtherMessage) {
 				mockSession.fire('user.message', { content: 'From an extension.', messageId: 'provider-message', turnId: 'provider-sdk-turn' } as SessionEventPayload<'user.message'>['data']);
-			},
-			'a notification that wakes the root agent': (_session, mockSession) => notification(shellCompleted)(mockSession),
-			'a notification that wakes the root agent while a host turn is still pending': (session, mockSession) => {
-				session.resetTurnState('turn-pending');
-				notification(shellCompleted)(mockSession);
-			},
-			// Covers a request the runtime marks as automation, whose message event is filtered as context.
-			'a root assistant turn': (_session, mockSession) => mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn' } as SessionEventPayload<'assistant.turn_start'>['data']),
+			}
+			const prompts = [...mockSession.sendRequests.map(request => request as MessageOptions), ...mockSession.fleetStartCalls].map(request => request.prompt);
+			return { prompts, displayPrompt: (mockSession.sendRequests[0] as MessageOptions | undefined)?.displayPrompt, hook, beforeEcho, delivered };
 		};
-		for (const [name, start] of Object.entries(starts)) {
-			test(name, async () => {
-				let reports = 0;
-				const { session, mockSession } = await createAgentSession(disposables, { resume: true, onRootWorkStarted: () => reports++ });
-				const before = session.hasStartedRootWork;
-				await start(session, mockSession);
-				// A second start of any kind is not a second report.
-				mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-2' } as SessionEventPayload<'assistant.turn_start'>['data']);
-				assert.deepStrictEqual({ before, after: session.hasStartedRootWork, reports }, { before: false, after: true, reports: 1 });
-			});
-		}
-
-		const notStarts: Record<string, (mockSession: MockCopilotSession) => void> = {
-			'a subagent\'s message': mockSession => mockSession.fire('user.message', { content: 'Sub task.', messageId: 'child-message', turnId: 'child-turn' } as SessionEventPayload<'user.message'>['data'], { agentId: 'subagent' }),
-			'a subagent\'s turn': mockSession => mockSession.fire('assistant.turn_start', { turnId: 'child-turn' } as SessionEventPayload<'assistant.turn_start'>['data'], { agentId: 'subagent' }),
-			'a subagent\'s notification': notification(shellCompleted, { agentId: 'subagent' }),
-			'a notification that does not wake the agent': notification({ type: 'new_inbox_message', entryId: 'entry-a', senderName: 'sidekick', senderType: 'sidekick-agent', summary: 'New message' }),
-			'context injected as a user message': mockSession => mockSession.fire('user.message', { content: 'A skill.', source: 'skill-pdf' } as SessionEventPayload<'user.message'>['data']),
-		};
-		for (const [name, event] of Object.entries(notStarts)) {
-			test(`not for ${name}`, async () => {
-				let reports = 0;
-				const { session, mockSession } = await createAgentSession(disposables, { resume: true, onRootWorkStarted: () => reports++ });
-				event(mockSession);
-				assert.deepStrictEqual({ started: session.hasStartedRootWork, reports }, { started: false, reports: 0 });
-			});
-		}
+		const reminder = '\n\n<reminder>\nA note.\n</reminder>';
+		assert.deepStrictEqual({
+			hook: await sendWith({}),
+			hookBlockedPrompt: (await sendWith({ echoed: false })).delivered,
+			// Handled by the history RPC: no prompt goes out, so the note does not either, nor with a later prompt.
+			command: await sendWith({ prompt: '/compact', echoed: false }),
+			suppressedHooks: await sendWith({ suppressHooks: true }),
+			// The rejected turn is over: a message the runtime starts afterwards is not its prompt.
+			suppressedHooksRejected: (await sendWith({ suppressHooks: true, rejected: true, echoed: false, thenOtherMessage: true })).delivered,
+			// The prompt's own echo can come before its send returns its id.
+			suppressedHooksEarlyEcho: (await sendWith({ suppressHooks: true, echoed: false, echoedDuringSend: 'message-1' })).delivered,
+			// Another root message echoed during a send that is then rejected is not that send's prompt.
+			suppressedHooksOtherEchoThenRejected: (await sendWith({ suppressHooks: true, rejected: true, echoed: false, echoedDuringSend: 'provider-message' })).delivered,
+			// The turn can be over before its send returns the prompt's id.
+			suppressedHooksEarlyEchoAndIdle: (await sendWith({ suppressHooks: true, echoed: false, echoedDuringSend: 'message-1', idleDuringSend: true })).delivered,
+			suppressedHooksFleet: (await sendWith({ prompt: '/fleet build it', suppressHooks: true, echoed: false })).prompts,
+			// A fleet start returns no message id: its prompt is the root message of the turn it started.
+			suppressedHooksFleetEchoed: (await sendWith({ prompt: '/fleet build it', suppressHooks: true })).delivered,
+			suppressedHooksFleetNotStarted: (await sendWith({ prompt: '/fleet build it', suppressHooks: true, fleetNotStarted: true })).delivered,
+			fleet: (await sendWith({ prompt: '/fleet build it', echoed: false })).prompts,
+		}, {
+			hook: { prompts: ['hello'], displayPrompt: undefined, hook: 'A note.', beforeEcho: 0, delivered: 1 },
+			hookBlockedPrompt: 0,
+			command: { prompts: [], displayPrompt: undefined, hook: undefined, beforeEcho: 0, delivered: 0 },
+			suppressedHooks: { prompts: [`hello${reminder}`], displayPrompt: 'hello', hook: undefined, beforeEcho: 0, delivered: 1 },
+			suppressedHooksRejected: 0,
+			suppressedHooksEarlyEcho: 1,
+			suppressedHooksOtherEchoThenRejected: 0,
+			suppressedHooksEarlyEchoAndIdle: 1,
+			suppressedHooksFleet: [`build it${reminder}`],
+			suppressedHooksFleetEchoed: 1,
+			suppressedHooksFleetNotStarted: 0,
+			fleet: ['build it'],
+		});
 	});
 
 	suite('grep search subagent nudge', () => {
@@ -4384,6 +4446,15 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	test('a session signed in with a Microsoft account takes no GitHub token replacement', async () => {
+		const { session, mockSession } = await createAgentSession(disposables, {
+			githubCredentials: CopilotGitHubSessionCredentials.fromClientAuthentication(undefined),
+			accountContext: { kind: 'ready' } as CopilotSessionLaunchPlan['accountContext'],
+		});
+		await assert.rejects(session.updateGitHubCredentials('github.com', 'token'), /isolated/);
+		assert.deepStrictEqual({ staticToken: session.usesStaticGitHubToken, updates: mockSession.gitHubCredentialUpdates }, { staticToken: false, updates: [] });
+	});
+
 	test('client-owned GitHub credentials reject global token replacement while allowing BYOK', async () => {
 		const provider = { name: 'private-provider', type: 'openai' as const, wireApi: 'responses' as const, baseUrl: 'http://127.0.0.1:1/v/private-provider', bearerToken: 'nonce.test-session-1' };
 		const model = { id: 'model', provider: provider.name };
@@ -6325,6 +6396,169 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(results, [
 				{ trigger: 'restore', outcome: 'opened', askedForConsent: true },
 				{ trigger: 'restore', outcome: 'consentDenied', askedForConsent: true },
+			]);
+		});
+
+		test('reports that restoring a canvas asked for the consent of another extension its start waited for, which a client open showed', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const telemetryService = new CapturingTelemetryService();
+			const otherAnswer = new DeferredPromise<PermissionRequestResult>();
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				telemetryService,
+				configureMockSession: mock => {
+					mock.extensions.push({ id: preview.extensionId, name: 'preview', source: 'project', status: 'dormant' });
+					// The runtime does not finish starting an extension while another one waits for consent.
+					mock.onCanvasOpen = async () => {
+						await otherAnswer.p;
+						return { ...preview, url: 'https://example.test/reopened' };
+					};
+				},
+			});
+			void replacement.runtime.handlePermissionRequest({ kind: 'extension-permission-access', extensionName: 'user:pr-health', capabilities: ['register hooks'] }).then(result => otherAnswer.complete(result));
+			const resource = handoff.projections[0].resource.toString();
+			assert.strictEqual(replacement.session.adoptCanvasHandoff(handoff), true);
+			const request = { canvasId: preview.canvasId, extensionId: preview.extensionId, instanceId: preview.instanceId };
+			const asked = await replacement.session.openCanvas(request);
+			const opened = asked.kind === 'consentRequired'
+				? await replacement.session.openCanvas(request, { kind: 'consent', consentId: asked.consent.id, optionId: AgentExtensionConsentOption.NotNow })
+				: asked;
+			await retry(async () => assert.strictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.canvasHostOpen').length, 2), 10, 100);
+
+			assert.deepStrictEqual({
+				askedFor: asked.kind === 'consentRequired' ? asked.consent.extensionName : asked.kind,
+				opened,
+				reports: telemetryService.events.filter(event => event.eventName === 'agentHost.canvasHostOpen').map(event => {
+					const { trigger, outcome, askedForConsent } = event.data as ICanvasHostOpenEvent;
+					return { trigger, outcome, askedForConsent };
+				}).sort((a, b) => a.trigger.localeCompare(b.trigger)),
+				// The canvas keeps its lifetime while it waits.
+				...summarizeCanvasSignals(replacement.signals),
+			}, {
+				askedFor: 'user:pr-health',
+				opened: { kind: 'opened' },
+				reports: [
+					{ trigger: 'restore', outcome: 'opened', askedForConsent: true },
+					{ trigger: 'user', outcome: 'opened', askedForConsent: true },
+				],
+				states: [{ resource, url: undefined }, { resource, url: 'https://example.test/reopened' }],
+				membership: [[resource]],
+			});
+			replacement.session.dispose();
+		});
+
+		test('waits for the restore of a canvas a client opens instead of opening it again, and does not desynchronize when the restore is slow', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const reopen = new DeferredPromise<Awaited<ReturnType<CopilotSession['rpc']['canvas']['open']>>>();
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				controlPlaneRpcTimeoutMs: 20,
+				configureMockSession: mock => {
+					mock.onCanvasOpen = () => reopen.p;
+				},
+			});
+			const resource = handoff.projections[0].resource.toString();
+			assert.strictEqual(replacement.session.adoptCanvasHandoff(handoff), true);
+			await timeout(0);
+			const opened = await replacement.session.openCanvas({ canvasId: preview.canvasId, extensionId: preview.extensionId, instanceId: preview.instanceId });
+			const desynchronized = replacement.session.requiresControlPlaneResync;
+			// The runtime still reports the restore once the provider has started.
+			replacement.mockSession.fire('session.canvas.opened', { ...preview, url: 'https://example.test/late' });
+			reopen.complete({ ...preview, url: 'https://example.test/late' });
+
+			assert.deepStrictEqual({ opened, desynchronized, runtimeOpens: replacement.mockSession.canvasOpenCalls.length, ...summarizeCanvasSignals(replacement.signals) }, {
+				opened: { kind: 'failed', failure: 'unavailable' },
+				desynchronized: false,
+				runtimeOpens: 1,
+				states: [{ resource, url: undefined }, { resource, url: 'https://example.test/late' }],
+				membership: [[resource]],
+			});
+			replacement.session.dispose();
+		});
+
+		test('restores a canvas whose client answers its consent after the restore deadline, and reports a restore an opened event already showed as opened', async () => {
+			const results = [];
+			for (const scenario of ['late consent answer', 'opened event before the open resolves'] as const) {
+				const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+				const otherAnswer = new DeferredPromise<PermissionRequestResult>();
+				const replacement = await createAgentSession(disposables, {
+					resume: true,
+					canvasHandoff: handoff,
+					controlPlaneRpcTimeoutMs: 20,
+					configureMockSession: mock => {
+						mock.extensions.push({ id: preview.extensionId, name: 'preview', source: 'project', status: 'dormant' });
+						mock.onCanvasOpen = async () => {
+							await otherAnswer.p;
+							if (scenario === 'opened event before the open resolves') {
+								mock.fire('session.canvas.opened', { ...preview, url: 'https://example.test/event' });
+							}
+							return { ...preview, url: 'https://example.test/reopened' };
+						};
+					},
+				});
+				void replacement.runtime.handlePermissionRequest({ kind: 'extension-permission-access', extensionName: 'user:pr-health', capabilities: ['register hooks'] }).then(result => otherAnswer.complete(result));
+				assert.strictEqual(replacement.session.adoptCanvasHandoff(handoff), true);
+				await timeout(0);
+				const request = { canvasId: preview.canvasId, extensionId: preview.extensionId, instanceId: preview.instanceId };
+				const asked = await replacement.session.openCanvas(request);
+				if (scenario === 'late consent answer') {
+					// The person answers after the restore's bounded wait would have ended.
+					await timeout(60);
+				}
+				const opened = asked.kind === 'consentRequired'
+					? await replacement.session.openCanvas(request, { kind: 'consent', consentId: asked.consent.id, optionId: AgentExtensionConsentOption.NotNow })
+					: asked;
+				results.push({ scenario, opened, url: summarizeCanvasSignals(replacement.signals).states.at(-1)?.url, desynchronized: replacement.session.requiresControlPlaneResync });
+				replacement.session.dispose();
+			}
+
+			assert.deepStrictEqual(results, [
+				{ scenario: 'late consent answer', opened: { kind: 'opened' }, url: 'https://example.test/reopened', desynchronized: false },
+				{ scenario: 'opened event before the open resolves', opened: { kind: 'opened' }, url: 'https://example.test/event', desynchronized: false },
+			]);
+		});
+
+		test('reopens a restoring canvas a client opens with its input, unless it was closed while the open waited for consent', async () => {
+			const input = { path: '/logs/events.jsonl' };
+			const results = [];
+			for (const closeWhileWaiting of [false, true]) {
+				const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, input, url: 'https://example.test/previous' });
+				const otherAnswer = new DeferredPromise<PermissionRequestResult>();
+				const replacement = await createAgentSession(disposables, {
+					resume: true,
+					canvasHandoff: handoff,
+					configureMockSession: mock => {
+						mock.extensions.push({ id: preview.extensionId, name: 'preview', source: 'project', status: 'dormant' });
+						mock.onCanvasOpen = async params => {
+							await otherAnswer.p;
+							return { ...preview, input: params.input, url: 'https://example.test/reopened' };
+						};
+					},
+				});
+				void replacement.runtime.handlePermissionRequest({ kind: 'extension-permission-access', extensionName: 'user:pr-health', capabilities: ['register hooks'] }).then(result => otherAnswer.complete(result));
+				assert.strictEqual(replacement.session.adoptCanvasHandoff(handoff), true);
+				const request = { canvasId: preview.canvasId, extensionId: preview.extensionId, instanceId: preview.instanceId };
+				const asked = await replacement.session.openCanvas(request);
+				if (closeWhileWaiting) {
+					await replacement.session.closeCanvas({ resource: handoff.projections[0].resource });
+				}
+				const opened = asked.kind === 'consentRequired'
+					? await replacement.session.openCanvas(request, { kind: 'consent', consentId: asked.consent.id, optionId: AgentExtensionConsentOption.NotNow })
+					: asked;
+				await timeout(0);
+				results.push({
+					opened,
+					openInputs: replacement.mockSession.canvasOpenCalls.map(call => call.input),
+					members: summarizeCanvasSignals(replacement.signals).membership.at(-1)?.length,
+				});
+				replacement.session.dispose();
+			}
+
+			assert.deepStrictEqual(results, [
+				{ opened: { kind: 'opened' }, openInputs: [input], members: 1 },
+				{ opened: { kind: 'failed', failure: 'dismissed' }, openInputs: [input], members: 0 },
 			]);
 		});
 
@@ -12859,6 +13093,92 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(getHookNotices(signals).map(({ turnId, parentToolCallId, meta }) => ({ turnId, parentToolCallId, hook: meta.hook })), [
 				{ turnId: 'turn-1', parentToolCallId: 'tc-subagent', hook: warned('preToolUse', 'Careful with that tool.') },
 			]);
+		});
+
+		// Recorded from a live session with the sandbox on: the runtime reports a failed command hook twice, as a failed
+		// hook.end and as a `session.error` of type `hook`, and then carries on with the turn.
+		const sandboxedHookError = (hookType: string): SessionEventPayload<'session.error'>['data'] => ({
+			errorType: 'hook',
+			message: `${hookType} hook from ".github/hooks/tpi.json" failed in the session sandbox: Hook command failed with code 1. Stderr omitted for privacy. If it needs more access, allow it in the sandbox policy.`,
+		});
+		const failedPromptHook: SessionEventPayload<'hook.end'>['data'] = {
+			hookInvocationId: '295abbbf-9c78-4152-92f0-2e1200d6f394', hookType: 'userPromptSubmitted', success: false,
+			error: { message: 'Error: Hook command failed with code 1\nStderr: The prompt contains FAILME.\n', source: '.github/hooks/tpi.json' },
+		};
+		const failedToolHook: SessionEventPayload<'hook.end'>['data'] = {
+			hookInvocationId: '13a71f95-5307-49e9-ac53-3647902284bc', hookType: 'preToolUse', success: false,
+			output: { 'toolu_01NRuK8WZWtBXdvLtoMaQXuy': 'Denied by preToolUse hook from ".github/hooks/tpi.json" (hook errored)' },
+			error: { message: 'Error: Hook command failed with code 1\nStderr: hook.js exits with code 1 for tool calls that mention crash.txt.\n', source: '.github/hooks/tpi.json' },
+		};
+		function getTurnOutline(signals: readonly AgentSignal[]) {
+			return signals.flatMap(signal => {
+				if (signal.kind !== 'action') {
+					return [];
+				}
+				const action = signal.action;
+				const scope = signal.parentToolCallId ? `${signal.parentToolCallId}: ` : '';
+				switch (action.type) {
+					case ActionType.ChatTurnStarted: return [`${scope}started ${action.message.text}`];
+					case ActionType.ChatError: return [`${scope}error`];
+					case ActionType.ChatTurnComplete: return [`${scope}complete ${action.turnId}`];
+					case ActionType.ChatResponsePart: return action.part.kind === ResponsePartKind.SystemNotification ? [`${scope}notice ${action.turnId}: ${action.part.content}`]
+						: action.part.kind === ResponsePartKind.Markdown ? [`${scope}markdown ${action.turnId}`] : [];
+					default: return [];
+				}
+			});
+		}
+
+		test('keeps the turn when a prompt hook fails in the sandbox, showing the failure once and not starting the prompt again', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			await session.send('FAILME reply with just the word ok', undefined, 'turn-1');
+			// In the order received: the sandbox report reaches VS Code before the hook's own end.
+			mockSession.fire('session.error', sandboxedHookError('userPromptSubmitted'));
+			mockSession.fire('hook.end', failedPromptHook);
+			mockSession.fire('user.message', { content: 'FAILME reply with just the word ok', messageId: 'message-1', turnId: '0' } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('assistant.message', { messageId: 'reply', content: 'ok' } as SessionEventPayload<'assistant.message'>['data']);
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			await timeout(0);
+
+			assert.deepStrictEqual(getTurnOutline(signals), [
+				'notice turn-1: The userPromptSubmitted hook from .github/hooks/tpi.json failed: Error: Hook command failed with code 1\nStderr: The prompt contains FAILME.\n',
+				'markdown turn-1',
+				'complete turn-1',
+			]);
+		});
+
+		test('keeps the turn and a subagent when a preToolUse hook fails in the sandbox mid-turn', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			await session.send('Show me what is in crash.txt', undefined, 'turn-1');
+			mockSession.fire('user.message', { content: 'Show me what is in crash.txt', messageId: 'message-1', turnId: '0' } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('subagent.started', {
+				toolCallId: 'tc-subagent', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests',
+			} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+			mockSession.fire('session.error', sandboxedHookError('preToolUse'), { agentId: 'agent-1' });
+			mockSession.fire('hook.end', { ...failedToolHook, parentToolCallId: 'tc-subagent' }, { agentId: 'agent-1' });
+			mockSession.fire('session.error', sandboxedHookError('preToolUse'));
+			mockSession.fire('hook.end', failedToolHook);
+			mockSession.fire('assistant.message', { messageId: 'reply', content: 'The read was denied by a preToolUse hook that errored.' } as SessionEventPayload<'assistant.message'>['data']);
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			await timeout(0);
+
+			const failure = 'The preToolUse hook from .github/hooks/tpi.json failed: Error: Hook command failed with code 1\nStderr: hook.js exits with code 1 for tool calls that mention crash.txt.\n';
+			assert.deepStrictEqual(getTurnOutline(signals), [
+				`tc-subagent: notice turn-1: ${failure}`,
+				`notice turn-1: ${failure}`,
+				'markdown turn-1',
+				'complete turn-1',
+			]);
+		});
+
+		test('still ends the turn for a session error that is not about a hook', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			await session.send('hello', undefined, 'turn-1');
+			mockSession.fire('user.message', { content: 'hello', messageId: 'message-1', turnId: '0' } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('session.error', { errorType: 'authentication', message: 'Not signed in' });
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			await timeout(0);
+
+			assert.deepStrictEqual(getTurnOutline(signals), ['error']);
 		});
 	});
 
@@ -21754,6 +22074,38 @@ Use the attached image as context.
 				});
 			});
 
+			test('shows an open that starts its extension the request another starting extension waits on, but not an open of a running one', async () => {
+				const { session, runtime, mockSession } = await createAgentSession(disposables, { controlPlaneRpcTimeoutMs: 10 });
+				mockSession.extensions.push(
+					{ id: 'user:lazy', name: 'lazy', source: 'user', status: 'dormant' },
+					{ id: 'user:live', name: 'live', source: 'user', status: 'running' },
+				);
+				// The runtime does not finish starting an extension while another one waits for consent.
+				const otherAnswer = runtime.handlePermissionRequest(envRequest('user:other'));
+				const runtimeOpens: string[] = [];
+				mockSession.rpc.canvas.open = async params => {
+					runtimeOpens.push(params.extensionId ?? '');
+					if (params.extensionId === 'user:lazy') {
+						await otherAnswer;
+					}
+					return { instanceId: params.instanceId, extensionId: params.extensionId ?? '', canvasId: params.canvasId, url: 'https://example.test/demo' };
+				};
+				const live = await session.openCanvas(canvasRequest('user:live'));
+				const asked = await session.openCanvas(canvasRequest('user:lazy'));
+				const runtimeOpensBeforeAnswer = [...runtimeOpens];
+				const opened = asked.kind === 'consentRequired'
+					? await session.openCanvas(canvasRequest('user:lazy'), { kind: 'consent', consentId: asked.consent.id, optionId: AgentExtensionConsentOption.Allow })
+					: asked;
+				assert.deepStrictEqual({ live, asked: withoutId(asked), runtimeOpensBeforeAnswer, opened, otherAnswer: await otherAnswer }, {
+					live: { kind: 'opened' },
+					asked: { kind: 'consentRequired', consent: { ...consent('user:other', true), displayName: 'other' } },
+					// The runtime fails a start that waits too long, so the open starts the extension only once the person answered.
+					runtimeOpensBeforeAnswer: ['user:live'],
+					opened: { kind: 'opened' },
+					otherAnswer: { kind: 'approve-once' },
+				});
+			});
+
 			test('never remembers a project extension, reports Not Now as retryable and a stored Never as final', async () => {
 				const project = await createAgentSession(disposables, { rootValues: { [AgentHostExtensionPermissionApprovalsConfigKey]: { [`project:demo (environment variables: ${variable})`]: 'allow' } } });
 				useLazyCanvas(project.mockSession, project.runtime);
@@ -27320,6 +27672,225 @@ Use the attached image as context.
 				],
 				committed: ['root: Final answer'],
 			});
+		});
+
+		/** Each streamed or whole text and reasoning part, with its deltas folded in, as `scope: kind content`. */
+		const streamedFusionTranscript = (signals: readonly AgentSignal[]) => {
+			const parts = new Map<string, { scope: string; kind: string; content: string }>();
+			for (const signal of signals) {
+				if (signal.kind !== 'action') {
+					continue;
+				}
+				const action = signal.action;
+				if (action.type === ActionType.ChatResponsePart && (action.part.kind === ResponsePartKind.Markdown || action.part.kind === ResponsePartKind.Reasoning)) {
+					parts.set(action.part.id, { scope: signal.parentToolCallId ?? 'root', kind: action.part.kind === ResponsePartKind.Markdown ? 'text' : 'reasoning', content: action.part.content });
+				} else if (action.type === ActionType.ChatDelta || action.type === ActionType.ChatReasoning) {
+					const part = parts.get(action.partId);
+					if (part) {
+						part.content += action.content;
+					}
+				}
+			}
+			return [...parts.values()].map(part => `${part.scope}: ${part.kind} ${part.content}`);
+		};
+		const critiqueDraft = { ...fusionTestData.started, phaseId: 'phase-1', phaseKind: 'draft', pattern: 'critique' } as const;
+		const critiqueCritic = { ...fusionTestData.started, phaseId: 'phase-2', phaseKind: 'critic', role: 'critic', conversationScope: 'review', pattern: 'critique' } as const;
+		const critiqueRevision = { ...fusionTestData.started, phaseId: 'phase-3', phaseKind: 'revision', pattern: 'critique' } as const;
+		/** A staged phase's model call as the runtime streams it: provisional deltas, then its provisional whole reasoning and message. */
+		const streamFusionModelCall = (mockSession: MockCopilotSession, phase: SessionEventPayload<'assistant.fusion_phase_started'>['data'], messageId: string, reasoning: readonly string[], text: readonly string[]) => {
+			const fusion = { fusionId: phase.fusionId, phaseId: phase.phaseId, phaseKind: phase.phaseKind, role: phase.role, conversationScope: phase.conversationScope, syntheticModel: 'hydrafusion', policy: 'standard', pattern: 'critique' };
+			const provisional = { ephemeral: true } as const;
+			for (const deltaContent of reasoning) {
+				mockSession.fire('assistant.reasoning_delta', { reasoningId: `${messageId}-reasoning`, deltaContent, fusion }, provisional);
+			}
+			mockSession.fire('assistant.message_start', { messageId, fusion }, provisional);
+			for (const deltaContent of text) {
+				mockSession.fire('assistant.message_delta', { messageId, deltaContent, fusion }, provisional);
+			}
+			mockSession.fire('assistant.reasoning', { reasoningId: `${messageId}-reasoning`, content: reasoning.join(''), fusion }, provisional);
+			mockSession.fire('assistant.message', { messageId, content: text.join(''), reasoningText: reasoning.join(''), fusion }, provisional);
+			return { messageId, content: text.join(''), reasoningText: reasoning.join(''), fusion: { ...fusion, commitId: 'commit-1' } };
+		};
+
+		test('a revised critique streams its draft\'s reasoning and its revision in the revision chat; only the revised answer reaches the response', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('fusion-turn');
+			const draft = critiqueDraft;
+			const critic = critiqueCritic;
+			const revision = critiqueRevision;
+
+			mockSession.fire('assistant.fusion_phase_started', draft);
+			streamFusionModelCall(mockSession, draft, 'draft-answer', ['Weighing ', 'the race'], ['Draft ', 'answer']);
+			const draftStream = streamedFusionTranscript(signals);
+			const draftThinkingEnded = signals.some(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatReasoning && signal.action.duration !== undefined);
+			mockSession.fire('assistant.fusion_phase_completed', { ...fusionTestData.phaseCompleted, ...draft });
+			mockSession.fire('assistant.fusion_phase_started', critic);
+			streamFusionModelCall(mockSession, critic, 'critique', ['Checking'], ['{"assessment":"revise"}']);
+			mockSession.fire('assistant.fusion_phase_completed', { ...fusionTestData.phaseCompleted, ...critic, content: JSON.stringify({ assessment: 'revise', feedback: 'Read the field once.' }) });
+			mockSession.fire('assistant.fusion_phase_started', revision);
+			const committed = streamFusionModelCall(mockSession, revision, 'revised-answer', ['Fixing'], ['Revised ', 'answer']);
+			mockSession.fire('assistant.fusion_phase_completed', { ...fusionTestData.phaseCompleted, ...revision });
+			mockSession.fire('assistant.message', committed);
+			mockSession.fire('session.fusion_completed', { ...fusionTestData.completed, pattern: 'critique', finalSourcePhaseId: 'phase-3' });
+			mockSession.fire('session.idle', {});
+
+			assert.deepStrictEqual({ draftStream, draftThinkingEnded, transcript: streamedFusionTranscript(signals) }, {
+				draftStream: ['root: reasoning Weighing the race'],
+				draftThinkingEnded: true,
+				transcript: [
+					'root: reasoning Weighing the race',
+					'fusion:fusion-1:phase-2: text **Changes requested**\n\nRead the field once.',
+					'fusion:fusion-1:phase-3: reasoning Fixing',
+					'fusion:fusion-1:phase-3: text Revised answer',
+					'root: text Revised answer',
+				],
+			});
+		});
+
+		test('an approved critique draft streams its reasoning once and shows its committed answer once', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('fusion-turn');
+			const draft = critiqueDraft;
+			const critic = critiqueCritic;
+
+			mockSession.fire('assistant.fusion_phase_started', draft);
+			const committed = streamFusionModelCall(mockSession, draft, 'draft-answer', ['Weighing ', 'the race'], ['Draft ', 'answer']);
+			mockSession.fire('assistant.fusion_phase_completed', { ...fusionTestData.phaseCompleted, ...draft });
+			mockSession.fire('assistant.fusion_phase_started', critic);
+			streamFusionModelCall(mockSession, critic, 'critique', ['Checking'], ['{"assessment":"approve"}']);
+			mockSession.fire('assistant.fusion_phase_completed', { ...fusionTestData.phaseCompleted, ...critic, content: JSON.stringify({ assessment: 'approve', feedback: 'Correct.' }) });
+			mockSession.fire('assistant.message', committed);
+			mockSession.fire('session.fusion_completed', { ...fusionTestData.completed, pattern: 'critique' });
+			mockSession.fire('session.idle', {});
+
+			assert.deepStrictEqual(streamedFusionTranscript(signals), [
+				'root: reasoning Weighing the race',
+				'fusion:fusion-1:phase-2: text **Approved**\n\nCorrect.',
+				'root: text Draft answer',
+			]);
+		});
+
+		test('a rejected main pass streams only its reasoning; the repair streams each model call into its chat once', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('fusion-turn');
+			const provisional = { ephemeral: true } as const;
+			const solverRound = (phase: SessionEventPayload<'assistant.fusion_phase_started'>['data'], toolCallId: string, work: string, answer: string, commitId?: string) => {
+				const fusion = { ...liveFusion(phase.phaseId, commitId), phaseKind: phase.phaseKind, role: phase.role, conversationScope: phase.conversationScope };
+				const options = commitId ? undefined : provisional;
+				if (!commitId) {
+					mockSession.fire('assistant.reasoning_delta', { reasoningId: `${toolCallId}-reasoning`, deltaContent: `Planning ${toolCallId}`, fusion }, provisional);
+					mockSession.fire('assistant.message_delta', { messageId: `${toolCallId}-work`, deltaContent: work, fusion }, provisional);
+				}
+				mockSession.fire('assistant.message', { messageId: `${toolCallId}-work`, content: work, reasoningText: `Planning ${toolCallId}`, toolRequests: [{ toolCallId, name: 'view', arguments: {} }], fusion }, options);
+				mockSession.fire('tool.execution_start', { toolCallId, toolName: 'view', arguments: { path: '/workspace/a.ts' }, fusion }, options);
+				mockSession.fire('tool.execution_complete', { toolCallId, success: true, result: { content: 'x' }, fusion }, options);
+				if (!commitId) {
+					mockSession.fire('assistant.message_delta', { messageId: `${toolCallId}-answer`, deltaContent: answer, fusion }, provisional);
+				}
+				mockSession.fire('assistant.message', { messageId: `${toolCallId}-answer`, content: answer, fusion }, options);
+			};
+			const judge = { ...fusionTestData.started, phaseId: 'phase-2', phaseKind: 'judge', role: 'judge', conversationScope: 'review' } as const;
+			const repair = { ...fusionTestData.started, phaseId: 'phase-3', phaseKind: 'repair' } as const;
+
+			mockSession.fire('session.fusion_resolved', fusionTestData.resolved);
+			mockSession.fire('assistant.fusion_phase_started', fusionMainPassTestData.started);
+			solverRound(fusionMainPassTestData.started, 'tc-draft', 'Checking the parser', 'Draft answer');
+			mockSession.fire('assistant.fusion_phase_completed', fusionMainPassTestData.phaseCompleted);
+			mockSession.fire('assistant.fusion_phase_started', judge);
+			mockSession.fire('assistant.fusion_phase_completed', { ...fusionTestData.phaseCompleted, ...judge, content: '{"score":2,"rationale":"Misses empty input"}' });
+			mockSession.fire('assistant.fusion_phase_started', repair);
+			solverRound(repair, 'tc-fix', 'Fixing empty input', 'Final answer');
+			mockSession.fire('assistant.fusion_phase_completed', { ...fusionTestData.phaseCompleted, ...repair });
+			solverRound(repair, 'tc-fix', 'Fixing empty input', 'Final answer', 'commit-1');
+			mockSession.fire('session.fusion_completed', { ...fusionTestData.completed, finalSourcePhaseId: 'phase-3' });
+			mockSession.fire('session.idle', {});
+
+			assert.deepStrictEqual(streamedFusionTranscript(signals), [
+				'root: reasoning Planning tc-draft',
+				'root: text Checking the parser',
+				'fusion:fusion-1:phase-2: text **Score: 2/5**\n\nMisses empty input',
+				'fusion:fusion-1:phase-3: reasoning Planning tc-fix',
+				'fusion:fusion-1:phase-3: text Fixing empty input',
+				'fusion:fusion-1:phase-3: text Final answer',
+				'root: text Final answer',
+			]);
+		});
+
+		for (const [failure, phaseKind] of [['phase failure', 'repair'], ['session error', 'repair'], ['phase failure', 'primary']] as const) {
+			test(`a ${phaseKind} phase that fails after streaming only reasoning ends its thinking time on ${failure}`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				session.resetTurnState('fusion-turn');
+				const phase = { ...fusionTestData.started, phaseId: 'phase-3', phaseKind } as const;
+				const fusion = { ...liveFusion('phase-3'), phaseKind: phase.phaseKind, role: phase.role, conversationScope: phase.conversationScope };
+				const thinkingEnded = () => signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatReasoning && signal.action.duration !== undefined ? [signal.parentToolCallId ?? 'root'] : []);
+
+				mockSession.fire('session.fusion_resolved', fusionTestData.resolved);
+				mockSession.fire('assistant.fusion_phase_started', phase);
+				mockSession.fire('assistant.reasoning_delta', { reasoningId: 'phase-reasoning', deltaContent: 'Fixing empty input', fusion }, { ephemeral: true });
+				const whileStreaming = thinkingEnded();
+				if (failure === 'phase failure') {
+					mockSession.fire('assistant.fusion_phase_failed', { ...fusionTestData.phaseFailed, ...phase });
+				} else {
+					mockSession.fire('session.error', { errorType: 'runtime', message: 'Repair failed.' });
+				}
+
+				const scope = phaseKind === 'repair' ? 'fusion:fusion-1:phase-3' : 'root';
+				assert.deepStrictEqual({ whileStreaming, afterFailure: thinkingEnded(), transcript: streamedFusionTranscript(signals) }, {
+					whileStreaming: [],
+					afterFailure: [scope],
+					transcript: [`${scope}: reasoning Fixing empty input`],
+				});
+			});
+		}
+
+		for (const [name, whole] of [['new', { content: 'Then the lexer', reasoningText: 'Lexer next' }], ['repeated', { content: 'Checking the parser', reasoningText: 'Parser first' }]] as const) {
+			test(`a phase message chunk that arrives only whole with ${name} content still shows after a chunk that streamed`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				session.resetTurnState('fusion-turn');
+				const repair = { ...fusionTestData.started, phaseId: 'phase-3', phaseKind: 'repair' } as const;
+				const fusion = { ...liveFusion('phase-3'), phaseKind: repair.phaseKind, role: repair.role, conversationScope: repair.conversationScope };
+				const provisional = { ephemeral: true } as const;
+
+				mockSession.fire('session.fusion_resolved', fusionTestData.resolved);
+				mockSession.fire('assistant.fusion_phase_started', repair);
+				mockSession.fire('assistant.reasoning_delta', { reasoningId: 'r-0', deltaContent: 'Parser first', fusion }, provisional);
+				mockSession.fire('assistant.message_delta', { messageId: 'call-0', deltaContent: 'Checking the parser', fusion }, provisional);
+				mockSession.fire('assistant.message', { messageId: 'call-0', apiCallId: 'call', chunkIndex: 0, chunkCount: 2, content: 'Checking the parser', reasoningText: 'Parser first', fusion }, provisional);
+				mockSession.fire('assistant.message', { messageId: 'call-1', apiCallId: 'call', chunkIndex: 1, chunkCount: 2, ...whole, fusion }, provisional);
+
+				assert.deepStrictEqual(streamedFusionTranscript(signals), [
+					'fusion:fusion-1:phase-3: reasoning Parser first',
+					'fusion:fusion-1:phase-3: text Checking the parser',
+					`fusion:fusion-1:phase-3: reasoning ${whole.reasoningText}`,
+					`fusion:fusion-1:phase-3: text ${whole.content}`,
+				]);
+			});
+		}
+
+		test('steering while a phase chat streams reasoning ends that reasoning in the preempted turn', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-original');
+			mockSession.fire('user.message', { content: 'fix the bug', interactionId: 'interaction-root', turnId: fusionTestData.resolved.turnId } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('session.fusion_route_started', fusionTestData.routeStarted);
+			mockSession.fire('session.fusion_resolved', fusionTestData.resolved);
+			mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+			const fusion = { ...liveFusion('phase-1'), phaseKind: fusionTestData.started.phaseKind, role: fusionTestData.started.role, conversationScope: fusionTestData.started.conversationScope };
+			mockSession.fire('assistant.reasoning_delta', { reasoningId: 'r-1', deltaContent: 'Before steering', fusion }, { ephemeral: true });
+
+			await session.sendSteering({ id: 'steer-1', message: { text: 'use the other branch', origin: { kind: MessageKind.User } } });
+			mockSession.fire('user.message', { content: 'use the other branch', interactionId: 'interaction-steer', turnId: fusionTestData.resolved.turnId } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('assistant.reasoning_delta', { reasoningId: 'r-2', deltaContent: 'After steering', fusion }, { ephemeral: true });
+
+			const contentByPart = new Map<string, string>();
+			const ended: string[] = [];
+			for (const signal of signals) {
+				if (signal.kind === 'action' && signal.action.type === ActionType.ChatResponsePart && signal.action.part.kind === ResponsePartKind.Reasoning) {
+					contentByPart.set(signal.action.part.id, signal.action.part.content);
+				} else if (signal.kind === 'action' && signal.action.type === ActionType.ChatReasoning && signal.action.duration !== undefined) {
+					ended.push(contentByPart.get(signal.action.partId) ?? signal.action.partId);
+				}
+			}
+			assert.deepStrictEqual({ parts: [...contentByPart.values()], ended }, { parts: ['Before steering', 'After steering'], ended: ['Before steering'] });
 		});
 
 		test('all provisional Fusion message chunks are shown and only the committed answer is replayed', async () => {

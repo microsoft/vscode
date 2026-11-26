@@ -93,7 +93,6 @@ export class ModelPicker extends Disposable {
 			currentModel,
 			modelConfiguration: this._selectionModel.modelConfiguration,
 			focusInput: () => this._newChatModelPickerService.focusInput(),
-			startPromptWith: this._newChatModelPickerService.startPromptWith,
 			setModel: model => {
 				const previousModel = this._selectionModel.state.get().currentModel;
 				if (this._selectionModel.selectModel(model.identifier)) {

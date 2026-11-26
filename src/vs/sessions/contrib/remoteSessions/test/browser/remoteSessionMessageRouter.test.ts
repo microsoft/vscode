@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -18,7 +18,7 @@ import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelSc
 import { AgentHostConnectionsService } from '../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
-import { IAgentConnection, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostAgentOrchestrationLimitsSettingId, IAgentConnection, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { getPendingSteeringMessages } from '../../../../../platform/agentHost/common/agentSessionMessage.js';
 import { readAgentMessageDelegationMeta } from '../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
 import { withRemoteSessionOrigin } from '../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
@@ -292,7 +292,7 @@ suite('RemoteSessionMessageRouter', () => {
 				}
 			}
 		}();
-		const router = new RemoteSessionMessageRouter(management, providersService, connections, config, backgroundChats, trustService);
+		const router = store.add(new RemoteSessionMessageRouter(management, providersService, connections, config, backgroundChats, trustService));
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ISessionsManagementService, management);
 		instantiationService.stub(ISessionsProvidersService, providersService);
@@ -303,7 +303,7 @@ suite('RemoteSessionMessageRouter', () => {
 		store.add(toDisposable(() => assert.deepStrictEqual([local.references, first.references, second.references], [0, 0, 0])));
 		return {
 			router, local, first, second, changed, hosts, sessions, config, providers, management, connections,
-			backgroundEvents, backgroundState, active, pending, pendingChanged, trust, tool: instantiationService.createInstance(SendRemoteMessageTool),
+			backgroundEvents, backgroundState, active, pending, pendingChanged, trust, tool: store.add(instantiationService.createInstance(SendRemoteMessageTool)),
 		};
 	}
 
@@ -910,16 +910,142 @@ suite('RemoteSessionMessageRouter', () => {
 		await router.send(sessions[0].resource, options, 'once', CancellationToken.None);
 		await router.send(sessions[0].resource, options, 'once', CancellationToken.None);
 		assert.throws(() => router.send(sessions[0].resource, { ...options, message: 'Different' }, 'once', CancellationToken.None), /different arguments/);
+		assert.throws(() => router.send(sessions[0].resource, { ...options, session: sessions[2].resource.toString() }, 'once', CancellationToken.None), /different arguments/);
 		assert.deepStrictEqual(first.dispatched.length, 1);
 	});
 
-	test('fan-out is bounded across targets and calling chats', async () => {
-		const { router, sessions } = setup();
-		for (let index = 0; index < 50; index++) {
-			await router.send(sessions[0].resource, { session: sessions[1].resource.toString(), message: `Message ${index}` }, `${index}`, CancellationToken.None);
+	test('remote message limits are per source session and recover as the window slides', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { router, first, sessions } = setup();
+		const target = sessions[1].resource.toString();
+		for (let index = 0; index < 100; index++) {
+			if (index === 50) {
+				await timeout(30 * 60 * 1000);
+			}
+			const source = index < 50 ? sessions[0].resource : sessions[0].chats.get()[1].resource;
+			await router.send(source, { session: target, message: `Message ${index}` }, `${index}`, CancellationToken.None);
 		}
-		assert.throws(() => router.send(sessions[2].resource, { session: sessions[1].resource.toString(), message: 'Too many' }, 'extra', CancellationToken.None), /limit reached/);
+		const options = { session: target, message: 'After the limit' };
+		await assert.rejects(router.send(sessions[0].resource, options, 'limited', CancellationToken.None), /100 of 100.*Retry after 1800 seconds/);
+		await router.send(sessions[2].resource, options, 'other-session', CancellationToken.None);
+		await timeout(30 * 60 * 1000 - 1);
+		await assert.rejects(router.send(sessions[0].resource, options, 'limited', CancellationToken.None), /100 of 100.*Retry after 1 seconds/);
+		await timeout(1);
+		await router.send(sessions[0].resource, options, 'limited', CancellationToken.None);
+		assert.strictEqual(first.dispatched.length, 102);
+	}));
+
+	test('remote message limits follow the existing orchestration setting', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { router, first, sessions, config } = setup();
+		const source = sessions[0].resource;
+		const options = { session: sessions[1].resource.toString(), message: 'Status' };
+		for (let index = 0; index < 100; index++) {
+			await router.send(source, options, `${index}`, CancellationToken.None);
+		}
+		await assert.rejects(router.send(source, options, 'limited', CancellationToken.None), /100 of 100/);
+		await config.setUserConfiguration(AgentHostAgentOrchestrationLimitsSettingId, 'off');
+		await timeout(30 * 60 * 1000);
+		for (let index = 100; index < 200; index++) {
+			await router.send(source, options, `${index}`, CancellationToken.None);
+		}
+		await router.send(source, options, '199', CancellationToken.None);
+		await config.setUserConfiguration(AgentHostAgentOrchestrationLimitsSettingId, 'on');
+		await assert.rejects(router.send(source, options, 'limited', CancellationToken.None), /200 of 100.*Retry after 3600 seconds/);
+		await timeout(30 * 60 * 1000);
+		await assert.rejects(router.send(source, options, 'limited', CancellationToken.None), /100 of 100.*Retry after 1800 seconds/);
+		await timeout(30 * 60 * 1000);
+		await router.send(source, options, 'limited', CancellationToken.None);
+		assert.strictEqual(first.dispatched.length, 201);
+	}));
+
+	test('failed remote sends do not spend the message allowance', async () => {
+		const { router, first, sessions } = setup();
+		const source = sessions[0].resource;
+		const options = { session: sessions[1].resource.toString(), message: 'Status' };
+		first.rejectionReason = 'Target rejected the message';
+		for (let index = 0; index < 110; index++) {
+			await assert.rejects(router.send(source, options, `rejected-${index}`, CancellationToken.None), /Target rejected/);
+		}
+		first.rejectionReason = undefined;
+		for (let index = 0; index < 100; index++) {
+			await router.send(source, options, `sent-${index}`, CancellationToken.None);
+		}
+		await assert.rejects(router.send(source, options, 'limited', CancellationToken.None), /100 of 100/);
+		assert.strictEqual(first.started.length, 1);
 	});
+
+	for (const outcome of ['rejected', 'uncertain'] as const) {
+		test(`in-flight remote sends reserve capacity and ${outcome} delivery is accounted for`, async () => {
+			const { router, first, sessions } = setup();
+			const source = sessions[0].resource;
+			const options = { session: sessions[1].resource.toString(), message: 'Status' };
+			for (let index = 0; index < 99; index++) {
+				await router.send(source, options, `${index}`, CancellationToken.None);
+			}
+			const dispatched = new DeferredPromise<void>();
+			first.afterDispatch = () => { void dispatched.complete(); };
+			first.acknowledge = false;
+			const cancellation = store.add(new CancellationTokenSource());
+			const pending = router.send(source, options, 'pending', cancellation.token);
+			const failed = assert.rejects(pending, outcome === 'rejected' ? /Target rejected/ : /delivery was not confirmed/);
+			await dispatched.p;
+			assert.strictEqual(router.send(source, options, 'pending', CancellationToken.None), pending);
+			await assert.rejects(router.send(source, options, 'limited', CancellationToken.None), /99 of 100.*1 more in progress/);
+			if (outcome === 'rejected') {
+				first.rejectionReason = 'Target rejected the message';
+				first.acknowledgeDispatch(99);
+			} else {
+				cancellation.cancel();
+			}
+			await failed;
+			first.afterDispatch = undefined;
+			first.rejectionReason = undefined;
+			first.acknowledge = true;
+			if (outcome === 'rejected') {
+				await router.send(source, options, 'limited', CancellationToken.None);
+			} else {
+				await assert.rejects(router.send(source, options, 'pending', CancellationToken.None), /delivery was not confirmed/);
+			}
+			await assert.rejects(router.send(source, options, 'extra', CancellationToken.None), /100 of 100/);
+			assert.strictEqual(first.dispatched.length, outcome === 'rejected' ? 101 : 100);
+		});
+	}
+
+	test('completed remote request retries are deduplicated for an hour', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { router, first, sessions } = setup();
+		const source = sessions[0].resource;
+		const firstOptions = { session: sessions[1].resource.toString(), message: 'First' };
+		const secondOptions = { ...firstOptions, message: 'Second' };
+		await router.send(source, firstOptions, 'first', CancellationToken.None);
+		await timeout(30 * 60 * 1000);
+		await router.send(source, firstOptions, 'first', CancellationToken.None);
+		await router.send(source, secondOptions, 'second', CancellationToken.None);
+		await timeout(30 * 60 * 1000);
+		await router.send(source, firstOptions, 'first', CancellationToken.None);
+		await timeout(30 * 60 * 1000 - 1);
+		await router.send(source, secondOptions, 'second', CancellationToken.None);
+		await timeout(1);
+		await router.send(source, secondOptions, 'second', CancellationToken.None);
+		assert.strictEqual(first.dispatched.length, 4);
+	}));
+
+	test('uncertain remote delivery stays deduplicated until the retry window expires', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { router, first, sessions } = setup();
+		const source = sessions[0].resource;
+		const options = { session: sessions[1].resource.toString(), message: 'Once' };
+		const cancellation = store.add(new CancellationTokenSource());
+		first.acknowledge = false;
+		const pending = router.send(source, options, 'uncertain', cancellation.token);
+		const rejected = assert.rejects(pending, /delivery was not confirmed/);
+		await first.didDispatch.p;
+		cancellation.cancel();
+		await rejected;
+		first.acknowledge = true;
+		await timeout(60 * 60 * 1000 - 1);
+		await assert.rejects(router.send(source, options, 'uncertain', CancellationToken.None), /delivery was not confirmed/);
+		await timeout(1);
+		await router.send(source, options, 'uncertain', CancellationToken.None);
+		assert.strictEqual(first.dispatched.length, 2);
+	}));
 
 	test('tool supports workspace-less calls, gates visibility, and confirms the exact target', async () => {
 		const { tool, first, sessions } = setup();
