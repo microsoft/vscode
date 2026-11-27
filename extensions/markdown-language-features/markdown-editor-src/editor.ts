@@ -307,6 +307,7 @@ class Editor extends Disposable {
 			configurationChanged: configuration => {
 				applyTypography(configuration);
 				this.#view?.highlightActiveBlock.set(configuration.highlightActiveBlock, undefined);
+				this.#view?.zoomPercent.set(configuration.zoomPercent, undefined);
 				this.model.renderWhitespace.set(configuration.renderWhitespace, undefined);
 				this.model.lineBreak.set(configuration.lineBreak, undefined);
 				this.#setDocumentReadonly(configuration.documentReadonly);
@@ -316,7 +317,7 @@ class Editor extends Disposable {
 			},
 		}));
 		applyTypography(initialState);
-		this.#createView(host, initialState.content, initialState.highlightActiveBlock);
+		this.#createView(host, initialState.content, initialState.highlightActiveBlock, initialState.zoomPercent);
 		// The host's edits map the selection precisely; comparing texts would move it past all text between separate changes.
 		this._register(content.onDidApplyHostEdits(({ edits, content: text }) => {
 			if (typeof text === 'string' && this.#initialText === undefined && text !== this.model.sourceText.get().value) {
@@ -520,7 +521,7 @@ class Editor extends Disposable {
 		this.#readonlyFeedbackElement?.classList.remove('visible');
 	}
 
-	#createView(host: HTMLElement, content: string, highlightActiveBlock: boolean): void {
+	#createView(host: HTMLElement, content: string, highlightActiveBlock: boolean, zoomPercent: number): void {
 		const model = this.model;
 		const scriptNonce = document.querySelector<HTMLMetaElement>('meta[name="vscode-markdown-editor-script-nonce"]')?.content;
 		const iframeBootstrapUrl = new URL(location.href);
@@ -553,6 +554,7 @@ class Editor extends Disposable {
 		const view = this._register(new EditorView(model, {
 			classNames: ['md-theme-vscode-default'],
 			highlightActiveBlock,
+			zoomPercent,
 			showReadonlyToggle: !this.#documentReadonly,
 			presentation: model.readonlyMode.get() ? 'reading' : 'editing',
 			syntaxHighlighter: this.#syntaxHighlighter,
