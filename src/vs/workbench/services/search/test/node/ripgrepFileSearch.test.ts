@@ -4,12 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { FileAccess } from '../../../../../base/common/network.js';
+import * as path from '../../../../../base/common/path.js';
 import * as platform from '../../../../../base/common/platform.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { fixDriveC, getAbsoluteGlob } from '../../node/ripgrepFileSearch.js';
+import { QueryType } from '../../common/search.js';
+import { fixDriveC, getAbsoluteGlob, spawnRipgrepCmd } from '../../node/ripgrepFileSearch.js';
 
 suite('RipgrepFileSearch - etc', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('spawnRipgrepCmd starts no process when it is cancelled while ripgrep is resolving', async () => {
+		const folderQuery = { folder: URI.file(path.normalize(FileAccess.asFileUri('vs/workbench/services/search/test/node/fixtures').fsPath)) };
+		const tokenSource = new CancellationTokenSource();
+		const spawned = spawnRipgrepCmd({ type: QueryType.File, folderQueries: [folderQuery], exists: true }, folderQuery, undefined, undefined, undefined, undefined, tokenSource.token);
+		tokenSource.cancel();
+		const result = await spawned;
+		tokenSource.dispose();
+
+		assert.strictEqual(result, undefined);
+	});
+
 	function testGetAbsGlob(params: string[]): void {
 		const [folder, glob, expectedResult] = params;
 		assert.strictEqual(fixDriveC(getAbsoluteGlob(folder, glob)), expectedResult, JSON.stringify(params));
