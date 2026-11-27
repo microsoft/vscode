@@ -21,6 +21,9 @@ const editorConfiguration = z.object({
 	lineBreak: z.enum(['\n', '\r\n']),
 	/** Whether the underlying file or editor input is read-only. */
 	documentReadonly: z.boolean(),
+	fontFamily: z.optional(z.string()),
+	fontSize: z.optional(z.number()),
+	lineHeight: z.optional(z.number()),
 });
 const selection = z.object({ anchor: offset, active: offset });
 export const navigationState = z.object({

@@ -8,7 +8,7 @@ import 'mocha';
 import * as vscode from 'vscode';
 import { MarkdownContributions } from '../markdownExtensions';
 import { MarkdownPreviewLineDiffProvider } from '../preview/lineDiff';
-import { getInDocumentLinkTargetRange, getMarkdownCodeBlockEditorApiV1, getMarkdownCodeBlockEditorApiV2, isSupportedMarkdownCodeBlockEditorApiVersion, lineRangesToGutterMarkers } from '../preview/markdownEditorProvider';
+import { getInDocumentLinkTargetRange, getMarkdownCodeBlockEditorApiV1, getMarkdownCodeBlockEditorApiV2, getMarkdownEditorConfiguration, isSupportedMarkdownCodeBlockEditorApiVersion, lineRangesToGutterMarkers } from '../preview/markdownEditorProvider';
 import { mergeCodeBlockEditorPresentation } from '../preview/markdownEditorProtocol';
 import { encodeWebviewInitialState } from '../preview/webviewInitialState';
 
@@ -200,6 +200,46 @@ suite('Markdown editor initial state', () => {
 			containsHtmlAttributeSyntax: false,
 			roundTrip: state,
 		});
+	});
+});
+
+suite('Markdown editor configuration', () => {
+	test('forwards Markdown preview typography settings with clamping and fallbacks', async () => {
+		const document = await vscode.workspace.openTextDocument({ language: 'markdown', content: '# Title' });
+		const previewConfig = vscode.workspace.getConfiguration('markdown.preview', document);
+		const keys = ['fontFamily', 'fontSize', 'lineHeight'] as const;
+		const previous = keys.map(key => previewConfig.inspect(key)?.globalValue);
+		const update = async (values: readonly unknown[]) => {
+			for (let i = 0; i < keys.length; i++) {
+				await previewConfig.update(keys[i], values[i], vscode.ConfigurationTarget.Global);
+			}
+		};
+		try {
+			await update(['Georgia', 22, 1.4]);
+			const configured = getMarkdownEditorConfiguration(document, false);
+
+			await update([undefined, 2, 0.1]);
+			const clamped = getMarkdownEditorConfiguration(document, false);
+
+			await update(['   ', 'not-a-number', 'not-a-number']);
+			const invalid = getMarkdownEditorConfiguration(document, true);
+
+			const defaultFontFamily = previewConfig.inspect<string>('fontFamily')?.defaultValue;
+			assert.deepStrictEqual(
+				{
+					configured: { fontFamily: configured.fontFamily, fontSize: configured.fontSize, lineHeight: configured.lineHeight },
+					clamped: { fontFamily: clamped.fontFamily, fontSize: clamped.fontSize, lineHeight: clamped.lineHeight },
+					invalid: { fontFamily: invalid.fontFamily, fontSize: invalid.fontSize, lineHeight: invalid.lineHeight, documentReadonly: invalid.documentReadonly },
+				},
+				{
+					configured: { fontFamily: 'Georgia', fontSize: 22, lineHeight: 1.4 },
+					clamped: { fontFamily: defaultFontFamily, fontSize: 8, lineHeight: 0.6 },
+					invalid: { fontFamily: undefined, fontSize: undefined, lineHeight: undefined, documentReadonly: true },
+				},
+			);
+		} finally {
+			await update(previous);
+		}
 	});
 });
 
