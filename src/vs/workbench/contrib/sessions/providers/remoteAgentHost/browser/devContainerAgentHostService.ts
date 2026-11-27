@@ -30,7 +30,7 @@ import { ISessionsProvidersService } from '../../../browser/sessionsProvidersSer
 import { resolveRemoteAgentHostEntryAuthority } from '../../../browser/openInVSCodeUtils.js';
 import { devContainerSourcePath, getDevContainerSourceEntry, resolveDevContainerSourceConnection } from './devContainerSource.js';
 import { DevContainerEnvironments } from './devContainerEnvironments.js';
-import { DevContainerFolderDiscovery } from './devContainerFolderDiscovery.js';
+import { DevContainerFolderDiscovery, IDiscoveredDevContainerFolder } from './devContainerFolderDiscovery.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
 
 const DEV_CONTAINER_AGENT_HOSTS_STORAGE_KEY = 'devContainerAgentHost.connections';
@@ -248,12 +248,13 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 	private readonly _folderContainers = observableValue<readonly IDevContainerFolderContainer[]>(this, []);
 	readonly folderContainers: IObservable<readonly IDevContainerFolderContainer[]> = this._folderContainers;
 	/** Folders with a running container, whose providers stay registered while it runs so that they are listed. */
-	private readonly _runningFolders = new Map<string, URI>();
+	private readonly _runningFolders = new Map<string, IDiscoveredDevContainerFolder>();
 	/**
-	 * Running folder containers that are not connected without user action again until they stop: this window
-	 * disconnected from them, or connecting to them without user action failed.
+	 * Running folder containers, with the address of their host, that are not connected without user action again until
+	 * a listing of that host shows they stopped: this window disconnected from them, or connecting to them without user
+	 * action failed.
 	 */
-	private readonly _skippedFolders = new Set<string>();
+	private readonly _skippedFolders = new Map<string, string>();
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -334,31 +335,47 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 
 	/** Keeps the providers of running folder containers registered and connects them without user action. */
 	private _onDidDiscoverFolders(): void {
-		const running = new Map<string, URI>();
+		const running = new Map<string, IDiscoveredDevContainerFolder>();
 		for (const [key, folder] of this._folderDiscovery.folders) {
 			if (folder.running) {
-				running.set(key, folder.workspaceUri);
+				running.set(key, folder);
 			}
 		}
-		for (const key of this._skippedFolders) {
-			if (!running.has(key)) {
+		// A failed listing or a disconnected host doesn't show that a container stopped.
+		const listedHosts = this._folderDiscovery.listedHosts;
+		for (const [key, sourceAddress] of this._skippedFolders) {
+			if (!running.has(key) && listedHosts.has(sourceAddress)) {
 				this._skippedFolders.delete(key);
 			}
 		}
 		for (const key of [...this._runningFolders.keys()]) {
 			if (!running.has(key)) {
 				this._runningFolders.delete(key);
-				if (!this._storedConnections.has(key) && !this._activeConnections.has(key) && !this._pendingConnections.has(key)) {
+				if (!this._isProviderInUse(key)) {
 					this._removeProvider(key);
 				}
 			}
 		}
-		for (const [key, workspaceUri] of running) {
-			this._runningFolders.set(key, workspaceUri);
-			this._ensureProvider(workspaceUri, this.getWorkspaceLabel(workspaceUri));
-			void this._connectRunningFolder(key, workspaceUri);
+		for (const [key, folder] of running) {
+			this._runningFolders.set(key, folder);
+			this._ensureProvider(folder.workspaceUri, this.getWorkspaceLabel(folder.workspaceUri));
+			void this._connectRunningFolder(key, folder.workspaceUri);
 		}
 		this._updateFolderContainers();
+	}
+
+	/** Whether a folder's provider is stored, connecting, or has a connection that is referenced, has sessions, or whose container still runs. */
+	private _isProviderInUse(key: string): boolean {
+		const active = this._activeConnections.get(key);
+		return this._storedConnections.has(key) || this._pendingConnections.has(key)
+			|| !!active && (active.references > 0 || (active.state !== 'stopped' && active.state !== 'removed') || active.provider.getSessions().length > 0);
+	}
+
+	private _skipFolder(key: string): void {
+		const folder = this._runningFolders.get(key);
+		if (folder) {
+			this._skippedFolders.set(key, folder.sourceAddress);
+		}
 	}
 
 	private async _connectRunningFolder(key: string, workspaceUri: URI): Promise<void> {
@@ -376,7 +393,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 			await this._ensureConnection(workspaceUri, this._lifecycleTokenSource.token, undefined, true);
 		} catch (error) {
 			if (!isCancellationError(error) && this._runningFolders.has(key)) {
-				this._skippedFolders.add(key);
+				this._skipFolder(key);
 				this._logService.info(`[DevContainerAgentHost] Did not connect to the running Dev Container of ${basename(workspaceUri)}`, error);
 			}
 		}
@@ -388,7 +405,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		if (isDevContainerDiscoveryEnabled(this._configurationService)) {
 			const folders = this._folderDiscovery.folders;
 			const listedHosts = this._folderDiscovery.listedHosts;
-			const workspaces = new Map(this._runningFolders);
+			const workspaces = new Map([...this._runningFolders].map(([key, folder]) => [key, folder.workspaceUri]));
 			for (const [key, stored] of this._storedConnections) {
 				const workspaceUri = URI.parse(stored.workspaceUri);
 				if (!findDevContainerSample(workspaceUri)) {
@@ -732,9 +749,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 
 	async disconnect(workspaceUri: URI): Promise<void> {
 		const key = getComparisonKey(workspaceUri);
-		if (this._runningFolders.has(key)) {
-			this._skippedFolders.add(key);
-		}
+		this._skipFolder(key);
 		const pending = this._pendingConnections.get(key);
 		if (pending) {
 			pending.tokenSource.cancel();
@@ -780,6 +795,8 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 				}
 				await this._disconnectActiveTransport(active);
 				active.state = 'stopped';
+				// The container no longer runs, so its provider isn't kept for listing it until discovery notices.
+				this._runningFolders.delete(key);
 				if (active.references === 0 && active.provider.getSessions().length === 0) {
 					this._removeStoredConnection(key);
 					this._removeProvider(key);

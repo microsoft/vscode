@@ -1680,11 +1680,16 @@ suite('Dev Container Agent Host Service', () => {
 			const trusted = (uri: URI) => uri.path !== untrusted.path;
 			const service = store.add(new TestDevContainerAgentHostService(instantiationService, remoteService, providersService, store.add(new InMemoryStorageService()), configurationService, { trusted, requestTrust: async uri => trusted(uri) }));
 			const connections: { readonly workspaceUri: string; readonly requireRunning: boolean | undefined }[] = [];
-			const local = { containers };
+			const local = { containers, failListing: false };
 			store.add(service.registerConnector({
 				isAvailable: async () => true,
 				showLog: async () => { },
-				listLocalFolderContainers: async () => local.containers.map(({ folder, running }) => ({ folder: folder.toString(), running })),
+				listLocalFolderContainers: async () => {
+					if (local.failListing) {
+						throw new Error('Docker did not answer.');
+					}
+					return local.containers.map(({ folder, running }) => ({ folder: folder.toString(), running }));
+				},
 				createConnection: async (workspaceUri, address, _token, options) => {
 					connections.push({ workspaceUri: workspaceUri.toString(), requireRunning: options?.requireRunning });
 					return { address, name: 'Project Dev Container', workspaceUri: URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority(address), path: '/workspaces/project' }), transportFactory: () => undefined as never };
@@ -1728,6 +1733,32 @@ suite('Dev Container Agent Host Service', () => {
 				afterDisconnect: { rows: [project.toString(), untrusted.toString()], connections: 1 },
 				afterStop: [untrusted.toString()],
 				afterRestart: [{ workspaceUri: project.toString(), requireRunning: true }, { workspaceUri: project.toString(), requireRunning: true }],
+			});
+		});
+
+		test('keeps one this window disconnected from disconnected while listing its host fails', async () => {
+			const { service, local, connections, refresh } = setupFolders([{ folder: project, running: true }]);
+			await refresh();
+			await service.disconnect(project);
+			local.failListing = true;
+			await refresh();
+			local.failListing = false;
+			await refresh();
+			assert.deepStrictEqual(connections, [{ workspaceUri: project.toString(), requireRunning: true }]);
+		});
+
+		test('removes the provider of one without sessions once this window stopped it while idle', async () => {
+			const { service, local, provider, refresh, rows } = setupFolders([{ folder: project, running: true }]);
+			await refresh();
+			await (await service.connect(project, CancellationToken.None)).release();
+			const listedProvider = provider(project)!;
+			await listedProvider.config.devContainerLifecycle!.stop();
+			const afterStop = { disposed: listedProvider.disposed, rows: rows().length };
+			local.containers = [{ folder: project, running: false }];
+			await refresh();
+			assert.deepStrictEqual({ afterStop, afterRefresh: { provider: !!provider(project), rows: rows().length } }, {
+				afterStop: { disposed: true, rows: 0 },
+				afterRefresh: { provider: false, rows: 0 },
 			});
 		});
 

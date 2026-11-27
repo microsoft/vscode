@@ -370,10 +370,6 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				workspaceSelector = prepared.cliArgs;
 			} else {
 				workspaceSelector = config.workspaceFolder;
-				// `up` would start or create the container, which a connection without user action must not do.
-				if (config.requireRunning && !await this._isFolderContainerRunning(config.workspaceFolder)) {
-					throw new Error(localize('devContainerAgentHost.containerNotRunning', "The Dev Container for '{0}' is not running.", config.name));
-				}
 				const configuration = this._readDevContainerConfiguration(config.connectionId, config.workspaceFolder, tokenSource.token);
 				const cacheMountArgs = await this._getServerCacheMountArgs(config.connectionId, configuration, tokenSource.token);
 				if (config.sandboxEnabled) {
@@ -387,12 +383,16 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				}
 				const userStateMount = config.persistUserState ? await this._getUserStateMountArgs(config.connectionId, configuration, config.workspaceFolder, tokenSource.token) : { args: [], keepExistingFolders: true };
 				const selectorArgs = typeof workspaceSelector === 'string' ? ['--workspace-folder', workspaceSelector] : workspaceSelector;
+				// `up` starts a stopped container, which a connection without user action must not do, so this checks right before it.
+				if (config.requireRunning && !await this._isFolderContainerRunning(config.workspaceFolder)) {
+					throw new Error(localize('devContainerAgentHost.containerNotRunning', "The Dev Container for '{0}' is not running.", config.name));
+				}
 				const up = await this._runDevContainerStage(
 					config.connectionId,
 					'up',
 					!!config.persistUserState,
 					// Lifecycle commands run after linking user state, so their changes to it persist.
-					['up', ...DEV_CONTAINER_LOG_ARGS, ...selectorArgs, ...cacheMountArgs, ...userStateMount.args, ...config.persistUserState ? ['--skip-post-create'] : []],
+					['up', ...DEV_CONTAINER_LOG_ARGS, ...selectorArgs, ...cacheMountArgs, ...userStateMount.args, ...config.persistUserState ? ['--skip-post-create'] : [], ...config.requireRunning ? ['--expect-existing-container'] : []],
 					tokenSource.token,
 					sandboxEnvironment,
 					parseDevContainerUpResult,

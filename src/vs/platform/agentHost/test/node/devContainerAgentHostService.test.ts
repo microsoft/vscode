@@ -136,6 +136,8 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	existingContainerStates: readonly string[] = [];
 	/** Folder containers listed with `docker ps --all`, as their folder, configuration file and state. */
 	folderContainers: readonly (readonly [string, string, string])[] = [];
+	/** Whether `up` must not create a container. */
+	expectExistingContainer = false;
 	/** Docker volumes and their labels. */
 	readonly volumes = new Map<string, Record<string, string>>();
 	volumeCreateExitCode = 0;
@@ -303,7 +305,7 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 			this.linkedBeforeLifecycle = this.localCommands.some(command => command.args[2] === 'root' && !!command.args.at(-1)?.includes('link_state'));
 			return Promise.resolve({ stdout: `${JSON.stringify(this.userCommandsExitCode ? { outcome: 'error', description: 'postCreateCommand from devcontainer.json failed.', message: 'npm ERR! Your cache folder contains root-owned files: /home/node/.npm, run: sudo chown -R node /home/node/.npm' } : { outcome: 'success' })}\n`, stderr: '', code: this.userCommandsExitCode });
 		}
-		const expectedUpArgs = ['up', '--log-level', 'debug', '--workspace-folder', '/workspace', ...this.sandboxConfigurationPrepared ? ['--config', '/workspace/.devcontainer/devcontainer.json', '--override-config', '/sandbox/devcontainer.json'] : [], ...this.cacheMountConfigured ? [] : ['--mount', devContainerServerCacheMount]];
+		const expectedUpArgs = ['up', '--log-level', 'debug', '--workspace-folder', '/workspace', ...this.sandboxConfigurationPrepared ? ['--config', '/workspace/.devcontainer/devcontainer.json', '--override-config', '/sandbox/devcontainer.json'] : [], ...this.cacheMountConfigured ? [] : ['--mount', devContainerServerCacheMount], ...this.expectExistingContainer ? ['--expect-existing-container'] : []];
 		if (args.includes('--skip-post-create')) {
 			assert.deepStrictEqual(args.slice(0, expectedUpArgs.length), expectedUpArgs);
 			this.userStateUpArgs = args.slice(expectedUpArgs.length);
@@ -721,6 +723,8 @@ suite('Dev Container Agent Host Main Service', () => {
 		const workspaceFolder = '/workspace';
 		const labelFolder = isWindows ? resolve(workspaceFolder).replace(/^[A-Z]:/, drive => drive.toLowerCase()) : workspaceFolder;
 		const config = { workspaceFolder, name: 'Project', requireRunning: true };
+		// A container removed after the check is not created again.
+		service.expectExistingContainer = true;
 		service.folderContainers = [[labelFolder, join(labelFolder, '.devcontainer', 'devcontainer.json'), 'exited']];
 		const stopped = await service.connect({ ...config, connectionId: 'stopped' }).then(() => 'connected', (error: Error) => error.message);
 		const upCallsWhileStopped = service.devContainerArgs.filter(args => args[0] === 'up').length;
