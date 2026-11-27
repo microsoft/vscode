@@ -79,9 +79,9 @@ export const SessionSectionHasGitHubRepositoryContext = new RawContextKey<boolea
 export const SessionSectionHasNonCloudRepositoryContext = new RawContextKey<boolean>('sessionSection.hasNonCloudRepository', false);
 /** Whether a section has a {@link ISessionSection.rootFolder}. */
 export const SessionSectionHasRootFolderContext = new RawContextKey<boolean>('sessionSection.hasRootFolder', false);
-/** What a workspace row of Group by Workspaces & Groups lists: a workspace the workspaces service knows (`known`), or a folder (`folder`). */
+/** What a workspace row under the separate Workspaces header lists: a workspace the workspaces service knows (`known`), or a folder (`folder`). */
 export const SessionSectionWorkspaceKindContext = new RawContextKey<'known' | 'folder' | ''>('sessionSection.workspaceKind', '');
-/** Whether a workspace row of Group by Workspaces & Groups lists a workspace on this computer, which an editor window can open. */
+/** Whether a workspace row under the separate Workspaces header lists a workspace on this computer, which an editor window can open. */
 export const SessionSectionWorkspaceIsLocalContext = new RawContextKey<boolean>('sessionSection.workspaceIsLocal', false);
 export const SessionGroupHasVisibleSessionsContext = new RawContextKey<boolean>('sessionGroup.hasVisibleSessions', false);
 export const SessionGroupIsEmptyContext = new RawContextKey<boolean>('sessionGroup.isEmpty', false);
@@ -93,8 +93,6 @@ export enum SessionsGrouping {
 	Environment = 'environment',
 	Date = 'date',
 	Inbox = 'inbox',
-	/** Custom groups in a Groups section, then workspaces in a Workspaces section, while workspaces are enabled. */
-	WorkspacesAndGroups = 'workspacesAndGroups',
 }
 
 export enum SessionsSorting {
@@ -123,7 +121,7 @@ export interface ISessionSection {
 	 * folder.
 	 */
 	readonly rootFolder?: URI;
-	/** The workspace a workspace row of {@link SessionsGrouping.WorkspacesAndGroups} lists. */
+	/** The workspace that a workspace row lists while Group by Workspace separates groups and workspaces. */
 	readonly workspace?: ISessionSectionWorkspace;
 }
 

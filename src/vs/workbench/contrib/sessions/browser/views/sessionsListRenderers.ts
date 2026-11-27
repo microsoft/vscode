@@ -2164,7 +2164,7 @@ function getSessionRowLocationLabel(session: ISession, reader: IReader, options:
 	if (grouping === SessionsGrouping.Inbox && options.isWorkspaceScoped?.()) {
 		return undefined;
 	}
-	const inWorkspaceOrRepositorySection = (grouping === SessionsGrouping.Workspace || grouping === SessionsGrouping.WorkspacesAndGroups || grouping === SessionsGrouping.Repository)
+	const inWorkspaceOrRepositorySection = (grouping === SessionsGrouping.Workspace || grouping === SessionsGrouping.Repository)
 		&& !options.isPinned(session)
 		&& !session.isArchived.read(reader)
 		&& !options.isRenderedInCustomGroup?.(session)
@@ -2677,7 +2677,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 				}
 			}));
 		} else if (element.workspace) {
-			// A workspace row of Group by Workspaces & Groups: the icon and color of its workspace file
+			// A workspace row under the separate Workspaces header: the icon and color of its workspace file
 			renderSessionHeaderIcon(
 				template,
 				element.sessions,

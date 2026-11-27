@@ -341,6 +341,11 @@ interface ISessionsListControlOptions {
 	readonly grouping: () => SessionsGrouping;
 	readonly sorting: () => SessionsSorting;
 	readonly compact?: () => boolean;
+	/**
+	 * Whether Group by Workspace lists the custom groups under a Groups header and the workspaces under a Workspaces header,
+	 * rather than together as folder sections.
+	 */
+	readonly separateGroupsAndWorkspaces?: () => boolean;
 	readonly showNavigationShortcuts?: () => boolean;
 	readonly showCustomizations?: () => boolean;
 	readonly customizationsCount?: IObservable<number>;
@@ -654,7 +659,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	/** Tree delegate, retained so height reconciliation can recompute row heights. */
 	private _delegate!: SessionsTreeDelegate;
-	/** The top-level headers with a gap above them, by id: grouped by Workspaces & Groups, each but the first. */
+	/** The top-level headers with a gap above them, by id: with groups and workspaces separate, each but the first. */
 	private _spacedHeaderIds: ReadonlySet<string> = new Set();
 	/** Approval model tracking pending tool confirmations across the shown chats. */
 	private _approvalModel!: AgentSessionApprovalModel;
@@ -709,7 +714,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * drag-reorder math.
 	 */
 	private _topLevelOrder: string[] = [];
-	/** The workspaces of Group by Workspaces & Groups as the last rebuild looked them up, for the actions on its rows. */
+	/** The workspaces that the separate Workspaces header listed as the last rebuild looked them up, for the actions on its rows. */
 	private listWorkspaces: ISessionListWorkspaces | undefined;
 
 	/** The workspace sections capped behind "+N more", shown in the list or not. */
@@ -1718,13 +1723,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 				this.scheduleListUpdate();
 			}));
 		}
-		// Group by Workspaces & Groups lists the workspaces as their files have them. The workspaces service is created
+		// The separate Workspaces header lists the workspaces as their files have them. The workspaces service is created
 		// only once workspaces are enabled.
 		const workspacesEnabled = observableConfigValue(SESSIONS_WORKSPACES_ENABLED_SETTING, false, this.configurationService);
 		this._register(autorun(reader => {
 			if (workspacesEnabled.read(reader)) {
 				reader.store.add(runOnChange(this.workspacesService.workspaces, () => {
-					if (this.options.grouping() === SessionsGrouping.WorkspacesAndGroups) {
+					if (this.isSeparateGroupsAndWorkspaces()) {
 						this.scheduleListUpdate();
 					}
 				}));
@@ -1882,6 +1887,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const onboardingSession = this.onboardingTarget.get()?.session;
 		const grouping = this.options.grouping();
 		const inbox = grouping === SessionsGrouping.Inbox;
+		const separateGroupsAndWorkspaces = this.isSeparateGroupsAndWorkspaces(grouping);
 		const nextNestedSessionResources = new Set(
 			this.sessions
 				.filter(session => getSessionListChats(session, undefined, false, this._hideSideChats.get()).length > 0)
@@ -2014,7 +2020,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const environments = grouping === SessionsGrouping.Environment
 			? getSessionEnvironments(this._sessionsProvidersService.getProviders().map(provider => provider.environment))
 			: [];
-		const workspaces = this.listWorkspaces = grouping === SessionsGrouping.WorkspacesAndGroups ? this.createListWorkspaces(!!scope) : undefined;
+		const workspaces = this.listWorkspaces = separateGroupsAndWorkspaces ? this.createListWorkspaces(!!scope) : undefined;
 		const sections = groupSessionsForList(forSections, grouping, sorting, session => this.isSessionPinned(session), (s, srt) => this._sessionsListModelService.getSortKey(s, sortingToMode(srt)), archivedSectionLabel, this.groupExternalSessions, environments, session => this.getInboxSection(session), session => this.getInboxPriority(session), this.quickChatsInTimeGrouping, this.hasQuickChatsSection, workspaces);
 
 		// When done items are shown, the done chats of a session that is not done
@@ -2079,7 +2085,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					? comparisonSessions.map(sessionWorkspaceLabel).find(label => label !== localize('unknown', "Unknown"))
 					?? this.labelService.getWorkspaceLabel(comparison.workspace)
 					: localize('chatsSection', "Chats");
-				// Under Group by Workspaces & Groups, a comparison lists in the row of its sessions' workspace, as they would
+				// Under the separate Workspaces header, a comparison lists in the row of its sessions' workspace, as they would
 				const workspaceRowUri = workspaces && comparison.workspace
 					? comparisonSessions.map(getSessionWorkspaceUri).find(isDefined) ?? comparison.workspace
 					: undefined;
@@ -2124,8 +2130,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 				const existingSessionIds = new Set(workspaceSection.sessions.map(session => session.sessionId));
 				workspaceSection.sessions.push(...sortedMembersByGroupId.get(group.id)!.filter(session => !existingSessionIds.has(session.sessionId)));
 			}
-			// The comparison sessions just added change which root the sections' sessions share. A workspace row of Group by
-			// Workspaces & Groups opens its workspace instead (Open in Editor Window), so it has no root folder.
+			// The comparison sessions just added change which root the sections' sessions share. A workspace row under the separate
+			// Workspaces header opens its workspace instead (Open in Editor Window), so it has no root folder.
 			const comparisonSectionIds = new Set(comparisonGroupsBySectionId.keys());
 			for (let index = 0; index < sections.length; index++) {
 				const section = sections[index];
@@ -2643,7 +2649,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					}
 				}
 			}
-		} else if (grouping === SessionsGrouping.WorkspacesAndGroups) {
+		} else if (separateGroupsAndWorkspaces) {
 			// The custom groups are rows of a Groups section, in their user-managed order, and the workspaces rows of a
 			// Workspaces section, by name
 			const renderParentSection = (id: string, label: string, sessions: readonly ISession[], sectionChildren: IObjectTreeElement<SessionListItem>[]): IObjectTreeElement<SessionListItem> => {
@@ -2750,11 +2756,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 				nextNestedSessionResources.add(session.resource.toString());
 			}
 		}
-		// Grouped by Workspaces & Groups, the top-level headers are muted labels, each but the first with a gap above it
-		const workspacesAndGroups = grouping === SessionsGrouping.WorkspacesAndGroups && !inbox;
-		this.listContainer.classList.toggle('workspaces-and-groups-grouping', workspacesAndGroups);
+		// With groups and workspaces separate, the top-level headers are muted labels, each but the first with a gap above it
+		this.listContainer.classList.toggle('separate-groups-and-workspaces', separateGroupsAndWorkspaces);
 		const previousSpacedHeaderIds = this._spacedHeaderIds;
-		this._spacedHeaderIds = new Set(workspacesAndGroups
+		this._spacedHeaderIds = new Set(separateGroupsAndWorkspaces
 			? attachedChildren.slice(1).map(child => child.element).filter((element): element is ISessionSection => isSessionSection(element) && !isShortcutSection(element.id)).map(section => section.id)
 			: []);
 		const keyboardPosition = this.captureKeyboardPosition();
@@ -3591,6 +3596,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 	setCompact(): void {
 		this.listContainer.classList.toggle('compact', this.isCompact());
 		this.update();
+	}
+
+	/** Whether Group by Workspace separates the custom groups and the workspaces, each under a header of its own. */
+	private isSeparateGroupsAndWorkspaces(grouping = this.options.grouping()): boolean {
+		return grouping === SessionsGrouping.Workspace && !!this.options.separateGroupsAndWorkspaces?.();
 	}
 
 	private updateIndentItems(): void {
@@ -4781,20 +4791,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	// -- Programmatic organization --
 
-	/**
-	 * The list as it is composed, independent of scrolling, collapsing, and the
-	 * find filter, including the sections and session rows that capping hides.
-	 * Shortcut sections and nested chat rows are omitted.
-	 */
-	/**
-	 * The workspaces Group by Workspaces & Groups lists sessions under, for one rebuild: each workspace is looked up once.
-	 * The Agents window's own workspaces list even without sessions, unless a search or scope narrows the list.
-	 */
 	/** Whether the Workspace editor opens on a workspace or custom group: in a window that has it, while chat and workspaces are on. */
 	private canOpenWorkspaceEditor(): boolean {
 		return this.contextKeyService.contextMatchesRules(SESSION_WORKSPACE_EDITOR_WHEN);
 	}
 
+	/**
+	 * The workspaces that the separate Workspaces header lists sessions under, for one rebuild: each workspace is looked up once.
+	 * The Agents window's own workspaces list even without sessions, unless a search or scope narrows the list.
+	 */
 	private createListWorkspaces(scoped: boolean): ISessionListWorkspaces {
 		const workspaces = new ResourceMap<IRecentSessionWorkspace | undefined>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
 		return {
@@ -4809,6 +4814,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 		};
 	}
 
+	/**
+	 * The list as it is composed, independent of scrolling, collapsing, and the
+	 * find filter, including the sections and session rows that capping hides.
+	 * Shortcut sections and nested chat rows are omitted.
+	 */
 	getTreeSnapshot(): SessionsListSnapshotNode[] {
 		const toSessionNodes = (sessions: readonly ISession[], hidden: boolean): SessionsListSnapshotNode[] =>
 			sessions.map(session => hidden ? { type: 'session', session, hidden } : { type: 'session', session });

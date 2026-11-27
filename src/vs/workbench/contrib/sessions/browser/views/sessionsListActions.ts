@@ -40,7 +40,7 @@ import { ISessionsListModelService } from '../sessionsListModelService.js';
 import { ISessionsListUndoService } from '../sessionsListUndoService.js';
 import { IPinnedCanvasService, isPinnedCanvasOwnedBy } from '../pinnedCanvases.js';
 import { ISessionComparisonService } from '../../common/sessionComparison.js';
-import { ChatViewSessionsListTitleContext, IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSortingContext, sessionsViewOffersGrouping, EditorWindowSessionsContext, EditorWindowSessionsViewOffersInboxContext, SessionsViewFocusedContext, getActiveSessionsView, ISessionsViewLocator, openSessionsView, SessionsView, SessionsViewId } from '../views/sessionsView.js';
+import { ChatViewSessionsListTitleContext, IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSeparateGroupsAndWorkspacesContext, SEPARATE_GROUPS_AND_WORKSPACES_LABEL, SessionsViewSortingContext, sessionsViewOffersGrouping, EditorWindowSessionsContext, EditorWindowSessionsViewOffersInboxContext, SessionsViewFocusedContext, getActiveSessionsView, ISessionsViewLocator, openSessionsView, SessionsView, SessionsViewId } from '../views/sessionsView.js';
 import { Menus, SessionHeaderMenus, SessionsViewShowGroup } from '../menus.js';
 import { SESSIONS_LIST_MARK_READ_COMMAND_ID, SESSIONS_LIST_MARK_UNREAD_COMMAND_ID } from '../../../../common/chatSessionCommands.js';
 import { ISessionsNavigationService } from '../sessionsNavigationService.js';
@@ -174,7 +174,6 @@ function deleteSessionGroupWithUndo(groupId: string, groupsService: ISessionGrou
 /** Non-date grouping caps its sections, which Show switches between Recent and All. */
 const GroupedBySectionContext = ContextKeyExpr.or(
 	SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Workspace),
-	SessionsViewGroupingContext.isEqualTo(SessionsGrouping.WorkspacesAndGroups),
 	SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Repository),
 	SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Environment),
 );
@@ -1248,23 +1247,6 @@ function createSessionsListActions(): DisposableStore {
 		}
 	}));
 
-	store.add(registerAction2(class GroupByWorkspacesAndGroupsAction extends Action2 {
-		constructor() {
-			super({
-				id: 'sessionsViewPane.groupByWorkspacesAndGroups',
-				title: localize2('workspacesAndGroups', "Workspaces & Groups"),
-				category: SessionsCategories.Sessions,
-				toggled: SessionsViewGroupingContext.isEqualTo(SessionsGrouping.WorkspacesAndGroups),
-				precondition: ContextKeyExpr.and(SessionWorkspacesEnabledContext, ChatContextKeys.enabled),
-				menu: [{ id: Menus.SessionsViewGrouping, group: '1_group', order: 1.5, when: ContextKeyExpr.and(sessionsViewOffersGrouping(SessionsGrouping.WorkspacesAndGroups), SessionWorkspacesEnabledContext, ChatContextKeys.enabled) }],
-			});
-		}
-		override run(accessor: ServicesAccessor) {
-			const view = getActiveSessionsView(accessor);
-			view?.setGrouping(SessionsGrouping.WorkspacesAndGroups);
-		}
-	}));
-
 	store.add(registerAction2(class GroupByRepositoryAction extends Action2 {
 		constructor() {
 			super({
@@ -1336,6 +1318,31 @@ function createSessionsListActions(): DisposableStore {
 		override run(accessor: ServicesAccessor) {
 			const view = getActiveSessionsView(accessor);
 			view?.toggleCompact();
+		}
+	}));
+
+	store.add(registerAction2(class ToggleSeparateGroupsAndWorkspacesAction extends Action2 {
+		constructor() {
+			const when = ContextKeyExpr.and(SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Workspace), SessionWorkspacesEnabledContext, ChatContextKeys.enabled);
+			super({
+				id: 'sessionsViewPane.toggleSeparateGroupsAndWorkspaces',
+				title: SEPARATE_GROUPS_AND_WORKSPACES_LABEL,
+				category: SessionsCategories.Sessions,
+				toggled: SessionsViewSeparateGroupsAndWorkspacesContext,
+				precondition: when,
+				// The Agents window's Sessions view; the phone offers it in its sort and group sheet, and the Chat view's sessions list
+				// does not group by workspace
+				menu: [{
+					id: Menus.SidebarSessionsHeader,
+					group: '1_view',
+					order: 1,
+					when: ContextKeyExpr.and(when, IsPhoneLayoutContext.negate()),
+				}]
+			});
+		}
+		override run(accessor: ServicesAccessor) {
+			const view = getActiveSessionsView(accessor);
+			view?.toggleSeparateGroupsAndWorkspaces();
 		}
 	}));
 

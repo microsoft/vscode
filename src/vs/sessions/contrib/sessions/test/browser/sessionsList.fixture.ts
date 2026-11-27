@@ -297,8 +297,8 @@ const ONBOARDING_FRAME = { width: 760, height: 420 };
 /** Room beside and below the list for an open context menu. */
 const CONTEXT_MENU_FRAME = { width: 480, height: 320 };
 
-/** Group by Workspaces & Groups: custom groups, workspaces with their icons and colors, and a session in a folder of its own. */
-const WORKSPACES_AND_GROUPS_STATE: ISessionsListFixtureState = {
+/** Group by Workspace with groups and workspaces separate: custom groups, workspaces with their icons and colors, and a session in a folder of its own. */
+const SEPARATE_GROUPS_AND_WORKSPACES_STATE: ISessionsListFixtureState = {
 	sessions: [
 		{ id: 'pinned', title: 'Pinned investigation', workspace: 'vscode', pinned: true },
 		{ id: 'chat', title: 'What does the agents window do?', isQuickChat: true, minutesAgo: 5 },
@@ -319,43 +319,54 @@ const WORKSPACES_AND_GROUPS_STATE: ISessionsListFixtureState = {
 		{ uri: getTestWorkspaceFile('Empty'), name: 'Empty', folders: [URI.file('/home/user/projects/notes')], owned: true },
 	],
 	// Tall enough for every row, down to the Empty workspace's placeholder and the folder's row
-	view: { grouping: SessionsGrouping.WorkspacesAndGroups, height: 820 },
+	view: { grouping: SessionsGrouping.Workspace, separateGroupsAndWorkspaces: true, height: 820 },
 };
 
 //#endregion
 
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	// Pinned, Chats, then the Groups and Workspaces sections, with the navigation rows above the list
-	SessionsList_WorkspacesAndGroups: defineSessionsListFixture({
-		...WORKSPACES_AND_GROUPS_STATE,
+	SessionsList_SeparateGroupsAndWorkspaces: defineSessionsListFixture({
+		...SEPARATE_GROUPS_AND_WORKSPACES_STATE,
 		header: { navigationShortcuts: true },
 	}, { additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
 	// The same with the navigation rows as sections of the tree
-	SessionsList_WorkspacesAndGroups_TreeNavigation: defineSessionsListFixture({
-		...WORKSPACES_AND_GROUPS_STATE,
+	SessionsList_SeparateGroupsAndWorkspaces_TreeNavigation: defineSessionsListFixture({
+		...SEPARATE_GROUPS_AND_WORKSPACES_STATE,
+		header: { navigationShortcuts: false },
+	}),
+	// Group by Workspace with the option off: the custom groups among the workspace sections, in both sidebar layouts
+	SessionsList_SeparateGroupsAndWorkspaces_Off: defineSessionsListFixture({
+		...SEPARATE_GROUPS_AND_WORKSPACES_STATE,
+		view: { ...SEPARATE_GROUPS_AND_WORKSPACES_STATE.view, separateGroupsAndWorkspaces: false },
+		header: { navigationShortcuts: true },
+	}),
+	SessionsList_SeparateGroupsAndWorkspaces_Off_TreeNavigation: defineSessionsListFixture({
+		...SEPARATE_GROUPS_AND_WORKSPACES_STATE,
+		view: { ...SEPARATE_GROUPS_AND_WORKSPACES_STATE.view, separateGroupsAndWorkspaces: false },
 		header: { navigationShortcuts: false },
 	}),
 	// A workspace row's context menu: Open in Editor Window, Edit Workspace... and Remove Workspace...
-	SessionsList_WorkspacesAndGroups_WorkspaceContextMenu: defineSessionsListFixture({
-		...WORKSPACES_AND_GROUPS_STATE,
+	SessionsList_SeparateGroupsAndWorkspaces_WorkspaceContextMenu: defineSessionsListFixture({
+		...SEPARATE_GROUPS_AND_WORKSPACES_STATE,
 		frame: { ...CONTEXT_MENU_FRAME, height: 820 },
 		interaction: { contextMenu: { workspace: new ExtUri(() => true).getComparisonKey(getTestWorkspaceFile('Agents')) } },
 	}),
 	// A custom group's context menu: Edit Group... in place of Rename, Change Icon and Change Color
-	SessionsList_WorkspacesAndGroups_GroupContextMenu: defineSessionsListFixture({
-		...WORKSPACES_AND_GROUPS_STATE,
+	SessionsList_SeparateGroupsAndWorkspaces_GroupContextMenu: defineSessionsListFixture({
+		...SEPARATE_GROUPS_AND_WORKSPACES_STATE,
 		frame: { ...CONTEXT_MENU_FRAME, height: 820 },
 		interaction: { contextMenu: { group: 'release' } },
 	}),
 	// The pointer over the Workspaces header: its twistie after the label and its actions on the right
-	SessionsList_WorkspacesAndGroups_HoveredWorkspacesHeader: defineSessionsListFixture({
-		...WORKSPACES_AND_GROUPS_STATE,
+	SessionsList_SeparateGroupsAndWorkspaces_HoveredWorkspacesHeader: defineSessionsListFixture({
+		...SEPARATE_GROUPS_AND_WORKSPACES_STATE,
 		header: { navigationShortcuts: true },
 		interaction: { hovered: { section: 'workspaces' } },
 	}),
 	// The keyboard on a workspace row
-	SessionsList_WorkspacesAndGroups_FocusedWorkspace: defineSessionsListFixture({
-		...WORKSPACES_AND_GROUPS_STATE,
+	SessionsList_SeparateGroupsAndWorkspaces_FocusedWorkspace: defineSessionsListFixture({
+		...SEPARATE_GROUPS_AND_WORKSPACES_STATE,
 		header: { navigationShortcuts: true },
 		// The fixtures compare paths without case, as the row ids do
 		interaction: { focused: { workspace: new ExtUri(() => true).getComparisonKey(getTestWorkspaceFile('Agents')) } },

@@ -29,9 +29,9 @@ export const PINNED_CANVAS_SECTION_PREFIX = 'pinnedCanvas:';
 export const EXTERNAL_SESSIONS_SECTION_ID = 'external';
 /** Ungrouped sessions sectioned by date share one sort order across these sections, in display order. */
 export const DATE_SECTION_IDS: readonly string[] = ['recent', 'older'];
-/** The section of {@link SessionsGrouping.WorkspacesAndGroups} whose rows are the custom groups. */
+/** The header whose rows are the custom groups, while Group by Workspace separates groups and workspaces. */
 export const GROUPS_SECTION_ID = 'groups';
-/** The section of {@link SessionsGrouping.WorkspacesAndGroups} whose rows are the workspaces. */
+/** The header whose rows are the workspaces, while Group by Workspace separates groups and workspaces. */
 export const WORKSPACES_SECTION_ID = 'workspaces';
 
 export function getChatTitle(chat: IChat, reader?: IReader): string {
@@ -425,7 +425,7 @@ export function isQuickChatSession(session: ISession): boolean {
  * false), such as a scoped list, has it under no grouping.
  */
 export function groupingHasQuickChatsSection(grouping: SessionsGrouping, quickChatsInTimeGrouping = false, quickChatsSection = true): boolean {
-	return quickChatsSection && (grouping === SessionsGrouping.Workspace || grouping === SessionsGrouping.WorkspacesAndGroups || grouping === SessionsGrouping.Repository
+	return quickChatsSection && (grouping === SessionsGrouping.Workspace || grouping === SessionsGrouping.Repository
 		|| (quickChatsInTimeGrouping && grouping === SessionsGrouping.Date));
 }
 
@@ -485,11 +485,11 @@ export function groupSessionsForList(
 	}
 
 	const groupRegular = (): ISessionSection[] => {
-		if (grouping === SessionsGrouping.WorkspacesAndGroups && workspaces) {
+		if (grouping === SessionsGrouping.Workspace && workspaces) {
 			return groupByWorkspaces(regular, workspaces);
 		} else if (grouping === SessionsGrouping.Inbox) {
 			return groupByInboxSection(regular, sorting, getInboxSection, getInboxPriority);
-		} else if (grouping === SessionsGrouping.Workspace || grouping === SessionsGrouping.WorkspacesAndGroups) {
+		} else if (grouping === SessionsGrouping.Workspace) {
 			return groupByWorkspace(regular);
 		} else if (grouping === SessionsGrouping.Repository) {
 			return groupByRepository(regular);
@@ -603,7 +603,7 @@ export function groupByWorkspace(sessions: ISession[]): ISessionSection[] {
 	return result;
 }
 
-/** The workspaces that {@link SessionsGrouping.WorkspacesAndGroups} lists sessions under, as the workspaces service knows them. */
+/** The workspaces that the separate Workspaces header lists sessions under, as the workspaces service knows them. */
 export interface ISessionListWorkspaces {
 	/** The workspace of a `.code-workspace` file or of a folder, also under a file it had before a rename. */
 	getWorkspace(uri: URI): IRecentSessionWorkspace | undefined;
@@ -614,7 +614,7 @@ export interface ISessionListWorkspaces {
 }
 
 /**
- * The workspace rows of {@link SessionsGrouping.WorkspacesAndGroups}: a session lists under its workspace file, else
+ * The workspace rows of the separate Workspaces header: a session lists under its workspace file, else
  * under its default folder, by name; sessions without a folder list under Unknown, last. The name, icon and color come
  * from the workspaces service, never from the session; a folder that the service does not know shows its name.
  */
@@ -712,7 +712,7 @@ export function getRepositorySectionId(repository: ISessionRepository): string {
 
 /** The grouping section a session renders in when nothing with higher precedence places it. */
 export function getSessionGroupingSectionId(session: ISession, grouping: SessionsGrouping, workspaces?: ISessionListWorkspaces): string {
-	if (grouping === SessionsGrouping.WorkspacesAndGroups && workspaces) {
+	if (grouping === SessionsGrouping.Workspace && workspaces) {
 		return getSessionWorkspaceRowId(session, workspaces);
 	}
 	if (grouping === SessionsGrouping.Environment) {

@@ -151,6 +151,8 @@ import '../../browser/views/sessionsViewActions.js';
 import '../../../../browser/mobile/media/mobileDrawer.css';
 import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 import { SessionWorkspaceEditorAvailableContext } from '../../../../../workbench/contrib/sessions/browser/workspaceEditor/sessionWorkspaceEditorCommands.js';
+// The workspace rows' menus, which the Workspace editor contributes
+import '../../../../../workbench/contrib/sessions/browser/workspaceEditor/sessionWorkspaceEditor.contribution.js';
 
 function clickRow(row: HTMLElement, modifiers: MouseEventInit = {}): void {
 	row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, ...modifiers }));
@@ -4314,7 +4316,7 @@ suite('Sessions - SessionsList', () => {
 			const sections = groupByWorkspaces(sessions, listWorkspaces);
 			// Moving and Mark All Read find a session's row by the same id
 			assert.deepStrictEqual(
-				sessions.map(session => getSessionGroupingSectionId(session, SessionsGrouping.WorkspacesAndGroups, listWorkspaces)),
+				sessions.map(session => getSessionGroupingSectionId(session, SessionsGrouping.Workspace, listWorkspaces)),
 				sessions.map(session => sections.find(section => section.sessions.includes(session))!.id),
 			);
 
@@ -4329,7 +4331,7 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
-	suite('Group by Workspaces & Groups', () => {
+	suite('Group by Workspace with groups and workspaces separate', () => {
 		const vscode = URI.file('/work/vscode');
 		const docs = URI.file('/work/vscode-docs');
 		const oldAgentsFile = URI.file('/user/AgentsWorkspaces/Old.code-workspace');
@@ -4339,15 +4341,19 @@ suite('Sessions - SessionsList', () => {
 		const release: ISessionGroup = { id: 'release', name: 'Release', createdAt: 1 };
 		const comparisonGroup: ISessionGroup = { id: 'comparison-group', name: 'Compare: Fix', createdAt: 2 };
 
-		function render(grouping: () => SessionsGrouping, configure?: (harness: ReturnType<typeof createListHarness>) => void, separateNavigation?: boolean) {
+		function render(configure?: (harness: ReturnType<typeof createListHarness>) => void, separateNavigation?: boolean, separate: () => boolean = () => true) {
+			// Each session a minute older than the one before, so that the order does not depend on the clock's resolution
+			const now = Date.now();
+			let age = 0;
+			const createdAt = () => new Date(now - (age++) * 60_000);
 			const sessions = [
-				createTestSession('in agents', { folders: [vscode, docs], workspaceFile: agents.uri }).session,
-				createTestSession('in agents before rename', { folders: [vscode], workspaceFile: oldAgentsFile }).session,
-				createTestSession('in the user\'s agents', { folders: [docs], workspaceFile: usersAgents.uri }).session,
-				createTestSession('in a folder', { folders: [URI.file('/work/tools')] }).session,
-				createTestSession('in release', { folders: [vscode], workspaceFile: agents.uri }).session,
+				createTestSession('in agents', { folders: [vscode, docs], workspaceFile: agents.uri, createdAt: createdAt() }).session,
+				createTestSession('in agents before rename', { folders: [vscode], workspaceFile: oldAgentsFile, createdAt: createdAt() }).session,
+				createTestSession('in the user\'s agents', { folders: [docs], workspaceFile: usersAgents.uri, createdAt: createdAt() }).session,
+				createTestSession('in a folder', { folders: [URI.file('/work/tools')], createdAt: createdAt() }).session,
+				createTestSession('in release', { folders: [vscode], workspaceFile: agents.uri, createdAt: createdAt() }).session,
 			];
-			const attempts = ['attempt-1', 'attempt-2'].map(id => createTestSession(id, { folders: [vscode, docs], workspaceFile: agents.uri }).session);
+			const attempts = ['attempt-1', 'attempt-2'].map(id => createTestSession(id, { folders: [vscode, docs], workspaceFile: agents.uri, createdAt: createdAt() }).session);
 			const comparison: ISessionComparison = {
 				id: 'comparison-1',
 				groupId: comparisonGroup.id,
@@ -4371,7 +4377,8 @@ suite('Sessions - SessionsList', () => {
 			configure?.(harness);
 			const container = harness.createContainer(400, 1400);
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
-				grouping,
+				grouping: () => SessionsGrouping.Workspace,
+				separateGroupsAndWorkspaces: separate,
 				sorting: () => SessionsSorting.Created,
 				onSessionOpen: () => { },
 				showNavigationShortcuts: separateNavigation === undefined ? undefined : () => separateNavigation,
@@ -4384,7 +4391,7 @@ suite('Sessions - SessionsList', () => {
 		}
 
 		test('lists custom groups, then workspaces by their file, with a renamed file and a comparison in their workspace\'s row, and two workspaces of one name apart', () => {
-			assert.deepStrictEqual(render(() => SessionsGrouping.WorkspacesAndGroups).snapshot(), [
+			assert.deepStrictEqual(render().snapshot(), [
 				{ 'Groups': [{ 'Release': ['in release'] }] },
 				{
 					'Workspaces': [
@@ -4398,14 +4405,14 @@ suite('Sessions - SessionsList', () => {
 
 		test('each top-level header but the first has a gap above it, and an empty workspace says so', () => {
 			const empty: IRecentSessionWorkspace = { uri: URI.file('/user/AgentsWorkspaces/Empty.code-workspace'), name: 'Empty', folders: [URI.file('/work/notes')], owned: true };
-			const { container } = render(() => SessionsGrouping.WorkspacesAndGroups, harness => {
+			const { container } = render(harness => {
 				const workspacesService = harness.instantiationService.get(ISessionWorkspacesService) as TestSessionWorkspacesService;
 				workspacesService.managedWorkspaces.set([...workspacesService.managedWorkspaces.get(), empty], undefined);
 			});
 			const topLevel = [...container.querySelectorAll<HTMLElement>('.monaco-list-row[aria-level="1"]')];
 
 			assert.deepStrictEqual({
-				grouping: container.querySelector('.sessions-list-control')?.classList.contains('workspaces-and-groups-grouping'),
+				grouping: container.querySelector('.sessions-list-control')?.classList.contains('separate-groups-and-workspaces'),
 				headers: topLevel.map(row => `${row.querySelector('.session-section-label')?.textContent}${row.classList.contains('session-spaced-header') ? ' (gap)' : ''}`),
 				placeholders: [...container.querySelectorAll('.session-placeholder-label')].map(label => label.textContent),
 			}, {
@@ -4415,13 +4422,13 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('a workspace row or group row pinned in Workspaces & Groups or before shows once, in Pinned, and returns to its section when unpinned, in both sidebar layouts', () => {
+		test('a workspace row or group row pinned while groups and workspaces are separate, or before, shows once, in Pinned, and returns to its section when unpinned, in both sidebar layouts', () => {
 			const rows = (list: SessionsList) => list.getTreeSnapshot().flatMap(node => node.type !== 'session' && (node.id === 'pinned' || node.id === 'groups' || node.id === 'workspaces')
 				? [{ [node.label]: node.children.flatMap(child => child.type !== 'session' ? [child.label] : []) }]
 				: []);
 			const results = [false, true].map(separateNavigation => {
 				// The group was pinned before, such as in another grouping
-				const { list } = render(() => SessionsGrouping.WorkspacesAndGroups, harness => harness.instantiationService.get(ISessionsListModelService).pinSection(`group:${release.id}`), separateNavigation);
+				const { list } = render(harness => harness.instantiationService.get(ISessionsListModelService).pinSection(`group:${release.id}`), separateNavigation);
 				const pinnedBefore = rows(list);
 				// The row's id compares the workspace file's path as the list does, without case
 				const workspaces = list.getTreeSnapshot().find(node => node.type !== 'session' && node.id === 'workspaces');
@@ -4462,7 +4469,8 @@ suite('Sessions - SessionsList', () => {
 			});
 			(harness.instantiationService.get(ISessionWorkspacesService) as TestSessionWorkspacesService).recentWorkspaceFiles.set([experiments], undefined);
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, harness.createContainer(400, 1400), {
-				grouping: () => SessionsGrouping.WorkspacesAndGroups,
+				grouping: () => SessionsGrouping.Workspace,
+				separateGroupsAndWorkspaces: () => true,
 				sorting: () => SessionsSorting.Created,
 				onSessionOpen: () => { },
 			}));
@@ -4477,7 +4485,7 @@ suite('Sessions - SessionsList', () => {
 
 		test('edits a known workspace on a double-click on its row, but not on one on the row\'s inline actions, nor where the window has no Workspace editor', () => {
 			const doubleClickAgents = (editorAvailable: boolean) => {
-				const { container, harness } = render(() => SessionsGrouping.WorkspacesAndGroups, harness => {
+				const { container, harness } = render(harness => {
 					const contextKeyService = disposables.add(new ContextKeyService(harness.instantiationService.get(IConfigurationService)));
 					ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 					SessionWorkspacesEnabledContext.bindTo(contextKeyService).set(true);
@@ -4502,7 +4510,7 @@ suite('Sessions - SessionsList', () => {
 
 		test('a workspace row offers one Open action, Open in Editor Window, also when a comparison is in it and the window lists all sessions', () => {
 			const menus: string[][] = [];
-			const { container } = render(() => SessionsGrouping.WorkspacesAndGroups, harness => {
+			const { container } = render(harness => {
 				// The production menus, which a real context key service evaluates, in a window that lists all sessions
 				const contextKeyService = disposables.add(new ContextKeyService(harness.instantiationService.get(IConfigurationService)));
 				ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
@@ -4523,19 +4531,25 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual(menus.map(menu => menu.filter(label => label.startsWith('Open'))), [['Open in Editor Window']]);
 		});
 
-		test('keeps the collapse state of its sections and rows, and lists by workspace again once switched back', () => {
-			let grouping = SessionsGrouping.WorkspacesAndGroups;
-			const { list, snapshot } = render(() => grouping);
+		test('keeps the collapse state of its sections and rows, and lists by workspace while not separate, in the same tree, with the header rows at their level and expanded state', () => {
+			let separate = true;
+			const { list, snapshot, container } = render(undefined, undefined, () => separate);
+			const tree = container.querySelector('.monaco-list');
+			// The top-level header rows as a screen reader gets them: level and expanded state
+			const headerRows = () => [...container.querySelectorAll<HTMLElement>('.monaco-list-row[aria-level="1"]')]
+				.map(row => `${row.querySelector('.session-section-label')?.textContent} ${row.getAttribute('aria-level')} ${row.getAttribute('aria-expanded')}`);
 			list.setHeaderCollapsed('groups', true);
 			list.setHeaderCollapsed(`workspace:${URI.file('/work/tools').toString()}`, true);
 			const collapsed = snapshot();
-			grouping = SessionsGrouping.Workspace;
+			const separateHeaders = headerRows();
+			separate = false;
 			list.update();
 			const byWorkspace = list.getTreeSnapshot().filter(node => node.type !== 'session').map(node => node.label);
-			grouping = SessionsGrouping.WorkspacesAndGroups;
+			const byWorkspaceHeaders = headerRows();
+			separate = true;
 			list.update();
 
-			assert.deepStrictEqual({ collapsed, byWorkspace, back: snapshot() }, {
+			assert.deepStrictEqual({ collapsed, byWorkspace, back: snapshot(), separateHeaders, byWorkspaceHeaders, sameTree: container.querySelector('.monaco-list') === tree }, {
 				collapsed: [
 					{ 'Groups (collapsed)': [{ 'Release': ['in release'] }] },
 					{ 'Workspaces': [{ 'Agents': ['in agents', 'in agents before rename', { 'Compare: Fix': ['attempt-1', 'attempt-2'] }] }, { 'Agents': ['in the user\'s agents'] }, { 'tools (collapsed)': ['in a folder'] }] },
@@ -4543,6 +4557,9 @@ suite('Sessions - SessionsList', () => {
 				// Group by Workspace lists by the sessions' workspace label, with the custom group among the sections
 				byWorkspace: ['Release', 'Workspace'],
 				back: collapsed,
+				separateHeaders: ['Groups 1 false', 'Workspaces 1 true'],
+				byWorkspaceHeaders: ['Release 1 true', 'Workspace 1 true'],
+				sameTree: true,
 			});
 		});
 	});

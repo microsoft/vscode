@@ -25,7 +25,7 @@ import { Workbench } from '../../../../browser/workbench.js';
 import { ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { AICustomizationShortcutsWidget } from '../../../../../workbench/contrib/sessions/browser/aiCustomizationShortcutsWidget.js';
-import { DEFAULT_SESSIONS_GROUPINGS, getCustomizationsPresentation, getStoredSessionsGrouping, SessionsView, SessionsViewGroupingContext, SessionsViewGroupingState } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { DEFAULT_SESSIONS_GROUPINGS, getCustomizationsPresentation, getStoredSessionsGrouping, SessionsView, SessionsViewGroupingContext, SessionsViewGroupingState, SessionsViewSeparateGroupsAndWorkspacesContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatViewSessionsGroupingState, EDITOR_WINDOW_SESSIONS_GROUPINGS } from '../../../../../workbench/contrib/sessions/browser/agentsView/editorWindowSessionsList.js';
 import { SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
@@ -237,6 +237,7 @@ suite('Sessions - SessionsViewPane', () => {
 			initializeGrouping: Reflect.get(SessionsView.prototype, 'initializeGrouping') as () => void,
 			followProfileSwitches: Reflect.get(SessionsView.prototype, 'followProfileSwitches') as () => void,
 			restoreStoredGrouping: Reflect.get(SessionsView.prototype, 'restoreStoredGrouping') as () => void,
+			showSeparateGroupsAndWorkspaces: Reflect.get(SessionsView.prototype, 'showSeparateGroupsAndWorkspaces') as () => void,
 			updateInboxAvailability: Reflect.get(SessionsView.prototype, 'updateInboxAvailability') as () => void,
 			leaveInbox: Reflect.get(SessionsView.prototype, 'leaveInbox') as () => void,
 			setGrouping: SessionsView.prototype.setGrouping,
@@ -427,6 +428,123 @@ suite('Sessions - SessionsViewPane', () => {
 			notOffered: { shown: SessionsGrouping.Date, saved: SessionsGrouping.Repository },
 			worktree: { agentsWindow: SessionsGrouping.Workspace, editorWindow: SessionsGrouping.Date, saved: 'worktree' },
 			unknown: undefined,
+		});
+	});
+
+	test('a stored choice of the former Workspaces & Groups grouping opens as Group by Workspace with groups and workspaces separate, also as the grouping Inbox returns to and while workspaces are off, and an explicit off stays otherwise, with a missing or invalid choice taken as the default', () => {
+		const configurationService = new TestConfigurationService({ [SESSIONS_LIST_INBOX_ENABLED_SETTING]: true });
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		// Workspaces are off: the host's context has no workspaces enabled
+		// `separate` is the stored choice, or null for none
+		const open = (grouping: string | undefined, nonInboxGrouping?: string, separate: string | null = 'false', storageService = disposables.add(new InMemoryStorageService())) => {
+			for (const [key, value] of [['sessionsViewPane.grouping', grouping], ['sessionsViewPane.nonInboxGrouping', nonInboxGrouping], ['sessionsViewPane.separateGroupsAndWorkspaces', separate]] as const) {
+				if (value !== undefined && value !== null) {
+					storageService.store(key, value, StorageScope.PROFILE, StorageTarget.USER);
+				}
+			}
+			const host = createGroupingHost(configurationService, storageService);
+			return {
+				shown: host.grouping,
+				stored: storageService.get('sessionsViewPane.grouping', StorageScope.PROFILE),
+				nonInbox: storageService.get('sessionsViewPane.nonInboxGrouping', StorageScope.PROFILE),
+				separate: host.groupingState.separateGroupsAndWorkspaces,
+			};
+		};
+
+		const migratedStorage = disposables.add(new InMemoryStorageService());
+		const migrated = open('workspacesAndGroups', undefined, 'false', migratedStorage);
+
+		assert.deepStrictEqual({
+			migrated,
+			// Once migrated, opening again changes nothing
+			reopened: open(undefined, undefined, null, migratedStorage),
+			inInbox: open(SessionsGrouping.Inbox, 'workspacesAndGroups'),
+			explicitOff: open(SessionsGrouping.Workspace),
+			offWithoutGrouping: open(undefined),
+			unset: open(SessionsGrouping.Workspace, undefined, null),
+			invalid: open(SessionsGrouping.Workspace, undefined, 'maybe'),
+		}, {
+			migrated: { shown: SessionsGrouping.Workspace, stored: SessionsGrouping.Workspace, nonInbox: undefined, separate: true },
+			inInbox: { shown: SessionsGrouping.Inbox, stored: SessionsGrouping.Inbox, nonInbox: SessionsGrouping.Workspace, separate: true },
+			reopened: { shown: SessionsGrouping.Workspace, stored: SessionsGrouping.Workspace, nonInbox: undefined, separate: true },
+			explicitOff: { shown: SessionsGrouping.Workspace, stored: SessionsGrouping.Workspace, nonInbox: undefined, separate: false },
+			offWithoutGrouping: { shown: SessionsGrouping.Workspace, stored: undefined, nonInbox: undefined, separate: false },
+			unset: { shown: SessionsGrouping.Workspace, stored: SessionsGrouping.Workspace, nonInbox: undefined, separate: true },
+			invalid: { shown: SessionsGrouping.Workspace, stored: SessionsGrouping.Workspace, nonInbox: undefined, separate: true },
+		});
+	});
+
+	test('two views of one profile, such as in two windows, show the same choice to separate groups and workspaces: the checkmark and the list follow the other view\'s toggle', () => {
+		const configurationService = new TestConfigurationService();
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		const storageService = disposables.add(new InMemoryStorageService());
+		const createView = () => {
+			const contextKeyService = disposables.add(new ContextKeyService(configurationService));
+			const view = {
+				grouping: SessionsGrouping.Workspace,
+				groupingState: new SessionsViewGroupingState(undefined, storageService, configurationService),
+				separateGroupsAndWorkspacesContextKey: SessionsViewSeparateGroupsAndWorkspacesContext.bindTo(contextKeyService),
+				updates: 0,
+				sessionsControl: { update: () => view.updates++ },
+				_store: disposables.add(new DisposableStore()),
+				_register: <T extends IDisposable>(disposable: T): T => disposables.add(disposable),
+				showSeparateGroupsAndWorkspaces: Reflect.get(SessionsView.prototype, 'showSeparateGroupsAndWorkspaces') as () => void,
+				followSeparateGroupsAndWorkspaces: Reflect.get(SessionsView.prototype, 'followSeparateGroupsAndWorkspaces') as () => void,
+				setSeparateGroupsAndWorkspaces: SessionsView.prototype.setSeparateGroupsAndWorkspaces,
+				toggleSeparateGroupsAndWorkspaces: SessionsView.prototype.toggleSeparateGroupsAndWorkspaces,
+			};
+			view.separateGroupsAndWorkspacesContextKey.set(view.groupingState.separateGroupsAndWorkspaces);
+			view.followSeparateGroupsAndWorkspaces();
+			return view;
+		};
+		const [a, b] = [createView(), createView()];
+		const state = () => [a, b].map(view => ({ checked: view.separateGroupsAndWorkspacesContextKey.get(), updates: view.updates }));
+		a.toggleSeparateGroupsAndWorkspaces();
+		const offInA = state();
+		b.toggleSeparateGroupsAndWorkspaces();
+
+		assert.deepStrictEqual({ offInA, onInB: state(), stored: a.groupingState.separateGroupsAndWorkspaces }, {
+			offInA: [{ checked: false, updates: 1 }, { checked: false, updates: 1 }],
+			onInB: [{ checked: true, updates: 2 }, { checked: true, updates: 2 }],
+			stored: true,
+		});
+	});
+
+	test('the phone sheet offers Separate Groups and Workspaces, checked as stored, only while grouped by workspace with workspaces on, and toggles it', async () => {
+		const offered = async (grouping: SessionsGrouping, workspacesEnabled: boolean) => {
+			const container = mainWindow.document.createElement('div');
+			const configurationService = new TestConfigurationService();
+			disposables.add(configurationService.onDidChangeConfigurationEmitter);
+			const chosen = new DeferredPromise<string>();
+			const host = {
+				layoutService: { mainContainer: container },
+				grouping,
+				workspacesEnabled,
+				groupingState: { separateGroupsAndWorkspaces: true },
+				currentSorting: SessionsSorting.Created,
+				configurationService,
+				chatEntitlementService: { sentiment: { hidden: false } },
+				toggleSeparateGroupsAndWorkspaces: () => chosen.complete('toggled'),
+				setGrouping: () => chosen.complete('grouping'),
+				setSorting: () => chosen.complete('sorting'),
+			};
+			const openSheet = Reflect.get(SessionsView.prototype, 'openSortGroupSheet') as (this: typeof host) => void;
+			openSheet.call(host);
+			const row = [...container.querySelectorAll<HTMLButtonElement>('.mobile-sort-group-sheet-item')].find(candidate => candidate.textContent?.trim() === 'Separate Groups and Workspaces');
+			const checked = row?.getAttribute('aria-selected');
+			// Without the row, the first row, a sorting, closes the sheet
+			(row ?? container.querySelector<HTMLButtonElement>('.mobile-sort-group-sheet-item'))!.click();
+			return { checked, chosen: await chosen.p };
+		};
+
+		assert.deepStrictEqual({
+			workspace: await offered(SessionsGrouping.Workspace, true),
+			workspacesOff: await offered(SessionsGrouping.Workspace, false),
+			byRepository: await offered(SessionsGrouping.Repository, true),
+		}, {
+			workspace: { checked: 'true', chosen: 'toggled' },
+			workspacesOff: { checked: undefined, chosen: 'sorting' },
+			byRepository: { checked: undefined, chosen: 'sorting' },
 		});
 	});
 

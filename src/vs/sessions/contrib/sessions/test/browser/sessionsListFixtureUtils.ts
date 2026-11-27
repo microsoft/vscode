@@ -177,6 +177,8 @@ export interface ISessionsListFixtureView {
 	readonly grouping?: SessionsGrouping;
 	readonly sorting?: SessionsSorting;
 	readonly compact?: boolean;
+	/** Whether Group by Workspace lists the custom groups and the workspaces under headers of their own. */
+	readonly separateGroupsAndWorkspaces?: boolean;
 	readonly phone?: boolean;
 	readonly width?: number;
 	readonly height?: number;
@@ -251,7 +253,7 @@ export interface ISessionsListFixtureState {
 	readonly environments?: readonly ISessionEnvironment[];
 	/** Room around the list, e.g. for an onboarding callout. */
 	readonly frame?: { readonly width: number; readonly height: number };
-	/** The Agents window's workspaces, which Group by Workspaces & Groups lists. */
+	/** The Agents window's workspaces, which Group by Workspace lists while it separates groups and workspaces. */
 	readonly workspaces?: readonly IRecentSessionWorkspace[];
 }
 
@@ -925,6 +927,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 		grouping: () => view.grouping ?? SessionsGrouping.Workspace,
 		sorting: () => view.sorting ?? SessionsSorting.Created,
 		compact: () => view.compact ?? false,
+		separateGroupsAndWorkspaces: () => view.separateGroupsAndWorkspaces ?? false,
 		scheduledSessionResources: constObservable(new Set(state.sessions
 			.filter(spec => spec.hasScheduledMessages)
 			.map(spec => getSession(spec.id).session.resource.toString()))),

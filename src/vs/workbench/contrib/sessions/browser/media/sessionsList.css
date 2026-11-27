@@ -1744,12 +1744,12 @@
 	align-items: center;
 }
 
-/* The twistie takes the icon's place, except on the top-level headers grouped by Workspaces & Groups, where it follows the label */
-.monaco-list-row:is(:hover, .hovered) .session-section:not(.session-comparison-group) .session-section-chevron.collapsible + .session-section-icon:not(.workspaces-and-groups-grouping .monaco-list-row[aria-level="1"] *),
+/* The twistie takes the icon's place, except on the top-level headers with groups and workspaces separate, where it follows the label */
+.monaco-list-row:is(:hover, .hovered) .session-section:not(.session-comparison-group) .session-section-chevron.collapsible + .session-section-icon:not(.separate-groups-and-workspaces .monaco-list-row[aria-level="1"] *),
 .monaco-list-row.session-section:is(:hover, .hovered):not(.session-comparison-group) .session-section-chevron.collapsible + .session-section-icon,
-.sessions-list-control:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused .session-section:not(.session-comparison-group) .session-section-chevron.collapsible + .session-section-icon:not(.workspaces-and-groups-grouping .monaco-list-row[aria-level="1"] *),
+.sessions-list-control:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused .session-section:not(.session-comparison-group) .session-section-chevron.collapsible + .session-section-icon:not(.separate-groups-and-workspaces .monaco-list-row[aria-level="1"] *),
 .agent-sessions-navigation-container:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.session-section.focused:not(.session-comparison-group) .session-section-chevron.collapsible + .session-section-icon,
-.monaco-list-row .session-section.dropdown-active:not(.session-comparison-group) .session-section-chevron.collapsible + .session-section-icon:not(.workspaces-and-groups-grouping .monaco-list-row[aria-level="1"] *),
+.monaco-list-row .session-section.dropdown-active:not(.session-comparison-group) .session-section-chevron.collapsible + .session-section-icon:not(.separate-groups-and-workspaces .monaco-list-row[aria-level="1"] *),
 .monaco-list-row.session-section.dropdown-active:not(.session-comparison-group) .session-section-chevron.collapsible + .session-section-icon {
 	display: none;
 }
@@ -2238,19 +2238,19 @@
 	}
 }
 
-/* Grouped by Workspaces & Groups: the top-level headers, such as Pinned, Chats, Groups and Workspaces, are muted labels; the rows keep their icons. */
-.sessions-list-control.workspaces-and-groups-grouping .monaco-list-row[aria-level="1"] .session-section .session-section-label {
+/* With groups and workspaces separate: the top-level headers, such as Pinned, Chats, Groups and Workspaces, are muted labels; the rows keep their icons. */
+.sessions-list-control.separate-groups-and-workspaces .monaco-list-row[aria-level="1"] .session-section .session-section-label {
 	color: var(--vscode-descriptionForeground);
 	font-weight: var(--vscode-fontWeight-regular, normal);
 }
 
 /* Chats is a label there, as Groups and Workspaces are. A collapsed section's status, such as unread, still takes the icon's place. */
-.sessions-list-control.workspaces-and-groups-grouping .monaco-list-row[aria-level="1"] .session-section[data-section-type="quickchats"] > .session-section-icon.codicon {
+.sessions-list-control.separate-groups-and-workspaces .monaco-list-row[aria-level="1"] .session-section[data-section-type="quickchats"] > .session-section-icon.codicon {
 	display: none;
 }
 
-/* Grouped by Workspaces & Groups: the top-level headers show their twistie after the label, in compact size. */
-.sessions-list-control.workspaces-and-groups-grouping .monaco-list-row[aria-level="1"] .session-section:not(.session-comparison-group) {
+/* With groups and workspaces separate: the top-level headers show their twistie after the label, in compact size. */
+.sessions-list-control.separate-groups-and-workspaces .monaco-list-row[aria-level="1"] .session-section:not(.session-comparison-group) {
 	.session-section-chevron.collapsible {
 		display: flex;
 		align-items: center;
@@ -2276,10 +2276,10 @@
 }
 
 /*
- * Grouped by Workspaces & Groups, the rows in a group or workspace step in so that their status lines up under the row's
+ * With groups and workspaces separate, the rows in a group or workspace step in so that their status lines up under the row's
  * name: a step less the space a session row's status has ahead of a header's icon. Its placeholder steps in a full step.
  */
-.sessions-list-control.workspaces-and-groups-grouping .monaco-list-row:not([aria-level="1"], [aria-level="2"]) {
+.sessions-list-control.separate-groups-and-workspaces .monaco-list-row:not([aria-level="1"], [aria-level="2"]) {
 	:is(.session-item, .session-chat-item, .session-comparison-group) {
 		margin-inline-start: max(0px, calc((var(--session-group-depth, 0) + 1) * var(--session-group-indent) - var(--vscode-spacing-size80)));
 	}
@@ -2297,7 +2297,7 @@
  * The twistie of an expanded top-level header shows only while the header is hovered, focused or selected; a collapsed
  * one always shows it. It keeps its space. Touch has no hover, so the phone layout always shows it.
  */
-.sessions-list-control.workspaces-and-groups-grouping:not(.phone-layout *) .monaco-list-row[aria-level="1"]:not(:hover, .hovered, .focused, .selected, [aria-expanded="false"]) .session-section:not(.session-comparison-group) .session-section-chevron.collapsible {
+.sessions-list-control.separate-groups-and-workspaces:not(.phone-layout *) .monaco-list-row[aria-level="1"]:not(:hover, .hovered, .focused, .selected, [aria-expanded="false"]) .session-section:not(.session-comparison-group) .session-section-chevron.collapsible {
 	visibility: hidden;
 }
 
@@ -2305,7 +2305,7 @@
  * A gap above each top-level header but the first, which its row's height includes (SESSION_HEADER_GAP), outside its
  * highlight: the row clips its background to its content and outlines its content. Not while stuck at the top.
  */
-.sessions-list-control.workspaces-and-groups-grouping .monaco-list-row.session-spaced-header:not(.monaco-tree-sticky-row) {
+.sessions-list-control.separate-groups-and-workspaces .monaco-list-row.session-spaced-header:not(.monaco-tree-sticky-row) {
 	padding-block-start: var(--vscode-spacing-size120);
 	background-clip: content-box;
 	/* Content-box clipping subtracts the top padding from the vertical corner radii. */

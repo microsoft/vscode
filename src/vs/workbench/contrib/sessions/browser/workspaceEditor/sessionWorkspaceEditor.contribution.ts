@@ -86,7 +86,7 @@ registerAction2(class NewSessionWorkspaceAction extends Action2 {
 			icon: Codicon.add,
 			f1: true,
 			precondition: SESSION_WORKSPACE_EDITOR_WHEN,
-			// The Workspaces header of Group by Workspaces & Groups, inline and in its context menu
+			// The separate Workspaces header of Group by Workspace, inline and in its context menu
 			menu: [SessionSectionToolbarMenuId, Menus.SessionSectionContext].map(id => ({ id, group: 'navigation', order: 0, when: ContextKeyExpr.and(SESSION_WORKSPACE_EDITOR_WHEN, SessionSectionTypeContext.isEqualTo(WORKSPACES_SECTION_ID)) })),
 		});
 	}
@@ -199,7 +199,7 @@ registerAction2(class RemoveSessionWorkspaceAction extends SessionWorkspacePickA
 	}
 });
 
-/** A command on a workspace row of Group by Workspaces & Groups, whose context menu passes the row. */
+/** A command on a workspace row under the separate Workspaces header, whose context menu passes the row. */
 abstract class SessionWorkspaceRowAction extends Action2 {
 	/** The workspace of the row. */
 	protected getRowWorkspace(section: ISessionSection | undefined): ISessionSectionWorkspace | undefined {

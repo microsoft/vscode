@@ -314,7 +314,7 @@ export interface IListHarnessOptions {
 	readonly memberships?: ReadonlyMap<string, string>;
 	readonly sectionMemberships?: ReadonlyMap<string, string>;
 	readonly sectionAppearances?: ReadonlyMap<string, ISessionGroupAppearance>;
-	/** The Agents window's workspaces, which Group by Workspaces & Groups lists. */
+	/** The Agents window's workspaces, which Group by Workspace lists while it separates groups and workspaces. */
 	readonly workspaces?: readonly IRecentSessionWorkspace[];
 	readonly pinnedSessionIds?: ReadonlySet<string>;
 	/** Pinned group (`group:<id>`) and grouping-section headers. The harness updates them as the real service does. */
