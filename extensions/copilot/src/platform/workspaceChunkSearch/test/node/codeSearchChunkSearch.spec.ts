@@ -36,6 +36,7 @@ import { ITelemetryService } from '../../../telemetry/common/telemetry';
 import { NullWorkspaceService } from '../../../workspace/common/workspaceService';
 import { CodeSearchChunkSearch, ExternalIngestEnablement } from '../../node/codeSearch/codeSearchChunkSearch';
 import { AdoCodeSearchRepo, CodeSearchRepoStatus } from '../../node/codeSearch/codeSearchRepo';
+import { ExternalIngestIndex } from '../../node/codeSearch/externalIngestIndex';
 import { TrackedRepoState, TrackedRepoStatus } from '../../node/codeSearch/repoTracker';
 import { IWorkspaceFileIndex } from '../../node/workspaceFileIndex';
 
@@ -138,7 +139,7 @@ describe('CodeSearchChunkSearch authentication identity', () => {
 		}
 		await vi.waitFor(() => expect(search.getRemoteIndexState(false).repos.map(repo => repo.status)).toEqual([CodeSearchRepoStatus.Ready]));
 		expect(remote.getRemoteIndexState).toHaveBeenCalledTimes(1);
-		return { authentication, remote, search };
+		return { authentication, remote, search, instantiation };
 	}
 
 	for (const kind of ['anyGitHubSession', 'permissiveGitHubSession'] as const) {
@@ -196,6 +197,23 @@ describe('CodeSearchChunkSearch authentication identity', () => {
 	test('repos the tracker resolved before code search subscribed are still opened', async () => {
 		// create() waits for the repo to reach Ready, which fails if it was never opened
 		await create({ trackedBeforeConstruction: true });
+	});
+
+	test('enabling external ingest reports the stored index state without scanning the workspace', async () => {
+		const { search, instantiation } = await create({ externalIngestPolicy: true, extraFolders: [URI.file('/other')] });
+		const index = new class extends mock<ExternalIngestIndex>() {
+			override readonly onDidChangeState = Event.None;
+			override initialize = vi.fn(async () => { });
+			override updateCodeSearchRoots() { }
+			override getState() { return { status: CodeSearchRepoStatus.Ready, progressMessage: undefined }; }
+			override dispose() { }
+		}();
+		vi.mocked(instantiation.createInstance).mockReturnValueOnce({}).mockReturnValueOnce(index);
+		await search.enableExternalIngest();
+		expect({
+			status: search.getRemoteIndexState(false).externalIngestState?.status,
+			scans: index.initialize.mock.calls.length,
+		}).toEqual({ status: CodeSearchRepoStatus.Ready, scans: 0 });
 	});
 });
 
