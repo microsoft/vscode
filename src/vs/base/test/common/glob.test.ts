@@ -700,6 +700,39 @@ suite('Glob', () => {
 		assertNoGlobMatch(p, 'foo.js');
 	});
 
+	test('unclosed bracket', function () {
+		let p = 'foo[bar';
+
+		assertGlobMatch(p, 'foo[bar');
+		assertNoGlobMatch(p, 'foo');
+
+		p = 'foo.[';
+
+		assertGlobMatch(p, 'foo.[');
+		assertNoGlobMatch(p, 'foo.');
+
+		p = 'foo[ba*';
+
+		assertGlobMatch(p, 'foo[ba');
+		assertGlobMatch(p, 'foo[bar');
+		assertNoGlobMatch(p, 'foo');
+
+		p = '**/foo[bar/**';
+
+		assertGlobMatch(p, 'foo[bar/baz');
+		assertGlobMatch(p, 'some/foo[bar/baz');
+		assertNoGlobMatch(p, 'some/foo/baz');
+
+		p = '{foo[,bar}';
+
+		assertGlobMatch(p, 'foo[');
+		assertGlobMatch(p, 'bar');
+		assertNoGlobMatch(p, 'foo');
+
+		assert.deepStrictEqual(glob.splitGlobAware('foo[,bar', ','), ['foo[', 'bar']);
+		assert.deepStrictEqual(glob.splitGlobAware('foo[bar/**', '/'), ['foo[bar', '**']);
+	});
+
 	test('split glob aware', function () {
 		assert.deepStrictEqual(glob.splitGlobAware('foo,bar', ','), ['foo', 'bar']);
 		assert.deepStrictEqual(glob.splitGlobAware('foo', ','), ['foo']);
