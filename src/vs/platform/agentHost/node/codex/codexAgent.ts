@@ -4742,7 +4742,7 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	private async _setWorkingDirectory(chat: URI, context: URI | IAgentChatContext, workingDirectory: URI, chatOnly: boolean, additionalDirectories?: readonly URI[]): Promise<void> {
 		// A chat that keeps its other folders moves only its primary one, so it may have several
-		const keepsOtherFolders = chatOnly && additionalDirectories !== undefined;
+		const keepsOtherFolders = chatOnly && !!additionalDirectories?.length;
 		const session = this._resolveWorkingDirectoryChangeSession(chat, context, chatOnly, keepsOtherFolders);
 		if (this._workingDirectoryMutations.has(session)) {
 			throw new Error(`Cannot change the working directory for chat '${chat.toString()}' while another working-directory change is active`);
