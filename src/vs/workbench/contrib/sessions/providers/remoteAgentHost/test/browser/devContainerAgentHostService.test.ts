@@ -1097,6 +1097,42 @@ suite('Dev Container Agent Host Service', () => {
 		});
 	});
 
+	test('connects a restored workspace, and rebuilds its connection, with its remembered engine until its container is removed', async () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const sourceWorkspace = URI.file('/source');
+		const address = devContainerAddress(sourceWorkspace);
+		storageService.store('devContainerAgentHost.connections', JSON.stringify([{ workspaceUri: sourceWorkspace.toString(), name: 'Source Dev Container', engine: 'wslc' }]), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const instantiationService = store.add(new TestInstantiationService());
+		const remoteService = store.add(new TestRemoteAgentHostService());
+		const service = store.add(new TestDevContainerAgentHostService(instantiationService, remoteService, store.add(new TestSessionsProvidersService()), storageService));
+		const provider = service.provider!;
+		const lifecycle = provider.config.devContainerLifecycle!;
+		instantiationService.stubInstance(AgentHostProtocolClient, new TestAgentConnection());
+		const requestedEngines: (string | undefined)[] = [];
+		store.add(service.registerConnector({
+			isAvailable: async () => true,
+			showLog: async () => { },
+			createConnection: async (_workspaceUri, stagedAddress, _token, options) => {
+				requestedEngines.push(options?.engine);
+				return { address: stagedAddress, name: 'Source Dev Container', transportFactory: () => undefined as never, workspaceUri: URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority(address), path: '/workspaces/source' }), engine: options?.engine ?? 'docker' };
+			},
+			removeContainer: async () => true,
+		}));
+		await lifecycle.connect();
+		provider.publishSession();
+		// The connection factory rebuilds the connection without user action, e.g., after the source host restarted.
+		remoteService.reconnect(address, false);
+		await remoteService.waitForConnection(address);
+		await lifecycle.remove();
+		const storedAfterRemoval = JSON.parse(storageService.get('devContainerAgentHost.connections', StorageScope.APPLICATION)!);
+		await lifecycle.connect();
+		assert.deepStrictEqual({ requestedEngines, storedAfterRemoval }, {
+			// A failed lookup of the WSLc container can neither pick Docker nor ask; a new container gets the setting's engine.
+			requestedEngines: ['wslc', 'wslc', undefined],
+			storedAfterRemoval: [{ workspaceUri: sourceWorkspace.toString(), name: 'Source Dev Container' }],
+		});
+	});
+
 	test('persists a provider whose sessions were already cached', async () => {
 		const storageService = store.add(new InMemoryStorageService());
 		const sourceWorkspace = URI.file('/source');

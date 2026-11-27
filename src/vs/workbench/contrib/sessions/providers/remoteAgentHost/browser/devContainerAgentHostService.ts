@@ -13,6 +13,7 @@ import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDispos
 import { IObservable, observableFromEvent, observableValue, runOnChange, waitForState } from '../../../../../../base/common/observable.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { DevContainerEngine, isDevContainerEngine } from '../../../../../../platform/agentHost/common/devContainerAgentHost.js';
 import { findDevContainerSample } from '../../../../../../platform/agentHost/common/devContainerSamples.js';
 import { findDevContainerEnvironment, parseDevContainerEnvironmentWorkspaceFolder } from '../../../../../../platform/agentHost/common/devContainerEnvironments.js';
 import { localize } from '../../../../../../nls.js';
@@ -40,6 +41,8 @@ interface IStoredDevContainerAgentHost {
 	readonly workspaceUri: string;
 	readonly name: string;
 	readonly sandboxEnabled?: boolean;
+	/** The engine of the workspace's container, which later connections request, so a failed lookup cannot replace it in the other engine. */
+	readonly engine?: DevContainerEngine;
 }
 
 function isStoredDevContainerAgentHost(value: unknown): value is IStoredDevContainerAgentHost {
@@ -60,6 +63,8 @@ interface IActiveDevContainerAgentHost {
 	references: number;
 	sandboxEnabled: boolean | undefined;
 	sandboxSupported: boolean | undefined;
+	/** The engine of its container, which later connections request; forgotten once the container is removed. */
+	engine: DevContainerEngine | undefined;
 }
 
 interface IPendingDevContainerAgentHost {
@@ -76,6 +81,8 @@ interface IStagedDevContainerConnection {
 	sandboxSupported: boolean | undefined;
 	/** Whether a connection made without user action, rebuilding this one, may only connect to a running container. */
 	readonly requireRunning: boolean;
+	/** The engine that rebuilding this connection requests, so a failed lookup neither picks another engine nor asks. */
+	engine: DevContainerEngine | undefined;
 }
 
 function devContainerAddress(workspaceUri: URI): string {
@@ -136,7 +143,7 @@ class DevContainerConnectionFactory extends Disposable implements IRemoteAgentHo
 				...(hostAuthority ? { hostAuthority } : {}),
 			},
 		};
-		this._stagedConnections.set(connection.address, { entry, connector, workspaceUri, initialConnection: connection, sandboxEnabled, sandboxSupported: connection.sandboxSupported, requireRunning });
+		this._stagedConnections.set(connection.address, { entry, connector, workspaceUri, initialConnection: connection, sandboxEnabled, sandboxSupported: connection.sandboxSupported, requireRunning, engine: connection.engine });
 		this._updateEntries();
 		return entry;
 	}
@@ -181,6 +188,7 @@ class DevContainerConnectionFactory extends Disposable implements IRemoteAgentHo
 				...(entry.connection.environmentId !== undefined ? { name: staged.entry.name } : {}),
 				...(staged.sandboxEnabled !== undefined ? { sandboxEnabled: staged.sandboxEnabled } : {}),
 				...(staged.requireRunning && !options.userInitiated ? { requireRunning: true } : {}),
+				...(staged.engine ? { engine: staged.engine } : {}),
 			},
 		);
 		try {
@@ -197,6 +205,7 @@ class DevContainerConnectionFactory extends Disposable implements IRemoteAgentHo
 			);
 			staged.initialConnection = undefined;
 			staged.sandboxSupported = connection.sandboxSupported;
+			staged.engine = connection.engine ?? staged.engine;
 			return {
 				connection: client,
 				transportDisposable: connection.transportDisposable,
@@ -581,7 +590,8 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
-		const connected = await createDevContainerConnection(connector, workspaceUri, devContainerAddress(workspaceUri), token, { resume: true, ...(sandboxEnabled !== undefined ? { sandboxEnabled } : {}), ...(requireRunning ? { requireRunning } : {}) });
+		const engine = this._storedConnections.get(key)?.engine;
+		const connected = await createDevContainerConnection(connector, workspaceUri, devContainerAddress(workspaceUri), token, { resume: true, ...(sandboxEnabled !== undefined ? { sandboxEnabled } : {}), ...(requireRunning ? { requireRunning } : {}), ...(engine ? { engine } : {}) });
 		if (token.isCancellationRequested) {
 			connected.transportDisposable?.dispose();
 			throw new CancellationError();
@@ -609,11 +619,11 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 			provider.setConnectionStatus(connectionInfo.status);
 			await this._waitForSessionTypes(provider, token);
 			if (provider.getSessions().length > 0) {
-				this._storeConnection(workspaceUri, connected.name, sandboxEnabled);
+				this._storeConnection(workspaceUri, connected.name, sandboxEnabled, connected.engine);
 			}
 
 			const target = { providerId: provider.id, workspaceUri: connected.workspaceUri };
-			const active: IActiveDevContainerAgentHost = { address, provider, target, connector, workspaceUri, state: 'running', references: 0, sandboxEnabled, sandboxSupported: this.getSandboxSupported(workspaceUri) };
+			const active: IActiveDevContainerAgentHost = { address, provider, target, connector, workspaceUri, state: 'running', references: 0, sandboxEnabled, sandboxSupported: this.getSandboxSupported(workspaceUri), engine: connected.engine ?? engine };
 			this._activeConnections.set(key, active);
 			this._onDidChangeAvailability.fire();
 			return active;
@@ -856,6 +866,9 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 				active.state = 'removed';
 				this._didStopFolderContainer(key);
 				active.sandboxSupported = undefined;
+				// A new container gets the engine of the setting.
+				active.engine = undefined;
+				this._forgetStoredEngine(key);
 				this._knownSandboxSupport.delete(key);
 				active.provider.setDevContainerSandboxSupported(undefined);
 				this._onDidChangeAvailability.fire();
@@ -884,7 +897,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		const isCurrent = () => this._activeConnections.get(getComparisonKey(active.workspaceUri)) === active;
 		active.state = 'connecting';
 		try {
-			const connected = await createDevContainerConnection(active.connector, active.workspaceUri, active.address, this._lifecycleTokenSource.token, { resume: true, ...(requestedSandboxEnabled !== undefined ? { sandboxEnabled: requestedSandboxEnabled } : {}), ...(requireRunning ? { requireRunning } : {}) });
+			const connected = await createDevContainerConnection(active.connector, active.workspaceUri, active.address, this._lifecycleTokenSource.token, { resume: true, ...(requestedSandboxEnabled !== undefined ? { sandboxEnabled: requestedSandboxEnabled } : {}), ...(requireRunning ? { requireRunning } : {}), ...(active.engine ? { engine: active.engine } : {}) });
 			if (!isCurrent()) {
 				connected.transportDisposable?.dispose();
 				throw new CancellationError();
@@ -904,8 +917,9 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 			active.provider.setConnection(connection, connected.defaultDirectory ?? connectionInfo.defaultDirectory);
 			active.provider.setConnectionStatus(connectionInfo.status);
 			active.sandboxEnabled = requestedSandboxEnabled;
+			active.engine = connected.engine ?? active.engine;
 			if (this._storedConnections.has(getComparisonKey(active.workspaceUri)) || active.provider.getSessions().length > 0) {
-				this._storeConnection(active.workspaceUri, connected.name, requestedSandboxEnabled);
+				this._storeConnection(active.workspaceUri, connected.name, requestedSandboxEnabled, active.engine);
 			}
 			active.state = 'running';
 			this._onDidChangeAvailability.fire();
@@ -1006,6 +1020,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 					workspaceUri: uri.toString(),
 					name: candidate.name,
 					...(candidate.sandboxEnabled !== undefined ? { sandboxEnabled: candidate.sandboxEnabled } : {}),
+					...(isDevContainerEngine(candidate.engine) ? { engine: candidate.engine } : {}),
 				});
 			}
 		} catch {
@@ -1014,16 +1029,26 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		return result;
 	}
 
-	private _storeConnection(workspaceUri: URI, name: string, sandboxEnabled?: boolean): void {
+	private _storeConnection(workspaceUri: URI, name: string, sandboxEnabled?: boolean, engine?: DevContainerEngine): void {
 		const key = getComparisonKey(workspaceUri);
 		const existing = this._storedConnections.get(key);
 		const requestedSandboxEnabled = sandboxEnabled ?? this._activeConnections.get(key)?.sandboxEnabled ?? existing?.sandboxEnabled;
-		const stored = { workspaceUri: workspaceUri.toString(), name, ...(requestedSandboxEnabled !== undefined ? { sandboxEnabled: requestedSandboxEnabled } : {}) };
-		if (existing?.workspaceUri === stored.workspaceUri && existing.name === stored.name && existing.sandboxEnabled === stored.sandboxEnabled) {
+		const storedEngine = engine ?? existing?.engine;
+		const stored = { workspaceUri: workspaceUri.toString(), name, ...(requestedSandboxEnabled !== undefined ? { sandboxEnabled: requestedSandboxEnabled } : {}), ...(storedEngine ? { engine: storedEngine } : {}) };
+		if (existing?.workspaceUri === stored.workspaceUri && existing.name === stored.name && existing.sandboxEnabled === stored.sandboxEnabled && existing.engine === stored.engine) {
 			return;
 		}
 		this._storedConnections.set(key, stored);
 		this._writeStoredConnections();
+	}
+
+	private _forgetStoredEngine(key: string): void {
+		const existing = this._storedConnections.get(key);
+		if (existing?.engine) {
+			const { engine: _engine, ...stored } = existing;
+			this._storedConnections.set(key, stored);
+			this._writeStoredConnections();
+		}
 	}
 
 	private _removeStoredConnection(key: string): void {
