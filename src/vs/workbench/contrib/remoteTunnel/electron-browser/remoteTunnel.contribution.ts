@@ -416,7 +416,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		return undefined;
 	}
 
-	/** Resolves to `'canceled'` when the account picker is dismissed without choosing an account. */
+	/** Resolves to `'canceled'` when the account picker is dismissed without choosing an account, or the user declines to sign in. */
 	private async getAuthenticationSession(authenticationProviderId?: 'github'): Promise<ExistingSessionItem | 'canceled' | undefined> {
 		if (authenticationProviderId) {
 			return this.getAuthenticationSessionForProvider(authenticationProviderId);
@@ -455,7 +455,8 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		});
 	}
 
-	private async getAuthenticationSessionForProvider(providerId: 'github'): Promise<ExistingSessionItem | undefined> {
+	/** Resolves to `'canceled'` when the user declines to sign in. */
+	private async getAuthenticationSessionForProvider(providerId: 'github'): Promise<ExistingSessionItem | 'canceled' | undefined> {
 		const provider = (await this.getAuthenticationProviders()).find(provider => provider.id === providerId);
 		if (!provider) {
 			return undefined;
@@ -466,10 +467,35 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 			return session;
 		}
 
+		if (!await this.confirmGitHubSignIn(provider)) {
+			return 'canceled';
+		}
+
 		return this.createExistingSessionItem(
 			await this.authenticationService.createSession(provider.id, provider.scopes),
 			provider.id
 		);
+	}
+
+	/**
+	 * Explains why sharing needs a GitHub sign-in before the browser opens for it, and resolves to
+	 * whether the user wants to continue.
+	 */
+	private async confirmGitHubSignIn(provider: IAuthenticationProvider): Promise<boolean> {
+		// Sessions with the tunnel scopes that `getAllSessions` skipped were rejected by the tunnel service.
+		const hasRejectedSession = (await this.authenticationService.getSessions(provider.id, provider.scopes)).length > 0;
+		const isSignedIn = !hasRejectedSession && (await this.authenticationService.getAccounts(provider.id)).length > 0;
+		const { confirmed } = await this.dialogService.confirm({
+			type: 'info',
+			message: localize('signIn.github.message', "Sign in with GitHub to share this computer?"),
+			detail: hasRejectedSession
+				? localize('signIn.github.rejected', "Dev tunnels use your GitHub account so that only you can connect to this computer. Your current sign-in no longer works for dev tunnels, so your browser will open for you to sign in again.")
+				: isSignedIn
+					? localize('signIn.github.permissions', "Dev tunnels use your GitHub account so that only you can connect to this computer. You're signed in, but dev tunnels also need permission to read your email address and organizations. Your browser will open for you to allow this.")
+					: localize('signIn.github.signIn', "Dev tunnels use your GitHub account so that only you can connect to this computer. Your browser will open for you to sign in."),
+			primaryButton: localize({ key: 'signIn.github.button', comment: ['&& denotes a mnemonic'] }, "&&Sign In"),
+		});
+		return confirmed;
 	}
 
 	private createExistingSessionItem(session: AuthenticationSession, providerId: string): ExistingSessionItem {
