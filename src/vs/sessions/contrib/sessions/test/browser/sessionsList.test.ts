@@ -4366,7 +4366,8 @@ suite('Sessions - SessionsList', () => {
 				comparisons: [comparison],
 				workspaces: [agents, usersAgents],
 			});
-			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, harness.createContainer(400, 1400), {
+			const container = harness.createContainer(400, 1400);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
 				grouping,
 				sorting: () => SessionsSorting.Created,
 				onSessionOpen: () => { },
@@ -4375,7 +4376,7 @@ suite('Sessions - SessionsList', () => {
 			const describe = (node: SessionsListSnapshotNode): unknown => node.type === 'session'
 				? node.session.title.get()
 				: { [`${node.label}${node.collapsed ? ' (collapsed)' : ''}`]: node.children.map(describe) };
-			return { list, snapshot: () => list.getTreeSnapshot().filter(node => node.type !== 'session' && (node.id === 'groups' || node.id === 'workspaces' || node.id.startsWith('workspace:'))).map(describe) };
+			return { list, container, harness, snapshot: () => list.getTreeSnapshot().filter(node => node.type !== 'session' && (node.id === 'groups' || node.id === 'workspaces' || node.id.startsWith('workspace:'))).map(describe) };
 		}
 
 		test('lists custom groups, then workspaces by their file, with a renamed file and a comparison in their workspace\'s row, and two workspaces of one name apart', () => {
@@ -4419,6 +4420,22 @@ suite('Sessions - SessionsList', () => {
 				`Experiments (workspace:${experimentsFile.toString()})`,
 				'Unknown (workspace:Unknown)',
 			]);
+		});
+
+		test('edits a known workspace on a double-click on its row, but not on one on the row\'s inline actions', () => {
+			const { container, harness } = render(() => SessionsGrouping.WorkspacesAndGroups);
+			const row = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].find(candidate => candidate.querySelector('.session-section-label')?.textContent === 'Agents' && candidate.querySelector('.session-section-toolbar .monaco-toolbar'))!;
+			const doubleClick = (target: Element) => target.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+
+			const before = harness.commandService.calls.length;
+			doubleClick(row.querySelector('.session-section-toolbar .monaco-toolbar')!);
+			const onActions = harness.commandService.calls.length - before;
+			doubleClick(row.querySelector('.session-section-label')!);
+
+			assert.deepStrictEqual({ onActions, onRow: harness.commandService.calls.slice(before).map(call => `${call.commandId} ${(call.args[0] as URI).toString()}`) }, {
+				onActions: 0,
+				onRow: [`sessions.workspaces.edit ${agents.uri.toString()}`],
+			});
 		});
 
 		test('keeps the collapse state of its sections and rows, and lists by workspace again once switched back', () => {

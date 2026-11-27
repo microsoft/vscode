@@ -1439,8 +1439,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}));
 
 		// Double-clicking a workspace row edits its workspace, and a custom group's row the group
-		this._register(this.tree.onMouseDblClick(({ element }) => {
-			if (!element) {
+		this._register(this.tree.onMouseDblClick(({ element, browserEvent }) => {
+			// A double-click on a header's inline action or its rename box is not one on the header
+			if (!element || DOM.isHTMLElement(browserEvent.target) && browserEvent.target.closest('.monaco-toolbar, .monaco-action-bar, input')) {
 				return;
 			}
 			if (isSessionSection(element) && element.workspace?.known) {
