@@ -480,10 +480,25 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		}
 	}
 
-	private _getSubscriptionOptions(folder: IWatchedFolder): PullRequestSubscriptionOptions {
-		const visible = this._changesetSubscriptions.getSessionSubscriptions(folder.sessionUri).size > 0;
+	/** Whether `folder` is a folder-only scope, whose state is its changeset owner's. */
+	private _isFolderOnly(folder: IWatchedFolder): boolean {
+		return !folder.isSessionFolder && parseFolderChangesetOwnerUri(folder.stateKey) !== undefined;
+	}
+
+	/** Whether a client shows the changes of `folder`: of its session, or, for a folder-only scope, of the folder itself. */
+	private _isShown(folder: IWatchedFolder): boolean {
+		return this._changesetSubscriptions.getSessionSubscriptions(folder.sessionUri).size > 0
+			|| (this._isFolderOnly(folder) && this._changesetSubscriptions.getSessionSubscriptions(folder.stateKey).size > 0);
+	}
+
+	private _isAgentMergeEnabled(folder: IWatchedFolder): boolean {
 		const sessionFolderKey = resolveGitHubStateFolder(this._stateManager, folder.sessionUri).folderKey;
-		const agentMergeEnabled = readAgentMergeFolderState(this._stateManager.getSessionState(folder.sessionUri)?.config?.values, folder.folderKey, sessionFolderKey)?.enabled === true;
+		return readAgentMergeFolderState(this._stateManager.getSessionState(folder.sessionUri)?.config?.values, folder.folderKey, sessionFolderKey)?.enabled === true;
+	}
+
+	private _getSubscriptionOptions(folder: IWatchedFolder): PullRequestSubscriptionOptions {
+		const visible = this._isShown(folder);
+		const agentMergeEnabled = this._isAgentMergeEnabled(folder);
 		return {
 			priority: visible ? 'visible' : 'background',
 			core: true,
@@ -535,7 +550,8 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		if (isSessionStatusArchived(state.status)) {
 			return { kind: 'skip', reason: 'session is archived' };
 		}
-		if (this._changesetSubscriptions.getSessionSubscriptions(folder.sessionUri).size === 0) {
+		// A folder-only scope is also watched, in the background, while its Agent Merge runs without a client
+		if (!this._isShown(folder) && !(this._isFolderOnly(folder) && this._isAgentMergeEnabled(folder))) {
 			return { kind: 'skip', reason: 'no client is subscribed to the session changes' };
 		}
 		const gitHubState = readFolderGitHubState(state._meta, folder.folderKey);

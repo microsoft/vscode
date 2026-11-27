@@ -23,7 +23,7 @@ import { IAgentHostChangesetSubscriptionService } from '../../common/agentHostCh
 import { captureCredentialSource, type IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { AgentHostGitHubArtifactIgnoredChecksConfigKey } from '../../common/agentHostSchema.js';
-import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
+import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { buildBranchChangesetUri, buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
@@ -467,6 +467,53 @@ suite('AgentHostPullRequestStatusService', () => {
 			sessionFolder: pullRequestUrl,
 			otherFolder: otherPullRequestUrl,
 			publishedStateKeys: [session, otherFolderOwner],
+		});
+	});
+
+	test('a folder-only scope a client shows on its own is watched as visible, without the session\'s changes shown', async () => {
+		const { service, stateManager, subscriptions, resources, chatGitStates, session } = createHarness();
+		const otherPullRequestUrl = 'https://github.com/octo/tools/pull/9';
+		const otherFolderOwner = addFolderOnlyFolder(stateManager, session, 'file:///other', otherPullRequestUrl);
+		chatGitStates.set(otherFolderOwner, { branchName: 'tools-feature' });
+
+		subscriptions.addSubscription(otherFolderOwner, buildBranchChangesetUri(otherFolderOwner));
+		for (let i = 0; i < 50 && resources.liveSubscriptions < 1; i++) {
+			await pump();
+		}
+
+		assert.deepStrictEqual({
+			watched: resources.subscribed.map(ref => `${ref.owner}/${ref.repo}#${ref.number}`),
+			options: resources.subscriptionOptions.map(options => ({ priority: options.priority, mergeability: options.mergeability })),
+			otherFolder: service.getPullRequestStatus(otherFolderOwner)?.url,
+		}, {
+			// The session folder is not watched: no client shows the session's changes
+			watched: ['octo/tools#9'],
+			options: [{ priority: 'visible', mergeability: true }],
+			otherFolder: otherPullRequestUrl,
+		});
+	});
+
+	test('a folder-only scope whose Agent Merge runs without a client is watched in the background', async () => {
+		const { stateManager, resources, chatGitStates, session } = createHarness();
+		const otherFolder = 'file:///other';
+		const otherFolderOwner = addFolderOnlyFolder(stateManager, session, otherFolder, 'https://github.com/octo/tools/pull/9');
+		chatGitStates.set(otherFolderOwner, { branchName: 'tools-feature' });
+
+		stateManager.setSessionConfig(session, {
+			schema: { type: 'object', properties: {} },
+			values: { [SessionConfigKey.AgentMergeFolders]: { [getWorkingDirectoryKey(otherFolder)]: { enabled: true } } },
+		});
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionConfigChanged, config: {} });
+		for (let i = 0; i < 50 && resources.liveSubscriptions < 1; i++) {
+			await pump();
+		}
+
+		assert.deepStrictEqual({
+			watched: resources.subscribed.map(ref => `${ref.owner}/${ref.repo}#${ref.number}`),
+			options: resources.subscriptionOptions.map(options => ({ priority: options.priority, mergeability: options.mergeability })),
+		}, {
+			watched: ['octo/tools#9'],
+			options: [{ priority: 'background', mergeability: undefined }],
 		});
 	});
 
