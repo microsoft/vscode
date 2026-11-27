@@ -2088,7 +2088,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region closeAllEditors()
 
-	closeAllEditors(options: { excludeConfirming: true; force?: boolean }): boolean;
+	closeAllEditors(options: { excludeConfirming: true; force?: boolean; context?: EditorCloseContext }): boolean;
 	closeAllEditors(options?: ICloseAllEditorsOptions): Promise<boolean>;
 	closeAllEditors(options?: ICloseAllEditorsOptions): boolean | Promise<boolean> {
 		if (this.isEmpty) {
@@ -2135,7 +2135,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const editorsToClose: EditorInput[] = [];
 		for (const editor of editors) {
 			if (!this.isActive(editor)) {
-				this.doCloseInactiveEditor(editor);
+				this.doCloseInactiveEditor(editor, { context: options?.context });
 			}
 
 			editorsToClose.push(editor);
@@ -2143,7 +2143,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Close active editor last (unless we skip it, e.g. because it is sticky)
 		if (this.activeEditor && editorsToClose.includes(this.activeEditor)) {
-			this.doCloseActiveEditor();
+			this.doCloseActiveEditor(undefined, { context: options?.context });
 		}
 
 		// Forward to title control

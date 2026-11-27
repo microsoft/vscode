@@ -5517,6 +5517,10 @@
       ],
       "commandPalette": [
         {
+          "command": "github.copilot.open.walkthrough",
+          "when": "!isSessionsWindow"
+        },
+        {
           "command": "github.copilot.report",
           "when": "false"
         },
@@ -5570,6 +5574,10 @@
         },
         {
           "command": "github.copilot.chat.explain",
+          "when": "false"
+        },
+        {
+          "command": "github.copilot.chat.attachFile",
           "when": "false"
         },
         {
@@ -6885,7 +6893,6 @@
     "vitest": "^4.1.8",
     "vscode-languageserver-protocol": "^3.17.5",
     "vscode-languageserver-textdocument": "^1.0.12",
-    "vscode-languageserver-types": "^3.17.5",
     "yaml": "^2.8.0",
     "yargs": "^17.7.2",
     "zod": "3.25.76"

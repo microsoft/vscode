@@ -234,6 +234,7 @@ suite('Encoding', () => {
 			{ name: 'invalid CP950', bytes: Buffer.from('ffff', 'hex'), candidates: ['cp950'], expected: null },
 			{ name: 'incomplete CP950', bytes: cp950Bytes.subarray(0, 7), candidates: ['cp950'], expected: null },
 			{ name: 'ambiguous candidates', bytes: Buffer.from('a4a4', 'hex'), candidates: ['cp950', 'eucjp'], expected: null },
+			{ name: 'candidates that decode the same', bytes: Buffer.from('d6d0cec40a', 'hex'), candidates: ['gbk', 'gb18030'], expected: 'gbk' },
 			{ name: 'no candidates', bytes: cp950Bytes, candidates: [], expected: 'windows1252' },
 			{ name: 'unsupported candidates', bytes: cp950Bytes, candidates: ['unsupported'], expected: 'windows1252' },
 			{ name: 'BOM takes precedence', bytes: Buffer.from('efbbbf41', 'hex'), candidates: ['cp950'], expected: 'utf8bom' },
@@ -256,6 +257,29 @@ suite('Encoding', () => {
 				seemsBinary: false
 			});
 		});
+	});
+
+	suite('autoGuessEncoding (GB)', () => {
+		const gbkBytes = Buffer.from('d6d0bbaac8cbc3f1b9b2bacdb9fa0a', 'hex'); // 中华人民共和国
+		const gb18030Bytes = Buffer.from('d6d0bbaac8cbc3f1b9b2bacdb9fa9839b3360a', 'hex'); // 中华人民共和国𫠆
+		const rareGb18030Bytes = Buffer.from('9839b33682339c398139f531823591390a', 'hex'); // 𫠆䒐㐾鿀
+
+		for (const { name, bytes, candidates, expected } of [
+			{ name: 'no candidates', bytes: gb18030Bytes, candidates: [], expected: 'gb18030' },
+			{ name: 'GB18030 candidate', bytes: rareGb18030Bytes, candidates: ['utf8', 'gb18030'], expected: 'gb18030' },
+			{ name: 'first lossless candidate (GBK)', bytes: gbkBytes, candidates: ['gbk', 'gb18030'], expected: 'gbk' },
+			{ name: 'first lossless candidate (GB18030)', bytes: gb18030Bytes, candidates: ['gb2312', 'gbk', 'gb18030'], expected: 'gb18030' },
+			{ name: 'first lossless candidate (incomplete GB18030)', bytes: gb18030Bytes.subarray(0, 17), candidates: ['gb2312', 'gbk', 'gb18030'], expected: 'gb18030' },
+		]) {
+			test(name, async () => {
+				const buffer = VSBuffer.wrap(bytes);
+
+				assert.deepStrictEqual(await encoding.detectEncodingFromBuffer({ buffer, bytesRead: buffer.byteLength }, true, candidates), {
+					encoding: expected,
+					seemsBinary: false
+				});
+			});
+		}
 	});
 
 	async function readAndDecodeFromDisk(path: string, fileEncoding: string | null) {

@@ -94,14 +94,13 @@ export class ArtifactIntegrationGroup extends Disposable {
 	readonly summary: IObservable<IArtifactIntegrationGroupSummary>;
 
 	constructor(
-		id: string,
 		readonly members: IObservable<readonly IArtifactIntegrationGroupMember[]>,
 		readonly detailsHost: IArtifactDetailsHost,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 		this.summary = derived(this, reader => getArtifactIntegrationGroupSummary(members.read(reader).map(member => member.presentation.snapshot.read(reader))));
-		const action = this._register(new Action(`artifactIntegrationGroup.${id}`, this.summary.get().label));
+		const action = this._register(new Action('artifactIntegrationGroup', this.summary.get().label));
 		this._register(autorun(reader => {
 			action.label = this.summary.read(reader).label;
 		}));
@@ -515,7 +514,7 @@ class ArtifactIntegrationGroupRow extends Disposable {
 		this.title = append(this.element, $('span.artifact-group-row-title', { 'aria-hidden': 'true' }));
 		this.actions = append(this.element, $('.artifact-group-row-actions'));
 		this._register(toDisposable(() => this.element.remove()));
-		this._register(this.hoverService.setupDelayedHover(this.main, () => ({ content: this.mainDescription(), style: HoverStyle.Pointer }), this.hoverLifecycleOptions));
+		this._register(this.hoverService.setupDelayedHover(this.main, () => ({ content: this.mainHoverContent(), style: HoverStyle.Pointer }), this.hoverLifecycleOptions));
 		this._register(this.hoverService.setupDelayedHover(this.title, () => ({ content: this.member?.entry.label ?? '', style: HoverStyle.Pointer }), this.hoverLifecycleOptions));
 		// The row's free space, such as its title, opens the artifact's resource like its main part.
 		this._register(addDisposableListener(this.element, EventType.CLICK, event => {
@@ -588,13 +587,24 @@ class ArtifactIntegrationGroupRow extends Disposable {
 		controls[Math.max(0, Math.min(controls.length - 1, index + step))]?.focus();
 	}
 
-	private mainDescription(): string {
+	/**
+	 * The artifact's description, led by its full label while the row truncates a label the description doesn't
+	 * contain, so artifacts with similar labels stay distinguishable.
+	 */
+	private mainHoverContent(): string | HTMLElement {
 		const member = this.member;
 		if (!member) {
 			return '';
 		}
 		const main = getArtifactMainContribution(member.presentation.snapshot.get())?.view.main;
-		return main?.description ?? main?.label ?? member.entry.label;
+		const description = main?.description ?? main?.label ?? member.entry.label;
+		const label = this.label.textContent ?? '';
+		if (!label || description.includes(label) || this.label.scrollWidth <= this.label.clientWidth) {
+			return description;
+		}
+		return $('.artifact-group-row-main-hover', undefined,
+			$('div.artifact-group-row-main-hover-label', undefined, label),
+			$('div', undefined, description));
 	}
 
 	private renderStatus(status: IArtifactButton): HTMLElement {

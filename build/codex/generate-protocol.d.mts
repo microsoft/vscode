@@ -17,7 +17,7 @@ export declare const OUT_DIR: string;
 export declare const VERSION_FILE: string;
 
 /** Resolves the codex binary ($CODEX_BIN, vendored npm package, or PATH). */
-export declare function resolveCodexBinary(): string;
+export declare function resolveCodexBinary(repoRoot?: string): string;
 
 /** Reads the `codex --version` of the given binary. */
 export declare function readBinaryVersion(bin: string): string;

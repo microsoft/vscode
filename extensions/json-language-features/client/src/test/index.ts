@@ -4,38 +4,35 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'path';
+import * as fs from 'node:fs';
+import { PassThrough } from 'node:stream';
+import { run } from 'node:test';
+import { spec, junit } from 'node:test/reporters';
 import * as glob from 'glob';
-import Mocha from 'mocha';
 
-const options: Mocha.MochaOptions = {
-	ui: 'tdd',
-	color: true,
-	timeout: 60000,
-	grep: process.env.MOCHA_GREP,
-};
-
-const ciOutputDir = process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || process.env.GITHUB_WORKSPACE;
-if (ciOutputDir) {
-	const suite = 'Integration JSON Extension Tests';
-	options.reporter = 'mocha-multi-reporters';
-	options.reporterOptions = {
-		reporterEnabled: 'spec, mocha-junit-reporter',
-		mochaJunitReporterReporterOptions: {
-			testsuitesTitle: `${suite} ${process.platform}`,
-			mochaFile: path.join(ciOutputDir, `test-results/${process.platform}-${process.arch}-${suite.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`)
-		}
-	};
-}
-
-const files = glob.sync('**/*.test.js', { cwd: __dirname });
+const files = glob.sync('**/*.test.js', { cwd: __dirname }).map(file => path.join(__dirname, file));
 if (files.length === 0) {
 	throw new Error('No compiled JSON extension tests found.');
 }
 
-const mocha = new Mocha(options);
-for (const file of files) {
-	mocha.addFile(path.join(__dirname, file));
-}
-mocha.run(failures => {
-	process.exitCode = failures ? 1 : 0;
+const stream = run({
+	files,
+	timeout: 60000,
+	argv: process.argv.slice(2),
+	...(process.env.MOCHA_GREP ? { testNamePatterns: [process.env.MOCHA_GREP] } : {}),
 });
+
+stream.on('test:fail', () => {
+	process.exitCode = 1;
+});
+
+const ciOutputDir = process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || process.env.GITHUB_WORKSPACE;
+if (ciOutputDir) {
+	const suite = 'Integration JSON Extension Tests';
+	const xmlPath = path.join(ciOutputDir, `test-results/${process.platform}-${process.arch}-${suite.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`);
+	fs.mkdirSync(path.dirname(xmlPath), { recursive: true });
+
+	stream.pipe(new PassThrough({ objectMode: true })).compose(junit).pipe(fs.createWriteStream(xmlPath));
+}
+
+stream.compose(spec).pipe(process.stdout);

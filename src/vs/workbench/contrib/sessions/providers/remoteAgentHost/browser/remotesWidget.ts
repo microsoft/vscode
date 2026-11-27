@@ -5,6 +5,8 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
+import { IMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
+import { ActionBar } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { createInstantHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -12,7 +14,7 @@ import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabe
 import { InputBox } from '../../../../../../base/browser/ui/inputbox/inputBox.js';
 import { DropdownMenuActionViewItem } from '../../../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { ITableRenderer } from '../../../../../../base/browser/ui/table/table.js';
-import { Action, Separator, SubmenuAction, toAction } from '../../../../../../base/common/actions.js';
+import { Action, IAction, Separator, SubmenuAction, toAction } from '../../../../../../base/common/actions.js';
 import { equals } from '../../../../../../base/common/arrays.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -52,7 +54,8 @@ import { ISessionsProvidersService } from '../../../browser/sessionsProvidersSer
 import { INewSessionComposerService } from '../../../browser/newSessionComposerService.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { getVisibleRemoteKinds, ICustomizationRemote, IRemotesModel, RemoteKind, remoteKindLabels } from './remotesModel.js';
-import { getConnectionProblem, getGitHubEnvironmentLabel, getServerUpdateLabel, getRemoteActivityTime, getRemoteAddressLabel, getRemoteAvailabilityLabel, getRemoteMetadataDetails, getRemoteMetadataLabel, getRemoteStatusGroup, getRemoteTypeLabel, IRemoteEmptyEntry, IRemoteTableRow, remoteStatusGroups as statusGroups, RemotesTableRenderer, RemoteRowAction, RemoteTableEntry } from './remotesTable.js';
+import { RemoteAgentHostCommandIds } from './remoteAgentHostCommandIds.js';
+import { getConnectionProblem, getGitHubEnvironmentLabel, getServerUpdateLabel, getRemoteActivityTime, getRemoteAddressLabel, getRemoteAvailabilityLabel, getRemoteMetadataDetails, getRemoteMetadataLabel, getRemoteRowMenuActions, getRemoteStatusGroup, getRemoteTypeLabel, IRemoteEmptyEntry, IRemoteTableRow, remoteStatusGroups as statusGroups, RemotesTableRenderer, RemoteRowAction, RemoteTableEntry } from './remotesTable.js';
 import { RemoteEnvironmentDetails, RemoteEnvironmentDetailsMode } from './remoteEnvironmentDetails.js';
 import './media/remotesWidget.css';
 import '../../../browser/media/disclosure.css';
@@ -259,13 +262,20 @@ export class RemotesWidget extends Disposable {
 			}, contextMenuService, { ...options, classNames: action.class, hoverDelegate: actionHoverDelegate }),
 		}));
 		this._register(this.searchInput.onDidChange(query => this.setSearchQuery(query)));
-		const refreshButton = this.refreshButton = this._register(new Button(dom.append(searchControls, dom.$('.remotes-header-actions')), {
+		const headerActions = dom.append(searchControls, dom.$('.remotes-header-actions'));
+		const refreshButton = this.refreshButton = this._register(new Button(headerActions, {
 			...defaultButtonStyles, secondary: true, hoverDelegate: actionHoverDelegate, title: this.refreshAction.tooltip,
 		}));
 		refreshButton.label = this.refreshAction.label;
 		refreshButton.setAriaLabel(this.refreshAction.tooltip);
 		this._register(refreshButton.onDidClick(() => this.refreshAction.run()));
 		this._register(this.refreshAction.onDidChange(() => refreshButton.enabled = this.refreshAction.enabled));
+		const moreActions = this._register(new Action('remotes.moreActions', localize('remotes.moreActions', "More Actions..."), ThemeIcon.asClassName(Codicon.toolBarMore)));
+		const moreActionsBar = this._register(new ActionBar(headerActions, {
+			actionViewItemProvider: (action, options) => new DropdownMenuActionViewItem(action, { getActions: () => this.getAddActions() },
+				contextMenuService, { ...options, classNames: action.class, hoverDelegate: actionHoverDelegate }),
+		}));
+		moreActionsBar.push(moreActions, { icon: true, label: false });
 		this.tableContainer = dom.append(overviewBody, dom.$('.remotes-table-container'));
 		this.tableInner = dom.append(this.tableContainer, dom.$('.remotes-table-inner'));
 		this.message = dom.append(overviewBody, dom.$('.remotes-message'));
@@ -392,6 +402,28 @@ export class RemotesWidget extends Disposable {
 				this.toggleGroup(event.element.entry.id);
 			}
 		}));
+		this._register(this.table.onContextMenu(event => {
+			// Inline controls can have focus without the table focusing their row, such as a Sandbox Profile selector
+			// restoring focus when it closes. A keyboard menu from such a control is for the control's row.
+			const target = event.browserEvent.target;
+			const controlRow = dom.isKeyboardEvent(event.browserEvent) && dom.isHTMLElement(target) ? nameRenderer.getRowContaining(target) : undefined;
+			const row = controlRow ?? event.element;
+			const actions = row ? getRemoteRowMenuActions(row.entry, (entry, action) => this.runRowAction(entry, action)) : [];
+			if (!row || !actions.length) {
+				return;
+			}
+			dom.EventHelper.stop(event.browserEvent, true);
+			// The list has no anchor for a focused row scrolled out of view, so reveal the row and anchor the menu to it.
+			let anchor: HTMLElement | IMouseEvent | null | undefined = controlRow ? nameRenderer.getRowElement(controlRow.id) : event.anchor;
+			if (!anchor && event.index !== undefined) {
+				this.table.reveal(event.index);
+				anchor = nameRenderer.getRowElement(row.id);
+			}
+			contextMenuService.showContextMenu({
+				getAnchor: () => anchor ?? this.table.getHTMLElement(),
+				getActions: () => actions,
+			});
+		}));
 		this._register(dom.addDisposableListener(this.table.getHTMLElement(), dom.EventType.KEY_DOWN, event => {
 			if (!dom.isHTMLElement(event.target) || !event.target.classList.contains('monaco-list')) {
 				return;
@@ -507,6 +539,8 @@ export class RemotesWidget extends Disposable {
 				void this.notifyOnFailure(this.showExtension(entry.remote.contributedBy.extensionId));
 			} else if (action === 'updateServer') {
 				void this.manageRemote(entry.remote, 'updateServer');
+			} else if (action === 'restartDistribution' && entry.remote.kind === 'wsl') {
+				void this.manageRemote(entry.remote, 'restartDistribution');
 			} else if (action === 'createDevContainer' && entry.remote.canCreateDevContainer) {
 				void this.createDevContainer(entry.remote.id);
 			} else if (action === 'delete' && (entry.remote.kind === 'environment' && entry.remote.canRemove || (entry.remote.kind === 'tunnel' || entry.remote.kind === 'ssh' || entry.remote.kind === 'devContainer') && entry.remote.canDelete)) {
@@ -770,7 +804,8 @@ export class RemotesWidget extends Disposable {
 				if (this.sortBy === 'availability') {
 					const rank = (remote: ICustomizationRemote) => {
 						const group = getRemoteStatusGroup(remote);
-						return group === 'ready' ? 0 : group === 'available' ? 1 : group === 'offline' ? 2 : 3;
+						const index = statusGroups.findIndex(candidate => candidate.key === group);
+						return index < 0 ? statusGroups.length : index;
 					};
 					const difference = rank(a) - rank(b);
 					if (difference) {
@@ -1063,7 +1098,7 @@ export class RemotesWidget extends Disposable {
 		}
 	}
 
-	private async manageRemote(remote: ICustomizationRemote, action: 'rename' | 'githubEnvironment' | 'updateServer'): Promise<void> {
+	private async manageRemote(remote: ICustomizationRemote, action: 'rename' | 'githubEnvironment' | 'updateServer' | 'restartDistribution'): Promise<void> {
 		const { id } = remote;
 		if (this.pendingActions.has(id) || this.pendingConnections.has(id)) {
 			return;
@@ -1077,6 +1112,8 @@ export class RemotesWidget extends Disposable {
 				await this.model.setSharedAsGitHubEnvironment(id, !remote.gitHubEnvironment);
 			} else if (action === 'updateServer') {
 				await this.model.updateServer(id);
+			} else if (action === 'restartDistribution') {
+				await this.model.restartWSLDistribution(id);
 			} else {
 				await this.model.rename(id);
 			}
@@ -1098,6 +1135,30 @@ export class RemotesWidget extends Disposable {
 				}
 			}
 		}
+	}
+
+	/**
+	 * Actions for environments that discovery can't find by itself. Unavailable actions are left out.
+	 */
+	private getAddActions(): IAction[] {
+		const add: IAction[] = [toAction({
+			id: 'remotes.header.addSSHHost',
+			label: localize('remotes.header.addSSHHost', "Add SSH Host..."),
+			run: () => this.notifyOnFailure(this.commandService.executeCommand<void>(RemoteAgentHostCommandIds.addSSHHost)),
+		})];
+		if (this.model.canCreateDevContainer.get()) {
+			add.push(toAction({
+				id: 'remotes.header.createDevContainer',
+				label: localize('remotes.header.createDevContainer', "Create Dev Container..."),
+				run: () => this.createDevContainer(),
+			}));
+		}
+		const signIn = this.model.tunnelAuthenticationRequired.get() && !this.signingInToTunnels ? [toAction({
+			id: 'remotes.header.signInToTunnels',
+			label: localize('remotes.header.signInToTunnels', "Sign In to Dev Tunnels..."),
+			run: () => this.notifyOnFailure(this.signInToTunnels()),
+		})] : [];
+		return Separator.join(add, signIn);
 	}
 
 	/**

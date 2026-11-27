@@ -96,6 +96,12 @@ export const Menus = {
 	 * dropdown puts the list on the left or right of the diffs.
 	 */
 	MultiDiffFileListToggle: new MenuId('SessionsMultiDiffFileListToggle'),
+	/**
+	 * The Toggle Files split button of the header row that a Changes editor draws itself, such as in an editor window:
+	 * Toggle Files is its primary action, and its dropdown switches the list between a list and a tree, and puts it on
+	 * either side of the diffs.
+	 */
+	ChangesEditorFileListToggle: new MenuId('SessionsChangesEditorFileListToggle'),
 	SessionsEditorTitle: new MenuId('SessionsEditorTitle'),
 	SessionsDiffEditorView: new MenuId('SessionsDiffEditorView'),
 	EmptyChangesActions: new MenuId('SessionsEmptyChangesActions'),

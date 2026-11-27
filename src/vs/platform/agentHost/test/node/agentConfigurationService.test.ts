@@ -18,7 +18,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigState } from '../../common/state/protocol/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildDefaultChatUri, buildChatUri, buildSubagentSessionUri, ChatOriginKind, SessionStatus, type SessionSummary } from '../../common/state/sessionState.js';
-import { AgentConfigurationService, seedMultipleChatProvidersFromEnvironment, getEffectiveWorkingDirectories, getEffectiveWorkingDirectory, getSessionSummaryWorkingDirectories } from '../../node/agentConfigurationService.js';
+import { AgentConfigurationService, seedMultipleChatProvidersFromEnvironment, getEffectiveWorkingDirectories, getSessionSummaryWorkingDirectories } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { ChatProvidersConfigKey, chatProvidersRootConfigSchema } from '../../common/agentHostChatProviders.js';
 import { AgentHostMultipleChatProvidersEnabledEnvVar, buildAgentSdkEnv } from '../../common/agentService.js';
@@ -342,32 +342,6 @@ suite('AgentConfigurationService', () => {
 			const values = seed.values;
 			seed.dispose();
 			assert.deepStrictEqual({ during, values, after: effective(fork) }, { during: 'high', values: { level: 'low' }, after: 'low' });
-		});
-	});
-
-	// ---- getEffectiveWorkingDirectory -------------------------------------
-
-	suite('getEffectiveWorkingDirectory', () => {
-
-		test('returns session working directory when set', () => {
-			const uri = URI.from({ scheme: 'copilot', path: '/a' }).toString();
-			manager.createSession(makeSummary(uri, 'file:///work'));
-			assert.strictEqual(getEffectiveWorkingDirectory(manager, uri), 'file:///work');
-		});
-
-		test('falls back to parent session working directory for subagents', () => {
-			const parent = URI.from({ scheme: 'copilot', path: '/parent' }).toString();
-			manager.createSession(makeSummary(parent, 'file:///work/parent'));
-
-			const child = buildSubagentSessionUri(parent, 'tc-3');
-			manager.createSession(makeSummary(child));
-			assert.strictEqual(getEffectiveWorkingDirectory(manager, child), 'file:///work/parent');
-		});
-
-		test('returns undefined when neither layer has a working directory', () => {
-			const uri = URI.from({ scheme: 'copilot', path: '/a' }).toString();
-			manager.createSession(makeSummary(uri));
-			assert.strictEqual(getEffectiveWorkingDirectory(manager, uri), undefined);
 		});
 	});
 

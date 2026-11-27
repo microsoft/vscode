@@ -12,6 +12,7 @@ import { IModelService } from '../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../editor/common/services/resolverService.js';
 import { IFileService, FileOperation } from '../../../platform/files/common/files.js';
 import { ExtHostContext, ExtHostDocumentsShape, MainThreadDocumentsShape } from '../common/extHost.protocol.js';
+import { IFilesConfigurationService } from '../../services/filesConfiguration/common/filesConfigurationService.js';
 import { EncodingMode, ITextFileEditorModel, ITextFileService, TextFileResolveReason } from '../../services/textfile/common/textfiles.js';
 import { IUntitledTextEditorModel } from '../../services/untitled/common/untitledTextEditorModel.js';
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
@@ -130,6 +131,7 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 
 	private readonly _proxy: ExtHostDocumentsShape;
 	private readonly _modelTrackers = new ResourceMap<ModelTracker>();
+	private readonly _modelReadonlyStates = new ResourceMap<boolean>();
 	private readonly _modelReferenceCollection: BoundModelReferenceCollection;
 
 	constructor(
@@ -137,6 +139,7 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		@IModelService private readonly _modelService: IModelService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IFileService private readonly _fileService: IFileService,
+		@IFilesConfigurationService private readonly _filesConfigurationService: IFilesConfigurationService,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
@@ -160,6 +163,20 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 			if (this._shouldHandleFileEvent(m.resource)) {
 				this._proxy.$acceptDirtyStateChanged(m.resource, m.isDirty());
 			}
+		}));
+		this._store.add(_textFileService.files.onDidChangeReadonly(m => {
+			this._updateReadonlyState(m.resource);
+		}));
+		this._store.add(_filesConfigurationService.onDidChangeReadonly(() => {
+			for (const uri of this._modelReadonlyStates.keys()) {
+				this._updateReadonlyState(uri);
+			}
+		}));
+		this._store.add(_fileService.onDidChangeFileSystemProviderCapabilities(e => {
+			this._updateReadonlyStatesForScheme(e.scheme);
+		}));
+		this._store.add(_fileService.onDidChangeFileSystemProviderRegistrations(e => {
+			this._updateReadonlyStatesForScheme(e.scheme);
 		}));
 		this._store.add(Event.any<ITextFileEditorModel | IUntitledTextEditorModel>(_textFileService.files.onDidChangeEncoding, _textFileService.untitled.onDidChangeEncoding)(m => {
 			if (this._shouldHandleFileEvent(m.resource)) {
@@ -186,7 +203,38 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 	override dispose(): void {
 		dispose(this._modelTrackers.values());
 		this._modelTrackers.clear();
+		this._modelReadonlyStates.clear();
 		super.dispose();
+	}
+
+	isDocumentReadonly(resource: URI): boolean {
+		if (resource.scheme === Schemas.untitled) {
+			return false;
+		}
+		const textFileModel = this._textFileService.files.get(resource);
+		if (textFileModel) {
+			return Boolean(textFileModel.isReadonly());
+		}
+		return Boolean(this._filesConfigurationService.isReadonly(resource));
+	}
+
+	private _updateReadonlyState(resource: URI): void {
+		if (!this._modelReadonlyStates.has(resource)) {
+			return;
+		}
+		const nextReadonly = this.isDocumentReadonly(resource);
+		if (this._modelReadonlyStates.get(resource) !== nextReadonly) {
+			this._modelReadonlyStates.set(resource, nextReadonly);
+			this._proxy.$acceptReadonlyStateChanged(resource, nextReadonly);
+		}
+	}
+
+	private _updateReadonlyStatesForScheme(scheme: string): void {
+		for (const uri of this._modelReadonlyStates.keys()) {
+			if (uri.scheme === scheme) {
+				this._updateReadonlyState(uri);
+			}
+		}
 	}
 
 	isCaughtUpWithContentChanges(resource: URI): boolean {
@@ -202,13 +250,14 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		return !!model && shouldSynchronizeModel(model);
 	}
 
-	handleModelAdded(model: ITextModel): void {
+	handleModelAdded(model: ITextModel, isReadonly?: boolean): void {
 		// Same filter as in mainThreadEditorsTracker
 		if (!shouldSynchronizeModel(model)) {
 			// don't synchronize too large models
 			return;
 		}
 		this._modelTrackers.set(model.uri, new ModelTracker(model, this._onIsCaughtUpWithContentChanges, this._proxy, this._textFileService));
+		this._modelReadonlyStates.set(model.uri, isReadonly ?? this.isDocumentReadonly(model.uri));
 	}
 
 	private _onModelModeChanged(event: { model: ITextModel; oldLanguageId: string }): void {
@@ -225,6 +274,7 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		}
 		this._modelTrackers.get(modelUrl)!.dispose();
 		this._modelTrackers.delete(modelUrl);
+		this._modelReadonlyStates.delete(modelUrl);
 	}
 
 	// --- from extension host process

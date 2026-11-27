@@ -149,20 +149,23 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		return this.textMateThemingRules;
 	}
 
-	public getColor(colorId: ColorIdentifier, useDefault?: boolean): Color | undefined {
-		const transientColor = this.transientColorMap?.[colorId];
-		if (transientColor) {
-			return transientColor;
-		}
-		const customColor = this.customColorMap[colorId];
-		if (customColor instanceof Color) {
-			return customColor;
-		}
-		if (customColor === undefined) { /* !== DEFAULT_COLOR_CONFIG_VALUE */
-			const color = this.colorMap[colorId];
-			if (color !== undefined) {
-				return color;
+	public getColor(colorId: ColorIdentifier, useDefault?: boolean, ignoreOverrides?: boolean): Color | undefined {
+		if (!ignoreOverrides) {
+			const transientColor = this.transientColorMap?.[colorId];
+			if (transientColor) {
+				return transientColor;
 			}
+			const customColor = this.customColorMap[colorId];
+			if (customColor instanceof Color) {
+				return customColor;
+			}
+			if (customColor !== undefined) { /* === DEFAULT_COLOR_CONFIG_VALUE */
+				return useDefault !== false ? this.getDefault(colorId) : undefined;
+			}
+		}
+		const color = this.colorMap[colorId];
+		if (color !== undefined) {
+			return color;
 		}
 		if (useDefault !== false) {
 			return this.getDefault(colorId);

@@ -8,9 +8,9 @@
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"2026-dark": "keyword.control: #C586C0",
+			"2026-dark": "keyword.control: #569CD6",
 			"dark_modern": "keyword.control: #C586C0",
-			"2026-light": "keyword.control: #AF00DB",
+			"2026-light": "keyword.control: #0550AE",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -24,9 +24,9 @@
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"2026-dark": "keyword.control: #C586C0",
+			"2026-dark": "keyword.control: #569CD6",
 			"dark_modern": "keyword.control: #C586C0",
-			"2026-light": "keyword.control: #AF00DB",
+			"2026-light": "keyword.control: #0550AE",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -136,9 +136,9 @@
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"2026-dark": "keyword.control: #C586C0",
+			"2026-dark": "keyword.control: #569CD6",
 			"dark_modern": "keyword.control: #C586C0",
-			"2026-light": "keyword.control: #AF00DB",
+			"2026-light": "keyword.control: #0550AE",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -152,9 +152,9 @@
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"2026-dark": "keyword.control: #C586C0",
+			"2026-dark": "keyword.control: #569CD6",
 			"dark_modern": "keyword.control: #C586C0",
-			"2026-light": "keyword.control: #AF00DB",
+			"2026-light": "keyword.control: #0550AE",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -216,9 +216,9 @@
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"2026-dark": "keyword.control: #C586C0",
+			"2026-dark": "keyword.control: #569CD6",
 			"dark_modern": "keyword.control: #C586C0",
-			"2026-light": "keyword.control: #AF00DB",
+			"2026-light": "keyword.control: #0550AE",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -232,9 +232,9 @@
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"2026-dark": "keyword.control: #C586C0",
+			"2026-dark": "keyword.control: #569CD6",
 			"dark_modern": "keyword.control: #C586C0",
-			"2026-light": "keyword.control: #AF00DB",
+			"2026-light": "keyword.control: #0550AE",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -584,9 +584,9 @@
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"2026-dark": "keyword.control: #C586C0",
+			"2026-dark": "keyword.control: #569CD6",
 			"dark_modern": "keyword.control: #C586C0",
-			"2026-light": "keyword.control: #AF00DB",
+			"2026-light": "keyword.control: #0550AE",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}

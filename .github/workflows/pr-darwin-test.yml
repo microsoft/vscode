@@ -45,7 +45,6 @@ on:
 
 permissions:
   contents: read
-  actions: read
 
 env:
   NPM_ARCH: arm64

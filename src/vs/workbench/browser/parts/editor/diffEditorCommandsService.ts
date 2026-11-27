@@ -14,7 +14,7 @@ import { ActiveCustomEditorDiffCanToggleLayoutContext } from '../../../common/co
 import { DiffEditorInput } from '../../../common/editor/diffEditorInput.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { EditorResourceAccessor, IEditorPane, isDiffEditorInput, IUntypedEditorInput, SideBySideEditor } from '../../../common/editor.js';
+import { EditorResourceAccessor, IEditorPane, isDiffEditorInput, isEditorCommandsContext, IUntypedEditorInput, SideBySideEditor } from '../../../common/editor.js';
 import { TextDiffEditor } from './textDiffEditor.js';
 
 interface IDiffEditorWidthBasedLayoutReset {
@@ -23,6 +23,19 @@ interface IDiffEditorWidthBasedLayoutReset {
 
 function hasDiffEditorWidthBasedLayoutReset(pane: IEditorPane): pane is IEditorPane & IDiffEditorWidthBasedLayoutReset {
 	return 'resetDiffEditorWidthBasedLayout' in pane && typeof pane.resetDiffEditorWidthBasedLayout === 'function';
+}
+
+/**
+ * An editor pane that lays out its diffs by a view mode of its own rather than by the diff editor settings, such as the
+ * Changes editor of sessions. The view mode commands set its view mode while it is the active editor.
+ */
+export interface IDiffEditorViewModeOwner {
+	setDiffEditorViewMode(mode: DiffEditorViewMode): void;
+	toggleDiffEditorRenderSideBySide(): void;
+}
+
+function isDiffEditorViewModeOwner(pane: IEditorPane | undefined): pane is IEditorPane & IDiffEditorViewModeOwner {
+	return !!pane && typeof (pane as Partial<IDiffEditorViewModeOwner>).setDiffEditorViewMode === 'function' && typeof (pane as Partial<IDiffEditorViewModeOwner>).toggleDiffEditorRenderSideBySide === 'function';
 }
 
 export const IDiffEditorCommandsService = createDecorator<IDiffEditorCommandsService>('diffEditorCommandsService');
@@ -74,6 +87,12 @@ export class DiffEditorCommandsService implements IDiffEditorCommandsService {
 	) { }
 
 	async toggleRenderSideBySide(args: unknown[]): Promise<void> {
+		const viewModeOwner = this.getActiveDiffEditorViewModeOwner(args);
+		if (viewModeOwner) {
+			viewModeOwner.toggleDiffEditorRenderSideBySide();
+			return;
+		}
+
 		const modifiedResource = this.getActiveDiffModifiedResource(args);
 		if (!modifiedResource) {
 			return;
@@ -85,6 +104,12 @@ export class DiffEditorCommandsService implements IDiffEditorCommandsService {
 	}
 
 	async setViewMode(args: unknown[], mode: DiffEditorViewMode): Promise<void> {
+		const viewModeOwner = this.getActiveDiffEditorViewModeOwner(args);
+		if (viewModeOwner) {
+			viewModeOwner.setDiffEditorViewMode(mode);
+			return;
+		}
+
 		const activeDiffEditor = this.getActiveDiffEditor(args);
 		const control = activeDiffEditor?.control;
 		const modifiedResource = control?.getModifiedEditor().getModel()?.uri;
@@ -219,6 +244,21 @@ export class DiffEditorCommandsService implements IDiffEditorCommandsService {
 				}
 			}
 		], activeGroup);
+	}
+
+	/**
+	 * The editor that lays out its diffs by its own view mode that the command targets: that of the editor group it is invoked
+	 * from, else the active editor. None when the command targets the diff of a resource.
+	 */
+	private getActiveDiffEditorViewModeOwner(args: unknown[]): IDiffEditorViewModeOwner | undefined {
+		if (args[0] instanceof URI) {
+			return undefined;
+		}
+		const context = args.find(isEditorCommandsContext);
+		const pane = context
+			? this.editorService.visibleEditorPanes.find(candidate => candidate.group.id === context.groupId)
+			: this.editorService.activeEditorPane;
+		return isDiffEditorViewModeOwner(pane) ? pane : undefined;
 	}
 
 	private getActiveTextDiffEditor(args: unknown[]): TextDiffEditor | undefined {

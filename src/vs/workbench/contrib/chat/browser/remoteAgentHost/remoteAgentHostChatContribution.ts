@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../../base/common/event.js';
-import { CancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { equals } from '../../../../../base/common/objects.js';
 import { constObservable, ISettableObservable, observableFromEvent } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -493,7 +494,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 
 		const syncProvider = this._activeClientService.getSyncProvider(sessionType);
 		// The management UI remains ambient while individual sessions use their working-directory scopes.
-		const ambientScope = agentStore.add(this._activeClientService.acquireScope(sessionType, undefined));
+		const ambientScope = agentStore.add(this._activeClientService.acquireScope(sessionType, []));
 
 		const itemProvider = agentStore.add(this._instantiationService.createInstance(AgentCustomizationItemProvider,
 			connection,
@@ -619,11 +620,21 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	private async _authenticateWithConnection(address: string, connection: IAgentConnection, agents: readonly AgentInfo[]): Promise<void> {
 		const connState = this._connections.get(address);
 		const authTokenCache = connState?.authTokenCache;
+		const startedResources = agents.flatMap(agent => agent.protectedResources ?? []);
+		// The host may replace its resources while the round waits; the change that replaced them started a round for the new list.
+		// An absent or failed root state is not a replacement, so no successor would settle for it.
+		const isCurrent = () => {
+			const rootState = connection.rootState.value;
+			return this._connections.get(address) === connState
+				&& (!rootState || rootState instanceof Error
+					|| equals(startedResources, rootState.agents.flatMap(agent => agent.protectedResources ?? [])));
+		};
 		try {
 			const testToken = this._getScenarioAutomationToken();
 			if (testToken !== undefined) {
 				await authenticateAgentProtectedResourcesWithToken(agents, testToken, {
 					authTokenCache,
+					isCurrent,
 					authenticate: this._authenticateCallback(address, connection),
 				});
 				return;
@@ -631,12 +642,15 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			await this._instantiationService.invokeFunction(authenticateProtectedResources, agents, {
 				authTokenCache,
 				logPrefix: '[RemoteAgentHost]',
+				isCurrent,
 				authenticate: this._authenticateCallback(address, connection),
 			});
 		} catch (err) {
-			this._logService.error('[RemoteAgentHost] Failed to authenticate with connection', err);
+			if (!isCancellationError(err)) {
+				this._logService.error('[RemoteAgentHost] Failed to authenticate with connection', err);
+			}
 		} finally {
-			if (connState && this._connections.get(address) === connState) {
+			if (connState && isCurrent()) {
 				connState.authenticationPending.set(false, undefined);
 			}
 		}

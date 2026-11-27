@@ -8,23 +8,6 @@ import { IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolIn
 
 export const TaskCompleteToolId = 'task_complete';
 
-/**
- * Message sent to the agent when the session goes idle without task completion.
- */
-export const AUTOPILOT_CONTINUATION_MESSAGE =
-	'You have not yet marked the task as complete using the task_complete tool. ' +
-	'You MUST call task_complete when done — whether the task involved code changes, answering a question, or any other interaction.\n\n' +
-	'Do NOT repeat or restate your previous response. Pick up where you left off.\n\n' +
-	'If you were planning, stop planning and start implementing. ' +
-	'You are not done until you have fully completed the task.\n\n' +
-	'IMPORTANT: Do NOT call task_complete if:\n' +
-	'- You have open questions or ambiguities — make good decisions and keep working\n' +
-	'- You encountered an error — try to resolve it or find an alternative approach\n' +
-	'- There are remaining steps — complete them first\n\n' +
-	'When you ARE done, first provide a brief text summary of what was accomplished, then call task_complete. ' +
-	'Both the summary message and the tool call are required.\n\n' +
-	'Keep working autonomously until the task is truly finished, then call task_complete.';
-
 export const TaskCompleteToolData: IToolData = {
 	id: TaskCompleteToolId,
 	displayName: 'Task Complete',

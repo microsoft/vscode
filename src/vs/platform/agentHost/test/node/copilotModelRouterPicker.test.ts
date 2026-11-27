@@ -117,14 +117,17 @@ suite('DecisionsModelRouterPicker', () => {
 		assert.strictEqual(truncateToEscapedBytes('ab\uD83D\uDE00', 4), 'ab', 'never splits a surrogate pair');
 	});
 
-	test('tells the effort question that a follow-up carries the earlier turns\' work', () => {
-		const effortOf = (request: IAgentDecisionsRequest) => request.questions.find(q => q.name === 'effort')?.instructions ?? '';
+	test('tells a follow-up\'s questions how to read it: a message about the last reply keeps the route, and effort goes by the work the earlier turns carry over', () => {
+		const notes = (request: IAgentDecisionsRequest) => request.questions.map(q => [q.name, q.instructions.includes('This is a follow-up'), q.instructions.includes('pick currentModel')]);
 		const first = buildModelRouterDecisionsRequest(pickRequest({ text: 'fix it' }));
 		const followUp = buildModelRouterDecisionsRequest(pickRequest({
 			text: 'fix it',
 			followUp: { currentModel: 'opus', currentEffort: undefined, recentTurns: [{ prompt: 'why does this crash?', response: 'It unwraps an empty line.' }], turns: 1, lastTurnState: 'complete', lastTurnToolCalls: 3, lastTurnFailedToolCalls: 0 },
 		}));
-		assert.deepStrictEqual([effortOf(first).includes('This is a follow-up'), effortOf(followUp).includes('This is a follow-up')], [false, true]);
+		assert.deepStrictEqual([notes(first), notes(followUp)], [
+			[['model', false, false], ['effort', false, false]],
+			[['model', true, true], ['effort', true, false]],
+		]);
 	});
 
 	test('maps answers to a pick, and a tie to no pick', async () => {

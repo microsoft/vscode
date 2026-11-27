@@ -36,10 +36,39 @@ import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/
 import { IOpenerService, OpenOptions } from '../../../../../../platform/opener/common/opener.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ActionBar } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
+import { $, append } from '../../../../../../base/browser/dom.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import '../../../../../../platform/hover/browser/hover.css';
 
 suite('Chat customizations hover', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const sessionResource = URI.parse('agent-host-copilotcli:/session');
+
+	test('section and settings links use the hover link color when customized', () => {
+		const fixture = append(mainWindow.document.body, $('.monaco-workbench'));
+		store.add(toDisposable(() => fixture.remove()));
+		fixture.style.setProperty('--vscode-foreground', '#123456');
+		fixture.style.setProperty('--vscode-descriptionForeground', '#345678');
+		fixture.style.setProperty('--vscode-editorHoverWidget-linkForeground', 'var(--vscode-editorHoverWidget-linkForeground)');
+		const hover = append(fixture, $('.monaco-hover.workbench-hover.chat-customizations-hover'));
+		const link = append(append(append(hover, $('table')), $('td')), $('a'));
+		const contents = append(hover, $('.hover-contents'));
+		append(contents, $('hr'));
+		const settings = append(append(contents, $('p')), $('a'));
+		const colors = () => [link, settings].map(element => mainWindow.getComputedStyle(element).color);
+
+		const fallback = colors();
+		fixture.style.setProperty('--vscode-editorHoverWidget-linkForeground', '#abcdef');
+		const customized = colors();
+		fixture.style.setProperty('--vscode-editorHoverWidget-linkForeground', 'var(--vscode-editorHoverWidget-linkForeground)');
+		const restored = colors();
+
+		assert.deepStrictEqual({ fallback, customized, restored }, {
+			fallback: ['rgb(18, 52, 86)', 'rgb(52, 86, 120)'],
+			customized: ['rgb(171, 205, 239)', 'rgb(171, 205, 239)'],
+			restored: ['rgb(18, 52, 86)', 'rgb(52, 86, 120)'],
+		});
+	});
 
 	function createHover(hiddenSections: string[] = [], loaded: Promise<void> = Promise.resolve(), widgets: readonly IChatWidget[] = [], hasWorkspace = true, attention: { servers?: readonly AgentHostMcpServer[]; migration?: ICustomizationMigrationHint; isSessionsWindow?: boolean } = {}) {
 		const observed: string[] = [];

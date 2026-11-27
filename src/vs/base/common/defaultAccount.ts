@@ -95,10 +95,34 @@ export interface IDefaultAccountAuthenticationProvider {
 	readonly enterprise: boolean;
 }
 
+/** A Copilot service that a Microsoft sign-in can use. */
+export type CopilotServiceKind = 'github' | 'm365';
+
 export interface IDefaultAccount {
 	readonly authenticationProvider: IDefaultAccountAuthenticationProvider;
 	readonly accountName: string;
 	readonly sessionId: string;
 	readonly enterprise: boolean;
 	readonly entitlementsData?: IEntitlementsData | null;
+
+	/** The Copilot service chosen for a remembered Microsoft account. */
+	readonly copilotService?: CopilotServiceKind;
+}
+
+/** The fields of a default account that identify its GitHub account and the authentication session to use for it. */
+export type IGitHubDefaultAccount = Pick<IDefaultAccount, 'authenticationProvider' | 'accountName' | 'sessionId' | 'enterprise'>;
+
+/** The id of the Microsoft authentication provider, whose account can be the default account when the user chose it. */
+export const MICROSOFT_DEFAULT_ACCOUNT_PROVIDER_ID = 'microsoft';
+
+/**
+ * Returns the default account as a GitHub account, or `undefined` when there is no default account or the default
+ * account is a Microsoft account. Code that makes GitHub requests for the default account reads it through here.
+ * Callers that handle a missing default account differently from a Microsoft one must check the account itself.
+ */
+export function asGitHubAccount(account: IDefaultAccount | null | undefined): IGitHubDefaultAccount | undefined {
+	if (!account || account.authenticationProvider.id === MICROSOFT_DEFAULT_ACCOUNT_PROVIDER_ID) {
+		return undefined;
+	}
+	return account;
 }

@@ -72,7 +72,7 @@ export function getReindentEditOperations(model: ITextModel, languageConfigurati
 
 	// Calculate indentation adjustment for all following lines
 	for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-		if (doesLineStartWithString(model, lineNumber)) {
+		if (isLineStartInsideString(model, lineNumber)) {
 			continue;
 		}
 		const text = model.getLineContent(lineNumber);
@@ -106,10 +106,21 @@ export function getReindentEditOperations(model: ITextModel, languageConfigurati
 	return indentEdits;
 }
 
-function doesLineStartWithString(model: ITextModel, lineNumber: number): boolean {
+function isLineStartInsideString(model: ITextModel, lineNumber: number): boolean {
 	if (!model.tokenization.isCheapToTokenize(lineNumber)) {
 		return false;
 	}
+	model.tokenization.tokenizeIfCheap(lineNumber);
 	const lineTokens = model.tokenization.getLineTokens(lineNumber);
-	return lineTokens.getStandardTokenType(0) === StandardTokenType.String;
+	const line = model.getLineContent(lineNumber);
+	const startsWithString = lineTokens.getStandardTokenType(0) === StandardTokenType.String;
+	if (line.length > 0 && !startsWithString) {
+		return false;
+	}
+	if (startsWithString && strings.getLeadingWhitespace(line).length > 0) {
+		return true;
+	}
+	// Tokenize inserted whitespace to distinguish a new string from a continuation, including on empty lines.
+	const tokensWithIndent = model.tokenization.tokenizeLinesAt(lineNumber, [` ${line}`])?.[0];
+	return tokensWithIndent ? tokensWithIndent.getStandardTokenType(0) === StandardTokenType.String : false;
 }

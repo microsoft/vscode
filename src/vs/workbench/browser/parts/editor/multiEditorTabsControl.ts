@@ -20,6 +20,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { EditorCommandsContextActionRunner, EditorTabsControl } from './editorTabsControl.js';
+import { EditorAddTabControl } from './editorAddTabControl.js';
 import { clearConnectedTabClipping, IConnectedTabBounds, updateConnectedTabClipping } from './connectedTabClipping.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { IDisposable, dispose, DisposableStore, combinedDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -118,7 +119,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	private tabsScrollbar: ScrollableElement | undefined;
 	private connectedTabOverflowEdge: HTMLElement | undefined;
 	private connectedTabLabels = false;
-	private addTabContainer: HTMLElement | undefined;
+	private addTabControl: EditorAddTabControl | undefined;
+	/** The Add Tab control after the last tab, while it is shown. */
+	private get addTabContainer(): HTMLElement | undefined {
+		return this.addTabControl?.visible ? this.addTabControl.element : undefined;
+	}
 	private tabSizingFixedDisposables: DisposableStore | undefined;
 	private connectedTabBounds: IConnectedTabBounds | undefined;
 
@@ -295,7 +300,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// container, which tab layout logic relies on (see #324902).
 		if (this.menuIds?.tabsBarAddTab) {
 			this.tabsContainer.classList.add('has-add-tab');
-			this.addTabContainer = this.createAddTabControl(this.tabsContainer, this.menuIds.tabsBarAddTab, undefined, () => this.layout(this.dimensions));
+			this.addTabControl = this.createAddTabControl(this.tabsContainer, this.menuIds.tabsBarAddTab, undefined, () => this.layout(this.dimensions));
 		}
 
 		// Create Editor Toolbar
@@ -1306,8 +1311,13 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					return;
 				}
 
-				isNewWindowOperation = this.isNewWindowOperation(e);
 				const selectedEditors = this.groupView.selectedEditors;
+				if (!this.canDragEditors(selectedEditors)) {
+					e.preventDefault();
+					return;
+				}
+
+				isNewWindowOperation = this.isNewWindowOperation(e);
 				this.editorTransfer.setData(selectedEditors.map(e => new DraggedEditorIdentifier({ editor: e, groupId: this.groupView.id })), DraggedEditorIdentifier.prototype);
 
 				if (e.dataTransfer) {
@@ -2119,7 +2129,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			tab.classList.toggle('last-tab', index === this.tabsModel.count - 1);
 			tab.classList.toggle('connected-tab-last', connected && index === this.tabsModel.count - 1);
 		});
-		this.tabsAndActionsContainer?.classList.toggle('has-add-tab', Boolean(this.addTabContainer && !this.addTabContainer.classList.contains('hidden')));
+		this.tabsAndActionsContainer?.classList.toggle('has-add-tab', Boolean(this.addTabContainer));
 		if (connected && upperTabBar) {
 			this.forEachTab((_editor, _index, tab) => tab.classList.add('connected-tab-upper-row'));
 		}
@@ -2140,7 +2150,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		const tabsWrapMultiLine = this.doLayoutTabsWrapping(dimensions);
 		this.layoutAddTabWithLastTab(tabsWrapMultiLine);
 		const top = this.getTabAtIndex(0)?.offsetTop;
-		const bottom = tabsWrapMultiLine && this.addTabContainer && !this.addTabContainer.classList.contains('hidden') ? this.addTabContainer.offsetTop : this.getLastTab()?.offsetTop;
+		const bottom = tabsWrapMultiLine && this.addTabContainer ? this.addTabContainer.offsetTop : this.getLastTab()?.offsetTop;
 		this.forEachTab((_editor, _index, tab) => {
 			tab.classList.toggle('connected-tab-upper-row', connected && (upperTabBar || tab.offsetTop !== bottom));
 			tab.classList.toggle('connected-tab-top-row', connected && topTabBar && tab.offsetTop === top);
@@ -2279,7 +2289,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					return true; // no tab always fits
 				}
 
-				const lastItem = this.addTabContainer && !this.addTabContainer.classList.contains('hidden') ? this.addTabContainer : lastTab;
+				const lastItem = this.addTabContainer ?? lastTab;
 				const availableWidth = tabsWrapMultiLine ? Math.min(tabsContainer.offsetWidth, getContentWidth(tabsAndActionsContainer), dimensions.available.width) : dimensions.available.width;
 				let requiredWidth = lastItem === lastTab ? 0 : getTotalWidth(lastItem) + (tabsWrapMultiLine ? 0 : editorToolbarWidth());
 				this.forEachTab((_editor, _index, tab) => {
@@ -2401,7 +2411,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		const [tabsAndActionsContainer, tabsContainer, editorToolbarsContainer] = [this.tabsAndActionsContainer, this.tabsContainer, this.editorToolbarsContainer];
 		const addTabContainer = this.addTabContainer;
 		const lastTab = this.getLastTab();
-		if (!tabsWrapMultiLine || !tabsAndActionsContainer || !tabsContainer || !editorToolbarsContainer || !addTabContainer || addTabContainer.classList.contains('hidden') || !lastTab || lastTab.offsetTop === addTabContainer.offsetTop) {
+		if (!tabsWrapMultiLine || !tabsAndActionsContainer || !tabsContainer || !editorToolbarsContainer || !addTabContainer || !lastTab || lastTab.offsetTop === addTabContainer.offsetTop) {
 			return;
 		}
 
@@ -2721,7 +2731,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			}
 		} else {
 			if (this.connectedTabBounds) {
-				const viewportRight = this.addTabContainer?.offsetWidth === 0 && this.tabsContainer ? this.tabsContainer.offsetWidth : this.connectedTabBounds.viewportRight;
+				const viewportRight = (this.addTabContainer?.offsetWidth ?? 0) === 0 && this.tabsContainer ? this.tabsContainer.offsetWidth : this.connectedTabBounds.viewportRight;
 				this.connectedTabBounds.overflowEdge.style.left = `${this.connectedTabBounds.viewportLeft}px`;
 				this.connectedTabBounds.overflowEdge.style.right = `${this.tabsContainer ? this.tabsContainer.offsetWidth - viewportRight : 0}px`;
 				updateConnectedTabClipping({ ...this.connectedTabBounds, viewportRight }, scrollLeft);

@@ -198,6 +198,11 @@ export interface IHarnessDescriptor {
 	 */
 	readonly hideGenerateButton?: boolean;
 	/**
+	 * Customization types that keep the "Generate with AI" button even when
+	 * {@link hideGenerateButton} is `true`.
+	 */
+	readonly showGenerateButtonFor?: readonly PromptsType[];
+	/**
 	 * Per-section overrides for the create button behavior.
 	 *
 	 * A `commandId` entry replaces the button entirely with a command invocation.
@@ -339,18 +344,9 @@ export interface ICustomizationItem {
 	 * Relevant for prompt / skill and custom agents
 	 */
 	readonly userInvocable?: boolean;
+	readonly argumentHint?: string;
 	/** Optional inline/context-menu actions specific to this item. */
 	readonly actions?: readonly ICustomizationItemAction[];
-}
-
-export interface ICustomizationAgentRef {
-	readonly id: string;
-
-	readonly uri: URI;
-	/** Agent name (from frontmatter `name`, or file-derived) */
-	readonly name: string;
-	/** Optional short description for UI preview (from frontmatter `description`) */
-	readonly description?: string;
 }
 
 export type AgentFileToolAvailability = 'available' | 'unavailable' | 'disabled';
@@ -614,18 +610,6 @@ export interface ICustomizationHarnessService {
 	getSessionResourceForHarness(harnessId: string): URI;
 }
 
-/**
- * Minimal slash-command metadata resolved from the active harness.
- */
-export interface ICustomizationSlashCommand {
-	readonly uri: URI;
-	readonly type: PromptsType.prompt | PromptsType.skill;
-	readonly name: string;
-	readonly description?: string;
-	readonly userInvocable: boolean;
-	readonly sessionTypes?: readonly string[];
-}
-
 // #region Shared descriptor constants
 
 /**
@@ -820,6 +804,7 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 					type: item.type as PromptsType.prompt | PromptsType.skill,
 					name: item.pluginUri ? getCanonicalPluginCommandId({ uri: item.pluginUri, label: item.pluginLabel }, item.name) : item.name,
 					description: item.description,
+					argumentHint: item.argumentHint,
 					userInvocable: item.userInvocable ?? true,
 					storage: narrowStorage,
 					sessionTypes: [sessionType],
@@ -888,6 +873,7 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 			return {
 				...command,
 				userInvocable: parsedPromptFile.header?.userInvocable ?? command.userInvocable,
+				argumentHint: parsedPromptFile.header?.argumentHint ?? command.argumentHint,
 				parsedPromptFile,
 			};
 		}

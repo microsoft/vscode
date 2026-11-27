@@ -30,6 +30,8 @@ export class MultiDiffEditorWidget extends Disposable {
 	private readonly _viewModel = observableValue<MultiDiffEditorViewModel | undefined>(this, undefined);
 	private readonly _diffLayoutOptions = observableValue<IDiffEditorOptions | undefined>(this, undefined);
 	private readonly _paddingBottomPx = observableValue<number>(this, 0);
+	/** Shared between implementations, so a variant change keeps the split the user chose. */
+	private readonly _splitViewRatio = observableValue<number | undefined>(this, undefined);
 	private _variant: MultiDiffEditorVariant;
 	private readonly _widgetImplValue: ISettableObservable<MultiDiffEditorWidgetImpl>;
 	private readonly _widgetImpl: IObservable<MultiDiffEditorWidgetImpl>;
@@ -72,6 +74,7 @@ export class MultiDiffEditorWidget extends Disposable {
 			this._diffLayoutOptions,
 			this._options.diffEditorOptions,
 			this._paddingBottomPx,
+			this._splitViewRatio,
 		);
 	}
 
@@ -280,6 +283,12 @@ export class MultiDiffEditorWidget extends Disposable {
 }
 
 export interface RevealOptions {
+	/** A range to reveal once the diff of the file is computed. Revealing a range expands the file. */
 	range?: Range;
+	/**
+	 * The document that the range refers to. Defaults to the original document, unless the file was added. An inline diff
+	 * reveals a range of the original document where the modified document has it, or where it shows the deleted text.
+	 */
+	side?: 'original' | 'modified';
 	highlight: boolean;
 }

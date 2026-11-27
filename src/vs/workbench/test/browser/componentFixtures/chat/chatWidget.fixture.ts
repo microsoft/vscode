@@ -184,6 +184,8 @@ export interface IChatWidgetFixtureOptions {
 	readonly inlineAttachments?: boolean;
 	/** Mirrors the `chat.fontSize` and `chat.fontFamily` settings, which `ChatWidget` applies to its container. */
 	readonly chatFont?: { readonly size?: number; readonly family?: string };
+	/** Mirrors the `chat.editor.wordWrap` setting for code blocks. Defaults to `off`. */
+	readonly codeBlockWordWrap?: 'on' | 'off';
 }
 
 export interface IChatWidgetFixtureHandle {
@@ -379,7 +381,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 
 	const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 	configService.setUserConfiguration('chat', {
-		editor: { fontSize: 13, fontFamily: 'default', fontWeight: 'default', lineHeight: 0, wordWrap: 'off' },
+		editor: { fontSize: 13, fontFamily: 'default', fontWeight: 'default', lineHeight: 0, wordWrap: options.codeBlockWordWrap ?? 'off' },
 	});
 	configService.setUserConfiguration('editor', { fontFamily: 'monospace', fontLigatures: false });
 	instantiationService.get(IMarkdownRendererService).setDefaultCodeBlockRenderer(instantiationService.createInstance(EditorMarkdownCodeBlockRenderer));
@@ -1053,6 +1055,51 @@ const ISSUE_309796_MISSING_BACKSLASH: IFixtureMessage[] = [
 	},
 ];
 
+// https://github.com/microsoft/vscode/issues/349335
+const ISSUE_349335_REQUEST_CODE_BLOCK_WIDTH: IFixtureMessage[] = [
+	{
+		user: [
+			'i need to update the status bar button script to install from pnpm for vscode:',
+			'',
+			'```json',
+			'{',
+			'	"text": "",',
+			'	"icon": "rocket",',
+			'	"command": "nvm use default; npm install && npm run watch",',
+			'	"tooltip": "Set up Code OSS for development",',
+			'	"color": "button.background",',
+			'	"alignment": "left",',
+			'	"priority": 85',
+			'},',
+			'```',
+		].join('\n'),
+		assistant: [{ kind: 'markdown', text: 'Replace `npm install` with `pnpm install` in the `command`.' }],
+	},
+];
+
+// https://github.com/microsoft/vscode/issues/349335, each blockquote level narrows the code block. The last token of
+// the long lines must stay visible: scrolled into view without word wrap, or wrapped onto the next line with it.
+const ISSUE_349335_REQUEST_CODE_BLOCK_IN_BLOCKQUOTES: IFixtureMessage[] = [
+	{
+		user: [
+			'my colleague wrote:',
+			'',
+			'> this command fails for me:',
+			'>',
+			'> ```sh',
+			'> nvm use default; npm install && npm run watch --some-long-option LAST_TOKEN',
+			'> ```',
+			'>',
+			'> > and this one too:',
+			'> >',
+			'> > ```sh',
+			'> > nvm use default; npm install && npm run watch --some-long-option LAST_TOKEN',
+			'> > ```',
+		].join('\n'),
+		assistant: [{ kind: 'markdown', text: 'Run `pnpm install` instead of `npm install`.' }],
+	},
+];
+
 const STREAMING: IFixtureMessage[] = [
 	{
 		user: 'Search the workspace for TODO comments',
@@ -1515,7 +1562,7 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 	if (targetWindow.getComputedStyle(logo).visibility !== (noIcon ? 'hidden' : 'visible')) {
 		throw new Error('The progress icon visibility does not match the selected style');
 	}
-	const reasoningIcons = response.querySelectorAll<HTMLElement>('.chat-persistent-reasoning > .chat-used-context-label .monaco-button > .codicon-thinking[aria-hidden="true"]');
+	const reasoningIcons = response.querySelectorAll<HTMLElement>('.chat-persistent-reasoning > .chat-used-context-label .monaco-button > .codicon-thinking-compact[aria-hidden="true"]');
 	if (reasoningIcons.length !== response.querySelectorAll('.chat-persistent-reasoning').length) {
 		throw new Error('Collapsible reasoning must retain its thinking icon');
 	}
@@ -3080,6 +3127,15 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 	}),
 	bugs: defineThemedFixtureGroup({
 		'issue-309796-missing-backslash': defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: ISSUE_309796_MISSING_BACKSLASH }) }),
+		'issue-349335-request-code-block-width': defineComponentFixture({
+			render: ctx => renderChatWidget(ctx, { messages: ISSUE_349335_REQUEST_CODE_BLOCK_WIDTH, width: 400, inputVisible: false }),
+		}),
+		'issue-349335-request-code-block-in-blockquotes': defineComponentFixture({
+			render: ctx => renderChatWidget(ctx, { messages: ISSUE_349335_REQUEST_CODE_BLOCK_IN_BLOCKQUOTES, width: 400, inputVisible: false }),
+		}),
+		'issue-349335-request-code-block-in-blockquotes-word-wrap': defineComponentFixture({
+			render: ctx => renderChatWidget(ctx, { messages: ISSUE_349335_REQUEST_CODE_BLOCK_IN_BLOCKQUOTES, width: 400, inputVisible: false, codeBlockWordWrap: 'on' }),
+		}),
 	}),
 	MultiTurn: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: MULTI_TURN }) }),
 	LastResponseContentHover: defineComponentFixture({ render: renderLastResponseHover }),

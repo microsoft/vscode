@@ -4,8 +4,76 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { suite, test } from 'node:test';
-import { normalizeCommentDashes } from '../generate-protocol.mjs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { afterEach, beforeEach, suite, test } from 'node:test';
+import { normalizeCommentDashes, resolveCodexBinary } from '../generate-protocol.mjs';
+
+suite('codex protocol binary resolution', () => {
+	let root: string;
+	let originalCodexBin: string | undefined;
+
+	beforeEach(() => {
+		root = realpathSync(mkdtempSync(path.join(tmpdir(), 'codex-binary-test-')));
+		originalCodexBin = process.env.CODEX_BIN;
+		delete process.env.CODEX_BIN;
+	});
+
+	afterEach(() => {
+		if (originalCodexBin === undefined) {
+			delete process.env.CODEX_BIN;
+		} else {
+			process.env.CODEX_BIN = originalCodexBin;
+		}
+		rmSync(root, { recursive: true, force: true });
+	});
+
+	const triples: Record<string, string> = {
+		'linux-x64': 'x86_64-unknown-linux-musl',
+		'linux-arm64': 'aarch64-unknown-linux-musl',
+		'darwin-x64': 'x86_64-apple-darwin',
+		'darwin-arm64': 'aarch64-apple-darwin',
+		'win32-x64': 'x86_64-pc-windows-msvc',
+		'win32-arm64': 'aarch64-pc-windows-msvc',
+	};
+	const target = `${process.platform}-${process.arch}`;
+	const alias = `@openai/codex-${target}`;
+	const binaryRelativePath = path.join('vendor', triples[target], 'bin', process.platform === 'win32' ? 'codex.exe' : 'codex');
+
+	function createPackage(directory: string, binary = false): string {
+		mkdirSync(directory, { recursive: true });
+		writeFileSync(path.join(directory, 'package.json'), JSON.stringify({ name: '@openai/codex' }));
+		const file = path.join(directory, binaryRelativePath);
+		if (binary) {
+			mkdirSync(path.dirname(file), { recursive: true });
+			writeFileSync(file, '');
+		}
+		return file;
+	}
+
+	for (const layout of ['hoisted', 'nested', 'isolated']) {
+		test(`finds the installed platform binary in the ${layout} layout before PATH`, () => {
+			const modules = path.join(root, 'node_modules');
+			const packageRoot = layout === 'isolated'
+				? path.join(modules, '.pnpm', '@openai+codex@1.0.0', 'node_modules', '@openai', 'codex')
+				: path.join(modules, '@openai', 'codex');
+			createPackage(packageRoot);
+			const platformRoot = layout === 'nested'
+				? path.join(packageRoot, 'node_modules', alias)
+				: layout === 'isolated'
+					? path.join(modules, '.pnpm', '@openai+codex@1.0.0-test', 'node_modules', '@openai', 'codex')
+					: path.join(modules, alias);
+			const binary = createPackage(platformRoot, true);
+			if (layout === 'isolated') {
+				mkdirSync(path.join(modules, '@openai'), { recursive: true });
+				symlinkSync(packageRoot, path.join(modules, '@openai', 'codex'), 'junction');
+				symlinkSync(platformRoot, path.join(path.dirname(packageRoot), `codex-${target}`), 'junction');
+			}
+			assert.strictEqual(resolveCodexBinary(root), binary);
+		});
+	}
+});
 
 suite('codex protocol comment normalization', () => {
 	test('normalizes the generated user-verification documentation', () => {

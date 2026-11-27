@@ -1855,8 +1855,8 @@ suite('ProtocolServerHandler', () => {
 		const githubEnvironment: IProtocolServerGitHubEnvironment = {
 			get status() { return status; },
 			onDidChangeStatus: onDidChangeStatus.event,
-			async register(accountId, credential) {
-				calls.push(`register ${accountId} ${credential}`);
+			async register(accountId, credential, name) {
+				calls.push(`register ${accountId} ${credential} ${name}`);
 				setStatus({ instanceId: 'instance', registration: { accountId, environmentId: 'environment', name: 'Remote' } });
 				return { environmentId: 'environment', name: 'Remote' };
 			},
@@ -1892,7 +1892,7 @@ suite('ProtocolServerHandler', () => {
 			const responses = [];
 			for (const message of [
 				request(2, RegisterGitHubEnvironmentExtensionMethod, { accountId: 'account', credential: '' }),
-				request(3, RegisterGitHubEnvironmentExtensionMethod, { accountId: 'account', credential: 'token' }),
+				request(3, RegisterGitHubEnvironmentExtensionMethod, { accountId: 'account', credential: 'token', name: 'nov16' }),
 				request(4, UnregisterGitHubEnvironmentExtensionMethod, { accountId: 'account' }),
 			]) {
 				const response = waitForResponse(transport, responses.length + 2);
@@ -1924,7 +1924,7 @@ suite('ProtocolServerHandler', () => {
 				{ connection: 'relay roots', ...unserved, responses: [notFound, notFound, notFound] },
 				{ connection: 'relay transport', ...unserved, responses: [denied, denied, denied] },
 			],
-			calls: ['register account token', 'unregister account'],
+			calls: ['register account token nov16', 'unregister account'],
 		});
 	});
 

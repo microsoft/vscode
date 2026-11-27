@@ -29,7 +29,7 @@ import { ResolveSessionConfigResult } from '../../../../../../../platform/agentH
 import { NullWorkbenchAssignmentService } from '../../../../../../services/assignment/test/common/nullAssignmentService.js';
 import { DialogService } from '../../../../../../services/dialogs/common/dialogService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../services/environment/common/environmentService.js';
-import { TestHostService, TestLayoutService } from '../../../../../../test/browser/workbenchTestServices.js';
+import { TestHostService, TestLayoutService, TestQuickInputService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { TestLifecycleService } from '../../../../../../test/common/workbenchTestServices.js';
 import { OnboardingScenarioService } from '../../../../../onboarding/browser/onboardingService.js';
 import { SpotlightPresentation } from '../../../../../onboarding/browser/spotlight/spotlightPresentation.js';
@@ -52,6 +52,7 @@ import { ChatSubmitRequestHandlerService, ChatSubmitRequestOutcome, IChatSubmitR
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { SessionType } from '../../../../common/chatSessionsService.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
+import { TestDialogService } from '../../../../../../../platform/dialogs/test/common/testDialogService.js';
 
 /** The user's answer in the callout; `abort` where it ends without one, as where it cannot show. */
 type Answer = 'useWorktree' | 'continue' | 'escape' | 'abort';
@@ -178,11 +179,12 @@ suite('Agent host Work in Parallel choice on send', () => {
 				storage, contextKeyService, configuration, disposables.add(new TestLifecycleService()),
 				new NullWorkbenchAssignmentService(), NullTelemetryService,
 				disposables.add(new DialogService(upcastPartial<IWorkbenchEnvironmentService>({}), new NullLogService())),
+				new TestQuickInputService(),
 			)));
 			const layout = new class extends TestLayoutService {
 				override getContainer() { return mainWindow.document.body; }
 			}();
-			disposables.add(onboardingPresentationRegistry.register(disposables.add(new SpotlightPresentation(layout, new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService))));
+			disposables.add(onboardingPresentationRegistry.register(disposables.add(new SpotlightPresentation(layout, new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()))));
 		} else {
 			instantiationService.stub(IOnboardingScenarioService, upcastPartial<IOnboardingScenarioService>({
 				runScenario: (id: string) => running ??= run(id).finally(() => { running = undefined; }),

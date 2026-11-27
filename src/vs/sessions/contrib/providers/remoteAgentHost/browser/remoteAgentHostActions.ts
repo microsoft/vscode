@@ -29,7 +29,7 @@ import { addWebSocketRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentH
 import { parseRemoteAgentHostInput, RemoteAgentHostInputValidationError } from '../../../../../platform/agentHost/common/remoteAgentHostAddress.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { computeSSHConnectionKey, ISSHRemoteAgentHostService, isSSHHostKeyDeniedError, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHResolvedConfig, type SSHAgentHostConnectionRequest } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
-import { isTunnelHosted, ITunnelAgentHostService, TUNNEL_ADDRESS_PREFIX, type ITunnelInfo } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
+import { isTunnelHosted, ITunnelAgentHostService, TUNNEL_ADDRESS_PREFIX, TunnelAuthenticationRequiredError, type ITunnelInfo } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IWSLRemoteAgentHostService, WSL_INSTALL_DOCS_URL, type IWSLDistro } from '../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -389,9 +389,12 @@ async function promptToConnectViaSSH(
 		notificationService.error(validateSSHHostInput(newHost.hostInput) ?? localize('sshHostInvalid', "Invalid SSH host."));
 		return;
 	}
-	await instantiationService.invokeFunction(accessor =>
+	const connectionAddress = await instantiationService.invokeFunction(accessor =>
 		promptForCredentialsAndConnect(accessor, parsed.host, parsed.username, parsed.port)
 	);
+	if (connectionAddress) {
+		await instantiationService.invokeFunction(accessor => promptForRemoteFolder(connectionAddress, accessor.get(ISessionsProvidersService), accessor.get(ISessionsService), accessor.get(ISessionsPartService)));
+	}
 }
 
 async function connectToConfiguredSSHHost(
@@ -432,11 +435,15 @@ async function connectToConfiguredSSHHost(
 	}
 
 	// Fallback: alias resolved without a user — fall through to manual flow
-	await instantiationService.invokeFunction(accessor =>
+	const connectionAddress = await instantiationService.invokeFunction(accessor =>
 		promptForCredentialsAndConnect(accessor, host, undefined, port, suggestedName, defaultKeyPath, resolvedConfig.identityAgent)
 	);
+	if (connectionAddress) {
+		await instantiationService.invokeFunction(accessor => promptForRemoteFolder(connectionAddress, accessor.get(ISessionsProvidersService), accessor.get(ISessionsService), accessor.get(ISessionsPartService)));
+	}
 }
 
+/** Prompts for the missing SSH credentials and connects, returning the connection's address unless canceled or failed. */
 async function promptForCredentialsAndConnect(
 	accessor: ServicesAccessor,
 	host: string,
@@ -445,7 +452,7 @@ async function promptForCredentialsAndConnect(
 	suggestedName?: string,
 	defaultKeyPath?: string,
 	identityAgent?: string,
-): Promise<void> {
+): Promise<string | undefined> {
 	const quickInputService = accessor.get(IQuickInputService);
 	const instantiationService = accessor.get(IInstantiationService);
 
@@ -546,12 +553,9 @@ async function promptForCredentialsAndConnect(
 		name: name.trim(),
 	};
 
-	const connectionAddress = await instantiationService.invokeFunction(accessor =>
+	return instantiationService.invokeFunction(accessor =>
 		connectWithProgress(accessor, config, host)
 	);
-	if (connectionAddress) {
-		await instantiationService.invokeFunction(accessor => promptForRemoteFolder(connectionAddress, accessor.get(ISessionsProvidersService), accessor.get(ISessionsService), accessor.get(ISessionsPartService)));
-	}
 }
 
 export async function connectWithProgress(
@@ -678,6 +682,34 @@ registerAction2(class extends Action2 {
 		const result = await promptToConnectViaSSH(accessor, { showBackButton: !!onBack });
 		if (result === 'back') {
 			onBack?.();
+		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: RemoteAgentHostCommandIds.addSSHHost,
+			title: localize2('addSSHHost', "Add SSH Host..."),
+			category: SessionsCategories.Sessions,
+			precondition: ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true),
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const quickInputService = accessor.get(IQuickInputService);
+		const instantiationService = accessor.get(IInstantiationService);
+		const value = await quickInputService.input({
+			title: localize('addSSHHostTitle', "Add SSH Host"),
+			prompt: localize('addSSHHostPrompt', "Enter user@host, optionally followed by :port."),
+			placeHolder: 'user@host',
+			ignoreFocusLost: true,
+			validateInput: async value => validateSSHHostInput(value),
+		});
+		const parsed = value === undefined ? undefined : parseSSHHostInput(value);
+		if (parsed) {
+			// Connecting saves the host, so it stays listed in Remote Environments without opening a session.
+			await instantiationService.invokeFunction(accessor => promptForCredentialsAndConnect(accessor, parsed.host, parsed.username, parsed.port));
 		}
 	}
 });
@@ -920,9 +952,11 @@ async function promptToConnectViaTunnel(
 
 	// Trigger interactive auth for the chosen provider
 	const scopes = productService.tunnelApplicationConfig?.authenticationProviders?.[authProvider]?.scopes ?? [];
+	let signedIn = false;
 	try {
 		if (!(await authenticationService.getSessions(authProvider, scopes)).length) {
 			await authenticationService.createSession(authProvider, scopes, { activateImmediate: true });
+			signedIn = true;
 		}
 	} catch {
 		store.dispose();
@@ -940,11 +974,25 @@ async function promptToConnectViaTunnel(
 	}
 	tunnelPicker.show();
 
+	const listTunnels = () => diagnosticsService.trackDiscovery('interactive', onDiagnostic => tunnelService.listTunnels({ authProvider, onDiagnostic }));
 	try {
-		tunnels = await diagnosticsService.trackDiscovery('interactive', onDiagnostic => tunnelService.listTunnels({ authProvider, onDiagnostic }));
+		try {
+			tunnels = await listTunnels();
+		} catch (err) {
+			// The tunnel service can reject a GitHub session that works elsewhere. Like Remote - Tunnels, sign in
+			// again once, unless the session was just created.
+			if (!(err instanceof TunnelAuthenticationRequiredError) || signedIn || !tunnelService.signIn) {
+				throw err;
+			}
+			await tunnelService.signIn(err.authProvider);
+			tunnelPicker.show();
+			tunnels = await listTunnels();
+		}
 	} catch (err) {
 		store.dispose();
-		notificationService.error(localize('tunnelListFailed', "Failed to list dev tunnels: {0}", err instanceof Error ? err.message : String(err)));
+		if (!isCancellationError(err)) {
+			notificationService.error(localize('tunnelListFailed', "Failed to list dev tunnels: {0}", err instanceof Error ? err.message : String(err)));
+		}
 		return;
 	}
 

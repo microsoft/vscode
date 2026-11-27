@@ -13,6 +13,8 @@ import { applyModelConfigurationDefaults, assertModelConfigurationWritable, extr
 import { assertAutomationSessionTemplate, IAutomationSessionTemplate, isAutomationModelConfiguration } from '../../chat/common/automations/automation.js';
 import { createModelConfigurationActions, ILanguageModelsService, type IModelConfigurationAccess } from '../../chat/common/languageModels.js';
 
+export class InvalidStoredModelConfigurationError extends Error { }
+
 /** Model preferences for one session, retaining unavailable values independently of effective configuration. */
 export class AutomationModelConfiguration extends Disposable implements IModelConfigurationAccess {
 	private readonly preferences = new Map<string, IStringDictionary<unknown>>();
@@ -103,7 +105,7 @@ export class AutomationModelConfiguration extends Disposable implements IModelCo
 		const managedKeys = this.languageModelsService.lookupLanguageModel(modelId)?.managedModelDefaults?.keys;
 		const preferences = stored && Object.fromEntries(Object.entries(stored).filter(([key]) => !managedKeys?.includes(key) || this.ownKeys.get(modelId)?.has(key)));
 		if (preferences !== undefined && !isAutomationModelConfiguration(preferences)) {
-			throw new Error('Automation model configuration must contain only JSON primitive values.');
+			throw new InvalidStoredModelConfigurationError('Automation model configuration must contain only JSON primitive values.');
 		}
 		return preferences === undefined ? undefined : deepClone(preferences);
 	}

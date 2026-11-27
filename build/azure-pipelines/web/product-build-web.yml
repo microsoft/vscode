@@ -5,6 +5,11 @@ parameters:
   - name: mobile
     type: boolean
     default: false
+  # Whether to include the steps that need a privileged service connection
+  # (CDN uploads). Required: only builds of main and release/* branches
+  # pass true.
+  - name: VSCODE_PRIVILEGED_CONNECTIONS
+    type: boolean
 
 jobs:
   - job: ${{ iif(parameters.mobile, 'Mobile', 'Web') }}
@@ -159,17 +164,19 @@ jobs:
             GITHUB_TOKEN: "$(github-token-code-oss)"
           displayName: Build
 
-      - task: AzureCLI@2
-        displayName: Fetch secrets from Azure
-        inputs:
-          azureSubscription: vscode
-          scriptType: pscore
-          scriptLocation: inlineScript
-          addSpnToEnvironment: true
-          inlineScript: |
-            Write-Host "##vso[task.setvariable variable=AZURE_TENANT_ID]$env:tenantId"
-            Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_ID]$env:servicePrincipalId"
-            Write-Host "##vso[task.setvariable variable=AZURE_ID_TOKEN;issecret=true]$env:idToken"
+      # Dev builds never publish and must not reference the vscode connection.
+      - ${{ if eq(parameters.VSCODE_PRIVILEGED_CONNECTIONS, true) }}:
+        - task: AzureCLI@2
+          displayName: Fetch secrets from Azure
+          inputs:
+            azureSubscription: vscode
+            scriptType: pscore
+            scriptLocation: inlineScript
+            addSpnToEnvironment: true
+            inlineScript: |
+              Write-Host "##vso[task.setvariable variable=AZURE_TENANT_ID]$env:tenantId"
+              Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_ID]$env:servicePrincipalId"
+              Write-Host "##vso[task.setvariable variable=AZURE_ID_TOKEN;issecret=true]$env:idToken"
 
       - ${{ if not(parameters.mobile) }}:
         - script: |
@@ -179,6 +186,7 @@ jobs:
             AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
             AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
               node build/azure-pipelines/upload-cdn.ts
+          condition: and(succeeded(), eq(variables['VSCODE_PUBLISH'], 'True'))
           displayName: Upload to CDN
 
         - script: |
@@ -188,6 +196,7 @@ jobs:
             AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
             AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
               node build/azure-pipelines/upload-sourcemaps.ts out-vscode-web-min
+          condition: and(succeeded(), eq(variables['VSCODE_PUBLISH'], 'True'))
           displayName: Upload sourcemaps (Web)
 
         - script: |
@@ -197,6 +206,7 @@ jobs:
             AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
             AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
               node build/azure-pipelines/upload-nlsmetadata.ts
+          condition: and(succeeded(), eq(variables['VSCODE_PUBLISH'], 'True'))
           displayName: Upload NLS Metadata
 
       - ${{ if parameters.mobile }}:

@@ -16,11 +16,11 @@ import { IActionWidgetService } from '../../../../../../platform/actionWidget/br
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IOpenerService, OpenExternalOptions, OpenInternalOptions } from '../../../../../../platform/opener/common/opener.js';
 import { BrowserViewEditorId } from '../../../../browserView/common/browserView.js';
-import { chatArtifactPillOptions, ChatTurnPillsWidget, EMPTY_DIFF_STATS, openChatTurnFile, previewKind } from '../../../browser/widget/chatTurnPills.js';
+import { chatArtifactPillOptions, openChatTurnFile, previewKind } from '../../../browser/widget/chatTurnPills.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ChatPillActionViewItem, ChatPillsWidget, IChatPill, type IChatPillEntry, type IChatPillSection } from '../../../../../browser/chatPills.js';
 import { ChatChangesPillActionViewItem, EMPTY_CHAT_CHANGES_STATS } from '../../../../../browser/chatChangesPill.js';
-import { ChatDropdownPillActionViewItem } from '../../../../../browser/chatDropdownPill.js';
+import { ChatDropdownPillActionViewItem, createChatSectionPill } from '../../../../../browser/chatDropdownPill.js';
 import { ChatResourcePillActionViewItem } from '../../../../../browser/chatResourcePill.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../../browser/labels.js';
 import type { IActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
@@ -247,16 +247,13 @@ suite('ChatTurnPills', () => {
 			override hide(): void { }
 		});
 		const opened: string[] = [];
-		const widget = disposables.add(instantiationService.createInstance(ChatTurnPillsWidget, {
-			stats: constObservable(EMPTY_DIFF_STATS),
-			artifacts: constObservable<readonly IChatPillSection[]>([
-				{ title: 'Pull Requests', entries: [{ id: 'pr', label: '#12', icon: Codicon.gitPullRequest, ariaDescription: 'Pull request URL', hover: { content: 'https://github.com/microsoft/vscode/pull/12' }, open: () => opened.push('pr') }] },
-				{ title: 'Files', entries: [{ id: 'file', label: 'plan.md', resource: URI.file('/artifacts/plan.md'), open: () => opened.push('file') }] },
-			]),
-			changesEnabled: constObservable(false),
-			artifactsEnabled: constObservable(true),
-			openChanges() { },
-		}));
+		const resourceLabels = disposables.add(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
+		const action = disposables.add(new Action('test.artifacts', 'Open Artifact'));
+		const pill = createChatSectionPill(action, constObservable<readonly IChatPillSection[]>([
+			{ title: 'Pull Requests', entries: [{ id: 'pr', label: '#12', icon: Codicon.gitPullRequest, ariaDescription: 'Pull request URL', hover: { content: 'https://github.com/microsoft/vscode/pull/12' }, open: () => opened.push('pr') }] },
+			{ title: 'Files', entries: [{ id: 'file', label: 'plan.md', resource: URI.file('/artifacts/plan.md'), open: () => opened.push('file') }] },
+		]), chatArtifactPillOptions, resourceLabels, instantiationService);
+		const widget = disposables.add(instantiationService.createInstance(ChatPillsWidget, { pills: pill.map(value => [value]) }, undefined));
 		mainWindow.document.body.appendChild(widget.element);
 		disposables.add(toDisposable(() => widget.element.remove()));
 
@@ -290,13 +287,10 @@ suite('ChatTurnPills', () => {
 	test('summarizes a lone artifact, keeping only a file artifact inline', () => {
 		const renderArtifact = (section: IChatPillSection) => {
 			const instantiationService = workbenchInstantiationService(undefined, disposables);
-			const widget = disposables.add(instantiationService.createInstance(ChatTurnPillsWidget, {
-				stats: constObservable(EMPTY_DIFF_STATS),
-				artifacts: constObservable<readonly IChatPillSection[]>([section]),
-				changesEnabled: constObservable(false),
-				artifactsEnabled: constObservable(true),
-				openChanges() { },
-			}));
+			const resourceLabels = disposables.add(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
+			const action = disposables.add(new Action('test.artifacts', 'Open Artifact'));
+			const pill = createChatSectionPill(action, constObservable<readonly IChatPillSection[]>([section]), chatArtifactPillOptions, resourceLabels, instantiationService);
+			const widget = disposables.add(instantiationService.createInstance(ChatPillsWidget, { pills: pill.map(value => [value]) }, undefined));
 			mainWindow.document.body.appendChild(widget.element);
 			disposables.add(toDisposable(() => widget.element.remove()));
 

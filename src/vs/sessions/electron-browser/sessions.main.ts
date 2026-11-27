@@ -72,9 +72,9 @@ import type { Workbench as AgenticWorkbench } from '../browser/workbench.js';
 import { createSessionsWorkbench } from '../browser/workbenchFactory.js';
 import { NativeMenubarControl } from '../../workbench/electron-browser/parts/titlebar/menubarControl.js';
 import { IWorkspaceEditingService } from '../../workbench/services/workspaces/common/workspaceEditing.js';
-import { ConfigurationService } from '../services/configuration/browser/configurationService.js';
+import { AgentsConfigurationService } from '../../workbench/services/configuration/browser/agents/agentsConfigurationService.js';
 import { ConfigurationCache } from '../../workbench/services/configuration/common/configurationCache.js';
-import { SessionsWorkspaceContextService } from '../services/workspace/browser/workspaceContextService.js';
+import { AgentsWorkspaceContextService } from '../../workbench/services/configuration/browser/agents/agentsWorkspaceContextService.js';
 import { getWorkspaceIdentifier } from '../../platform/workspaces/common/workspaceIdentifier.js';
 
 export class SessionsMain extends Disposable {
@@ -177,7 +177,7 @@ export class SessionsMain extends Disposable {
 		this._register(workbench.onDidShutdown(() => this.dispose()));
 	}
 
-	private async initServices(): Promise<{ serviceCollection: ServiceCollection; logService: ILogService; storageService: NativeWorkbenchStorageService; configurationService: ConfigurationService }> {
+	private async initServices(): Promise<{ serviceCollection: ServiceCollection; logService: ILogService; storageService: NativeWorkbenchStorageService; configurationService: AgentsConfigurationService }> {
 		const serviceCollection = new ServiceCollection();
 
 
@@ -309,7 +309,7 @@ export class SessionsMain extends Disposable {
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 		const workspaceIdentifier = getWorkspaceIdentifier(environmentService.agentSessionsWorkspace);
-		const workspaceContextService = new SessionsWorkspaceContextService(workspaceIdentifier, uriIdentityService);
+		const workspaceContextService = new AgentsWorkspaceContextService(workspaceIdentifier, uriIdentityService);
 
 		// Workspace
 		serviceCollection.set(IWorkspaceContextService, workspaceContextService);
@@ -366,16 +366,16 @@ export class SessionsMain extends Disposable {
 	}
 
 	private async createConfigurationService(
-		workspaceContextService: SessionsWorkspaceContextService,
+		workspaceContextService: AgentsWorkspaceContextService,
 		userDataProfileService: IUserDataProfileService,
 		uriIdentityService: IUriIdentityService,
 		fileService: FileService,
 		logService: ILogService,
 		policyService: IPolicyService,
 		environmentService: INativeWorkbenchEnvironmentService,
-	): Promise<ConfigurationService> {
+	): Promise<AgentsConfigurationService> {
 		const configurationCache = new ConfigurationCache([Schemas.file, Schemas.vscodeUserData], environmentService, fileService);
-		const configurationService = new ConfigurationService(userDataProfileService, workspaceContextService, uriIdentityService, fileService, policyService, logService, configurationCache, environmentService);
+		const configurationService = new AgentsConfigurationService(userDataProfileService, workspaceContextService, uriIdentityService, fileService, policyService, logService, configurationCache, environmentService);
 		try {
 			await configurationService.initialize();
 		} catch (error) {

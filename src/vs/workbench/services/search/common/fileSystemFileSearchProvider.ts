@@ -6,7 +6,7 @@
 import { Limiter, Promises, raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
-import { compareItemsByFuzzyScore, FuzzyScorerCache, prepareQuery } from '../../../../base/common/fuzzyScorer.js';
+import { createItemsByFuzzyScoreComparator, FuzzyScorerCache, IItemAccessor, prepareQuery } from '../../../../base/common/fuzzyScorer.js';
 import * as glob from '../../../../base/common/glob.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
@@ -83,11 +83,12 @@ export class FileSystemFileSearchProvider extends Disposable implements ISearchR
 		if (query.sortByScore && query.filePattern && !query.shouldGlobMatchFilePattern) {
 			const prepared = prepareQuery(query.filePattern);
 			const scorerCache: FuzzyScorerCache = Object.create(null);
-			matches.sort((a, b) => compareItemsByFuzzyScore(a, b, prepared, true, {
+			const accessor: IItemAccessor<{ resource: URI; relativePath: string }> = {
 				getItemLabel: item => basename(item.resource),
 				getItemDescription: item => item.relativePath,
 				getItemPath: item => item.relativePath,
-			}, scorerCache));
+			};
+			matches.sort(createItemsByFuzzyScoreComparator(prepared, true, accessor, scorerCache));
 		}
 		const limit = query.exists ? 0 : query.maxResults || matches.length;
 		return {

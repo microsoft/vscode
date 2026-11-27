@@ -1,45 +1,86 @@
 name: @@NAME@@
 version: '@@VERSION@@'
+title: Visual Studio Code
 summary: Code editing. Redefined.
 description: |
   Visual Studio Code is a new choice of tool that combines the
   simplicity of a code editor with what developers need for the core
   edit-build-debug cycle.
+contact: https://github.com/microsoft/vscode
+issues: https://github.com/microsoft/vscode/issues
+source-code: https://github.com/microsoft/vscode
+website: https://code.visualstudio.com/
 
-architectures:
-  - build-on: amd64
-    run-on: @@ARCHITECTURE@@
+platforms:
+  @@ARCHITECTURE@@:
+    build-on: [@@BUILD_ON@@]
+    build-for: [@@ARCHITECTURE@@]
 
 grade: stable
 confinement: classic
-base: core20
+base: core24
 compression: lzo
+
+lint:
+  ignore:
+    - unused-library
+    - metadata:
+        - license
 
 parts:
   code:
     plugin: dump
     source: .
+    build-attributes:
+      - enable-patchelf
     stage-packages:
       - ca-certificates
-      - libasound2
-      - libatk-bridge2.0-0
-      - libatk1.0-0
-      - libatspi2.0-0
+      - libasound2t64
+      - libatk-bridge2.0-0t64
+      - libatk1.0-0t64
+      - libatspi2.0-0t64
       - libcairo2
       - libcanberra-gtk3-module
-      - libcurl3-gnutls
-      - libcurl3-nss
-      - libcurl4
+      - libcurl4t64
       - libegl1
       - libdrm2
       - libgbm1
       - libgl1
       - libgles2
-      - libglib2.0-0
-      - libgtk-3-0
+      - libgl1-mesa-dri
+      - libegl-mesa0
+      - libglx-mesa0
+      - libglu1-mesa
+      - libglut3.12
+      - libvulkan1
+      - mesa-vulkan-drivers
+      - libglib2.0-0t64
+      - libgtk-3-0t64
+      - libgtk-3-bin
+      - libgtk-3-common
       - libibus-1.0-5
+      - ibus-gtk3
+      - fcitx5-frontend-gtk3
       - libnss3
       - libpango-1.0-0
+      - librsvg2-common
+      - libdecor-0-0
+      - libdecor-0-plugin-1-cairo
+      - libdecor-0-plugin-1-gtk
+      - libpipewire-0.3-0t64
+      - libpipewire-0.3-modules
+      - libpulse0
+      - libpulse-mainloop-glib0
+      - pipewire-bin
+      - pipewire-pulse
+      - va-driver-all
+      - vdpau-driver-all
+      - libva-drm2
+      - libva2
+      - hicolor-icon-theme
+      - adwaita-icon-theme
+      - gtk-update-icon-cache
+      - shared-mime-info
       - libsecret-1-0
       - libwayland-egl1
       - libxcomposite1
@@ -55,32 +96,39 @@ parts:
     prime:
       - -usr/share/doc
       - -usr/share/fonts
-      - -usr/share/icons
       - -usr/share/lintian
       - -usr/share/man
     override-build: |
-      snapcraftctl build
-      patchelf --force-rpath --set-rpath '$ORIGIN/../../lib/x86_64-linux-gnu:$ORIGIN:/snap/core20/current/lib/x86_64-linux-gnu' $SNAPCRAFT_PART_INSTALL/usr/share/@@NAME@@/chrome_crashpad_handler
-      chmod 0755 $SNAPCRAFT_PART_INSTALL/usr/share/@@NAME@@/chrome-sandbox
+      craftctl default
+      patchelf --force-rpath --set-rpath '$ORIGIN/../../lib/@@MULTIARCH@@:$ORIGIN:/snap/core24/current/lib/@@MULTIARCH@@' "$CRAFT_PART_INSTALL/usr/share/@@NAME@@/chrome_crashpad_handler"
+      chmod 0755 "$CRAFT_PART_INSTALL/usr/share/@@NAME@@/chrome-sandbox"
   cleanup:
     after:
       - code
     plugin: nil
     build-snaps:
-      - core20
+      - core24
     override-prime: |
       set -eux
-      for snap in "core20"; do
-        cd "/snap/$snap/current" && find . -type f,l -exec rm -f "$SNAPCRAFT_PRIME/{}" \;
+      for snap in "core24"; do
+        (
+          cd "/snap/$snap/current"
+          find . -type f,l -exec sh -c 'prime=$1; shift; for p; do target="$prime/$p"; if [ -L "$target" ] || [ -f "$target" ]; then rm -f "$target"; fi; done' _ "$CRAFT_PRIME" {} +
+        )
       done
-      patchelf --print-rpath $SNAPCRAFT_PRIME/usr/share/@@NAME@@/chrome_crashpad_handler
-      ARCH_TRIPLET="${SNAPCRAFT_ARCH_TRIPLET:-x86_64-linux-gnu}"
+      patchelf --print-rpath "$CRAFT_PRIME/usr/share/@@NAME@@/chrome_crashpad_handler"
+      ARCH_TRIPLET="@@MULTIARCH@@"
+      for f in "$CRAFT_PRIME/usr/lib/$ARCH_TRIPLET"/libpulse.so.0.*; do
+        if [ -f "$f" ] && [ ! -L "$f" ]; then
+          patchelf --force-rpath --set-rpath '$ORIGIN:$ORIGIN/pulseaudio:/snap/core24/current/lib/'"$ARCH_TRIPLET" "$f"
+        fi
+      done
       for f in \
-        "$SNAPCRAFT_PRIME"/usr/share/@@NAME@@/resources/app/node_modules.asar.unpacked/@microsoft/copilot-sdk-linux-*/prebuilds/linux-*/copilot-runtime \
-        "$SNAPCRAFT_PRIME"/usr/share/@@NAME@@/resources/app/node_modules.asar.unpacked/@microsoft/copilot-sdk-linux-*/prebuilds/linux-*/runtime.node \
-        "$SNAPCRAFT_PRIME"/usr/share/@@NAME@@/resources/app/node_modules.asar.unpacked/@microsoft/copilot-sdk-linux-*/prebuilds/linux-*/libssl.so.3; do
+        "$CRAFT_PRIME"/usr/share/@@NAME@@/resources/app/node_modules.asar.unpacked/@microsoft/copilot-sdk-linux-*/prebuilds/linux-*/copilot-runtime \
+        "$CRAFT_PRIME"/usr/share/@@NAME@@/resources/app/node_modules.asar.unpacked/@microsoft/copilot-sdk-linux-*/prebuilds/linux-*/runtime.node \
+        "$CRAFT_PRIME"/usr/share/@@NAME@@/resources/app/node_modules.asar.unpacked/@microsoft/copilot-sdk-linux-*/prebuilds/linux-*/libssl.so.3; do
         if [ -f "$f" ]; then
-          patchelf --force-rpath --set-rpath '$ORIGIN:/snap/core20/current/lib/'"$ARCH_TRIPLET" "$f"
+          patchelf --force-rpath --set-rpath '$ORIGIN:/snap/core24/current/lib/'"$ARCH_TRIPLET" "$f"
         fi
       done
 

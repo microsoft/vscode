@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { toDisposable, Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
@@ -15,16 +16,11 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
-import { FolderLocationChangeReason, IFolderLocation, IFolderLocationChangeEvent, IFolderLocationGroup, IResolvedFolderLocation, IWorkspaceFolderLocationProvider, IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
+import { FolderLocationChangeReason, IFolderLocation, IFolderLocationChangeEvent, IFolderLocationGroup, IResolvedFolderLocation, IWorkspaceFolderLocationProvider, IWorkspaceFolderLocationService, withoutTrailingSeparator } from '../../../../platform/workspace/common/folderLocations.js';
 
 interface IRegisteredProvider {
 	readonly provider: IWorkspaceFolderLocationProvider;
 	readonly builtIn: boolean;
-}
-
-/** Unlike `removeTrailingPathSeparator`, this also strips the separator of a UNC share root, which names the same location without it. */
-function withoutTrailingSeparator(uri: URI): URI {
-	return uri.path.length > 1 && uri.path.endsWith('/') ? uri.with({ path: uri.path.slice(0, -1) }) : uri;
 }
 
 export class WorkspaceFolderLocationService extends Disposable implements IWorkspaceFolderLocationService {
@@ -85,7 +81,7 @@ export class WorkspaceFolderLocationService extends Disposable implements IWorks
 
 	async getFolderLocations(folder: IWorkspaceFolder, token: CancellationToken): Promise<IFolderLocation[]> {
 		const primary = this.getPrimaryLocation(folder);
-		const result: IFolderLocation[] = [{ uri: primary, label: basenameOrAuthority(primary) }];
+		const result: IFolderLocation[] = [{ uri: primary, label: basenameOrAuthority(primary), icon: Codicon.folder }];
 		if (this.isAtAlternateLocation(folder) || this.canSetLocation(folder)) {
 			const extUri = this.uriIdentityService.extUri;
 			const primaryWithoutSeparator = withoutTrailingSeparator(primary);
@@ -166,6 +162,10 @@ export class WorkspaceFolderLocationService extends Disposable implements IWorks
 			}
 		}
 		return groups;
+	}
+
+	areProvidersReady(): boolean {
+		return this.providers.every(({ provider }) => provider.isReady !== false);
 	}
 
 	async resolveLocation(primary: URI, location: URI, token: CancellationToken): Promise<IResolvedFolderLocation | undefined> {

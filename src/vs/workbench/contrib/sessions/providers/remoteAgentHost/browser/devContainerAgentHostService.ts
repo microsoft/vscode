@@ -25,7 +25,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
-import { ICreatedDevContainerEnvironment, IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerAgentHostService, IDevContainerAgentHostTarget, IDevContainerEnvironment } from '../../../common/devContainerAgentHostService.js';
+import { ICreatedDevContainerEnvironment, IDevContainerAgentHostConnection, IDevContainerAgentHostConnectionOptions, IDevContainerAgentHostConnector, IDevContainerAgentHostService, IDevContainerAgentHostTarget, IDevContainerEnvironment } from '../../../common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
 import { resolveRemoteAgentHostEntryAuthority } from '../../../browser/openInVSCodeUtils.js';
 import { devContainerSourcePath, getDevContainerSourceEntry, resolveDevContainerSourceConnection } from './devContainerSource.js';
@@ -81,7 +81,7 @@ function devContainerAddress(workspaceUri: URI): string {
 	return `devcontainer:${sha.digest()}`;
 }
 
-async function createDevContainerConnection(connector: IDevContainerAgentHostConnector, workspaceUri: URI, address: string, token: CancellationToken, options: { readonly resume: boolean; readonly sandboxEnabled?: boolean }): Promise<IDevContainerAgentHostConnection> {
+async function createDevContainerConnection(connector: IDevContainerAgentHostConnector, workspaceUri: URI, address: string, token: CancellationToken, options: IDevContainerAgentHostConnectionOptions): Promise<IDevContainerAgentHostConnection> {
 	const key = getComparisonKey(workspaceUri);
 	let inspectedSupport: boolean | undefined;
 	const listener = connector.onDidChangeSandboxSupport?.(event => {
@@ -167,12 +167,17 @@ class DevContainerConnectionFactory extends Disposable implements IRemoteAgentHo
 			throw new Error(`No Dev Container connection is staged for ${entry.connection.address}.`);
 		}
 
+		// A rebuilt connection of a Dev Container environment keeps the environment's name.
 		const connection = staged.initialConnection ?? await createDevContainerConnection(
 			staged.connector,
 			staged.workspaceUri,
 			entry.connection.address,
 			CancellationToken.None,
-			{ resume: options.userInitiated, ...(staged.sandboxEnabled !== undefined ? { sandboxEnabled: staged.sandboxEnabled } : {}) },
+			{
+				resume: options.userInitiated,
+				...(entry.connection.environmentId !== undefined ? { name: staged.entry.name } : {}),
+				...(staged.sandboxEnabled !== undefined ? { sandboxEnabled: staged.sandboxEnabled } : {}),
+			},
 		);
 		try {
 			const authority = agentHostAuthority(entry.connection.address);

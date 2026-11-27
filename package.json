@@ -2,12 +2,12 @@
   "name": "code-oss-dev",
   "version": "1.149.0",
   "packageManager": "pnpm@12.16.0",
-  "distro": "8d776751f96e7726cf67d97f7f00fbc95a505f57",
+  "distro": "07cc76761ccc9c4b7a8b87dc1abfe456e26701e1",
   "nativeBuild": {
     "runtime": "electron",
-    "target": "43.8.10",
+    "target": "43.8.13",
     "disturl": "https://electronjs.org/headers",
-    "msBuildId": "16052126",
+    "msBuildId": "16141353",
     "buildFromSource": true
   },
   "author": {
@@ -21,7 +21,7 @@
     "test": "node -e \"console.error('Run a test script from the scripts folder, for example: ./scripts/test.sh --run <file>.'); process.exit(1)\"",
     "test-browser": "pnpm exec playwright install && node test/unit/browser/index.js",
     "test-browser-no-install": "node test/unit/browser/index.js",
-    "test-node": "mocha test/unit/node/index.js --delay --ui=tdd --exit",
+    "test-node": "mocha test/unit/node/index.ts --delay --ui=tdd --exit",
     "test-extension": "vscode-test",
     "test-build-scripts": "pnpm -C build run test",
     "test-agent-host-e2e": "node test/integration/agentHost/runner.ts",
@@ -36,6 +36,7 @@
     "build-fast": "node build/next/build-fast.ts",
     "build-fast-extensions": "pnpm run gulp copy-codicons compile-extensions compile-extension-media",
     "typecheck-client": "tsc --project ./src/tsconfig.json --noEmit --skipLibCheck",
+    "typecheck-test-unit": "tsc --project test/unit/tsconfig.json",
     "codex:gen-protocol": "node build/codex/generate-protocol.mjs",
     "codex:check-protocol": "node build/codex/check-protocol-sync.ts",
     "agent-host:generate-copilot-meta": "node build/agentHost/generateCopilotMetadata.ts",
@@ -113,7 +114,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
     "@devcontainers/cli": "0.88.0",
-    "@microsoft/copilot-sdk": "2.0.1",
+    "@microsoft/copilot-sdk": "2.0.3",
     "@hpke/core": "^1.9.0",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
@@ -124,7 +125,7 @@
     "@microsoft/dev-tunnels-ssh-tcp": "^3.12.22",
     "@parcel/watcher": "^2.5.6",
     "@types/semver": "^7.5.8",
-    "@vscode/codicons": "^0.0.46-51",
+    "@vscode/codicons": "^0.0.46-53",
     "@vscode/copilot-api": "^0.5.2",
     "@vscode/deviceid": "^0.1.1",
     "@vscode/diff": "0.0.2-154",
@@ -184,7 +185,7 @@
   "devDependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.3.304",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@openai/codex": "0.163.0",
+    "@openai/codex": "0.170.0",
     "@playwright/cli": "^0.1.22",
     "@playwright/test": "^1.61.1",
     "@types/chrome-remote-interface": "^0.33.0",
@@ -239,11 +240,11 @@
     "gulp-rename": "^1.2.0",
     "gulp-replace": "^0.5.4",
     "gulp-sourcemaps": "^3.0.0",
-    "husky": "^0.13.1",
     "innosetup": "^6.4.1",
     "js-yaml": "^4.2.0",
     "json-schema-to-typescript": "16.0.0",
     "lazy.js": "^0.4.2",
+    "minimatch": "^3.1.5",
     "mocha": "^10.8.2",
     "mocha-junit-reporter": "^2.2.1",
     "mocha-multi-reporters": "^1.5.1",
@@ -263,7 +264,6 @@
     "tslib": "^2.6.3",
     "typanion": "^3.14.0",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
-    "util": "^0.12.4",
     "vinyl-fs": "^3.0.3",
     "xml2js": "^0.5.0"
   },
@@ -277,5 +277,5 @@
   "optionalDependencies": {
     "windows-foreground-love": "0.6.1"
   },
-  "copilotRuntimeVersion": "1.0.114"
+  "copilotRuntimeVersion": "1.0.116"
 }

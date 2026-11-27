@@ -18,6 +18,11 @@ import { IPosition, Position } from '../../../common/core/position.js';
 import { IViewModel } from '../../../common/viewModel.js';
 
 /**
+ * Clearance kept between a widget overflowing the editor and the left/right edges of the window.
+ */
+const OVERFLOWING_WIDGET_WINDOW_PADDING = 15;
+
+/**
  * This view part is responsible for rendering the content widgets, which are
  * used for rendering elements that are associated to an editor position,
  * such as suggestions or the parameter hints.
@@ -291,11 +296,12 @@ class Widget {
 	private _getMaxWidth(): number {
 		const elDocument = this.domNode.domNode.ownerDocument;
 		const elWindow = elDocument.defaultView;
-		return (
-			this.allowEditorOverflow
-				? elWindow?.innerWidth || elDocument.documentElement.offsetWidth || elDocument.body.offsetWidth
-				: this._contentWidth
-		);
+		if (!this.allowEditorOverflow) {
+			return this._contentWidth;
+		}
+		const windowWidth = elWindow?.innerWidth || elDocument.documentElement.offsetWidth || elDocument.body.offsetWidth;
+		// A wider widget cannot keep the padding on both sides of the window, see _layoutHorizontalSegmentInPage
+		return Math.max(0, windowWidth - 2 * OVERFLOWING_WIDGET_WINDOW_PADDING);
 	}
 
 	public setPosition(primaryAnchor: IPosition | null, secondaryAnchor: IPosition | null, preference: ContentWidgetPositionPreference[] | null, affinity: PositionAffinity | null): void {
@@ -343,13 +349,9 @@ class Widget {
 	}
 
 	private _layoutHorizontalSegmentInPage(windowSize: dom.Dimension, domNodePosition: dom.IDomNodePagePosition, left: number, width: number): [number, number] {
-		// Leave some clearance to the left/right
-		const LEFT_PADDING = 15;
-		const RIGHT_PADDING = 15;
-
 		// Initially, the limits are defined as the dom node limits
-		const MIN_LIMIT = Math.max(LEFT_PADDING, domNodePosition.left - width);
-		const MAX_LIMIT = Math.min(domNodePosition.left + domNodePosition.width + width, windowSize.width - RIGHT_PADDING);
+		const MIN_LIMIT = Math.max(OVERFLOWING_WIDGET_WINDOW_PADDING, domNodePosition.left - width);
+		const MAX_LIMIT = Math.min(domNodePosition.left + domNodePosition.width + width, windowSize.width - OVERFLOWING_WIDGET_WINDOW_PADDING);
 
 		const elDocument = this._viewDomNode.domNode.ownerDocument;
 		const elWindow = elDocument.defaultView;

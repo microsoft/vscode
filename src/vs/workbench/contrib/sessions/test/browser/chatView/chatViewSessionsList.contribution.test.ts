@@ -49,7 +49,8 @@ import { ChatViewSessionsGate } from '../../../browser/chatView/chatViewSessions
 import { ILocalChatAvailabilityService, LocalChatAvailabilityService } from '../../../../chat/common/localChatAvailability.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
 import { Menus } from '../../../browser/menus.js';
-import { SessionGroupToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionsList } from '../../../browser/views/sessionsList.js';
+import { SessionsList } from '../../../browser/views/sessionsList.js';
+import { SessionGroupToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId } from '../../../browser/views/sessionsListCommon.js';
 import { ISessionChange, ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { EditorWindowSessionsPresenterService, IEditorWindowSessionsPresenter, IEditorWindowSessionsPresenterService } from '../../../browser/editorWindow/editorWindowSessionsPresenter.js';
 import { EditorWindowSessionsService } from '../../../browser/agentsView/editorWindowSessionsService.js';
@@ -154,7 +155,7 @@ suite('ChatViewSessionsGate', () => {
 		instantiationService.stub(ILocalChatAvailabilityService, disposables.add(new LocalChatAvailabilityService()));
 		instantiationService.stub(IEditorWindowSessionsRuntime, upcastPartial<IEditorWindowSessionsRuntime>({ enable: () => { runtimeHolds++; return toDisposable(() => runtimeHolds--); } }));
 		instantiationService.stub(IEditorWindowSessionsPresenterService, upcastPartial<IEditorWindowSessionsPresenterService>({ presenter: constObservable(upcastPartial<IEditorWindowSessionsPresenter>({ openChat: async session => { opened.push(session.sessionId); } })) }));
-		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, getWorkspace: () => upcastPartial<ReturnType<IWorkspaceContextService['getWorkspace']>>({ folders: [] }) }));
+		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, onDidChangeWorkbenchScope: Event.None, getWorkbenchScope: () => URI.file('/workspace'), getWorkspace: () => upcastPartial<ReturnType<IWorkspaceContextService['getWorkspace']>>({ folders: [] }) }));
 		instantiationService.stub(ISessionHost, upcastPartial<ISessionHost>({}));
 		instantiationService.stub(IEditorWindowShownChatService, new EditorWindowShownChatService());
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({}));
@@ -515,7 +516,7 @@ suite('ChatViewSessionsGate', () => {
 
 	test('the Chat view keeps its own chat input with the sessions list, for new chats and the chats it shows: the list provides only its control and header', () => {
 		const view = upcastPartial<SessionsView>({ element: document.createElement('div'), render: () => { }, setVisible: () => { }, dispose: () => { } });
-		const workspaceContextService = upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, getWorkspace: () => upcastPartial<ReturnType<IWorkspaceContextService['getWorkspace']>>({ folders: [] }) });
+		const workspaceContextService = upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, onDidChangeWorkbenchScope: Event.None, getWorkbenchScope: () => URI.file('/workspace'), getWorkspace: () => upcastPartial<ReturnType<IWorkspaceContextService['getWorkspace']>>({ folders: [] }) });
 		const list = new ChatViewSessionsListProvider(workspaceContextService).create(document.createElement('div'), createListInstantiationService(view, upcastPartial<ISessionsManagementService>({})), { overrideStyles: {} });
 		disposables.add(list.control);
 
@@ -525,7 +526,7 @@ suite('ChatViewSessionsGate', () => {
 	test('revealing the chat that the Chat view shows reveals its session, also for a peer chat of the session, whose resource differs from the session\'s', () => {
 		const revealed: string[] = [];
 		const view = upcastPartial<SessionsView>({ element: document.createElement('div'), render: () => { }, setVisible: () => { }, dispose: () => { }, sessionsControl: upcastPartial<SessionsList>({ reveal: (resource: URI) => { revealed.push(resource.path); return resource.path === '/session'; }, setAriaDescription: () => { } }) });
-		const workspaceContextService = upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, getWorkspace: () => upcastPartial<ReturnType<IWorkspaceContextService['getWorkspace']>>({ folders: [] }) });
+		const workspaceContextService = upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, onDidChangeWorkbenchScope: Event.None, getWorkbenchScope: () => URI.file('/workspace'), getWorkspace: () => upcastPartial<ReturnType<IWorkspaceContextService['getWorkspace']>>({ folders: [] }) });
 		const session = upcastPartial<ISession>({ resource: URI.parse('agent-host-copilot:/session') });
 		const sessionsManagementService = upcastPartial<ISessionsManagementService>({ getSessionForChatResource: resource => resource.path === '/peer' ? { session, chat: upcastPartial<IChat>({ resource }) } : undefined });
 		const list = new ChatViewSessionsListProvider(workspaceContextService).create(document.createElement('div'), createListInstantiationService(view, sessionsManagementService), { overrideStyles: {} });

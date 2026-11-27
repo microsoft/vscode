@@ -15,7 +15,9 @@
     "documentSyntaxHighlighting",
     "externalUriOpener",
     "linkPresentation",
-    "textEditorDiffInformation"
+    "textDocumentReadonly",
+    "textEditorDiffInformation",
+    "workspaceEditUndoStops"
   ],
   "engines": {
     "vscode": "^1.70.0"

@@ -13,7 +13,6 @@ steps:
     inputs:
       azureSubscription: vscode-cdn
       scriptType: bash
-      addSpnToEnvironment: true
       scriptLocation: inlineScript
       inlineScript: |
         set -e

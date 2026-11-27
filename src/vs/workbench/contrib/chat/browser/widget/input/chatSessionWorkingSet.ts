@@ -84,6 +84,8 @@ export interface IChatSessionWorkingSetFileActions {
 	readonly undo: IObservable<IChatSessionWorkingSetUndo | undefined>;
 	/** The current session, resolved at invocation time because this widget survives session switches. */
 	readonly editingSession?: () => IChatEditingSession | undefined;
+	/** Opens all the changes in the session's own Changes editor, resolving to whether it did; else View All Edits opens them in a multi diff editor. */
+	readonly openAll?: () => Promise<boolean>;
 }
 
 const VIEW_ALL_EDITS_ACTION_ID = 'chat.sessionWorkingSet.viewAll';
@@ -219,7 +221,7 @@ export class ChatSessionWorkingSet extends Disposable {
 					id: VIEW_ALL_EDITS_ACTION_ID,
 					label: localize('chat.sessionWorkingSet.viewAll', "View All Edits"),
 					class: ThemeIcon.asClassName(Codicon.diffMultiple),
-					run: () => {
+					run: async () => {
 						const session = this._fileActions.editingSession?.();
 						const diffs = this._diffs.read(undefined);
 						const reviewFiles = session?.additionalReviewFiles?.read(undefined);
@@ -227,6 +229,9 @@ export class ChatSessionWorkingSet extends Disposable {
 							&& diffs.every(diff => reviewFiles.some(file => isEqual(file.modifiedURI, diff.modifiedURI))
 								&& session.getEntry(diff.modifiedURI)?.state.read(undefined) === ModifiedFileEntryState.Modified)) {
 							return session.show();
+						}
+						if (await this._fileActions.openAll?.()) {
+							return;
 						}
 						return openChatFileChanges(this._editorService, localize('chat.sessionWorkingSet.changesEditor', "Session Changes"), diffs);
 					},

@@ -6,7 +6,7 @@ import { detectLanguage } from './language/languageDetection';
 import { normalizeUri } from './util/uri';
 import { TextEdit } from '../../types/src';
 import { TextDocument as LspTextDocument } from 'vscode-languageserver-textdocument';
-import { Position, Range, SelectedCompletionInfo } from 'vscode-languageserver-types';
+import { Position, Range, type SelectedCompletionInfo } from 'vscode-languageserver-protocol';
 
 export { type Position as IPosition, type Range as IRange } from '../../types/src';
 

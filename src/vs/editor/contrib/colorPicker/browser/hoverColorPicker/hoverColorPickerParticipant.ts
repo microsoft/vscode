@@ -18,7 +18,7 @@ import * as nls from '../../../../../nls.js';
 import { BaseColor, ColorPickerWidgetType, createColorHover, updateColorPresentations, updateEditorModel } from '../colorPickerParticipantUtils.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { Dimension } from '../../../../../base/browser/dom.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Color } from '../../../../../base/common/color.js';
 import { HoverStartSource } from '../../../hover/browser/hoverOperation.js';
 
@@ -55,6 +55,7 @@ export class HoverColorPickerParticipant implements IEditorHoverParticipant<Colo
 	public readonly hoverOrdinal: number = 2;
 
 	private _colorPicker: ColorPickerWidget | undefined;
+	private _colorPickerRange: Range | undefined;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -119,7 +120,16 @@ export class HoverColorPickerParticipant implements IEditorHoverParticipant<Colo
 		const colorHover = hoverParts[0];
 		const editorModel = editor.getModel();
 		const model = colorHover.model;
-		this._colorPicker = disposables.add(new ColorPickerWidget(context.fragment, model, editor.getOption(EditorOption.pixelRatio), this._themeService, ColorPickerWidgetType.Hover));
+		const colorPicker = disposables.add(new ColorPickerWidget(context.fragment, model, editor.getOption(EditorOption.pixelRatio), this._themeService, ColorPickerWidgetType.Hover));
+		this._colorPicker = colorPicker;
+		this._colorPickerRange = colorHover.range;
+		// A hover update can drop the picker without hiding the hover, and renders a replacement before disposing the old one
+		disposables.add(toDisposable(() => {
+			if (this._colorPicker === colorPicker) {
+				this._colorPicker = undefined;
+				this._colorPickerRange = undefined;
+			}
+		}));
 
 		let editorUpdatedByColorPicker = false;
 		let range = new Range(colorHover.range.startLineNumber, colorHover.range.startColumn, colorHover.range.endLineNumber, colorHover.range.endColumn);
@@ -128,6 +138,10 @@ export class HoverColorPickerParticipant implements IEditorHoverParticipant<Colo
 			await updateColorPresentations(editorModel, model, color, range, colorHover);
 			editorUpdatedByColorPicker = true;
 			range = updateEditorModel(editor, range, model);
+			// The edits can move the color, and the picker can be hidden or replaced while presentations are computed
+			if (this._colorPicker === colorPicker) {
+				this._colorPickerRange = range;
+			}
 		}));
 		disposables.add(model.onDidChangeColor((color: Color) => {
 			updateColorPresentations(editorModel, model, color, range, colorHover);
@@ -163,9 +177,14 @@ export class HoverColorPickerParticipant implements IEditorHoverParticipant<Colo
 	public handleHide(): void {
 		this._colorPicker?.dispose();
 		this._colorPicker = undefined;
+		this._colorPickerRange = undefined;
 	}
 
 	public isColorPickerVisible(): boolean {
 		return !!this._colorPicker;
+	}
+
+	public getColorPickerRange(): Range | undefined {
+		return this._colorPickerRange;
 	}
 }

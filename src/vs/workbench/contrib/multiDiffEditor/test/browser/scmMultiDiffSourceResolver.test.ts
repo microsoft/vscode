@@ -5,11 +5,12 @@
 
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IActivityService } from '../../../../services/activity/common/activity.js';
+import { IActivity, IActivityService, ProgressBadge } from '../../../../services/activity/common/activity.js';
 import { ISCMHistoryProvider } from '../../../scm/common/history.js';
 import { ISCMProvider, ISCMRepository, ISCMResource, ISCMResourceGroup, ISCMService } from '../../../scm/common/scm.js';
 import { ScmMultiDiffSourceResolver, ScmHistoryItemResolver } from '../../browser/scmMultiDiffSourceResolver.js';
@@ -78,6 +79,95 @@ suite('ScmMultiDiffSourceResolver', () => {
 				'/repository/githubUri.ts',
 			]
 		);
+	});
+
+	function createProgressFixture(initialResources: ISCMResource[]) {
+		const resources = [...initialResources];
+		const onDidChangeResources = disposables.add(new Emitter<void>());
+		const group = new class extends mock<ISCMResourceGroup>() {
+			override readonly id = 'index';
+			override readonly label = 'Staged Changes';
+			override readonly resources = resources;
+			override readonly onDidChangeResources = onDidChangeResources.event;
+		}();
+		const provider = new class extends mock<ISCMProvider>() {
+			override readonly id = 'scm0';
+			override readonly providerId = 'scm0';
+			override readonly rootUri = URI.file('/repository');
+			override readonly groups = [group];
+			override readonly onDidChangeResourceGroups = Event.None;
+		}();
+		const repository = new class extends mock<ISCMRepository>() {
+			override readonly id = provider.id;
+			override readonly provider = provider;
+		}();
+		const scmService = new class extends mock<ISCMService>() {
+			override readonly onDidAddRepository = Event.None;
+			override get repositories(): Iterable<ISCMRepository> { return [repository]; }
+		}();
+
+		let activities: IActivity[] = [{ badge: new ProgressBadge(() => 'Generating commit message...') }];
+		const onDidChangeActivity = disposables.add(new Emitter<string>());
+		const activityService = new class extends mock<IActivityService>() {
+			override readonly onDidChangeActivity = onDidChangeActivity.event;
+			override getViewContainerActivities() { return activities; }
+		}();
+
+		const resolver = new ScmMultiDiffSourceResolver(scmService, activityService);
+		let resolved = false;
+		const sourcePromise = resolver.resolveDiffSource(ScmMultiDiffSourceResolver.getMultiDiffSourceUri(provider.rootUri.toString(), group.id))
+			.then(source => { resolved = true; return source; });
+
+		return {
+			sourcePromise,
+			isResolved: () => resolved,
+			addResource: (resource: ISCMResource) => { resources.push(resource); onDidChangeResources.fire(); },
+			endProgress: () => { activities = []; onDidChangeActivity.fire('workbench.view.scm'); },
+		};
+	}
+
+	function createResource(path: string): ISCMResource {
+		return new class extends mock<ISCMResource>() {
+			override readonly sourceUri = URI.file(path);
+			override readonly multiDiffEditorModifiedUri = this.sourceUri;
+		}();
+	}
+
+	test('does not wait for SCM progress when the group has resources', async () => {
+		const fixture = createProgressFixture([createResource('/repository/app.js')]);
+
+		const source = await fixture.sourcePromise;
+		assert.deepStrictEqual(source.resources.value.map(resource => resource.goToFileUri?.path), ['/repository/app.js']);
+
+		fixture.endProgress();
+	});
+
+	test('waits for SCM progress while the group is empty', async () => {
+		const fixture = createProgressFixture([]);
+
+		await timeout(0);
+		const resolvedDuringProgress = fixture.isResolved();
+		fixture.endProgress();
+		const source = await fixture.sourcePromise;
+
+		assert.deepStrictEqual({ resolvedDuringProgress, resources: source.resources.value.length }, { resolvedDuringProgress: false, resources: 0 });
+	});
+
+	test('stops waiting for SCM progress when resources are added to an empty group', async () => {
+		const fixture = createProgressFixture([]);
+
+		await timeout(0);
+		const resolvedBeforeResources = fixture.isResolved();
+		fixture.addResource(createResource('/repository/app.js'));
+		const source = await fixture.sourcePromise;
+
+		assert.deepStrictEqual({
+			resolvedBeforeResources,
+			resources: source.resources.value.map(resource => resource.goToFileUri?.path),
+		}, {
+			resolvedBeforeResources: false,
+			resources: ['/repository/app.js'],
+		});
 	});
 });
 
