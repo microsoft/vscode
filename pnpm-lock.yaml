@@ -1073,9 +1073,6 @@ importers:
       vscode-languageserver-textdocument:
         specifier: ^1.0.12
         version: 1.0.12
-      vscode-languageserver-types:
-        specifier: ^3.17.5
-        version: 3.17.5
       yaml:
         specifier: ^2.8.0
         version: 2.8.3
@@ -1124,9 +1121,6 @@ importers:
       vscode-languageserver-textdocument:
         specifier: ^1.0.12
         version: 1.0.12
-      vscode-languageserver-types:
-        specifier: ^3.17.5
-        version: 3.17.5
       web-tree-sitter:
         specifier: ^0.23.0
         version: 0.23.2
