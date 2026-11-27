@@ -1050,22 +1050,32 @@ export class SessionPermissionManager extends Disposable {
 		if (e.permissionKind === AgentPermissionKind.Shell && e.shellLanguage && this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveEnabledConfigKey) !== false) {
 			const commandLine = e.shellCommand ?? getInlineToolInput(e.state.toolInput);
 			if (commandLine) {
-				const evaluation = this._commandAutoApprover.evaluate(commandLine, this._shellAutoApproveOptions(sessionKey, {
+				const shellOptions = this._shellAutoApproveOptions(sessionKey, {
 					kind: AgentPermissionKind.Shell,
 					toolName: this._getToolNameForToolCall(sessionKey, e.state.toolCallId) ?? e.state.toolName,
 					shellLanguage: e.shellLanguage,
-				}));
-				if (!evaluation.hasUnsafeSubCommand && !evaluation.hasAskRule && evaluation.unapprovedSubCommands?.length) {
-					const { subCommandKeys, offerExactCommandLine } = suggestAutoApproveRuleKeys(commandLine, evaluation.unapprovedSubCommands);
+				});
+				const evaluation = this._commandAutoApprover.evaluate(commandLine, shellOptions);
+				const unapproved = evaluation.unapprovedSubCommands ?? [];
+				// Only saved rules can satisfy a reviewer, so a grant must also cover the sub-commands that implicit defaults approve.
+				// Those get exact rules: a prefix rule would also override the defaults' deny rules for riskier forms of the command.
+				// When one of them has no exact rule, the prompt offers what it would without the reviewer.
+				const defaultApprovedRules = e.requiresUserConfirmation
+					? [...new Set(this._commandAutoApprover.evaluate(commandLine, { ...shellOptions, defaultRules: {} }).unapprovedSubCommands
+						?.filter(command => !unapproved.includes(command)).map(command => shellExactRule(command)))]
+					: [];
+				const coveringRules = defaultApprovedRules.every(isDefined) ? defaultApprovedRules : [];
+				if (!evaluation.hasUnsafeSubCommand && !evaluation.hasAskRule && (unapproved.length || coveringRules.length)) {
+					const { subCommandKeys, offerExactCommandLine } = suggestAutoApproveRuleKeys(commandLine, unapproved);
 					const alwaysOptions: ConfirmationOption[] = [];
 					if (subCommandKeys.length) {
 						const commands = subCommandKeys.map(key => `\`${key} …\``).join(', ');
 						const label = subCommandKeys.length === 1 ? commands : localize('sessionPermissions.commands', "Commands {0}", commands);
-						const rules = subCommandKeys.map(key => shellPrefixRule(key));
+						const rules = [...subCommandKeys.map(key => shellPrefixRule(key)), ...coveringRules];
 						add(localize('sessionPermissions.allowCommand', "Allow {0} in this Session", label), rules);
 						alwaysOptions.push(permissionGrantOption(localize('sessionPermissions.alwaysAllowCommand', "Always Allow {0}", label), rules, PermissionGrantScope.Host));
 					}
-					const exactRules = evaluation.unapprovedSubCommands.map(command => shellExactRule(command));
+					const exactRules = [...unapproved.map(command => shellExactRule(command)), ...coveringRules];
 					if (offerExactCommandLine && exactRules.every(isDefined)) {
 						add(localize('sessionPermissions.allowExactCommand', "Allow Exact Command in this Session"), exactRules);
 						alwaysOptions.push(permissionGrantOption(localize('sessionPermissions.alwaysAllowExactCommand', "Always Allow Exact Command"), exactRules, PermissionGrantScope.Host));

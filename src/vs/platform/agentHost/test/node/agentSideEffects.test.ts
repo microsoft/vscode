@@ -6411,8 +6411,11 @@ suite('AgentSideEffects', () => {
 				sideEffects.handleAction(defaultChatUri, confirmation);
 				await waitForState(stateManager, () => toolCalls()[1].status === ToolCallStatus.Running || undefined);
 
+				// One at a time: each evaluation resolves paths asynchronously, so concurrent requests answer in no fixed order.
 				requestRead('tc-repeat', granted);
+				await waitForStatuses(3);
 				requestRead('tc-unattended', granted, true);
+				await waitForStatuses(4);
 				requestRead('tc-other', URI.file(resolve('/outside/other.md')).fsPath);
 				await waitForStatuses(5);
 				assert.deepStrictEqual({

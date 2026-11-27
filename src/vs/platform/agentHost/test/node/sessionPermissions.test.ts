@@ -643,6 +643,49 @@ suite('SessionPermissionManager', () => {
 		]);
 	});
 
+	test('reviewer-required shell confirmations offer grants that also cover sub-commands implicit defaults approve', async () => {
+		const explicit = { explicitRulesOnly: true };
+		const command = 'my-command --flag && git status';
+		const manual = confirmationSignal({ permissionKind: AgentPermissionKind.Shell, shellCommand: command, shellLanguage: 'bash' });
+		const required: IAgentToolPendingConfirmationSignal = { ...manual, requiresUserConfirmation: true };
+		const chat = required.chat.toString();
+		const event = { ...shellEvent(command, 'bash'), toolCallId: required.state.toolCallId };
+		const optionIds = (signal: IAgentToolPendingConfirmationSignal) => permissions.createToolReadyAction(signal, chat, 'turn').options?.map(option => option.id);
+		const grant = 'allow-session-rules:["Shell(my-command *)","Shell(git status)"]';
+		setPermissionRules([]);
+		const offered = {
+			manual: optionIds(manual),
+			required: optionIds(required),
+			// A sub-command that defaults approve gets an exact rule only: a prefix rule would also allow the forms defaults deny, such as `find -delete`.
+			defaultsOnly: optionIds({ ...required, shellCommand: 'find . -name x' }),
+			withoutExactRule: optionIds({ ...required, shellCommand: 'find . -name *.log' }),
+		};
+		startConfirmation(required);
+		const before = await permissions.getAutoApproval(event, chat, explicit);
+		confirmToolCall(chat, required.state.toolCallId, grant);
+		const after = await permissions.getAutoApproval(event, chat, explicit);
+		setPermissionRules(['Shell(find . -name x)']);
+		const exactOnly = await Promise.all(['find . -name x', 'find . -name x -delete']
+			.map(variant => permissions.getAutoApproval(shellEvent(variant, 'bash'), sessionUri, explicit)));
+		assert.deepStrictEqual({ offered, before, after, exactOnly }, {
+			offered: {
+				manual: [
+					'allow-once', 'allow-session-rules:["Shell(my-command *)"]', 'allow-session-rules:["Shell(my-command --flag)"]',
+					'allow-always-rules:["Shell(my-command *)"]', 'allow-always-rules:["Shell(my-command --flag)"]', 'skip',
+				],
+				required: [
+					'allow-once', grant, 'allow-session-rules:["Shell(my-command --flag)","Shell(git status)"]',
+					'allow-always-rules:["Shell(my-command *)","Shell(git status)"]', 'allow-always-rules:["Shell(my-command --flag)","Shell(git status)"]', 'skip',
+				],
+				defaultsOnly: ['allow-once', 'allow-session-rules:["Shell(find . -name x)"]', 'allow-always-rules:["Shell(find . -name x)"]', 'skip'],
+				withoutExactRule: ['allow-once', 'skip'],
+			},
+			before: undefined,
+			after: ToolCallConfirmationReason.Setting,
+			exactOnly: [ToolCallConfirmationReason.Setting, undefined],
+		});
+	});
+
 	test('unsafe, unparseable and disabled shell commands offer no scoped grants', () => {
 		const commands = [
 			confirmationSignal({ permissionKind: AgentPermissionKind.Shell, shellCommand: 'FOO=bar custom-command', shellLanguage: 'bash' }),
