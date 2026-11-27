@@ -1820,7 +1820,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			getProviderEnvironmentId: providerId => this._sessionsProvidersService.getProvider(providerId)?.environment.id,
 			inboxAttention: this.sessionAttentionService.sessionAttention.get(),
 			getInboxState: session => this._sessionsListModelService.getInboxState(session),
-			savedSectionCollapseState: new Map(Object.entries(this.readSectionCollapseState())),
+			savedSectionCollapseState: new Map(Object.entries(this.readSectionCollapseState()).filter((entry): entry is [string, boolean] => typeof entry[1] === 'boolean')),
 			collapsedSessionResources: this.collapsedSessionResources,
 			sessionGroupExpansion: this.loadSessionGroupExpansion(),
 			hasFindPattern: this.hasFindPattern,

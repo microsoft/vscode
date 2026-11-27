@@ -4285,6 +4285,36 @@ suite('Sessions - SessionsList', () => {
 			assert.strictEqual(second.list.getItemRow({ section: second.sectionId })?.getAttribute('aria-expanded'), 'false');
 			second.list.dispose();
 		});
+
+		test('ignores non-boolean saved collapse entries and falls back to a valid legacy key', () => {
+			const workspaceResource = URI.parse('vscode-agent-host://stable-host/project');
+			const label = 'project [Host]';
+			const session = createSession('1', { workspaceLabel: label, workspaceResource });
+			const harness = createListHarness(disposables, [session]);
+			const storageService = harness.instantiationService.get(IStorageService);
+			const resourceStateId = `workspace:${workspaceResource.toString()}`;
+			storageService.store(
+				'sessionsListControl.sectionCollapseState',
+				JSON.stringify({ [resourceStateId]: 'false', [`workspace:${label}`]: true }),
+				StorageScope.PROFILE,
+				StorageTarget.USER,
+			);
+
+			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+				grouping: () => SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+
+			assert.deepStrictEqual({
+				expanded: list.getItemRow({ section: `workspace:${label}` })?.getAttribute('aria-expanded'),
+				persisted: JSON.parse(storageService.get('sessionsListControl.sectionCollapseState', StorageScope.PROFILE)!),
+			}, {
+				expanded: 'false',
+				persisted: { [resourceStateId]: true },
+			});
+		});
 	});
 
 	suite('groupByRepository', () => {
