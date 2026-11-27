@@ -51,6 +51,18 @@
  * it, and the client then rolls back. Untrusted folders are never added, though
  * removals still proceed since they only reduce access.
  *
+ * A folder stays in the session, even after it leaves the workspace, while the
+ * host would refuse its removal:
+ *
+ * - **Chat-scoped** — a chat lists it in its own `workingDirectories` (for
+ *   example, the host pins a chat to the folders it had when another folder is
+ *   added). The session state says so, and the folder is removed once no chat
+ *   is scoped to it.
+ * - **Refused** — the host rejected its removal for a reason the client cannot
+ *   see, such as a chat being created in it or moved to it. It is not
+ *   dispatched again until an input changes: the workspace folders, trust, the
+ *   session's chats or their folders, or the registration.
+ *
  * Only sessions that can safely follow the workspace are eligible; see
  * {@link AgentHostSessionWorkingDirectorySynchronizer._isEligible}.
  */
@@ -129,6 +141,21 @@ interface IAgentHostWorkingDirectoryRegistrationEntry extends IAgentHostWorkingD
 	 * state updates would otherwise re-enter reconciliation.
 	 */
 	dispatching: boolean;
+	/**
+	 * Folders, in client space, whose removal the host rejected. They are not
+	 * dispatched again until an input changes, since the host would refuse them
+	 * again.
+	 */
+	readonly refusedRemovals: ResourceSet;
+	/** The session's chats and their folders when a removal was last refused; see {@link chatScopesKey}. */
+	refusedChatScopes: string | undefined;
+}
+
+/** Identifies the session's chats and the folders each is scoped to, so a change to either can be detected. */
+function chatScopesKey(state: SessionState | Error | undefined): string | undefined {
+	return state && !(state instanceof Error)
+		? JSON.stringify(state.chats.map(chat => [chat.resource, chat.workingDirectories ?? null]))
+		: undefined;
 }
 
 export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable implements IAgentHostSessionWorkingDirectorySynchronizer {
@@ -189,11 +216,19 @@ export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable imp
 			automaticReconcileAgain: false,
 			automaticReconcileScheduled: false,
 			dispatching: false,
+			refusedRemovals: new ResourceSet(uri => this._uriIdentityService.extUri.getComparisonKey(uri)),
+			refusedChatScopes: undefined,
 		};
 		// A rejected envelope is announced before the rollback lands, and cleared
 		// once it has been applied, so `onDidChange` in between can be ignored.
 		store.add(registration.subscription.onWillApplyAction(envelope => {
 			entry.applyingRejectedAction = !!envelope.rejectionReason;
+			if (envelope.rejectionReason && envelope.action.type === ActionType.SessionWorkingDirectoryRemoved) {
+				const directory = registration.connection.resourceUris.fromAgentHost(URI.parse(envelope.action.directory));
+				this._logService.trace(`[AgentHostWorkingDirectories] Host kept ${directory.toString()} in ${key}: ${envelope.rejectionReason}`);
+				entry.refusedRemovals.add(directory);
+				entry.refusedChatScopes = chatScopesKey(registration.subscription.value);
+			}
 		}));
 		store.add(registration.subscription.onDidApplyAction(() => {
 			entry.applyingRejectedAction = false;
@@ -221,9 +256,13 @@ export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable imp
 		return store;
 	}
 
-	/** Reconciles every followed session, e.g. after a workspace-wide change. */
+	/**
+	 * Reconciles every followed session after a workspace-wide change, which
+	 * also lets refused removals be tried again.
+	 */
 	private _scheduleAll(reason: string): void {
 		for (const registration of this._registrations.values()) {
+			registration.refusedRemovals.clear();
 			this._scheduleReconcile(registration, reason);
 		}
 	}
@@ -303,7 +342,22 @@ export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable imp
 		const currentSet = new ResourceSet(current, toKey);
 		const desiredSet = new ResourceSet(desired, toKey);
 		const additions = desired.slice(1).filter(directory => !currentSet.has(directory));
-		const removals = current.slice(1).filter(directory => !desiredSet.has(directory));
+		const chatScopes = chatScopesKey(state);
+		if (registration.refusedChatScopes !== chatScopes) {
+			registration.refusedRemovals.clear();
+			registration.refusedChatScopes = undefined;
+		}
+		const chatScoped = new ResourceSet(state.chats.flatMap(chat => chat.workingDirectories ?? []).map(directory => registration.connection.resourceUris.fromAgentHost(URI.parse(directory))), toKey);
+		const removals: URI[] = [];
+		const kept: URI[] = [];
+		for (const directory of current.slice(1)) {
+			if (!desiredSet.has(directory)) {
+				(chatScoped.has(directory) || registration.refusedRemovals.has(directory) ? kept : removals).push(directory);
+			}
+		}
+		if (kept.length > 0) {
+			this._logService.trace(`[AgentHostWorkingDirectories] Keeping ${kept.map(directory => directory.toString()).join(', ')} in ${session.toString()}: scoped to a chat or refused by the host`);
+		}
 		if (additions.length === 0 && removals.length === 0) {
 			return;
 		}
