@@ -563,7 +563,8 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 
 	hasDraftComposer(): boolean {
 		for (const chat of this._chats.values()) {
-			if (chat.isComposer && !chat.isIdleComposer) {
+			// Also while its send creates its session, after the send cleared what was typed
+			if (this._keepsComposer(chat.input) && !!this._groupOf(chat.input)) {
 				return true;
 			}
 		}

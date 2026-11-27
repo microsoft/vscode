@@ -44,7 +44,7 @@ suite('StartupPageRunnerContribution in Agents mode', () => {
 		instantiationService.stub(IFileService, {});
 		instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => testWorkspace() });
 		instantiationService.stub(ILifecycleService, lifecycleService);
-		instantiationService.stub(IWorkbenchLayoutService, {});
+		instantiationService.stub(IWorkbenchLayoutService, { hasFocus: () => false });
 		instantiationService.stub(IProductService, {});
 		instantiationService.stub(ICommandService, {});
 		instantiationService.stub(IWorkbenchEnvironmentService, { skipWelcome: true });

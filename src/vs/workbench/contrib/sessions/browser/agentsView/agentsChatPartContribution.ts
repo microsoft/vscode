@@ -75,7 +75,7 @@ export interface IEditorWindowChatPartService {
 	/** Keeps what was typed in the chat part's one unsent composer for its next one; see `IAgentsChatPartService.parkComposerInput`. */
 	parkComposerInput(): boolean;
 
-	/** Whether the chat part shows a chat in its active tab, or has a new-session composer with a draft; creates nothing where it has no chats yet. */
+	/** Whether the chat part shows a chat in its active tab, or has a new-session composer in a tab with a draft or a send under way; creates nothing where it has no chats yet. */
 	hasChat(): boolean;
 }
 
