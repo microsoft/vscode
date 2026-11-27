@@ -18,10 +18,18 @@ parameters:
   # builds of main and release/* branches pass true.
   - name: VSCODE_PRIVILEGED_CONNECTIONS
     type: boolean
+  # Whether a build without the privileged connections still runs the package
+  # job, which then publishes the unsigned product artifacts. Only the product
+  # build passes true, so that its dev builds can be downloaded.
+  - name: VSCODE_PACKAGE_UNSIGNED
+    type: boolean
+    default: false
 
-# The product is built by Compile and Sign jobs in addition to the parallel CLI
-# job. The test jobs are declared next to this template (see
-# product-build-linux-test.yml) and run in parallel with Sign after Compile.
+# The product is built by Compile and Package jobs in addition to the parallel
+# CLI job. With the privileged connections, the package job signs the deb and
+# rpm packages. Without them, it publishes the unsigned packages and archives
+# as unsigned_<artifact>. The test jobs are declared next to this template (see
+# product-build-linux-test.yml) and run in parallel with Package after Compile.
 jobs:
   - job: Linux_${{ parameters.VSCODE_ARCH }}_Compile
     displayName: Linux (${{ upper(parameters.VSCODE_ARCH) }}) - Compile
@@ -105,11 +113,14 @@ jobs:
         continueOnError: true
         displayName: Check for artifacts published by an earlier attempt
 
-  # Signing needs the ESRP connection, which the SDK validation pipeline
-  # (sdk-validation-build.yml) must not reference.
-  - ${{ if eq(parameters.VSCODE_PRIVILEGED_CONNECTIONS, true) }}:
+  # Signing needs the ESRP connection, which only builds with the privileged
+  # connections may reference. The others package the product unsigned.
+  - ${{ if or(eq(parameters.VSCODE_PRIVILEGED_CONNECTIONS, true), eq(parameters.VSCODE_PACKAGE_UNSIGNED, true)) }}:
     - job: Linux_${{ parameters.VSCODE_ARCH }}_Sign
-      displayName: Linux (${{ upper(parameters.VSCODE_ARCH) }}) - Sign
+      ${{ if eq(parameters.VSCODE_PRIVILEGED_CONNECTIONS, true) }}:
+        displayName: Linux (${{ upper(parameters.VSCODE_ARCH) }}) - Package & Sign
+      ${{ else }}:
+        displayName: Linux (${{ upper(parameters.VSCODE_ARCH) }}) - Package
       dependsOn:
         - Linux_${{ parameters.VSCODE_ARCH }}_Compile
         - LinuxCLI_${{ parameters.VSCODE_ARCH }}
@@ -128,54 +139,72 @@ jobs:
         outputs:
           - output: pipelineArtifact
             targetPath: $(Build.ArtifactStagingDirectory)/out/client/$(CLIENT_ARCHIVE_NAME)
-            artifactName: vscode_client_linux_$(VSCODE_ARCH)_archive-unsigned
+            artifactName: ${{ iif(parameters.VSCODE_PRIVILEGED_CONNECTIONS, '', 'unsigned_') }}vscode_client_linux_$(VSCODE_ARCH)_archive-unsigned
             condition: and(succeeded(), ne(variables['CLIENT_ARCHIVE_PUBLISHED'], 'true'))
             displayName: Publish client archive
             sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-linux-$(VSCODE_ARCH)
             sbomPackageName: "VS Code Linux $(VSCODE_ARCH) (unsigned)"
             sbomPackageVersion: $(Build.SourceVersion)
+            ${{ if ne(parameters.VSCODE_PRIVILEGED_CONNECTIONS, true) }}:
+              sbomEnabled: false
+              isProduction: false
           - ${{ if ne(parameters.VSCODE_ARCH, 'armhf') }}:
             - output: pipelineArtifact
               targetPath: $(Build.ArtifactStagingDirectory)/out/server/vscode-server-linux-$(VSCODE_ARCH).tar.gz
-              artifactName: vscode_server_linux_$(VSCODE_ARCH)_archive-unsigned
+              artifactName: ${{ iif(parameters.VSCODE_PRIVILEGED_CONNECTIONS, '', 'unsigned_') }}vscode_server_linux_$(VSCODE_ARCH)_archive-unsigned
               condition: and(succeeded(), ne(variables['SERVER_ARCHIVE_PUBLISHED'], 'true'))
               displayName: Publish server archive
               sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)
               sbomPackageName: "VS Code Linux $(VSCODE_ARCH) Server"
               sbomPackageVersion: $(Build.SourceVersion)
+              ${{ if ne(parameters.VSCODE_PRIVILEGED_CONNECTIONS, true) }}:
+                sbomEnabled: false
+                isProduction: false
             - output: pipelineArtifact
               targetPath: $(Build.ArtifactStagingDirectory)/out/web/vscode-server-linux-$(VSCODE_ARCH)-web.tar.gz
-              artifactName: vscode_web_linux_$(VSCODE_ARCH)_archive-unsigned
+              artifactName: ${{ iif(parameters.VSCODE_PRIVILEGED_CONNECTIONS, '', 'unsigned_') }}vscode_web_linux_$(VSCODE_ARCH)_archive-unsigned
               condition: and(succeeded(), ne(variables['WEB_ARCHIVE_PUBLISHED'], 'true'))
               displayName: Publish web server archive
               sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
               sbomPackageName: "VS Code Linux $(VSCODE_ARCH) Web"
               sbomPackageVersion: $(Build.SourceVersion)
+              ${{ if ne(parameters.VSCODE_PRIVILEGED_CONNECTIONS, true) }}:
+                sbomEnabled: false
+                isProduction: false
           - output: pipelineArtifact
             targetPath: $(Build.ArtifactStagingDirectory)/out/deb/$(DEB_PACKAGE_NAME)
-            artifactName: vscode_client_linux_$(VSCODE_ARCH)_deb-package
+            artifactName: ${{ iif(parameters.VSCODE_PRIVILEGED_CONNECTIONS, '', 'unsigned_') }}vscode_client_linux_$(VSCODE_ARCH)_deb-package
             condition: and(succeeded(), ne(variables['DEB_PACKAGE_PUBLISHED'], 'true'))
             displayName: Publish deb package
             sbomBuildDropPath: .build/linux/deb
             sbomPackageName: "VS Code Linux $(VSCODE_ARCH) DEB"
             sbomPackageVersion: $(Build.SourceVersion)
+            ${{ if ne(parameters.VSCODE_PRIVILEGED_CONNECTIONS, true) }}:
+              sbomEnabled: false
+              isProduction: false
           - output: pipelineArtifact
             targetPath: $(Build.ArtifactStagingDirectory)/out/rpm/$(RPM_PACKAGE_NAME)
-            artifactName: vscode_client_linux_$(VSCODE_ARCH)_rpm-package
+            artifactName: ${{ iif(parameters.VSCODE_PRIVILEGED_CONNECTIONS, '', 'unsigned_') }}vscode_client_linux_$(VSCODE_ARCH)_rpm-package
             condition: and(succeeded(), ne(variables['RPM_PACKAGE_PUBLISHED'], 'true'))
             displayName: Publish rpm package
             sbomBuildDropPath: .build/linux/rpm
             sbomPackageName: "VS Code Linux $(VSCODE_ARCH) RPM"
             sbomPackageVersion: $(Build.SourceVersion)
+            ${{ if ne(parameters.VSCODE_PRIVILEGED_CONNECTIONS, true) }}:
+              sbomEnabled: false
+              isProduction: false
           - ${{ if eq(parameters.VSCODE_BUILD_LINUX_SNAP, true) }}:
             - output: pipelineArtifact
               targetPath: $(Build.ArtifactStagingDirectory)/out/snap/$(SNAP_PACKAGE_NAME)
-              artifactName: vscode_client_linux_$(VSCODE_ARCH)_snap
+              artifactName: ${{ iif(parameters.VSCODE_PRIVILEGED_CONNECTIONS, '', 'unsigned_') }}vscode_client_linux_$(VSCODE_ARCH)_snap
               condition: and(succeeded(), ne(variables['SNAP_PACKAGE_PUBLISHED'], 'true'))
               displayName: Publish snap package
               sbomBuildDropPath: $(SNAP_EXTRACTED_PATH)
               sbomPackageName: "VS Code Linux $(VSCODE_ARCH) SNAP"
               sbomPackageVersion: $(Build.SourceVersion)
+              ${{ if ne(parameters.VSCODE_PRIVILEGED_CONNECTIONS, true) }}:
+                sbomEnabled: false
+                isProduction: false
       steps:
         - template: ./steps/product-build-linux-setup.yml@self
           parameters:
@@ -188,20 +217,23 @@ jobs:
             VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
             VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
             VSCODE_BUILD_LINUX_SNAP: ${{ parameters.VSCODE_BUILD_LINUX_SNAP }}
+            VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
 
         - template: ./steps/product-build-linux-package-finalize.yml@self
+          parameters:
+            VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
 
         # Pipeline artifacts can't be overwritten, so a retry of this job must skip
         # the artifacts that an earlier attempt already published, for example
         # before timing out (see ../common/checkForArtifact.ts)
         - script: >-
             node build/azure-pipelines/common/checkForArtifact.ts
-            CLIENT_ARCHIVE_PUBLISHED vscode_client_linux_$(VSCODE_ARCH)_archive-unsigned
-            SERVER_ARCHIVE_PUBLISHED vscode_server_linux_$(VSCODE_ARCH)_archive-unsigned
-            WEB_ARCHIVE_PUBLISHED vscode_web_linux_$(VSCODE_ARCH)_archive-unsigned
-            DEB_PACKAGE_PUBLISHED vscode_client_linux_$(VSCODE_ARCH)_deb-package
-            RPM_PACKAGE_PUBLISHED vscode_client_linux_$(VSCODE_ARCH)_rpm-package
-            SNAP_PACKAGE_PUBLISHED vscode_client_linux_$(VSCODE_ARCH)_snap
+            CLIENT_ARCHIVE_PUBLISHED ${{ iif(parameters.VSCODE_PRIVILEGED_CONNECTIONS, '', 'unsigned_') }}vscode_client_linux_$(VSCODE_ARCH)_archive-unsigned
+            SERVER_ARCHIVE_PUBLISHED ${{ iif(parameters.VSCODE_PRIVILEGED_CONNECTIONS, '', 'unsigned_') }}vscode_server_linux_$(VSCODE_ARCH)_archive-unsigned
+            WEB_ARCHIVE_PUBLISHED ${{ iif(parameters.VSCODE_PRIVILEGED_CONNECTIONS, '', 'unsigned_') }}vscode_web_linux_$(VSCODE_ARCH)_archive-unsigned
+            DEB_PACKAGE_PUBLISHED ${{ iif(parameters.VSCODE_PRIVILEGED_CONNECTIONS, '', 'unsigned_') }}vscode_client_linux_$(VSCODE_ARCH)_deb-package
+            RPM_PACKAGE_PUBLISHED ${{ iif(parameters.VSCODE_PRIVILEGED_CONNECTIONS, '', 'unsigned_') }}vscode_client_linux_$(VSCODE_ARCH)_rpm-package
+            SNAP_PACKAGE_PUBLISHED ${{ iif(parameters.VSCODE_PRIVILEGED_CONNECTIONS, '', 'unsigned_') }}vscode_client_linux_$(VSCODE_ARCH)_snap
           env:
             SYSTEM_ACCESSTOKEN: $(System.AccessToken)
           continueOnError: true
