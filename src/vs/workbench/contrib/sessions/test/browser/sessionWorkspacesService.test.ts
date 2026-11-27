@@ -826,6 +826,28 @@ suite('SessionWorkspacesService', () => {
 		});
 	});
 
+	test('an owned workspace file that names the folder it is reduced to keeps that name, rather than becoming a folder', async () => {
+		const { service, fileService } = await createService();
+		const named = await service.createWorkspace('Agents', [vscode, chat]);
+		const droppedName = await service.createWorkspace('Docs', [vscode, docs]);
+		for (const [workspace, index] of [[named, 0], [droppedName, 1]] as const) {
+			const content = JSON.parse(await readFile(fileService, workspace.uri));
+			content.folders[index].name = 'Core';
+			await fileService.writeFile(workspace.uri, VSBuffer.fromString(JSON.stringify(content)));
+		}
+
+		const kept = await service.updateWorkspace(named.uri, { folders: [vscode] });
+		const collapsed = await service.updateWorkspace(droppedName.uri, { folders: [vscode] });
+
+		assert.deepStrictEqual({
+			kept: { sameFile: extUri.isEqual(kept.uri, named.uri), folders: JSON.parse(await readFile(fileService, named.uri)).folders.map((folder: { name?: string }) => folder.name) },
+			collapsed: { uri: pathOf(collapsed.uri), fileExists: await fileService.exists(droppedName.uri) },
+		}, {
+			kept: { sameFile: true, folders: ['Core'] },
+			collapsed: { uri: '/work/vscode', fileExists: false },
+		});
+	});
+
 	test('a workspace file deleted after a change made elsewhere is found while it is written stays deleted', async () => {
 		const fileService = await createFileService();
 		const { service } = await createService({ fileService });

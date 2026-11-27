@@ -89,6 +89,14 @@ export function hasOtherWorkspaceFileProperties(content: string, uri: URI): bool
 	return Object.keys(readWorkspaceFile(content, uri, undefined).stored).some(key => !SHOWN_PROPERTIES.has(key));
 }
 
+/**
+ * Whether a `.code-workspace` file gives `folder` a name of its own, which `${workspaceFolder:name}` variables refer to
+ * and which a standalone folder cannot keep. Throws when it is not a valid workspace file.
+ */
+export function hasWorkspaceFolderName(content: string, uri: URI, folder: URI, extUri: IExtUri): boolean {
+	return toWorkspaceFolders(readWorkspaceFile(content, uri, undefined).folders, uri, extUri).some(candidate => !!candidate.raw?.name && extUri.isEqual(candidate.uri, folder));
+}
+
 interface IParsedWorkspaceFile {
 	readonly stored: { readonly name?: unknown; readonly icon?: unknown; readonly color?: unknown };
 	readonly folders: IStoredWorkspaceFolder[];
@@ -138,10 +146,20 @@ export function stringifySessionWorkspaceFile(uri: URI, edit: ISessionWorkspaceF
 	let content = options?.existing ?? '{}';
 	if (edit.folders) {
 		const configFolder = dirname(uri);
+		// Folders keep the names given to them in the file, which `${workspaceFolder:name}` variables refer to
+		const names = new Map<string, string>();
+		for (const folder of existing ? toWorkspaceFolders(existing.folders, uri, extUri) : []) {
+			if (folder.raw?.name) {
+				names.set(extUri.getComparisonKey(folder.uri), folder.raw.name);
+			}
+		}
 		const folders: unknown[] = [
-			...edit.folders.map(folder => existing?.remotePaths || (!existing && uri.scheme === Schemas.file && options?.remoteAuthority)
-				? { uri: folder.toString(true) }
-				: getStoredWorkspaceFolder(folder, !!options?.forceAbsolute, undefined, configFolder, extUri)),
+			...edit.folders.map(folder => {
+				const name = names.get(extUri.getComparisonKey(folder));
+				return existing?.remotePaths || (!existing && uri.scheme === Schemas.file && options?.remoteAuthority)
+					? { ...(name ? { name } : {}), uri: folder.toString(true) }
+					: getStoredWorkspaceFolder(folder, !!options?.forceAbsolute, name, configFolder, extUri);
+			}),
 			...existing?.skipped ?? [],
 		];
 		content = applyEdits(content, setProperty(content, [FOLDERS_PROPERTY], folders, formattingOptions));

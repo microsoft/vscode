@@ -27,7 +27,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { hasWorkspaceFileExtension, WORKSPACE_SUFFIX } from '../../../../platform/workspace/common/workspace.js';
 import { isRecentWorkspace, IWorkspacesService } from '../../../../platform/workspaces/common/workspaces.js';
 import { SESSIONS_WORKSPACES_ENABLED_SETTING } from '../common/sessionConfig.js';
-import { hasAmbiguousFolderPaths, hasOtherWorkspaceFileProperties, ISessionWorkspaceFileContent, ISessionWorkspaceFileEdit, parseSessionWorkspaceFile, stringifySessionWorkspaceFile } from '../common/sessionWorkspaceFile.js';
+import { hasAmbiguousFolderPaths, hasOtherWorkspaceFileProperties, hasWorkspaceFolderName, ISessionWorkspaceFileContent, ISessionWorkspaceFileEdit, parseSessionWorkspaceFile, stringifySessionWorkspaceFile } from '../common/sessionWorkspaceFile.js';
 import { IRecentSessionWorkspace, ISessionWorkspaceAppearance, ISessionWorkspaceRemoveOptions, ISessionWorkspacesService, ISessionWorkspaceUpdate, SessionWorkspaceError } from '../common/sessionWorkspaces.js';
 import { ISessionsRecentWorkspacesService } from './sessionsRecentWorkspacesService.js';
 
@@ -337,8 +337,9 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 		}
 
 		// An owned workspace file reduced to one folder becomes that standalone folder, unless it has content that is not
-		// shown, such as folder entries that are not read or settings, which deleting it would lose; it then keeps the file
-		if (existing?.owned && this._isOwnedWorkspaceFile(existing.uri) && update.folders?.length === 1 && !await this._hasHiddenContent(existing.uri)) {
+		// shown, such as folder entries that are not read, settings or a name given to that folder, which deleting it would
+		// lose; it then keeps the file
+		if (existing?.owned && this._isOwnedWorkspaceFile(existing.uri) && update.folders?.length === 1 && !await this._hasHiddenContent(existing.uri, update.folders[0])) {
 			const workspace = this._withHistory(existing, await this._create(update.name ?? existing.name, update.folders, appearance));
 			this._replace(existing.uri, workspace, removals);
 			await this._deleteOwnedWorkspaceFile(existing.uri);
@@ -503,12 +504,13 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 
 	/**
 	 * Whether a workspace file has content that is not shown, which deleting it would lose: folder entries that are not read,
-	 * such as paths on a remote, or other properties, such as settings; throws when that is unknown.
+	 * such as paths on a remote, other properties, such as settings, or a name that it gives to `keptFolder`; throws when
+	 * that is unknown.
 	 */
-	private async _hasHiddenContent(uri: URI): Promise<boolean> {
+	private async _hasHiddenContent(uri: URI, keptFolder: URI): Promise<boolean> {
 		try {
 			const content = await this._readWorkspaceFileContent(uri);
-			return hasOtherWorkspaceFileProperties(content, uri) || this._parseWorkspaceFile(content, uri, await this._getRemoteAuthorities()).hasErrors;
+			return hasOtherWorkspaceFileProperties(content, uri) || hasWorkspaceFolderName(content, uri, keptFolder, this.uriIdentityService.extUri) || this._parseWorkspaceFile(content, uri, await this._getRemoteAuthorities()).hasErrors;
 		} catch (error) {
 			if (error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
 				return false;

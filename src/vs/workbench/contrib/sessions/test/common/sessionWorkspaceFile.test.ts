@@ -86,4 +86,18 @@ suite('SessionWorkspaceFile', () => {
 			recent: [{ uri: 'file:///work/docs' }, { path: '/home/me/vscode' }],
 		});
 	});
+
+	test('changing the folders keeps the names given to them, which workspace folder variables refer to', () => {
+		const local = stringifySessionWorkspaceFile(file, { folders: [localFile('/work/vscode-docs'), localFile('/work/vscode'), localFile('/work/chat')] }, extUri, {
+			existing: '{ "folders": [{ "path": "vscode", "name": "Code" }, { "path": "vscode-docs", "name": "Docs" }] }',
+		});
+		const remote = stringifySessionWorkspaceFile(file, { folders: [URI.parse('vscode-remote://ssh-remote+box/home/me/chat'), URI.parse('vscode-remote://ssh-remote+box/home/me/docs')] }, extUri, {
+			existing: '{ "remoteAuthority": "ssh-remote+box", "folders": [{ "uri": "vscode-remote://ssh-remote+box/home/me/docs", "name": "Docs" }] }',
+		});
+
+		assert.deepStrictEqual({ local: JSON.parse(local).folders, remote: JSON.parse(remote).folders }, {
+			local: [{ name: 'Docs', path: 'vscode-docs' }, { name: 'Code', path: 'vscode' }, { path: 'chat' }],
+			remote: [{ uri: 'vscode-remote://ssh-remote+box/home/me/chat' }, { name: 'Docs', uri: 'vscode-remote://ssh-remote+box/home/me/docs' }],
+		});
+	});
 });
