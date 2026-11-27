@@ -67,7 +67,7 @@ export interface INamedLayoutsService {
 	createLayout(name: string): Promise<INamedLayout | undefined>;
 
 	/**
-	 * Saves the active layout and applies the given layout to this window. Zen mode ends first.
+	 * Saves the active layout and applies the given layout to this window. Zen mode ends and a maximized editor group is restored first.
 	 * @returns whether the layout is active, which it is not when another window deleted it or named layouts are disabled.
 	 */
 	switchLayout(layout: INamedLayout): Promise<boolean>;

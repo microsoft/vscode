@@ -44,14 +44,16 @@ suite('NamedLayoutsService', () => {
 
 	/**
 	 * A window whose parts and editor groups show what was applied last, and whose Zen mode hides the parts until it ends.
-	 * Applying editor groups restores a maximized panel, as it activates an editor group. With `restore`, the window
-	 * starts with that layout active, as stored, and with the arrangement that it restores itself. The layout service
-	 * reports the window restored, including its editors, once `whenRestored` resolves.
+	 * Applying editor groups restores a maximized panel, as it activates an editor group. A maximized editor group reports
+	 * the size of all groups together, as the grid does. With `restore`, the window starts with that layout active, as
+	 * stored, and with the arrangement that it restores itself. The layout service reports the window restored, including
+	 * its editors, once `whenRestored` resolves.
 	 */
-	function createWindow(restore?: { layout: Record<string, unknown>; zenMode?: boolean; parts?: IPartsLayoutState; editorGroups?: EditorGroupLayout; whenRestored?: Promise<void> }) {
+	function createWindow(restore?: { layout: Record<string, unknown>; zenMode?: boolean; groupMaximized?: boolean; parts?: IPartsLayoutState; editorGroups?: EditorGroupLayout; whenRestored?: Promise<void> }) {
 		const storageService = store.add(new TestStorageService());
 		const configurationService = new TestConfigurationService({ [NAMED_LAYOUTS_ENABLED_SETTING]: true });
 		const onDidChangeZenMode = store.add(new Emitter<boolean>());
+		const onDidChangeGroupMaximized = store.add(new Emitter<boolean>());
 		const window = {
 			parts: restore?.parts ?? partsState(true, Position.BOTTOM),
 			editorGroups: restore?.editorGroups ?? singleGroup,
@@ -60,6 +62,7 @@ suite('NamedLayoutsService', () => {
 			editorMoveVetoed: false,
 			zenMode: false,
 			partsBeforeZenMode: undefined as IPartsLayoutState | undefined,
+			groupMaximized: false,
 		};
 
 		const instantiationService = store.add(new TestInstantiationService());
@@ -84,18 +87,32 @@ suite('NamedLayoutsService', () => {
 			isZenModeActive: () => window.zenMode,
 			onDidChangeZenMode: onDidChangeZenMode.event,
 		});
+		const toggleMaximizeGroup = () => {
+			window.groupMaximized = !window.groupMaximized;
+			onDidChangeGroupMaximized.fire(window.groupMaximized);
+		};
 		instantiationService.stub(IEditorGroupsService, {
 			mainPart: upcastPartial<IEditorPart>({
-				getLayout: () => window.editorGroups,
+				getLayout: () => {
+					if (!window.groupMaximized) {
+						return window.editorGroups;
+					}
+					const allGroups = window.editorGroups.groups.reduce((sum, group) => sum + (group.size ?? 0), 0);
+					return { ...window.editorGroups, groups: window.editorGroups.groups.map((group, index) => index === 0 ? { ...group, size: allGroups } : group) };
+				},
 				applyLayout: (layout: EditorGroupLayout) => {
 					if (window.editorMoveVetoed && layout.groups.length < window.editorGroups.groups.length) {
 						return false;
 					}
 					window.editorGroups = layout;
 					window.editorGroupsApplied++;
+					window.groupMaximized = false;
 					window.parts = { ...window.parts, panel: { ...window.parts.panel, maximized: false } };
 					return true;
 				},
+				hasMaximizedGroup: () => window.groupMaximized,
+				toggleMaximizeGroup,
+				onDidChangeGroupMaximized: onDidChangeGroupMaximized.event,
 			})
 		});
 
@@ -125,11 +142,14 @@ suite('NamedLayoutsService', () => {
 			if (restore.zenMode) {
 				toggleZenMode();
 			}
+			if (restore.groupMaximized) {
+				toggleMaximizeGroup();
+			}
 		}
 
 		const service = store.add(instantiationService.createInstance(NamedLayoutsService));
 
-		return { service, window, storageService, configurationService, toggleZenMode, storedLayouts, storeFromOtherWindow, removeFromOtherWindow };
+		return { service, window, storageService, configurationService, toggleZenMode, toggleMaximizeGroup, storedLayouts, storeFromOtherWindow, removeFromOtherWindow };
 	}
 
 	/** Collects the keys of the layouts that this window writes. */
@@ -360,6 +380,30 @@ suite('NamedLayoutsService', () => {
 			afterZenMode: { ...restoredParts, panel: otherPanel },
 			stored: [{ name: 'Debug', ...restoredParts, panel: laterPanel, editorGroups: singleGroup }],
 		});
+	});
+
+	test('while an editor group is maximized, the window does not save the editor groups, whose sizes the maximized group distorts, and restores the group before it creates a layout', async () => {
+		const { service, window, storageService, toggleMaximizeGroup, storedLayouts } = createWindow();
+		window.editorGroups = twoGroups;
+		await service.createLayout('Debug');
+		toggleMaximizeGroup();
+		storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
+		await service.createLayout('Other');
+
+		const editorGroups = Object.fromEntries(storedLayouts().map(layout => [layout.name, layout.editorGroups]));
+		assert.deepStrictEqual({ editorGroups, groupMaximized: window.groupMaximized }, { editorGroups: { Debug: twoGroups, Other: twoGroups }, groupMaximized: false });
+	});
+
+	test('a window that starts with a maximized editor group keeps its editor groups, and once the group is restored, saves them only when they change', async () => {
+		const { service, window, toggleMaximizeGroup, storedLayouts, storeFromOtherWindow } = createWindow({ layout: { name: 'Debug', editorGroups: threeGroups }, editorGroups: twoGroups, groupMaximized: true });
+		await service.saveLayout();
+		const editorGroupsApplied = window.editorGroupsApplied;
+
+		toggleMaximizeGroup();
+		storeFromOtherWindow('restored', 'editorGroups', singleGroup);
+		await service.saveLayout();
+
+		assert.deepStrictEqual({ editorGroupsApplied, stored: storedLayouts() }, { editorGroupsApplied: 0, stored: [{ name: 'Debug', editorGroups: singleGroup }] });
 	});
 
 	test('while named layouts are disabled, the window does not create, save, switch, rename or delete layouts, also when a command runs that the setting hides', async () => {

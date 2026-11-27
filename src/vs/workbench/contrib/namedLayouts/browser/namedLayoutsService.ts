@@ -111,6 +111,12 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			}
 		}));
 
+		this._register(this.editorGroupService.mainPart.onDidChangeGroupMaximized(maximized => {
+			if (!maximized) {
+				this.onDidRestoreMaximizedGroup();
+			}
+		}));
+
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._store)(e => {
 			if (e.external && e.key.startsWith(LAYOUT_STORAGE_KEY_PREFIX)) {
 				this.onDidChangeStoredLayouts();
@@ -138,7 +144,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			if (!this.isEnabled()) {
 				return undefined;
 			}
-			this.endZenMode();
+			this.showFullArrangement();
 
 			// The default layout is the window's own layout, so it keeps what the window shows
 			const state = this.captureState();
@@ -171,8 +177,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 				return false; // deleted in another window meanwhile
 			}
 
-			// Zen mode hides the parts, so the layout that is active is saved as it shows outside of Zen mode
-			this.endZenMode();
+			this.showFullArrangement();
 			if (this.activeLayoutId === DEFAULT_NAMED_LAYOUT_ID) {
 				this.storeDefaultLayoutState(this.captureDefaultLayoutState());
 			} else {
@@ -226,7 +231,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			}
 
 			if (layout.id === this.activeLayoutId) {
-				this.endZenMode();
+				this.showFullArrangement();
 				this.applyDefaultLayout();
 			}
 
@@ -313,21 +318,24 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	}
 
 	private captureState(): INamedLayoutState {
-		// Zen mode hides the parts: what they show then is not the layout's
+		// Zen mode hides the parts, and a maximized editor group hides the other groups: what they show then is not the layout's
 		const parts = this.layoutService.isZenModeActive() ? undefined : this.layoutService.getPartsLayoutState();
+		const editorPart = this.editorGroupService.mainPart;
 
 		return {
 			...(parts ? { sideBar: parts.sideBar, panel: parts.panel, auxiliaryBar: parts.auxiliaryBar } : {}),
-			editorGroups: toFractions(this.editorGroupService.mainPart.getLayout())
+			...(editorPart.hasMaximizedGroup() ? {} : { editorGroups: toFractions(editorPart.getLayout()) })
 		};
 	}
 
 	/**
 	 * Applies what of a state differs from what the window shows, so that the rest, such as the editor grid, stays as it is.
+	 * A maximized editor group keeps the editor grid as it is.
 	 */
 	private applyChanges(state: INamedLayoutState): void {
 		// Changing the editor groups can restore a maximized part, so the parts compare with what shows after that
-		const { editorGroups } = getChanges({ editorGroups: state.editorGroups }, this.captureState());
+		const current = this.captureState();
+		const { editorGroups } = current.editorGroups ? getChanges({ editorGroups: state.editorGroups }, current) : {};
 		this.applyState({ editorGroups });
 
 		const { sideBar, panel, auxiliaryBar } = state;
@@ -373,13 +381,33 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		this.baseline = { ...this.baseline, sideBar, panel, auxiliaryBar };
 	}
 
+	/**
+	 * A window that starts with a maximized editor group has no editor grid in its baseline, as the maximized group hides the
+	 * others. When the group is restored, the window takes its editor grid into its baseline, so that saving writes the grid
+	 * only once it changes after that.
+	 */
+	private onDidRestoreMaximizedGroup(): void {
+		if (!this.baseline || this.baseline.editorGroups) {
+			return;
+		}
+
+		this.baseline = { ...this.baseline, editorGroups: this.captureState().editorGroups };
+	}
+
 	private isEnabled(): boolean {
 		return this.configurationService.getValue(NAMED_LAYOUTS_ENABLED_SETTING) === true;
 	}
 
-	private endZenMode(): void {
+	/**
+	 * Ends Zen mode and restores a maximized editor group, which hide parts of the window's arrangement, so that the layout that is
+	 * active is saved as it shows without them.
+	 */
+	private showFullArrangement(): void {
 		if (this.layoutService.isZenModeActive()) {
 			this.layoutService.toggleZenMode();
+		}
+		if (this.editorGroupService.mainPart.hasMaximizedGroup()) {
+			this.editorGroupService.mainPart.toggleMaximizeGroup();
 		}
 	}
 
