@@ -2112,7 +2112,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 			const comparisonSectionId = this.comparisonSectionIds.get(group.id);
 			const comparisonParentId = inbox || inPinned ? undefined : group.parentId ?? (comparisonSectionId ? this.getSectionParentId(comparisonSectionId) : undefined);
 			if (comparisonParentId !== undefined) {
-				depth = groupTree.getPath(comparisonParentId).length;
+				// Under a pinned ancestor, which steps in under Pinned, the comparison counts its depth from there.
+				const path = groupTree.getPath(comparisonParentId);
+				const pinnedIndex = path.findLastIndex(ancestor => pinnedHeaders.has(getSessionGroupSectionId(ancestor.id)));
+				depth = pinnedIndex === -1 ? path.length : path.length - pinnedIndex + 1;
 			}
 			// A separately pinned subgroup is a branch of its own under Pinned.
 			const subgroups = inbox ? [] : groupTree.getSubgroups(group.id).filter(subgroup => !pinnedHeaders.has(getSessionGroupSectionId(subgroup.id))).map(subgroup => buildGroupItem(subgroup, depth + 1, inPinned));

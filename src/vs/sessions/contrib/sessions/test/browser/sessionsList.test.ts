@@ -11165,6 +11165,19 @@ suite('Sessions - SessionsList', () => {
 			});
 		}
 
+		test('steps a comparison in with its folder when the folder\'s group is pinned', () => {
+			const parent: ISessionGroup = { id: 'parent', name: 'Work', createdAt: 0 };
+			const { container, list } = renderComparison(undefined, 'all', new Set(), false, SessionsGrouping.Workspace, parent);
+			list.setHeaderPinned(`group:${parent.id}`, true);
+			const comparison = container.querySelector<HTMLElement>('.session-comparison-group');
+
+			assert.deepStrictEqual({
+				level: comparison?.closest('.monaco-list-row')?.getAttribute('aria-level'),
+				depth: comparison?.style.getPropertyValue('--session-group-depth'),
+				sectionDepth: list.getItemRow({ section: 'workspace:Workspace' })?.querySelector<HTMLElement>('.session-section')?.style.getPropertyValue('--session-group-depth'),
+			}, { level: '4', depth: '2', sectionDepth: '2' });
+		});
+
 		test('keeps comparison groups visible under their environment without any ungrouped sessions', () => {
 			const { container, list } = renderComparison(undefined, 'all', new Set(), false, SessionsGrouping.Environment);
 
