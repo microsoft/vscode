@@ -245,6 +245,14 @@
 	color: inherit;
 }
 
+.quick-input-footer {
+	padding: 5px 6px;
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
 .quick-input-progress.monaco-progress-container {
 	position: relative;
 }
@@ -468,8 +476,24 @@
 }
 
 .quick-input-list .quick-input-list-separator-as-item {
-	padding: 4px 6px;
+	position: relative;
+	/* The 8px left by the row is split evenly: line, above the label, below the label */
+	padding: 5.33px 6px 2.67px 6px;
 	font-size: 12px;
+}
+
+/* Draw the group divider as an inset line so it has even space above and below */
+.quick-input-list .quick-input-list-separator-as-item.quick-input-list-separator-border {
+	border-top-style: none;
+}
+
+.quick-input-list .quick-input-list-separator-as-item.quick-input-list-separator-border::before {
+	content: '';
+	position: absolute;
+	top: 2.67px;
+	left: 6px;
+	right: 6px;
+	border-top: 1px solid currentColor;
 }
 
 /* Quick input separators as full-row item */
@@ -484,6 +508,10 @@
 
 /* Hide border when the item becomes the sticky one */
 .quick-input-list .monaco-tree-sticky-row .quick-input-list-entry.quick-input-list-separator-as-item.quick-input-list-separator-border {
+	border-top-style: none;
+}
+
+.quick-input-list .monaco-tree-sticky-row .quick-input-list-entry.quick-input-list-separator-as-item.quick-input-list-separator-border::before {
 	border-top-style: none;
 }
 

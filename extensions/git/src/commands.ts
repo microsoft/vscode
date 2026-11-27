@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, MessageOptions, Position, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextDiff, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputCustom, TabInputNotebook, TabInputNotebookDiff, QuickInputButtonLocation, languages, SourceControlArtifact, ProgressLocation } from 'vscode';
+import { Command, commands, Disposable, MessageOptions, Position, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextDiff, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, ThemeColor, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputCustom, TabInputNotebook, TabInputNotebookDiff, QuickInputButtonLocation, languages, SourceControlArtifact, ProgressLocation } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import type { CommitOptions, RemoteSourcePublisher, Remote, Branch, Ref } from './api/git';
 import { ForcePushMode, GitErrorCodes, RefType, Status } from './api/git.constants';
@@ -40,23 +40,67 @@ class CheckoutDetachedItem extends CheckoutCommandItem {
 	get label(): string { return l10n.t('{0} Checkout detached...', '$(debug-disconnect)'); }
 }
 
+const checkoutCommitSummaryMaxLength = 100;
+
+interface CheckoutState {
+	readonly current?: boolean;
+	readonly mergedInto?: string;
+	readonly upstreamGone?: boolean;
+}
+
+function getCheckoutStateTokens(state: CheckoutState | undefined): string[] {
+	const tokens: string[] = [];
+
+	if (state?.current) {
+		tokens.push('$(check)');
+	}
+	if (state?.mergedInto) {
+		tokens.push(`$(git-merge) ${l10n.t('merged')}`);
+	}
+	if (state?.upstreamGone) {
+		tokens.push(`$(warning) ${l10n.t('gone')}`);
+	}
+
+	return tokens;
+}
+
+function getCheckoutStateSummary(state: CheckoutState | undefined): string | undefined {
+	if (!state) {
+		return undefined;
+	}
+
+	const parts: string[] = [];
+	if (state.mergedInto) {
+		parts.push(l10n.t('Merged into {0}', state.mergedInto));
+	}
+	if (state.upstreamGone) {
+		parts.push(l10n.t('Upstream is gone'));
+	}
+
+	return parts.length > 0 ? `${parts.join('. ')}.` : undefined;
+}
+
 class RefItemSeparator implements QuickPickItem {
 	get kind(): QuickPickItemKind { return QuickPickItemKind.Separator; }
 
 	get label(): string {
 		switch (this.refType) {
 			case RefType.Head:
-				return l10n.t('branches');
+				return l10n.t('BRANCHES');
 			case RefType.RemoteHead:
-				return l10n.t('remote branches');
+				return l10n.t('REMOTE BRANCHES');
 			case RefType.Tag:
-				return l10n.t('tags');
+				return l10n.t('TAGS');
 			default:
 				return '';
 		}
 	}
 
-	constructor(private readonly refType: RefType) { }
+	// A separator with buttons is rendered as a sticky section header. An empty list keeps the
+	// header look without actions.
+	get buttons(): QuickInputButton[] | undefined { return this.header ? [] : undefined; }
+
+	constructor(private readonly refType: RefType, private readonly header = false) { }
 }
 
 class RefItem implements QuickPickItem {
@@ -115,6 +159,18 @@ class RefItem implements QuickPickItem {
 	get refRemote(): string | undefined { return this.ref.remote; }
 	get shortCommit(): string { return (this.ref.commit || '').substring(0, this.shortCommitLength); }
 	get commitMessage(): string | undefined { return this.ref.commitDetails?.message; }
+	get commitSummary(): string | undefined {
+		const commitDetails = this.ref.commitDetails;
+		if (!commitDetails?.authorName || !commitDetails?.message) {
+			return undefined;
+		}
+
+		const prefix = `${commitDetails.authorName} • ${this.shortCommit} • `;
+		const maxMessageLength = Math.max(checkoutCommitSummaryMaxLength - prefix.length, 20);
+		return `${prefix}${truncate(subject(commitDetails.message), maxMessageLength)}`;
+	}
+
+	checkoutState?: CheckoutState;
 
 	private _buttons?: QuickInputButton[];
 	get buttons(): QuickInputButton[] | undefined { return this._buttons; }
@@ -143,6 +199,32 @@ class BranchItem extends RefItem {
 }
 
 class CheckoutItem extends BranchItem {
+
+	override get description(): string {
+		const tokens = getCheckoutStateTokens(this.checkoutState);
+
+		const behind = this.ref.behind ?? 0;
+		const ahead = this.ref.ahead ?? 0;
+		if (behind > 0 || ahead > 0) {
+			tokens.push(l10n.t('{0} behind, {1} ahead', behind, ahead));
+		}
+
+		const commitDate = this.ref.commitDetails?.commitDate;
+		if (commitDate) {
+			tokens.push(fromNow(commitDate, true, true));
+		}
+
+		return tokens.join('  ');
+	}
+
+	override get detail(): string | undefined {
+		return undefined;
+	}
+
+	get labelColor(): ThemeColor | undefined {
+		return this.checkoutState?.upstreamGone ? new ThemeColor('errorForeground') : undefined;
+	}
+
 	async run(repository: Repository, opts?: { detached?: boolean }): Promise<void> {
 		if (!this.ref.name) {
 			return;
@@ -165,6 +247,14 @@ class CheckoutProtectedItem extends CheckoutItem {
 
 class CheckoutRemoteHeadItem extends RefItem {
 
+	override get description(): string {
+		return getCheckoutStateTokens(this.checkoutState).join('  ');
+	}
+
+	override get detail(): string | undefined {
+		return undefined;
+	}
+
 	async run(repository: Repository, opts?: { detached?: boolean }): Promise<void> {
 		if (!this.ref.name) {
 			return;
@@ -186,6 +276,14 @@ class CheckoutRemoteHeadItem extends RefItem {
 }
 
 class CheckoutTagItem extends RefItem {
+
+	override get description(): string {
+		return getCheckoutStateTokens(this.checkoutState).join('  ');
+	}
+
+	override get detail(): string | undefined {
+		return undefined;
+	}
 
 	async run(repository: Repository, opts?: { detached?: boolean }): Promise<void> {
 		if (!this.ref.name) {
@@ -431,8 +529,20 @@ async function createCheckoutItems(repository: Repository, detached = false): Pr
 		checkoutTypes = checkoutTypes.filter(t => t !== 'tags');
 	}
 
-	const refs = await repository.getRefs({ includeCommitDetails: showRefDetails });
-	const refProcessors = checkoutTypes.map(type => getCheckoutRefProcessor(repository, type))
+	const defaultBranch = await repository.getDefaultBranch();
+	const mergedInto = defaultBranch?.remote && defaultBranch?.name
+		? `${defaultBranch.remote}/${defaultBranch.name}`
+		: undefined;
+
+	const [refs, merged, gone] = await Promise.all([
+		repository.getRefs({ includeCommitDetails: showRefDetails }),
+		mergedInto !== undefined ? repository.getMergedBranches(mergedInto) : Promise.resolve<string[]>([]),
+		repository.getGoneBranches()
+	]);
+
+	const mergedNames = new Set(merged.filter(name => name !== defaultBranch?.name));
+
+	const refProcessors = checkoutTypes.map(type => getCheckoutRefProcessor(repository, type, mergedNames, mergedInto, new Set(gone)))
 		.filter(p => !!p) as RefProcessor[];
 
 	const buttons = await getRemoteRefItemButtons(repository);
@@ -472,13 +582,14 @@ async function getRemoteRefItemButtons(repository: Repository) {
 class RefProcessor {
 	protected readonly refs: Ref[] = [];
 
-	constructor(protected readonly type: RefType, protected readonly ctor: { new(ref: Ref, shortCommitLength: number): QuickPickItem } = RefItem) { }
+	constructor(
+		protected readonly type: RefType,
+		protected readonly ctor: { new(ref: Ref, shortCommitLength: number): QuickPickItem } = RefItem,
+		protected readonly headerSeparator = false
+	) { }
 
 	processRef(ref: Ref): boolean {
-		if (!ref.name && !ref.commit) {
-			return false;
-		}
-		if (ref.type !== this.type) {
+		if (!this.accepts(ref)) {
 			return false;
 		}
 
@@ -486,9 +597,17 @@ class RefProcessor {
 		return true;
 	}
 
+	accepts(ref: Ref): boolean {
+		return (!!ref.name || !!ref.commit) && ref.type === this.type;
+	}
+
+	createItem(ref: Ref, shortCommitLength: number): QuickPickItem {
+		return new this.ctor(ref, shortCommitLength);
+	}
+
 	getItems(shortCommitLength: number): QuickPickItem[] {
-		const items = this.refs.map(r => new this.ctor(r, shortCommitLength));
-		return items.length === 0 ? items : [new RefItemSeparator(this.type), ...items];
+		const items = this.refs.map(r => this.createItem(r, shortCommitLength));
+		return items.length === 0 ? items : [new RefItemSeparator(this.type, this.headerSeparator), ...items];
 	}
 }
 
@@ -546,18 +665,41 @@ class RefItemsProcessor {
 
 class CheckoutRefProcessor extends RefProcessor {
 
-	constructor(private readonly repository: Repository) {
-		super(RefType.Head);
+	constructor(
+		private readonly repository: Repository,
+		private readonly merged: ReadonlySet<string>,
+		private readonly mergedInto: string | undefined,
+		private readonly gone: ReadonlySet<string>
+	) {
+		super(RefType.Head, undefined, true);
+	}
+
+	override createItem(ref: Ref, shortCommitLength: number): QuickPickItem {
+		const currentBranchName = this.repository.HEAD?.name;
+
+		const item = this.repository.isBranchProtected(ref) ?
+			new CheckoutProtectedItem(ref, shortCommitLength) :
+			new CheckoutItem(ref, shortCommitLength);
+
+		item.checkoutState = {
+			current: ref.name !== undefined && ref.name === currentBranchName,
+			mergedInto: ref.name !== undefined && ref.name !== currentBranchName && this.merged.has(ref.name) ? this.mergedInto : undefined,
+			upstreamGone: ref.name !== undefined && this.gone.has(ref.name)
+		};
+
+		return item;
 	}
 
 	override getItems(shortCommitLength: number): QuickPickItem[] {
-		const items = this.refs.map(ref => {
-			return this.repository.isBranchProtected(ref) ?
-				new CheckoutProtectedItem(ref, shortCommitLength) :
-				new CheckoutItem(ref, shortCommitLength);
-		});
+		const items = super.getItems(shortCommitLength);
 
-		return items.length === 0 ? items : [new RefItemSeparator(this.type), ...items];
+		// Pin the current branch to the top of the local branches, after the separator
+		const currentIndex = items.findIndex(item => item instanceof RefItem && item.checkoutState?.current);
+		if (currentIndex > 1) {
+			items.splice(1, 0, ...items.splice(currentIndex, 1));
+		}
+
+		return items;
 	}
 }
 
@@ -581,6 +723,13 @@ class CheckoutItemsProcessor extends RefItemsProcessor {
 	}
 
 	override processRefs(refs: Ref[]): QuickPickItem[] {
+		const deleteBranchButton: QuickInputButton & { deleteBranch: boolean } = {
+			iconPath: new ThemeIcon('trash'),
+			tooltip: l10n.t('Delete Branch'),
+			deleteBranch: true
+		};
+
+		// Group by ref type: local branches, remote branches, then tags
 		for (const ref of refs) {
 			if (!this.detached && ref.name === 'origin/HEAD') {
 				continue;
@@ -601,39 +750,46 @@ class CheckoutItemsProcessor extends RefItemsProcessor {
 					continue;
 				}
 
-				// Button(s)
-				if (item.refRemote) {
-					const matchingRemote = this.repository.remotes.find((remote) => remote.name === item.refRemote);
-					const buttons = [];
-					if (matchingRemote?.pushUrl) {
-						buttons.push(...this.buttons.get(matchingRemote.pushUrl) ?? []);
-					}
-					if (matchingRemote?.fetchUrl && matchingRemote.fetchUrl !== matchingRemote.pushUrl) {
-						buttons.push(...this.buttons.get(matchingRemote.fetchUrl) ?? []);
-					}
-					if (buttons.length) {
-						item.buttons = buttons;
-					}
-				} else {
-					item.buttons = this.defaultButtons;
-				}
-
+				this.setItemButtons(item, deleteBranchButton);
 				result.push(item);
 			}
 		}
 
 		return result;
 	}
+
+	private setItemButtons(item: RefItem, deleteBranchButton: QuickInputButton & { deleteBranch: boolean }): void {
+		if (item.refRemote) {
+			const matchingRemote = this.repository.remotes.find((remote) => remote.name === item.refRemote);
+			const buttons = [];
+			if (matchingRemote?.pushUrl) {
+				buttons.push(...this.buttons.get(matchingRemote.pushUrl) ?? []);
+			}
+			if (matchingRemote?.fetchUrl && matchingRemote.fetchUrl !== matchingRemote.pushUrl) {
+				buttons.push(...this.buttons.get(matchingRemote.fetchUrl) ?? []);
+			}
+			if (buttons.length) {
+				item.buttons = buttons;
+			}
+			return;
+		}
+
+		const buttons: QuickInputButton[] = [...(this.defaultButtons ?? [])];
+		if (!(item instanceof CheckoutProtectedItem) && (item.checkoutState?.mergedInto !== undefined || item.checkoutState?.upstreamGone === true)) {
+			buttons.push(deleteBranchButton);
+		}
+		item.buttons = buttons.length > 0 ? buttons : undefined;
+	}
 }
 
-function getCheckoutRefProcessor(repository: Repository, type: string): RefProcessor | undefined {
+function getCheckoutRefProcessor(repository: Repository, type: string, merged: ReadonlySet<string>, mergedInto: string | undefined, gone: ReadonlySet<string>): RefProcessor | undefined {
 	switch (type) {
 		case 'local':
-			return new CheckoutRefProcessor(repository);
+			return new CheckoutRefProcessor(repository, merged, mergedInto, gone);
 		case 'remote':
-			return new RefProcessor(RefType.RemoteHead, CheckoutRemoteHeadItem);
+			return new RefProcessor(RefType.RemoteHead, CheckoutRemoteHeadItem, true);
 		case 'tags':
-			return new RefProcessor(RefType.Tag, CheckoutTagItem);
+			return new RefProcessor(RefType.Tag, CheckoutTagItem, true);
 		default:
 			return undefined;
 	}
@@ -2905,39 +3061,42 @@ export class CommandCenter {
 		quickPick.show();
 		picks.push(... await createCheckoutItems(repository, opts?.detached));
 
-		const setQuickPickItems = () => {
-			switch (true) {
-				case quickPick.value === '':
-					quickPick.items = [...commands, ...picks];
-					break;
-				case commands.length === 0:
-					quickPick.items = picks;
-					break;
-				case picks.length === 0:
-					quickPick.items = commands;
-					break;
-				default:
-					quickPick.items = [...picks, { label: '', kind: QuickPickItemKind.Separator }, ...commands];
-					break;
+		const setFooter = (item: QuickPickItem | undefined) => {
+			if (item instanceof RefItem) {
+				const parts = [item.commitSummary, getCheckoutStateSummary(item.checkoutState)].filter(isDefined);
+				quickPick.footer = parts.length > 0 ? parts.join('  •  ') : undefined;
+			} else {
+				quickPick.footer = undefined;
 			}
 		};
 
-		setQuickPickItems();
+		// Each group header carries its own top border, which separates the commands from the list
+		quickPick.items = [...commands, ...picks];
+		setFooter(quickPick.activeItems[0]);
 		quickPick.busy = false;
 
 		const choice = await new Promise<QuickPickItem | undefined>(c => {
 			disposables.push(quickPick.onDidHide(() => c(undefined)));
 			disposables.push(quickPick.onDidAccept(() => c(quickPick.activeItems[0])));
+			disposables.push(quickPick.onDidChangeActive(items => setFooter(items[0])));
 			disposables.push((quickPick.onDidTriggerItemButton((e) => {
-				const button = e.button as QuickInputButton & { actual: RemoteSourceAction };
+				const button = e.button as QuickInputButton & { actual?: RemoteSourceAction; deleteBranch?: boolean };
 				const item = e.item as CheckoutItem;
+
+				if (button.deleteBranch && item.refName) {
+					const name = item.refName;
+					c(undefined);
+					this._deleteBranch(repository, undefined, name, { remote: false })
+						.catch(err => window.showErrorMessage(l10n.t('Failed to delete branch: {0}', String(err?.message ?? err))));
+					return;
+				}
+
 				if (button.actual && item.refName) {
 					button.actual.run(item.refRemote ? item.refName.substring(item.refRemote.length + 1) : item.refName);
 				}
 
 				c(undefined);
 			})));
-			disposables.push(quickPick.onDidChangeValue(() => setQuickPickItems()));
 		});
 
 		dispose(disposables);

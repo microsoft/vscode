@@ -3148,6 +3148,34 @@ export class Repository {
 		return parseRefs(result.stdout);
 	}
 
+	async getMergedBranches(base: string): Promise<string[]> {
+		try {
+			const result = await this.exec(['for-each-ref', '--format=%(refname:short)', `--merged=${base}`, 'refs/heads']);
+			return result.stdout.trim().split('\n').filter(name => name.length > 0);
+		} catch (err) {
+			this.logger.warn(`[Git][getMergedBranches] Failed to list branches merged into '${base}': ${err}`);
+			return [];
+		}
+	}
+
+	async getGoneBranches(): Promise<string[]> {
+		if (this._git.compareGitVersionTo('1.9.0') === -1) {
+			return [];
+		}
+
+		try {
+			const result = await this.exec(['for-each-ref', '--format=%(refname:short)%00%(upstream:track)', 'refs/heads']);
+			return result.stdout.trim().split('\n')
+				.map(line => line.split('\0'))
+				.filter(parts => parts.length === 2 && parts[1] === '[gone]')
+				.map(parts => parts[0])
+				.filter(name => name.length > 0);
+		} catch (err) {
+			this.logger.warn(`[Git][getGoneBranches] Failed to list branches with a gone upstream: ${err}`);
+			return [];
+		}
+	}
+
 	async getRemoteRefs(remote: string, opts?: { heads?: boolean; tags?: boolean; cancellationToken?: CancellationToken }): Promise<Ref[]> {
 		if (opts?.cancellationToken && opts?.cancellationToken.isCancellationRequested) {
 			throw new CancellationError();

@@ -532,6 +532,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		private _keepScrollPosition = false;
 		private _activeItems: T[] = [];
 		private _prompt: string | undefined;
+		private _footer: string | undefined;
 		private readonly _onDidChangeActiveEmitter = this._register(new Emitter<T[]>());
 		private _selectedItems: T[] = [];
 		private readonly _onDidChangeSelectionEmitter = this._register(new Emitter<T[]>());
@@ -559,7 +560,18 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 			for (let handle = 0; handle < items.length; handle++) {
 				const item = items[handle];
 				if (item.kind === QuickPickItemKind.Separator) {
-					pickItems.push({ type: 'separator', label: item.label });
+					pickItems.push({
+						type: 'separator',
+						label: item.label,
+						buttons: item.buttons?.map<TransferQuickInputButton>((button, i) => ({
+							iconPathDto: IconPath.from(button.iconPath),
+							tooltip: button.tooltip,
+							handle: i,
+							toggle: typeof button.toggle === 'object' && typeof button.toggle.checked === 'boolean'
+								? { checked: button.toggle.checked }
+								: undefined,
+						})),
+					});
 				} else {
 					if (item.tooltip) {
 						checkProposedApiEnabled(this._extension, 'quickPickItemTooltip');
@@ -573,6 +585,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 						detail: item.detail,
 						picked: item.picked,
 						alwaysShow: item.alwaysShow,
+						labelColor: item.labelColor,
 						tooltip: MarkdownString.fromStrict(item.tooltip),
 						resourceUri: item.resourceUri,
 						buttons: item.buttons?.map<TransferQuickInputButton>((button, i) => {
@@ -647,6 +660,15 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		set prompt(prompt: string | undefined) {
 			this._prompt = prompt;
 			this.update({ prompt });
+		}
+
+		get footer() {
+			return this._footer;
+		}
+
+		set footer(footer: string | undefined) {
+			this._footer = footer;
+			this.update({ footer });
 		}
 
 		get activeItems() {

@@ -765,6 +765,7 @@ export interface TransferQuickPickItem {
 	picked?: boolean;
 	alwaysShow?: boolean;
 	buttons?: TransferQuickInputButton[];
+	labelColor?: ThemeColor;
 	resourceUri?: UriComponents;
 
 	// TODO: These properties are not used for transfer (iconPathDto is used instead) but they cannot be removed
@@ -812,6 +813,8 @@ export interface TransferQuickPick extends BaseTransferQuickInput {
 	placeholder?: string;
 
 	prompt?: string;
+
+	footer?: string;
 
 	buttons?: TransferQuickInputButton[];
 
