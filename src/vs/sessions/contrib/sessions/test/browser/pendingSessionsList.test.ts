@@ -73,7 +73,7 @@ suite('Sessions - pending list items', () => {
 			list.setItemCollapsed({ section: 'drafts' }, false);
 			return pending.filter(item => list.getItemRow({ pendingSession: item.id })).map(item => item.id);
 		};
-		list.filters.setInboxWorkspace({ environment: 'local', resource: 'file:///work/REPO', label: 'repo' });
+		list.filters.setInboxWorkspace({ environment: 'local', resource: getComparisonKey(URI.file('/work/repo')), label: 'repo' });
 		const workspace = shown();
 		list.filters.setInboxWorkspace('none');
 		const quick = shown();
