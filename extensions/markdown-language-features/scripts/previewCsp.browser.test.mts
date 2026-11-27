@@ -82,6 +82,7 @@ it('does not run content scripts that carry the preview script nonce', async () 
 });
 
 it('takes the direction of the preview root from its content', async () => {
+	// allow-any-unicode-next-line
 	const rightToLeft = (marker: string) => `<div class="markdown-body"><p>שלום ${marker}</p></div>`;
 
 	const browser = await chromium.launch();
