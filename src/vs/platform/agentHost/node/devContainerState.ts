@@ -302,26 +302,31 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'}',
 		// E.g., after a `chown -R` of the volume in a lifecycle command. Taking ownership again would not make the folders and
 		// symlinks the user could add meanwhile safe for this script to work in.
+		// The container user's state folder, see below.
+		'user_state="$state/$user_uid"',
+		// A folder only root and the container user can change.
+		'private_folder() { [ "$(owner_kind "$(stat -c %u "$1")")" != other ] && case "$(stat -c %A "$1")" in d????-??-?*) true ;; *) false ;; esac; }',
 		'not_root_owned() {',
 		'  progress skipped:stateNotRootOwned',
 		'  echo "Not persisting user state: $1 is not owned by root. To keep it, give it and its contents back to root (chown -R root:root) if you trust them, or remove it to start fresh" >&2',
-		// A user other than root keeps using state that they own and that no other user can replace.
-		'  if [ "$user_uid" = 0 ] || [ "$(owner_kind "$2")" = other ] || [ "$(owner_kind "$volume_uid")" = other ]; then unlink_state; fi',
+		// A user other than root keeps using state that no other user can change or replace.
+		'  if [ "$user_uid" = 0 ] || [ "$(owner_kind "$volume_uid")" = other ] || ! private_folder . || { { [ -e "./$user_uid" ] || [ -L "./$user_uid" ]; } && ! private_folder "./$user_uid"; }; then unlink_state; fi',
 		'  exit 0',
 		'}',
-		'if [ "$state_uid" != 0 ]; then not_root_owned "$state" "$state_uid"; fi',
-		// The container user's state folder, see below.
-		'user_state="$state/$user_uid"',
+		'if [ "$state_uid" != 0 ]; then not_root_owned "$state"; fi',
 		'is_other() { [ -L "$1" ] || { [ -e "$1" ] && [ ! -d "$1" ]; }; }',
 		// E.g., a symlink another user planted while they could change the state folder. Links through it would use their state.
 		'user_state_other() {',
 		'  progress skipped:untrustedState; echo "Not persisting user state: $user_state is not a folder" >&2; unlink_state; exit 0',
 		'}',
-		'if is_other "./$user_uid"; then user_state_other; fi',
-		'if [ -d "./$user_uid" ]; then',
-		'  user_state_uid=$(stat -c %u "./$user_uid")',
-		'  if [ "$user_state_uid" != 0 ]; then progress "stateOwner:$(owner_kind "$user_state_uid")"; not_root_owned "$user_state" "$user_state_uid"; fi',
-		'fi',
+		'check_user_state() {',
+		'  if is_other "./$user_uid"; then user_state_other; fi',
+		'  if [ -d "./$user_uid" ]; then',
+		'    user_state_uid=$(stat -c %u "./$user_uid")',
+		'    if [ "$user_state_uid" != 0 ]; then progress "stateOwner:$(owner_kind "$user_state_uid")"; not_root_owned "$user_state"; fi',
+		'  fi',
+		'}',
+		'check_user_state',
 		'root_only() { case "$(stat -c %u:%A "$1")" in 0:d????-??-?*) return 0 ;; *) return 1 ;; esac; }',
 		// A root user's state must neither come from nor be replaceable by another user, e.g., hooks in ~/.copilot run as root.
 		'if [ "$user_uid" = 0 ]; then',
@@ -337,6 +342,8 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		// Serializes links, e.g., from two windows opening the container, so a folder being moved is not taken for restored state.
 		'locked=',
 		'if command -v flock >/dev/null 2>&1; then exec 9<.; flock 9; locked=1; fi',
+		// Checked again, now that only root can change the state folder, so another user cannot have replaced it meanwhile.
+		'check_user_state',
 		'progress step:migrate',
 		// The state folder of the user with the given uid and group. Only root may change it, so the folders moved into it stay
 		// in place.
@@ -348,33 +355,40 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'  fi',
 		'  root_only "./$1"',
 		'}',
-		// The earlier layout kept all users' folders in the state folder itself, which any user could enter. Moves them, and
-		// copies of them, to the state folder of the user who owns them. Keeps a copy where that user has state for the folder
-		// already, e.g., when a client with the earlier layout linked it again. Only renames, in folders only root can change,
-		// so a running container cannot redirect them, and never follows a symlink. While the container runs, moves only the
-		// container user's folders, whose links are updated below. Another user's links would no longer reach their folders.
+		// The earlier layout kept all users' folders in the state folder itself, which only the group of the user who linked
+		// last could enter. Moves them, and copies of them, to the state folder of the user who owns them. Keeps a copy where
+		// that user has state for the folder already, e.g., when a client with the earlier layout linked it again. Only renames,
+		// in folders only root can change, so a running container cannot redirect them, and never follows a symlink. While the
+		// container runs, moves only the container user's folders, whose links are updated below. Another user's links would
+		// no longer reach their folders, so only that user may enter them meanwhile. Notes other folders left behind, see below.
+		'legacy_left=',
 		'migrate_state() {',
 		'  rel=$1',
 		'  shift',
 		'  for parent in "$@"; do',
 		'    if [ -L "./$parent" ] || [ ! -d "./$parent" ]; then return 0; fi',
-		'    if ! root_only "./$parent"; then echo "Not moving $state/$rel: a user other than root can change $state/$parent" >&2; return 0; fi',
+		'    if ! root_only "./$parent"; then echo "Not moving $state/$rel: a user other than root can change $state/$parent" >&2; legacy_left=1; return 0; fi',
 		'  done',
 		'  for entry in "./$rel" "./$rel".deferred.* "./$rel".moving.*; do',
-		'    if [ -L "$entry" ] || [ ! -d "$entry" ]; then continue; fi',
+		'    if [ -L "$entry" ]; then continue; fi',
+		'    if [ ! -d "$entry" ]; then if [ -e "$entry" ]; then legacy_left=1; fi; continue; fi',
 		'    entry_uid=$(stat -c %u "$entry")',
-		'    if [ -n "$keep_existing" ] && [ "$entry_uid" != "$user_uid" ]; then echo "Not moving $state/${entry#./} while the container is running: another user may be using it" >&2; continue; fi',
+		'    if [ -n "$keep_existing" ] && [ "$entry_uid" != "$user_uid" ]; then',
+		'      echo "Not moving $state/${entry#./} while the container is running: another user may be using it" >&2',
+		'      chmod go-rwx "$entry" || legacy_left=1',
+		'      continue',
+		'    fi',
 		// A root user's state must not be changeable by another user, see above, who may still have it open.
-		'    if [ "$entry_uid" = 0 ] && ! root_only "$entry"; then echo "Not moving $state/${entry#./}: a user other than root can change it" >&2; continue; fi',
-		'    if ! user_folder "$entry_uid" "$(stat -c %g "$entry")"; then echo "Not moving $state/${entry#./}: $state/$entry_uid is not a folder only root can change" >&2; continue; fi',
+		'    if [ "$entry_uid" = 0 ] && ! root_only "$entry"; then echo "Not moving $state/${entry#./}: a user other than root can change it" >&2; legacy_left=1; continue; fi',
+		'    if ! user_folder "$entry_uid" "$(stat -c %g "$entry")"; then echo "Not moving $state/${entry#./}: $state/$entry_uid is not a folder only root can change" >&2; legacy_left=1; continue; fi',
 		'    for parent in "$@"; do',
-		'      if is_other "./$entry_uid/$parent" || { [ -d "./$entry_uid/$parent" ] && ! root_only "./$entry_uid/$parent"; }; then continue 2; fi',
+		'      if is_other "./$entry_uid/$parent" || { [ -d "./$entry_uid/$parent" ] && ! root_only "./$entry_uid/$parent"; }; then legacy_left=1; continue 2; fi',
 		'      test -d "./$entry_uid/$parent" || mkdir "./$entry_uid/$parent"',
 		'    done',
 		'    to="./$entry_uid/${entry#./}"',
 		'    if [ -e "$to" ] || [ -L "$to" ]; then to=$(mktemp -d "./$entry_uid/$rel.deferred.XXXXXX"); rmdir "$to"; fi',
 		// E.g., root without CAP_DAC_OVERRIDE cannot move another user's folder.
-		'    mv "$entry" "$to" || continue',
+		'    if ! mv "$entry" "$to"; then legacy_left=1; continue; fi',
 		'    if [ "$to" = "./$entry_uid/$rel" ] && [ -f "./$rel.deferred" ] && [ ! -L "./$rel.deferred" ] && [ ! -e "$to.deferred" ] && [ ! -L "$to.deferred" ]; then mv "./$rel.deferred" "$to.deferred"; fi',
 		'    echo "Moved $state/${entry#./} to $state/${to#./}" >&2',
 		'  done',
@@ -393,17 +407,24 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'}',
 		'if state_mounted; then',
 		'  echo "Not moving the earlier layout\'s folders: a folder is mounted at or inside $state" >&2',
+		'  legacy_left=1',
 		'else',
 		...[...serverFolders, ...homeStateFolders].map(folder => `  ${withParents('migrate_state', folder)}`),
 		'fi',
-		// Other users can pass through to their own state folder.
-		'chown -h 0:0 .',
-		'chmod 711 .',
+		// Other users can pass through to their own state folder, unless that exposes folders the earlier layout's permissions
+		// protected.
+		'if [ -n "$legacy_left" ]; then',
+		'  echo "Not letting other users enter $state yet: some of the earlier layout\'s folders are still in it" >&2',
+		'  chown -h "$state_owner" .',
+		'  chmod 750 .',
+		'else',
+		'  chown -h 0:0 .',
+		'  chmod 711 .',
+		'fi',
 		`if [ ! -L .layout ] && { [ ! -e .layout ] || [ -f .layout ]; } && [ "$(cat .layout 2>/dev/null)" != ${shellQuote(stateLayoutVersion)} ]; then printf '%s\\n' ${shellQuote(stateLayoutVersion)} > .layout; fi`,
 		// Moved folders are no longer protected by the home folder's permissions, so only the user's group may enter. Root
 		// owns the user's state folder and the parents of moved folders, so the user cannot plant symlinks for this script to
-		// follow. Works inside it, like the state folder above. Checked again, now that only root can change the state folder.
-		'if is_other "./$user_uid"; then user_state_other; fi',
+		// follow. Works inside it, like the state folder above.
 		'test -d "./$user_uid" || mkdir "./$user_uid" || test -d "./$user_uid"',
 		'chown -h "$state_owner" "./$user_uid"',
 		'chmod 750 "./$user_uid"',
@@ -542,7 +563,11 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'  elif [ -e "$src" ] && [ ! -d "$src" ]; then',
 		'    skip file "it is not a folder"; return 0',
 		'  fi',
-		'  if is_other "$dst"; then skip state "$user_state/$rel is not a folder"; return 0; fi',
+		'  if is_other "$dst"; then',
+		// The link would use whatever replaced the folder.
+		'    if is_state_link "$src" "$rel"; then rm -f "$src"; fi',
+		'    skip state "$user_state/$rel is not a folder"; return 0',
+		'  fi',
 		// Restoring the volume's state would remove the folder without keeping a copy of it, or fail after removing it.
 		'  if [ -L "$dst.deferred" ] || { [ -e "$dst.deferred" ] && [ ! -f "$dst.deferred" ]; }; then skip state "$user_state/$rel.deferred is not a file"; return 0; fi',
 		// Moving or replacing a folder that is in use would lose the changes made to it meanwhile. The marker keeps a copy of
