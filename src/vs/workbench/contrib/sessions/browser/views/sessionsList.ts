@@ -78,7 +78,7 @@ import { ISessionsNavigationService } from '../sessionsNavigationService.js';
 import { ISessionListModelChangeEvent, ISessionsListModelService, SessionListModelChangeKind, SessionSortEntry, SessionSortMode } from '../sessionsListModelService.js';
 import { getSessionGroupIdOfSection, getSessionGroupSectionId, ISessionGroup, ISessionGroupAppearance, ISessionGroupsService } from '../sessionGroupsService.js';
 import { IRecentSessionWorkspace, ISessionWorkspacesService } from '../../common/sessionWorkspaces.js';
-import { EDIT_SESSION_WORKSPACE_COMMAND_ID } from '../workspaceEditor/sessionWorkspaceEditorCommands.js';
+import { EDIT_SESSION_GROUP_COMMAND_ID, EDIT_SESSION_WORKSPACE_COMMAND_ID, SESSION_WORKSPACE_EDITOR_WHEN } from '../workspaceEditor/sessionWorkspaceEditorCommands.js';
 import { ISessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../common/sessionComparisonConstants.js';
@@ -1438,13 +1438,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.focusedChatCanMoveDownContext.reset();
 		}));
 
-		// Double-clicking a workspace row edits its workspace
+		// Double-clicking a workspace row edits its workspace, and a custom group's row the group
 		this._register(this.tree.onMouseDblClick(({ element }) => {
 			if (!element) {
 				return;
 			}
 			if (isSessionSection(element) && element.workspace?.known) {
 				this.commandService.executeCommand(EDIT_SESSION_WORKSPACE_COMMAND_ID, element.workspace.uri);
+			} else if (isSessionGroupItem(element) && !element.comparison && this.canEditGroups()) {
+				this.commandService.executeCommand(EDIT_SESSION_GROUP_COMMAND_ID, element.group.id);
 			}
 		}));
 		this._register(this.tree.onDidOpen(async e => {
@@ -4768,6 +4770,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * The workspaces Group by Workspaces & Groups lists sessions under, for one rebuild: each workspace is looked up once.
 	 * The Agents window's own workspaces list even without sessions, unless a search or scope narrows the list.
 	 */
+	/** Whether the Workspace editor edits custom groups: while chat and workspaces are on. */
+	private canEditGroups(): boolean {
+		return this.contextKeyService.contextMatchesRules(SESSION_WORKSPACE_EDITOR_WHEN);
+	}
+
 	private createListWorkspaces(scoped: boolean): ISessionListWorkspaces {
 		const workspaces = new ResourceMap<IRecentSessionWorkspace | undefined>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
 		return {
@@ -5664,7 +5671,17 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 			groups.push(['2_organize', organize]);
 		}
-		if (!comparison) {
+		if (!comparison && this.canEditGroups()) {
+			// The Workspace editor edits a group's name, icon and color together
+			groups.push(['4_manage', [
+				toAction({
+					id: 'sessions.editGroupAction',
+					label: localize('editGroupAction', "Edit Group..."),
+					run: () => this.commandService.executeCommand(EDIT_SESSION_GROUP_COMMAND_ID, groupItem.group.id),
+				}),
+				this.getDeleteGroupAction(groupItem),
+			]]);
+		} else if (!comparison) {
 			groups.push(['4_manage', [
 				...this.getGroupAppearanceActions(
 					groupItem.group,

@@ -28,13 +28,14 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { hasWorkspaceFileExtension } from '../../../../../platform/workspace/common/workspace.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { Menus } from '../menus.js';
+import { ISessionGroupsService } from '../sessionGroupsService.js';
 import { ISessionSection, ISessionSectionWorkspace, SessionSectionWorkspaceIsLocalContext, SessionSectionWorkspaceKindContext } from '../views/sessionsListCommon.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { IRecentSessionWorkspace, ISessionWorkspacesService, SessionWorkspaceError } from '../../common/sessionWorkspaces.js';
 import { getSessionWorkspaceIcon } from './sessionWorkspaceAppearance.js';
 import { SessionWorkspaceEditor } from './sessionWorkspaceEditor.js';
-import { SessionWorkspaceEditorAccessibilityHelp } from './sessionWorkspaceEditorAccessibilityHelp.js';
-import { EDIT_SESSION_WORKSPACE_COMMAND_ID, NEW_SESSION_WORKSPACE_COMMAND_ID, REMOVE_SESSION_WORKSPACE_COMMAND_ID, SESSION_WORKSPACE_EDITOR_WHEN, SessionWorkspaceEditorAvailableContext } from './sessionWorkspaceEditorCommands.js';
+import { SessionGroupEditorAccessibilityHelp, SessionWorkspaceEditorAccessibilityHelp } from './sessionWorkspaceEditorAccessibilityHelp.js';
+import { EDIT_SESSION_GROUP_COMMAND_ID, EDIT_SESSION_WORKSPACE_COMMAND_ID, NEW_SESSION_WORKSPACE_COMMAND_ID, REMOVE_SESSION_WORKSPACE_COMMAND_ID, SESSION_WORKSPACE_EDITOR_WHEN, SessionWorkspaceEditorAvailableContext } from './sessionWorkspaceEditorCommands.js';
 import { SessionWorkspaceEditorInput } from './sessionWorkspaceEditorInput.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
@@ -55,6 +56,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 );
 
 AccessibleViewRegistry.register(new SessionWorkspaceEditorAccessibilityHelp());
+AccessibleViewRegistry.register(new SessionGroupEditorAccessibilityHelp());
 
 /** A command on a workspace, which the user picks when the command is not given one. */
 abstract class SessionWorkspacePickAction extends Action2 {
@@ -255,5 +257,25 @@ registerAction2(class RemoveWorkspaceRowAction extends SessionWorkspaceRowAction
 	override run(accessor: ServicesAccessor, section?: ISessionSection): Promise<void> | undefined {
 		const workspace = this.getRowWorkspace(section);
 		return workspace ? accessor.get(ICommandService).executeCommand(REMOVE_SESSION_WORKSPACE_COMMAND_ID, workspace.uri) : undefined;
+	}
+});
+
+registerAction2(class EditSessionGroupAction extends Action2 {
+	constructor() {
+		super({
+			id: EDIT_SESSION_GROUP_COMMAND_ID,
+			title: localize2('editGroup', "Edit Group..."),
+			category: CHAT_CATEGORY,
+			precondition: SESSION_WORKSPACE_EDITOR_WHEN,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, groupId?: string): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const extUri = accessor.get(IUriIdentityService).extUri;
+		const group = typeof groupId === 'string' ? accessor.get(ISessionGroupsService).getGroup(groupId) : undefined;
+		if (group) {
+			await editorService.openEditor(new SessionWorkspaceEditorInput({ kind: 'group', group }, extUri), { pinned: true });
+		}
 	}
 });

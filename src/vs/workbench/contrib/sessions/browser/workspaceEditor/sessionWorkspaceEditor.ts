@@ -29,7 +29,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
@@ -53,7 +53,8 @@ import { IEditorGroup } from '../../../../services/editor/common/editorGroupsSer
 import { IconPicker } from '../../../../services/userDataProfile/browser/iconPicker.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibilityCommandId } from '../../../accessibility/common/accessibilityCommands.js';
-import { SessionWorkspaceEditorFocusedContext } from '../../common/contextkeys.js';
+import { SessionWorkspaceEditorFocusedContext, SessionWorkspaceEditorIsGroupContext } from '../../common/contextkeys.js';
+import { ISessionGroupsService } from '../sessionGroupsService.js';
 import { IRecentSessionWorkspace, ISessionWorkspacesService, SessionWorkspaceError } from '../../common/sessionWorkspaces.js';
 import { getSessionWorkspaceCssColor, getSessionWorkspaceIcon, isCustomSessionWorkspaceColor, SESSION_WORKSPACE_COLORS } from './sessionWorkspaceAppearance.js';
 import { ISessionWorkspaceDraft, SessionWorkspaceDraftModel } from './sessionWorkspaceDraft.js';
@@ -269,6 +270,8 @@ export class SessionWorkspaceEditorWidget extends Disposable {
 	private readonly applies = new Sequencer();
 	/** Whether the editor creates a new workspace once the user chooses Create, rather than applying changes as made. */
 	private readonly isNew: boolean;
+	/** The custom group the editor edits the name, icon and color of, in place of a workspace. */
+	private readonly groupId: string | undefined;
 	/** Whether a new workspace is to be created, as the user chose Create. */
 	private createRequested = false;
 	/** Whether the workspace is being created, which disables Create and Cancel. Closing the editor still creates it. */
@@ -299,6 +302,7 @@ export class SessionWorkspaceEditorWidget extends Disposable {
 		container: HTMLElement,
 		target: SessionWorkspaceEditorTarget,
 		@ISessionWorkspacesService private readonly workspacesService: ISessionWorkspacesService,
+		@ISessionGroupsService private readonly groupsService: ISessionGroupsService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IHoverService private readonly hoverService: IHoverService,
@@ -316,10 +320,15 @@ export class SessionWorkspaceEditorWidget extends Disposable {
 		const isEqual = (a: URI, b: URI) => uriIdentityService.extUri.isEqual(a, b);
 		const initial: ISessionWorkspaceDraft = target.kind === 'edit'
 			? { name: target.workspace.name, folders: target.workspace.folders, icon: target.workspace.icon, color: target.workspace.color }
-			: { name: '', folders: [] };
-		this.model = new SessionWorkspaceDraftModel(initial, target.kind === 'edit', isEqual);
+			: target.kind === 'group'
+				? { name: target.group.name, folders: [], icon: target.group.icon, color: target.group.color }
+				: { name: '', folders: [] };
+		this.model = new SessionWorkspaceDraftModel(initial, target.kind !== 'new', isEqual);
 		if (target.kind === 'edit') {
 			this.workspace = target.workspace;
+			this.applied = this.model.draft;
+		} else if (target.kind === 'group') {
+			this.groupId = target.group.id;
 			this.applied = this.model.draft;
 		}
 		this.isNew = target.kind === 'new';
@@ -334,10 +343,10 @@ export class SessionWorkspaceEditorWidget extends Disposable {
 		const nameRow = this.renderRow(body, localize('workspaceEditor.name', "Name"), undefined, this.isNew);
 		this.nameInput = this._register(new InputBox(nameRow, contextViewService, {
 			inputBoxStyles: defaultInputBoxStyles,
-			placeholder: localize('workspaceEditor.namePlaceholder', "Workspace name"),
-			ariaLabel: this.withHelpHint(this.isNew ? localize('workspaceEditor.nameRequiredAria', "Workspace Name, required") : localize('workspaceEditor.nameAria', "Workspace Name")),
+			placeholder: this.groupId ? localize('workspaceEditor.groupNamePlaceholder', "Group name") : localize('workspaceEditor.namePlaceholder', "Workspace name"),
+			ariaLabel: this.withHelpHint(this.groupId ? localize('workspaceEditor.groupNameAria', "Group Name") : this.isNew ? localize('workspaceEditor.nameRequiredAria', "Workspace Name, required") : localize('workspaceEditor.nameAria', "Workspace Name")),
 			validationOptions: {
-				validation: value => value.trim() || !this.validationShown ? null : { content: localize('workspaceEditor.nameRequired', "A workspace needs a name."), type: MessageType.ERROR },
+				validation: value => value.trim() || !this.validationShown ? null : { content: this.groupId ? localize('workspaceEditor.groupNameRequired', "A group needs a name.") : localize('workspaceEditor.nameRequired', "A workspace needs a name."), type: MessageType.ERROR },
 			},
 		}));
 		this.nameInput.value = this.model.name;
@@ -388,6 +397,8 @@ export class SessionWorkspaceEditorWidget extends Disposable {
 
 		// Folders
 		const foldersRow = this.renderRow(body, localize('workspaceEditor.folders', "Folders"), undefined, this.isNew);
+		// A group has no folders
+		foldersRow.hidden = !!this.groupId;
 		DOM.append(foldersRow, DOM.$('.session-workspace-editor-description', undefined, localize('workspaceEditor.foldersDescription', "Sessions of this workspace work in its folders, starting in its default folder.")));
 		const tableContainer = this.tableContainer = DOM.append(foldersRow, DOM.$('.session-workspace-editor-folders-table'));
 		const actionsWidth = () => this.folderActionsWidth;
@@ -586,12 +597,13 @@ export class SessionWorkspaceEditorWidget extends Disposable {
 	}
 
 	private renderIconButton(): void {
-		const icon = getSessionWorkspaceIcon(this.model.icon);
+		// A group without an icon of its own shows the sessions list's group icon
+		const icon = this.groupId && !this.model.icon ? Codicon.folderLibrary : getSessionWorkspaceIcon(this.model.icon);
 		DOM.clearNode(this.iconButton);
 		const element = DOM.append(this.iconButton, renderIcon(icon));
 		element.setAttribute('aria-hidden', 'true');
 		element.style.color = getSessionWorkspaceCssColor(this.shownColor, this.themeService.getColorTheme()) ?? '';
-		this.iconButton.setAttribute('aria-label', localize('workspaceEditor.iconAria', "Workspace Icon: {0}", icon.id));
+		this.iconButton.setAttribute('aria-label', this.groupId ? localize('workspaceEditor.groupIconAria', "Group Icon: {0}", icon.id) : localize('workspaceEditor.iconAria', "Workspace Icon: {0}", icon.id));
 	}
 
 	/**
@@ -738,7 +750,7 @@ export class SessionWorkspaceEditorWidget extends Disposable {
 
 	/** Picks the icon with the shared icon picker: an icon, or the default icon when the user resets it. */
 	private async pickIcon(): Promise<void> {
-		const icon = await this.iconPicker.pickIcons(localize('workspaceEditor.pickIcon', "Change Workspace Icon"));
+		const icon = await this.iconPicker.pickIcons(this.groupId ? localize('workspaceEditor.pickGroupIcon', "Change Group Icon") : localize('workspaceEditor.pickIcon', "Change Workspace Icon"));
 		if (icon === undefined || this._store.isDisposed) {
 			return;
 		}
@@ -872,6 +884,10 @@ export class SessionWorkspaceEditorWidget extends Disposable {
 	private apply(): Promise<void> {
 		this.nameApply.cancel();
 		return this.applies.queue(async () => {
+			if (this.groupId) {
+				this.applyGroup(this.groupId);
+				return;
+			}
 			if (!this.model.isValid || this._store.isDisposed) {
 				return;
 			}
@@ -906,6 +922,25 @@ export class SessionWorkspaceEditorWidget extends Disposable {
 			}
 		});
 	}
+
+	/** Applies a group's name, icon and color as the user changed them; nothing while it has no name. */
+	private applyGroup(groupId: string): void {
+		const draft = this.model.draft;
+		const update = draft.name && this.applied ? this.model.getUpdate(this.applied) : undefined;
+		if (!update || this._store.isDisposed) {
+			return;
+		}
+		if (update.name !== undefined) {
+			this.groupsService.renameGroup(groupId, update.name);
+		}
+		if (update.icon !== undefined) {
+			this.groupsService.setGroupIcon(groupId, update.icon ?? undefined);
+		}
+		if (update.color !== undefined) {
+			this.groupsService.setGroupColor(groupId, update.color ?? undefined);
+		}
+		this.applied = draft;
+	}
 }
 
 /** The Workspace editor, which opens in a modal that fits its content: see {@link SessionWorkspaceEditorWidget}. */
@@ -921,6 +956,7 @@ export class SessionWorkspaceEditor extends EditorPane {
 	private current: { readonly widget: SessionWorkspaceEditorWidget; readonly input: SessionWorkspaceEditorInput; readonly bindings: DisposableStore } | undefined;
 	private dimension: DOM.Dimension | undefined;
 	private contentHeight: number | undefined;
+	private isGroup: IContextKey<boolean> | undefined;
 
 	constructor(
 		group: IEditorGroup,
@@ -942,10 +978,14 @@ export class SessionWorkspaceEditor extends EditorPane {
 		const container = this.container = DOM.append(parent, DOM.$('.session-workspace-editor-pane'));
 		// Accessibility help, Alt+F1, explains the editor while it has focus
 		const focused = SessionWorkspaceEditorFocusedContext.bindTo(this.contextKeyService);
+		this.isGroup = SessionWorkspaceEditorIsGroupContext.bindTo(this.contextKeyService);
 		const focusTracker = this._register(DOM.trackFocus(container));
 		this._register(focusTracker.onDidFocus(() => focused.set(true)));
 		this._register(focusTracker.onDidBlur(() => focused.set(false)));
-		this._register(toDisposable(() => focused.reset()));
+		this._register(toDisposable(() => {
+			focused.reset();
+			this.isGroup?.reset();
+		}));
 	}
 
 	override async setInput(input: SessionWorkspaceEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -955,6 +995,8 @@ export class SessionWorkspaceEditor extends EditorPane {
 		}
 		this.release();
 		DOM.clearNode(this.container);
+		// Accessibility help explains the group's fields, or the workspace's
+		this.isGroup?.set(input.target.kind === 'group');
 		const bindings = new DisposableStore();
 		const widget = this.instantiationService.createInstance(SessionWorkspaceEditorWidget, this.container, input.target);
 		bindings.add(widget.onDidChangeName(name => input.setName(name)));

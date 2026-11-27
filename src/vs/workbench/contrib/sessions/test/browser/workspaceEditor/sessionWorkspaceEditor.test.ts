@@ -32,6 +32,7 @@ import { Menus } from '../../../browser/menus.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
 import { IOpenEmptyWindowOptions, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, IWindowOpenable } from '../../../../../../platform/window/common/window.js';
 import { SessionSectionWorkspaceIsLocalContext, SessionSectionWorkspaceKindContext } from '../../../browser/views/sessionsListCommon.js';
+import { ISessionGroup, ISessionGroupsService } from '../../../browser/sessionGroupsService.js';
 import { IRecentSessionWorkspace, ISessionWorkspacesService, ISessionWorkspaceUpdate, SessionWorkspaceError } from '../../../common/sessionWorkspaces.js';
 import { SessionWorkspaceDraftModel } from '../../../browser/workspaceEditor/sessionWorkspaceDraft.js';
 import { SessionWorkspaceEditorWidget } from '../../../browser/workspaceEditor/sessionWorkspaceEditor.js';
@@ -62,6 +63,11 @@ suite('SessionWorkspaceEditor', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		let current: IRecentSessionWorkspace | undefined = target.kind === 'edit' ? target.workspace : undefined;
 		const describe = (update: ISessionWorkspaceUpdate) => JSON.stringify({ ...update, folders: update.folders?.map(folder => folder.path) });
+		instantiationService.stub(ISessionGroupsService, upcastPartial<ISessionGroupsService>({
+			renameGroup: (id, name) => { calls.push(`renameGroup ${id} ${name}`); },
+			setGroupIcon: (id, icon) => { calls.push(`setGroupIcon ${id} ${icon}`); },
+			setGroupColor: (id, color) => { calls.push(`setGroupColor ${id} ${color}`); },
+		}));
 		instantiationService.stub(ISessionWorkspacesService, upcastPartial<ISessionWorkspacesService>({
 			createWorkspace: async (name, folders, appearance) => {
 				calls.push(`create ${describe({ name, folders, ...appearance })}`);
@@ -80,7 +86,7 @@ suite('SessionWorkspaceEditor', () => {
 		disposables.add(toDisposable(() => container.remove()));
 		const widget = disposables.add(instantiationService.createInstance(SessionWorkspaceEditorWidget, container, target));
 		widget.layout(new Dimension(640, 600));
-		const names: string[] = [target.kind === 'edit' ? target.workspace.name : ''];
+		const names: string[] = [target.kind === 'edit' ? target.workspace.name : target.kind === 'group' ? target.group.name : ''];
 		disposables.add(widget.onDidChangeName(name => names.push(name)));
 		const state = () => ({
 			title: names.at(-1) || 'New Workspace',
@@ -282,6 +288,28 @@ suite('SessionWorkspaceEditor', () => {
 			refused: ['The folders of the workspace file \'Agents.code-workspace\' were not changed.'],
 			other: ['Could not save the workspace \'Agents\'. See the log for details.'],
 			cancelled: [],
+		});
+	});
+
+	test('a custom group edits its name and color, applied to the group as the user makes them, and has no folders', async () => {
+		const release: ISessionGroup = { id: 'release', name: 'Release', createdAt: 1, color: 'terminal.ansiMagenta' };
+		const { container, widget, calls, typeName } = createWidget({ kind: 'group', group: release });
+		typeName('Release work');
+		await widget.flush();
+		Array.from(container.querySelectorAll<HTMLElement>('.session-workspace-editor-swatch')).find(swatch => swatch.getAttribute('aria-label') === 'Default')!.click();
+		await widget.flush();
+		typeName('');
+		await widget.flush();
+
+		assert.deepStrictEqual({
+			foldersHidden: container.querySelectorAll<HTMLElement>('.session-workspace-editor-row')[3].hidden,
+			footer: !!container.querySelector('.session-workspace-editor-footer'),
+			calls,
+		}, {
+			foldersHidden: true,
+			footer: false,
+			// Nothing applies while the group has no name
+			calls: ['renameGroup release Release work', 'setGroupColor release undefined'],
 		});
 	});
 

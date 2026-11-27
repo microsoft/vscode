@@ -14,11 +14,13 @@ import { hasWorkspaceFileExtension } from '../../../../../platform/workspace/com
 import { EditorInputCapabilities, IUntypedEditorInput } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IRecentSessionWorkspace } from '../../common/sessionWorkspaces.js';
+import { ISessionGroup } from '../sessionGroupsService.js';
 
-/** What the Workspace editor edits: an existing workspace, or a new one that it creates. */
+/** What the Workspace editor edits: an existing workspace, a new one that it creates, or a custom group of sessions. */
 export type SessionWorkspaceEditorTarget =
 	| { readonly kind: 'edit'; readonly workspace: IRecentSessionWorkspace }
-	| { readonly kind: 'new' };
+	| { readonly kind: 'new' }
+	| { readonly kind: 'group'; readonly group: ISessionGroup };
 
 /**
  * The input of the Workspace editor, which always opens in a modal that fits its content. Its name is the workspace's
@@ -41,7 +43,7 @@ export class SessionWorkspaceEditorInput extends EditorInput implements IModalEd
 	constructor(target: SessionWorkspaceEditorTarget, private readonly extUri: IExtUri) {
 		super();
 		this._target = target;
-		this._name = target.kind === 'edit' ? target.workspace.name : '';
+		this._name = target.kind === 'edit' ? target.workspace.name : target.kind === 'group' ? target.group.name : '';
 	}
 
 	get target(): SessionWorkspaceEditorTarget { return this._target; }
@@ -108,6 +110,9 @@ export class SessionWorkspaceEditorInput extends EditorInput implements IModalEd
 		}
 		if (!(otherInput instanceof SessionWorkspaceEditorInput)) {
 			return false;
+		}
+		if (this._target.kind === 'group' || otherInput._target.kind === 'group') {
+			return this._target.kind === 'group' && otherInput._target.kind === 'group' && this._target.group.id === otherInput._target.group.id;
 		}
 		// A new workspace is only edited by the editor that creates it
 		const other = otherInput.workspace;

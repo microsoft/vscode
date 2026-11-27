@@ -2929,10 +2929,7 @@ export class SessionGroupRenderer implements ITreeRenderer<SessionListItem, Fuzz
 
 		const isComparison = element.comparison !== undefined;
 		template.container.classList.toggle('session-comparison-group', isComparison);
-		const groupIcon: ThemeIcon = isComparison ? Codicon.layers : {
-			id: element.group.icon ?? Codicon.folderLibrary.id,
-			color: element.group.color ? themeColorFromId(element.group.color) : undefined,
-		};
+		const groupIcon: ThemeIcon = isComparison ? Codicon.layers : { id: element.group.icon ?? Codicon.folderLibrary.id };
 		template.label.textContent = element.comparison?.title ?? element.group.name;
 		const comparison = element.comparison;
 		if (comparison) {
@@ -2947,7 +2944,8 @@ export class SessionGroupRenderer implements ITreeRenderer<SessionListItem, Fuzz
 		}
 		template.description.classList.toggle('visible', isComparison);
 		this.updateChevron(template, node.collapsible, node.collapsed);
-		renderSessionHeaderIcon(template, element.subtreeSessions, groupIcon, this.showUnreadInCollapsedSections, this.sessionsWithFailingCI, this.headerStatusTrigger, this.instantiationService);
+		// A group's color is a theme color or, as the Workspace editor picks it, a custom one
+		renderSessionHeaderIcon(template, element.subtreeSessions, groupIcon, this.showUnreadInCollapsedSections, this.sessionsWithFailingCI, this.headerStatusTrigger, this.instantiationService, undefined, isComparison ? undefined : element.group.color);
 		if (isComparison) {
 			for (const eventType of ['pointerdown', 'pointerup', 'click', 'dblclick'] as const) {
 				template.elementDisposables.add(DOM.addDisposableListener(template.chevron, eventType, event => {

@@ -341,6 +341,12 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		frame: { ...CONTEXT_MENU_FRAME, height: 820 },
 		interaction: { contextMenu: { workspace: new ExtUri(() => true).getComparisonKey(getTestWorkspaceFile('Agents')) } },
 	}),
+	// A custom group's context menu: Edit Group... in place of Rename, Change Icon and Change Color
+	SessionsList_WorkspacesAndGroups_GroupContextMenu: defineSessionsListFixture({
+		...WORKSPACES_AND_GROUPS_STATE,
+		frame: { ...CONTEXT_MENU_FRAME, height: 820 },
+		interaction: { contextMenu: { group: 'release' } },
+	}),
 	// The keyboard on a workspace row
 	SessionsList_WorkspacesAndGroups_FocusedWorkspace: defineSessionsListFixture({
 		...WORKSPACES_AND_GROUPS_STATE,

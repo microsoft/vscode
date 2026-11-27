@@ -11,6 +11,8 @@ import { SessionWorkspacesEnabledContext } from '../../common/contextkeys.js';
 export const NEW_SESSION_WORKSPACE_COMMAND_ID = 'sessions.workspaces.new';
 /** Opens the Workspace editor on the workspace of the given `.code-workspace` file, or one that the user picks. */
 export const EDIT_SESSION_WORKSPACE_COMMAND_ID = 'sessions.workspaces.edit';
+/** Opens the Workspace editor on the custom group of the given id, to edit its name, icon and color. */
+export const EDIT_SESSION_GROUP_COMMAND_ID = 'sessions.groups.edit';
 /** Removes the workspace of the given `.code-workspace` file, or one that the user picks, after asking. */
 export const REMOVE_SESSION_WORKSPACE_COMMAND_ID = 'sessions.workspaces.remove';
 
