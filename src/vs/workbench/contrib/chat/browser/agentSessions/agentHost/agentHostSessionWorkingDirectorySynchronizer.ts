@@ -59,9 +59,12 @@
  *   added). The session state says so, and the folder is removed once no chat
  *   is scoped to it.
  * - **Refused** — the host rejected its removal for a reason the client cannot
- *   see, such as a chat being created in it or moved to it. It is not
- *   dispatched again until an input changes: the workspace folders, trust, the
- *   session's chats or their folders, or the registration.
+ *   see, such as a chat being created in it or moved to it. Automatic runs do
+ *   not dispatch it again until an input changes: the workspace folders, trust,
+ *   the session's folders, its chats or their folders, or the registration. An explicit
+ *   {@link IAgentHostSessionWorkingDirectorySynchronizer.reconcile} call, made
+ *   before sending a prompt, tries it once more, since the host may have
+ *   released the folder without changing anything the client can observe.
  *
  * Only sessions that can safely follow the workspace are eligible; see
  * {@link AgentHostSessionWorkingDirectorySynchronizer._isEligible}.
@@ -119,7 +122,8 @@ export interface IAgentHostSessionWorkingDirectorySynchronizer {
 	 *
 	 * Callers can await this before sending a prompt so the agent sees the
 	 * latest set. Rejects when a folder that needs adding is untrusted — safe
-	 * removals are still dispatched first.
+	 * removals are still dispatched first. Removals the host refused earlier are
+	 * tried once more; folders a chat is scoped to are still kept.
 	 */
 	reconcile(session: URI, token: CancellationToken): Promise<void>;
 }
@@ -147,14 +151,22 @@ interface IAgentHostWorkingDirectoryRegistrationEntry extends IAgentHostWorkingD
 	 * again.
 	 */
 	readonly refusedRemovals: ResourceSet;
-	/** The session's chats and their folders when a removal was last refused; see {@link chatScopesKey}. */
-	refusedChatScopes: string | undefined;
+	/** The session's folders and chats when a removal was last refused; see {@link refusalInputsKey}. */
+	refusedInputs: string | undefined;
 }
 
-/** Identifies the session's chats and the folders each is scoped to, so a change to either can be detected. */
-function chatScopesKey(state: SessionState | Error | undefined): string | undefined {
+/**
+ * Identifies the session's folders, its chats and the folders each chat is
+ * scoped to, so a change to any of them can be detected. The refused folders
+ * themselves are left out: the host's rollback of a refused removal puts them
+ * back, which is not a change.
+ */
+function refusalInputsKey(state: SessionState | Error | undefined, isRefused: (directory: string) => boolean): string | undefined {
 	return state && !(state instanceof Error)
-		? JSON.stringify(state.chats.map(chat => [chat.resource, chat.workingDirectories ?? null]))
+		? JSON.stringify([
+			(state.workingDirectories ?? []).filter(directory => !isRefused(directory)),
+			state.chats.map(chat => [chat.resource, chat.workingDirectories ?? null]),
+		])
 		: undefined;
 }
 
@@ -217,7 +229,7 @@ export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable imp
 			automaticReconcileScheduled: false,
 			dispatching: false,
 			refusedRemovals: new ResourceSet(uri => this._uriIdentityService.extUri.getComparisonKey(uri)),
-			refusedChatScopes: undefined,
+			refusedInputs: undefined,
 		};
 		// A rejected envelope is announced before the rollback lands, and cleared
 		// once it has been applied, so `onDidChange` in between can be ignored.
@@ -227,7 +239,7 @@ export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable imp
 				const directory = registration.connection.resourceUris.fromAgentHost(URI.parse(envelope.action.directory));
 				this._logService.trace(`[AgentHostWorkingDirectories] Host kept ${directory.toString()} in ${key}: ${envelope.rejectionReason}`);
 				entry.refusedRemovals.add(directory);
-				entry.refusedChatScopes = chatScopesKey(registration.subscription.value);
+				entry.refusedInputs = refusalInputsKey(registration.subscription.value, refused => entry.refusedRemovals.has(registration.connection.resourceUris.fromAgentHost(URI.parse(refused))));
 			}
 		}));
 		store.add(registration.subscription.onDidApplyAction(() => {
@@ -275,7 +287,11 @@ export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable imp
 	 * See {@link IAgentHostSessionWorkingDirectorySynchronizer.reconcile}.
 	 */
 	reconcile(session: URI, token: CancellationToken): Promise<void> {
-		return this._reconciler.queue(session.toString(), () => this._reconcile(session, token));
+		return this._queueReconcile(session, token, true);
+	}
+
+	private _queueReconcile(session: URI, token: CancellationToken, retryRefused: boolean): Promise<void> {
+		return this._reconciler.queue(session.toString(), () => this._reconcile(session, token, retryRefused));
 	}
 
 	/**
@@ -292,7 +308,7 @@ export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable imp
 		registration.automaticReconcileScheduled = true;
 		const run = () => {
 			registration.automaticReconcileAgain = false;
-			void this.reconcile(registration.session, CancellationToken.None).then(
+			void this._queueReconcile(registration.session, CancellationToken.None, false).then(
 				() => finish(),
 				error => {
 					this._logService.warn(`[AgentHostWorkingDirectories] Failed to reconcile ${reason}`, error);
@@ -313,7 +329,7 @@ export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable imp
 		run();
 	}
 
-	private async _reconcile(session: URI, token: CancellationToken): Promise<void> {
+	private async _reconcile(session: URI, token: CancellationToken, retryRefused: boolean): Promise<void> {
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
@@ -342,16 +358,24 @@ export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable imp
 		const currentSet = new ResourceSet(current, toKey);
 		const desiredSet = new ResourceSet(desired, toKey);
 		const additions = desired.slice(1).filter(directory => !currentSet.has(directory));
-		const chatScopes = chatScopesKey(state);
-		if (registration.refusedChatScopes !== chatScopes) {
+		const candidates = current.slice(1).filter(directory => !desiredSet.has(directory));
+		if (retryRefused) {
 			registration.refusedRemovals.clear();
-			registration.refusedChatScopes = undefined;
+			registration.refusedInputs = undefined;
 		}
-		const chatScoped = new ResourceSet(state.chats.flatMap(chat => chat.workingDirectories ?? []).map(directory => registration.connection.resourceUris.fromAgentHost(URI.parse(directory))), toKey);
 		const removals: URI[] = [];
 		const kept: URI[] = [];
-		for (const directory of current.slice(1)) {
-			if (!desiredSet.has(directory)) {
+		// Chat scopes and refusals only matter when there is something to remove.
+		if (candidates.length > 0) {
+			if (registration.refusedRemovals.size > 0) {
+				const isRefused = (directory: string) => registration.refusedRemovals.has(registration.connection.resourceUris.fromAgentHost(URI.parse(directory)));
+				if (registration.refusedInputs !== refusalInputsKey(state, isRefused)) {
+					registration.refusedRemovals.clear();
+					registration.refusedInputs = undefined;
+				}
+			}
+			const chatScoped = new ResourceSet(state.chats.flatMap(chat => chat.workingDirectories ?? []).map(directory => registration.connection.resourceUris.fromAgentHost(URI.parse(directory))), toKey);
+			for (const directory of candidates) {
 				(chatScoped.has(directory) || registration.refusedRemovals.has(directory) ? kept : removals).push(directory);
 			}
 		}
