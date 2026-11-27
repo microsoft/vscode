@@ -9,7 +9,7 @@ import * as vscode from 'vscode';
 import { MarkdownContributions } from '../markdownExtensions';
 import { MarkdownPreviewLineDiffProvider } from '../preview/lineDiff';
 import { getInDocumentLinkTargetRange, getMarkdownCodeBlockEditorApiV1, getMarkdownCodeBlockEditorApiV2, isSupportedMarkdownCodeBlockEditorApiVersion, lineRangesToGutterMarkers } from '../preview/markdownEditorProvider';
-import { mergeCodeBlockEditorPresentation } from '../preview/markdownEditorProtocol';
+import { clampMarkdownEditorZoomPercent, MARKDOWN_EDITOR_ZOOM_STEP_PERCENT, mergeCodeBlockEditorPresentation, stepMarkdownEditorZoomDelta } from '../preview/markdownEditorProtocol';
 import { encodeWebviewInitialState } from '../preview/webviewInitialState';
 
 suite('Markdown editor links', () => {
@@ -280,6 +280,26 @@ suite('Markdown code block editor API versioning', () => {
 		const contributions = (maxAutomaticHeight: number) => MarkdownContributions.fromExtension(contributingExtension(source, undefined, { maxAutomaticHeight }));
 		assert.strictEqual(MarkdownContributions.equal(contributions(400), contributions(400)), true);
 		assert.strictEqual(MarkdownContributions.equal(contributions(400), contributions(300)), false);
+	});
+});
+
+suite('Markdown editor zoom', () => {
+	test('preserves shared delta when stepping at the active editor clamp limits with differing defaults', () => {
+		let delta = stepMarkdownEditorZoomDelta(100, 0, MARKDOWN_EDITOR_ZOOM_STEP_PERCENT);
+		assert.strictEqual(delta, 10);
+		assert.strictEqual(clampMarkdownEditorZoomPercent(100 + delta), 110);
+
+		// Zooming in on an editor already configured to 400% must not reset the +10 delta.
+		delta = stepMarkdownEditorZoomDelta(400, delta, MARKDOWN_EDITOR_ZOOM_STEP_PERCENT);
+		assert.strictEqual(delta, 10);
+		assert.strictEqual(clampMarkdownEditorZoomPercent(100 + delta), 110);
+
+		// Symmetrically, zooming out on an editor configured to 25% must not reset a -10 delta.
+		delta = stepMarkdownEditorZoomDelta(100, 0, -MARKDOWN_EDITOR_ZOOM_STEP_PERCENT);
+		assert.strictEqual(delta, -10);
+		delta = stepMarkdownEditorZoomDelta(25, delta, -MARKDOWN_EDITOR_ZOOM_STEP_PERCENT);
+		assert.strictEqual(delta, -10);
+		assert.strictEqual(clampMarkdownEditorZoomPercent(100 + delta), 90);
 	});
 });
 

@@ -23,7 +23,7 @@ import {
 } from '../markdownExtensions';
 import { generateUuid } from '../util/uuid';
 import { MarkdownEditorRichLinkController } from './markdownEditorRichLinks';
-import { clampMarkdownEditorZoomPercent, codeBlockEditorPresentation, DEFAULT_MARKDOWN_EDITOR_ZOOM_PERCENT, MARKDOWN_EDITOR_ZOOM_STEP_PERCENT, markdownEditorHost, markdownEditorRenderer, mergeCodeBlockEditorPresentation, type CodeBlockEditorProviderDefinition, type MarkdownEditorConfiguration, type ResolvedCodeBlockEditor } from './markdownEditorProtocol';
+import { clampMarkdownEditorZoomPercent, codeBlockEditorPresentation, DEFAULT_MARKDOWN_EDITOR_ZOOM_PERCENT, MARKDOWN_EDITOR_ZOOM_STEP_PERCENT, markdownEditorHost, markdownEditorRenderer, mergeCodeBlockEditorPresentation, stepMarkdownEditorZoomDelta, type CodeBlockEditorProviderDefinition, type MarkdownEditorConfiguration, type ResolvedCodeBlockEditor } from './markdownEditorProtocol';
 import { createMarkdownEditorRpcConnection, MarkdownEditorRpcTransport } from './markdownEditorRpc';
 import { MarkdownEditorRename, renameApi } from './markdownEditorRename';
 import { completionApi, MarkdownEditorLanguageFeatures } from './markdownEditorLanguageFeatures';
@@ -950,13 +950,17 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		if (command === 'markdown.editor.zoomIn' || command === 'markdown.editor.zoomOut' || command === 'markdown.editor.resetZoom') {
 			const activeUri = this.#configurationUpdaters.get(activePanel)?.document.uri;
 			const configured = this.#getConfiguredZoom(activeUri);
-			if (command === 'markdown.editor.resetZoom') {
-				this.#zoomDelta = 0;
-			} else {
-				const current = clampMarkdownEditorZoomPercent(configured + this.#zoomDelta);
-				const step = command === 'markdown.editor.zoomIn' ? MARKDOWN_EDITOR_ZOOM_STEP_PERCENT : -MARKDOWN_EDITOR_ZOOM_STEP_PERCENT;
-				this.#zoomDelta = clampMarkdownEditorZoomPercent(current + step) - configured;
+			const nextDelta = command === 'markdown.editor.resetZoom'
+				? 0
+				: stepMarkdownEditorZoomDelta(
+					configured,
+					this.#zoomDelta,
+					command === 'markdown.editor.zoomIn' ? MARKDOWN_EDITOR_ZOOM_STEP_PERCENT : -MARKDOWN_EDITOR_ZOOM_STEP_PERCENT,
+				);
+			if (nextDelta === this.#zoomDelta) {
+				return;
 			}
+			this.#zoomDelta = nextDelta;
 			for (const updater of this.#configurationUpdaters.values()) {
 				updater.post();
 			}

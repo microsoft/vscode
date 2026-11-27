@@ -26,6 +26,12 @@ export function clampMarkdownEditorZoomPercent(percent: number): number {
 	return Math.max(MIN_MARKDOWN_EDITOR_ZOOM_PERCENT, Math.min(MAX_MARKDOWN_EDITOR_ZOOM_PERCENT, Math.round(percent)));
 }
 
+export function stepMarkdownEditorZoomDelta(configured: number, currentDelta: number, step: number): number {
+	const current = clampMarkdownEditorZoomPercent(configured + currentDelta);
+	const next = clampMarkdownEditorZoomPercent(current + step);
+	return next === current ? currentDelta : next - configured;
+}
+
 const editorConfiguration = z.object({
 	highlightActiveBlock: z.boolean(),
 	renderWhitespace: z.boolean(),
