@@ -352,18 +352,36 @@ suite('Dev Container Agent Host Service', () => {
 		return { service, remoteService, storage, createdUris, removedUris, requestedNames, requestedEngines, createHostConnection, providersService, dockerChecks, configurationService };
 	}
 
-	test('passes the engine choice only to the connection that creates an environment, which then keeps its engine', async () => {
-		const { service, requestedEngines } = setupEnvironments(undefined, { localDocker: true });
+	test('passes the engine choice only to the connection that creates an environment, which then keeps and remembers its engine', async () => {
+		const { service, requestedEngines, storage } = setupEnvironments(undefined, { localDocker: true });
 		await waitForState(service.environmentHosts, hosts => hosts.has(LocalDevContainerEnvironmentHost));
 		const created = await service.createEnvironment(LocalDevContainerEnvironmentHost, { engine: 'wslc', promptForEngine: false });
+		const stored = JSON.parse(storage.get('devContainerAgentHost.environments', StorageScope.APPLICATION)!);
 		const provider = service.provider!;
 		await provider.config.disconnectOnDemand!();
 		await provider.config.connectOnDemand!();
 		await service.deleteEnvironment(created.address);
-		assert.deepStrictEqual({ createdEngine: created.engine, requestedEngines }, {
+		assert.deepStrictEqual({ createdEngine: created.engine, storedEngines: stored.map((environment: { engine?: string }) => environment.engine), requestedEngines }, {
 			createdEngine: 'wslc',
-			requestedEngines: [{ engine: 'wslc', promptForEngine: false }, { engine: undefined, promptForEngine: undefined }],
+			storedEngines: ['wslc'],
+			// Later connections request the remembered engine without asking, so a failed lookup cannot recreate the environment in Docker.
+			requestedEngines: [{ engine: 'wslc', promptForEngine: false }, { engine: 'wslc', promptForEngine: undefined }],
 		});
+	});
+
+	test('connects restored environments with their remembered engine, and others with the engine their lookup finds', async () => {
+		const { service, providersService, requestedEngines } = setupEnvironments(undefined, {
+			localDocker: true,
+			stored: [
+				{ id: 'wslc', sourceAddress: LocalDevContainerEnvironmentHost, name: 'WSLc Dev Container', engine: 'wslc' },
+				{ id: 'unknown', sourceAddress: LocalDevContainerEnvironmentHost, name: 'Dev Container', engine: 'podman' },
+			],
+		});
+		await waitForState(service.environmentHosts, hosts => hosts.has(LocalDevContainerEnvironmentHost));
+		for (const provider of providersService.getProviders().filter((provider): provider is TestProvider => provider instanceof TestProvider)) {
+			await provider.config.connectOnDemand!();
+		}
+		assert.deepStrictEqual(requestedEngines, [{ engine: 'wslc', promptForEngine: undefined }, { engine: undefined, promptForEngine: undefined }]);
 	});
 
 	test('checks Docker again on a host that was removed and configured again', async () => {

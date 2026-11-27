@@ -46,7 +46,7 @@ import { AGENT_HOST_CLIENT_FORWARDING_ENV } from './agentHostClientForwarding.js
 import { IDevContainerSandboxConfiguration, isDevContainerSandboxSupported, parseDevContainerSandboxConfiguration, prepareDevContainerSandboxConfiguration } from './devContainerSandbox.js';
 import { buildCreateDevContainerCacheCommand, buildLinkDevContainerServerCacheCommand, canAddDevContainerServerCacheMount, devContainerServerCacheMount, getDevContainerCliCachePath, getDevContainerServerCachePath } from './devContainerServerCache.js';
 import { DevContainerShell, IDevContainerShellResult } from './devContainerShell.js';
-import { IDevContainerSecurityOptions, IDevContainerStateErrorValues, IDevContainerStateLinkProgress, buildLinkDevContainerStateCommand, devContainerStateLabelPrefix, findDevContainerStateMount, getDefaultDevContainerIdLabels, getDevContainerLocalFolderLabel, getDevContainerSecurityOptions, getDevContainerStateLinkSkippedMessage, getDevContainerStateMount, getDevContainerStateMountTarget, getDevContainerStateTargetKind, getDevContainerStateVolumeLabels, getDevContainerStateVolumeName, getDevContainerUpErrorCause, isDevContainerRunning, isDevContainerStateVolumeFor, parseLinkDevContainerStateOutput, sanitizeDevContainerStateErrorMessage } from './devContainerState.js';
+import { IDevContainerSecurityOptions, IDevContainerStateErrorValues, IDevContainerStateLinkProgress, buildLinkDevContainerStateCommand, devContainerStateIdLabel, findDevContainerStateMount, getDefaultDevContainerIdLabels, getDevContainerId, getDevContainerSecurityOptions, getDevContainerStateLinkSkippedMessage, getDevContainerStateMount, getDevContainerStateMountTarget, getDevContainerStateTargetKind, getDevContainerStateVolumeLabels, getDevContainerStateVolumeName, getDevContainerUpErrorCause, isDevContainerRunning, isDevContainerStateVolumeFor, parseLinkDevContainerStateOutput, sanitizeDevContainerStateErrorMessage } from './devContainerState.js';
 import { prepareOwnerOnlyDirectory } from './localAgentHostMetadata.js';
 import { ensureRemoteAgentHostCliInstalled } from './remoteAgentHostCliInstaller.js';
 import {
@@ -1315,6 +1315,12 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		}
 	}
 
+	/** The configuration file that `up --workspace-folder` selects, as the Dev Containers CLI does. */
+	private async _getDefaultConfigFile(workspaceFolder: string): Promise<string> {
+		const nested = join(workspaceFolder, '.devcontainer', 'devcontainer.json');
+		return await this._isFile(nested) ? nested : join(workspaceFolder, '.devcontainer.json');
+	}
+
 	protected async _writeCertificatesFile(certificates: readonly string[]): Promise<string | undefined> {
 		const directory = this._getCertificatesDirectory();
 		await prepareOwnerOnlyDirectory(directory);
@@ -1414,13 +1420,16 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		return firstError ?? {};
 	}
 
-	/** Whether the engine has a workspace's container or state volume, or an environment's or a sample's volume, which outlive their containers. */
+	/**
+	 * Whether the engine has the container or state volume of a workspace's selected configuration, or an environment's
+	 * or a sample's volume, which outlive their containers. Another configuration's container is not the one `up` reuses.
+	 */
 	private async _hasSourceContainer(source: DevContainerAgentHostSource, engine: DevContainerEngine, token: CancellationToken): Promise<boolean> {
 		const docker = (args: readonly string[]) => this._runDocker(args, token, engine);
 		if (typeof source === 'string') {
-			const localFolderLabel = getDevContainerLocalFolderLabel(process.platform, source);
-			return !!checked(await docker(['ps', '--all', '--quiet', '--filter', `label=${localFolderLabel}`]), 'docker ps').trim()
-				|| !!checked(await docker(['volume', 'ls', '--quiet', '--filter', `label=${devContainerStateLabelPrefix}${localFolderLabel}`]), 'docker volume ls').trim();
+			const idLabels = getDefaultDevContainerIdLabels(process.platform, source, await this._getDefaultConfigFile(source));
+			return !!checked(await docker(['ps', '--all', '--quiet', ...idLabels.flatMap(label => ['--filter', `label=${label}`])]), 'docker ps').trim()
+				|| !!checked(await docker(['volume', 'ls', '--quiet', '--filter', `label=${devContainerStateIdLabel}=${getDevContainerId(idLabels)}`]), 'docker volume ls').trim();
 		}
 		if (hasKey(source, { environmentId: true })) {
 			return hasDevContainerEnvironmentVolume(source.environmentId, docker);

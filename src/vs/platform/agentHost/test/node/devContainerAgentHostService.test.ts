@@ -40,7 +40,7 @@ import { writeUserDataCertificatesFile } from '../../../request/node/certificate
 import { IGitHubService } from '../../../github/common/githubService.js';
 import { URI } from '../../../../base/common/uri.js';
 import { DevContainerAgentHostMainService, getDevContainerCliPath, getDevContainerExecArgs, IDevContainerRelay, IDevContainerShellExec, parseDevContainerFolderContainers, parseDevContainerMounts, parseDevContainerUpResult, RemoteDevContainerAgentHostService, waitForDevContainerRelayConnection } from '../../node/devContainerAgentHostService.js';
-import { getDevContainerSecurityOptions, IDevContainerSecurityOptions } from '../../node/devContainerState.js';
+import { getDefaultDevContainerIdLabels, getDevContainerSecurityOptions, getDevContainerStateVolumeLabels, IDevContainerSecurityOptions } from '../../node/devContainerState.js';
 import { ISshExec, shellEscape } from '../../node/sshRemoteAgentHostHelpers.js';
 import { AGENT_HOST_CLIENT_FORWARDING_ENV } from '../../node/agentHostClientForwarding.js';
 import { devContainerServerCacheMount } from '../../node/devContainerServerCache.js';
@@ -1817,26 +1817,32 @@ suite('Dev Container Agent Host Main Service', () => {
 	});
 
 	test('reports the engine that has a source\'s container, so that its connections keep using it', async () => {
+		// Labels of the configuration that `up --workspace-folder` selects when there is no `.devcontainer` folder.
+		const idLabels = (folder: string, configFile = join(folder, '.devcontainer.json')) => getDefaultDevContainerIdLabels(process.platform, folder, configFile);
+		const containers: Record<DevContainerEngine, readonly (readonly string[])[]> = {
+			// Another configuration's container of the folder, which `up` does not reuse.
+			docker: [idLabels('/workspace', join('/workspace', '.devcontainer', 'other', 'devcontainer.json'))],
+			wslc: [idLabels('/workspace')],
+		};
+		const volumes: Record<DevContainerEngine, readonly (readonly string[])[]> = {
+			docker: [],
+			// A workspace's state volume outlives its removed container.
+			wslc: [getDevContainerStateVolumeLabels(idLabels('/state-workspace')), ['vscode.agents.environment=environment']],
+		};
 		const service = store.add(new class extends TestDevContainerAgentHostMainService {
 			protected override _runDocker(args: readonly string[], _token?: CancellationToken, engine: DevContainerEngine = 'docker') {
-				if (engine === 'docker') {
-					// A Docker engine that is not running does not keep the other engine from being found.
-					return Promise.resolve({ stdout: '', stderr: 'Cannot connect to the Docker daemon', code: 1 });
-				}
-				const found = args.some(arg => arg === 'label=vscode.agents.environment=environment'
-					|| arg.startsWith('label=devcontainer.local_folder=') && arg.includes('container-workspace')
-					// A workspace's state volume outlives its removed container.
-					|| arg.startsWith('label=vscode.dev-container-state.label.devcontainer.local_folder=') && arg.includes('state-workspace'));
+				const filters = args.flatMap((arg, i) => args[i - 1] === '--filter' ? [arg.replace(/^label=/, '')] : []);
+				const found = (args[0] === 'ps' ? containers : volumes)[engine].some(labels => filters.every(filter => labels.includes(filter)));
 				return Promise.resolve({ stdout: found ? 'found\n' : '', stderr: '', code: 0 });
 			}
 		}());
 		service.engineExecutables = { docker: 'docker' };
-		const before = await service.getEngines('/container-workspace');
+		const before = await service.getEngines('/workspace');
 		service.engineExecutables = { docker: 'docker', wslc: 'C:\\WSL\\wslc.exe' };
 		assert.deepStrictEqual({
 			dockerOnly: before,
 			available: await service.getEngines(),
-			workspace: await service.getEngines('/container-workspace'),
+			workspace: await service.getEngines('/workspace'),
 			stateOnlyWorkspace: await service.getEngines('/state-workspace'),
 			otherWorkspace: await service.getEngines('/other-workspace'),
 			environment: await service.getEngines({ environmentId: 'environment' }),
