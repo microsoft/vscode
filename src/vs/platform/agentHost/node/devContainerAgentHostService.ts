@@ -389,7 +389,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 					sandboxEnvironment = sandbox.environment;
 				}
 				const userStateMount = config.persistUserState ? await this._getUserStateMountArgs(config.connectionId, configuration, folderContainer, tokenSource.token) : { args: [], keepExistingFolders: true };
-				const idLabelArgs = this._isWsl() ? await this._getIdLabelArgs(configuration, folderContainer, tokenSource.token) : [];
+				const idLabelArgs = this._isWsl() ? await this._getIdLabelArgs(folderContainer) : [];
 				const selectorArgs = [...typeof workspaceSelector === 'string' ? ['--workspace-folder', workspaceSelector] : workspaceSelector, ...idLabelArgs];
 				if (idLabelArgs.length) {
 					workspaceSelector = selectorArgs;
@@ -1393,9 +1393,17 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			const wslWindowsPaths = this._isWsl() ? new Map<string, string>() : undefined;
 			if (wslWindowsPaths) {
 				await Promise.all(getWslFolderContainerCandidates(result.stdout).map(async folder => {
-					const windowsPath = await this._getWslWindowsPath(folder, tokenSource.token);
-					if (windowsPath !== undefined) {
-						wslWindowsPaths.set(folder, windowsPath);
+					try {
+						const windowsPath = await this._getWslWindowsPath(folder, tokenSource.token);
+						if (windowsPath !== undefined) {
+							wslWindowsPaths.set(folder, windowsPath);
+						}
+					} catch (error) {
+						if (isCancellationError(error)) {
+							throw error;
+						}
+						// The folder's containers with the extension's labels aren't listed, while its others are.
+						this._logService.warn(`${LOG_PREFIX} Cannot list a WSL folder's containers that Dev Containers labeled with its Windows path`, getErrorMessage(error));
 					}
 				}));
 			}
@@ -1437,18 +1445,10 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 
 	/**
 	 * `--id-label` arguments selecting the folder's container for each CLI call, unless it has the CLI's default labels.
-	 * Failing to find the container fails the connection, as `up` with other labels could create a second container.
+	 * Failing to find the container, including when its configuration can't be read, fails the connection, as `up` with
+	 * other labels could create a second container.
 	 */
-	private async _getIdLabelArgs(configuration: Promise<string>, folderContainer: Lazy<Promise<IDevContainerFolderContainer>>, token: CancellationToken): Promise<readonly string[]> {
-		try {
-			await configuration;
-		} catch (error) {
-			if (isCancellationError(error) || token.isCancellationRequested) {
-				throw error;
-			}
-			// `up` reports the unreadable configuration.
-			return [];
-		}
+	private async _getIdLabelArgs(folderContainer: Lazy<Promise<IDevContainerFolderContainer>>): Promise<readonly string[]> {
 		const { idLabels, explicitIdLabels } = await folderContainer.value;
 		return explicitIdLabels ? idLabels.flatMap(label => ['--id-label', label]) : [];
 	}
@@ -1464,8 +1464,8 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	/**
 	 * The Windows path with which Dev Containers labels the container of a folder in the WSL distribution's file system
 	 * that it opens from a WSL window: `wslpath -w` output, such as `\\wsl.localhost\Ubuntu\home\me\project`. Undefined
-	 * outside WSL, for folders on Windows drives, such as `/mnt/c/project`, whose containers Dev Containers labels like
-	 * those of Windows folders, or if `wslpath` fails.
+	 * outside WSL and for folders on Windows drives, such as `/mnt/c/project`, whose containers Dev Containers labels like
+	 * those of Windows folders. Throws if `wslpath` fails, as the folder's container could then not be found.
 	 */
 	private async _getWslWindowsPath(folder: string, token: CancellationToken): Promise<string | undefined> {
 		if (!this._isWsl()) {
@@ -1475,23 +1475,15 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		if (this._wslWindowsPaths.has(linuxFolder)) {
 			return this._wslWindowsPaths.get(linuxFolder);
 		}
-		try {
-			const result = await this._runLocalCommand('wslpath', ['-w', linuxFolder], process.env, token);
-			const windowsPath = result.stdout.trim();
-			if (result.code !== 0 || !windowsPath) {
-				throw new Error(`wslpath failed (exit ${result.code}): ${result.stderr}`);
-			}
-			// Like `isWslPath` in Dev Containers.
-			const labelPath = /^\\\\wsl(?:\.localhost|\$)?\\/i.test(windowsPath) ? windowsPath : undefined;
-			this._wslWindowsPaths.set(linuxFolder, labelPath);
-			return labelPath;
-		} catch (error) {
-			if (isCancellationError(error) || token.isCancellationRequested) {
-				throw error;
-			}
-			this._logService.warn(`${LOG_PREFIX} Cannot get the Windows path of a WSL folder; using the Dev Container CLI's default id labels`, getErrorMessage(error));
-			return undefined;
+		const result = await this._runLocalCommand('wslpath', ['-w', linuxFolder], process.env, token);
+		const windowsPath = result.stdout.trim();
+		if (result.code !== 0 || !windowsPath) {
+			throw new Error(`Cannot get the Windows path of a WSL folder (exit ${result.code}): ${result.stderr.trim()}`);
 		}
+		// Like `isWslPath` in Dev Containers.
+		const labelPath = /^\\\\wsl(?:\.localhost|\$)?\\/i.test(windowsPath) ? windowsPath : undefined;
+		this._wslWindowsPaths.set(linuxFolder, labelPath);
+		return labelPath;
 	}
 
 	/**

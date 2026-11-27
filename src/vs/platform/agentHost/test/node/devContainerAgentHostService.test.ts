@@ -138,6 +138,8 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	containerStatesByFolder: ReadonlyMap<string, readonly string[]> | undefined;
 	/** Exit code of listing the states of existing containers. */
 	containerStatesExitCode = 0;
+	/** Exit code of `wslpath -w`. */
+	wslpathExitCode = 0;
 	/** Whether the service runs in WSL, where `wslpath -w` maps `/folder` to `\\wsl.localhost\Ubuntu\folder` and `/mnt/c/folder` to `C:\folder`. */
 	wsl = false;
 	/** Folder containers listed with `docker ps --all`, as their folder, configuration file and state. */
@@ -386,6 +388,9 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	protected override _runLocalCommand(command: string, args: readonly string[]): Promise<{ stdout: string; stderr: string; code: number }> {
 		this.localCommands.push({ command, args });
 		if (command === 'wslpath' && args[0] === '-w') {
+			if (this.wslpathExitCode) {
+				return Promise.resolve({ stdout: '', stderr: 'wslpath: failed\n', code: this.wslpathExitCode });
+			}
 			const drive = /^\/mnt\/(?<letter>[a-z])(?<path>\/.*)?$/.exec(args[1])?.groups;
 			const windowsPath = drive ? `${drive.letter.toUpperCase()}:${drive.path ?? '/'}` : `//wsl.localhost/Ubuntu${args[1]}`;
 			return Promise.resolve({ stdout: `${windowsPath.replace(/\//g, '\\')}\n`, stderr: '', code: 0 });
@@ -846,21 +851,33 @@ suite('Dev Container Agent Host Main Service', () => {
 	});
 
 	test('in WSL, fails a connection whose container lookup fails rather than starting a container with other labels', async () => {
-		const run = async (setup: (service: TestDevContainerAgentHostMainService) => void) => {
-			const service = store.add(new TestDevContainerAgentHostMainService());
+		const createService = (setup: (service: TestDevContainerAgentHostMainService) => void) => {
+			const service = store.add(new class extends TestDevContainerAgentHostMainService {
+				override async isDockerAvailable() { return true; }
+			}());
 			service.wsl = true;
 			service.sandboxConfigurationOutput = JSON.stringify({ configuration: { configFilePath: URI.file('/workspace/.devcontainer/devcontainer.json').toJSON() }, mergedConfiguration: { mounts: [] } });
 			setup(service);
-			const connected = await service.connect({ connectionId: 'wsl', workspaceFolder: '/workspace', name: 'Project' }).then(() => true, (error: Error) => error.message);
-			return { connected, up: service.devContainerArgs.filter(args => args[0] === 'up').map(args => args.includes('--id-label')) };
+			return service;
 		};
+		const run = async (setup: (service: TestDevContainerAgentHostMainService) => void) => {
+			const service = createService(setup);
+			const connected = await service.connect({ connectionId: 'wsl', workspaceFolder: '/workspace', name: 'Project' }).then(() => true, (error: Error) => error.message);
+			return { connected, up: service.devContainerArgs.filter(args => args[0] === 'up').length };
+		};
+		const listing = createService(service => service.wslpathExitCode = 1);
+		listing.folderContainers = [['\\\\wsl.localhost\\Ubuntu\\workspace', '/workspace/.devcontainer/devcontainer.json', 'running']];
 		assert.deepStrictEqual({
 			lookupFailed: await run(service => service.containerStatesExitCode = 1),
-			// `up` reports an unreadable configuration.
-			configurationUnreadable: await run(service => { service.configurationReadExitCode = 1; service.cacheMountConfigured = true; }),
+			configurationUnreadable: await run(service => service.configurationReadExitCode = 1),
+			wslpathFailed: await run(service => service.wslpathExitCode = 1),
+			// Listing skips the containers it can't map to a folder.
+			listedWhileWslpathFails: await listing.listFolderContainers(),
 		}, {
-			lookupFailed: { connected: 'Cannot list Docker containers (exit 1): Cannot connect to the Docker daemon', up: [] },
-			configurationUnreadable: { connected: true, up: [false] },
+			lookupFailed: { connected: 'Cannot list Docker containers (exit 1): Cannot connect to the Docker daemon', up: 0 },
+			configurationUnreadable: { connected: 'Cannot read Dev Container configuration (exit 1): configuration read failed', up: 0 },
+			wslpathFailed: { connected: 'Cannot get the Windows path of a WSL folder (exit 1): wslpath: failed', up: 0 },
+			listedWhileWslpathFails: [],
 		});
 	});
 
