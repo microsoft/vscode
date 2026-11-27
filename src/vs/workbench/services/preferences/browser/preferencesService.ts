@@ -122,7 +122,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			return null;
 		}
 		const workspace = this.contextService.getWorkspace();
-		return workspace.configuration || workspace.folders[0].toResource(FOLDER_SETTINGS_PATH);
+		// The Agents mode workspace has neither a workspace file nor folders
+		return workspace.configuration ?? workspace.folders.at(0)?.toResource(FOLDER_SETTINGS_PATH) ?? null;
 	}
 
 	private createOrGetCachedSettingsEditor2Input(): SettingsEditor2Input {
