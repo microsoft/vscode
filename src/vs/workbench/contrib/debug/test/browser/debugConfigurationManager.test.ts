@@ -201,8 +201,12 @@ suite('debugConfigurationManager', () => {
 		assert.deepStrictEqual(_debugConfigurationManager.getAllConfigurations().map(({ name }) => name), ['valid']);
 	});
 
-	test('has no workspace launch in a multi-root workspace without a workspace file', async () => {
-		// Like an editor window entering Agents mode: the workbench state turns to WORKSPACE, but there is no workspace file
+	suite('workspace launch', () => {
+		const folderUri = URI.file('/project');
+		const folderLaunch = URI.joinPath(folderUri, '.vscode', 'launch.json').toString();
+		const userLaunch = preferencesService.userSettingsResource.toString();
+
+		// Like an editor window entering Agents mode: the workbench state turns to WORKSPACE, with or without a workspace file
 		class AgentsModeContextService extends TestContextService {
 			private readonly workbenchStateEmitter = disposables.add(new Emitter<WorkbenchState>());
 			override get onDidChangeWorkbenchState(): Event<WorkbenchState> { return this.workbenchStateEmitter.event; }
@@ -213,34 +217,52 @@ suite('debugConfigurationManager', () => {
 				this.workbenchStateEmitter.fire(this.workbenchState);
 			}
 		}
-		const agentsModeContextService = new AgentsModeContextService(new Workspace('agents', [], null));
-		contextService = agentsModeContextService;
-		configurationService.setUserConfiguration('launch', {
-			configurations: [{ name: 'User', type: 'node', request: 'launch' }]
+
+		function getLaunchState() {
+			return {
+				launches: _debugConfigurationManager.getLaunches().map(launch => launch.uri?.toString()),
+				selected: _debugConfigurationManager.selectedConfiguration.launch?.uri?.toString()
+			};
+		}
+
+		test('keeps the folder, workspace and user launches in a workspace with a workspace file', async () => {
+			const workspaceUri = URI.file('/agents.code-workspace');
+			const agentsModeContextService = new AgentsModeContextService(new Workspace('agents', testWorkspace(folderUri).folders, workspaceUri));
+			contextService = agentsModeContextService;
+			configurationService.setUserConfiguration('launch', {
+				configurations: [{ name: 'User', type: 'node', request: 'launch' }]
+			});
+			disposables.delete(_debugConfigurationManager);
+			_debugConfigurationManager = createConfigurationManager();
+
+			agentsModeContextService.enterAgentsMode();
+
+			assert.deepStrictEqual(_debugConfigurationManager.getLaunches().map(launch => launch.uri.toString()), [folderLaunch, workspaceUri.toString(), userLaunch]);
 		});
-		disposables.delete(_debugConfigurationManager);
-		_debugConfigurationManager = createConfigurationManager();
 
-		agentsModeContextService.enterAgentsMode();
-		await _debugConfigurationManager.selectConfiguration(undefined);
-		const afterSwitch = {
-			launches: _debugConfigurationManager.getLaunches().map(launch => launch.uri?.toString()),
-			selected: _debugConfigurationManager.selectedConfiguration.launch?.uri?.toString()
-		};
+		test('has only the folder and user launches in a workspace without a workspace file', async () => {
+			const agentsModeContextService = new AgentsModeContextService(new Workspace('agents', testWorkspace(folderUri).folders, null));
+			contextService = agentsModeContextService;
+			configurationService.setUserConfiguration('launch', {
+				configurations: [{ name: 'User', type: 'node', request: 'launch' }]
+			});
+			disposables.delete(_debugConfigurationManager);
+			_debugConfigurationManager = createConfigurationManager();
 
-		// A selection stored before must not break restoring it after a reload
-		instantiationService.get(IStorageService).store('debug.selectedroot', URI.file('/stale.code-workspace').toString(), StorageScope.WORKSPACE, StorageTarget.MACHINE);
-		disposables.delete(_debugConfigurationManager);
-		_debugConfigurationManager = createConfigurationManager();
-		const afterReload = {
-			launches: _debugConfigurationManager.getLaunches().map(launch => launch.uri?.toString()),
-			selected: _debugConfigurationManager.selectedConfiguration.launch?.uri?.toString()
-		};
+			agentsModeContextService.enterAgentsMode();
+			await _debugConfigurationManager.selectConfiguration(undefined);
+			const afterSwitch = getLaunchState();
 
-		const userLaunch = preferencesService.userSettingsResource.toString();
-		assert.deepStrictEqual({ afterSwitch, afterReload }, {
-			afterSwitch: { launches: [userLaunch], selected: userLaunch },
-			afterReload: { launches: [userLaunch], selected: userLaunch }
+			// A selection stored before must not break restoring it after a reload
+			instantiationService.get(IStorageService).store('debug.selectedroot', URI.file('/stale.code-workspace').toString(), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			disposables.delete(_debugConfigurationManager);
+			_debugConfigurationManager = createConfigurationManager();
+			const afterReload = getLaunchState();
+
+			assert.deepStrictEqual({ afterSwitch, afterReload }, {
+				afterSwitch: { launches: [folderLaunch, userLaunch], selected: userLaunch },
+				afterReload: { launches: [folderLaunch, userLaunch], selected: userLaunch }
+			});
 		});
 	});
 
