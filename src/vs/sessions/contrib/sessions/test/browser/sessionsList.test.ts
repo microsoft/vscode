@@ -8,6 +8,7 @@ import { IAgentFeedbackService } from '../../../../../workbench/contrib/sessions
 import assert from 'assert';
 import sinon from 'sinon';
 import { $, append, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
+import { renderMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { DeferredPromise, retry, timeout } from '../../../../../base/common/async.js';
 import { IDelayedHoverOptions, isManagedHoverTooltipMarkdownString } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
@@ -105,7 +106,7 @@ import { ISessionComparison, ISessionComparisonService, SessionComparisonPartici
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { SessionsList, SessionsListSnapshotNode } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { SessionsFlatList } from '../../../../../workbench/contrib/sessions/browser/views/sessionsFlatList.js';
-import { SessionSectionRenderer } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListRenderers.js';
+import { getActiveAutomationsHoverContent, SessionSectionRenderer } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListRenderers.js';
 import { computeReorderSortChanges, groupByDate, groupByEnvironment, groupByRepository, groupByWorkspace, groupSessionsForList, limitSessionsForList, QUICK_CHATS_SECTION_ID, sortSessions } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListHelpers.js';
 import { ISessionChatItem, ISessionSection, NEW_CANVAS_SESSION_COMMAND_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemContextMenuId, SessionItemHasPinnedCanvasContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionSectionHasGitHubRepositoryContext, SessionSectionToolbarMenuId, SessionSectionTypeContext, SESSIONS_LIST_CANVASES_SECTION_SETTING, SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsListFocusedChatItemContext, SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { ISideChatPlacementService } from '../../../../../workbench/contrib/sessions/browser/sideChatPlacement.js';
@@ -939,6 +940,115 @@ suite('Sessions - SessionsList', () => {
 
 	suite('SessionSectionRenderer', () => {
 
+		test('summarizes visible active automation runs for the hover', () => {
+			const automations: Pick<IAutomationDescriptor, 'id' | 'name' | 'purpose' | 'ownership' | 'isCreatedByCurrentUser'>[] = [
+				{ id: 'personal', name: 'Code review', ownership: 'user' },
+				{ id: 'shared', name: 'Shared automation', ownership: 'repository', isCreatedByCurrentUser: false },
+				{ id: 'scheduled', name: 'Scheduled request', purpose: 'scheduledChat', ownership: 'user' },
+			];
+			const runs: Pick<IAutomationRun, 'automationId' | 'status' | 'statusDescription' | 'needsInput' | 'purpose'>[] = [
+				{ automationId: 'personal', status: 'running', statusDescription: 'Reviewing changes' },
+				{ automationId: 'personal', status: 'pending' },
+				{ automationId: 'shared', status: 'running' },
+				{ automationId: 'scheduled', status: 'running', purpose: 'scheduledChat' },
+				{ automationId: 'personal', status: 'completed' },
+			];
+			const content = getActiveAutomationsHoverContent(automations, runs, false, true);
+			const sharedContent = getActiveAutomationsHoverContent(automations, runs, true, true);
+			const queuedContent = getActiveAutomationsHoverContent([automations[0]], [{ automationId: 'personal', status: 'pending' }], false, false);
+			const emptyContent = getActiveAutomationsHoverContent([], [], false, false);
+
+			assert.deepStrictEqual({ content: content.value, sharedContent: sharedContent.value, queuedContent: queuedContent.value, emptyContent: emptyContent.value }, {
+				content: '**Active**\n\n$(session-in-progress) Code&nbsp;review<span style="color:var(--vscode-descriptionForeground);"> · Reviewing&nbsp;changes (2&nbsp;runs)</span>',
+				sharedContent: '**Active**\n\n$(session-in-progress) Code&nbsp;review<span style="color:var(--vscode-descriptionForeground);"> · Reviewing&nbsp;changes (2&nbsp;runs)</span>  \n$(session-in-progress) Shared&nbsp;automation<span style="color:var(--vscode-descriptionForeground);"> · Running</span>',
+				queuedContent: '**Active**\n\n$(clock) Code&nbsp;review<span style="color:var(--vscode-descriptionForeground);"> · Queued</span>',
+				emptyContent: '**Active**\n\nNo&nbsp;runs&nbsp;in&nbsp;progress',
+			});
+		});
+
+		test('prioritizes runs needing input and preserves their details regardless of order', () => {
+			const automations = [{ id: 'personal', name: 'Code review', ownership: 'user' as const }];
+			const pending = { automationId: 'personal', status: 'pending' as const, statusDescription: 'Queued' };
+			const waiting = { automationId: 'personal', status: 'running' as const, needsInput: true, statusDescription: 'Approve changes' };
+			const running = { automationId: 'personal', status: 'running' as const };
+			assert.deepStrictEqual([
+				getActiveAutomationsHoverContent(automations, [pending, waiting, running], false, false).value,
+				getActiveAutomationsHoverContent(automations, [waiting, pending, running], false, false).value,
+			], Array(2).fill('**Active**\n\n$(report-question) Code&nbsp;review<span style="color:var(--vscode-descriptionForeground);"> · Approve&nbsp;changes (3&nbsp;runs)</span>'));
+		});
+
+		test('uses live automation session status and plain-text details with run fallback', () => {
+			const session = createTestSession('run', { status: SessionStatus.NeedsInput });
+			const description = observableValue<IMarkdownString | undefined>(disposables, new MarkdownString('Review **changes** in [file](https://example.com)'));
+			const liveSession = { ...session.session, description };
+			const extUri = new ExtUri(() => true);
+			const findSession = (resource: URI) => extUri.isEqual(resource, liveSession.resource) ? liveSession : undefined;
+			const automations = [{ id: 'personal', name: 'Code review', ownership: 'user' as const }];
+			const run = { automationId: 'personal', status: 'running' as const, needsInput: true, statusDescription: 'Run fallback', sessionResource: liveSession.resource.with({ authority: liveSession.resource.authority.toUpperCase() }) };
+			const live = getActiveAutomationsHoverContent(automations, [run], false, false, findSession).value;
+			session.status.set(SessionStatus.InProgress, undefined);
+			description.set(new MarkdownString('Checking **tests**'), undefined);
+			const updated = getActiveAutomationsHoverContent(automations, [run], false, false, findSession).value;
+			session.status.set(SessionStatus.Completed, undefined);
+			const fallback = getActiveAutomationsHoverContent(automations, [run], false, false, findSession).value;
+			const unresolved = getActiveAutomationsHoverContent(automations, [{ ...run, sessionResource: URI.parse('test-session://other') }], false, false, findSession).value;
+			assert.deepStrictEqual({ live, updated, fallback, unresolved }, {
+				live: '**Active**\n\n$(report-question) Code&nbsp;review<span style="color:var(--vscode-descriptionForeground);"> · Review&nbsp;changes&nbsp;in&nbsp;file</span>',
+				updated: '**Active**\n\n$(session-in-progress) Code&nbsp;review<span style="color:var(--vscode-descriptionForeground);"> · Checking&nbsp;tests</span>',
+				fallback: '**Active**\n\n$(report-question) Code&nbsp;review<span style="color:var(--vscode-descriptionForeground);"> · Run&nbsp;fallback</span>',
+				unresolved: '**Active**\n\n$(report-question) Code&nbsp;review<span style="color:var(--vscode-descriptionForeground);"> · Run&nbsp;fallback</span>',
+			});
+		});
+
+		test('renders automation details in the description foreground and keeps names and statuses as text', () => {
+			const content = getActiveAutomationsHoverContent(
+				[{ id: 'personal', name: 'Review <b>code</b> & tests', ownership: 'user' }],
+				[{ automationId: 'personal', status: 'running', statusDescription: 'Checking </span><b>changes</b>' }, { automationId: 'personal', status: 'pending' }],
+				false,
+				false,
+			);
+			const rendered = disposables.add(renderMarkdown(content));
+			const container = append(mainWindow.document.body, $('div'));
+			disposables.add(toDisposable(() => container.remove()));
+			container.style.color = 'rgb(1, 2, 3)';
+			container.style.setProperty('--vscode-descriptionForeground', 'rgb(4, 5, 6)');
+			container.appendChild(rendered.element);
+			const paragraph = rendered.element.querySelectorAll('p')[1];
+			const details = paragraph.querySelector('span:not(.codicon)');
+			assert.ok(details);
+
+			assert.deepStrictEqual({
+				text: paragraph.textContent?.replace(/\u00a0/g, ' '),
+				details: details.textContent?.replace(/\u00a0/g, ' '),
+				nameColor: mainWindow.getComputedStyle(paragraph).color,
+				detailsColor: mainWindow.getComputedStyle(details).color,
+				injectedBold: paragraph.querySelector('b'),
+			}, {
+				text: ' Review <b>code</b> & tests · Checking </span><b>changes</b> (2 runs)',
+				details: ' · Checking </span><b>changes</b> (2 runs)',
+				nameColor: 'rgb(1, 2, 3)',
+				detailsColor: 'rgb(4, 5, 6)',
+				injectedBold: null,
+			});
+			container.style.setProperty('--vscode-descriptionForeground', 'rgb(7, 8, 9)');
+			assert.strictEqual(mainWindow.getComputedStyle(details).color, 'rgb(7, 8, 9)');
+		});
+
+		test('keeps multiline automation details in the description foreground', () => {
+			const content = getActiveAutomationsHoverContent(
+				[{ id: 'personal', name: 'Code review', ownership: 'user' }],
+				[{ automationId: 'personal', status: 'running', statusDescription: 'Reviewing\nchanges' }],
+				false,
+				false,
+			);
+			const rendered = disposables.add(renderMarkdown(content));
+			const details = rendered.element.querySelector('span[style]');
+			assert.deepStrictEqual({
+				text: details?.textContent,
+				lineBreaks: details?.querySelectorAll('br').length,
+			}, { text: ' · Reviewingchanges', lineBreaks: 1 });
+		});
+
 		test('selects the rendered section before the toolbar handles its context menu', () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stubInstance(MenuWorkbenchToolBar, new class extends mock<MenuWorkbenchToolBar>() {
@@ -1397,6 +1507,87 @@ suite('Sessions - SessionsList', () => {
 		});
 
 		for (const navigationShortcuts of [false, true]) {
+			test(`opens the focused Automations hover with the hover command (separate navigation: ${navigationShortcuts})`, async () => {
+				const session = createTestSession('run', { status: SessionStatus.NeedsInput });
+				const description = observableValue<IMarkdownString | undefined>(disposables, new MarkdownString('Approve **changes**'));
+				const liveSession = { ...session.session, description };
+				const commandExecuted = disposables.add(new Emitter<{ commandId: string; args: unknown[] }>());
+				const opened: string[] = [];
+				const hovers: { content: string; focus: boolean | undefined; target: boolean; trapFocus: boolean | undefined }[] = [];
+				const harness = createListHarness(disposables, [liveSession], instantiationService => {
+					const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+					instantiationService.stub(IContextKeyService, contextKeyService);
+					ChatAutomationsEnabledContext.bindTo(contextKeyService).set(true);
+					instantiationService.stub(IAutomationService, new class extends mock<IAutomationService>() {
+						override readonly automations = constObservable([{ ...automationDefinition('automation'), name: 'automation' }]);
+						override readonly runs = constObservable<readonly IAutomationRun[]>([{
+							id: 'run', automationId: 'automation', status: 'running', trigger: 'schedule',
+							startedAt: '2026-08-14T00:00:00.000Z', sessionResource: liveSession.resource,
+						}]);
+						override readonly catalogueState = constObservable('ready' as const);
+					});
+					instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+						override readonly onDidExecuteCommand = commandExecuted.event;
+						override async executeCommand<T>(commandId: string, ...args: unknown[]): Promise<T | undefined> {
+							opened.push(commandId);
+							commandExecuted.fire({ commandId, args });
+							return undefined;
+						}
+					});
+					instantiationService.stub(IHoverService, {
+						...NullHoverService,
+						showInstantHover: (options, focus) => {
+							hovers.push({
+								content: options.content instanceof MarkdownString ? options.content.value : '',
+								focus,
+								target: options.target instanceof HTMLElement && options.target.classList.contains('session-section'),
+								trapFocus: options.trapFocus,
+							});
+							return undefined;
+						},
+					});
+				});
+				const container = harness.createContainer();
+				const navigationContainer = mainWindow.document.createElement('div');
+				const listContainer = mainWindow.document.createElement('div');
+				container.append(navigationContainer, listContainer);
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, listContainer, {
+					grouping: () => SessionsGrouping.Date,
+					sorting: () => SessionsSorting.Created,
+					showNavigationShortcuts: () => navigationShortcuts,
+					navigationContainer,
+					onSessionOpen: () => { },
+				}));
+				list.layout(300, 400);
+				list.focusAutomations();
+				const focusedRoot = mainWindow.document.activeElement as HTMLElement;
+				await harness.instantiationService.get(ICommandService).executeCommand('unrelated.command');
+				await harness.instantiationService.get(ICommandService).executeCommand('workbench.action.showHover');
+				const nestedButton = mainWindow.document.createElement('button');
+				focusedRoot.appendChild(nestedButton);
+				nestedButton.focus();
+				await harness.instantiationService.get(ICommandService).executeCommand('workbench.action.showHover');
+				nestedButton.remove();
+				focusedRoot.focus();
+				const enter = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Enter', keyCode: 13 });
+				focusedRoot.dispatchEvent(enter);
+				const automationsRow = Array.from(container.querySelectorAll<HTMLElement>('.monaco-list-row'))
+					.find(row => row.querySelector('.session-section-label')?.textContent === 'Automations')!;
+				automationsRow.click();
+				await timeout(0);
+				container.tabIndex = -1;
+				container.focus();
+				await harness.instantiationService.get(ICommandService).executeCommand('workbench.action.showHover');
+				assert.deepStrictEqual({ hovers, opened, enterPrevented: enter.defaultPrevented }, {
+					hovers: [{
+						content: '**Active**\n\n$(report-question) automation<span style="color:var(--vscode-descriptionForeground);"> · Approve&nbsp;changes</span>',
+						focus: true, target: true, trapFocus: true,
+					}],
+					opened: ['unrelated.command', 'workbench.action.showHover', 'workbench.action.showHover', 'sessionsView.manageAutomations', 'workbench.action.showHover'],
+					enterPrevented: false,
+				});
+			});
+
 			test(`keeps navigation placement unchanged in Inbox (separate navigation: ${navigationShortcuts})`, async () => {
 				const harness = createListHarness(disposables, [], instantiationService => {
 					const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
@@ -1781,7 +1972,7 @@ suite('Sessions - SessionsList', () => {
 					override readonly runs = constObservable([]);
 					override readonly catalogueState = constObservable('ready' as const);
 				});
-				instantiationService.stub(ICommandService, upcastPartial<ICommandService>({ executeCommand: async (id: string) => { commands.push(id); return undefined; } }));
+				instantiationService.stub(ICommandService, upcastPartial<ICommandService>({ onDidExecuteCommand: Event.None, executeCommand: async (id: string) => { commands.push(id); return undefined; } }));
 				instantiationService.stub(IMenuService, disposables.add(instantiationService.createInstance(MenuService)));
 				(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_CANVASES_SECTION_SETTING, true);
 				instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
@@ -2245,6 +2436,7 @@ suite('Sessions - SessionsList', () => {
 			let newSessionKeybinding = createNewSessionKeybinding(KeyMod.CtrlCmd | KeyCode.KeyN);
 			const harness = createListHarness(disposables, [], instantiationService => {
 				instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+					override readonly onDidExecuteCommand = Event.None;
 					override async executeCommand<R>(commandId: string): Promise<R | undefined> {
 						commands.push(commandId);
 						return undefined;

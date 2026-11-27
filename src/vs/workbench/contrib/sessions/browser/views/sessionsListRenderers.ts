@@ -21,14 +21,15 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
 import { createMatches, FuzzyScore, IMatch } from '../../../../../base/common/filters.js';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { escapeControlAndFormatCharacters } from '../../../../../base/common/strings.js';
+import { MarkdownString, MarkdownStringTextNewlineStyle } from '../../../../../base/common/htmlContent.js';
+import { escape, escapeControlAndFormatCharacters } from '../../../../../base/common/strings.js';
 import { constObservable, IObservable, IReader, ISettableObservable, autorun, derived, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
 import { fromNow } from '../../../../../base/common/date.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { getComparisonKey, isEqual } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { MenuId, IMenuService, MenuItemAction, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
@@ -46,6 +47,7 @@ import { ServiceCollection } from '../../../../../platform/instantiation/common/
 import { defaultButtonStyles, defaultInputBoxStyles, defaultKeybindingLabelStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { chartsOrange } from '../../../../../platform/theme/common/colors/chartsColors.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
+import { descriptionForeground } from '../../../../../platform/theme/common/colors/baseColors.js';
 import { listActiveSelectionBackground, listFocusBackground, listHoverBackground, listInactiveFocusBackground, listInactiveSelectionBackground } from '../../../../../platform/theme/common/colors/listColors.js';
 import { isHighContrast } from '../../../../../platform/theme/common/theme.js';
 import { IThemeService, Themable } from '../../../../../platform/theme/common/themeService.js';
@@ -98,6 +100,7 @@ import { ScheduledRequestsIndicatorRenderer } from './sessionScheduledRequestsCa
 import { IChatScheduledRequest } from '../../../chat/common/model/chatViewModel.js';
 import { SessionStatusIcon } from '../sessionStatusIcon.js';
 import { IAutomationService } from '../../../chat/common/automations/automationService.js';
+import { IAutomationDescriptor, IAutomationRun, isAutomationVisible } from '../../../chat/common/automations/automation.js';
 import { ICustomViewService } from '../customView.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
 import { ChatCustomizationsHover } from '../../../chat/browser/aiCustomization/chatCustomizationsHover.js';
@@ -522,6 +525,76 @@ export function withSessionsListHoverPresentation(hover: Pick<IDelayedHoverOptio
 		position: { hoverPosition: HoverPosition.RIGHT, forcePosition: true },
 		persistence: { hideOnHover: false },
 	};
+}
+
+export function getActiveAutomationsHoverContent(
+	automations: readonly Pick<IAutomationDescriptor, 'id' | 'name' | 'purpose' | 'ownership' | 'isCreatedByCurrentUser'>[],
+	runs: readonly Pick<IAutomationRun, 'automationId' | 'status' | 'statusDescription' | 'needsInput' | 'purpose' | 'sessionResource'>[],
+	showSharedByOthers: boolean,
+	sendLaterEnabled: boolean,
+	getSession?: (resource: URI) => ISession | undefined,
+): MarkdownString {
+	const visibleAutomations = new Map<string, typeof automations[number]>();
+	for (const automation of automations) {
+		if (isAutomationVisible(automation, showSharedByOthers)
+			&& !(sendLaterEnabled && automation.purpose === 'scheduledChat')) {
+			visibleAutomations.set(automation.id, automation);
+		}
+	}
+	const activeRuns = new Map<string, { status: string; icon: ThemeIcon; count: number; needsInput: boolean }>();
+	for (const run of runs) {
+		if ((run.status !== 'pending' && run.status !== 'running')
+			|| sendLaterEnabled && run.purpose === 'scheduledChat'
+			|| !visibleAutomations.has(run.automationId)) {
+			continue;
+		}
+
+		const session = run.sessionResource && getSession?.(run.sessionResource);
+		const sessionStatus = session?.status.get();
+		const hasActiveSession = sessionStatus === SessionStatus.InProgress || sessionStatus === SessionStatus.NeedsInput;
+		const needsInput = hasActiveSession ? sessionStatus === SessionStatus.NeedsInput : run.needsInput === true;
+		const description = session && hasActiveSession
+			? session.description.get()
+			: undefined;
+		const status = (description && renderAsPlaintext(description, { omitMarkdownSyntax: true })) || (run.statusDescription ?? (needsInput
+			? localize('automationRunNeedsInput', "Needs input")
+			: run.status === 'pending'
+				? localize('automationRunQueued', "Queued")
+				: localize('automationRunRunning', "Running")));
+		const existing = activeRuns.get(run.automationId);
+		if (!existing || needsInput && !existing.needsInput) {
+			activeRuns.set(run.automationId, {
+				status,
+				icon: needsInput ? Codicon.reportQuestion : run.status === 'pending' ? Codicon.clock : Codicon.sessionInProgress,
+				count: (existing?.count ?? 0) + 1,
+				needsInput,
+			});
+		} else {
+			existing.count++;
+		}
+	}
+
+	const content = new MarkdownString(undefined, { supportThemeIcons: true, supportHtml: true });
+	content.appendMarkdown('**').appendText(localize('activeAutomationsHover', "Active")).appendMarkdown('**');
+	if (activeRuns.size === 0) {
+		return content.appendMarkdown('\n\n').appendText(localize('noActiveAutomationRunsHover', "No runs in progress"));
+	}
+
+	let separator = '\n\n';
+	for (const [automationId, run] of activeRuns) {
+		const automation = visibleAutomations.get(automationId);
+		if (!automation) {
+			continue;
+		}
+		content.appendMarkdown(`${separator}$(${run.icon.id}) `).appendText(escape(automation.name))
+			.appendMarkdown(`<span style="color:${asCssVariable(descriptionForeground)};"> · `).appendText(escape(run.status), MarkdownStringTextNewlineStyle.Break);
+		if (run.count > 1) {
+			content.appendMarkdown(' (').appendText(localize('automationActiveRunCount', "{0} runs", run.count)).appendMarkdown(')');
+		}
+		content.appendMarkdown('</span>');
+		separator = '  \n';
+	}
+	return content;
 }
 
 export function getCreatorHoverData(
@@ -2433,6 +2506,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		private readonly isSessionListed: (session: ISession, reader: IReader) => boolean = () => false,
 		/** Whether the canvas page shows a pinned canvas, which highlights its row. */
 		private readonly isPinnedCanvasActive: (entry: IPinnedCanvas, reader: IReader) => boolean = () => false,
+		private readonly getAutomationHoverContent?: () => MarkdownString,
 	) { }
 
 	renderTemplate(container: HTMLElement): ISessionSectionTemplate {
@@ -2632,6 +2706,12 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 
 		if (element.id === AUTOMATIONS_SECTION_ID) {
 			template.elementDisposables.add(markOnboardingTarget(template.container, 'sessions.automations.entry'));
+			const getAutomationHoverContent = this.getAutomationHoverContent;
+			if (getAutomationHoverContent) {
+				template.elementDisposables.add(this.hoverService.setupDelayedHover(template.container, () => withSessionsListHoverPresentation({
+					content: getAutomationHoverContent(),
+				}), { groupId: 'sessions-list' }));
+			}
 			DOM.clearNode(template.icon);
 			template.icon.style.display = '';
 			template.elementDisposables.add(autorun(reader => {
@@ -2719,6 +2799,15 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 				this.updateChevron(template, collapsible, collapsed);
 			}
 		}
+	}
+
+	getFocusedSectionElement(sectionId: string, listElement: HTMLElement): HTMLElement | undefined {
+		for (const [template, element] of this.renderedSections) {
+			if (element.id === sectionId && listElement.contains(template.container) && template.container.closest('.monaco-list-row')?.classList.contains('focused')) {
+				return template.container;
+			}
+		}
+		return undefined;
 	}
 
 	setDropTarget(sectionId: string, active: boolean): void {
