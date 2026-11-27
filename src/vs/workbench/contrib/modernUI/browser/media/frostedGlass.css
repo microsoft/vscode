@@ -67,6 +67,17 @@
 				background-color: transparent;
 			}
 
+			/* The material paints the frame above its blur; blurring the card's own border would smear it into the corners. */
+			& .monaco-editor .comment-thread-floating-widget {
+				--modern-ui-glass-background: color-mix(in srgb, var(--vscode-peekViewResult-background) var(--modern-ui-glass-opacity, 92%), transparent);
+				background-color: transparent;
+				border-color: transparent;
+			}
+
+			& .monaco-editor .comment-thread-floating-widget > .review-widget {
+				background-color: transparent;
+			}
+
 			& .monaco-dialog-box {
 				--vscode-editorWidget-background: transparent;
 			}
@@ -133,6 +144,7 @@
 			& .monaco-resizable-hover,
 			& .monaco-hover:not(.monaco-resizable-hover > .monaco-hover),
 			& .agent-feedback-widget-item,
+			& .monaco-editor .comment-thread-floating-widget,
 			& .monaco-dialog-modal-block .dialog-shadow,
 			& .spotlight-callout,
 			& .notifications-center,
@@ -165,6 +177,11 @@
 				&:is(.spotlight-callout)::before {
 					clip-path: border-box;
 					background-clip: border-box;
+				}
+
+				&:is(.comment-thread-floating-widget)::before {
+					clip-path: border-box;
+					border-color: var(--comment-thread-floating-border-color, transparent);
 				}
 			}
 		}

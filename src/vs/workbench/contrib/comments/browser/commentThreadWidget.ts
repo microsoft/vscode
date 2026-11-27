@@ -49,6 +49,12 @@ export interface ICommentThreadWidgetOptions {
 	 * as in a short editor, the whole body scrolls.
 	 */
 	readonly scrollableComments?: boolean;
+	/** The title to show for a non-empty thread that has no label. */
+	readonly defaultTitle?: string;
+	/** Shows a comment icon beside the thread title. */
+	readonly showTitleIcon?: boolean;
+	/** Shows each comment's reaction picker, when it has no reactions, beside the comment's actions. */
+	readonly reactionPickerInTitle?: boolean;
 }
 
 export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends Disposable implements ICommentThreadWidget {
@@ -164,7 +170,9 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 				collapseAction: this._options?.collapseAction
 			},
 			this._commentMenus,
-			this._commentThread
+			this._commentThread,
+			this._options?.defaultTitle,
+			this._options?.showTitleIcon
 		));
 
 		this._header.updateCommentThread(this._commentThread);
@@ -217,7 +225,8 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 			this._pendingEdits,
 			this._scopedInstantiationService,
 			this,
-			!!this._options?.scrollableComments
+			!!this._options?.scrollableComments,
+			!!this._options?.reactionPickerInTitle
 		) as unknown as CommentThreadBody<T>;
 		this._register(this._body);
 		this._setAriaLabel();

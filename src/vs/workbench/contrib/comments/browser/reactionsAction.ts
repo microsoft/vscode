@@ -15,7 +15,7 @@ export class ToggleReactionsAction extends Action {
 	private _menuActions: IAction[] = [];
 	private toggleDropdownMenu: () => void;
 	constructor(toggleDropdownMenu: () => void, title?: string) {
-		super(ToggleReactionsAction.ID, title || nls.localize('pickReactions', "Pick Reactions..."), 'toggle-reactions', true);
+		super(ToggleReactionsAction.ID, title || nls.localize('pickReactions', "Pick Reactions..."), 'toggle-reactions', false);
 		this.toggleDropdownMenu = toggleDropdownMenu;
 	}
 	override run(): Promise<any> {
@@ -27,6 +27,7 @@ export class ToggleReactionsAction extends Action {
 	}
 	set menuActions(actions: IAction[]) {
 		this._menuActions = actions;
+		this.enabled = actions.length > 0;
 	}
 }
 export class ReactionActionViewItem extends ActionViewItem {

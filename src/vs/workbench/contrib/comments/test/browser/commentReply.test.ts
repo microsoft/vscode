@@ -6,6 +6,7 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import * as dom from '../../../../../base/browser/dom.js';
+import { DEFAULT_FONT_FAMILY } from '../../../../../base/browser/fonts.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
@@ -13,6 +14,7 @@ import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { EditorOption } from '../../../../../editor/common/config/editorOptions.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
 import { Comment, CommentInput, CommentThread } from '../../../../../editor/common/languages.js';
@@ -26,7 +28,7 @@ import { TestMenuService } from '../../../../test/browser/workbenchTestServices.
 import { CommentMenus } from '../../browser/commentMenus.js';
 import { CommentReply } from '../../browser/commentReply.js';
 import { ICommentController, ICommentService } from '../../browser/commentService.js';
-import { SimpleCommentEditor } from '../../browser/simpleCommentEditor.js';
+import { calculateEditorHeight, SimpleCommentEditor } from '../../browser/simpleCommentEditor.js';
 
 suite('CommentReply', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -34,14 +36,24 @@ suite('CommentReply', () => {
 
 	teardown(() => sinon.restore());
 
-	async function createReply(hasExistingComments = true, options?: { focus?: boolean; commentController?: ICommentController }) {
+	async function createReply(hasExistingComments = true, options?: { focus?: boolean; commentController?: ICommentController; floating?: boolean; fontSize?: number; rendered?: boolean }) {
 		const instantiationService = createCodeEditorServices(store);
 		const model = store.add(createTextModel(''));
-		const editor = store.add(instantiateTestCodeEditor(instantiationService, model));
+		let editor: ICodeEditor;
+		if (options?.rendered) {
+			const container = dom.append(mainWindow.document.body, dom.$('.monaco-workbench'));
+			store.add(toDisposable(() => container.remove()));
+			editor = store.add(instantiationService.createInstance(CodeEditorWidget, container, {
+				dimension: { width: 200, height: 200 }, fontSize: options.fontSize, wordWrap: 'on', scrollBeyondLastLine: false,
+			}, { contributions: [] }));
+			editor.setModel(model);
+		} else {
+			editor = store.add(instantiateTestCodeEditor(instantiationService, model, { fontSize: options?.fontSize ?? 14 }));
+			sinon.stub(editor, 'getDomNode').returns(dom.$('div'));
+		}
 		const onDidBlurEditorWidget = store.add(new Emitter<void>());
 		const onDidChangeInput = store.add(new Emitter<CommentInput | undefined>());
 		sinon.stub(editor, 'onDidBlurEditorWidget').value(onDidBlurEditorWidget.event);
-		sinon.stub(editor, 'getDomNode').returns(dom.$('div'));
 		const focus = sinon.spy(editor, 'focus');
 		const layout = sinon.spy(editor, 'layout');
 		instantiationService.stubInstance<ICodeEditor>(SimpleCommentEditor, editor);
@@ -66,6 +78,7 @@ suite('CommentReply', () => {
 			override readonly onDidChangeInput = onDidChangeInput.event;
 		};
 		const container = dom.$('div');
+		container.classList.toggle('comment-thread-floating-widget', !!options?.floating);
 		const reply = store.add(instantiationService.createInstance(
 			CommentReply<IRange>, 'test', container, { getLayoutInfo: () => ({ height: 500 }) },
 			thread, instantiationService, instantiationService.get(IContextKeyService),
@@ -76,6 +89,85 @@ suite('CommentReply', () => {
 
 		return { reply, container, onDidBlurEditorWidget, onDidChangeInput, model, thread, editor, focus, layout };
 	}
+
+	test('preserves the configured font size and wraps proportional text in floating replies', async () => {
+		const { reply, model } = await createReply(true, { floating: true, fontSize: 24, rendered: true });
+		reply.expandReplyAreaAndFocusCommentEditor();
+		model.setValue('A reply\nwith multiple lines');
+		const editor = reply.commentEditor;
+		const options = editor.getRawOptions();
+
+		assert.deepStrictEqual({
+			fontFamily: options.fontFamily,
+			fontSize: editor.getOption(EditorOption.fontSize),
+			lineHeightFitsText: editor.getOption(EditorOption.lineHeight) >= editor.getOption(EditorOption.fontSize),
+			wrappingStrategy: options.wrappingStrategy,
+			padding: editor.getOption(EditorOption.padding),
+			scrollbar: editor.getRawOptions().scrollbar?.vertical,
+			overviewLanes: editor.getOption(EditorOption.overviewRulerLanes),
+			hideCursor: editor.getOption(EditorOption.hideCursorInOverviewRuler),
+			text: editor.getValue(),
+		}, {
+			fontFamily: DEFAULT_FONT_FAMILY,
+			fontSize: 24,
+			lineHeightFitsText: true,
+			wrappingStrategy: 'advanced',
+			padding: { top: 4, bottom: 4 },
+			scrollbar: 'auto',
+			overviewLanes: 0,
+			hideCursor: true,
+			text: 'A reply\nwith multiple lines',
+		});
+	});
+
+	test('wraps wide proportional text within the reply editor', async () => {
+		const { reply, model } = await createReply(true, { floating: true, fontSize: 24, rendered: true });
+		const editor = reply.commentEditor;
+		editor.layout({ width: 200, height: 200 });
+		model.setValue('WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW');
+		editor.render(true);
+		const lines = [...editor.getDomNode()!.querySelectorAll('.view-line')];
+		const widths = lines.map(line => {
+			const range = mainWindow.document.createRange();
+			range.selectNodeContents(line);
+			return range.getBoundingClientRect().width;
+		});
+
+		assert.deepStrictEqual({
+			wrapped: widths.length > 1,
+			fits: widths.every(width => width <= editor.getLayoutInfo().contentWidth + 1),
+		}, { wrapped: true, fits: true });
+	});
+
+	test('sizes floating replies to include padding while growing and shrinking', async () => {
+		const { reply, model } = await createReply(true, { floating: true, fontSize: 14, rendered: true });
+		const editor = reply.commentEditor;
+		reply.layout(300);
+		const heights: number[] = [];
+		const overflows: boolean[] = [];
+		for (const lineCount of [1, 5, 6, 40, 5, 1]) {
+			model.setValue(Array(lineCount).fill('Reply').join('\n'));
+			heights.push(editor.getLayoutInfo().height);
+			overflows.push(editor.getContentHeight() > editor.getLayoutInfo().height);
+		}
+		const lineHeight = editor.getOption(EditorOption.lineHeight);
+		const padding = editor.getOption(EditorOption.padding);
+		const height = (lines: number) => Math.min(410, Math.max(90, lines * lineHeight + padding.top + padding.bottom));
+
+		assert.deepStrictEqual({ heights, overflows }, {
+			heights: [height(1), height(5), height(6), height(40), height(5), height(1)],
+			overflows: [false, false, false, true, false, false],
+		});
+	});
+
+	test('keeps the editor height before its model is initialized', () => {
+		const instantiationService = createCodeEditorServices(store);
+		const editor = store.add(instantiationService.createInstance(CodeEditorWidget, dom.$('div'), {
+			padding: { top: 4, bottom: 4 },
+		}, { contributions: [] }));
+
+		assert.strictEqual(calculateEditorHeight({ getLayoutInfo: () => ({ height: 500 }) }, editor, 90), 90);
+	});
 
 	test('collapses an empty reply on blur and can expand it again', async () => {
 		const { container, onDidBlurEditorWidget } = await createReply();
