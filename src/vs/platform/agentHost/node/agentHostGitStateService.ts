@@ -706,8 +706,8 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	private readonly _repositoryGenerations = new Map<string, number>();
 	/** The discovery of each session that is running; see {@link _discoverRepositoriesInBackground}. */
 	private readonly _repositoryDiscoveries = new Map<string, Promise<void>>();
-	/** The credentials of a discovery asked for while another of the same session ran, which runs once that one settles. */
-	private readonly _pendingRepositoryDiscoveries = new Map<string, IRepositoryCredentialContext>();
+	/** A discovery asked for while another of the same session ran, which runs once that one settles. */
+	private readonly _pendingRepositoryDiscoveries = new Map<string, { readonly credentials: IRepositoryCredentialContext; readonly fresh: boolean }>();
 	/** The repositories found for each session, with the folders they were found for; `undefined` when none is nested. */
 	private readonly _discoveredRepositories = new Map<string, { readonly input: string; readonly repositories: Readonly<Record<string, readonly ISessionRepositoryEntry[]>> | undefined; readonly stale: boolean }>();
 
@@ -835,10 +835,12 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	 * `IAgentHostGitService.findRepositories`), each with its own Git state under the scope of its root. Nothing deeper,
 	 * and no options: further ones can come when they are needed.
 	 *
-	 * Work is bounded: a discovery looks at most at {@link MAX_DISCOVERED_FOLDERS} folders (one Git call each, and one
-	 * folder read for those not in a repository) and finds at most {@link MAX_ADDITIONAL_FOLDER_GIT_READS} repositories;
-	 * each refresh reads the Git state of at most {@link MAX_ADDITIONAL_FOLDER_GIT_READS} repositories in all, the
-	 * session's other folders first. Discovery runs in the background (see {@link _discoverRepositoriesInBackground}); a
+	 * Work is bounded: a discovery looks at most at {@link MAX_DISCOVERED_FOLDERS} folders (one Git call each, and for
+	 * those not in a repository one folder read and a probe of each subfolder that has a `.git` entry) and stops once it
+	 * found as many repositories as each refresh reads: {@link MAX_ADDITIONAL_FOLDER_GIT_READS} in all, the session's
+	 * other folders first. So every repository found is read on each refresh, which notices when it is gone. A forced
+	 * discovery asks Git again whether the session's first folder is in a repository; the forced refresh of the other
+	 * folders just did for them. Discovery runs in the background (see {@link _discoverRepositoriesInBackground}); a
 	 * refresh records what the last discovery of the same folders found. A discovery runs again when the session's
 	 * folders change, on a forced refresh (as after a Git operation or a turn, which may have created a repository), and
 	 * when a recorded repository is gone. A repository that is no longer found loses the Git and GitHub state discovery
@@ -850,7 +852,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		const cached = this._discoveredRepositories.get(sessionKey);
 		const current = cached?.input === input ? cached : undefined;
 		if (!current || current.stale || fresh) {
-			this._discoverRepositoriesInBackground(sessionKey, input, folders, credentials);
+			this._discoverRepositoriesInBackground(sessionKey, input, folders, credentials, fresh);
 		}
 		// Until the first discovery of these folders finishes, what was recorded before stays
 		return current ? this._applyDiscoveredRepositories(sessionKey, input, current.repositories, folders, credentials, fresh) : false;
@@ -859,16 +861,17 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	/**
 	 * Finds the repositories of a session's folders outside its refresh, so the scan never delays its Git state, and
 	 * announces them when they are recorded. At most one discovery of a session runs at a time; one whose folders
-	 * changed meanwhile records nothing, and the latest folders are found once it settles.
+	 * changed meanwhile records nothing, and the latest folders are found once it settles; a forced one asked for
+	 * meanwhile runs once it settles, as the running one may have read the folders before a repository was created.
 	 */
-	private _discoverRepositoriesInBackground(sessionKey: string, input: string, folders: readonly string[], credentials: IRepositoryCredentialContext): void {
+	private _discoverRepositoriesInBackground(sessionKey: string, input: string, folders: readonly string[], credentials: IRepositoryCredentialContext, fresh: boolean): void {
 		if (this._repositoryDiscoveries.has(sessionKey)) {
 			// One discovery of a session at a time: the latest folders are found once this one settles
-			this._pendingRepositoryDiscoveries.set(sessionKey, credentials);
+			this._pendingRepositoryDiscoveries.set(sessionKey, { credentials, fresh: fresh || !!this._pendingRepositoryDiscoveries.get(sessionKey)?.fresh });
 			return;
 		}
 		const discovery = (async () => {
-			const repositories = await this._discoverRepositories(folders);
+			const repositories = await this._discoverRepositories(folders, fresh);
 			if (this._store.isDisposed || !this._stateManager.getSessionState(sessionKey) || this._repositoryDiscoveryInput(sessionKey).input !== input) {
 				return;
 			}
@@ -887,12 +890,12 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	}
 
 	/**
-	 * Runs the discovery asked for while the one of `settledInput` ran, if the session's folders are still not the ones
-	 * that one found: as when they changed during a scan, whose result is then not recorded.
+	 * Runs the discovery asked for while the one of `settledInput` ran, if it was forced or the session's folders are
+	 * still not the ones that one found: as when they changed during a scan, whose result is then not recorded.
 	 */
 	private _runPendingRepositoryDiscovery(sessionKey: string, settledInput: string): void {
-		const credentials = this._pendingRepositoryDiscoveries.get(sessionKey);
-		if (!credentials || this._repositoryDiscoveries.has(sessionKey)) {
+		const pending = this._pendingRepositoryDiscoveries.get(sessionKey);
+		if (!pending || this._repositoryDiscoveries.has(sessionKey)) {
 			return;
 		}
 		this._pendingRepositoryDiscoveries.delete(sessionKey);
@@ -900,8 +903,8 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			return;
 		}
 		const { folders, input } = this._repositoryDiscoveryInput(sessionKey);
-		if (input !== settledInput) {
-			this._discoverRepositoriesInBackground(sessionKey, input, folders, credentials);
+		if (input !== settledInput || pending.fresh) {
+			this._discoverRepositoriesInBackground(sessionKey, input, folders, pending.credentials, pending.fresh);
 		}
 	}
 
@@ -1040,13 +1043,15 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	 * `undefined` when no folder has such nested repositories, as each folder is then its own repository. See
 	 * {@link _refreshSessionRepositories} for the bounds.
 	 */
-	private async _discoverRepositories(folders: readonly string[]): Promise<Readonly<Record<string, readonly ISessionRepositoryEntry[]>> | undefined> {
+	private async _discoverRepositories(folders: readonly string[], fresh: boolean): Promise<Readonly<Record<string, readonly ISessionRepositoryEntry[]>> | undefined> {
 		const result: Record<string, ISessionRepositoryEntry[]> = {};
 		const discovered = folders.slice(0, MAX_DISCOVERED_FOLDERS);
-		// Cached: the folders' own refresh asks Git again when a folder may have become a repository or stopped being one
-		const ownRoots = await Promise.all(discovered.map(folder => this._gitService.getRepositoryRoot(URI.parse(folder)).catch(() => undefined)));
+		// A forced refresh may follow a folder becoming a repository or stopping being one. Its refresh of the other
+		// folders asked Git again for them, so only the first folder's cached answer is replaced here
+		const ownRoots = await Promise.all(discovered.map((folder, index) => this._gitService.getRepositoryRoot(URI.parse(folder), fresh && index === 0 ? { fresh: true } : undefined).catch(() => undefined)));
 		const seen = new Set<string>([...discovered, ...ownRoots.filter(isDefined).map(root => root.toString())].map(root => getWorkingDirectoryScopeId([root])));
-		let remaining = MAX_ADDITIONAL_FOLDER_GIT_READS;
+		// As many as each refresh reads (see _applyDiscoveredRepositories), so every repository found is read
+		let remaining = Math.max(0, MAX_ADDITIONAL_FOLDER_GIT_READS - Math.max(0, folders.length - 1));
 		let nested = false;
 		for (const [index, folder] of discovered.entries()) {
 			const ownRoot = ownRoots[index];

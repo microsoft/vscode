@@ -3298,6 +3298,128 @@ suite('AgentHostGitStateService', () => {
 		}, { first: 1, ordinary: 1, forced: 2, folderAdded: 4, docsBranch: 'docs-main' });
 	}));
 
+	test('a forced refresh asks Git again whether a folder is in a repository before looking into its subfolders', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		// Git's cached answer, which only a fresh lookup replaces
+		let isRepository = true;
+		const cached = new Map<string, URI | undefined>();
+		h.gitService.getRepositoryRoot = async (folder, options) => {
+			const key = folder.toString();
+			if (options?.fresh || !cached.has(key)) {
+				cached.set(key, isRepository || key !== WORKING_DIRECTORY ? folder : undefined);
+			}
+			return cached.get(key);
+		};
+		let scans = 0;
+		h.gitService.findRepositories = async () => {
+			scans++;
+			return [URI.parse('file:///wd/app')];
+		};
+		h.setGitResultForFolder('file:///wd/app', { branchName: 'app-main' });
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState: { branchName: 'main' } });
+		const refresh = async (force: boolean) => {
+			await h.service.refreshSessionGitState(SESSION, undefined, { force });
+			await timeout(1_000);
+			await h.service.refreshSessionGitState(SESSION, undefined);
+			await timeout(1_000);
+			return { scans, repositories: readSessionRepositories(h.stateManager.getSessionState(SESSION)?._meta)?.[getWorkingDirectoryKey(WORKING_DIRECTORY)]?.map(entry => entry.root) };
+		};
+
+		const inRepository = await refresh(false);
+		// The folder's .git is removed, leaving the checkout in its subfolder
+		isRepository = false;
+		const repositoryRemoved = await refresh(true);
+		// git init in the folder again
+		isRepository = true;
+		const repositoryCreated = await refresh(true);
+
+		assert.deepStrictEqual({ inRepository, repositoryRemoved, repositoryCreated }, {
+			inRepository: { scans: 0, repositories: undefined },
+			repositoryRemoved: { scans: 1, repositories: ['file:///wd/app'] },
+			repositoryCreated: { scans: 1, repositories: undefined },
+		});
+	}));
+
+	test('a forced refresh during a scan of the same folders scans them once more after it, an ordinary one does not', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState: { branchName: 'main' } });
+		let gate: DeferredPromise<void> | undefined;
+		let onDisk: string[] = [];
+		let scans = 0;
+		h.gitService.findRepositories = async () => {
+			scans++;
+			// The folder is read before the scan finishes
+			const found = onDisk.map(root => URI.parse(root));
+			await gate?.p;
+			return found;
+		};
+		h.setGitResultForFolder('file:///wd/app', { branchName: 'app-main' });
+		const repositories = () => Object.values(readSessionRepositories(h.stateManager.getSessionState(SESSION)?._meta) ?? {}).flat().map(entry => entry.root);
+		const scanWhile = async (force: boolean) => {
+			gate = new DeferredPromise<void>();
+			await h.service.refreshSessionGitState(SESSION, undefined, { force: true });
+			// A turn creates a checkout, then refreshes the session while the scan runs
+			onDisk = ['file:///wd/app'];
+			await h.service.refreshSessionGitState(SESSION, undefined, { force });
+			const settled = gate;
+			gate = undefined;
+			await settled.complete();
+			await timeout(1_000);
+			const result = { scans, repositories: repositories() };
+			onDisk = [];
+			scans = 0;
+			return result;
+		};
+
+		assert.deepStrictEqual({ ordinary: await scanWhile(false), forced: await scanWhile(true) }, {
+			ordinary: { scans: 1, repositories: [] },
+			forced: { scans: 2, repositories: ['file:///wd/app'] },
+		});
+	}));
+
+	test('discovery finds no more repositories than each refresh reads, so each is read and one that is gone is noticed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		const other = 'file:///other';
+		let onDisk = Array.from({ length: 20 }, (_, index) => `file:///wd/repo${String(index).padStart(2, '0')}`);
+		const limits: number[] = [];
+		h.gitService.getRepositoryRoot = async folder => onDisk.includes(folder.toString()) ? folder : undefined;
+		h.gitService.findRepositories = async (folder, limit) => {
+			limits.push(limit);
+			return folder.toString() === WORKING_DIRECTORY ? onDisk.slice(0, limit).map(root => URI.parse(root)) : [];
+		};
+		for (const root of onDisk) {
+			h.setGitResultForFolder(root, { branchName: `${root.slice(-6)}-main` });
+		}
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState: { branchName: 'main' } });
+		// Another folder, not a repository either: it takes one of the reads
+		h.stateManager.dispatchServerAction(SESSION, { type: ActionType.SessionWorkingDirectorySet, directory: other });
+		const read = () => {
+			const meta = h.stateManager.getSessionState(SESSION)?._meta;
+			const roots = readSessionRepositories(meta)?.[getWorkingDirectoryKey(WORKING_DIRECTORY)]?.map(entry => entry.root) ?? [];
+			return { count: roots.length, unread: roots.filter(root => !readFolderScopeGitState(meta, getWorkingDirectoryScopeId([root]))), last: roots.at(-1) };
+		};
+		const refresh = async () => {
+			await h.service.refreshSessionGitState(SESSION, undefined);
+			await timeout(5_000);
+		};
+
+		await refresh();
+		await refresh();
+		const atCap = read();
+		// The last repository found is removed from disk
+		const removed = 'file:///wd/repo14';
+		onDisk = onDisk.filter(root => root !== removed);
+		h.setGitResultForFolder(removed, undefined);
+		await refresh();
+		await refresh();
+
+		assert.deepStrictEqual({ limits: [...new Set(limits)], atCap, afterRemoval: read() }, {
+			limits: [15],
+			atCap: { count: 15, unread: [], last: removed },
+			afterRemoval: { count: 15, unread: [], last: 'file:///wd/repo15' },
+		});
+	}));
+
 	test('a folder whose GitHub remote changes on the same branch drops the previous repository\'s pull request and looks up its pull request again', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const h = createHarness();
 		const api = 'file:///api';
