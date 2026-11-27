@@ -19,7 +19,7 @@ import { StatCache } from './statCache';
 /**
  * A stateful linkifier.
  */
-export interface ILinkifier {
+export interface ILinkifier extends IDisposable {
 	/**
 	 * The total number of links that have been added.
 	 *
@@ -42,6 +42,7 @@ export interface ILinkifier {
 }
 
 export interface IContributedLinkifierFactory {
+	/** Creates a per-response linkifier. Disposable instances are disposed with their owning {@link ILinkifier}. */
 	create(): IContributedLinkifier;
 }
 
