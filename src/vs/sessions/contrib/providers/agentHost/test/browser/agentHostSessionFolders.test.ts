@@ -48,7 +48,7 @@ suite('agentHostSessionFolders', () => {
 	});
 
 	test('matches Windows paths across drive-letter case and encoding as the platform compares paths', () => {
-		// Paths compare case-insensitively except on Linux
+		// A drive letter's case and encoding never matter; the case of the rest of a path does on Linux
 		const ignoresCase = !isLinux;
 		const encoded = URI.parse('file:///c%3A/work/api');
 		const upper = URI.parse('file:///C:/work/api');
@@ -62,16 +62,16 @@ suite('agentHostSessionFolders', () => {
 		const config = { uri: URI.parse('file:///c%3A/work/project.code-workspace'), name: 'project', folders: [upper, winWeb] };
 		assert.deepStrictEqual({
 			folders: getSessionWorkingDirectories(encoded, undefined, [encoded, upper, winWeb]).length,
-			// The configuration's first folder differs from the default folder only in case
+			// The configuration's first folder differs from the default folder only in its drive letter
 			configFolders: getSessionWorkingDirectories(encoded, config, undefined).length,
 			webBranch: result?.folders[1].gitRepository?.branchName,
 			repositories: result?.repositories?.length,
 		}, {
-			folders: ignoresCase ? 2 : 3,
-			configFolders: ignoresCase ? 2 : 1,
-			webBranch: ignoresCase ? 'feature/web' : undefined,
-			// The same root in another case is listed once
-			repositories: ignoresCase ? 1 : 0,
+			folders: 2,
+			configFolders: 2,
+			webBranch: 'feature/web',
+			// The same root with its path in another case is listed once, except on Linux
+			repositories: ignoresCase ? 1 : 2,
 		});
 	});
 
