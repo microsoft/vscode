@@ -41,7 +41,7 @@ import { ISessionChangesStatsCache } from '../../../services/sessions/common/ses
 import { ISessionOpenTelemetryAttempt, ISessionOpenTelemetryService, SessionOpenSource } from './sessionOpenTelemetryService.js';
 import { isAgentHostProvider } from '../common/agentHostSessionsProvider.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
-import { ISessionGridState, isSessionGridState, projectSessionGrid } from '../../../browser/parts/sessions/sessionGridState.js';
+import { ISessionGridState, evenSessionGrid, isSessionGridState, projectSessionGrid } from '../../../browser/parts/sessions/sessionGridState.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { ISessionGridPanes, ISessionHost, SessionHost, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
 import { ISessionGridPane, paneViewStateOf, SessionGridPaneKind } from '../../../services/sessions/browser/sessionGridPane.js';
@@ -264,10 +264,15 @@ export interface ISessionsService extends ISessionGridPanes {
 
 	/** Moves focus to the pane next to `pane` in `direction`, and makes it the active pane. */
 	focusPaneInDirection(pane: ISessionGridPane, direction: Direction): void;
-	/** Moves `pane` next to its neighbor in `direction`. */
-	movePaneInDirection(pane: ISessionGridPane, direction: Direction): void;
+	/**
+	 * Swaps `pane` with the pane next to it in `direction`, keeping the grid's shape. With `dock`, docks it beside that
+	 * pane instead, or beside one across the direction when there is none, changing the shape.
+	 */
+	movePaneInDirection(pane: ISessionGridPane, direction: Direction, dock?: boolean): void;
 	/** Resizes `pane` in `direction`. */
 	resizePaneInDirection(pane: ISessionGridPane, direction: Direction): void;
+	/** Swaps the places of two panes, each place keeping its size; other panes are left alone. Two slots also swap their order, activating `first`. */
+	swapPanes(first: ISessionGridPane, second: ISessionGridPane): void;
 
 	/** Whether the initial persisted visible-session restore has settled. */
 	readonly initialRestoreComplete: IObservable<boolean>;
@@ -423,6 +428,8 @@ export interface ISessionsService extends ISessionGridPanes {
 	 */
 	openMovedChats(chats: readonly { readonly session: ISession; readonly chatResource: URI }[]): Promise<void>;
 	arrangeSessions(): void;
+	/** Gives the panes of the grid, and the chat groups of each pane, equal sizes, keeping their arrangement. */
+	evenSessionSizes(): void;
 
 	/**
 	 * Toggle a session's stickiness in the grid. The session keeps its grid
@@ -521,6 +528,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 	 */
 	private readonly _restoreCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	private _restoringGridState: ISessionGridState | undefined;
+	/** The pending restore's snapshot once Reset Session Sizes evened it: pruning sessions still missing can unbalance it again. */
+	private _evenedRestoringGridState: ISessionGridState | undefined;
 
 	private readonly _sessionStates: ResourceMap<ISessionState>;
 	/**
@@ -1111,16 +1120,20 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 	}
 
-	movePaneInDirection(pane: ISessionGridPane, direction: Direction): void {
-		if (!this._isLivePane(pane)) {
+	movePaneInDirection(pane: ISessionGridPane, direction: Direction, dock = false): void {
+		// Like Move Editor Group, docking falls back to a neighbor across the direction: two side-by-side panes can stack.
+		const directions = !dock ? [direction] : direction === Direction.Left || direction === Direction.Right
+			? [direction, Direction.Up, Direction.Down] : [direction, Direction.Left, Direction.Right];
+		const neighbor = this._isLivePane(pane) ? directions.map(d => this.sessionsPartService.getNeighborPane(pane, d)).find(n => !!n) : undefined;
+		if (!neighbor) {
+			return;
+		}
+		if (!dock) {
+			this.swapPanes(pane, neighbor);
 			return;
 		}
 		this._cancelRestore();
 		this._startOpenSession();
-		const neighbor = this.sessionsPartService.getNeighborPane(pane, direction);
-		if (!neighbor) {
-			return;
-		}
 		const session = pane.session.get();
 		const chat = pane.chat.get();
 		if (pane.kind === SessionGridPaneKind.Detached && session && chat) {
@@ -1137,6 +1150,21 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._cancelRestore();
 		this._startOpenSession();
 		this.sessionsPartService.resizePane(pane, direction, 40);
+	}
+
+	swapPanes(first: ISessionGridPane, second: ISessionGridPane): void {
+		if (first.id === second.id || !this._isLivePane(first) || !this._isLivePane(second)) {
+			return;
+		}
+		this._cancelRestore();
+		this._startOpenSession();
+		// Detached panes come after the slots in the order of the panes, whatever their places: only two slots reorder.
+		const reordered = first.kind === SessionGridPaneKind.Slot && second.kind === SessionGridPaneKind.Slot;
+		transaction(tx => {
+			if (!reordered || this._visibility.swapSlots(first.session.get()?.sessionId, second.session.get()?.sessionId, tx)) {
+				this._gridRequest.set({ type: 'swap', first: first.id, second: second.id, reordered }, tx);
+			}
+		});
 	}
 
 	/** Moves focus into the view of the active pane. */
@@ -1245,7 +1273,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// disposes the source without cancelling it.
 		this._restoreCts.value?.cancel();
 		this._restoreCts.clear();
-		this._restoringGridState = undefined;
+		this._restoringGridState = this._evenedRestoringGridState = undefined;
 	}
 
 	/**
@@ -1951,6 +1979,15 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._cancelRestore();
 		this._startOpenSession();
 		this._gridRequest.set({ type: 'arrange' }, undefined);
+	}
+
+	evenSessionSizes(): void {
+		// The sessions a pending restore still awaits take their saved places, which a reload meanwhile keeps: even those too.
+		if (this._restoringGridState) {
+			evenSessionGrid(this._restoringGridState.grid.root);
+			this._evenedRestoringGridState = this._restoringGridState;
+		}
+		this._gridRequest.set({ type: 'even' }, undefined);
 	}
 
 	/**
@@ -2702,7 +2739,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			await this._restoreVisibleSessions(cts.token);
 		} finally {
 			if (this._restoreCts.value === cts) {
-				this._restoringGridState = undefined;
+				this._restoringGridState = this._evenedRestoringGridState = undefined;
 				this._restoreCts.clear();
 			}
 			this._initialRestoreComplete.set(true, undefined);
@@ -2806,6 +2843,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 						return ids.has(mapped) ? mapped : undefined;
 					});
 					if (grid) {
+						if (gridState === this._evenedRestoringGridState) {
+							evenSessionGrid(grid.root);
+						}
 						this._gridRequest.set({ type: 'restore', grid }, tx);
 					}
 				} else if (persisted.some(state => state.gridLayout === 'grid')) {
