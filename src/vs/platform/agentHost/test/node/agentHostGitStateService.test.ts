@@ -3298,45 +3298,63 @@ suite('AgentHostGitStateService', () => {
 		}, { first: 1, ordinary: 1, forced: 2, folderAdded: 4, docsBranch: 'docs-main' });
 	}));
 
-	test('a forced refresh asks Git again whether a folder is in a repository before looking into its subfolders', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const h = createHarness();
-		// Git's cached answer, which only a fresh lookup replaces
-		let isRepository = true;
-		const cached = new Map<string, URI | undefined>();
-		h.gitService.getRepositoryRoot = async (folder, options) => {
-			const key = folder.toString();
-			if (options?.fresh || !cached.has(key)) {
-				cached.set(key, isRepository || key !== WORKING_DIRECTORY ? folder : undefined);
+	test('a forced refresh asks Git again whether a folder is in a repository before looking into its subfolders, also another folder a chat works in', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const transitions = async (target: string) => {
+			const h = createHarness();
+			// Git's cached answer, which only a fresh lookup or a retry of a cached negative replaces
+			let isRepository = true;
+			const cached = new Map<string, URI | undefined>();
+			h.gitService.getRepositoryRoot = async (folder, options) => {
+				const key = folder.toString();
+				if (options?.fresh || (options?.refreshIfNone && !cached.get(key)) || !cached.has(key)) {
+					cached.set(key, isRepository || key !== target ? folder : undefined);
+				}
+				return cached.get(key);
+			};
+			h.gitService.hasGitRoot = folder => constObservable(cached.has(folder.toString()) ? !!cached.get(folder.toString()) : undefined);
+			let scans = 0;
+			const child = `${target}/app`;
+			h.gitService.findRepositories = async folder => {
+				scans++;
+				return folder.toString() === target ? [URI.parse(child)] : [];
+			};
+			h.setGitResultForFolder(child, { branchName: 'app-main' });
+			seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState: { branchName: 'main' } });
+			if (target !== WORKING_DIRECTORY) {
+				h.stateManager.dispatchServerAction(SESSION, { type: ActionType.SessionWorkingDirectorySet, directory: target });
+				// The chat refreshes its folder, so the refresh of the session's other folders leaves it out
+				const chat = buildChatUri(SESSION, 'peer');
+				h.stateManager.addChat(SESSION, chat, creationTimeChatStorageResource(SESSION, chat, buildDefaultChatUri(SESSION)), { workingDirectories: [target] });
 			}
-			return cached.get(key);
-		};
-		let scans = 0;
-		h.gitService.findRepositories = async () => {
-			scans++;
-			return [URI.parse('file:///wd/app')];
-		};
-		h.setGitResultForFolder('file:///wd/app', { branchName: 'app-main' });
-		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState: { branchName: 'main' } });
-		const refresh = async (force: boolean) => {
-			await h.service.refreshSessionGitState(SESSION, undefined, { force });
-			await timeout(1_000);
-			await h.service.refreshSessionGitState(SESSION, undefined);
-			await timeout(1_000);
-			return { scans, repositories: readSessionRepositories(h.stateManager.getSessionState(SESSION)?._meta)?.[getWorkingDirectoryKey(WORKING_DIRECTORY)]?.map(entry => entry.root) };
+			const refresh = async (force: boolean) => {
+				await h.service.refreshSessionGitState(SESSION, undefined, { force });
+				await timeout(1_000);
+				await h.service.refreshSessionGitState(SESSION, undefined);
+				await timeout(1_000);
+				return { scans, repositories: readSessionRepositories(h.stateManager.getSessionState(SESSION)?._meta)?.[getWorkingDirectoryKey(target)]?.map(entry => entry.root) };
+			};
+
+			const inRepository = await refresh(false);
+			// The folder's .git is removed, leaving the checkout in its subfolder
+			isRepository = false;
+			const repositoryRemoved = await refresh(true);
+			// git init in the folder again
+			isRepository = true;
+			const repositoryCreated = await refresh(true);
+			return { inRepository, repositoryRemoved, repositoryCreated };
 		};
 
-		const inRepository = await refresh(false);
-		// The folder's .git is removed, leaving the checkout in its subfolder
-		isRepository = false;
-		const repositoryRemoved = await refresh(true);
-		// git init in the folder again
-		isRepository = true;
-		const repositoryCreated = await refresh(true);
-
-		assert.deepStrictEqual({ inRepository, repositoryRemoved, repositoryCreated }, {
+		const expected = (target: string) => ({
 			inRepository: { scans: 0, repositories: undefined },
-			repositoryRemoved: { scans: 1, repositories: ['file:///wd/app'] },
+			repositoryRemoved: { scans: 1, repositories: [`${target}/app`] },
 			repositoryCreated: { scans: 1, repositories: undefined },
+		});
+		assert.deepStrictEqual({
+			first: await transitions(WORKING_DIRECTORY),
+			chatFolder: await transitions('file:///other'),
+		}, {
+			first: expected(WORKING_DIRECTORY),
+			chatFolder: expected('file:///other'),
 		});
 	}));
 
