@@ -2076,6 +2076,32 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		});
 	});
 
+	test('another folder\'s repository and a repository found inside a folder are diffed and fingerprinted against the full base ref their Git state records', async () => {
+		const diffBases: Record<string, string | undefined> = {};
+		const fingerprintBases: Record<string, string | undefined> = {};
+		const git = createNoopGitService();
+		git.getRepositoryRoot = async workingDirectory => URI.parse(workingDirectory.toString());
+		git.getBranchDiffFingerprint = async (workingDirectory, baseBranch) => {
+			fingerprintBases[workingDirectory.path] = baseBranch;
+			return 'tree-1';
+		};
+		git.computeSessionFileDiffs = async (workingDirectory, options) => {
+			diffBases[workingDirectory.path] = options?.baseBranch;
+			return [gitDiff(`${workingDirectory.path}/file.ts`)];
+		};
+		const workingDirectories = ['file:///repoA', 'file:///repoB'];
+		const { svc, stateManager } = build({ workingDirectories, git, checkpoint: NULL_CHECKPOINT_SERVICE });
+		const withBase = (meta: Record<string, unknown> | undefined, folder: string, name: string) => withFolderScopeGitState(meta, getWorkingDirectoryScopeId([folder]), { branchName: 'topic', baseBranchName: name, baseBranchRef: `refs/remotes/origin/${name}` });
+		stateManager.setSessionMeta(sessionStr, withSessionRepositories(withBase(withBase(stateManager.getSessionState(sessionStr)?._meta, 'file:///repoB', 'develop'), 'file:///repoB/docs', 'release'), {
+			[getWorkingDirectoryKey('file:///repoB')]: [{ root: 'file:///repoB', kind: 'folder' }, { root: 'file:///repoB/docs', kind: 'nested' }],
+		}));
+
+		await refreshBranch(svc, sessionStr, { workingDirectories });
+
+		const expected = { '/repoB': 'refs/remotes/origin/develop', '/repoB/docs': 'refs/remotes/origin/release' };
+		assert.deepStrictEqual({ diffBases: { '/repoB': diffBases['/repoB'], '/repoB/docs': diffBases['/repoB/docs'] }, fingerprintBases: { '/repoB': fingerprintBases['/repoB'], '/repoB/docs': fingerprintBases['/repoB/docs'] } }, { diffBases: expected, fingerprintBases: expected });
+	});
+
 	test('a branch changeset lists a repository found inside its folder after the first computation, and diffs again when only that repository changes', async () => {
 		const fingerprints: Record<string, string> = { '/work': 'work-1', '/work/docs': 'docs-1' };
 		const diffed: string[] = [];

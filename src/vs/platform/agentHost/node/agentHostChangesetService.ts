@@ -42,6 +42,7 @@ import {
 	ChatOriginKind,
 	type ChangesetFile,
 	type ISessionFileDiff,
+	type ISessionGitState,
 	type SessionConfigState,
 	type URI as ProtocolURI,
 	readFolderScopeGitState,
@@ -1654,14 +1655,22 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	private _getRepositoryBaseBranch(owner: ProtocolURI, workingDirectories: readonly string[], discovered: readonly URI[], repoRoot: URI, ownerBaseBranch: string | undefined): string | undefined {
 		const meta = this._stateManager.getSessionState(this._containingSessionUri(owner))?._meta;
 		if (discovered.some(root => this._isEqualOrInside(root, repoRoot) && this._isEqualOrInside(repoRoot, root))) {
-			return readFolderScopeGitState(meta, getWorkingDirectoryScopeId([repoRoot.toString()]))?.baseBranchName;
+			return this._toDiffBaseBranch(readFolderScopeGitState(meta, getWorkingDirectoryScopeId([repoRoot.toString()])));
 		}
 		const [first, ...others] = workingDirectories;
 		if (first === undefined || this._isEqualOrInside(URI.parse(first), repoRoot)) {
 			return ownerBaseBranch;
 		}
 		const folder = others.find(candidate => this._isEqualOrInside(URI.parse(candidate), repoRoot));
-		return folder === undefined ? undefined : readFolderScopeGitState(meta, getWorkingDirectoryScopeId([folder]))?.baseBranchName;
+		return folder === undefined ? undefined : this._toDiffBaseBranch(readFolderScopeGitState(meta, getWorkingDirectoryScopeId([folder])));
+	}
+
+	/**
+	 * The base a diff compares against from a folder's Git state: the full ref it records (such as `refs/remotes/origin/main`),
+	 * so that a stale or missing local branch of that name does not change the diff, else the branch name.
+	 */
+	private _toDiffBaseBranch(gitState: ISessionGitState | undefined): string | undefined {
+		return gitState?.baseBranchRef ?? gitState?.baseBranchName;
 	}
 
 	/**
@@ -2978,7 +2987,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		const scope = resolveBranchChangesetScopeForOwner(this._stateManager, session);
 		// A folder of the session on its own is diffed against its own base, not the conversation's folder's.
 		if (scope && isFolderOnlyScope(this._stateManager, scope)) {
-			return readSessionFolderScopeGitState(this._stateManager, scope)?.baseBranchName;
+			return this._toDiffBaseBranch(readSessionFolderScopeGitState(this._stateManager, scope));
 		}
 		const source = scope?.sourceUri ?? session;
 		const snapshot = await this._sessionStateStore.load(URI.parse(this._containingSessionUri(source)));
