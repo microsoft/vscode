@@ -156,6 +156,10 @@ export class SessionStorageIdentity {
 		return this._chatRuntime.has(chat);
 	}
 
+	hasChatStorage(storage: string): boolean {
+		return this._chatStorage.has(storage);
+	}
+
 	toStorage(resource: string): string {
 		return this._chatRuntime.get(resource)?.storage ?? this._map(resource, this._runtime, 'storage');
 	}

@@ -417,6 +417,8 @@ export interface IAgentHostDatabase extends IDisposable, IAgentHostSessionStateD
 	prepareSessionStorage?(session: string, provider: AgentProvider): Promise<void>;
 	/** The runtime spelling of a session that may be addressed by its storage spelling; any other session maps to itself. */
 	toRuntimeSession(session: string): string;
+	/** Whether `session` already has a persisted default-chat storage identity record. */
+	hasDefaultChatStorageIdentity?(session: string): boolean;
 	/**
 	 * Records how a newly minted chat of `session` is spelled in storage. The
 	 * mapping applies synchronously; its durable record is written before any
