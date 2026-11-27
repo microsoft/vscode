@@ -92,7 +92,8 @@ import { AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, isAgentHostSkillButtonId } from '
 import { AGENT_HOST_AUTO_MERGE_OPERATION_IDS, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, AGENT_HOST_PULL_REQUEST_OPERATION_IDS } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { getBaseBranchLabel } from '../../../../platform/agentHost/common/agentHostGitService.js';
 import { ActiveSessionContextKeys, CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, IsolationMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../../sessions/common/changes.js';
-import { buildRepositoryChildren, buildTreeChildren, ChangesTreeElement, ChangesTreeRenderer, IChangesFileItem, IChangesTreeRootInfo, isChangesFileItem, isChangesRootItem, isChangesFileResource, toIChangesFileItem } from './changesViewRenderer.js';
+import { buildTreeChildren, ChangesTreeElement, ChangesTreeRenderer, IChangesFileItem, IChangesRootItem, IChangesTreeRootInfo, isChangesFileItem, isChangesRootItem, isChangesFileResource, toIChangesFileItem } from './changesViewRenderer.js';
+import type { IChangesRepositoryGroup } from '../../sessions/common/changesRepositories.js';
 import { ResourceTree } from '../../../../base/common/resourceTree.js';
 import { compareFileNames, comparePaths } from '../../../../base/common/comparers.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
@@ -864,6 +865,9 @@ export function createChangesPickerLabelObservable(owner: object, changes: IChan
 
 export class ChangesViewPane extends ViewPane {
 
+	/** The root row of the changes outside every repository, which has no resource. */
+	private static readonly OUTSIDE_REPOSITORIES_ROOT = URI.from({ scheme: 'changes-outside-repositories', path: '/' });
+
 	private bodyContainer: HTMLElement | undefined;
 	private welcomeContainer: HTMLElement | undefined;
 	private emptyState: ChangesEmptyState | undefined;
@@ -1625,9 +1629,33 @@ export class ChangesViewPane extends ViewPane {
 		if (repository) {
 			// The changes are of that repository already; one that failed shows why, also without changes
 			const failure = this.changesViewService.findRepositoryFailure(repository, failures);
-			return items.length || failure ? buildRepositoryChildren([{ repository, items, failure }], viewMode) : [];
+			return items.length || failure ? this.buildRepositoryChildren([{ repository, items, failure }], viewMode) : [];
 		}
-		return buildRepositoryChildren(this.changesViewService.groupByRepository(items, item => item.uri, repositories, failures), viewMode);
+		return this.buildRepositoryChildren(this.changesViewService.groupByRepository(items, item => item.uri, repositories, failures), viewMode);
+	}
+
+	/**
+	 * The rows of changes grouped by repository: a root row for each repository, then one for the changes outside every
+	 * repository, with the files of each in a tree or flat.
+	 */
+	private buildRepositoryChildren(groups: readonly IChangesRepositoryGroup<IChangesFileItem>[], viewMode: ChangesViewMode): ICompressedTreeElement<ChangesTreeElement>[] {
+		return groups.map(group => {
+			const root: IChangesRootItem = group.repository
+				? {
+					type: 'root',
+					uri: group.repository.root,
+					name: group.repository.description ?? group.repository.name,
+					description: group.repository.gitRepository?.branchName,
+					...(group.failure ? { failure: group.failure } : {}),
+				}
+				: { type: 'root', uri: ChangesViewPane.OUTSIDE_REPOSITORIES_ROOT, name: localize('changesOutsideRepositories', "Other Changes") };
+			const items = group.repository ? group.items.map(item => ({ ...item, root: group.repository!.root })) : group.items;
+			// The tree of a repository's files under its own root row, which takes the place of the one the tree builds
+			const children: ICompressedTreeElement<ChangesTreeElement>[] = viewMode === ChangesViewMode.Tree && group.repository
+				? Array.from(buildTreeChildren(items, { root, resourceTreeRootUri: group.repository.root })[0]?.children ?? [])
+				: items.map(item => ({ element: item, collapsible: false, incompressible: true }));
+			return { element: root, children, collapsible: true, collapsed: false, incompressible: true };
+		});
 	}
 
 	private getTreeRootFolder(workspace: ISessionWorkspace | undefined): ISessionFolder | undefined {

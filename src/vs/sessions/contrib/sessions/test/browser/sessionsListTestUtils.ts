@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { ISessionAgentMergeService, SessionAgentMergeService } from '../../../../../workbench/contrib/sessions/browser/sessionAgentMerge.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -340,6 +342,8 @@ type ConfigureListHarness = (instantiationService: TestInstantiationService) => 
 export function createListHarness(disposables: Pick<DisposableStore, 'add'>, sessions: ISession[], optionsOrConfigure: IListHarnessOptions | ConfigureListHarness = {}): IListHarness {
 	const store = disposables.add(new DisposableStore());
 	const instantiationService = workbenchInstantiationService(undefined, store);
+	// Created on first use, from the session providers stubbed by then
+	instantiationService.set(ISessionAgentMergeService, new SyncDescriptor(SessionAgentMergeService) as unknown as ISessionAgentMergeService);
 	const managementService = new TestSessionsManagementService(sessions);
 	const commandService = new TestCommandService();
 	const configure = typeof optionsOrConfigure === 'function' ? optionsOrConfigure : undefined;

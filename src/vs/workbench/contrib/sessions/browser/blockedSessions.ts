@@ -6,10 +6,8 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { derived, derivedOpts, IObservable, IReaderWithStore, observableFromEvent } from '../../../../base/common/observable.js';
 import { equals } from '../../../../base/common/arrays.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService, LogLevel } from '../../../../platform/log/common/log.js';
-import { getSessionAgentMergeConfigurationObservable } from './sessionAgentMerge.js';
-import { ISessionsProvidersService } from './sessionsProvidersService.js';
+import { ISessionAgentMergeService } from './sessionAgentMerge.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
 import { IGitHubService } from './github/githubService.js';
@@ -61,8 +59,7 @@ export class BlockedSessions extends Disposable {
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IGitHubService private readonly _gitHubService: IGitHubService,
 		@ILogService private readonly _logService: ILogService,
-		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ISessionAgentMergeService private readonly _sessionAgentMergeService: ISessionAgentMergeService,
 	) {
 		super();
 
@@ -154,7 +151,7 @@ export class BlockedSessions extends Disposable {
 
 		const ciRef = reader.delayedStore.add(this._gitHubService.createPullRequestCIModelReference(gitHubInfo.owner, gitHubInfo.repo, livePR.number, livePR.headSha));
 		if (ciRef.object.overallStatus.read(reader) === GitHubCIOverallStatus.Failure) {
-			const agentMerge = getSessionAgentMergeConfigurationObservable(session, this._sessionsProvidersService, this._configurationService).read(reader);
+			const agentMerge = this._sessionAgentMergeService.getConfigurationObservable(session).read(reader);
 			if (agentMerge?.enabled && agentMerge.actions.fixCI) {
 				return undefined;
 			}

@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { ISessionAgentMergeService, SessionAgentMergeService } from '../../../../../workbench/contrib/sessions/browser/sessionAgentMerge.js';
 import assert from 'assert';
 import { parse, stringify } from '../../../../../base/common/marshalling.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
@@ -140,6 +142,8 @@ suite('Sessions chat window provider', () => {
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const sentiment = observableValue<IChatSentiment>('sentiment', {});
 		const instantiationService = store.add(new TestInstantiationService());
+		// Created on first use, from the session providers stubbed by then
+		instantiationService.set(ISessionAgentMergeService, new SyncDescriptor(SessionAgentMergeService) as unknown as ISessionAgentMergeService);
 		stubSessionHosts(instantiationService, store);
 		instantiationService.stub(IConfigurationService, configuration);
 		instantiationService.stub(ISizeService, store.add(new WorkbenchSizeService(configuration, store.add(new NullLogService()))));

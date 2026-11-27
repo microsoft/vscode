@@ -30,7 +30,7 @@ import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.j
 import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { resolveSessionCommandTarget } from '../../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
-import { getGlobalAgentMergeConfiguration, getSessionAgentMergeConfigurationObservable } from '../../../../../workbench/contrib/sessions/browser/sessionAgentMerge.js';
+import { getGlobalAgentMergeConfiguration, ISessionAgentMergeService } from '../../../../../workbench/contrib/sessions/browser/sessionAgentMerge.js';
 
 const agentMergeCommandPrecondition = ContextKeyExpr.and(
 	IsSessionsWindowContext,
@@ -131,7 +131,7 @@ const agentMergeMergePullRequestDescriptions: Record<AgentMergeMergePullRequest,
  */
 function bindAgentMergeContextKeys(accessor: ServicesAccessor, source: ISessionActionContextKeysSource, contextKeyService: IContextKeyService): IDisposable {
 	const configurationService = accessor.get(IConfigurationService);
-	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
+	const sessionAgentMergeService = accessor.get(ISessionAgentMergeService);
 	const logService = accessor.get(ILogService);
 	const store = new DisposableStore();
 	const enabledKey = SessionAgentMergeEnabledContext.bindTo(contextKeyService);
@@ -150,7 +150,7 @@ function bindAgentMergeContextKeys(accessor: ServicesAccessor, source: ISessionA
 		// Each folder has its own Agent Merge; follow the one the host's chat works in, or the repository the Changes show.
 		const chat = source.chat.read(reader);
 		const repository = source.changes.repositoryObs.read(reader)?.root;
-		const state = session ? getSessionAgentMergeConfigurationObservable(session, sessionsProvidersService, configurationService, chat, repository).read(reader) : undefined;
+		const state = session ? sessionAgentMergeService.getConfigurationObservable(session, chat, repository).read(reader) : undefined;
 		const enabled = state?.enabled === true;
 		const effective = state?.actions ?? getGlobalAgentMergeConfiguration(configurationService);
 		contextKeyService.bufferChangeEvents(() => {

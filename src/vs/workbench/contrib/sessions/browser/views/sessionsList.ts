@@ -119,7 +119,7 @@ import { IOpenAICustomizationsCommandOptions, OPEN_AI_CUSTOMIZATIONS_COMMAND_ID 
 import { ChatCustomizationsTelemetry } from '../../../chat/browser/aiCustomization/chatCustomizationsTelemetry.js';
 import { NEW_SESSION_ACTION_ID } from '../../common/chatConstants.js';
 import { Menus } from '../menus.js';
-import { getSessionAgentMergeConfigurationObservable } from '../sessionAgentMerge.js';
+import { ISessionAgentMergeService } from '../sessionAgentMerge.js';
 import { BlockedSessionReason, BlockedSessions } from '../blockedSessions.js';
 import { IInboxSessionAttention, ISessionAttentionService, InboxNotificationPriority, InboxTab } from '../../common/sessionAttentionService.js';
 import { getPinnedCanvasListingSession, IPinnedCanvas, IPinnedCanvasService, isPinnedCanvasOwnedBy, PINNED_CANVAS_PAGE_ID, PinnedCanvasConnectedContext, PinnedCanvasSessionCanToggleListingContext, PinnedCanvasSessionInSessionsListContext } from '../pinnedCanvases.js';
@@ -798,6 +798,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
 		@IHoverService hoverService: IHoverService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
+		@ISessionAgentMergeService private readonly _sessionAgentMergeService: ISessionAgentMergeService,
 		@IProductService productService: IProductService,
 		@ISessionWorkspacesService private readonly workspacesService: ISessionWorkspacesService,
 	) {
@@ -973,6 +974,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.labelService,
 			agentSessionsService,
 			this.voicePlaybackService,
+			this._sessionAgentMergeService,
 			this.notificationService,
 		);
 		this._sessionRenderer = sessionRenderer;
@@ -1011,7 +1013,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.activeGuideSessionIds,
 			item => this.getRowGroupDepth(item),
 			session => this.renderedComparisonParticipantConnectorPositions.get(session.sessionId),
-			item => getSessionAgentMergeConfigurationObservable(item.session, this._sessionsProvidersService, this.configurationService, item.chat),
+			item => this._sessionAgentMergeService.getConfigurationObservable(item.session, item.chat),
 			getSearchHint,
 			(session, chat) => this.getComparisonAttemptLabel(session, chat),
 			sessionRenderer.scheduledIndicatorRenderer,

@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { ISessionAgentMergeService, SessionAgentMergeService } from '../../../../../workbench/contrib/sessions/browser/sessionAgentMerge.js';
 import assert from 'assert';
 import { IAction } from '../../../../../base/common/actions.js';
 import { Event } from '../../../../../base/common/event.js';
@@ -75,6 +77,8 @@ suite('Chat window changeset actions', () => {
 		const chatChanges = changesOf(chat, true);
 
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		// Created on first use, from the session providers stubbed by then
+		instantiationService.set(ISessionAgentMergeService, new SyncDescriptor(SessionAgentMergeService) as unknown as ISessionAgentMergeService);
 		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({

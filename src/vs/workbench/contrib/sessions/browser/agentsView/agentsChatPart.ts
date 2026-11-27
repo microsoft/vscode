@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ISessionAgentMergeService } from '../sessionAgentMerge.js';
 import { $ } from '../../../../../base/browser/dom.js';
 import { raceTimeout } from '../../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
@@ -51,7 +52,6 @@ import { IChatViewFactory } from '../chatViewFactory.js';
 import { applyRememberedNewSessionPicks, EditorWindowNewSessionPicks } from './editorWindowNewSessionPicks.js';
 import { INewSessionTarget, ISessionViewHostOptions } from '../parts/chatView.js';
 import { ISessionsListModelService } from '../sessionsListModelService.js';
-import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { IAgentsChatPartFrame } from './agentsChatPartFrame.js';
 import { AgentsChatPartAction, logAgentsChatPartAction } from './agentsChatPartTelemetry.js';
 import { AgentsViewAvailable, InAgentsChatPartContext } from './agentsChatPartContext.js';
@@ -219,11 +219,10 @@ class AgentsChatPartChat extends SessionChatEditorEntry {
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@IChatService chatService: IChatService,
 		@ISessionsListModelService sessionsListModelService: ISessionsListModelService,
-		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@ISessionAgentMergeService sessionAgentMergeService: ISessionAgentMergeService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
-		super(chatResource, sessionsManagementService, chatService, sessionsListModelService, sessionsProvidersService, configurationService);
+		super(chatResource, sessionsManagementService, chatService, sessionsListModelService, sessionAgentMergeService);
 		this.active = derived(this, reader => activeInput.read(reader) === this.input);
 		this._register(this.onDidEnd(() => this._close(this)));
 		this.start(composer, 'AgentsChatPart#open');
