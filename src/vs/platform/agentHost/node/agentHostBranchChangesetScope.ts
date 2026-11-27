@@ -273,11 +273,6 @@ export function getFolderOnlyAgentMergeRoots(stateManager: AgentHostStateManager
 	return roots;
 }
 
-/** The root of the folder-only scope with `folderKey` (see {@link getFolderOnlyAgentMergeRoots}), or `undefined` when there is none. */
-export function getFolderOnlyAgentMergeRoot(stateManager: AgentHostStateManager, session: ProtocolURI, folderKey: string | undefined): ProtocolURI | undefined {
-	return folderKey === undefined ? undefined : getFolderOnlyAgentMergeRoots(stateManager, session).get(folderKey);
-}
-
 /** Whether one of the effective working directories of `chat` is `root` or contains it, so its turns can work in `root`. */
 export function chatCoversFolder(stateManager: AgentHostStateManager, chat: ProtocolURI, root: ProtocolURI): boolean {
 	const rootUri = URI.parse(root);
@@ -325,7 +320,7 @@ export function resolveAgentMergeElevatedChat(stateManager: AgentHostStateManage
 export function resolveAgentMergeOwningChat(stateManager: AgentHostStateManager, session: ProtocolURI, folderKey: string, recordedChat: ProtocolURI | undefined): ProtocolURI | undefined {
 	const state = stateManager.getSessionState(session);
 	const defaultChat = stateManager.getDefaultChat(session);
-	const folderOnlyRoot = getFolderOnlyAgentMergeRoot(stateManager, session, folderKey);
+	const folderOnlyRoot = getFolderOnlyAgentMergeRoots(stateManager, session).get(folderKey);
 	const worksInFolder = folderOnlyRoot !== undefined
 		? (chat: ProtocolURI) => chatCoversFolder(stateManager, chat, folderOnlyRoot)
 		: (chat: ProtocolURI) => chatWorksInFolder(stateManager, chat, folderKey);

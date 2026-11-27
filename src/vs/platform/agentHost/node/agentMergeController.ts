@@ -33,7 +33,7 @@ import { ActionType } from '../common/state/protocol/common/actions.js';
 import { AuthRequiredReason } from '../common/state/sessionActions.js';
 import { ISessionWithDefaultChat, SessionLifecycle, TurnState, getSessionRelatedPullRequestUrls, isAhpChatChannel, isSessionStatusArchived, needsSessionGitStateRefresh, readFolderGitHubState, readSessionGitState } from '../common/state/sessionState.js';
 import { IAgentConfigurationService, getEffectiveWorkingDirectories } from './agentConfigurationService.js';
-import { chatCoversFolder, getFolderOnlyAgentMergeRoot, resolveAgentMergeElevatedChat, resolveAgentMergeOwningChat, resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
+import { chatCoversFolder, getFolderOnlyAgentMergeRoots, resolveAgentMergeElevatedChat, resolveAgentMergeOwningChat, resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { IAgentHostGitHubService } from './agentHostGitHubService.js';
@@ -1860,9 +1860,14 @@ export class AgentMergeController extends Disposable {
 		return [...this._runtimes.keys()].filter(key => this._sessionFromRuntimeKey(key) === session);
 	}
 
+	/** The root of the folder-only scope with `folderKey` (see {@link getFolderOnlyAgentMergeRoots}), or `undefined` when there is none. */
+	private _getFolderOnlyRoot(session: string, folderKey: string): string | undefined {
+		return getFolderOnlyAgentMergeRoots(this._stateManager, session).get(folderKey);
+	}
+
 	/** The repository a folder-only scope's repairs work in, which the owning chat may not work in first. */
 	private _folderOnlyRepository(session: string, folderKey: string): string | undefined {
-		const root = getFolderOnlyAgentMergeRoot(this._stateManager, session, folderKey);
+		const root = this._getFolderOnlyRoot(session, folderKey);
 		return root !== undefined ? URI.parse(root).fsPath : undefined;
 	}
 
@@ -1878,7 +1883,7 @@ export class AgentMergeController extends Disposable {
 	/** The checkout of a folder, resolved through a chat currently working in it. */
 	private _workingDirectoryForFolder(session: string, folderKey: string): URI | undefined {
 		const chat = this._resolveOwningChat(session, folderKey);
-		const folderOnlyRoot = getFolderOnlyAgentMergeRoot(this._stateManager, session, folderKey);
+		const folderOnlyRoot = this._getFolderOnlyRoot(session, folderKey);
 		if (folderOnlyRoot !== undefined) {
 			return chat ? URI.parse(folderOnlyRoot) : undefined;
 		}
@@ -1906,7 +1911,7 @@ export class AgentMergeController extends Disposable {
 		if (!state || folderKey === this._sessionFolderKey(state)) {
 			return false;
 		}
-		const folderOnlyRoot = getFolderOnlyAgentMergeRoot(this._stateManager, session, folderKey);
+		const folderOnlyRoot = this._getFolderOnlyRoot(session, folderKey);
 		if (folderOnlyRoot !== undefined) {
 			const root = URI.parse(folderOnlyRoot);
 			const covers = (directories: readonly string[] | undefined) => directories?.some(directory => extUriBiasedIgnorePathCase.isEqualOrParent(root, URI.parse(directory))) === true;
@@ -1919,7 +1924,7 @@ export class AgentMergeController extends Disposable {
 	}
 
 	private _chatWorksInFolder(session: string, chat: string, folderKey: string): boolean {
-		const folderOnlyRoot = getFolderOnlyAgentMergeRoot(this._stateManager, session, folderKey);
+		const folderOnlyRoot = this._getFolderOnlyRoot(session, folderKey);
 		if (folderOnlyRoot !== undefined) {
 			return chatCoversFolder(this._stateManager, chat, folderOnlyRoot);
 		}
@@ -1973,7 +1978,7 @@ export class AgentMergeController extends Disposable {
 		if (folderKey === this._getSessionFolderKey(session)) {
 			return session;
 		}
-		const root = getFolderOnlyAgentMergeRoot(this._stateManager, session, folderKey);
+		const root = this._getFolderOnlyRoot(session, folderKey);
 		return root !== undefined ? buildFolderChangesetOwnerUri(session, getWorkingDirectoryScopeId([root])) : chat;
 	}
 
