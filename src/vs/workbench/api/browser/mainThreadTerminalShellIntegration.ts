@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { RunOnceScheduler } from '../../../base/common/async.js';
 import { Event } from '../../../base/common/event.js';
-import { combinedDisposable, Disposable, DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { TerminalCapability, type ITerminalCommand } from '../../../platform/terminal/common/capabilities/capabilities.js';
 import { ExtHostContext, MainContext, type ExtHostTerminalShellIntegrationShape, type MainThreadTerminalShellIntegrationShape } from '../common/extHost.protocol.js';
 import { ITerminalService, type ITerminalInstance } from '../../contrib/terminal/browser/terminal.js';
@@ -16,6 +17,7 @@ import { IExtensionService } from '../../services/extensions/common/extensions.j
 @extHostNamedCustomer(MainContext.MainThreadTerminalShellIntegration)
 export class MainThreadTerminalShellIntegration extends Disposable implements MainThreadTerminalShellIntegrationShape {
 	private readonly _proxy: ExtHostTerminalShellIntegrationShape;
+	private readonly _executionDataForwarders = this._register(new DisposableMap<number, ShellExecutionDataForwarder>());
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -26,8 +28,6 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 		super();
 
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTerminalShellIntegration);
-
-		const instanceDataListeners = this._register(new DisposableMap<number>());
 
 		// onDidChangeTerminalShellIntegration initial state
 		for (const terminal of this._terminalService.instances) {
@@ -68,6 +68,7 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 		// onDidStartTerminalShellExecution
 		const commandDetectionStartEvent = this._store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CommandDetection, e => e.onCommandExecuted));
 		let currentCommand: ITerminalCommand | undefined;
+		let lastCommandId = 0;
 		this._store.add(commandDetectionStartEvent.event(e => {
 			// Prevent duplicate events from being sent in case command detection double fires the
 			// event
@@ -77,17 +78,19 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 			// String paths are not exposed in the extension API
 			currentCommand = e.data;
 			const instanceId = e.instance.instanceId;
-			this._proxy.$shellExecutionStart(instanceId, instanceSupportsExecuteCommandApi(e.instance), e.data.command, convertToExtHostCommandLineConfidence(e.data), e.data.isTrusted, e.data.cwd);
+			const commandId = ++lastCommandId;
+			// Flush the data of a command that didn't finish before the next execution starts
+			this._executionDataForwarders.deleteAndDispose(instanceId);
+			const hasReader = this._proxy.$shellExecutionStart(instanceId, commandId, instanceSupportsExecuteCommandApi(e.instance), e.data.command, convertToExtHostCommandLineConfidence(e.data), e.data.isTrusted, e.data.cwd);
 
-			// TerminalShellExecution.createDataStream
-			// Debounce events to reduce the message count - when this listener is disposed the events will be flushed
-			instanceDataListeners.deleteAndDispose(instanceId);
-			const dataDisposables = new DisposableStore();
-			const listener = Event.accumulate(e.instance.onData, 50, true, dataDisposables)(events => {
-				this._proxy.$shellExecutionData(instanceId, events.join(''));
+			// TerminalShellExecution.read
+			const forwarder = new ShellExecutionDataForwarder(commandId, e.instance.onData, data => this._proxy.$shellExecutionData(instanceId, data));
+			this._executionDataForwarders.set(instanceId, forwarder);
+			hasReader.then(value => {
+				if (!value) {
+					forwarder.pause();
+				}
 			});
-			// Flush buffered data by removing the listener before disposing the accumulator.
-			instanceDataListeners.set(instanceId, combinedDisposable(listener, dataDisposables));
 		}));
 
 		// onDidEndTerminalShellExecution
@@ -95,7 +98,7 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 		this._store.add(commandDetectionEndEvent.event(e => {
 			currentCommand = undefined;
 			const instanceId = e.instance.instanceId;
-			instanceDataListeners.deleteAndDispose(instanceId);
+			this._executionDataForwarders.deleteAndDispose(instanceId);
 			// Shell integration C (executed) and D (command finished) sequences should always be in
 			// their own events, so send this immediately. This means that the D sequence will not
 			// be included as it's currently being parsed when the command finished event fires.
@@ -104,13 +107,21 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 
 		// Clean up after dispose
 		this._store.add(this._terminalService.onDidDisposeInstance(e => {
-			instanceDataListeners.deleteAndDispose(e.instanceId);
+			this._executionDataForwarders.deleteAndDispose(e.instanceId);
 			this._proxy.$closeTerminal(e.instanceId);
 		}));
 	}
 
 	$executeCommand(terminalId: number, commandLine: string): void {
 		this._terminalService.getInstanceFromId(terminalId)?.runCommand(commandLine, true);
+	}
+
+	$startSendingExecutionData(terminalId: number, commandId: number): void {
+		const forwarder = this._executionDataForwarders.get(terminalId);
+		// A request for a previous command can arrive after the next command started
+		if (forwarder?.commandId === commandId) {
+			forwarder.resume();
+		}
 	}
 
 	private _enableShellIntegration(instance: ITerminalInstance): void {
@@ -140,4 +151,79 @@ function convertToExtHostCommandLineConfidence(command: ITerminalCommand): Termi
 
 function instanceSupportsExecuteCommandApi(instance: ITerminalInstance): boolean {
 	return instance.shellLaunchConfig.type !== 'Task';
+}
+
+/**
+ * Sends a running command's data to the extension host. Data is batched to reduce the message
+ * count, but a batch is sent at most {@link ShellExecutionDataForwarder._flushDelay}ms after its
+ * first chunk or once it reaches {@link ShellExecutionDataForwarder._maxBatchLength} characters,
+ * so continuous output is neither held back nor buffered without limit.
+ */
+class ShellExecutionDataForwarder extends Disposable {
+	private static readonly _flushDelay = 50;
+	private static readonly _maxBatchLength = 1024 * 1024;
+
+	private _batch: string[] = [];
+	private _batchLength = 0;
+	private _isResumed = false;
+	private readonly _listener = this._register(new MutableDisposable());
+	private readonly _flushScheduler = this._register(new RunOnceScheduler(() => this._flush(), ShellExecutionDataForwarder._flushDelay));
+
+	constructor(
+		readonly commandId: number,
+		private readonly _onData: Event<string>,
+		private readonly _send: (data: string) => void,
+	) {
+		super();
+		this._listen();
+	}
+
+	/**
+	 * Stops sending data and drops the data that wasn't sent yet, as the execution has no reader.
+	 * This is ignored after {@link resume}, which can arrive first when the extension host adds
+	 * a reader right after it reported that there was none.
+	 */
+	pause(): void {
+		if (this._isResumed) {
+			return;
+		}
+		this._listener.clear();
+		this._flushScheduler.cancel();
+		this._batch = [];
+		this._batchLength = 0;
+	}
+
+	resume(): void {
+		this._isResumed = true;
+		if (!this._listener.value && !this._store.isDisposed) {
+			this._listen();
+		}
+	}
+
+	override dispose(): void {
+		this._flush();
+		super.dispose();
+	}
+
+	private _listen(): void {
+		this._listener.value = this._onData(data => {
+			this._batch.push(data);
+			this._batchLength += data.length;
+			if (this._batchLength >= ShellExecutionDataForwarder._maxBatchLength) {
+				this._flush();
+			} else if (!this._flushScheduler.isScheduled()) {
+				this._flushScheduler.schedule();
+			}
+		});
+	}
+
+	private _flush(): void {
+		this._flushScheduler.cancel();
+		if (this._batch.length) {
+			const data = this._batch.join('');
+			this._batch = [];
+			this._batchLength = 0;
+			this._send(data);
+		}
+	}
 }

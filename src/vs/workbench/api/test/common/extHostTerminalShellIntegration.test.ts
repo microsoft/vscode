@@ -305,4 +305,45 @@ suite('InternalTerminalShellIntegration', () => {
 			]);
 		});
 	});
+
+	suite('execution data requests', () => {
+		let withoutReader: InternalTerminalShellIntegration;
+		let dataRequests: number[];
+
+		setup(() => {
+			withoutReader = store.add(new InternalTerminalShellIntegration(terminal, true, store.add(new Emitter())));
+			dataRequests = [];
+			store.add(si.onDidRequestExecutionData(commandId => dataRequests.push(commandId)));
+			store.add(withoutReader.onDidRequestExecutionData(commandId => dataRequests.push(commandId)));
+		});
+
+		async function end(integration: InternalTerminalShellIntegration, commandLine: string): Promise<void> {
+			await new Promise<void>(r => {
+				store.add(integration.onDidRequestEndExecution(() => r()));
+				integration.endShellExecution(cmdLine(commandLine), 0);
+			});
+		}
+
+		test('starting an execution reports whether it has a reader', async () => {
+			withoutReader.requestNewShellExecution(cmdLine(testCommandLine2), undefined).value.read();
+			const results = [
+				si.startShellExecution(cmdLine(testCommandLine), undefined),
+				withoutReader.startShellExecution(cmdLine(testCommandLine), undefined),
+			];
+			await end(withoutReader, testCommandLine);
+			results.push(withoutReader.startShellExecution(cmdLine(testCommandLine2), undefined));
+			await end(withoutReader, testCommandLine2);
+			await end(si, testCommandLine);
+			deepStrictEqual({ results, dataRequests }, { results: [true, false, true], dataRequests: [] });
+		});
+
+		test('a reader added after the execution started requests its data once', async () => {
+			const hasReader = withoutReader.startShellExecution(cmdLine(testCommandLine), undefined, 7);
+			const execution = withoutReader.currentExecution!.value;
+			execution.read();
+			execution.read();
+			await end(withoutReader, testCommandLine);
+			deepStrictEqual({ hasReader, dataRequests }, { hasReader: false, dataRequests: [7] });
+		});
+	});
 });

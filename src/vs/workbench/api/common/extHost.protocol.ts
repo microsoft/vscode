@@ -750,6 +750,13 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 
 export interface MainThreadTerminalShellIntegrationShape extends IDisposable {
 	$executeCommand(terminalId: number, commandLine: string): void;
+	/**
+	 * Resumes sending the data of the terminal's running command after a reader was added to its
+	 * execution, see {@link ExtHostTerminalShellIntegrationShape.$shellExecutionStart}.
+	 * @param commandId The ID of the command passed to `$shellExecutionStart`, requests for a
+	 * previous command are ignored.
+	 */
+	$startSendingExecutionData(terminalId: number, commandId: number): void;
 }
 
 export type TransferQuickPickItemOrSeparator = TransferQuickPickItem | quickInput.IQuickPickSeparator;
@@ -3360,7 +3367,14 @@ export interface ExtHostTerminalServiceShape {
 
 export interface ExtHostTerminalShellIntegrationShape {
 	$shellIntegrationChange(instanceId: number, supportsExecuteCommandApi: boolean): void;
-	$shellExecutionStart(instanceId: number, supportsExecuteCommandApi: boolean, commandLineValue: string, commandLineConfidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean, cwd: string | undefined): void;
+	/**
+	 * @param commandId Identifies the command in
+	 * {@link MainThreadTerminalShellIntegrationShape.$startSendingExecutionData}.
+	 * @returns Whether the execution has a reader. When it doesn't, the main thread stops sending
+	 * the execution's data until {@link MainThreadTerminalShellIntegrationShape.$startSendingExecutionData}
+	 * is called.
+	 */
+	$shellExecutionStart(instanceId: number, commandId: number, supportsExecuteCommandApi: boolean, commandLineValue: string, commandLineConfidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean, cwd: string | undefined): Promise<boolean>;
 	$shellExecutionEnd(instanceId: number, commandLineValue: string, commandLineConfidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean, exitCode: number | undefined): void;
 	$shellExecutionData(instanceId: number, data: string): void;
 	$shellEnvChange(instanceId: number, shellEnvKeys: string[], shellEnvValues: string[], isTrusted: boolean): void;
