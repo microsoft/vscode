@@ -97,6 +97,7 @@ import { getCopilotSdkToolResourceUri } from './copilotSdkMeta.js';
 import { isAutoModel } from './modelIdentifiers.js';
 import { readAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
 import { areCopilotCustomAgentHooksTrusted, clientToolNamesFromSnapshot, composeByokSessionConfig, findLocalModelDirectFamily, getCopilotAgentCustomization, getCopilotWorkingDirectoryTrust, isCopilotSessionTelemetryEnabled, isMcpServerExplicitlyProjected, resolveCopilotSessionManagedSettings, toSessionConfigMcpServers, type CopilotChatSurface, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotClientToolConfiguration, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
+import { findOwnedMcpInstallationId } from './customizations/copilotCustomizationInstallations.js';
 import type { ICopilotCreatedWorktree, ICopilotProjectExtensionTrustReconciliation } from './copilotProjectExtensionLaunchPolicy.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, NON_DEFERRED_CLIENT_TOOL_NAMES, RUNTIME_TOOL_SEARCH_TOOL_NAME, searchToolsWithoutClient } from './toolSearchDeferral.js';
 import { ActiveClientToolSet, structuralToolsEqual } from '../activeClientState.js';
@@ -8927,7 +8928,7 @@ export class CopilotAgentSession extends Disposable {
 			try {
 				this._logService.info(`[Copilot:${this.sessionId}] Starting MCP server '${serverName}' (state=${state?.kind})`);
 				this._recordRuntimeMutation('userRequested');
-				await this._wrapper.session.rpc.mcp.startServer({ serverName });
+				await this._wrapper.session.rpc.mcp.startServer(await this._mcpServerIdentity(serverName));
 			} finally {
 				// Reconcile against the SDK's real state. The live
 				// `session.mcp_server_status_changed` stream already reports the
@@ -9148,11 +9149,22 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
+	/** Owned (catalog-installed) servers must be named by their installation receipt; manually configured ones omit it. */
+	private async _mcpServerIdentity(serverName: string): Promise<{ serverName: string; expectedInstallationId?: string }> {
+		try {
+			const expectedInstallationId = await findOwnedMcpInstallationId(this._launchPlan.client.rpc, this.sessionId, serverName);
+			return expectedInstallationId ? { serverName, expectedInstallationId } : { serverName };
+		} catch (error) {
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to resolve the MCP installation of '${serverName}'`, error);
+			return { serverName };
+		}
+	}
+
 	private async _enableMcpServer(serverName: string): Promise<void> {
 		this._expectedMcpEnablementChanges.set(serverName, true);
 		try {
 			this._recordRuntimeMutation('mcpEnable');
-			await this._wrapper.session.rpc.mcp.enable({ serverName });
+			await this._wrapper.session.rpc.mcp.enable(await this._mcpServerIdentity(serverName));
 			this._hostMcpServerEnablement.set(serverName, true);
 		} catch (error) {
 			if (this._expectedMcpEnablementChanges.get(serverName) === true) {
@@ -9169,7 +9181,7 @@ export class CopilotAgentSession extends Disposable {
 		this._expectedMcpEnablementChanges.set(serverName, false);
 		try {
 			this._recordRuntimeMutation('mcpDisable');
-			await this._wrapper.session.rpc.mcp.disable({ serverName });
+			await this._wrapper.session.rpc.mcp.disable(await this._mcpServerIdentity(serverName));
 			this._hostMcpServerEnablement.set(serverName, false);
 		} catch (error) {
 			if (this._expectedMcpEnablementChanges.get(serverName) === false) {
@@ -9189,7 +9201,7 @@ export class CopilotAgentSession extends Disposable {
 		return this._runMcpServerControl(() => this._mcpServerLifecycleSequencer.queue(serverName, async () => {
 			this._cancelPendingMcpAuthRequestsForServer(serverName);
 			this._recordRuntimeMutation('userRequested');
-			await this._wrapper.session.rpc.mcp.stopServer({ serverName });
+			await this._wrapper.session.rpc.mcp.stopServer(await this._mcpServerIdentity(serverName));
 			this._mcpLifecycleVersion++;
 			this._mcpCustomizations.applyOne({ name: serverName, state: { kind: McpServerStatus.Stopped } });
 		}));
