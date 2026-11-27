@@ -88,6 +88,16 @@ interface IOpenBrowserWindowOptions {
 	readonly emptyWindowBackupInfo?: IEmptyWindowBackupInfo;
 	readonly forceProfile?: string;
 	readonly forceTempProfile?: boolean;
+
+	readonly agentsMode?: boolean;
+}
+
+interface IEmptyWindowToRestore extends IEmptyWindowBackupInfo {
+
+	/**
+	 * Whether the window was in Agents mode in the last session.
+	 */
+	readonly agentsMode?: boolean;
 }
 
 interface IPathResolveOptions {
@@ -164,6 +174,11 @@ interface IPathToOpen<T = IEditorOptions> extends IPath<T> {
 	 * Optional label for the recent history
 	 */
 	label?: string;
+
+	/**
+	 * Whether the window was in Agents mode in the last session.
+	 */
+	readonly agentsMode?: boolean;
 }
 
 const EMPTY_WINDOW: IPathToOpen = Object.create(null);
@@ -359,7 +374,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		const workspacesToOpen: IWorkspacePathToOpen[] = [];
 		const untitledWorkspacesToRestore: IWorkspacePathToOpen[] = [];
 
-		const emptyWindowsWithBackupsToRestore: IEmptyWindowBackupInfo[] = [];
+		const emptyWindowsWithBackupsToRestore: IEmptyWindowToRestore[] = [];
 
 		let filesToOpen: IFilesToOpen | undefined;
 		let maybeOpenEmptyWindow = false;
@@ -388,7 +403,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				}
 				filesToOpen.filesToOpenOrCreate.push(path);
 			} else if (path.backupPath) {
-				emptyWindowsWithBackupsToRestore.push({ backupFolder: basename(path.backupPath), remoteAuthority: path.remoteAuthority });
+				emptyWindowsWithBackupsToRestore.push({ backupFolder: basename(path.backupPath), remoteAuthority: path.remoteAuthority, agentsMode: path.agentsMode });
 			} else {
 				maybeOpenEmptyWindow = true; // depends on other parameters such as `forceEmpty` and how many windows have opened already
 			}
@@ -420,7 +435,10 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			workspacesToOpen.push(...untitledWorkspacesToRestore);
 
 			// Empty windows with backups are always restored
-			emptyWindowsWithBackupsToRestore.push(...this.backupMainService.getEmptyWindowBackups());
+			emptyWindowsWithBackupsToRestore.push(...this.backupMainService.getEmptyWindowBackups().map(backup => ({
+				...backup,
+				agentsMode: this.windowsStateHandler.wasEmptyWindowInAgentsMode(backup.backupFolder) || undefined
+			})));
 		} else {
 			emptyWindowsWithBackupsToRestore.length = 0;
 		}
@@ -578,7 +596,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		openConfig: IOpenConfiguration,
 		workspacesToOpen: IWorkspacePathToOpen[],
 		foldersToOpen: ISingleFolderWorkspacePathToOpen[],
-		emptyToRestore: IEmptyWindowBackupInfo[],
+		emptyToRestore: IEmptyWindowToRestore[],
 		maybeOpenEmptyWindow: boolean,
 		filesToOpen: IFilesToOpen | undefined,
 		foldersToAdd: ISingleFolderWorkspacePathToOpen[],
@@ -815,7 +833,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return { windowToUse: undefined, forceNewWindow };
 	}
 
-	private doOpenEmpty(openConfig: IOpenConfiguration, forceNewWindow: boolean, remoteAuthority: string | undefined, filesToOpen: IFilesToOpen | undefined, emptyWindowBackupInfo?: IEmptyWindowBackupInfo): Promise<ICodeWindow> {
+	private doOpenEmpty(openConfig: IOpenConfiguration, forceNewWindow: boolean, remoteAuthority: string | undefined, filesToOpen: IFilesToOpen | undefined, emptyWindowBackupInfo?: IEmptyWindowToRestore): Promise<ICodeWindow> {
 		this.logService.trace('windowsManager#doOpenEmpty', { restore: !!emptyWindowBackupInfo, remoteAuthority, filesToOpen, forceNewWindow });
 
 		const resolved = this.resolveContextWindow(openConfig, forceNewWindow);
@@ -831,7 +849,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			windowToUse: resolved.windowToUse,
 			emptyWindowBackupInfo,
 			forceProfile: openConfig.forceProfile,
-			forceTempProfile: openConfig.forceTempProfile
+			forceTempProfile: openConfig.forceTempProfile,
+			agentsMode: emptyWindowBackupInfo?.agentsMode
 		});
 	}
 
@@ -885,7 +904,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			filesToOpen,
 			windowToUse,
 			forceProfile: openConfig.forceProfile,
-			forceTempProfile: openConfig.forceTempProfile
+			forceTempProfile: openConfig.forceTempProfile,
+			agentsMode: folderOrWorkspace.agentsMode
 		});
 	}
 
@@ -1106,7 +1126,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 					if (lastSessionWindow.workspace) {
 						const pathToOpen = await this.resolveOpenable({ workspaceUri: lastSessionWindow.workspace.configPath }, { remoteAuthority: lastSessionWindow.remoteAuthority, rejectTransientWorkspaces: true /* https://github.com/microsoft/vscode/issues/119695 */ });
 						if (isWorkspacePathToOpen(pathToOpen)) {
-							return pathToOpen;
+							return { ...pathToOpen, agentsMode: lastSessionWindow.agentsMode };
 						}
 					}
 
@@ -1114,13 +1134,13 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 					else if (lastSessionWindow.folderUri) {
 						const pathToOpen = await this.resolveOpenable({ folderUri: lastSessionWindow.folderUri }, { remoteAuthority: lastSessionWindow.remoteAuthority });
 						if (isSingleFolderWorkspacePathToOpen(pathToOpen)) {
-							return pathToOpen;
+							return { ...pathToOpen, agentsMode: lastSessionWindow.agentsMode };
 						}
 					}
 
 					// Empty window, potentially editors open to be restored
 					else if (restoreWindowsSetting !== 'folders' && lastSessionWindow.backupPath) {
-						return { backupPath: lastSessionWindow.backupPath, remoteAuthority: lastSessionWindow.remoteAuthority };
+						return { backupPath: lastSessionWindow.backupPath, remoteAuthority: lastSessionWindow.remoteAuthority, agentsMode: lastSessionWindow.agentsMode };
 					}
 
 					return undefined;
@@ -1668,6 +1688,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			cssModules: this.cssDevelopmentService.isEnabled ? await this.cssDevelopmentService.getCssModules() : undefined,
 
 			isSessionsWindow: isWorkspaceIdentifier(options.workspace) && isEqual(options.workspace.configPath, this.environmentMainService.agentSessionsWorkspace),
+			agentsMode: options.agentsMode || undefined,
 		};
 
 		// New window

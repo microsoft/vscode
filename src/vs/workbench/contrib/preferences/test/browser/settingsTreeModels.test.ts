@@ -206,7 +206,12 @@ suite('SettingsTree Agents mode presentation', () => {
 
 	function createModel(isSessionsWindow = false) {
 		const configuration = new class extends TestConfigurationService {
+			// Like the Agents configuration service, which ignores the user's value of a read-only setting
+			readonly lockedValues = new Map<string, unknown>();
 			isSettingAppliedForAllProfiles(): boolean { return false; }
+			override inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
+				return this.lockedValues.has(key) ? { value: this.lockedValues.get(key) as T, defaultValue: this.lockedValues.get(key) as T } : super.inspect<T>(key, overrides);
+			}
 		}({ 'test.agentsModePresentation': true, 'test.agentsOnly': true, 'test.agentsModeReadOnly': true });
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const instantiationService = store.add(new TestInstantiationService());
@@ -233,23 +238,25 @@ suite('SettingsTree Agents mode presentation', () => {
 			model.updateElementsByName(key);
 			const element = model.getElementsByName(key)![0];
 			return {
-				value: element.value, configured: element.isConfigured, readOnly: element.isAgentsReadOnly,
+				value: element.value, scopeValue: element.scopeValue, configured: element.isConfigured, readOnly: element.isAgentsReadOnly,
 				tagged: element.matchesAllTags(new Set([AGENTS_WINDOW_SETTING_TAG])),
 			};
 		});
-		return { viewState, read };
+		return { viewState, read, lockedValues: configuration.lockedValues };
 	}
 
 	test('opts in to Agents mode metadata without applying Agents window read-only exclusions, then restores editor presentation', () => {
-		const { viewState, read } = createModel();
+		const { viewState, read, lockedValues } = createModel();
 		const initial = read();
 		viewState.isAgentsMode = true;
+		lockedValues.set('test.agentsModeReadOnly', { locked: true });
 		const active = read();
 		viewState.isAgentsMode = false;
-		const editable = { value: true, configured: true, readOnly: false, tagged: false };
+		lockedValues.clear();
+		const editable = { value: true, scopeValue: true, configured: true, readOnly: false, tagged: false };
 		assert.deepStrictEqual({ initial, active, restored: read() }, {
 			initial: [editable, editable, editable],
-			active: [{ ...editable, tagged: true }, editable, { value: true, configured: false, readOnly: true, tagged: true }],
+			active: [{ ...editable, tagged: true }, editable, { value: { locked: true }, scopeValue: { locked: true }, configured: false, readOnly: true, tagged: true }],
 			restored: [editable, editable, editable],
 		});
 	});
@@ -258,9 +265,9 @@ suite('SettingsTree Agents mode presentation', () => {
 		const { viewState, read } = createModel(true);
 		viewState.isAgentsMode = true;
 		assert.deepStrictEqual(read(), [
-			{ value: true, configured: false, readOnly: true, tagged: true },
-			{ value: true, configured: false, readOnly: true, tagged: true },
-			{ value: true, configured: true, readOnly: false, tagged: false },
+			{ value: true, scopeValue: true, configured: false, readOnly: true, tagged: true },
+			{ value: true, scopeValue: true, configured: false, readOnly: true, tagged: true },
+			{ value: true, scopeValue: true, configured: true, readOnly: false, tagged: false },
 		]);
 	});
 });

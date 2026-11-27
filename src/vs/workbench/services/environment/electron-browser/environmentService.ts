@@ -34,6 +34,12 @@ export interface INativeWorkbenchEnvironmentService extends IBrowserWorkbenchEnv
 		isInitialStartup?: boolean;
 		isCodeCaching?: boolean;
 		perfMarks: PerformanceMark[];
+		/**
+		 * Whether main started the window in Agents mode, which it remembers per
+		 * window across reloads and restarts. The window may still not apply it,
+		 * for example when the mode is turned off.
+		 */
+		agentsMode?: boolean;
 	};
 
 	// --- Main
@@ -105,7 +111,8 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 			accessibilitySupport: this.configuration.accessibilitySupport,
 			perfMarks: this.configuration.perfMarks,
 			isInitialStartup: this.configuration.isInitialStartup,
-			isCodeCaching: typeof this.configuration.codeCachePath === 'string'
+			isCodeCaching: typeof this.configuration.codeCachePath === 'string',
+			agentsMode: this.configuration.agentsMode
 		};
 	}
 

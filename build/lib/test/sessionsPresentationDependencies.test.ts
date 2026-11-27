@@ -324,6 +324,40 @@ suite('Sessions presentation entry isolation', () => {
 		]);
 	});
 
+	test('entries that load the Settings editor also register the Agents mode service it injects', () => {
+		const settingsEditor = 'src/vs/workbench/contrib/preferences/browser/settingsEditor2.ts';
+		const agentsModeRegistrations = [
+			'src/vs/workbench/services/agentsMode/browser/browserAgentsModeService.ts',
+			'src/vs/workbench/electron-browser/desktop.main.ts',
+		];
+		const entries = [
+			'src/vs/sessions/sessions.desktop.main.ts',
+			'src/vs/sessions/sessions.web.main.ts',
+			'src/vs/sessions/agents.web.mobile.main.ts',
+			'src/vs/workbench/workbench.desktop.main.ts',
+			'src/vs/workbench/workbench.web.main.ts',
+		];
+		const missing = entries.filter(entry => {
+			const dependencies = collectSourceDependencies(entry);
+			return dependencies.has(settingsEditor) && !agentsModeRegistrations.some(registration => dependencies.has(registration));
+		});
+		assert.deepStrictEqual(missing, []);
+		assert.ok(collectSourceDependencies('src/vs/sessions/sessions.desktop.main.ts').has(settingsEditor), 'the Agents window loads the Settings editor');
+	});
+
+	test('the desktop editor window gets the Agents mode service only from its main, which no registered singleton overrides', () => {
+		const desktopMain = 'src/vs/workbench/electron-browser/desktop.main.ts';
+		const dependencies = collectSourceDependencies('src/vs/workbench/workbench.desktop.main.ts');
+		const registrations = [...dependencies]
+			.filter(file => file.endsWith('.ts') && !file.endsWith('.d.ts'))
+			.filter(file => getSingletonRegistrations(file).some(([id]) => id === 'IAgentsModeService'));
+		assert.deepStrictEqual({
+			loadsMain: dependencies.has(desktopMain),
+			setsInMain: /serviceCollection\.set\(IAgentsModeService,/.test(fs.readFileSync(path.join(repositoryRoot, desktopMain), 'utf8')),
+			registrations,
+		}, { loadsMain: true, setsInMain: true, registrations: [] });
+	});
+
 	test('full chat imports retain the original script-widget CSS precedence', () => {
 		const source = fs.readFileSync(path.join(repositoryRoot, 'src/vs/sessions/sessions.common.main.ts'), 'utf8');
 		const imports = ts.preProcessFile(source, true).importedFiles.map(reference => reference.fileName);
