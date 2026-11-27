@@ -18,7 +18,6 @@ export class ListTopCellToolbar extends Disposable {
 	private readonly topCellToolbarContainer: HTMLElement;
 	private topCellToolbar: HTMLElement;
 	private readonly viewZone: MutableDisposable<DisposableStore> = this._register(new MutableDisposable());
-	private readonly _modelDisposables = this._register(new DisposableStore());
 	constructor(
 		protected readonly notebookEditor: INotebookEditorDelegate,
 		private readonly notebookOptions: NotebookOptions,
@@ -31,6 +30,9 @@ export class ListTopCellToolbar extends Disposable {
 		this.topCellToolbarContainer = DOM.$('div');
 		this.topCellToolbar = DOM.$('.cell-list-top-cell-toolbar-container');
 		this.topCellToolbarContainer.appendChild(this.topCellToolbar);
+
+		this._register(this.notebookEditor.onDidChangeModel(() => this.updateClass()));
+		this._register(this.notebookEditor.onDidChangeViewCells(() => this.updateClass()));
 
 		this._register(this.notebookEditor.onDidAttachViewModel(() => {
 			this.updateTopToolbar();
@@ -122,18 +124,6 @@ export class ListTopCellToolbar extends Disposable {
 			this.viewZone.value?.add(toolbar);
 
 			// update toolbar container css based on cell list length
-			this.viewZone.value?.add(this.notebookEditor.onDidChangeModel(() => {
-				this._modelDisposables.clear();
-
-				if (this.notebookEditor.hasModel()) {
-					this._modelDisposables.add(this.notebookEditor.onDidChangeViewCells(() => {
-						this.updateClass();
-					}));
-
-					this.updateClass();
-				}
-			}));
-
 			this.updateClass();
 		});
 	}
