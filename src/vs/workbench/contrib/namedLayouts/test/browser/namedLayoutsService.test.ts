@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -25,7 +26,7 @@ suite('NamedLayoutsService', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	const LAYOUTS_STORAGE_KEY = 'workbench.namedLayouts.layouts';
+	const LAYOUT_STORAGE_KEY_PREFIX = 'workbench.namedLayouts.layout.';
 
 	function partsState(sideBarVisible: boolean, panelPosition: Position, viewContainerId = 'workbench.view.explorer'): IPartsLayoutState {
 		return {
@@ -80,10 +81,24 @@ suite('NamedLayoutsService', () => {
 
 		const service = store.add(instantiationService.createInstance(NamedLayoutsService));
 
-		const storedLayouts = (): { name: string; state: unknown }[] => JSON.parse(storageService.get(LAYOUTS_STORAGE_KEY, StorageScope.PROFILE) ?? '[]').map(({ name, state }: { name: string; state: unknown }) => ({ name, state }));
-		const storeFromOtherWindow = (value: unknown) => storageService.store(LAYOUTS_STORAGE_KEY, JSON.stringify(value), StorageScope.PROFILE, StorageTarget.MACHINE, true);
+		/** The stored layouts, each with its name and the parts that are stored for it. */
+		const storedLayouts = () => {
+			const layouts = new Map<string, Record<string, unknown>>();
+			for (const key of storageService.keys(StorageScope.PROFILE).filter(key => key.startsWith(LAYOUT_STORAGE_KEY_PREFIX)).sort()) {
+				const { id, part } = /^(?<id>.+)\.(?<part>\w+)$/.exec(key.slice(LAYOUT_STORAGE_KEY_PREFIX.length))!.groups!;
+				const value = storageService.get(key, StorageScope.PROFILE)!;
+				layouts.set(id, { ...layouts.get(id), [part]: part === 'name' ? value : JSON.parse(value) });
+			}
+			return [...layouts.values()];
+		};
+		const storeFromOtherWindow = (id: string, part: string, value: unknown) => storageService.store(`${LAYOUT_STORAGE_KEY_PREFIX}${id}.${part}`, part === 'name' ? String(value) : JSON.stringify(value), StorageScope.PROFILE, StorageTarget.MACHINE, true);
+		const removeFromOtherWindow = (id: string) => {
+			for (const key of storageService.keys(StorageScope.PROFILE).filter(key => key.startsWith(`${LAYOUT_STORAGE_KEY_PREFIX}${id}.`))) {
+				storageService.remove(key, StorageScope.PROFILE, true);
+			}
+		};
 
-		return { service, window, storageService, configurationService, zenMode, toggleZenMode, storedLayouts, storeFromOtherWindow };
+		return { service, window, storageService, configurationService, zenMode, toggleZenMode, storedLayouts, storeFromOtherWindow, removeFromOtherWindow };
 	}
 
 	test('creating a layout makes it the active layout, and switching saves the layout that was active and applies the other one, also the default layout', async () => {
@@ -99,34 +114,48 @@ suite('NamedLayoutsService', () => {
 		await service.switchLayout(debug);
 		const onDebug = { active: service.activeLayout.name, parts: window.parts, editorGroups: window.editorGroups, defaultLayout: JSON.parse(storageService.get('workbench.namedLayouts.defaultLayout', StorageScope.WORKSPACE)!) };
 
-		const debugState = { parts: partsState(false, Position.RIGHT, 'workbench.view.debug'), editorGroups: { orientation: GroupOrientation.HORIZONTAL, groups: [{ size: 0.6 }, { size: 0.4 }] } };
+		const debugParts = partsState(false, Position.RIGHT, 'workbench.view.debug');
+		const debugEditorGroups = { orientation: GroupOrientation.HORIZONTAL, groups: [{ size: 0.6 }, { size: 0.4 }] };
 		assert.deepStrictEqual({ layouts: service.layouts.map(layout => layout.name), onDefault, onDebug, stored: storedLayouts() }, {
 			layouts: ['Default', 'Debug'],
 			onDefault: { active: 'Default', parts: partsState(true, Position.BOTTOM), editorGroups: singleGroup, activeLayoutStored: undefined },
-			onDebug: { active: 'Debug', ...debugState, defaultLayout: { parts: partsState(true, Position.BOTTOM), editorGroups: singleGroup } },
-			stored: [{ name: 'Debug', state: debugState }],
+			onDebug: { active: 'Debug', parts: debugParts, editorGroups: debugEditorGroups, defaultLayout: { ...partsState(true, Position.BOTTOM), editorGroups: singleGroup } },
+			stored: [{ name: 'Debug', ...debugParts, editorGroups: debugEditorGroups }],
 		});
 	});
 
-	test('saving writes only what this window changed of the active layout, so that what another window saved into it meanwhile is kept', async () => {
-		const { service, window, storedLayouts, storeFromOtherWindow, storageService } = createWindow();
-		await service.createLayout('Debug');
-
-		const fromOtherWindow = JSON.parse(storageService.get(LAYOUTS_STORAGE_KEY, StorageScope.PROFILE)!);
+	test('saving writes only the parts that this window changed, each under its own key, so that what another window saves into the same layout is kept', async () => {
+		const { service, window, storageService, storedLayouts, storeFromOtherWindow } = createWindow();
+		const debug = await service.createLayout('Debug');
+		const otherPanel = partsState(true, Position.RIGHT).panel;
 		const otherEditorGroups = { orientation: GroupOrientation.VERTICAL, groups: [{ size: 0.5 }, { size: 0.5 }] };
-		fromOtherWindow[0].state.editorGroups = otherEditorGroups;
-		storeFromOtherWindow(fromOtherWindow);
+		storeFromOtherWindow(debug.id, 'panel', otherPanel);
+		storeFromOtherWindow(debug.id, 'editorGroups', otherEditorGroups);
+
+		const written: string[] = [];
+		const listenerStore = store.add(new DisposableStore());
+		listenerStore.add(storageService.onDidChangeValue(StorageScope.PROFILE, undefined, listenerStore)(e => {
+			if (!e.external) {
+				written.push(e.key.slice(LAYOUT_STORAGE_KEY_PREFIX.length));
+			}
+		}));
 		window.parts = partsState(false, Position.BOTTOM);
 		await service.saveLayout();
 
-		assert.deepStrictEqual(storedLayouts(), [{ name: 'Debug', state: { parts: partsState(false, Position.BOTTOM), editorGroups: otherEditorGroups } }]);
+		assert.deepStrictEqual({ written, stored: storedLayouts() }, {
+			written: [`${debug.id}.sideBar`],
+			stored: [{ name: 'Debug', ...partsState(false, Position.BOTTOM), panel: otherPanel, editorGroups: otherEditorGroups }],
+		});
 	});
 
 	test('the window saves the active layout as it closes, but not while named layouts are disabled, and not the parts that Zen mode hides', async () => {
 		const { service, window, configurationService, storageService, toggleZenMode, storedLayouts } = createWindow();
 		await service.createLayout('Debug');
 		window.parts = partsState(false, Position.LEFT);
-		const storedParts = () => (storedLayouts()[0].state as { parts: IPartsLayoutState }).parts;
+		const storedParts = () => {
+			const { sideBar, panel, auxiliaryBar } = storedLayouts()[0];
+			return { sideBar, panel, auxiliaryBar };
+		};
 
 		await configurationService.setUserConfiguration(NAMED_LAYOUTS_ENABLED_SETTING, false);
 		storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
@@ -161,41 +190,63 @@ suite('NamedLayoutsService', () => {
 		await service.switchLayout(service.layouts[0]);
 		await service.switchLayout(debug);
 
-		assert.deepStrictEqual({ zenMode: zenMode.get(), parts: window.parts, stored: storedLayouts()[0].state }, {
+		assert.deepStrictEqual({ zenMode: zenMode.get(), parts: window.parts, stored: storedLayouts()[0] }, {
 			zenMode: false,
 			parts: partsState(false, Position.RIGHT),
-			stored: { parts: partsState(false, Position.RIGHT), editorGroups: singleGroup },
+			stored: { name: 'Debug', ...partsState(false, Position.RIGHT), editorGroups: singleGroup },
 		});
 	});
 
 	test('deleting the active layout applies the default layout without saving the deleted one, and a layout that another window deletes leaves this window with its arrangement as its default layout', async () => {
-		const { service, window, storeFromOtherWindow, storageService } = createWindow();
+		const { service, window, removeFromOtherWindow, storageService, storedLayouts } = createWindow();
 		const scratch = await service.createLayout('Scratch');
 		window.parts = partsState(false, Position.RIGHT);
 		await service.deleteLayout(scratch);
-		const deleted = { active: service.activeLayout.name, layouts: service.layouts.map(layout => layout.name), parts: window.parts };
+		const deleted = { active: service.activeLayout.name, layouts: service.layouts.map(layout => layout.name), parts: window.parts, stored: storedLayouts() };
 
-		await service.createLayout('Debug');
+		const debug = await service.createLayout('Debug');
 		window.parts = partsState(false, Position.LEFT);
 		const activeLayouts: string[] = [];
 		store.add(service.onDidChangeActiveLayout(layout => activeLayouts.push(layout.name)));
-		storeFromOtherWindow([]);
-		const deletedElsewhere = { active: service.activeLayout.name, layouts: service.layouts.map(layout => layout.name), parts: window.parts, activeLayouts, defaultLayout: storageService.get('workbench.namedLayouts.defaultLayout', StorageScope.WORKSPACE) };
+		removeFromOtherWindow(debug.id);
+		const deletedElsewhere = {
+			active: service.activeLayout.name,
+			layouts: service.layouts.map(layout => layout.name),
+			parts: window.parts,
+			activeLayouts,
+			defaultLayout: storageService.get('workbench.namedLayouts.defaultLayout', StorageScope.WORKSPACE),
+			switched: await service.switchLayout(debug),
+			renamed: await service.renameLayout(debug, 'Renamed'),
+			stored: storedLayouts(),
+		};
 
 		assert.deepStrictEqual({ deleted, deletedElsewhere }, {
-			deleted: { active: 'Default', layouts: ['Default'], parts: partsState(true, Position.BOTTOM) },
-			deletedElsewhere: { active: 'Default', layouts: ['Default'], parts: partsState(false, Position.LEFT), activeLayouts: ['Default'], defaultLayout: undefined },
+			deleted: { active: 'Default', layouts: ['Default'], parts: partsState(true, Position.BOTTOM), stored: [] },
+			deletedElsewhere: { active: 'Default', layouts: ['Default'], parts: partsState(false, Position.LEFT), activeLayouts: ['Default'], defaultLayout: undefined, switched: false, renamed: false, stored: [] },
 		});
 	});
 
-	test('lists the default layout first and the others by name, also those that another window creates, and leaves out stored layouts that are not valid', async () => {
-		const { service, storageService, storeFromOtherWindow } = createWindow();
+	test('lists the default layout first and the others by name, also those that another window creates, and ignores what is stored that is not valid', async () => {
+		const { service, window, storeFromOtherWindow } = createWindow();
 		const zeta = await service.createLayout('Zeta');
-		await service.renameLayout(zeta, 'Beta');
+		const renamed = await service.renameLayout(zeta, 'Beta');
 
-		const stored = JSON.parse(storageService.get(LAYOUTS_STORAGE_KEY, StorageScope.PROFILE)!);
-		storeFromOtherWindow([...stored, { id: 'alpha', name: 'Alpha', state: { editorGroups: singleGroup } }, { id: 'broken', name: 'Broken', state: { parts: { sideBar: true } } }, { id: 'default', name: 'Other Default', state: {} }]);
+		const otherPanel = partsState(true, Position.RIGHT).panel;
+		storeFromOtherWindow('alpha', 'name', 'Alpha');
+		storeFromOtherWindow('alpha', 'sideBar', { visible: 'yes' });
+		storeFromOtherWindow('alpha', 'panel', otherPanel);
+		storeFromOtherWindow('alpha', 'editorGroups', { orientation: GroupOrientation.HORIZONTAL, groups: [{ size: 1, groups: [] }] });
+		storeFromOtherWindow('orphan', 'sideBar', partsState(false, Position.BOTTOM).sideBar);
+		storeFromOtherWindow('blank', 'name', '  ');
+		storeFromOtherWindow('default', 'name', 'Other Default');
+		const layouts = service.layouts.map(layout => layout.name);
+		await service.switchLayout(service.layouts[1]);
 
-		assert.deepStrictEqual(service.layouts.map(layout => layout.name), ['Default', 'Alpha', 'Beta']);
+		assert.deepStrictEqual({ renamed, layouts, parts: window.parts, editorGroups: window.editorGroups }, {
+			renamed: true,
+			layouts: ['Default', 'Alpha', 'Beta'],
+			parts: { ...partsState(true, Position.BOTTOM), panel: otherPanel },
+			editorGroups: singleGroup,
+		});
 	});
 });

@@ -65,15 +65,19 @@ export interface INamedLayoutsService {
 
 	/**
 	 * Saves the active layout and applies the given layout to this window. Zen mode ends first.
+	 * @returns whether the layout is active, which it is not when another window deleted it.
 	 */
-	switchLayout(layout: INamedLayout): Promise<void>;
+	switchLayout(layout: INamedLayout): Promise<boolean>;
 
 	/**
 	 * Saves the changes of the active named layout.
 	 */
 	saveLayout(): Promise<void>;
 
-	renameLayout(layout: INamedLayout, name: string): Promise<void>;
+	/**
+	 * @returns whether the layout was renamed, which it is not when another window deleted it.
+	 */
+	renameLayout(layout: INamedLayout, name: string): Promise<boolean>;
 
 	/**
 	 * Deletes a named layout. When it is active, the default layout is applied first.

@@ -19,8 +19,12 @@ import { IPartsLayoutState, IWorkbenchLayoutService, Position } from '../../../s
 import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { DEFAULT_NAMED_LAYOUT_ID, INamedLayout, INamedLayoutsService, NAMED_LAYOUTS_ENABLED_SETTING } from './namedLayouts.js';
 
-/** The named layouts of the profile, with their states. Not synced. */
-const LAYOUTS_STORAGE_KEY = 'workbench.namedLayouts.layouts';
+/**
+ * The prefix of the keys that store the named layouts of the profile, which are not synced. A layout stores its name and each
+ * part of its state under its own key, `<prefix><id>.name` and for example `<prefix><id>.sideBar`.
+ */
+const LAYOUT_STORAGE_KEY_PREFIX = 'workbench.namedLayouts.layout.';
+const LAYOUT_NAME_STORAGE_KEY_SUFFIX = '.name';
 
 /** The named layout that is active in the window of a workspace. */
 const ACTIVE_LAYOUT_STORAGE_KEY = 'workbench.namedLayouts.activeLayout';
@@ -29,10 +33,14 @@ const ACTIVE_LAYOUT_STORAGE_KEY = 'workbench.namedLayouts.activeLayout';
 const DEFAULT_LAYOUT_STORAGE_KEY = 'workbench.namedLayouts.defaultLayout';
 
 /**
- * What a layout arranges. Each part is captured and applied on its own, so that saving writes only the parts that a window changed.
+ * What a layout arranges. Each part is stored, saved and applied on its own, so that a window writes only what it changed,
+ * and windows that save the same layout at the same time keep each other's changes. A part that a layout does not have keeps
+ * what it shows when the layout applies.
  */
 interface INamedLayoutState {
-	readonly parts?: IPartsLayoutState;
+	readonly sideBar?: IPartsLayoutState['sideBar'];
+	readonly panel?: IPartsLayoutState['panel'];
+	readonly auxiliaryBar?: IPartsLayoutState['auxiliaryBar'];
 
 	/**
 	 * The editor groups of the main window, with sizes as fractions of their row or column, so that resizing the window does not change them.
@@ -40,9 +48,9 @@ interface INamedLayoutState {
 	readonly editorGroups?: EditorGroupLayout;
 }
 
-interface IStoredNamedLayout extends INamedLayout {
-	readonly state: INamedLayoutState;
-}
+type NamedLayoutStateKey = keyof INamedLayoutState;
+
+const NAMED_LAYOUT_STATE_KEYS: readonly NamedLayoutStateKey[] = ['sideBar', 'panel', 'auxiliaryBar', 'editorGroups'];
 
 export class NamedLayoutsService extends Disposable implements INamedLayoutsService {
 
@@ -56,7 +64,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 
 	private readonly defaultLayout: INamedLayout = { id: DEFAULT_NAMED_LAYOUT_ID, name: localize('defaultLayout', "Default") };
 
-	private storedLayouts: readonly IStoredNamedLayout[];
+	private storedLayouts: readonly INamedLayout[];
 	private activeLayoutId: string;
 
 	/**
@@ -94,8 +102,8 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			this.baseline = this.captureState();
 		});
 
-		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, LAYOUTS_STORAGE_KEY, this._store)(e => {
-			if (e.external) {
+		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._store)(e => {
+			if (e.external && e.key.startsWith(LAYOUT_STORAGE_KEY_PREFIX)) {
 				this.onDidChangeStoredLayouts();
 			}
 		}));
@@ -108,12 +116,11 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	}
 
 	get layouts(): readonly INamedLayout[] {
-		return [this.defaultLayout, ...this.storedLayouts.map(toNamedLayout).sort((a, b) => a.name.localeCompare(b.name))];
+		return [this.defaultLayout, ...[...this.storedLayouts].sort((a, b) => a.name.localeCompare(b.name))];
 	}
 
 	get activeLayout(): INamedLayout {
-		const layout = this.storedLayouts.find(layout => layout.id === this.activeLayoutId);
-		return layout ? toNamedLayout(layout) : this.defaultLayout;
+		return this.storedLayouts.find(layout => layout.id === this.activeLayoutId) ?? this.defaultLayout;
 	}
 
 	createLayout(name: string): Promise<INamedLayout> {
@@ -127,25 +134,26 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 				this.storeDefaultLayoutState(state);
 			}
 
-			const layout: IStoredNamedLayout = { id: generateUuid(), name: toLayoutName(name), state };
-			this.writeStoredLayouts([...this.readStoredLayouts(), layout]);
+			const layout: INamedLayout = { id: generateUuid(), name: toLayoutName(name) };
+			this.storeLayoutState(layout.id, state);
+			// Other windows list a layout once it has a name, so the name is stored last
+			this.storageService.store(layoutStorageKey(layout.id, 'name'), layout.name, StorageScope.PROFILE, StorageTarget.MACHINE);
+			this.storedLayouts = this.readStoredLayouts();
 			this.setActiveLayout(layout.id);
 			this._onDidChangeLayouts.fire();
 
-			return toNamedLayout(layout);
+			return layout;
 		});
 	}
 
-	switchLayout(layout: INamedLayout): Promise<void> {
+	switchLayout(layout: INamedLayout): Promise<boolean> {
 		return this.sequencer.queue(async () => {
 			await this.whenRestored;
 			if (layout.id === this.activeLayoutId) {
-				return;
+				return true;
 			}
-
-			const state = layout.id === DEFAULT_NAMED_LAYOUT_ID ? this.readDefaultLayoutState() : this.readStoredLayouts().find(storedLayout => storedLayout.id === layout.id)?.state;
-			if (!state && layout.id !== DEFAULT_NAMED_LAYOUT_ID) {
-				return; // deleted in another window meanwhile
+			if (layout.id !== DEFAULT_NAMED_LAYOUT_ID && !this.hasStoredLayout(layout.id)) {
+				return false; // deleted in another window meanwhile
 			}
 
 			// Zen mode hides the parts, so the layout that is active is saved as it shows outside of Zen mode
@@ -156,10 +164,13 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 				this.saveActiveLayout();
 			}
 
+			const state = layout.id === DEFAULT_NAMED_LAYOUT_ID ? this.readDefaultLayoutState() : this.readLayoutState(layout.id);
 			if (state) {
 				this.applyState(state);
 			}
 			this.setActiveLayout(layout.id);
+
+			return true;
 		});
 	}
 
@@ -170,13 +181,17 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		});
 	}
 
-	renameLayout(layout: INamedLayout, name: string): Promise<void> {
+	renameLayout(layout: INamedLayout, name: string): Promise<boolean> {
 		return this.sequencer.queue(async () => {
-			const layouts = this.readStoredLayouts();
-			if (layouts.some(storedLayout => storedLayout.id === layout.id)) {
-				this.writeStoredLayouts(layouts.map(storedLayout => storedLayout.id === layout.id ? { ...storedLayout, name: toLayoutName(name) } : storedLayout));
-				this._onDidChangeLayouts.fire();
+			if (!this.hasStoredLayout(layout.id)) {
+				return false; // deleted in another window meanwhile
 			}
+
+			this.storageService.store(layoutStorageKey(layout.id, 'name'), toLayoutName(name), StorageScope.PROFILE, StorageTarget.MACHINE);
+			this.storedLayouts = this.readStoredLayouts();
+			this._onDidChangeLayouts.fire();
+
+			return true;
 		});
 	}
 
@@ -196,48 +211,39 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 				this.setActiveLayout(DEFAULT_NAMED_LAYOUT_ID);
 			}
 
-			this.writeStoredLayouts(this.readStoredLayouts().filter(storedLayout => storedLayout.id !== layout.id));
+			// Other windows stop listing a layout once it has no name, so the name is removed first
+			for (const key of ['name', ...NAMED_LAYOUT_STATE_KEYS] as const) {
+				this.storageService.remove(layoutStorageKey(layout.id, key), StorageScope.PROFILE);
+			}
+			this.storedLayouts = this.readStoredLayouts();
 			this._onDidChangeLayouts.fire();
 		});
 	}
 
 	private onDidChangeStoredLayouts(): void {
+		const layouts = this.layouts;
 		this.storedLayouts = this.readStoredLayouts();
 		if (!this.storedLayouts.some(layout => layout.id === this.activeLayoutId) && this.activeLayoutId !== DEFAULT_NAMED_LAYOUT_ID) {
 			// The active layout was deleted in another window: the window keeps its arrangement as its default layout
 			this.setActiveLayout(DEFAULT_NAMED_LAYOUT_ID);
 		}
-		this._onDidChangeLayouts.fire();
+		if (!equals(layouts, this.layouts)) {
+			this._onDidChangeLayouts.fire();
+		}
 	}
 
 	/**
-	 * Writes what this window changed of the active named layout since {@link baseline} into the stored layout.
+	 * Writes the parts of the active named layout that this window changed since {@link baseline}, each under its own key.
 	 */
 	private saveActiveLayout(): void {
-		if (this.activeLayoutId === DEFAULT_NAMED_LAYOUT_ID || !this.baseline) {
-			return;
-		}
-
-		const layouts = this.readStoredLayouts();
-		const layout = layouts.find(layout => layout.id === this.activeLayoutId);
-		if (!layout) {
+		if (this.activeLayoutId === DEFAULT_NAMED_LAYOUT_ID || !this.baseline || !this.hasStoredLayout(this.activeLayoutId)) {
 			return;
 		}
 
 		const state = this.captureState();
-		const changes: { parts?: IPartsLayoutState; editorGroups?: EditorGroupLayout } = {};
-		if (state.parts && !equals(state.parts, this.baseline.parts)) {
-			changes.parts = state.parts;
-		}
-		if (state.editorGroups && !equals(state.editorGroups, this.baseline.editorGroups)) {
-			changes.editorGroups = state.editorGroups;
-		}
-		if (!changes.parts && !changes.editorGroups) {
-			return;
-		}
-
-		this.writeStoredLayouts(layouts.map(storedLayout => storedLayout === layout ? { ...layout, state: { ...layout.state, ...changes } } : storedLayout));
-		this.baseline = { ...this.baseline, ...changes };
+		const baseline = this.baseline;
+		this.storeLayoutState(this.activeLayoutId, state, NAMED_LAYOUT_STATE_KEYS.filter(key => !equals(state[key], baseline[key])));
+		this.baseline = { ...baseline, ...state };
 	}
 
 	private setActiveLayout(id: string): void {
@@ -252,7 +258,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		const parts = this.isZenModeActive() ? undefined : this.layoutService.getPartsLayoutState();
 
 		return {
-			...(parts ? { parts } : {}),
+			...(parts ? { sideBar: parts.sideBar, panel: parts.panel, auxiliaryBar: parts.auxiliaryBar } : {}),
 			editorGroups: toFractions(this.editorGroupService.mainPart.getLayout())
 		};
 	}
@@ -262,8 +268,14 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		if (state.editorGroups) {
 			this.editorGroupService.mainPart.applyLayout(state.editorGroups);
 		}
-		if (state.parts) {
-			this.layoutService.applyPartsLayoutState(state.parts);
+
+		const parts = this.layoutService.getPartsLayoutState();
+		if (parts && (state.sideBar || state.panel || state.auxiliaryBar)) {
+			this.layoutService.applyPartsLayoutState({
+				sideBar: state.sideBar ?? parts.sideBar,
+				panel: state.panel ?? parts.panel,
+				auxiliaryBar: state.auxiliaryBar ?? parts.auxiliaryBar
+			});
 		}
 	}
 
@@ -277,17 +289,32 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		}
 	}
 
-	private readStoredLayouts(): IStoredNamedLayout[] {
-		const value = parse(this.storageService.get(LAYOUTS_STORAGE_KEY, StorageScope.PROFILE));
-		return Array.isArray(value) ? value.filter(isStoredNamedLayout) : [];
+	private readStoredLayouts(): INamedLayout[] {
+		const layouts: INamedLayout[] = [];
+		for (const key of this.storageService.keys(StorageScope.PROFILE)) {
+			const id = key.startsWith(LAYOUT_STORAGE_KEY_PREFIX) && key.endsWith(LAYOUT_NAME_STORAGE_KEY_SUFFIX) ? key.slice(LAYOUT_STORAGE_KEY_PREFIX.length, -LAYOUT_NAME_STORAGE_KEY_SUFFIX.length) : undefined;
+			const name = id && id !== DEFAULT_NAMED_LAYOUT_ID ? this.storageService.get(key, StorageScope.PROFILE)?.trim() : undefined;
+			if (id && name) {
+				layouts.push({ id, name });
+			}
+		}
+		return layouts;
 	}
 
-	private writeStoredLayouts(layouts: readonly IStoredNamedLayout[]): void {
-		this.storedLayouts = layouts;
-		if (layouts.length) {
-			this.storageService.store(LAYOUTS_STORAGE_KEY, JSON.stringify(layouts), StorageScope.PROFILE, StorageTarget.MACHINE);
-		} else {
-			this.storageService.remove(LAYOUTS_STORAGE_KEY, StorageScope.PROFILE);
+	private hasStoredLayout(id: string): boolean {
+		return id !== DEFAULT_NAMED_LAYOUT_ID && !!this.storageService.get(layoutStorageKey(id, 'name'), StorageScope.PROFILE)?.trim();
+	}
+
+	private readLayoutState(id: string): INamedLayoutState {
+		return toNamedLayoutState(key => parse(this.storageService.get(layoutStorageKey(id, key), StorageScope.PROFILE)));
+	}
+
+	private storeLayoutState(id: string, state: INamedLayoutState, keys: readonly NamedLayoutStateKey[] = NAMED_LAYOUT_STATE_KEYS): void {
+		for (const key of keys) {
+			const value = state[key];
+			if (value) {
+				this.storageService.store(layoutStorageKey(id, key), JSON.stringify(value), StorageScope.PROFILE, StorageTarget.MACHINE);
+			}
 		}
 	}
 
@@ -303,7 +330,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 
 	private readDefaultLayoutState(): INamedLayoutState | undefined {
 		const value = parse(this.storageService.get(DEFAULT_LAYOUT_STORAGE_KEY, StorageScope.WORKSPACE));
-		return isNamedLayoutState(value) ? value : undefined;
+		return isRecord(value) ? toNamedLayoutState(key => value[key]) : undefined;
 	}
 
 	private storeDefaultLayoutState(state: INamedLayoutState): void {
@@ -311,8 +338,8 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	}
 }
 
-function toNamedLayout(layout: IStoredNamedLayout): INamedLayout {
-	return { id: layout.id, name: layout.name };
+function layoutStorageKey(id: string, key: NamedLayoutStateKey | 'name'): string {
+	return `${LAYOUT_STORAGE_KEY_PREFIX}${id}.${key}`;
 }
 
 function toLayoutName(name: string): string {
@@ -355,29 +382,49 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function isPartState(value: unknown): value is Record<string, unknown> {
+/**
+ * Returns the parts of a state that are valid, so that a part that is not valid keeps what it shows when the state applies.
+ */
+function toNamedLayoutState(read: (key: NamedLayoutStateKey) => unknown): INamedLayoutState {
+	const sideBar = read('sideBar');
+	const panel = read('panel');
+	const auxiliaryBar = read('auxiliaryBar');
+	const editorGroups = read('editorGroups');
+
+	return {
+		...(isSideBarState(sideBar) ? { sideBar } : {}),
+		...(isPanelState(panel) ? { panel } : {}),
+		...(isAuxiliaryBarState(auxiliaryBar) ? { auxiliaryBar } : {}),
+		...(isEditorGroupLayout(editorGroups) ? { editorGroups } : {}),
+	};
+}
+
+/** Whether a value has what each part stores. */
+function hasPartState(value: unknown): value is Record<string, unknown> {
 	return isRecord(value) && typeof value.visible === 'boolean' && typeof value.size === 'number' && (value.viewContainerId === undefined || typeof value.viewContainerId === 'string');
 }
 
-function isPartsLayoutState(value: unknown): value is IPartsLayoutState {
-	return isRecord(value)
-		&& isPartState(value.sideBar)
-		&& isPartState(value.panel) && typeof value.panel.maximized === 'boolean' && [Position.LEFT, Position.RIGHT, Position.BOTTOM, Position.TOP].includes(value.panel.position as Position)
-		&& isPartState(value.auxiliaryBar) && typeof value.auxiliaryBar.maximized === 'boolean';
+function isSideBarState(value: unknown): value is IPartsLayoutState['sideBar'] {
+	return hasPartState(value);
+}
+
+function isPanelState(value: unknown): value is IPartsLayoutState['panel'] {
+	return hasPartState(value) && typeof value.maximized === 'boolean' && [Position.LEFT, Position.RIGHT, Position.BOTTOM, Position.TOP].includes(value.position as Position);
+}
+
+function isAuxiliaryBarState(value: unknown): value is IPartsLayoutState['auxiliaryBar'] {
+	return hasPartState(value) && typeof value.maximized === 'boolean';
 }
 
 function isGroupLayoutArgument(value: unknown): value is GroupLayoutArgument {
-	return isRecord(value) && (value.size === undefined || typeof value.size === 'number') && (value.groups === undefined || (Array.isArray(value.groups) && value.groups.every(isGroupLayoutArgument)));
+	return isRecord(value) && (value.size === undefined || typeof value.size === 'number') && (value.groups === undefined || isGroupLayoutArguments(value.groups));
+}
+
+function isGroupLayoutArguments(value: unknown): value is GroupLayoutArgument[] {
+	// A row or column without groups cannot apply
+	return Array.isArray(value) && value.length > 0 && value.every(isGroupLayoutArgument);
 }
 
 function isEditorGroupLayout(value: unknown): value is EditorGroupLayout {
-	return isRecord(value) && (value.orientation === GroupOrientation.HORIZONTAL || value.orientation === GroupOrientation.VERTICAL) && Array.isArray(value.groups) && value.groups.length > 0 && value.groups.every(isGroupLayoutArgument);
-}
-
-function isNamedLayoutState(value: unknown): value is INamedLayoutState {
-	return isRecord(value) && (value.parts === undefined || isPartsLayoutState(value.parts)) && (value.editorGroups === undefined || isEditorGroupLayout(value.editorGroups));
-}
-
-function isStoredNamedLayout(value: unknown): value is IStoredNamedLayout {
-	return isRecord(value) && typeof value.id === 'string' && value.id !== DEFAULT_NAMED_LAYOUT_ID && typeof value.name === 'string' && !!value.name.trim() && isNamedLayoutState(value.state);
+	return isRecord(value) && (value.orientation === GroupOrientation.HORIZONTAL || value.orientation === GroupOrientation.VERTICAL) && isGroupLayoutArguments(value.groups);
 }

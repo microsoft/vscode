@@ -5,7 +5,8 @@
 
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Event } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import Severity from '../../../../base/common/severity.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -78,23 +79,42 @@ async function pickLayout(quickInputService: IQuickInputService, namedLayoutsSer
 }
 
 async function inputLayoutName(quickInputService: IQuickInputService, namedLayoutsService: INamedLayoutsService, prompt: string, layout?: INamedLayout): Promise<string | undefined> {
-	const name = await quickInputService.input({
-		prompt,
-		placeHolder: localize('layoutName', "Layout name"),
-		value: layout?.name,
-		validateInput: async value => {
-			const name = value.trim();
-			if (!name) {
-				return localize('layoutNameEmpty', "Provide a name for the layout.");
-			}
-			if (namedLayoutsService.layouts.some(otherLayout => otherLayout.id !== layout?.id && otherLayout.name.toLocaleLowerCase() === name.toLocaleLowerCase())) {
-				return localize('layoutNameExists', "A layout with the name {0} already exists.", name);
-			}
-			return undefined;
+	const validate = (value: string): string | undefined => {
+		const name = value.trim();
+		if (!name) {
+			return localize('layoutNameEmpty', "Provide a name for the layout.");
 		}
-	});
+		if (namedLayoutsService.layouts.some(otherLayout => otherLayout.id !== layout?.id && otherLayout.name.toLocaleLowerCase() === name.toLocaleLowerCase())) {
+			return localize('layoutNameExists', "A layout with the name {0} already exists.", name);
+		}
+		return undefined;
+	};
 
-	return name?.trim();
+	const disposables = new DisposableStore();
+	const input = disposables.add(quickInputService.createInputBox());
+	input.prompt = prompt;
+	input.placeholder = localize('layoutName', "Layout name");
+	input.value = layout?.name ?? '';
+	input.severity = Severity.Error;
+	try {
+		return await new Promise<string | undefined>(resolve => {
+			disposables.add(input.onDidChangeValue(value => {
+				input.validationMessage = validate(value);
+			}));
+			disposables.add(input.onDidAccept(() => {
+				// Another window can have created a layout with the name since it was typed
+				input.validationMessage = validate(input.value);
+				if (!input.validationMessage) {
+					resolve(input.value.trim());
+					input.hide();
+				}
+			}));
+			disposables.add(input.onDidHide(() => resolve(undefined)));
+			input.show();
+		});
+	} finally {
+		disposables.dispose();
+	}
 }
 
 registerAction2(class extends Action2 {
@@ -114,8 +134,11 @@ registerAction2(class extends Action2 {
 
 		const layout = await pickLayout(quickInputService, namedLayoutsService, namedLayoutsService.layouts, localize('switchLayoutPlaceholder', "Select the layout to switch to"));
 		if (layout && layout.id !== namedLayoutsService.activeLayout.id) {
-			await namedLayoutsService.switchLayout(layout);
-			status(localize('switchedLayout', "Switched to layout {0}.", layout.name));
+			if (await namedLayoutsService.switchLayout(layout)) {
+				status(localize('switchedLayout', "Switched to layout {0}.", layout.name));
+			} else {
+				status(localize('layoutNoLongerExists', "The layout {0} no longer exists.", layout.name));
+			}
 		}
 	}
 });
@@ -206,8 +229,11 @@ registerAction2(class extends Action2 {
 
 		const name = await inputLayoutName(quickInputService, namedLayoutsService, localize('renameLayoutPrompt', "New name of the layout {0}", layout.name), layout);
 		if (name && name !== layout.name) {
-			await namedLayoutsService.renameLayout(layout, name);
-			status(localize('renamedLayout', "Renamed layout {0} to {1}.", layout.name, name));
+			if (await namedLayoutsService.renameLayout(layout, name)) {
+				status(localize('renamedLayout', "Renamed layout {0} to {1}.", layout.name, name));
+			} else {
+				status(localize('layoutNoLongerExists', "The layout {0} no longer exists.", layout.name));
+			}
 		}
 	}
 });
