@@ -304,6 +304,7 @@ class MockSessionStore implements ISessionsManagementService {
 	renameChat(_session: ISession, _chatUri: URI, _title: string): Promise<void> { throw new Error('not implemented'); }
 	addChatFolder(_session: ISession, _chatUri: URI, _folder: URI): Promise<void> { throw new Error('not implemented'); }
 	removeChatFolder(_session: ISession, _chatUri: URI, _folder: URI): Promise<void> { throw new Error('not implemented'); }
+	detachSessionsFromWorkspace(_workspaceFiles: readonly URI[]): Promise<void> { throw new Error('not implemented'); }
 	renameSession(_session: ISession, _title: string): Promise<void> { throw new Error('not implemented'); }
 	canMoveChat(_session: ISession, _chat: IChat): boolean { return false; }
 	moveChat(): Promise<void> { throw new Error('not implemented'); }
