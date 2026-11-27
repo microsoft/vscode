@@ -5,11 +5,6 @@
 
 import { makeArray } from './utils';
 
-export type SuggestionType = Fig.SuggestionType | 'history' | 'auto-execute';
-
-type Override<T, S> = Omit<T, keyof S> & S;
-export type Suggestion = Override<Fig.Suggestion, { type?: SuggestionType }>;
-
 export type Option<ArgT, OptionT> = OptionT & {
 	name: string[];
 	args: ArgT[];
