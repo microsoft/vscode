@@ -38,7 +38,7 @@ import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.
 import { IClipboardService } from '../../../../../../../platform/clipboard/common/clipboardService.js';
 import { TestClipboardService } from '../../../../../../../platform/clipboard/test/common/testClipboardService.js';
 import { IContextMenuService } from '../../../../../../../platform/contextview/browser/contextView.js';
-import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
+import { IOpenerService, OpenOptions } from '../../../../../../../platform/opener/common/opener.js';
 import { IWebWorkerService } from '../../../../../../../platform/webWorker/browser/webWorkerService.js';
 import { ChatAttachmentsContentPart } from '../../../../browser/widget/chatContentParts/chatAttachmentsContentPart.js';
 import { AgentHostCompletionReferenceKind, IChatRequestVariableEntry, OmittedState, toAgentHostCompletionVariableEntry, toPasteVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
@@ -193,10 +193,10 @@ suite('ChatAttachmentsContentPart', () => {
 				const labels = disposables.add(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
 				const attachment = getGitHubIssueOrPullRequestAttachments(`https://github.com/microsoft/vscode/${path}/123`)[0];
 				const copied: string[] = [];
-				const opened: { resource: string; options: Parameters<IOpenerService['open']>[1] }[] = [];
+				const opened: { resource: string; options: OpenOptions | undefined }[] = [];
 				instantiationService.stub(IClipboardService, upcastPartial<IClipboardService>({ writeText: async text => { copied.push(text); } }));
 				instantiationService.stub(IOpenerService, upcastPartial<IOpenerService>({
-					open: async (resource, options) => {
+					open: async (resource, options?: OpenOptions) => {
 						opened.push({ resource: resource.toString(), options });
 						return true;
 					},
@@ -232,12 +232,12 @@ suite('ChatAttachmentsContentPart', () => {
 				createHover.lastCall.args[1].onDidClickReference();
 				assert.deepStrictEqual({ copied, opened }, {
 					copied: ['main', 'feature/preview'],
-					opened: [{ resource: `https://github.com/microsoft/vscode/${path}/123`, options: { openExternal: true } }],
+					opened: [{ resource: `https://github.com/microsoft/vscode/${path}/123`, options: { openExternal: true, allowContributedOpeners: true, fromUserGesture: true } }],
 				});
 				opened.length = 0;
 				widget.element.click();
 				await timeout(0);
-				assert.deepStrictEqual(opened.map(item => item.resource), [`https://github.com/microsoft/vscode/${path}/123`]);
+				assert.deepStrictEqual(opened.map(item => ({ resource: item.resource, allowContributedOpeners: item.options?.allowContributedOpeners })), [{ resource: `https://github.com/microsoft/vscode/${path}/123`, allowContributedOpeners: true }]);
 				widget.dispose();
 			});
 
