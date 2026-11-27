@@ -47,10 +47,6 @@ interface IActionViewItemWithMinimumWidth extends IActionViewItem {
 	getMinimumWidth(): number | undefined;
 }
 
-function hasMinimumWidth(item: IActionViewItem | undefined): item is IActionViewItemWithMinimumWidth {
-	return typeof (item as Partial<IActionViewItemWithMinimumWidth> | undefined)?.getMinimumWidth === 'function';
-}
-
 interface IAuxiliaryBarPartConfiguration {
 	position: ActivityBarPosition;
 
@@ -207,7 +203,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		for (let index = 0; toolBar && index < toolBar.getItemsLength(); index++) {
 			if (toolBar.getItemAction(index) === action) {
 				const viewItem = toolBar.getItemViewItem(index);
-				const width = hasMinimumWidth(viewItem) ? viewItem.getMinimumWidth() : undefined;
+				const width = this.hasMinimumWidth(viewItem) ? viewItem.getMinimumWidth() : undefined;
 				const assumedWidth = this.splitButtonAssumedWidths.get(action);
 				this.splitButtonAssumedWidths.delete(action);
 				if (width === undefined) {
@@ -224,6 +220,10 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		const width = this.splitButtonMinWidths.get(action) ?? 36;
 		this.splitButtonAssumedWidths.set(action, width);
 		return width;
+	}
+
+	private hasMinimumWidth(item: IActionViewItem | undefined): item is IActionViewItemWithMinimumWidth {
+		return typeof (item as Partial<IActionViewItemWithMinimumWidth> | undefined)?.getMinimumWidth === 'function';
 	}
 
 	/** Fits the toolbar again once the current fit and the split buttons' own updates, such as of their keybindings, are done. */
