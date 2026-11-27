@@ -27,7 +27,7 @@ import { hasWorkspaceFileExtension, WORKSPACE_SUFFIX } from '../../../../platfor
 import { isRecentWorkspace, IWorkspacesService } from '../../../../platform/workspaces/common/workspaces.js';
 import { SESSIONS_WORKSPACES_ENABLED_SETTING } from '../common/sessionConfig.js';
 import { hasAmbiguousFolderPaths, ISessionWorkspaceFileContent, ISessionWorkspaceFileEdit, parseSessionWorkspaceFile, stringifySessionWorkspaceFile } from '../common/sessionWorkspaceFile.js';
-import { IRecentSessionWorkspace, ISessionWorkspaceAppearance, ISessionWorkspaceRemoveOptions, ISessionWorkspacesService, ISessionWorkspaceUpdate } from '../common/sessionWorkspaces.js';
+import { IRecentSessionWorkspace, ISessionWorkspaceAppearance, ISessionWorkspaceRemoveOptions, ISessionWorkspacesService, ISessionWorkspaceUpdate, SessionWorkspaceError } from '../common/sessionWorkspaces.js';
 import { ISessionsRecentWorkspacesService } from './sessionsRecentWorkspacesService.js';
 
 const STORAGE_KEY_WORKSPACES = 'sessions.workspaces';
@@ -97,6 +97,15 @@ function readAppearance(value: unknown): ISessionWorkspaceAppearance | undefined
 	}
 	const { icon, color } = value as { icon?: unknown; color?: unknown };
 	return { icon: typeof icon === 'string' ? icon : undefined, color: typeof color === 'string' ? color : undefined };
+}
+
+/** A workspace file has folder paths that may be paths on a remote, while VS Code's recently opened list, which tells, cannot be read. */
+function foldersUnknownError(fileName: string): SessionWorkspaceError {
+	return new SessionWorkspaceError(localize('workspaceFileFoldersUnknown', "The folders of the workspace file '{0}' were not read or changed, since it is unknown whether they are on this computer or on a remote.", fileName), 'foldersUnknown');
+}
+
+function isFoldersUnknownError(error: unknown): boolean {
+	return error instanceof SessionWorkspaceError && error.code === 'foldersUnknown';
 }
 
 export class SessionWorkspacesService extends Disposable implements ISessionWorkspacesService {
@@ -198,8 +207,17 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 	}
 
 	async resolveWorkspaceFile(workspaceFile: URI): Promise<IRecentSessionWorkspace> {
-		const parsed = await this._readWorkspaceFile(workspaceFile);
 		const managed = this._getManagedWorkspace(workspaceFile);
+		let parsed: ISessionWorkspaceFileContent;
+		try {
+			parsed = await this._readWorkspaceFile(workspaceFile, await this._getRemoteAuthorities());
+		} catch (error) {
+			// What is known about a managed workspace file stays, rather than folders that may be on another computer
+			if (isFoldersUnknownError(error) && managed && this.uriIdentityService.extUri.isEqual(managed.uri, workspaceFile)) {
+				return managed;
+			}
+			throw error;
+		}
 		const local = this._localAppearance.get(this.uriIdentityService.extUri.getComparisonKey(workspaceFile));
 		return withAppearance({
 			uri: workspaceFile,
@@ -262,8 +280,9 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 			return workspace;
 		}
 
-		// An owned workspace file reduced to one folder becomes that standalone folder
-		if (existing?.owned && this._isOwnedWorkspaceFile(existing.uri) && update.folders?.length === 1) {
+		// An owned workspace file reduced to one folder becomes that standalone folder, unless it has folder entries that are
+		// not shown, which deleting it would lose; it then keeps them next to the one folder
+		if (existing?.owned && this._isOwnedWorkspaceFile(existing.uri) && update.folders?.length === 1 && !await this._hasHiddenFolders(existing.uri)) {
 			const workspace = this._withHistory(existing, await this._create(update.name ?? existing.name, update.folders, appearance));
 			this._replace(existing.uri, workspace, removals);
 			await this._deleteOwnedWorkspaceFile(existing.uri);
@@ -311,7 +330,7 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 		}
 		// A user's own workspace file is only ever moved to the trash, never deleted permanently
 		if (deleteFile && !this._isOwnedWorkspaceFile(file) && !this.fileService.hasCapability(file, FileSystemProviderCapabilities.Trash)) {
-			throw new Error(localize('workspaceFileNoTrash', "The workspace file '{0}' cannot be moved to the trash.", this.uriIdentityService.extUri.basename(file)));
+			throw new SessionWorkspaceError(localize('workspaceFileNoTrash', "The workspace file '{0}' cannot be moved to the trash.", this.uriIdentityService.extUri.basename(file)), 'noTrash');
 		}
 		// The workspace stays when its file cannot be deleted
 		if (deleteFile) {
@@ -372,6 +391,10 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 						const local = this._localAppearance.get(extUri.getComparisonKey(workspace.uri));
 						return [workspace, withAppearance({ ...rest, name: parsed.name, folders: parsed.folders }, displayAppearance(parsed, local))];
 					} catch (error) {
+						// What is known about the workspace stays, rather than folders that may be on another computer
+						if (isFoldersUnknownError(error)) {
+							return [workspace, workspace];
+						}
 						this.logService.trace('[SessionWorkspaces] Could not read a workspace file', error);
 						return [workspace, { ...workspace, missing: true }];
 					}
@@ -402,10 +425,28 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 		return this.uriIdentityService.extUri.isEqual(dirname(dirname(uri)), this.ownedWorkspacesHome);
 	}
 
-	private async _readWorkspaceFile(uri: URI, remoteAuthorities?: ReadonlyMap<string, string>): Promise<ISessionWorkspaceFileContent> {
+	/**
+	 * Reads a workspace file with the remotes from {@link _getRemoteAuthorities}. Throws a `foldersUnknown`
+	 * {@link SessionWorkspaceError} when those are unknown and the file has folder paths that may be on a remote.
+	 */
+	private async _readWorkspaceFile(uri: URI, remoteAuthorities: ReadonlyMap<string, string> | undefined): Promise<ISessionWorkspaceFileContent> {
 		const content = (await this.fileService.readFile(uri, { limits: { size: MAX_WORKSPACE_FILE_SIZE } })).value.toString();
-		const authorities = remoteAuthorities ?? await this._getRemoteAuthorities();
-		return parseSessionWorkspaceFile(content, uri, this.uriIdentityService.extUri, { remoteAuthority: authorities?.get(this.uriIdentityService.extUri.getComparisonKey(uri)) });
+		if (!remoteAuthorities && hasAmbiguousFolderPaths(content, uri)) {
+			throw foldersUnknownError(this.uriIdentityService.extUri.basename(uri));
+		}
+		return parseSessionWorkspaceFile(content, uri, this.uriIdentityService.extUri, { remoteAuthority: remoteAuthorities?.get(this.uriIdentityService.extUri.getComparisonKey(uri)) });
+	}
+
+	/** Whether a workspace file has folder entries that are not read, such as paths on a remote; throws when that is unknown. */
+	private async _hasHiddenFolders(uri: URI): Promise<boolean> {
+		try {
+			return (await this._readWorkspaceFile(uri, await this._getRemoteAuthorities())).hasErrors;
+		} catch (error) {
+			if (error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
+				return false;
+			}
+			throw error;
+		}
 	}
 
 	/**
@@ -477,7 +518,7 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 			const edit = toEdit(current);
 			// Not knowing where VS Code opened the file, its folder paths may be paths on a remote that rewriting would lose
 			if (!authorities && edit.folders && existing !== undefined && hasAmbiguousFolderPaths(existing, uri)) {
-				throw new Error(localize('workspaceFileFoldersUnknown', "The folders of the workspace file '{0}' were not changed, since it is unknown whether they are on this computer or on a remote.", extUri.basename(uri)));
+				throw foldersUnknownError(extUri.basename(uri));
 			}
 			const updated = stringifySessionWorkspaceFile(uri, edit, extUri, { existing, forceAbsolute: options?.forceAbsolute, remoteAuthority });
 			try {
@@ -560,8 +601,8 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 		}
 	}
 
-	private _folderNotWorkspaceFileError(uri: URI): Error {
-		return new Error(localize('workspaceFileIsFolder', "'{0}' is a folder, not a workspace file.", this.uriIdentityService.extUri.basename(uri)));
+	private _folderNotWorkspaceFileError(uri: URI): SessionWorkspaceError {
+		return new SessionWorkspaceError(localize('workspaceFileIsFolder', "'{0}' is a folder, not a workspace file.", this.uriIdentityService.extUri.basename(uri)), 'folderNotWorkspaceFile');
 	}
 
 	/** Watches each managed workspace file, rereading the files when one changes. */

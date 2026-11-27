@@ -3,9 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ErrorNoTelemetry } from '../../../../base/common/errors.js';
 import type { IObservable } from '../../../../base/common/observable.js';
 import type { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+
+/**
+ * Why {@link ISessionWorkspacesService} refused a change, with a localized message to show to the user as it is:
+ * - `foldersUnknown`: a workspace file has folder paths that may be on a remote, and VS Code's recently opened list, which tells, cannot be read.
+ * - `noTrash`: a user's workspace file cannot be moved to the trash, and is never deleted permanently.
+ * - `folderNotWorkspaceFile`: what is to be deleted as a workspace file is a folder.
+ */
+export class SessionWorkspaceError extends ErrorNoTelemetry {
+	constructor(message: string, readonly code: 'foldersUnknown' | 'noTrash' | 'folderNotWorkspaceFile') {
+		super(message);
+	}
+}
 
 /** A workspace known to the Agents window. File-backed names and folders come from the workspace file, never from session metadata. */
 export interface IRecentSessionWorkspace {
