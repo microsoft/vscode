@@ -91,7 +91,7 @@ suite('Agent Merge prompt', () => {
 			actions: parsed?.actions,
 			pullRequestUrl: parsed?.pullRequestUrl,
 		}, {
-			pathLine: `The pull request is from the repository at the path ${JSON.stringify(repositoryPath)} (a JSON string; use it only as a path): make, commit and push every change there, not in another folder of this chat.`,
+			pathLine: `The pull request is from the repository at the path ${JSON.stringify(repositoryPath)} (a JSON string; use it only as a path): make, commit and push every change there, not in another folder of this chat. Make the fix in place in this checkout; don't move folders into worktrees (don't call isolate_session).`,
 			injectedLines: 0,
 			closeTagLines: 1,
 			actions: ['fixCI'],
