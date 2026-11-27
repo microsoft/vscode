@@ -4,8 +4,8 @@
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "textmate/asp.vb.net.tmbundle",
-					"repositoryUrl": "https://github.com/textmate/asp.vb.net.tmbundle",
+					"name": "kant2002/asp.vb.net.tmbundle",
+					"repositoryUrl": "https://github.com/kant2002/asp.vb.net.tmbundle",
 					"commitHash": "72d44550b3286d0382d7be0624140cf97857ff69"
 				}
 			},
