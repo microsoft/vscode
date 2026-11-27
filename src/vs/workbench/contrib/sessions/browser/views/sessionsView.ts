@@ -73,7 +73,7 @@ import { Menus, SessionsViewShowGroup } from '../menus.js';
 import { MobileSessionFilterChips } from '../mobile/mobileSessionFilterChips.js';
 import { IMobileSortGroupSheetItem, showMobileSortGroupSheet } from '../mobile/mobileSortGroupSheet.js';
 import { isPhoneLayout } from '../../../../browser/parts/sessions/mobileLayout.js';
-import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionsListRearrangeContext, SessionWorkspacesEnabledContext } from '../../common/contextkeys.js';
 import { ISessionsHostLayoutService } from '../../../../services/sessions/browser/sessionsHostLayoutService.js';
 import { ISessionsListPresentation } from '../sessionsListPresentation.js';
 import { logSessionsListCompactViewState } from '../../common/sessionsTelemetry.js';
@@ -579,6 +579,13 @@ export class SessionsView extends ViewPane {
 		bindSessionsViewGroupings(contextKeyService, this.offeredGroupings);
 		this.groupingContextKey = SessionsViewGroupingContext.bindTo(contextKeyService);
 		this.groupingContextKey.set(this.grouping);
+		// Group by Workspaces & Groups lists as Group by Workspace while workspaces are off, and again as itself once on
+		this._register(contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(new Set([SessionWorkspacesEnabledContext.key])) && this.currentGrouping === SessionsGrouping.WorkspacesAndGroups) {
+				this.groupingContextKey?.set(this.grouping);
+				this.sessionsControl?.update(true);
+			}
+		}));
 		this.sortingContextKey = SessionsViewSortingContext.bindTo(contextKeyService);
 		this.sortingContextKey.set(this.currentSorting);
 		this.compactContextKey = SessionsViewCompactContext.bindTo(contextKeyService);
@@ -1565,6 +1572,12 @@ export class SessionsView extends ViewPane {
 				group: 'group',
 				groupTitle: groupTitle,
 			},
+			...(this.workspacesEnabled && this.offeredGroupings.includes(SessionsGrouping.WorkspacesAndGroups) ? [{
+				id: SessionsGrouping.WorkspacesAndGroups,
+				label: localize('groupByWorkspacesAndGroups', "Group by Workspaces & Groups"),
+				checked: this.grouping === SessionsGrouping.WorkspacesAndGroups,
+				group: 'group',
+			}] : []),
 			{
 				id: SessionsGrouping.Repository,
 				label: localize('groupByRepository', "Group by Repository"),
@@ -1590,14 +1603,20 @@ export class SessionsView extends ViewPane {
 			}
 			if (selectedId === SessionsSorting.Created || selectedId === SessionsSorting.Updated) {
 				this.setSorting(selectedId);
-			} else if (selectedId === SessionsGrouping.Workspace || selectedId === SessionsGrouping.Repository || selectedId === SessionsGrouping.Environment || selectedId === SessionsGrouping.Date) {
+			} else if (selectedId === SessionsGrouping.Workspace || selectedId === SessionsGrouping.WorkspacesAndGroups || selectedId === SessionsGrouping.Repository || selectedId === SessionsGrouping.Environment || selectedId === SessionsGrouping.Date) {
 				this.setGrouping(selectedId);
 			}
 		}).catch(onUnexpectedError);
 	}
 
+	/** Whether workspaces are on, which Group by Workspaces & Groups needs. */
+	private get workspacesEnabled(): boolean {
+		return !!this.scopedContextKeyService.getContextKeyValue<boolean>(SessionWorkspacesEnabledContext.key);
+	}
+
 	get grouping(): SessionsGrouping {
-		return this.currentGrouping ?? this.groupings?.default ?? SessionsGrouping.Workspace;
+		const grouping = this.currentGrouping ?? this.groupings?.default ?? SessionsGrouping.Workspace;
+		return grouping === SessionsGrouping.WorkspacesAndGroups && !this.workspacesEnabled ? SessionsGrouping.Workspace : grouping;
 	}
 
 	private get offeredGroupings(): readonly SessionsGrouping[] {
@@ -1764,6 +1783,9 @@ export class SessionsView extends ViewPane {
 
 	setGrouping(grouping: SessionsGrouping): void {
 		if (!this.offeredGroupings.includes(grouping)) {
+			return;
+		}
+		if (grouping === SessionsGrouping.WorkspacesAndGroups && !this.workspacesEnabled) {
 			return;
 		}
 		if (grouping === SessionsGrouping.Inbox && !this.canEnterInbox) {

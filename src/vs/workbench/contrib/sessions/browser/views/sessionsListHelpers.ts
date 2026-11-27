@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SessionsGrouping, SessionsSorting, ISessionSection, ISessionRepository, ISessionShowMore } from './sessionsListCommon.js';
+import { SessionsGrouping, SessionsSorting, ISessionSection, ISessionRepository, ISessionSectionWorkspace, ISessionShowMore } from './sessionsListCommon.js';
 import { IReader } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { isEqual } from '../../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { localize } from '../../../../../nls.js';
 import { isSideChat } from '../sideChatPlacement.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
@@ -18,6 +18,7 @@ import { getSessionComparisonChat, getSessionComparisonHarnessDisplayLabel, getS
 import { compareSessionEnvironments, getSessionEnvironments } from './sessionsListFilters.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { InboxNotificationPriority } from '../../common/sessionAttentionService.js';
+import { IRecentSessionWorkspace } from '../../common/sessionWorkspaces.js';
 import { getSessionInboxPriority, getSessionInboxSection, SessionInboxSection, sessionInboxSections } from '../../common/sessionInbox.js';
 
 export const NEW_SESSION_SECTION_ID = 'newSession';
@@ -28,6 +29,10 @@ export const PINNED_CANVAS_SECTION_PREFIX = 'pinnedCanvas:';
 export const EXTERNAL_SESSIONS_SECTION_ID = 'external';
 /** Ungrouped sessions sectioned by date share one sort order across these sections, in display order. */
 export const DATE_SECTION_IDS: readonly string[] = ['recent', 'older'];
+/** The section of {@link SessionsGrouping.WorkspacesAndGroups} whose rows are the custom groups. */
+export const GROUPS_SECTION_ID = 'groups';
+/** The section of {@link SessionsGrouping.WorkspacesAndGroups} whose rows are the workspaces. */
+export const WORKSPACES_SECTION_ID = 'workspaces';
 
 export function getChatTitle(chat: IChat, reader?: IReader): string {
 	if (chat.status.read(reader) === SessionStatus.Untitled) {
@@ -420,7 +425,7 @@ export function isQuickChatSession(session: ISession): boolean {
  * false), such as a scoped list, has it under no grouping.
  */
 export function groupingHasQuickChatsSection(grouping: SessionsGrouping, quickChatsInTimeGrouping = false, quickChatsSection = true): boolean {
-	return quickChatsSection && (grouping === SessionsGrouping.Workspace || grouping === SessionsGrouping.Repository
+	return quickChatsSection && (grouping === SessionsGrouping.Workspace || grouping === SessionsGrouping.WorkspacesAndGroups || grouping === SessionsGrouping.Repository
 		|| (quickChatsInTimeGrouping && grouping === SessionsGrouping.Date));
 }
 
@@ -443,6 +448,7 @@ export function groupSessionsForList(
 	getInboxPriority: (session: ISession) => InboxNotificationPriority = getSessionInboxPriority,
 	quickChatsInTimeGrouping = false,
 	quickChatsSection = true,
+	workspaces?: ISessionListWorkspaces,
 ): ISessionSection[] {
 	const sorted = sortSessions(sessions, sorting, getSortKey);
 
@@ -478,15 +484,21 @@ export function groupSessionsForList(
 		sections.push({ id: QUICK_CHATS_SECTION_ID, label: localize('chatsSection', "Chats"), sessions: quickChats });
 	}
 
-	sections.push(...(grouping === SessionsGrouping.Inbox
-		? groupByInboxSection(regular, sorting, getInboxSection, getInboxPriority)
-		: grouping === SessionsGrouping.Workspace
-			? groupByWorkspace(regular)
-			: grouping === SessionsGrouping.Repository
-				? groupByRepository(regular)
-				: grouping === SessionsGrouping.Environment
-					? groupByEnvironment(regular, normalizedEnvironments)
-					: groupByDate(regular, sorting, getSortKey)));
+	const groupRegular = (): ISessionSection[] => {
+		if (grouping === SessionsGrouping.WorkspacesAndGroups && workspaces) {
+			return groupByWorkspaces(regular, workspaces);
+		} else if (grouping === SessionsGrouping.Inbox) {
+			return groupByInboxSection(regular, sorting, getInboxSection, getInboxPriority);
+		} else if (grouping === SessionsGrouping.Workspace || grouping === SessionsGrouping.WorkspacesAndGroups) {
+			return groupByWorkspace(regular);
+		} else if (grouping === SessionsGrouping.Repository) {
+			return groupByRepository(regular);
+		} else if (grouping === SessionsGrouping.Environment) {
+			return groupByEnvironment(regular, normalizedEnvironments);
+		}
+		return groupByDate(regular, sorting, getSortKey);
+	};
+	sections.push(...groupRegular());
 
 	if (external.length > 0) {
 		sections.push({ id: EXTERNAL_SESSIONS_SECTION_ID, label: localize('externalSessionsSection', "External"), sessions: external });
@@ -588,6 +600,60 @@ export function groupByWorkspace(sessions: ISession[]): ISessionSection[] {
 		result.push({ id: `workspace:${unknownWorkspaceLabel}`, label: unknownWorkspaceLabel, sessions: unknownWorkspace });
 	}
 
+	return result;
+}
+
+/** The workspaces that {@link SessionsGrouping.WorkspacesAndGroups} lists sessions under, as the workspaces service knows them. */
+export interface ISessionListWorkspaces {
+	/** The workspace of a `.code-workspace` file or of a folder, also under a file it had before a rename. */
+	getWorkspace(uri: URI): IRecentSessionWorkspace | undefined;
+	/** The key that identifies a workspace's file or folder, as the URI identity service compares them. */
+	getKey(uri: URI): string;
+	/** The workspaces listed even without sessions. */
+	readonly listed: readonly IRecentSessionWorkspace[];
+}
+
+/**
+ * The workspace rows of {@link SessionsGrouping.WorkspacesAndGroups}: a session lists under its workspace file, else
+ * under its default folder, by name; sessions without a folder list under Unknown, last. The name, icon and color come
+ * from the workspaces service, never from the session; a folder that the service does not know shows its name.
+ */
+export function groupByWorkspaces(sessions: readonly ISession[], workspaces: ISessionListWorkspaces): ISessionSection[] {
+	const sections = new Map<string, { label: string; workspace: ISessionSectionWorkspace; sessions: ISession[] }>();
+	const add = (uri: URI, label: string, workspace: IRecentSessionWorkspace | undefined): ISession[] => {
+		const id = `workspace:${workspaces.getKey(uri)}`;
+		let section = sections.get(id);
+		if (!section) {
+			section = { label, workspace: { uri, icon: workspace?.icon, color: workspace?.color }, sessions: [] };
+			sections.set(id, section);
+		}
+		return section.sessions;
+	};
+	for (const workspace of workspaces.listed) {
+		add(workspace.uri, workspace.name, workspace);
+	}
+	const unknown: ISession[] = [];
+	for (const session of sessions) {
+		const sessionWorkspace = session.workspace.get();
+		const uri = sessionWorkspace?.workspaceConfig?.uri ?? sessionWorkspace?.folders[0]?.root;
+		if (!uri) {
+			unknown.push(session);
+			continue;
+		}
+		const workspace = workspaces.getWorkspace(uri);
+		add(workspace?.uri ?? uri, workspace?.name ?? basename(uri), workspace).push(session);
+	}
+	const result: ISessionSection[] = [...sections].sort(([, a], [, b]) => a.label.localeCompare(b.label)).map(([id, section]) => ({
+		id,
+		collapseStateId: id,
+		label: section.label,
+		sessions: section.sessions,
+		workspace: section.workspace,
+	}));
+	if (unknown.length > 0) {
+		const label = localize('unknown', "Unknown");
+		result.push({ id: `workspace:${label}`, label, sessions: unknown });
+	}
 	return result;
 }
 

@@ -10,10 +10,11 @@ import { ComponentFixtureContext, defineThemedFixtureGroup } from '../../../../.
 import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ISessionEnvironment, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
-import { getTestSessionResource } from '../../../../../workbench/contrib/sessions/test/common/testSessionBuilder.js';
+import { getTestSessionResource, getTestWorkspaceFile } from '../../../../../workbench/contrib/sessions/test/common/testSessionBuilder.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { createSessionArchiveTour } from '../../../../../workbench/contrib/sessions/browser/tours/sessionArchiveTour.js';
 import { SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsGrouping } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
-import { defineSessionsListFixture, ISessionsListFixture, ISessionsListFixtureGroup, ISessionsListFixtureSession } from './sessionsListFixtureUtils.js';
+import { defineSessionsListFixture, ISessionsListFixture, ISessionsListFixtureGroup, ISessionsListFixtureSession, ISessionsListFixtureState } from './sessionsListFixtureUtils.js';
 import { InboxNotificationPriority, InboxTab } from '../../../../../workbench/contrib/sessions/common/sessionAttentionService.js';
 import { SessionInboxSection } from '../../../../../workbench/contrib/sessions/common/sessionInbox.js';
 
@@ -293,9 +294,44 @@ const ONBOARDING_FRAME = { width: 760, height: 420 };
 /** Room beside and below the list for an open context menu. */
 const CONTEXT_MENU_FRAME = { width: 480, height: 320 };
 
+/** Group by Workspaces & Groups: custom groups, workspaces with their icons and colors, and a session in a folder of its own. */
+const WORKSPACES_AND_GROUPS_STATE: ISessionsListFixtureState = {
+	sessions: [
+		{ id: 'pinned', title: 'Pinned investigation', workspace: 'vscode', pinned: true },
+		{ id: 'chat', title: 'What does the agents window do?', isQuickChat: true, minutesAgo: 5 },
+		{ id: 'release-notes', title: 'Draft the release notes', workspace: 'vscode', minutesAgo: 8 },
+		{ id: 'triage', title: 'Triage new issues', workspace: 'vscode', status: SessionStatus.NeedsInput, minutesAgo: 12 },
+		{ id: 'agents', title: 'Add the Workspace editor', workspace: 'Agents', workspaceFolders: ['vscode', 'vscode-docs'], workspaceFile: 'Agents', status: SessionStatus.InProgress, minutesAgo: 2 },
+		{ id: 'agents-tests', title: 'Write the grouping tests', workspace: 'Agents', workspaceFolders: ['vscode', 'vscode-docs'], workspaceFile: 'Agents', minutesAgo: 20 },
+		{ id: 'site', title: 'Update the docs site', workspace: 'Docs site', workspaceFolders: ['vscode-docs'], workspaceFile: 'Docs site', minutesAgo: 30 },
+		{ id: 'tools', title: 'Fix the build script', workspace: 'vscode-tools', minutesAgo: 45 },
+	],
+	groups: [
+		{ id: 'release', name: 'Release work', color: 'terminal.ansiMagenta', sessions: ['release-notes'] },
+		{ id: 'triage', name: 'Triage', sessions: ['triage'] },
+	],
+	workspaces: [
+		{ uri: getTestWorkspaceFile('Agents'), name: 'Agents', folders: [URI.file('/home/user/projects/vscode'), URI.file('/home/user/projects/vscode-docs')], owned: true, icon: 'rocket', color: 'terminal.ansiGreen' },
+		{ uri: getTestWorkspaceFile('Docs site'), name: 'Docs site', folders: [URI.file('/home/user/projects/vscode-docs')], owned: true, icon: 'book', color: '#ff8800' },
+		{ uri: getTestWorkspaceFile('Empty'), name: 'Empty', folders: [URI.file('/home/user/projects/notes')], owned: true },
+	],
+	view: { grouping: SessionsGrouping.WorkspacesAndGroups, height: 560 },
+};
+
 //#endregion
 
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
+	// Pinned, Chats, then the Groups and Workspaces sections, with the navigation rows above the list
+	SessionsList_WorkspacesAndGroups: defineSessionsListFixture({
+		...WORKSPACES_AND_GROUPS_STATE,
+		header: { navigationShortcuts: true },
+	}, { additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
+	// The same with the navigation rows as sections of the tree
+	SessionsList_WorkspacesAndGroups_TreeNavigation: defineSessionsListFixture({
+		...WORKSPACES_AND_GROUPS_STATE,
+		header: { navigationShortcuts: false },
+	}),
+
 	SessionsList_Inbox: defineSessionsListFixture({
 		header: { navigationShortcuts: true },
 		settings: { [SESSIONS_LIST_INBOX_ENABLED_SETTING]: true },

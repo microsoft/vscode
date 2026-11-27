@@ -31,7 +31,7 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { SessionsCategories } from '../../common/categories.js';
 import { AutomationSessionsListMode, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../../common/sessionConfig.js';
 import { ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID, ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSION_GROUP_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, HIDE_CANVAS_SESSION_FROM_LIST_COMMAND_ID, HOLD_INBOX_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, OPEN_SESSION_SECTION_FOLDER_IN_NEW_WINDOW_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, RESUME_INBOX_SESSION_COMMAND_ID, SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
-import { IsPhoneLayoutContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, SessionActiveChatCanArchiveContext, SessionActiveChatIsUntitledContext, SessionHeaderTargetsChatContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext, SessionItemIsMultiSelectionContext, SessionsListPromoteNewChatActionContext } from '../../common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, SessionActiveChatCanArchiveContext, SessionActiveChatIsUntitledContext, SessionHeaderTargetsChatContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext, SessionItemIsMultiSelectionContext, SessionsListPromoteNewChatActionContext, SessionWorkspacesEnabledContext } from '../../common/contextkeys.js';
 import { getSessionListChats, isAutomationSession } from './sessionsListHelpers.js';
 import { SessionItemInboxStateContext, SessionItemCanAcknowledgeContext, SessionItemCanMergePullRequestContext, SessionItemCanImportContext, SessionItemContextMenuId, SessionItemHasPinnedCanvasContext, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionItemOrganizeMenuGroup, SessionItemHasUnreadNestedSessionsContext, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasRootFolderContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, ISessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemCanMoveDownContext, SessionChatItemCanMoveUpContext, SessionChatItemCanSetReadStateContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionChatItemIsStandaloneContext, SessionChatItemIsUntitledContext, SessionsListFocusedChatItemContext, SessionsListSearchOpenContext } from './sessionsListCommon.js';
 import { getChatCapabilities, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -174,6 +174,7 @@ function deleteSessionGroupWithUndo(groupId: string, groupsService: ISessionGrou
 /** Non-date grouping caps its sections, which Show switches between Recent and All. */
 const GroupedBySectionContext = ContextKeyExpr.or(
 	SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Workspace),
+	SessionsViewGroupingContext.isEqualTo(SessionsGrouping.WorkspacesAndGroups),
 	SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Repository),
 	SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Environment),
 );
@@ -1241,6 +1242,23 @@ function createSessionsListActions(): DisposableStore {
 		override run(accessor: ServicesAccessor) {
 			const view = getActiveSessionsView(accessor);
 			view?.setGrouping(SessionsGrouping.Workspace);
+		}
+	}));
+
+	store.add(registerAction2(class GroupByWorkspacesAndGroupsAction extends Action2 {
+		constructor() {
+			super({
+				id: 'sessionsViewPane.groupByWorkspacesAndGroups',
+				title: localize2('workspacesAndGroups', "Workspaces & Groups"),
+				category: SessionsCategories.Sessions,
+				toggled: SessionsViewGroupingContext.isEqualTo(SessionsGrouping.WorkspacesAndGroups),
+				precondition: SessionWorkspacesEnabledContext,
+				menu: [{ id: Menus.SessionsViewGrouping, group: '1_group', order: 1.5, when: ContextKeyExpr.and(sessionsViewOffersGrouping(SessionsGrouping.WorkspacesAndGroups), SessionWorkspacesEnabledContext) }],
+			});
+		}
+		override run(accessor: ServicesAccessor) {
+			const view = getActiveSessionsView(accessor);
+			view?.setGrouping(SessionsGrouping.WorkspacesAndGroups);
 		}
 	}));
 

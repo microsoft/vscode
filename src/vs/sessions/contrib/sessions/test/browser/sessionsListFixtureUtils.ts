@@ -78,6 +78,8 @@ import { IPinnedCanvasService } from '../../../../../workbench/contrib/sessions/
 import { ISideChatPlacementService } from '../../../../../workbench/contrib/sessions/browser/sideChatPlacement.js';
 import { ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { getSessionGroupSectionId, ISessionGroupsService, SessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
+import { IRecentSessionWorkspace, ISessionWorkspacesService } from '../../../../../workbench/contrib/sessions/common/sessionWorkspaces.js';
+import { TestSessionWorkspacesService } from '../../../../../workbench/contrib/sessions/test/browser/testSessionWorkspacesService.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { IWorkspaceFolderRepositories } from '../../../../../workbench/contrib/sessions/browser/workspaceFolderRepositories.js';
 import { ISessionsListUndoService, SessionsListUndoService } from '../../../../../workbench/contrib/sessions/browser/sessionsListUndoService.js';
@@ -248,6 +250,8 @@ export interface ISessionsListFixtureState {
 	readonly environments?: readonly ISessionEnvironment[];
 	/** Room around the list, e.g. for an onboarding callout. */
 	readonly frame?: { readonly width: number; readonly height: number };
+	/** The Agents window's workspaces, which Group by Workspaces & Groups lists. */
+	readonly workspaces?: readonly IRecentSessionWorkspace[];
 }
 
 /** A rendered sessions list fixture. */
@@ -703,6 +707,7 @@ async function createSessionsListFixtureServices(context: ComponentFixtureContex
 			reg.define(ISessionsListModelService, SessionsListModelService);
 			reg.define(ISessionsListUndoService, SessionsListUndoService);
 			reg.define(ISessionGroupsService, SessionGroupsService);
+			reg.defineInstance(ISessionWorkspacesService, new TestSessionWorkspacesService(state.workspaces));
 			reg.define(ISessionSectionOrderService, SessionSectionOrderService);
 			const reducedMotion = view.reducedMotion;
 			if (reducedMotion !== undefined) {

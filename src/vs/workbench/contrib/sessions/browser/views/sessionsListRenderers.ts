@@ -8,7 +8,7 @@ import '../media/sessionsList.css';
 import '../media/disclosure.css';
 import { ISessionSearchHint } from './sessionsListSearch.js';
 import { CANVASES_SECTION_ID, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, IsSessionPinnedContext, SessionItemStatusContext, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionChatItemIsStandaloneContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionItemCanImportContext, SessionSectionTypeContext, SessionSectionHasGitHubRepositoryContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, SessionsGrouping, ISessionSection, ISessionGroupItem, ISessionShowMore, ISessionPlaceholder, ISessionChatItem, SessionListItem, isSessionChatItem, isSessionGroupItem, isSessionSection, isSessionShowMore, isSessionPlaceholder, isSessionItem } from './sessionsListCommon.js';
-import { NEW_SESSION_SECTION_ID, AUTOMATIONS_SECTION_ID, CUSTOMIZATIONS_SECTION_ID, EXTERNAL_SESSIONS_SECTION_ID, getChatTitle, getSessionListChats, isShortcutSection, REPOSITORY_SECTION_PREFIX, ENVIRONMENT_SECTION_PREFIX, isSessionGroupingSection, getSessionSectionType, getSessionRowApproval, QUICK_CHATS_SECTION_ID, isQuickChatSession } from './sessionsListHelpers.js';
+import { NEW_SESSION_SECTION_ID, AUTOMATIONS_SECTION_ID, CUSTOMIZATIONS_SECTION_ID, EXTERNAL_SESSIONS_SECTION_ID, getChatTitle, getSessionListChats, isShortcutSection, REPOSITORY_SECTION_PREFIX, ENVIRONMENT_SECTION_PREFIX, isSessionGroupingSection, getSessionSectionType, getSessionRowApproval, QUICK_CHATS_SECTION_ID, isQuickChatSession, GROUPS_SECTION_ID, WORKSPACES_SECTION_ID } from './sessionsListHelpers.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { $ } from '../../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
@@ -24,6 +24,8 @@ import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '.
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { escapeControlAndFormatCharacters } from '../../../../../base/common/strings.js';
 import { constObservable, IObservable, IReader, ISettableObservable, autorun, derived, observableValue } from '../../../../../base/common/observable.js';
+import { Color } from '../../../../../base/common/color.js';
+import { getSessionWorkspaceCssColor, getSessionWorkspaceIcon, isCustomSessionWorkspaceColor } from '../workspaceEditor/sessionWorkspaceAppearance.js';
 import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
 import { fromNow } from '../../../../../base/common/date.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -217,6 +219,10 @@ function getSessionSectionIcon(sectionId: string): ThemeIcon | undefined {
 			return Codicon.mailRead;
 		case CUSTOMIZATIONS_SECTION_ID:
 			return Codicon.extensions;
+		case GROUPS_SECTION_ID:
+			return Codicon.layers;
+		case WORKSPACES_SECTION_ID:
+			return Codicon.folderLibrary;
 		case 'archived':
 			return Codicon.archive;
 		case 'recent':
@@ -2155,7 +2161,7 @@ function getSessionRowLocationLabel(session: ISession, reader: IReader, options:
 	if (grouping === SessionsGrouping.Inbox && options.isWorkspaceScoped?.()) {
 		return undefined;
 	}
-	const inWorkspaceOrRepositorySection = (grouping === SessionsGrouping.Workspace || grouping === SessionsGrouping.Repository)
+	const inWorkspaceOrRepositorySection = (grouping === SessionsGrouping.Workspace || grouping === SessionsGrouping.WorkspacesAndGroups || grouping === SessionsGrouping.Repository)
 		&& !options.isPinned(session)
 		&& !session.isArchived.read(reader)
 		&& !options.isRenderedInCustomGroup?.(session)
@@ -2206,6 +2212,13 @@ const sessionHeaderLabelBackgrounds = [
 ] as const;
 
 class SessionHeaderLabelColor extends Themable {
+
+	/** The color of the header's icon: a theme color, or a custom color where it is readable, else the foreground. */
+	readonly iconColor = observableValue<string | undefined>(this, undefined);
+
+	/**
+	 * @param colorId a theme color ID, or a custom `#rrggbb` color of a workspace
+	 */
 	constructor(
 		private readonly template: ISessionHeaderTemplate,
 		private readonly colorId: string,
@@ -2216,13 +2229,15 @@ class SessionHeaderLabelColor extends Themable {
 	}
 
 	override updateStyles(): void {
-		const color = this.theme.getColor(this.colorId);
+		const custom = isCustomSessionWorkspaceColor(this.colorId);
+		this.iconColor.set(custom ? getSessionWorkspaceCssColor(this.colorId, this.theme) : asCssVariable(this.colorId), undefined);
+		const color = custom ? Color.fromHex(this.colorId) : this.theme.getColor(this.colorId);
 		const background = this.theme.getColor(agentsBackground);
 		// A translucent shell has no single opaque surface against which to correct contrast.
 		const preserveForeground = isHighContrast(this.theme.type) || background?.isOpaque() === false;
 		for (const [property, backgroundId] of sessionHeaderLabelBackgrounds) {
 			const surface = background && (this.theme.getColor(backgroundId)?.flatten(background) ?? background);
-			const foreground = preserveForeground ? '' : color && surface ? surface.ensureConstrast(color.flatten(surface), 4.5).toString() : asCssVariable(this.colorId);
+			const foreground = preserveForeground ? '' : color && surface ? surface.ensureConstrast(color.flatten(surface), 4.5).toString() : custom ? this.colorId : asCssVariable(this.colorId);
 			this.template.label.style.setProperty(property, foreground);
 		}
 	}
@@ -2293,10 +2308,8 @@ function couldShowSessionHeaderStatus(sessions: readonly ISession[], reader: IRe
 	});
 }
 
-function renderSessionHeaderIcon(template: ISessionHeaderTemplate, sessions: readonly ISession[], icon: ThemeIcon | undefined, showUnreadInCollapsedSections: IObservable<boolean>, sessionsWithFailingCI: IObservable<ReadonlySet<string>>, statusTrigger: ISessionHeaderStatusTrigger, instantiationService: IInstantiationService, iconOverride?: IObservable<ThemeIcon | undefined>): void {
-	if (icon?.color) {
-		template.elementDisposables.add(instantiationService.createInstance(SessionHeaderLabelColor, template, icon.color.id));
-	}
+function renderSessionHeaderIcon(template: ISessionHeaderTemplate, sessions: readonly ISession[], icon: ThemeIcon | undefined, showUnreadInCollapsedSections: IObservable<boolean>, sessionsWithFailingCI: IObservable<ReadonlySet<string>>, statusTrigger: ISessionHeaderStatusTrigger, instantiationService: IInstantiationService, iconOverride?: IObservable<ThemeIcon | undefined>, color = icon?.color?.id): void {
+	const headerColor = color ? template.elementDisposables.add(instantiationService.createInstance(SessionHeaderLabelColor, template, color)) : undefined;
 	template.elementDisposables.add(autorun(reader => {
 		if (statusTrigger.pending.read(reader) && (template.collapsed.read(reader) || statusTrigger.includeExpanded.read(reader)) && couldShowSessionHeaderStatus(sessions, reader)) {
 			statusTrigger.report();
@@ -2310,7 +2323,8 @@ function renderSessionHeaderIcon(template: ISessionHeaderTemplate, sessions: rea
 		const renderedIcon = iconOverride?.read(reader) ?? icon;
 		DOM.clearNode(template.icon);
 		template.icon.className = 'session-section-icon';
-		template.icon.style.color = status === undefined && renderedIcon?.color ? asCssVariable(renderedIcon.color.id) : '';
+		const iconColor = headerColor?.iconColor.read(reader);
+		template.icon.style.color = status === undefined && renderedIcon && (iconColor || renderedIcon.color) ? iconColor ?? asCssVariable(renderedIcon.color!.id) : '';
 		template.icon.style.display = status !== undefined || renderedIcon ? '' : 'none';
 		if (status !== undefined) {
 			const statusIcon = reader.store.add(instantiationService.createInstance(SessionStatusIcon, template.icon));
@@ -2655,6 +2669,19 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 					template.icon.className = `session-section-icon ${ThemeIcon.asClassName(Codicon.calendar)}`;
 				}
 			}));
+		} else if (element.workspace) {
+			// A workspace row of Group by Workspaces & Groups: the icon and color of its workspace file
+			renderSessionHeaderIcon(
+				template,
+				element.sessions,
+				getSessionWorkspaceIcon(element.workspace.icon),
+				this.showUnreadInCollapsedSections,
+				this.sessionsWithFailingCI,
+				this.headerStatusTrigger,
+				this.instantiationService,
+				undefined,
+				element.workspace.color,
+			);
 		} else if (!element.pinnedCanvas) {
 			const defaultIcon = getSessionSectionIcon(element.id);
 			const appearance = isSessionGroupingSection(element.id) ? this.getAppearance(element.id) : undefined;

@@ -89,6 +89,8 @@ export enum SessionsGrouping {
 	Environment = 'environment',
 	Date = 'date',
 	Inbox = 'inbox',
+	/** Custom groups in a Groups section, then workspaces in a Workspaces section, while workspaces are enabled. */
+	WorkspacesAndGroups = 'workspacesAndGroups',
 }
 
 export enum SessionsSorting {
@@ -117,6 +119,16 @@ export interface ISessionSection {
 	 * folder.
 	 */
 	readonly rootFolder?: URI;
+	/** The workspace a workspace row of {@link SessionsGrouping.WorkspacesAndGroups} lists. */
+	readonly workspace?: ISessionSectionWorkspace;
+}
+
+/** A workspace that a section lists: its `.code-workspace` file, or the folder a standalone workspace is. */
+export interface ISessionSectionWorkspace {
+	readonly uri: URI;
+	/** The workspace's icon and color, from its workspace file: a theme color ID or a custom `#rrggbb`. */
+	readonly icon?: string;
+	readonly color?: string;
 }
 
 /** A GitHub repository that sessions work in, whichever environment they run in. */

@@ -106,7 +106,7 @@ import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../
 import { SessionsList, SessionsListSnapshotNode } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { SessionsFlatList } from '../../../../../workbench/contrib/sessions/browser/views/sessionsFlatList.js';
 import { SessionSectionRenderer } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListRenderers.js';
-import { computeReorderSortChanges, groupByDate, groupByEnvironment, groupByRepository, groupByWorkspace, groupSessionsForList, limitSessionsForList, QUICK_CHATS_SECTION_ID, sortSessions } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListHelpers.js';
+import { computeReorderSortChanges, groupByDate, groupByEnvironment, groupByRepository, groupByWorkspace, groupSessionsForList, limitSessionsForList, QUICK_CHATS_SECTION_ID, sortSessions, groupByWorkspaces } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListHelpers.js';
 import { ISessionChatItem, ISessionSection, NEW_CANVAS_SESSION_COMMAND_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemContextMenuId, SessionItemHasPinnedCanvasContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionSectionHasGitHubRepositoryContext, SessionSectionToolbarMenuId, SessionSectionTypeContext, SESSIONS_LIST_CANVASES_SECTION_SETTING, SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsListFocusedChatItemContext, SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { ISideChatPlacementService } from '../../../../../workbench/contrib/sessions/browser/sideChatPlacement.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
@@ -118,6 +118,8 @@ import { ChatAgentService, IChatAgentService } from '../../../../../workbench/co
 import { ToolDataSource } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { MockChatService } from '../../../../../workbench/contrib/chat/test/common/chatService/mockChatService.js';
 import { getChatSummaryHoverData, getDistinctChatHarnessLabel, getSessionDiffStats, getSessionSummaryHoverData } from '../../../../../workbench/contrib/sessions/browser/sessionHoverContent.js';
+import { IRecentSessionWorkspace } from '../../../../../workbench/contrib/sessions/common/sessionWorkspaces.js';
+import { TestSessionWorkspacesService } from '../../../../../workbench/contrib/sessions/test/browser/testSessionWorkspacesService.js';
 import { createListHarness, createTestSession, IListHarnessOptions, ISortChangeRecord, ITestSessionOptions, TestSessionsManagementService } from './sessionsListTestUtils.js';
 import { MobileSessionsListPresentation } from '../../../mobile/browser/mobileSessionsListPresentation.js';
 import { SessionsArchiveActionsContribution } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
@@ -4284,6 +4286,38 @@ suite('Sessions - SessionsList', () => {
 			const second = createList(renamedLabel);
 			assert.strictEqual(second.list.getItemRow({ section: second.sectionId })?.getAttribute('aria-expanded'), 'false');
 			second.list.dispose();
+		});
+	});
+
+	suite('groupByWorkspaces', () => {
+
+		test('lists sessions under their workspace file, else their default folder, with the name, icon and color of the workspace', () => {
+			const vscode = URI.file('/work/vscode');
+			const docs = URI.file('/work/vscode-docs');
+			const notes = URI.file('/work/notes');
+			const agents: IRecentSessionWorkspace = { uri: URI.file('/user/AgentsWorkspaces/Agents.code-workspace'), name: 'Agents', folders: [vscode, docs], owned: true, icon: 'rocket', color: '#ff8800', previousUris: [URI.file('/user/AgentsWorkspaces/Old.code-workspace')] };
+			const empty: IRecentSessionWorkspace = { uri: URI.file('/user/AgentsWorkspaces/Empty.code-workspace'), name: 'Empty', folders: [notes], owned: true, color: 'terminal.ansiBlue' };
+			const docsFolder: IRecentSessionWorkspace = { uri: docs, name: 'vscode-docs', folders: [docs], owned: true, icon: 'book' };
+			const workspaces = new TestSessionWorkspacesService([agents, empty, docsFolder]);
+			const sessions = [
+				createTestSession('in agents', { folders: [vscode, docs], workspaceFile: agents.uri }).session,
+				// Created before the workspace was renamed
+				createTestSession('in agents before rename', { folders: [vscode], workspaceFile: URI.file('/user/AgentsWorkspaces/Old.code-workspace') }).session,
+				createTestSession('in docs', { folders: [docs] }).session,
+				createTestSession('in an unknown folder', { folders: [notes] }).session,
+				createTestSession('without folder', { workspaceLabel: 'none' }).session,
+			];
+
+			const sections = groupByWorkspaces(sessions, { getWorkspace: uri => workspaces.getWorkspace(uri), getKey: uri => uri.toString(), listed: workspaces.managedWorkspaces.get() });
+
+			assert.deepStrictEqual(sections.map(section => ({ id: section.id, label: section.label, sessions: section.sessions.map(session => session.title.get()), workspace: section.workspace && { uri: section.workspace.uri.path, icon: section.workspace.icon, color: section.workspace.color } })), [
+				{ id: 'workspace:file:///user/AgentsWorkspaces/Agents.code-workspace', label: 'Agents', sessions: ['in agents', 'in agents before rename'], workspace: { uri: '/user/AgentsWorkspaces/Agents.code-workspace', icon: 'rocket', color: '#ff8800' } },
+				// Listed without sessions
+				{ id: 'workspace:file:///user/AgentsWorkspaces/Empty.code-workspace', label: 'Empty', sessions: [], workspace: { uri: '/user/AgentsWorkspaces/Empty.code-workspace', icon: undefined, color: 'terminal.ansiBlue' } },
+				{ id: 'workspace:file:///work/notes', label: 'notes', sessions: ['in an unknown folder'], workspace: { uri: '/work/notes', icon: undefined, color: undefined } },
+				{ id: 'workspace:file:///work/vscode-docs', label: 'vscode-docs', sessions: ['in docs'], workspace: { uri: '/work/vscode-docs', icon: 'book', color: undefined } },
+				{ id: 'workspace:Unknown', label: 'Unknown', sessions: ['without folder'], workspace: undefined },
+			]);
 		});
 	});
 
