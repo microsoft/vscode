@@ -132,6 +132,11 @@ export interface IOpenNewSessionOptions extends ICreateNewSessionOptions {
 export interface IOpenNewSessionResult {
 	readonly session: ISession | undefined;
 	readonly trustDeclined: boolean;
+	/**
+	 * Whether {@link session} is a draft created for this request. Otherwise it is a draft shown before, such as when
+	 * creating one fails.
+	 */
+	readonly created?: boolean;
 }
 
 /** Options for {@link ISessionsService.closeChat}. */
@@ -2218,7 +2223,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 				if (intent === 'explicit' && !options?.preserveNavigation) {
 					this._navigation.recordNewSessionOpened();
 				}
-				return { session, trustDeclined: false };
+				return { session, trustDeclined: false, created: true };
 			} catch (e) {
 				// When the folder cannot be resolved (e.g. the active session's
 				// workspace uses an unsupported scheme like 'unknown:/'), fall

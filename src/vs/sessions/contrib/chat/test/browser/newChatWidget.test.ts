@@ -4055,30 +4055,37 @@ suite('NewChatWidget', () => {
 		]);
 	});
 
-	test('records the workspace configuration requested for a draft only once a new draft is created, so a failed creation is retried', async () => {
+	test('records the workspace configuration requested for a draft only for a draft created for it, so a failed creation is retried', async () => {
 		const folder = URI.file('/project');
 		const workspaceConfig: ISessionWorkspaceConfig = { uri: URI.file('/product.code-workspace'), name: 'Product', folders: [folder, URI.file('/docs')] };
-		const previous = upcastPartial<ITestSessionWithChat>({ sessionId: 'previous' });
+		const pending = upcastPartial<ITestSessionWithChat>({ sessionId: 'pending' });
 		const created = upcastPartial<ITestSessionWithChat>({ sessionId: 'created' });
-		let result: ITestSessionWithChat = previous;
+		let result: IOpenNewSessionResult = { session: pending, trustDeclined: false };
+		// An empty composer opened beside the pending draft (`toSide`): a failed creation shows that other draft
+		const shown = observableValue<ISession | undefined>('shown', undefined);
 		const harness: ICreateSessionNowHarness = {
-			_session: constObservable(previous),
+			_session: shown,
 			_environment: constObservable(undefined),
 			_newChatInput: { sessionTypePicker: { getPreferredSessionType: () => undefined } },
 			_workspacePicker: { selectedResolved: { providerId: 'local' }, selectedWorkspaceConfig: workspaceConfig },
 			uriIdentityService: { extUri },
-			// As `SessionsService.openNewSession`: a creation that fails shows the previous draft
-			sessionsService: { openNewSession: async () => ({ session: result, trustDeclined: false }) },
+			sessionsService: { openNewSession: async () => result },
 			_isPreferredServable: () => true,
 			_requestsDevContainer: () => false,
 			logService: { error: () => assert.fail('unexpected creation error') },
 		};
+		const recorded = () => harness._requestedWorkspaceConfig && { sessionId: harness._requestedWorkspaceConfig.sessionId, config: harness._requestedWorkspaceConfig.config?.uri.path };
 		await createSessionNow.call(harness, folder, undefined, CancellationToken.None);
-		const afterFailure = harness._requestedWorkspaceConfig;
-		result = created;
+		const afterOtherDraftShown = recorded();
+		// As a failed creation in the composer of that same draft
+		shown.set(pending, undefined);
 		await createSessionNow.call(harness, folder, undefined, CancellationToken.None);
-		assert.deepStrictEqual({ afterFailure, afterRetry: harness._requestedWorkspaceConfig && { sessionId: harness._requestedWorkspaceConfig.sessionId, config: harness._requestedWorkspaceConfig.config?.uri.path } }, {
-			afterFailure: undefined,
+		const afterSameDraftShown = recorded();
+		result = { session: created, trustDeclined: false, created: true };
+		await createSessionNow.call(harness, folder, undefined, CancellationToken.None);
+		assert.deepStrictEqual({ afterOtherDraftShown, afterSameDraftShown, afterRetry: recorded() }, {
+			afterOtherDraftShown: undefined,
+			afterSameDraftShown: undefined,
 			afterRetry: { sessionId: 'created', config: '/product.code-workspace' },
 		});
 	});
