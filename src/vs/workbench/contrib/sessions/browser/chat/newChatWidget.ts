@@ -2555,10 +2555,12 @@ export class NewChatWidget extends Disposable {
 			this.logService.trace('Waiting for a compatible harness in the selected environment.');
 			return { session: undefined, trustDeclined: false };
 		}
+		const workspaceConfig = this._workspacePicker.selectedWorkspaceConfig;
 		try {
 			const result = await this.sessionsService.openNewSession({
 				folderUri,
 				preserveNavigation: true,
+				...(workspaceConfig && this.uriIdentityService.extUri.isEqual(workspaceConfig.folders[0], folderUri) ? { workspaceConfig } : undefined),
 				...(this._draftHost ? { draftSlot: this._draftHost.slot } : this._preserveCustomView ? { preserveCustomView: true } : {}),
 				...(environment?.kind === 'container' || this._requestsDevContainer(folderUri) ? { requireDevContainer: true } : undefined),
 				...(background ? { background: true } : undefined),

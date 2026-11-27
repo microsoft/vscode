@@ -22,6 +22,9 @@ import { autorun, constObservable, derived, ISettableObservable, observableValue
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { IRecentSessionWorkspace, ISessionWorkspacesService } from '../../../../../workbench/contrib/sessions/common/sessionWorkspaces.js';
+import { SESSIONS_WORKSPACES_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, ActionListWidget, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../../platform/actionWidget/browser/actionList.js';
@@ -399,7 +402,7 @@ function createTestPicker(
 	fileDialogService: Partial<IFileDialogService> = {},
 	workspacesService: IWorkspacesService = { getRecentlyOpened: async () => ({ workspaces: [], files: [] }), onDidChangeRecentlyOpened: Event.None } as unknown as IWorkspacesService,
 	recentWorkspacesService?: ISessionsRecentWorkspacesService,
-	options?: IWorkspacePickerOptions & { readonly configuration?: Record<string, unknown>; readonly telemetryService?: ITelemetryService; readonly hoverService?: IHoverService; readonly commandService?: Partial<ICommandService> },
+	options?: IWorkspacePickerOptions & { readonly configuration?: Record<string, unknown>; readonly telemetryService?: ITelemetryService; readonly hoverService?: IHoverService; readonly commandService?: Partial<ICommandService>; readonly sessionWorkspacesService?: Partial<ISessionWorkspacesService> },
 	fileService: IFileService = upcastPartial<IFileService>({
 		onDidFilesChange: Event.None,
 		onDidChangeFileSystemProviderRegistrations: Event.None,
@@ -446,6 +449,8 @@ function createTestPicker(
 	instantiationService.stub(IHoverService, options?.hoverService ?? NullHoverService);
 	instantiationService.stub(IKeybindingService, new MockKeybindingService());
 	instantiationService.stub(IAgentHostFilterService, { isDiscovering: false, rediscover: async () => true });
+	instantiationService.stub(ISessionWorkspacesService, options?.sessionWorkspacesService ?? { workspaces: constObservable([]), getWorkspace: () => undefined, touchWorkspace: () => { } });
+	instantiationService.stub(ILabelService, upcastPartial<ILabelService>({ getUriLabel: uri => uri.path }));
 	if (agentHostFilterService) {
 		instantiationService.stub(IAgentHostFilterService, agentHostFilterService);
 		instantiationService.stub(IWorkbenchLayoutService, layoutService ?? {});
@@ -518,6 +523,81 @@ function assertSelectedProvider(picker: WorkspacePicker, expectedProviderId: str
 }
 
 // ---- Tests ------------------------------------------------------------------
+
+suite('WorkspacePicker - Workspaces group', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const app = URI.file('/work/app');
+	const appLib = URI.file('/work/app-lib');
+	const otherLib = URI.file('/other/app-lib');
+	const docs = URI.file('/work/docs');
+	const product: IRecentSessionWorkspace = { uri: URI.file('/ws/product.code-workspace'), name: 'Product', folders: [app, appLib, otherLib], owned: true, icon: 'rocket' };
+	const gone: IRecentSessionWorkspace = { uri: URI.file('/ws/gone.code-workspace'), name: 'Gone', folders: [docs], owned: true, missing: true };
+
+	function setupPicker(enabled = true) {
+		const touched: URI[] = [];
+		const commands: [string, unknown][] = [];
+		const providersService = store.add(new MockSessionsProvidersService());
+		providersService.setProviders([{ ...createMockProvider('local-agent-host', { group: SESSION_WORKSPACE_GROUP_LOCAL }), supportsLocalWorkspaces: true }]);
+		const workspaces = [product, gone];
+		const picker = createTestPicker(store, providersService, undefined, undefined, DispatchingWorkspacePicker, undefined, undefined, undefined, {
+			restoreFromSessions: false,
+			configuration: { [SESSIONS_WORKSPACES_ENABLED_SETTING]: enabled },
+			commandService: { executeCommand: async (id: string, arg: unknown) => { commands.push([id, arg]); return undefined; } },
+			sessionWorkspacesService: {
+				workspaces: constObservable(workspaces),
+				getWorkspace: uri => workspaces.find(workspace => extUri.isEqual(workspace.uri, uri)),
+				touchWorkspace: uri => { touched.push(uri); },
+			},
+		});
+		assert.ok(picker instanceof DispatchingWorkspacePicker);
+		const workspaceRows = () => {
+			const items = picker.getItems();
+			const header = items.findIndex(item => item.kind === ActionListItemKind.Header && item.label === 'Workspaces');
+			if (header === -1) {
+				return [];
+			}
+			const end = items.findIndex((item, index) => index > header && item.kind !== ActionListItemKind.Action);
+			return items.slice(header + 1, end);
+		};
+		return { picker, touched, commands, workspaceRows };
+	}
+
+	test('lists workspaces with their folders, and a missing workspace file disabled', () => {
+		const { workspaceRows } = setupPicker();
+		assert.deepStrictEqual(workspaceRows().map(row => ({ label: row.label, description: row.description, disabled: !!row.disabled, folder: row.item?.folderUri?.path, actions: row.toolbarActions?.map(action => action.id) })), [
+			{ label: 'Product', description: 'app, work/app-lib, other/app-lib', disabled: false, folder: '/work/app', actions: ['workspacePicker.sessionWorkspace.edit', 'workspacePicker.sessionWorkspace.remove'] },
+			{ label: 'Gone', description: 'Workspace file missing', disabled: true, folder: '/work/docs', actions: ['workspacePicker.sessionWorkspace.edit', 'workspacePicker.sessionWorkspace.remove'] },
+		]);
+	});
+
+	test('shows no Workspaces group while workspaces are off', () => {
+		const { workspaceRows } = setupPicker(false);
+		assert.deepStrictEqual(workspaceRows(), []);
+	});
+
+	test('picking a workspace selects its default folder and its configuration until another folder is picked', async () => {
+		const { picker, touched, workspaceRows } = setupPicker();
+		await picker.dispatchItem(workspaceRows()[0].item!);
+		const picked = { folder: picker.selectedFolderUri?.path, workspace: picker.selectedSessionWorkspace?.name, config: picker.selectedWorkspaceConfig?.uri.path, touched: touched.map(uri => uri.path) };
+		await picker.dispatchFolder(docs, 'local-agent-host');
+		assert.deepStrictEqual([picked, { folder: picker.selectedFolderUri?.path, workspace: picker.selectedSessionWorkspace?.name, config: picker.selectedWorkspaceConfig?.uri.path }], [
+			{ folder: '/work/app', workspace: 'Product', config: '/ws/product.code-workspace', touched: ['/ws/product.code-workspace'] },
+			{ folder: '/work/docs', workspace: undefined, config: undefined },
+		]);
+	});
+
+	test('edits and removes a workspace through the workspace commands', async () => {
+		const { commands, workspaceRows } = setupPicker();
+		const [edit, remove] = workspaceRows()[0].toolbarActions!;
+		await edit.run();
+		await remove.run();
+		assert.deepStrictEqual(commands.map(([id, uri]) => [id, (uri as URI).path]), [
+			['sessions.workspaces.edit', '/ws/product.code-workspace'],
+			['sessions.workspaces.remove', '/ws/product.code-workspace'],
+		]);
+	});
+});
 
 suite('WorkspacePicker - Dev Container sample telemetry', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
