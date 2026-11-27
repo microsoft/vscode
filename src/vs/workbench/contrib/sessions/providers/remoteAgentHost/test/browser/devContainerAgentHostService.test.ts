@@ -326,7 +326,7 @@ suite('Dev Container Agent Host Service', () => {
 		const requestedNames: (string | undefined)[] = [];
 		store.add(service.registerConnector({
 			isAvailable: async () => true,
-			isLocalDockerAvailable: async () => !!options.localDocker,
+			isLocalContainerEngineAvailable: async () => !!options.localDocker,
 			showLog: async () => { },
 			createConnection: async (workspaceUri, address, _token, requested) => {
 				createdUris.push(workspaceUri);

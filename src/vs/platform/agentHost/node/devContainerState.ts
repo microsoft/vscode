@@ -59,11 +59,16 @@ function parseIdLabels(idLabels: readonly string[]): Record<string, string> {
 
 /** The id labels the Dev Containers CLI gives a new container when no `--id-label` is passed. */
 export function getDefaultDevContainerIdLabels(platform: string, workspaceFolder: string, configFile: string): string[] {
-	const localFolder = (platform === 'win32' ? win32 : posix).resolve(workspaceFolder);
 	return [
-		`devcontainer.local_folder=${normalizeLabelPath(platform, localFolder)}`,
+		getDevContainerLocalFolderLabel(platform, workspaceFolder),
 		`devcontainer.config_file=${normalizeLabelPath(platform, configFile)}`,
 	];
+}
+
+/** The label the Dev Containers CLI gives every container of a workspace folder, whichever its configuration file. */
+export function getDevContainerLocalFolderLabel(platform: string, workspaceFolder: string): string {
+	const localFolder = (platform === 'win32' ? win32 : posix).resolve(workspaceFolder);
+	return `devcontainer.local_folder=${normalizeLabelPath(platform, localFolder)}`;
 }
 
 function normalizeLabelPath(platform: string, value: string): string {

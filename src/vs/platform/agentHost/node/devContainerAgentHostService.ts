@@ -34,18 +34,19 @@ import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { type AgentHostEndpointAddress, selectAgentHostEndpoint } from '../common/agentHostEndpointRegistry.js';
 import { telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
-import { DevContainerConnectStage, DevContainerEnvironmentVolumeLookupTimeoutMs, DevContainerFolderContainersLookupTimeoutMs, IDevContainerAgentHostConfig, IDevContainerAgentHostConnectFailure, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport, IDevContainerHostFolderContainer, VSCODE_REMOTE_CONTAINERS_SESSION_ENV, type DevContainerAgentHostSource } from '../common/devContainerAgentHost.js';
+import { DevContainerConnectStage, DevContainerEnvironmentVolumeLookupTimeoutMs, DevContainerFolderContainersLookupTimeoutMs, devContainerEngines, IDevContainerAgentHostConfig, IDevContainerAgentHostConnectFailure, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport, IDevContainerEngines, IDevContainerHostFolderContainer, VSCODE_REMOTE_CONTAINERS_SESSION_ENV, type DevContainerAgentHostSource, type DevContainerEngine } from '../common/devContainerAgentHost.js';
 import { devContainerEnvironmentScheme, IDevContainerEnvironmentSource } from '../common/devContainerEnvironments.js';
 import { DevContainerSample, IDevContainerRepository, devContainerSampleUri, devContainerSamples, getDevContainerSampleFolder } from '../common/devContainerSamples.js';
 import { IRelayMessage } from '../common/relayTransport.js';
 import { getAppNodeModulesUri } from './appNodeModules.js';
+import { toWslcCommand } from './devContainerEngine.js';
 import { hasDevContainerEnvironmentVolume, IPreparedDevContainerEnvironment, prepareDevContainerEnvironment, readDevContainerEnvironmentTestConfiguration, removeDevContainerEnvironment } from './devContainerEnvironments.js';
-import { IPreparedDevContainerSample, prepareDevContainerSample } from './devContainerSamples.js';
+import { checked, getDevContainerSampleVolumeLabel, IPreparedDevContainerSample, prepareDevContainerSample } from './devContainerSamples.js';
 import { AGENT_HOST_CLIENT_FORWARDING_ENV } from './agentHostClientForwarding.js';
 import { IDevContainerSandboxConfiguration, isDevContainerSandboxSupported, parseDevContainerSandboxConfiguration, prepareDevContainerSandboxConfiguration } from './devContainerSandbox.js';
 import { buildCreateDevContainerCacheCommand, buildLinkDevContainerServerCacheCommand, canAddDevContainerServerCacheMount, devContainerServerCacheMount, getDevContainerCliCachePath, getDevContainerServerCachePath } from './devContainerServerCache.js';
 import { DevContainerShell, IDevContainerShellResult } from './devContainerShell.js';
-import { IDevContainerSecurityOptions, IDevContainerStateErrorValues, IDevContainerStateLinkProgress, buildLinkDevContainerStateCommand, findDevContainerStateMount, getDefaultDevContainerIdLabels, getDevContainerSecurityOptions, getDevContainerStateLinkSkippedMessage, getDevContainerStateMount, getDevContainerStateMountTarget, getDevContainerStateTargetKind, getDevContainerStateVolumeLabels, getDevContainerStateVolumeName, getDevContainerUpErrorCause, isDevContainerRunning, isDevContainerStateVolumeFor, parseLinkDevContainerStateOutput, sanitizeDevContainerStateErrorMessage } from './devContainerState.js';
+import { IDevContainerSecurityOptions, IDevContainerStateErrorValues, IDevContainerStateLinkProgress, buildLinkDevContainerStateCommand, findDevContainerStateMount, getDefaultDevContainerIdLabels, getDevContainerLocalFolderLabel, getDevContainerSecurityOptions, getDevContainerStateLinkSkippedMessage, getDevContainerStateMount, getDevContainerStateMountTarget, getDevContainerStateTargetKind, getDevContainerStateVolumeLabels, getDevContainerStateVolumeName, getDevContainerUpErrorCause, isDevContainerRunning, isDevContainerStateVolumeFor, parseLinkDevContainerStateOutput, sanitizeDevContainerStateErrorMessage } from './devContainerState.js';
 import { prepareOwnerOnlyDirectory } from './localAgentHostMetadata.js';
 import { ensureRemoteAgentHostCliInstalled } from './remoteAgentHostCliInstaller.js';
 import {
@@ -68,6 +69,10 @@ const DEV_CONTAINER_LOG_ARGS = ['--log-level', 'debug'] as const;
 const DEV_CONTAINER_RELAY_CONNECTION_TIMEOUT_MS = 30_000;
 /** `docker ps` format that prints a container's folder and configuration file id labels and its state as a JSON array. */
 const devContainerFolderContainerFormat = '[{{json (.Label "devcontainer.local_folder")}},{{json (.Label "devcontainer.config_file")}},{{json .State}}]';
+/** How long looking for a source's container may take before a stalled engine counts as not having one. */
+const DEV_CONTAINER_ENGINE_LOOKUP_TIMEOUT_MS = 10_000;
+/** Docker's and WSLc's errors for a container that does not exist. */
+const missingContainerPattern = /No such container|WSLC_E_CONTAINER_NOT_FOUND/i;
 
 function getDevContainerShellArgs(workspaceFolder: string | readonly string[]): readonly string[] {
 	return ['exec', ...DEV_CONTAINER_LOG_ARGS, ...typeof workspaceFolder === 'string' ? ['--workspace-folder', workspaceFolder] : workspaceFolder, '/bin/sh'];
@@ -274,7 +279,9 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	private readonly _connectStages = new Map<string, DevContainerConnectStage>();
 	private readonly _connectionTokenSources = new Map<string, CancellationTokenSource>();
 	private readonly _connectionWorkspaces = new Map<string, string>();
-	private readonly _containerIds = new Map<string, string>();
+	/** The container engine of each connection, see {@link IDevContainerAgentHostConfig.engine}. */
+	private readonly _connectionEngines = new Map<string, DevContainerEngine>();
+	private readonly _containers = new Map<string, { readonly id: string; readonly engine: DevContainerEngine }>();
 	private readonly _suspendedWorkspaces = new Set<string>();
 	/** Environment identifiers are never reused, so no client, even when resuming, may recreate a deleted environment. */
 	private readonly _removedEnvironments = new Set<string>();
@@ -282,6 +289,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	private _nativeRequire: NodeJS.Require | undefined;
 	private _shellEnvironment: Promise<typeof process.env> | undefined;
 	private _dockerExecutable: { path: string; executable: Promise<string | undefined> } | undefined;
+	private _wslcExecutable: Promise<string | undefined> | undefined;
 	private _certificatesFile: Promise<string | undefined> | undefined;
 
 	constructor(
@@ -331,16 +339,24 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			}
 		}));
 		this._connectionStores.set(config.connectionId, store);
+		const engine = config.engine ?? 'docker';
+		this._connectionEngines.set(config.connectionId, engine);
+		store.add(toDisposable(() => this._connectionEngines.delete(config.connectionId)));
+		// WSLc has no security options or devices to permit nested sandboxing, and rejects Docker's.
+		const sandboxEnabled = config.sandboxEnabled && engine === 'docker';
 		let sampleContainerStarted = false;
 		const registerContainer = (containerId: string) => {
-			this._containerIds.set(workspaceKey, containerId);
+			this._containers.set(workspaceKey, { id: containerId, engine });
 			this._connectionWorkspaces.set(config.connectionId, workspaceKey);
 			store.add(toDisposable(() => this._connectionWorkspaces.delete(config.connectionId)));
 		};
 		this._connectStages.set(config.connectionId, hasKey(config, { workspaceFolder: true }) ? 'readConfig' : 'prepare');
 
 		try {
-			this._logService.info(`${LOG_PREFIX} Starting Dev Container for ${config.name}`);
+			this._logService.info(`${LOG_PREFIX} Starting Dev Container for ${config.name} with ${engine}`);
+			if (config.sandboxEnabled && !sandboxEnabled) {
+				this._reportOutput(config.connectionId, localize('devContainerAgentHost.wslcSandboxUnsupported', "Terminal sandboxing is not supported in WSL containers.\n"));
+			}
 			let upResult: IDevContainerUpResult;
 			let workspaceSelector: string | readonly string[];
 			let sandboxEnvironment: NodeJS.ProcessEnv | undefined;
@@ -350,19 +366,19 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				const prepared = await this._prepareSample(config.connectionId, sample, tokenSource.token, containerId => {
 					sampleContainerStarted = true;
 					registerContainer(containerId);
-				}, config.sandboxEnabled, config.persistUserState);
+				}, sandboxEnabled, config.persistUserState);
 				upResult = prepared;
 				workspaceSelector = prepared.cliArgs;
 				repository = prepared.repository;
 			} else if (hasKey(config, { environmentId: true })) {
-				const prepared = await this._prepareEnvironment(config.connectionId, config, tokenSource.token, registerContainer, config.sandboxEnabled, config.persistUserState);
+				const prepared = await this._prepareEnvironment(config.connectionId, config, tokenSource.token, registerContainer, sandboxEnabled, config.persistUserState);
 				upResult = prepared;
 				workspaceSelector = prepared.cliArgs;
 			} else {
 				workspaceSelector = config.workspaceFolder;
 				const configuration = this._readDevContainerConfiguration(config.connectionId, config.workspaceFolder, tokenSource.token);
 				const cacheMountArgs = await this._getServerCacheMountArgs(config.connectionId, configuration, tokenSource.token);
-				if (config.sandboxEnabled) {
+				if (sandboxEnabled) {
 					const directory = await mkdtemp(join(this._environmentService.tmpDir.fsPath, 'vscode-dev-container-sandbox-'));
 					store.add(toDisposable(() => {
 						void rm(directory, { recursive: true, force: true }).catch(error => this._logService.error(`${LOG_PREFIX} Failed to remove sandbox override`, error));
@@ -374,7 +390,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				const userStateMount = config.persistUserState ? await this._getUserStateMountArgs(config.connectionId, configuration, config.workspaceFolder, tokenSource.token) : { args: [], keepExistingFolders: true };
 				const selectorArgs = typeof workspaceSelector === 'string' ? ['--workspace-folder', workspaceSelector] : workspaceSelector;
 				// `up` starts a stopped container, which a connection without user action must not do, so this checks right before it.
-				if (config.requireRunning && !await this._isFolderContainerRunning(config.workspaceFolder, configuration, tokenSource.token)) {
+				if (config.requireRunning && !await this._isFolderContainerRunning(config.workspaceFolder, configuration, engine, tokenSource.token)) {
 					throw new Error(localize('devContainerAgentHost.containerNotRunning', "The Dev Container for '{0}' is not running.", config.name));
 				}
 				const up = await this._runDevContainerStage(
@@ -411,7 +427,8 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			}
 
 			this._setConnectStage(config.connectionId, 'agentHostStart');
-			const sandboxSupported = await this._getSandboxSupported(config.connectionId, upResult.containerId, tokenSource.token);
+			// WSLc has no security options or devices for nested sandboxing, and its inspect output lacks Docker's fields for them.
+			const sandboxSupported = engine === 'docker' && await this._getSandboxSupported(config.connectionId, upResult.containerId, tokenSource.token);
 			this._onDidChangeSandboxSupport.fire({ connectionId: config.connectionId, supported: sandboxSupported });
 			// The container ID skips the CLI's container lookup.
 			const execSelector = [...typeof workspaceSelector === 'string' ? ['--workspace-folder', workspaceSelector] : workspaceSelector, '--container-id', upResult.containerId];
@@ -510,7 +527,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				name: config.name,
 				remoteWorkspaceFolder: upResult.remoteWorkspaceFolder,
 				sandboxSupported,
-				...await this._sharesClientNetwork(tokenSource.token) ? { sharesClientNetwork: true } : {},
+				...await this._sharesClientNetwork(tokenSource.token, engine) ? { sharesClientNetwork: true } : {},
 				...(repository ? { repository } : {}),
 				...(hasKey(config, { workspaceFolder: true }) ? { hostWorkspaceFolder: config.workspaceFolder } : {}),
 			};
@@ -567,7 +584,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 					homeFolder: await this._linkUserState(connectionId, containerId, remoteUser, !!persistUserState, keepExistingFolders, token, {
 						selectorArgs,
 						environment: undefined,
-						remoteEnvSetsHome: () => this._containerMetadataSetsHome(containerId, token),
+						remoteEnvSetsHome: () => this._containerMetadataSetsHome(containerId, token, this._getConnectionEngine(connectionId)),
 					}),
 					user: remoteUser,
 				};
@@ -592,22 +609,23 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	}
 
 	private async _runReportedDocker(connectionId: string, args: readonly string[], token: CancellationToken): Promise<{ stdout: string; stderr: string; code: number }> {
-		this._reportOutput(connectionId, `$ ${this._getDockerPath()} ${args.map(arg => JSON.stringify(arg)).join(' ')}\n`);
-		const result = await this._runDocker(args, token);
+		const engine = this._getConnectionEngine(connectionId);
+		this._reportOutput(connectionId, `$ ${engine === 'docker' ? this._getDockerPath() : engine} ${args.map(arg => JSON.stringify(arg)).join(' ')}\n`);
+		const result = await this._runDocker(args, token, engine);
 		this._reportOutput(connectionId, result.stdout + result.stderr);
 		return result;
+	}
+
+	/** The container engine of a connection, Docker for connections that ended. */
+	protected _getConnectionEngine(connectionId: string): DevContainerEngine {
+		return this._connectionEngines.get(connectionId) ?? 'docker';
 	}
 
 	protected _prepareSample(connectionId: string, sample: DevContainerSample, token: CancellationToken, onContainerStarted: (containerId: string) => void, sandboxEnabled?: boolean, persistUserState?: boolean): Promise<IPreparedDevContainerSample> {
 		let errorValues: IDevContainerStateErrorValues | undefined;
 		return prepareDevContainerSample(sample, join(this._environmentService.userDataPath, 'devContainerSamples', sample.id), {
 			onContainerStarted,
-			docker: async args => {
-				this._reportOutput(connectionId, `$ ${this._getDockerPath()} ${args.map(arg => JSON.stringify(arg)).join(' ')}\n`);
-				const result = await this._runDocker(args, token);
-				this._reportOutput(connectionId, result.stdout + result.stderr);
-				return result;
-			},
+			docker: args => this._runReportedDocker(connectionId, args, token),
 			devcontainer: async args => {
 				const stage = args[0] === 'up' ? 'up' : args[0] === 'run-user-commands' ? 'userCommands' : undefined;
 				if (!stage) {
@@ -626,7 +644,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 					homeFolder: await this._linkUserState(connectionId, containerId, remoteUser, !!persistUserState, keepExistingFolders, token, {
 						selectorArgs,
 						environment: undefined,
-						remoteEnvSetsHome: async () => devContainerRemoteEnvSetsHome([configuration]) || this._containerMetadataSetsHome(containerId, token),
+						remoteEnvSetsHome: async () => devContainerRemoteEnvSetsHome([configuration]) || this._containerMetadataSetsHome(containerId, token, this._getConnectionEngine(connectionId)),
 					}),
 					user: remoteUser,
 				};
@@ -719,7 +737,8 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			target = getDevContainerStateTargetKind(mountTarget);
 			// Only new containers get the mount; adding it to an existing Compose container could recreate it.
 			reason = 'listContainers';
-			const existing = await this._runDocker(['ps', '-a', '--format', '{{.State}}', ...idLabels.flatMap(label => ['--filter', `label=${label}`])], token);
+			const engine = this._getConnectionEngine(connectionId);
+			const existing = await this._runDocker(['ps', '-a', '--format', '{{.State}}', ...idLabels.flatMap(label => ['--filter', `label=${label}`])], token, engine);
 			if (existing.code !== 0) {
 				throw new Error(`Cannot list Docker containers (exit ${existing.code}): ${existing.stderr}`);
 			}
@@ -731,7 +750,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				return { args: [], keepExistingFolders };
 			}
 			reason = 'volume';
-			await this._ensureUserStateVolume(idLabels, token);
+			await this._ensureUserStateVolume(idLabels, token, engine);
 			this._onDidReportUserState.fire({ connectionId, stage: 'mount', outcome: 'added', target });
 			return { args: ['--mount', getDevContainerStateMount(idLabels, mountTarget)], keepExistingFolders };
 		} catch (error) {
@@ -745,14 +764,14 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		}
 	}
 
-	private async _ensureUserStateVolume(idLabels: readonly string[], token: CancellationToken): Promise<void> {
+	private async _ensureUserStateVolume(idLabels: readonly string[], token: CancellationToken, engine: DevContainerEngine): Promise<void> {
 		const name = getDevContainerStateVolumeName(idLabels);
-		const volumes = await this._runDocker(['volume', 'ls', '--format', '{{.Name}}'], token);
+		const volumes = await this._runDocker(['volume', 'ls', '--format', '{{.Name}}'], token, engine);
 		if (volumes.code !== 0) {
 			throw new Error(`Cannot list Docker volumes (exit ${volumes.code}): ${volumes.stderr}`);
 		}
 		if (volumes.stdout.split(/\r?\n/).includes(name)) {
-			const inspected = await this._runDocker(['volume', 'inspect', '--format', '{{json .Labels}}', name], token);
+			const inspected = await this._runDocker(['volume', 'inspect', '--format', '{{json .Labels}}', name], token, engine);
 			if (inspected.code !== 0) {
 				throw new Error(`Cannot inspect Docker volume ${name} (exit ${inspected.code}): ${inspected.stderr}`);
 			}
@@ -761,7 +780,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			}
 			return;
 		}
-		const created = await this._runDocker(['volume', 'create', ...getDevContainerStateVolumeLabels(idLabels).flatMap(label => ['--label', label]), name], token);
+		const created = await this._runDocker(['volume', 'create', ...getDevContainerStateVolumeLabels(idLabels).flatMap(label => ['--label', label]), name], token, engine);
 		if (created.code !== 0) {
 			throw new Error(`Cannot create Docker volume ${name} (exit ${created.code}): ${created.stderr}`);
 		}
@@ -804,11 +823,12 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				throw new Error('The Dev Container CLI did not report the remote user');
 			}
 			reason = 'user';
+			const engine = this._getConnectionEngine(connectionId);
 			const userScript = 'id -u; id -g; printf "%s\\n" "$HOME"';
 			// The Agent Host's shell gets `remoteEnv`, which can set another HOME. Only the slower `devcontainer exec` resolves it.
 			const user = await userQuery.remoteEnvSetsHome()
 				? await this._runDevContainer(connectionId, getDevContainerExecArgs([...userQuery.selectorArgs, '--container-id', containerId], userScript), token, userQuery.environment)
-				: await this._runDocker(['exec', '--user', remoteUser, containerId, '/bin/sh', '-c', userScript], token);
+				: await this._runDocker(['exec', '--user', remoteUser, containerId, '/bin/sh', '-c', userScript], token, engine);
 			const [uid, gid, home] = user.stdout.trim().split(/\r?\n/);
 			homeFolder = home;
 			if (user.code !== 0 || !uid || !gid || !homeFolder) {
@@ -825,7 +845,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				keepExistingFolders,
 			});
 			reason = 'script';
-			const linked = await this._runDocker(['exec', '--user', 'root', containerId, '/bin/sh', '-c', command], token);
+			const linked = await this._runDocker(['exec', '--user', 'root', containerId, '/bin/sh', '-c', command], token, engine);
 			this._reportOutput(connectionId, linked.stderr);
 			exitCode = linked.code;
 			progress = parseLinkDevContainerStateOutput(linked.stdout);
@@ -847,7 +867,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			this._logService.warn(`${LOG_PREFIX} Cannot keep user state on its volume`, error);
 			this._reportOutput(connectionId, `Cannot keep user state on its volume: ${getErrorMessage(error)}\n`);
 			const errorMessage = sanitizeDevContainerStateErrorMessage([getErrorMessage(error)], { homeFolder, user: remoteUser });
-			const security = reason === 'inspect' ? {} : await this._getContainerSecurityOptions(containerId, token);
+			const security = reason === 'inspect' ? {} : await this._getContainerSecurityOptions(containerId, token, this._getConnectionEngine(connectionId));
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
@@ -857,8 +877,8 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	}
 
 	/** Whether the container's Dev Container metadata, which includes the image's, sets HOME in `remoteEnv`. */
-	private async _containerMetadataSetsHome(containerId: string, token: CancellationToken): Promise<boolean> {
-		const result = await this._runDocker(['inspect', '--format', '{{index .Config.Labels "devcontainer.metadata"}}', containerId], token);
+	private async _containerMetadataSetsHome(containerId: string, token: CancellationToken, engine: DevContainerEngine): Promise<boolean> {
+		const result = await this._runDocker(['inspect', '--format', '{{index .Config.Labels "devcontainer.metadata"}}', containerId], token, engine);
 		try {
 			const metadata: unknown = JSON.parse(result.stdout);
 			return devContainerRemoteEnvSetsHome(Array.isArray(metadata) ? metadata : [metadata]);
@@ -922,7 +942,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 					const cachePath = kind === 'server' ? getDevContainerServerCachePath(serverDataFolderName, platform) : getDevContainerCliCachePath(serverDataFolderName, platform);
 					const created = await this._runDocker([
 						'exec', '--user', 'root', containerId, '/bin/sh', '-c', buildCreateDevContainerCacheCommand(cachePath, uid, gid),
-					], token);
+					], token, this._getConnectionEngine(connectionId));
 					if (created.code !== 0) {
 						throw new Error(`Unable to prepare shared ${kind} cache (exit ${created.code}): ${created.stderr}`);
 					}
@@ -987,6 +1007,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		const result = await this._runDocker(
 			['inspect', '--format', '{{json .Mounts}}', containerId],
 			token,
+			this._getConnectionEngine(connectionId),
 		);
 		if (result.code !== 0) {
 			throw new Error(localize('devContainerAgentHost.dockerInspectFailed', "Docker inspect failed (exit {0}): {1}", result.code, result.stderr));
@@ -997,9 +1018,9 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	}
 
 	/** Reads the container's security settings for link failure telemetry, if Docker can inspect it. */
-	protected async _getContainerSecurityOptions(containerId: string, token: CancellationToken): Promise<IDevContainerSecurityOptions> {
+	protected async _getContainerSecurityOptions(containerId: string, token: CancellationToken, engine: DevContainerEngine = 'docker'): Promise<IDevContainerSecurityOptions> {
 		try {
-			const result = await this._runDocker(['inspect', '--format', '{{json .HostConfig}}', containerId], token);
+			const result = await this._runDocker(['inspect', '--format', '{{json .HostConfig}}', containerId], token, engine);
 			return result.code === 0 ? getDevContainerSecurityOptions(JSON.parse(result.stdout)) : {};
 		} catch (error) {
 			if (isCancellationError(error)) {
@@ -1042,12 +1063,13 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	/** Starts one container shell for all startup commands; each separate Dev Container CLI exec takes seconds to start. */
 	protected async _startShell(connectionId: string, workspaceFolder: string | readonly string[], token: CancellationToken, environmentOverride?: NodeJS.ProcessEnv): Promise<IDevContainerShellExec> {
 		const environment = environmentOverride ?? await this._resolveDevContainerEnvironment();
+		const dockerPath = await this._getDevContainerDockerPath(connectionId);
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
 		const args = getDevContainerShellArgs(workspaceFolder);
 		this._reportOutput(connectionId, `$ devcontainer ${args.map(arg => JSON.stringify(arg)).join(' ')}\n`);
-		const shell = new DevContainerShell(this._spawnDevContainer(args, environment), token, text => this._reportOutput(connectionId, text));
+		const shell = new DevContainerShell(this._spawnDevContainer(args, environment, dockerPath), token, text => this._reportOutput(connectionId, text));
 		return { exec: toDevContainerExec(command => shell.run(command)), dispose: () => shell.dispose() };
 	}
 
@@ -1104,14 +1126,15 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
-		const [environment, nativeRequire] = await Promise.all([
+		const [environment, nativeRequire, dockerPath] = await Promise.all([
 			environmentOverride ?? this._resolveDevContainerEnvironment(),
 			this._getNativeRequire(),
+			this._getDevContainerDockerPath(connectionId),
 		]);
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
-		const child = this._spawnDevContainer(getDevContainerExecArgs(workspaceFolder, command), environment);
+		const child = this._spawnDevContainer(getDevContainerExecArgs(workspaceFolder, command), environment, dockerPath);
 		const cancellationListener = token.onCancellationRequested(() => {
 			if (!child.killed) {
 				child.kill();
@@ -1170,13 +1193,14 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 
 	protected async _runDevContainer(connectionId: string, args: readonly string[], token: CancellationToken, environmentOverride?: NodeJS.ProcessEnv): Promise<{ stdout: string; stderr: string; code: number }> {
 		const environment = environmentOverride ?? await this._resolveDevContainerEnvironment();
+		const dockerPath = await this._getDevContainerDockerPath(connectionId);
 		return new Promise((resolve, reject) => {
 			if (token.isCancellationRequested) {
 				reject(new CancellationError());
 				return;
 			}
 			this._reportOutput(connectionId, `$ devcontainer ${args.map(arg => JSON.stringify(arg)).join(' ')}\n`);
-			const child = this._spawnDevContainer(args, environment);
+			const child = this._spawnDevContainer(args, environment, dockerPath);
 			let stdout = '';
 			let stderr = '';
 			let settled = false;
@@ -1230,7 +1254,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		return true;
 	}
 
-	protected async _sharesClientNetwork(_token: CancellationToken): Promise<boolean> {
+	protected async _sharesClientNetwork(_token: CancellationToken, _engine: DevContainerEngine): Promise<boolean> {
 		return false;
 	}
 
@@ -1338,15 +1362,63 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	 * Whether the container that `up` reuses for the folder and its selected configuration file runs. Another
 	 * configuration file's container may run while that one is stopped, and `up` would start it.
 	 */
-	private async _isFolderContainerRunning(workspaceFolder: string, configuration: Promise<string>, token: CancellationToken): Promise<boolean> {
+	private async _isFolderContainerRunning(workspaceFolder: string, configuration: Promise<string>, engine: DevContainerEngine, token: CancellationToken): Promise<boolean> {
 		const { configPath } = parseDevContainerSandboxConfiguration(await configuration);
 		const idLabels = getDefaultDevContainerIdLabels(process.platform, workspaceFolder, configPath);
-		const result = await this._runDocker(['ps', '-a', '--format', '{{.State}}', ...idLabels.flatMap(label => ['--filter', `label=${label}`])], token);
+		const result = await this._runDocker(['ps', '-a', '--format', '{{.State}}', ...idLabels.flatMap(label => ['--filter', `label=${label}`])], token, engine);
 		if (result.code !== 0) {
 			throw new Error(`Cannot list Docker containers (exit ${result.code}): ${result.stderr}`);
 		}
 		const states = result.stdout.split(/\r?\n/).filter(state => state.trim());
 		return states.length > 0 && states.every(isDevContainerRunning);
+	}
+
+	async getEngines(source?: DevContainerAgentHostSource): Promise<IDevContainerEngines> {
+		const resolved = await Promise.all(devContainerEngines.map(async engine => await this._resolveEngineExecutable(engine) ? engine : undefined));
+		const available = resolved.filter((engine): engine is DevContainerEngine => engine !== undefined);
+		// With one engine, there is no other engine to keep using.
+		const existing = source !== undefined && available.length > 1 ? await this._findExistingEngine(source, available) : undefined;
+		return { available, ...(existing ? { existing } : {}) };
+	}
+
+	/** The first engine with a container or volume of the source; an engine that fails or stalls counts as not having one. */
+	private async _findExistingEngine(source: DevContainerAgentHostSource, engines: readonly DevContainerEngine[]): Promise<DevContainerEngine | undefined> {
+		const known = this._containers.get(getSourceKey(source))?.engine;
+		if (known && engines.includes(known)) {
+			return known;
+		}
+		for (const engine of engines) {
+			const tokenSource = new CancellationTokenSource();
+			const timer = setTimeout(() => tokenSource.cancel(), DEV_CONTAINER_ENGINE_LOOKUP_TIMEOUT_MS);
+			try {
+				if (await this._hasSourceContainer(source, engine, tokenSource.token)) {
+					return engine;
+				}
+			} catch (error) {
+				// For example, the Docker engine is not running or did not answer in time.
+				this._logService.trace(`${LOG_PREFIX} Could not look for an existing container in ${engine}`, error);
+			} finally {
+				clearTimeout(timer);
+				tokenSource.dispose();
+			}
+		}
+		return undefined;
+	}
+
+	/** Whether the engine has a workspace's container, or an environment's or a sample's volume, which outlive their containers. */
+	private async _hasSourceContainer(source: DevContainerAgentHostSource, engine: DevContainerEngine, token: CancellationToken): Promise<boolean> {
+		const docker = (args: readonly string[]) => this._runDocker(args, token, engine);
+		if (typeof source === 'string') {
+			return !!checked(await docker(['ps', '--all', '--quiet', '--filter', `label=${getDevContainerLocalFolderLabel(process.platform, source)}`]), 'docker ps').trim();
+		}
+		if (hasKey(source, { environmentId: true })) {
+			return hasDevContainerEnvironmentVolume(source.environmentId, docker);
+		}
+		const sample = devContainerSamples.find(sample => sample.id === source.sampleId);
+		if (!sample) {
+			throw new Error(localize('devContainerAgentHost.unknownSample', "Unknown Dev Container sample: {0}", source.sampleId));
+		}
+		return !!checked(await docker(['volume', 'ls', '--quiet', '--filter', `label=${getDevContainerSampleVolumeLabel(sample)}`]), 'docker volume ls').trim();
 	}
 
 	async stopContainer(source: DevContainerAgentHostSource): Promise<boolean> {
@@ -1393,22 +1465,30 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			for (const connectionId of connectionIds) {
 				this._closeConnection(connectionId);
 			}
-			await removeDevContainerEnvironment(environmentId, this._getEnvironmentCacheDirectory(environmentId), args => this._runDocker(args));
+			const engine = await this._getEnvironmentEngine(environmentId);
+			await removeDevContainerEnvironment(environmentId, this._getEnvironmentCacheDirectory(environmentId), args => this._runDocker(args, CancellationToken.None, engine));
 		} catch (error) {
 			this._removedEnvironments.delete(key);
 			throw error;
 		}
-		this._containerIds.delete(key);
+		this._containers.delete(key);
 		return true;
+	}
+
+	/** The engine with the environment's volume, or the preferred available engine, which only removes its cached configuration. */
+	private async _getEnvironmentEngine(environmentId: string): Promise<DevContainerEngine> {
+		const { available, existing } = await this.getEngines({ environmentId });
+		return existing ?? available[0] ?? 'docker';
 	}
 
 	private async _changeContainerState(source: DevContainerAgentHostSource, operation: 'stop' | 'rm'): Promise<boolean> {
 		const workspaceKey = getSourceKey(source);
-		const containerId = this._containerIds.get(workspaceKey);
-		if (!containerId) {
+		const container = this._containers.get(workspaceKey);
+		if (!container) {
 			return true;
 		}
-		const sessionIds = await this._findContainerSessionIds(containerId);
+		const { id: containerId, engine } = container;
+		const sessionIds = await this._findContainerSessionIds(containerId, engine);
 		const foreignSessionIds = sessionIds.filter(sessionId => sessionId !== this._telemetryService.sessionId);
 		if (foreignSessionIds.length > 0) {
 			this._logService.info(`${LOG_PREFIX} Skipping container ${operation === 'rm' ? 'removal' : 'stop'} for ${workspaceKey}: ${foreignSessionIds.length} other VS Code session(s) are active.`);
@@ -1420,21 +1500,22 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			.map(([connectionId]) => connectionId);
 		await Promise.all(connectionIds.map(connectionId => this.disconnect(connectionId)));
 		const args = operation === 'rm' ? ['rm', '--force', containerId] : ['stop', containerId];
-		const result = await this._runDocker(args);
-		if (result.code !== 0 && !/No such container/i.test(result.stderr)) {
+		const result = await this._runDocker(args, CancellationToken.None, engine);
+		const missing = missingContainerPattern.test(result.stderr);
+		if (result.code !== 0 && !missing) {
 			throw new Error(localize('devContainerAgentHost.containerLifecycleFailed', "Docker failed to {0} Dev Container '{1}' (exit {2}): {3}", operation === 'rm' ? 'remove' : 'stop', containerId, result.code, result.stderr.trim()));
 		}
-		if (operation === 'rm' || /No such container/i.test(result.stderr)) {
-			this._containerIds.delete(workspaceKey);
+		if (operation === 'rm' || missing) {
+			this._containers.delete(workspaceKey);
 		}
 		return true;
 	}
 
-	private async _findContainerSessionIds(containerId: string): Promise<readonly string[]> {
+	private async _findContainerSessionIds(containerId: string, engine: DevContainerEngine): Promise<readonly string[]> {
 		const script = `for env in /proc/[0-9]*/environ; do [ -r "$env" ] || continue; tr '\\0' '\\n' < "$env" 2>/dev/null | sed -n 's/^${VSCODE_REMOTE_CONTAINERS_SESSION_ENV}=//p'; done`;
-		const result = await this._runDocker(['exec', containerId, '/bin/sh', '-c', script]);
+		const result = await this._runDocker(['exec', containerId, '/bin/sh', '-c', script], CancellationToken.None, engine);
 		if (result.code !== 0) {
-			if (/is not running|No such container/i.test(result.stderr)) {
+			if (/is not running/i.test(result.stderr) || missingContainerPattern.test(result.stderr)) {
 				return [];
 			}
 			throw new Error(localize('devContainerAgentHost.containerSessionCheckFailed', "Unable to check active VS Code sessions in Dev Container '{0}' (exit {1}): {2}", containerId, result.code, result.stderr.trim()));
@@ -1442,12 +1523,14 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		return [...new Set(result.stdout.split('\n').map(value => value.trim()).filter(value => value.length > 0))];
 	}
 
-	protected async _runDocker(args: readonly string[], token: CancellationToken = CancellationToken.None): Promise<{ stdout: string; stderr: string; code: number }> {
-		const executable = await this._resolveDockerExecutable();
-		if (!executable) {
-			throw new Error(localize('devContainerAgentHost.dockerUnavailable', "Docker is not available."));
-		}
+	/** Runs a Docker CLI command with the engine's CLI, see {@link toWslcCommand} for WSLc. */
+	protected async _runDocker(args: readonly string[], token: CancellationToken = CancellationToken.None, engine: DevContainerEngine = 'docker'): Promise<{ stdout: string; stderr: string; code: number }> {
+		const executable = await this._getEngineExecutable(engine);
 		const environment = await this._resolveShellEnvironment();
+		if (engine === 'wslc') {
+			const command = toWslcCommand(args);
+			return command.transformResult(await this._runLocalCommand(executable, command.args, environment, token));
+		}
 		return this._runLocalCommand(executable, args, environment, token);
 	}
 
@@ -1466,11 +1549,38 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		return 'docker';
 	}
 
+	private async _getEngineExecutable(engine: DevContainerEngine): Promise<string> {
+		const executable = await this._resolveEngineExecutable(engine);
+		if (!executable) {
+			throw new Error(engine === 'wslc'
+				? localize('devContainerAgentHost.wslcUnavailable', "WSL containers (wslc) are not available.")
+				: localize('devContainerAgentHost.dockerUnavailable', "Docker is not available."));
+		}
+		return executable;
+	}
+
+	/** Resolves an engine's CLI from the shell environment. Only Windows hosts resolve WSLc, a Windows CLI that hosts in WSL could not pass their Linux paths to. */
+	protected _resolveEngineExecutable(engine: DevContainerEngine): Promise<string | undefined> {
+		if (engine === 'docker') {
+			return this._resolveDockerExecutable();
+		}
+		this._wslcExecutable ??= process.platform === 'win32'
+			? this._resolveShellEnvironment().then(environment => findExecutable('wslc', undefined, undefined, environment))
+			: Promise.resolve(undefined);
+		return this._wslcExecutable;
+	}
+
+	/** The Docker CLI that the Dev Containers CLI runs for a connection, see {@link _spawnDevContainer}. */
+	protected async _getDevContainerDockerPath(connectionId: string): Promise<string> {
+		const engine = this._getConnectionEngine(connectionId);
+		return engine === 'docker' ? this._getDockerPath() : this._getEngineExecutable(engine);
+	}
+
 	protected _spawnDevContainer(
 		args: readonly string[],
 		environment: NodeJS.ProcessEnv,
+		dockerPath = this._getDockerPath(),
 	): ChildProcessWithoutNullStreams {
-		const dockerPath = this._getDockerPath();
 		const dockerArgs = dockerPath !== 'docker' ? ['--docker-path', dockerPath] : [];
 		return spawn(process.execPath, [getDevContainerCliPath(), args[0], ...dockerArgs, ...args.slice(1)], {
 			stdio: ['pipe', 'pipe', 'pipe'],
@@ -1541,6 +1651,12 @@ export class DevContainerAgentHostMainService extends DevContainerAgentHostServi
 		return super.isDockerAvailable();
 	}
 
+	override async getEngines(source?: DevContainerAgentHostSource): Promise<IDevContainerEngines> {
+		// As for isDockerAvailable, dev.containers.dockerPath may have changed.
+		await this._configurationService.reloadConfiguration();
+		return super.getEngines(source);
+	}
+
 	protected override _resolveUserShellEnvironment(): Promise<typeof process.env> {
 		return getResolvedShellEnv(this._configurationService, this._mainLogService, { ...this._nativeEnvironmentService.args, 'force-user-env': true }, process.env);
 	}
@@ -1553,7 +1669,11 @@ export class DevContainerAgentHostMainService extends DevContainerAgentHostServi
 		return this._configurationService.getValue<string>('dev.containers.dockerPath') || 'docker';
 	}
 
-	protected override async _sharesClientNetwork(token: CancellationToken): Promise<boolean> {
+	protected override async _sharesClientNetwork(token: CancellationToken, engine: DevContainerEngine): Promise<boolean> {
+		if (engine === 'wslc') {
+			// WSLc runs containers in a WSL virtual machine on this computer.
+			return true;
+		}
 		try {
 			const environment = await this._resolveShellEnvironment();
 			if (environment.VSCODE_DOCKER_HOST) {

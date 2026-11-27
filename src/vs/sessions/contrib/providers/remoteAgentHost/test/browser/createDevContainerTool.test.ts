@@ -133,10 +133,10 @@ suite('CreateDevContainerTool', () => {
 			local: 'Creating Dev Container on This Computer',
 			remote: 'Creating Dev Container on Build',
 			unavailable: { error: 'Dev Containers cannot be created on agenthost-other now. Available hosts: [{"id":"local","label":"This Computer"},{"id":"agenthost-build","label":"Build"}]' },
-			ambiguous: { error: 'Docker is not available on this computer. Choose a host: [{"id":"agenthost-build","label":"Build"},{"id":"agenthost-other","label":"Other"}]' },
+			ambiguous: { error: 'Neither Docker nor WSL containers are available on this computer. Choose a host: [{"id":"agenthost-build","label":"Build"},{"id":"agenthost-other","label":"Other"}]' },
 			// A remote host is only used when requested or when the session runs there.
-			onlyRemote: { error: 'Docker is not available on this computer. Choose a host: [{"id":"agenthost-build","label":"Build"}]' },
-			noHosts: { error: 'No Docker host is available. Start Docker on this computer, or connect to an SSH, Tunnel, or WSL host that has Docker.' },
+			onlyRemote: { error: 'Neither Docker nor WSL containers are available on this computer. Choose a host: [{"id":"agenthost-build","label":"Build"}]' },
+			noHosts: { error: 'No host can run Dev Containers. Start Docker or install WSL containers on this computer, or connect to an SSH, Tunnel, or WSL host that has Docker.' },
 			disabled: { error: 'Creating Dev Containers is disabled.' },
 			invalid: { error: 'The input must be an object with an optional host string.' },
 		});

@@ -17,7 +17,7 @@ import { hasKey } from '../../../../../../base/common/types.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
-import { DevContainerAgentHostSource, IDevContainerAgentHostConfig, IDevContainerAgentHostConnectFailure, IDevContainerAgentHostMainService, IDevContainerAgentHostUserStateReport } from '../../../../../../platform/agentHost/common/devContainerAgentHost.js';
+import { DevContainerAgentHostSource, DevContainerEngine, IDevContainerAgentHostConfig, IDevContainerAgentHostConnectFailure, IDevContainerAgentHostMainService, IDevContainerAgentHostUserStateReport, IDevContainerEngines } from '../../../../../../platform/agentHost/common/devContainerAgentHost.js';
 import { createDevContainerAgentHostChannel } from '../../../../../../platform/agentHost/common/devContainerAgentHostIpc.js';
 import { devContainerEnvironmentImage, devContainerEnvironmentUri, localDevContainerEnvironmentUri } from '../../../../../../platform/agentHost/common/devContainerEnvironments.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
@@ -30,6 +30,7 @@ import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurati
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { IPickOptions, IQuickInputService, IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ISharedProcessService } from '../../../../../../platform/ipc/electron-browser/services.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -37,15 +38,17 @@ import { Registry } from '../../../../../../platform/registry/common/platform.js
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IOutputChannel, IOutputService } from '../../../../../../workbench/services/output/common/output.js';
-import { DevContainerAgentHostEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, DevContainerIdleTimeoutSettingId, DevContainerSamplesEnabledSettingId, DevContainerStateVolumeEnabledSettingId, DevContainerWorktreeEnabledSettingId } from '../../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
+import { DevContainerAgentHostEnabledSettingId, DevContainerEngineSettingId, DevContainerEnvironmentsEnabledSettingId, DevContainerIdleTimeoutSettingId, DevContainerSamplesEnabledSettingId, DevContainerStateVolumeEnabledSettingId, DevContainerWorktreeEnabledSettingId } from '../../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { WorkspaceHistoryLoadState } from '../../../../../../workbench/services/sessions/common/workspaceSelection.js';
 import { ISessionFolder, ISessionWorkspace } from '../../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
-import { DevContainerAgentHostConnector, ensureDevContainerAgentHostsEnabled, getDevContainerEnvironment, isDevContainerWorkspaceAvailable, RemoteDevContainerService, reportDevContainerEnvironment } from '../../electron-browser/devContainerAgentHostConnector.contribution.js';
+import { DevContainerAgentHostConnector, ensureDevContainerAgentHostsEnabled, getDevContainerEnvironment, isDevContainerWorkspaceAvailable, RemoteDevContainerService, reportDevContainerEnvironment, resolveDevContainerEngine } from '../../electron-browser/devContainerAgentHostConnector.contribution.js';
 
 suite('Dev Container Agent Host Connector', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	/** Connections that need no engine choice never show a pick. */
+	const quickInputService = new class extends mock<IQuickInputService>() { }();
 
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 	// Capture these before configuration registry tests clear global registrations.
@@ -68,6 +71,7 @@ suite('Dev Container Agent Host Connector', () => {
 				override readonly onDidRelayActivity = Event.None;
 				override readonly onDidRelayClose = Event.None;
 				override readonly onDidCloseConnection = Event.None;
+				override async getEngines(): Promise<IDevContainerEngines> { return { available: ['docker'] }; }
 				override async connect(config: IDevContainerAgentHostConfig) {
 					configs.push(config);
 					return { connectionId: config.connectionId, address: 'devcontainer:sample', name: config.name, remoteWorkspaceFolder: '/workspace', sandboxSupported: !sandboxEnabled, sharesClientNetwork: true };
@@ -109,6 +113,7 @@ suite('Dev Container Agent Host Connector', () => {
 						events.push({ eventName, data: rest });
 					}
 				}(),
+				quickInputService,
 			));
 			const target = await connector.createConnection(devContainerSampleUri(devContainerSamples[0]), 'devcontainer:sample', CancellationToken.None, { resume: true, sandboxEnabled });
 			store.add(target.transportDisposable!);
@@ -121,7 +126,7 @@ suite('Dev Container Agent Host Connector', () => {
 			const reconnected = store.add(target.transportFactory());
 			assert.ok(isClientTransport(reconnected));
 			await reconnected.connect();
-			const connected = { success: true, cancelled: false, sample: true, remote: false, failureStage: undefined };
+			const connected = { success: true, cancelled: false, sample: true, remote: false, engine: 'docker', failureStage: undefined };
 			assert.deepStrictEqual({
 				configs: configs.map(config => ({ resume: config.resume, sandboxEnabled: config.sandboxEnabled, persistUserState: config.persistUserState })),
 				events,
@@ -137,6 +142,121 @@ suite('Dev Container Agent Host Connector', () => {
 			});
 		});
 	}
+
+	test('selects the engine of an existing container, else the setting\'s available engine, or asks', async () => {
+		const picks: (readonly DevContainerEngine[])[] = [];
+		const resolve = (engines: IDevContainerEngines, setting: unknown, picked: DevContainerEngine | 'dismiss' = 'wslc') => resolveDevContainerEngine(engines, setting, async available => {
+			picks.push(available);
+			return picked === 'dismiss' ? undefined : picked;
+		}).then(engine => engine, error => isCancellationError(error) ? 'cancelled' : String(error));
+		const both: DevContainerEngine[] = ['docker', 'wslc'];
+		assert.deepStrictEqual({
+			docker: await resolve({ available: both }, 'docker'),
+			wslc: await resolve({ available: both }, 'wslc'),
+			unset: await resolve({ available: both }, undefined),
+			dockerWithoutDocker: await resolve({ available: ['wslc'] }, 'docker'),
+			askWithoutDocker: await resolve({ available: ['wslc'] }, 'ask'),
+			wslcWithoutWslc: await resolve({ available: ['docker'] }, 'wslc'),
+			existing: await resolve({ available: both, existing: 'docker' }, 'wslc'),
+			askExisting: await resolve({ available: both, existing: 'wslc' }, 'ask', 'docker'),
+			asked: await resolve({ available: both }, 'ask', 'docker'),
+			dismissed: await resolve({ available: both }, 'ask', 'dismiss'),
+			// Connecting then reports that Docker is not available.
+			none: await resolve({ available: [] }, 'wslc'),
+			picks,
+		}, {
+			docker: 'docker',
+			wslc: 'wslc',
+			unset: 'docker',
+			dockerWithoutDocker: 'wslc',
+			askWithoutDocker: 'wslc',
+			wslcWithoutWslc: 'docker',
+			existing: 'docker',
+			askExisting: 'wslc',
+			asked: 'docker',
+			dismissed: 'cancelled',
+			none: 'docker',
+			picks: [both, both],
+		});
+	});
+
+	test('asks for the engine of a new Dev Container and keeps it when the relay reconnects', async () => {
+		const configs: IDevContainerAgentHostConfig[] = [];
+		const engineSources: (DevContainerAgentHostSource | undefined)[] = [];
+		const connectEngines: unknown[] = [];
+		const picks: { readonly labels: string[]; readonly placeHolder: string | undefined }[] = [];
+		const service = new class extends mock<IDevContainerAgentHostMainService>() {
+			override readonly onDidOutput = Event.None;
+			override readonly onDidChangeSandboxSupport = Event.None;
+			override readonly onDidReportUserState = Event.None;
+			override readonly onDidFailConnect = Event.None;
+			override readonly onDidRelayMessage = Event.None;
+			override readonly onDidRelayActivity = Event.None;
+			override readonly onDidRelayClose = Event.None;
+			override readonly onDidCloseConnection = Event.None;
+			override async getEngines(source?: DevContainerAgentHostSource): Promise<IDevContainerEngines> {
+				engineSources.push(source);
+				return { available: ['docker', 'wslc'] };
+			}
+			override async connect(config: IDevContainerAgentHostConfig) {
+				configs.push(config);
+				return { connectionId: config.connectionId, address: 'devcontainer:project', name: config.name, remoteWorkspaceFolder: '/workspaces/project' };
+			}
+			override async disconnect() { }
+		}();
+		const connector = store.add(new DevContainerAgentHostConnector(
+			new class extends mock<ISharedProcessService>() {
+				override getChannel(): IChannel {
+					const channel = createDevContainerAgentHostChannel(service, store.add(new DisposableStore()));
+					return {
+						listen: (event, arg) => channel.listen('', event, arg),
+						call: (command, arg) => channel.call('', command, arg),
+					};
+				}
+			}(),
+			store.add(new TestInstantiationService()),
+			store.add(new NullLogService()),
+			new TestConfigurationService({ [DevContainerAgentHostEnabledSettingId]: true, [RemoteAgentHostsEnabledSettingId]: true, [DevContainerEngineSettingId]: 'ask' }),
+			new class extends mock<IEnvironmentService>() { }(),
+			new class extends mock<IOutputService>() {
+				override getChannel() {
+					return new class extends mock<IOutputChannel>() { override append() { } }();
+				}
+			}(),
+			new class extends mock<IFileService>() { override async exists() { return true; } }(),
+			new class extends mock<IRemoteAgentHostService>() { }(),
+			new class extends mock<ISessionsProvidersService>() { }(),
+			new class extends mock<IRequestService>() { }(),
+			new class extends mock<ITelemetryService>() {
+				override publicLog2(eventName: string, data?: ITelemetryData): void {
+					if (eventName === 'vscodeAgents.devContainer/connect') {
+						connectEngines.push(data?.engine);
+					}
+				}
+			}(),
+			new class extends mock<IQuickInputService>() {
+				override async pick<T extends IQuickPickItem>(items: T[], options?: IPickOptions<T>): Promise<T | undefined> {
+					picks.push({ labels: items.map(item => item.label), placeHolder: options?.placeHolder });
+					return items.find(item => item.label === 'WSLc');
+				}
+			}(),
+		));
+		const workspaceUri = URI.file('/project');
+		const target = await connector.createConnection(workspaceUri, 'devcontainer:project', CancellationToken.None);
+		store.add(target.transportDisposable!);
+		const first = store.add(target.transportFactory());
+		assert.ok(isClientTransport(first));
+		await first.connect();
+		const reconnected = store.add(target.transportFactory());
+		assert.ok(isClientTransport(reconnected));
+		await reconnected.connect();
+		assert.deepStrictEqual({ engineSources, picks, engines: configs.map(config => config.engine), connectEngines }, {
+			engineSources: [workspaceUri.fsPath],
+			picks: [{ labels: ['Docker', 'WSLc'], placeHolder: 'Select the container engine for \'project Dev Container\'' }],
+			engines: ['wslc', 'wslc'],
+			connectEngines: ['wslc', 'wslc'],
+		});
+	});
 
 	test('sample setting is application scoped, experiment controlled, and off by default', () => {
 		assert.deepStrictEqual({
@@ -171,6 +291,7 @@ suite('Dev Container Agent Host Connector', () => {
 			override readonly onDidRelayClose = Event.None;
 			override readonly onDidCloseConnection = Event.None;
 			override async isDockerAvailable() { return true; }
+			override async getEngines(): Promise<IDevContainerEngines> { return { available: ['docker'] }; }
 			override async connect(config: IDevContainerAgentHostConfig) {
 				configs.push(config);
 				return { connectionId: config.connectionId, address: 'devcontainer:sample', name: config.name, remoteWorkspaceFolder: '/workspaces/vscode-remote-try-go', repository };
@@ -205,6 +326,7 @@ suite('Dev Container Agent Host Connector', () => {
 			new class extends mock<ISessionsProvidersService>() { }(),
 			new class extends mock<IRequestService>() { override async loadCertificates(): Promise<string[]> { return ['CLIENT CA']; } }(),
 			NullTelemetryService,
+			quickInputService,
 		));
 		const source = devContainerSampleUri(devContainerSamples[0]);
 		await connector.isAvailable(source);
@@ -259,6 +381,7 @@ suite('Dev Container Agent Host Connector', () => {
 			override readonly onDidRelayClose = Event.None;
 			override readonly onDidCloseConnection = Event.None;
 			override async isDockerAvailable() { return true; }
+			override async getEngines(): Promise<IDevContainerEngines> { return { available: ['docker'] }; }
 			override async connect(config: IDevContainerAgentHostConfig) {
 				configs.push(config);
 				return { connectionId: config.connectionId, address: 'devcontainer:environment', name: config.name, remoteWorkspaceFolder: '/workspaces' };
@@ -295,6 +418,7 @@ suite('Dev Container Agent Host Connector', () => {
 			new class extends mock<ISessionsProvidersService>() { }(),
 			new class extends mock<IRequestService>() { }(),
 			NullTelemetryService,
+			quickInputService,
 		));
 		const source = localDevContainerEnvironmentUri('environment');
 		const available = await connector.isAvailable(source);
@@ -323,7 +447,7 @@ suite('Dev Container Agent Host Connector', () => {
 		assert.deepStrictEqual({
 			available,
 			availableWhenDisabled: await connector.isAvailable(source),
-			localDocker: await connector.isLocalDockerAvailable(),
+			localDocker: await connector.isLocalContainerEngineAvailable(),
 			configs: configs.map(config => hasKey(config, { environmentId: true }) ? { environmentId: config.environmentId, image: config.image, name: config.name, persistUserState: config.persistUserState } : config),
 			headings: output.filter(value => value.includes('Starting')).map(value => value.trim()),
 			connectionNames: [target.name, renamed.name, invalid.name],
@@ -358,6 +482,7 @@ suite('Dev Container Agent Host Connector', () => {
 			override readonly onDidRelayActivity = Event.None;
 			override readonly onDidRelayClose = Event.None;
 			override readonly onDidCloseConnection = Event.None;
+			override async getEngines(): Promise<IDevContainerEngines> { return { available: ['docker'] }; }
 			override async connect(config: IDevContainerAgentHostConfig) {
 				return { connectionId: config.connectionId, address: 'devcontainer:environment', name: config.name, remoteWorkspaceFolder: '/workspaces/ubuntu' };
 			}
@@ -398,6 +523,7 @@ suite('Dev Container Agent Host Connector', () => {
 			new class extends mock<ISessionsProvidersService>() { }(),
 			new class extends mock<IRequestService>() { }(),
 			NullTelemetryService,
+			quickInputService,
 		));
 	}
 
@@ -454,6 +580,7 @@ suite('Dev Container Agent Host Connector', () => {
 				override readonly onDidChangeSandboxSupport = support.event;
 				override readonly onDidReportUserState = Event.None;
 				override readonly onDidFailConnect = Event.None;
+				override async getEngines(): Promise<IDevContainerEngines> { return { available: ['docker'] }; }
 				override async connect(config: IDevContainerAgentHostConfig): Promise<never> {
 					support.fire({ connectionId: config.connectionId, supported: false });
 					throw new Error('Unsupported sandbox startup');
@@ -484,6 +611,7 @@ suite('Dev Container Agent Host Connector', () => {
 				new class extends mock<ISessionsProvidersService>() { }(),
 				new class extends mock<IRequestService>() { override async loadCertificates(): Promise<string[]> { return ['CLIENT CA']; } }(),
 				NullTelemetryService,
+				quickInputService,
 			));
 			const workspace = URI.file('/unsupported-project');
 			const observed: { workspace: string; supported: boolean }[] = [];
@@ -505,6 +633,7 @@ suite('Dev Container Agent Host Connector', () => {
 				override readonly onDidChangeSandboxSupport = Event.None;
 				override readonly onDidReportUserState = userState.event;
 				override readonly onDidFailConnect = connectFailure.event;
+				override async getEngines(): Promise<IDevContainerEngines> { return { available: ['docker'] }; }
 				override async connect(config: IDevContainerAgentHostConfig): Promise<never> {
 					configs.push(config);
 					userState.fire({ connectionId: 'other', stage: 'mount', outcome: 'added' });
@@ -552,6 +681,7 @@ suite('Dev Container Agent Host Connector', () => {
 						}
 					}
 				}(),
+				quickInputService,
 			));
 			await assert.rejects(connector.createConnection(URI.file('/project'), 'devcontainer:project', CancellationToken.None), /Lifecycle failed/);
 			const unset = { reason: undefined, errorCause: undefined, lifecycleInUp: undefined, step: undefined, target: undefined, skipReasons: undefined, exitCode: undefined, restoredFolders: undefined, movedFolders: undefined, createdFolders: undefined, existingFolders: undefined, skippedFolders: undefined, scriptUser: undefined, capChown: undefined, capDacOverride: undefined, capDacReadSearch: undefined, capFowner: undefined, stateOwner: undefined, volumeOwner: undefined, capDropChown: undefined, privileged: undefined, usernsMode: undefined, readonlyRootfs: undefined, runtime: undefined, errorMessage: undefined, enabled: true, sample: false, remote: false };
@@ -561,7 +691,7 @@ suite('Dev Container Agent Host Connector', () => {
 					{ eventName: 'vscodeAgents.devContainer/stateVolume', data: { ...unset, stage: 'mount', outcome: 'added', target: 'workspaces' } },
 					{ eventName: 'vscodeAgents.devContainer/stateVolume', data: { ...unset, stage: 'up', outcome: 'failed', reason: 'exitCode', exitCode: 1, errorCause: 'duplicateMount', lifecycleInUp: false } },
 					{ eventName: 'vscodeAgents.devContainer/stateVolume', data: { ...unset, stage: 'link', outcome: 'failed', reason: 'script', step: 'folders', exitCode: 1, target: 'workspaces', movedFolders: 1, skippedFolders: 2, skipReasons: 'mounted,symlink', scriptUser: 'root', capChown: true, capDacReadSearch: false, stateOwner: 'user', capDropChown: false, runtime: 'runc', errorMessage: 'Cannot link user state (exit 1):' } },
-					{ eventName: 'vscodeAgents.devContainer/connect', data: { success: false, cancelled: false, reconnect: false, stateVolume: true, sample: false, remote: false, failureStage: 'link' } },
+					{ eventName: 'vscodeAgents.devContainer/connect', data: { success: false, cancelled: false, reconnect: false, stateVolume: true, sample: false, remote: false, engine: 'docker', failureStage: 'link' } },
 				],
 			});
 		});
@@ -655,6 +785,7 @@ suite('Dev Container Agent Host Connector', () => {
 			),
 			{
 				dockerAvailable: false,
+				wslcAvailable: false,
 				devContainerFolderCount: 2,
 			},
 		);
@@ -840,6 +971,7 @@ suite('Dev Container Agent Host Connector', () => {
 				new class extends mock<ISessionsProvidersService>() { }(),
 				new class extends mock<IRequestService>() { override async loadCertificates(): Promise<string[]> { return ['CLIENT CA']; } }(),
 				NullTelemetryService,
+				quickInputService,
 			));
 			const available = await connector.isAvailable(workspaceUri);
 			supported = false;
@@ -866,7 +998,8 @@ suite('Dev Container Agent Host Connector', () => {
 				disconnected: disconnected.length,
 				lifecycleOperations,
 			}, {
-				available: true, oldHostAvailable: false, withoutDocker: false, dockerChecks: 2,
+				// The third check selects the engine of the new container on the host.
+				available: true, oldHostAvailable: false, withoutDocker: false, dockerChecks: 3,
 				workspaces: ['/remote/project'],
 				output: ['remote container output'],
 				workspace: URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority('devcontainer:test'), path: '/workspaces/project' }),
@@ -914,7 +1047,7 @@ suite('Dev Container Agent Host Connector', () => {
 			recentWorkspacesService,
 			async workspaceUris => {
 				environmentInputs.push(workspaceUris.map(uri => uri.path));
-				return { dockerAvailable: true, devContainerFolderCount: 1 };
+				return { dockerAvailable: true, wslcAvailable: true, devContainerFolderCount: 1 };
 			},
 			new TestConfigurationService({ [DevContainerAgentHostEnabledSettingId]: false }),
 			telemetryService,
@@ -934,7 +1067,7 @@ suite('Dev Container Agent Host Connector', () => {
 			environmentInputs: [['/first', '/second']],
 			events: [{
 				eventName: 'vscodeAgents.devContainer/environment',
-				data: { dockerAvailable: true, devContainerFolderCount: 1, devContainerEnabled: false },
+				data: { dockerAvailable: true, wslcAvailable: true, devContainerFolderCount: 1, devContainerEnabled: false },
 			}],
 		});
 	});
@@ -959,7 +1092,7 @@ suite('Dev Container Agent Host Connector', () => {
 			recentWorkspacesService,
 			async () => {
 				calls.push('getEnvironment');
-				return { dockerAvailable: true, devContainerFolderCount: 0 };
+				return { dockerAvailable: true, wslcAvailable: false, devContainerFolderCount: 0 };
 			},
 			new TestConfigurationService({ [DevContainerAgentHostEnabledSettingId]: false }),
 			telemetryService,
@@ -1047,7 +1180,8 @@ suite('Dev Container Agent Host Connector', () => {
 					onConnect?.();
 					return Promise.reject(error);
 				}
-				return Promise.resolve(undefined as T);
+				const engines: IDevContainerEngines = { available: ['docker'] };
+				return Promise.resolve((command === 'getEngines' ? engines : undefined) as T);
 			}
 
 			override listen<T>(): Event<T> {
@@ -1086,6 +1220,7 @@ suite('Dev Container Agent Host Connector', () => {
 			new class extends mock<ISessionsProvidersService>() { }(),
 			new class extends mock<IRequestService>() { override async loadCertificates(): Promise<string[]> { return ['CLIENT CA']; } }(),
 			NullTelemetryService,
+			quickInputService,
 		));
 
 		await assert.rejects(
@@ -1100,6 +1235,7 @@ suite('Dev Container Agent Host Connector', () => {
 
 		assert.deepStrictEqual(await connectWithFailure(setupError, CancellationToken.None), [
 			'get:devContainer.<workspace>',
+			'getEngines',
 			'connect',
 			'show:devContainer.<workspace>:true',
 			'disconnect',
@@ -1114,8 +1250,8 @@ suite('Dev Container Agent Host Connector', () => {
 			serializedCancellation: await connectWithFailure(canceledError, CancellationToken.None),
 			canceledToken: await connectWithFailure(new Error('Setup stopped'), tokenSource.token, () => tokenSource.cancel()),
 		}, {
-			serializedCancellation: ['get:devContainer.<workspace>', 'connect', 'disconnect'],
-			canceledToken: ['get:devContainer.<workspace>', 'connect', 'disconnect', 'disconnect'],
+			serializedCancellation: ['get:devContainer.<workspace>', 'getEngines', 'connect', 'disconnect'],
+			canceledToken: ['get:devContainer.<workspace>', 'getEngines', 'connect', 'disconnect', 'disconnect'],
 		});
 	});
 

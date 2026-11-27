@@ -43,6 +43,9 @@ export const DevContainerHandoffEnabledSettingId = 'chat.agentHost.devContainer.
 /** Experimental setting that lists and connects the running Dev Containers of folders, such as those opened in editor windows. */
 export const DevContainerDiscoveryEnabledSettingId = 'chat.agentHost.devContainer.discovery.enabled';
 
+/** Experimental setting that selects the container engine of new Dev Containers: `docker`, `wslc` (WSL containers), or `ask`. */
+export const DevContainerEngineSettingId = 'chat.agentHost.devContainer.containerEngine';
+
 /** {@link IDevContainerEnvironment.sourceAddress} of Dev Container environments on this computer. No SSH, Tunnel, or WSL host address equals it. */
 export const LocalDevContainerEnvironmentHost = 'local';
 
@@ -124,10 +127,10 @@ export interface IDevContainerAgentHostConnectionOptions {
 /** Creates a Dev Container and connects to its Agent Host. */
 export interface IDevContainerAgentHostConnector {
 	readonly onDidChangeSandboxSupport?: Event<{ readonly workspaceUri: URI; readonly supported: boolean }>;
-	/** Whether the workspace has a supported configuration and Docker is available on its host. */
+	/** Whether the workspace has a supported configuration and a container engine is available on its host. */
 	isAvailable(workspaceUri: URI): Promise<boolean>;
-	/** Whether Docker is available on this computer, regardless of settings. */
-	isLocalDockerAvailable?(): Promise<boolean>;
+	/** Whether a container engine, Docker or WSLc, is available on this computer, regardless of settings. */
+	isLocalContainerEngineAvailable?(): Promise<boolean>;
 	/** The folder Dev Containers on this computer's Docker engine, regardless of settings. */
 	listLocalFolderContainers?(): Promise<readonly IDevContainerHostFolderContainer[]>;
 	createConnection(workspaceUri: URI, address: string, token: CancellationToken, options?: IDevContainerAgentHostConnectionOptions): Promise<IDevContainerAgentHostConnection>;
@@ -203,8 +206,8 @@ export interface IDevContainerAgentHostService {
 	/** Dev Container environments, empty while {@link areDevContainerEnvironmentsEnabled} is false. */
 	readonly environments: IObservable<readonly IDevContainerEnvironment[]>;
 	/**
-	 * {@link LocalDevContainerEnvironmentHost} while Docker is available on this computer, and the addresses of connected
-	 * SSH, Tunnel, and WSL hosts that support Dev Container environments and have Docker. Computed while
+	 * {@link LocalDevContainerEnvironmentHost} while a container engine is available on this computer, and the addresses of
+	 * connected SSH, Tunnel, and WSL hosts that support Dev Container environments and have a container engine. Computed while
 	 * {@link canUseDevContainerEnvironments} is true, regardless of the experiment-controlled setting.
 	 */
 	readonly environmentHosts: IObservable<ReadonlySet<string>>;

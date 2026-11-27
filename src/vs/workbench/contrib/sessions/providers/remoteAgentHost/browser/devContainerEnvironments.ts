@@ -15,6 +15,7 @@ import { supportsAgentHostDevContainerEnvironments } from '../../../../../../pla
 import { agentHostUri } from '../../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { isDevContainerEngineAvailable } from '../../../../../../platform/agentHost/common/devContainerAgentHost.js';
 import { devContainerEnvironmentUri, isDevContainerEnvironmentId, localDevContainerEnvironmentUri } from '../../../../../../platform/agentHost/common/devContainerEnvironments.js';
 import { getEntryAddress, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -92,8 +93,8 @@ export class DevContainerEnvironments extends Disposable {
 	readonly environments: IObservable<readonly IDevContainerEnvironment[]> = this._environments;
 	private readonly _environmentHosts = observableValue<ReadonlySet<string>>(this, new Set());
 	readonly environmentHosts: IObservable<ReadonlySet<string>> = this._environmentHosts;
-	private readonly _dockerChecks = new Map<string, { readonly connection: IAgentConnection; available: boolean | undefined }>();
-	private _localDockerCheck: { readonly connector: IDevContainerAgentHostConnector; available: boolean | undefined } | undefined;
+	private readonly _engineChecks = new Map<string, { readonly connection: IAgentConnection; available: boolean | undefined }>();
+	private _localEngineCheck: { readonly connector: IDevContainerAgentHostConnector; available: boolean | undefined } | undefined;
 
 	constructor(
 		private readonly _host: IDevContainerEnvironmentsHost,
@@ -109,7 +110,7 @@ export class DevContainerEnvironments extends Disposable {
 		this._register(this._storageService.onDidChangeValue(StorageScope.APPLICATION, DEV_CONTAINER_ENVIRONMENTS_STORAGE_KEY, this._store)(() => this._restore()));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('dev.containers.dockerPath')) {
-				this._localDockerCheck = undefined;
+				this._localEngineCheck = undefined;
 				this._updateEnvironmentHosts();
 			}
 			if (e.affectsConfiguration(DevContainerEnvironmentsEnabledSettingId) || e.affectsConfiguration(DevContainerAgentHostEnabledSettingId) || e.affectsConfiguration(RemoteAgentHostsEnabledSettingId) || e.affectsConfiguration('chat.disableAIFeatures')) {
@@ -129,7 +130,7 @@ export class DevContainerEnvironments extends Disposable {
 			throw new Error(localize('devContainerEnvironment.disabled', "Dev Container environments are not enabled."));
 		}
 		if (!this._environmentHosts.get().has(sourceAddress)) {
-			throw new Error(localize('devContainerEnvironment.hostUnavailable', "Dev Container environments are not available on this host. Connect to it and make sure Docker is installed."));
+			throw new Error(localize('devContainerEnvironment.hostUnavailable', "Dev Container environments are not available on this host. Connect to it and make sure Docker or WSL containers are installed."));
 		}
 		const stored: IStoredDevContainerEnvironment = { id: generateUuid(), sourceAddress, name: this._nextName() };
 		// The current host connection is followed explicitly below rather than automatically.
@@ -379,19 +380,19 @@ export class DevContainerEnvironments extends Disposable {
 		const hosts = new Set<string>();
 		const connector = this._host.currentConnector();
 		if (canUseDevContainerEnvironments(this._configurationService) && connector) {
-			if (this._localDockerCheck?.connector !== connector) {
+			if (this._localEngineCheck?.connector !== connector) {
 				const current = { connector, available: undefined as boolean | undefined };
-				this._localDockerCheck = current;
-				(connector.isLocalDockerAvailable?.() ?? Promise.resolve(false)).then(available => current.available = available, error => {
+				this._localEngineCheck = current;
+				(connector.isLocalContainerEngineAvailable?.() ?? Promise.resolve(false)).then(available => current.available = available, error => {
 					current.available = false;
-					this._logService.warn('[DevContainerEnvironments] Failed to check Docker availability on this computer', error);
+					this._logService.warn('[DevContainerEnvironments] Failed to check container engine availability on this computer', error);
 				}).finally(() => {
-					if (!this._store.isDisposed && this._localDockerCheck === current) {
+					if (!this._store.isDisposed && this._localEngineCheck === current) {
 						this._updateEnvironmentHosts();
 					}
 				});
 			}
-			if (this._localDockerCheck.available) {
+			if (this._localEngineCheck.available) {
 				hosts.add(LocalDevContainerEnvironmentHost);
 			}
 			const configured = new Set<string>();
@@ -404,19 +405,19 @@ export class DevContainerEnvironments extends Disposable {
 				const connection = this._remoteAgentHostService.getConnection(address);
 				const devContainerService = connection?.devContainerService;
 				if (!connection || !devContainerService || !supportsAgentHostDevContainerEnvironments(connection.initializeResult.get())) {
-					this._dockerChecks.delete(address);
+					this._engineChecks.delete(address);
 					continue;
 				}
-				let check = this._dockerChecks.get(address);
+				let check = this._engineChecks.get(address);
 				if (check?.connection !== connection) {
 					const current = { connection, available: undefined as boolean | undefined };
-					this._dockerChecks.set(address, current);
+					this._engineChecks.set(address, current);
 					check = current;
-					devContainerService.isDockerAvailable().then(available => current.available = available, error => {
+					isDevContainerEngineAvailable(devContainerService).then(available => current.available = available, error => {
 						current.available = false;
-						this._logService.warn(`[DevContainerEnvironments] Failed to check Docker availability on ${address}`, error);
+						this._logService.warn(`[DevContainerEnvironments] Failed to check container engine availability on ${address}`, error);
 					}).finally(() => {
-						if (!this._store.isDisposed && this._dockerChecks.get(address) === current) {
+						if (!this._store.isDisposed && this._engineChecks.get(address) === current) {
 							this._updateEnvironmentHosts();
 						}
 					});
@@ -426,14 +427,14 @@ export class DevContainerEnvironments extends Disposable {
 				}
 			}
 			// Checks of hosts that are no longer configured would retain their closed connections.
-			for (const address of [...this._dockerChecks.keys()]) {
+			for (const address of [...this._engineChecks.keys()]) {
 				if (!configured.has(address)) {
-					this._dockerChecks.delete(address);
+					this._engineChecks.delete(address);
 				}
 			}
 		} else {
-			this._dockerChecks.clear();
-			this._localDockerCheck = undefined;
+			this._engineChecks.clear();
+			this._localEngineCheck = undefined;
 		}
 		const previous = this._environmentHosts.get();
 		if (previous.size !== hosts.size || [...hosts].some(host => !previous.has(host))) {

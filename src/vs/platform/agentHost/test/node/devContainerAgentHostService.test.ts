@@ -31,7 +31,7 @@ import { ConfigurationService } from '../../../configuration/common/configuratio
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { NullPolicyService } from '../../../policy/common/policy.js';
-import { IDevContainerAgentHostUserStateReport, VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../../common/devContainerAgentHost.js';
+import { DevContainerEngine, IDevContainerAgentHostUserStateReport, VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../../common/devContainerAgentHost.js';
 import { devContainerEnvironmentImage, IDevContainerEnvironmentSource } from '../../common/devContainerEnvironments.js';
 import { IPreparedDevContainerEnvironment } from '../../node/devContainerEnvironments.js';
 import { IAgentHostEndpointMetadata } from '../../common/agentHostEndpointRegistry.js';
@@ -80,6 +80,10 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	relayResult: Promise<IDevContainerRelay> | undefined;
 	readonly execCommands: string[] = [];
 	readonly dockerCommands: string[][] = [];
+	/** The engine of each of {@link dockerCommands}. */
+	readonly dockerEngines: DevContainerEngine[] = [];
+	/** The engines' resolved executables. Without them, Docker resolves as on a host, and the test machine's WSLc is never used. */
+	engineExecutables: Partial<Record<DevContainerEngine, string>> | undefined;
 	dockerEndpoint = 'unix:///var/run/docker.sock';
 	dockerContextExitCode = 0;
 	dockerContextError: Error | undefined;
@@ -205,11 +209,19 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		return this._resolveShellEnvironment();
 	}
 
-	protected override _runDocker(args: readonly string[]): Promise<{ stdout: string; stderr: string; code: number }> {
+	protected override _resolveEngineExecutable(engine: DevContainerEngine): Promise<string | undefined> {
+		if (this.engineExecutables) {
+			return Promise.resolve(this.engineExecutables[engine]);
+		}
+		return engine === 'docker' ? super._resolveEngineExecutable(engine) : Promise.resolve(undefined);
+	}
+
+	protected override _runDocker(args: readonly string[], _token?: CancellationToken, engine: DevContainerEngine = 'docker'): Promise<{ stdout: string; stderr: string; code: number }> {
 		if (args[0] === 'exec' && args[1] === '--user') {
-			return this._runLocalCommand('docker', args);
+			return this._runLocalCommand(engine, args);
 		}
 		this.dockerCommands.push([...args]);
+		this.dockerEngines.push(engine);
 		if (args[0] === 'context') {
 			if (this.dockerContextError) {
 				return Promise.reject(this.dockerContextError);
@@ -367,7 +379,9 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 
 	protected override _runLocalCommand(command: string, args: readonly string[]): Promise<{ stdout: string; stderr: string; code: number }> {
 		this.localCommands.push({ command, args });
-		if (command === 'docker' && args[0] === 'exec' && args[1] === '--user' && args[2] === 'root') {
+		// `_runDocker` runs `exec --user` here, named after its engine.
+		const engine = command === 'docker' || command === 'wslc';
+		if (engine && args[0] === 'exec' && args[1] === '--user' && args[2] === 'root') {
 			if (args.at(-1)?.includes('/cli/bin/') && this.cliCacheSetupError) {
 				throw this.cliCacheSetupError;
 			}
@@ -376,7 +390,7 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 			}
 			return Promise.resolve({ stdout: '', stderr: '', code: 0 });
 		}
-		if (command === 'docker' && args[0] === 'exec' && args[1] === '--user' && args[2] === 'node') {
+		if (engine && args[0] === 'exec' && args[1] === '--user' && args[2] === 'node') {
 			return Promise.resolve({ stdout: '1000\n1000\n/home/node\n', stderr: '', code: 0 });
 		}
 		throw new Error(`Unexpected local command: ${command} ${args.join(' ')}`);
@@ -596,7 +610,7 @@ suite('Dev Container Agent Host Main Service', () => {
 	test('a remote launcher never shares its host network with containers', async () => {
 		const service = store.add(new class extends RemoteDevContainerAgentHostService {
 			sharesClientNetwork(): Promise<boolean> {
-				return this._sharesClientNetwork(CancellationToken.None);
+				return this._sharesClientNetwork(CancellationToken.None, 'wslc');
 			}
 		}(
 			new NullLogService(),
@@ -1764,6 +1778,73 @@ suite('Dev Container Agent Host Main Service', () => {
 			'-c',
 			'printf test',
 		]]);
+	});
+
+	test('runs a WSLc Dev Container and its lifecycle with WSLc, without nested sandboxing', async () => {
+		const service = store.add(new class extends TestDevContainerAgentHostMainService {
+			readonly cliDockerPaths: string[] = [];
+			protected override async _runDevContainer(connectionId: string, args: readonly string[], token: CancellationToken, environment?: NodeJS.ProcessEnv) {
+				this.cliDockerPaths.push(`${args[0]} ${await this._getDevContainerDockerPath(connectionId)}`);
+				return super._runDevContainer(connectionId, args, token, environment);
+			}
+		}());
+		service.engineExecutables = { docker: 'docker', wslc: 'C:\\WSL\\wslc.exe' };
+		service.sandboxSupported = true;
+		const output: string[] = [];
+		store.add(service.onDidOutput(event => output.push(event.data)));
+		const result = await service.connect({ connectionId: 'wslc', workspaceFolder: '/workspace', name: 'Project Dev Container', engine: 'wslc', sandboxEnabled: true });
+		await service.stopContainer('/workspace');
+		assert.deepStrictEqual({
+			cliDockerPaths: service.cliDockerPaths,
+			dockerCommands: service.dockerCommands.map((args, i) => `${service.dockerEngines[i]} ${args[0]}`),
+			engineExecs: service.localCommands.filter(command => command.args[0] === 'exec').map(command => `${command.command} ${command.args.slice(0, 3).join(' ')}`),
+			sandboxPrepared: service.sandboxConfigurationPrepared,
+			sandboxSupported: result.sandboxSupported,
+			sharesClientNetwork: result.sharesClientNetwork,
+			sandboxNotice: output.some(text => text.includes('Terminal sandboxing is not supported in WSL containers')),
+		}, {
+			// The Dev Containers CLI runs WSLc, see `_spawnDevContainer`.
+			cliDockerPaths: ['read-configuration C:\\WSL\\wslc.exe', 'up C:\\WSL\\wslc.exe'],
+			// The container is checked for other sessions and stopped with WSLc.
+			dockerCommands: ['wslc exec', 'wslc stop'],
+			// The shared server cache is prepared with WSLc.
+			engineExecs: ['wslc exec --user root'],
+			sandboxPrepared: false,
+			sandboxSupported: false,
+			sharesClientNetwork: true,
+			sandboxNotice: true,
+		});
+	});
+
+	test('reports the engine that has a source\'s container, so that its connections keep using it', async () => {
+		const service = store.add(new class extends TestDevContainerAgentHostMainService {
+			protected override _runDocker(args: readonly string[], _token?: CancellationToken, engine: DevContainerEngine = 'docker') {
+				if (engine === 'docker') {
+					// A Docker engine that is not running does not keep the other engine from being found.
+					return Promise.resolve({ stdout: '', stderr: 'Cannot connect to the Docker daemon', code: 1 });
+				}
+				const found = args.some(arg => arg === 'label=vscode.agents.environment=environment' || arg.startsWith('label=devcontainer.local_folder='));
+				return Promise.resolve({ stdout: found ? 'found\n' : '', stderr: '', code: 0 });
+			}
+		}());
+		service.engineExecutables = { docker: 'docker' };
+		const before = await service.getEngines('/workspace');
+		service.engineExecutables = { docker: 'docker', wslc: 'C:\\WSL\\wslc.exe' };
+		assert.deepStrictEqual({
+			dockerOnly: before,
+			available: await service.getEngines(),
+			workspace: await service.getEngines('/workspace'),
+			environment: await service.getEngines({ environmentId: 'environment' }),
+			otherEnvironment: await service.getEngines({ environmentId: 'other' }),
+			sample: await service.getEngines({ sampleId: 'node' }),
+		}, {
+			dockerOnly: { available: ['docker'] },
+			available: { available: ['docker', 'wslc'] },
+			workspace: { available: ['docker', 'wslc'], existing: 'wslc' },
+			environment: { available: ['docker', 'wslc'], existing: 'wslc' },
+			otherEnvironment: { available: ['docker', 'wslc'] },
+			sample: { available: ['docker', 'wslc'] },
+		});
 	});
 
 	for (const failure of ['clone', 'lifecycle', 'cancellation'] as const) {

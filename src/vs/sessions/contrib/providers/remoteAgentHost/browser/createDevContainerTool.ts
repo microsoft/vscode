@@ -89,7 +89,7 @@ export class CreateDevContainerTool implements IToolImpl {
 			toolReferenceName: 'create_dev_container',
 			displayName: localize('createDevContainer.displayName', "Create Dev Container"),
 			userDescription: localize('createDevContainer.userDescription', "Create a Dev Container with an agent host running inside"),
-			modelDescription: 'Create a Linux Dev Container from the Ubuntu base image with an agent host running inside, on this computer or on a connected SSH, Tunnel, or WSL host with Docker. Use when work should continue in an isolated container. The container persists, keeps its files in a Docker volume, and is listed in Remote Environments, where the user can delete it. `host` defaults to the host this session runs on (for a session in a Dev Container, the host that runs that container), or to this computer when that host cannot run Dev Containers. Returns the container\'s `hostId` and its empty `workspace` folder once it can start sessions; to continue there, call create_remote_session with that `hostId` and `workspace: { uri: workspace, isolation: "folder" }`. When `status` is `notReady`, the container exists but cannot start sessions yet: follow its `guidance` instead of creating another. Building can take minutes. Normal approval applies. Each call creates another container, so do not retry a failed creation without addressing its error.',
+			modelDescription: 'Create a Linux Dev Container from the Ubuntu base image with an agent host running inside, on this computer or on a connected SSH, Tunnel, or WSL host with Docker or WSL containers. Use when work should continue in an isolated container. The container persists, keeps its files in a container volume, and is listed in Remote Environments, where the user can delete it. `host` defaults to the host this session runs on (for a session in a Dev Container, the host that runs that container), or to this computer when that host cannot run Dev Containers. Returns the container\'s `hostId` and its empty `workspace` folder once it can start sessions; to continue there, call create_remote_session with that `hostId` and `workspace: { uri: workspace, isolation: "folder" }`. When `status` is `notReady`, the container exists but cannot start sessions yet: follow its `guidance` instead of creating another. Building can take minutes. Normal approval applies. Each call creates another container, so do not retry a failed creation without addressing its error.',
 			source: ToolDataSource.Internal,
 			icon: Codicon.remoteExplorer,
 			when: ContextKeyExpr.and(
@@ -122,7 +122,7 @@ export class CreateDevContainerTool implements IToolImpl {
 			pastTenseMessage: localize('createDevContainer.past', "Created Dev Container on {0}", host.label),
 			confirmationMessages: {
 				title: localize('createDevContainer.confirmationTitle', "Create Dev Container?"),
-				message: new MarkdownString().appendText(localize('createDevContainer.confirmation', "Create a Dev Container from the Ubuntu base image on {0}? It keeps its files in a Docker volume until you delete it in Remote Environments.", host.label)),
+				message: new MarkdownString().appendText(localize('createDevContainer.confirmation', "Create a Dev Container from the Ubuntu base image on {0}? It keeps its files in a container volume until you delete it in Remote Environments.", host.label)),
 			},
 		};
 	}
@@ -208,7 +208,7 @@ export class CreateDevContainerTool implements IToolImpl {
 		}
 		const hosts = this.getHosts();
 		if (!hosts.length) {
-			throw new Error(localize('createDevContainer.noHosts', "No Docker host is available. Start Docker on this computer, or connect to an SSH, Tunnel, or WSL host that has Docker."));
+			throw new Error(localize('createDevContainer.noHosts', "No host can run Dev Containers. Start Docker or install WSL containers on this computer, or connect to an SSH, Tunnel, or WSL host that has Docker."));
 		}
 		const sessionHostAddress = requested === undefined ? this.getSessionHostAddress(chatResource) : undefined;
 		const host = requested !== undefined ? hosts.find(host => host.id === requested)
@@ -218,7 +218,7 @@ export class CreateDevContainerTool implements IToolImpl {
 			const available = JSON.stringify(hosts.map(({ id, label }) => ({ id, label })));
 			throw new Error(requested !== undefined
 				? localize('createDevContainer.unknownHost', "Dev Containers cannot be created on {0} now. Available hosts: {1}", requested, available)
-				: localize('createDevContainer.hostRequired', "Docker is not available on this computer. Choose a host: {0}", available));
+				: localize('createDevContainer.hostRequired', "Neither Docker nor WSL containers are available on this computer. Choose a host: {0}", available));
 		}
 		return host;
 	}

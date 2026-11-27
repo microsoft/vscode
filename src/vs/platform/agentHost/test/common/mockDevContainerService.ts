@@ -5,7 +5,7 @@
 
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import type { DevContainerAgentHostSource, IDevContainerAgentHostConfig, IDevContainerAgentHostConnectFailure, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport, IDevContainerHostFolderContainer } from '../../common/devContainerAgentHost.js';
+import type { DevContainerAgentHostSource, IDevContainerAgentHostConfig, IDevContainerAgentHostConnectFailure, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport, IDevContainerEngines, IDevContainerHostFolderContainer } from '../../common/devContainerAgentHost.js';
 import type { IRelayMessage } from '../../common/relayTransport.js';
 
 export class MockDevContainerService extends Disposable implements IDevContainerAgentHostMainService {
@@ -31,6 +31,8 @@ export class MockDevContainerService extends Disposable implements IDevContainer
 	readonly stops: string[] = [];
 	readonly removes: DevContainerAgentHostSource[] = [];
 	readonly sent: IRelayMessage[] = [];
+	readonly engineSources: (DevContainerAgentHostSource | undefined)[] = [];
+	engines: IDevContainerEngines = { available: ['docker'] };
 	connectResult: Promise<IDevContainerAgentHostConnectResult> | undefined;
 	folderContainers: readonly IDevContainerHostFolderContainer[] = [];
 
@@ -40,6 +42,11 @@ export class MockDevContainerService extends Disposable implements IDevContainer
 
 	async listFolderContainers(): Promise<readonly IDevContainerHostFolderContainer[]> {
 		return this.folderContainers;
+	}
+
+	async getEngines(source?: DevContainerAgentHostSource): Promise<IDevContainerEngines> {
+		this.engineSources.push(source);
+		return this.engines;
 	}
 
 	async connect(config: IDevContainerAgentHostConfig): Promise<IDevContainerAgentHostConnectResult> {

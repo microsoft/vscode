@@ -16,6 +16,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { IRequestService } from '../../../request/common/request.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
+import type { DevContainerEngine } from '../../common/devContainerAgentHost.js';
 import { devContainerEnvironmentImage, devContainerEnvironmentUri, findDevContainerEnvironment, parseDevContainerEnvironmentWorkspaceFolder } from '../../common/devContainerEnvironments.js';
 import { DevContainerAgentHostMainService } from '../../node/devContainerAgentHostService.js';
 import { devContainerEnvironmentLabel, devContainerVolumeLabel, hasDevContainerEnvironmentVolume, prepareDevContainerEnvironment, readDevContainerEnvironmentTestConfiguration, removeDevContainerEnvironment } from '../../node/devContainerEnvironments.js';
@@ -217,6 +218,9 @@ suite('Dev Container environments', () => {
 		const configuration = new TestConfigurationService({});
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const host = store.add(new class extends DevContainerAgentHostMainService {
+			protected override async _resolveEngineExecutable(engine: DevContainerEngine) {
+				return engine === 'docker' ? 'docker' : undefined;
+			}
 			protected override async _runDocker(args: readonly string[]) {
 				calls.push(args.join(' '));
 				const stdout = args[0] === 'ps' ? 'first\nsecond\n'
@@ -302,6 +306,9 @@ suite('Dev Container environments', () => {
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		let dockerAvailable = false;
 		const host = store.add(new class extends DevContainerAgentHostMainService {
+			protected override async _resolveEngineExecutable(engine: DevContainerEngine) {
+				return engine === 'docker' ? 'docker' : undefined;
+			}
 			protected override async _runDocker(args: readonly string[]) {
 				if (!dockerAvailable) {
 					return { stdout: '', stderr: 'Cannot connect to the Docker daemon', code: 1 };

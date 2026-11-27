@@ -7,8 +7,8 @@ import { CancellationError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { hasKey } from '../../../base/common/types.js';
-import { DevContainerCloseConnectionNotification, DevContainerConnectEnvironmentExtensionMethod, DevContainerConnectExtensionMethod, DevContainerConnectFailureNotification, devContainerConnectFailureValidator, devContainerConnectResultValidator, devContainerConnectionParamsValidator, DevContainerDisconnectExtensionMethod, devContainerFolderContainersValidator, DevContainerIsDockerAvailableExtensionMethod, DevContainerListFolderContainersExtensionMethod, DevContainerOutputNotification, DevContainerSandboxSupportNotification, devContainerSandboxSupportValidator, DevContainerRelayCloseNotification, DevContainerRelayMessageNotification, devContainerRelayMessageValidator, DevContainerRelaySendExtensionMethod, DevContainerRemoveEnvironmentExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, DevContainerUserStateNotification, devContainerUserStateValidator, type IAgentHostExtensionCommandMap } from './agentHostExtensionProtocol.js';
-import type { DevContainerAgentHostSource, IDevContainerAgentHostConfig, IDevContainerAgentHostConnectFailure, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport, IDevContainerHostFolderContainer } from './devContainerAgentHost.js';
+import { DevContainerCloseConnectionNotification, DevContainerConnectEnvironmentExtensionMethod, DevContainerConnectExtensionMethod, DevContainerConnectFailureNotification, devContainerConnectFailureValidator, devContainerConnectResultValidator, devContainerConnectionParamsValidator, DevContainerDisconnectExtensionMethod, devContainerEnginesResultValidator, devContainerFolderContainersValidator, DevContainerGetEnginesExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerListFolderContainersExtensionMethod, DevContainerOutputNotification, DevContainerSandboxSupportNotification, devContainerSandboxSupportValidator, DevContainerRelayCloseNotification, DevContainerRelayMessageNotification, devContainerRelayMessageValidator, DevContainerRelaySendExtensionMethod, DevContainerRemoveEnvironmentExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, DevContainerUserStateNotification, devContainerUserStateValidator, type IAgentHostExtensionCommandMap } from './agentHostExtensionProtocol.js';
+import { isDevContainerEngine, type DevContainerAgentHostSource, type IDevContainerAgentHostConfig, type IDevContainerAgentHostConnectFailure, type IDevContainerAgentHostConnectResult, type IDevContainerAgentHostMainService, type IDevContainerAgentHostOutput, type IDevContainerAgentHostSandboxSupport, type IDevContainerAgentHostUserStateReport, type IDevContainerEngines, type IDevContainerHostFolderContainer } from './devContainerAgentHost.js';
 import type { IRelayMessage } from './relayTransport.js';
 
 /** Adapts the VS Code extension RPCs to the shared-process Dev Container service contract. */
@@ -35,6 +35,8 @@ export class DevContainerAgentHostProtocolClient extends Disposable implements I
 
 	constructor(
 		private readonly _request: <M extends keyof IAgentHostExtensionCommandMap>(method: M, params: IAgentHostExtensionCommandMap[M]['params']) => Promise<IAgentHostExtensionCommandMap[M]['result']>,
+		/** Whether the host supports `getEngines`, see `supportsAgentHostDevContainerEngines`. */
+		private readonly _supportsEngines: () => boolean = () => false,
 	) {
 		super();
 	}
@@ -56,9 +58,29 @@ export class DevContainerAgentHostProtocolClient extends Disposable implements I
 		return result.content;
 	}
 
+	async getEngines(source?: DevContainerAgentHostSource): Promise<IDevContainerEngines> {
+		if (!this._supportsEngines()) {
+			return { available: await this.isDockerAvailable() ? ['docker'] : [] };
+		}
+		if (source !== undefined && typeof source !== 'string' && !hasKey(source, { environmentId: true })) {
+			throw new Error('Dev Container samples are only supported on local Docker hosts.');
+		}
+		const response = await this._request(DevContainerGetEnginesExtensionMethod, source === undefined ? {} : typeof source === 'string' ? { workspaceFolder: source } : { environmentId: source.environmentId });
+		const result = devContainerEnginesResultValidator.validate(response);
+		if (result.error) {
+			throw new Error('Invalid Dev Container engines response');
+		}
+		const available = result.content.available.filter(isDevContainerEngine);
+		const existing = result.content.existing;
+		return { available, ...(isDevContainerEngine(existing) && available.includes(existing) ? { existing } : {}) };
+	}
+
 	async connect(config: IDevContainerAgentHostConfig): Promise<IDevContainerAgentHostConnectResult> {
 		if (hasKey(config, { sampleId: true })) {
 			throw new Error('Dev Container samples are only supported on local Docker hosts.');
+		}
+		if (config.engine !== undefined && config.engine !== 'docker' && !this._supportsEngines()) {
+			throw new Error('This remote Agent Host only supports Docker for Dev Containers.');
 		}
 		if (this._connections.has(config.connectionId)) {
 			throw new Error('Dev Container connectionId is already in use');
