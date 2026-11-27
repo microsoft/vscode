@@ -14,6 +14,8 @@ export abstract class LanguageDetectionWorkerHost {
 		workerClient.setChannel<LanguageDetectionWorkerHost>(LanguageDetectionWorkerHost.CHANNEL_NAME, obj);
 	}
 
+	/** Forwards a message from the worker to the window log. */
+	abstract $logMessage(level: 'warn' | 'error', message: string): void;
 	abstract $getIndexJsUri(): Promise<string>;
 	abstract $getLanguageId(languageIdOrExt: string | undefined): Promise<string | undefined>;
 	abstract $sendTelemetryEvent(languages: string[], confidences: number[], timeSpent: number): Promise<void>;
