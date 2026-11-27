@@ -17,7 +17,6 @@ import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../.
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
@@ -32,9 +31,8 @@ import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { registerAgentsViewNewSessionActions } from '../agentsView/agentsChatPartActions.js';
 import { ChatViewSessionsListProvider } from '../agentsView/chatViewSessionsList.js';
 import { IEditorWindowShownChatService } from '../agentsView/editorWindowMainSessionHost.js';
-import { CHAT_VIEW_SESSIONS_GROUPING_STORAGE_KEYS, EditorWindowSessionsList } from '../agentsView/editorWindowSessionsList.js';
+import { ChatViewSessionsGroupingState, EditorWindowSessionsList } from '../agentsView/editorWindowSessionsList.js';
 import { ChatViewSessionsListContext, ChatViewSessionsListTitleContext } from '../views/sessionsView.js';
-import { SessionsGrouping } from '../views/sessionsListCommon.js';
 import { registerSessionsListAccessibilityHelp } from '../views/sessionsListActions.js';
 import { ChatViewSessionsListAccessibilityHelp } from './chatViewSessionsListAccessibilityHelp.js';
 import { AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
@@ -76,7 +74,6 @@ export class ChatViewSessionsGate extends Disposable implements IWorkbenchContri
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IChatViewSessionsListService chatViewSessionsListService: IChatViewSessionsListService,
-		@IStorageService storageService: IStorageService,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 	) {
 		super();
@@ -106,27 +103,17 @@ export class ChatViewSessionsGate extends Disposable implements IWorkbenchContri
 		// user value compared is that of the profile it was read in. Switching to another profile moves the value read to it: the
 		// new profile's settings load as a workspace change, which only reads its value, and where they load no change, the value
 		// is already the new profile's.
+		const groupingState = instantiationService.createInstance(ChatViewSessionsGroupingState);
 		const userEnabled = () => ({ profile: userDataProfileService.currentProfile.id, enabled: configurationService.inspect<boolean>(ChatConfiguration.ChatViewSessionsListEnabled).userValue === true });
 		let previous = userEnabled();
 		this._register(userDataProfileService.onDidChangeCurrentProfile(e => previous = { ...previous, profile: e.profile.id }));
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			const current = userEnabled();
 			if (e.source === ConfigurationTarget.USER && current.profile === previous.profile && e.affectsConfiguration(ChatConfiguration.ChatViewSessionsListEnabled) && previous.enabled && !current.enabled && configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsListEnabled) !== true) {
-				this.leaveStoredInbox(storageService);
+				groupingState.leaveInbox();
 			}
 			previous = current;
 		}));
-	}
-
-	/**
-	 * Remembers that the Chat view's list left Inbox while it was not there to leave it itself, so that it does not come back
-	 * in Inbox, except in a window whose workspace keeps the list on: the stored Inbox stays for it.
-	 */
-	private leaveStoredInbox(storageService: IStorageService): void {
-		const keys = CHAT_VIEW_SESSIONS_GROUPING_STORAGE_KEYS;
-		if (keys.inboxLeft && storageService.get(keys.grouping, StorageScope.PROFILE) === SessionsGrouping.Inbox) {
-			storageService.store(keys.inboxLeft.key, true, StorageScope.PROFILE, keys.target ?? StorageTarget.USER);
-		}
 	}
 }
 

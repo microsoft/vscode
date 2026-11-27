@@ -60,7 +60,7 @@ import { EditorWindowSessionsService } from '../../../browser/agentsView/editorW
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
 import { ChatViewSessionsListProvider } from '../../../browser/agentsView/chatViewSessionsList.js';
 import { InSessionsViewContext, ISessionsViewLocator, SessionsView, SessionsViewId } from '../../../browser/views/sessionsView.js';
-import { CHAT_VIEW_SESSIONS_GROUPING_STORAGE_KEYS } from '../../../browser/agentsView/editorWindowSessionsList.js';
+import { ChatViewSessionsGroupingState } from '../../../browser/agentsView/editorWindowSessionsList.js';
 import { AccessibleViewRegistry } from '../../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { FocusedViewContext, IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { SessionsListNotificationFocused } from '../../../browser/views/sessionsListNotification.js';
@@ -93,6 +93,9 @@ class WorkspaceConfigurationService extends TestConfigurationService {
 		return { ...super.inspect<T>(key, overrides), value: this.getValue<T>(key), userValue, userLocalValue: userValue, workspaceValue: this.workspaceValues.get(key) as T | undefined };
 	}
 }
+
+// The private keys under which the Chat view's list stores its grouping, which these tests write as its windows would
+const CHAT_KEYS = { grouping: 'chatViewSessionsList.grouping', nonInboxGrouping: 'chatViewSessionsList.nonInboxGrouping', inboxLeft: { key: 'chatViewSessionsList.inboxLeft' } };
 
 suite('ChatViewSessionsGate', () => {
 
@@ -240,21 +243,24 @@ suite('ChatViewSessionsGate', () => {
 		}({ [ChatConfiguration.ChatViewSessionsListEnabled]: false });
 		const before = registered();
 		const environmentService = upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false });
-		// With the setting off, the gate creates nothing but the accessibility help of the list: any other use of the instantiation
-		// service fails
+		// With the setting off, the gate creates nothing but the accessibility help of the list and the stored grouping it leaves
+		// Inbox through: any other use of the instantiation service fails
 		const created: string[] = [];
 		const instantiationService = upcastPartial<IInstantiationService>({
 			createInstance: ((ctor: { name: string }) => {
 				created.push(ctor.name);
+				if (ctor === ChatViewSessionsGroupingState) {
+					return new ChatViewSessionsGroupingState(disposables.add(new TestStorageService()), configurationService);
+				}
 				if (ctor !== ChatViewSessionsListAccessibilityHelp) {
 					throw new Error(`created ${ctor.name}`);
 				}
 				return new ChatViewSessionsListAccessibilityHelp(upcastPartial<IViewsService>({}), upcastPartial<ISessionsViewLocator>({}), new TestConfigurationService());
 			}) as IInstantiationService['createInstance'],
 		});
-		disposables.add(new ChatViewSessionsGate(configurationService, instantiationService, environmentService, new ChatViewSessionsListService(configurationService, environmentService), disposables.add(new TestStorageService()), upcastPartial<IUserDataProfileService>({ currentProfile: upcastPartial<IUserDataProfile>({ id: 'default' }), onDidChangeCurrentProfile: Event.None })));
+		disposables.add(new ChatViewSessionsGate(configurationService, instantiationService, environmentService, new ChatViewSessionsListService(configurationService, environmentService), upcastPartial<IUserDataProfileService>({ currentProfile: upcastPartial<IUserDataProfile>({ id: 'default' }), onDidChangeCurrentProfile: Event.None })));
 
-		assert.deepStrictEqual({ ...registered(), reads: [...new Set(reads)], created }, { ...before, reads: [ChatConfiguration.ChatViewSessionsListEnabled], created: ['ChatViewSessionsListAccessibilityHelp'] });
+		assert.deepStrictEqual({ ...registered(), reads: [...new Set(reads)], created }, { ...before, reads: [ChatConfiguration.ChatViewSessionsListEnabled], created: ['ChatViewSessionsListAccessibilityHelp', 'ChatViewSessionsGroupingState'] });
 	});
 
 	test('gives the Chat view its sessions list, showing only the sessions while a host replaces it, holding the sessions providers, and the actions of the list only once it shows, while the setting is on', () => {
@@ -402,8 +408,8 @@ suite('ChatViewSessionsGate', () => {
 
 	test('a Chat view list left in Inbox is remembered to have left it, keeping the stored Inbox for workspaces that keep the list on, once the list turns off, and the Agents window keeps its Inbox', () => {
 		const storageService = disposables.add(new TestStorageService());
-		const keys = CHAT_VIEW_SESSIONS_GROUPING_STORAGE_KEYS;
-		const stored = () => ({ chat: storageService.get(keys.grouping, StorageScope.PROFILE), left: storageService.getBoolean(keys.inboxLeft!.key, StorageScope.PROFILE, false), agents: storageService.get('sessionsViewPane.grouping', StorageScope.PROFILE) });
+		const keys = CHAT_KEYS;
+		const stored = () => ({ chat: storageService.get(keys.grouping, StorageScope.PROFILE), left: storageService.getBoolean(keys.inboxLeft.key, StorageScope.PROFILE, false), agents: storageService.get('sessionsViewPane.grouping', StorageScope.PROFILE) });
 		storageService.store(keys.grouping, SessionsGrouping.Inbox, StorageScope.PROFILE, StorageTarget.MACHINE);
 		storageService.store(keys.nonInboxGrouping, SessionsGrouping.Environment, StorageScope.PROFILE, StorageTarget.MACHINE);
 		storageService.store('sessionsViewPane.grouping', SessionsGrouping.Inbox, StorageScope.PROFILE, StorageTarget.USER);
@@ -411,15 +417,17 @@ suite('ChatViewSessionsGate', () => {
 		const on = stored();
 		change(ChatConfiguration.ChatViewSessionsListEnabled, false);
 		const off = stored();
+		// With no list there to leave it, the list opening again reads the grouping Inbox returns to
+		const reopened = new ChatViewSessionsGroupingState(storageService, configurationService).readGrouping([SessionsGrouping.Date, SessionsGrouping.Environment, SessionsGrouping.Inbox], SessionsGrouping.Date).grouping;
 
-		assert.deepStrictEqual({ on, off }, { on: { chat: SessionsGrouping.Inbox, left: false, agents: SessionsGrouping.Inbox }, off: { chat: SessionsGrouping.Inbox, left: true, agents: SessionsGrouping.Inbox } });
+		assert.deepStrictEqual({ on, off, reopened }, { on: { chat: SessionsGrouping.Inbox, left: false, agents: SessionsGrouping.Inbox }, off: { chat: SessionsGrouping.Inbox, left: true, agents: SessionsGrouping.Inbox }, reopened: SessionsGrouping.Environment });
 	});
 
 	test('windows of one profile keep the Chat view\'s stored Inbox when one starts with the list off or its workspace turns the list off', () => {
 		const storageService = disposables.add(new TestStorageService());
-		const keys = CHAT_VIEW_SESSIONS_GROUPING_STORAGE_KEYS;
+		const keys = CHAT_KEYS;
 		// The stored grouping stays Inbox: the flag tells that the windows not keeping the list on left it
-		const stored = () => storageService.getBoolean(keys.inboxLeft!.key, StorageScope.PROFILE, false) ? 'left' : storageService.get(keys.grouping, StorageScope.PROFILE);
+		const stored = () => storageService.getBoolean(keys.inboxLeft.key, StorageScope.PROFILE, false) ? 'left' : storageService.get(keys.grouping, StorageScope.PROFILE);
 		storageService.store(keys.grouping, SessionsGrouping.Inbox, StorageScope.PROFILE, StorageTarget.MACHINE);
 		storageService.store(keys.nonInboxGrouping, SessionsGrouping.Environment, StorageScope.PROFILE, StorageTarget.MACHINE);
 		const shareStorage = (service: TestInstantiationService) => service.stub(IStorageService, storageService);
@@ -442,9 +450,9 @@ suite('ChatViewSessionsGate', () => {
 
 	test('windows of one profile whose workspaces alone turn the list on keep the Chat view\'s stored Inbox when one workspace turns it off, and when the user setting turns off where a workspace keeps the list on', () => {
 		const storageService = disposables.add(new TestStorageService());
-		const keys = CHAT_VIEW_SESSIONS_GROUPING_STORAGE_KEYS;
+		const keys = CHAT_KEYS;
 		// The stored grouping stays Inbox: the flag tells that the windows not keeping the list on left it
-		const stored = () => storageService.getBoolean(keys.inboxLeft!.key, StorageScope.PROFILE, false) ? 'left' : storageService.get(keys.grouping, StorageScope.PROFILE);
+		const stored = () => storageService.getBoolean(keys.inboxLeft.key, StorageScope.PROFILE, false) ? 'left' : storageService.get(keys.grouping, StorageScope.PROFILE);
 		const shareStorage = (service: TestInstantiationService) => service.stub(IStorageService, storageService);
 		// Workspace B turns the list on with the user setting off, and chooses Inbox
 		createGate(false, undefined, undefined, shareStorage);
@@ -472,9 +480,9 @@ suite('ChatViewSessionsGate', () => {
 
 	test('switching to a profile whose user setting has the list off, or whose settings match, keeps that profile\'s stored Inbox, and the user turning it off there leaves it', () => {
 		const storageService = disposables.add(new TestStorageService());
-		const keys = CHAT_VIEW_SESSIONS_GROUPING_STORAGE_KEYS;
+		const keys = CHAT_KEYS;
 		// The stored grouping stays Inbox: the flag tells that the windows not keeping the list on left it
-		const stored = () => storageService.getBoolean(keys.inboxLeft!.key, StorageScope.PROFILE, false) ? 'left' : storageService.get(keys.grouping, StorageScope.PROFILE);
+		const stored = () => storageService.getBoolean(keys.inboxLeft.key, StorageScope.PROFILE, false) ? 'left' : storageService.get(keys.grouping, StorageScope.PROFILE);
 		storageService.store(keys.grouping, SessionsGrouping.Inbox, StorageScope.PROFILE, StorageTarget.MACHINE);
 		storageService.store(keys.nonInboxGrouping, SessionsGrouping.Environment, StorageScope.PROFILE, StorageTarget.MACHINE);
 		// Profile A has the user setting on
@@ -488,7 +496,7 @@ suite('ChatViewSessionsGate', () => {
 		const userTurnsOff = stored();
 		// Profile B chooses Inbox again, which forgets that it left it, the user setting is on, and switching to profile C, whose setting is on too, changes no setting
 		storageService.store(keys.grouping, SessionsGrouping.Inbox, StorageScope.PROFILE, StorageTarget.MACHINE);
-		storageService.remove(keys.inboxLeft!.key, StorageScope.PROFILE);
+		storageService.remove(keys.inboxLeft.key, StorageScope.PROFILE);
 		change(ChatConfiguration.ChatViewSessionsListEnabled, true);
 		switchProfile('c', true);
 		const switchedAlike = stored();

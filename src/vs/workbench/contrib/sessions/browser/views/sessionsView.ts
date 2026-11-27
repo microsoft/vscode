@@ -24,6 +24,7 @@ import { FocusedViewContext, IsAuxiliaryWindowContext, IsSessionsWindowContext }
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { createDecorator, IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
+import { SyncDescriptor0 } from '../../../../../platform/instantiation/common/descriptors.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -116,6 +117,77 @@ const DEFAULT_GROUPING_STORAGE_KEYS: ISessionsViewGroupingStorageKeys = {
 	grouping: 'sessionsViewPane.grouping',
 	nonInboxGrouping: 'sessionsViewPane.nonInboxGrouping',
 };
+
+/**
+ * The grouping a Sessions view remembers and the grouping Inbox returns to, under its {@link ISessionsViewGroupingStorageKeys keys}
+ * (by default, those of the Agents window): the one owner of how they are stored, which the view reads and writes them through,
+ * and which can leave Inbox for the view while it is not there.
+ */
+export class SessionsViewGroupingState {
+
+	private readonly keys: ISessionsViewGroupingStorageKeys;
+
+	constructor(
+		keys: ISessionsViewGroupingStorageKeys | undefined,
+		@IStorageService private readonly storageService: IStorageService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+	) {
+		this.keys = keys ?? DEFAULT_GROUPING_STORAGE_KEYS;
+	}
+
+	/** The grouping Inbox returns to, of those `offered`, else `fallback`. */
+	readNonInboxGrouping(offered: readonly SessionsGrouping[], fallback: SessionsGrouping): SessionsGrouping {
+		return getStoredSessionsGrouping(this.storageService.get(this.keys.nonInboxGrouping, StorageScope.PROFILE), offered.filter(grouping => grouping !== SessionsGrouping.Inbox)) ?? fallback;
+	}
+
+	/**
+	 * The grouping the view opens with, of those `offered`: the one stored, else, where none is stored and there is a fallback
+	 * key, the grouping other than Inbox stored there (or `fallback`), which `seed` says the view is to store as its own. Inbox
+	 * left while the view was not there opens at the grouping Inbox returns to.
+	 */
+	readGrouping(offered: readonly SessionsGrouping[], fallback: SessionsGrouping): { readonly grouping: SessionsGrouping | undefined; readonly seed: boolean } {
+		const stored = this.storageService.get(this.keys.grouping, StorageScope.PROFILE);
+		if (stored === undefined && this.keys.fallbackGrouping) {
+			const seeded = getStoredSessionsGrouping(this.storageService.get(this.keys.fallbackGrouping, StorageScope.PROFILE), offered.filter(grouping => grouping !== SessionsGrouping.Inbox));
+			return { grouping: seeded ?? fallback, seed: true };
+		}
+		const grouping = getStoredSessionsGrouping(stored, offered);
+		const inboxLeft = this.keys.inboxLeft;
+		if (grouping === SessionsGrouping.Inbox && inboxLeft && this.storageService.getBoolean(inboxLeft.key, StorageScope.PROFILE, false)
+			&& this.configurationService.inspect<boolean>(inboxLeft.keptBy).workspaceValue !== true) {
+			return { grouping: this.readNonInboxGrouping(offered, fallback), seed: false };
+		}
+		return { grouping, seed: false };
+	}
+
+	/** Stores the grouping the view opens with, without forgetting that Inbox was left. */
+	seedGrouping(grouping: SessionsGrouping): void {
+		this.storageService.store(this.keys.grouping, grouping, StorageScope.PROFILE, this.keys.target ?? StorageTarget.USER);
+	}
+
+	/** Stores the grouping the view changed to and, where it left a grouping other than Inbox, that one as the one Inbox returns to. */
+	storeGrouping(grouping: SessionsGrouping, left: SessionsGrouping | undefined): void {
+		const target = this.keys.target ?? StorageTarget.USER;
+		if (left !== undefined && left !== SessionsGrouping.Inbox) {
+			this.storageService.store(this.keys.nonInboxGrouping, left, StorageScope.PROFILE, target);
+		}
+		this.storageService.store(this.keys.grouping, grouping, StorageScope.PROFILE, target);
+		if (this.keys.inboxLeft) {
+			this.storageService.remove(this.keys.inboxLeft.key, StorageScope.PROFILE);
+		}
+	}
+
+	/**
+	 * Leaves the stored Inbox while the view is not there to leave it: the view then opens at the grouping Inbox returns to,
+	 * except in a window whose workspace keeps the setting the keys name on, for which the stored Inbox stays.
+	 */
+	leaveInbox(): void {
+		if (this.keys.inboxLeft && this.storageService.get(this.keys.grouping, StorageScope.PROFILE) === SessionsGrouping.Inbox) {
+			this.storageService.store(this.keys.inboxLeft.key, true, StorageScope.PROFILE, this.keys.target ?? StorageTarget.USER);
+		}
+	}
+}
+
 const SORTING_STORAGE_KEY = 'sessionsViewPane.sorting';
 const COMPACT_STORAGE_KEY = 'sessionsViewPane.compact';
 const CUSTOMIZATIONS_MIN_HEIGHT = 129;
@@ -365,10 +437,10 @@ export interface ISessionsViewOptions extends IViewPaneOptions {
 	readonly quickChatsInTimeGrouping?: boolean;
 
 	/**
-	 * The keys under which it remembers its grouping and Inbox scope, so that a view in another window, such as the Chat view
-	 * of an editor window, remembers its own; by default, those of the Agents window.
+	 * What remembers its grouping and the grouping Inbox returns to, so that a view in another window, such as the Chat view
+	 * of an editor window, remembers its own; by default, under the keys of the Agents window.
 	 */
-	readonly groupingStorageKeys?: ISessionsViewGroupingStorageKeys;
+	readonly groupingState?: SyncDescriptor0<SessionsViewGroupingState>;
 
 	/** Whether Inbox opens the next session that needs input after a reply or approval; it does by default. */
 	readonly inboxAutoAdvance?: boolean;
@@ -421,7 +493,7 @@ export class SessionsView extends ViewPane {
 	private readonly inboxToggles = new Set<InboxToggleActionViewItem>();
 	private readonly hideCustomizations: boolean;
 	private readonly groupings: ISessionsViewOptions['groupings'];
-	private readonly groupingStorageKeys: ISessionsViewGroupingStorageKeys | undefined;
+	private readonly groupingState: SessionsViewGroupingState;
 	private readonly inboxAutoAdvance: boolean | undefined;
 	private readonly leaveInboxWithoutChat: boolean | undefined;
 	/**
@@ -486,7 +558,7 @@ export class SessionsView extends ViewPane {
 
 		// Restore persisted grouping
 		this.groupings = options.groupings;
-		this.groupingStorageKeys = options.groupingStorageKeys;
+		this.groupingState = options.groupingState ? instantiationService.createInstance(options.groupingState) : instantiationService.createInstance(SessionsViewGroupingState, undefined);
 		this.inboxAutoAdvance = options.inboxAutoAdvance;
 		this.leaveInboxWithoutChat = options.leaveInboxWithoutChat;
 		this.quickChatsInTimeGrouping = !!options.quickChatsInTimeGrouping;
@@ -1543,8 +1615,7 @@ export class SessionsView extends ViewPane {
 	}
 
 	private get storedNonInboxGrouping(): SessionsGrouping {
-		return getStoredSessionsGrouping(this.storageService.get((this.groupingStorageKeys ?? DEFAULT_GROUPING_STORAGE_KEYS).nonInboxGrouping, StorageScope.PROFILE),
-			this.offeredGroupings.filter(grouping => grouping !== SessionsGrouping.Inbox)) ?? this.groupings?.default ?? SessionsGrouping.Workspace;
+		return this.groupingState.readNonInboxGrouping(this.offeredGroupings, this.groupings?.default ?? SessionsGrouping.Workspace);
 	}
 
 	private get inboxAvailable(): boolean {
@@ -1553,24 +1624,8 @@ export class SessionsView extends ViewPane {
 			&& !this.chatEntitlementService.sentiment.hidden;
 	}
 
-	/**
-	 * The grouping the view stored, else, where it stored none and has a fallback key, the grouping other than Inbox stored
-	 * there, which `seed` says the view is to store as its own.
-	 */
 	private readStoredGrouping(): { readonly grouping: SessionsGrouping | undefined; readonly seed: boolean } {
-		const stored = this.storageService.get((this.groupingStorageKeys ?? DEFAULT_GROUPING_STORAGE_KEYS).grouping, StorageScope.PROFILE);
-		if (stored === undefined && this.groupingStorageKeys?.fallbackGrouping) {
-			const fallback = getStoredSessionsGrouping(this.storageService.get(this.groupingStorageKeys.fallbackGrouping, StorageScope.PROFILE),
-				this.offeredGroupings.filter(grouping => grouping !== SessionsGrouping.Inbox));
-			return { grouping: fallback ?? this.groupings?.default ?? SessionsGrouping.Workspace, seed: true };
-		}
-		const grouping = getStoredSessionsGrouping(stored, this.offeredGroupings);
-		const inboxLeft = this.groupingStorageKeys?.inboxLeft;
-		if (grouping === SessionsGrouping.Inbox && inboxLeft && this.storageService.getBoolean(inboxLeft.key, StorageScope.PROFILE, false)
-			&& this.configurationService.inspect<boolean>(inboxLeft.keptBy).workspaceValue !== true) {
-			return { grouping: this.storedNonInboxGrouping, seed: false };
-		}
-		return { grouping, seed: false };
+		return this.groupingState.readGrouping(this.offeredGroupings, this.groupings?.default ?? SessionsGrouping.Workspace);
 	}
 
 	private initializeGrouping(): void {
@@ -1581,8 +1636,7 @@ export class SessionsView extends ViewPane {
 		}
 		if (seed) {
 			// Seeds the view's own key once, so that a later change to the fallback key does not change the view as it reopens
-			const storageKeys = this.groupingStorageKeys ?? DEFAULT_GROUPING_STORAGE_KEYS;
-			this.storageService.store(storageKeys.grouping, this.grouping, StorageScope.PROFILE, this.groupingStorageKeys?.target ?? StorageTarget.USER);
+			this.groupingState.seedGrouping(this.grouping);
 		}
 		this.updateInboxAvailability();
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -1720,20 +1774,13 @@ export class SessionsView extends ViewPane {
 		}
 
 		const preserveCollapseState = this.grouping === SessionsGrouping.Inbox || grouping === SessionsGrouping.Inbox;
-		const storageKeys = this.groupingStorageKeys ?? DEFAULT_GROUPING_STORAGE_KEYS;
-		const target = this.groupingStorageKeys?.target ?? StorageTarget.USER;
-		if (this.grouping !== SessionsGrouping.Inbox) {
-			if (this.mountedNonInboxGrouping !== undefined) {
-				this.mountedNonInboxGrouping = this.grouping;
-			}
-			this.storageService.store(storageKeys.nonInboxGrouping, this.grouping, StorageScope.PROFILE, target);
+		const left = this.grouping;
+		if (left !== SessionsGrouping.Inbox && this.mountedNonInboxGrouping !== undefined) {
+			this.mountedNonInboxGrouping = left;
 		}
 		this.currentGrouping = grouping;
 		this.inProfileTransition = false;
-		this.storageService.store(storageKeys.grouping, this.currentGrouping, StorageScope.PROFILE, target);
-		if (storageKeys.inboxLeft) {
-			this.storageService.remove(storageKeys.inboxLeft.key, StorageScope.PROFILE);
-		}
+		this.groupingState.storeGrouping(grouping, left);
 		this.groupingContextKey?.set(this.currentGrouping);
 		if (!preserveCollapseState) {
 			this.sessionsControl?.resetSectionCollapseState();

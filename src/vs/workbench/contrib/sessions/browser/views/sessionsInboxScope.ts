@@ -35,6 +35,8 @@ function getEnvironmentIcon(environment: string): ThemeIcon {
 export class SessionsInboxScope extends Disposable {
 	readonly element: HTMLElement;
 	private activeTrigger: HTMLElement | undefined;
+	/** What took the focus when the scope opened its picker */
+	private pickerFocus: Element | null = null;
 
 	constructor(
 		container: HTMLElement,
@@ -241,12 +243,14 @@ export class SessionsInboxScope extends Disposable {
 			},
 			onHide: () => {
 				this.activeTrigger = undefined;
+				this.pickerFocus = null;
 				trigger.setAttribute('aria-expanded', 'false');
 				if (!this._store.isDisposed && !this.element.hidden && trigger.isConnected) {
 					trigger.focus();
 				}
 			},
 		}, trigger, undefined, [], { getWidgetAriaLabel: () => label }, options);
+		this.pickerFocus = this.activeTrigger === trigger ? dom.getActiveElement() : null;
 	}
 
 	private hidePicker(): void {
@@ -256,18 +260,21 @@ export class SessionsInboxScope extends Disposable {
 	}
 
 	/**
-	 * Shows or hides the scope. Hiding closes an open picker first, and returns whether the focus was in the scope or its picker,
-	 * which the caller then moves to a control that stays, as the hidden scope cannot keep it.
+	 * Shows or hides the scope. Hiding returns whether the scope had the focus, in its controls or in its open picker, which
+	 * the hidden scope cannot keep and the caller then moves to a control that stays. Focus the user already moved elsewhere
+	 * while the picker was closing stays there.
 	 */
 	setVisible(visible: boolean): boolean {
 		if (visible || this.element.hidden) {
 			this.element.hidden = !visible;
 			return false;
 		}
-		const activeElement = dom.getActiveElement();
-		const hadFocus = !!this.activeTrigger || (dom.isHTMLElement(activeElement) && this.element.contains(activeElement));
-		this.hidePicker();
+		const active = dom.getActiveElement();
+		// The open picker keeps the focus it took until it closes; focus the user moved elsewhere as it closes is not the scope's
+		const hadFocus = dom.isAncestorOfActiveElement(this.element) || (!!this.activeTrigger && !!this.pickerFocus && !!active && dom.isAncestor(active, this.pickerFocus));
+		// Hidden before the picker closes, so that closing it does not focus its trigger
 		this.element.hidden = true;
+		this.hidePicker();
 		return hadFocus;
 	}
 }

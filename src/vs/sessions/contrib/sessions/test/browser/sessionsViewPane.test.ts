@@ -25,9 +25,9 @@ import { Workbench } from '../../../../browser/workbench.js';
 import { ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { AICustomizationShortcutsWidget } from '../../../../../workbench/contrib/sessions/browser/aiCustomizationShortcutsWidget.js';
-import { DEFAULT_SESSIONS_GROUPINGS, getCustomizationsPresentation, getStoredSessionsGrouping, ISessionsViewGroupingStorageKeys, SessionsView, SessionsViewGroupingContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { DEFAULT_SESSIONS_GROUPINGS, getCustomizationsPresentation, getStoredSessionsGrouping, SessionsView, SessionsViewGroupingContext, SessionsViewGroupingState } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { CHAT_VIEW_SESSIONS_GROUPING_STORAGE_KEYS, CHAT_VIEW_SESSIONS_GROUPINGS, EDITOR_WINDOW_SESSIONS_GROUPINGS } from '../../../../../workbench/contrib/sessions/browser/agentsView/editorWindowSessionsList.js';
+import { ChatViewSessionsGroupingState, EDITOR_WINDOW_SESSIONS_GROUPINGS } from '../../../../../workbench/contrib/sessions/browser/agentsView/editorWindowSessionsList.js';
 import { SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
@@ -41,6 +41,10 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ChatCustomizationsLocation } from '../../../../../workbench/contrib/chat/common/customizationsLocation.js';
 import '../../../../../workbench/contrib/sessions/browser/media/sessionsViewPane.css';
+
+const CHAT_GROUPINGS = { offered: [...EDITOR_WINDOW_SESSIONS_GROUPINGS.offered, SessionsGrouping.Inbox], default: SessionsGrouping.Date };
+// The private keys under which the Chat view's list stores its grouping, which these tests write as another window would
+const CHAT_KEYS = { grouping: 'chatViewSessionsList.grouping', nonInboxGrouping: 'chatViewSessionsList.nonInboxGrouping', inboxLeft: { key: 'chatViewSessionsList.inboxLeft', keptBy: 'chat.viewSessions.sessionsList.enabled' } };
 
 const registerEditorTabHeightClass = Reflect.get(Workbench.prototype, 'registerEditorTabHeightClass') as (this: {
 	readonly mainContainer: HTMLElement;
@@ -195,7 +199,7 @@ suite('Sessions - SessionsViewPane', () => {
 		storageService = disposables.add(new InMemoryStorageService()),
 		groupings?: { readonly offered: readonly SessionsGrouping[]; readonly default: SessionsGrouping },
 		hidden = false,
-		groupingStorageKeys?: ISessionsViewGroupingStorageKeys,
+		chatList = false,
 		leaveInboxWithoutChat = false,
 		chatEnabledAtStart = true,
 	) {
@@ -209,7 +213,7 @@ suite('Sessions - SessionsViewPane', () => {
 			chatEnabled,
 			currentGrouping: undefined as SessionsGrouping | undefined,
 			groupings,
-			groupingStorageKeys,
+			groupingState: chatList ? new ChatViewSessionsGroupingState(storageService, configurationService) : new SessionsViewGroupingState(undefined, storageService, configurationService),
 			leaveInboxWithoutChat,
 			configurationService,
 			storageService,
@@ -395,7 +399,7 @@ suite('Sessions - SessionsViewPane', () => {
 			currentGrouping: getStoredSessionsGrouping(storageService.get('sessionsViewPane.grouping', StorageScope.PROFILE), groupings?.offered ?? DEFAULT_SESSIONS_GROUPINGS),
 			groupings,
 			configurationService,
-			storageService,
+			groupingState: new SessionsViewGroupingState(undefined, storageService, configurationService),
 			get grouping(): SessionsGrouping { return Reflect.get(SessionsView.prototype, 'grouping', this); },
 			get offeredGroupings(): readonly SessionsGrouping[] { return Reflect.get(SessionsView.prototype, 'offeredGroupings', this); },
 			updateHeaderLayout: () => { },
@@ -431,7 +435,7 @@ suite('Sessions - SessionsViewPane', () => {
 		disposables.add(configurationService.onDidChangeConfigurationEmitter);
 		const storageService = disposables.add(new InMemoryStorageService());
 		const agents = () => createGroupingHost(configurationService, storageService);
-		const chat = () => createGroupingHost(configurationService, storageService, CHAT_VIEW_SESSIONS_GROUPINGS, false, CHAT_VIEW_SESSIONS_GROUPING_STORAGE_KEYS);
+		const chat = () => createGroupingHost(configurationService, storageService, CHAT_GROUPINGS, false, true);
 		const agentsWindow = agents();
 		agentsWindow.setGrouping(SessionsGrouping.Repository);
 		const chatView = chat();
@@ -458,7 +462,7 @@ suite('Sessions - SessionsViewPane', () => {
 			profile = 'a';
 			override hasScope(scope: IAnyWorkspaceIdentifier | IUserDataProfile): boolean { return (scope as IUserDataProfile).id === this.profile; }
 		});
-		const chatView = createGroupingHost(configurationService, storageService, CHAT_VIEW_SESSIONS_GROUPINGS, false, CHAT_VIEW_SESSIONS_GROUPING_STORAGE_KEYS, true);
+		const chatView = createGroupingHost(configurationService, storageService, CHAT_GROUPINGS, false, true, true);
 		const agentsWindow = createGroupingHost(configurationService, storageService);
 		let reloads = 0;
 		chatView.sessionsControl = { filters: { reload: () => reloads++ }, resetSectionCollapseState: () => { }, update: () => { } };
@@ -471,7 +475,7 @@ suite('Sessions - SessionsViewPane', () => {
 		const switchTo = (profile: string, stored: SessionsGrouping) => {
 			chatView.chatEnabled.set(false);
 			agentsWindow.chatEnabled.set(false);
-			const left = storageService.get(CHAT_VIEW_SESSIONS_GROUPING_STORAGE_KEYS.grouping, StorageScope.PROFILE);
+			const left = storageService.get(CHAT_KEYS.grouping, StorageScope.PROFILE);
 			const previous = chatView.userDataProfileService.currentProfile;
 			chatView.userDataProfileService.currentProfile = toUserDataProfile(profile, profile.toUpperCase(), URI.file(`/profiles/${profile}`), URI.file('/cache'));
 			chatView.profileChange.fire({ previous, profile: chatView.userDataProfileService.currentProfile, join: () => { } });
@@ -479,16 +483,16 @@ suite('Sessions - SessionsViewPane', () => {
 			const written: string[] = [];
 			const listener = storageService.onDidChangeValue(StorageScope.PROFILE, undefined, disposables.add(new DisposableStore()))(e => written.push(e.key));
 			// The destination profile stores Inbox; the leaving profile now stores what the view left Inbox for, so the values differ only for B's first visit
-			storageService.store(CHAT_VIEW_SESSIONS_GROUPING_STORAGE_KEYS.grouping, stored, StorageScope.PROFILE, StorageTarget.MACHINE, left !== stored);
+			storageService.store(CHAT_KEYS.grouping, stored, StorageScope.PROFILE, StorageTarget.MACHINE, left !== stored);
 			const whileChatStarts = chatView.grouping;
 			chatView.chatEnabled.set(true);
 			agentsWindow.chatEnabled.set(true);
 			listener.dispose();
-			return { whileChatStarts, grouping: chatView.grouping, written: written.filter(key => key !== CHAT_VIEW_SESSIONS_GROUPING_STORAGE_KEYS.grouping), reloads };
+			return { whileChatStarts, grouping: chatView.grouping, written: written.filter(key => key !== CHAT_KEYS.grouping), reloads };
 		};
 		const toB = switchTo('b', SessionsGrouping.Inbox);
 		// The same value on both sides: the storage tells nothing, and the view follows only as Chat is back
-		storageService.store(CHAT_VIEW_SESSIONS_GROUPING_STORAGE_KEYS.grouping, SessionsGrouping.Environment, StorageScope.PROFILE, StorageTarget.MACHINE);
+		storageService.store(CHAT_KEYS.grouping, SessionsGrouping.Environment, StorageScope.PROFILE, StorageTarget.MACHINE);
 		chatView.setGrouping(SessionsGrouping.Environment);
 		const noDelta = switchTo('a', SessionsGrouping.Environment);
 		assert.deepStrictEqual({ toB, noDelta, agents: agentsWindow.grouping }, {
@@ -506,8 +510,8 @@ suite('Sessions - SessionsViewPane', () => {
 				profile = 'a';
 				override hasScope(scope: IAnyWorkspaceIdentifier | IUserDataProfile): boolean { return (scope as IUserDataProfile).id === this.profile; }
 			});
-			const keys = CHAT_VIEW_SESSIONS_GROUPING_STORAGE_KEYS;
-			const chatView = createGroupingHost(configurationService, storageService, CHAT_VIEW_SESSIONS_GROUPINGS, false, keys, true);
+			const keys = CHAT_KEYS;
+			const chatView = createGroupingHost(configurationService, storageService, CHAT_GROUPINGS, false, true, true);
 			chatView.followProfileSwitches();
 			chatView.setGrouping(SessionsGrouping.Environment);
 			chatView.toggleInbox();
@@ -541,14 +545,14 @@ suite('Sessions - SessionsViewPane', () => {
 			const configurationService = new TestConfigurationService({ [SESSIONS_LIST_INBOX_ENABLED_SETTING]: true });
 			disposables.add(configurationService.onDidChangeConfigurationEmitter);
 			const storageService = disposables.add(new InMemoryStorageService());
-			const chatView = createGroupingHost(configurationService, storageService, CHAT_VIEW_SESSIONS_GROUPINGS, false, CHAT_VIEW_SESSIONS_GROUPING_STORAGE_KEYS, true);
+			const chatView = createGroupingHost(configurationService, storageService, CHAT_GROUPINGS, false, true, true);
 			chatView.followProfileSwitches();
 			chatView.toggleInbox();
 			const previous = chatView.userDataProfileService.currentProfile;
 			chatView.userDataProfileService.currentProfile = toUserDataProfile(previous.id, 'Renamed', previous.location, URI.file('/cache'));
 			chatView.profileChange.fire({ previous, profile: chatView.userDataProfileService.currentProfile, join: () => { } });
 			// Another window stores another grouping
-			storageService.store(CHAT_VIEW_SESSIONS_GROUPING_STORAGE_KEYS.grouping, SessionsGrouping.Environment, StorageScope.PROFILE, StorageTarget.MACHINE, true);
+			storageService.store(CHAT_KEYS.grouping, SessionsGrouping.Environment, StorageScope.PROFILE, StorageTarget.MACHINE, true);
 			return chatView.grouping;
 		};
 		const shown = { grouping: SessionsGrouping.Date, written: [], stored: SessionsGrouping.Inbox };
@@ -563,8 +567,8 @@ suite('Sessions - SessionsViewPane', () => {
 				profile = 'a';
 				override hasScope(scope: IAnyWorkspaceIdentifier | IUserDataProfile): boolean { return (scope as IUserDataProfile).id === this.profile; }
 			});
-			const keys = CHAT_VIEW_SESSIONS_GROUPING_STORAGE_KEYS;
-			const chatView = createGroupingHost(configurationService, storageService, CHAT_VIEW_SESSIONS_GROUPINGS, false, keys, true);
+			const keys = CHAT_KEYS;
+			const chatView = createGroupingHost(configurationService, storageService, CHAT_GROUPINGS, false, true, true);
 			chatView.followProfileSwitches();
 			chatView.setGrouping(SessionsGrouping.Environment);
 			let resets = 0;
@@ -596,25 +600,25 @@ suite('Sessions - SessionsViewPane', () => {
 	});
 
 	test('where the user turning the list off left the Chat view\'s Inbox, a window whose workspace keeps the list on opens in Inbox, others open at the grouping Inbox returns to, and choosing a grouping forgets it', () => {
-		const keys = CHAT_VIEW_SESSIONS_GROUPING_STORAGE_KEYS;
+		const keys = CHAT_KEYS;
 		const storageService = disposables.add(new InMemoryStorageService());
 		const window = (workspaceKeepsList: boolean) => {
 			const configurationService = new class extends TestConfigurationService {
 				override inspect<T>(key: string): IConfigurationValue<T> {
-					return key === keys.inboxLeft!.keptBy && workspaceKeepsList ? { ...super.inspect<T>(key), workspaceValue: true as T } : super.inspect<T>(key);
+					return key === keys.inboxLeft.keptBy && workspaceKeepsList ? { ...super.inspect<T>(key), workspaceValue: true as T } : super.inspect<T>(key);
 				}
 			}({ [SESSIONS_LIST_INBOX_ENABLED_SETTING]: true });
 			disposables.add(configurationService.onDidChangeConfigurationEmitter);
-			return createGroupingHost(configurationService, storageService, CHAT_VIEW_SESSIONS_GROUPINGS, false, keys, true);
+			return createGroupingHost(configurationService, storageService, CHAT_GROUPINGS, false, true, true);
 		};
 		const kept = window(true);
 		kept.setGrouping(SessionsGrouping.Environment);
 		kept.toggleInbox();
 		// As the user turns the list off, in a window whose workspace does not keep it on
-		storageService.store(keys.inboxLeft!.key, true, StorageScope.PROFILE, StorageTarget.MACHINE);
+		storageService.store(keys.inboxLeft.key, true, StorageScope.PROFILE, StorageTarget.MACHINE);
 		const reopened = { kept: window(true).grouping, other: window(false).grouping };
 		window(false).setGrouping(SessionsGrouping.Date);
-		assert.deepStrictEqual({ reopened, afterChoosing: { left: storageService.getBoolean(keys.inboxLeft!.key, StorageScope.PROFILE, false), kept: window(true).grouping } }, {
+		assert.deepStrictEqual({ reopened, afterChoosing: { left: storageService.getBoolean(keys.inboxLeft.key, StorageScope.PROFILE, false), kept: window(true).grouping } }, {
 			reopened: { kept: SessionsGrouping.Inbox, other: SessionsGrouping.Environment },
 			afterChoosing: { left: false, kept: SessionsGrouping.Date },
 		});
@@ -624,7 +628,7 @@ suite('Sessions - SessionsViewPane', () => {
 		const configurationService = new TestConfigurationService({ [SESSIONS_LIST_INBOX_ENABLED_SETTING]: true });
 		disposables.add(configurationService.onDidChangeConfigurationEmitter);
 		const storageService = disposables.add(new InMemoryStorageService());
-		const chat = () => createGroupingHost(configurationService, storageService, CHAT_VIEW_SESSIONS_GROUPINGS, false, CHAT_VIEW_SESSIONS_GROUPING_STORAGE_KEYS, true);
+		const chat = () => createGroupingHost(configurationService, storageService, CHAT_GROUPINGS, false, true, true);
 		const windowA = chat();
 		windowA.setGrouping(SessionsGrouping.Date);
 		windowA.toggleInbox();
@@ -644,7 +648,7 @@ suite('Sessions - SessionsViewPane', () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		const agentsWindow = createGroupingHost(configurationService, storageService);
 		agentsWindow.toggleInbox();
-		const chatView = createGroupingHost(configurationService, storageService, CHAT_VIEW_SESSIONS_GROUPINGS, false, CHAT_VIEW_SESSIONS_GROUPING_STORAGE_KEYS);
+		const chatView = createGroupingHost(configurationService, storageService, CHAT_GROUPINGS, false, true);
 		chatView.setGrouping(SessionsGrouping.Environment);
 		chatView.toggleInbox();
 		await configurationService.setUserConfiguration(SESSIONS_LIST_INBOX_ENABLED_SETTING, false);
@@ -654,7 +658,7 @@ suite('Sessions - SessionsViewPane', () => {
 		chatView.toggleInbox();
 		chatView.chatEntitlementService.sentiment.hidden = true;
 		chatView.sentimentChanged.fire();
-		assert.deepStrictEqual({ settingOff, aiHidden: chatView.grouping, reloaded: createGroupingHost(configurationService, storageService, CHAT_VIEW_SESSIONS_GROUPINGS, false, CHAT_VIEW_SESSIONS_GROUPING_STORAGE_KEYS).grouping }, {
+		assert.deepStrictEqual({ settingOff, aiHidden: chatView.grouping, reloaded: createGroupingHost(configurationService, storageService, CHAT_GROUPINGS, false, true).grouping }, {
 			settingOff: { chat: SessionsGrouping.Environment, agentsSaved: SessionsGrouping.Inbox },
 			aiHidden: SessionsGrouping.Environment,
 			reloaded: SessionsGrouping.Environment,
@@ -665,7 +669,7 @@ suite('Sessions - SessionsViewPane', () => {
 		const configurationService = new TestConfigurationService({ [SESSIONS_LIST_INBOX_ENABLED_SETTING]: true });
 		disposables.add(configurationService.onDidChangeConfigurationEmitter);
 		const storageService = disposables.add(new InMemoryStorageService());
-		const chat = (chatEnabledAtStart = true) => createGroupingHost(configurationService, storageService, CHAT_VIEW_SESSIONS_GROUPINGS, false, CHAT_VIEW_SESSIONS_GROUPING_STORAGE_KEYS, true, chatEnabledAtStart);
+		const chat = (chatEnabledAtStart = true) => createGroupingHost(configurationService, storageService, CHAT_GROUPINGS, false, true, true, chatEnabledAtStart);
 		const agentsWindow = createGroupingHost(configurationService, storageService);
 		agentsWindow.toggleInbox();
 		const chatView = chat();
@@ -687,7 +691,7 @@ suite('Sessions - SessionsViewPane', () => {
 	test('the Chat view stores its Inbox Mode on this machine, and starts from the grouping it shared with the Agents window, unless that is Inbox or one it does not offer', () => {
 		const configurationService = new TestConfigurationService({ [SESSIONS_LIST_INBOX_ENABLED_SETTING]: true });
 		disposables.add(configurationService.onDidChangeConfigurationEmitter);
-		const chat = (storageService: InMemoryStorageService) => createGroupingHost(configurationService, storageService, CHAT_VIEW_SESSIONS_GROUPINGS, false, CHAT_VIEW_SESSIONS_GROUPING_STORAGE_KEYS);
+		const chat = (storageService: InMemoryStorageService) => createGroupingHost(configurationService, storageService, CHAT_GROUPINGS, false, true);
 		const seeded = [SessionsGrouping.Environment, SessionsGrouping.Inbox, SessionsGrouping.Repository].map(shared => {
 			const storageService = disposables.add(new InMemoryStorageService());
 			storageService.store('sessionsViewPane.grouping', shared, StorageScope.PROFILE, StorageTarget.USER);
@@ -718,9 +722,9 @@ suite('Sessions - SessionsViewPane', () => {
 	test('without Chat, the Chat view cannot enter Inbox, while the Agents window takes programmatic requests as before, the same mode too', () => {
 		const configurationService = new TestConfigurationService({ [SESSIONS_LIST_INBOX_ENABLED_SETTING]: true });
 		disposables.add(configurationService.onDidChangeConfigurationEmitter);
-		const chatView = createGroupingHost(configurationService, undefined, CHAT_VIEW_SESSIONS_GROUPINGS, false, CHAT_VIEW_SESSIONS_GROUPING_STORAGE_KEYS, true, false);
+		const chatView = createGroupingHost(configurationService, undefined, CHAT_GROUPINGS, false, true, true, false);
 		assert.throws(() => chatView.toggleInbox(), /Enable sessions\.list\.inboxEnabled and AI features/);
-		const agentsWindow = createGroupingHost(configurationService, undefined, undefined, false, undefined, false, false);
+		const agentsWindow = createGroupingHost(configurationService, undefined, undefined, false, false, false, false);
 		agentsWindow.setGrouping(SessionsGrouping.Inbox);
 		agentsWindow.setGrouping(SessionsGrouping.Inbox);
 		assert.deepStrictEqual({ chat: chatView.grouping, agents: agentsWindow.grouping }, { chat: SessionsGrouping.Date, agents: SessionsGrouping.Inbox });
@@ -734,7 +738,7 @@ suite('Sessions - SessionsViewPane', () => {
 			const host = {
 				currentGrouping: undefined as SessionsGrouping | undefined,
 				configurationService,
-				storageService,
+				groupingState: new SessionsViewGroupingState(undefined, storageService, configurationService),
 				get grouping(): SessionsGrouping { return Reflect.get(SessionsView.prototype, 'grouping', this); },
 				get offeredGroupings(): readonly SessionsGrouping[] { return Reflect.get(SessionsView.prototype, 'offeredGroupings', this); },
 				updateHeaderLayout: () => { },

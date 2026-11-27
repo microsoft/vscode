@@ -19,7 +19,7 @@ import { CommandsRegistry } from '../../../../../platform/commands/common/comman
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
-import { CHAT_VIEW_SESSIONS_GROUPINGS, EDITOR_WINDOW_SESSIONS_GROUPINGS } from '../../browser/agentsView/editorWindowSessionsList.js';
+import { EDITOR_WINDOW_SESSIONS_GROUPINGS } from '../../browser/agentsView/editorWindowSessionsList.js';
 import { SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../../common/sessionConfig.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 
@@ -55,7 +55,7 @@ suite('Chat view sessions list title actions', () => {
 		const store = registerSessionsListActions();
 		try {
 			const item = MenuRegistry.getMenuItems(MenuId.ViewTitle).filter(isIMenuItem).find(item => item.command.id === 'sessionsViewPane.inboxMode' && item.when?.serialize().includes('chatViewSessionsList'));
-			const shows = ({ setting = true, list = true, aiEnabled = true, setupHidden = false, offered = CHAT_VIEW_SESSIONS_GROUPINGS.offered }: { setting?: boolean; list?: boolean; aiEnabled?: boolean; setupHidden?: boolean; offered?: readonly SessionsGrouping[] }) => {
+			const shows = ({ setting = true, list = true, aiEnabled = true, setupHidden = false, offered = [...EDITOR_WINDOW_SESSIONS_GROUPINGS.offered, SessionsGrouping.Inbox] }: { setting?: boolean; list?: boolean; aiEnabled?: boolean; setupHidden?: boolean; offered?: readonly SessionsGrouping[] }) => {
 				const configurationService = new TestConfigurationService({ [SESSIONS_LIST_INBOX_ENABLED_SETTING]: setting });
 				const contextKeyService = new ContextKeyService(configurationService);
 				try {

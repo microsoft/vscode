@@ -10,9 +10,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IViewletViewOptions } from '../../../../browser/parts/views/viewsViewlet.js';
-import { CHAT_VIEW_SESSIONS_GROUPINGS, createEditorWindowSessionsScope, createEditorWindowSessionsViewOptions, EDITOR_WINDOW_SESSIONS_GROUPINGS, EditorWindowSessionsList } from '../../browser/agentsView/editorWindowSessionsList.js';
+import { ChatViewSessionsGroupingState, createEditorWindowSessionsScope, createEditorWindowSessionsViewOptions, EDITOR_WINDOW_SESSIONS_GROUPINGS, EditorWindowSessionsList } from '../../browser/agentsView/editorWindowSessionsList.js';
 import { EditorWindowSessionsContext, EditorWindowSessionsViewOffersInboxContext, ISessionsViewLocator, SessionsView, SessionsViewId } from '../../browser/views/sessionsView.js';
-import { StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { SessionsGrouping } from '../../browser/views/sessionsListCommon.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -76,13 +75,13 @@ suite('EditorWindowSessionsList', () => {
 		const scoped = observableValue('scoped', true);
 		const describe = (inbox: boolean) => {
 			const options = createEditorWindowSessionsViewOptions({ id: SessionsViewId } as IViewletViewOptions, scoped, 'title', inbox);
-			return { groupings: options.groupings, groupingStorageKeys: options.groupingStorageKeys, inboxAutoAdvance: options.inboxAutoAdvance, leaveInboxWithoutChat: options.leaveInboxWithoutChat };
+			return { groupings: options.groupings, groupingState: options.groupingState?.ctor, inboxAutoAdvance: options.inboxAutoAdvance, leaveInboxWithoutChat: options.leaveInboxWithoutChat };
 		};
 		assert.deepStrictEqual({ editorWindow: describe(false), chatView: describe(true) }, {
-			editorWindow: { groupings: EDITOR_WINDOW_SESSIONS_GROUPINGS, groupingStorageKeys: undefined, inboxAutoAdvance: undefined, leaveInboxWithoutChat: undefined },
+			editorWindow: { groupings: EDITOR_WINDOW_SESSIONS_GROUPINGS, groupingState: undefined, inboxAutoAdvance: undefined, leaveInboxWithoutChat: undefined },
 			chatView: {
 				groupings: { offered: [SessionsGrouping.Date, SessionsGrouping.Environment, SessionsGrouping.Inbox], default: SessionsGrouping.Date },
-				groupingStorageKeys: { grouping: 'chatViewSessionsList.grouping', nonInboxGrouping: 'chatViewSessionsList.nonInboxGrouping', target: StorageTarget.MACHINE, fallbackGrouping: 'sessionsViewPane.grouping', inboxLeft: { key: 'chatViewSessionsList.inboxLeft', keptBy: 'chat.viewSessions.sessionsList.enabled' } },
+				groupingState: ChatViewSessionsGroupingState,
 				inboxAutoAdvance: false,
 				leaveInboxWithoutChat: true,
 			},
@@ -128,11 +127,11 @@ suite('EditorWindowSessionsList', () => {
 		visibility.fire({ id: 'workbench.panel.chat.view.copilot', visible: true });
 		visibility.fire({ id: 'workbench.panel.chat.view.copilot', visible: true });
 		const shown = state();
-		mount(upcastPartial<SessionsView>({ offersGrouping: grouping => CHAT_VIEW_SESSIONS_GROUPINGS.offered.includes(grouping) }));
+		mount(upcastPartial<SessionsView>({ offersGrouping: grouping => [SessionsGrouping.Date, SessionsGrouping.Environment, SessionsGrouping.Inbox].includes(grouping) }));
 		const mounted = state();
 		mount(upcastPartial<SessionsView>({ offersGrouping: grouping => EDITOR_WINDOW_SESSIONS_GROUPINGS.offered.includes(grouping) }));
 		const mountedWithoutInbox = state();
-		mount(upcastPartial<SessionsView>({ offersGrouping: grouping => CHAT_VIEW_SESSIONS_GROUPINGS.offered.includes(grouping) }));
+		mount(upcastPartial<SessionsView>({ offersGrouping: grouping => [SessionsGrouping.Date, SessionsGrouping.Environment, SessionsGrouping.Inbox].includes(grouping) }));
 		mount(undefined);
 		const unmounted = state();
 		list.dispose();

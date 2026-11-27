@@ -7,7 +7,9 @@ import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../..
 import { derived, IObservable, observableFromEvent } from '../../../../../base/common/observable.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IStorageService, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IViewletViewOptions } from '../../../../browser/parts/views/viewsViewlet.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
@@ -17,19 +19,19 @@ import { ChatConfiguration } from '../../../chat/common/constants.js';
 import { registerSessionsListConfiguration } from '../sessionsConfiguration.js';
 import { SessionsGrouping } from '../views/sessionsListCommon.js';
 import { registerSessionsListActions, registerSessionsListReadStateMenus, SessionsArchiveActionsContribution } from '../views/sessionsListActions.js';
-import { EditorWindowSessionsContext, EditorWindowSessionsViewOffersInboxContext, ISessionsViewGroupingStorageKeys, ISessionsViewLocator, ISessionsViewOptions, SessionsView } from '../views/sessionsView.js';
+import { EditorWindowSessionsContext, EditorWindowSessionsViewOffersInboxContext, ISessionsViewGroupingStorageKeys, ISessionsViewLocator, ISessionsViewOptions, SessionsView, SessionsViewGroupingState } from '../views/sessionsView.js';
 
 /** The editor window's Sessions view groups only by time or environment, by time until one is chosen. */
 export const EDITOR_WINDOW_SESSIONS_GROUPINGS = { offered: [SessionsGrouping.Date, SessionsGrouping.Environment], default: SessionsGrouping.Date };
 
 /** The Chat view's sessions list also offers Inbox, while the Inbox setting is on, by time until a grouping is chosen. */
-export const CHAT_VIEW_SESSIONS_GROUPINGS = { offered: [...EDITOR_WINDOW_SESSIONS_GROUPINGS.offered, SessionsGrouping.Inbox], default: SessionsGrouping.Date };
+const CHAT_VIEW_SESSIONS_GROUPINGS = { offered: [...EDITOR_WINDOW_SESSIONS_GROUPINGS.offered, SessionsGrouping.Inbox], default: SessionsGrouping.Date };
 
 /**
  * Where the Chat view's sessions list remembers its grouping and the grouping Inbox returns to: apart from
  * the Agents window, so that choosing Inbox in one window never switches the other.
  */
-export const CHAT_VIEW_SESSIONS_GROUPING_STORAGE_KEYS: ISessionsViewGroupingStorageKeys = {
+const CHAT_VIEW_SESSIONS_GROUPING_STORAGE_KEYS: ISessionsViewGroupingStorageKeys = {
 	grouping: 'chatViewSessionsList.grouping',
 	nonInboxGrouping: 'chatViewSessionsList.nonInboxGrouping',
 	// Each window's choice stays on this machine
@@ -39,6 +41,19 @@ export const CHAT_VIEW_SESSIONS_GROUPING_STORAGE_KEYS: ISessionsViewGroupingStor
 	// The user turning the list off, where it then goes, leaves Inbox in the windows whose workspaces do not keep it on
 	inboxLeft: { key: 'chatViewSessionsList.inboxLeft', keptBy: ChatConfiguration.ChatViewSessionsListEnabled },
 };
+
+/**
+ * The grouping the Chat view's sessions list remembers, under {@link CHAT_VIEW_SESSIONS_GROUPING_STORAGE_KEYS its own keys}, which
+ * the list reads and writes it through, and which leaves Inbox for the list while it is not there.
+ */
+export class ChatViewSessionsGroupingState extends SessionsViewGroupingState {
+	constructor(
+		@IStorageService storageService: IStorageService,
+		@IConfigurationService configurationService: IConfigurationService,
+	) {
+		super(CHAT_VIEW_SESSIONS_GROUPING_STORAGE_KEYS, storageService, configurationService);
+	}
+}
 
 /** The services of the Sessions view, which its constructor takes after its options. */
 type SessionsViewServices = ConstructorParameters<typeof SessionsView> extends [ISessionsViewOptions, ...infer Services] ? Services : never;
@@ -54,11 +69,11 @@ export type EditorWindowSessionsHeader = 'title' | 'section';
  * section header (`header`), without the customizations, listing the sessions of the window's folders only while it has some (`scoped`), and grouped as
  * {@link EDITOR_WINDOW_SESSIONS_GROUPINGS} says, with the "Chats" section also under time grouping. With `inbox`, as the Chat
  * view's sessions list, it also offers Inbox ({@link CHAT_VIEW_SESSIONS_GROUPINGS}), remembers its grouping apart from the
- * Agents window ({@link CHAT_VIEW_SESSIONS_GROUPING_STORAGE_KEYS}) and keeps replies and approvals in the current chat.
+ * Agents window ({@link ChatViewSessionsGroupingState}) and keeps replies and approvals in the current chat.
  */
 export function createEditorWindowSessionsViewOptions(options: IViewletViewOptions, scoped: IObservable<boolean>, header: EditorWindowSessionsHeader = 'title', inbox = false): IViewletViewOptions & ISessionsViewOptions {
 	const view: IViewletViewOptions & ISessionsViewOptions = { ...options, headerInTitle: header === 'title', showCustomizations: false, scoped, groupings: EDITOR_WINDOW_SESSIONS_GROUPINGS, quickChatsInTimeGrouping: true };
-	return inbox ? { ...view, groupings: CHAT_VIEW_SESSIONS_GROUPINGS, groupingStorageKeys: CHAT_VIEW_SESSIONS_GROUPING_STORAGE_KEYS, inboxAutoAdvance: false, leaveInboxWithoutChat: true } : view;
+	return inbox ? { ...view, groupings: CHAT_VIEW_SESSIONS_GROUPINGS, groupingState: new SyncDescriptor(ChatViewSessionsGroupingState), inboxAutoAdvance: false, leaveInboxWithoutChat: true } : view;
 }
 
 /** The Sessions view of an editor window, with {@link createEditorWindowSessionsViewOptions}. */
