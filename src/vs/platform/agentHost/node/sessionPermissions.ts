@@ -1059,18 +1059,22 @@ export class SessionPermissionManager extends Disposable {
 				const unapproved = evaluation.unapprovedSubCommands ?? [];
 				// Only saved rules can satisfy a reviewer, so a grant must also cover the sub-commands that implicit defaults approve.
 				// Those get exact rules: a prefix rule would also override the defaults' deny rules for riskier forms of the command.
-				// When one of them has no exact rule, the prompt offers what it would without the reviewer.
-				const defaultApprovedRules = e.requiresUserConfirmation
+				// When one of them has no exact rule, or the surface confirms every shell command whatever the rules (inline chat),
+				// the prompt offers what it would without the reviewer.
+				const defaultApproved = e.requiresUserConfirmation && !this._getSurfaceEditScope(sessionKey)
 					? [...new Set(this._commandAutoApprover.evaluate(commandLine, { ...shellOptions, defaultRules: {} }).unapprovedSubCommands
-						?.filter(command => !unapproved.includes(command)).map(command => shellExactRule(command)))]
+						?.filter(command => !unapproved.includes(command)))]
 					: [];
+				const defaultApprovedRules = defaultApproved.map(command => shellExactRule(command));
 				const coveringRules = defaultApprovedRules.every(isDefined) ? defaultApprovedRules : [];
 				if (!evaluation.hasUnsafeSubCommand && !evaluation.hasAskRule && (unapproved.length || coveringRules.length)) {
 					const { subCommandKeys, offerExactCommandLine } = suggestAutoApproveRuleKeys(commandLine, unapproved);
 					const alwaysOptions: ConfirmationOption[] = [];
 					if (subCommandKeys.length) {
-						const commands = subCommandKeys.map(key => `\`${key} …\``).join(', ');
-						const label = subCommandKeys.length === 1 ? commands : localize('sessionPermissions.commands', "Commands {0}", commands);
+						// The label names every command the grant saves a rule for, including the exact ones.
+						const granted = [...subCommandKeys.map(key => `\`${key} …\``), ...(coveringRules.length ? defaultApproved.map(command => `\`${command}\``) : [])];
+						const commands = granted.join(', ');
+						const label = granted.length === 1 ? commands : localize('sessionPermissions.commands', "Commands {0}", commands);
 						const rules = [...subCommandKeys.map(key => shellPrefixRule(key)), ...coveringRules];
 						add(localize('sessionPermissions.allowCommand', "Allow {0} in this Session", label), rules);
 						alwaysOptions.push(permissionGrantOption(localize('sessionPermissions.alwaysAllowCommand', "Always Allow {0}", label), rules, PermissionGrantScope.Host));

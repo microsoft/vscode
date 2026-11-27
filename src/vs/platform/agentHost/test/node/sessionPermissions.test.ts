@@ -656,6 +656,7 @@ suite('SessionPermissionManager', () => {
 		const offered = {
 			manual: optionIds(manual),
 			required: optionIds(required),
+			requiredLabels: permissions.createToolReadyAction(required, chat, 'turn').options?.map(option => option.label),
 			// A sub-command that defaults approve gets an exact rule only: a prefix rule would also allow the forms defaults deny, such as `find -delete`.
 			defaultsOnly: optionIds({ ...required, shellCommand: 'find . -name x' }),
 			withoutExactRule: optionIds({ ...required, shellCommand: 'find . -name *.log' }),
@@ -676,6 +677,10 @@ suite('SessionPermissionManager', () => {
 				required: [
 					'allow-once', grant, 'allow-session-rules:["Shell(my-command --flag)","Shell(git status)"]',
 					'allow-always-rules:["Shell(my-command *)","Shell(git status)"]', 'allow-always-rules:["Shell(my-command --flag)","Shell(git status)"]', 'skip',
+				],
+				requiredLabels: [
+					'Allow Once', 'Allow Commands `my-command …`, `git status` in this Session', 'Allow Exact Command in this Session',
+					'Always Allow Commands `my-command …`, `git status`', 'Always Allow Exact Command', 'Skip',
 				],
 				defaultsOnly: ['allow-once', 'allow-session-rules:["Shell(find . -name x)"]', 'allow-always-rules:["Shell(find . -name x)"]', 'skip'],
 				withoutExactRule: ['allow-once', 'skip'],
@@ -2379,6 +2384,18 @@ suite('SessionPermissionManager', () => {
 			}, {
 				inline: undefined,
 				unscoped: ToolCallConfirmationReason.NotNeeded,
+			});
+		});
+
+		test('a reviewer-required shell confirmation offers no grant for a command that defaults approve, since every shell command is confirmed here', () => {
+			createInlineSession(URI.file(join(workDir, 'src', 'inline.ts')).toString());
+			const signal = confirmationSignal({ permissionKind: AgentPermissionKind.Shell, shellCommand: 'git status', shellLanguage: 'bash', requiresUserConfirmation: true });
+			assert.deepStrictEqual({
+				inline: permissions.createToolReadyAction(signal, inlineSessionUri, 'turn').options?.map(option => option.id),
+				unscoped: permissions.createToolReadyAction(signal, sessionUri, 'turn').options?.map(option => option.id),
+			}, {
+				inline: ['allow-once', 'skip'],
+				unscoped: ['allow-once', 'allow-session-rules:["Shell(git status)"]', 'allow-always-rules:["Shell(git status)"]', 'skip'],
 			});
 		});
 
