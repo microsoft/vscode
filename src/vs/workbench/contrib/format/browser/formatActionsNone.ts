@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { EditorAction, registerEditorAction, ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
@@ -54,6 +55,17 @@ registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 			notificationService.warn(nls.localize('too.large', "This file cannot be formatted because it is too large"));
 		} else {
 			const langName = model.getLanguageId();
+
+			// A formatter is registered for this language but it didn't match the
+			// current document (e.g. it only targets the `file` scheme while the
+			// document is still untitled). Avoid the misleading "no formatter
+			// installed" message in that case.
+			const hasFormatterForLanguage = languageFeaturesService.documentFormattingEditProvider.registeredLanguageIds.has(langName);
+			if (hasFormatterForLanguage && model.uri.scheme === Schemas.untitled) {
+				notificationService.info(nls.localize('no.provider.untitled', "The installed formatter for '{0}' files does not support unsaved files. Save the file and try again.", langName));
+				return;
+			}
+
 			const message = nls.localize('no.provider', "There is no formatter for '{0}' files installed.", langName);
 			const { confirmed } = await dialogService.confirm({
 				message,
