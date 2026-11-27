@@ -11,7 +11,7 @@ import { hasWorkspaceFileExtension, isUntitledWorkspace, isWorkspaceIdentifier, 
 import { IJSONEditingService } from '../../configuration/common/jsonEditing.js';
 import { IWorkspacesService } from '../../../../platform/workspaces/common/workspaces.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { IAgenticModeService } from '../../agenticMode/common/agenticMode.js';
+import { IAgentsModeService } from '../../agentsMode/common/agentsMode.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
 import { IWorkingCopyBackupService } from '../../workingCopy/common/workingCopyBackup.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -65,7 +65,7 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 		@ILogService logService: ILogService,
 		@IWorkspaceFolderLocationService workspaceFolderLocationService: IWorkspaceFolderLocationService,
 		@IWorkspaceTrustEnablementService workspaceTrustEnablementService: IWorkspaceTrustEnablementService,
-		@IAgenticModeService private readonly agenticModeService: IAgenticModeService,
+		@IAgentsModeService private readonly agentsModeService: IAgentsModeService,
 	) {
 		super(jsonEditingService, contextService, configurationService, notificationService, commandService, fileService, textFileService, workspacesService, environmentService, fileDialogService, dialogService, hostService, uriIdentityService, workspaceTrustManagementService, userDataProfilesService, userDataProfileService, logService, workspaceFolderLocationService, workspaceTrustEnablementService);
 
@@ -180,17 +180,17 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 	}
 
 	/**
-	 * Leaves Agentic Mode, if the window is in it, and returns how to go back into it
+	 * Leaves Agents mode, if the window is in it, and returns how to go back into it
 	 * when the window does not enter the new workspace after all.
 	 */
-	private async leaveAgenticMode(): Promise<() => Promise<void>> {
-		if (!this.agenticModeService.isActive) {
+	private async leaveAgentsMode(): Promise<() => Promise<void>> {
+		if (!this.agentsModeService.isActive) {
 			return async () => { };
 		}
-		await this.agenticModeService.setActive(false);
+		await this.agentsModeService.setActive(false);
 		return async () => {
 			try {
-				await this.agenticModeService.setActive(true);
+				await this.agentsModeService.setActive(true);
 			} catch (error) {
 				this.logService.error(error);
 			}
@@ -203,10 +203,10 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 			return;
 		}
 
-		let restoreAgenticMode: (() => Promise<void>) | undefined;
+		let restoreAgentsMode: (() => Promise<void>) | undefined;
 		try {
 			// The window serves the empty workspace again before it enters the new one
-			restoreAgenticMode = await this.leaveAgenticMode();
+			restoreAgentsMode = await this.leaveAgentsMode();
 
 			const oldWorkspace = toWorkspaceIdentifier(this.contextService.getWorkspace());
 			const enterWorkspace = async () => {
@@ -232,10 +232,10 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 				// Fire event to allow participants to join
 				await this.fireDidEnterWorkspace(oldWorkspace, result.workspace);
 			} else {
-				await restoreAgenticMode(); // the window stays in its workspace
+				await restoreAgentsMode(); // the window stays in its workspace
 			}
 		} catch (error) {
-			await restoreAgenticMode?.();
+			await restoreAgentsMode?.();
 			try {
 				await this.extensionService.startExtensionHosts();
 			} catch (restartError) {

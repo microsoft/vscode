@@ -10,7 +10,7 @@ import { FileService } from '../../../../../platform/files/common/fileService.js
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../../platform/native/common/native.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
-import { IAgenticModeService } from '../../../agenticMode/common/agenticMode.js';
+import { IAgentsModeService } from '../../../agentsMode/common/agentsMode.js';
 import { INativeWorkbenchEnvironmentService } from '../../../environment/electron-browser/environmentService.js';
 import { IExtensionService } from '../../../extensions/common/extensions.js';
 import { IHostService } from '../../../host/browser/host.js';
@@ -44,7 +44,7 @@ class TestWorkspaceEditingService extends NativeWorkspaceEditingService {
 suite('NativeWorkspaceEditingService - extension host recovery', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setupServices(remoteAuthority?: string, stopped = true, restartFailure?: Error, inAgenticMode = false) {
+	function setupServices(remoteAuthority?: string, stopped = true, restartFailure?: Error, inAgentsMode = false) {
 		const calls: string[] = [];
 		const errors: (string | Error)[] = [];
 		const fileService = store.add(new FileService(new NullLogService()));
@@ -68,9 +68,9 @@ suite('NativeWorkspaceEditingService - extension host recovery', () => {
 			},
 		});
 		instantiationService.stub(IHostService, { reload: async () => { calls.push('reload'); } });
-		instantiationService.stub(IAgenticModeService, {
-			get isActive() { return inAgenticMode; },
-			setActive: async (active: boolean) => { calls.push(`agenticMode:${active}`); inAgenticMode = active; },
+		instantiationService.stub(IAgentsModeService, {
+			get isActive() { return inAgentsMode; },
+			setActive: async (active: boolean) => { calls.push(`agentsMode:${active}`); inAgentsMode = active; },
 		});
 		const service = store.add(instantiationService.createInstance(TestWorkspaceEditingService));
 		return { service, backups, calls, errors };
@@ -114,16 +114,16 @@ suite('NativeWorkspaceEditingService - extension host recovery', () => {
 		});
 	}
 
-	test('leaves Agentic Mode after stopping hosts and before entering the workspace, and goes back into it when the workspace is not entered', async () => {
+	test('leaves Agents mode after stopping hosts and before entering the workspace, and goes back into it when the workspace is not entered', async () => {
 		const { service, calls } = setupServices(undefined, true, undefined, true);
 		await service.enterWorkspace(URI.file('/new.code-workspace'));
-		assert.deepStrictEqual({ calls, entered: service.entered }, { calls: ['stop', 'agenticMode:false', 'agenticMode:true', 'start'], entered: true });
+		assert.deepStrictEqual({ calls, entered: service.entered }, { calls: ['stop', 'agentsMode:false', 'agentsMode:true', 'start'], entered: true });
 	});
 
-	test('goes back into Agentic Mode when entering the workspace fails', async () => {
+	test('goes back into Agents mode when entering the workspace fails', async () => {
 		const { service, calls } = setupServices(undefined, true, undefined, true);
 		const failure = service.failure = new Error('entry failed');
 		await assert.rejects(service.enterWorkspace(URI.file('/new.code-workspace')), error => error === failure);
-		assert.deepStrictEqual(calls, ['stop', 'agenticMode:false', 'agenticMode:true', 'start']);
+		assert.deepStrictEqual(calls, ['stop', 'agentsMode:false', 'agentsMode:true', 'start']);
 	});
 });

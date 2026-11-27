@@ -133,7 +133,7 @@ import './services/textMate/browser/textMateTokenizationFeature.contribution.js'
 import './services/treeSitter/browser/treeSitter.contribution.js';
 import './services/userActivity/common/userActivityService.js';
 import './services/userActivity/browser/userActivityBrowser.js';
-import './services/agenticMode/browser/agenticModeService.js';
+import './services/agentsMode/browser/agentsModeService.js';
 import './services/lifecycle/common/unattendedRestart.js';
 import './services/userAttention/browser/userAttentionBrowser.js';
 import './services/editor/browser/editorPaneService.js';

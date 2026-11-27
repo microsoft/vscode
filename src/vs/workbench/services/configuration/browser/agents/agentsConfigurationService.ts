@@ -47,15 +47,15 @@ import '../configurationService.js';
  */
 export interface IAgentsConfigurationServiceOptions {
 	/**
-	 * Whether the service backs the Agentic Mode of an editor window
+	 * Whether the service backs the Agents mode of an editor window
 	 * rather than the Agents window. In that mode the `agentsMode` overrides of a
 	 * setting (its default and whether it is read-only) apply instead of its
 	 * `agentsWindow` overrides, which are ignored.
 	 */
-	readonly agenticMode?: boolean;
+	readonly agentsMode?: boolean;
 
 	/**
-	 * Given in Agentic Mode, so that application settings and settings
+	 * Given in Agents mode, so that application settings and settings
 	 * applied to all profiles are read from and written to the default profile,
 	 * as in the editor window.
 	 */
@@ -65,7 +65,7 @@ export interface IAgentsConfigurationServiceOptions {
 class AgentsDefaultConfiguration extends DefaultConfiguration {
 
 	constructor(
-		private readonly agenticMode: boolean,
+		private readonly agentsMode: boolean,
 		...args: ConstructorParameters<typeof DefaultConfiguration>
 	) {
 		super(...args);
@@ -73,7 +73,7 @@ class AgentsDefaultConfiguration extends DefaultConfiguration {
 
 	protected override getDefaultValue(_key: string, propertySchema: IRegisteredConfigurationPropertySchema): unknown {
 		if (propertySchema.defaultValueSource !== 'experiments') {
-			if (this.agenticMode) {
+			if (this.agentsMode) {
 				if (propertySchema.agentsMode?.default !== undefined) {
 					return deepClone(propertySchema.agentsMode.default);
 				}
@@ -100,7 +100,7 @@ export class AgentsConfigurationService extends Disposable implements IWorkbench
 	private readonly cachedFolderConfigs = this._register(new DisposableMap<URI, FolderConfiguration>(new ResourceMap()));
 	private readonly pendingFolderChanges = new WeakMap<IWorkspaceFoldersChangeEvent, { readonly previousData: IConfigurationData; readonly previousWorkspace: Workspace; readonly change: IConfigurationChange }>();
 	private readonly readOnlyKeys = new Set<string>();
-	private readonly agenticMode: boolean;
+	private readonly agentsMode: boolean;
 
 	private readonly _onDidChangeConfiguration = this._register(new Emitter<IConfigurationChangeEvent>());
 	readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
@@ -127,12 +127,12 @@ export class AgentsConfigurationService extends Disposable implements IWorkbench
 	) {
 		super();
 
-		this.agenticMode = !!options?.agenticMode;
+		this.agentsMode = !!options?.agentsMode;
 		this.settingsResource = userDataProfileService.currentProfile.settingsResource;
-		this.defaultConfiguration = this._register(new AgentsDefaultConfiguration(this.agenticMode, userDataProfileService.currentProfile.id, configurationCache, environmentService, logService));
+		this.defaultConfiguration = this._register(new AgentsDefaultConfiguration(this.agentsMode, userDataProfileService.currentProfile.id, configurationCache, environmentService, logService));
 		this.policyConfiguration = policyService instanceof NullPolicyService ? new NullPolicyConfiguration() : this._register(new PolicyConfiguration(this.defaultConfiguration, policyService, logService));
 		this.initReadOnlyKeys();
-		const userDataProfilesService = this.agenticMode ? options?.userDataProfilesService : undefined;
+		const userDataProfilesService = this.agentsMode ? options?.userDataProfilesService : undefined;
 		if (userDataProfilesService && !userDataProfileService.currentProfile.isDefault && !userDataProfileService.currentProfile.useDefaultFlags?.settings) {
 			this.applicationSettingsResource = userDataProfilesService.defaultProfile.settingsResource;
 			this.applicationConfiguration = this._register(new ApplicationConfiguration(userDataProfilesService, fileService, uriIdentityService, logService, [...this.readOnlyKeys]));
@@ -257,7 +257,7 @@ export class AgentsConfigurationService extends Disposable implements IWorkbench
 		}
 
 		if (this.readOnlyKeys.has(key)) {
-			throw new Error(this.agenticMode ? `Unable to write ${key} because it is read-only in Agentic Mode.` : `Unable to write ${key} because it is read-only in the Agents window.`);
+			throw new Error(this.agentsMode ? `Unable to write ${key} because it is read-only in Agents mode.` : `Unable to write ${key} because it is read-only in the Agents window.`);
 		}
 
 		if (!targets.length) {
@@ -434,11 +434,11 @@ export class AgentsConfigurationService extends Disposable implements IWorkbench
 	}
 
 	/**
-	 * Whether the user cannot change the setting of `schema`: it is read-only in Agentic Mode
+	 * Whether the user cannot change the setting of `schema`: it is read-only in Agents mode
 	 * (`agentsMode.readOnly`) or in the Agents window (`agentsWindow.readOnly`), whichever this backs.
 	 */
 	private isReadOnly(schema: IRegisteredConfigurationPropertySchema | undefined): boolean {
-		return this.agenticMode ? !!schema?.agentsMode?.readOnly : !!schema?.agentsWindow?.readOnly;
+		return this.agentsMode ? !!schema?.agentsMode?.readOnly : !!schema?.agentsWindow?.readOnly;
 	}
 
 	private initReadOnlyKeys(): void {

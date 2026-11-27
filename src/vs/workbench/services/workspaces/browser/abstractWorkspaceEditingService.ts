@@ -148,7 +148,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 	}
 
 	private async doSetFolderLocation(location: URI, reason?: FolderLocationChangeReason, folder?: URI, force?: boolean): Promise<void> {
-		// In Agentic Mode the workspace moves its mounted folders itself and remembers where each was mounted
+		// In Agents mode the workspace moves its mounted folders itself and remembers where each was mounted
 		const mountedFolder = folder ?? this.contextService.getWorkspace().folders.at(0)?.uri;
 		const mountedPrimary = mountedFolder && this.contextService.getFolderPrimaryLocation?.(mountedFolder);
 		if (mountedFolder && mountedPrimary) {
@@ -266,7 +266,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 	}
 
 	/**
-	 * Moves a folder that Agentic Mode mounted to `location`, which must be its primary location or one of its alternates.
+	 * Moves a folder that Agents mode mounted to `location`, which must be its primary location or one of its alternates.
 	 * The mode never mounts untrusted folders, so the move is refused unless the destination is trusted.
 	 */
 	private async doSetMountedFolderLocation(location: URI, folder: URI, primary: URI): Promise<void> {

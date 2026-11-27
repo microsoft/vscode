@@ -112,14 +112,14 @@ export interface IEditableWorkspaceContextService extends IWorkbenchWorkspaceCon
 	setFolderLocation(location: URI, options?: { readonly trusted?: boolean; readonly isCurrent?: () => boolean; readonly onApplied?: () => void; readonly folder?: URI }): Promise<boolean>;
 	/**
 	 * The location the mounted folder at `folder` was mounted at before it was moved, when the workspace moves its
-	 * folders in place and remembers where each was mounted (only in Agentic Mode). `undefined` if it doesn't, or
+	 * folders in place and remembers where each was mounted (only in Agents mode). `undefined` if it doesn't, or
 	 * `folder` is not mounted.
 	 */
 	getFolderPrimaryLocation?(folder: URI): URI | undefined;
 	/**
 	 * Records `primary` as the location a folder at `folder` belongs to, such as the repository of a worktree, for when
 	 * it is mounted next, so that it is known by the locations of `primary`; `undefined` forgets it. Only a workspace
-	 * that moves its folders in place does (only in Agentic Mode). Has no effect on a mounted folder.
+	 * that moves its folders in place does (only in Agents mode). Has no effect on a mounted folder.
 	 */
 	setFolderPrimaryLocation?(folder: URI, primary: URI | undefined): void;
 }

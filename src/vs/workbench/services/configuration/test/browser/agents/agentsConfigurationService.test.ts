@@ -163,7 +163,7 @@ suite('AgentsConfigurationService', () => {
 					scope: ConfigurationScope.RESOURCE,
 					agentsWindow: { default: 'readOnlyDefault', readOnly: true }
 				},
-				'sessionsConfigurationService.agenticModeDefault': {
+				'sessionsConfigurationService.agentsModeDefault': {
 					'type': 'string',
 					'default': 'originalDefault',
 					scope: ConfigurationScope.RESOURCE,
@@ -1037,9 +1037,9 @@ suite('AgentsConfigurationService', () => {
 	});
 
 	test('agentsMode overrides are ignored in the Agents window', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const defaultValue = testObject.getValue('sessionsConfigurationService.agenticModeDefault');
-		await testObject.updateValue('sessionsConfigurationService.agenticModeDefault', 'userValue');
-		assert.deepStrictEqual({ defaultValue, written: testObject.getValue('sessionsConfigurationService.agenticModeDefault') }, { defaultValue: 'agentsDefault', written: 'userValue' });
+		const defaultValue = testObject.getValue('sessionsConfigurationService.agentsModeDefault');
+		await testObject.updateValue('sessionsConfigurationService.agentsModeDefault', 'userValue');
+		assert.deepStrictEqual({ defaultValue, written: testObject.getValue('sessionsConfigurationService.agentsModeDefault') }, { defaultValue: 'agentsDefault', written: 'userValue' });
 	}));
 
 	test('agentsWindow.default is reflected in inspect', () => {

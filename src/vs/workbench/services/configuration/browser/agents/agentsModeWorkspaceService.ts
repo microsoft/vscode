@@ -30,29 +30,29 @@ import { AgentsWorkspaceContextService } from './agentsWorkspaceContextService.j
 
 /**
  * WORKSPACE-scoped storage key that remembers that a window is in
- * Agentic Mode, so that the mode is restored after a reload or restart. It keeps
- * the value from before the rename to Agentic Mode, so windows already in the mode stay in it.
+ * Agents mode, so that the mode is restored after a reload or restart. It keeps
+ * the value from before the rename to Agents mode, so windows already in the mode stay in it.
  */
-export const AGENTIC_MODE_STORAGE_KEY = 'workbench.agentsSettingsMode.active';
+export const AGENTS_MODE_STORAGE_KEY = 'workbench.agentsSettingsMode.active';
 
 /**
- * Setting that opts local editor windows into Agentic Mode. It is
+ * Setting that opts local editor windows into Agents mode. It is
  * read when the window starts, so changing it takes effect after a reload.
  */
-export const AGENTIC_MODE_ENABLED_SETTING = 'chat.agenticMode.enabled';
+export const AGENTS_MODE_ENABLED_SETTING = 'chat.agentsMode.enabled';
 
 /**
  * The setting's name before the rename. A configuration migration moves it to
- * {@link AGENTIC_MODE_ENABLED_SETTING}, but only after the window started.
+ * {@link AGENTS_MODE_ENABLED_SETTING}, but only after the window started.
  */
-export const LEGACY_AGENTIC_MODE_ENABLED_SETTING = 'chat.agentsSettingsMode.enabled';
+export const LEGACY_AGENTS_MODE_ENABLED_SETTING = 'chat.agentsSettingsMode.enabled';
 
 /**
  * Whether a window's workspace and configuration service should be able to
- * switch into Agentic Mode: only local editor windows that have a backup folder,
- * and only when the user opted in with {@link AGENTIC_MODE_ENABLED_SETTING}.
+ * switch into Agents mode: only local editor windows that have a backup folder,
+ * and only when the user opted in with {@link AGENTS_MODE_ENABLED_SETTING}.
  */
-export function supportsAgenticMode(
+export function supportsAgentsMode(
 	environmentService: Pick<IWorkbenchEnvironmentService, 'remoteAuthority' | 'isExtensionDevelopment' | 'isSessionsWindow'>,
 	configurationService: Pick<IConfigurationService, 'getValue' | 'inspect'>,
 	hasBackupPath: boolean,
@@ -61,26 +61,26 @@ export function supportsAgenticMode(
 		&& !environmentService.isExtensionDevelopment
 		&& !environmentService.isSessionsWindow
 		&& hasBackupPath
-		&& isAgenticModeEnabled(configurationService);
+		&& isAgentsModeEnabled(configurationService);
 }
 
 /**
  * Reads the legacy setting too, as the migration would, so that a window left in
  * the mode restores in it on the first start after the rename.
  */
-function isAgenticModeEnabled(configurationService: Pick<IConfigurationService, 'getValue' | 'inspect'>): boolean {
-	if (configurationService.getValue(AGENTIC_MODE_ENABLED_SETTING) === true) {
+function isAgentsModeEnabled(configurationService: Pick<IConfigurationService, 'getValue' | 'inspect'>): boolean {
+	if (configurationService.getValue(AGENTS_MODE_ENABLED_SETTING) === true) {
 		return true;
 	}
-	return configurationService.inspect(AGENTIC_MODE_ENABLED_SETTING).userValue === undefined
-		&& configurationService.getValue(LEGACY_AGENTIC_MODE_ENABLED_SETTING) === true;
+	return configurationService.inspect(AGENTS_MODE_ENABLED_SETTING).userValue === undefined
+		&& configurationService.getValue(LEGACY_AGENTS_MODE_ENABLED_SETTING) === true;
 }
 
 /**
- * Services the {@link AgenticModeWorkspaceService} needs to create the
+ * Services the {@link AgentsModeWorkspaceService} needs to create the
  * Agents workspace and configuration services when entering the mode.
  */
-export interface IAgenticModeServices {
+export interface IAgentsModeServices {
 	readonly userDataProfileService: IUserDataProfileService;
 	readonly userDataProfilesService: IUserDataProfilesService;
 	readonly uriIdentityService: IUriIdentityService;
@@ -100,7 +100,7 @@ type ActiveWorkspace = IEditableWorkspaceContextService & IWorkbenchConfiguratio
 
 /**
  * The workspace and configuration service of a local editor window that can
- * switch in place into Agentic Mode.
+ * switch in place into Agents mode.
  *
  * Outside the mode every call goes to the editor {@link WorkspaceService}. In the
  * mode, calls go to the Agents window's workspace and configuration services,
@@ -109,7 +109,7 @@ type ActiveWorkspace = IEditableWorkspaceContextService & IWorkbenchConfiguratio
  * reloaded, and a window's folders or `.code-workspace` file are never changed,
  * so leaving the mode gives them back as they were.
  */
-export class AgenticModeWorkspaceService extends Disposable implements IEditableWorkspaceContextService, IWorkbenchConfigurationService {
+export class AgentsModeWorkspaceService extends Disposable implements IEditableWorkspaceContextService, IWorkbenchConfigurationService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -137,12 +137,12 @@ export class AgenticModeWorkspaceService extends Disposable implements IEditable
 	private readonly _onDidChangeWorkspaceFolders = this._register(new Emitter<IWorkspaceFoldersChangeEvent>());
 	readonly onDidChangeWorkspaceFolders = this._onDidChangeWorkspaceFolders.event;
 
-	private readonly _onDidChangeAgenticMode = this._register(new Emitter<boolean>());
+	private readonly _onDidChangeAgentsMode = this._register(new Emitter<boolean>());
 	/**
-	 * Fires after the window entered or left Agentic Mode, and after
+	 * Fires after the window entered or left Agents mode, and after
 	 * the change events of the switch were fired.
 	 */
-	readonly onDidChangeAgenticMode = this._onDidChangeAgenticMode.event;
+	readonly onDidChangeAgentsMode = this._onDidChangeAgentsMode.event;
 
 	/** Lives for the whole time in the mode, so its folders survive a profile change. */
 	private readonly agentsWorkspace = this._register(new MutableDisposable<AgentsWorkspaceContextService>());
@@ -151,36 +151,36 @@ export class AgenticModeWorkspaceService extends Disposable implements IEditable
 	private readonly switchQueue = this._register(new Queue<void>());
 	private instantiationService: IInstantiationService | undefined;
 
-	private _isAgenticMode = false;
-	get isAgenticMode(): boolean { return this._isAgenticMode; }
+	private _isAgentsMode = false;
+	get isAgentsMode(): boolean { return this._isAgentsMode; }
 
 	/** The folders of the window's own workspace, which it shows outside the mode. */
 	get windowFolders(): readonly URI[] { return this.editor.getWorkspace().folders.map(folder => folder.uri); }
 
 	constructor(
 		private readonly editor: WorkspaceService,
-		private readonly services: IAgenticModeServices,
+		private readonly services: IAgentsModeServices,
 	) {
 		super();
-		this.forwardEvents(editor, () => !this._isAgenticMode, this._store);
+		this.forwardEvents(editor, () => !this._isAgentsMode, this._store);
 		this._register(services.userDataProfileService.onDidChangeCurrentProfile(e => e.join(this.onDidChangeProfile())));
 	}
 
 	private get active(): ActiveWorkspace {
 		const agents = this.agents.value;
-		if (this._isAgenticMode && agents) {
+		if (this._isAgentsMode && agents) {
 			return agents.active;
 		}
 		return this.editor;
 	}
 
 	/**
-	 * Enters or leaves Agentic Mode in place. Resolves once the switch
+	 * Enters or leaves Agents mode in place. Resolves once the switch
 	 * was applied and its change events were fired.
 	 */
-	setAgenticMode(enabled: boolean): Promise<void> {
+	setAgentsMode(enabled: boolean): Promise<void> {
 		return this.switchQueue.queue(async () => {
-			if (enabled === this._isAgenticMode) {
+			if (enabled === this._isAgentsMode) {
 				return;
 			}
 			if (enabled) {
@@ -193,14 +193,14 @@ export class AgenticModeWorkspaceService extends Disposable implements IEditable
 				this.agents.clear();
 				this.agentsWorkspace.clear();
 			}
-			this._onDidChangeAgenticMode.fire(enabled);
+			this._onDidChangeAgentsMode.fire(enabled);
 		});
 	}
 
 	private async createAgentsDelegates(workspace: AgentsWorkspaceContextService): Promise<IAgentsDelegates> {
 		const { userDataProfileService, uriIdentityService, fileService, policyService, logService, configurationCache, environmentService } = this.services;
 		const disposables = new DisposableStore();
-		const configuration = disposables.add(new AgentsConfigurationService(userDataProfileService, workspace, uriIdentityService, fileService, policyService, logService, configurationCache, environmentService, { agenticMode: true, userDataProfilesService: this.services.userDataProfilesService }));
+		const configuration = disposables.add(new AgentsConfigurationService(userDataProfileService, workspace, uriIdentityService, fileService, policyService, logService, configurationCache, environmentService, { agentsMode: true, userDataProfilesService: this.services.userDataProfilesService }));
 		try {
 			await configuration.initialize();
 		} catch (error) {
@@ -211,7 +211,7 @@ export class AgenticModeWorkspaceService extends Disposable implements IEditable
 		}
 		const active = new ActiveAgentsWorkspace(workspace, configuration);
 		const delegates: IAgentsDelegates = { configuration, active, dispose: () => disposables.dispose() };
-		this.forwardEvents(active, () => this._isAgenticMode && this.agents.value === delegates, disposables);
+		this.forwardEvents(active, () => this._isAgentsMode && this.agents.value === delegates, disposables);
 		return delegates;
 	}
 
@@ -223,13 +223,13 @@ export class AgenticModeWorkspaceService extends Disposable implements IEditable
 		const fromMode = from.getWorkbenchMode();
 		const fromWorkspace = from.getWorkspace();
 
-		this._isAgenticMode = enabled;
+		this._isAgentsMode = enabled;
 
 		const to = this.active;
 		const toWorkspace = to.getWorkspace();
 
 		const folderChanges = this.compareFolders(fromWorkspace, toWorkspace);
-		this.services.logService.trace(`[AgenticMode] switching ${enabled ? 'into' : 'out of'} the mode: scope ${fromScope} -> ${to.getWorkbenchScope()}, folders ${fromWorkspace.folders.length} -> ${toWorkspace.folders.length}`);
+		this.services.logService.trace(`[AgentsMode] switching ${enabled ? 'into' : 'out of'} the mode: scope ${fromScope} -> ${to.getWorkbenchScope()}, folders ${fromWorkspace.folders.length} -> ${toWorkspace.folders.length}`);
 		if (fromState !== to.getWorkbenchState()) {
 			this._onDidChangeWorkbenchState.fire(to.getWorkbenchState());
 		}
@@ -284,7 +284,7 @@ export class AgenticModeWorkspaceService extends Disposable implements IEditable
 				changedOverrides.push([identifier, changed]);
 			}
 		}
-		logService.trace(`[AgenticMode] settings that change with the switch: ${[...changedKeys, ...changedOverrides.map(([identifier, keys]) => `[${identifier}] ${keys.join(', ')}`)].join(', ')}`);
+		logService.trace(`[AgentsMode] settings that change with the switch: ${[...changedKeys, ...changedOverrides.map(([identifier, keys]) => `[${identifier}] ${keys.join(', ')}`)].join(', ')}`);
 		if (!changedKeys.length && !changedOverrides.length) {
 			return;
 		}
@@ -311,10 +311,10 @@ export class AgenticModeWorkspaceService extends Disposable implements IEditable
 
 	private async onDidChangeProfile(): Promise<void> {
 		// The Agents configuration reads the settings of the profile it was created for
-		if (this._isAgenticMode) {
+		if (this._isAgentsMode) {
 			await this.switchQueue.queue(async () => {
 				const workspace = this.agentsWorkspace.value;
-				if (!this._isAgenticMode || !workspace) {
+				if (!this._isAgentsMode || !workspace) {
 					return;
 				}
 				const fromData = this.active.getConfigurationData();
@@ -381,15 +381,15 @@ export class AgenticModeWorkspaceService extends Disposable implements IEditable
 
 	/**
 	 * Initializes the editor workspace service for another workspace, leaving
-	 * Agentic Mode first so that the window serves the new workspace.
+	 * Agents mode first so that the window serves the new workspace.
 	 */
 	async initialize(arg: IAnyWorkspaceIdentifier): Promise<void> {
-		await this.setAgenticMode(false);
+		await this.setAgentsMode(false);
 		return this.editor.initialize(arg);
 	}
 
 	hasCachedConfigurationDefaultsOverrides(): boolean {
-		return this.agents.value && this._isAgenticMode ? this.agents.value.configuration.hasCachedConfigurationDefaultsOverrides() : this.editor.hasCachedConfigurationDefaultsOverrides();
+		return this.agents.value && this._isAgentsMode ? this.agents.value.configuration.hasCachedConfigurationDefaultsOverrides() : this.editor.hasCachedConfigurationDefaultsOverrides();
 	}
 
 	updateWorkspaceTrust(trusted: boolean): void {
