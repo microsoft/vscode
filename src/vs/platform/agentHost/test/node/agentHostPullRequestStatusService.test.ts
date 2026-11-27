@@ -493,6 +493,30 @@ suite('AgentHostPullRequestStatusService', () => {
 		});
 	});
 
+	test('a folder-only watch is re-evaluated when a chat starts working in its folder', async () => {
+		const { stateManager, subscriptions, resources, chatGitStates, session } = createHarness();
+		const otherFolder = 'file:///other';
+		const otherFolderOwner = addFolderOnlyFolder(stateManager, session, otherFolder, 'https://github.com/octo/tools/pull/9');
+		chatGitStates.set(otherFolderOwner, { branchName: 'tools-feature' });
+		const peer = buildChatUri(session, 'peer');
+		stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer, buildDefaultChatUri(session)), { workingDirectories: ['file:///elsewhere'] });
+		// Only the folder on its own is shown, not the session
+		subscriptions.addSubscription(otherFolderOwner, buildBranchChangesetUri(otherFolderOwner));
+		for (let i = 0; i < 50 && resources.liveSubscriptions < 1; i++) {
+			await pump();
+		}
+		const before = resources.liveSubscriptions;
+
+		// The folder becomes the chat's first: no longer a folder-only scope, and nothing shows the session's changes
+		stateManager.dispatchServerAction(peer, { type: ActionType.ChatWorkingDirectorySet, directory: otherFolder });
+		stateManager.dispatchServerAction(peer, { type: ActionType.ChatWorkingDirectoryRemoved, directory: 'file:///elsewhere' });
+		for (let i = 0; i < 50 && resources.liveSubscriptions > 0; i++) {
+			await pump();
+		}
+
+		assert.deepStrictEqual({ before, after: resources.liveSubscriptions }, { before: 1, after: 0 });
+	});
+
 	test('a folder-only scope whose Agent Merge runs without a client is watched in the background', async () => {
 		const { stateManager, resources, chatGitStates, session } = createHarness();
 		const otherFolder = 'file:///other';
@@ -517,7 +541,7 @@ suite('AgentHostPullRequestStatusService', () => {
 		});
 	});
 
-	test('a folder-only watch keeps writing under its own owner after the folder leaves the session', async () => {
+	test('a folder-only watch keeps writing under its own owner after the folder stops being eligible', async () => {
 		const { stateManager, subscriptions, resources, publishedStateKeys, chatGitStates, session } = createHarness();
 		const otherPullRequestUrl = 'https://github.com/octo/tools/pull/9';
 		const otherFolder = 'file:///other';
@@ -530,8 +554,9 @@ suite('AgentHostPullRequestStatusService', () => {
 		}
 		const installed = [...publishedStateKeys];
 
-		// The folder leaves while its watch is installed; a status that arrives before the watch stops is never the first folder's.
-		stateManager.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectoryRemoved, directory: otherFolder });
+		// Its recorded Git state is gone, so it is no longer a folder-only root, while its watch is still installed: a
+		// status arriving before the next sync is never the first folder's or the default chat's.
+		stateManager.setSessionMeta(session, withFolderScopeGitState(stateManager.getSessionState(session)?._meta, getWorkingDirectoryScopeId([otherFolder]), undefined, [otherFolder]));
 		const open = snapshot(resources.subscribed[1]);
 		resources.setSnapshotAt(1, { ...open, core: { ...open.core, value: { ...open.core.value!, state: 'merged' } } } as PullRequestSnapshot);
 
@@ -539,6 +564,26 @@ suite('AgentHostPullRequestStatusService', () => {
 			installed: [session, otherFolderOwner],
 			later: [otherFolderOwner],
 		});
+	});
+
+	test('a folder-only watch stops when its folder leaves the session', async () => {
+		const { stateManager, subscriptions, resources, chatGitStates, session } = createHarness();
+		const otherFolder = 'file:///other';
+		const otherFolderOwner = addFolderOnlyFolder(stateManager, session, otherFolder, 'https://github.com/octo/tools/pull/9');
+		chatGitStates.set(otherFolderOwner, { branchName: 'tools-feature' });
+		subscriptions.addSubscription(session, session);
+		subscriptions.addSubscription(otherFolderOwner, buildBranchChangesetUri(otherFolderOwner));
+		for (let i = 0; i < 50 && resources.liveSubscriptions < 2; i++) {
+			await pump();
+		}
+		const before = resources.liveSubscriptions;
+
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectoryRemoved, directory: otherFolder });
+		for (let i = 0; i < 50 && resources.liveSubscriptions > 1; i++) {
+			await pump();
+		}
+
+		assert.deepStrictEqual({ before, after: resources.liveSubscriptions }, { before: 2, after: 1 });
 	});
 
 	test('refreshes a reused folder watch descriptor when the representative chat changes', async () => {

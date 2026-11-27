@@ -164,11 +164,19 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 			switch (envelope.action.type) {
 				case ActionType.SessionIsArchivedChanged:
 				case ActionType.SessionConfigChanged:
-				// The folders chats work in determine which pull requests are watched.
+				// The folders of the session and those chats work in determine which pull requests are watched.
+				case ActionType.SessionWorkingDirectorySet:
+				case ActionType.SessionWorkingDirectoryRemoved:
+				case ActionType.SessionWorkingDirectoryReplaced:
 				case ActionType.SessionChatAdded:
 				case ActionType.SessionChatRemoved:
 				case ActionType.SessionChatUpdated:
 					this._sync(envelope.channel);
+					break;
+				// A chat starting or stopping work in a folder makes it, or no longer makes it, the chat's folder
+				case ActionType.ChatWorkingDirectorySet:
+				case ActionType.ChatWorkingDirectoryRemoved:
+					this._sync(this._containingSession(envelope.channel));
 			}
 		}));
 		this._register(this._gitHubService.onDidChangeRepositoryClient(() => this._handleClientChange()));
