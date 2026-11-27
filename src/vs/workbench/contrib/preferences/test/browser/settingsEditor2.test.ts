@@ -41,6 +41,36 @@ import { IManagedSettingsPresentationService, ManagedSettingsPresentationService
 import { terminalContribConfiguration } from '../../../terminal/terminalContribExports.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 
+suite('SettingsTargetsWidget Agents mode', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('keeps normal workspace targets until explicitly enabled, and restores them on exit', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const parent = DOM.append(document.body, DOM.$('div'));
+		store.add(toDisposable(() => parent.remove()));
+		const widget = store.add(instantiationService.createInstance(SettingsTargetsWidget, parent, undefined));
+		const targets: ConfigurationTarget[] = [];
+		store.add(widget.onDidTargetChange(target => {
+			if (typeof target === 'number') {
+				targets.push(target);
+			}
+		}));
+		await widget.updateTarget(ConfigurationTarget.WORKSPACE);
+		const initial = { target: widget.settingsTarget, empty: parent.querySelector('.monaco-action-bar')!.classList.contains('empty-workbench') };
+		widget.setAgentsMode(true);
+		widget.setAgentsMode(true);
+		const active = { target: widget.settingsTarget, empty: parent.querySelector('.monaco-action-bar')!.classList.contains('empty-workbench') };
+		widget.setAgentsMode(false);
+		const restored = { target: widget.settingsTarget, empty: parent.querySelector('.monaco-action-bar')!.classList.contains('empty-workbench') };
+		assert.deepStrictEqual({ initial, active, restored, targets }, {
+			initial: { target: ConfigurationTarget.WORKSPACE, empty: false },
+			active: { target: ConfigurationTarget.USER_LOCAL, empty: true },
+			restored: { target: ConfigurationTarget.USER_LOCAL, empty: false },
+			targets: [ConfigurationTarget.WORKSPACE, ConfigurationTarget.USER_LOCAL],
+		});
+	});
+});
+
 suite('SettingsEditor2', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
