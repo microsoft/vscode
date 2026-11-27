@@ -646,6 +646,36 @@ suite('WorkingCopyHistoryService', () => {
 		assert.strictEqual(entries.length, 3);
 	});
 
+	test('entries are merged when source is same after reload', async () => {
+		let replaced: IWorkingCopyHistoryEntry | undefined = undefined;
+
+		const workingCopy1 = disposables.add(new TestWorkingCopy(testFile1Path));
+
+		service._configurationService.setUserConfiguration('workbench.localHistory.mergeWindow', 1);
+
+		await addEntry({ resource: workingCopy1.resource, source: 'test-source' }, CancellationToken.None);
+
+		// Simulate shutdown
+		const event = new TestWillShutdownEvent();
+		service._lifecycleService.fireWillShutdown(event);
+		await Promise.allSettled(event.value);
+
+		// New service over the same file system so that the history
+		// model for the working copy starts out unresolved
+		service.dispose();
+		service = disposables.add(new TestWorkingCopyHistoryService(disposables, fileService));
+		service._configurationService.setUserConfiguration('workbench.localHistory.mergeWindow', 1);
+
+		disposables.add(service.onDidReplaceEntry(e => replaced = e.entry));
+
+		const entry2 = await addEntry({ resource: workingCopy1.resource, source: 'test-source' }, CancellationToken.None);
+
+		const entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
+		assert.strictEqual(entries.length, 1);
+		assert.strictEqual(entries[0].id, entry2.id);
+		assert.ok(replaced);
+	});
+
 	test('move entries (file rename)', async () => {
 		const workingCopy = disposables.add(new TestWorkingCopy(testFile1Path));
 
