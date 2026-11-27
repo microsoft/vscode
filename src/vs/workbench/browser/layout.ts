@@ -2975,7 +2975,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return;
 		}
 
-		// A chat part that a maximized part hid shows again with the parts beside it, in the order the layout restores them
+		// Showing the chat part ends a maximized part first, which shows a chat part it hid again with the parts beside it, in the order the layout restores them
 		if (!hidden) {
 			this.setAuxiliaryBarMaximized(false);
 			if (this.isPanelMaximized() && this.isVisible(Parts.PANEL_PART)) {
@@ -2993,8 +2993,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			let shownWidth: number | undefined;
 			if (!hidden) {
 				const cachedWidth = this.workbenchGrid.getViewCachedVisibleSize(this.chatPartView);
-				// The own width is at least the chat part's minimum, so 0 means none was kept
-				shownWidth = this.isEditorHiddenByChat() ? cachedWidth : this.chatPartOwnWidth || cachedWidth;
+				shownWidth = this.isEditorHiddenByChat() ? cachedWidth : this.chatPartOwnWidth ?? cachedWidth;
 			}
 			this.chatPartOwnWidth = hidden ? this.getChatPartOwnWidth() : undefined;
 			this.chatPartHidden = hidden;
@@ -3162,10 +3161,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	/**
-	 * Makes room for a visible chat part where the editor's column is too narrow for the editor and the chat part at
-	 * `width` (its own width by default), so that neither overflows the column: the parts beyond the column on the chat
-	 * part's side, closest first, such as the secondary side bar that holds its anchor, give up width down to their
-	 * minimum, and then those on the other side. The chat part then takes its width, leaving the editor its minimum.
+	 * Makes room for a visible chat part where the editor's column is too narrow for the chat part at `width` (its own
+	 * width by default) and a visible editor area at its minimum, so that neither overflows the column: the parts beyond
+	 * the column on the chat part's side, closest first, such as the secondary side bar that holds its anchor, give up
+	 * width down to their minimum, and then those on the other side. The chat part then takes its width, leaving a visible
+	 * editor area its minimum; a hidden one, such as one hidden for the chat part, needs no room.
 	 */
 	private ensureChatPartFits(width?: number): void {
 		const grid = this.workbenchGrid;
