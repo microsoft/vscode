@@ -28,8 +28,10 @@ parameters:
 # The product is built by Compile and Package jobs in addition to the parallel
 # CLI job. With the privileged connections, the package job signs the deb and
 # rpm packages. Without them, it publishes the unsigned packages and archives
-# as unsigned_<artifact>. The test jobs are declared next to this template (see
-# product-build-linux-test.yml) and run in parallel with Package after Compile.
+# as unsigned_<artifact>, and the archives drop their -unsigned suffix, which
+# only the Publish stage reads. The test jobs are declared next to this
+# template (see product-build-linux-test.yml) and run in parallel with Package
+# after Compile.
 jobs:
   - job: Linux_${{ parameters.VSCODE_ARCH }}_Compile
     displayName: Linux (${{ upper(parameters.VSCODE_ARCH) }}) - Compile
@@ -139,7 +141,7 @@ jobs:
         outputs:
           - output: pipelineArtifact
             targetPath: $(Build.ArtifactStagingDirectory)/out/client/$(CLIENT_ARCHIVE_NAME)
-            artifactName: ${{ iif(parameters.VSCODE_PRIVILEGED_CONNECTIONS, '', 'unsigned_') }}vscode_client_linux_$(VSCODE_ARCH)_archive-unsigned
+            artifactName: ${{ iif(parameters.VSCODE_PRIVILEGED_CONNECTIONS, 'vscode_client_linux_$(VSCODE_ARCH)_archive-unsigned', 'unsigned_vscode_client_linux_$(VSCODE_ARCH)_archive') }}
             condition: and(succeeded(), ne(variables['CLIENT_ARCHIVE_PUBLISHED'], 'true'))
             displayName: Publish client archive
             sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-linux-$(VSCODE_ARCH)
@@ -151,7 +153,7 @@ jobs:
           - ${{ if ne(parameters.VSCODE_ARCH, 'armhf') }}:
             - output: pipelineArtifact
               targetPath: $(Build.ArtifactStagingDirectory)/out/server/vscode-server-linux-$(VSCODE_ARCH).tar.gz
-              artifactName: ${{ iif(parameters.VSCODE_PRIVILEGED_CONNECTIONS, '', 'unsigned_') }}vscode_server_linux_$(VSCODE_ARCH)_archive-unsigned
+              artifactName: ${{ iif(parameters.VSCODE_PRIVILEGED_CONNECTIONS, 'vscode_server_linux_$(VSCODE_ARCH)_archive-unsigned', 'unsigned_vscode_server_linux_$(VSCODE_ARCH)_archive') }}
               condition: and(succeeded(), ne(variables['SERVER_ARCHIVE_PUBLISHED'], 'true'))
               displayName: Publish server archive
               sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)
@@ -162,7 +164,7 @@ jobs:
                 isProduction: false
             - output: pipelineArtifact
               targetPath: $(Build.ArtifactStagingDirectory)/out/web/vscode-server-linux-$(VSCODE_ARCH)-web.tar.gz
-              artifactName: ${{ iif(parameters.VSCODE_PRIVILEGED_CONNECTIONS, '', 'unsigned_') }}vscode_web_linux_$(VSCODE_ARCH)_archive-unsigned
+              artifactName: ${{ iif(parameters.VSCODE_PRIVILEGED_CONNECTIONS, 'vscode_web_linux_$(VSCODE_ARCH)_archive-unsigned', 'unsigned_vscode_web_linux_$(VSCODE_ARCH)_archive') }}
               condition: and(succeeded(), ne(variables['WEB_ARCHIVE_PUBLISHED'], 'true'))
               displayName: Publish web server archive
               sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
@@ -228,9 +230,9 @@ jobs:
         # before timing out (see ../common/checkForArtifact.ts)
         - script: >-
             node build/azure-pipelines/common/checkForArtifact.ts
-            CLIENT_ARCHIVE_PUBLISHED ${{ iif(parameters.VSCODE_PRIVILEGED_CONNECTIONS, '', 'unsigned_') }}vscode_client_linux_$(VSCODE_ARCH)_archive-unsigned
-            SERVER_ARCHIVE_PUBLISHED ${{ iif(parameters.VSCODE_PRIVILEGED_CONNECTIONS, '', 'unsigned_') }}vscode_server_linux_$(VSCODE_ARCH)_archive-unsigned
-            WEB_ARCHIVE_PUBLISHED ${{ iif(parameters.VSCODE_PRIVILEGED_CONNECTIONS, '', 'unsigned_') }}vscode_web_linux_$(VSCODE_ARCH)_archive-unsigned
+            CLIENT_ARCHIVE_PUBLISHED ${{ iif(parameters.VSCODE_PRIVILEGED_CONNECTIONS, 'vscode_client_linux_$(VSCODE_ARCH)_archive-unsigned', 'unsigned_vscode_client_linux_$(VSCODE_ARCH)_archive') }}
+            SERVER_ARCHIVE_PUBLISHED ${{ iif(parameters.VSCODE_PRIVILEGED_CONNECTIONS, 'vscode_server_linux_$(VSCODE_ARCH)_archive-unsigned', 'unsigned_vscode_server_linux_$(VSCODE_ARCH)_archive') }}
+            WEB_ARCHIVE_PUBLISHED ${{ iif(parameters.VSCODE_PRIVILEGED_CONNECTIONS, 'vscode_web_linux_$(VSCODE_ARCH)_archive-unsigned', 'unsigned_vscode_web_linux_$(VSCODE_ARCH)_archive') }}
             DEB_PACKAGE_PUBLISHED ${{ iif(parameters.VSCODE_PRIVILEGED_CONNECTIONS, '', 'unsigned_') }}vscode_client_linux_$(VSCODE_ARCH)_deb-package
             RPM_PACKAGE_PUBLISHED ${{ iif(parameters.VSCODE_PRIVILEGED_CONNECTIONS, '', 'unsigned_') }}vscode_client_linux_$(VSCODE_ARCH)_rpm-package
             SNAP_PACKAGE_PUBLISHED ${{ iif(parameters.VSCODE_PRIVILEGED_CONNECTIONS, '', 'unsigned_') }}vscode_client_linux_$(VSCODE_ARCH)_snap
