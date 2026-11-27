@@ -11,6 +11,7 @@ export const searchDetailsIcon = registerIcon('search-details', Codicon.ellipsis
 export const searchActivityBarIcon = registerIcon('search-see-more', Codicon.goToSearch, localize('searchSeeMoreIcon', 'Icon to view more context in the search view.'));
 
 export const searchShowContextIcon = registerIcon('search-show-context', Codicon.listSelection, localize('searchShowContextIcon', 'Icon for toggle the context in the search editor.'));
+export const searchContextLinesOptionsIcon = registerIcon('search-context-lines-options', Codicon.settingsCompact, localize('searchContextLinesOptionsIcon', 'Icon for configuring context lines in the search editor.'));
 export const searchHideReplaceIcon = registerIcon('search-hide-replace', Codicon.chevronRight, localize('searchHideReplaceIcon', 'Icon to collapse the replace section in the search view.'));
 export const searchShowReplaceIcon = registerIcon('search-show-replace', Codicon.chevronDown, localize('searchShowReplaceIcon', 'Icon to expand the replace section in the search view.'));
 export const searchReplaceAllIcon = registerIcon('search-replace-all', Codicon.replaceAll, localize('searchReplaceAllIcon', 'Icon for replace all in the search view.'));
