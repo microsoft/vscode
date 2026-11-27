@@ -14,7 +14,7 @@ import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { getErrorCode, isCancellationError } from '../../../base/common/errors.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../base/common/map.js';
 import { getExtensionForMimeType, getMediaMime } from '../../../base/common/mime.js';
 import { Schemas } from '../../../base/common/network.js';
 import { equals } from '../../../base/common/objects.js';
@@ -2430,6 +2430,143 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 			},
 		};
+	}
+
+	async detachSessionsFromWorkspace(workspaceFiles: readonly URI[]): Promise<readonly URI[]> {
+		// The folder equivalence of the session's folders, so that a workspace file with another casing on a case-insensitive file system matches
+		const targets = new ResourceSet(workspaceFiles, uri => extUriBiasedIgnorePathCase.getComparisonKey(uri));
+		const detached: URI[] = [];
+		const failed: URI[] = [];
+		let storedDetached = false;
+		for (const session of await this._findSessionsOfWorkspaces(targets)) {
+			try {
+				storedDetached = !await this._detachSessionFromWorkspace(session) || storedDetached;
+				detached.push(session);
+			} catch (error) {
+				this._logService.warn(`[AgentService] Failed to detach ${session.toString()} from its workspace`, error);
+				failed.push(session);
+			}
+		}
+		if (storedDetached) {
+			// Rebuilds the catalog rows of the stored sessions now, so that a list read after this resolves no longer has the workspace
+			try {
+				await this._catalogReconciliationService.runPass();
+			} catch (error) {
+				this._logService.warn('[AgentService] Failed to reconcile the catalog after detaching sessions from a workspace', error);
+			}
+		}
+		if (detached.length > 0) {
+			this._invalidateSessionList();
+		}
+		if (failed.length > 0) {
+			// The others stay detached; a failed session keeps its workspace, so detaching again retries it
+			throw new Error(`Failed to detach ${failed.length} of ${failed.length + detached.length} sessions from their workspace: ${failed.map(String).join(', ')}`);
+		}
+		return detached;
+	}
+
+	/**
+	 * The sessions, loaded or stored, whose multi-root workspace record is one of `workspaceFiles`: every registered
+	 * session, also those the session list hides, as external sessions outside its time window. A stored session is read
+	 * from its catalog row, or from its own state when it has no usable row.
+	 */
+	private async _findSessionsOfWorkspaces(workspaceFiles: ResourceSet): Promise<readonly URI[]> {
+		const isTarget = (meta: SessionSummaryMeta | undefined) => {
+			const multiRoot = readSessionMultiRootMetadata(meta);
+			return !!multiRoot && workspaceFiles.has(URI.parse(multiRoot.workspaceFile));
+		};
+		const found: URI[] = [];
+		const stored: IRegisteredSession[] = [];
+		for (const registered of await this._sessionRegistry.list()) {
+			if (isSubagentSession(registered.session)) {
+				continue;
+			}
+			const state = this._stateManager.getSessionState(registered.session.toString());
+			if (state) {
+				if (isTarget(state._meta)) {
+					found.push(registered.session);
+				}
+			} else {
+				stored.push(registered);
+			}
+		}
+		const catalog = await this._catalogListReader.readMany(stored);
+		const limiter = new Limiter<boolean>(4);
+		const storedMatches = await Promise.all(stored.map((registered, index) => limiter.queue(async () => {
+			const row = catalog.results[index];
+			if (row.eligible) {
+				return isTarget(row.data._meta);
+			}
+			if (row.chatBacking) {
+				return false;
+			}
+			const persisted = await this._sessionStateStore.readWithoutImport(registered.session, [SESSION_META_MULTI_ROOT_KEY]);
+			const multiRoot = parseSessionMultiRootMetadata(persisted.get(SESSION_META_MULTI_ROOT_KEY));
+			return !!multiRoot && workspaceFiles.has(URI.parse(multiRoot.workspaceFile));
+		})));
+		stored.forEach((registered, index) => {
+			if (storedMatches[index]) {
+				found.push(registered.session);
+			}
+		});
+		return found;
+	}
+
+	/**
+	 * Removes a session's multi-root workspace record, whether the session is loaded or only stored, keeping its folders.
+	 * Resolves whether the session was loaded; a stored one's catalog row is rebuilt by the next reconciliation pass.
+	 * A loaded session gets its record back when it could not be persisted without it, so that it can be detached again.
+	 */
+	private async _detachSessionFromWorkspace(session: URI): Promise<boolean> {
+		const key = session.toString();
+		if (this._stateManager.getSessionState(key)) {
+			await this._detachLoadedSessionFromWorkspace(session);
+			return true;
+		}
+		// Serialized with restores, so that a restore cannot publish the record after it is removed
+		if (await this._queuePassiveMetadataUpdate(key, () => this._detachStoredSessionFromWorkspace(key)) === 'live') {
+			await this._detachLoadedSessionFromWorkspace(session);
+			return true;
+		}
+		return false;
+	}
+
+	/** Removes a loaded session's record, giving it back when it could not be persisted without it. */
+	private async _detachLoadedSessionFromWorkspace(session: URI): Promise<void> {
+		const key = session.toString();
+		const state = this._stateManager.getSessionState(key);
+		if (!state) {
+			return;
+		}
+		const multiRoot = readSessionMultiRootMetadata(state._meta);
+		// Published first, as the catalog write below reads the workspace of a loaded session from its state
+		this._stateManager.dispatchServerAction(key, { type: ActionType.SessionMetaChanged, _meta: withSessionMultiRootMetadata(state._meta, undefined) });
+		try {
+			// A failed write undoes its own record too, so that the session stays attached wherever it is read from
+			await this._persistOrderedListVisibleSessionState(session, { [SESSION_META_MULTI_ROOT_KEY]: '' }, undefined, { rollbackOnFailure: true });
+		} catch (error) {
+			const current = this._stateManager.getSessionState(key);
+			if (current && multiRoot && !readSessionMultiRootMetadata(current._meta)) {
+				this._stateManager.dispatchServerAction(key, { type: ActionType.SessionMetaChanged, _meta: withSessionMultiRootMetadata(current._meta, multiRoot) });
+			}
+			throw error;
+		}
+	}
+
+	private async _detachStoredSessionFromWorkspace(key: string): Promise<void> {
+		await persistSessionMetadataValues(this._sessionStateStore, key, { [SESSION_META_MULTI_ROOT_KEY]: '' });
+		const surfaced = this._stateManager.getSurfacedSessionSummary(key);
+		if (surfaced) {
+			this._stateManager.updateSurfacedSessionMetadata(key, {
+				title: surfaced.title,
+				modifiedAt: surfaced.modifiedAt,
+				project: surfaced.project,
+				workingDirectories: surfaced.workingDirectories,
+				_meta: withSessionMultiRootMetadata(surfaced._meta, undefined),
+				origin: surfaced.origin,
+			});
+		}
+		await this._markCatalogPayloadDirty(key);
 	}
 
 	async removeSessionArtifact(session: URI, artifactId: string): Promise<ISessionArtifact | undefined> {
@@ -12979,10 +13116,12 @@ export class AgentService extends Disposable implements IAgentService {
 		const requiresKnownAttachmentRewrite = knownSessionChannel !== undefined && this._needsAsyncRewrite(knownSessionChannel, channel, action);
 		const requiresReviewStateUpdate = action.type === ActionType.ChangesetFilesReviewChanged;
 		const requiresAnnotationsRestore = isAnnotationsAction(action);
-		const requiresWorkspacePin = action.type === ActionType.SessionWorkingDirectorySet;
+		// Changes to the folders of a session or a chat are serialized with the other changes to the session's folders
+		const requiresWorkspaceChange = action.type === ActionType.SessionWorkingDirectorySet || action.type === ActionType.SessionWorkingDirectoryRemoved;
+		const requiresChatFolderChange = chatChannel !== undefined && this._isChatWorkingDirectoryAction(action);
 
 		const pending = this._clientDispatchQueues.get(clientId);
-		if (!pending && knownSessionChannel !== undefined && !requiresSessionRestore && !requiresPeerResolution && !requiresKnownAttachmentRewrite && !requiresReviewStateUpdate && !requiresAnnotationsRestore && !requiresWorkspacePin && !requiresCredentialResolution) {
+		if (!pending && knownSessionChannel !== undefined && !requiresSessionRestore && !requiresPeerResolution && !requiresKnownAttachmentRewrite && !requiresReviewStateUpdate && !requiresAnnotationsRestore && !requiresWorkspaceChange && !requiresChatFolderChange && !requiresCredentialResolution) {
 			this._dispatchActionNow(channel, knownSessionChannel, action, clientId, clientSeq, clientContext, credentials, permissionFeedback);
 			return;
 		}
@@ -13092,17 +13231,33 @@ export class AgentService extends Disposable implements IAgentService {
 			if (chatChannel && requiresPeerResolution && !this._appliesWithoutChatState(chatChannel, action)) {
 				await this._stateManager.resolveChatState(chatChannel, credentials);
 			}
-			let rewritten: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction = requiresAttachmentRewrite
+			const rewritten: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction = requiresAttachmentRewrite
 				? await this._rewriteUserMessageAttachments(sessionChannel, channel, action, clientId)
 				: passiveMetadataAction ?? action;
-			if (rewritten.type === ActionType.SessionWorkingDirectorySet
-				&& clientContext.clientType === AgentHostClientType.EditorWindow
+			const workspaceChange = rewritten;
+			if ((workspaceChange.type === ActionType.SessionWorkingDirectorySet || workspaceChange.type === ActionType.SessionWorkingDirectoryRemoved)
+				&& this._isWorkingDirectoryClient(clientContext.clientType)
 				&& channel === sessionChannel) {
-				rewritten = this._prepareWorkingDirectoryAction(sessionChannel, rewritten);
-				const workingDirectories = this._stateManager.getSessionSummary(sessionChannel)?.workingDirectories ?? [];
-				if (!workingDirectories.includes(rewritten.directory)) {
-					await this._pinInheritedChatWorkingDirectories(URI.parse(sessionChannel), workingDirectories);
-				}
+				// Validated, applied and published as one step, so that a concurrent change of another client's sees the result
+				await this._runSessionFolderChange(sessionUri, async () => {
+					const prepared = this._prepareWorkingDirectoryAction(sessionChannel, workspaceChange, clientContext.clientType);
+					const workingDirectories = this._stateManager.getSessionSummary(sessionChannel)?.workingDirectories ?? [];
+					if (prepared.type === ActionType.SessionWorkingDirectorySet && !workingDirectories.includes(prepared.directory)) {
+						await this._pinInheritedChatWorkingDirectories(sessionUri, workingDirectories);
+					}
+					this._dispatchActionNow(channel, sessionChannel, prepared, clientId, clientSeq, clientContext, credentials, permissionFeedback);
+				});
+				return;
+			}
+			if (chatChannel && this._isChatWorkingDirectoryAction(workspaceChange)) {
+				await this._runSessionFolderChange(sessionUri, async () => {
+					const prepared = await this._prepareClientChatWorkingDirectoryAction(sessionUri, chatChannel, workspaceChange);
+					this._dispatchActionNow(channel, sessionChannel, prepared.action, clientId, clientSeq, clientContext, credentials, permissionFeedback);
+					this._stateManager.dispatchServerAction(sessionChannel, {
+						type: ActionType.SessionChatUpdated, chat: chatChannel, changes: { workingDirectories: [...prepared.directories] },
+					});
+				});
+				return;
 			}
 			if (rewritten.type === ActionType.ChangesetFilesReviewChanged) {
 				await this._reviewService.setReviewState(channel, rewritten.files, rewritten.reviewed);
@@ -13149,18 +13304,24 @@ export class AgentService extends Disposable implements IAgentService {
 	 * of the primary directory for a provider that pins it — so the caller can
 	 * reject the action. Returns the canonicalized action on success.
 	 */
-	private _prepareWorkingDirectoryAction(session: string, action: SessionWorkingDirectoryAction): SessionWorkingDirectoryAction {
+	private _prepareWorkingDirectoryAction(session: string, action: SessionWorkingDirectoryAction, clientType: AgentHostClientType | undefined): SessionWorkingDirectoryAction {
 		const state = this._stateManager.getSessionState(session.toString());
 		const workingDirectories = this._stateManager.getSessionSummary(session)?.workingDirectories;
 		if (!state || state.lifecycle !== SessionLifecycle.Ready || !workingDirectories?.length) {
 			throw new Error(`Session is not ready for working-directory changes: ${session}`);
 		}
-		if (!readSessionMultiRootMetadata(state._meta)
-			|| readSessionWorkspaceless(state._meta)
-			|| state.config?.values[SessionConfigKey.Isolation] === 'worktree'
-			|| state.chats.length !== 1
-			|| !state.defaultChat
-			|| state.defaultChat !== state.chats[0].resource) {
+		// An editor window mirrors its multi-root workspace into a single-chat folder session. The Agents window adds
+		// folders to a session for its chats (see `_prepareClientChatWorkingDirectoryAction`), also in sessions of several
+		// chats and of a worktree, whose primary folder then stays.
+		const supportsChanges = clientType === AgentHostClientType.AgentsWindow
+			? !readSessionWorkspaceless(state._meta)
+			: !!readSessionMultiRootMetadata(state._meta)
+			&& !readSessionWorkspaceless(state._meta)
+			&& state.config?.values[SessionConfigKey.Isolation] !== 'worktree'
+			&& state.chats.length === 1
+			&& !!state.defaultChat
+			&& state.defaultChat === state.chats[0].resource;
+		if (!supportsChanges) {
 			throw new Error(`Session does not support dynamic working-directory changes: ${session}`);
 		}
 
@@ -13183,6 +13344,70 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 		return resolved;
+	}
+
+	/**
+	 * Runs a client's change to the folders of a session or of a chat as one step with the host's own changes to them:
+	 * after creating, replacing (setting a chat's workspace) or deleting a chat, which hold the chat catalog lock, and
+	 * after the folders prepared for new chats, released or detached, which hold the folder lock. The catalog lock is
+	 * taken first, as code holding it takes the folder lock and never the other way round.
+	 */
+	private _runSessionFolderChange<T>(session: URI, change: () => Promise<T>): Promise<T> {
+		const sessionKey = session.toString();
+		return this._chatCatalogMutationSequencer.queue(sessionKey, () => this._additionalWorktreeSequencer.queue(sessionKey, change));
+	}
+
+	/**
+	 * Validates and persists a client's change to the folders of a chat, so that a chat can work in folders next to its
+	 * primary one. Runs in {@link _runSessionFolderChange}, with the other changes to its folders. An added
+	 * folder must already be a folder of the session (a client adds it there first, with `session/workingDirectorySet`);
+	 * a chat's primary folder, where its agent runs, is never removed. A chat that inherits the session folders gets them
+	 * as its own first. Returns the action to apply and the chat's new folders.
+	 */
+	private async _prepareClientChatWorkingDirectoryAction(session: URI, chat: string, action: ChatWorkingDirectoryAction): Promise<{ readonly action: ChatWorkingDirectoryAction; readonly directories: readonly string[] }> {
+		const sessionKey = session.toString();
+		const { workingDirectories: sessionFolders } = this._getChatWorkingDirectoryContext(session, chat);
+		if (readSessionWorkspaceless(this._stateManager.getSessionState(sessionKey)?._meta)) {
+			throw new Error(`Session has no workspace to change the folders of chat ${chat} in.`);
+		}
+		let chatState = await this._stateManager.resolveChatState(chat);
+		if (chatState && chatState.workingDirectories === undefined) {
+			await this._pinInheritedChatWorkingDirectories(session, sessionFolders);
+			chatState = this._stateManager.getChatState(chat);
+		}
+		const current = chatState?.workingDirectories;
+		if (!current?.length) {
+			throw new Error(`Chat ${chat} has no folders to change.`);
+		}
+		const target = URI.parse(action.directory, true);
+		// The session's folder equivalence (see `resolveSessionWorkingDirectoryAction`)
+		const isTarget = (candidate: string) => extUriBiasedIgnorePathCase.isEqual(URI.parse(candidate, true), target);
+		let directory: string;
+		let next: string[];
+		if (action.type === ActionType.ChatWorkingDirectorySet) {
+			const sessionFolder = sessionFolders.find(isTarget);
+			if (sessionFolder === undefined) {
+				throw new Error(`Cannot add ${action.directory} to chat ${chat}: it is not a folder of the session.`);
+			}
+			directory = sessionFolder;
+			next = current.some(isTarget) ? [...current] : [...current, sessionFolder];
+		} else {
+			const index = current.findIndex(isTarget);
+			// The agent keeps running in it, whichever folder would come first next
+			if (index === 0) {
+				throw new Error(`Cannot remove the primary folder of chat ${chat}.`);
+			}
+			directory = index === -1 ? action.directory : current[index];
+			next = current.filter((_, i) => i !== index);
+		}
+		if (!equals(current, next)) {
+			await this._persistChatWorkingDirectories(session, URI.parse(chat), next, current, () => {
+				if (!this._stateManager.getSessionState(sessionKey)?.chats.some(candidate => candidate.resource === chat)) {
+					throw new Error(`Chat ${chat} was removed while changing its folders.`);
+				}
+			});
+		}
+		return { action: { type: action.type, directory }, directories: next };
 	}
 
 	/**
@@ -14125,8 +14350,8 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		if (action.type === ActionType.SessionWorkingDirectorySet
 			|| action.type === ActionType.SessionWorkingDirectoryRemoved) {
-			if (clientContext.clientType !== AgentHostClientType.EditorWindow) {
-				this._stateManager.rejectClientAction(channel, action, origin, 'Session working-directory actions require an Editor Window client.');
+			if (!this._isWorkingDirectoryClient(clientContext.clientType)) {
+				this._stateManager.rejectClientAction(channel, action, origin, 'Session working-directory actions require an Editor Window or Agents Window client.');
 				return;
 			}
 			if (channel !== sessionChannel) {
@@ -14134,7 +14359,7 @@ export class AgentService extends Disposable implements IAgentService {
 				return;
 			}
 			try {
-				action = this._prepareWorkingDirectoryAction(sessionChannel, action);
+				action = this._prepareWorkingDirectoryAction(sessionChannel, action, clientContext.clientType);
 			} catch (error) {
 				this._stateManager.rejectClientAction(channel, action, origin, toErrorMessage(error));
 				return;
@@ -17114,6 +17339,15 @@ export class AgentService extends Disposable implements IAgentService {
 		this._startupSettled.open();
 		super.dispose();
 	}
+
+	private _isChatWorkingDirectoryAction(action: { readonly type: ActionType }): action is ChatWorkingDirectoryAction {
+		return action.type === ActionType.ChatWorkingDirectorySet || action.type === ActionType.ChatWorkingDirectoryRemoved;
+	}
+
+	/** Clients that may change the folders of a session: an editor window for its multi-root workspace, and the Agents window for its chats. */
+	private _isWorkingDirectoryClient(clientType: AgentHostClientType | undefined): boolean {
+		return clientType === AgentHostClientType.EditorWindow || clientType === AgentHostClientType.AgentsWindow;
+	}
 }
 
 /**
@@ -17168,3 +17402,5 @@ function collectChangesUnderRoot(event: FileChangesEvent, root: URI): IFileChang
 	for (const resource of event.rawDeleted) { accept(resource, FileChangeType.DELETED); }
 	return out;
 }
+
+type ChatWorkingDirectoryAction = Extract<ChatAction, { type: ActionType.ChatWorkingDirectorySet | ActionType.ChatWorkingDirectoryRemoved }>;

@@ -4512,6 +4512,41 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
+	test('applies a customized tabs background to the connected editor strip unless the connected background is customized too', () => {
+		const root = appendElement(document.body, 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs');
+		store.add(toDisposable(() => root.remove()));
+		const style = document.createElement('style');
+		root.appendChild(style);
+		const editor = appendElement(root, 'part editor');
+		const strip = appendElement(editor, 'modern-ui-editor-tab-strip');
+		const panel = appendElement(root, 'part panel pane-composite-part');
+		const panelTitle = appendElement(panel, 'title has-composite-bar');
+		const targetWindow = getWindow(root);
+		const colors = (customColors: Record<string, string>) => {
+			const theme = ColorThemeData.createUnloadedTheme('vs', {
+				[editorBackground]: '#ffffff',
+				[EDITOR_GROUP_HEADER_TABS_BACKGROUND]: '#f8f8f8',
+				[EDITOR_GROUP_HEADER_CONNECTED_TABS_BACKGROUND]: '#e5e5e5',
+			});
+			theme.setCustomColors(customColors);
+			style.textContent = generateColorThemeCSS(theme, '.monaco-workbench', themingRegistry.getThemingParticipants(), TestEnvironmentService).code;
+			return {
+				editor: targetWindow.getComputedStyle(strip).backgroundColor,
+				panel: targetWindow.getComputedStyle(panelTitle).backgroundImage,
+			};
+		};
+
+		assert.deepStrictEqual([
+			colors({}),
+			colors({ [EDITOR_GROUP_HEADER_TABS_BACKGROUND]: '#ae0e0e' }),
+			colors({ [EDITOR_GROUP_HEADER_TABS_BACKGROUND]: '#ae0e0e', [EDITOR_GROUP_HEADER_CONNECTED_TABS_BACKGROUND]: '#123456' }),
+		], [
+			{ editor: 'rgb(229, 229, 229)', panel: 'linear-gradient(rgb(229, 229, 229), rgb(229, 229, 229))' },
+			{ editor: 'rgb(174, 14, 14)', panel: 'linear-gradient(rgb(229, 229, 229), rgb(229, 229, 229))' },
+			{ editor: 'rgb(18, 52, 86)', panel: 'linear-gradient(rgb(18, 52, 86), rgb(18, 52, 86))' },
+		]);
+	});
+
 	test('keeps selected pill surfaces visible beneath transparent tab actions', () => {
 		const root = appendElement(document.body, 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs');
 		store.add(toDisposable(() => root.remove()));

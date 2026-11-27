@@ -7,6 +7,7 @@ import { editorBackground } from '../../../../platform/theme/common/colorRegistr
 import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { CONNECTED_EDITOR_TABS_SELECTOR } from '../../../browser/parts/editor/editor.js';
 import { EDITOR_GROUP_HEADER_CONNECTED_TABS_BACKGROUND, EDITOR_GROUP_HEADER_TABS_BACKGROUND, MODERN_EDITOR_TAB_HOVER_BACKGROUND } from '../../../common/theme.js';
+import { ColorThemeData } from '../../../services/themes/common/colorThemeData.js';
 import './media/connectedEditorTabs.css';
 
 const connectedTabsSelector = `.monaco-workbench.modern-ui-tabs${CONNECTED_EDITOR_TABS_SELECTOR}`;
@@ -37,5 +38,16 @@ registerThemingParticipant((theme, collector) => {
 	}
 	if (editorStripBackground && hoverBackground) {
 		collector.addRule(`${connectedEditorTabsSelector} { --modern-ui-connected-tab-upper-hover-background: ${hoverBackground.makeOpaque(editorStripBackground)}; }`);
+	}
+
+	// A user customization of the legacy editor color takes precedence over a theme's connected strip color.
+	const customizedTabsBackground = theme instanceof ColorThemeData && theme.getColorCustomization(EDITOR_GROUP_HEADER_TABS_BACKGROUND) && !theme.getColorCustomization(EDITOR_GROUP_HEADER_CONNECTED_TABS_BACKGROUND) ? theme.getColor(EDITOR_GROUP_HEADER_TABS_BACKGROUND) : undefined;
+	const customizedStripBackground = background && customizedTabsBackground ? customizedTabsBackground.makeOpaque(background) : customizedTabsBackground;
+	if (customizedStripBackground) {
+		const editorSelector = `${connectedEditorTabsSelector} .part.editor`;
+		collector.addRule(`${editorSelector} { --modern-ui-connected-tab-strip-background: ${customizedStripBackground}; }`);
+		if (hoverBackground) {
+			collector.addRule(`${editorSelector} { --modern-ui-connected-tab-upper-hover-background: ${hoverBackground.makeOpaque(customizedStripBackground)}; }`);
+		}
 	}
 });

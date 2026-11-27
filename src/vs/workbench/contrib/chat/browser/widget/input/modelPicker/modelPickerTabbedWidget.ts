@@ -50,6 +50,7 @@ import { buildModelToProviderGroupMap, createModelAction, createUnavailableModel
 import { getModelPickerAccessibilityProvider, getModelPickerControlModels, NEW_MODEL_ROUTER_ACTION_ID } from './modelPickerItems.js';
 import { compareModelNames } from './modelPickerLineage.js';
 import { filterModelPickerControlModelsForEntitlement, filterModelPickerModelsForEntitlement, getFusionDiscountPercent, getFusionTierLabel, getHydraFusionTierLabel, getRoutingModelBadge, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly, isModelComparisonSupported, isModelRouter } from './modelPickerPresentation.js';
+import { modelRouterIcon } from './modelProviderIcons.js';
 import { buildModelPickerDestinations, buildModelPickerSections, getModelProviderLabel, hasPromotedModels, IModelPickerDestination, IModelPickerProviderPlaceholder, IModelPickerSections, IModelPickerUnavailableEntry, MODEL_PICKER_BUILT_IN_DESTINATION, MODEL_PICKER_ON_DEVICE_DESTINATION, MODEL_PICKER_ROUTERS_DESTINATION } from './modelPickerTabs.js';
 import { ModelPickerWelcome } from './modelPickerWelcome.js';
 import { IAgentModelPreferences, resolveAgentModelPreferences } from '../../../../common/promptSyntax/languageProviders/promptModelResolver.js';
@@ -673,7 +674,7 @@ export class TabbedModelPicker extends Disposable {
 		return {
 			id: MODEL_PICKER_ROUTERS_DESTINATION,
 			label,
-			icon: Codicon.typeHierarchySub,
+			icon: modelRouterIcon,
 			models,
 			placeholders: models.length || !create ? [] : [{
 				vendor: COPILOT_VENDOR_ID,

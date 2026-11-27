@@ -77,6 +77,7 @@ export const enum AccessibilityVerbositySettingId {
 	Find = 'accessibility.verbosity.find',
 	SessionsChat = 'accessibility.verbosity.sessionsChat',
 	SessionWorktreeCleanup = 'accessibility.verbosity.sessionWorktreeCleanup',
+	SessionWorkspaceEditor = 'accessibility.verbosity.sessionWorkspaceEditor',
 	NewSessionWelcome = 'accessibility.verbosity.newSessionWelcome',
 	SessionsChanges = 'accessibility.verbosity.sessionsChanges',
 	EmptyFileEditorSearch = 'accessibility.verbosity.emptyFileEditorSearch',
@@ -268,6 +269,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.SessionWorktreeCleanup]: {
 			description: localize('verbosity.sessionWorktreeCleanup', 'Provide information about how to use the Manage Agent Session Storage editor when it is focused.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.SessionWorkspaceEditor]: {
+			description: localize('verbosity.sessionWorkspaceEditor', "Provide information about how to use the Workspace editor when it is focused."),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.NewSessionWelcome]: {

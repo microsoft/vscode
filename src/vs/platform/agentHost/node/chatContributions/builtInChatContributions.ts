@@ -38,6 +38,7 @@ import { TurnAdmissionContribution } from './turnAdmission/turnAdmissionContribu
 import { TurnDelegationContribution } from './turnDelegation/turnDelegationContribution.js';
 import { WorktreeAnnouncementContribution } from './worktreeAnnouncement/worktreeAnnouncementContribution.js';
 import { WorkspaceContextContribution } from './workspaceContext/workspaceContextContribution.js';
+import { WorkingDirectoriesContextContribution } from './workingDirectoriesContext/workingDirectoriesContextContribution.js';
 import { WorktreeFailureContribution } from './worktreeFailure/worktreeFailureContribution.js';
 import { WorktreeGitLfsContribution } from './worktreeGitLfs/worktreeGitLfsContribution.js';
 
@@ -70,6 +71,7 @@ export function registerBuiltInChatContributions(
 	registrations.add(contributions.registerContribution(ChatDraftContribution));
 	registrations.add(contributions.registerContribution(ChatConfigContribution));
 	registrations.add(contributions.registerContribution(MarkdownPlanRichLinksContribution));
+	registrations.add(contributions.registerContribution(WorkingDirectoriesContextContribution));
 	registrations.add(contributions.registerContribution(WorkspaceContextContribution));
 	registrations.add(contributions.registerContribution(ArtifactToolsContribution));
 	registrations.add(contributions.registerContribution(ArtifactRunsContribution));

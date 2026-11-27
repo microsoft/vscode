@@ -33,7 +33,7 @@ import { CommentGlyphWidget } from './commentGlyphWidget.js';
 import { ICommentService } from './commentService.js';
 import { CommentedCodeGeometry, CommentThreadConnector } from './commentThreadConnector.js';
 import { commentThreadHasDraft, CommentWidgetFocus, confirmCommentThreadCollapse, createCommentThreadGlyph, getCommentThreadWidgetStateColor, ICommentThreadEditorWidget, updateCommentThreadTemplateRange } from './commentThreadEditorWidget.js';
-import { computeFloatingWidgetPlacement, EDGE_MARGIN, FloatingWidgetSizeModel, getCenteredTop, getDefaultFloatingWidgetWidth, getPlacementBesideLines, getRevealScrollTop, getWidthBesideCode, IBesideLinesPlacement, ICommentThreadFloatingWidgetLayout, IFloatingWidgetChosenSize, IFloatingWidgetContentHeights, IFloatingWidgetContentWidths, IFloatingWidgetObstacle, IFloatingWidgetPlacement, IFloatingWidgetPlacementRequest, IPoint, IRect, ISize, ISizeRange, isInTheWayOf, MIN_HEIGHT, MIN_WIDTH, rectsIntersect, shouldDockFloatingWidgets } from './commentThreadFloatingWidgetLayout.js';
+import { computeFloatingWidgetPlacement, EDGE_MARGIN, FloatingWidgetSizeModel, getCenteredTop, getDefaultFloatingWidgetWidth, getPlacementBesideLines, getRevealScrollTop, getWidthBesideCode, IBesideLinesPlacement, ICommentThreadFloatingWidgetLayout, IFloatingWidgetChosenSize, IFloatingWidgetContentHeights, IFloatingWidgetContentWidths, IFloatingWidgetObstacle, IFloatingWidgetPlacement, IFloatingWidgetPlacementRequest, IConnectorAnchor, IRect, ISize, ISizeRange, isInTheWayOf, MIN_HEIGHT, MIN_WIDTH, rectsIntersect, shouldDockFloatingWidgets } from './commentThreadFloatingWidgetLayout.js';
 import { FloatingWidgetDockZone, FloatingWidgetRoom } from './commentThreadFloatingWidgetRoom.js';
 import { CommentThreadWidget } from './commentThreadWidget.js';
 
@@ -153,8 +153,10 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 	private _frameWidth = 0;
 	/** The width that the thread's content was last laid out for. */
 	private _contentLayoutWidth: number | undefined;
-	/** The connector ends on the widget's rounded top left corner, which this is the radius of. */
+	/** The connector meets the widget just inside its rounded corners, which this is the radius of. */
 	private _cornerRadius = 0;
+	/** The distance from the top of the widget to the middle of its header, measured once the widget is shown. */
+	private _headerMiddle = 0;
 	private _resizeSession: IResizeSession | undefined;
 	/** The bottom of the widget, in document coordinates, that the editor last made room for. */
 	private _bottomWithRoom: number | undefined;
@@ -228,6 +230,9 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 			},
 			{
 				collapseAction: { label: nls.localize('label.close', "Close"), icon: closeIcon },
+				defaultTitle: nls.localize('commentThreadDefaultTitle', "Discussion"),
+				showTitleIcon: true,
+				reactionPickerInTitle: true,
 				// The reply and the thread's additional actions stay in view below the comments.
 				scrollableComments: true
 			}
@@ -492,6 +497,7 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 		this.editor.addOverlayWidget(this._boxOverlay);
 		this._sizeModel.captureEditorSize(this._measureEditorSize());
 		this._cornerRadius = parseFloat(dom.getWindow(this._domNode).getComputedStyle(this._domNode).borderTopLeftRadius) || 0;
+		this._headerMiddle = 0;
 		this._setDockedState(this._shouldDock());
 
 		this._attachedDisposables.add(this.editor.onDidScrollChange(e => {
@@ -996,18 +1002,39 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 	}
 
 	/**
-	 * Where the connector from the code meets the widget, in editor coordinates: on the widget's rounded top left corner,
-	 * where the corner's curve is halfway around, or, for a docked widget, on its top edge, straight below the start of
-	 * the last line of the code, which it's right below.
+	 * Where the connector from the code meets the widget, in editor coordinates. Beside the code, the connector enters
+	 * the widget's nearer side edge level with the middle of its header. Above or below the code, and when docked, it
+	 * enters the widget's nearer top or bottom edge just inside the rounded corner.
 	 */
-	private _getConnectorAnchor(codeLines: readonly IRect[] | undefined, left: number, top: number, width: number): IPoint {
+	private _getConnectorAnchor(codeLines: readonly IRect[] | undefined, left: number, top: number, width: number, height: number): IConnectorAnchor {
 		if (this._isDocked) {
 			const lastLine = codeLines?.[codeLines.length - 1];
 			const x = clamp((lastLine?.left ?? left) + this._cornerRadius, left + this._cornerRadius, left + width - this._cornerRadius);
-			return { x, y: top };
+			return { x, y: top, direction: 'vertical' };
 		}
-		const cornerInset = this._cornerRadius * (1 - Math.SQRT1_2);
-		return { x: left + cornerInset, y: top + cornerInset };
+		if (codeLines?.length) {
+			const codeLeft = Math.min(...codeLines.map(line => line.left));
+			const codeRight = Math.max(...codeLines.map(line => line.left + line.width));
+			const codeTop = codeLines[0].top;
+			const codeBottom = codeLines[codeLines.length - 1].top + codeLines[codeLines.length - 1].height;
+			const isBesideCode = left >= codeRight || left + width <= codeLeft;
+			if (!isBesideCode && (top >= codeBottom || top + height <= codeTop)) {
+				return { x: left + this._cornerRadius, y: top >= codeBottom ? top : top + height, direction: 'vertical' };
+			}
+			if (left + width <= codeLeft) {
+				return { x: left + width, y: top + this._getHeaderMiddle(), direction: 'horizontal' };
+			}
+		}
+		return { x: left, y: top + this._getHeaderMiddle(), direction: 'horizontal' };
+	}
+
+	/** The distance from the top of the widget to the middle of its header. */
+	private _getHeaderMiddle(): number {
+		if (!this._headerMiddle) {
+			const header = this._commentThreadWidget.headerDomNode;
+			this._headerMiddle = header.offsetTop + header.offsetHeight / 2;
+		}
+		return this._headerMiddle || this._cornerRadius;
 	}
 
 	/**
@@ -1038,7 +1065,7 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 		this._renderedLeft = left;
 		this._boxPosition = { preference: { top: Math.round(top), left: Math.round(left) } };
 		this.editor.layoutOverlayWidget(this._boxOverlay);
-		this._connector.render(codeLines, this._getConnectorAnchor(codeLines, left, top, width), bounds);
+		this._connector.render(codeLines, this._getConnectorAnchor(codeLines, left, top, width, height), bounds);
 		// Scrolling doesn't move the widget within the document, so the editor only makes room again when it moved. A
 		// docked widget is in the space below its code instead.
 		const room = this._host.getRoom();
@@ -1097,8 +1124,14 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 		if (e.button !== 0 || !startLayout || !this._isAttached || this._isDocked || this._isInHeaderActions(e.target)) {
 			return;
 		}
-		// Prevent the text selection and focus change that a mouse down would cause.
+		// Prevent text selection while dragging the title.
 		e.preventDefault();
+		if (!dom.isAncestorOfActiveElement(this._domNode)) {
+			this._commentThreadWidget.focus(undefined);
+			if (dom.isAncestorOfActiveElement(this._domNode)) {
+				this._connector.setActive(true);
+			}
+		}
 
 		const header = this._commentThreadWidget.headerDomNode;
 		const startTop = this._getDocumentTop(startLayout, this._resizable.size.height);

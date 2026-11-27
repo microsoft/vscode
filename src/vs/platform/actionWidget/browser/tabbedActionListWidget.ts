@@ -877,7 +877,9 @@ export class TabbedActionListWidget extends Disposable {
 					}));
 					page.appendChild(scrollbar.getDomNode());
 					store.add(details.render(content));
-					const pageHeight = Math.min(400, Math.max(main.offsetHeight, header.offsetHeight + content.offsetHeight));
+					// Details never make the popup shorter than its list, so opening them does not resize it;
+					// longer details may grow it, up to a limit.
+					const pageHeight = Math.max(main.offsetHeight, Math.min(400, header.offsetHeight + content.offsetHeight));
 					const goBack = () => {
 						this._detailsVisible = false;
 						widget.classList.remove('showing-details');
