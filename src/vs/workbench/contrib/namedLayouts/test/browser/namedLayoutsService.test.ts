@@ -38,6 +38,12 @@ suite('NamedLayoutsService', () => {
 	}
 
 	const singleGroup: EditorGroupLayout = { orientation: GroupOrientation.HORIZONTAL, groups: [{ size: 1 }] };
+	const twoGroups: EditorGroupLayout = { orientation: GroupOrientation.HORIZONTAL, groups: [{ size: 0.5 }, { size: 0.5 }] };
+	const threeGroups: EditorGroupLayout = { orientation: GroupOrientation.HORIZONTAL, groups: [{ size: 0.3333 }, { size: 0.3333 }, { size: 0.3333 }] };
+
+	function defaultLayoutState(storageService: TestStorageService): { editorGroups?: EditorGroupLayout } | null {
+		return JSON.parse(storageService.get('workbench.namedLayouts.defaultLayout', StorageScope.WORKSPACE) ?? 'null');
+	}
 
 	/**
 	 * A window whose parts and editor groups show what was applied last, and whose Zen mode hides the parts until it ends.
@@ -237,7 +243,6 @@ suite('NamedLayoutsService', () => {
 		const debug = (await service.createLayout('Debug'))!;
 		await service.switchLayout(service.layouts[0]);
 
-		const twoGroups = { orientation: GroupOrientation.HORIZONTAL, groups: [{ size: 0.5 }, { size: 0.5 }] };
 		window.editorGroups = twoGroups;
 		window.parts = partsState(false, Position.RIGHT);
 		window.editorMoveVetoed = true;
@@ -251,6 +256,50 @@ suite('NamedLayoutsService', () => {
 			editorGroups: twoGroups,
 			stored: [{ name: 'Debug', ...partsState(true, Position.BOTTOM), editorGroups: singleGroup }],
 		});
+	});
+
+	test('the default layout keeps editor groups that do not apply, as an editor refuses to move, while its editor groups do not change, also as the window closes, and applies them when it next becomes active', async () => {
+		const { service, window, storageService } = createWindow();
+		const debug = (await service.createLayout('Debug'))!;
+		window.editorGroups = twoGroups;
+		window.editorMoveVetoed = true;
+		await service.switchLayout(service.layouts[0]);
+		const onDefault = window.editorGroups;
+
+		storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
+		await service.switchLayout(debug);
+		const stored = defaultLayoutState(storageService)?.editorGroups;
+
+		window.editorMoveVetoed = false;
+		await service.switchLayout(service.layouts[0]);
+
+		assert.deepStrictEqual({ onDefault, stored, editorGroups: window.editorGroups }, { onDefault: twoGroups, stored: singleGroup, editorGroups: singleGroup });
+	});
+
+	test('the default layout drops editor groups that did not apply once its editor groups change', async () => {
+		const { service, window, storageService } = createWindow();
+		const debug = (await service.createLayout('Debug'))!;
+		window.editorGroups = twoGroups;
+		window.editorMoveVetoed = true;
+		await service.switchLayout(service.layouts[0]);
+		window.editorGroups = threeGroups;
+		await service.switchLayout(debug);
+
+		assert.deepStrictEqual(defaultLayoutState(storageService)?.editorGroups, threeGroups);
+	});
+
+	test('deleting the active layout keeps the editor groups of the default layout that do not apply, until the window closes after its editor groups changed', async () => {
+		const { service, window, storageService } = createWindow();
+		const debug = (await service.createLayout('Debug'))!;
+		window.editorGroups = twoGroups;
+		window.editorMoveVetoed = true;
+		await service.deleteLayout(debug);
+		const kept = defaultLayoutState(storageService);
+
+		window.editorGroups = threeGroups;
+		storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
+
+		assert.deepStrictEqual({ kept, afterClose: defaultLayoutState(storageService) }, { kept: { editorGroups: singleGroup }, afterClose: null });
 	});
 
 	test('a window that starts with a named layout active applies what differs from it as it is stored, as part sizes are stored per profile and other windows can change the layout, but not editor groups that only differ by rounding', async () => {
@@ -272,7 +321,6 @@ suite('NamedLayoutsService', () => {
 
 	test('a window that starts with a named layout active applies it only once its editors restored, as editors still open into the editor groups that applying it can merge', async () => {
 		const whenRestored = new DeferredPromise<void>();
-		const twoGroups = { orientation: GroupOrientation.HORIZONTAL, groups: [{ size: 0.5 }, { size: 0.5 }] };
 		const restoredParts = partsState(false, Position.RIGHT, 'workbench.view.debug');
 		const { service, window } = createWindow({ layout: { name: 'Debug', ...restoredParts, editorGroups: singleGroup }, editorGroups: twoGroups, whenRestored: whenRestored.p });
 		await timeout(0);
@@ -290,7 +338,6 @@ suite('NamedLayoutsService', () => {
 
 	test('a window that starts with a named layout active applies its editor groups before it compares the parts, as applying editor groups can restore a maximized part', async () => {
 		const maximizedPanel = { ...partsState(true, Position.BOTTOM), panel: { ...partsState(true, Position.BOTTOM).panel, maximized: true } };
-		const twoGroups = { orientation: GroupOrientation.HORIZONTAL, groups: [{ size: 0.5 }, { size: 0.5 }] };
 		const { service, window } = createWindow({ layout: { name: 'Debug', ...maximizedPanel, editorGroups: twoGroups }, parts: maximizedPanel });
 		await service.saveLayout();
 

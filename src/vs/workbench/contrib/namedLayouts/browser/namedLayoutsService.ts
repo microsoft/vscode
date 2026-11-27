@@ -28,7 +28,10 @@ const LAYOUT_NAME_STORAGE_KEY_SUFFIX = '.name';
 /** The named layout that is active in the window of a workspace. */
 const ACTIVE_LAYOUT_STORAGE_KEY = 'workbench.namedLayouts.activeLayout';
 
-/** The state of the default layout of the window of a workspace while a named layout is active. */
+/**
+ * The state of the default layout of the window of a workspace while a named layout is active. While the default layout is active,
+ * the editor grid that it could not apply, until its editor groups change.
+ */
 const DEFAULT_LAYOUT_STORAGE_KEY = 'workbench.namedLayouts.defaultLayout';
 
 /**
@@ -143,7 +146,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			// The default layout is the window's own layout, so it keeps what the window shows
 			const state = this.captureState();
 			if (this.activeLayoutId === DEFAULT_NAMED_LAYOUT_ID) {
-				this.storeDefaultLayoutState(state);
+				this.storeDefaultLayoutState(this.captureDefaultLayoutState());
 			}
 
 			const layout: INamedLayout = { id: generateUuid(), name: toLayoutName(name) };
@@ -174,16 +177,17 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			// Zen mode hides the parts, so the layout that is active is saved as it shows outside of Zen mode
 			this.endZenMode();
 			if (this.activeLayoutId === DEFAULT_NAMED_LAYOUT_ID) {
-				this.storeDefaultLayoutState(this.captureState());
+				this.storeDefaultLayoutState(this.captureDefaultLayoutState());
 			} else {
 				this.saveActiveLayout();
 			}
 
-			const state = layout.id === DEFAULT_NAMED_LAYOUT_ID ? this.readDefaultLayoutState() : this.readLayoutState(layout.id);
-			if (state) {
-				this.applyState(state);
+			if (layout.id === DEFAULT_NAMED_LAYOUT_ID) {
+				this.applyDefaultLayout();
+			} else {
+				this.applyState(this.readLayoutState(layout.id));
+				this.setActiveLayout(layout.id);
 			}
-			this.setActiveLayout(layout.id);
 
 			return true;
 		});
@@ -226,11 +230,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 
 			if (layout.id === this.activeLayoutId) {
 				this.endZenMode();
-				const state = this.readDefaultLayoutState();
-				if (state) {
-					this.applyState(state);
-				}
-				this.setActiveLayout(DEFAULT_NAMED_LAYOUT_ID);
+				this.applyDefaultLayout();
 			}
 
 			// Other windows stop listing a layout once it has no name, so the name is removed first
@@ -258,16 +258,54 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 
 	/**
 	 * Writes the parts of the active named layout that this window changed since {@link baseline}, each under its own key.
+	 * The default layout is what the window shows, so it only drops an editor grid that it kept once the editor groups change.
 	 */
 	private saveActiveLayout(): void {
-		if (this.activeLayoutId === DEFAULT_NAMED_LAYOUT_ID || !this.baseline || !this.hasStoredLayout(this.activeLayoutId)) {
+		if (!this.baseline) {
 			return;
 		}
 
 		const baseline = this.baseline;
+		if (this.activeLayoutId === DEFAULT_NAMED_LAYOUT_ID) {
+			if (getChanges({ editorGroups: this.captureState().editorGroups }, baseline).editorGroups) {
+				this.storageService.remove(DEFAULT_LAYOUT_STORAGE_KEY, StorageScope.WORKSPACE);
+			}
+			return;
+		}
+		if (!this.hasStoredLayout(this.activeLayoutId)) {
+			return;
+		}
+
 		const changes = getChanges(this.captureState(), baseline);
 		this.storeLayoutState(this.activeLayoutId, changes);
 		this.baseline = { ...baseline, ...changes };
+	}
+
+	/**
+	 * Applies the stored state of the default layout and makes it the active layout. While it is active, its state is what the
+	 * window shows, except for an editor grid that does not apply, as an editor cannot move into fewer editor groups: the
+	 * default layout keeps that grid until its editor groups change.
+	 */
+	private applyDefaultLayout(): void {
+		const state = this.readDefaultLayoutState();
+		const applied = state ? this.applyState(state) : true;
+		this.setActiveLayout(DEFAULT_NAMED_LAYOUT_ID);
+		if (!applied && state?.editorGroups) {
+			this.storeDefaultLayoutState({ editorGroups: state.editorGroups });
+		}
+	}
+
+	/**
+	 * Returns the state of the default layout as the window shows it, with the editor grid that it kept when it could not
+	 * apply it, unless the editor groups changed since.
+	 */
+	private captureDefaultLayoutState(): INamedLayoutState {
+		const state = this.captureState();
+		const keptEditorGroups = this.readDefaultLayoutState()?.editorGroups;
+		if (keptEditorGroups && this.baseline && !getChanges({ editorGroups: state.editorGroups }, this.baseline).editorGroups) {
+			return { ...state, editorGroups: keptEditorGroups };
+		}
+		return state;
 	}
 
 	private setActiveLayout(id: string): void {
@@ -299,11 +337,12 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		this.applyState(getChanges({ sideBar, panel, auxiliaryBar }, this.captureState()));
 	}
 
-	private applyState(state: INamedLayoutState): void {
+	/**
+	 * @returns whether the editor groups of the state applied, which they do not when an editor cannot move into fewer groups.
+	 */
+	private applyState(state: INamedLayoutState): boolean {
 		// Changing the editor groups can restore a maximized part, so the parts apply last
-		if (state.editorGroups) {
-			this.editorGroupService.mainPart.applyLayout(state.editorGroups);
-		}
+		const editorGroupsApplied = state.editorGroups ? this.editorGroupService.mainPart.applyLayout(state.editorGroups) : true;
 
 		// Zen mode hides the parts: a window that starts in Zen mode applies them when it ends
 		const parts = this.isZenModeActive() ? undefined : this.layoutService.getPartsLayoutState();
@@ -314,6 +353,8 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 				auxiliaryBar: state.auxiliaryBar ?? parts.auxiliaryBar
 			});
 		}
+
+		return editorGroupsApplied;
 	}
 
 	/**
