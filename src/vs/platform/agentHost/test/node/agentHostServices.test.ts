@@ -35,6 +35,7 @@ import { IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { NullByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { IAgentHostUtilityModelService } from '../../node/agentHostUtilityModelService.js';
 import { registerAgentHostCoreServices, registerAgentHostHostServices } from '../../node/agentHostServices.js';
+import { AgentHostStorageService, IAgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { createAgentServiceFoundation } from '../../node/agentServiceFoundation.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { MockAgent } from './mockAgent.js';
@@ -91,9 +92,9 @@ class RecordingServiceCollection extends StrictServiceCollection {
 	}
 }
 
-function registerCoreServices(services: ServiceCollection): void {
+function registerCoreServices(services: ServiceCollection, storage: AgentHostStorageService): void {
 	registerAgentHostCoreServices(services, {
-		storageResource: URI.file('/storage.json'),
+		storage,
 		fetchFn: globalThis.fetch,
 		gitHubServiceOptions: {
 			fetch: globalThis.fetch,
@@ -207,7 +208,7 @@ suite('Agent Host service registrations', () => {
 
 	test('registers the production graph with complete, acyclic dependencies', () => {
 		const services = new RecordingServiceCollection();
-		registerCoreServices(services);
+		registerCoreServices(services, disposables.add(new AgentHostStorageService(URI.file('/storage.json'), new NullLogService())));
 		registerHostServices(services);
 
 		const externallyRegistered = new Set<ServiceIdentifier<unknown>>([
@@ -216,6 +217,7 @@ suite('Agent Host service registrations', () => {
 			IFileService,
 			ISessionDataService,
 			IProductService,
+			IAgentHostStorageService,
 			ITelemetryService,
 			IRequestService,
 			IInstantiationService,
@@ -236,13 +238,14 @@ suite('Agent Host service registrations', () => {
 
 	test('registers the core-only test graph with complete, acyclic dependencies', () => {
 		const services = new RecordingServiceCollection();
-		registerCoreServices(services);
+		registerCoreServices(services, disposables.add(new AgentHostStorageService(URI.file('/storage.json'), new NullLogService())));
 
 		assertCompleteAcyclicGraph(services, new Set<ServiceIdentifier<unknown>>([
 			ILogService,
 			IFileService,
 			ISessionDataService,
 			IProductService,
+			IAgentHostStorageService,
 			ITelemetryService,
 			IRequestService,
 			IInstantiationService,
@@ -264,9 +267,9 @@ suite('Agent Host service registrations', () => {
 
 	test('selects the core worktree isolation implementation', () => {
 		const coreServices = new StrictServiceCollection();
-		registerCoreServices(coreServices);
+		registerCoreServices(coreServices, disposables.add(new AgentHostStorageService(URI.file('/storage.json'), new NullLogService())));
 		const nullServices = new StrictServiceCollection();
-		registerCoreServices(nullServices);
+		registerCoreServices(nullServices, disposables.add(new AgentHostStorageService(URI.file('/storage.json'), new NullLogService())));
 		nullServices.set(IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation());
 		const hostServices = new StrictServiceCollection();
 		registerHostServices(hostServices);

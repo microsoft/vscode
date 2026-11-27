@@ -32,13 +32,13 @@ suite('Workspace sandbox path storage', () => {
 		await rm(resource.fsPath, { force: true });
 	});
 
-	function create(writer?: IAgentHostStorageWriter) {
-		const storage = disposables.add(new AgentHostStorageService(resource, new NullLogService(), writer));
+	async function create(writer?: IAgentHostStorageWriter) {
+		const storage = disposables.add(await AgentHostStorageService.create(resource, new NullLogService(), writer));
 		return { storage, service: new WorkspaceSandboxPathService(storage) };
 	}
 
 	test('shares exact folder sets across consumers and restart, not subsets, worktrees or hosts', async () => {
-		const { storage, service } = create();
+		const { storage, service } = await create();
 		const changes: string[] = [];
 		disposables.add(service.onDidChange(scope => changes.push(scope)));
 		await service.grant(roots, { path: '/external/data', access: 'read' });
@@ -49,7 +49,7 @@ suite('Workspace sandbox path storage', () => {
 		const expected = { readonlyPaths: ['/external/data'], readwritePaths: [], removedReadonlyPaths: [] };
 		assert.deepStrictEqual({
 			peer: sameHost.getPaths([roots[1], roots[0], roots[1]]),
-			restarted: create().service.getPaths(roots),
+			restarted: (await create()).service.getPaths(roots),
 			subset: service.getPaths([roots[0]]),
 			superset: service.getPaths([...roots, URI.file('/project/extra')]),
 			worktree: service.getPaths([URI.file('/project/app.worktrees/feature'), roots[1]]),
@@ -67,7 +67,7 @@ suite('Workspace sandbox path storage', () => {
 	});
 
 	test('normalizes equivalent folder spellings before deduplicating workspace scopes', async () => {
-		const { service } = create();
+		const { service } = await create();
 		const changes: string[] = [];
 		disposables.add(service.onDidChange(scope => changes.push(scope)));
 		const alternateRoots = [
@@ -76,13 +76,13 @@ suite('Workspace sandbox path storage', () => {
 			roots[0],
 		];
 		await service.grant(alternateRoots, { path: '/external', access: 'read' });
-		const restored = create().service.getPaths(roots);
+		const restored = (await create()).service.getPaths(roots);
 		await service.removeReadonlyPaths(roots, ['/external'], OperatingSystem.Linux);
-		const cleaned = create().service.getPaths(alternateRoots);
+		const cleaned = (await create()).service.getPaths(alternateRoots);
 		await service.clear(alternateRoots);
 		assert.deepStrictEqual({
 			restored, cleaned,
-			cleared: create().service.getPaths(roots),
+			cleared: (await create()).service.getPaths(roots),
 			changes,
 		}, {
 			restored: { readonlyPaths: ['/external'], readwritePaths: [], removedReadonlyPaths: [] },
@@ -93,12 +93,12 @@ suite('Workspace sandbox path storage', () => {
 	});
 
 	test('normalizing workspace spellings preserves filesystem roots', async () => {
-		const { service } = create();
+		const { service } = await create();
 		const filesystemRoots = isWindows ? [URI.file('C:\\'), URI.file('\\\\server\\share\\')] : [URI.file('/')];
 		const restored = [];
 		for (const root of filesystemRoots) {
 			await service.grant([root.with({ path: `${root.path}./` })], { path: '/external', access: 'read' });
-			restored.push(create().service.getPaths([root]));
+			restored.push((await create()).service.getPaths([root]));
 		}
 		assert.deepStrictEqual(restored, filesystemRoots.map(() => ({
 			readonlyPaths: ['/external'], readwritePaths: [], removedReadonlyPaths: [],
@@ -106,7 +106,7 @@ suite('Workspace sandbox path storage', () => {
 	});
 
 	test('keeps parent traversal spellings separate rather than collapsing possible symlinks', async () => {
-		const { service } = create();
+		const { service } = await create();
 		const parent = URI.file('/project');
 		const traversalRoots = [
 			URI.file('/project/link/..'),
@@ -117,7 +117,7 @@ suite('Workspace sandbox path storage', () => {
 		}
 		const parentBeforeGrant = service.getPaths([parent]);
 		await service.grant([parent], { path: '/parent-only', access: 'read' });
-		const restarted = create().service;
+		const restarted = (await create()).service;
 		assert.deepStrictEqual({
 			parentBeforeGrant,
 			traversal: traversalRoots.map(root => restarted.getPaths([root])),
@@ -130,13 +130,13 @@ suite('Workspace sandbox path storage', () => {
 	});
 
 	test('concurrent grants compose before persistence without losing paths or changing SDK spelling', async () => {
-		const { service } = create();
+		const { service } = await create();
 		await Promise.all([
 			service.grant(roots, { path: '/external/$literal', access: 'read' }),
 			service.grant([...roots].reverse(), { path: '/external/write', persistedPath: '${HOME}/write', access: 'readWrite' }),
 			service.grant(roots, { path: '/external/upgrade', access: 'readWrite', removedReadonlyPaths: ['/external/upgrade'] }),
 		]);
-		assert.deepStrictEqual(create().service.getPaths(roots), {
+		assert.deepStrictEqual((await create()).service.getPaths(roots), {
 			readonlyPaths: ['/external/$$literal'],
 			readwritePaths: ['${HOME}/write', '/external/upgrade'],
 			removedReadonlyPaths: ['/external/upgrade'],
@@ -144,16 +144,16 @@ suite('Workspace sandbox path storage', () => {
 	});
 
 	test('keeps differently cased workspace roots isolated across grants, clear and restart', async () => {
-		const { service } = create();
+		const { service } = await create();
 		const upper = [URI.file('/project/App')];
 		const lower = [URI.file('/project/app')];
 		await service.grant(upper, { path: '/upper-only', access: 'read' });
 		const lowerBeforeGrant = service.getPaths(lower);
 		await service.grant(lower, { path: '/lower-only', access: 'readWrite' });
-		const restarted = create().service;
+		const restarted = (await create()).service;
 		const beforeClear = [restarted.getPaths(upper), restarted.getPaths(lower)];
 		await service.clear(lower);
-		const afterClear = create().service;
+		const afterClear = (await create()).service;
 		const upperPaths = { readonlyPaths: ['/upper-only'], readwritePaths: [], removedReadonlyPaths: [] };
 		assert.deepStrictEqual({
 			lowerBeforeGrant,
@@ -167,11 +167,11 @@ suite('Workspace sandbox path storage', () => {
 	});
 
 	test('does not reuse legacy workspace grants whose original path casing is unknown', async () => {
-		const { storage } = create();
+		const { storage } = await create();
 		const key = `agentHost.workspaceSandboxPaths.${getWorkingDirectoryScopeId(roots.map(root => root.toString()))}`;
 		storage.set(key, JSON.stringify({ readonlyPaths: ['/legacy'], readwritePaths: [], removedReadonlyPaths: [] }));
 		await storage.whenIdle();
-		assert.strictEqual(create().service.getPaths(roots), undefined);
+		assert.strictEqual((await create()).service.getPaths(roots), undefined);
 	});
 
 	test('pending and failed saves retain live grants and a later save includes them', async () => {
@@ -191,22 +191,22 @@ suite('Workspace sandbox path storage', () => {
 			rename,
 			rm: path => rm(path, { force: true }),
 		};
-		const { service } = create(writer);
+		const { service } = await create(writer);
 		const save = service.grant(roots, { path: '/external/first', access: 'read' });
 		const rejected = assert.rejects(save, /test disk failure/);
 		await started.p;
 		const pending = service.getPaths(roots);
-		const whilePending = create().service.getPaths(roots);
+		const whilePending = (await create()).service.getPaths(roots);
 		release.complete();
 		await rejected;
 		const afterFailure = service.getPaths(roots);
-		const coldAfterFailure = create().service.getPaths(roots);
+		const coldAfterFailure = (await create()).service.getPaths(roots);
 		fail = false;
 		await service.grant(roots, { path: '/external/second', access: 'read' });
 		const first = { readonlyPaths: ['/external/first'], readwritePaths: [], removedReadonlyPaths: [] };
 		assert.deepStrictEqual({
 			pending, whilePending, afterFailure, coldAfterFailure,
-			recovered: create().service.getPaths(roots),
+			recovered: (await create()).service.getPaths(roots),
 		}, {
 			pending: first, whilePending: undefined, afterFailure: first, coldAfterFailure: undefined,
 			recovered: { ...first, readonlyPaths: ['/external/first', '/external/second'] },
@@ -214,12 +214,12 @@ suite('Workspace sandbox path storage', () => {
 	});
 
 	test('read-only cleanup removes only exact OS-normalized additions and survives restart', async () => {
-		const { service } = create();
+		const { service } = await create();
 		await service.grant(roots, { path: 'C:\\shared', access: 'read' });
 		await service.grant(roots, { path: 'C:\\shared\\child', access: 'read' });
 		await service.grant(roots, { path: 'C:\\write', access: 'readWrite', removedReadonlyPaths: ['C:\\inherited'] });
 		await service.removeReadonlyPaths(roots, ['C:/shared'], OperatingSystem.Windows);
-		assert.deepStrictEqual(create().service.getPaths(roots), {
+		assert.deepStrictEqual((await create()).service.getPaths(roots), {
 			readonlyPaths: ['C:\\shared\\child'],
 			readwritePaths: ['C:\\write'],
 			removedReadonlyPaths: ['C:\\inherited'],
@@ -227,7 +227,7 @@ suite('Workspace sandbox path storage', () => {
 	});
 
 	test('clearing one workspace persists without removing other workspaces or host data', async () => {
-		const { storage, service } = create();
+		const { storage, service } = await create();
 		const otherRoots = [URI.file('/other')];
 		storage.set('unrelated', { enabled: true });
 		await service.grant(roots, { path: '/external/first', access: 'read' });
@@ -235,7 +235,7 @@ suite('Workspace sandbox path storage', () => {
 		const changes: string[] = [];
 		disposables.add(service.onDidChange(scope => changes.push(scope)));
 		await service.clear(roots);
-		const reopened = create();
+		const reopened = await create();
 		assert.deepStrictEqual({
 			live: service.getPaths(roots),
 			restarted: reopened.service.getPaths(roots),
@@ -252,7 +252,7 @@ suite('Workspace sandbox path storage', () => {
 	});
 
 	test('stored workspace deltas compose with Session paths before managed restrictions', async () => {
-		const { service } = create();
+		const { service } = await create();
 		await service.grant(roots, { path: '/upgrade', access: 'readWrite', removedReadonlyPaths: ['/upgrade'] });
 		await service.grant(roots, { path: '/workspace-read', access: 'read' });
 		const base = { readonlyPaths: ['/upgrade', '/keep'], readwritePaths: ['/user-write'], deniedPaths: ['/secret'] };
@@ -262,7 +262,7 @@ suite('Workspace sandbox path storage', () => {
 		assert.deepStrictEqual({
 			personal,
 			managed,
-			stored: create().service.getPaths(roots),
+			stored: (await create()).service.getPaths(roots),
 			base,
 		}, {
 			personal: { readonlyPaths: ['/keep', '/workspace-read'], readwritePaths: ['/user-write', '/upgrade', '/session-write'], deniedPaths: ['/secret'] },
@@ -286,16 +286,16 @@ suite('Workspace sandbox path storage', () => {
 				rename,
 				rm: path => rm(path, { force: true }),
 			};
-			const { storage, service } = create(writer);
+			const { storage, service } = await create(writer);
 			await service.grant(roots, { path: '/external', access: 'read' });
 			fail = true;
 			await assert.rejects(operation === 'clear' ? service.clear(roots) : service.removeReadonlyPaths(roots, ['/external'], OperatingSystem.Linux), /test disk failure/);
 			const live = new WorkspaceSandboxPathService(storage).getPaths(roots);
-			const cold = create().service.getPaths(roots);
+			const cold = (await create()).service.getPaths(roots);
 			fail = false;
 			await service.grant([URI.file('/another-workspace')], { path: '/another-path', access: 'read' });
 			const expected = operation === 'clear' ? undefined : { readonlyPaths: [], readwritePaths: [], removedReadonlyPaths: [] };
-			assert.deepStrictEqual({ live, cold, recovered: create().service.getPaths(roots) }, {
+			assert.deepStrictEqual({ live, cold, recovered: (await create()).service.getPaths(roots) }, {
 				live: expected,
 				cold: { readonlyPaths: ['/external'], readwritePaths: [], removedReadonlyPaths: [] },
 				recovered: expected,
@@ -304,7 +304,7 @@ suite('Workspace sandbox path storage', () => {
 	}
 
 	test('rejects missing or non-filesystem roots and invalid grants without writing', async () => {
-		const { service } = create();
+		const { service } = await create();
 		for (const invalidRoots of [[], [URI.parse('https://example.com/project')], [roots[0].with({ query: 'other' })]]) {
 			await assert.rejects(service.grant(invalidRoots, { path: '/external', access: 'read' }), /resolved filesystem workspace folders/);
 		}
@@ -313,13 +313,13 @@ suite('Workspace sandbox path storage', () => {
 	});
 
 	test('malformed persisted grants fail explicitly and are not overwritten by an approval', async () => {
-		const { service } = create();
+		const { service } = await create();
 		await service.grant(roots, { path: '/external', access: 'read' });
 		const contents: Record<string, string> = JSON.parse(await readFile(resource.fsPath, 'utf8'));
 		contents[Object.keys(contents)[0]] = '{"readonlyPaths":false}';
 		const corrupt = JSON.stringify(contents);
 		await writeFile(resource.fsPath, corrupt);
-		const reopened = create().service;
+		const reopened = (await create()).service;
 		assert.throws(() => reopened.getPaths(roots), /Invalid persisted workspace sandbox paths/);
 		await assert.rejects(reopened.grant(roots, { path: '/new', access: 'read' }), /Invalid persisted workspace sandbox paths/);
 		assert.strictEqual(await readFile(resource.fsPath, 'utf8'), corrupt);
@@ -327,7 +327,7 @@ suite('Workspace sandbox path storage', () => {
 
 	test('a corrupt host store is not mistaken for an empty workspace grant list', async () => {
 		await writeFile(resource.fsPath, 'invalid json');
-		const { service } = create();
+		const { service } = await create();
 		assert.throws(() => service.getPaths(roots), /Workspace sandbox permissions could not be loaded/);
 		await assert.rejects(service.grant(roots, { path: '/external', access: 'read' }), /Workspace sandbox permissions could not be loaded/);
 		assert.strictEqual(await readFile(resource.fsPath, 'utf8'), 'invalid json');

@@ -30,6 +30,7 @@ import { createAgentServiceComposition } from './agentServiceComposition.js';
 import { activateAgentHostContributions } from './agentHostContributions.js';
 import { createAgentServiceFoundation } from './agentServiceFoundation.js';
 import { registerAgentHostCoreServices, registerAgentHostHostServices } from './agentHostServices.js';
+import { AgentHostStorageService } from './agentHostStorageService.js';
 import { StrictServiceCollection } from '../../instantiation/common/strictServiceCollection.js';
 import { IAgentSdkDownloader, type IAgentSdkDownloadProgress } from './agentSdkDownloader.js';
 import { IByokLmBridgeRegistry, NullByokLmBridgeRegistry } from './byokLmBridgeRegistry.js';
@@ -170,12 +171,13 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 			requestService: foundation.requestService,
 		});
 		startup.mark('telemetry', { since: 'configuration' });
+		const storageService = infrastructure.add(await AgentHostStorageService.create(agentServiceOptions.storageResource, logService));
 		options.onStartupPhase?.('services');
 		services.set(ITelemetryService, telemetryService);
 		const byokBridgeRegistry = options.byok.kind === 'renderer' ? options.byok.bridgeRegistry : new NullByokLmBridgeRegistry();
 		services.set(IByokLmBridgeRegistry, byokBridgeRegistry);
 		registerAgentHostCoreServices(services, {
-			storageResource: agentServiceOptions.storageResource,
+			storage: storageService,
 			rootConfigResource: agentServiceOptions.rootConfigResource,
 			orchestratorDatabase,
 			fetchFn,
