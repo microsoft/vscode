@@ -1170,5 +1170,28 @@ suite('ToolBar', () => {
 				},
 			});
 		});
+
+		test('keeps a separator at a custom overflow menu position while the menu is not shown', () => {
+			let availableWidth = 300;
+			const toolbar = store.add(new ToolBar(container, contextMenuProvider, {
+				actionViewItemProvider: action => new FixedWidthActionViewItem(action, action instanceof Separator ? 10 : 20),
+				getSecondaryActionsPosition: () => 1,
+				responsiveBehavior: {
+					enabled: true,
+					kind: 'all',
+					minItems: 0,
+					overflowFrom: 'start',
+					overflowsLast: action => action.id === 'new',
+					getActionMinWidth: action => action.id === 'new' ? 36 : 22,
+					getAvailableWidth: () => availableWidth,
+				},
+			}));
+			toolbar.setActions([store.add(new Action('other', 'other')), new Separator(), store.add(new Action('new', 'new'))]);
+			assert.deepStrictEqual(relayoutAt(toolbar, width => availableWidth = width, [300, 79, 300]), [
+				{ width: 300, items: ['other', Separator.ID, 'new'], overflow: [] },
+				{ width: 79, items: [ToggleMenuAction.ID, 'new'], overflow: ['other'] },
+				{ width: 300, items: ['other', Separator.ID, 'new'], overflow: [] },
+			]);
+		});
 	});
 });

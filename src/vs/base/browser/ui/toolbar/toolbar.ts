@@ -424,7 +424,7 @@ export class ToolBar extends Disposable {
 	 */
 	private getShownSeparators(hiddenActions: readonly IAction[]): Set<IAction> {
 		const shown = new Set<IAction>();
-		const toggleMenuPosition = this.getSecondaryActionsPosition();
+		const toggleMenuPosition = this.originalSecondaryActions.length > 0 || hiddenActions.length > 0 ? this.getSecondaryActionsPosition() : -1;
 		let pendingSeparator: IAction | undefined;
 		let hasVisibleActionBefore = false;
 		this.originalPrimaryActions.forEach((action, position) => {
