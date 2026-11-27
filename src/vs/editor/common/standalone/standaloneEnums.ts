@@ -353,7 +353,8 @@ export enum EditorOption {
 	effectiveAllowVariableFonts = 176,
 	doubleClickSelectsBlock = 177,
 	fullwidthCharacterWidth = 178,
-	effectiveFullwidthCharacterWidth = 179
+	effectiveFullwidthCharacterWidth = 179,
+	experimentalClipboardApi = 180
 }
 
 /**
