@@ -293,7 +293,7 @@ export class SettingsTargetsWidget extends Widget {
 	}
 
 	set settingsTarget(settingsTarget: SettingsTarget | null) {
-		this._settingsTarget = settingsTarget === null ? null : this.toAvailableTarget(settingsTarget);
+		this._settingsTarget = settingsTarget;
 		this.userLocalSettings.checked = ConfigurationTarget.USER_LOCAL === this.settingsTarget;
 		this.userRemoteSettings.checked = ConfigurationTarget.USER_REMOTE === this.settingsTarget;
 		this.workspaceSettings.checked = ConfigurationTarget.WORKSPACE === this.settingsTarget;
@@ -348,21 +348,19 @@ export class SettingsTargetsWidget extends Widget {
 	}
 
 	/**
-	 * Agents mode writes only User settings: it disables the workspace and folder
-	 * targets and moves a workspace or folder target to the user target.
+	 * Disables the workspace target while Agents mode is active, moving a workspace target to the user target.
 	 */
 	setAgentsMode(isActive: boolean): void {
 		if (this.isAgentsMode !== isActive) {
 			this.isAgentsMode = isActive;
 			this.update();
-			if (this.settingsTarget !== null) {
-				this.updateTarget(this.settingsTarget);
+			if (isActive && this.settingsTarget === ConfigurationTarget.WORKSPACE) {
+				this.updateTarget(ConfigurationTarget.USER_LOCAL);
 			}
 		}
 	}
 
-	updateTarget(target: SettingsTarget): Promise<void> {
-		const settingsTarget = this.toAvailableTarget(target);
+	updateTarget(settingsTarget: SettingsTarget): Promise<void> {
 		const isSameTarget = this.settingsTarget === settingsTarget ||
 			settingsTarget instanceof URI &&
 			this.settingsTarget instanceof URI &&
@@ -376,16 +374,6 @@ export class SettingsTargetsWidget extends Widget {
 		return Promise.resolve(undefined);
 	}
 
-	/**
-	 * Agents mode writes only User settings, so a workspace or folder target becomes the user target.
-	 */
-	private toAvailableTarget(settingsTarget: SettingsTarget): SettingsTarget {
-		if (this.isAgentsMode && (settingsTarget === ConfigurationTarget.WORKSPACE || settingsTarget instanceof URI)) {
-			return ConfigurationTarget.USER_LOCAL;
-		}
-		return settingsTarget;
-	}
-
 	private hasWorkspaceSettings(): boolean {
 		return this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && !this.isAgentsMode;
 	}
@@ -394,7 +382,7 @@ export class SettingsTargetsWidget extends Widget {
 		this.settingsSwitcherBar.domNode.classList.toggle('empty-workbench', !this.hasWorkspaceSettings());
 		this.userRemoteSettings.enabled = !!(this.options.enableRemoteSettings && this.environmentService.remoteAuthority);
 		this.workspaceSettings.enabled = this.hasWorkspaceSettings();
-		this.folderSettings.action.enabled = !this.isAgentsMode && this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && this.contextService.getWorkspace().folders.length > 0;
+		this.folderSettings.action.enabled = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && this.contextService.getWorkspace().folders.length > 0;
 
 		this.workspaceSettings.tooltip = localize('workspaceSettings', "Workspace");
 	}
