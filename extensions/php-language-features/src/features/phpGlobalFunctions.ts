@@ -5086,11 +5086,11 @@ export const globalfunctions: IEntries = {
 	},
 	array_walk_recursive: {
 		description: 'Apply a user function recursively to every member of an array',
-		signature: '( array $array , callable $callback [, mixed $userdata ]): bool'
+		signature: '( array $array , callable $callback [, mixed $arg ]): bool'
 	},
 	array_walk: {
 		description: 'Apply a user supplied function to every member of an array',
-		signature: '( array $array , callable $callback [, mixed $userdata ]): bool'
+		signature: '( array $array , callable $callback [, mixed $arg ]): bool'
 	},
 	array: {
 		description: 'Create an array',
