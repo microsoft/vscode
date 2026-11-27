@@ -447,7 +447,7 @@ export interface ISessionsList {
 	pinSession(session: ISession): void;
 	unpinSession(session: ISession): void;
 	isSessionPinned(session: ISession): boolean;
-	isSessionListed(session: ISession, reader?: IReader): boolean;
+	isSessionInScope(session: ISession, reader?: IReader): boolean;
 	readonly filters: SessionsListFilters;
 	setExcludeArchived(exclude: boolean): void;
 	isExcludeArchived(): boolean;
@@ -1060,7 +1060,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			customizationsBadge,
 			section => this.getRowGroupDepth(section),
 			sectionId => this._sessionGroupsService.getSectionAppearance(sectionId),
-			(session, reader) => this.isSessionListed(session, reader),
+			(session, reader) => this.isSessionInScope(session, reader),
 			(entry, reader) => this.customViewService.activeCustomView.read(reader)?.id === PINNED_CANVAS_PAGE_ID
 				&& this.options.pinnedCanvases?.selected.read(reader) === entry,
 		);
@@ -1836,7 +1836,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// group with no members yet) matches nothing rather than everything.
 		// Which sessions it can list at all, which no other filter and no active session overrides
 		const listsQuickChats = this.options.listsQuickChats?.get() ?? true;
-		const isEligible = (session: ISession) => this.isSessionListed(session) && (listsQuickChats || !isQuickChatSession(session));
+		const isEligible = (session: ISession) => this.isSessionInScope(session) && (listsQuickChats || !isQuickChatSession(session));
 		let filtered = this.sessions.filter(isEligible);
 		// The Worktrees filter is of an editor window: in the Agents window, a folder selected there selects nothing
 		const availableWorktrees = this.options.offersWorktreeFilter === false ? new Set<string>() : getWorktreeFilterKeys(filtered, () => true, this.uriIdentityService.extUri);
@@ -3566,7 +3566,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * section keeps a fixed order (archived sessions and comparison groups).
 	 */
 	private getReorderScope(session: ISession): string | undefined {
-		if (session.isArchived.get() || !this.isSessionListed(session)) {
+		if (session.isArchived.get() || !this.isSessionInScope(session)) {
 			return undefined;
 		}
 		if (this.isSessionPinned(session)) {
@@ -5295,7 +5295,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (!this.options.scoped?.get() && !this.options.sessionScope?.get() && !this.options.scopeBar?.get()) {
 			return undefined;
 		}
-		return new Set(this.sessions.filter(session => this.isSessionListed(session)).map(session => session.sessionId));
+		return new Set(this.sessions.filter(session => this.isSessionInScope(session)).map(session => session.sessionId));
 	}
 
 	private getMarkAllSessionsReadAction(getSessions: () => readonly ISession[]): IAction {
@@ -5303,7 +5303,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			id: 'sessionsViewPane.markAllInSectionRead',
 			label: localize('markAllInSectionRead', "Mark All as Read"),
 			run: () => {
-				const sessions = getSessions().filter(session => this.isSessionListed(session) && !session.isArchived.get() && !session.isRead.get());
+				const sessions = getSessions().filter(session => this.isSessionInScope(session) && !session.isArchived.get() && !session.isRead.get());
 				return this._sessionsManagementService.markAllRead(sessions);
 			},
 		});
@@ -5547,8 +5547,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return this._sessionsListModelService.isSessionPinned(session);
 	}
 
-	/** Whether the list includes the session before its source filters apply. */
-	isSessionListed(session: ISession, reader?: IReader): boolean {
+	/** Whether the session is in the list's scope (the model, the window scope and the workspaces filter bar), before its source filters apply. */
+	isSessionInScope(session: ISession, reader?: IReader): boolean {
 		return this.isSessionInInventory(session, reader)
 			&& (!this.options.scopeBar?.read(reader) || this.filters.matchesInboxScope(session, reader));
 	}

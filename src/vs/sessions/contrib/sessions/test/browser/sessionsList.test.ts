@@ -333,7 +333,7 @@ suite('Sessions - SessionsList', () => {
 			onSessionOpen: () => { },
 		}));
 		const snapshot = () => ({
-			listed: harness.managementService.getSessions().filter(session => list.isSessionListed(session)).map(session => session.sessionId).sort(),
+			listed: harness.managementService.getSessions().filter(session => list.isSessionInScope(session)).map(session => session.sessionId).sort(),
 			visible: list.getVisibleSessions().map(session => session.sessionId).sort(),
 		});
 		const states = [snapshot()];
@@ -2195,7 +2195,7 @@ suite('Sessions - SessionsList', () => {
 				state: constObservable(PinnedCanvasState.Live),
 				canvas: constObservable(undefined),
 			});
-			const menus: unknown[] = [];
+			const menus: (boolean | undefined)[] = [];
 			const harness = createListHarness(disposables, [here, elsewhere]);
 			const contextKeyService = harness.store.add(new ContextKeyService(new TestConfigurationService()));
 			ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
@@ -2208,7 +2208,7 @@ suite('Sessions - SessionsList', () => {
 			harness.instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
 				override showContextMenu(delegate: IContextMenuMenuDelegate): void {
 					if (delegate.menuId === Menus.SidebarCanvasContext) {
-						menus.push(delegate.contextKeyService?.getContextKeyValue(PinnedCanvasSessionInSessionsListContext.key));
+						menus.push(delegate.contextKeyService?.getContextKeyValue<boolean>(PinnedCanvasSessionInSessionsListContext.key));
 					}
 				}
 			});

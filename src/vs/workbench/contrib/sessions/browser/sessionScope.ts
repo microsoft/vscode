@@ -3,10 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { equalSets } from '../../../../base/common/collections.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
-import { autorun, IReader, observableSignal } from '../../../../base/common/observable.js';
+import { equalsIfDefinedC } from '../../../../base/common/equals.js';
+import { autorun, derived, derivedOpts, IObservable, IReader, observableSignal, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase, IExtUri } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionFolder } from '../../../services/sessions/common/session.js';
@@ -19,6 +21,32 @@ function isGitHubRepositoryOf(uri: URI, repositories: ReadonlySet<string>): bool
 	}
 	const [owner, repo] = uri.path.split('/').filter(segment => segment.length > 0);
 	return !!owner && !!repo && repositories.has(`${owner}/${repo}`.toLowerCase());
+}
+
+/**
+ * Where work is in a scope, such as a draft: in its folders, including the working directories of the sessions in it, or on
+ * GitHub in its repositories. See {@link SessionScopeMatcher.withWorkingDirectoriesOf}.
+ */
+export class SessionWorkScope {
+
+	private readonly folderKeys: ReadonlySet<string>;
+
+	constructor(
+		private readonly folders: readonly URI[],
+		private readonly gitHubRepositories: ReadonlySet<string>,
+		private readonly extUri: IExtUri,
+	) {
+		this.folderKeys = new Set(folders.map(folder => extUri.getComparisonKey(folder)));
+	}
+
+	/** Whether work in `uri` is in the scope. */
+	worksInScope(uri: URI): boolean {
+		return this.folders.some(folder => this.extUri.isEqualOrParent(uri, folder)) || isGitHubRepositoryOf(uri, this.gitHubRepositories);
+	}
+
+	equals(other: SessionWorkScope): boolean {
+		return this.extUri === other.extUri && equalSets(this.folderKeys, other.folderKeys) && equalSets(this.gitHubRepositories, other.gitHubRepositories);
+	}
 }
 
 /**
@@ -35,13 +63,15 @@ function isGitHubRepositoryOf(uri: URI, repositories: ReadonlySet<string>): bool
 export class SessionScopeMatcher {
 
 	private readonly gitHubRepositories: ReadonlySet<string>;
+	private readonly work: SessionWorkScope;
 
 	constructor(
 		private readonly scopeFolders: readonly URI[],
-		private readonly scopeGitHubRepositories: readonly string[],
+		scopeGitHubRepositories: readonly string[],
 		private readonly extUri: IExtUri = extUriBiasedIgnorePathCase,
 	) {
 		this.gitHubRepositories = new Set(scopeGitHubRepositories.map(repository => repository.toLowerCase()));
+		this.work = new SessionWorkScope(scopeFolders, this.gitHubRepositories, extUri);
 	}
 
 	/** The `sessions` in the scope. */
@@ -50,11 +80,11 @@ export class SessionScopeMatcher {
 	}
 
 	/**
-	 * The scope widened by the working directories by which {@link getSessionsInScope} places `sessions` in it, such as worktrees
-	 * of its folders: those of the folders that match it, not the other folders of a session it places. Work that is not a
-	 * session yet, such as a draft, is in the scope when it {@link worksInScope works in} the widened one.
+	 * The work in the scope widened by the working directories by which {@link getSessionsInScope} places `sessions` in it, such
+	 * as worktrees of its folders: those of the folders that match it, not the other folders of a session it places. Work that
+	 * is not a session yet, such as a draft, is in the scope when it {@link SessionWorkScope.worksInScope works in} it.
 	 */
-	withWorkingDirectoriesOf(sessions: readonly ISession[], reader: IReader | undefined): SessionScopeMatcher {
+	withWorkingDirectoriesOf(sessions: readonly ISession[], reader: IReader | undefined): SessionWorkScope {
 		const folders = new ResourceSet(this.scopeFolders, uri => this.extUri.getComparisonKey(uri));
 		for (const session of sessions) {
 			for (const folder of this.getScopingFolders(session, reader)) {
@@ -63,7 +93,7 @@ export class SessionScopeMatcher {
 				}
 			}
 		}
-		return new SessionScopeMatcher([...folders], this.scopeGitHubRepositories, this.extUri);
+		return new SessionWorkScope([...folders], this.gitHubRepositories, this.extUri);
 	}
 
 	private isFolderInScope(folder: ISessionFolder): boolean {
@@ -72,7 +102,7 @@ export class SessionScopeMatcher {
 
 	/** Whether work in `uri` is in the scope: `uri` is in a scope folder, or on GitHub in one of the scope's repositories. */
 	worksInScope(uri: URI): boolean {
-		return this.scopeFolders.some(folder => this.extUri.isEqualOrParent(uri, folder)) || isGitHubRepositoryOf(uri, this.gitHubRepositories);
+		return this.work.worksInScope(uri);
 	}
 
 	private isScopeFolder(uri: URI | undefined): boolean {
@@ -93,6 +123,42 @@ export class SessionScopeMatcher {
 		}
 		const mainFolder = mainChatWorkspace?.folders[0];
 		return mainFolder ? [mainFolder] : session.workspace.read(reader)?.folders ?? [];
+	}
+}
+
+/**
+ * The sessions in a scope, such as an editor window's, out of every session, and where work that is not a session yet, such as
+ * a draft, is in it. `folders` is undefined while nothing is scoped. Follows the sessions' objects, not only their IDs: a
+ * provider can replace a session under its ID, such as a draft that graduates into another worktree, which moves the work in
+ * the scope.
+ */
+export class SessionsInScope {
+
+	/** The IDs of the sessions in the scope, or undefined while nothing is scoped. */
+	readonly sessionIds: IObservable<ReadonlySet<string> | undefined>;
+	/** Where work is in the scope, or undefined while nothing is scoped. */
+	readonly work: IObservable<SessionWorkScope | undefined>;
+
+	constructor(
+		folders: IObservable<readonly URI[] | undefined>,
+		gitHubRepositories: IObservable<readonly string[]>,
+		getSessions: () => readonly ISession[],
+		onDidChangeSessions: Event<unknown>,
+		extUri: IExtUri,
+	) {
+		const sessionsChanged = observableSignalFromEvent(this, onDidChangeSessions);
+		const scope = derived(this, reader => {
+			const scopeFolders = folders.read(reader);
+			if (!scopeFolders) {
+				return undefined;
+			}
+			sessionsChanged.read(reader);
+			const matcher = new SessionScopeMatcher(scopeFolders, gitHubRepositories.read(reader), extUri);
+			const sessions = [...matcher.getSessionsInScope(getSessions(), reader)];
+			return { sessionIds: new Set(sessions.map(session => session.sessionId)), work: matcher.withWorkingDirectoriesOf(sessions, reader) };
+		});
+		this.sessionIds = derivedOpts<ReadonlySet<string> | undefined>({ owner: this, equalsFn: equalsIfDefinedC(equalSets) }, reader => scope.read(reader)?.sessionIds);
+		this.work = derivedOpts<SessionWorkScope | undefined>({ owner: this, equalsFn: equalsIfDefinedC((a, b) => a.equals(b)) }, reader => scope.read(reader)?.work);
 	}
 }
 

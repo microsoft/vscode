@@ -12,7 +12,6 @@ import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '.
 import { getOrSet } from '../../../../../base/common/map.js';
 import { autorun, derived, derivedOpts, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { structuralEquals } from '../../../../../base/common/equals.js';
-import { equalSets } from '../../../../../base/common/collections.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { getComparisonKey } from '../../../../../base/common/resources.js';
 import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
@@ -44,7 +43,7 @@ import { ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionComparisonService } from '../../common/sessionComparison.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { IWorkspaceFolderRepositories } from '../workspaceFolderRepositories.js';
-import { SessionScopeMatcher } from '../sessionScope.js';
+import { SessionsInScope } from '../sessionScope.js';
 import { SessionsWindowScopeController } from './sessionsWindowScopeController.js';
 import { getSessionFilterActionId, getSessionFilterEnvironments, getSessionFilterOptions, ISessionFilterOption, listsQuickChatsIn, sessionFilterKey, SessionsWorktreeOpener } from './sessionsListFilters.js';
 import { AICustomizationShortcutsWidget } from '../aiCustomizationShortcutsWidget.js';
@@ -449,25 +448,18 @@ export class SessionsView extends ViewPane {
 
 	private createControls(parent: HTMLElement): void {
 		const barEnabled = this.windowScope.barShown;
-		const inventoryChanged = observableSignalFromEvent(this, this.sessionsManagementService.onDidChangeSessions);
 		const repositories = this.workspaceFolderRepositories;
-		const sessionScope = derivedOpts<ReadonlySet<string> | undefined>({ owner: this, equalsFn: (a, b) => a === b || (!!a && !!b && equalSets(a, b)) }, reader => {
-			if (!this.scoped?.read(reader) || barEnabled.read(reader)) {
-				return undefined;
-			}
-			inventoryChanged.read(reader);
-			const sessions = this.sessionsManagementService.getSessions();
-			const matcher = new SessionScopeMatcher(repositories.folders.read(reader), repositories.gitHubRepositories.read(reader), this.uriIdentityService.extUri);
-			return new Set([...matcher.getSessionsInScope(sessions, reader)].map(session => session.sessionId));
-		});
+		const scope = new SessionsInScope(
+			derived(this, reader => this.scoped?.read(reader) && !barEnabled.read(reader) ? repositories.folders.read(reader) : undefined),
+			repositories.gitHubRepositories,
+			() => this.sessionsManagementService.getSessions(),
+			this.sessionsManagementService.onDidChangeSessions,
+			this.uriIdentityService.extUri,
+		);
+		const sessionScope = scope.sessionIds;
 		const pendingSessionScope = derived(this, reader => {
-			const scope = sessionScope.read(reader);
-			if (!scope) {
-				return undefined;
-			}
-			const sessionsInScope = this.sessionsManagementService.getSessions().filter(session => scope.has(session.sessionId));
-			const matcher = new SessionScopeMatcher(repositories.folders.read(reader), repositories.gitHubRepositories.read(reader), this.uriIdentityService.extUri).withWorkingDirectoriesOf(sessionsInScope, reader);
-			return (item: IPendingSessionItem) => item.isQuickChat !== true && !!item.folderUri && matcher.worksInScope(item.folderUri);
+			const work = scope.work.read(reader);
+			return work && ((item: IPendingSessionItem) => item.isQuickChat !== true && !!item.folderUri && work.worksInScope(item.folderUri));
 		});
 		const sessionsContainer = DOM.append(parent, $('.agent-sessions-container'));
 		this.sidebarSplitViewContainer = DOM.append(sessionsContainer, $('.agent-sessions-sidebar-splitview-container'));
@@ -987,7 +979,7 @@ export class SessionsView extends ViewPane {
 		const offersWorktrees = this.workspaceContextService.getWorkbenchMode() !== WorkbenchMode.Agents;
 		const worktreeOpener = this._register(this.instantiationService.createInstance(SessionsWorktreeOpener,
 			this._mainWindowHost.session,
-			() => this.sessionsManagementService.getSessions().filter(session => sessionsControl.isSessionListed(session)),
+			() => this.sessionsManagementService.getSessions().filter(session => sessionsControl.isSessionInScope(session)),
 			session => this.sessionsService.canOpenSession(session),
 			session => this.sessionsService.openSession(session.resource, { preserveFocus: false, source: 'sessionsList', forceMainChat: true }).then(() => this._handleSessionOpened(session)).catch(onUnexpectedError),
 			sessionsControl.filters.onDidChange,
@@ -1010,7 +1002,7 @@ export class SessionsView extends ViewPane {
 			const options = getSessionFilterOptions(
 				this.sessionsManagementService.getSessions(),
 				environments,
-				(session, reader) => sessionsControl.isSessionListed(session, reader),
+				(session, reader) => sessionsControl.isSessionInScope(session, reader),
 				this.uriIdentityService.extUri,
 				reader,
 			).filter(option => offersWorktrees || option.filter.kind !== 'worktree');
