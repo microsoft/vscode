@@ -585,6 +585,124 @@ suite('AsyncDataTree', function () {
 		});
 	});
 
+	suite('issue #349459 - siblings with the same id', () => {
+
+		const rows = (container: HTMLElement) => [...container.querySelectorAll('.monaco-list-row')].map(row => row.textContent);
+		const duplicateB = (): Element[] => [{ id: 'a' }, { id: 'b', suffix: '1', children: [{ id: 'b1' }] }, { id: 'b', suffix: '2', children: [{ id: 'b1' }] }];
+		const singleB = (): Element[] => [{ id: 'a' }, { id: 'b', children: [{ id: 'b1' }] }];
+
+		test('a refresh with them doesn\'t break later refreshes', async () => {
+			const container = document.createElement('div');
+			const model = new Model({ id: 'root', children: [{ id: 'group', children: singleB() }] });
+
+			const tree = store.add(new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], new DataSource(), { identityProvider: new IdentityProvider() }));
+			tree.layout(200);
+
+			await tree.setInput(model.root);
+			await tree.expand(model.get('group'));
+
+			model.get('group').children = duplicateB();
+			await tree.updateChildren(model.root);
+			const withDuplicate = rows(container);
+
+			model.get('group').children = singleB();
+			await tree.updateChildren(model.root);
+			const withoutDuplicate = rows(container);
+
+			await tree.expand(model.get('b'));
+
+			assert.deepStrictEqual({ withDuplicate, withoutDuplicate, expanded: rows(container) }, {
+				withDuplicate: ['group', 'a', 'b2'],
+				withoutDuplicate: ['group', 'a', 'b'],
+				expanded: ['group', 'a', 'b', 'b1']
+			});
+		});
+
+		test('they can be in the initial children', async () => {
+			const container = document.createElement('div');
+			const model = new Model({ id: 'root', children: duplicateB() });
+
+			const tree = store.add(new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], new DataSource(), { identityProvider: new IdentityProvider() }));
+			tree.layout(200);
+
+			await tree.setInput(model.root);
+			const initial = rows(container);
+
+			model.root.children = singleB();
+			await tree.updateChildren(model.root);
+			const refreshed = rows(container);
+
+			await tree.expand(model.get('b'));
+
+			assert.deepStrictEqual({ initial, refreshed, expanded: rows(container) }, {
+				initial: ['a', 'b2'],
+				refreshed: ['a', 'b'],
+				expanded: ['a', 'b', 'b1']
+			});
+		});
+
+		test('an expanded one keeps its children and loads them once', async () => {
+			const container = document.createElement('div');
+			const requests: string[] = [];
+			const dataSource = new class extends DataSource {
+				override getChildren(element: Element): Promise<Element[]> {
+					requests.push(element.id + (element.suffix || ''));
+					return super.getChildren(element);
+				}
+			};
+			const model = new Model({ id: 'root', children: [{ id: 'group', children: singleB() }] });
+
+			const tree = store.add(new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, { identityProvider: new IdentityProvider() }));
+			tree.layout(200);
+
+			await tree.setInput(model.root);
+			await tree.expand(model.get('group'));
+			await tree.expand(model.get('b'));
+			requests.splice(0);
+
+			model.get('group').children = duplicateB();
+			await tree.updateChildren(model.root);
+
+			assert.deepStrictEqual({ rows: rows(container), requests }, {
+				rows: ['group', 'a', 'b2', 'b1'],
+				requests: ['root', 'group', 'b2']
+			});
+		});
+
+		test('CompressibleAsyncDataTree', async () => {
+			const container = document.createElement('div');
+			const dataSource = new DataSource();
+			const compressionDelegate = new class implements ITreeCompressionDelegate<Element> {
+				isIncompressible(element: Element): boolean {
+					return !dataSource.hasChildren(element);
+				}
+			};
+			const model = new Model({ id: 'root', children: [{ id: 'group', children: singleB() }] });
+
+			const tree = store.add(new CompressibleAsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), compressionDelegate, [new Renderer()], dataSource, { identityProvider: new IdentityProvider() }));
+			tree.layout(200);
+
+			await tree.setInput(model.root);
+			await tree.expand(model.get('group'));
+
+			model.get('group').children = duplicateB();
+			await tree.updateChildren(model.root);
+			const withDuplicate = rows(container);
+
+			model.get('group').children = singleB();
+			await tree.updateChildren(model.root);
+			const withoutDuplicate = rows(container);
+
+			await tree.expand(model.get('b'));
+
+			assert.deepStrictEqual({ withDuplicate, withoutDuplicate, expanded: rows(container) }, {
+				withDuplicate: ['group', 'a', 'b2'],
+				withoutDuplicate: ['group', 'a', 'b'],
+				expanded: ['group', 'a', 'b', 'b1']
+			});
+		});
+	});
+
 	test('issue #78388 - tree should react to hasChildren toggles', async () => {
 		const container = document.createElement('div');
 		const model = new Model({
