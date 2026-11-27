@@ -2285,6 +2285,8 @@ suite('DefaultAccountProvider Microsoft account', () => {
 		readonly microsoftLookups: string[];
 		readonly lookups: string[];
 		readonly requests: string[];
+		readonly createdSessions: { providerId: string; scopes: readonly string[] }[];
+		readonly preferenceLabels: Map<string, string>;
 		readonly preferenceChanges: Emitter<{ extensionIds: string[]; providerId: string }>;
 		readonly sessionChanges: Emitter<{ providerId: string; label: string; event: AuthenticationSessionsChangeEvent }>;
 		readonly nativeChanges: Emitter<ManagedSettingsData>;
@@ -2356,6 +2358,8 @@ suite('DefaultAccountProvider Microsoft account', () => {
 			microsoftLookups: [],
 			lookups: [],
 			requests: [],
+			createdSessions: [],
+			preferenceLabels: preferences,
 			preferenceChanges: disposables.add(new Emitter()),
 			sessionChanges: disposables.add(new Emitter()),
 			nativeChanges: disposables.add(new Emitter<ManagedSettingsData>()),
@@ -2377,6 +2381,12 @@ suite('DefaultAccountProvider Microsoft account', () => {
 			declaredProviders: [],
 			isAuthenticationProviderRegistered: (providerId: string) => providerId !== 'microsoft' || world.microsoftProviderAvailable,
 			getAccounts: async () => [],
+			createSession: async (providerId: string, scopes: readonly string[]) => {
+				world.createdSessions.push({ providerId, scopes: [...scopes] });
+				const created = githubSession('octocat');
+				world.githubSessions.push(created);
+				return created;
+			},
 			getSessions: async (providerId: string) => {
 				world.lookups.push(providerId);
 				if (providerId === 'microsoft') {
@@ -2433,7 +2443,7 @@ suite('DefaultAccountProvider Microsoft account', () => {
 		instantiationService.stub(IFileManagedSettingsService, new NullFileManagedSettingsService());
 
 		const provider = disposables.add(instantiationService.createInstance(DefaultAccountProvider, {
-			preferredExtensions: [],
+			preferredExtensions: ['copilot.extension'],
 			authenticationProvider: {
 				default: { id: 'github', name: 'GitHub' },
 				enterprise: { id: 'github-enterprise', name: 'GitHub Enterprise' },
@@ -2940,6 +2950,25 @@ suite('DefaultAccountProvider Microsoft account', () => {
 		}
 
 		assert.deepStrictEqual(outcome.withService, outcome.withoutService);
+	});
+
+	test('signing in to GitHub while Microsoft is the default account keeps the Microsoft default account and policy state', async () => {
+		const { world, provider } = await createWorld({ nativeManagedSettings: nativeRequirement, rememberedAccountLabel: JSON.stringify({ label: 'alice', service: 'm365' }), microsoftSessions: [session('s1', 'alice')] });
+		const before = describePolicyState(provider);
+
+		await provider.signIn({ additionalScopes: ['repo'] });
+
+		assert.deepStrictEqual({
+			created: world.createdSessions,
+			preferences: [...world.preferenceLabels.values()],
+			account: { provider: provider.defaultAccount?.authenticationProvider.id, name: provider.defaultAccount?.accountName, service: provider.defaultAccount?.copilotService },
+			policyUnchanged: JSON.stringify(describePolicyState(provider)) === JSON.stringify(before),
+		}, {
+			created: [{ providerId: 'github', scopes: ['user:email', 'repo'] }],
+			preferences: ['octocat'],
+			account: { provider: 'microsoft', name: 'alice', service: 'm365' },
+			policyUnchanged: true,
+		});
 	});
 
 	test('a change of only the remembered service by another window updates the Microsoft default account', async () => {

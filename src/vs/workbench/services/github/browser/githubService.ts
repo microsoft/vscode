@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { cancelOnDispose, CancellationToken } from '../../../../base/common/cancellation.js';
-import { asGitHubAccount } from '../../../../base/common/defaultAccount.js';
+import { asGitHubAccount, IDefaultAccountAuthenticationProvider } from '../../../../base/common/defaultAccount.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
@@ -25,7 +25,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ITelemetryService, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../../../platform/telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../../../platform/telemetry/common/telemetryUtils.js';
-import { AuthenticationSession, IAuthenticationService } from '../../authentication/common/authentication.js';
+import { AuthenticationSession, AuthenticationSessionAccount, IAuthenticationExtensionsService, IAuthenticationService } from '../../authentication/common/authentication.js';
 import { IWorkbenchGitHubService, toGitHubAuthorizationContext } from '../common/githubService.js';
 import { getWorkbenchMissionControlOptions, WorkbenchGitHubCredentialProvider } from './githubCredentialProvider.js';
 
@@ -40,20 +40,21 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 	private _defaultSessionAccountId: string | undefined;
 
 	constructor(
-		@IAuthenticationService authenticationService: IAuthenticationService,
+		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
 		@ILogService logService: ILogService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IProductService productService: IProductService,
+		@IProductService private readonly _productService: IProductService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IAuthenticationExtensionsService private readonly _authenticationExtensionsService: IAuthenticationExtensionsService,
 	) {
-		const credentialProvider = new WorkbenchGitHubCredentialProvider(authenticationService);
+		const credentialProvider = new WorkbenchGitHubCredentialProvider(_authenticationService);
 		super({
 			credentialProvider,
 			useBrowserRedirects: true,
-			connectorsApiBaseUri: productService.defaultChatAgent?.mcpConnectorsUrl,
+			connectorsApiBaseUri: _productService.defaultChatAgent?.mcpConnectorsUrl,
 			telemetrySource: isWeb ? 'web' : 'workbench',
-			clientMetadata: createGitHubClientMetadata(productService, 'workbench', 'browser'),
+			clientMetadata: createGitHubClientMetadata(_productService, 'workbench', 'browser'),
 			onDidChangeTelemetryLevel: Event.map(Event.filter(configurationService.onDidChangeConfiguration, event =>
 				event.affectsConfiguration(TELEMETRY_SETTING_ID)
 				|| event.affectsConfiguration(TELEMETRY_OLD_SETTING_ID)
@@ -74,11 +75,15 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 			}, this._store)),
 			Event.signal(Event.filter(credentialProvider.onDidChangeSessions, event =>
 				event.providerId === _defaultAccountService.getDefaultAccountAuthenticationProvider().id
-				&& [...event.event.added ?? [], ...event.event.changed ?? [], ...event.event.removed ?? []].some(session =>
+				&& (this._usesSeparateGitHubAccount() || [...event.event.added ?? [], ...event.event.changed ?? [], ...event.event.removed ?? []].some(session =>
 					!this._defaultSessionAccountId || session.account.id === this._defaultSessionAccountId
 					|| session.id === this._defaultClient.value?.object.authorization.sessionId
 					|| session.id === asGitHubAccount(_defaultAccountService.currentDefaultAccount)?.sessionId
-				), this._store)),
+				)), this._store)),
+			Event.signal(Event.filter(_authenticationExtensionsService.onDidChangeAccountPreference, event =>
+				this._usesSeparateGitHubAccount()
+				&& event.providerId === _defaultAccountService.getDefaultAccountAuthenticationProvider().id
+				&& event.extensionIds.some(extensionId => this._getPreferredExtensionIds().includes(extensionId)), this._store)),
 		);
 		this._register(this.onDidChangeDefaultClient(() => {
 			this._defaultClientGeneration++;
@@ -164,25 +169,30 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 	private _getDefaultAccountKey(): string {
 		const account = asGitHubAccount(this._defaultAccountService.currentDefaultAccount);
 		const provider = account?.authenticationProvider ?? this._defaultAccountService.getDefaultAccountAuthenticationProvider();
-		return JSON.stringify([provider.id, account?.sessionId, provider.enterprise, provider.enterprise ? this._defaultAccountService.resolveGitHubUrl('') : undefined]);
+		return JSON.stringify([provider.id, account?.sessionId, provider.enterprise, provider.enterprise ? this._defaultAccountService.resolveGitHubUrl('') : undefined, this._usesSeparateGitHubAccount()]);
 	}
 
 	private async _getDefaultAccountOptions(cancellationToken: CancellationToken): Promise<{ options: GitHubClientOptions; accountId: string; generation: number }> {
 		CancellationToken.throwIfCanceled(cancellationToken);
-		const account = asGitHubAccount(this._defaultAccountService.currentDefaultAccount ?? await this._defaultAccountService.getDefaultAccount());
+		const defaultAccount = this._defaultAccountService.currentDefaultAccount ?? await this._defaultAccountService.getDefaultAccount();
 		CancellationToken.throwIfCanceled(cancellationToken);
-		if (!account) {
+		const account = asGitHubAccount(defaultAccount);
+		const generation = this._defaultClientGeneration;
+		if (account) {
+			const current = asGitHubAccount(this._defaultAccountService.currentDefaultAccount);
+			if (!current || account.sessionId !== current.sessionId || account.authenticationProvider.id !== current.authenticationProvider.id) {
+				throw new GitHubRequestError(localize('githubAccountChanged', "The selected GitHub account changed. Try again."), 'authentication');
+			}
+		}
+		const provider = account?.authenticationProvider ?? this._defaultAccountService.getDefaultAccountAuthenticationProvider();
+		const separateAccount = defaultAccount && !account ? await this._findSeparateGitHubAccount(provider) : undefined;
+		CancellationToken.throwIfCanceled(cancellationToken);
+		if (!account && !separateAccount) {
 			throw new GitHubRequestError(localize('githubAuthenticationRequired', "Sign in to GitHub to load GitHub data."), 'authentication');
 		}
-		const generation = this._defaultClientGeneration;
-		const current = asGitHubAccount(this._defaultAccountService.currentDefaultAccount);
-		if (!current || account.sessionId !== current.sessionId || account.authenticationProvider.id !== current.authenticationProvider.id) {
-			throw new GitHubRequestError(localize('githubAccountChanged', "The selected GitHub account changed. Try again."), 'authentication');
-		}
-		const provider = account.authenticationProvider;
 		const sessions = await this._credentialProvider.getSessions(provider.id, cancellationToken);
 		CancellationToken.throwIfCanceled(cancellationToken);
-		const selected = sessions.find(session => session.id === account.sessionId);
+		const selected = sessions.find(session => account ? session.id === account.sessionId : session.account.id === separateAccount?.id);
 		if (!selected) {
 			throw new GitHubRequestError(localize('githubSessionUnavailable', "The selected GitHub session is unavailable."), 'authentication');
 		}
@@ -194,11 +204,7 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 		if (!repositorySession) {
 			throw new GitHubRequestError(localize('githubRepositoryAccessRequired', "Sign in to GitHub with repository access to load GitHub data."), 'authentication');
 		}
-		const enterpriseUri = provider.enterprise ? this._defaultAccountService.resolveGitHubUrl('') : undefined;
-		if (provider.enterprise && !enterpriseUri) {
-			throw new GitHubRequestError(localize('githubUrlUnavailable', "The GitHub Enterprise URL is unavailable. Sign in and try again."), 'authentication');
-		}
-		const endpoints = deriveGitHubEndpoints(enterpriseUri);
+		const endpoints = deriveGitHubEndpoints(this._getEnterpriseUri(provider.enterprise));
 		return {
 			options: {
 				authorization: {
@@ -209,11 +215,41 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 				},
 				apiBaseUri: endpoints.apiBaseUri,
 				graphQlUri: endpoints.graphQlUri,
-				missionControl: getWorkbenchMissionControlOptions(provider.id, endpoints.enterpriseHost),
+				missionControl: account ? getWorkbenchMissionControlOptions(provider.id, endpoints.enterpriseHost) : undefined,
 			},
 			accountId: selected.account.id,
 			generation,
 		};
+	}
+
+	private _getEnterpriseUri(enterprise: boolean): string | undefined {
+		const enterpriseUri = enterprise ? this._defaultAccountService.resolveGitHubUrl('') : undefined;
+		if (enterprise && !enterpriseUri) {
+			throw new GitHubRequestError(localize('githubUrlUnavailable', "The GitHub Enterprise URL is unavailable. Sign in and try again."), 'authentication');
+		}
+		return enterpriseUri;
+	}
+
+	/** Whether a default account exists but is not a GitHub account, so repository data uses the person's separate GitHub account. */
+	private _usesSeparateGitHubAccount(): boolean {
+		const account = this._defaultAccountService.currentDefaultAccount;
+		return !!account && !asGitHubAccount(account);
+	}
+
+	private _getPreferredExtensionIds(): string[] {
+		const { chatExtensionId, extensionId } = this._productService.defaultChatAgent ?? {};
+		return [chatExtensionId, extensionId].filter((id): id is string => !!id);
+	}
+
+	private async _findSeparateGitHubAccount(provider: IDefaultAccountAuthenticationProvider): Promise<AuthenticationSessionAccount | undefined> {
+		// Checked early: without a GitHub default account there is no enterprise URL, so a sign-in prompt could not help.
+		this._getEnterpriseUri(provider.enterprise);
+		// Mirrors the default account service's preferred-account lookup.
+		const preferredName = this._getPreferredExtensionIds()
+			.map(extensionId => this._authenticationExtensionsService.getAccountPreference(extensionId, provider.id))
+			.find(name => name);
+		const accounts = await this._authenticationService.getAccounts(provider.id);
+		return accounts.find(account => account.label === preferredName) ?? (accounts.length === 1 ? accounts[0] : undefined);
 	}
 }
 
