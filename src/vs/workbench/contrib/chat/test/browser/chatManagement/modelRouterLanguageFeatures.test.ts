@@ -49,6 +49,18 @@ suite('ModelRouterLanguageFeatures', () => {
 		'    when: Hard problems.',
 	];
 
+	/** A router as the parser also reads one: with quoted keys, a `-` on its own line, and quoted text over several lines. */
+	const unusualRouter = [
+		'version: 1',
+		'"effort": high',
+		'description: "Small questions.',
+		'switching: auto"',
+		'"routes":',
+		'  -',
+		'    "model": haiku',
+		'    when: Quick answers.',
+	];
+
 	/** The router with `line` as its line `lineNumber`. */
 	function withLine(lineNumber: number, line: string): string[] {
 		return [...router.slice(0, lineNumber - 1), line, ...router.slice(lineNumber - 1)];
@@ -74,7 +86,7 @@ suite('ModelRouterLanguageFeatures', () => {
 	/** The edit that accepting `label` makes. */
 	function edit(items: CompletionItem[], label: string) {
 		const item = items.find(candidate => candidate.label === label);
-		return item && { insertText: item.insertText, range: Range.isIRange(item.range) ? Range.lift(item.range).toString() : undefined, offersValues: !!item.command };
+		return item && { insertText: item.insertText, range: Range.isIRange(item.range) ? Range.lift(item.range).toString() : undefined, offersValues: !!item.command, ...(item.filterText ? { filterText: item.filterText } : {}) };
 	}
 
 	test('offers the keys a router or a route does not have yet', async () => {
@@ -84,12 +96,24 @@ suite('ModelRouterLanguageFeatures', () => {
 			newRoute: await labels([...router, '  - @']),
 			textBlock: await labels(withLine(4, '  @')),
 			example: await labels(withLine(9, '      - @')),
+			unusualRouter: await labels([...unusualRouter, '@']),
+			unusualRoute: await labels([...unusualRouter, '    @']),
+			keyOfTextBlock: await labels([router[0], 'desc@ription: |', ...router.slice(2)]),
+			belowUnfinishedKey: await labels([...router.slice(0, 3), 'guid', ...router.slice(3, 9), '    @', ...router.slice(9)]),
+			belowUnfinishedFirstKey: await labels(['version: 1', 'routes:', '  - na', '    model: haiku', '    @']),
+			besideUnreadableText: await labels(['version: 1', 'guidance: "\\U00110000"', '@']),
 		}, {
 			router: ['name', 'display-name', 'effort', 'context-size', 'switching', 'guidance'],
 			route: ['effort', 'context-size', 'guidance'],
 			newRoute: ['name', 'model', 'when', 'examples', 'effort', 'context-size', 'guidance'],
 			textBlock: [],
 			example: [],
+			unusualRouter: ['name', 'display-name', 'context-size', 'switching', 'guidance'],
+			unusualRoute: ['name', 'examples', 'effort', 'context-size', 'guidance'],
+			keyOfTextBlock: ['name', 'display-name', 'description', 'effort', 'context-size', 'switching', 'guidance'],
+			belowUnfinishedKey: ['effort', 'context-size', 'guidance'],
+			belowUnfinishedFirstKey: ['name', 'when', 'examples', 'effort', 'context-size', 'guidance'],
+			besideUnreadableText: [],
 		});
 	});
 
@@ -102,6 +126,8 @@ suite('ModelRouterLanguageFeatures', () => {
 			routeValues: await labels(withLine(10, '    effort: @')),
 			valueAfterColon: edit(await complete(withLine(10, '    effort:@')), 'high'),
 			valueReplaced: edit(await complete([...router, 'context-size: lo@ng # for big files']), 'default'),
+			valueBeforeComment: edit(await complete([...router, 'effort: @# how hard to think']), 'high'),
+			valueInQuotes: edit(await complete([...router, 'effort: "hi@"']), 'high'),
 		}, {
 			key: { insertText: 'switching: ', range: '[12,1 -> 12,3]', offersValues: true },
 			listKey: { insertText: 'examples:', range: '[12,5 -> 12,7]', offersValues: false },
@@ -110,6 +136,8 @@ suite('ModelRouterLanguageFeatures', () => {
 			routeValues: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
 			valueAfterColon: { insertText: ' high', range: '[10,12 -> 10,12]', offersValues: false },
 			valueReplaced: { insertText: 'default', range: '[12,15 -> 12,19]', offersValues: false },
+			valueBeforeComment: { insertText: 'high ', range: '[12,9 -> 12,9]', offersValues: false },
+			valueInQuotes: { insertText: '"high"', range: '[12,9 -> 12,13]', offersValues: false, filterText: '"high' },
 		});
 	});
 

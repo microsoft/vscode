@@ -780,16 +780,24 @@ function checkQuotedScalar(content: string, node: YamlScalarNode, report: IRepor
 
 /** The shared parser stops at the first thing it doesn't understand; anything left over is an error. */
 function checkNoTrailingContent(content: string, root: YamlNode, report: IReporter): void {
+	const unread = findUnreadModelRouterLine(content, root);
+	if (unread) {
+		report.error('This line is not part of the router; check its indentation.', unread);
+	}
+}
+
+/** The first line after `root` that is not empty or a comment: where the shared parser stopped reading `content`, when that is before its end. */
+export function findUnreadModelRouterLine(content: string, root: YamlNode): { readonly startOffset: number; readonly endOffset: number } | undefined {
 	const rest = content.slice(root.endOffset);
 	let offset = root.endOffset;
 	for (const line of rest.split('\n')) {
 		if (!/^\s*(#.*)?$/.test(line)) {
 			const start = offset + line.length - line.trimStart().length;
-			report.error('This line is not part of the router; check its indentation.', { startOffset: start, endOffset: offset + line.length });
-			return;
+			return { startOffset: start, endOffset: offset + line.length };
 		}
 		offset += line.length + 1;
 	}
+	return undefined;
 }
 
 // ---- Model references ------------------------------------------------------

@@ -6,14 +6,16 @@
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { basename } from '../../../../../base/common/resources.js';
+import { parse, YamlMapNode, YamlNode } from '../../../../../base/common/yaml.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
+import { PositionOffsetTransformer } from '../../../../../editor/common/core/text/positionToOffset.js';
 import { LanguageSelector, score } from '../../../../../editor/common/languageSelector.js';
 import { CompletionItem, CompletionItemKind, CompletionList } from '../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
-import { IModelRouterKey, MODEL_ROUTER_FILE_SUFFIXES, ModelRouterDiagnosticSeverity, modelRouterKeys, modelRouterRouteKeys, parseModelRouter } from '../../../../../platform/agentHost/common/modelRouter.js';
+import { findUnreadModelRouterLine, IModelRouterKey, MODEL_ROUTER_FILE_SUFFIXES, MODEL_ROUTER_MAX_FILE_BYTES, ModelRouterDiagnosticSeverity, modelRouterKeys, modelRouterRouteKeys, parseModelRouter } from '../../../../../platform/agentHost/common/modelRouter.js';
 import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
 
 const MARKERS_OWNER = 'modelRouter';
@@ -79,28 +81,32 @@ function readProblems(model: ITextModel): IMarkerData[] {
 }
 
 function provideCompletions(model: ITextModel, position: Position): CompletionList | undefined {
+	// A larger file is not a router, and is not read on every key that is typed.
+	if (model.getValueLength() > MODEL_ROUTER_MAX_FILE_BYTES) {
+		return undefined;
+	}
 	const line = model.getLineContent(position.lineNumber);
 	const before = line.slice(0, position.column - 1);
 	// What is written of the word at the cursor after it, which a completion replaces too.
 	const rest = /^[\w-]*/.exec(line.slice(position.column - 1))?.[0] ?? '';
 	const after = line.slice(position.column - 1 + rest.length);
 	const endColumn = position.column + rest.length;
-	const hasNothingAfter = /^\s*(#.*)?$/.test(after);
 
 	const atKey = /^(?<indent> *)(?<item>- +)?(?<typed>[A-Za-z][\w-]*)?$/.exec(before)?.groups;
 	if (atKey) {
 		const hasColon = after.startsWith(':');
-		if (!hasColon && !hasNothingAfter) {
+		if (!hasColon && !isEndOfLine(after)) {
 			return undefined;
 		}
-		const column = atKey.indent.length + (atKey.item?.length ?? 0);
-		const map = keysAt(model, position.lineNumber, atKey.indent.length, column, !!atKey.item);
-		const range = new Range(position.lineNumber, column + 1, position.lineNumber, endColumn);
+		const prefix = `${atKey.indent}${atKey.item ?? ''}`;
+		// The value of a key that has one is kept: what follows the line can be part of it, as the text of a `|` block is.
+		const map = keysAt(model, position.lineNumber, prefix, hasColon ? after : undefined);
+		const range = new Range(position.lineNumber, prefix.length + 1, position.lineNumber, endColumn);
 		return map && {
 			suggestions: map.keys.flatMap((key, index): CompletionItem[] => map.used.has(key.name) ? [] : [{
 				label: key.name,
 				kind: CompletionItemKind.Property,
-				insertText: hasColon ? key.name : key.isList ? `${key.name}:` : `${key.name}: `,
+				insertText: hasColon ? key.name : key.isList ? `${key.name}:${separatorBefore(after)}` : `${key.name}: `,
 				range,
 				sortText: sortText(index),
 				// The values of a key are offered once it is written.
@@ -109,16 +115,21 @@ function provideCompletions(model: ITextModel, position: Position): CompletionLi
 		};
 	}
 
-	const atValue = /^(?<indent> *)(?<item>- +)?(?<key>[\w-]+):(?<space> *)(?<typed>[\w-]*)$/.exec(before)?.groups;
-	if (atValue && hasNothingAfter) {
-		const column = atValue.indent.length + (atValue.item?.length ?? 0);
-		const values = keysAt(model, position.lineNumber, atValue.indent.length, column, !!atValue.item)?.keys.find(key => key.name === atValue.key)?.values;
-		const range = new Range(position.lineNumber, position.column - atValue.typed.length, position.lineNumber, endColumn);
+	const atValue = /^(?<indent> *)(?<item>- +)?(?<key>[\w-]+):(?<space> *)(?<quote>["']?)(?<typed>[\w-]*)$/.exec(before)?.groups;
+	if (atValue) {
+		// A value can be written in quotes, which are replaced with the value and written around it again.
+		const { quote } = atValue;
+		const isClosed = !!quote && after.startsWith(quote);
+		const afterValue = isClosed ? after.slice(1) : after;
+		const values = isEndOfLine(afterValue) ? keysAt(model, position.lineNumber, `${atValue.indent}${atValue.item ?? ''}`)?.keys.find(key => key.name === atValue.key)?.values : undefined;
+		const range = new Range(position.lineNumber, position.column - atValue.typed.length - quote.length, position.lineNumber, endColumn + (isClosed ? 1 : 0));
 		return values && {
 			suggestions: values.map((value, index): CompletionItem => ({
 				label: value,
 				kind: CompletionItemKind.Value,
-				insertText: atValue.space ? value : ` ${value}`,
+				insertText: `${atValue.space ? '' : ' '}${quote}${value}${quote}${separatorBefore(afterValue)}`,
+				// What is written of a quoted value starts with its quote, so the value is found by it.
+				...(quote ? { filterText: `${quote}${value}` } : {}),
 				range,
 				sortText: sortText(index),
 			})),
@@ -127,87 +138,82 @@ function provideCompletions(model: ITextModel, position: Position): CompletionLi
 	return undefined;
 }
 
+/** Whether nothing but a comment follows on a line. */
+function isEndOfLine(text: string): boolean {
+	return /^\s*(#.*)?$/.test(text);
+}
+
+/** A comment that follows right away needs a space before it, or it is read as part of what is written. */
+function separatorBefore(text: string): string {
+	return text.startsWith('#') ? ' ' : '';
+}
+
 /** Keeps completions in the order the format lists them, such as efforts from low to high. */
 function sortText(index: number): string {
 	return String(index).padStart(2, '0');
 }
 
-interface ILine {
-	/** How far the line is indented. */
-	readonly indent: number;
-	/** Where its text starts, from 0: after the `- ` of a list item, else at its indent. */
-	readonly column: number;
-	readonly isItem: boolean;
-	/** The key the line starts, when it starts one. */
-	readonly key?: string;
-}
-
-/** A line of a router file, or `undefined` for one that is empty or a comment. */
-function readLine(text: string): ILine | undefined {
-	const groups = /^\s*(#|$)/.test(text) ? undefined : /^(?<indent> *)(?<item>-(?: +|$))?(?:(?<key>[\w-]+):(?: |$))?/.exec(text)?.groups;
-	return groups && { indent: groups.indent.length, column: groups.indent.length + (groups.item?.length ?? 0), isItem: !!groups.item, ...(groups.key ? { key: groups.key } : {}) };
-}
+/** Stands for the key of the line at the cursor. */
+const CURSOR_KEY = '__cursor__';
+/** How many lines that the parser can't read as part of a router are repaired to find the keys at the cursor. */
+const MAX_REPAIRS = 10;
 
 /**
- * The keys that can be written at `column` of a line: those of the router at the start of a line, and those of a
- * route in an item of the top-level `routes`. `used` are the ones the router or that route already has. Anywhere
- * else, such as in the text of a `|` block or in `examples`, there are none.
+ * The keys that can be written on a line after `prefix`, its indentation and the `- ` of a list item: those of the
+ * router, and those of a route in `routes`. `used` are the ones the router or that route already has. Anywhere
+ * else, such as in text or in `examples`, there are none.
  *
- * Lines are told apart by their indentation and not by parsing the file, since a file that is being written is
- * often one the parser can't read.
+ * The file is read with the parser the agent reads it with, so that a line is what it is to the agent. The line at
+ * the cursor is read as a key of its own with `value` after it, since what is written of it is often not something
+ * the parser reads. A file the parser reads is otherwise read as it is.
  */
-function keysAt(model: ITextModel, lineNumber: number, indent: number, column: number, isItem: boolean): { readonly keys: readonly IModelRouterKey[]; readonly used: ReadonlySet<string> } | undefined {
-	const lines = model.getLinesContent().map(readLine);
-	const index = lineNumber - 1;
-	const used = new Set<string>();
-	if (column === 0) {
-		lines.forEach((line, i) => {
-			if (i !== index && line?.key && line.column === 0 && !line.isItem) {
-				used.add(line.key);
-			}
-		});
-		return { keys: modelRouterKeys, used };
-	}
-
-	// The list item the line is part of: the line itself, or the closest one above whose keys are at this column.
-	let item = isItem ? { index, indent } : undefined;
-	for (let i = index - 1; !item && i >= 0; i--) {
-		const line = lines[i];
-		// Deeper lines are the value of a key of the item, as is a list written at the indent of its key.
-		if (!line || line.indent > column || (line.isItem && line.indent === column)) {
-			continue;
-		}
-		if (line.isItem && line.column === column) {
-			item = { index: i, indent: line.indent };
-		} else if (line.isItem || line.indent < column) {
+function keysAt(model: ITextModel, lineNumber: number, prefix: string, value = ': x'): { readonly keys: readonly IModelRouterKey[]; readonly used: ReadonlySet<string> } | undefined {
+	const lines = [...model.getLinesContent()];
+	lines[lineNumber - 1] = `${prefix}${CURSOR_KEY}${value}`;
+	for (let repairs = 0; ; repairs++) {
+		const text = lines.join('\n');
+		const positions = new PositionOffsetTransformer(text);
+		const lineOf = (node: Pick<YamlNode, 'startOffset'>) => positions.getPosition(node.startOffset).lineNumber;
+		let root: YamlNode | undefined;
+		try {
+			root = parse(text, []);
+		} catch {
+			// The parser throws on some text, such as an escape that names no character.
 			return undefined;
 		}
-	}
-	if (!item) {
-		return undefined;
-	}
+		const routes = root?.type === 'map' ? root.properties.find(property => property.key.value === 'routes')?.value : undefined;
+		const items = routes?.type === 'sequence' ? routes.items : [];
 
-	// A route is an item of the top-level `routes`, which is the closest line above the item that is not part of the list.
-	let parent: ILine | undefined;
-	for (let i = item.index - 1; !parent && i >= 0; i--) {
-		const line = lines[i];
-		if (line && line.indent <= item.indent && !(line.isItem && line.indent === item.indent)) {
-			parent = line;
+		// A line on which a key is not finished keeps the parser from reading what follows it as part of the
+		// router, so such a line is repaired and the file is read again.
+		if (repairs < MAX_REPAIRS) {
+			// A route that is a word is the first key of a route: it is read as that key, so that the route's other keys stay with it.
+			const unfinished = items.find(item => item.type === 'scalar' && lineOf(item) !== lineNumber && /^ *- +[A-Za-z][\w-]*\s*$/.test(lines[lineOf(item) - 1]));
+			if (unfinished) {
+				lines[lineOf(unfinished) - 1] = `${lines[lineOf(unfinished) - 1].trimEnd()}:`;
+				continue;
+			}
+			// The parser stops at a line it can't read, and reads a file that starts with one as text: the line is left out.
+			const unread = root?.type === 'map' ? findUnreadModelRouterLine(text, root) : root;
+			if (unread && lineOf(unread) !== lineNumber) {
+				lines[lineOf(unread) - 1] = '';
+				continue;
+			}
 		}
-	}
-	if (!parent || parent.isItem || parent.indent !== 0 || parent.key !== 'routes') {
-		return undefined;
-	}
 
-	// The item ends at the next line that is not indented further than it.
-	for (let i = item.index; i < lines.length; i++) {
-		const line = lines[i];
-		if (i > item.index && line && line.indent <= item.indent) {
-			break;
-		}
-		if (i !== index && line?.key && line.column === column && (i === item.index || !line.isItem)) {
-			used.add(line.key);
-		}
+		const cursor = positions.getOffset(new Position(lineNumber, prefix.length + 1));
+		const hasCursor = (node: YamlNode | undefined): node is YamlMapNode => {
+			if (node?.type !== 'map' || !node.properties.some(property => property.key.startOffset === cursor)) {
+				return false;
+			}
+			// The parser also reads a key that is indented further than the keys of a map as one of them, which the cursor's is not.
+			const other = node.properties.find(property => property.key.startOffset !== cursor);
+			return !other || positions.getPosition(other.key.startOffset).column === prefix.length + 1;
+		};
+		const map = hasCursor(root) ? root : items.find(hasCursor);
+		return map && {
+			keys: map === root ? modelRouterKeys : modelRouterRouteKeys,
+			used: new Set(map.properties.filter(property => property.key.startOffset !== cursor).map(property => property.key.value)),
+		};
 	}
-	return { keys: modelRouterRouteKeys, used };
 }
