@@ -6,7 +6,7 @@
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { IActiveCodeEditor } from '../../../browser/editorBrowser.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
-import { OutlineElement, OutlineGroup, OutlineModel } from '../../documentSymbols/browser/outlineModel.js';
+import { IOutlineModelService, OutlineElement, OutlineGroup, OutlineModel } from '../../documentSymbols/browser/outlineModel.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancelablePromise, createCancelablePromise, Delayer } from '../../../../base/common/async.js';
 import { FoldingController, RangesLimitReporter } from '../../folding/browser/folding.js';
@@ -54,12 +54,13 @@ export class StickyModelProvider extends Disposable implements IStickyModelProvi
 		onProviderUpdate: () => void,
 		@IInstantiationService _languageConfigurationService: ILanguageConfigurationService,
 		@ILanguageFeaturesService _languageFeaturesService: ILanguageFeaturesService,
+		@IOutlineModelService _outlineModelService: IOutlineModelService,
 	) {
 		super();
 
 		switch (this._editor.getOption(EditorOption.stickyScroll).defaultModel) {
 			case ModelProvider.OUTLINE_MODEL:
-				this._modelProviders.push(new StickyModelFromCandidateOutlineProvider(this._editor, _languageFeaturesService));
+				this._modelProviders.push(new StickyModelFromCandidateOutlineProvider(this._editor, _outlineModelService));
 			// fall through
 			case ModelProvider.FOLDING_PROVIDER_MODEL:
 				this._modelProviders.push(new StickyModelFromCandidateSyntaxFoldingProvider(this._editor, onProviderUpdate, _languageFeaturesService));
@@ -210,12 +211,13 @@ abstract class StickyModelCandidateProvider<T> extends Disposable implements ISt
 
 class StickyModelFromCandidateOutlineProvider extends StickyModelCandidateProvider<OutlineModel> {
 
-	constructor(_editor: IActiveCodeEditor, @ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService) {
+	constructor(_editor: IActiveCodeEditor, @IOutlineModelService private readonly _outlineModelService: IOutlineModelService) {
 		super(_editor);
 	}
 
 	protected createModelFromProvider(token: CancellationToken): Promise<OutlineModel> {
-		return OutlineModel.create(this._languageFeaturesService.documentSymbolProvider, this._editor.getModel(), token);
+		// share the request and the result with breadcrumbs, the outline and other consumers
+		return this._outlineModelService.getOrCreate(this._editor.getModel(), token);
 	}
 
 	protected createStickyModel(token: CancellationToken, model: OutlineModel): StickyModel {
