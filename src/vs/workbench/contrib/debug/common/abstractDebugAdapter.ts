@@ -191,6 +191,9 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 		this.pendingRequests.forEach((value, key) => pending.set(key, value));
 		await timeout(500);
 		pending.forEach((callback, request_seq) => {
+			if (!this.pendingRequests.has(request_seq)) {
+				return;
+			}
 			const err: DebugProtocol.Response = {
 				type: 'response',
 				seq: 0,

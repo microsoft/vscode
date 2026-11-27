@@ -6,10 +6,20 @@
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { AbstractDebugAdapter } from '../../common/abstractDebugAdapter.js';
 import { MockDebugAdapter } from './mockDebug.js';
 
+class TestDebugAdapter extends AbstractDebugAdapter {
+	startSession(): Promise<void> { return Promise.resolve(); }
+	stopSession(): Promise<void> { return Promise.resolve(); }
+	sendMessage(message: DebugProtocol.ProtocolMessage): void { }
+	public cancelRequests(): Promise<void> {
+		return this.cancelPendingRequests();
+	}
+}
+
 suite('Debug - AbstractDebugAdapter', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('event ordering', () => {
 		let adapter: MockDebugAdapter;
@@ -50,6 +60,69 @@ suite('Debug - AbstractDebugAdapter', () => {
 			await timeout(0);
 
 			assert.deepStrictEqual(output, ['a', 'b', 'c', '--end microtask--', '--end microtask--', '--end microtask--']);
+		});
+	});
+
+	suite('request cancellation', () => {
+		test('does not invoke callback twice if request resolves during cancellation grace period', async () => {
+			const adapter = store.add(new TestDebugAdapter());
+			const callbacks: string[] = [];
+			const seq = adapter.sendRequest('testCommand', {}, res => {
+				callbacks.push(res.success ? 'success' : 'canceled');
+			});
+
+			const cancelPromise = adapter.cancelRequests();
+
+			// Simulate response arriving during the 500ms grace period
+			await timeout(50);
+			adapter.acceptMessage({
+				type: 'response',
+				seq: 1,
+				request_seq: seq,
+				command: 'testCommand',
+				success: true
+			});
+
+			await cancelPromise;
+			assert.deepStrictEqual(callbacks, ['success']);
+		});
+
+		test('invokes callback with canceled response if request does not resolve within grace period', async () => {
+			const adapter = store.add(new TestDebugAdapter());
+			const callbacks: string[] = [];
+			adapter.sendRequest('testCommand', {}, res => {
+				callbacks.push(res.success ? 'success' : 'canceled');
+			});
+
+			await adapter.cancelRequests();
+			assert.deepStrictEqual(callbacks, ['canceled']);
+		});
+
+		test('handles mixed resolution and cancellation correctly', async () => {
+			const adapter = store.add(new TestDebugAdapter());
+			const results = new Map<number, string>();
+			const seq1 = adapter.sendRequest('cmd1', {}, res => {
+				results.set(seq1, res.success ? 'success' : 'canceled');
+			});
+			const seq2 = adapter.sendRequest('cmd2', {}, res => {
+				results.set(seq2, res.success ? 'success' : 'canceled');
+			});
+
+			const cancelPromise = adapter.cancelRequests();
+
+			// seq1 resolves during grace period
+			await timeout(50);
+			adapter.acceptMessage({
+				type: 'response',
+				seq: 1,
+				request_seq: seq1,
+				command: 'cmd1',
+				success: true
+			});
+
+			await cancelPromise;
+			assert.strictEqual(results.get(seq1), 'success');
+			assert.strictEqual(results.get(seq2), 'canceled');
 		});
 	});
 });
