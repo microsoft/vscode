@@ -1267,6 +1267,15 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 			const id = this.identityProvider.getId(element).toString();
 			const result = childrenTreeNodesById.get(id);
+			const childAsyncDataTreeNode = result?.node ?? createAsyncDataTreeNode({ element, parent: node, id, hasChildren, defaultCollapseState: this.getDefaultCollapseState(element) });
+
+			if (viewStateContext && viewStateContext.viewState.focus && viewStateContext.viewState.focus.indexOf(id) > -1) {
+				viewStateContext.focus.push(childAsyncDataTreeNode);
+			}
+
+			if (viewStateContext && viewStateContext.viewState.selection && viewStateContext.viewState.selection.indexOf(id) > -1) {
+				viewStateContext.selection.push(childAsyncDataTreeNode);
+			}
 
 			if (result) {
 				const asyncDataTreeNode = result.node;
@@ -1291,16 +1300,6 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 				}
 
 				return asyncDataTreeNode;
-			}
-
-			const childAsyncDataTreeNode = createAsyncDataTreeNode({ element, parent: node, id, hasChildren, defaultCollapseState: this.getDefaultCollapseState(element) });
-
-			if (viewStateContext && viewStateContext.viewState.focus && viewStateContext.viewState.focus.indexOf(id) > -1) {
-				viewStateContext.focus.push(childAsyncDataTreeNode);
-			}
-
-			if (viewStateContext && viewStateContext.viewState.selection && viewStateContext.viewState.selection.indexOf(id) > -1) {
-				viewStateContext.selection.push(childAsyncDataTreeNode);
 			}
 
 			if (viewStateContext && viewStateContext.viewState.expanded && viewStateContext.viewState.expanded.indexOf(id) > -1) {

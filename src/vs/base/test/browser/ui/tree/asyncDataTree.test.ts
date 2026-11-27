@@ -138,6 +138,50 @@ suite('AsyncDataTree', function () {
 		assert.strictEqual(container.querySelectorAll('.monaco-list-row').length, 1);
 	});
 
+	test('setInput restores focus and selection on reused nodes', async () => {
+		const model = new Model({
+			id: 'root',
+			children: [{ id: 'a' }, { id: 'b' }]
+		});
+		const tree = store.add(new AsyncDataTree<Element, Element>('test', document.createElement('div'), new VirtualDelegate(), [new Renderer()], new DataSource(), { identityProvider: new IdentityProvider() }));
+		await tree.setInput(model.root);
+		tree.setFocus([model.get('b')]);
+		tree.setSelection([model.get('a'), model.get('b')]);
+		const viewState = tree.getViewState();
+
+		tree.setFocus([model.get('a')]);
+		tree.setSelection([]);
+		await tree.setInput(model.root, viewState);
+
+		assert.deepStrictEqual({
+			focus: tree.getFocus(),
+			selection: tree.getSelection()
+		}, {
+			focus: [model.get('b')],
+			selection: [model.get('a'), model.get('b')]
+		});
+	});
+
+	test('setInput restores selection across reused and new identities', async () => {
+		const model = new Model({
+			id: 'root',
+			children: [{ id: 'a' }, { id: 'b' }]
+		});
+		const tree = store.add(new AsyncDataTree<Element, Element>('test', document.createElement('div'), new VirtualDelegate(), [new Renderer()], new DataSource(), { identityProvider: new IdentityProvider() }));
+		await tree.setInput(model.root);
+
+		model.root.children = [{ id: 'a', suffix: 'updated' }, { id: 'c' }];
+		await tree.setInput(model.root, { focus: ['a'], selection: ['a', 'c'] });
+
+		assert.deepStrictEqual({
+			focus: tree.getFocus(),
+			selection: tree.getSelection()
+		}, {
+			focus: [model.get('a')],
+			selection: [model.get('a'), model.get('c')]
+		});
+	});
+
 	test('issue #68648', async () => {
 		const container = document.createElement('div');
 
