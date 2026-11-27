@@ -30,7 +30,7 @@ import { AHP_AUTH_REQUIRED, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolEr
 import { readFolderGitHubState, readSessionGitState, type ChangesetOperationFollowUp, type ISessionFileDiff, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
-import { isFolderOnlyScope, isSessionChatInFolder, readSessionFolderScopeGitState, resolveChangesetOwnerScope, resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
+import { getDiffBaseBranch, isFolderOnlyScope, isSessionChatInFolder, readSessionFolderScopeGitState, resolveChangesetOwnerScope, resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { IAgentHostGitHubService } from './agentHostGitHubService.js';
 import { parseGitHubOwnerRepoFromUrl } from './agentHostGitService.js';
@@ -279,8 +279,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		// conversation's folder.
 		let recordedBaseBranch: string | undefined;
 		if (isFolderOnlyScope(this._stateManager, scope)) {
-			const folderGitState = readSessionFolderScopeGitState(this._stateManager, scope);
-			recordedBaseBranch = folderGitState?.baseBranchRef ?? folderGitState?.baseBranchName;
+			recordedBaseBranch = getDiffBaseBranch(readSessionFolderScopeGitState(this._stateManager, scope));
 		} else {
 			recordedBaseBranch = await this._resolveBaseBranch(scope.sourceUri);
 		}

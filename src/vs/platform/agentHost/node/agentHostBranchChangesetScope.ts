@@ -135,6 +135,15 @@ export function readSessionFolderScopeGitState(stateManager: AgentHostStateManag
 		: readFolderScopeGitState(meta, getWorkingDirectoryScopeId(scope.workingDirectories));
 }
 
+/**
+ * The base a folder's Branch Changes and pull request compare against, from its Git state: the full ref it records (such
+ * as `refs/remotes/origin/main`), so that a stale or missing local branch of that name does not change them, else the
+ * branch name.
+ */
+export function getDiffBaseBranch(gitState: ISessionGitState | undefined): string | undefined {
+	return gitState?.baseBranchRef ?? gitState?.baseBranchName;
+}
+
 /** The folder whose GitHub and pull request state a session, chat or folder changeset owner uses. */
 export interface IGitHubStateFolder {
 	readonly sessionUri: ProtocolURI;
