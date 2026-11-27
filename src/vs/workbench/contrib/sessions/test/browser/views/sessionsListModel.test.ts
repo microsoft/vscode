@@ -13,8 +13,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { ChatInteractivity, IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { ISessionGroup, SessionGroupTree } from '../../../browser/sessionGroupsService.js';
 import { isSessionGroupItem, isSessionItem, isSessionPlaceholder, isSessionSection, isSessionShowMore, SessionListItem, SessionsGrouping, SessionsSorting } from '../../../browser/views/sessionsListCommon.js';
-import { RECENTLY_UPDATED_SESSION_THRESHOLD_MS } from '../../../browser/views/sessionsListHelpers.js';
-import { buildSessionsListModel, computeRenderValidUntil, EMPTY_SESSIONS_LIST_RENDER_SNAPSHOT, FOUR_DAYS_MS, ISessionsListModelGroups, ISessionsListModelInput } from '../../../browser/views/sessionsListModel.js';
+import { QUICK_CHATS_SECTION_ID, RECENTLY_UPDATED_SESSION_THRESHOLD_MS } from '../../../browser/views/sessionsListHelpers.js';
+import { buildSessionsListModel, computeRenderValidUntil, EMPTY_SESSIONS_LIST_RENDER_SNAPSHOT, FOUR_DAYS_MS, ISessionsListModelGroups, ISessionsListModelInput, SCOPE_EMPTY_PLACEHOLDER_ID } from '../../../browser/views/sessionsListModel.js';
 import { IInboxSessionAttention, InboxNotificationPriority, InboxTab } from '../../../common/sessionAttentionService.js';
 import { ISessionComparison, SessionComparisonParticipantRole } from '../../../common/sessionComparison.js';
 import { SessionInboxSection } from '../../../common/sessionInbox.js';
@@ -107,6 +107,8 @@ suite('Sessions - SessionsListModel', () => {
 			grouping: SessionsGrouping.Workspace,
 			sorting: SessionsSorting.Updated,
 			scoped: false,
+			hasSessionScope: false,
+			scopeBar: false,
 			listsQuickChats: true,
 			quickChatsInTimeGrouping: false,
 			offersWorktreeFilter: true,
@@ -140,7 +142,7 @@ suite('Sessions - SessionsListModel', () => {
 			showsCanvasesSection: false,
 			canvasesSection: undefined,
 			pinnedCanvasSections: [],
-			isSessionListed: () => true,
+			isSessionInScope: () => true,
 			isSessionPinned: () => false,
 			getSortKey: (entry, sorting) => sorting === SessionsSorting.Updated ? entry.updatedAt.get().getTime() : entry.createdAt.getTime(),
 			groups: createGroups(),
@@ -374,6 +376,44 @@ suite('Sessions - SessionsListModel', () => {
 			nested: [caller.resource.toString()],
 			connectors: [['att1', 'middle'], ['att2', 'last']],
 			labels: [['att1', 'Model A'], ['att2', 'Model B']],
+		});
+	});
+
+	test('applies scopeBar and list-side session scope consistently across filtering, quick chats, and empty placeholder', () => {
+		const here = createSession('here', { workspaceLabel: 'Repo', updatedAt: NOW - 2_000 });
+		const other = createSession('other', { workspaceLabel: 'Other', updatedAt: NOW - 1_000 });
+		const quick = createSession('quick', { quickChat: true, updatedAt: NOW - 500 });
+		const observedScopedByBar: boolean[] = [];
+
+		const barQuickOnly = buildSessionsListModel(createInput({
+			grouping: SessionsGrouping.Workspace,
+			sessions: [here, other, quick],
+			scoped: true,
+			scopeBar: true,
+			activeSession: other,
+			isSessionInScope: session => session.sessionId === 'quick',
+			matchesFilter: (_session, scopedByBar) => {
+				observedScopedByBar.push(scopedByBar);
+				return true;
+			},
+			matchesInboxScope: session => session.sessionId === 'quick',
+		}));
+
+		const emptySessionScope = buildSessionsListModel(createInput({
+			grouping: SessionsGrouping.Date,
+			sessions: [here],
+			hasSessionScope: true,
+			isSessionInScope: () => false,
+		}));
+
+		assert.deepStrictEqual({
+			barTree: describeNodes(barQuickOnly.children),
+			scopedByBar: observedScopedByBar,
+			emptyTree: describeNodes(emptySessionScope.children),
+		}, {
+			barTree: [{ section: QUICK_CHATS_SECTION_ID, children: [{ session: 'quick' }] }],
+			scopedByBar: [true],
+			emptyTree: [{ placeholder: SCOPE_EMPTY_PLACEHOLDER_ID }],
 		});
 	});
 });

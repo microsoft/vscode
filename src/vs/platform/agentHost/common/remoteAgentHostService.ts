@@ -359,6 +359,22 @@ export interface IRemoteAgentHostCreatedConnection {
 /** Observes readiness across inner and outer retries; disposal is intentional, failure is terminal. */
 export type RemoteAgentHostConnectionObserver = (state: 'connecting' | 'connected' | 'reconnecting' | 'failed' | 'disposed') => void;
 
+/** The outcome of one dial whose connection the factory started to build. */
+export interface IRemoteAgentHostConnectionAttempt {
+	readonly userInitiated: boolean;
+	/** Dial number within the current retry cycle, starting at one. */
+	readonly attempt: number;
+	readonly durationMs: number;
+	/** Why the dial failed, or `undefined` when the protocol handshake completed. */
+	readonly failure?: {
+		readonly error: unknown;
+		/** Whether the factory built the connection and the protocol handshake then failed. */
+		readonly duringHandshake: boolean;
+		/** Whether another automatic dial was scheduled, or the client is restoring the connection itself. */
+		readonly willRetry: boolean;
+	};
+}
+
 /** Builds agent host connections of one {@link RemoteAgentHostEntryType}. */
 export interface IRemoteAgentHostConnectionFactory {
 	/** The entry type this factory builds. */
@@ -376,6 +392,12 @@ export interface IRemoteAgentHostConnectionFactory {
 	 * itself so handshake outcome classification lives in exactly one place.
 	 */
 	createConnection(entry: IRemoteAgentHostEntry, options: IRemoteAgentHostConnectOptions): Promise<IRemoteAgentHostCreatedConnection>;
+	/**
+	 * Reports the outcome of a dial after {@link createConnection} was called,
+	 * once the service has decided whether to retry. Not called for dials
+	 * discarded because the entry was removed or replaced.
+	 */
+	reportConnectionAttempt?(entry: IRemoteAgentHostEntry, attempt: IRemoteAgentHostConnectionAttempt): void;
 }
 
 /** Raw shape of persisted remote agent host entries. */

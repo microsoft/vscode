@@ -26,7 +26,7 @@ import { createSessionHostServices, ISessionHost, ISessionHostService, SessionHo
 import { autorun, derived, disposableObservableValue, IObservable, observableValue, runOnChange, transaction } from '../../../../../base/common/observable.js';
 import { ISessionGridPane, paneShownOfSession } from '../../../../services/sessions/browser/sessionGridPane.js';
 import { ISessionsService } from '../sessionsService.js';
-import { SessionIsMaximizedContext } from '../../common/contextkeys.js';
+import { SessionHasSplitChatsContext, SessionIsMaximizedContext } from '../../common/contextkeys.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../common/layoutConstants.js';
 import { setHostSessionContextKeys } from '../../common/sessionContextKeys.js';
 import { ISessionChangesStatsCache } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
@@ -220,8 +220,10 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 
 		// When the session shows a grid of chats (more than one group), let the
 		// header span the full width too; with a lone group it stays centered.
+		const hasSplitChatsKey = SessionHasSplitChatsContext.bindTo(this._scopedContextKeyService);
 		this._register(autorun(reader => {
 			const isGridLayout = this._groupsView.groupCount.read(reader) > 1;
+			hasSplitChatsKey.set(isGridLayout);
 			if (this._isGridLayout === isGridLayout) {
 				return;
 			}
@@ -561,6 +563,11 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 	/** Saves the layout of the chats of the session shown, which another view restores when it shows the session. */
 	saveLayout(): void {
 		this._groupsView.saveLayout();
+	}
+
+	/** Gives the chat groups of the session shown equal sizes, keeping their arrangement. */
+	evenChatGroupSizes(): void {
+		this._groupsView.evenSizes();
 	}
 
 	moveActiveChatToAdjacentGroup(direction: 'previous' | 'next'): void {

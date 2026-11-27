@@ -431,7 +431,7 @@ app.on('ready', async () => {
 		throw new Error('Remote resource test server did not bind to a TCP port');
 	}
 	protocol.handle('vscode-remote-resource', createRemoteResourceRequestHandler({ warn() { } }));
-	ipcMain.handle('vscode:test-platform-request', async (_event, options, cancelOnRedirect = false) => {
+	ipcMain.handle('vscode:test-platform-request', async (_event, options, cancelOnRedirect = false, cancelOnBody = false) => {
 		const [{ nodeRequest }, { CancellationTokenSource }, { streamToBuffer }] = await Promise.all([
 			import(url.pathToFileURL(path.join(__dirname, `../../../${outDir}/vs/platform/request/node/requestService.js`)).href),
 			import(url.pathToFileURL(path.join(__dirname, `../../../${outDir}/vs/base/common/cancellation.js`)).href),
@@ -456,6 +456,9 @@ app.on('ready', async () => {
 					return request;
 				},
 			}, source.token);
+			if (cancelOnBody) {
+				context.stream.on('data', () => source.cancel());
+			}
 			return { statusCode: context.res.statusCode, body: (await streamToBuffer(context.stream)).toString(), redirectModes };
 		} finally {
 			source.dispose();

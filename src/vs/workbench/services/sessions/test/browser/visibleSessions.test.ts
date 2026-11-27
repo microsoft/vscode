@@ -1127,6 +1127,27 @@ suite('VisibleSessions', () => {
 		});
 	});
 
+	test('swapSlots swaps the places of two slots, each keeping its session, pane and pin, and activates the first; anything but two distinct slots changes nothing', () => {
+		const replaced: string[] = [];
+		const model = createModel(session => replaced.push(session.sessionId));
+		const [A, B, C] = ['A', 'B', 'C'].map(id => stubSession(id));
+		model.restoreGrid([{ session: A, sticky: true }, { session: B, sticky: false }, { session: C, sticky: false }], 1);
+		const [paneOfA, paneOfB, paneOfC] = model.slotPanes.get();
+
+		const swapped = model.swapSlots('C', 'A');
+		const rejected = [model.swapSlots('A', 'A'), model.swapSlots('A', 'X'), model.swapSlots(undefined, 'A')];
+
+		assert.deepStrictEqual({ swapped, rejected, ...snapshot(model), panes: model.slotPanes.get(), replaced }, {
+			swapped: true,
+			rejected: [false, false, false],
+			visible: ['C', 'B', 'A'],
+			active: 'C',
+			sticky: ['A'],
+			panes: [paneOfC, paneOfB, paneOfA],
+			replaced: [],
+		});
+	});
+
 	suite('restoreGrid', () => {
 
 		test('builds the grid in order with the correct active and sticky slots', () => {

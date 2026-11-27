@@ -471,7 +471,17 @@ export class ClaudeAgentSession extends Disposable implements IRematerializer {
 		super();
 		this._chatChannelUri = chatChannelUri;
 		this.project = project;
-		this._register(this._configurationService.onDidRootConfigChange(() => this.markMcpConfigurationDirty()));
+		// `onDidRootConfigChange` fires for every root-config key, including transient status values other providers
+		// publish (e.g. Copilot's model catalog status). Only rebuild the SDK for the root inputs of the GitHub MCP server.
+		let gitHubMcpServerEnabled = this._isGitHubMcpServerEnabled();
+		this._register(this._configurationService.onDidRootConfigChange(() => {
+			const enabled = this._isGitHubMcpServerEnabled();
+			if (enabled !== gitHubMcpServerEnabled) {
+				gitHubMcpServerEnabled = enabled;
+				this.markMcpConfigurationDirty();
+			}
+		}));
+		this._register(this._gitHubEndpointService.onDidChange(() => this.markMcpConfigurationDirty()));
 		this._register(this._authenticationService.onDidChangeAuthToken(event => {
 			if (event.resource === this._gitHubEndpointService.getCopilotResource().resource) {
 				this.markMcpConfigurationDirty();
@@ -875,13 +885,17 @@ export class ClaudeAgentSession extends Disposable implements IRematerializer {
 		};
 	}
 
+	private _isGitHubMcpServerEnabled(): boolean {
+		return this._configurationService.getRootValue(platformRootSchema, AgentHostGitHubMcpServerEnabledConfigKey) !== false;
+	}
+
 	private async _getGitHubMcpServerConfiguration(): Promise<IMcpServerConfiguration | undefined> {
 		const resource = this._gitHubEndpointService.getCopilotResource();
 		const token = this._authenticationService.getAuthToken({
 			resource: resource.resource,
 			scopes: resource.scopes_supported,
 		});
-		if (!token || this._configurationService.getRootValue(platformRootSchema, AgentHostGitHubMcpServerEnabledConfigKey) === false) {
+		if (!token || !this._isGitHubMcpServerEnabled()) {
 			return undefined;
 		}
 		try {

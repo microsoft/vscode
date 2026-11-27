@@ -385,6 +385,17 @@ suite('ChatViewSessionsGate', () => {
 		}, { local: 'true/true', remote: 'true/false', off: 'false/false', agentsWindow: 'false/true' });
 	});
 
+	test('lists every session from the providers wherever the Sessions list replaces the Chat view\'s list, whatever its workspaces filter, but not in a remote window, whose Chat view keeps its own', () => {
+		const listsAll = (enabled: boolean, workspacesFilter: boolean, remoteAuthority?: string) => new ChatViewSessionsListService(new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsListEnabled]: enabled, [ChatConfiguration.SessionsListWorkspacesFilterEnabled]: workspacesFilter }), upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false, remoteAuthority })).listsAllSessions.get();
+
+		assert.deepStrictEqual({
+			local: listsAll(true, true),
+			remote: listsAll(true, true, 'ssh-remote+host'),
+			filterOff: listsAll(true, false),
+			listOff: listsAll(false, true),
+		}, { local: true, remote: false, filterOff: true, listOff: false });
+	});
+
 	test('leaves the Chat view as it is in a remote window, with new local chats offered', () => {
 		const before = registered();
 		createGate(true, 'ssh-remote+host');

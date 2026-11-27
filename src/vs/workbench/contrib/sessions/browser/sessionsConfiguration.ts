@@ -12,10 +12,16 @@ import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../platform/cha
 import { AutomationSessionsListMode, ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, USE_WORKTREE_SETTING } from '../common/sessionConfig.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import product from '../../../../platform/product/common/product.js';
-import { NEW_SESSION_WELCOME_GRAPHIC_SETTING, NEW_SESSION_WELCOME_GRAPHICS, WORKSPACE_OPT_OUT_SETTING } from '../common/chatConstants.js';
+import { NEW_SESSION_WELCOME_GRAPHIC_SETTING, NEW_SESSION_WELCOME_GRAPHICS, SESSIONS_LIST_WORKSPACES_FILTER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../common/chatConstants.js';
 
 /** The settings of the sessions list, of the sessions it opens and of its New Session composer. */
 export const sessionsListConfigurationProperties = {
+	[SESSIONS_LIST_WORKSPACES_FILTER_SETTING]: {
+		type: 'boolean',
+		tags: ['experimental'],
+		description: localize('sessions.list.workspacesFilter.enabled', "Shows the workspace and environment filters in every Sessions list grouping, in the Agents window and in editor windows without a folder. Windows with folders keep their own scope. Picking a workspace filters the list and scopes the window to it; All Workspaces shows the sessions of all workspaces and scopes the window to all of them. Each window remembers its own selection, which Inbox shares."),
+		default: false,
+	},
 	[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: {
 		type: 'boolean',
 		tags: ['preview'],

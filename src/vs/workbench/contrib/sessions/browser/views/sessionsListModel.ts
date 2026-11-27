@@ -202,6 +202,8 @@ export interface ISessionsListModelInput {
 	readonly grouping: SessionsGrouping;
 	readonly sorting: SessionsSorting;
 	readonly scoped: boolean;
+	readonly hasSessionScope: boolean;
+	readonly scopeBar: boolean;
 	readonly listsQuickChats: boolean;
 	readonly quickChatsInTimeGrouping: boolean;
 	readonly offersWorktreeFilter: boolean;
@@ -221,7 +223,7 @@ export interface ISessionsListModelInput {
 	readonly activeSession: ISession | undefined;
 	readonly onboardingSession: ISession | undefined;
 	readonly scopedProviderIds: readonly string[] | undefined;
-	readonly matchesFilter: (session: ISession, inbox: boolean, availableWorktrees: ReadonlySet<string>) => boolean;
+	readonly matchesFilter: (session: ISession, scopedByBar: boolean, availableWorktrees: ReadonlySet<string>) => boolean;
 	readonly matchesInboxScope: (session: ISession) => boolean;
 	readonly hasInboxScope: boolean;
 	readonly scheduledOnly: boolean;
@@ -235,7 +237,7 @@ export interface ISessionsListModelInput {
 	readonly showsCanvasesSection: boolean;
 	readonly canvasesSection: ISessionSection | undefined;
 	readonly pinnedCanvasSections: readonly ISessionSection[];
-	readonly isSessionListed: (session: ISession) => boolean;
+	readonly isSessionInScope: (session: ISession) => boolean;
 	readonly isSessionPinned: (session: ISession) => boolean;
 	readonly getSortKey: (entry: SessionSortEntry, sorting: SessionsSorting) => number;
 	readonly groups: ISessionsListModelGroups;
@@ -296,6 +298,7 @@ export function filterSessionsForList(input: ISessionsListModelInput): ISessions
 	const {
 		sessions,
 		grouping,
+		scopeBar,
 		listsQuickChats,
 		offersWorktreeFilter,
 		excludeArchived,
@@ -309,20 +312,21 @@ export function filterSessionsForList(input: ISessionsListModelInput): ISessions
 		scheduledOnly,
 		scheduledSessionResources,
 		pendingSessionMoves,
-		isSessionListed,
+		isSessionInScope,
 		getComparisonForSession,
 		extUri,
 	} = input;
 
 	const inbox = grouping === SessionsGrouping.Inbox;
-	const isEligible = (session: ISession) => isSessionListed(session) && (listsQuickChats || !isQuickChatSession(session));
+	const scopedByBar = inbox || scopeBar;
+	const isEligible = (session: ISession) => isSessionInScope(session) && (listsQuickChats || !isQuickChatSession(session));
 	let filtered = sessions.filter(isEligible);
 	const availableWorktrees = offersWorktreeFilter ? getWorktreeFilterKeys(filtered, () => true, extUri) : new Set<string>();
 	if (scopedProviderIds) {
 		const scopedProviders = new Set(scopedProviderIds);
 		filtered = filtered.filter(s => scopedProviders.has(s.providerId));
 	}
-	filtered = filtered.filter(session => matchesFilter(session, inbox, availableWorktrees));
+	filtered = filtered.filter(session => matchesFilter(session, scopedByBar, availableWorktrees));
 	if (scheduledOnly) {
 		filtered = filtered.filter(session => scheduledSessionResources?.has(session.resource.toString()));
 	}
@@ -344,7 +348,7 @@ export function filterSessionsForList(input: ISessionsListModelInput): ISessions
 	if (pendingSessionMoves.size > 0) {
 		filtered = filtered.filter(session => !pendingSessionMoves.has(session.sessionId));
 	}
-	if (inbox) {
+	if (scopedByBar) {
 		filtered = filtered.filter(session => matchesInboxScope(session));
 	}
 	filtered = filtered.filter(session => {
@@ -368,6 +372,8 @@ export function buildSessionsListModel(input: ISessionsListModelInput, precomput
 		grouping,
 		sorting,
 		scoped,
+		hasSessionScope,
+		scopeBar,
 		excludeArchived,
 		archivedSessionsAvailable,
 		archivedSectionLabel,
@@ -392,6 +398,7 @@ export function buildSessionsListModel(input: ISessionsListModelInput, precomput
 		showsCanvasesSection,
 		canvasesSection,
 		pinnedCanvasSections,
+		isSessionInScope,
 		isSessionPinned,
 		getSortKey,
 		groups: groupsModel,
@@ -415,7 +422,7 @@ export function buildSessionsListModel(input: ISessionsListModelInput, precomput
 	} = input;
 
 	const inbox = grouping === SessionsGrouping.Inbox;
-	const hasQuickChatsSection = !scoped;
+	const hasQuickChatsSection = scopeBar || !scoped;
 	const quickChatsInTimeGrouping = input.quickChatsInTimeGrouping && hasQuickChatsSection;
 	const renderValidUntil = computeRenderValidUntil(sessions, now);
 
@@ -428,7 +435,9 @@ export function buildSessionsListModel(input: ISessionsListModelInput, precomput
 	// Filter sessions and compute Inbox placements (reusing precomputed results when provided)
 	const { filteredSessions: filtered, triggerShowArchivedByDefault } = precomputedInbox ?? filterSessionsForList(input);
 	const revealedSessionIds = [activeSession, onboardingSession].flatMap(session => session ? [session.sessionId] : []);
-	const scope = scoped ? new Set(sessions.map(session => session.sessionId)) : undefined;
+	const scope = (scoped || hasSessionScope || scopeBar)
+		? new Set(sessions.filter(isSessionInScope).map(session => session.sessionId))
+		: undefined;
 	const isComparisonInScope = (comparison: ISessionComparison) => !scope || getComparisonSessions(comparison, getSessionByResource).some(session => scope.has(session.sessionId));
 
 	const inboxPlacements = precomputedInbox

@@ -12,6 +12,9 @@ export const SESSIONS_SEND_LATER_ENABLED_SETTING = 'sessions.sendLater.enabled';
 
 export const SESSIONS_CHAT_TABS_SETTING = 'sessions.showChatTabs';
 
+/** How the session panes of the Agents window are sized when a pane opens, moves or closes. */
+export const SESSIONS_SPLIT_SIZING_SETTING = 'sessions.splitSizing';
+
 export const SESSIONS_DETAILS_POSITION_SETTING = 'sessions.experimental.detailsPosition';
 export const SESSIONS_FLOATING_DETAILS_SETTING = 'sessions.experimental.floatingDetails';
 

@@ -1,7 +1,14 @@
+parameters:
+  # Whether the package steps (see product-build-linux-package.yml) started
+  # signing the deb and rpm packages, which needs the ESRP connection.
+  - name: VSCODE_PRIVILEGED_CONNECTIONS
+    type: boolean
+
 steps:
-  - script: pnpm exec deemon --attach node build/azure-pipelines/linux/codesign.ts
-    condition: succeededOrFailed()
-    displayName: "✍️ Post-job: Codesign deb & rpm"
+  - ${{ if eq(parameters.VSCODE_PRIVILEGED_CONNECTIONS, true) }}:
+    - script: pnpm exec deemon --attach node build/azure-pipelines/linux/codesign.ts
+      condition: succeededOrFailed()
+      displayName: "✍️ Post-job: Codesign deb & rpm"
 
   - script: |
       set -e
