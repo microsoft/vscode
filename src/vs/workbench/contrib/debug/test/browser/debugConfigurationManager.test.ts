@@ -6,7 +6,7 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { OperatingSystem, OS } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -14,7 +14,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationOverrides, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { Workspace, testWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 import { ConfigurationManager } from '../../browser/debugConfigurationManager.js';
 import { DebugConfigurationProviderTriggerKind, IAdapterManager, IConfig, IDebugAdapterExecutable, IDebugSession } from '../../common/debug.js';
@@ -198,6 +199,49 @@ suite('debugConfigurationManager', () => {
 		_debugConfigurationManager = createConfigurationManager();
 
 		assert.deepStrictEqual(_debugConfigurationManager.getAllConfigurations().map(({ name }) => name), ['valid']);
+	});
+
+	test('has no workspace launch in a multi-root workspace without a workspace file', async () => {
+		// Like an editor window entering Agents mode: the workbench state turns to WORKSPACE, but there is no workspace file
+		class AgentsModeContextService extends TestContextService {
+			private readonly workbenchStateEmitter = disposables.add(new Emitter<WorkbenchState>());
+			override get onDidChangeWorkbenchState(): Event<WorkbenchState> { return this.workbenchStateEmitter.event; }
+			private workbenchState = WorkbenchState.EMPTY;
+			override getWorkbenchState(): WorkbenchState { return this.workbenchState; }
+			enterAgentsMode(): void {
+				this.workbenchState = WorkbenchState.WORKSPACE;
+				this.workbenchStateEmitter.fire(this.workbenchState);
+			}
+		}
+		const agentsModeContextService = new AgentsModeContextService(new Workspace('agents', [], null));
+		contextService = agentsModeContextService;
+		configurationService.setUserConfiguration('launch', {
+			configurations: [{ name: 'User', type: 'node', request: 'launch' }]
+		});
+		disposables.delete(_debugConfigurationManager);
+		_debugConfigurationManager = createConfigurationManager();
+
+		agentsModeContextService.enterAgentsMode();
+		await _debugConfigurationManager.selectConfiguration(undefined);
+		const afterSwitch = {
+			launches: _debugConfigurationManager.getLaunches().map(launch => launch.uri?.toString()),
+			selected: _debugConfigurationManager.selectedConfiguration.launch?.uri?.toString()
+		};
+
+		// A selection stored before must not break restoring it after a reload
+		instantiationService.get(IStorageService).store('debug.selectedroot', URI.file('/stale.code-workspace').toString(), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		disposables.delete(_debugConfigurationManager);
+		_debugConfigurationManager = createConfigurationManager();
+		const afterReload = {
+			launches: _debugConfigurationManager.getLaunches().map(launch => launch.uri?.toString()),
+			selected: _debugConfigurationManager.selectedConfiguration.launch?.uri?.toString()
+		};
+
+		const userLaunch = preferencesService.userSettingsResource.toString();
+		assert.deepStrictEqual({ afterSwitch, afterReload }, {
+			afterSwitch: { launches: [userLaunch], selected: userLaunch },
+			afterReload: { launches: [userLaunch], selected: userLaunch }
+		});
 	});
 
 	suite('configuration selection', () => {
