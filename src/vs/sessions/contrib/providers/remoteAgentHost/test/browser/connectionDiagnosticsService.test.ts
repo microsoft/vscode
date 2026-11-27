@@ -140,7 +140,8 @@ suite('ConnectionDiagnosticsService', () => {
 				override readonly onDidHide = Event.map(picker.hide.event, reason => ({ reason }));
 				override show(): void { picker.shows++; }
 				override hide(): void { picker.hide.fire(QuickInputHideReason.Other); }
-				override dispose(): void { }
+				// Like the real picker, disposing hides it.
+				override dispose(): void { picker.hide.fire(QuickInputHideReason.Other); }
 				override get ignoreFocusOut(): boolean { return picker.ignoreFocusOut; }
 				override set ignoreFocusOut(value: boolean) { picker.ignoreFocusOut = value; }
 				override set busy(value: boolean) {

@@ -1009,8 +1009,10 @@ async function promptToConnectViaTunnel(
 			}
 		}
 	} catch (err) {
+		// Disposing the picker hides it, so decide first whether the user closed it.
+		const report = !dismissed && !isCancellationError(err);
 		store.dispose();
-		if (!dismissed && !isCancellationError(err)) {
+		if (report) {
 			notificationService.error(localize('tunnelListFailed', "Failed to list dev tunnels: {0}", err instanceof Error ? err.message : String(err)));
 		}
 		return;
