@@ -19,7 +19,6 @@ import { IRange, Range } from '../../../../common/core/range.js';
 import { IEditorContribution, IEditorDecorationsCollection } from '../../../../common/editorCommon.js';
 import { IModelDeltaDecoration, ITextModel } from '../../../../common/model.js';
 import { LocationLink } from '../../../../common/languages.js';
-import { ILanguageService } from '../../../../common/languages/language.js';
 import { ITextModelService } from '../../../../common/services/resolverService.js';
 import { ClickLinkGesture, ClickLinkKeyboardEvent, ClickLinkMouseEvent } from './clickLinkGesture.js';
 import { PeekContext } from '../../../peekView/browser/peekView.js';
@@ -47,7 +46,6 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 	constructor(
 		editor: ICodeEditor,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
-		@ILanguageService private readonly languageService: ILanguageService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 	) {
 		this.editor = editor;
@@ -213,10 +211,11 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 				}
 
 				const previewValue = this.getPreviewValue(textEditorModel, startLineNumber, result);
-				const languageId = this.languageService.guessLanguageIdByFilepathOrFirstLine(textEditorModel.uri);
+				textEditorModel.tokenization.forceTokenization(startLineNumber);
+				const languageId = textEditorModel.getLanguageIdAtPosition(startLineNumber, result.range.startColumn);
 				this.addDecoration(
 					linkRange,
-					previewValue ? new MarkdownString().appendCodeblock(languageId ? languageId : '', previewValue) : undefined
+					previewValue ? new MarkdownString().appendCodeblock(languageId, previewValue) : undefined
 				);
 				ref.dispose();
 			});
