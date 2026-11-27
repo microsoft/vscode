@@ -13,7 +13,6 @@ import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { toAction } from '../../../../../base/common/actions.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
-import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
@@ -23,7 +22,6 @@ import { equals } from '../../../../../base/common/objects.js';
 import { autorun, constObservable, derived, IObservable, ISettableObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
@@ -37,8 +35,6 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { extractEditorsDropData } from '../../../../../platform/dnd/browser/dnd.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -51,7 +47,6 @@ import { defaultButtonStyles } from '../../../../../platform/theme/browser/defau
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import type { AutomationTarget, IAutomationDescriptor } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AUTOMATION_BLUEPRINT_FILE_SUFFIX } from '../../../../../workbench/contrib/chat/common/automations/automationBlueprint.js';
 import { type AutomationDialogCreateInitialValues, IAutomationDialogService } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { IAutomationRunner } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { type AutomationCatalogueState, type IAutomationProviderDescriptor, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
@@ -84,7 +79,8 @@ import './automationsAccessibility.js';
 
 
 import { AutomationHeaderButtonActionViewItem, AutomationHeaderSplitButtonActionViewItem } from '../../../automations/browser/automationActionViewItems.js';
-import { AutomationCommands, getErrorMessage, importAutomationBlueprint, isAutomationBlueprintResource, refreshAutomations, showAutomationEditDialog, showAutomationsDisabled } from '../../../automations/browser/automationCommands.js';
+import { AutomationCommands, getErrorMessage, refreshAutomations, showAutomationEditDialog, showAutomationsDisabled } from '../../../automations/browser/automationCommands.js';
+import { AutomationImportDropTarget } from '../../../automations/browser/automationImportDropTarget.js';
 
 import { AutomationHistorySection, markAllAutomationRunsRead, resolveAutomationRunSessions } from '../../../automations/browser/automationRunHistory.js';
 
@@ -204,12 +200,6 @@ interface IRenderedAutomationTemplateSection {
 	readonly unreadIndicator: HTMLElement | undefined;
 }
 
-type AutomationDropData =
-	| { readonly kind: 'resource'; readonly resource: URI }
-	| { readonly kind: 'file'; readonly file: File }
-	| { readonly kind: 'invalid'; readonly reason: 'multiple' | 'unsupported' }
-	| { readonly kind: 'none' };
-
 /**
  * Card-style view of automations for the Agents window sessions grid.
  * Uses native VS Code components and styling patterns matching the
@@ -266,6 +256,7 @@ export class AutomationsCardsWidget extends Disposable {
 		this._register(toDisposable(() => focusContext.reset()));
 		const scrollContent = DOM.append(this.element, $('.automations-cards-scroll-content'));
 		this.cardsSection = this._register(instantiationService.createInstance(AutomationCardsSection, scrollContent, this.element));
+		this._register(instantiationService.createInstance(AutomationImportDropTarget, this.element));
 		const historyState = DOM.append(scrollContent, $('.automations-history-state', { role: 'status' }));
 		this._register(autorun(reader => {
 			const state = this.automationService.historyState?.read(reader);
@@ -357,7 +348,6 @@ class AutomationCardsSection extends Disposable {
 	private readonly errorContainer: HTMLElement;
 	private readonly templatesContainer: HTMLElement;
 	private readonly partialStateContainer: HTMLElement;
-	private readonly dropOverlay: HTMLElement;
 	private readonly partialErrorIcon: HTMLElement;
 	private readonly partialStateMessage: HTMLElement;
 	private readonly persistentCards = new Map<string, IAutomationCardEntry>();
@@ -403,7 +393,6 @@ class AutomationCardsSection extends Disposable {
 		@IHoverService private readonly hoverService: IHoverService,
 		@ILogService private readonly logService: ILogService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@IFileService private readonly fileService: IFileService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -458,23 +447,6 @@ class AutomationCardsSection extends Disposable {
 		this.errorCreateButton = this.renderErrorState();
 		this.templatesContainer = DOM.append(parent, $('.automations-templates'));
 		this.templatesContainer.style.display = 'none';
-		this.dropOverlay = DOM.append(this.focusRoot, $('.automations-drop-overlay'));
-		this.dropOverlay.setAttribute('role', 'status');
-		this.dropOverlay.setAttribute('aria-live', 'polite');
-		const dropIcon = DOM.append(this.dropOverlay, $('span.automations-drop-overlay-icon'));
-		dropIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.cloudUpload));
-		dropIcon.setAttribute('aria-hidden', 'true');
-		const dropTitle = DOM.append(this.dropOverlay, $('span.automations-drop-overlay-title'));
-		dropTitle.textContent = localize('automationDropTitle', "Drop to import automation");
-		const dropDescription = DOM.append(this.dropOverlay, $('span.automations-drop-overlay-description'));
-		dropDescription.textContent = localize('automationDropDescription', "You can review the Automation before creating it.");
-		this._register(new DOM.DragAndDropObserver(this.focusRoot, {
-			onDragEnter: event => this.updateDropOverlay(event),
-			onDragOver: event => this.updateDropOverlay(event),
-			onDragLeave: () => this.hideDropOverlay(),
-			onDragEnd: () => this.hideDropOverlay(),
-			onDrop: event => this.handleDrop(event),
-		}));
 		const focusTracker = this._register(DOM.trackFocus(this.focusRoot));
 		this._register(focusTracker.onDidBlur(() => this.clearPendingFocus()));
 		this._register(DOM.addDisposableListener(this.focusRoot, DOM.EventType.FOCUS_OUT, (event: FocusEvent) => {
@@ -504,47 +476,6 @@ class AutomationCardsSection extends Disposable {
 	private setShowDisabled(showDisabled: boolean): void {
 		this.showDisabled.set(showDisabled, undefined);
 		this.storageService.store(SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY, showDisabled, StorageScope.PROFILE, StorageTarget.MACHINE);
-	}
-
-	private updateDropOverlay(event: DragEvent): void {
-		const dropData = getAutomationDropData(event);
-		const canImport = dropData.kind === 'resource' || dropData.kind === 'file';
-		this.dropOverlay.classList.toggle('visible', canImport);
-		if (canImport && event.dataTransfer) {
-			event.dataTransfer.dropEffect = 'copy';
-		}
-	}
-
-	private hideDropOverlay(): void {
-		this.dropOverlay.classList.remove('visible');
-	}
-
-	private handleDrop(event: DragEvent): void {
-		const dropData = getAutomationDropData(event);
-		this.hideDropOverlay();
-		if (dropData.kind === 'none') {
-			return;
-		}
-		DOM.EventHelper.stop(event, true);
-		if (dropData.kind === 'invalid') {
-			const detail = dropData.reason === 'multiple'
-				? localize('automationDropMultiple', "Drop one Automation blueprint file at a time.")
-				: localize('automationDropUnsupported', "Only .automation.md files can be imported.");
-			void this.dialogService.error(localize('automationDropFailed', "Unable to import automation."), detail);
-			return;
-		}
-		const readContent = dropData.kind === 'resource'
-			? async () => (await this.fileService.readFile(dropData.resource)).value.toString()
-			: async () => VSBuffer.wrap(new Uint8Array(await dropData.file.arrayBuffer())).toString();
-		void importAutomationBlueprint(
-			readContent,
-			this.automationDialogService,
-			this.automationService,
-			this.configurationService,
-			this.dialogService,
-			this.logService,
-			this.telemetryService,
-		);
 	}
 
 	render(automations: readonly IAutomationDescriptor[], catalogueState: AutomationCatalogueState, unavailableProviders: readonly IAutomationProviderDescriptor[], templates: readonly IAutomationTemplate[], showDisabled: boolean): void {
@@ -1088,6 +1019,9 @@ class AutomationCardsSection extends Disposable {
 			},
 		}));
 		const createButton = this.renderCreateWithAgentButton(container, disposables, 'automations-cards-create-button');
+		if (!ownership) {
+			DOM.append(container, $('p.automations-cards-empty-drop-hint')).textContent = localize('automationsEmptyDropHint', "or drop an .automation.md file here to import it");
+		}
 		disposables.add(autorun(reader => {
 			const hiddenOwnerships = this.hiddenDisabledOwnerships.read(reader);
 			const hasHiddenDisabled = ownership ? hiddenOwnerships.has(ownership) : hiddenOwnerships.size > 0;
@@ -1698,36 +1632,6 @@ function isSameLocalDate(first: Date, second: Date): boolean {
 
 
 
-function getAutomationDropData(event: DragEvent): AutomationDropData {
-	const editors = extractEditorsDropData(event);
-	if (editors.length > 0) {
-		if (editors.length !== 1 || !editors[0].resource) {
-			return { kind: 'invalid', reason: 'multiple' };
-		}
-		return isAutomationBlueprintResource(editors[0].resource)
-			? { kind: 'resource', resource: editors[0].resource }
-			: { kind: 'invalid', reason: 'unsupported' };
-	}
-
-	const files: File[] = [];
-	if (event.dataTransfer?.files) {
-		for (let index = 0; index < event.dataTransfer.files.length; index++) {
-			const file = event.dataTransfer.files.item(index);
-			if (file) {
-				files.push(file);
-			}
-		}
-	}
-	if (files.length === 0) {
-		return { kind: 'none' };
-	}
-	if (files.length !== 1) {
-		return { kind: 'invalid', reason: 'multiple' };
-	}
-	return files[0].name.toLowerCase().endsWith(AUTOMATION_BLUEPRINT_FILE_SUFFIX)
-		? { kind: 'file', file: files[0] }
-		: { kind: 'invalid', reason: 'unsupported' };
-}
 
 
 

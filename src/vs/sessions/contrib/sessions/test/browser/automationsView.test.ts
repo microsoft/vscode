@@ -83,6 +83,7 @@ import { getShowSharedAutomationsByOthers, setShowSharedAutomationsByOthers } fr
 import { buildAutomationsAccessibleContent } from '../../browser/views/automationsAccessibility.js';
 import { automationRunWithLocalProgress } from '../../browser/views/automationRunProgress.js';
 import { AutomationHistoryActionsContribution } from '../../../automations/browser/automationRunHistory.js';
+import { createDragEvent, ProtectedModeDataTransfer } from '../../../automations/test/browser/automationDragTestUtils.js';
 import { AUTOMATION_TEMPLATES } from '../../browser/views/automationTemplates.js';
 import { AutomationsCardsWidget, AutomationsCustomViewContribution, SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY, SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY } from '../../browser/views/automationsView.js';
 import { AUTOMATIONS_TOUR_ID, createAutomationsTour } from '../../../onboardingTours/browser/tours/automationsTour.js';
@@ -4211,19 +4212,20 @@ suite('AutomationsCardsWidget', () => {
 		const { automationDialogService, widget } = setup('archive', NullHoverService, fileService);
 		const dataTransfer = new DataTransfer();
 		dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify([resource.toString()]));
+		const overlay = () => widget.element.querySelector('.automation-import-drop-overlay')?.className;
 
-		widget.element.dispatchEvent(new DragEvent(EventType.DRAG_ENTER, { bubbles: true, cancelable: true, dataTransfer }));
-		const overlayVisibleWhileDragging = widget.element.querySelector('.automations-drop-overlay')?.classList.contains('visible');
+		widget.element.dispatchEvent(createDragEvent(EventType.DRAG_ENTER, new ProtectedModeDataTransfer(dataTransfer)));
+		const overlayWhileDragging = overlay();
 		widget.element.dispatchEvent(new DragEvent(EventType.DROP, { bubbles: true, cancelable: true, dataTransfer }));
 		await timeout(0);
 
 		assert.deepStrictEqual({
-			overlayVisibleWhileDragging,
-			overlayVisibleAfterDrop: widget.element.querySelector('.automations-drop-overlay')?.classList.contains('visible'),
+			overlayWhileDragging,
+			overlayAfterDrop: overlay(),
 			initialValues: getCreateInitialValues(automationDialogService.lastOptions),
 		}, {
-			overlayVisibleWhileDragging: true,
-			overlayVisibleAfterDrop: false,
+			overlayWhileDragging: 'automation-import-drop-overlay visible accept',
+			overlayAfterDrop: 'automation-import-drop-overlay',
 			initialValues: {
 				name: 'Weekly review',
 				prompt: 'Review the workspace for the past week.',
