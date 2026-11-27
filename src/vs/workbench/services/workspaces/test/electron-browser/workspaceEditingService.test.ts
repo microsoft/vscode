@@ -92,7 +92,7 @@ suite('NativeWorkspaceEditingService - extension host recovery', () => {
 			historyService = store.add(instantiationService.createInstance(HistoryService));
 			instantiationService.stub(IHistoryService, historyService);
 		} else {
-			instantiationService.stub(IHistoryService, 'restoreRecentlyOpened', (savedInWorkspaceId?: string) => { calls.push(`restoreHistory:${savedInWorkspaceId}`); });
+			instantiationService.stub(IHistoryService, 'restoreRecentlyOpened', () => { calls.push('restoreHistory'); });
 		}
 		if (storageFailure) {
 			instantiationService.stub(IStorageService, 'switch', async () => { throw storageFailure; });
@@ -178,7 +178,6 @@ suite('NativeWorkspaceEditingService - extension host recovery', () => {
 
 	test('brings back the editor history from before Agents mode when the workspace was entered, and only then', async () => {
 		const { service, calls } = setupServices(undefined, true, undefined, true);
-		const oldId = testWorkspace(URI.file('/old')).id;
 		service.result = { workspace: { id: 'new', configPath: URI.file('/new.code-workspace') } };
 		await service.enterWorkspace(URI.file('/new.code-workspace'));
 		const enteredFromMode = calls.splice(0);
@@ -188,7 +187,7 @@ suite('NativeWorkspaceEditingService - extension host recovery', () => {
 
 		assert.deepStrictEqual({ enteredFromMode, enteredOutsideMode }, {
 			// The history is restored after the storage moved, so it is restored in the storage of the new workspace
-			enteredFromMode: ['stop', 'agentsMode:false', 'switchStorage:true', `restoreHistory:${oldId}`, 'start'],
+			enteredFromMode: ['stop', 'agentsMode:false', 'switchStorage:true', 'restoreHistory', 'start'],
 			enteredOutsideMode: ['stop', 'switchStorage:true', 'start'],
 		});
 	});

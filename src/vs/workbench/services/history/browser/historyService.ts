@@ -48,8 +48,6 @@ interface ISerializedPutAwayHistory {
 
 interface ISerializedSavedHistory {
 	readonly version: 1;
-	/** The workspace the list was saved in: a workspace that the window enters later does not get it back. */
-	readonly workspace: string;
 	readonly entries: readonly ISerializedEditorHistoryEntry[];
 	readonly putAway: ISerializedPutAwayHistory['folders'];
 }
@@ -1395,12 +1393,12 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// Like the stored history, the saved list keeps the resources of the editors
 		const entries = this.history.flatMap(entry => isSideBySideEditorInput(entry) ? this.toResourceInputs(entry) : [entry]);
 		const putAway = [...this.ensurePutAwayHistoryLoaded()].map(([folder, folderEntries]) => ({ folder, entries: this.serializeHistory(folderEntries) }));
-		const saved: ISerializedSavedHistory = { version: 1, workspace: this.contextService.getWorkspace().id, entries: this.serializeHistory(entries), putAway };
+		const saved: ISerializedSavedHistory = { version: 1, entries: this.serializeHistory(entries), putAway };
 		this.storageService.store(HistoryService.SAVED_HISTORY_STORAGE_KEY, JSON.stringify(saved), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		this.storageService.remove(HistoryService.SAVED_HISTORY_CLEARED_STORAGE_KEY, StorageScope.WORKSPACE);
 	}
 
-	restoreRecentlyOpened(savedInWorkspaceId = this.contextService.getWorkspace().id): void {
+	restoreRecentlyOpened(): void {
 		if (this.storageService.get(HistoryService.SAVED_HISTORY_STORAGE_KEY, StorageScope.WORKSPACE) === undefined) {
 			return;
 		}
@@ -1410,7 +1408,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		const cleared = this.storageService.getBoolean(HistoryService.SAVED_HISTORY_CLEARED_STORAGE_KEY, StorageScope.WORKSPACE, false);
 		this.storageService.remove(HistoryService.SAVED_HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
 		this.storageService.remove(HistoryService.SAVED_HISTORY_CLEARED_STORAGE_KEY, StorageScope.WORKSPACE);
-		if (!saved || !cleared || saved.workspace !== savedInWorkspaceId) {
+		if (!saved || !cleared) {
 			return;
 		}
 
@@ -1426,15 +1424,15 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.putAwayHistory = saved.putAway;
 	}
 
-	private readSavedHistory(): { readonly workspace: string; readonly entries: IResourceEditorInput[]; readonly putAway: Map<string, IResourceEditorInput[]> } | undefined {
+	private readSavedHistory(): { readonly entries: IResourceEditorInput[]; readonly putAway: Map<string, IResourceEditorInput[]> } | undefined {
 		const savedRaw = this.storageService.get(HistoryService.SAVED_HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
 		if (savedRaw) {
 			try {
 				const savedParsed: Partial<ISerializedSavedHistory> | undefined = JSON.parse(savedRaw);
-				if (savedParsed?.version === 1 && typeof savedParsed.workspace === 'string' && Array.isArray(savedParsed.entries)) {
+				if (savedParsed?.version === 1 && Array.isArray(savedParsed.entries)) {
 					const putAway = this.parsePutAwayFolders(savedParsed.putAway);
 					if (putAway) {
-						return { workspace: savedParsed.workspace, entries: this.deserializeHistory(savedParsed.entries), putAway };
+						return { entries: this.deserializeHistory(savedParsed.entries), putAway };
 					}
 				}
 			} catch (error) {

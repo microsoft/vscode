@@ -552,6 +552,19 @@ suite('SessionsListFilters', () => {
 		assert.deepStrictEqual({ fixed, unfixed: filters.inboxScope }, { fixed: { workspace: folder }, unfixed: { workspace: other } });
 	});
 
+	test('once no longer fixed, the pick is the user\'s again, not the one fixed on the window\'s folder', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const filters = createFilters(storage);
+		const picked = SessionsListFilters.toLocalInboxWorkspace(URI.file('/work/picked'));
+		const windowFolder = SessionsListFilters.toLocalInboxWorkspace(URI.file('/work/app'));
+		filters.pickInboxWorkspace(picked);
+		filters.setInboxScopeFixed(true);
+		filters.pickInboxWorkspace(windowFolder);
+		const fixed = filters.inboxScope;
+		filters.setInboxScopeFixed(false);
+		assert.deepStrictEqual({ fixed, unfixed: filters.inboxScope }, { fixed: { environment: undefined, workspace: windowFolder }, unfixed: { workspace: picked } });
+	});
+
 	test('undoing a reset keeps a fixed pick', () => {
 		const filters = createFilters();
 		const other = SessionsListFilters.toLocalInboxWorkspace(URI.file('/work/other'));

@@ -94,13 +94,18 @@ suite('Agents mode actions', () => {
 		modeActive.set(false);
 		await command.handler(instantiation);
 
+		// A failed entry saves no history, which would otherwise be restored over the history of a later session
+		agentsMode.isActive = false;
+		agentsMode.setActive = async () => { calls.push('failed enter'); throw new Error('failed'); };
+		await assert.rejects(Promise.resolve(command.handler(instantiation)), /failed/);
+
 		assert.deepStrictEqual({
 			enter,
 			entryDisabledByAI,
 			entryDisabledBySetting,
 			exit,
 			calls,
-		}, { enter: true, entryDisabledByAI: true, entryDisabledBySetting: true, exit: true, calls: ['leave', 'restore', 'save', 'enter'] });
+		}, { enter: true, entryDisabledByAI: true, entryDisabledBySetting: true, exit: true, calls: ['leave', 'restore', 'enter', 'save', 'failed enter'] });
 	});
 
 	test('switching stores the secondary side bar width before the switch, which the mode gives it back once switched', async () => {

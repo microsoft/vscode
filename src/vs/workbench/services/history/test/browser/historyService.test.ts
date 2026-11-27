@@ -1502,7 +1502,7 @@ suite('HistoryService', function () {
 			return workbenchTeardown(instantiationService);
 		});
 
-		test('restoring a saved history skips what it cannot read, keeps the list when the saved one cannot be read or is of another workspace, and forgets it', async () => {
+		test('restoring a saved history skips what it cannot read, keeps the list when the saved one cannot be read, restores it in the workspace the storage moved to, and forgets it', async () => {
 			const { contextService, historyService, instantiationService, open } = await createFolderServices(folder);
 			const storageService = instantiationService.invokeFunction(accessor => accessor.get(IStorageService));
 			const restoreAfter = async (saved: object | undefined) => {
@@ -1518,10 +1518,10 @@ suite('HistoryService', function () {
 			};
 
 			// An entry it cannot read is left out
-			const malformedEntry = await restoreAfter({ version: 1, workspace: 'test-workspace', entries: [null], putAway: [] });
-			const malformedPutAway = await restoreAfter({ version: 1, workspace: 'test-workspace', entries: [], putAway: 'folders' });
+			const malformedEntry = await restoreAfter({ version: 1, entries: [null], putAway: [] });
+			const malformedPutAway = await restoreAfter({ version: 1, entries: [], putAway: 'folders' });
 
-			// Entering a workspace from the mode takes the saved history along with the storage of the window
+			// Entering a workspace from the mode takes the saved history along with the storage of the window, and restores it there
 			historyService.clearRecentlyOpened();
 			await open('/repo/a.txt');
 			historyService.saveRecentlyOpened();
@@ -1529,23 +1529,11 @@ suite('HistoryService', function () {
 			contextService.setWorkspace(new Workspace('other-workspace', testWorkspace(folder).folders, false, null, () => false));
 			await open('/repo/b.txt');
 			historyService.restoreRecentlyOpened();
-			const otherWorkspace = paths(historyService);
-
-			// Entering it names the workspace it saved the history in, which brings the history back
-			historyService.clearRecentlyOpened();
-			contextService.setWorkspace(new Workspace('test-workspace', testWorkspace(folder).folders, false, null, () => false));
-			await open('/repo/a.txt');
-			historyService.saveRecentlyOpened();
-			historyService.clearRecentlyOpened();
-			contextService.setWorkspace(new Workspace('other-workspace', testWorkspace(folder).folders, false, null, () => false));
-			await open('/repo/b.txt');
-			historyService.restoreRecentlyOpened('test-workspace');
 			const enteredWorkspace = paths(historyService);
 
-			assert.deepStrictEqual({ malformedEntry, malformedPutAway, otherWorkspace, enteredWorkspace }, {
+			assert.deepStrictEqual({ malformedEntry, malformedPutAway, enteredWorkspace }, {
 				malformedEntry: { paths: [], forgotten: true },
 				malformedPutAway: { paths: ['/repo/b.txt'], forgotten: true },
-				otherWorkspace: ['/repo/b.txt'],
 				enteredWorkspace: ['/repo/a.txt'],
 			});
 
@@ -1564,10 +1552,10 @@ suite('HistoryService', function () {
 				await open('/repo/session.txt');
 
 				// Entering a workspace leaves the mode without the toggle: the storage moves to the new workspace, and the
-				// workspace editing service restores the history saved in the workspace it left
+				// workspace editing service restores the history saved with it
 				contextService.setWorkspace(new Workspace('entered-workspace', testWorkspace(folder).folders, false, null, () => false));
 				if (restoredOnLeave) {
-					historyService.restoreRecentlyOpened('test-workspace');
+					historyService.restoreRecentlyOpened();
 				}
 				const onLeave = { paths: paths(historyService), savedKeys: savedKeys() };
 
@@ -1591,11 +1579,11 @@ suite('HistoryService', function () {
 					onLeave: { paths: ['/repo/a.txt'], savedKeys: [] },
 					afterRestart: { paths: ['/repo/a.txt'], savedKeys: [] },
 				},
-				// Known limit: when entering fails after the main process entered the workspace, the history is not restored on
-				// leave, and startup drops the history saved in the other workspace
+				// When entering fails after the main process entered the workspace, the history is not restored on leave, but
+				// the history saved with the storage comes back when the window starts outside the mode
 				notRestoredOnLeave: {
 					onLeave: { paths: ['/repo/session.txt'], savedKeys: ['history.entries.saved', 'history.entries.saved.cleared'] },
-					afterRestart: { paths: ['/repo/session.txt'], savedKeys: [] },
+					afterRestart: { paths: ['/repo/a.txt'], savedKeys: [] },
 				},
 			});
 		});

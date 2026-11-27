@@ -197,7 +197,7 @@ export class TestHistoryService implements IHistoryService {
 	clear(): void { }
 	clearRecentlyOpened(): void { }
 	saveRecentlyOpened(): void { }
-	restoreRecentlyOpened(_savedInWorkspaceId?: string): void { }
+	restoreRecentlyOpened(): void { }
 	getHistory(): readonly (EditorInput | IResourceEditorInput)[] { return []; }
 	async openNextRecentlyUsedEditor(group?: GroupIdentifier): Promise<void> { }
 	async openPreviouslyUsedEditor(group?: GroupIdentifier): Promise<void> { }

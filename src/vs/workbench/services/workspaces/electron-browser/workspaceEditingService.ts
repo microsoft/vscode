@@ -241,7 +241,7 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 				// The window left Agents mode for good: bring back the editor history it had before
 				// the mode, which the new workspace carried along with the rest of the storage
 				if (leftAgentsMode) {
-					this.historyService.restoreRecentlyOpened(oldWorkspace.id);
+					this.historyService.restoreRecentlyOpened();
 				}
 
 				// Fire event to allow participants to join

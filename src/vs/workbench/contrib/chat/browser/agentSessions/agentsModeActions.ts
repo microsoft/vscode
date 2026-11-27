@@ -62,8 +62,10 @@ export class ToggleAgentsModeAction extends Action2 {
 			await agentsModeService.setActive(false);
 			historyService.restoreRecentlyOpened();
 		} else {
-			historyService.saveRecentlyOpened();
+			// Saved once in the mode, so a failed entry leaves no saved history behind. Entering keeps the history:
+			// only switching sessions in the mode clears it.
 			await agentsModeService.setActive(true);
+			historyService.saveRecentlyOpened();
 		}
 	}
 }

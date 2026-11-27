@@ -149,11 +149,9 @@ export interface IHistoryService {
 
 	/**
 	 * Brings back the list of recently opened editors that {@link saveRecentlyOpened} saved, if the list was
-	 * cleared since, and forgets the saved list. Keeps the current list when it wasn't cleared, nothing was saved,
-	 * or the list was saved in another workspace.
-	 *
-	 * @param savedInWorkspaceId the workspace the list was saved in, when the window has entered another
-	 * workspace since and carried its storage along. Defaults to the current workspace.
+	 * cleared since, and forgets the saved list. Keeps the current list when it wasn't cleared or nothing was saved.
+	 * The list is saved in the workspace's storage, so a workspace the window enters with its storage carried along
+	 * gets it back too.
 	 */
-	restoreRecentlyOpened(savedInWorkspaceId?: string): void;
+	restoreRecentlyOpened(): void;
 }
