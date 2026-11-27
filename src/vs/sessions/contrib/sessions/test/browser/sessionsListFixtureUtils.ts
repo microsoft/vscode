@@ -79,6 +79,8 @@ import { ISideChatPlacementService } from '../../../../../workbench/contrib/sess
 import { ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { getSessionGroupSectionId, ISessionGroupsService, SessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
+import { ISessionsWorkbenchScopeService } from '../../../../../workbench/contrib/sessions/browser/views/sessionsWorkbenchScope.js';
+import { IWorkspaceFolderRepositories } from '../../../../../workbench/contrib/sessions/browser/workspaceFolderRepositories.js';
 import { ISessionsListUndoService, SessionsListUndoService } from '../../../../../workbench/contrib/sessions/browser/sessionsListUndoService.js';
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../../workbench/services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
@@ -1274,6 +1276,18 @@ export async function renderSessionsViewFixture(context: ComponentFixtureContext
 		override readonly sentimentObs = constObservable<IChatSentiment>({});
 	}());
 	instantiationService.stub(IFocusedSessionHostService, new class extends mock<IFocusedSessionHostService>() { }());
+	// The Agents window: its Inbox grouping shows the bar, and the workspaces filter setting is off
+	instantiationService.stub(ISessionsWorkbenchScopeService, new class extends mock<ISessionsWorkbenchScopeService>() {
+		override readonly enabled = constObservable(false);
+		override readonly windowShowsBar = constObservable(true);
+		override readonly barShown = constObservable(false);
+		override registerScopeBar() { return Disposable.None; }
+	}());
+	instantiationService.stub(IWorkspaceFolderRepositories, new class extends mock<IWorkspaceFolderRepositories>() {
+		override readonly folders = constObservable([]);
+		override readonly repositories = constObservable([]);
+		override readonly gitHubRepositories = constObservable([]);
+	}());
 	instantiationService.stub(IAICustomizationMcpServerCountService, new class extends mock<IAICustomizationMcpServerCountService>() { }());
 	instantiationService.stub(ILanguageModelToolsService, new class extends mock<ILanguageModelToolsService>() { }());
 	instantiationService.stub(IAgentHostToolSetEnablementService, new class extends mock<IAgentHostToolSetEnablementService>() { }());
