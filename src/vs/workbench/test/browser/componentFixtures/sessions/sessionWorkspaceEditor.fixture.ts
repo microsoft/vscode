@@ -9,7 +9,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IDialogService, IFileDialogService, IPrompt } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverService } from '../../../../../platform/hover/browser/hoverService.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
@@ -26,6 +26,13 @@ import { SessionWorkspaceEditorTarget } from '../../../../contrib/sessions/brows
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { registerColors } from '../../../../contrib/terminal/common/terminalColorRegistry.js';
+import { Dialog } from '../../../../../base/browser/ui/dialog/dialog.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { ISessionsManagementService } from '../../../../contrib/sessions/common/sessionsManagement.js';
+import '../../../../contrib/sessions/browser/workspaceEditor/sessionWorkspaceEditor.contribution.js';
+import { REMOVE_SESSION_WORKSPACE_COMMAND_ID } from '../../../../contrib/sessions/browser/workspaceEditor/sessionWorkspaceEditorCommands.js';
 
 // The workspace colors are the terminal's ANSI colors, which both windows load with the terminal
 registerColors();
@@ -97,7 +104,56 @@ export default defineThemedFixtureGroup({ path: 'sessions/workspaceEditor/' }, {
 		labels: { kind: 'screenshot' },
 		render: context => renderWorkspaceEditor(context, { kind: 'edit', workspace: AGENTS }, 'rest', '#ff8800'),
 	}),
+	// Remove Workspace... on a workspace file the user made: deleting it says that it is theirs, and where it is
+	RemoveUsersFile: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderRemoveDialog(context, { ...AGENTS, uri: URI.file('/Users/me/work/agents.code-workspace'), name: 'agents', owned: false }),
+	}),
 });
+
+/** The Remove Workspace command's dialog, as the workbench's dialog shows it, run by the command itself. */
+function renderRemoveDialog(context: ComponentFixtureContext, workspace: IRecentSessionWorkspace): void {
+	const { container, disposableStore, theme } = context;
+	container.style.width = `${WINDOW_WIDTH}px`;
+	container.style.height = `${WINDOW_HEIGHT}px`;
+	container.style.position = 'relative';
+	container.style.backgroundColor = 'var(--vscode-sideBar-background)';
+	const instantiationService = createEditorServices(disposableStore, {
+		colorTheme: theme,
+		additionalServices: registration => {
+			registerWorkbenchServices(registration);
+			registration.defineInstance(ISessionWorkspacesService, new class extends mock<ISessionWorkspacesService>() {
+				declare readonly _serviceBrand: undefined;
+				override getWorkspace(): IRecentSessionWorkspace { return workspace; }
+			}());
+			registration.defineInstance(IUriIdentityService, new class extends mock<IUriIdentityService>() {
+				declare readonly _serviceBrand: undefined;
+				override readonly extUri = extUri;
+			}());
+			registration.definePartialInstance(IQuickInputService, {});
+			registration.definePartialInstance(IEditorService, {});
+			registration.definePartialInstance(ISessionsManagementService, {});
+			registration.defineInstance(IDialogService, new class extends mock<IDialogService>() {
+				declare readonly _serviceBrand: undefined;
+				override prompt<T>(prompt: IPrompt<T>): Promise<never> {
+					const buttons = [...(prompt.buttons ?? []).map(button => button.label), 'Cancel'];
+					const dialog = disposableStore.add(new Dialog(container, prompt.message, buttons, {
+						cancelId: buttons.length - 1,
+						detail: typeof prompt.detail === 'string' ? prompt.detail : undefined,
+						type: 'warning',
+						buttonStyles: defaultButtonStyles,
+						checkboxStyles: defaultCheckboxStyles,
+						inputBoxStyles: defaultInputBoxStyles,
+						dialogStyles: defaultDialogStyles,
+					}));
+					void dialog.show();
+					return new Promise(() => { });
+				}
+			}());
+		},
+	});
+	void instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(REMOVE_SESSION_WORKSPACE_COMMAND_ID)!.handler(accessor, workspace.uri));
+}
 
 async function renderWorkspaceEditor(context: ComponentFixtureContext, target: SessionWorkspaceEditorTarget, interaction: Interaction = 'rest', lastCustomColor?: string): Promise<void> {
 	const { container, disposableStore, theme } = context;
