@@ -7,7 +7,7 @@ import { getPendingSessionAriaLabel, isPendingSessionItem, PendingSessionRendere
 import '../media/sessionsList.css';
 import '../media/disclosure.css';
 import { ISessionSearchHint } from './sessionsListSearch.js';
-import { CANVASES_SECTION_ID, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, IsSessionPinnedContext, SessionItemStatusContext, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionChatItemIsStandaloneContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionItemCanImportContext, SessionSectionTypeContext, SessionSectionHasGitHubRepositoryContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, SessionsGrouping, ISessionSection, ISessionGroupItem, ISessionShowMore, ISessionPlaceholder, ISessionChatItem, SessionListItem, isSessionChatItem, isSessionGroupItem, isSessionSection, isSessionShowMore, isSessionPlaceholder, isSessionItem } from './sessionsListCommon.js';
+import { CANVASES_SECTION_ID, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, IsSessionPinnedContext, SessionItemStatusContext, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionChatItemIsStandaloneContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionItemCanImportContext, SessionSectionTypeContext, SessionSectionHasGitHubRepositoryContext, SessionSectionHasNonCloudRepositoryContext, SessionSectionHasSessionsContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, SessionsGrouping, ISessionSection, ISessionGroupItem, ISessionShowMore, ISessionPlaceholder, ISessionChatItem, SessionListItem, isSessionChatItem, isSessionGroupItem, isSessionSection, isSessionShowMore, isSessionPlaceholder, isSessionItem } from './sessionsListCommon.js';
 import { NEW_SESSION_SECTION_ID, AUTOMATIONS_SECTION_ID, CUSTOMIZATIONS_SECTION_ID, EXTERNAL_SESSIONS_SECTION_ID, getChatTitle, getSessionListChats, isShortcutSection, REPOSITORY_SECTION_PREFIX, ENVIRONMENT_SECTION_PREFIX, isSessionGroupingSection, getSessionSectionType, getSessionRowApproval, QUICK_CHATS_SECTION_ID, isQuickChatSession } from './sessionsListHelpers.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { $ } from '../../../../../base/browser/dom.js';
@@ -2726,6 +2726,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		SessionSectionTypeContext.bindTo(template.contextKeyService).set(sectionType);
 		// The grouping's styles tell the fixed sections apart, such as Chats
 		template.container.dataset.sectionType = sectionType;
+		SessionSectionHasSessionsContext.bindTo(template.contextKeyService).set(element.sessions.length > 0);
 		const hasGitHubRepository = SessionSectionHasGitHubRepositoryContext.bindTo(template.contextKeyService);
 		const hasNonCloudRepository = SessionSectionHasNonCloudRepositoryContext.bindTo(template.contextKeyService);
 		template.elementDisposables.add(autorun(reader => {

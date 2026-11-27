@@ -77,6 +77,8 @@ export const SessionItemIsInSessionsListContext = new RawContextKey<boolean>('se
 export const SessionSectionTypeContext = new RawContextKey<string>('sessionSection.type', '');
 export const SessionSectionHasGitHubRepositoryContext = new RawContextKey<boolean>('sessionSection.hasGitHubRepository', false);
 export const SessionSectionHasNonCloudRepositoryContext = new RawContextKey<boolean>('sessionSection.hasNonCloudRepository', false);
+/** Whether a section lists sessions, unlike the row of a workspace without any. */
+export const SessionSectionHasSessionsContext = new RawContextKey<boolean>('sessionSection.hasSessions', false);
 /** Whether a section has a {@link ISessionSection.rootFolder}. */
 export const SessionSectionHasRootFolderContext = new RawContextKey<boolean>('sessionSection.hasRootFolder', false);
 /** What a workspace row under the separate Workspaces header lists: a workspace the workspaces service knows (`known`), or a folder (`folder`). */

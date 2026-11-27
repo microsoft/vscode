@@ -4531,6 +4531,54 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual(menus.map(menu => menu.filter(label => label.startsWith('Open'))), [['Open in Editor Window']]);
 		});
 
+		test('the row of a workspace without sessions offers no New Session, which would have no session to start like', () => {
+			const empty: IRecentSessionWorkspace = { uri: URI.file('/user/AgentsWorkspaces/Empty.code-workspace'), name: 'Empty', folders: [URI.file('/work/notes')], owned: true };
+			const menus: string[][] = [];
+			const { container } = render(harness => {
+				const workspacesService = harness.instantiationService.get(ISessionWorkspacesService) as TestSessionWorkspacesService;
+				workspacesService.managedWorkspaces.set([...workspacesService.managedWorkspaces.get(), empty], undefined);
+				const contextKeyService = disposables.add(new ContextKeyService(harness.instantiationService.get(IConfigurationService)));
+				ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+				SessionWorkspacesEnabledContext.bindTo(contextKeyService).set(true);
+				SessionWorkspaceEditorAvailableContext.bindTo(contextKeyService).set(true);
+				harness.instantiationService.stub(IContextKeyService, contextKeyService);
+				harness.instantiationService.stub(IMenuService, disposables.add(harness.instantiationService.createInstance(MenuService)));
+				harness.instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
+					override showContextMenu(delegate: IContextMenuMenuDelegate): void {
+						menus.push(delegate.getActions!().filter(action => action.id !== Separator.ID).map(action => action.label));
+					}
+				});
+			});
+			const rowOf = (label: string) => [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].find(candidate => candidate.querySelector('.session-section-label')?.textContent === label && candidate.querySelector('.session-section-toolbar .monaco-toolbar'))!;
+			for (const label of ['Empty', 'tools']) {
+				rowOf(label).dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
+			}
+
+			assert.deepStrictEqual(menus.map(menu => menu.includes('New Session')), [false, true]);
+		});
+
+		test('a pinned workspace row dropped on a group row, or a group row dropped on a workspace row, is not moved, as the workspace rows are listed by name', () => {
+			const { list, container } = render();
+			const toolsId = `workspace:${URI.file('/work/tools').toString()}`;
+			list.setHeaderPinned(toolsId, true);
+			const outline = (nodes: readonly SessionsListSnapshotNode[]): unknown[] => nodes.map(node => node.type === 'session' ? node.session.title.get() : { [node.label]: outline(node.children) });
+			const before = outline(list.getTreeSnapshot());
+			const rowOf = (label: string) => [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].find(row => row.querySelector('.session-section-label')?.textContent === label)!;
+			const drag = (from: string, to: string) => {
+				const dataTransfer = new DataTransfer();
+				const source = rowOf(from);
+				source.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer }));
+				rowOf(to).dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer }));
+				rowOf(to).dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }));
+				source.dispatchEvent(new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer }));
+			};
+			drag('tools', 'Release');
+			// The first row of the user's Agents workspace, which is not pinned
+			drag('Release', 'Agents');
+
+			assert.deepStrictEqual({ after: outline(list.getTreeSnapshot()), toolsPinned: list.isHeaderPinned(toolsId) }, { after: before, toolsPinned: true });
+		});
+
 		test('keeps the collapse state of its sections and rows, and lists by workspace while not separate, in the same tree, with the header rows at their level and expanded state', () => {
 			let separate = true;
 			const { list, snapshot, container } = render(undefined, undefined, () => separate);

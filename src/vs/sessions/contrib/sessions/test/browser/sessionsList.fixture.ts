@@ -364,6 +364,12 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		header: { navigationShortcuts: true },
 		interaction: { hovered: { section: 'workspaces' } },
 	}),
+	// The pointer over a workspace without sessions: no New Session, which would have no session to start like
+	SessionsList_SeparateGroupsAndWorkspaces_HoveredEmptyWorkspace: defineSessionsListFixture({
+		...SEPARATE_GROUPS_AND_WORKSPACES_STATE,
+		header: { navigationShortcuts: true },
+		interaction: { hovered: { workspace: new ExtUri(() => true).getComparisonKey(getTestWorkspaceFile('Empty')) } },
+	}),
 	// The keyboard on a workspace row
 	SessionsList_SeparateGroupsAndWorkspaces_FocusedWorkspace: defineSessionsListFixture({
 		...SEPARATE_GROUPS_AND_WORKSPACES_STATE,
