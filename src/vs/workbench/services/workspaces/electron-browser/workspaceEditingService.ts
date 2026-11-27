@@ -36,6 +36,7 @@ import { IUserDataProfilesService } from '../../../../platform/userDataProfile/c
 import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IHistoryService } from '../../history/common/history.js';
 
 export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingService {
 
@@ -66,6 +67,7 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 		@IWorkspaceFolderLocationService workspaceFolderLocationService: IWorkspaceFolderLocationService,
 		@IWorkspaceTrustEnablementService workspaceTrustEnablementService: IWorkspaceTrustEnablementService,
 		@IAgentsModeService private readonly agentsModeService: IAgentsModeService,
+		@IHistoryService private readonly historyService: IHistoryService,
 	) {
 		super(jsonEditingService, contextService, configurationService, notificationService, commandService, fileService, textFileService, workspacesService, environmentService, fileDialogService, dialogService, hostService, uriIdentityService, workspaceTrustManagementService, userDataProfilesService, userDataProfileService, logService, workspaceFolderLocationService, workspaceTrustEnablementService);
 
@@ -207,9 +209,11 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 		}
 
 		let restoreAgentsMode: (() => Promise<void>) | undefined;
+		let leftAgentsMode = false;
 		let entered = false;
 		try {
 			// The window serves the empty workspace again before it enters the new one
+			leftAgentsMode = this.agentsModeService.isActive;
 			restoreAgentsMode = await this.leaveAgentsMode();
 
 			const oldWorkspace = toWorkspaceIdentifier(this.contextService.getWorkspace());
@@ -234,6 +238,12 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 				? await this.workingCopyBackupService.withBackupPathTransition(enterWorkspace)
 				: await enterWorkspace();
 			if (result) {
+				// The window left Agents mode for good: bring back the editor history it had before
+				// the mode, which the new workspace carried along with the rest of the storage
+				if (leftAgentsMode) {
+					this.historyService.restoreRecentlyOpened(oldWorkspace.id);
+				}
+
 				// Fire event to allow participants to join
 				await this.fireDidEnterWorkspace(oldWorkspace, result.workspace);
 			} else {

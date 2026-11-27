@@ -66,7 +66,7 @@ export function getInboxWorkspaceOptions(sessions: readonly ISession[], extUri: 
 			options.set(JSON.stringify([workspace.environment, extUri.getComparisonKey(URI.parse(workspace.resource))]), workspace);
 		}
 	}
-	return [...options.values()].sort(SessionsListFilters.compareInboxWorkspaces);
+	return [...options.values()].sort((a, b) => a.label.localeCompare(b.label) || a.resource.localeCompare(b.resource) || a.environment.localeCompare(b.environment));
 }
 
 function isInboxScope(value: unknown): value is IInboxScope {
@@ -378,8 +378,8 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 		this._onDidChange.fire();
 	}
 
-	/** The order in which the scope bar lists workspaces: by label. */
-	static compareInboxWorkspaces(a: IInboxWorkspaceFilter, b: IInboxWorkspaceFilter): number {
+	/** The order in which the scope bar lists workspaces: by label, as {@link getInboxWorkspaceOptions} sorts them. */
+	private static compareInboxWorkspaces(a: IInboxWorkspaceFilter, b: IInboxWorkspaceFilter): number {
 		return a.label.localeCompare(b.label) || a.resource.localeCompare(b.resource) || a.environment.localeCompare(b.environment);
 	}
 
@@ -586,7 +586,19 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 	 * filters again, such as of another profile, keeps it.
 	 */
 	setInboxScopeFixed(fixed: boolean): void {
+		if (this.inboxScopeFixed === fixed) {
+			return;
+		}
 		this.inboxScopeFixed = fixed;
+
+		// While fixed, the list ignored what was stored: pick up the stored scope again
+		if (!fixed) {
+			const scope = this.readInboxScope(this.logService);
+			if (JSON.stringify(scope) !== JSON.stringify(this._inboxScope)) {
+				this._inboxScope = scope;
+				this._onDidChange.fire();
+			}
+		}
 	}
 
 	/** Returns every filter to its default, keeping a {@link setInboxScopeFixed fixed} inbox scope. */

@@ -38,9 +38,10 @@ suite('SessionsWindowScopeController', () => {
 		const scopes = new Map<WorkbenchMode, URI | undefined>([[WorkbenchMode.Editor, folder], [WorkbenchMode.Agents, folder]]);
 		const scopeWrites: string[] = [];
 		const state = kind === 'folder' ? WorkbenchState.FOLDER : kind === 'multiRoot' ? WorkbenchState.WORKSPACE : WorkbenchState.EMPTY;
-		const agentsMode = { isActive: restoredInMode, onDidChange: store.add(new Emitter<boolean>()) };
+		const agentsMode = { isActive: restoredInMode, onWillChange: store.add(new Emitter<boolean>()), onDidChange: store.add(new Emitter<boolean>()) };
 		const onDidChangeWorkbenchMode = store.add(new Emitter<WorkbenchMode>());
 		const setAgentsMode = (active: boolean) => {
+			agentsMode.onWillChange.fire(active);
 			agentsMode.isActive = active;
 			onDidChangeWorkbenchMode.fire(active ? WorkbenchMode.Agents : WorkbenchMode.Editor);
 			agentsMode.onDidChange.fire(active);
@@ -63,7 +64,7 @@ suite('SessionsWindowScopeController', () => {
 		contextKeyService.createKey(ChatContextKeys.enabled.key, chatEnabled);
 		const sentiment = observableValue<IChatSentiment>('sentiment', { hidden });
 		const controller = store.add(new SessionsWindowScopeController(workspace, configuration, identity, contextKeyService, upcastPartial<IChatEntitlementService>({ sentimentObs: sentiment }),
-			upcastPartial<IAgentsModeService>({ windowFolders, get isActive() { return agentsMode.isActive; }, onDidChange: agentsMode.onDidChange.event })));
+			upcastPartial<IAgentsModeService>({ windowFolders, get isActive() { return agentsMode.isActive; }, onWillChange: agentsMode.onWillChange.event, onDidChange: agentsMode.onDidChange.event })));
 		const storage = store.add(new InMemoryStorageService());
 		const filters = () => store.add(new SessionsListFilters(storage, store.add(new NullLogService()), configuration, identity));
 		const setEnabled = async (value: boolean) => {
@@ -189,6 +190,23 @@ suite('SessionsWindowScopeController', () => {
 		bar.setInboxWorkspace({ environment: 'local', resource: 'file:///work/second', label: 'second' });
 		setAgentsMode(false);
 		assert.deepStrictEqual({ before, entered, left: workspace.getWorkbenchScope()?.path }, { before: '/work/first', entered: undefined, left: '/work/second' });
+	});
+
+	test('entering Agents mode scopes the window to where the bar starts, never to the stale pick first', () => {
+		const run = (windowFolders: URI[]) => {
+			const { controller, filters, setAgentsMode, scopeWrites } = createScope({ kind: windowFolders.length ? 'folder' : 'empty', windowFolders });
+			const bar = filters();
+			bar.setInboxWorkspace({ environment: 'local', resource: 'file:///work/other', label: 'other' });
+			controller.setScopeBarFilters(bar);
+			scopeWrites.splice(0);
+			setAgentsMode(true);
+			return scopeWrites;
+		};
+		assert.deepStrictEqual({ folder: run([URI.file('/work/app')]), empty: run([]) }, {
+			folder: [`${WorkbenchMode.Agents}:/work/app`],
+			// The pick of an empty window also scopes it in the editor mode, which it leaves on all sessions
+			empty: [`${WorkbenchMode.Editor}:undefined`, `${WorkbenchMode.Agents}:undefined`],
+		});
 	});
 
 	test('a window with folders leaving Agents mode does not touch its editor scope', () => {

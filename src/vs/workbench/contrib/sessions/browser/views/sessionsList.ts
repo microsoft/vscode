@@ -117,7 +117,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { ICustomViewService } from '../customView.js';
 import { IOpenAICustomizationsCommandOptions, OPEN_AI_CUSTOMIZATIONS_COMMAND_ID } from '../customizationsConstants.js';
 import { ChatCustomizationsTelemetry } from '../../../chat/browser/aiCustomization/chatCustomizationsTelemetry.js';
-import { NEW_SESSION_ACTION_ID } from '../../common/chatConstants.js';
+import { NEW_SESSION_ACTION_ID, SESSIONS_LIST_WORKSPACES_FILTER_SETTING } from '../../common/chatConstants.js';
 import { Menus } from '../menus.js';
 import { getSessionAgentMergeConfigurationObservable } from '../sessionAgentMerge.js';
 import { BlockedSessionReason, BlockedSessions } from '../blockedSessions.js';
@@ -3520,9 +3520,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	private revealOnboardingTarget(session: ISession, archiveAction: boolean): IDisposable & { readonly targetId: string } {
 		if (this.isScopedByBar() && !this.filters.matchesInboxScope(session)) {
-			// A fixed pick can't be reset, so the user is not asked to
+			// A fixed pick can't be reset: the pick is fixed only while the workspaces filter is off, so the user is pointed to it
 			if (this.options.scopePickFixed?.get()) {
-				throw new Error(localize('sessionsList.outsideFixedScope', "This session is outside the folders of this window, so it can't be revealed here."));
+				throw new Error(localize('sessionsList.outsideFixedScope', "This session is outside the folders of this window. To reveal it, turn on the '{0}' setting and pick its workspace.", SESSIONS_LIST_WORKSPACES_FILTER_SETTING));
 			}
 			throw new Error(this.isInboxLayout()
 				? localize('sessionsList.outsideInboxScope', "This session is outside the current Inbox scope. Reset the scope to reveal it.")

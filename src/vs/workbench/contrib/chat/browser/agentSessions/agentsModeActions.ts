@@ -11,6 +11,7 @@ import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../.
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IAgentsModeService } from '../../../../services/agentsMode/common/agentsMode.js';
+import { IHistoryService } from '../../../../services/history/common/history.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 
@@ -54,6 +55,15 @@ export class ToggleAgentsModeAction extends Action2 {
 			throw new Error(localize('agentsMode.unavailable', "Agents mode is unavailable in this window."));
 		}
 
-		await agentsModeService.setActive(!agentsModeService.isActive);
+		// Switching sessions in the mode clears the history of recently opened editors: the window gets its own history back
+		// when the user leaves the mode. Other switches, such as leaving for a moment while entering a workspace, keep it.
+		const historyService = accessor.get(IHistoryService);
+		if (agentsModeService.isActive) {
+			await agentsModeService.setActive(false);
+			historyService.restoreRecentlyOpened();
+		} else {
+			historyService.saveRecentlyOpened();
+			await agentsModeService.setActive(true);
+		}
 	}
 }

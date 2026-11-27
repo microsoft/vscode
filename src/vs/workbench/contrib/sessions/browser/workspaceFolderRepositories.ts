@@ -44,7 +44,8 @@ export interface IWorkspaceFolderRepositories extends ISessionsListingScope {
  * sessions it lists stay as they were; and the GitHub repositories of the `origin` of its local folders' git repositories,
  * read from their `.git` and `.git/config`, such as for Copilot Cloud sessions. Each folder's `.git` and its repository's
  * `.git/config` are read once, as the folder joins the workspace, and again only after a read that failed; there are no
- * watchers. A folder that leaves the workspace stops counting at once. A workbench about all sessions
+ * watchers. A folder that leaves the workspace stops counting at once. Nothing is read in the Agents mode, whose scope has no
+ * folders, and the folders are read as the workbench leaves it. A workbench about all sessions
  * (it has no {@link IWorkspaceContextService.getWorkbenchScope scope}) has no folders in the scope, so its providers list every session.
  */
 export class WorkspaceFolderRepositories extends Disposable implements IWorkspaceFolderRepositories {
@@ -76,7 +77,7 @@ export class WorkspaceFolderRepositories extends Disposable implements IWorkspac
 		// and as the workbench scope or mode changes: a workbench about all sessions has no scope or is in the Agents mode, its
 		// folders follow the focused session
 		this.folders = observableFromEvent(this, Event.any<unknown>(_workspaceContextService.onDidChangeWorkspaceFolders, _workspaceContextService.onDidChangeWorkbenchState, _workspaceContextService.onDidChangeWorkbenchScope, _workspaceContextService.onDidChangeWorkbenchMode), () => this._getScopeFolders());
-		this._register(_workspaceContextService.onDidChangeWorkspaceFolders(() => void this._update()));
+		this._register(Event.any<unknown>(_workspaceContextService.onDidChangeWorkspaceFolders, _workspaceContextService.onDidChangeWorkbenchMode)(() => void this._update()));
 		void this._update();
 	}
 
@@ -97,6 +98,13 @@ export class WorkspaceFolderRepositories extends Disposable implements IWorkspac
 
 	private async _update(): Promise<void> {
 		const generation = ++this._generation;
+		// The Agents mode has no folders in the scope, so the checkouts of the folders that follow its focused session are not read
+		if (this._workspaceContextService.getWorkbenchMode() === WorkbenchMode.Agents) {
+			if (this._repositories.get().length || this._gitHubRepositories.get().length) {
+				this._publish([]);
+			}
+			return;
+		}
 		const folders = this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri).filter(folder => folder.scheme === Schemas.file);
 		for (const folder of [...this._reads.keys(), ...this._resolved.keys()]) {
 			if (!folders.some(candidate => isEqual(candidate, folder))) {

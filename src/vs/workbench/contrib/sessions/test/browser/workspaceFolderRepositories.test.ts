@@ -53,6 +53,8 @@ suite('WorkspaceFolderRepositories', () => {
 		instantiationService.stub(ILogService, upcastPartial<ILogService>({ warn: (message: string) => { warnings.push(message); } }));
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
 			onDidChangeWorkspaceFolders: store.add(new Emitter<IWorkspaceFoldersChangeEvent>()).event,
+			onDidChangeWorkbenchMode: Event.None,
+			getWorkbenchMode: () => WorkbenchMode.Editor,
 			getWorkspace: () => upcastPartial<IWorkspace>({ folders: folders.map(folder => upcastPartial<IWorkspaceFolder>({ uri: URI.file(folder) })) }),
 		}));
 		const scope = store.add(instantiationService.createInstance(WorkspaceFolderRepositories));
@@ -106,6 +108,8 @@ suite('WorkspaceFolderRepositories', () => {
 		instantiationService.stub(ILogService, upcastPartial<ILogService>({ warn: (message: string) => { warnings.push(message); } }));
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
 			onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
+			onDidChangeWorkbenchMode: Event.None,
+			getWorkbenchMode: () => WorkbenchMode.Editor,
 			getWorkspace: () => upcastPartial<IWorkspace>({ folders: folders.map(uri => upcastPartial<IWorkspaceFolder>({ uri })) }),
 		}));
 		const repositories = store.add(instantiationService.createInstance(WorkspaceFolderRepositories));
@@ -208,6 +212,8 @@ suite('WorkspaceFolderRepositories', () => {
 		instantiationService.stub(ILogService, upcastPartial<ILogService>({ warn: (message: string) => { warnings.push(message); } }));
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
 			onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
+			onDidChangeWorkbenchMode: Event.None,
+			getWorkbenchMode: () => WorkbenchMode.Editor,
 			getWorkspace: () => upcastPartial<IWorkspace>({ folders: folders.map(uri => upcastPartial<IWorkspaceFolder>({ uri })) }),
 		}));
 		const scope = store.add(instantiationService.createInstance(WorkspaceFolderRepositories));
@@ -245,6 +251,8 @@ suite('WorkspaceFolderRepositories', () => {
 		instantiationService.stub(ILogService, upcastPartial<ILogService>({ warn: () => { } }));
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
 			onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
+			onDidChangeWorkbenchMode: Event.None,
+			getWorkbenchMode: () => WorkbenchMode.Editor,
 			getWorkspace: () => upcastPartial<IWorkspace>({ folders: folders.map(uri => upcastPartial<IWorkspaceFolder>({ uri })) }),
 		}));
 		const repositories = store.add(instantiationService.createInstance(WorkspaceFolderRepositories));
@@ -307,6 +315,51 @@ suite('WorkspaceFolderRepositories', () => {
 			atRepository: ['followed', 'main', 'sibling'],
 			atWorktree: ['followed', 'main', 'sibling'],
 			savedAsWorkspace: ['followed'],
+		});
+	});
+
+	test('reads no checkout while the folders follow the focused session in the Agents mode, and the folders again as it leaves', async () => {
+		const { fileService, reads } = createFileService({
+			'/work/a/.git': true,
+			'/work/a/.git/config': '[remote "origin"]\n\turl = https://github.com/owner/a.git\n',
+			'/work/b/.git': true,
+		});
+		let mode = WorkbenchMode.Editor;
+		let folders = [URI.file('/work/a')];
+		const onDidChangeWorkspaceFolders = store.add(new Emitter<IWorkspaceFoldersChangeEvent>());
+		const onDidChangeWorkbenchMode = store.add(new Emitter<WorkbenchMode>());
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IFileService, fileService);
+		instantiationService.stub(ILogService, upcastPartial<ILogService>({ warn: () => { } }));
+		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
+			onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
+			onDidChangeWorkbenchMode: onDidChangeWorkbenchMode.event,
+			getWorkbenchMode: () => mode,
+			getWorkspace: () => upcastPartial<IWorkspace>({ folders: folders.map(uri => upcastPartial<IWorkspaceFolder>({ uri })) }),
+		}));
+		const scope = store.add(instantiationService.createInstance(WorkspaceFolderRepositories));
+		const snapshot = async () => {
+			await timeout(0);
+			return { repositories: scope.repositories.get().map(uri => uri.path), gitHub: scope.gitHubRepositories.get(), reads: reads.filter(path => path.endsWith('/.git')).length };
+		};
+
+		const editor = await snapshot();
+		// Entering the Agents mode, whose folders then follow the focused session
+		mode = WorkbenchMode.Agents;
+		onDidChangeWorkbenchMode.fire(mode);
+		folders = [URI.file('/work/b')];
+		onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [] });
+		const agentsMode = await snapshot();
+		mode = WorkbenchMode.Editor;
+		folders = [URI.file('/work/a')];
+		onDidChangeWorkbenchMode.fire(mode);
+		onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [] });
+
+		assert.deepStrictEqual({ editor, agentsMode, left: await snapshot() }, {
+			editor: { repositories: ['/work/a'], gitHub: ['owner/a'], reads: 1 },
+			agentsMode: { repositories: [], gitHub: [], reads: 1 },
+			// The window's folder was read before, so it is not read again
+			left: { repositories: ['/work/a'], gitHub: ['owner/a'], reads: 1 },
 		});
 	});
 

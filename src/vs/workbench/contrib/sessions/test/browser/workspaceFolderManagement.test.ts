@@ -276,17 +276,18 @@ suite('WorkspaceFolderManagementContribution', () => {
 		}, { onEntry: 0, onFirstMount: 0, onSwitch: 1, mounted: ['/second'] });
 	});
 
-	test('saves the history of recently opened editors on entering Agents mode and restores it on leaving, but not when the window restores in the mode', async () => {
-		const { historyService, setMode } = createContribution({ mode: WorkbenchMode.Agents });
-		const onRestoreInMode = [...historyService.savedAndRestored];
+	test('restores the saved history of recently opened editors when the window starts outside Agents mode, and leaves it to the toggle otherwise', async () => {
+		const inMode = createContribution({ mode: WorkbenchMode.Agents });
+		const onStartInMode = [...inMode.historyService.savedAndRestored];
+		inMode.setMode(WorkbenchMode.Editor);
+		inMode.setMode(WorkbenchMode.Agents);
 
-		setMode(WorkbenchMode.Editor);
-		setMode(WorkbenchMode.Agents);
-		setMode(WorkbenchMode.Editor);
+		const outsideMode = createContribution({ mode: WorkbenchMode.Editor });
 
-		assert.deepStrictEqual({ onRestoreInMode, afterSwitches: historyService.savedAndRestored }, {
-			onRestoreInMode: [],
-			afterSwitches: ['restore', 'save', 'restore'],
+		assert.deepStrictEqual({ onStartInMode, afterSwitches: inMode.historyService.savedAndRestored, onStartOutsideMode: outsideMode.historyService.savedAndRestored }, {
+			onStartInMode: [],
+			afterSwitches: [],
+			onStartOutsideMode: ['restore'],
 		});
 	});
 

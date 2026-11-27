@@ -7916,7 +7916,7 @@ suite('Sessions - SessionsList', () => {
 			const fixed = message();
 			scopePickFixed.set(false, undefined);
 			assert.deepStrictEqual({ fixed, picked: message() }, {
-				fixed: 'This session is outside the folders of this window, so it can\'t be revealed here.',
+				fixed: 'This session is outside the folders of this window. To reveal it, turn on the \'sessions.list.workspacesFilter.enabled\' setting and pick its workspace.',
 				picked: 'This session is outside the current Sessions scope. Reset the scope to reveal it.',
 			});
 		});

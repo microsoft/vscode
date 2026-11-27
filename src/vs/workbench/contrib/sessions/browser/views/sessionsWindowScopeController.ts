@@ -91,9 +91,19 @@ export class SessionsWindowScopeController extends Disposable {
 		this.scopePickFixed = derived(this, reader => this.scopesWindow.read(reader) && !this.barShown.read(reader));
 		this.windowWorkspaces = derived(this, reader => this.scopesWindow.read(reader) ? agentsModeService.windowFolders.map(folder => SessionsListFilters.toLocalInboxWorkspace(folder)) : []);
 
-		// Seeds the pick before the scope below applies it, so the window is not scoped to a stale pick first.
-		// Agents mode starts the bar on the window's own folder. A fixed pick stays on it: also after a restore in the mode or
-		// the setting turning off, as the pick may have been widened while the bar showed.
+		// Agents mode starts the bar on the window's own folder, or an empty window on all sessions. The pick is seeded as the
+		// window is about to enter the mode: switching fires the events the scope below follows, so seeding after it would scope
+		// the window to the stale pick first. The pick is seeded where the window will be scoped in the mode.
+		this._register(agentsModeService.onWillChange(active => {
+			const filters = this.scopeBarFilters.get();
+			const willScopeWindow = aiAvailable.get() && (enabled.get() || agentsModeService.windowFolders.length > 0);
+			if (active && filters && willScopeWindow) {
+				filters.pickInboxWorkspace(this.getAgentsModeStartWorkspace());
+			}
+		}));
+
+		// A fixed pick stays on the window's own folder: also after a restore in the mode or the setting turning off, as the pick
+		// may have been widened while the bar showed. Runs before the scope below, so the window is not scoped to a stale pick first.
 		this._register(autorun(reader => {
 			const filters = this.scopeBarFilters.read(reader);
 			if (!filters) {
@@ -141,13 +151,6 @@ export class SessionsWindowScopeController extends Disposable {
 			}
 		}));
 		this._register(toDisposable(reset));
-
-		this._register(agentsModeService.onDidChange(active => {
-			const filters = this.scopeBarFilters.get();
-			if (active && filters && this.barShown.get()) {
-				filters.pickInboxWorkspace(this.getAgentsModeStartWorkspace());
-			}
-		}));
 	}
 
 	/**

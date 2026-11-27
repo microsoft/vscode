@@ -20,6 +20,7 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { InMemoryStorageService, IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IAgentsModeService } from '../../../../services/agentsMode/common/agentsMode.js';
+import { IHistoryService } from '../../../../services/history/common/history.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IEditorIdentifier } from '../../../../common/editor.js';
 import { IViewDescriptorService, ViewContainer, ViewContainerLocation } from '../../../../common/views.js';
@@ -80,18 +81,26 @@ suite('Agents mode actions', () => {
 		const instantiation = disposables.add(new TestInstantiationService());
 		instantiation.stub(IContextKeyService, context);
 		instantiation.stub(IStorageService, disposables.add(new InMemoryStorageService()));
-		let toggles = 0;
-		instantiation.stub(IAgentsModeService, { isSupported: true, isActive: true, setActive: async () => { toggles++; } });
+		const calls: string[] = [];
+		const agentsMode = { isSupported: true, isActive: true, setActive: async (active: boolean) => { calls.push(active ? 'enter' : 'leave'); agentsMode.isActive = active; } };
+		instantiation.stub(IAgentsModeService, agentsMode);
+		// Switching sessions in the mode clears the history, which the toggle saves on entering and restores on leaving
+		instantiation.stub(IHistoryService, { saveRecentlyOpened: () => calls.push('save'), restoreRecentlyOpened: () => calls.push('restore') });
 		instantiation.stub(IWorkbenchLayoutService, { isVisible: () => false });
+		await command.handler(instantiation);
+		const exit = context.contextMatchesRules(item.when);
+		chatEnabled.set(true);
+		canEnter.set(true);
+		modeActive.set(false);
 		await command.handler(instantiation);
 
 		assert.deepStrictEqual({
 			enter,
 			entryDisabledByAI,
 			entryDisabledBySetting,
-			exit: context.contextMatchesRules(item.when),
-			toggles,
-		}, { enter: true, entryDisabledByAI: true, entryDisabledBySetting: true, exit: true, toggles: 1 });
+			exit,
+			calls,
+		}, { enter: true, entryDisabledByAI: true, entryDisabledBySetting: true, exit: true, calls: ['leave', 'restore', 'save', 'enter'] });
 	});
 
 	test('switching stores the secondary side bar width before the switch, which the mode gives it back once switched', async () => {
