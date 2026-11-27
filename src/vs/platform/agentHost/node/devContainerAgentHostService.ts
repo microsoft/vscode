@@ -389,7 +389,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 					sandboxEnvironment = sandbox.environment;
 				}
 				const userStateMount = config.persistUserState ? await this._getUserStateMountArgs(config.connectionId, configuration, folderContainer, tokenSource.token) : { args: [], keepExistingFolders: true };
-				const idLabelArgs = this._isWsl() ? await this._getIdLabelArgs(config.connectionId, folderContainer, tokenSource.token) : [];
+				const idLabelArgs = this._isWsl() ? await this._getIdLabelArgs(configuration, folderContainer, tokenSource.token) : [];
 				const selectorArgs = [...typeof workspaceSelector === 'string' ? ['--workspace-folder', workspaceSelector] : workspaceSelector, ...idLabelArgs];
 				if (idLabelArgs.length) {
 					workspaceSelector = selectorArgs;
@@ -1435,20 +1435,22 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		return result.stdout.split(/\r?\n/).filter(state => state.trim());
 	}
 
-	/** `--id-label` arguments selecting the folder's container for each CLI call, unless it has the CLI's default labels. */
-	private async _getIdLabelArgs(connectionId: string, folderContainer: Lazy<Promise<IDevContainerFolderContainer>>, token: CancellationToken): Promise<readonly string[]> {
+	/**
+	 * `--id-label` arguments selecting the folder's container for each CLI call, unless it has the CLI's default labels.
+	 * Failing to find the container fails the connection, as `up` with other labels could create a second container.
+	 */
+	private async _getIdLabelArgs(configuration: Promise<string>, folderContainer: Lazy<Promise<IDevContainerFolderContainer>>, token: CancellationToken): Promise<readonly string[]> {
 		try {
-			const { idLabels, explicitIdLabels } = await folderContainer.value;
-			return explicitIdLabels ? idLabels.flatMap(label => ['--id-label', label]) : [];
+			await configuration;
 		} catch (error) {
 			if (isCancellationError(error) || token.isCancellationRequested) {
 				throw error;
 			}
-			// For example, the configuration is unreadable, which `up` then reports.
-			this._logService.warn(`${LOG_PREFIX} Cannot find the folder's container; using the Dev Container CLI's default id labels`, getErrorMessage(error));
-			this._reportOutput(connectionId, `Cannot find the folder's container; using the Dev Container CLI's default id labels: ${getErrorMessage(error)}\n`);
+			// `up` reports the unreadable configuration.
 			return [];
 		}
+		const { idLabels, explicitIdLabels } = await folderContainer.value;
+		return explicitIdLabels ? idLabels.flatMap(label => ['--id-label', label]) : [];
 	}
 
 	/**

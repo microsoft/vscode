@@ -144,45 +144,59 @@ function readDevContainerHostPath(config: string): string | undefined {
 	}
 }
 
+/** One of a folder's default Dev Container configuration files, relative to the folder. */
+export type DefaultDevContainerConfigFile = '.devcontainer/devcontainer.json' | '.devcontainer.json';
+
 /**
- * Whether a Dev Containers authority selects the container this window uses for its source folder: the one of the
- * folder's default configuration file on the default Docker host. Only the JSON form of the configuration can name a
- * configuration file or another Docker host. Reopen in Container names the configuration file it opened, which
- * selects that container if it is one of the folder's default configuration files.
+ * Whether a Dev Containers authority selects the container of a default configuration file of its source folder on the
+ * default Docker host, which this window uses for the folder if the Dev Containers CLI selects that file for the folder.
+ * Only the JSON form of the configuration can name a configuration file or another Docker host. Reopen in Container
+ * names the configuration file it opened. Returns the default configuration file it names, if any, or `undefined` if it
+ * selects another container.
  */
-export function selectsDefaultDevContainer(remoteAuthority: string): boolean {
+export function getDefaultDevContainerSelection(remoteAuthority: string): { readonly configFile: DefaultDevContainerConfigFile | undefined } | undefined {
 	if (!remoteAuthority.startsWith(DEV_CONTAINER_REMOTE_AUTHORITY_PREFIX)) {
-		return false;
+		return undefined;
 	}
 	const { config, parentAuthority } = splitDevContainerAuthority(remoteAuthority);
 	const decoded = decodeDevContainerConfig(config);
 	if (!decoded?.startsWith('{')) {
-		return !!decoded;
+		return decoded ? { configFile: undefined } : undefined;
 	}
 	try {
 		const parsed: unknown = JSON.parse(decoded);
 		if (typeof parsed !== 'object' || parsed === null) {
-			return false;
+			return undefined;
 		}
 		const { hostPath, localDocker, configFile, ...others } = parsed as Record<string, unknown>;
-		return typeof hostPath === 'string' && !!hostPath && Object.keys(others).length === 0 && !localDocker
-			&& (configFile === undefined || isDefaultConfigFile(hostPath, parentAuthority, configFile));
+		if (typeof hostPath !== 'string' || !hostPath || Object.keys(others).length || localDocker) {
+			return undefined;
+		}
+		if (configFile === undefined) {
+			return { configFile: undefined };
+		}
+		const defaultConfigFile = getDefaultConfigFile(hostPath, parentAuthority, configFile);
+		return defaultConfigFile ? { configFile: defaultConfigFile } : undefined;
 	} catch {
-		return false;
+		return undefined;
 	}
 }
 
-/** Whether the configuration file of a Dev Containers authority, a URI as JSON, is one of its folder's default ones. */
-function isDefaultConfigFile(hostPath: string, parentAuthority: string | undefined, configFile: unknown): boolean {
+/** Which of its folder's default configuration files the configuration file of a Dev Containers authority, a URI as JSON, is. */
+function getDefaultConfigFile(hostPath: string, parentAuthority: string | undefined, configFile: unknown): DefaultDevContainerConfigFile | undefined {
 	const path = typeof configFile === 'object' && configFile !== null ? (configFile as { readonly path?: unknown }).path : undefined;
 	if (typeof path !== 'string') {
-		return false;
+		return undefined;
 	}
 	// Dev Containers names the configuration file of a WSL folder by its Linux path.
-	const folder = (parentAuthority ? undefined : parseWSLHostPath(hostPath))?.path ?? toRemoteUriPath(hostPath);
+	const wslSource = parentAuthority ? undefined : parseWSLHostPath(hostPath);
+	const folder = wslSource?.path ?? URI.file(hostPath.replace(/\\/g, '/')).path;
 	const ignoreCase = /^\/[a-zA-Z]:\//.test(folder);
-	return [posix.join(folder, '.devcontainer', 'devcontainer.json'), posix.join(folder, '.devcontainer.json')]
-		.some(defaultPath => ignoreCase ? equalsIgnoreCase(defaultPath, path) : defaultPath === path);
+	return (['.devcontainer/devcontainer.json', '.devcontainer.json'] as const)
+		.find(defaultConfigFile => {
+			const defaultPath = posix.join(folder, defaultConfigFile);
+			return ignoreCase ? equalsIgnoreCase(defaultPath, path) : defaultPath === path;
+		});
 }
 
 export function resolveAgentsWindowFolderIntent(workspaceUri: URI | undefined, configurationService: IConfigurationService): IAgentsWindowFolderIntent {

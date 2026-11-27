@@ -136,6 +136,8 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	existingContainerStates: readonly string[] = [];
 	/** If set, states of existing containers by their `devcontainer.local_folder` label instead. */
 	containerStatesByFolder: ReadonlyMap<string, readonly string[]> | undefined;
+	/** Exit code of listing the states of existing containers. */
+	containerStatesExitCode = 0;
 	/** Whether the service runs in WSL, where `wslpath -w` maps `/folder` to `\\wsl.localhost\Ubuntu\folder` and `/mnt/c/folder` to `C:\folder`. */
 	wsl = false;
 	/** Folder containers listed with `docker ps --all`, as their folder, configuration file and state. */
@@ -228,6 +230,9 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 			return Promise.resolve({ stdout: this.folderContainers.map(container => `${JSON.stringify(container)}\n`).join(''), stderr: '', code: 0 });
 		}
 		if (args[0] === 'ps') {
+			if (this.containerStatesExitCode) {
+				return Promise.resolve({ stdout: '', stderr: 'Cannot connect to the Docker daemon', code: this.containerStatesExitCode });
+			}
 			const localFolder = args.find(arg => arg.startsWith('label=devcontainer.local_folder='))?.substring('label=devcontainer.local_folder='.length);
 			const states = this.containerStatesByFolder ? this.containerStatesByFolder.get(localFolder ?? '') ?? [] : this.existingContainerStates;
 			return Promise.resolve({ stdout: states.map(state => `${state}\n`).join(''), stderr: '', code: 0 });
@@ -837,6 +842,25 @@ suite('Dev Container Agent Host Main Service', () => {
 			extensionsStopped: { connected: 'The Dev Container for \'Project\' is not running.', cli: [], shell: [], stateVolumes: [] },
 			outsideWsl: { connected: true, cli: ['up: ', 'run-user-commands: '], shell: [''], stateVolumes: [getDevContainerStateVolumeName([`devcontainer.local_folder=${labelFolder}`, `devcontainer.config_file=${configFile.fsPath}`])] },
 			listed: [{ folder: '/workspace', running: true }],
+		});
+	});
+
+	test('in WSL, fails a connection whose container lookup fails rather than starting a container with other labels', async () => {
+		const run = async (setup: (service: TestDevContainerAgentHostMainService) => void) => {
+			const service = store.add(new TestDevContainerAgentHostMainService());
+			service.wsl = true;
+			service.sandboxConfigurationOutput = JSON.stringify({ configuration: { configFilePath: URI.file('/workspace/.devcontainer/devcontainer.json').toJSON() }, mergedConfiguration: { mounts: [] } });
+			setup(service);
+			const connected = await service.connect({ connectionId: 'wsl', workspaceFolder: '/workspace', name: 'Project' }).then(() => true, (error: Error) => error.message);
+			return { connected, up: service.devContainerArgs.filter(args => args[0] === 'up').map(args => args.includes('--id-label')) };
+		};
+		assert.deepStrictEqual({
+			lookupFailed: await run(service => service.containerStatesExitCode = 1),
+			// `up` reports an unreadable configuration.
+			configurationUnreadable: await run(service => { service.configurationReadExitCode = 1; service.cacheMountConfigured = true; }),
+		}, {
+			lookupFailed: { connected: 'Cannot list Docker containers (exit 1): Cannot connect to the Docker daemon', up: [] },
+			configurationUnreadable: { connected: true, up: [false] },
 		});
 	});
 

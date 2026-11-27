@@ -12,7 +12,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { RemoteAgentHostConnection, RemoteAgentHostEntryType } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { resolveRemoteAgentHostEntryAuthority } from '../../../../../workbench/contrib/sessions/browser/openInVSCodeUtils.js';
 import { DevContainerAgentHostEnabledSettingId } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
-import { getAgentsWindowWorkspaceArgumentKind, getAgentsWindowWorkspaceArgumentRemoteKind, resolveAgentsWindowFolderIntent, selectsDefaultDevContainer } from '../../browser/agentsWindowOpenIntent.js';
+import { getAgentsWindowWorkspaceArgumentKind, getAgentsWindowWorkspaceArgumentRemoteKind, getDefaultDevContainerSelection, resolveAgentsWindowFolderIntent } from '../../browser/agentsWindowOpenIntent.js';
 
 suite('Agents Window open intent', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -117,34 +117,34 @@ suite('Agents Window open intent', () => {
 	});
 
 	test('selects the container of a folder\'s default configuration file on the default Docker host', () => {
-		const selects = (config: string | object, parentAuthority?: string) => selectsDefaultDevContainer(devContainerUri(typeof config === 'string' ? config : JSON.stringify(config), parentAuthority).authority);
+		const selection = (config: string | object, parentAuthority?: string) => getDefaultDevContainerSelection(devContainerUri(typeof config === 'string' ? config : JSON.stringify(config), parentAuthority).authority);
 		const wslFolder = '\\\\wsl.localhost\\Ubuntu\\home\\me\\project';
 		// Reopen in Container names the configuration file it opened, of a WSL folder by its Linux path.
 		const reopened = (hostPath: string, path: string, scheme = 'vscode-fileHost') => ({ hostPath, localDocker: false, configFile: { $mid: 1, path, scheme } });
 		assert.deepStrictEqual({
-			path: selects('/home/me/project'),
-			hostPath: selects({ hostPath: '/home/me/project' }),
-			wsl: selects(reopened(wslFolder, '/home/me/project/.devcontainer/devcontainer.json')),
-			wslRootConfiguration: selects(reopened(wslFolder, '/home/me/project/.devcontainer.json')),
-			wslOtherConfiguration: selects(reopened(wslFolder, '/home/me/project/.devcontainer/node/devcontainer.json')),
-			windows: selects(reopened('c:\\Users\\me\\project', '/C:/Users/me/project/.devcontainer/devcontainer.json', 'file')),
-			sshHost: selects(reopened('/home/me/project', '/home/me/project/.devcontainer/devcontainer.json'), 'ssh-remote+host'),
-			otherFolder: selects(reopened('/home/me/project', '/home/me/other/.devcontainer/devcontainer.json', 'file')),
-			dockerHost: selects({ hostPath: '/home/me/project', settings: { host: 'tcp://docker.example:2375' } }),
-			dockerOverSsh: selects({ ...reopened('/home/me/project', '/home/me/project/.devcontainer/devcontainer.json', 'file'), localDocker: true, settings: { host: 'ssh://host' } }),
-			volume: selects({ volumeName: 'volume', folder: 'project' }),
+			path: selection('/home/me/project'),
+			hostPath: selection({ hostPath: '/home/me/project' }),
+			wsl: selection(reopened(wslFolder, '/home/me/project/.devcontainer/devcontainer.json')),
+			wslRootConfiguration: selection(reopened(wslFolder, '/home/me/project/.devcontainer.json')),
+			wslOtherConfiguration: selection(reopened(wslFolder, '/home/me/project/.devcontainer/node/devcontainer.json')),
+			windows: selection(reopened('c:\\Users\\me\\project', '/C:/Users/me/project/.devcontainer/devcontainer.json', 'file')),
+			sshHost: selection(reopened('/home/me/project', '/home/me/project/.devcontainer/devcontainer.json'), 'ssh-remote+host'),
+			otherFolder: selection(reopened('/home/me/project', '/home/me/other/.devcontainer/devcontainer.json', 'file')),
+			dockerHost: selection({ hostPath: '/home/me/project', settings: { host: 'tcp://docker.example:2375' } }),
+			dockerOverSsh: selection({ ...reopened('/home/me/project', '/home/me/project/.devcontainer/devcontainer.json', 'file'), localDocker: true, settings: { host: 'ssh://host' } }),
+			volume: selection({ volumeName: 'volume', folder: 'project' }),
 		}, {
-			path: true,
-			hostPath: true,
-			wsl: true,
-			wslRootConfiguration: true,
-			wslOtherConfiguration: false,
-			windows: true,
-			sshHost: true,
-			otherFolder: false,
-			dockerHost: false,
-			dockerOverSsh: false,
-			volume: false,
+			path: { configFile: undefined },
+			hostPath: { configFile: undefined },
+			wsl: { configFile: '.devcontainer/devcontainer.json' },
+			wslRootConfiguration: { configFile: '.devcontainer.json' },
+			wslOtherConfiguration: undefined,
+			windows: { configFile: '.devcontainer/devcontainer.json' },
+			sshHost: { configFile: '.devcontainer/devcontainer.json' },
+			otherFolder: undefined,
+			dockerHost: undefined,
+			dockerOverSsh: undefined,
+			volume: undefined,
 		});
 	});
 

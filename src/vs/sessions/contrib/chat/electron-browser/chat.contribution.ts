@@ -9,7 +9,7 @@ import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '..
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { raceCancellation, Sequencer } from '../../../../base/common/async.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { isEqual, joinPath } from '../../../../base/common/resources.js';
 import { localize } from '../../../../nls.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IAgentHostByokLmHandler } from '../../../../platform/agentHost/common/agentHostByokLm.js';
@@ -40,7 +40,7 @@ import { AgentsWindowUsage } from '../../../../workbench/contrib/chat/common/age
 import { ISessionsWindowOpenContext, ISessionsWindowOpenViewState, SessionsWindowOpenTelemetry, SessionsWindowSessionStartTelemetry } from '../../sessions/browser/sessionsWindowOpenTelemetry.js';
 import { getNonArchivedSessionListCount } from '../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
 import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
-import { getAgentsWindowWorkspaceArgumentKind, getAgentsWindowWorkspaceArgumentRemoteKind, resolveAgentsWindowFolderIntent, selectsDefaultDevContainer } from '../browser/agentsWindowOpenIntent.js';
+import { getAgentsWindowWorkspaceArgumentKind, getAgentsWindowWorkspaceArgumentRemoteKind, getDefaultDevContainerSelection, resolveAgentsWindowFolderIntent } from '../browser/agentsWindowOpenIntent.js';
 import { findSessionForOpenSessionLink } from '../browser/openSessionLinkOpener.contribution.js';
 import { getChatWindowLinkSource, IChatWindowLinkSource, openLinkedChatInChatWindow, resolveLinkedChat } from '../browser/chatLinkRouting.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -61,6 +61,7 @@ import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/bro
 import { getRemoteName } from '../../../../platform/remote/common/remoteHosts.js';
 import { IDevContainerAgentHostService, IDevContainerAgentHostTarget } from '../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 
@@ -123,6 +124,7 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 		@IChatWindowService private readonly chatWindowService: IChatWindowService,
 		@IDevContainerAgentHostService private readonly devContainerAgentHostService: IDevContainerAgentHostService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IFileService private readonly fileService: IFileService,
 	) {
 		super();
 		// Session providers register in contributions instantiated after restore.
@@ -464,12 +466,13 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 	 * which this window reaches through the container provider of the window's source folder, connecting it only while the
 	 * container runs. Containers without a source folder, such as those of a volume or a cloned repository, are
 	 * unsupported, and so are those this window wouldn't use for the folder, such as one of another configuration file or
-	 * Docker host, or one the Dev Containers extension labeled differently.
+	 * Docker host.
 	 */
 	private async resolveAndOpenDevContainerSession(editorSessionResource: URI, remoteAuthority: string, token: CancellationToken): Promise<URI | 'unsupported' | undefined> {
 		const intent = resolveAgentsWindowFolderIntent(URI.from({ scheme: Schemas.vscodeRemote, authority: remoteAuthority, path: '/' }), this.configurationService);
+		const selection = getDefaultDevContainerSelection(remoteAuthority);
 		// Set only for a source folder this window can reach while Dev Container sessions are enabled.
-		if (!intent.preferDevContainer || !selectsDefaultDevContainer(remoteAuthority)) {
+		if (!intent.preferDevContainer || !selection) {
 			this.logService.info('[AgentsHandoff] sessions of this Dev Container window are not shared with this window');
 			return 'unsupported';
 		}
@@ -492,6 +495,14 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 		}
 		if (!folderUri) {
 			return 'unsupported';
+		}
+		// Without a configuration file, the Dev Containers CLI selects `.devcontainer/devcontainer.json` over `.devcontainer.json`.
+		if (selection.configFile === '.devcontainer.json' && await this.fileService.exists(joinPath(folderUri, '.devcontainer', 'devcontainer.json'))) {
+			this.logService.info('[AgentsHandoff] this Dev Container window uses another configuration file of its folder than this window');
+			return 'unsupported';
+		}
+		if (token.isCancellationRequested) {
+			return undefined;
 		}
 		const trusted = await this.workspaceTrustRequestService.requestResourcesTrust({
 			uri: folderUri,
