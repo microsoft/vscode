@@ -10,6 +10,7 @@ import { FileService } from '../../../../../platform/files/common/fileService.js
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../../platform/native/common/native.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { IAgenticModeService } from '../../../agenticMode/common/agenticMode.js';
 import { INativeWorkbenchEnvironmentService } from '../../../environment/electron-browser/environmentService.js';
 import { IExtensionService } from '../../../extensions/common/extensions.js';
 import { IHostService } from '../../../host/browser/host.js';
@@ -43,7 +44,7 @@ class TestWorkspaceEditingService extends NativeWorkspaceEditingService {
 suite('NativeWorkspaceEditingService - extension host recovery', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setupServices(remoteAuthority?: string, stopped = true, restartFailure?: Error) {
+	function setupServices(remoteAuthority?: string, stopped = true, restartFailure?: Error, inAgenticMode = false) {
 		const calls: string[] = [];
 		const errors: (string | Error)[] = [];
 		const fileService = store.add(new FileService(new NullLogService()));
@@ -67,6 +68,10 @@ suite('NativeWorkspaceEditingService - extension host recovery', () => {
 			},
 		});
 		instantiationService.stub(IHostService, { reload: async () => { calls.push('reload'); } });
+		instantiationService.stub(IAgenticModeService, {
+			get isActive() { return inAgenticMode; },
+			setActive: async (active: boolean) => { calls.push(`agenticMode:${active}`); inAgenticMode = active; },
+		});
 		const service = store.add(instantiationService.createInstance(TestWorkspaceEditingService));
 		return { service, backups, calls, errors };
 	}
@@ -108,4 +113,10 @@ suite('NativeWorkspaceEditingService - extension host recovery', () => {
 			assert.deepStrictEqual(calls, ['stop', remoteAuthority ? 'reload' : 'start']);
 		});
 	}
+
+	test('leaves Agentic Mode after stopping hosts and before entering the workspace', async () => {
+		const { service, calls } = setupServices(undefined, true, undefined, true);
+		await service.enterWorkspace(URI.file('/new.code-workspace'));
+		assert.deepStrictEqual({ calls, entered: service.entered }, { calls: ['stop', 'agenticMode:false', 'start'], entered: true });
+	});
 });

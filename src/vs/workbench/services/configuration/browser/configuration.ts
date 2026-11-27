@@ -138,8 +138,9 @@ export class ApplicationConfiguration extends UserSettings {
 		fileService: IFileService,
 		uriIdentityService: IUriIdentityService,
 		logService: ILogService,
+		exclude?: string[],
 	) {
-		super(userDataProfilesService.defaultProfile.settingsResource, { scopes: APPLICATION_SCOPES, skipUnregistered: true }, uriIdentityService.extUri, fileService, logService);
+		super(userDataProfilesService.defaultProfile.settingsResource, { scopes: APPLICATION_SCOPES, skipUnregistered: true, exclude }, uriIdentityService.extUri, fileService, logService);
 		this._register(this.onDidChange(() => this.reloadConfigurationScheduler.schedule()));
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.loadConfiguration().then(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)), 50));
 	}
@@ -155,6 +156,13 @@ export class ApplicationConfiguration extends UserSettings {
 		return this.parseOptions.include || allProfilesSettings.length
 			? this.reparse({ ...this.parseOptions, include: allProfilesSettings })
 			: model;
+	}
+
+	/**
+	 * Parses the settings again without the given settings.
+	 */
+	reparseExcluding(exclude: string[]): ConfigurationModel {
+		return this.reparse({ ...this.parseOptions, exclude });
 	}
 }
 

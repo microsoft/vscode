@@ -56,6 +56,7 @@ import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorMemento, IEditorOpenContext, IEditorPane } from '../../../common/editor.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { APPLICATION_SCOPES, IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
+import { IAgenticModeService } from '../../../services/agenticMode/common/agenticMode.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { ALWAYS_SHOW_ADVANCED_SETTINGS_SETTING, IOpenSettingsOptions, IPreferencesService, ISearchResult, ISetting, ISettingsEditorModel, ISettingsEditorOptions, ISettingsGroup, SettingMatchType, SettingValueType, validateSettingsEditorOptions } from '../../../services/preferences/common/preferences.js';
@@ -297,10 +298,11 @@ export class SettingsEditor2 extends EditorPane {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IExperimentalSettingsService experimentalSettingsService: IExperimentalSettingsService,
 		@IManagedSettingsPresentationService managedSettingsPresentationService: IManagedSettingsPresentationService,
+		@IAgenticModeService private readonly agenticModeService: IAgenticModeService,
 	) {
 		super(SettingsEditor2.ID, group, telemetryService, themeService, storageService);
 		this.searchDelayer = this._register(new Delayer(200));
-		this.viewState = { settingsTarget: ConfigurationTarget.USER_LOCAL };
+		this.viewState = { settingsTarget: ConfigurationTarget.USER_LOCAL, isAgentsMode: agenticModeService.isActive };
 
 		this.settingFastUpdateDelayer = this._register(new Delayer<void>(SettingsEditor2.SETTING_UPDATE_FAST_DEBOUNCE));
 		this.settingSlowUpdateDelayer = this._register(new Delayer<void>(SettingsEditor2.SETTING_UPDATE_SLOW_DEBOUNCE));
@@ -339,6 +341,8 @@ export class SettingsEditor2 extends EditorPane {
 		this._register(chatEntitlementService.onDidChangeSentiment(() => {
 			this.updateAiSearchToggleVisibility();
 		}));
+
+		this._register(agenticModeService.onDidChange(isActive => this.onDidChangeAgenticMode(isActive)));
 
 		this._register(userDataProfileService.onDidChangeCurrentProfile(e => {
 			e.join(this.whenCurrentProfileChanged());
@@ -585,7 +589,7 @@ export class SettingsEditor2 extends EditorPane {
 		if (cachedState) {
 			const settingsTarget = cachedState.target;
 			this.settingsTargetsWidget.settingsTarget = settingsTarget;
-			this.viewState.settingsTarget = settingsTarget;
+			this.viewState.settingsTarget = this.settingsTargetsWidget.settingsTarget ?? ConfigurationTarget.USER_LOCAL;
 			if (!this.searchWidget.getValue()) {
 				this.searchWidget.setValue(cachedState.searchQuery);
 			}
@@ -891,6 +895,7 @@ export class SettingsEditor2 extends EditorPane {
 		const targetWidgetContainer = DOM.append(headerControlsContainer, $('.settings-target-container'));
 		this.settingsTargetsWidget = this._register(this.instantiationService.createInstance(SettingsTargetsWidget, targetWidgetContainer, { enableRemoteSettings: true }));
 		this.settingsTargetsWidget.settingsTarget = ConfigurationTarget.USER_LOCAL;
+		this.settingsTargetsWidget.setAgentsMode(this.agenticModeService.isActive);
 		this._register(this.settingsTargetsWidget.onDidTargetChange(target => this.onDidSettingsTargetChange(target)));
 		this._register(DOM.addDisposableListener(targetWidgetContainer, DOM.EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e);
@@ -952,6 +957,16 @@ export class SettingsEditor2 extends EditorPane {
 		this.viewState.settingsTarget = target;
 
 		// TODO Instead of rebuilding the whole model, refresh and uncache the inspected setting value
+		this.onConfigUpdate(undefined, true);
+	}
+
+	/**
+	 * Agentic Mode writes only User settings and shows its own defaults, so the
+	 * targets and every setting element follow the mode.
+	 */
+	private onDidChangeAgenticMode(isActive: boolean): void {
+		this.viewState.isAgentsMode = isActive;
+		this.settingsTargetsWidget?.setAgentsMode(isActive);
 		this.onConfigUpdate(undefined, true);
 	}
 
