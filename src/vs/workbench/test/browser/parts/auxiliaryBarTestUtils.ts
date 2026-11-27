@@ -16,7 +16,6 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { MockKeybindingService } from '../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ContextKeyService } from '../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { AuxiliaryBarPart } from '../../../browser/parts/auxiliarybar/auxiliaryBarPart.js';
 import { IComposite } from '../../../common/composite.js';
 import { IViewDescriptorService } from '../../../common/views.js';
@@ -43,11 +42,8 @@ class TestAuxiliaryBarMenuService extends MenuService {
 	}
 }
 
-export function createTestAuxiliaryBarPart(container: HTMLElement, store: Pick<DisposableStore, 'add'>, options?: { readonly globalActions?: boolean; readonly onDidUpdateKeybindings?: Event<void>; readonly themeService?: IThemeService }): TestAuxiliaryBarPart {
+export function createTestAuxiliaryBarPart(container: HTMLElement, store: Pick<DisposableStore, 'add'>, options?: { readonly globalActions?: boolean; readonly onDidUpdateKeybindings?: Event<void> }): TestAuxiliaryBarPart {
 	const instantiationService = workbenchInstantiationService({}, store);
-	if (options?.themeService) {
-		instantiationService.stub(IThemeService, options.themeService);
-	}
 	if (options?.onDidUpdateKeybindings) {
 		instantiationService.stub(IKeybindingService, new TestKeybindingService(options.onDidUpdateKeybindings));
 	}

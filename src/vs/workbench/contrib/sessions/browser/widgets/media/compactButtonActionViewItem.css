@@ -45,6 +45,12 @@ Selectors are intentionally unscoped so the widget renders identically wherever 
 	white-space: nowrap;
 }
 
+/* Icons take a fixed slot, so a product icon theme or its font loading never changes the pill's width */
+.agent-sessions-compact-new-button .new-session-button-icon {
+	flex-shrink: 0;
+	width: var(--vscode-codiconFontSize, 16px);
+}
+
 .agent-sessions-compact-new-button .new-session-keybinding-hint {
 	display: inline-block;
 	flex-shrink: 0;
@@ -125,7 +131,8 @@ Selectors are intentionally unscoped so the widget renders identically wherever 
 }
 
 .agent-sessions-compact-new-button-dropdown > .monaco-button.monaco-dropdown-button {
-	width: auto;
+	box-sizing: content-box;
+	width: var(--vscode-codiconFontSize, 16px);
 	min-width: 0;
 	height: auto;
 	padding: 0 var(--vscode-spacing-size20);

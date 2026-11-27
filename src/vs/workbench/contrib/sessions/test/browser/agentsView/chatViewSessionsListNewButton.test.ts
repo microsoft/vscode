@@ -30,7 +30,6 @@ import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { ACTION_ID_NEW_CHAT } from '../../../../chat/browser/actions/chatActions.js';
 import { NEW_CHAT_ICON_VARIANTS } from '../../../../chat/browser/actions/chatNewActions.js';
-import { TestThemeService } from '../../../../../../platform/theme/test/common/testThemeService.js';
 import { createTestAuxiliaryBarPart } from '../../../../../test/browser/parts/auxiliaryBarTestUtils.js';
 import '../../../../../browser/media/part.css';
 
@@ -222,11 +221,11 @@ suite('Sessions - Chat view sessions list New button', () => {
 	const cmdShiftAltN = new USLayoutResolvedKeybinding([new KeyCodeChord(true, true, true, false, KeyCode.KeyN)], OperatingSystem.Macintosh);
 
 	/** Renders the Chat view's title actions, New and a next icon, in a real secondary side bar title attached to the document. */
-	function renderInSecondarySideBarTitle(root: HTMLElement, themeService?: TestThemeService) {
+	function renderInSecondarySideBarTitle(root: HTMLElement) {
 		const rendered = render(true, undefined, ACTION_ID_NEW_CHAT, { [ACTION_ID_NEW_CHAT]: cmdN });
 		const { control, submenu } = rendered;
 		const container = DOM.append(root, DOM.$('.part.auxiliarybar'));
-		const part = createTestAuxiliaryBarPart(container, store, { onDidUpdateKeybindings: rendered.keybindingService.onDidUpdateKeybindings, themeService });
+		const part = createTestAuxiliaryBarPart(container, store, { onDidUpdateKeybindings: rendered.keybindingService.onDidUpdateKeybindings });
 		part.viewActionViewItemProvider = (action, options) => control.createActionViewItem(action, options);
 		const next = store.add(new Action('next', 'Next', 'codicon codicon-gear'));
 		part.setTitleActions('Chat', [submenu, next], []);
@@ -408,26 +407,19 @@ suite('Sessions - Chat view sessions list New button', () => {
 		}
 	});
 
-	test('comes back from the overflow when a product icon theme makes its icons narrower at the same width', async () => {
+	test('keeps its width when a product icon theme changes its icons, wherever it is mounted', () => {
 		const root = attachRoot();
-		// As a product icon theme whose ▾ glyph is wider than the default one
-		const wideGlyph = DOM.append(root, DOM.$('style'));
-		wideGlyph.textContent = '.agent-sessions-compact-new-button-dropdown > .monaco-dropdown-button { min-width: 60px !important; }';
 		try {
-			const themeService = new TestThemeService();
-			const { layout, state, narrowestShownWidth } = renderInSecondarySideBarTitle(root, themeService);
-			const width = narrowestShownWidth(1000) - 1;
-			layout(width);
-			const wide = state();
+			const { container } = render(true);
+			root.appendChild(container);
+			const width = () => container.querySelector<HTMLElement>('.agent-sessions-compact-new-button-dropdown')!.getBoundingClientRect().width;
+			const before = width();
 
-			wideGlyph.remove();
-			themeService._onProductIconThemeChange.fire(themeService.getProductIconTheme());
-			await timeout(0);
+			// As a product icon theme with wider glyphs, which the title never measures again
+			const wideGlyphs = DOM.append(root, DOM.$('style'));
+			wideGlyphs.textContent = '.agent-sessions-compact-new-button-dropdown > .monaco-dropdown-button::before, .agent-sessions-compact-new-button .new-session-button-icon::before { content: "WWWWWW"; }';
 
-			assert.deepStrictEqual({ wide, narrow: state() }, {
-				wide: { newButton: 'overflow', nextIconInTitle: true },
-				narrow: { newButton: 'shown', nextIconInTitle: true },
-			});
+			assert.strictEqual(width(), before);
 		} finally {
 			root.remove();
 		}
