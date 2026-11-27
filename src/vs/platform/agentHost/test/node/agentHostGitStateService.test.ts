@@ -3264,7 +3264,8 @@ suite('AgentHostGitStateService', () => {
 			docsGone: { repositories: [tools], docs: [undefined, undefined], tools: 'tools-main' },
 			// No nested repository is left, so nothing is recorded
 			toolsFolder: { repositories: undefined, docs: [undefined, undefined], tools: 'tools-main' },
-			scans: 3,
+			// The last discovery scans both folders, neither of which is in a repository then
+			scans: 4,
 		});
 	}));
 
@@ -3293,7 +3294,8 @@ suite('AgentHostGitStateService', () => {
 				return refresh(false);
 			})(),
 			docsBranch: readFolderScopeGitState(h.stateManager.getSessionState(SESSION)?._meta, getWorkingDirectoryScopeId(['file:///wd/docs']))?.branchName,
-		}, { first: 1, ordinary: 1, forced: 2, folderAdded: 3, docsBranch: 'docs-main' });
+			// One scan for each folder that is not in a repository: both, once the folder is added
+		}, { first: 1, ordinary: 1, forced: 2, folderAdded: 4, docsBranch: 'docs-main' });
 	}));
 
 	test('a folder whose GitHub remote changes on the same branch drops the previous repository\'s pull request and looks up its pull request again', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
