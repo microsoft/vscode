@@ -1205,7 +1205,9 @@ export class SCMHistoryTreeDataSource extends Disposable implements IAsyncDataSo
 	/**
 	 * Forgets the files of the history items that the tree no longer shows, and releases the structural changes of the
 	 * files that it doesn't show expanded, for example because their history item or folder was collapsed during a
-	 * refresh, or because switching between list and tree showed them again, collapsed.
+	 * refresh, or because switching between list and tree showed them again, collapsed. The files that it keeps are
+	 * shown again, so their expansion also ends when they have no structural changes, for example because hiding the
+	 * view cleared them.
 	 */
 	releaseHiddenChanges(tree: { hasNode(element: TreeElement): boolean; isCollapsed(element: TreeElement): boolean }): void {
 		for (const [historyItemId, { historyItemElement }] of this._changeElements) {
@@ -1213,7 +1215,8 @@ export class SCMHistoryTreeDataSource extends Disposable implements IAsyncDataSo
 				this._changeElements.delete(historyItemId);
 			}
 		}
-		this.structuralDiff.releaseWhere(element => !tree.hasNode(element) || tree.isCollapsed(element));
+		const keptChangeElements = Iterable.flatMap(this._changeElements.values(), ({ changeElements }) => changeElements.values());
+		this.structuralDiff.releaseWhere(element => !tree.hasNode(element) || tree.isCollapsed(element), keptChangeElements);
 	}
 
 	/** The elements of the files of a history item, which keep the elements of its previous files that compare the same documents. */

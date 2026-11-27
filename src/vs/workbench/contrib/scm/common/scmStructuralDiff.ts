@@ -396,13 +396,20 @@ export class StructuralDiffModel<T extends object> extends Disposable {
 
 	/**
 	 * Releases the cached results of the resources that the predicate selects, for example because the view removed
-	 * them or no longer shows them expanded. Like {@link release}, this ends their expansion.
+	 * them or no longer shows them expanded. Like {@link release}, this ends their expansion. The model only knows the
+	 * resources that have cached results, so a view that shows its resources again passes them too, which ends their
+	 * expansion when they have no results, for example because hiding the view cleared them.
 	 */
-	releaseWhere(predicate: (resource: T) => boolean): void {
+	releaseWhere(predicate: (resource: T) => boolean, reusedResources: Iterable<T> = []): void {
 		for (const [resource] of this.entries) {
 			if (predicate(resource)) {
 				this.reportedResources.delete(resource);
 				this.entries.deleteAndDispose(resource);
+			}
+		}
+		for (const resource of reusedResources) {
+			if (predicate(resource)) {
+				this.reportedResources.delete(resource);
 			}
 		}
 	}

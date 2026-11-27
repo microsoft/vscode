@@ -142,16 +142,26 @@ suite('SCMHistoryTreeDataSource', () => {
 		};
 	}
 
-	/** Records the files whose structural changes it computes, and keeps them until they are released, like the model. */
+	/**
+	 * Records the files whose structural changes it computes, and keeps them until they are released or the view is
+	 * hidden, like the model. Like the model's telemetry, it reports the first computation after a file was expanded.
+	 */
 	class TestStructuralDiffModel extends mock<StructuralDiffModel<SCMHistoryItemChangeViewModelTreeElement>>() {
 		readonly computed: string[] = [];
+		readonly reported: string[] = [];
 		readonly results = new Map<SCMHistoryItemChangeViewModelTreeElement, readonly SCMStructuralDiffElement<SCMHistoryItemChangeViewModelTreeElement>[]>();
+		private readonly expanded = new Set<SCMHistoryItemChangeViewModelTreeElement>();
 		override get enabled(): boolean { return true; }
 		override hasChildren(): boolean { return true; }
 		override async getChildren(change: SCMHistoryItemChangeViewModelTreeElement): Promise<readonly SCMStructuralDiffElement<SCMHistoryItemChangeViewModelTreeElement>[]> {
 			let result = this.results.get(change);
 			if (!result) {
-				this.computed.push(basename(change.historyItemChange.uri.path));
+				const name = basename(change.historyItemChange.uri.path);
+				this.computed.push(name);
+				if (!this.expanded.has(change)) {
+					this.expanded.add(change);
+					this.reported.push(name);
+				}
 				const range = new Range(1, 1, 3, 1);
 				result = [{
 					type: 'structuralDiff', id: `structuralDiff:${change.historyItemChange.uri.path}`, generation: 1, resource: change, parent: change, order: 0, children: [],
@@ -161,12 +171,19 @@ suite('SCMHistoryTreeDataSource', () => {
 			}
 			return result;
 		}
+		override setVisible(visible: boolean): void {
+			if (!visible) {
+				this.results.clear();
+			}
+		}
 		override release(change: SCMHistoryItemChangeViewModelTreeElement): void {
+			this.expanded.delete(change);
 			this.results.delete(change);
 		}
-		override releaseWhere(predicate: (change: SCMHistoryItemChangeViewModelTreeElement) => boolean): void {
-			for (const change of [...this.results.keys()]) {
+		override releaseWhere(predicate: (change: SCMHistoryItemChangeViewModelTreeElement) => boolean, reusedChanges: Iterable<SCMHistoryItemChangeViewModelTreeElement> = []): void {
+			for (const change of new Set([...this.results.keys(), ...reusedChanges])) {
 				if (predicate(change)) {
+					this.expanded.delete(change);
 					this.results.delete(change);
 				}
 			}
@@ -295,6 +312,27 @@ suite('SCMHistoryTreeDataSource', () => {
 			// The refresh dropped the file from the collapsed folder, so expanding it again computes its structural changes again
 			computed: ['file.ts', 'file.ts'],
 			keptElement: true,
+		});
+	});
+
+	test('ends the expansion of a file that showing the view drops from a collapsed folder, after hiding the view cleared its structural changes', async () => {
+		historyItemChanges = [toHistoryItemChange('b', 'src/file.ts'), toHistoryItemChange('b', 'other.ts')];
+		const graph = await createGraph(() => ViewMode.Tree);
+		await graph.tree.expand(graph.getFile('file.ts'));
+		await graph.tree.expand(graph.getFile('other.ts'));
+		graph.tree.collapse(graph.getFolder('src'));
+		graph.structuralDiff.setVisible(false);
+		graph.structuralDiff.setVisible(true);
+		// Showing the view renders its history items again, which drops the files of the collapsed folder
+		await graph.refresh();
+
+		await graph.tree.expand(graph.getFolder('src'));
+		await graph.tree.expand(graph.getFile('file.ts'));
+
+		assert.deepStrictEqual({ computed: graph.structuralDiff.computed, reported: graph.structuralDiff.reported }, {
+			// The file that stayed expanded was analyzed again without being reported, while expanding the other file again was reported
+			computed: ['file.ts', 'other.ts', 'other.ts', 'file.ts'],
+			reported: ['file.ts', 'other.ts', 'file.ts'],
 		});
 	});
 

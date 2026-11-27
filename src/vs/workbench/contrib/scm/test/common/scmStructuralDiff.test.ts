@@ -1025,4 +1025,20 @@ suite('SCM structural diff model', () => {
 		// The provider ran for each of the eight requests, so the reloads completed without being reported.
 		assert.deepStrictEqual({ outcomes: telemetryEvents.map(event => event.outcome), calls: provider.calls }, { outcomes: ['success', 'success', 'success'], calls: 8 });
 	});
+
+	test('ends the expansion of a resource that its view reuses when the view releases it, even after hiding the view cleared its results', async () => {
+		await model.getChildren(resource);
+		// Hiding the view clears all results, so the model only knows of the resource because its view passes it.
+		model.setVisible(false);
+		model.setVisible(true);
+		// The view shows the resource expanded again, which reloads it without reporting it.
+		model.releaseWhere(() => false, [resource]);
+		await model.getChildren(resource);
+		model.setVisible(false);
+		model.setVisible(true);
+		// The view shows the resource again, but collapsed, so expanding it is reported.
+		model.releaseWhere(candidate => candidate === resource, [resource]);
+		await model.getChildren(resource);
+		assert.deepStrictEqual({ outcomes: telemetryEvents.map(event => event.outcome), calls: provider.calls }, { outcomes: ['success', 'success'], calls: 3 });
+	});
 });
