@@ -825,6 +825,13 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		window?.setDocumentEdited(edited);
 	}
 
+	async setWindowAgentsMode(windowId: number | undefined, active: boolean, options?: INativeHostOptions): Promise<void> {
+		const window = this.codeWindowById(options?.targetWindowId ?? windowId);
+		if (window?.config) {
+			window.config.agentsMode = active || undefined;
+		}
+	}
+
 	async setApplicationBadge(windowId: number | undefined, badge: IApplicationBadge | undefined, options?: INativeHostOptions): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.setApplicationBadge(badge);

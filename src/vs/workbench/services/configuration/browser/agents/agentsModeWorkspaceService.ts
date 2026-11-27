@@ -31,12 +31,6 @@ import { AgentsConfigurationService } from './agentsConfigurationService.js';
 import { AgentsWorkspaceContextService } from './agentsWorkspaceContextService.js';
 
 /**
- * WORKSPACE-scoped storage key that remembers that a window is in
- * Agents mode, so that the mode is restored after a reload or restart.
- */
-export const AGENTS_MODE_STORAGE_KEY = 'workbench.agentsMode.active';
-
-/**
  * Setting that opts local editor windows into Agents mode. It is
  * read when the window starts, so changing it takes effect after a reload.
  */

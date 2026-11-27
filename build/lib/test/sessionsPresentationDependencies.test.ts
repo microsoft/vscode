@@ -326,7 +326,10 @@ suite('Sessions presentation entry isolation', () => {
 
 	test('entries that load the Settings editor also register the Agents mode service it injects', () => {
 		const settingsEditor = 'src/vs/workbench/contrib/preferences/browser/settingsEditor2.ts';
-		const agentsModeService = 'src/vs/workbench/services/agentsMode/browser/agentsModeService.ts';
+		const agentsModeRegistrations = [
+			'src/vs/workbench/services/agentsMode/browser/browserAgentsModeService.ts',
+			'src/vs/workbench/services/agentsMode/electron-browser/agentsModeService.ts',
+		];
 		const entries = [
 			'src/vs/sessions/sessions.desktop.main.ts',
 			'src/vs/sessions/sessions.web.main.ts',
@@ -336,7 +339,7 @@ suite('Sessions presentation entry isolation', () => {
 		];
 		const missing = entries.filter(entry => {
 			const dependencies = collectSourceDependencies(entry);
-			return dependencies.has(settingsEditor) && !dependencies.has(agentsModeService);
+			return dependencies.has(settingsEditor) && !agentsModeRegistrations.some(registration => dependencies.has(registration));
 		});
 		assert.deepStrictEqual(missing, []);
 		assert.ok(collectSourceDependencies('src/vs/sessions/sessions.desktop.main.ts').has(settingsEditor), 'the Agents window loads the Settings editor');

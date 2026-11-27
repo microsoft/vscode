@@ -23,6 +23,7 @@ export interface IWindowState {
 	folderUri?: URI;
 	backupPath?: string;
 	remoteAuthority?: string;
+	agentsMode?: boolean;
 	uiState: IWindowUIState;
 }
 
@@ -47,6 +48,7 @@ interface ISerializedWindowState {
 	readonly folder?: string;
 	readonly backupPath?: string;
 	readonly remoteAuthority?: string;
+	readonly agentsMode?: boolean;
 	readonly uiState: IWindowUIState;
 }
 
@@ -319,6 +321,7 @@ export class WindowsStateHandler extends Disposable {
 			folderUri: isSingleFolderWorkspaceIdentifier(window.openedWorkspace) ? window.openedWorkspace.uri : undefined,
 			backupPath: window.backupPath,
 			remoteAuthority: window.remoteAuthority,
+			agentsMode: window.config?.agentsMode || undefined,
 			uiState: window.serializeWindowState({ exact })
 		};
 	}
@@ -514,6 +517,10 @@ function restoreWindowState(windowState: ISerializedWindowState): IWindowState {
 		result.remoteAuthority = windowState.remoteAuthority;
 	}
 
+	if (windowState.agentsMode === true) {
+		result.agentsMode = true;
+	}
+
 	if (windowState.folder) {
 		result.folderUri = URI.parse(windowState.folder);
 	}
@@ -539,6 +546,7 @@ function serializeWindowState(windowState: IWindowState): ISerializedWindowState
 		folder: windowState.folderUri?.toString(),
 		backupPath: windowState.backupPath,
 		remoteAuthority: windowState.remoteAuthority,
+		agentsMode: windowState.agentsMode,
 		uiState: windowState.uiState
 	};
 }

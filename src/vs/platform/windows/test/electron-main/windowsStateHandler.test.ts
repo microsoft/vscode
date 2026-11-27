@@ -135,6 +135,27 @@ suite('Windows State Storing', () => {
 		assertRestoring(windowState, 'lastPluginDevelopmentHostWindow');
 	});
 
+	test('restores each window in its own Agents mode after a restart', () => {
+		const stored = getWindowsStateStoreData({
+			lastActiveWindow: { backupPath: testBackupPath1, uiState: getUIState(), agentsMode: true },
+			openedWindows: [
+				{ backupPath: testBackupPath1, uiState: getUIState(), agentsMode: true },
+				{ backupPath: testBackupPath2, uiState: getUIState(), folderUri: testFolderURI },
+				{ backupPath: testBackupPath2, uiState: getUIState(), workspace: toWorkspace(testWSPath), agentsMode: true },
+			]
+		});
+
+		const restored = restoreWindowsState(JSON.parse(JSON.stringify(stored)));
+
+		assert.deepStrictEqual({
+			lastActiveWindow: restored.lastActiveWindow?.agentsMode,
+			openedWindows: restored.openedWindows.map(window => window.agentsMode),
+		}, {
+			lastActiveWindow: true,
+			openedWindows: [true, undefined, true],
+		});
+	});
+
 	test('open 1_32', () => {
 		const v1_32_workspace = `{
 			"openedWindows": [],

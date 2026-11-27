@@ -5,9 +5,7 @@
 
 import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { AGENTS_MODE_STORAGE_KEY, AgentsModeWorkspaceService } from '../../configuration/browser/agents/agentsModeWorkspaceService.js';
+import { AgentsModeWorkspaceService } from '../../configuration/browser/agents/agentsModeWorkspaceService.js';
 import { IWorkbenchConfigurationService } from '../../configuration/common/configuration.js';
 import { IAgentsModeService } from '../common/agentsMode.js';
 
@@ -26,7 +24,6 @@ export class AgentsModeService implements IAgentsModeService {
 
 	constructor(
 		@IWorkbenchConfigurationService configurationService: IWorkbenchConfigurationService,
-		@IStorageService private readonly storageService: IStorageService,
 	) {
 		this.workspaceService = configurationService instanceof AgentsModeWorkspaceService ? configurationService : undefined;
 		this.onDidChange = this.workspaceService?.onDidChangeAgentsMode ?? Event.None;
@@ -49,12 +46,5 @@ export class AgentsModeService implements IAgentsModeService {
 			return;
 		}
 		await this.workspaceService.setAgentsMode(active, workspaceId);
-		if (active) {
-			this.storageService.store(AGENTS_MODE_STORAGE_KEY, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-		} else {
-			this.storageService.remove(AGENTS_MODE_STORAGE_KEY, StorageScope.WORKSPACE);
-		}
 	}
 }
-
-registerSingleton(IAgentsModeService, AgentsModeService, InstantiationType.Delayed);

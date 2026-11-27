@@ -50,6 +50,7 @@ import './services/url/browser/urlService.js';
 import './services/update/browser/updateService.js';
 import './services/workspaces/browser/workspacesService.js';
 import './services/workspaces/browser/workspaceEditingService.js';
+import './services/agentsMode/browser/browserAgentsModeService.js';
 import './services/dialogs/browser/fileDialogService.js';
 import './services/host/browser/browserHostService.js';
 import '../platform/meteredConnection/browser/meteredConnectionService.js';

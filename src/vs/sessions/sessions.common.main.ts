@@ -75,7 +75,7 @@ import '../workbench/services/dialogs/common/dialogService.js';
 import '../workbench/services/progress/browser/progressService.js';
 import '../workbench/services/editor/browser/codeEditorService.js';
 import '../workbench/services/preferences/browser/preferencesService.js';
-import '../workbench/services/agentsMode/browser/agentsModeService.js';
+import '../workbench/services/agentsMode/browser/browserAgentsModeService.js';
 import '../workbench/services/configuration/common/jsonEditingService.js';
 import '../workbench/services/textmodelResolver/common/textModelResolverService.js';
 import '../workbench/services/editor/browser/editorService.js';

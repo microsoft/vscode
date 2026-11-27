@@ -13,7 +13,7 @@ import { domContentLoaded } from '../../base/browser/dom.js';
 import { onUnexpectedError } from '../../base/common/errors.js';
 import { URI } from '../../base/common/uri.js';
 import { WorkspaceService } from '../services/configuration/browser/configurationService.js';
-import { AGENTS_MODE_STORAGE_KEY, AgentsModeWorkspaceService, supportsAgentsMode } from '../services/configuration/browser/agents/agentsModeWorkspaceService.js';
+import { AgentsModeWorkspaceService, supportsAgentsMode } from '../services/configuration/browser/agents/agentsModeWorkspaceService.js';
 import '../services/configuration/electron-browser/agentsModeConfiguration.js';
 import { INativeWorkbenchEnvironmentService, NativeWorkbenchEnvironmentService } from '../services/environment/electron-browser/environmentService.js';
 import { ServiceCollection } from '../../platform/instantiation/common/serviceCollection.js';
@@ -21,7 +21,7 @@ import { ILoggerService, ILogService, LogLevel } from '../../platform/log/common
 import { NativeWorkbenchStorageService } from '../services/storage/electron-browser/storageService.js';
 import { IWorkspaceContextService, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IAnyWorkspaceIdentifier, reviveIdentifier, toWorkspaceIdentifier } from '../../platform/workspace/common/workspace.js';
 import { IWorkbenchConfigurationService } from '../services/configuration/common/configuration.js';
-import { IStorageService, StorageScope } from '../../platform/storage/common/storage.js';
+import { IStorageService } from '../../platform/storage/common/storage.js';
 import { Disposable } from '../../base/common/lifecycle.js';
 import { ISharedProcessService } from '../../platform/ipc/electron-browser/services.js';
 import { IMainProcessService } from '../../platform/ipc/common/mainProcessService.js';
@@ -338,8 +338,8 @@ export class DesktopMain extends Disposable {
 			})
 		]);
 
-		// Agents mode: restore the mode of an empty window before trust is evaluated
-		if (configurationService instanceof AgentsModeWorkspaceService && storageService.getBoolean(AGENTS_MODE_STORAGE_KEY, StorageScope.WORKSPACE, false)) {
+		// Agents mode: restore the window's mode, which main remembers, before trust is evaluated
+		if (configurationService instanceof AgentsModeWorkspaceService && this.configuration.agentsMode) {
 			await configurationService.setAgentsMode(true);
 		}
 

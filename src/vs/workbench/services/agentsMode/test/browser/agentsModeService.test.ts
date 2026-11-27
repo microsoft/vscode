@@ -7,18 +7,15 @@ import assert from 'assert';
 import { Event } from '../../../../../base/common/event.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { InMemoryStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
-import { AGENTS_MODE_STORAGE_KEY } from '../../../configuration/browser/agents/agentsModeWorkspaceService.js';
 import { IWorkbenchConfigurationService } from '../../../configuration/common/configuration.js';
 import { AgentsModeService } from '../../browser/agentsModeService.js';
 
 suite('AgentsModeService', () => {
 
-	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('is unsupported and inert with a configuration service that cannot switch, as in the Agents window', async () => {
-		const storageService = disposables.add(new InMemoryStorageService());
-		const testObject = new AgentsModeService(new class extends mock<IWorkbenchConfigurationService>() { }, storageService);
+		const testObject = new AgentsModeService(new class extends mock<IWorkbenchConfigurationService>() { });
 
 		await testObject.setActive(true);
 
@@ -27,13 +24,11 @@ suite('AgentsModeService', () => {
 			isActive: testObject.isActive,
 			windowFolders: testObject.windowFolders,
 			onDidChange: testObject.onDidChange === Event.None,
-			stored: storageService.getBoolean(AGENTS_MODE_STORAGE_KEY, StorageScope.WORKSPACE),
 		}, {
 			isSupported: false,
 			isActive: false,
 			windowFolders: [],
 			onDidChange: true,
-			stored: undefined,
 		});
 	});
 });
