@@ -165,9 +165,12 @@ suite('Chat view sessions list focus', () => {
 			const elsewhere = container.appendChild(mainWindow.document.createElement('button'));
 			const focusedName = () => (mainWindow.document.activeElement as HTMLElement | null)?.textContent ?? '';
 
-			const lost = async (candidates: Parameters<typeof restoreLostFocus>[0], moveFocusTo?: HTMLElement) => {
+			// An open picker's input, which keeps the focus while the picker animates closed
+			const closingPickerInput = container.appendChild(mainWindow.document.createElement('input'));
+			const lost = async (candidates: Parameters<typeof restoreLostFocus>[0], moveFocusTo?: HTMLElement, closingFocus?: HTMLElement) => {
 				(mainWindow.document.activeElement as HTMLElement | null)?.blur();
-				restoreLostFocus(candidates);
+				closingFocus?.focus();
+				restoreLostFocus(candidates, undefined, closingFocus);
 				moveFocusTo?.focus();
 				await timeout(0);
 				return focusedName();
@@ -179,11 +182,13 @@ suite('Chat view sessions list focus', () => {
 				firstAction: await lost([() => getTitleToolbarFocusTarget(withoutOverflow)]),
 				skipsHiddenList: await lost([() => hiddenList, () => getTitleToolbarFocusTarget(withoutOverflow)]),
 				keepsFocusMovedElsewhere: await lost([() => getTitleToolbarFocusTarget(withOverflow)], elsewhere),
+				leavesClosingPicker: await lost([() => getTitleToolbarFocusTarget(withoutOverflow)], undefined, closingPickerInput),
 			}, {
 				overflow: 'codicon codicon-toolbar-more',
 				firstAction: 'filter',
 				skipsHiddenList: 'filter',
 				keepsFocusMovedElsewhere: 'elsewhere',
+				leavesClosingPicker: 'filter',
 			});
 		} finally {
 			container.remove();

@@ -138,12 +138,13 @@ const INBOX_MODE_ACTION_ID = 'sessionsViewPane.inboxMode';
  * Gives the focus, lost as what had it went, such as Toggle Inbox or an open scope picker as the Chat view's list turns off,
  * to the first of `candidates` that shows, once what replaces them rendered; not where the focus went elsewhere since. As the
  * host lays out after that, `afterLayout`, by default the next animation frame, the focus moves on to the next candidate that
- * shows if the one it got went or hid.
+ * shows if the one it got went or hid. `closingFocus` is what has the focus as it goes but keeps it while it closes, such as an
+ * open picker's input as the picker animates closed; the focus it keeps counts as lost.
  */
-export function restoreLostFocus(candidates: readonly (() => HTMLElement | null | undefined)[], afterLayout: (callback: () => void) => void = callback => DOM.scheduleAtNextAnimationFrame(DOM.getActiveWindow(), callback)): void {
+export function restoreLostFocus(candidates: readonly (() => HTMLElement | null | undefined)[], afterLayout: (callback: () => void) => void = callback => DOM.scheduleAtNextAnimationFrame(DOM.getActiveWindow(), callback), closingFocus?: Element | null): void {
 	const lost = (element?: HTMLElement) => {
 		const activeElement = DOM.getActiveElement();
-		return !DOM.isHTMLElement(activeElement) || !activeElement.isConnected || activeElement === activeElement.ownerDocument.body || (activeElement === element && element.getClientRects().length === 0);
+		return !DOM.isHTMLElement(activeElement) || !activeElement.isConnected || activeElement === activeElement.ownerDocument.body || activeElement === closingFocus || (activeElement === element && element.getClientRects().length === 0);
 	};
 	const focusFrom = (index: number): void => {
 		for (let i = index; i < candidates.length; i++) {
@@ -988,7 +989,7 @@ export class SessionsView extends ViewPane {
 		restoreLostFocus([
 			() => getReplacementList(host, ownElement),
 			() => getTitleToolbarFocusTarget(titleActionBar?.isConnected ? titleActionBar : getHostTitleActionBar(host)),
-		], callback => DOM.scheduleAtNextAnimationFrame(DOM.getWindow(host), callback));
+		], callback => DOM.scheduleAtNextAnimationFrame(DOM.getWindow(host), callback), DOM.getActiveElement());
 	}
 
 	override createActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {
