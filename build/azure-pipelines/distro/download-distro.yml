@@ -59,8 +59,11 @@ steps:
         }
         Write-Host "##vso[task.setvariable variable=VSCODE_DISTRO_BRANCH_HEAD]$BranchHead"
       condition: and(succeeded(), eq(lower(variables['VSCODE_PUBLISH']), 'true'), startsWith(variables['Build.SourceBranch'], 'refs/heads/'))
+      timeoutInMinutes: 1
+      continueOnError: true
       env:
         BUILD_SOURCEBRANCH: "$(Build.SourceBranch)"
+        GIT_TERMINAL_PROMPT: "0"
       displayName: Capture distro branch head
 
   - pwsh: |
