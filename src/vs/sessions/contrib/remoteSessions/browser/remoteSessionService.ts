@@ -22,6 +22,7 @@ import { buildOpenSessionLinkUri } from '../../../../platform/agentHost/common/o
 import { isReasoningEffortLevel, ReasoningEffortConfigKey } from '../../../../platform/agentHost/common/reasoningEffort.js';
 import { getSessionModeProperty, isSessionConfigWritable } from '../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { PolicyState } from '../../../../platform/agentHost/common/state/protocol/channels-root/state.js';
+import type { ResolveSessionConfigResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import { JsonPrimitive } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { withSessionCreationReference } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -423,6 +424,19 @@ export class RemoteSessionService implements IRemoteSessionService {
 					reasons.push(localize('remoteSessions.workspaceInspectionFailed', "Workspace inspection failed: {0}", toErrorMessage(error)));
 				}
 			}
+			// Requested permissions and mode depend on each host's configuration, so only those hosts are asked for it.
+			if (candidate && !reasons.length && (options.permissions !== undefined || options.mode !== undefined)) {
+				try {
+					const config = await raceCancellationError(candidate.provider.resolveSessionConfigForCreation(candidate.workspace, candidate.sessionType.id, token), token);
+					reasons.push(...this.getRequestedSettingRejections(candidate, config, options));
+				} catch (error) {
+					if (token.isCancellationRequested) {
+						throw new CancellationError();
+					}
+					this.logService.warn(`[RemoteSessions] Could not resolve the session configuration on ${provider.id}`, error);
+					reasons.push(localize('remoteSessions.configurationUnavailable', "The session configuration could not be resolved: {0}", toErrorMessage(error)));
+				}
+			}
 			if (reasons.length || !candidate) {
 				rejected.push({ hostId: provider.id, reasons });
 				return undefined;
@@ -600,8 +614,28 @@ export class RemoteSessionService implements IRemoteSessionService {
 		}
 	}
 
+	/** Permission choices the target's resolved configuration can apply now, without policy-locked ones. */
+	private getApplicablePermissions(target: IRemoteSessionCandidate, config: ResolveSessionConfigResult): readonly ISessionPermissionOption[] {
+		return target.provider.getPermissionOptionsForCreation(target.sessionType.id, config).filter(option => !option.locked);
+	}
+
+	/** Why the target's resolved configuration cannot apply the requested permissions and mode; empty when it can. */
+	private getRequestedSettingRejections(target: IRemoteSessionCandidate, config: ResolveSessionConfigResult, options: ICreateRemoteSessionOptions): string[] {
+		const reasons: string[] = [];
+		if (options.permissions !== undefined) {
+			const permissions = this.getApplicablePermissions(target, config);
+			if (!permissions.some(option => option.id === options.permissions)) {
+				reasons.push(localize('remoteSessions.permissionNotOffered', "Permission {0} is not available for {1}. Available: {2}.", options.permissions, target.agentProvider, permissions.map(option => option.id).join(', ') || localize('remoteSessions.none', "none")));
+			}
+		}
+		if (options.mode !== undefined && !getWritableModes(config).includes(options.mode)) {
+			reasons.push(localize('remoteSessions.modeNotOffered', "Mode {0} is not available for {1}.", options.mode, target.agentProvider));
+		}
+		return reasons;
+	}
+
 	/**
-	 * Applies explicit permissions and mode strictly, and otherwise inherits the creating chat's where the target offers
+	 * Applies requested permissions and mode strictly, and otherwise inherits the creating chat's where the target offers
 	 * them. Neither may exceed the creating chat's: the fallbacks are the target's default permissions and interactive
 	 * mode, not the user's remembered or configured defaults, which could be more permissive.
 	 */
@@ -610,14 +644,15 @@ export class RemoteSessionService implements IRemoteSessionService {
 		const host = target.host.label;
 		const sameAgent = source.agentProvider === target.agentProvider;
 		const config = await raceCancellationError(target.provider.resolveSessionConfigForCreation(target.workspace, target.sessionType.id, token), token);
+		const rejections = this.getRequestedSettingRejections(target, config, options);
+		if (rejections.length) {
+			throw new Error(localize('remoteSessions.hostNoLongerMatches', "Remote agent host {0} no longer matches this request. {1}", host, JSON.stringify(rejections)));
+		}
 
-		const permissions = target.provider.getPermissionOptionsForCreation(target.sessionType.id, config).filter(option => !option.locked);
+		const permissions = this.getApplicablePermissions(target, config);
 		let permission: IRemoteSessionSettings['permission'];
 		if (options.permissions !== undefined) {
-			const option = permissions.find(option => option.id === options.permissions);
-			if (!option) {
-				throw new Error(localize('remoteSessions.permissionNotOffered', "Permission {0} is not available for {1} on {2}. Available: {3}.", options.permissions, target.agentProvider, host, permissions.map(option => option.id).join(', ')));
-			}
+			const option = permissions.find(option => option.id === options.permissions)!;
 			if (option.isElevated && !(source.permission?.isAllowAll || (sameAgent && source.permission?.id === option.id))) {
 				throw new Error(localize('remoteSessions.permissionEscalation', "Permission {0} is more permissive than the creating chat's permissions ({1}).", option.id, source.permission?.label ?? localize('remoteSessions.unknownPermission', "unknown")));
 			}
@@ -635,16 +670,14 @@ export class RemoteSessionService implements IRemoteSessionService {
 				notInherited.push(sourcePermission
 					? localize('remoteSessions.permissionNotInherited', "Permission {0} is not available for {1} on {2}; {3} is used.", sourcePermission.label, target.agentProvider, host, fallback.label)
 					: localize('remoteSessions.permissionUnknown', "The creating chat's permissions could not be read; {0} is used.", fallback.label));
+			} else if (sourcePermission && !sourcePermission.isDefault) {
+				notInherited.push(localize('remoteSessions.permissionNotConfigurable', "Permission {0} is not available for {1} on {2}; the agent's default behavior is used.", sourcePermission.label, target.agentProvider, host));
 			}
 		}
 
-		const modeProperty = getSessionModeProperty(config.schema);
-		const modes = modeProperty && isSessionConfigWritable(modeProperty.schema, true) ? (modeProperty.schema.enum ?? []).filter(isString) : [];
+		const modes = getWritableModes(config);
 		let mode: IRemoteSessionSettings['mode'];
 		if (options.mode !== undefined) {
-			if (!modes.includes(options.mode)) {
-				throw new Error(localize('remoteSessions.modeNotOffered', "Mode {0} is not available for {1} on {2}.", options.mode, target.agentProvider, host));
-			}
 			if (options.mode === 'autopilot' && source.mode !== 'autopilot') {
 				throw new Error(localize('remoteSessions.autopilotEscalation', "Mode {0} is only available when the creating chat uses it.", 'autopilot'));
 			}
@@ -656,8 +689,16 @@ export class RemoteSessionService implements IRemoteSessionService {
 			if (source.mode && source.mode !== 'interactive') {
 				notInherited.push(localize('remoteSessions.modeNotInherited', "Mode {0} is not available for {1} on {2}; {3} is used.", source.mode, target.agentProvider, host, 'interactive'));
 			}
+		} else if (source.mode && source.mode !== 'interactive') {
+			notInherited.push(localize('remoteSessions.modeNotConfigurable', "Mode {0} is not available for {1} on {2}; the agent's default behavior is used.", source.mode, target.agentProvider, host));
 		}
 
 		return { permission, mode, notInherited };
 	}
+}
+
+/** The modes a new session can be configured with. */
+function getWritableModes(config: ResolveSessionConfigResult): readonly string[] {
+	const property = getSessionModeProperty(config.schema);
+	return property && isSessionConfigWritable(property.schema, true) ? (property.schema.enum ?? []).filter(isString) : [];
 }

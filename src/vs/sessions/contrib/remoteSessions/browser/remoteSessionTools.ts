@@ -197,10 +197,10 @@ export class CreateRemoteSessionTool implements IToolImpl {
 			throw new Error(localize('remoteSessions.create.missingContext', "Remote session creation requires an originating session."));
 		}
 		assertRemoteSessionCaller(source);
-		const { status, openLink, host, model, workspace, placement } = await this.remoteSessionsService.createSession(options, source, invocation.callId, token);
+		const { status, openLink, host, model, permissions, mode, notInherited, workspace, placement } = await this.remoteSessionsService.createSession(options, source, invocation.callId, token);
 		const hostName: IRemoteSessionHostName = this.remoteSessionsService.getRequestedDestination({ ...options, hostId: host.id }).host ?? host;
 		return {
-			content: [{ kind: 'text', value: JSON.stringify({ status, openLink, host, model, workspace, placement }) }],
+			content: [{ kind: 'text', value: JSON.stringify({ status, openLink, host, model, permissions, mode, notInherited, workspace, placement }) }],
 			toolResultMessage: new MarkdownString().appendLink(openLink, hostName.containerHost !== undefined
 				? localize('remoteSessions.create.resultContainer', "Created remote session in {0} on {1}", hostName.label, hostName.containerHost)
 				: localize('remoteSessions.create.result', "Created remote session on {0}", hostName.label)),

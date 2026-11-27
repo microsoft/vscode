@@ -92,10 +92,10 @@ suite('RemoteSessions', () => {
 		})), ['Model claude/test-model is not available.']);
 	});
 
-	test('requested permissions require an agent that offers them without a policy lock', () => {
+	test('requested permissions require an agent whose choices include them, whatever this client\'s policy locks', () => {
 		assert.deepStrictEqual(['default', 'autoApprove', 'bypassPermissions'].map(permissions => remoteSessionHostRejections(host, parseCreateRemoteSessionOptions({
 			prompt: 'Test', permissions,
-		}))), [[], ['Permission autoApprove is not available.'], ['Permission bypassPermissions is not available.']]);
+		}))), [[], [], ['Permission bypassPermissions is not available.']]);
 	});
 
 	for (const status of ['reconnecting', 'connecting', 'disconnected', 'incompatible']) {

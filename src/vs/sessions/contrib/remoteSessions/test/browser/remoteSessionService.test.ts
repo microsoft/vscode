@@ -68,6 +68,8 @@ class RemoteProvider extends mock<IAgentHostSessionsProvider>() {
 	connection: RemoteConnection;
 	/** Without permission choices or a mode, creation configures neither. */
 	permissionOptions: ISessionPermissionOption[] = [];
+	/** The choices once a configuration is resolved, when they differ from the listed ones. */
+	resolvedPermissionOptions: ISessionPermissionOption[] | undefined;
 	config: ResolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: {} };
 
 	constructor(name: string, load = 0, platform: 'windows' | 'linux' | 'macos' = 'linux', agentProvider = 'copilot') {
@@ -100,7 +102,9 @@ class RemoteProvider extends mock<IAgentHostSessionsProvider>() {
 	override getSessions(): ISession[] { return []; }
 	override getSessionTypes(): ISessionType[] { return this.sessionTypes; }
 	override mapAgentHostResource(resource: URI): URI { return toAgentHostUri(resource, agentHostAuthority(this.remoteAddress)); }
-	override getPermissionOptionsForCreation(): readonly ISessionPermissionOption[] { return this.permissionOptions; }
+	override getPermissionOptionsForCreation(_sessionTypeId: string, config?: ResolveSessionConfigResult): readonly ISessionPermissionOption[] {
+		return config && this.resolvedPermissionOptions ? this.resolvedPermissionOptions : this.permissionOptions;
+	}
 	override async resolveSessionConfigForCreation(): Promise<ResolveSessionConfigResult> { return this.config; }
 }
 
@@ -493,6 +497,22 @@ suite('RemoteSessionService', () => {
 			mode: { id: 'interactive', source: 'default' },
 			notInherited: ['The creating chat\'s permissions could not be read; Manual permissions is used.'],
 		},
+	}, {
+		name: 'a target with no permission or mode setting',
+		origin: provider => {
+			provider.permission = copilotPermissions[1];
+			provider.config = modeConfig(undefined, 'plan');
+		},
+		permissions: [],
+		modes: [],
+		expected: {
+			permissions: null,
+			mode: null,
+			notInherited: [
+				'Permission Assisted permissions is not available for copilot on host; the agent\'s default behavior is used.',
+				'Mode plan is not available for copilot on host; the agent\'s default behavior is used.',
+			],
+		},
 	}];
 	for (const { name, agentProvider, origin, permissions, modes, expected } of fallbacks) {
 		test(`resolves permissions and mode for ${name}`, async () => {
@@ -544,7 +564,7 @@ suite('RemoteSessionService', () => {
 			rejections: [
 				'Permission autoApprove is more permissive than the creating chat\'s permissions (Assisted permissions).',
 				`No connected remote agent host matches this request. ${JSON.stringify([{ hostId: host.id, reasons: ['Permission bypassPermissions is not available.'] }])}`,
-				'Mode autopilot is not available for copilot on host.',
+				`No connected remote agent host matches this request. ${JSON.stringify([{ hostId: host.id, reasons: ['Mode autopilot is not available for copilot.'] }])}`,
 			],
 			autopilot: 'Mode autopilot is only available when the creating chat uses it.',
 			creations: 1,
@@ -552,6 +572,28 @@ suite('RemoteSessionService', () => {
 			modeId: 'plan',
 			permissions: { id: 'assisted', source: 'explicit' },
 			mode: { id: 'plan', source: 'explicit' },
+		});
+	});
+
+	test('placement checks requested permissions and mode against each host\'s resolved configuration, not the listing\'s client-side locks', async () => {
+		const idle = new RemoteProvider('idle', 0);
+		const busy = new RemoteProvider('busy', 2);
+		// This client's policy locks Assisted in the listing, but the idle host owns its approval policy and allows it.
+		idle.permissionOptions = [copilotPermissions[0], { ...copilotPermissions[1], locked: true }];
+		idle.resolvedPermissionOptions = copilotPermissions.slice(0, 2);
+		idle.config = modeConfig(['interactive']);
+		busy.permissionOptions = copilotPermissions;
+		busy.config = modeConfig(['interactive', 'plan']);
+		const { create, sourceProvider } = setup([idle, busy]);
+		sourceProvider.permission = copilotPermissions[1];
+		const assisted = await create({ permissions: 'assisted' }, 'assisted');
+		const plan = await create({ mode: 'plan' }, 'plan');
+		assert.deepStrictEqual({
+			assisted: { host: assisted.host.id, permissions: assisted.permissions },
+			plan: { host: plan.host.id, mode: plan.mode },
+		}, {
+			assisted: { host: idle.id, permissions: { id: 'assisted', source: 'explicit' } },
+			plan: { host: busy.id, mode: { id: 'plan', source: 'explicit' } },
 		});
 	});
 

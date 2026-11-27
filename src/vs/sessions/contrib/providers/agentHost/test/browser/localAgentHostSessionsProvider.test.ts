@@ -19054,6 +19054,25 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('narrows creation permission choices to those a resolved configuration can apply, also for a quick chat', async () => {
+		agentHost.setAgents([{ provider: 'claude', displayName: 'Claude', description: '', models: [] } as AgentInfo]);
+		const provider = createProvider(disposables, agentHost);
+		agentHost.resolveSessionConfigHandler = () => ({
+			schema: createVSCodeSessionConfigSchema({ permissionMode: { type: 'string', title: 'Permissions', enum: ['default', 'acceptEdits', 'plan', 'bypassPermissions'] } }),
+			values: {},
+		});
+		const config = await provider.resolveSessionConfigForCreation(undefined, 'claude', CancellationToken.None);
+		assert.deepStrictEqual({
+			workspace: agentHost.resolveSessionConfigRequests.map(request => request.workingDirectory?.toString()),
+			catalog: provider.getPermissionOptionsForCreation('claude').map(option => option.id),
+			applicable: provider.getPermissionOptionsForCreation('claude', config).map(option => option.id),
+		}, {
+			workspace: [undefined],
+			catalog: ['default', 'acceptEdits', 'plan', 'auto', 'bypassPermissions'],
+			applicable: ['default', 'acceptEdits', 'plan', 'bypassPermissions'],
+		});
+	});
+
 	test('a failed leased chat does not inherit parent permissions and can be explicitly reacquired', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const { provider, peer, peerSummary } = perChatSession('leased-config-error', true);
 		await timeout(0);

@@ -98,7 +98,7 @@ export interface IRemoteSessionHost {
 	readonly agents: readonly {
 		readonly provider: string;
 		readonly models: readonly { readonly id: string; readonly name: string }[];
-		/** The agent's permission choices; a host can withhold some, which creation reports. */
+		/** The agent's permission choices; `locked` reflects this client's policy, and a host can allow or withhold others, which creation checks. */
 		readonly permissions: readonly { readonly id: string; readonly label: string; readonly locked?: true }[];
 	}[];
 	readonly workspaces: readonly { readonly uri: string; readonly label: string }[];
@@ -273,10 +273,13 @@ export function parseCreateRemoteSessionOptions(value: unknown, modelOptions = f
 	};
 }
 
-/** Whether the agent offers the requested model provider and permission, when they are given. */
+/**
+ * Whether the agent offers the requested model provider and permission, when they are given. Policy locks in the listing
+ * are a client-side hint, so a permission locked there still matches; creation checks the target's resolved configuration.
+ */
 export function matchesRemoteSessionAgent(agent: IRemoteSessionHost['agents'][number], options: Pick<ICreateRemoteSessionOptions, 'model' | 'permissions'>): boolean {
 	return (options.model === undefined || options.model.provider === agent.provider)
-		&& (options.permissions === undefined || agent.permissions.some(permission => permission.id === options.permissions && !permission.locked));
+		&& (options.permissions === undefined || agent.permissions.some(permission => permission.id === options.permissions));
 }
 
 export function remoteSessionHostRejections(host: IRemoteSessionHost, options: ICreateRemoteSessionOptions): string[] {
