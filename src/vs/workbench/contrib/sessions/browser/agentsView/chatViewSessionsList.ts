@@ -65,7 +65,6 @@ export class ChatViewSessionsListControl implements IChatViewSessionsListControl
 		if (titleFitsWidths && action instanceof SubmenuItemAction && action.item.submenu === MenuId.ChatNewMenu) {
 			const newChat = action.actions.find(action => action instanceof MenuItemAction && (action.id === ACTION_ID_NEW_CHAT || NEW_CHAT_ICON_VARIANTS.some(variant => action.id === ACTION_ID_NEW_CHAT + variant.idSuffix)));
 			if (newChat instanceof MenuItemAction) {
-				// The icon variants of New Chat have no keybinding of their own, and show that of New Chat
 				return this._instantiationService.createInstance(NewSplitButtonActionViewItem, action, newChat, options, { keybindingActionId: ACTION_ID_NEW_CHAT });
 			}
 		}

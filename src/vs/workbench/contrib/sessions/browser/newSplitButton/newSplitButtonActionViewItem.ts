@@ -57,7 +57,7 @@ class NewSplitButtonMenuActionRunner extends ActionRunner {
  *
  * To use it in a toolbar, return it from the toolbar's action view item provider for the menu's {@link SubmenuItemAction}:
  * `instantiationService.createInstance(NewSplitButtonActionViewItem, menu, primaryAction, options, { label })`, where the
- * primary action is one of the menu's actions, usually its first. The toolbar keeps knowing the button as the menu, so it can
+ * primary action is one of the menu's {@link MenuItemAction}s, usually its first; plain actions are not supported. The toolbar keeps knowing the button as the menu, so it can
  * move it into its overflow menu. A toolbar that fits its items by their widths, such as a part title with `overflowsLast`,
  * asks it for the width it needs with {@link getMinimumWidth}.
  */
@@ -78,7 +78,7 @@ export class NewSplitButtonActionViewItem extends ActionWithDropdownActionViewIt
 
 	/**
 	 * @param menu The menu the button stands for, whose actions its dropdown opens.
-	 * @param _primaryAction The action the label runs, whose keybinding the button shows.
+	 * @param _primaryAction The menu item action the label runs, whose keybinding the button shows.
 	 * @param options The options the toolbar gives its action view items.
 	 * @param _buttonOptions The label of the button, and where to find a keybinding when the primary action has none.
 	 */

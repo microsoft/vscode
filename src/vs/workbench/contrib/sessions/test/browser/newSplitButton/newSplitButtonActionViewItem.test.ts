@@ -136,7 +136,7 @@ suite('Sessions - New split button', () => {
 		assert.deepStrictEqual({ contexts, errors: errors.map(error => (error as Error).message) }, { contexts: ['titleContext', 'titleContext'], errors: ['failed'] });
 	});
 
-	test('runs any primary action with any menu and label, and shows the keybinding of its fallback action when the primary has none', () => {
+	test('runs any menu item action of any menu with any label, and shows the keybinding of its fallback action when the primary has none', () => {
 		const { primary, openMenu, actions, commands, menus, shownKeybinding } = render(true, { other: cmdN }, [], MenuId.ViewTitle, { label: 'Add', keybindingActionId: 'other' }, 'addThing');
 		primary.click();
 		openMenu();
