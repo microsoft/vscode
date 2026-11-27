@@ -6360,7 +6360,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 			if (comparisonParentId !== undefined) {
 				depth = groupTree.getPath(comparisonParentId).length;
 			}
-			const subgroups = inbox ? [] : groupTree.getSubgroups(group.id).map(subgroup => buildGroupItem(subgroup, depth + 1, inPinned));
+			// A separately pinned subgroup is a branch of its own under Pinned.
+			const subgroups = inbox ? [] : groupTree.getSubgroups(group.id).filter(subgroup => !pinnedHeaders.has(getSessionGroupSectionId(subgroup.id))).map(subgroup => buildGroupItem(subgroup, depth + 1, inPinned));
 			const members = sortedMembersByGroupId.get(group.id)!;
 			const comparison = comparisonsByGroupId.get(group.id);
 			if (comparison) {
@@ -6386,7 +6387,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				sessions: members,
 				subtreeSessions: [
 					...members,
-					...subgroups.filter(subgroup => !pinnedHeaders.has(getSessionGroupSectionId(subgroup.group.id))).flatMap(subgroup => subgroup.subtreeSessions),
+					...subgroups.flatMap(subgroup => subgroup.subtreeSessions),
 					...(nestedSectionsByGroup.get(group.id) ?? []).flatMap(section => section.sessions),
 				],
 				isEmpty: subgroups.length === 0
@@ -6405,17 +6406,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 			groupItemsById.set(group.id, item);
 			return item;
 		};
-		for (const group of topLevelGroups) {
-			buildGroupItem(group, 0);
-		}
-		// Pinned headers step in under the Pinned section, ancestors first so that a pinned subgroup of a pinned group lands directly under Pinned.
-		for (const groupId of pinnedHeaderIds.map(getSessionGroupIdOfSection).filter(isDefined).sort((a, b) => groupTree.getPath(a).length - groupTree.getPath(b).length)) {
-			buildGroupItem(groupTree.getPath(groupId).at(-1)!, 1, true);
-		}
+		// Each displayed branch is built once: pinned headers and the comparisons of pinned sections step in under the Pinned section.
 		for (const group of topLevelGroups) {
 			const comparisonSectionId = this.comparisonSectionIds.get(group.id);
-			if (comparisonSectionId !== undefined && isPinnedHeader(comparisonSectionId)) {
-				buildGroupItem(group, 1, true);
+			const inPinned = pinnedHeaders.has(getSessionGroupSectionId(group.id)) || comparisonSectionId !== undefined && isPinnedHeader(comparisonSectionId);
+			buildGroupItem(group, inPinned ? 1 : 0, inPinned);
+		}
+		for (const groupId of pinnedHeaderIds.map(getSessionGroupIdOfSection).filter(isDefined)) {
+			const path = groupTree.getPath(groupId);
+			if (path.length > 1) {
+				buildGroupItem(path.at(-1)!, 1, true);
 			}
 		}
 
@@ -8841,6 +8841,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.setHeaderPinned(headerId, false);
 	}
 
+	/** Returns a header to the top level, where the list arranges it among the others, and unpins it as every move out of Pinned does. */
+	private moveHeaderToTopLevel(headerId: string, groupId: string | undefined): void {
+		if (groupId !== undefined) {
+			this._sessionGroupsService.moveGroup(groupId, undefined);
+		} else {
+			this._sessionGroupsService.moveSection(this.getSectionGroupKey(headerId), undefined);
+		}
+		this.setHeaderPinned(headerId, false);
+	}
+
 	/**
 	 * Whether a group can be nested in `parentId`. Comparisons cannot hold
 	 * subgroups, and a group never nests in itself or its own subgroups.
@@ -9086,11 +9096,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (parentId === undefined) {
 			if (!sibling) {
 				// The list arranges a top-level header among the others.
-				if (groupId !== undefined) {
-					this._sessionGroupsService.moveGroup(groupId, undefined);
-				} else {
-					this._sessionGroupsService.moveSection(this.getSectionGroupKey(headerId), undefined);
-				}
+				this.moveHeaderToTopLevel(headerId, groupId);
 				return;
 			}
 			if (!this._topLevelOrder.includes(sibling.siblingId)) {
@@ -9653,7 +9659,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			if (targetId !== undefined) {
 				this.moveHeader({ id: section.id }, { kind: 'topLevel', targetId, position: 'after' });
 			} else {
-				this._sessionGroupsService.moveSection(this.getSectionGroupKey(section.id), undefined);
+				this.moveHeaderToTopLevel(section.id, undefined);
 			}
 		}
 		const element = this.findTreeElement((element): element is ISessionSection => isSessionSection(element) && element.id === section.id);
@@ -9710,7 +9716,18 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const groups: [string, readonly IAction[]][] = [];
 		if (!groupItem.isEmpty) {
 			groups.push(['1_state', [this.getMarkAllSessionsReadAction(() => {
-				const subtree = this._sessionGroupsService.getTree().getSubtree(groupItem.group.id);
+				// The group's branch as displayed: its separately pinned subgroups and sections are listed in Pinned instead.
+				const pinned = this._renderedPinnedHeaderIds;
+				const subtree: ISessionGroup[] = [];
+				const visit = (group: ISessionGroup) => {
+					subtree.push(group);
+					for (const subgroup of this._sessionGroupsService.getTree().getSubgroups(group.id)) {
+						if (!pinned.has(getSessionGroupSectionId(subgroup.id))) {
+							visit(subgroup);
+						}
+					}
+				};
+				visit(groupItem.group);
 				const sessionIds = new Set(subtree.flatMap(group => this._sessionGroupsService.getSessionIdsInGroup(group.id)));
 				const groupIds = new Set(subtree.map(group => group.id));
 				return this.sessions.filter(session => {
@@ -9718,7 +9735,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					const sectionId = renderedGroup
 						? this.comparisonSectionIds.get(renderedGroup.id)
 						: this.getUngroupedSectionIds(session)[0];
-					const parentId = sectionId === undefined ? undefined : this.getSectionParentId(sectionId);
+					const parentId = sectionId === undefined || pinned.has(this.getSectionGroupKey(sectionId)) ? undefined : this.getSectionParentId(sectionId);
 					return sessionIds.has(session.sessionId)
 						|| (!session.isArchived.get() && !this.isSessionPinned(session) && parentId !== undefined && groupIds.has(parentId));
 				});
@@ -9862,6 +9879,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 			label: pinned ? localize('unpinHeader', "Unpin") : localize('pinHeader', "Pin"),
 			run: () => {
 				this.setHeaderPinned(headerId, !pinned);
+				// An unpinned folder may return behind "+N more", which lists its sections outside the tree.
+				if (this.hiddenGroupingSections.some(section => section.id === headerId)) {
+					this.expandedMoreFolders = true;
+					this.update();
+				}
 				const element = this.findTreeElement((element): element is ISessionSection | ISessionGroupItem => isSessionGroupItem(element) ? getSessionGroupSectionId(element.group.id) === headerId : isSessionSection(element) && element.id === headerId);
 				if (element) {
 					this.tree.expandTo(element);

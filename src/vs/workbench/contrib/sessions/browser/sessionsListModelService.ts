@@ -219,6 +219,12 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 
 		this._pinnedSessionIds = this.loadSet(PINNED_SESSIONS_KEY);
 		this._pinnedSectionIds.set([...this.loadSet(PINNED_SECTIONS_KEY)], undefined);
+		// Another window of the profile may pin headers too; edit the latest list so neither overwrites the other.
+		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, PINNED_SECTIONS_KEY, this._store)(e => {
+			if (e.external) {
+				this._pinnedSectionIds.set([...this.loadSet(PINNED_SECTIONS_KEY)], undefined);
+			}
+		}));
 		this.loadInboxState();
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, SessionsListModelService.INBOX_STATE_KEY, this._store)(e => {
 			if (e.external) {

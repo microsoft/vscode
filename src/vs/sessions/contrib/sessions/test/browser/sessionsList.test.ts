@@ -9028,6 +9028,56 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('moving a pinned header to the top level without a sibling unpins it', () => {
+			const { harness, list } = render(SessionsGrouping.Workspace, new Map([['workspace:vscode', docs.id]]), true);
+			list.setHeaderPinned('workspace:vscode', true);
+			list.setHeaderPinned(`group:${hotfixes.id}`, true);
+			list.moveHeaderTo('workspace:vscode', undefined, undefined);
+			list.moveHeaderTo(`group:${hotfixes.id}`, undefined, undefined);
+
+			assert.deepStrictEqual({
+				pinned: harness.instantiationService.get(ISessionsListModelService).pinnedSectionIds.get(),
+				outline: outline(list.getTreeSnapshot()),
+			}, {
+				pinned: [],
+				outline: [{ [`group:${hotfixes.id}`]: [`group:${urgent.id}`] }, { [`group:${release.id}`]: [`group:${docs.id}`] }, `group:${triage.id}`, 'workspace:vscode'],
+			});
+		});
+
+		test('group Mark All as Read leaves out the subgroups and sections pinned separately', async () => {
+			const { harness, list, container, contextMenus } = render(SessionsGrouping.Workspace, new Map([['workspace:vscode', docs.id]]), true);
+			const own = createTestSession('Release unread', { workspaceLabel: 'vscode', isRead: false }).session;
+			const inPinnedSubgroup = createTestSession('Hotfix unread', { workspaceLabel: 'vscode', isRead: false }).session;
+			const inPinnedSection = createTestSession('Automatic unread', { workspaceLabel: 'vscode', isRead: false }).session;
+			harness.managementService.sessions.push(own, inPinnedSubgroup, inPinnedSection);
+			const groupsService = harness.instantiationService.get(ISessionGroupsService);
+			groupsService.addToGroup(own.sessionId, release.id);
+			groupsService.addToGroup(inPinnedSubgroup.sessionId, urgent.id);
+			list.setHeaderPinned(`group:${hotfixes.id}`, true);
+			list.setHeaderPinned('workspace:vscode', true);
+			list.refresh();
+			rowOf(container, 'Release work').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+			await contextMenus.at(-1)!.find(action => action.id === 'sessionsViewPane.markAllInSectionRead')!.run();
+
+			assert.deepStrictEqual(harness.managementService.readSessions.map(session => session.title.get()), ['Release unread']);
+		});
+
+		test('unpinning a folder that returns behind "+N more" reveals and focuses it', async () => {
+			const { harness, list, container, contextMenus } = render(SessionsGrouping.Workspace);
+			const old = (label: string) => createTestSession(`${label} session`, { workspaceLabel: label, createdAt: new Date(Date.now() - 10 * 24 * 60 * 60_000), updatedAt: new Date(Date.now() - 10 * 24 * 60 * 60_000) }).session;
+			harness.managementService.sessions.push(old('Old1'), old('Old2'), old('Old3'));
+			list.setHeaderPinned('workspace:Old1', true);
+			list.refresh();
+			rowOf(container, 'Old1').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+			await contextMenus.at(-1)!.find(action => action.id === 'sessions.unpinHeader')!.run();
+
+			assert.deepStrictEqual({
+				pinned: harness.instantiationService.get(ISessionsListModelService).pinnedSectionIds.get(),
+				level: list.getItemRow({ section: 'workspace:Old1' })?.getAttribute('aria-level'),
+				focused: list.getItemRow({ section: 'workspace:Old1' })?.classList.contains('focused'),
+			}, { pinned: [], level: '1', focused: true });
+		});
+
 		test('pins and unpins headers from their context menus and by dragging them in and out of Pinned', async () => {
 			const { harness, container, contextMenus } = render(SessionsGrouping.Workspace, new Map(), true);
 			const pinnedIds = harness.instantiationService.get(ISessionsListModelService).pinnedSectionIds;
