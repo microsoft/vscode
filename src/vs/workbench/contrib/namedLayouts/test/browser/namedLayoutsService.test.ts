@@ -17,7 +17,7 @@ import { IUserDataProfile } from '../../../../../platform/userDataProfile/common
 import { EditorGroupLayout, GroupOrientation, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IPartsLayoutState, IWorkbenchLayoutService, Position } from '../../../../services/layout/browser/layoutService.js';
-import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
+import { DidChangeUserDataProfileEvent, IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { NAMED_LAYOUTS_ENABLED_SETTING } from '../../browser/namedLayouts.js';
 import { NamedLayoutsService } from '../../browser/namedLayoutsService.js';
@@ -71,7 +71,8 @@ suite('NamedLayoutsService', () => {
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IExtensionService, { whenInstalledExtensionsRegistered: () => Promise.resolve(true) });
-		const userDataProfileService = { currentProfile: upcastPartial<IUserDataProfile>({ id: 'default', isDefault: true }) };
+		const onDidChangeCurrentProfile = store.add(new Emitter<DidChangeUserDataProfileEvent>());
+		const userDataProfileService = { currentProfile: upcastPartial<IUserDataProfile>({ id: 'default', isDefault: true }), onDidChangeCurrentProfile: onDidChangeCurrentProfile.event };
 		instantiationService.stub(IUserDataProfileService, userDataProfileService);
 		const toggleZenMode = () => {
 			if (window.zenMode) {
@@ -141,11 +142,13 @@ suite('NamedLayoutsService', () => {
 		};
 		const removeFromOtherWindow = (id: string) => removeExternally(`${LAYOUT_STORAGE_KEY_PREFIX}${id}.`);
 		/**
-		 * Switches the profile of the window from the default profile. A profile with its own storage has none of the layouts. The window
-		 * learns of the switch once the storage of the other profile is in place, so the first change it learns of already removes the names.
+		 * Switches the profile of the window. A profile with its own storage has none of the layouts. The window learns of the switch
+		 * before the storage switches, and then of the keys that the switch removes, the names first.
 		 */
 		const switchProfile = (profile: Partial<IUserDataProfile>) => {
+			const previous = userDataProfileService.currentProfile;
 			userDataProfileService.currentProfile = upcastPartial<IUserDataProfile>(profile);
+			onDidChangeCurrentProfile.fire({ previous, profile: userDataProfileService.currentProfile, join: () => { } });
 			if (!profile.useDefaultFlags?.globalState) {
 				removeExternally(LAYOUT_STORAGE_KEY_PREFIX);
 			}
@@ -489,15 +492,12 @@ suite('NamedLayoutsService', () => {
 		});
 	});
 
-	test('switching to a profile with its own storage, which does not have the active layout, applies the default layout without saving the active one, also when the profile disables named layouts, but not after switching to a profile that shares the storage', async () => {
-		const { service, window, storageService, configurationService, toggleZenMode, removeFromOtherWindow, switchProfile, storedLayouts } = createWindow();
-		const debug = (await service.createLayout('Debug'))!;
+	test('switching to a profile with its own storage applies the default layout, also while named layouts are disabled, and switching to a profile that shares the storage keeps the active layout', async () => {
+		const { service, window, storageService, configurationService, toggleZenMode, switchProfile, storedLayouts } = createWindow();
+		await service.createLayout('Debug');
 		switchProfile({ id: 'shared', useDefaultFlags: { globalState: true } });
-		window.parts = partsState(false, Position.LEFT);
-		removeFromOtherWindow(debug.id);
-		const sharedStorage = { active: service.activeLayout.name, parts: window.parts };
+		const sharedStorage = { active: service.activeLayout.name, layouts: service.layouts.map(layout => layout.name) };
 
-		await service.createLayout('Scratch');
 		window.parts = partsState(false, Position.RIGHT);
 		window.editorGroups = twoGroups;
 		toggleZenMode();
@@ -518,9 +518,19 @@ suite('NamedLayoutsService', () => {
 			stored: storedLayouts(),
 		};
 		assert.deepStrictEqual({ sharedStorage, ownStorage }, {
-			sharedStorage: { active: 'Default', parts: partsState(false, Position.LEFT) },
-			ownStorage: { active: 'Default', layouts: ['Default'], activeLayouts: ['Default'], zenMode: false, parts: partsState(false, Position.LEFT), editorGroups: singleGroup, activeLayoutStored: undefined, defaultLayout: null, stored: [] },
+			sharedStorage: { active: 'Debug', layouts: ['Default', 'Debug'] },
+			ownStorage: { active: 'Default', layouts: ['Default'], activeLayouts: ['Default'], zenMode: false, parts: partsState(true, Position.BOTTOM), editorGroups: singleGroup, activeLayoutStored: undefined, defaultLayout: null, stored: [] },
 		});
+	});
+
+	test('after a switch between profiles without layouts, a layout that another window deletes still leaves the window with its arrangement as its default layout', async () => {
+		const { service, window, switchProfile, removeFromOtherWindow } = createWindow();
+		switchProfile({ id: 'work' });
+		const debug = (await service.createLayout('Debug'))!;
+		window.parts = partsState(false, Position.LEFT);
+		removeFromOtherWindow(debug.id);
+
+		assert.deepStrictEqual({ active: service.activeLayout.name, parts: window.parts }, { active: 'Default', parts: partsState(false, Position.LEFT) });
 	});
 
 	test('lists the default layout first and the others by name, also those that another window creates, and ignores what is stored that is not valid', async () => {
