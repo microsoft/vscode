@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { MonotonousArray, findFirstMonotonous, findLastMonotonous } from '../../common/arraysFind.js';
+import { MonotonousArray, findFirstIdxMonotonous, findFirstMonotonous, findLastMonotonous } from '../../common/arraysFind.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Arrays', () => {
@@ -57,5 +57,37 @@ suite('Arrays', () => {
 		assert.strictEqual(arr.findLastMonotonous(n => n <= 55), 55);
 		assert.strictEqual(arr.findLastMonotonous(n => n <= 60), 60);
 		assert.strictEqual(arr.findLastMonotonous(n => n <= 80), 69);
+	});
+
+	test('findFirstIdxMonotonous with bounded endIdxEx', () => {
+		const array = [1, 4, 5, 7, 55, 59, 60, 61, 64, 69];
+
+		// Subrange [0, 4) contains [1, 4, 5, 7]; none are >= 50
+		assert.strictEqual(findFirstIdxMonotonous(array, n => n >= 50, 0, 4), -1);
+
+		// Subrange [2, 5) contains [5, 7, 55]; none are >= 60
+		assert.strictEqual(findFirstIdxMonotonous(array, n => n >= 60, 2, 5), -1);
+
+		// Match exactly at start of subrange
+		assert.strictEqual(findFirstIdxMonotonous(array, n => n >= 55, 4, 8), 4);
+
+		// Match in middle of subrange
+		assert.strictEqual(findFirstIdxMonotonous(array, n => n >= 59, 2, 7), 5);
+
+		// Match at last valid subrange element (index 7 is < 8)
+		assert.strictEqual(findFirstIdxMonotonous(array, n => n >= 61, 0, 8), 7);
+
+		// Element 64 is at index 8, excluded by endIdxEx = 8
+		assert.strictEqual(findFirstIdxMonotonous(array, n => n >= 64, 0, 8), -1);
+
+		// Zero-length subrange where startIdx === endIdxEx
+		assert.strictEqual(findFirstIdxMonotonous(array, n => n >= 0, 3, 3), -1);
+
+		// Empty array
+		assert.strictEqual(findFirstIdxMonotonous([], n => n >= 0), -1);
+
+		// Full array default boundaries
+		assert.strictEqual(findFirstIdxMonotonous(array, n => n >= 60), 6);
+		assert.strictEqual(findFirstIdxMonotonous(array, n => n >= 100), -1);
 	});
 });
