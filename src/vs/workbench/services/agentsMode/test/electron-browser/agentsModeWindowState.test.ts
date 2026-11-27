@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { INativeHostService } from '../../../../../platform/native/common/native.js';
 import { INativeWorkbenchEnvironmentService } from '../../../environment/electron-browser/environmentService.js';
 import { IAgentsModeService } from '../../common/agentsMode.js';
-import { AgentsModeWindowStateContribution } from '../../electron-browser/agentsModeService.js';
+import { AgentsModeWindowStateContribution } from '../../electron-browser/agentsMode.contribution.js';
 
 suite('AgentsModeWindowStateContribution', () => {
 
@@ -61,5 +62,26 @@ suite('AgentsModeWindowStateContribution', () => {
 		disposables.add(new AgentsModeWindowStateContribution(createAgentsModeService(false).service, createNativeHostService(calls), createEnvironmentService(undefined)));
 
 		assert.deepStrictEqual(calls, []);
+	});
+
+	test('reports a failure to tell main as an unexpected error', async () => {
+		const errors: string[] = [];
+		const previousHandler = errorHandler.getUnexpectedErrorHandler();
+		setUnexpectedErrorHandler(error => errors.push(error.message));
+		try {
+			const nativeHostService = new class extends mock<INativeHostService>() {
+				override async setWindowAgentsMode(): Promise<void> { throw new Error('window closed'); }
+			};
+			const agentsMode = createAgentsModeService(false);
+			disposables.add(new AgentsModeWindowStateContribution(agentsMode.service, nativeHostService, createEnvironmentService(undefined)));
+
+			agentsMode.change(true);
+			await Promise.resolve();
+			await Promise.resolve();
+
+			assert.deepStrictEqual(errors, ['window closed']);
+		} finally {
+			setUnexpectedErrorHandler(previousHandler);
+		}
 	});
 });

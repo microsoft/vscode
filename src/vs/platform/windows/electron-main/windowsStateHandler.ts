@@ -104,6 +104,17 @@ export class WindowsStateHandler extends Disposable {
 		this.registerListeners();
 	}
 
+	/**
+	 * Whether the empty window that backs up into `backupFolder` was in Agents mode
+	 * in the last session. Hot exit restores such a window from its backup, also
+	 * when the windows of the last session are not restored.
+	 */
+	wasEmptyWindowInAgentsMode(backupFolder: string): boolean {
+		return [this._state.lastActiveWindow, ...this._state.openedWindows].some(window =>
+			window?.agentsMode === true && !window.workspace && !window.folderUri && !!window.backupPath && basename(window.backupPath) === backupFolder
+		);
+	}
+
 	private takeExactRestore(): IExactRestoreState | undefined {
 		const exactRestore = this.stateService.getItem<unknown>(WindowsStateHandler.exactRestoreStorageKey);
 		if (exactRestore === undefined) {
@@ -531,27 +542,6 @@ function restoreWindowState(windowState: ISerializedWindowState): IWindowState {
 	}
 
 	return result;
-}
-
-/**
- * Records whether the window is in Agents mode, which the windows state keeps
- * to restore the window in. Only a real boolean from the renderer changes it.
- */
-export function setWindowAgentsMode(configuration: INativeWindowConfiguration, active: unknown): void {
-	if (typeof active === 'boolean') {
-		configuration.agentsMode = active || undefined;
-	}
-}
-
-/**
- * Whether the empty window that backs up into `backupFolder` was in Agents mode
- * in the last session. Hot exit restores such a window from its backup, also
- * when the windows of the last session are not restored.
- */
-export function wasEmptyWindowInAgentsMode(windowsState: IWindowsState, backupFolder: string): boolean {
-	return [windowsState.lastActiveWindow, ...windowsState.openedWindows].some(window =>
-		window?.agentsMode === true && !window.workspace && !window.folderUri && !!window.backupPath && basename(window.backupPath) === backupFolder
-	);
 }
 
 export function getWindowsStateStoreData(windowsState: IWindowsState): IWindowsState {

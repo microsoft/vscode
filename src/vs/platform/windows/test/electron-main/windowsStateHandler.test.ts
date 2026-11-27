@@ -8,9 +8,8 @@ import { tmpdir } from 'os';
 import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { INativeWindowConfiguration } from '../../../window/common/window.js';
 import { IWindowState as IWindowUIState, WindowMode } from '../../../window/electron-main/window.js';
-import { getWindowsStateStoreData, IWindowsState, IWindowState, restoreWindowsState, setWindowAgentsMode, wasEmptyWindowInAgentsMode } from '../../electron-main/windowsStateHandler.js';
+import { getWindowsStateStoreData, IWindowsState, IWindowState, restoreWindowsState, WindowsStateHandler } from '../../electron-main/windowsStateHandler.js';
 import { IWorkspaceIdentifier } from '../../../workspace/common/workspace.js';
 
 suite('Windows State Storing', () => {
@@ -167,18 +166,11 @@ suite('Windows State Storing', () => {
 			]
 		};
 
-		assert.deepStrictEqual(['backupFolder1', 'backupFolder2', 'backupFolder3', 'unknown'].map(backupFolder => wasEmptyWindowInAgentsMode(state, backupFolder)), [true, false, false, false]);
-	});
+		// Only the state matters here; the constructor needs the main process's electron app
+		const handler: WindowsStateHandler = Object.create(WindowsStateHandler.prototype);
+		Object.defineProperty(handler, '_state', { value: state });
 
-	test('remembers the Agents mode of a window only from a real boolean', () => {
-		const configuration: Partial<INativeWindowConfiguration> = {};
-
-		const recorded = [true, 'false', 0, null, false, 1, true].map(active => {
-			setWindowAgentsMode(configuration as INativeWindowConfiguration, active);
-			return configuration.agentsMode;
-		});
-
-		assert.deepStrictEqual(recorded, [true, true, true, true, undefined, undefined, true]);
+		assert.deepStrictEqual(['backupFolder1', 'backupFolder2', 'backupFolder3', 'unknown'].map(backupFolder => handler.wasEmptyWindowInAgentsMode(backupFolder)), [true, false, false, false]);
 	});
 
 	test('open 1_32', () => {

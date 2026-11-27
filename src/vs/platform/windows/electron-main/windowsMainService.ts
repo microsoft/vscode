@@ -42,7 +42,7 @@ import { CodeWindow } from './windowImpl.js';
 import { IOpenConfiguration, IOpenEmptyConfiguration, IWindowsCountChangedEvent, IWindowsMainService, OpenContext, getLastFocused } from './windows.js';
 import { findWindowOnExtensionDevelopmentPath, findWindowOnFile, findWindowOnRequestedPath, findWindowOnWorkspaceOrFolder } from './windowsFinder.js';
 import { IFolderLocationsMainService, IValidatedFolderLocation } from './folderLocationsMainService.js';
-import { IWindowState, wasEmptyWindowInAgentsMode, WindowsStateHandler } from './windowsStateHandler.js';
+import { IWindowState, WindowsStateHandler } from './windowsStateHandler.js';
 import { IRecent } from '../../workspaces/common/workspaces.js';
 import { hasWorkspaceFileExtension, IAnyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { createEmptyWorkspaceIdentifier, getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier } from '../../workspaces/node/workspaces.js';
@@ -437,7 +437,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			// Empty windows with backups are always restored
 			emptyWindowsWithBackupsToRestore.push(...this.backupMainService.getEmptyWindowBackups().map(backup => ({
 				...backup,
-				agentsMode: wasEmptyWindowInAgentsMode(this.windowsStateHandler.state, backup.backupFolder) || undefined
+				agentsMode: this.windowsStateHandler.wasEmptyWindowInAgentsMode(backup.backupFolder) || undefined
 			})));
 		} else {
 			emptyWindowsWithBackupsToRestore.length = 0;

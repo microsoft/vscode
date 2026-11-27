@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
@@ -26,12 +27,14 @@ export class AgentsModeWindowStateContribution extends Disposable implements IWo
 	) {
 		super();
 
+		const tellMain = (active: boolean) => nativeHostService.setWindowAgentsMode(active).catch(onUnexpectedError);
+
 		// A window main started in the mode can't apply it, for example after the user turned the mode off
 		if (!!environmentService.window.agentsMode !== agentsModeService.isActive) {
-			nativeHostService.setWindowAgentsMode(agentsModeService.isActive);
+			tellMain(agentsModeService.isActive);
 		}
 
-		this._register(agentsModeService.onDidChange(active => nativeHostService.setWindowAgentsMode(active)));
+		this._register(agentsModeService.onDidChange(active => tellMain(active)));
 	}
 }
 
