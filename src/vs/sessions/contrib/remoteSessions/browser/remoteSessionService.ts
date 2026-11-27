@@ -585,8 +585,8 @@ export class RemoteSessionService implements IRemoteSessionService {
 			const lease = await provider.acquireSessionConfig(sessionId, source.chat.resource, token);
 			try {
 				const config = provider.getSessionConfig(sessionId, source.chat.resource);
-				const modeProperty = getSessionModeProperty(config?.schema);
-				const mode = modeProperty && config ? config.values[modeProperty.key] ?? modeProperty.schema.default : undefined;
+				// The raw value, unlike the picker's mode property, also counts where the chat's schema offers unfamiliar modes.
+				const mode = config && (config.values[SessionConfigKey.Mode] ?? config.schema.properties[SessionConfigKey.Mode]?.default);
 				return {
 					permission: provider.getPermissionOptionForSession?.(sessionId, source.chat.resource),
 					...(isString(mode) ? { mode } : {}),

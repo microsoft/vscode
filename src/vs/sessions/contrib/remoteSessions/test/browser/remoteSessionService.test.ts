@@ -486,6 +486,14 @@ suite('RemoteSessionService', () => {
 			],
 		},
 	}, {
+		name: 'a creating chat whose mode setting also offers a mode this client does not know',
+		origin: provider => {
+			provider.config = { schema: { type: 'object', properties: { mode: { type: 'string', title: 'Mode', enum: ['plan', 'review'] } } }, values: { mode: 'plan' } };
+		},
+		permissions: copilotPermissions,
+		modes: ['interactive', 'plan', 'autopilot'],
+		expected: { permissions: 'default', mode: 'plan', notInherited: [] },
+	}, {
 		name: 'an unreadable creating chat configuration',
 		origin: provider => { provider.configError = new Error('unavailable'); },
 		permissions: copilotPermissions,
