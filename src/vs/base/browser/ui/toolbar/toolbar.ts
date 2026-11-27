@@ -635,14 +635,16 @@ export class ToolBar extends Disposable {
 			.reduce((count, index) => count + (this.actionBar.getAction(index) instanceof Separator ? 0 : 1), 0);
 		const getActionsToHide = (): IAction[] => {
 			const indexes = getVisiblePrimaryActionIndexes();
-			const candidates = (this.overflowFromStart ? indexes : indexes.slice().reverse())
-				.filter(index => !(this.actionBar.getAction(index) instanceof Separator));
-			const actionIndex = candidates.find(index => !this.overflowsLast(this.actionBar.getAction(index))) ?? candidates[0];
+			if (this.prioritizesOverflow) {
+				const candidates = (this.overflowFromStart ? indexes : indexes.slice().reverse())
+					.filter(index => !(this.actionBar.getAction(index) instanceof Separator));
+				const priorityIndex = candidates.find(index => !this.overflowsLast(this.actionBar.getAction(index))) ?? candidates[0];
+				return priorityIndex === undefined ? [] : [this.actionBar.getAction(priorityIndex)!];
+			}
+			const actionIndex = (this.overflowFromStart ? indexes : indexes.slice().reverse())
+				.find(index => !(this.actionBar.getAction(index) instanceof Separator));
 			if (actionIndex === undefined) {
 				return [];
-			}
-			if (this.prioritizesOverflow) {
-				return [this.actionBar.getAction(actionIndex)!];
 			}
 
 			let startIndex = actionIndex;
