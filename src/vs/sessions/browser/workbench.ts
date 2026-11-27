@@ -954,14 +954,12 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		const editorNodeVisible = this._editorNodeShouldBeVisible();
 		const editorGridWidth = this._persistedGridViewSize(this.editorPartView, 'width', editorNodeVisible);
 		let editorWidth = this._persistedEditorWidth(editorGridWidth);
-		const savedEditorWidth = this._savedPartSizes.editor !== undefined && this._savedPartSizes.editor >= EDITOR_PART_MINIMUM_WIDTH
-			? this._savedPartSizes.editor
-			: undefined;
+		const savedEditorWidth = this._getSavedEditorWidth();
 
 		const detailsPosition = this.getDetailsPosition();
 		const visibleStackedDetails = editorNodeVisible && this.partVisibility.auxiliaryBar && (detailsPosition === 'top' || detailsPosition === 'bottom');
 		// Only visible stacked Details share a user-sized editor width while editor content is hidden.
-		if ((this.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop && !this.partVisibility.editor && !visibleStackedDetails) || editorWidth === undefined || editorWidth < EDITOR_PART_MINIMUM_WIDTH) {
+		if (this._isEditorPartAtDefaultWidth || (this.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop && !this.partVisibility.editor && !visibleStackedDetails) || editorWidth === undefined || editorWidth < EDITOR_PART_MINIMUM_WIDTH) {
 			editorWidth = savedEditorWidth;
 		} else {
 			// Track the latest good width so a later shutdown-time squeeze falls back to it.
@@ -1557,6 +1555,11 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		return false;
 	}
 
+	protected _getSavedEditorWidth(): number | undefined {
+		const savedWidth = this._savedPartSizes.editor;
+		return savedWidth !== undefined && savedWidth >= EDITOR_PART_MINIMUM_WIDTH ? savedWidth : undefined;
+	}
+
 	protected _editorNodeSize(effectiveEditorWidth: number, _effectiveAuxBarWidth: number): number {
 		return effectiveEditorWidth;
 	}
@@ -1943,8 +1946,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		// node was transiently squeezed to nothing by the high-priority sessions part)
 		// was stored. A plain `?? 600` would let `0` through and build the editor node at
 		// `0`, which the grid then clamps to its 300px minimum on every reload.
-		const savedEditorWidth = this._savedPartSizes.editor;
-		const editorSize = savedEditorWidth !== undefined && savedEditorWidth >= EDITOR_PART_MINIMUM_WIDTH ? savedEditorWidth : this._defaultEditorPartWidth;
+		const editorSize = this._getSavedEditorWidth() ?? this._defaultEditorPartWidth;
 		const titleBarHeight = this.titleBarPartView?.minimumHeight ?? 30;
 
 		// Calculate right section width — when sidebar is hidden it takes no space

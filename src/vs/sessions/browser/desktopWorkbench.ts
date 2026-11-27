@@ -249,7 +249,7 @@ export class DesktopWorkbench extends Workbench {
 	}
 
 	protected override get _isEditorPartAtDefaultWidth(): boolean {
-		return this._editorDefaultSize?.width === this.workbenchGrid.getViewSize(this.editorPartView).width;
+		return this._editorDefaultSize !== undefined && !!this.workbenchGrid && this._editorDefaultSize.width === this.workbenchGrid.getViewSize(this.editorPartView).width;
 	}
 
 	protected override _applyEditorSplitSize(): void {
@@ -268,12 +268,12 @@ export class DesktopWorkbench extends Workbench {
 		// The editor part spans the editor + auxiliary bar width (the aux bar is
 		// docked inside it, not a grid column) so the editor tab bar spans the full width.
 		const detailOnly = !this.partVisibility.editor && this.partVisibility.auxiliaryBar;
+		const savedWidth = this._getSavedEditorWidth();
 		const nodeWidth = detailOnly
-			? this._isHorizontalDetailsPosition() ? this._dockedAuxiliaryBarWidth : this._savedPartSizes.editor ?? this._defaultEditorPartWidth
+			? this._isHorizontalDetailsPosition() ? this._dockedAuxiliaryBarWidth : savedWidth ?? this._defaultEditorPartWidth
 			: effectiveEditorWidth + (this._reservedDetailWidth() > 0 ? effectiveAuxBarWidth : 0);
-		const savedWidth = this._savedPartSizes.editor;
 		this._editorDefaultSize = (this.partVisibility.editor || (detailOnly && !this._isHorizontalDetailsPosition()))
-			&& (savedWidth === undefined || savedWidth < EDITOR_PART_MINIMUM_WIDTH)
+			&& savedWidth === undefined
 			? { width: nodeWidth, editorVisible: this.partVisibility.editor }
 			: undefined;
 		return nodeWidth;
@@ -316,6 +316,7 @@ export class DesktopWorkbench extends Workbench {
 	protected override _layoutGrid(): void {
 		const sessionsSize = this.workbenchGrid.getViewSize(this.sessionsPartView);
 		const editorSize = this.workbenchGrid.getViewSize(this.editorPartView);
+		const defaultState = this._isEditorPartAtDefaultWidth ? this._editorDefaultSize : undefined;
 		const preserveRatio = this.partVisibility.editor
 			&& this.workbenchGrid.isViewVisible(this.sessionsPartView)
 			&& this.workbenchGrid.isViewVisible(this.editorPartView)
@@ -326,6 +327,13 @@ export class DesktopWorkbench extends Workbench {
 
 		if (preserveRatio) {
 			this._preserveSessionsEditorRatio(sessionsSize.width, editorSize.width);
+		}
+
+		if (defaultState && this.workbenchGrid.isViewVisible(this.editorPartView) && this.partVisibility.editor === defaultState.editorVisible) {
+			this._editorDefaultSize = {
+				width: this.workbenchGrid.getViewSize(this.editorPartView).width,
+				editorVisible: defaultState.editorVisible,
+			};
 		}
 	}
 
@@ -431,21 +439,27 @@ export class DesktopWorkbench extends Workbench {
 		const visible = this._editorNodeShouldBeVisible();
 		const revealing = visible && !this.workbenchGrid.isViewVisible(this.editorPartView);
 		const refreshDefault = this.partVisibility.editor && this._editorDefaultSize?.editorVisible === false && this._isEditorPartAtDefaultWidth;
-		const savedWidth = this._savedPartSizes.editor;
-		const hasSavedWidth = savedWidth !== undefined && savedWidth >= EDITOR_PART_MINIMUM_WIDTH;
+		const savedWidth = this._getSavedEditorWidth();
 		this.workbenchGrid.setViewVisible(this.editorPartView, visible);
-		if (refreshDefault || (revealing && !hasSavedWidth)) {
+		if (!visible) {
+			this._editorDefaultSize = undefined;
+		} else if (refreshDefault || (revealing && savedWidth === undefined)) {
 			this._applyEditorSplitSize();
 			this._hasAppliedInitialEditorSplit = true;
-		} else if (revealing && hasSavedWidth) {
+		} else if (revealing && savedWidth !== undefined) {
 			this.workbenchGrid.resizeView(this.editorPartView, {
 				width: savedWidth,
 				height: this.workbenchGrid.getViewSize(this.editorPartView).height,
 			});
+		} else if (!this.partVisibility.editor && this._isEditorPartAtDefaultWidth) {
+			this._editorDefaultSize = { width: this._editorDefaultSize!.width, editorVisible: false };
 		}
 	}
 
 	private _rememberEditorWidth(): void {
+		if (this._isEditorPartAtDefaultWidth) {
+			return;
+		}
 		const contentWidth = this._persistedEditorWidth(this.workbenchGrid.getViewSize(this.editorPartView).width);
 		if (contentWidth !== undefined && contentWidth >= EDITOR_PART_MINIMUM_WIDTH) {
 			this._savedPartSizes = { ...this._savedPartSizes, editor: contentWidth };
@@ -453,6 +467,7 @@ export class DesktopWorkbench extends Workbench {
 	}
 
 	protected override _applyEditorVisibility(hidden: boolean): void {
+		const wasAtDefaultWidth = hidden && this._isEditorPartAtDefaultWidth;
 		if (hidden) {
 			this._rememberEditorWidth();
 		}
@@ -464,10 +479,9 @@ export class DesktopWorkbench extends Workbench {
 			return;
 		}
 		const dockedEditorSizeBeforeHide = this._memento.dockedEditorSizeBeforeHide;
-		const savedEditorWidth = this._savedPartSizes.editor;
-		const canRestoreSavedWidth = savedEditorWidth !== undefined && savedEditorWidth >= EDITOR_PART_MINIMUM_WIDTH;
+		const savedEditorWidth = this._getSavedEditorWidth();
 		const shouldRestoreDockedEditorSize = !hidden && !!dockedEditorSizeBeforeHide;
-		const shouldRestoreSavedWidth = !hidden && !shouldRestoreDockedEditorSize && canRestoreSavedWidth;
+		const shouldRestoreSavedWidth = !hidden && !shouldRestoreDockedEditorSize && savedEditorWidth !== undefined;
 		const shouldApplyDefaultWidth = !hidden && !shouldRestoreDockedEditorSize && !shouldRestoreSavedWidth;
 
 		this.workbenchGrid.setViewVisible(
@@ -478,14 +492,16 @@ export class DesktopWorkbench extends Workbench {
 		if (hidden) {
 			// Preserve the combined width before shrinking the shared node to Details-only.
 			if (this.partVisibility.auxiliaryBar) {
-				this._memento.dockedEditorSizeBeforeHide = this.workbenchGrid.getViewSize(this.editorPartView);
+				const sizeBeforeHide = this.workbenchGrid.getViewSize(this.editorPartView);
+				this._memento.dockedEditorSizeBeforeHide = wasAtDefaultWidth ? undefined : sizeBeforeHide;
 				this.workbenchGrid.resizeView(this.editorPartView, {
 					width: this._dockedAuxiliaryBarWidth,
-					height: this._memento.dockedEditorSizeBeforeHide.height
+					height: sizeBeforeHide.height
 				});
 			} else {
 				this._memento.dockedEditorSizeBeforeHide = undefined;
 			}
+			this._editorDefaultSize = undefined;
 		} else if (shouldRestoreDockedEditorSize && dockedEditorSizeBeforeHide) {
 			this.workbenchGrid.resizeView(this.editorPartView, dockedEditorSizeBeforeHide);
 			this._memento.dockedEditorSizeBeforeHide = undefined;
