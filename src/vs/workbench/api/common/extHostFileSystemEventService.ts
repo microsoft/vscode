@@ -100,10 +100,14 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 				return; // ignore events from other file watchers that are in correlation mode
 			}
 
-			for (const { kind, uri, lowerCaseFsPath } of events) {
+			for (const kind of fileEventKinds) {
 				const emitter = emitters[kind];
-				if (emitter && parsedPattern(ignoreCase ? lowerCaseFsPath : uri.fsPath) && (!excludeOutOfWorkspaceEvents || workspace.getWorkspaceFolder(uri))) {
-					emitter.fire(uri);
+				if (emitter) {
+					for (const { uri, lowerCaseFsPath } of events[kind]) {
+						if (parsedPattern(ignoreCase ? lowerCaseFsPath : uri.fsPath) && (!excludeOutOfWorkspaceEvents || workspace.getWorkspaceFolder(uri))) {
+							emitter.fire(uri);
+						}
+					}
 				}
 			}
 		});
@@ -235,13 +239,16 @@ interface IExtensionListener<E> {
 	(e: E): any;
 }
 
+const fileEventKinds = ['created', 'changed', 'deleted'] as const;
+type FileEventKind = typeof fileEventKinds[number];
+
 interface RevivedFileSystemEvent {
-	readonly kind: 'created' | 'changed' | 'deleted';
 	readonly uri: URI;
 	readonly lowerCaseFsPath: string;
 }
 
-type FileSystemEventListener = (session: number | undefined, events: readonly RevivedFileSystemEvent[]) => void;
+type FileEventBatch = Record<FileEventKind, RevivedFileSystemEvent[]>;
+type FileSystemEventListener = (session: number | undefined, events: FileEventBatch) => void;
 
 class FileSystemEventDispatcher {
 
@@ -266,31 +273,30 @@ class FileSystemEventDispatcher {
 			return;
 		}
 
-		const batches = new Map<string | undefined, RevivedFileSystemEvent[]>();
-		const append = (base: string | undefined, event: RevivedFileSystemEvent) => {
+		const batches = new Map<string | undefined, FileEventBatch>();
+		const append = (base: string | undefined, kind: FileEventKind, event: RevivedFileSystemEvent) => {
 			if (this.listenersByBase.has(base)) {
-				const batch = batches.get(base);
-				if (batch) {
-					batch.push(event);
-				} else {
-					batches.set(base, [event]);
+				let batch = batches.get(base);
+				if (!batch) {
+					batches.set(base, batch = { created: [], changed: [], deleted: [] });
 				}
+				batch[kind].push(event);
 			}
 		};
-		for (const kind of ['created', 'changed', 'deleted'] as const) {
+		for (const kind of fileEventKinds) {
 			for (const components of events[kind]) {
 				const uri = URI.revive(components);
 				const path = uri.fsPath.toLowerCase();
-				const event = { kind, uri, lowerCaseFsPath: path };
+				const event = { uri, lowerCaseFsPath: path };
 				if (path.includes('..')) {
 					for (const base of this.listenersByBase.keys()) {
-						append(base, event);
+						append(base, kind, event);
 					}
 				} else {
-					append(undefined, event);
-					append(path, event);
+					append(undefined, kind, event);
+					append(path, kind, event);
 					for (let end = path.indexOf(sep); end >= 0; end = path.indexOf(sep, end + 1)) {
-						append(path.substring(0, end), event);
+						append(path.substring(0, end), kind, event);
 					}
 				}
 			}
