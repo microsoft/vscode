@@ -147,7 +147,9 @@ export class MdDocumentRenderer {
 			: markdownDocument;
 
 		const rendered = await this.#engine.render(input, resourceProvider);
-		const html = `<div class="markdown-body" dir="auto">${rendered.html}<div class="code-line" data-line="${markdownDocument.lineCount}"></div></div>`;
+		// The webview sets `dir="auto"` on the root after parsing: parsing content under a `dir="auto"`
+		// ancestor is quadratic in Chromium and takes many seconds for large documents.
+		const html = `<div class="markdown-body">${rendered.html}<div class="code-line" data-line="${markdownDocument.lineCount}"></div></div>`;
 		return {
 			html,
 			containingImages: rendered.containingImages
