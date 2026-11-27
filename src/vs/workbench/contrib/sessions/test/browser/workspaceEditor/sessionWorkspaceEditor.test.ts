@@ -222,7 +222,7 @@ suite('SessionWorkspaceEditor', () => {
 	});
 
 	test('Remove Workspace removes it as chosen, then moves its sessions to their folders; failures show no raw error', async () => {
-		const run = async (choice: boolean | undefined, { removeError, detachError, pendingRename }: { removeError?: Error; detachError?: Error; pendingRename?: boolean } = {}) => {
+		const run = async (choice: boolean | undefined, { removeError, detachError, pendingRename, renameWhileAsked }: { removeError?: Error; detachError?: Error; pendingRename?: boolean; renameWhileAsked?: boolean } = {}) => {
 			const instantiationService = workbenchInstantiationService(undefined, disposables);
 			const calls: string[] = [];
 			let current: IRecentSessionWorkspace = { ...agents, previousUris: [URI.file('/user/AgentsWorkspaces/Old.code-workspace')] };
@@ -252,11 +252,22 @@ suite('SessionWorkspaceEditor', () => {
 					}
 				},
 			}));
-			instantiationService.stub(IDialogService, upcastPartial<IDialogService>({ prompt: async () => ({ result: choice }) as never }));
+			instantiationService.stub(IDialogService, upcastPartial<IDialogService>({
+				prompt: async () => {
+					if (renameWhileAsked) {
+						// The open editor saves a rename while the user is asked, and has another save still to make
+						current = { ...current, uri: URI.file('/user/AgentsWorkspaces/Agents 2.code-workspace'), name: 'Agents 2', previousUris: [agents.uri, ...current.previousUris!] };
+						input.didApply(current);
+						calls.push('renamed while asked');
+						input.trackApply(rename.p.then(() => calls.push('saved')));
+					}
+					return { result: choice } as never;
+				},
+			}));
 			instantiationService.stub(INotificationService, upcastPartial<INotificationService>({ error: message => { calls.push(`error ${message}`); } }));
 			instantiationService.stub(ILogService, new NullLogService());
 			instantiationService.stub(IEditorService, upcastPartial<IEditorService>({
-				getEditors: () => pendingRename ? [{ editor: input, groupId: 0 }] : [],
+				getEditors: () => pendingRename || renameWhileAsked ? [{ editor: input, groupId: 0 }] : [],
 				closeEditors: async editors => {
 					calls.push(`close ${editors.length}`);
 					input.dispose();
@@ -279,6 +290,7 @@ suite('SessionWorkspaceEditor', () => {
 			detachFailed: await run(false, { detachError: new Error('Failed to detach 1 of 1 sessions: vscode-agent-host://secret') }),
 			pendingRenameKeepFile: await run(false, { pendingRename: true }),
 			pendingRenameDeleteFile: await run(true, { pendingRename: true }),
+			renameWhileAsked: await run(true, { renameWhileAsked: true }),
 		}, {
 			keepFile: ['remove /user/AgentsWorkspaces/Agents.code-workspace deleteFile=false', 'detach /user/AgentsWorkspaces/Agents.code-workspace, /user/AgentsWorkspaces/Old.code-workspace'],
 			deleteFile: ['remove /user/AgentsWorkspaces/Agents.code-workspace deleteFile=true', 'detach /user/AgentsWorkspaces/Agents.code-workspace, /user/AgentsWorkspaces/Old.code-workspace'],
@@ -288,6 +300,8 @@ suite('SessionWorkspaceEditor', () => {
 			// The open editor closes and finishes saving its rename before the workspace, under its new file, is removed
 			pendingRenameKeepFile: ['close 1', 'renamed', 'remove /user/AgentsWorkspaces/Agents 2.code-workspace deleteFile=false', 'detach /user/AgentsWorkspaces/Agents 2.code-workspace, /user/AgentsWorkspaces/Agents.code-workspace, /user/AgentsWorkspaces/Old.code-workspace'],
 			pendingRenameDeleteFile: ['close 1', 'renamed', 'remove /user/AgentsWorkspaces/Agents 2.code-workspace deleteFile=true', 'detach /user/AgentsWorkspaces/Agents 2.code-workspace, /user/AgentsWorkspaces/Agents.code-workspace, /user/AgentsWorkspaces/Old.code-workspace'],
+			// An editor that renamed the workspace while the user was asked still closes and saves first
+			renameWhileAsked: ['renamed while asked', 'close 1', 'saved', 'remove /user/AgentsWorkspaces/Agents 2.code-workspace deleteFile=true', 'detach /user/AgentsWorkspaces/Agents 2.code-workspace, /user/AgentsWorkspaces/Agents.code-workspace, /user/AgentsWorkspaces/Old.code-workspace'],
 			detachFailed: ['remove /user/AgentsWorkspaces/Agents.code-workspace deleteFile=false', 'detach /user/AgentsWorkspaces/Agents.code-workspace, /user/AgentsWorkspaces/Old.code-workspace', 'error Removed the workspace \'Agents\', but some of its sessions could not be moved to their folders. See the log for details.'],
 		});
 	});
@@ -311,10 +325,13 @@ suite('SessionWorkspaceEditor', () => {
 			owned: await prompt(agents),
 			usersFile: await prompt({ ...agents, uri: URI.file('/work/agents.code-workspace'), owned: false }),
 			folder: await prompt({ ...agents, uri: vscode, folders: [vscode], owned: false }),
+			// A folder of its own, even named like a workspace file, has no file to delete
+			folderNamedLikeFile: await prompt({ ...agents, uri: URI.file('/work/x.code-workspace'), folders: [URI.file('/work/x.code-workspace')], owned: true }),
 		}, {
 			owned: { buttons: ['&&Remove Workspace', '&&Delete Workspace and File'], detail: 'Its sessions are kept and listed by their folders. Delete Workspace and File also moves its workspace file to the trash.' },
 			usersFile: { buttons: ['&&Remove Workspace', '&&Delete Workspace and Its File'], detail: 'Its sessions are kept and listed by their folders. Delete Workspace and Its File also moves your workspace file ~/work/agents.code-workspace to the trash.' },
 			folder: { buttons: ['&&Remove Workspace'], detail: 'Its sessions are kept and listed by their folders.' },
+			folderNamedLikeFile: { buttons: ['&&Remove Workspace'], detail: 'Its sessions are kept and listed by their folders.' },
 		});
 	});
 });

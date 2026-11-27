@@ -18,7 +18,6 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { hasWorkspaceFileExtension } from '../../../../../platform/workspace/common/workspace.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../browser/editor.js';
 import { EditorExtensions, EditorsOrder } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -29,7 +28,7 @@ import { getSessionWorkspaceIcon } from './sessionWorkspaceAppearance.js';
 import { SessionWorkspaceEditor } from './sessionWorkspaceEditor.js';
 import { SessionWorkspaceEditorAccessibilityHelp } from './sessionWorkspaceEditorAccessibilityHelp.js';
 import { EDIT_SESSION_WORKSPACE_COMMAND_ID, NEW_SESSION_WORKSPACE_COMMAND_ID, REMOVE_SESSION_WORKSPACE_COMMAND_ID, SESSION_WORKSPACE_EDITOR_WHEN } from './sessionWorkspaceEditorCommands.js';
-import { isSameWorkspace, SessionWorkspaceEditorInput } from './sessionWorkspaceEditorInput.js';
+import { SessionWorkspaceEditorInput } from './sessionWorkspaceEditorInput.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(SessionWorkspaceEditor, SessionWorkspaceEditor.ID, localize('workspaceEditor.label', "Workspace Editor")),
@@ -120,8 +119,8 @@ registerAction2(class RemoveSessionWorkspaceAction extends SessionWorkspacePickA
 			return;
 		}
 
-		// Only a workspace with a workspace file offers to delete it; a file the user made says that it is theirs
-		const hasFile = hasWorkspaceFileExtension(workspace.uri);
+		// Only a workspace with a workspace file offers to delete it, never a folder; a file the user made says that it is theirs
+		const hasFile = SessionWorkspaceEditorInput.hasWorkspaceFile(extUri, workspace);
 		const buttons: IPromptButton<boolean>[] = [{ label: localize({ key: 'removeWorkspace.remove', comment: ['&& denotes a mnemonic'] }, "&&Remove Workspace"), run: () => false }];
 		let detail = localize('removeWorkspace.detail', "Its sessions are kept and listed by their folders.");
 		if (hasFile && workspace.owned) {
@@ -142,9 +141,11 @@ registerAction2(class RemoveSessionWorkspaceAction extends SessionWorkspacePickA
 			return;
 		}
 
-		// Its open editors close first and save what they still have to, so nothing writes the workspace once it is removed
+		// Its open editors close first and save what they still have to, so nothing writes the workspace once it is removed.
+		// An editor can have renamed the workspace while the user was asked: match it as it is now and as it was.
+		const confirmed = workspacesService.getWorkspace(workspace.uri) ?? workspace;
 		const editors = editorService.getEditors(EditorsOrder.SEQUENTIAL)
-			.filter(({ editor }) => editor instanceof SessionWorkspaceEditorInput && !!editor.workspace && isSameWorkspace(extUri, workspace, editor.workspace.uri));
+			.filter(({ editor }) => editor instanceof SessionWorkspaceEditorInput && (editor.isFor(workspace) || editor.isFor(confirmed)));
 		const inputs = editors.map(({ editor }) => editor as SessionWorkspaceEditorInput);
 		if (editors.length) {
 			await editorService.closeEditors(editors);
@@ -155,7 +156,7 @@ registerAction2(class RemoveSessionWorkspaceAction extends SessionWorkspacePickA
 
 		try {
 			// Removing can be refused, such as deleting a file where there is no trash, which leaves the workspace as it was
-			await workspacesService.removeWorkspace(current.uri, { deleteFile });
+			await workspacesService.removeWorkspace(current.uri, { deleteFile: deleteFile && hasFile });
 		} catch (error) {
 			logService.error(error);
 			notificationService.error(localize('removeWorkspace.failed', "Could not remove the workspace '{0}'. See the log for details.", workspace.name));

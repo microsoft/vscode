@@ -10,6 +10,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IModalEditorOptions, IModalEditorOptionsProvider } from '../../../../../platform/editor/common/editor.js';
+import { hasWorkspaceFileExtension } from '../../../../../platform/workspace/common/workspace.js';
 import { EditorInputCapabilities, IUntypedEditorInput } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IRecentSessionWorkspace } from '../../common/sessionWorkspaces.js';
@@ -96,6 +97,11 @@ export class SessionWorkspaceEditorInput extends EditorInput implements IModalEd
 		super.dispose();
 	}
 
+	/** Whether the workspace is saved in a workspace file, rather than being a folder of its own, even one named like a file. */
+	static hasWorkspaceFile(extUri: IExtUri, workspace: IRecentSessionWorkspace): boolean {
+		return hasWorkspaceFileExtension(workspace.uri) && !workspace.folders.some(folder => extUri.isEqual(folder, workspace.uri));
+	}
+
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
 		if (super.matches(otherInput)) {
 			return true;
@@ -104,9 +110,18 @@ export class SessionWorkspaceEditorInput extends EditorInput implements IModalEd
 			return false;
 		}
 		// A new workspace is only edited by the editor that creates it
-		const workspace = this.workspace;
 		const other = otherInput.workspace;
-		return !!workspace && !!other && isSameWorkspace(this.extUri, workspace, other.uri);
+		return !!other && this.isFor(other);
+	}
+
+	/**
+	 * Whether this editor edits the workspace: its file, now or before a rename, is the workspace's, now or before. A
+	 * record taken before a rename and one taken after match either way.
+	 */
+	isFor(workspace: IRecentSessionWorkspace): boolean {
+		const uris = (record: IRecentSessionWorkspace): readonly URI[] => [record.uri, ...record.previousUris ?? []];
+		const current = this.workspace;
+		return !!current && uris(current).some(uri => uris(workspace).some(other => this.extUri.isEqual(uri, other)));
 	}
 
 	/**
@@ -122,9 +137,4 @@ export class SessionWorkspaceEditorInput extends EditorInput implements IModalEd
 			fitToContent: true,
 		};
 	}
-}
-
-/** Whether `uri` is the workspace's file, or one that the workspace had before a rename. */
-export function isSameWorkspace(extUri: IExtUri, workspace: IRecentSessionWorkspace, uri: URI): boolean {
-	return extUri.isEqual(workspace.uri, uri) || !!workspace.previousUris?.some(previous => extUri.isEqual(previous, uri));
 }
