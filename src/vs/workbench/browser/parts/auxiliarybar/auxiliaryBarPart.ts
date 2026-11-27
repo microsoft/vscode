@@ -38,6 +38,8 @@ import { IToolBarResponsiveBehaviorOptions } from '../../../../base/browser/ui/t
 import { Delayer } from '../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { MicrotaskDelay } from '../../../../base/common/symbols.js';
+import { addDisposableListener } from '../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 
 /**
  * A title action view item that knows the width it needs because it does not shrink, such as a split button showing its
@@ -153,6 +155,9 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		this.configuration = this.resolveConfiguration();
 
 		this._register(keybindingService.onDidUpdateKeybindings(() => this.remeasureSplitButtons()));
+		// The icons of split buttons change their widths with the product icon theme, and once its font has loaded
+		this._register(themeService.onDidProductIconThemeChange(() => this.remeasureSplitButtons()));
+		this._register(addDisposableListener(mainWindow.document.fonts, 'loadingdone', () => this.remeasureSplitButtons()));
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION)) {

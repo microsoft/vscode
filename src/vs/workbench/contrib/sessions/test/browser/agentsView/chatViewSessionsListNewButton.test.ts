@@ -30,6 +30,7 @@ import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { ACTION_ID_NEW_CHAT } from '../../../../chat/browser/actions/chatActions.js';
 import { NEW_CHAT_ICON_VARIANTS } from '../../../../chat/browser/actions/chatNewActions.js';
+import { TestThemeService } from '../../../../../../platform/theme/test/common/testThemeService.js';
 import { createTestAuxiliaryBarPart } from '../../../../../test/browser/parts/auxiliaryBarTestUtils.js';
 import '../../../../../browser/media/part.css';
 
@@ -221,11 +222,11 @@ suite('Sessions - Chat view sessions list New button', () => {
 	const cmdShiftAltN = new USLayoutResolvedKeybinding([new KeyCodeChord(true, true, true, false, KeyCode.KeyN)], OperatingSystem.Macintosh);
 
 	/** Renders the Chat view's title actions, New and a next icon, in a real secondary side bar title attached to the document. */
-	function renderInSecondarySideBarTitle(root: HTMLElement) {
+	function renderInSecondarySideBarTitle(root: HTMLElement, themeService?: TestThemeService) {
 		const rendered = render(true, undefined, ACTION_ID_NEW_CHAT, { [ACTION_ID_NEW_CHAT]: cmdN });
 		const { control, submenu } = rendered;
 		const container = DOM.append(root, DOM.$('.part.auxiliarybar'));
-		const part = createTestAuxiliaryBarPart(container, store, { onDidUpdateKeybindings: rendered.keybindingService.onDidUpdateKeybindings });
+		const part = createTestAuxiliaryBarPart(container, store, { onDidUpdateKeybindings: rendered.keybindingService.onDidUpdateKeybindings, themeService });
 		part.viewActionViewItemProvider = (action, options) => control.createActionViewItem(action, options);
 		const next = store.add(new Action('next', 'Next', 'codicon codicon-gear'));
 		part.setTitleActions('Chat', [submenu, next], []);
@@ -255,8 +256,8 @@ suite('Sessions - Chat view sessions list New button', () => {
 			return { newButton: nextIcon && shown.getBoundingClientRect().right > nextIcon.left + 0.5 ? 'overNextIcon' : 'shown', nextIconInTitle };
 		};
 		/** The narrowest width New is shown at, narrowing one pixel at a time. */
-		const narrowestShownWidth = () => {
-			let width = 300;
+		const narrowestShownWidth = (from = 300) => {
+			let width = from;
 			for (; width >= 60; width--) {
 				layout(width);
 				if (!pill()) {
@@ -401,6 +402,31 @@ suite('Sessions - Chat view sessions list New button', () => {
 			assert.deepStrictEqual({ before, grown: state() }, {
 				before: { newButton: 'shown', nextIconInTitle: true },
 				grown: { newButton: 'overflow', nextIconInTitle: true },
+			});
+		} finally {
+			root.remove();
+		}
+	});
+
+	test('comes back from the overflow when a product icon theme makes its icons narrower at the same width', async () => {
+		const root = attachRoot();
+		// As a product icon theme whose ▾ glyph is wider than the default one
+		const wideGlyph = DOM.append(root, DOM.$('style'));
+		wideGlyph.textContent = '.agent-sessions-compact-new-button-dropdown > .monaco-dropdown-button { min-width: 60px !important; }';
+		try {
+			const themeService = new TestThemeService();
+			const { layout, state, narrowestShownWidth } = renderInSecondarySideBarTitle(root, themeService);
+			const width = narrowestShownWidth(1000) - 1;
+			layout(width);
+			const wide = state();
+
+			wideGlyph.remove();
+			themeService._onProductIconThemeChange.fire(themeService.getProductIconTheme());
+			await timeout(0);
+
+			assert.deepStrictEqual({ wide, narrow: state() }, {
+				wide: { newButton: 'overflow', nextIconInTitle: true },
+				narrow: { newButton: 'shown', nextIconInTitle: true },
 			});
 		} finally {
 			root.remove();
