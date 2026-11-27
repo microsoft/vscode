@@ -120,6 +120,7 @@ suite('DynamicAuthProvider', () => {
 		readonly providerId?: string;
 		readonly fetcher?: typeof fetch;
 		readonly onDidOpenUri?: (uri: string) => void;
+		readonly onDidRemoveProvider?: (id: string) => void;
 	}): TestDynamicAuthProvider {
 		const loggerService = new class extends mock<ILoggerService>() {
 			override createLogger(): ILogger {
@@ -128,6 +129,7 @@ suite('DynamicAuthProvider', () => {
 		}();
 		const proxy = new class extends mock<Proxied<MainThreadAuthenticationShape>>() {
 			override $setSessionsForDynamicAuthProvider = (): Promise<void> => Promise.resolve();
+			override $removeDynamicAuthenticationProvider = async (id: string): Promise<void> => options.onDidRemoveProvider?.(id);
 			// Never settles, so an abandoned authorization flow leaves no rejected promise behind.
 			override $waitForUriHandler = (): Promise<UriComponents> => new Promise<UriComponents>(() => { });
 		}();
@@ -217,6 +219,35 @@ suite('DynamicAuthProvider', () => {
 			fetchCalls: 1,
 			generateNewClientIdCalls: 0,
 			clientId: 'client-id',
+		});
+	});
+
+	test('removes the provider when its client is rejected during silent refresh', async () => {
+		const removedProviderIds: string[] = [];
+		const provider = createProvider({
+			...servers.nonMicrosoft,
+			resource,
+			initialTokens: [{
+				access_token: jwt({ sub: 'account' }),
+				token_type: 'Bearer',
+				scope: '',
+				expires_in: 1,
+				refresh_token: 'refresh-token',
+				created_at: 0,
+			}],
+			fetcher: async () => new Response(JSON.stringify({ error: 'invalid_client' }), {
+				status: 401,
+				headers: { 'Content-Type': 'application/json' },
+			}),
+			onDidRemoveProvider: id => removedProviderIds.push(id),
+		});
+
+		const sessions = await provider.getSessions([], { silent: true } satisfies IAuthenticationProviderSessionOptions);
+
+		assert.deepStrictEqual({ sessions, removedProviderIds, generateNewClientIdCalls: provider.generateNewClientIdCalls }, {
+			sessions: [],
+			removedProviderIds: [provider.id],
+			generateNewClientIdCalls: 0,
 		});
 	});
 
