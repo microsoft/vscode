@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../../../base/common/async.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../../base/common/observable.js';
+import { runWithFakedTimers } from '../../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../common/constants.js';
@@ -613,6 +615,72 @@ suite('ChatInputModelSelectionController', () => {
 			current: requested.identifier,
 		});
 	});
+
+	test('pending programmatic selection settles when the model is conclusively absent', async () => {
+		const modelChanges = disposables.add(new Emitter<string>());
+		const current = model('test/current');
+		const state: IRuntimeState = { models: [], sessionType: 'local' };
+		let modelsLoaded = false;
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, [])));
+
+		const result = controller.requestProgrammaticSelection(
+			() => state.models.find(model => model.identifier === 'test/does-not-exist'),
+			'chat:one',
+			{ isAbsenceConclusive: () => modelsLoaded },
+		);
+		const pendingWhileLoading = controller.hasPendingProgrammaticSelection();
+		state.models = [current];
+		modelsLoaded = true;
+		modelChanges.fire('loaded');
+
+		assert.deepStrictEqual({
+			pendingWhileLoading,
+			result: await result,
+			pendingAfterLoad: controller.hasPendingProgrammaticSelection(),
+			current: controller.currentModel.get()?.identifier,
+			reason: controller.selectionReason,
+		}, {
+			pendingWhileLoading: true,
+			result: false,
+			pendingAfterLoad: false,
+			current: current.identifier,
+			reason: ModelSelectionReason.FirstAvailable,
+		});
+	});
+
+	test('pending programmatic selection settles after a bounded wait when absence is never conclusive', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const modelChanges = disposables.add(new Emitter<string>());
+		const state: IRuntimeState = { models: [], sessionType: 'local' };
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, [])));
+
+		const result = controller.requestProgrammaticSelection(
+			() => state.models.find(model => model.identifier === 'test/does-not-exist'),
+			'chat:one',
+			{ isAbsenceConclusive: () => false, timeoutMs: 10_000 },
+		);
+		const pendingWhileWaiting = controller.hasPendingProgrammaticSelection();
+
+		assert.deepStrictEqual({
+			pendingWhileWaiting,
+			result: await result,
+			pendingAfterWait: controller.hasPendingProgrammaticSelection(),
+		}, {
+			pendingWhileWaiting: true,
+			result: false,
+			pendingAfterWait: false,
+		});
+	}));
+
+	test('pending programmatic selection without a timeout keeps waiting', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const modelChanges = disposables.add(new Emitter<string>());
+		const state: IRuntimeState = { models: [], sessionType: 'local' };
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, [])));
+
+		controller.requestProgrammaticSelection(() => state.models.find(model => model.identifier === 'test/late'), 'chat:one');
+		await timeout(60_000);
+
+		assert.deepStrictEqual({ pending: controller.hasPendingProgrammaticSelection() }, { pending: true });
+	}));
 
 	test('explicit selection cancels a pending programmatic selection', async () => {
 		const modelChanges = disposables.add(new Emitter<string>());
