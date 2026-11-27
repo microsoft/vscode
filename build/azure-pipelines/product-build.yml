@@ -581,6 +581,7 @@ extends:
                 VSCODE_ARCH: x64
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                 VSCODE_PRIVILEGED_CONNECTIONS: ${{ variables.VSCODE_PRIVILEGED_CONNECTIONS }}
+                VSCODE_PACKAGE_UNSIGNED: true
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS_ARM64'], true) }}:
         - stage: macOSARM64
@@ -606,6 +607,7 @@ extends:
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                 VSCODE_RUN_TESTS: true
                 VSCODE_PRIVILEGED_CONNECTIONS: ${{ variables.VSCODE_PRIVILEGED_CONNECTIONS }}
+                VSCODE_PACKAGE_UNSIGNED: true
 
             # Same test jobs as the macOS CI jobs of product-build-ci.yml
             - template: build/azure-pipelines/darwin/product-build-darwin-test.yml@self
