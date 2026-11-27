@@ -14,7 +14,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { IShellLaunchConfig, ITerminalProcessOptions } from '../../common/terminal.js';
 import { ChildProcessMonitor } from '../../node/childProcessMonitor.js';
-import { TerminalProcess } from '../../node/terminalProcess.js';
+import { TerminalProcess, parseLsofCwd } from '../../node/terminalProcess.js';
 
 suite('TerminalProcess startup disposal', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -172,5 +172,79 @@ suite('TerminalProcess startup disposal', () => {
 		} finally {
 			fixture.cleanup();
 		}
+	});
+});
+
+suite('TerminalProcess - parseLsofCwd', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('returns undefined for empty or whitespace-only output', () => {
+		assert.strictEqual(parseLsofCwd(''), undefined);
+		assert.strictEqual(parseLsofCwd('   \n\t  '), undefined);
+	});
+
+	test('returns undefined when output contains only headers', () => {
+		assert.strictEqual(parseLsofCwd('COMMAND PID USER FD TYPE DEVICE SIZE/OFF NODE NAME\n'), undefined);
+	});
+
+	test('parses standard single line output', () => {
+		assert.strictEqual(
+			parseLsofCwd('zsh 12345 501 cwd DIR 1,5 960 123456 /Users/vicky/project\n'),
+			'/Users/vicky/project'
+		);
+	});
+
+	test('parses standard output with header', () => {
+		assert.strictEqual(
+			parseLsofCwd('COMMAND PID USER FD TYPE DEVICE SIZE/OFF NODE NAME\nzsh 12345 501 cwd DIR 1,5 960 123456 /Users/vicky/project\n'),
+			'/Users/vicky/project'
+		);
+	});
+
+	test('handles path containing spaces and carriage returns', () => {
+		assert.strictEqual(
+			parseLsofCwd('zsh 12345 501 cwd DIR 1,5 960 123456 /Users/Vicky Patel/Desktop/Open Source/Microsoft-VSCode\r\n'),
+			'/Users/Vicky Patel/Desktop/Open Source/Microsoft-VSCode'
+		);
+	});
+
+	test('handles command name containing spaces', () => {
+		assert.strictEqual(
+			parseLsofCwd('Code Helper 12345 501 cwd DIR 1,5 960 123456 /Users/vicky/project\n'),
+			'/Users/vicky/project'
+		);
+	});
+
+	test('ignores non-cwd file descriptor even if command name is cwd', () => {
+		assert.strictEqual(
+			parseLsofCwd('cwd 12345 501 txt REG 1,5 12345 123457 /path/to/some/file\n'),
+			undefined
+		);
+	});
+
+	test('parses correctly when executable is named cwd and descriptor is cwd', () => {
+		assert.strictEqual(
+			parseLsofCwd('cwd 12345 501 cwd DIR 1,5 960 123456 /Users/vicky/actual-cwd\n'),
+			'/Users/vicky/actual-cwd'
+		);
+	});
+
+	test('ignores lines where other files or directories contain "cwd" in their path', () => {
+		const output = [
+			'COMMAND PID USER FD TYPE DEVICE SIZE/OFF NODE NAME',
+			'zsh 12345 501 cwd DIR 1,5 960 123456 /Users/vicky/my-project',
+			'zsh 12345 501 txt REG 1,5 12345 123457 /nix/store/cwdz-1.0/lib.dylib',
+			'zsh 12345 501 3r REG 1,5 200 123458 /Users/vicky/my-project/cwd/file.txt'
+		].join('\n');
+		assert.strictEqual(parseLsofCwd(output), '/Users/vicky/my-project');
+	});
+
+	test('parses correctly even when a non-cwd file containing "cwd" in its path appears first', () => {
+		const output = [
+			'zsh 12345 501 txt REG 1,5 12345 123457 /nix/store/cwdz-1.0/lib.dylib',
+			'zsh 12345 501 cwd DIR 1,5 960 123456 /Users/vicky/actual-cwd',
+			'zsh 12345 501 3r REG 1,5 200 123458 /Users/vicky/my-project/cwd/file.txt'
+		].join('\n');
+		assert.strictEqual(parseLsofCwd(output), '/Users/vicky/actual-cwd');
 	});
 });
