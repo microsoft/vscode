@@ -11,7 +11,7 @@ import { IEditorGroupsService } from '../../../../services/editor/common/editorG
 import { EditorsOrder } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
-import { gettingStartedInputTypeId } from '../../../welcomeGettingStarted/browser/gettingStartedInput.js';
+import { isGettingStartedInput } from '../../../welcomeGettingStarted/browser/gettingStartedInput.js';
 
 /**
  * Hides an empty editor area when the window enters Agents mode, and shows it again
@@ -56,7 +56,7 @@ export class AgentsModeEditorArea extends Disposable {
 	 * Closes the Welcome page, which is not for the mode, and then hides the editor area if nothing else is open in it.
 	 */
 	async enter(): Promise<void> {
-		const welcomeEditors = this.editorService.getEditors(EditorsOrder.SEQUENTIAL).filter(({ editor }) => editor.typeId === gettingStartedInputTypeId);
+		const welcomeEditors = this.editorService.getEditors(EditorsOrder.SEQUENTIAL).filter(({ editor }) => isGettingStartedInput(editor));
 		if (welcomeEditors.length) {
 			await this.editorService.closeEditors(welcomeEditors);
 		}
@@ -72,7 +72,7 @@ export class AgentsModeEditorArea extends Disposable {
 		if (this.layoutService.isVisible(Parts.CHAT_PART)) {
 			// The chat part takes the editor area's place
 			this.layoutService.setEditorHiddenByChat(true);
-		} else if (!this.layoutService.isVisible(Parts.PANEL_PART) && !this.layoutService.isAuxiliaryBarMaximized()) {
+		} else if (!this.layoutService.isVisible(Parts.PANEL_PART)) {
 			// Nothing else would fill the editor area's place and the layout would open the panel: wait for the chat part
 			this.pendingHide.value = this.layoutService.onDidChangePartVisibility(e => {
 				if (e.partId === Parts.CHAT_PART && e.visible) {

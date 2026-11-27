@@ -126,6 +126,7 @@ suite('AgentsModeWorkspaceService', () => {
 		disposables.add(testObject.onDidChangeWorkbenchState(state => events.push(`state:${state}`)));
 		disposables.add(testObject.onDidChangeWorkbenchScope(scope => events.push(`scope:${scope}`)));
 		disposables.add(testObject.onDidChangeWorkbenchMode(mode => events.push(`workbenchMode:${mode}`)));
+		disposables.add(testObject.onWillChangeAgentsMode(enabled => events.push(`willMode:${enabled}`)));
 		disposables.add(testObject.onDidChangeAgentsMode(enabled => events.push(`mode:${enabled}`)));
 		disposables.add(testObject.onDidChangeConfiguration(e => {
 			for (const key of ['agentsMode.modeDefault', 'agentsMode.agentsDefault', 'agentsMode.userWins', 'agentsMode.readOnly', 'agentsMode.modeReadOnly']) {
@@ -147,8 +148,8 @@ suite('AgentsModeWorkspaceService', () => {
 			inMode: { mode: true, workspaceId: 'empty-window', state: WorkbenchState.WORKSPACE, scope: undefined, workbenchMode: WorkbenchMode.Agents, modeDefault: true, agentsDefault: 'editor', userWins: false, readOnly: 'user', modeReadOnly: 'mode' },
 			after: { mode: false, workspaceId: 'empty-window', state: WorkbenchState.EMPTY, scope: undefined, workbenchMode: WorkbenchMode.Editor, modeDefault: false, agentsDefault: 'editor', userWins: false, readOnly: 'user', modeReadOnly: 'user' },
 			events: [
-				`state:${WorkbenchState.WORKSPACE}`, `workbenchMode:${WorkbenchMode.Agents}`, 'config:agentsMode.modeDefault', 'config:agentsMode.modeReadOnly', 'mode:true',
-				`state:${WorkbenchState.EMPTY}`, `workbenchMode:${WorkbenchMode.Editor}`, 'config:agentsMode.modeDefault', 'config:agentsMode.modeReadOnly', 'mode:false',
+				'willMode:true', `state:${WorkbenchState.WORKSPACE}`, `workbenchMode:${WorkbenchMode.Agents}`, 'config:agentsMode.modeDefault', 'config:agentsMode.modeReadOnly', 'mode:true',
+				'willMode:false', `state:${WorkbenchState.EMPTY}`, `workbenchMode:${WorkbenchMode.Editor}`, 'config:agentsMode.modeDefault', 'config:agentsMode.modeReadOnly', 'mode:false',
 			],
 		});
 	}));

@@ -19,9 +19,11 @@ export class AgentsModeService implements IAgentsModeService {
 
 	readonly isSupported = true;
 
+	readonly onWillChange: Event<boolean>;
 	readonly onDidChange: Event<boolean>;
 
 	constructor(private readonly workspaceService: AgentsModeWorkspaceService) {
+		this.onWillChange = workspaceService.onWillChangeAgentsMode;
 		this.onDidChange = workspaceService.onDidChangeAgentsMode;
 	}
 

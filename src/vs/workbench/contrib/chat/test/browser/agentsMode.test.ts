@@ -7,7 +7,7 @@ import assert from 'assert';
 import { Action } from '../../../../../base/common/actions.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { EventType as TouchEventType } from '../../../../../base/browser/touch.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
@@ -21,19 +21,32 @@ import { InMemoryStorageService, IStorageService } from '../../../../../platform
 import { IAgentsModeService } from '../../../../services/agentsMode/common/agentsMode.js';
 import { AGENTS_MODE_ENABLED_SETTING } from '../../../../services/configuration/browser/agents/agentsModeWorkspaceService.js';
 import { IEditorIdentifier } from '../../../../common/editor.js';
+import { IViewDescriptorService, ViewContainer, ViewContainerLocation } from '../../../../common/views.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService, IVisibleEditorsChangeEvent } from '../../../../services/editor/common/editorService.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { gettingStartedInputTypeId } from '../../../welcomeGettingStarted/browser/gettingStartedInput.js';
 import { AgentsModeActive, CanEnterAgentsMode, ToggleAgentsModeAction } from '../../browser/agentSessions/agentsModeActions.js';
 import { AgentsModeAuxiliaryBar } from '../../browser/agentSessions/agentsModeAuxiliaryBar.js';
 import { AgentsModeEditorArea } from '../../browser/agentSessions/agentsModeEditorArea.js';
 import { AgentsModeButtonActionViewItem } from '../../browser/agentSessions/agentsModeButton.js';
+import { ChatViewContainerId } from '../../browser/chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 
 suite('Agents mode actions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	/** The Chat view's container, at `location`, which `onOpen` opens. */
+	function stubViews(instantiation: TestInstantiationService, location = ViewContainerLocation.AuxiliaryBar, onOpen: (id: string) => void = () => { }): void {
+		const chatViewContainer = { id: ChatViewContainerId } as ViewContainer;
+		instantiation.stub(IViewDescriptorService, {
+			getViewContainerById: (id: string) => id === ChatViewContainerId ? chatViewContainer : null,
+			getViewContainerLocation: () => location,
+		});
+		instantiation.stub(IViewsService, { openViewContainer: async (id: string) => { onOpen(id); return null; } });
+	}
 
 	test('exit remains available when AI and entry are disabled', async () => {
 		const configuration = new TestConfigurationService();
@@ -78,24 +91,20 @@ suite('Agents mode actions', () => {
 		}, { enter: true, entryDisabledByAI: true, entryDisabledBySetting: true, exit: true, toggles: 1 });
 	});
 
-	test('toggling stores the secondary side bar width before the switch, which the mode gives it back once switched', async () => {
-		const configuration = new TestConfigurationService();
-		disposables.add(configuration.onDidChangeConfigurationEmitter);
-		const context = disposables.add(new ContextKeyService(configuration));
-		AgentsModeActive.bindTo(context).set(true);
-		const commandId = 'workbench.action.chat.toggleAgentsMode';
-		if (!CommandsRegistry.getCommand(commandId)) {
-			disposables.add(registerAction2(ToggleAgentsModeAction));
-		}
-		const command = CommandsRegistry.getCommand(commandId)!;
-
+	test('switching stores the secondary side bar width before the switch, which the mode gives it back once switched', async () => {
 		const run = async (auxiliaryBarVisible: boolean, { active = true, maximized = false, width = 292, storage = disposables.add(new InMemoryStorageService()) }: { active?: boolean; maximized?: boolean; width?: number; storage?: IStorageService } = {}) => {
 			const sizes: number[] = [];
 			const instantiation = disposables.add(new TestInstantiationService());
-			instantiation.stub(IContextKeyService, context);
 			instantiation.stub(IStorageService, storage);
-			// The switch moves the side bars and hides the editor area, which squeezes the secondary side bar
-			instantiation.stub(IAgentsModeService, { isSupported: true, isActive: active, setActive: async () => { width = maximized ? 573 : 162; maximized = false; } });
+			stubViews(instantiation);
+			// Any switch, such as entering another workspace, not only the toggle: the mode reports it will change, then
+			// moves the side bars and hides the editor area, which squeezes the secondary side bar
+			const onWillChange = disposables.add(new Emitter<boolean>());
+			const agentsMode = {
+				isSupported: true, isActive: active, onWillChange: onWillChange.event,
+				setActive: async (enabled: boolean) => { onWillChange.fire(enabled); agentsMode.isActive = enabled; width = maximized ? 573 : 162; maximized = false; },
+			};
+			instantiation.stub(IAgentsModeService, agentsMode);
 			instantiation.stub(IWorkbenchLayoutService, {
 				isVisible: (part: Parts) => part === Parts.AUXILIARYBAR_PART && auxiliaryBarVisible,
 				isAuxiliaryBarMaximized: () => maximized,
@@ -104,7 +113,7 @@ suite('Agents mode actions', () => {
 				setSize: (_part: Parts, size: { width: number }) => { width = size.width; sizes.push(size.width); },
 			});
 			const auxiliaryBar = instantiation.createInstance(AgentsModeAuxiliaryBar);
-			await command.handler(instantiation);
+			await agentsMode.setActive(!active);
 			auxiliaryBar.applyWidth();
 			auxiliaryBar.dispose();
 			return { width, sizes };
@@ -311,16 +320,22 @@ suite('Agents mode actions', () => {
 			readonly visibleBefore?: boolean;
 			/** What happens in the mode before leaving it */
 			readonly inMode?: 'restart' | 'restartWithoutMode';
+			/** Where the Chat view is: in the secondary side bar unless set */
+			readonly chatViewLocation?: ViewContainerLocation;
 		}
 
-		function run(scenario: IScenario) {
+		async function run(scenario: IScenario) {
 			const instantiation = disposables.add(new TestInstantiationService());
 			const storage = disposables.add(new InMemoryStorageService());
-			const agentsMode = { isSupported: true, isActive: false };
+			const agentsMode = { isSupported: true, isActive: false, onWillChange: Event.None };
 			let visible = !!scenario.visibleBefore;
 			const calls: string[] = [];
 			instantiation.stub(IStorageService, storage);
 			instantiation.stub(IAgentsModeService, agentsMode);
+			stubViews(instantiation, scenario.chatViewLocation ?? ViewContainerLocation.AuxiliaryBar, id => {
+				calls.push(`open ${id}`);
+				visible = true;
+			});
 			instantiation.stub(IWorkbenchLayoutService, {
 				isVisible: (part: Parts) => part === Parts.AUXILIARYBAR_PART && visible,
 				setPartHidden: (hidden: boolean, part: Parts) => {
@@ -332,7 +347,7 @@ suite('Agents mode actions', () => {
 
 			let auxiliaryBar = instantiation.createInstance(AgentsModeAuxiliaryBar);
 			agentsMode.isActive = true;
-			auxiliaryBar.enter();
+			await auxiliaryBar.enter();
 			const afterEnter = state();
 
 			let inMode: { visible: boolean; calls: string[] } | undefined;
@@ -355,17 +370,20 @@ suite('Agents mode actions', () => {
 			return { afterEnter, ...(inMode ? { inMode } : {}), afterLeave };
 		}
 
-		test('shows a hidden secondary side bar on entering and hides it again on leaving', () => {
-			const shownOnEnter = { visible: true, calls: [`show ${Parts.AUXILIARYBAR_PART}`] };
+		test('shows a hidden secondary side bar with the Chat view on entering and hides it again on leaving', async () => {
+			const shownOnEnter = { visible: true, calls: [`open ${ChatViewContainerId}`] };
 			const hiddenOnLeave = { visible: false, calls: [`hide ${Parts.AUXILIARYBAR_PART}`] };
 			const untouched = { visible: true, calls: [] };
 			assert.deepStrictEqual({
-				hiddenBefore: run({}),
-				hiddenBeforeRestartedInMode: run({ inMode: 'restart' }),
-				hiddenBeforeRestartedWithoutMode: run({ inMode: 'restartWithoutMode' }),
-				visibleBefore: run({ visibleBefore: true }),
+				hiddenBefore: await run({}),
+				chatViewInPanel: await run({ chatViewLocation: ViewContainerLocation.Panel }),
+				hiddenBeforeRestartedInMode: await run({ inMode: 'restart' }),
+				hiddenBeforeRestartedWithoutMode: await run({ inMode: 'restartWithoutMode' }),
+				visibleBefore: await run({ visibleBefore: true }),
 			}, {
 				hiddenBefore: { afterEnter: shownOnEnter, afterLeave: hiddenOnLeave },
+				// The secondary side bar shows what it shows, as it cannot show the Chat view
+				chatViewInPanel: { afterEnter: { visible: true, calls: [`show ${Parts.AUXILIARYBAR_PART}`] }, afterLeave: hiddenOnLeave },
 				hiddenBeforeRestartedInMode: { afterEnter: shownOnEnter, afterLeave: hiddenOnLeave },
 				hiddenBeforeRestartedWithoutMode: { afterEnter: shownOnEnter, inMode: hiddenOnLeave, afterLeave: { visible: false, calls: [] } },
 				visibleBefore: { afterEnter: untouched, afterLeave: untouched },

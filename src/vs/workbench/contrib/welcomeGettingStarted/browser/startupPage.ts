@@ -19,7 +19,7 @@ import { Disposable, } from '../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
-import { GettingStartedEditorOptions, GettingStartedInput, gettingStartedInputTypeId } from './gettingStartedInput.js';
+import { GettingStartedEditorOptions, GettingStartedInput, gettingStartedInputTypeId, isGettingStartedInput } from './gettingStartedInput.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { getTelemetryLevel } from '../../../../platform/telemetry/common/telemetryUtils.js';
@@ -118,7 +118,7 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 	 * closes the open ones itself.
 	 */
 	private async closeWelcomeEditors(): Promise<void> {
-		const welcomeEditors = this.editorService.getEditors(EditorsOrder.SEQUENTIAL).filter(({ editor }) => editor instanceof GettingStartedInput);
+		const welcomeEditors = this.editorService.getEditors(EditorsOrder.SEQUENTIAL).filter(({ editor }) => isGettingStartedInput(editor));
 		if (welcomeEditors.length) {
 			await this.editorService.closeEditors(welcomeEditors);
 		}

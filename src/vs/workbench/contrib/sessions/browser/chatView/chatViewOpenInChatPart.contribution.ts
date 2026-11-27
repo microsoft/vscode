@@ -238,12 +238,22 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 		// Whether chats moved to the chat part in Agents mode, such as by the mode's default of the setting. The mode's settings
 		// change before it reports the change, so this reads whether the window is in the mode, not its change event
 		let chatPartForAgentsMode = agentsModeService.isActive;
+		// Whether the chat stayed in the chat part as the window left Agents mode
+		let chatStayedForAgentsMode = false;
 		this._register(runOnChange(configured, toChatPart => {
 			const leavingAgentsMode = !toChatPart && chatPartForAgentsMode && !agentsModeService.isActive;
+			const returningToAgentsMode = toChatPart && chatStayedForAgentsMode && agentsModeService.isActive;
 			chatPartForAgentsMode = toChatPart && agentsModeService.isActive;
+			chatStayedForAgentsMode = leavingAgentsMode;
 			// Leaving Agents mode, the chat stays in the chat part, which shows it as the mode returns: the Chat view taking it
-			// would open the secondary side bar that the mode hides as it leaves
-			if (leavingAgentsMode || !this._contextKeyService.contextMatchesRules(available)) {
+			// would open the secondary side bar that the mode hides as it leaves. So would a move into the chat part that is
+			// still on its way, as the window leaves the mode right after it entered it
+			if (leavingAgentsMode) {
+				handover.clear();
+				return;
+			}
+			// Returning to Agents mode, the chat part shows the chat that stayed in it, not the Chat view's
+			if ((returningToAgentsMode && this._shownChatService.shown.get()) || !this._contextKeyService.contextMatchesRules(available)) {
 				return;
 			}
 			const taken = toChatPart ? this._takeFromChatView(chatViewShown) : this._takeFromChatPart();

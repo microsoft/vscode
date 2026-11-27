@@ -132,6 +132,13 @@ export class AgentsModeWorkspaceService extends Disposable implements IEditableW
 	private readonly _onDidChangeWorkspaceFolders = this._register(new Emitter<IWorkspaceFoldersChangeEvent>());
 	readonly onDidChangeWorkspaceFolders = this._onDidChangeWorkspaceFolders.event;
 
+	private readonly _onWillChangeAgentsMode = this._register(new Emitter<boolean>());
+	/**
+	 * Fires as the window is about to enter or leave Agents mode, before
+	 * the switch changes anything.
+	 */
+	readonly onWillChangeAgentsMode = this._onWillChangeAgentsMode.event;
+
 	private readonly _onDidChangeAgentsMode = this._register(new Emitter<boolean>());
 	/**
 	 * Fires after the window entered or left Agents mode, and after
@@ -184,6 +191,7 @@ export class AgentsModeWorkspaceService extends Disposable implements IEditableW
 				const workspace = this.agentsWorkspace.value = new AgentsWorkspaceContextService({ id: workspaceId ?? this.editor.getWorkspace().id }, this.services.uriIdentityService);
 				this.agents.value = await this.createAgentsDelegates(workspace);
 			}
+			this._onWillChangeAgentsMode.fire(enabled);
 			this.switchDelegates(enabled);
 			if (!enabled) {
 				this.agents.clear();

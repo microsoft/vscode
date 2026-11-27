@@ -841,6 +841,30 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			});
 		});
 
+		test('leaving Agents mode right after entering it, the move into the chat part that is still on its way stops; returning to the mode, the chat part keeps the chat that stayed in it', async () => {
+			// The window leaves the mode while the chat part starts the new chat the move takes the draft to
+			let leaving: Promise<void> | undefined;
+			const quick = setup({ chatViewShows: draft, duringNewChat: () => { leaving = quick.setAgentsMode(false, { setting: false }); } });
+			const source = new FakeChatWidget('hello', [attachment]);
+			quick.widgets.set(draft.toString(), source);
+			await quick.setAgentsMode(true, { setting: true });
+			await leaving;
+			await timeout(0);
+
+			const returning = setup({ chatViewShows: session });
+			await returning.setAgentsMode(true, { setting: true });
+			returning.shown.part.set(URI.parse('agent-host-copilotcli:/session-b'), undefined);
+			await returning.setAgentsMode(false, { setting: false });
+			returning.shown.view.set(URI.parse('agent-host-copilotcli:/session-c'), undefined);
+			await returning.setAgentsMode(true, { setting: true });
+			await timeout(0);
+
+			assert.deepStrictEqual({ quick: { handovers: quick.handovers, source: source.state }, returning: { handovers: returning.handovers, part: returning.shown.part.get()?.path } }, {
+				quick: { handovers: ['part new chat'], source: { input: 'hello', attachments: ['file-a'] } },
+				returning: { handovers: ['part opens /session-a'], part: '/session-b' },
+			});
+		});
+
 		test('as it turns off, the chat part keeps the chat that moves until the Chat view shows it: not when opening it failed or another chat shows', async () => {
 			const run = async (viewOpenShows: URI | null) => {
 				const fixture = setup({ setting: true, viewOpenShows });

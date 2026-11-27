@@ -2376,6 +2376,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const endsHiddenByChat = !hidden && this.isEditorHiddenByChat();
 		if (endsHiddenByChat) {
 			this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN_BY_CHAT, false);
+			// What parts squeezed beside the chat part filling the editor area no longer applies
+			this.squeezedBesideChatPart.clear();
 		}
 
 		this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, hidden);
@@ -3104,6 +3106,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private clearEditorHiddenByChat(): void {
 		if (this.isEditorHiddenByChat()) {
 			this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN_BY_CHAT, false);
+			this.squeezedBesideChatPart.clear();
 			this.mainContainer.classList.remove(LayoutClasses.EDITOR_AREA_HIDDEN_BY_CHAT);
 			const chatPart = this.getChatHostPart();
 			if (chatPart) {

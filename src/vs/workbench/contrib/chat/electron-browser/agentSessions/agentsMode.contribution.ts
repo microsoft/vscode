@@ -29,7 +29,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
-			description: localize('agentsMode.enabled', "Enable toggling Agents mode in an empty local editor window. Takes effect in a window after it is reloaded."),
+			description: localize('agentsMode.enabled', "Enable toggling Agents mode in a local editor window. A window with a folder or workspace gets its folders back when it leaves the mode. Takes effect in a window after it is reloaded."),
 		}
 	}
 });
@@ -74,7 +74,7 @@ class AgentsModeContribution extends Disposable {
 	 */
 	private async switchLayout(entering: boolean, editorArea: AgentsModeEditorArea, auxiliaryBar: AgentsModeAuxiliaryBar): Promise<void> {
 		if (entering) {
-			auxiliaryBar.enter();
+			await auxiliaryBar.enter();
 			await editorArea.enter();
 		} else {
 			editorArea.leave();

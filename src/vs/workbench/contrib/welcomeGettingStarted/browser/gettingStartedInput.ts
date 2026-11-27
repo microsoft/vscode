@@ -13,6 +13,11 @@ import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 
 export const gettingStartedInputTypeId = 'workbench.editors.gettingStartedInput';
 
+/** Whether the editor is the Welcome page. */
+export function isGettingStartedInput(editor: EditorInput): boolean {
+	return editor.typeId === gettingStartedInputTypeId;
+}
+
 export interface GettingStartedEditorOptions extends IEditorOptions {
 	selectedCategory?: string;
 	selectedStep?: string;
