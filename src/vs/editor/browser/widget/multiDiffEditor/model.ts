@@ -38,4 +38,6 @@ export interface IDocumentDiffItem {
 	readonly options?: IDiffEditorOptions;
 	readonly onOptionsDidChange?: Event<void>;
 	readonly contextKeys?: Record<string, ContextKeyValue>;
+	/** Identifies the diff while its resources change, such as between snapshots of a file. Defaults to its resources. */
+	readonly key?: string;
 }

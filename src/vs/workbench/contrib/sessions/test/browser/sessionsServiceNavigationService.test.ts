@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ISessionGridPane } from '../../../../services/sessions/browser/sessionGridPane.js';
+import { ISessionGridPane, SessionGridPaneKind } from '../../../../services/sessions/browser/sessionGridPane.js';
 import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsPartService, ISessionView } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { IChat, ISession } from '../../../../services/sessions/common/session.js';
@@ -88,6 +88,37 @@ suite('SessionsServiceNavigationService', () => {
 			notOpen: [],
 			otherSession: [],
 			noPane: [],
+		});
+	});
+
+	test('closes a session with its detached panes, and leaves the grid alone when it does not show the session; Reopen Closed Chat or Session does not bring it back', async () => {
+		const closed = async (panes: readonly { readonly session: ISession; readonly kind: SessionGridPaneKind }[]) => {
+			const calls: string[] = [];
+			const live = observableValue<readonly ISessionGridPane[]>('panes', panes.map(({ session, kind }) => upcastPartial<ISessionGridPane>({ session: constObservable(session), kind })));
+			const sessionsService = upcastPartial<ISessionsService>({
+				panes: live,
+				// A detached pane closes by returning its chat to its session's slot, which shows when it did not.
+				closePane: pane => {
+					calls.push(`closePane ${pane.kind} ${pane.session.get()?.sessionId}`);
+					const remaining = live.get().filter(candidate => candidate !== pane);
+					const hasSlot = remaining.some(candidate => candidate.kind === SessionGridPaneKind.Slot && candidate.session.get() === pane.session.get());
+					live.set(hasSlot ? remaining : [...remaining, upcastPartial<ISessionGridPane>({ session: pane.session, kind: SessionGridPaneKind.Slot })], undefined);
+				},
+				closeSession: (target, options) => { calls.push(`closeSession ${target?.sessionId} skipHistory=${options?.skipHistory}`); },
+				forgetClosedSession: target => { calls.push(`forgetClosedSession ${target.sessionId}`); },
+			});
+			await new SessionsServiceNavigationService(sessionsService, upcastPartial<ISessionsPartService>({})).closeSession(session);
+			return calls;
+		};
+
+		assert.deepStrictEqual({
+			slotAndDetached: await closed([{ session, kind: SessionGridPaneKind.Slot }, { session, kind: SessionGridPaneKind.Detached }, { session: other, kind: SessionGridPaneKind.Slot }]),
+			detachedOnly: await closed([{ session, kind: SessionGridPaneKind.Detached }]),
+			notShown: await closed([{ session: other, kind: SessionGridPaneKind.Slot }]),
+		}, {
+			slotAndDetached: ['forgetClosedSession a', 'closePane detached a', 'closeSession a skipHistory=true'],
+			detachedOnly: ['forgetClosedSession a', 'closePane detached a', 'closeSession a skipHistory=true'],
+			notShown: ['forgetClosedSession a'],
 		});
 	});
 });

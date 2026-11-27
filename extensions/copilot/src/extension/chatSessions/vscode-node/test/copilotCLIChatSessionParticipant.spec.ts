@@ -99,7 +99,7 @@ vi.mock('vscode', async (importOriginal) => {
 			executeCommand: mockExecuteCommand
 		},
 		workspace: {
-			isAgentSessionsWorkspace: false
+			isAgentManaged: false
 		}
 	};
 });

@@ -6,7 +6,7 @@
 import './media/pinnedCanvasPage.css';
 import { getWindow } from '../../../../base/browser/dom.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
@@ -14,8 +14,11 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { CanvasView, ICanvasViewInput } from '../../../../workbench/contrib/canvases/electron-browser/canvasView.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
+import { CustomViewAllowsPanelContext } from '../../../common/agentsWindowContextKeys.js';
 import { AbstractCustomView, ICustomViewService } from '../../../../workbench/contrib/sessions/browser/customView.js';
-import { IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasConnectedContext, PinnedCanvasState } from '../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
+import { getPinnedCanvasListingSession, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasConnectedContext, PinnedCanvasSessionCanToggleListingContext, PinnedCanvasSessionInSessionsListContext, PinnedCanvasState } from '../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
+import { ISessionsListModelService } from '../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 
 /** Shows the selected pinned canvas full-bleed in place of the sessions grid. */
 export class PinnedCanvasPage extends AbstractCustomView {
@@ -31,6 +34,7 @@ export class PinnedCanvasPage extends AbstractCustomView {
 	constructor(
 		@IPinnedCanvasService private readonly pinnedCanvasService: IPinnedCanvasService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 		this.title = derived(this, reader => this.pinnedCanvasService.selected.read(reader)?.title.read(reader) ?? localize('pinnedCanvasPage.title', "Canvas"));
@@ -68,7 +72,7 @@ export class PinnedCanvasPage extends AbstractCustomView {
 		const view = this.view = this._register(this.instantiationService.createInstance(CanvasView, container, getWindow(container), {
 			logPrefix: '[PinnedCanvasPage]',
 			notPresentableMessage,
-			getHelpContent: () => getPinnedCanvasPageHelpContent(),
+			getHelpContent: () => getPinnedCanvasPageHelpContent(this.contextKeyService.getContextKeyValue<boolean>(CustomViewAllowsPanelContext.key) === true),
 		}));
 		const input = derived<ICanvasViewInput | undefined>(this, reader => {
 			const entry = this.pinnedCanvasService.selected.read(reader);
@@ -101,12 +105,15 @@ export class PinnedCanvasPage extends AbstractCustomView {
 	}
 }
 
-function getPinnedCanvasPageHelpContent(): string {
+function getPinnedCanvasPageHelpContent(panelAvailable: boolean): string {
 	return [
 		localize('pinnedCanvasPage.help.overview', "This canvas is pinned to the sidebar. It belongs to its chat, whose agent can keep updating it, and it stays live while you work in other chats."),
 		localize('pinnedCanvasPage.help.navigation', "Tab moves through page controls. Use <keybinding:workbench.action.focusNextPart> to leave the page."),
+		...(panelAvailable ? [
+			localize('pinnedCanvasPage.help.panel', "Use {0} to open or close the Terminal below the canvas. Use {1} to open or close Output. New local terminals start in your user profile because this page has no active session workspace.", '<keybinding:workbench.action.terminal.toggleTerminal>', '<keybinding:workbench.action.output.toggleOutput>'),
+		] : []),
 		localize('pinnedCanvasPage.help.externalLinks', "User-initiated HTTP and HTTPS links that request a new tab or window open outside the canvas."),
-		localize('pinnedCanvasPage.help.actions', "The page header offers Go to Chat to show the chat that owns this canvas, Remove from Sidebar to unpin it, and Close Canvas to close the canvas itself, which also notifies the canvas extension that provides it."),
+		localize('pinnedCanvasPage.help.actions', "The page header offers Go to Chat to show the chat that owns this canvas, Remove from Sidebar to unpin it, Show in Sessions List or Hide from Sessions List for the session of that chat, and Close Canvas to close the canvas itself, which also notifies the canvas extension that provides it."),
 		localize('pinnedCanvasPage.help.sidebar', "Pinned canvases are listed in the sidebar after Automations. Their context menu offers the same actions."),
 	].join('\n\n');
 }
@@ -119,6 +126,8 @@ export class PinnedCanvasPageContribution extends Disposable implements IWorkben
 	constructor(
 		@ICustomViewService customViewService: ICustomViewService,
 		@IPinnedCanvasService pinnedCanvasService: IPinnedCanvasService,
+		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
+		@ISessionsListModelService sessionsListModelService: ISessionsListModelService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
@@ -134,6 +143,17 @@ export class PinnedCanvasPageContribution extends Disposable implements IWorkben
 		const connected = PinnedCanvasConnectedContext.bindTo(contextKeyService);
 		this._register(autorun(reader => {
 			connected.set(pinnedCanvasService.selected.read(reader)?.canvas.read(reader) !== undefined);
+		}));
+
+		const canToggleListing = PinnedCanvasSessionCanToggleListingContext.bindTo(contextKeyService);
+		const inSessionsList = PinnedCanvasSessionInSessionsListContext.bindTo(contextKeyService);
+		const sessionsChanged = observableSignalFromEvent(this, sessionsManagementService.onDidChangeSessions);
+		this._register(autorun(reader => {
+			sessionsChanged.read(reader);
+			const entry = pinnedCanvasService.selected.read(reader);
+			const session = entry && getPinnedCanvasListingSession(sessionsManagementService, entry, reader);
+			canToggleListing.set(session !== undefined);
+			inSessionsList.set(session !== undefined && sessionsListModelService.isSessionListed(session, reader));
 		}));
 	}
 }

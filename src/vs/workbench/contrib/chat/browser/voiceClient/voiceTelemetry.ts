@@ -32,12 +32,6 @@ export type VoiceFirstConnectClassification = {
 	timeToConnectMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds from connect() call to WebSocket open.' };
 };
 
-export type VoiceOnboardingCompletedEvent = {};
-export type VoiceOnboardingCompletedClassification = {
-	owner: 'meganrogge';
-	comment: 'Fired when the user completes the voice onboarding flow.';
-};
-
 /* -- Usage -- */
 
 export type VoiceSessionStartedEvent = {

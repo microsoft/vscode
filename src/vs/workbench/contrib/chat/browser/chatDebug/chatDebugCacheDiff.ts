@@ -460,22 +460,3 @@ export function appendToolsDrift(
 	}
 	return insertPrefixComponent(drift, { name: 'tools', status, aSize: aTools?.length ?? 0, bSize: bTools?.length ?? 0 });
 }
-
-/**
- * Format a normalized message into a single-line `role[-name]:bytes` token,
- * matching the convention used by the existing `promptTypes` telemetry.
- */
-export function formatSignatureToken(token: ICacheSignatureToken): string {
-	const role = token.bRole ?? token.aRole ?? 'unknown';
-	const name = token.bName ?? token.aName;
-	const a = token.aCharLength;
-	const b = token.bCharLength;
-	const sizeText = a !== undefined && b !== undefined && a !== b
-		? `${a}\u2192${b}`
-		: a !== undefined && b === undefined
-			? `${a}\u21920`
-			: a === undefined && b !== undefined
-				? `0\u2192${b}`
-				: `${b ?? a ?? 0}`;
-	return name ? `${role}-${name}:${sizeText}` : `${role}:${sizeText}`;
-}

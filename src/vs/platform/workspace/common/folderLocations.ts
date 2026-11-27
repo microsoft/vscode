@@ -12,13 +12,21 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IWorkspaceFolder } from './workspace.js';
 
 /**
+ * The identity of a folder location without its trailing separator. Unlike `removeTrailingPathSeparator`,
+ * this also strips the separator of a UNC share root, which names the same location without it.
+ */
+export function withoutTrailingSeparator(uri: URI): URI {
+	return uri.path.length > 1 && uri.path.endsWith('/') ? uri.with({ path: uri.path.slice(0, -1) }) : uri;
+}
+
+/**
  * An alternate location of a workspace folder.
  */
 export interface IFolderLocation {
 	readonly uri: URI;
 	readonly label: string;
 	readonly description?: string;
-	readonly icon?: ThemeIcon;
+	readonly icon: ThemeIcon;
 }
 
 /**
@@ -64,8 +72,15 @@ export interface IWorkspaceFolderLocationProvider {
 
 	/**
 	 * Fires when the locations this provider knows may have changed, for any folder: ask {@link provideLocations} again.
+	 * Also fires as it becomes {@link isReady ready}.
 	 */
 	readonly onDidChangeLocations?: Event<void>;
+
+	/**
+	 * Whether it has finished loading what it knows, such as the sessions whose locations it provides: until then, a location
+	 * it does not resolve may still become known. A provider that does not tell is ready.
+	 */
+	readonly isReady?: boolean;
 }
 
 /**
@@ -124,8 +139,15 @@ export interface IWorkspaceFolderLocationService {
 
 	/**
 	 * Fires when the locations a registered provider knows may have changed, for any folder: ask {@link getLocations} again.
+	 * Also fires as a provider becomes ready ({@link areProvidersReady}).
 	 */
 	readonly onDidChangeLocations: Event<void>;
+
+	/**
+	 * Whether every registered provider has finished loading what it knows ({@link IWorkspaceFolderLocationProvider.isReady}):
+	 * until then, a location that no provider resolves may still become known.
+	 */
+	areProvidersReady(): boolean;
 
 	/**
 	 * Records the location `folder` is at. Called by `IWorkspaceEditingService`

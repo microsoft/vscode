@@ -38,7 +38,7 @@ import { IAgentHostProxyResolver } from './agentHostProxyResolver.js';
 import { IAgentSdkDownloader, type IAgentSdkDownloadProgress } from './agentSdkDownloader.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { ProtocolServerHandler, type IProtocolServerGitHubEnvironment } from './protocolServerHandler.js';
-import { getMissionControlEnvironmentName, MissionControlHost } from './missionControl/missionControlHost.js';
+import { formatMissionControlEnvironmentName, getMissionControlEnvironmentName, MissionControlHost } from './missionControl/missionControlHost.js';
 import { MissionControlClientRegistration } from './missionControl/missionControlClientRegistration.js';
 import { WebSocketProtocolServer } from './webSocketTransport.js';
 import { MessagePortProtocolServer } from './messagePortProtocolServer.js';
@@ -584,6 +584,7 @@ async function startAgentHost(): Promise<void> {
 		const registration = protocolIngressDisposables.add(new MissionControlClientRegistration(missionControl.environment, {
 			homeDirectory: os.homedir(),
 			...(wslDistro ? { name: getMissionControlEnvironmentName(productService, `${wslDistro} on ${os.hostname()}`) } : {}),
+			formatClientName: name => formatMissionControlEnvironmentName(productService, name),
 		}));
 		protocolIngressDisposables.add(registration.onDidChangeRegistered(registered => githubEnvironmentRegisteredEmitter.fire(registered)));
 		githubEnvironment = registration;

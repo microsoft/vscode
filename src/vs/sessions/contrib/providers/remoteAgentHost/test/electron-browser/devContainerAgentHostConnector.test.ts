@@ -17,7 +17,8 @@ import { hasKey } from '../../../../../../base/common/types.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
-import { DevContainerAgentHostSource, IDevContainerAgentHostConfig, IDevContainerAgentHostMainService, IDevContainerAgentHostUserStateReport } from '../../../../../../platform/agentHost/common/devContainerAgentHost.js';
+import { DevContainerAgentHostSource, IDevContainerAgentHostConfig, IDevContainerAgentHostConnectFailure, IDevContainerAgentHostMainService, IDevContainerAgentHostUserStateReport } from '../../../../../../platform/agentHost/common/devContainerAgentHost.js';
+import { createDevContainerAgentHostChannel } from '../../../../../../platform/agentHost/common/devContainerAgentHostIpc.js';
 import { devContainerEnvironmentImage, devContainerEnvironmentUri, localDevContainerEnvironmentUri } from '../../../../../../platform/agentHost/common/devContainerEnvironments.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { devContainerSamples, devContainerSampleUri, IDevContainerSampleSource } from '../../../../../../platform/agentHost/common/devContainerSamples.js';
@@ -62,6 +63,7 @@ suite('Dev Container Agent Host Connector', () => {
 				override readonly onDidOutput = Event.None;
 				override readonly onDidChangeSandboxSupport = Event.None;
 				override readonly onDidReportUserState = Event.None;
+				override readonly onDidFailConnect = Event.None;
 				override readonly onDidRelayMessage = Event.None;
 				override readonly onDidRelayActivity = Event.None;
 				override readonly onDidRelayClose = Event.None;
@@ -119,7 +121,7 @@ suite('Dev Container Agent Host Connector', () => {
 			const reconnected = store.add(target.transportFactory());
 			assert.ok(isClientTransport(reconnected));
 			await reconnected.connect();
-			const connected = { success: true, cancelled: false, sample: true, remote: false };
+			const connected = { success: true, cancelled: false, sample: true, remote: false, failureStage: undefined };
 			assert.deepStrictEqual({
 				configs: configs.map(config => ({ resume: config.resume, sandboxEnabled: config.sandboxEnabled, persistUserState: config.persistUserState })),
 				events,
@@ -163,6 +165,7 @@ suite('Dev Container Agent Host Connector', () => {
 			override readonly onDidOutput = Event.None;
 			override readonly onDidChangeSandboxSupport = Event.None;
 			override readonly onDidReportUserState = Event.None;
+			override readonly onDidFailConnect = Event.None;
 			override readonly onDidRelayMessage = Event.None;
 			override readonly onDidRelayActivity = Event.None;
 			override readonly onDidRelayClose = Event.None;
@@ -238,6 +241,8 @@ suite('Dev Container Agent Host Connector', () => {
 	test('routes Dev Container environments on this computer to the local service without a source host', async () => {
 		const configs: IDevContainerAgentHostConfig[] = [];
 		const removed: DevContainerAgentHostSource[] = [];
+		const output: string[] = [];
+		const displayNames = new Map<string, string>();
 		const configuration = new TestConfigurationService({
 			[DevContainerEnvironmentsEnabledSettingId]: true,
 			[DevContainerAgentHostEnabledSettingId]: true,
@@ -248,6 +253,7 @@ suite('Dev Container Agent Host Connector', () => {
 			override readonly onDidOutput = Event.None;
 			override readonly onDidChangeSandboxSupport = Event.None;
 			override readonly onDidReportUserState = Event.None;
+			override readonly onDidFailConnect = Event.None;
 			override readonly onDidRelayMessage = Event.None;
 			override readonly onDidRelayActivity = Event.None;
 			override readonly onDidRelayClose = Event.None;
@@ -276,21 +282,42 @@ suite('Dev Container Agent Host Connector', () => {
 			new class extends mock<IEnvironmentService>() { }(),
 			new class extends mock<IOutputService>() {
 				override getChannel() {
-					return new class extends mock<IOutputChannel>() { override append() { } }();
+					return new class extends mock<IOutputChannel>() { override append(value: string) { output.push(value); } }();
 				}
 			}(),
 			new class extends mock<IFileService>() {
 				override async exists(): Promise<never> { throw new Error('Environments do not have a host path'); }
 			}(),
-			new class extends mock<IRemoteAgentHostService>() { override readonly configuredEntries = []; }(),
+			new class extends mock<IRemoteAgentHostService>() {
+				override readonly configuredEntries = [];
+				override getDisplayNameOverride(address: string) { return displayNames.get(address); }
+			}(),
 			new class extends mock<ISessionsProvidersService>() { }(),
 			new class extends mock<IRequestService>() { }(),
 			NullTelemetryService,
 		));
 		const source = localDevContainerEnvironmentUri('environment');
 		const available = await connector.isAvailable(source);
-		const target = await connector.createConnection(source, 'devcontainer:environment', CancellationToken.None);
-		store.add(target.transportDisposable!);
+		const connect = async () => {
+			const target = await connector.createConnection(source, 'devcontainer:environment', CancellationToken.None, { resume: true, name: 'Dev Container 2' });
+			store.add(target.transportDisposable!);
+			return target;
+		};
+		const target = await connect();
+		const relay = async () => {
+			const transport = store.add(target.transportFactory());
+			assert.ok(isClientTransport(transport));
+			await transport.connect();
+		};
+		await relay();
+		await relay();
+		// A rename in Remote Environments names the environment on the host from its next relay or connection on.
+		displayNames.set('devcontainer:environment', 'Renamed');
+		await relay();
+		const renamed = await connect();
+		// A rename the host would reject falls back to the environment's name rather than blocking the connection.
+		displayNames.set('devcontainer:environment', 'Invalid\0');
+		const invalid = await connect();
 		await connector.removeContainer(source);
 		await configuration.setUserConfiguration(DevContainerEnvironmentsEnabledSettingId, false);
 		assert.deepStrictEqual({
@@ -298,13 +325,26 @@ suite('Dev Container Agent Host Connector', () => {
 			availableWhenDisabled: await connector.isAvailable(source),
 			localDocker: await connector.isLocalDockerAvailable(),
 			configs: configs.map(config => hasKey(config, { environmentId: true }) ? { environmentId: config.environmentId, image: config.image, name: config.name, persistUserState: config.persistUserState } : config),
+			headings: output.filter(value => value.includes('Starting')).map(value => value.trim()),
+			connectionNames: [target.name, renamed.name, invalid.name],
 			removed,
 			workspace: target.workspaceUri.path,
 		}, {
 			available: true,
 			availableWhenDisabled: false,
 			localDocker: true,
-			configs: [{ environmentId: 'environment', image: devContainerEnvironmentImage, name: 'Dev Container on This Computer', persistUserState: true }],
+			// Named after the environment, so environments on the same host can be told apart.
+			configs: [
+				{ environmentId: 'environment', image: devContainerEnvironmentImage, name: 'Dev Container 2', persistUserState: true },
+				{ environmentId: 'environment', image: devContainerEnvironmentImage, name: 'Dev Container 2', persistUserState: true },
+				{ environmentId: 'environment', image: devContainerEnvironmentImage, name: 'Renamed', persistUserState: true },
+				{ environmentId: 'environment', image: devContainerEnvironmentImage, name: 'Renamed', persistUserState: true },
+				{ environmentId: 'environment', image: devContainerEnvironmentImage, name: 'Dev Container 2', persistUserState: true },
+			],
+			// A relay reconnect gets a heading of its own only after a rename.
+			headings: ['--- Starting Dev Container for Dev Container 2 ---', '--- Starting Dev Container for Renamed ---', '--- Starting Dev Container for Renamed ---', '--- Starting Dev Container for Dev Container 2 ---'],
+			// The rename applies on top as the address's display name, so clearing it restores the environment's name.
+			connectionNames: ['Dev Container 2', 'Dev Container 2', 'Dev Container 2'],
 			removed: [{ environmentId: 'environment' }],
 			workspace: '/workspaces',
 		});
@@ -353,6 +393,7 @@ suite('Dev Container Agent Host Connector', () => {
 			new class extends mock<IRemoteAgentHostService>() {
 				override readonly configuredEntries = [entry];
 				override getConnection(): IAgentConnection { return connection; }
+				override getDisplayNameOverride() { return undefined; }
 			}(),
 			new class extends mock<ISessionsProvidersService>() { }(),
 			new class extends mock<IRequestService>() { }(),
@@ -412,6 +453,7 @@ suite('Dev Container Agent Host Connector', () => {
 				override readonly onDidCloseConnection = Event.None;
 				override readonly onDidChangeSandboxSupport = support.event;
 				override readonly onDidReportUserState = Event.None;
+				override readonly onDidFailConnect = Event.None;
 				override async connect(config: IDevContainerAgentHostConfig): Promise<never> {
 					support.fire({ connectionId: config.connectionId, supported: false });
 					throw new Error('Unsupported sandbox startup');
@@ -452,6 +494,7 @@ suite('Dev Container Agent Host Connector', () => {
 
 		test(`logs user state reports before a failed connection (remote facade: ${remote})`, async () => {
 			const userState = store.add(new Emitter<IDevContainerAgentHostUserStateReport>());
+			const connectFailure = store.add(new Emitter<IDevContainerAgentHostConnectFailure>());
 			const configs: IDevContainerAgentHostConfig[] = [];
 			const main = new class extends mock<IDevContainerAgentHostMainService>() {
 				override readonly onDidOutput = Event.None;
@@ -461,24 +504,28 @@ suite('Dev Container Agent Host Connector', () => {
 				override readonly onDidCloseConnection = Event.None;
 				override readonly onDidChangeSandboxSupport = Event.None;
 				override readonly onDidReportUserState = userState.event;
+				override readonly onDidFailConnect = connectFailure.event;
 				override async connect(config: IDevContainerAgentHostConfig): Promise<never> {
 					configs.push(config);
 					userState.fire({ connectionId: 'other', stage: 'mount', outcome: 'added' });
 					userState.fire({ connectionId: config.connectionId, stage: 'mount', outcome: 'added', target: 'workspaces' });
-					userState.fire({ connectionId: config.connectionId, stage: 'link', outcome: 'failed', reason: 'script', step: 'folders', exitCode: 1, target: 'workspaces', movedFolders: 1, skippedFolders: 2, skipReasons: 'mounted,symlink', errorMessage: 'Cannot link user state (exit 1):' });
+					userState.fire({ connectionId: config.connectionId, stage: 'up', outcome: 'failed', reason: 'exitCode', exitCode: 1, errorCause: 'duplicateMount', lifecycleInUp: false });
+					userState.fire({ connectionId: config.connectionId, stage: 'link', outcome: 'failed', reason: 'script', step: 'folders', exitCode: 1, target: 'workspaces', movedFolders: 1, skippedFolders: 2, skipReasons: 'mounted,symlink', scriptUser: 'root', capChown: true, capDacReadSearch: false, stateOwner: 'user', capDropChown: false, runtime: 'runc', errorMessage: 'Cannot link user state (exit 1):' });
+					connectFailure.fire({ connectionId: 'other', stage: 'up' });
+					connectFailure.fire({ connectionId: config.connectionId, stage: 'link' });
 					throw new Error('Lifecycle failed');
 				}
 				override async disconnect(): Promise<void> { }
 			}();
 			const service = remote ? store.add(new RemoteDevContainerService(async () => main, new NullLogService())) : main;
-			const channel = ProxyChannel.fromService(service, store.add(new DisposableStore()), { unbufferedEvents: ['onDidChangeSandboxSupport', 'onDidReportUserState'] });
+			const channel = createDevContainerAgentHostChannel(service, store.add(new DisposableStore()));
 			const events: Array<{ eventName: string; data: ITelemetryData | undefined }> = [];
 			const connector = store.add(new DevContainerAgentHostConnector(
 				new class extends mock<ISharedProcessService>() {
 					override getChannel(): IChannel {
 						return {
-							listen: (event, arg) => channel.listen(undefined, event, arg),
-							call: (command, arg) => channel.call(undefined, command, arg),
+							listen: (event, arg) => channel.listen('', event, arg),
+							call: (command, arg) => channel.call('', command, arg),
 						};
 					}
 				}(),
@@ -507,13 +554,14 @@ suite('Dev Container Agent Host Connector', () => {
 				}(),
 			));
 			await assert.rejects(connector.createConnection(URI.file('/project'), 'devcontainer:project', CancellationToken.None), /Lifecycle failed/);
-			const unset = { reason: undefined, step: undefined, target: undefined, skipReasons: undefined, exitCode: undefined, restoredFolders: undefined, movedFolders: undefined, createdFolders: undefined, existingFolders: undefined, skippedFolders: undefined, errorMessage: undefined, enabled: true, sample: false, remote: false };
+			const unset = { reason: undefined, errorCause: undefined, lifecycleInUp: undefined, step: undefined, target: undefined, skipReasons: undefined, exitCode: undefined, restoredFolders: undefined, movedFolders: undefined, createdFolders: undefined, existingFolders: undefined, skippedFolders: undefined, scriptUser: undefined, capChown: undefined, capDacOverride: undefined, capDacReadSearch: undefined, capFowner: undefined, stateOwner: undefined, volumeOwner: undefined, capDropChown: undefined, privileged: undefined, usernsMode: undefined, readonlyRootfs: undefined, runtime: undefined, errorMessage: undefined, enabled: true, sample: false, remote: false };
 			assert.deepStrictEqual({ persistUserState: configs.map(config => config.persistUserState), events }, {
 				persistUserState: [true],
 				events: [
 					{ eventName: 'vscodeAgents.devContainer/stateVolume', data: { ...unset, stage: 'mount', outcome: 'added', target: 'workspaces' } },
-					{ eventName: 'vscodeAgents.devContainer/stateVolume', data: { ...unset, stage: 'link', outcome: 'failed', reason: 'script', step: 'folders', exitCode: 1, target: 'workspaces', movedFolders: 1, skippedFolders: 2, skipReasons: 'mounted,symlink', errorMessage: 'Cannot link user state (exit 1):' } },
-					{ eventName: 'vscodeAgents.devContainer/connect', data: { success: false, cancelled: false, reconnect: false, stateVolume: true, sample: false, remote: false } },
+					{ eventName: 'vscodeAgents.devContainer/stateVolume', data: { ...unset, stage: 'up', outcome: 'failed', reason: 'exitCode', exitCode: 1, errorCause: 'duplicateMount', lifecycleInUp: false } },
+					{ eventName: 'vscodeAgents.devContainer/stateVolume', data: { ...unset, stage: 'link', outcome: 'failed', reason: 'script', step: 'folders', exitCode: 1, target: 'workspaces', movedFolders: 1, skippedFolders: 2, skipReasons: 'mounted,symlink', scriptUser: 'root', capChown: true, capDacReadSearch: false, stateOwner: 'user', capDropChown: false, runtime: 'runc', errorMessage: 'Cannot link user state (exit 1):' } },
+					{ eventName: 'vscodeAgents.devContainer/connect', data: { success: false, cancelled: false, reconnect: false, stateVolume: true, sample: false, remote: false, failureStage: 'link' } },
 				],
 			});
 		});

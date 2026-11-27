@@ -24,7 +24,8 @@ import { ISessionsProvidersService } from '../../../../workbench/contrib/session
 import { getSessionGroupSectionId, ISessionGroupsService } from '../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { ISession, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { SESSIONS_LIST_UNGROUPED_PLACEMENT, SessionsGrouping, SessionsList, SessionsListSessionPosition, SessionsListSnapshotNode, SessionsSorting } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SESSIONS_LIST_UNGROUPED_PLACEMENT, SessionsList, SessionsListSessionPosition, SessionsListSnapshotNode } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionsGrouping, SessionsSorting } from '../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { getSessionFilterOptions, SessionFilter, sessionFilterKey } from '../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
 import { SessionsView, SessionsViewId } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 
@@ -177,7 +178,7 @@ export class ReadSessionsListTool implements IToolImpl {
 
 	private getViewState(view: SessionsView & { readonly sessionsControl: SessionsList }) {
 		const list = view.sessionsControl;
-		const filterOptions = getSessionFilterOptions(this.sessionsManagementService.getSessions(), this.sessionsProvidersService.getProviders().map(provider => provider.environment), session => list.isSessionListed(session), this.uriIdentityService.extUri);
+		const filterOptions = getSessionFilterOptions(this.sessionsManagementService.getSessions(), this.sessionsProvidersService.getProviders().map(provider => provider.environment), session => list.isSessionInScope(session), this.uriIdentityService.extUri);
 		return {
 			grouping: view.grouping,
 			sorting: view.sorting,
@@ -400,7 +401,7 @@ Placement follows the list's precedence: archived > pinned > custom group > ungr
 		if (!Array.isArray(operation.filters)) {
 			throw new SessionsListToolInputError('"filters" must be an array.');
 		}
-		const options = new Map(getSessionFilterOptions(this.sessionsManagementService.getSessions(), this.sessionsProvidersService.getProviders().map(provider => provider.environment), session => list.isSessionListed(session), this.uriIdentityService.extUri)
+		const options = new Map(getSessionFilterOptions(this.sessionsManagementService.getSessions(), this.sessionsProvidersService.getProviders().map(provider => provider.environment), session => list.isSessionInScope(session), this.uriIdentityService.extUri)
 			.map(option => [sessionFilterKey(option.filter), option.filter]));
 		return operation.filters.map((entry: unknown) => {
 			if (!isObject(entry)) {

@@ -31,6 +31,12 @@ suite('Default theme colors', () => {
 		return theme;
 	}
 
+	function getTokenForeground(theme: ColorThemeData, scope: string): string | undefined {
+		return theme.tokenColors.findLast(rule => {
+			return Array.isArray(rule.scope) ? rule.scope.includes(scope) : rule.scope === scope;
+		})?.settings.foreground?.toLowerCase();
+	}
+
 	test('Light Modern Quick Pick focus is distinct from idle and hovered rows with readable content', async () => {
 		const theme = await loadDefaultTheme('light_modern.json', 'vs');
 		const background = theme.getColor(quickInputBackground)!;
@@ -51,10 +57,29 @@ suite('Default theme colors', () => {
 		});
 	});
 
-	for (const { name, file, selector } of [
-		{ name: 'Dark 2026', file: '2026-dark.json', selector: 'vs-dark' },
-		{ name: 'Light 2026', file: '2026-light.json', selector: 'vs' },
+	for (const { name, file, selector, keywordForeground, invalidForeground } of [
+		{ name: 'Dark 2026', file: '2026-dark.json', selector: 'vs-dark', keywordForeground: '#569cd6', invalidForeground: '#ffa198' },
+		{ name: 'Light 2026', file: '2026-light.json', selector: 'vs', keywordForeground: '#0550ae', invalidForeground: '#82071e' },
 	] as const) {
+		test(`${name} keywords and storage types are blue while illegal syntax stays red`, async () => {
+			const theme = await loadDefaultTheme(file, selector);
+			const scopes = ['keyword', 'keyword.control', 'storage', 'storage.type'];
+
+			assert.deepStrictEqual({
+				keywordForegrounds: scopes.map(scope => getTokenForeground(theme, scope)),
+				invalidForeground: getTokenForeground(theme, 'invalid.illegal'),
+				resolvedForegrounds: [
+					theme.resolveScopes([['source.ts', 'keyword.control.flow.ts']])?.foreground?.toString(),
+					theme.resolveScopes([['source.ts', 'storage.type.ts']])?.foreground?.toString(),
+					theme.resolveScopes([['source.ts', 'invalid.illegal.ts']])?.foreground?.toString(),
+				],
+			}, {
+				keywordForegrounds: scopes.map(() => keywordForeground),
+				invalidForeground,
+				resolvedForegrounds: [keywordForeground, keywordForeground, invalidForeground],
+			});
+		});
+
 		test(`${name} editor placeholders are readable and quieter than entered text`, async () => {
 			const theme = await loadDefaultTheme(file, selector);
 			// The browser contribution registers the placeholder color with this fallback.
@@ -116,7 +141,7 @@ suite('Default theme colors', () => {
 			foreground,
 			distinctFromText: theme.getColor(foreground)!.getContrastRatio(theme.getColor('foreground')!) >= 3,
 		}));
-		const keywordForeground = theme.tokenColors.findLast(rule => rule.scope === 'keyword')?.settings.foreground;
+		const keywordForeground = getTokenForeground(theme, 'keyword');
 		assert.ok(keywordForeground);
 		const codeBlockBackground = theme.getColor('textCodeBlock.background')!.makeOpaque(editorBackground);
 

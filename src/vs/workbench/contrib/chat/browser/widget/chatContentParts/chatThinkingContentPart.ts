@@ -25,7 +25,7 @@ import { marked, type Token, type Tokens, type TokensList } from '../../../../..
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { extractCodeblockUrisFromText, extractEditCodeblockUrisFromText } from '../../../common/widget/annotations.js';
 import { basename } from '../../../../../../base/common/resources.js';
-import { ChatThinkingStyleContentPart, createThinkingIcon } from './chatThinkingStyleContentPart.js';
+import { ChatThinkingStyleContentPart, createThinkingIcon, setThinkingIcon } from './chatThinkingStyleContentPart.js';
 export { createThinkingIcon };
 import { renderFileWidgets } from './chatInlineAnchorWidget.js';
 import { localize } from '../../../../../../nls.js';
@@ -87,11 +87,6 @@ function isGenericEditToolId(toolId: string): boolean {
 		lowerToolId.includes('insertedit') ||
 		lowerToolId.includes('insert_edit') ||
 		lowerToolId.includes('editfile');
-}
-
-function setThinkingIcon(iconElement: HTMLElement, icon: ThemeIcon): void {
-	iconElement.className = 'chat-thinking-icon';
-	iconElement.classList.add(...ThemeIcon.asClassNameArray(getCompactCodicon(icon)));
 }
 
 function extractTitleFromThinkingContent(content: string): string | undefined {
@@ -958,7 +953,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 			return Codicon.chevronRightCompact;
 		}
 		if (this.context.suppressProgressShimmer) {
-			return this.isToolChain ? Codicon.tools : Codicon.thinking;
+			return getCompactCodicon(this.isToolChain ? Codicon.tools : Codicon.thinking);
 		}
 		if (this.streamingCompleted || this.element.isComplete) {
 			return Codicon.checkCompact;
@@ -2664,14 +2659,14 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 					const currentState = toolInvocationOrMarkdown.state.read(reader);
 					this.updateWorkingSpinnerVisibility(reader);
 
+					const currentIconElement = this.toolIconsByCallId.get(toolCallId);
+					if (currentIconElement && currentState.type !== IChatToolInvocation.StateKind.Completed && currentState.type !== IChatToolInvocation.StateKind.Cancelled) {
+						setThinkingIcon(currentIconElement, getToolInvocationIcon(toolInvocationOrMarkdown.toolId, toolInvocationOrMarkdown));
+					}
+
 					// queue item to be removed if it was streaming and presentation is hidden
 					if (isStreaming && currentState.type !== IChatToolInvocation.StateKind.Streaming) {
 						isStreaming = false;
-
-						const iconElement = this.toolIconsByCallId.get(toolCallId);
-						if (iconElement) {
-							setThinkingIcon(iconElement, getToolInvocationIcon(toolInvocationOrMarkdown.toolId, toolInvocationOrMarkdown));
-						}
 
 						if (toolInvocationOrMarkdown.presentation === 'hidden') {
 							this.pendingRemovals.push(toolInvocationOrMarkdown.toolCallId);

@@ -24,7 +24,7 @@ export class ExtHostConsumerFileSystem {
 	readonly value: vscode.FileSystem;
 
 	private readonly _proxy: MainThreadFileSystemShape;
-	private readonly _fileSystemProvider = new Map<string, { impl: vscode.FileSystemProvider; extUri: IExtUri; isReadonly: boolean }>();
+	private readonly _fileSystemProvider = new Map<string, { impl: vscode.FileSystemProvider; extUri: IExtUri; isReadonly: boolean; activation?: Promise<void> }>();
 
 	private readonly _writeQueue = new ResourceQueue();
 
@@ -43,7 +43,7 @@ export class ExtHostConsumerFileSystem {
 					const provider = that._fileSystemProvider.get(uri.scheme);
 					if (provider) {
 						// use shortcut
-						await that._proxy.$ensureActivation(uri.scheme);
+						await that._ensureActivation(uri.scheme, provider);
 						stat = await provider.impl.stat(uri);
 					} else {
 						stat = await that._proxy.$stat(uri);
@@ -65,7 +65,7 @@ export class ExtHostConsumerFileSystem {
 					const provider = that._fileSystemProvider.get(uri.scheme);
 					if (provider) {
 						// use shortcut
-						await that._proxy.$ensureActivation(uri.scheme);
+						await that._ensureActivation(uri.scheme, provider);
 						return (await provider.impl.readDirectory(uri)).slice(); // safe-copy
 					} else {
 						return await that._proxy.$readdir(uri);
@@ -79,7 +79,7 @@ export class ExtHostConsumerFileSystem {
 					const provider = that._fileSystemProvider.get(uri.scheme);
 					if (provider && !provider.isReadonly) {
 						// use shortcut
-						await that._proxy.$ensureActivation(uri.scheme);
+						await that._ensureActivation(uri.scheme, provider);
 						return await that.mkdirp(provider.impl, provider.extUri, uri);
 					} else {
 						return await that._proxy.$mkdir(uri);
@@ -93,7 +93,7 @@ export class ExtHostConsumerFileSystem {
 					const provider = that._fileSystemProvider.get(uri.scheme);
 					if (provider) {
 						// use shortcut
-						await that._proxy.$ensureActivation(uri.scheme);
+						await that._ensureActivation(uri.scheme, provider);
 						return (await provider.impl.readFile(uri)).slice(); // safe-copy
 					} else {
 						const buff = await that._proxy.$readFile(uri);
@@ -108,7 +108,7 @@ export class ExtHostConsumerFileSystem {
 					const provider = that._fileSystemProvider.get(uri.scheme);
 					if (provider && !provider.isReadonly) {
 						// use shortcut
-						await that._proxy.$ensureActivation(uri.scheme);
+						await that._ensureActivation(uri.scheme, provider);
 						await that.mkdirp(provider.impl, provider.extUri, provider.extUri.dirname(uri));
 						return await that._writeQueue.queueFor(uri, () => Promise.resolve(provider.impl.writeFile(uri, content, { create: true, overwrite: true })));
 					} else {
@@ -123,7 +123,7 @@ export class ExtHostConsumerFileSystem {
 					const provider = that._fileSystemProvider.get(uri.scheme);
 					if (provider && !provider.isReadonly && !options?.useTrash /* no shortcut: use trash */) {
 						// use shortcut
-						await that._proxy.$ensureActivation(uri.scheme);
+						await that._ensureActivation(uri.scheme, provider);
 						return await provider.impl.delete(uri, { recursive: false, ...options });
 					} else {
 						return await that._proxy.$delete(uri, { recursive: false, useTrash: false, atomic: false, ...options });
@@ -156,6 +156,16 @@ export class ExtHostConsumerFileSystem {
 				return undefined;
 			}
 		});
+	}
+
+	private _ensureActivation(scheme: string, provider: { activation?: Promise<void> }): Promise<void> {
+		if (!provider.activation) {
+			provider.activation = this._proxy.$ensureActivation(scheme);
+			provider.activation.catch(() => {
+				provider.activation = undefined;
+			});
+		}
+		return provider.activation;
 	}
 
 	private async mkdirp(provider: vscode.FileSystemProvider, providerExtUri: IExtUri, directory: vscode.Uri): Promise<void> {

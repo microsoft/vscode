@@ -10,12 +10,13 @@ import { equals } from '../../../../base/common/objects.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Queue, Barrier, Promises, Delayer, Throttler } from '../../../../base/common/async.js';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
-import { IWorkspaceContextService, Workspace as BaseWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder, toWorkspaceFolder, isWorkspaceFolder, IWorkspaceFoldersWillChangeEvent, IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, IAnyWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, Workspace as BaseWorkspace, WorkbenchState, getWorkspaceScope, WorkbenchMode, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder, toWorkspaceFolder, isWorkspaceFolder, IWorkspaceFoldersWillChangeEvent, IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, IAnyWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 import { ConfigurationModel, ConfigurationChangeEvent, mergeChanges } from '../../../../platform/configuration/common/configurationModels.js';
 import { IConfigurationChangeEvent, ConfigurationTarget, IConfigurationOverrides, isConfigurationOverrides, IConfigurationData, IConfigurationValue, IConfigurationChange, ConfigurationTargetToString, IConfigurationUpdateOverrides, isConfigurationUpdateOverrides, IConfigurationService, IConfigurationUpdateOptions } from '../../../../platform/configuration/common/configuration.js';
 import { IPolicyConfiguration, NullPolicyConfiguration, PolicyConfiguration } from '../../../../platform/configuration/common/configurations.js';
 import { Configuration } from '../common/configurationModels.js';
 import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache, machineSettingsSchemaId, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, RestrictedSettings, PROFILE_SCOPES, LOCAL_MACHINE_PROFILE_SCOPES, profileSettingsSchemaId, APPLY_ALL_PROFILES_SETTING, APPLICATION_SCOPES } from '../common/configuration.js';
+import { IWorkbenchWorkspaceContextService } from '../../workspaces/common/workbenchWorkspaceContextService.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IConfigurationRegistry, Extensions, allSettings, windowSettings, resourceSettings, applicationSettings, machineSettings, machineOverridableSettings, ConfigurationScope, IConfigurationPropertySchema, keyFromOverrideIdentifiers, OVERRIDE_PROPERTY_PATTERN, resourceLanguageSettingsSchemaId, configurationDefaultsSchemaId, applicationMachineSettings, isConfigurationDefaultSourceEquals, ConfigurationDefaultSource, IConfigurationDefaults, getConfigurationExperimentName, getConfigurationKeyExperimentName } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, getStoredWorkspaceFolder, toWorkspaceFolders } from '../../../../platform/workspaces/common/workspaces.js';
@@ -64,11 +65,12 @@ class Workspace extends BaseWorkspace {
 	initialized: boolean = false;
 }
 
-export class WorkspaceService extends Disposable implements IWorkbenchConfigurationService, IWorkspaceContextService {
+export class WorkspaceService extends Disposable implements IWorkbenchConfigurationService, IWorkbenchWorkspaceContextService {
 
 	public _serviceBrand: undefined;
 
 	private workspace!: Workspace;
+	private workbenchScope: { readonly uri: URI | undefined } | undefined;
 	private initRemoteUserConfigurationBarrier: Barrier;
 	private completeWorkspaceBarrier: Barrier;
 	private readonly configurationCache: IConfigurationCache;
@@ -98,6 +100,9 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 	private readonly _onDidChangeWorkbenchState: Emitter<WorkbenchState> = this._register(new Emitter<WorkbenchState>());
 	public readonly onDidChangeWorkbenchState: Event<WorkbenchState> = this._onDidChangeWorkbenchState.event;
+	private readonly _onDidChangeWorkbenchScope: Emitter<URI | undefined> = this._register(new Emitter<URI | undefined>());
+	public readonly onDidChangeWorkbenchScope: Event<URI | undefined> = this._onDidChangeWorkbenchScope.event;
+	public readonly onDidChangeWorkbenchMode: Event<WorkbenchMode> = Event.None;
 
 	private isWorkspaceTrusted: boolean = true;
 
@@ -181,6 +186,31 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 	public getWorkspace(): Workspace {
 		return this.workspace;
+	}
+
+	public getWorkbenchScope(): URI | undefined {
+		return this.workbenchScope ? this.workbenchScope.uri : getWorkspaceScope(this.workspace);
+	}
+
+	public setWorkbenchScope(scope: URI | undefined): void {
+		const previous = this.getWorkbenchScope();
+		this.workbenchScope = { uri: scope };
+		if (!this.uriIdentityService.extUri.isEqual(previous, scope)) {
+			this._onDidChangeWorkbenchScope.fire(scope);
+		}
+	}
+
+	public resetWorkbenchScope(): void {
+		const previous = this.getWorkbenchScope();
+		this.workbenchScope = undefined;
+		const scope = this.getWorkbenchScope();
+		if (!this.uriIdentityService.extUri.isEqual(previous, scope)) {
+			this._onDidChangeWorkbenchScope.fire(scope);
+		}
+	}
+
+	public getWorkbenchMode(): WorkbenchMode {
+		return WorkbenchMode.Editor;
 	}
 
 	public getWorkbenchState(): WorkbenchState {
@@ -623,9 +653,11 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		let previousState: WorkbenchState | undefined;
 		let previousWorkspacePath: string | undefined;
 		let previousFolders: WorkspaceFolder[] = [];
+		let previousScope: URI | undefined;
 
 		if (hasWorkspaceBefore) {
 			previousState = this.getWorkbenchState();
+			previousScope = this.getWorkbenchScope();
 			previousWorkspacePath = this.workspace.configuration ? this.workspace.configuration.fsPath : undefined;
 			previousFolders = this.workspace.folders;
 			this.workspace.update(workspace);
@@ -647,7 +679,12 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 				this._onDidChangeWorkspaceName.fire();
 			}
 
-			const folderChanges = this.compareFolders(previousFolders, this.workspace.folders);
+			const newScope = this.getWorkbenchScope();
+			if (!this.uriIdentityService.extUri.isEqual(previousScope, newScope)) {
+				this._onDidChangeWorkbenchScope.fire(newScope);
+			}
+
+			const folderChanges: IWorkspaceFoldersChangeEvent = { ...this.compareFolders(previousFolders, this.workspace.folders), ...(isFolderLocationChange ? { isFolderLocationChange: true } : {}) };
 			if (folderChanges && (folderChanges.added.length || folderChanges.removed.length || folderChanges.changed.length)) {
 				await this.handleWillChangeWorkspaceFolders(folderChanges, false, isFolderLocationChange);
 				this._onDidChangeWorkspaceFolders.fire(folderChanges);

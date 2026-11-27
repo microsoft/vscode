@@ -14,7 +14,7 @@ import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelSc
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
-import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IConfirmation, IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -23,19 +23,19 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionItemArchiveState } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { getSessionGroupSectionId, ISessionGroupsService, SessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../../workbench/services/sessions/browser/sessionSectionOrderService.js';
-import { DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { ARCHIVE_SESSION_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { SessionComparisonService } from '../../../../../workbench/contrib/sessions/browser/sessionComparisonService.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
+import { ISessionsNavigationService } from '../../../../../workbench/contrib/sessions/browser/sessionsNavigationService.js';
 import { ISessionAttentionService } from '../../../../../workbench/contrib/sessions/common/sessionAttentionService.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
-import { ISessionGroupItem, ISessionSection, SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
-import { ISessionsListNotice, SessionsListNotification } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListNotification.js';
-import { SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { SessionsList } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { ISessionGroupItem, ISessionSection, SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
+import { ISessionsListChange, ISessionsListUndoService } from '../../../../../workbench/contrib/sessions/browser/sessionsListUndoService.js';
 import { getSessionsArchiveActionConstructors } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
 import { createListHarness, createTestSession } from './sessionsListTestUtils.js';
 import '../../browser/views/sessionsViewActions.js';
@@ -63,7 +63,7 @@ suite('Sessions - Bulk archive undo', () => {
 		const sessionArchived = store.add(new Emitter<ISession>());
 		const archived: string[] = [];
 		const restored: string[] = [];
-		const state = { failArchive: '', failRestore: '', confirmed: true, launching: false, notices: 0, message: '', undo: async () => { }, started: [] as string[], onStart: () => { }, gate: Promise.resolve() };
+		const state = { failArchive: '', failRestore: '', confirmed: true, launching: false, notices: 0, message: '', undo: async () => { }, undos: [] as (() => Promise<void>)[], started: [] as string[], onStart: () => { }, gate: Promise.resolve() };
 		instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {
 			override async confirm() { return { confirmed: state.confirmed }; }
 		});
@@ -143,16 +143,15 @@ suite('Sessions - Bulk archive undo', () => {
 		const membership = () => sessions
 			.filter(entry => groupsService.getGroupOfSession(entry.session.sessionId))
 			.map(entry => [entry.session.sessionId, groupsService.getGroupOfSession(entry.session.sessionId)]);
-		const notification = new class extends mock<SessionsListNotification>() {
-			override show(notice: ISessionsListNotice) {
-				state.message = notice.message;
-				state.undo = () => notice.undo!();
+		instantiationService.stub(ISessionsListUndoService, upcastPartial<ISessionsListUndoService>({
+			offerUndo: change => {
+				state.message = change.message(change.count);
+				state.undo = () => change.undo();
+				state.undos.push(state.undo);
 				state.notices++;
-			}
-		};
-		instantiationService.stub(IViewsService, new class extends mock<IViewsService>() {
-			override getViewWithId<T>() { return upcastPartial<SessionsView>({ listNotification: notification }) as T; }
-		});
+				return true;
+			},
+		}));
 		/** `ownSessions` are a group's own sessions, while `targets` also include those of its subgroups. */
 		const run = async (kind: 'workspace' | 'section' | 'group' = 'workspace', targets = sessions.map(entry => entry.session), ownSessions = targets) => {
 			const actionId = kind === 'group' ? 'sessionsView.markAllInGroupAsDone' : 'sessionsView.sectionArchive';
@@ -165,8 +164,39 @@ suite('Sessions - Bulk archive undo', () => {
 				: { id: kind === 'workspace' ? 'workspace:test' : 'today', label: 'Section', sessions: targets } satisfies ISessionSection;
 			return instantiationService.invokeFunction(accessor => action.run(accessor, context));
 		};
-		return { run, sessions, sessionsChanged, membership, groupsService, group, comparisonService, listModel, managementService, storageService, archived, restored, state };
+		return { run, instantiationService, sessions, sessionsChanged, membership, groupsService, group, comparisonService, listModel, managementService, storageService, archived, restored, state };
 	}
+
+	test('marking a single session done offers Undo, which restores it to its group', async () => {
+		const test = setup();
+		const action = getSessionsArchiveActionConstructors(ChatSessionArchiveActionWording.MarkAsDone).map(ctor => new ctor()).find(action => action.desc.id === ARCHIVE_SESSION_COMMAND_ID)!;
+		await test.instantiationService.invokeFunction(accessor => action.run(accessor, test.sessions[0].session));
+		const afterArchive = { message: test.state.message, membership: test.membership() };
+		await test.state.undo();
+		assert.deepStrictEqual({ afterArchive, restored: test.restored, membership: test.membership() }, {
+			afterArchive: { message: '1 marked done', membership: [['second', test.group.id]] },
+			restored: ['first'],
+			membership: [['first', test.group.id], ['second', test.group.id]],
+		});
+	});
+
+	test('undoing one by one, latest first, archives that ended a comparison returns every session to the comparison', async () => {
+		const test = setup(ChatSessionArchiveActionWording.MarkAsDone, true);
+		const action = getSessionsArchiveActionConstructors(ChatSessionArchiveActionWording.MarkAsDone).map(ctor => new ctor()).find(action => action.desc.id === ARCHIVE_SESSION_COMMAND_ID)!;
+		for (const { session } of test.sessions.slice(0, 2)) {
+			await test.instantiationService.invokeFunction(accessor => action.run(accessor, session));
+		}
+		const groupDeleted = !test.groupsService.getGroup(test.group.id);
+		for (const undo of [...test.state.undos].reverse()) {
+			await undo();
+		}
+		const comparison = test.comparisonService.getComparison('comparison')!;
+		assert.deepStrictEqual({ groupDeleted, archived: comparison.archivedAt !== undefined, membership: test.membership() }, {
+			groupDeleted: true,
+			archived: false,
+			membership: [['first', comparison.groupId], ['second', comparison.groupId]],
+		});
+	});
 
 	for (const kind of ['group', 'section'] as const) {
 		test(`standard ${kind} action removes a completed comparison group and Undo restores it`, async () => {
@@ -547,6 +577,18 @@ suite('Sessions - Bulk archive undo', () => {
 		await test.state.undo();
 		assert.deepStrictEqual(test.restored, ['second']);
 	});
+
+	test('Undo of deleting a comparison\'s group restores the comparison with its sessions', async () => {
+		const test = setup(ChatSessionArchiveActionWording.MarkAsDone, true);
+		const isArchived = () => test.comparisonService.getComparison('comparison')?.archivedAt !== undefined;
+		await test.instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID)!.handler(accessor, test.group.id));
+		const deleted = { message: test.state.message, archived: isArchived(), membership: test.membership() };
+		await test.state.undo();
+		assert.deepStrictEqual({ deleted, restored: { archived: isArchived(), membership: test.membership() } }, {
+			deleted: { message: 'Group deleted', archived: true, membership: [] },
+			restored: { archived: false, membership: [['first', test.group.id], ['second', test.group.id]] },
+		});
+	});
 });
 
 suite('Sessions - Delete group undo', () => {
@@ -577,13 +619,10 @@ suite('Sessions - Delete group undo', () => {
 		instantiationService.stub(ISessionSectionOrderService, orderService);
 		const groupsService = store.add(instantiationService.createInstance(SessionGroupsService));
 		instantiationService.stub(ISessionGroupsService, groupsService);
-		const notices: ISessionsListNotice[] = [];
-		const notification = new class extends mock<SessionsListNotification>() {
-			override show(notice: ISessionsListNotice) { notices.push(notice); }
-		};
-		instantiationService.stub(IViewsService, new class extends mock<IViewsService>() {
-			override getViewWithId<T>() { return upcastPartial<SessionsView>({ listNotification: notification }) as T; }
-		});
+		instantiationService.stub(ISessionComparisonService, upcastPartial<ISessionComparisonService>({ comparisons: constObservable([]) }));
+		const notices: ISessionsListChange[] = [];
+		instantiationService.stub(ISessionsListUndoService, upcastPartial<ISessionsListUndoService>({ offerUndo: change => { notices.push(change); return true; } }));
+		const message = (change: ISessionsListChange | undefined) => change?.message(change.count);
 		// Groups are newest first by default, so Other would come before Release, and Docs before Hotfixes.
 		const release = groupsService.createGroup('Release', ['ship']);
 		const hotfixes = groupsService.createGroup('Hotfixes', ['fix'], release.id);
@@ -605,13 +644,12 @@ suite('Sessions - Delete group undo', () => {
 		});
 
 		deleteGroup(lone.id);
-		const noticesForSingleGroup = notices.length;
+		const singleGroupNotice = message(notices.pop());
 		const sectionParent = groupsService.createGroup('Section parent');
 		groupsService.moveSection('environment:local', sectionParent.id);
 		deleteGroup(sectionParent.id);
 		const sectionNotice = notices.pop()!;
 		const releasedSection = groupsService.getGroupOfSection('environment:local');
-		assert.ok(sectionNotice.undo);
 		await sectionNotice.undo();
 		const restoredSection = groupsService.getGroupOfSection('environment:local');
 		deleteGroup(sectionParent.id);
@@ -620,16 +658,16 @@ suite('Sessions - Delete group undo', () => {
 		// The sessions list drops the positions of deleted groups.
 		orderService.retain(topLevelIds());
 		const afterDelete = describe();
-		await notices[0].undo!();
+		await notices[0].undo();
 
 		assert.deepStrictEqual({
-			noticesForSingleGroup,
-			sectionUndo: { message: sectionNotice.message, releasedSection, restoredSection },
-			message: notices[0].message,
+			singleGroupNotice,
+			sectionUndo: { message: message(sectionNotice), releasedSection, restoredSection },
+			message: message(notices[0]),
 			afterDelete,
 			restored: describe(),
 		}, {
-			noticesForSingleGroup: 0,
+			singleGroupNotice: 'Group deleted',
 			sectionUndo: { message: 'Group deleted', releasedSection: undefined, restoredSection: sectionParent.id },
 			message: '3 groups deleted',
 			afterDelete: { groups: ['Other'], membership: { ship: null, fix: null, other: 'Other' } },
@@ -639,4 +677,88 @@ suite('Sessions - Delete group undo', () => {
 			},
 		});
 	}));
+});
+
+suite('Sessions - Delete session undo', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('deleting sessions hides and closes them, and deletes them only once Undo is no longer offered', async () => {
+		// Distinct creation times, newest first, keep the list's order from depending on how fast the sessions are created.
+		const now = Date.now();
+		const sessions = ['one', 'two', 'three'].map((id, index) => {
+			const entry = createTestSession(id, { createdAt: new Date(now - index * 60_000) });
+			entry.capabilities.set({ supportsMultipleChats: false, supportsDelete: true }, undefined);
+			return entry.session;
+		});
+		const harness = createListHarness(store, [...sessions]);
+		const deleted: string[] = [];
+		harness.managementService.deleteSessions = async targets => {
+			deleted.push(...targets.map(session => session.sessionId));
+			harness.managementService.sessions = harness.managementService.sessions.filter(session => !targets.includes(session));
+		};
+		const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, harness.createContainer(), {
+			grouping: () => SessionsGrouping.Workspace,
+			sorting: () => SessionsSorting.Created,
+			onSessionOpen: () => { },
+		}));
+		list.layout(300, 400);
+		const confirmations: IConfirmation[] = [];
+		const closed: string[] = [];
+		const notices: ISessionsListChange[] = [];
+		harness.instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {
+			override async confirm(confirmation: IConfirmation) {
+				confirmations.push(confirmation);
+				return { confirmed: true };
+			}
+		});
+		harness.instantiationService.stub(ISessionsNavigationService, upcastPartial<ISessionsNavigationService>({
+			closeSession: async session => { closed.push(session.sessionId); },
+		}));
+		harness.instantiationService.stub(ISessionsListUndoService, upcastPartial<ISessionsListUndoService>({ canOfferUndo: () => true, offerUndo: change => { notices.push(change); return true; } }));
+		const deleteSessions = (targets: ISession[]) => harness.instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('sessionsViewPane.deleteSession')!.handler(accessor, targets));
+		const visible = () => {
+			list.refresh();
+			return list.getVisibleSessions().map(session => session.sessionId);
+		};
+
+		await deleteSessions(sessions.slice(0, 2));
+		const pending = { visible: visible(), closed: [...closed], deleted: [...deleted], message: notices[0].message(notices[0].count), kind: notices[0].kind, detail: confirmations[0].detail };
+		await notices[0].undo();
+		const undone = { visible: visible(), deleted: [...deleted] };
+		await deleteSessions(sessions.slice(2));
+		await notices[1].commit!();
+
+		assert.deepStrictEqual({ pending, undone, committed: { visible: visible(), deleted } }, {
+			pending: { visible: ['three'], closed: ['one', 'two'], deleted: [], message: '2 deleted', kind: 'deleteSessions', detail: undefined },
+			undone: { visible: ['one', 'two', 'three'], deleted: [] },
+			committed: { visible: ['one', 'two'], deleted: ['three'] },
+		});
+	});
+
+	test('without Undo, such as in the web or without a visible Sessions view, deleting says it can\'t be undone and deletes right away', async () => {
+		const sessions = ['one', 'two'].map(id => {
+			const entry = createTestSession(id);
+			entry.capabilities.set({ supportsMultipleChats: false, supportsDelete: true }, undefined);
+			return entry.session;
+		});
+		// The harness's Undo service has no Sessions view to offer Undo in.
+		const harness = createListHarness(store, [...sessions]);
+		const deleted: string[] = [];
+		harness.managementService.deleteSessions = async targets => { deleted.push(...targets.map(session => session.sessionId)); };
+		const confirmations: IConfirmation[] = [];
+		harness.instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {
+			override async confirm(confirmation: IConfirmation) {
+				confirmations.push(confirmation);
+				return { confirmed: true };
+			}
+		});
+		const closed: string[] = [];
+		harness.instantiationService.stub(ISessionsNavigationService, upcastPartial<ISessionsNavigationService>({
+			closeSession: async session => { closed.push(session.sessionId); },
+		}));
+
+		await harness.instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('sessionsViewPane.deleteSession')!.handler(accessor, sessions));
+
+		assert.deepStrictEqual({ detail: confirmations[0].detail, deleted, closed }, { detail: 'This action cannot be undone.', deleted: ['one', 'two'], closed: [] });
+	});
 });

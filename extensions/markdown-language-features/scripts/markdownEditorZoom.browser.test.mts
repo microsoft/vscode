@@ -14,7 +14,7 @@ const content = Array.from({ length: 60 }, (_, i) => `Paragraph ${i}. ${'Some wr
 
 async function openEditor(t: TestContext) {
 	const initialState = {
-		content, readonly: false, lineBreak: '\n', renderWhitespace: false, highlightActiveBlock: true, zoomPercent: 100,
+		content, readonly: false, documentReadonly: false, readonlyMessage: '', lineBreak: '\n', renderWhitespace: false, highlightActiveBlock: true, zoomPercent: 100,
 		richLinksEnabled: false, linkPresentationRules: [], taskProgressLabels: { title: 'Tasks', summary: '{0}/{1}', language: 'en' },
 	};
 	const secret = 'zoom-test';
@@ -46,7 +46,7 @@ async function openEditor(t: TestContext) {
 					completions() { return { items: Array.from({length: 20}, (_, i) => ({ id: String(i), label: 'Item ' + i })), incomplete: false }; },
 				});
 				window.command = command => renderer.command({ command: 'markdown.editor.' + command });
-				window.setZoom = zoomPercent => renderer.configurationChanged({ highlightActiveBlock: true, renderWhitespace: false, lineBreak: '\\n', zoomPercent });
+				window.setZoom = zoomPercent => renderer.configurationChanged({ highlightActiveBlock: true, renderWhitespace: false, lineBreak: '\\n', zoomPercent, documentReadonly: false });
 				window.acquireVsCodeApi = () => ({
 					postMessage: m => queueMicrotask(() => receive(wire(m))),
 					getState: () => JSON.parse(sessionStorage.getItem('pane') ?? '{}'),
@@ -96,6 +96,7 @@ it('scales content between 25% and 400%, anchors reflow, and keeps readonly togg
 	const scale = () => page.locator('.md-editor-content').evaluate(e => Math.round(e.currentCSSZoom * 100));
 	const toggleScale = () => page.locator('button.md-readonly-toggle').evaluate(e => Math.round(e.currentCSSZoom * 100));
 	await paragraph.evaluate(e => e.scrollIntoView({ block: 'center' }));
+	await afterLayout();
 	await setZoom(150);
 	assert.deepEqual([await scale(), await toggleScale()], [150, 100]);
 	await afterLayout();

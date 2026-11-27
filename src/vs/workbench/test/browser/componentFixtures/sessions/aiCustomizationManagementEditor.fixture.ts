@@ -1088,7 +1088,7 @@ const fixtureCopilotConnectors: readonly ICopilotConnector[] = [
 		icon: URI.parse(connectorIconDataUri),
 		version: '1.0.0',
 		author: { name: 'Microsoft', url: URI.parse('https://www.microsoft.com') },
-		homepage: URI.parse('https://github.com/features/copilot'),
+		homepage: 'https://github.com/features/copilot',
 		releaseTag: 'Preview',
 		tags: ['mail', 'productivity'],
 		keywords: ['outlook', 'messages'],
@@ -1996,6 +1996,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			}());
 			reg.defineInstance(IFileService, new class extends mock<IFileService>() {
 				override readonly onDidFilesChange = Event.None;
+				override readonly onDidRunOperation = Event.None;
 				override async exists(resource: URI) {
 					if (fileContents.has(resource) || createdFolders.has(resource)) {
 						return true;
@@ -2653,15 +2654,6 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			input.dispatchEvent(new InputEvent('input', { bubbles: true, data: options.mcpSearchQuery, inputType: 'insertText' }));
 			await new Promise(resolve => setTimeout(resolve, 600));
 			input.blur();
-			const marketplaceRow = ctx.container.querySelector<HTMLElement>('.mcp-content-container .plugin-marketplace-home-row');
-			const marketplacePrimaryAction = marketplaceRow?.querySelector<HTMLButtonElement>(':scope > .customization-card-primary-action');
-			if (marketplaceRow && marketplacePrimaryAction) {
-				marketplacePrimaryAction.focus();
-				const targetWindow = DOM.getWindow(marketplaceRow);
-				assert(targetWindow.getComputedStyle(marketplaceRow).outlineStyle === 'solid', 'Focused marketplace MCP rows must outline the entire item.');
-				assert(targetWindow.getComputedStyle(marketplacePrimaryAction).outlineStyle === 'none', 'Focused marketplace MCP rows must not retain an inner primary-action outline.');
-				marketplacePrimaryAction.blur();
-			}
 			await new Promise(resolve => setTimeout(resolve, 100));
 		}
 	} else if (options.selectedSection === AICustomizationManagementSection.McpServers) {
@@ -2790,16 +2782,13 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				.find(node => node instanceof HTMLElement && node.style.display !== 'none') as HTMLElement | undefined;
 			const openItemLabel = options.openItemLabel;
 			const rowToOpen = openItemLabel
-				? [...(visibleContent?.querySelectorAll('.monaco-list-row, .plugin-home-row') ?? [])].find((row): row is HTMLElement => row instanceof HTMLElement && row.textContent?.includes(openItemLabel))
-				: visibleContent?.querySelector('.monaco-list-row.ai-customization-list-item, .monaco-list-row.mcp-server-item, .monaco-list-row.plugin-list-item, .plugin-home-row') as HTMLElement | undefined;
+				? [...(visibleContent?.querySelectorAll('.monaco-list-row') ?? [])].find((row): row is HTMLElement => row instanceof HTMLElement && row.textContent?.includes(openItemLabel))
+				: visibleContent?.querySelector('.monaco-list-row.ai-customization-list-item, .monaco-list-row.mcp-server-item, .monaco-list-row.plugin-list-item') as HTMLElement | undefined;
 			if (rowToOpen) {
-				const target = rowToOpen.classList.contains('plugin-home-row')
-					? rowToOpen.querySelector<HTMLElement>('button') ?? rowToOpen
-					: rowToOpen;
-				target.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
-				target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
-				target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0 }));
-				target.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+				rowToOpen.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
+				rowToOpen.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+				rowToOpen.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0 }));
+				rowToOpen.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
 
 				if (options.editorDisplayMode === 'raw') {
 					const modeButton = ctx.container.querySelector('.editor-mode-button') as HTMLButtonElement | undefined;
@@ -2839,18 +2828,15 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		}
 	}
 
-	for (const selector of ['.welcome-page-host', '.mcp-content-container', '.plugin-content-container']) {
-		const panel = ctx.container.querySelector<HTMLElement>(selector);
-		const scrollHost = panel?.querySelector<HTMLElement>('.welcome-prompts-scrollable, .plugin-card-scrollable');
-		if (!panel || !scrollHost || scrollHost.getBoundingClientRect().height === 0) {
-			continue;
-		}
-		const panelBounds = panel.getBoundingClientRect();
-		const scrollBounds = scrollHost.getBoundingClientRect();
+	const welcomePanel = ctx.container.querySelector<HTMLElement>('.welcome-page-host');
+	const welcomeScrollHost = welcomePanel?.querySelector<HTMLElement>('.welcome-prompts-scrollable');
+	if (welcomePanel && welcomeScrollHost && welcomeScrollHost.getBoundingClientRect().height !== 0) {
+		const panelBounds = welcomePanel.getBoundingClientRect();
+		const scrollBounds = welcomeScrollHost.getBoundingClientRect();
 		assert(
-			Math.abs(scrollBounds.left - panelBounds.left - panel.clientLeft) < 1
-			&& Math.abs(scrollBounds.width - panel.clientWidth) < 1,
-			`${selector} must keep its page scroll host flush with both panel edges.`,
+			Math.abs(scrollBounds.left - panelBounds.left - welcomePanel.clientLeft) < 1
+			&& Math.abs(scrollBounds.width - welcomePanel.clientWidth) < 1,
+			'The welcome page must keep its page scroll host flush with both panel edges.',
 		);
 	}
 }
@@ -2904,7 +2890,6 @@ async function renderMcpErrorActions(ctx: ComponentFixtureContext): Promise<void
 	assert(!row.querySelector('.mcp-server-description')?.textContent, 'Error rows hide their ordinary description when a configuration path is available.');
 	assert(!row.querySelector('.mcp-server-issue')?.textContent, 'Error rows must not show an inline error snippet.');
 	assert(row.querySelector('.mcp-server-start')?.textContent === 'Start', 'Error rows must offer a Start action.');
-	assert(!row.querySelector('.mcp-server-show-output'), 'Error rows must not show an inline output action.');
 	assert(!row.querySelector('.mcp-server-error-toggle'), 'Error rows must not expose an inline expansion control.');
 }
 
@@ -5391,6 +5376,21 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			mcpSearchQuery: 'workiq',
 			openFirstItem: true,
 			openItemLabel: 'Work IQ Mail',
+		}),
+	}),
+
+	ConnectorDetailNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The connector name and connection action remain within the detail header at a narrow width, with the homepage link in the Details table.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.McpServers,
+			copilotConnectorsEnabled: true,
+			mcpSearchQuery: 'workiq',
+			openFirstItem: true,
+			openItemLabel: 'workiq-mail-mcp',
+			width: 550,
+			height: 500,
 		}),
 	}),
 

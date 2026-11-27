@@ -14,6 +14,8 @@ import { extUri } from '../../../../../../base/common/resources.js';
 import { renderAsPlaintext, renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { getChatMarkdownRenderOptions } from '../../../browser/widget/chatContentMarkdownRenderer.js';
 import { getToolGroupSummary } from '../../../browser/widget/chatContentParts/chatToolGroupSummary.js';
+import { getToolInvocationIcon } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
+import { getCompactCodicon } from '../../../browser/chatIcons.js';
 import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
@@ -804,7 +806,7 @@ suite('stateToProgressAdapter', () => {
 				],
 			});
 			const parts = turnsToHistory(URI.parse('ahp-session:/opaque-host-identity'), [JSON.parse(JSON.stringify(turn))], 'participant').find(item => item.type === 'response')?.parts ?? [];
-			const explanation = 'Computer Use lets Copilot see and control apps on this computer. It stays on for Copilot, including the Copilot CLI, until you run `/computer off`.';
+			const explanation = 'Computer Use lets Copilot see and control apps on the machine running the agent host. In a remote session, this is the remote machine, not your client. It stays on for Copilot on that machine, including the Copilot CLI, until you run `/computer off`.';
 			assert.deepStrictEqual(parts.map(part => part.kind === 'elicitationSerialized' ? { kind: part.kind, title: part.title, message: typeof part.message === 'string' ? part.message : part.message.value, state: part.state } : { kind: part.kind }), [
 				{ kind: 'elicitationSerialized', title: 'Turn on Computer Use?', message: `Open \\*Calculator\\*\n\n${explanation}`, state: ElicitationState.Accepted },
 				{ kind: 'elicitationSerialized', title: 'Turn on Computer Use?', message: explanation, state: ElicitationState.Rejected },
@@ -2963,9 +2965,37 @@ suite('stateToProgressAdapter', () => {
 		});
 
 		test('does not invent an MCP origin without valid server metadata', () => {
-			assert.deepStrictEqual([undefined, {}, { mcpServerName: 123 }, { mcpServerName: '  ' }].map(_meta =>
-				toolCallStateToInvocation(createToolCallState({ _meta })).originMessage
-			), [undefined, undefined, undefined, undefined]);
+			assert.deepStrictEqual([undefined, {}, { mcpServerName: 123 }, { mcpServerName: '  ' }].map(_meta => {
+				const invocation = toolCallStateToInvocation(createToolCallState({ _meta }));
+				return [invocation.originMessage, invocation.icon];
+			}), Array(4).fill([undefined, undefined]));
+		});
+
+		test('uses MCP icons for metadata without changing tool source in live calls and history', () => {
+			const running = createToolCallState({ toolName: 'search_tools', _meta: { mcpServerName: 'Azure', toolKind: 'search' } });
+			const pending = { ...running, status: ToolCallStatus.PendingConfirmation as const, confirmationTitle: 'Allow?' };
+			const completed = createCompletedToolCall({ ...running, status: ToolCallStatus.Completed });
+			const invocations = [
+				toolCallStateToInvocation(running),
+				toolCallStateToInvocation(pending),
+				completedToolCallToSerialized(completed, undefined, URI.file('/'), 'local'),
+			];
+			assert.deepStrictEqual(invocations.map(invocation => ({
+				source: invocation.source,
+				icon: getCompactCodicon(getToolInvocationIcon(invocation.toolId, invocation)).id,
+			})), invocations.map(() => ({ source: ToolDataSource.Internal, icon: Codicon.mcpCompact.id })));
+		});
+
+		test('uses the protocol MCP contributor even without optional metadata', () => {
+			const running = createToolCallState({ toolName: 'search_tools', contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'opaque-server' } });
+			const completed = createCompletedToolCall({ ...running, status: ToolCallStatus.Completed });
+			assert.deepStrictEqual([
+				toolCallStateToInvocation(running),
+				completedToolCallToSerialized(completed, undefined, URI.file('/'), 'other-host'),
+			].map(invocation => [invocation.icon, invocation.source]), [
+				[Codicon.mcp, ToolDataSource.Internal],
+				[Codicon.mcp, ToolDataSource.Internal],
+			]);
 		});
 
 		test('MCP origin prefers the server display name and falls back to the server name', () => {
@@ -3933,7 +3963,7 @@ suite('stateToProgressAdapter', () => {
 		});
 
 		test('keeps the MCP origin when metadata arrives after streaming starts', () => {
-			const toolName = 'io-github-github-github-mcp-server-issue_read';
+			const toolName = 'issue_read';
 			const invocation = toolCallStateToStreamingInvocation({
 				toolCallId: 'tc-mcp',
 				toolName,
@@ -3949,6 +3979,7 @@ suite('stateToProgressAdapter', () => {
 			});
 			invocation.transitionFromStreaming(toolCallStateToPreparedInvocation(running), undefined, undefined);
 			const runningOrigin = invocation.originMessage;
+			const runningIcon = getToolInvocationIcon(invocation.toolId, invocation);
 			invocation.requestConfirmation(toolCallStateToPreparedInvocation({
 				...running,
 				status: ToolCallStatus.PendingConfirmation,
@@ -3959,16 +3990,53 @@ suite('stateToProgressAdapter', () => {
 
 			assert.deepStrictEqual({
 				runningOrigin,
+				runningIcon,
 				pendingOrigin,
+				pendingIcon: getToolInvocationIcon(invocation.toolId, invocation),
 				completedOrigin: invocation.toJSON().originMessage,
+				completedIcon: invocation.toJSON().icon,
 				invocationMessage: invocation.invocationMessage,
 				pastTenseMessage: invocation.pastTenseMessage,
 			}, {
 				runningOrigin: 'GitHub (MCP Server)',
+				runningIcon: Codicon.mcp,
 				pendingOrigin: 'GitHub (MCP Server)',
+				pendingIcon: Codicon.mcp,
 				completedOrigin: 'GitHub (MCP Server)',
+				completedIcon: Codicon.mcp,
 				invocationMessage: 'Read issue',
 				pastTenseMessage: 'Read issue',
+			});
+		});
+
+		test('updates the MCP icon when metadata arrives during streaming, running or completion', () => {
+			const streamingCall = { toolCallId: 'late', toolName: 'search_tools', displayName: 'Search', status: ToolCallStatus.Streaming as const };
+			const metadata = { mcpServerName: 'Azure', toolKind: 'search' };
+			const streaming = toolCallStateToStreamingInvocation(streamingCall, undefined);
+			const icons: string[] = [];
+			store.add(autorun(reader => {
+				streaming.state.read(reader);
+				icons.push(getCompactCodicon(getToolInvocationIcon(streaming.toolId, streaming)).id);
+			}));
+			updateStreamingToolInvocation(streaming, { ...streamingCall, _meta: metadata }, 'local');
+			const running = createToolCallState({ toolCallId: 'late', toolName: 'search_tools' });
+			const runningInvocation = toolCallStateToInvocation(running);
+			updateRunningToolSpecificData(runningInvocation, { ...running, _meta: metadata });
+			const pending = { ...running, status: ToolCallStatus.PendingConfirmation as const, confirmationTitle: 'Allow?' };
+			const pendingInvocation = toolCallStateToInvocation(pending);
+			pendingInvocation.updatePreparedInvocation(toolCallStateToPreparedInvocation({ ...pending, _meta: metadata }), undefined);
+			const completedInvocation = toolCallStateToInvocation(running);
+			finalizeToolInvocation(completedInvocation, createCompletedToolCall({ ...running, _meta: metadata, status: ToolCallStatus.Completed }));
+			assert.deepStrictEqual({
+				streaming: icons,
+				running: getToolInvocationIcon(runningInvocation.toolId, runningInvocation),
+				pending: getToolInvocationIcon(pendingInvocation.toolId, pendingInvocation),
+				completed: completedInvocation.toJSON().icon,
+			}, {
+				streaming: [Codicon.searchCompact.id, Codicon.mcpCompact.id],
+				running: Codicon.mcp,
+				pending: Codicon.mcp,
+				completed: Codicon.mcp,
 			});
 		});
 
@@ -4694,6 +4762,23 @@ suite('stateToProgressAdapter', () => {
 			assert.deepStrictEqual(result[0], {
 				kind: 'warning',
 				content: new MarkdownString('Worktree creation failed'),
+			});
+		});
+
+		test('produces a warning that stays visible for a worktree with Git LFS pointer files', () => {
+			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([{
+				kind: ResponsePartKind.SystemNotification,
+				content: 'Files stored with Git LFS are pointer files in this worktree.',
+				_meta: toAgentSystemNotificationMeta({
+					kind: AgentSystemNotificationKind.WorktreeGitLfsUnavailable,
+					severity: AgentSystemNotificationSeverity.Warning,
+				}),
+			}]), undefined);
+
+			assert.deepStrictEqual(result[0], {
+				kind: 'warning',
+				content: new MarkdownString('Files stored with Git LFS are pointer files in this worktree.'),
+				keepVisibleWhenCollapsed: true,
 			});
 		});
 

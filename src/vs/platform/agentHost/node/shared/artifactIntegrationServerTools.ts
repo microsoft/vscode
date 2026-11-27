@@ -257,7 +257,7 @@ function requireChangeable(contribution: ArtifactContributionSnapshot, target: I
 }
 
 /** Resolves once the predicate holds, or with the latest value when the time limit is reached first. */
-async function waitUntil<T>(observable: IObservable<T>, predicate: (value: T) => boolean, timeout: number): Promise<T> {
+export async function waitUntil<T>(observable: IObservable<T>, predicate: (value: T) => boolean, timeout: number): Promise<T> {
 	const value = observable.get();
 	if (predicate(value)) {
 		return value;

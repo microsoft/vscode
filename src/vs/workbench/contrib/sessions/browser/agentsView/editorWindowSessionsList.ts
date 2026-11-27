@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, observableFromEvent } from '../../../../../base/common/observable.js';
+import { derived, IObservable, observableFromEvent } from '../../../../../base/common/observable.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
@@ -13,12 +13,12 @@ import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/brow
 import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { registerSessionsListConfiguration } from '../sessionsConfiguration.js';
-import { SessionsGrouping } from '../views/sessionsList.js';
+import { SessionsGrouping } from '../views/sessionsListCommon.js';
 import { registerSessionsListActions, registerSessionsListReadStateMenus, SessionsArchiveActionsContribution } from '../views/sessionsListActions.js';
 import { EditorWindowSessionsContext, ISessionsViewOptions, SessionsView } from '../views/sessionsView.js';
 
-/** The editor window's Sessions view groups only by time, environment or worktree, by time until one is chosen. */
-export const EDITOR_WINDOW_SESSIONS_GROUPINGS = { offered: [SessionsGrouping.Date, SessionsGrouping.Environment, SessionsGrouping.Worktree], default: SessionsGrouping.Date };
+/** The editor window's Sessions view groups only by time or environment, by time until one is chosen. */
+export const EDITOR_WINDOW_SESSIONS_GROUPINGS = { offered: [SessionsGrouping.Date, SessionsGrouping.Environment], default: SessionsGrouping.Date };
 
 /** The services of the Sessions view, which its constructor takes after its options. */
 type SessionsViewServices = ConstructorParameters<typeof SessionsView> extends [ISessionsViewOptions, ...infer Services] ? Services : never;
@@ -47,9 +47,14 @@ export function createEditorWindowSessionsView(scoped: IObservable<boolean>, hea
 	};
 }
 
-/** Whether the window has folders, whose sessions the providers then list only; not in an empty window. */
+/**
+ * Whether the window has folders, whose sessions the providers then list only; not in an empty window, and not while the
+ * window is about all sessions (it has no {@link IWorkspaceContextService.getWorkbenchScope scope}), which lists every session.
+ */
 export function createEditorWindowSessionsScope(owner: object, workspaceContextService: IWorkspaceContextService): IObservable<boolean> {
-	return observableFromEvent(owner, workspaceContextService.onDidChangeWorkspaceFolders, () => workspaceContextService.getWorkspace().folders.length > 0);
+	const hasFolders = observableFromEvent(owner, workspaceContextService.onDidChangeWorkspaceFolders, () => workspaceContextService.getWorkspace().folders.length > 0);
+	const allSessions = observableFromEvent(owner, workspaceContextService.onDidChangeWorkbenchScope, () => !workspaceContextService.getWorkbenchScope());
+	return derived(owner, reader => hasFolders.read(reader) && !allSessions.read(reader));
 }
 
 /**

@@ -35,7 +35,6 @@ import { toAgentHostBackendSessionUri } from './agentSessions/agentHost/agentHos
 import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { CONFIGURE_INSTRUCTIONS_ACTION_ID } from './promptSyntax/attachInstructionsAction.js';
-import { showConfigureHooksQuickPick } from './promptSyntax/hookActions.js';
 import { CONFIGURE_PROMPTS_ACTION_ID } from './promptSyntax/runPromptAction.js';
 import { CONFIGURE_SKILLS_ACTION_ID } from './promptSyntax/skillActions.js';
 import { IChatWidgetService } from './chat.js';
@@ -123,12 +122,8 @@ export class ChatSlashCommandsContribution extends Disposable {
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
 			sessionTypes: [SessionType.Local, SessionType.AgentHostCopilot],
-		}, async (_prompt, _progress, _history, _location, sessionResource) => {
-			if (getChatSessionType(sessionResource) === SessionType.AgentHostCopilot) {
-				await commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.Hooks);
-			} else {
-				await instantiationService.invokeFunction(showConfigureHooksQuickPick);
-			}
+		}, async () => {
+			await commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.Hooks);
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'models',
@@ -230,8 +225,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 			silent: true,
 			completionVariants: [
 				{ label: '/fork', insertText: '', executeImmediately: true },
-				{ label: '/fork <title>', insertText: '/fork ', detail: nls.localize('fork.titleDetail', "Fork conversation with a custom title"), argumentHint: nls.localize('fork.titleArgumentHint', "title") },
-				{ label: '/fork prompt <prompt>', insertText: '/fork prompt ', detail: nls.localize('fork.promptDetail', "Fork conversation and send a prompt"), argumentHint: nls.localize('fork.promptArgumentHint', "prompt") },
+				{ label: '/fork <prompt>', insertText: '/fork ', detail: nls.localize('fork.promptDetail', "Fork conversation and send a prompt"), argumentHint: nls.localize('fork.promptArgumentHint', "prompt") },
 			],
 			locations: [ChatAgentLocation.Chat],
 			when: ContextKeyExpr.or(
@@ -243,33 +237,25 @@ export class ChatSlashCommandsContribution extends Disposable {
 			// input for the offset used to rebase inline attachment references.
 			const input = executionContext?.input ?? `/fork${prompt ? ` ${prompt}` : ''}`;
 			const commandEnd = input.indexOf('/fork') + '/fork'.length;
-			const afterCommand = input.slice(commandEnd);
-			const isAgentHostSession = isAgentHostTarget(getChatSessionType(sessionResource));
-			const forkPrompt = isAgentHostSession ? parseForkPromptArgument(afterCommand) : undefined;
+			// Only agent-host chats can send a prompt in the fork; other chats fork without it.
+			const forkPrompt = isAgentHostTarget(getChatSessionType(sessionResource)) ? parseForkPromptArgument(input.slice(commandEnd)) : undefined;
 			if (forkPrompt) {
-				if (forkPrompt.text) {
-					await commandService.executeCommand('workbench.action.chat.forkConversation', sessionResource, {
-						initialMessage: {
-							text: forkPrompt.text,
-							textOffset: commandEnd + forkPrompt.offset,
-							requestOptions: options ? {
-								attachedContext: options.attachedContext,
-								resolvedVariables: options.resolvedVariables,
-							} : undefined,
-						},
-					});
-					// The submitting widget clears this draft once the fork
-					// succeeds; see `captureForkPromptSourceInput`.
-					return { followUp: [], preserveInput: true };
-				}
-				// `prompt` is reserved, but an empty prompt is intentionally the
-				// ordinary bare-fork path rather than a title named "prompt".
-				await commandService.executeCommand('workbench.action.chat.forkConversation', sessionResource);
-				return;
+				await commandService.executeCommand('workbench.action.chat.forkConversation', sessionResource, {
+					initialMessage: {
+						text: forkPrompt.text,
+						textOffset: commandEnd + forkPrompt.offset,
+						requestOptions: options ? {
+							attachedContext: options.attachedContext,
+							resolvedVariables: options.resolvedVariables,
+						} : undefined,
+					},
+				});
+				// The submitting widget clears this draft once the fork
+				// succeeds; see `captureForkPromptSourceInput`.
+				return { followUp: [], preserveInput: true };
 			}
 
-			const title = (isAgentHostSession ? afterCommand : prompt).trim() || undefined;
-			await commandService.executeCommand('workbench.action.chat.forkConversation', sessionResource, title ? { title } : undefined);
+			await commandService.executeCommand('workbench.action.chat.forkConversation', sessionResource);
 			return undefined;
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({

@@ -265,17 +265,18 @@ suite('Agent Host PR test selection', () => {
 				reason: '${{ steps.detect-agent-host-e2e.outputs.reason }}',
 			},
 			callers: ['linux', 'win32'].map(platform => {
+				// Pull requests to main skip the Windows integration tests and Agent Host E2E, which the merge queue runs.
+				const runs = (condition: string) => platform === 'linux' ? `\${{ ${condition} }}` : `\${{ (github.event_name == 'merge_group' || github.base_ref != 'main') && (${condition}) }}`;
 				const agentHostJob = (shard?: string) => ({
 					// Runs when detection fails.
-					affected: '${{ needs.changes.result != \'success\' || needs.changes.outputs.selected-agent-host-e2e == \'true\' }}',
+					affected: runs('needs.changes.result != \'success\' || needs.changes.outputs.selected-agent-host-e2e == \'true\''),
 					agentHostTests: 'true',
 					integrationTests: undefined,
 					shard,
 				});
 				return {
 					needs: 'changes',
-					// Pull requests to main skip the Windows jobs, which the merge queue runs.
-					if: platform === 'linux' ? '${{ !cancelled() }}' : '${{ !cancelled() && (github.event_name == \'merge_group\' || github.base_ref != \'main\') }}',
+					if: '${{ !cancelled() }}',
 					profile,
 					reason,
 					// Linux runs it in its own job, Windows in three shards, when the plan also selects one of its suites.
@@ -286,7 +287,7 @@ suite('Agent Host PR test selection', () => {
 					},
 					integration: {
 						// Linux and Windows skip their node.js integration tests job when the plan selects none of them.
-						affected: '${{ needs.changes.result != \'success\' || needs.changes.outputs.selected-node-integration-tests == \'true\' }}',
+						affected: runs('needs.changes.result != \'success\' || needs.changes.outputs.selected-node-integration-tests == \'true\''),
 						agentHostTests: undefined,
 						integrationTests: 'true',
 						shard: undefined,

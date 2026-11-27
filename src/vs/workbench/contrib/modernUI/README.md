@@ -13,11 +13,13 @@ With Modern UI enabled, `window.density.layout` set to `default` keeps the workb
 
 Standard HC Connected editors use the editor card's perimeter and `modernPanel.border`, without a second inset group frame. Compact layout shares its square grid-edge seams with adjacent panels. Agents-window detail editors keep their separately owned frame and use `agentsPanel.border`; tab focus and selection accents remain independent of either frame.
 
-The floating editor's content curve follows the inside of its frame, accounting for the snapped border width so tab-strip corners stay concentric with the card, including with a customized editor-area radius or fractional zoom.
+The floating editor's content curve follows the inside of its frame: the card clips its content to its padding edge, so tab-strip corners stay concentric with the card, including with a customized editor-area radius or fractional zoom. The content rounds no second clip inside the card, because Chromium applies one rounded clip per draw quad and would draw the editor through offscreen render passes.
+
+Modal editors keep one rounded clip on the part itself, with equal radii on all four corners. It clips the header, optional sidebar and square content to the curve inside its border. The shadow wrapper paints but does not clip. This applies with or without Modern UI: Chromium supports one rounded clip per draw quad, so nesting another forces offscreen render surfaces. Unequal corner radii also force a render surface on macOS.
 
 ## Suggestion menu corners
 
-Editor and workbench suggestion menus use the Outer radius on their first item's upper corners and their last item's lower corners. These styles are shared with the Agents window, where they apply independently of the main workbench's Modern UI setting. These boundaries follow logical list positions, not virtualized DOM order; a single-item menu receives all four corners. The rounded list viewport clips partially scrolled highlights without clipping the workbench widget's resize sashes. Interior corners stay at the Control tier, and a visible status bar keeps the last row at that tier rather than rounding the footer seam.
+Editor and workbench suggestion menus use the Outer radius on their first item's upper corners and their last item's lower corners. These styles are shared with the Agents window, where they apply independently of the main workbench's Modern UI setting. These boundaries follow logical list positions, not virtualized DOM order; a single-item menu receives all four corners. The editor widget clips partially scrolled highlights and its status bar; its list keeps a square clip, because Chromium applies one rounded clip per draw quad and nesting rounded clips forces offscreen render surfaces. The widget's four clip radii stay equal, including with a status bar, so macOS can apply them through Core Animation rather than a render surface. The workbench widget instead keeps its rounded list viewport, without clipping its resize sashes. Interior corners stay at the Control tier, and a visible status bar keeps the last row at that tier rather than rounding the footer seam.
 
 ## Editor tab style
 
@@ -219,6 +221,9 @@ After transpiling, run it with
 | `modernActivityBar.background` | Background of the Modern UI activity bar in the default side position | `activityBar.background` |
 | `modernActivityBar.inactiveBackground` | Background of the Modern UI activity bar in the default side position in an inactive window | `modernActivityBar.background` |
 | `modernActivityBar.border` | Frame border of the Modern UI activity bar in the default side position | `surface.border` |
+| `modernSideBar.background` | Background of the primary and secondary side bars, including their view surfaces | Unset (`null`), retaining the existing side bar and surface defaults |
+| `modernSideBar.foreground` | Foreground of the primary and secondary side bar surfaces | Unset (`null`), retaining the existing side bar and surface defaults |
+| `modernSideBar.border` | Frame and connected tab border of the primary and secondary side bars | Unset (`null`), retaining the existing side bar, surface, and tab border defaults |
 | `modernActivityBarItem.activeBackground` | Background of active Modern UI activity bar items in the default side position | `modernTab.activeBackground` |
 | `modernActivityBarItem.activeForeground` | Foreground of active Modern UI activity bar items in the default side position | `modernTab.activeForeground` |
 | `modernActivityBarItem.hoverBackground` | Background of hovered Modern UI activity bar items in the default side position | `modernTab.hoverBackground` |
@@ -231,7 +236,7 @@ Customize both shell colors when changing the shell palette. `modernUI.inactiveS
 
 Shell colors with alpha are composited over the workbench background to produce an opaque backdrop. The title bar itself continues to use `titleBar.*`, falling back to `titleBar.activeBackground` when its inactive background is absent.
 
-The `surface.*` colors provide shared framing defaults, not a replacement for every region's semantic colors. Side bars, the panel, and the editor retain `sideBar.background`, `panel.background`, and `editor.background`. Override `editor.border`, `modernPanel.border`, or `modernActivityBar.border` to distinguish a frame from the shared `surface.border`.
+The `surface.*` colors provide shared framing defaults, not a replacement for every region's semantic colors. Side bars, the panel, and the editor retain their existing theme colors when no Modern UI override is set. Use `modernSideBar.background`, `modernSideBar.foreground`, and `modernSideBar.border` to customize both side bars only in the Modern UI. When `modernSideBar.background` is unset, the primary floating side bar retains `surface.background`; docked side bars, the secondary floating side bar, and side bar view surfaces retain `sideBar.background`. A translucent `modernSideBar.background` is composited over `sideBar.background` to produce a consistent opaque surface. Treat the background and foreground as a pair and verify their contrast when customizing either. Sidebar title, section-header, sticky-scroll, and drop-feedback colors remain controlled by their existing tokens; section headers retain `sideBar.background` at rest. Check their contrast too when changing the sidebar colors. A terminal in a side bar follows its background unless `terminal.background` is set; terminal foreground colors remain independent. Override `editor.border`, `modernPanel.border`, or `modernActivityBar.border` to distinguish a frame from the shared `surface.border`.
 
 Inside the panel, the existing `panelSection.border` separates horizontally arranged views and `panelSectionHeader.border` separates vertically stacked views. Neither controls the outer floating frame. Side bar section dividers use `sideBarSectionHeader.border`. High contrast border defaults use `contrastBorder`, but explicit theme overrides remain effective.
 
@@ -244,6 +249,8 @@ Activity bar items in non-default top or bottom positions use the `modernTab.*` 
 Editor tab fill, label, and action colors have the same precedence in the `connected` and `pill` styles. Existing `tab.*` fill and label customizations remain effective unless the corresponding `modernTab.*` or `modernEditorTab.*` color is explicitly customized. Connected action backgrounds retain their seamless defaults until an explicit editor action color overrides them; frame borders continue to use the connected treatment described above.
 
 `statusBar.inactiveBackground` only changes the resting background in an inactive window with a workspace or folder open. Debugging and other status bar background overrides take precedence. Empty windows continue to use `statusBar.noFolderBackground`. Leaving the inactive color unset preserves the existing status bar behavior.
+
+With `window.density.layout` set to `default`, a status bar painted with the shell color merges with the gutter above it into one band, so its items are centered in that band. A status bar with its own color, for example while debugging, centers its items within its own background instead.
 
 ## Examples
 

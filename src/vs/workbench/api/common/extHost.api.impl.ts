@@ -1073,9 +1073,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'quickDiffProvider');
 				return extHostQuickDiff.registerQuickDiffProvider(extension, checkSelector(selector), quickDiffProvider, id, label, rootUri);
 			},
-			createSourceControlDiffInformation(uri: vscode.Uri): vscode.SourceControlDiffInformationProvider {
+			createSourceControlDiffInformation(uri: vscode.Uri, options?: vscode.SourceControlDiffInformationOptions): vscode.SourceControlDiffInformationProvider {
 				checkProposedApiEnabled(extension, 'textEditorDiffInformation');
-				return extHostQuickDiff.createSourceControlDiffInformation(uri);
+				return extHostQuickDiff.createSourceControlDiffInformation(uri, options);
 			},
 			get linkPresentationRules(): readonly vscode.LinkPresentationRule[] {
 				checkProposedApiEnabled(extension, 'linkPresentation');
@@ -1152,7 +1152,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		// namespace: workspace
 
-		const workspace: typeof vscode.workspace = {
+		const workspace: typeof vscode.workspace & { readonly isAgentSessionsWorkspace: boolean } = {
 			get rootPath() {
 				extHostApiDeprecation.report('workspace.rootPath', extension,
 					`Please use 'workspace.workspaceFolders' instead. More details: https://aka.ms/vscode-eliminating-rootpath`);
@@ -1180,9 +1180,23 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			set workspaceFile(value) {
 				throw new errors.ReadonlyError('workspaceFile');
 			},
-			get isAgentSessionsWorkspace() {
+			get isAgentManaged() {
 				checkProposedApiEnabled(extension, 'agentSessionsWorkspace');
 				return !!initData.environment.isSessionsWindow;
+			},
+			// back compat: the previous name of `isAgentManaged` is no longer declared but still works at runtime
+			get isAgentSessionsWorkspace() {
+				checkProposedApiEnabled(extension, 'agentSessionsWorkspace');
+				extHostApiDeprecation.report('workspace.isAgentSessionsWorkspace', extension, `Use 'workspace.isAgentManaged' instead.`);
+				return !!initData.environment.isSessionsWindow;
+			},
+			get mode() {
+				checkProposedApiEnabled(extension, 'workbenchMode');
+				return typeConverters.WorkbenchMode.to(extHostWorkspace.workbenchMode);
+			},
+			onDidChangeMode: (listener, thisArgs?, disposables?) => {
+				checkProposedApiEnabled(extension, 'workbenchMode');
+				return _asExtensionEvent(Event.map(extHostWorkspace.onDidChangeWorkbenchMode, mode => typeConverters.WorkbenchMode.to(mode)))(listener, thisArgs, disposables);
 			},
 			updateWorkspaceFolders: (index, deleteCount, ...workspaceFoldersToAdd) => {
 				return extHostWorkspace.updateWorkspaceFolders(extension, index, deleteCount || 0, ...workspaceFoldersToAdd);
@@ -1291,6 +1305,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			applyEdit(edit: vscode.WorkspaceEdit, metadata?: vscode.WorkspaceEditMetadata): Thenable<boolean> {
 				return extHostBulkEdits.applyWorkspaceEdit(edit, extension, metadata);
 			},
+			applyEditSequence(steps: readonly vscode.WorkspaceEditUndoStep[]): Thenable<boolean> {
+				return extHostBulkEdits.applyWorkspaceEditSequence(steps, extension);
+			},
 			createFileSystemWatcher: (pattern, optionsOrIgnoreCreate, ignoreChange?, ignoreDelete?): vscode.FileSystemWatcher => {
 				const options: FileSystemWatcherCreateOptions = {
 					ignoreCreateEvents: Boolean(optionsOrIgnoreCreate),
@@ -1342,6 +1359,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					return _asExtensionEvent(extHostDocuments.onDidChangeDocumentWithReason)(listener, thisArgs, disposables);
 				}
 				return _asExtensionEvent(extHostDocuments.onDidChangeDocument)(listener, thisArgs, disposables);
+			},
+			onDidChangeTextDocumentReadonly: (listener, thisArgs?, disposables?) => {
+				checkProposedApiEnabled(extension, 'textDocumentReadonly');
+				return _asExtensionEvent(extHostDocuments.onDidChangeDocumentReadonly)(listener, thisArgs, disposables);
 			},
 			onDidSaveTextDocument: (listener, thisArgs?, disposables?) => {
 				return _asExtensionEvent(extHostDocuments.onDidSaveDocument)(listener, thisArgs, disposables);
@@ -1544,11 +1565,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 				return extHostSCM.getLastInputBox(extension)!; // Strict null override - Deprecated api
 			},
-			createSourceControl(id: string, label: string, rootUri?: vscode.Uri, iconPath?: vscode.IconPath, isHidden?: boolean, parent?: vscode.SourceControl): vscode.SourceControl {
-				if (iconPath || isHidden || parent) {
+			createSourceControl(id: string, label: string, rootUri?: vscode.Uri, iconPath?: vscode.IconPath, parent?: vscode.SourceControl): vscode.SourceControl {
+				if (iconPath || parent) {
 					checkProposedApiEnabled(extension, 'scmProviderOptions');
 				}
-				return extHostSCM.createSourceControl(extension, id, label, rootUri, iconPath, isHidden, parent);
+				return extHostSCM.createSourceControl(extension, id, label, rootUri, iconPath, parent);
 			}
 		};
 
@@ -2096,6 +2117,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			InlineCompletionsDisposeReasonKind: extHostTypes.InlineCompletionsDisposeReasonKind,
 			EventEmitter: Emitter,
 			ExtensionKind: extHostTypes.ExtensionKind,
+			WorkbenchMode: extHostTypes.WorkbenchMode,
 			ExtensionMode: extHostTypes.ExtensionMode,
 			ExternalUriOpenerPriority: extHostTypes.ExternalUriOpenerPriority,
 			FileChangeType: extHostTypes.FileChangeType,

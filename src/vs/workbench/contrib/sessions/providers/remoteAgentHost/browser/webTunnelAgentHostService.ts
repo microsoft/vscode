@@ -370,6 +370,10 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 		});
 	}
 
+	updateCachedTunnel(tunnel: ITunnelInfo): void {
+		this._storage.updateCachedTunnel(tunnel);
+	}
+
 	removeCachedTunnel(tunnelId: string): void {
 		this._connectionFactory.unstageTunnel(`${TUNNEL_ADDRESS_PREFIX}${tunnelId}`);
 		this._storage.removeCachedTunnel(tunnelId);

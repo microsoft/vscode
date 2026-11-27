@@ -25,6 +25,7 @@ import { IUpdateService, StateType } from '../../update/common/update.js';
 import { INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, IWindowOpenable, hasNativeMenu } from '../../window/common/window.js';
 import { IWindowsCountChangedEvent, IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
 import { IWorkspacesHistoryMainService } from '../../workspaces/electron-main/workspacesHistoryMainService.js';
+import { isFocusInFrameNestedInWebview } from '../../webview/electron-main/webviewFrames.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 
 const telemetryFrom = 'menu';
@@ -32,6 +33,7 @@ const telemetryFrom = 'menu';
 interface IMenuItemClickHandler {
 	inDevTools: (contents: WebContents) => void;
 	inNoWindow: () => void;
+	inFrameNestedInWebview: (contents: WebContents) => void;
 }
 
 type IMenuItemInvocation = (
@@ -736,17 +738,20 @@ export class Menubar extends Disposable {
 			if (commandId === 'undo') {
 				options.click = this.makeContextAwareClickHandler(click, {
 					inDevTools: devTools => devTools.undo(),
-					inNoWindow: () => Menu.sendActionToFirstResponder('undo:')
+					inNoWindow: () => Menu.sendActionToFirstResponder('undo:'),
+					inFrameNestedInWebview: contents => contents.undo()
 				});
 			} else if (commandId === 'redo') {
 				options.click = this.makeContextAwareClickHandler(click, {
 					inDevTools: devTools => devTools.redo(),
-					inNoWindow: () => Menu.sendActionToFirstResponder('redo:')
+					inNoWindow: () => Menu.sendActionToFirstResponder('redo:'),
+					inFrameNestedInWebview: contents => contents.redo()
 				});
 			} else if (commandId === 'editor.action.selectAll') {
 				options.click = this.makeContextAwareClickHandler(click, {
 					inDevTools: devTools => devTools.selectAll(),
-					inNoWindow: () => Menu.sendActionToFirstResponder('selectAll:')
+					inNoWindow: () => Menu.sendActionToFirstResponder('selectAll:'),
+					inFrameNestedInWebview: contents => contents.selectAll()
 				});
 			}
 		}
@@ -772,6 +777,11 @@ export class Menubar extends Disposable {
 			// Focus is not in the workbench webContents
 			if (!activeWindow.webContents.isFocused()) {
 				return contextSpecificHandlers.inNoWindow();
+			}
+
+			// Focus is in a frame nested in a webview, which the workbench can't reach
+			if (isFocusInFrameNestedInWebview(activeWindow.webContents)) {
+				return contextSpecificHandlers.inFrameNestedInWebview(activeWindow.webContents);
 			}
 
 			// Finally execute command in Window

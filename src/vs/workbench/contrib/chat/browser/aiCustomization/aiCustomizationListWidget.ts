@@ -1410,6 +1410,7 @@ export class AICustomizationListWidget extends Disposable {
 		const descriptor = this.harnessService.getActiveDescriptor();
 		const override = descriptor.sectionOverrides?.get(this.currentSection);
 		const hasWorkspace = this.hasActiveWorkspace();
+		const showGenerate = !this.workspaceService.isSessionsWindow && (!descriptor.hideGenerateButton || !!descriptor.showGenerateButtonFor?.includes(promptType));
 
 		// Full command override (e.g. Claude hooks) — single action, no dropdown
 		if (override?.commandId) {
@@ -1466,7 +1467,7 @@ export class AICustomizationListWidget extends Disposable {
 
 		// Hooks have a simplified action set
 		if (promptType === PromptsType.hook) {
-			if (!this.workspaceService.isSessionsWindow && !descriptor.hideGenerateButton) {
+			if (showGenerate) {
 				actions.push({
 					label: localize('generateWithAI', "Generate with AI"),
 					tooltip: localize('generateCustomizationWithAI', "Generate {0} with AI", typeLabel),
@@ -1498,7 +1499,7 @@ export class AICustomizationListWidget extends Disposable {
 
 		if (!override?.rootFile) {
 			// Determine the primary action (first in list)
-			if (!this.workspaceService.isSessionsWindow && !descriptor.hideGenerateButton) {
+			if (showGenerate) {
 				// Local exposes one non-storage-scoped AI generation action.
 				actions.push({
 					label: localize('generateWithAI', "Generate with AI"),
@@ -1682,17 +1683,6 @@ export class AICustomizationListWidget extends Disposable {
 		this.allItems = section ? this.itemsModel.getItems(section).get() : [];
 		this.filterItems();
 		this._onDidChangeItemCount.fire(this.allItems.length);
-	}
-
-	/**
-	 * Computes the item count for a given section without updating the display.
-	 * Reads from the items model so the count is consistent with what the
-	 * editor and sidebar render. Returns 0 for sections not modeled here
-	 * (McpServers / Plugins / Models — those have their own services).
-	 */
-	computeItemCountForSection(section: AICustomizationManagementSection): number {
-		const modelSection = toItemsModelSection(section);
-		return modelSection ? this.itemsModel.getCount(modelSection).get() : 0;
 	}
 
 	/**

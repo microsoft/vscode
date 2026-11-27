@@ -211,6 +211,7 @@ function readNextRequest(stream: PassThrough): Promise<ITestWireRequest> {
 }
 
 interface ICreateAgentOptions {
+	readonly syncCustomizations?: IAgentPluginManager['syncCustomizations'];
 	readonly telemetryService?: ITelemetryService;
 	readonly sessionConfig?: Readonly<Record<string, boolean | string | readonly string[]>>;
 	readonly database?: TestSessionDatabase;
@@ -297,7 +298,7 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 		_serviceBrand: undefined,
 		basePath: URI.file('/plugins'),
 		hostPluginsPath: URI.file('/plugins/.host'),
-		syncCustomizations: async (_clientId, customizations) => customizations.map(customization => ({ customization })),
+		syncCustomizations: options.syncCustomizations ?? (async (_clientId, customizations) => customizations.map(customization => ({ customization }))),
 	});
 	instantiationService.stub(ICopilotApiService, { _serviceBrand: undefined, models: async () => models });
 	instantiationService.stub(ICodexProxyService, { _serviceBrand: undefined });
@@ -938,6 +939,44 @@ suite('CodexAgent prewarm eviction', () => {
 			: []), [
 			{ resource: session.toString(), type: ActionType.SessionCustomizationUpdated, id: customization.id },
 			{ resource: session.toString(), type: ActionType.SessionCustomizationRemoved, id: customization.id },
+		]);
+	});
+
+	test('publishes the client and source URIs for materialized bundle children', async () => {
+		const pluginDir = URI.file('/plugins/cache/bundle');
+		const sourceRoot = URI.parse('vscode-synced-customization:/bundle');
+		const childPath = 'skills/review/SKILL.md';
+		const skillUri = URI.joinPath(pluginDir, childPath);
+		const agent = await createAgent(disposables, {
+			syncCustomizations: async (_clientId, customizations, progress) => customizations.map(customization => {
+				progress?.(customization);
+				return { customization, pluginDir };
+			}),
+		});
+		agent['_schedulePrewarm'] = () => { };
+		await agent['_fileService'].writeFile(skillUri, VSBuffer.fromString('---\nname: review\n---\nReview code.'));
+		const { session } = await createSession(agent);
+		const signals: AgentSignal[] = [];
+		disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+
+		await agent['_syncClientCustomizations'](session, 'client-1', [{
+			type: CustomizationType.Plugin, id: 'bundle', uri: sourceRoot.toString(), name: 'VS Code Synced Data',
+		}]);
+
+		assert.deepStrictEqual(signals.flatMap(signal => {
+			if (signal.kind !== 'action' || signal.action.type !== ActionType.SessionCustomizationUpdated || signal.action.customization.type !== CustomizationType.Plugin) {
+				return [];
+			}
+			const { uri, clientId, children } = signal.action.customization;
+			return [{
+				uri, clientId, skills: children?.filter(child => child.type === CustomizationType.Skill).map(child => ({
+					uri: child.uri,
+					sourceUri: child._meta?.['vscode.sourceUri'],
+				}))
+			}];
+		}), [
+			{ uri: sourceRoot.toString(), clientId: 'client-1', skills: undefined },
+			{ uri: sourceRoot.toString(), clientId: 'client-1', skills: [{ uri: skillUri.toString(), sourceUri: URI.joinPath(sourceRoot, childPath).toString() }] },
 		]);
 	});
 

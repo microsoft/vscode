@@ -11,7 +11,7 @@ import { contrastBorder, editorBackground } from '../../../../platform/theme/com
 import { GroupDirection, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorSideGroup, IEditorDropTargetDelegate, IEditorPart, GroupActivationReason, IEditorGroupActivationEvent } from '../../../services/editor/common/editorGroupsService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IView, orthogonal, LayoutPriority, IViewSize, Direction, SerializableGrid, Sizing, ISerializedGrid, ISerializedNode, Orientation, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid } from '../../../../base/browser/ui/grid/grid.js';
-import { GroupIdentifier, EditorInputWithOptions, IEditorPartOptions, IEditorPartOptionsChangeEvent, GroupModelChangeKind } from '../../../common/editor.js';
+import { GroupIdentifier, EditorInputWithOptions, IEditorPartOptions, IEditorPartOptionsChangeEvent, GroupModelChangeKind, EditorCloseContext } from '../../../common/editor.js';
 import { EDITOR_GROUP_BORDER, EDITOR_PANE_BACKGROUND } from '../../../common/theme.js';
 import { distinct, coalesce } from '../../../../base/common/arrays.js';
 import { IEditorGroupView, getEditorPartOptions, impactsEditorPartOptions, IEditorPartCreationOptions, IEditorPartsView, IEditorGroupsView, IEditorGroupViewOptions, GroupTransferKind } from './editor.js';
@@ -1668,16 +1668,19 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		};
 	}
 
-	applyState(state: IEditorPartUIState | 'empty', options?: IEditorGroupViewOptions): Promise<void> {
+	/**
+	 * Applies the state. The editors that applying closes report the close context, if any.
+	 */
+	applyState(state: IEditorPartUIState | 'empty', options?: IEditorGroupViewOptions, closeContext?: EditorCloseContext): Promise<void> {
 		if (state === 'empty') {
-			return this.doApplyEmptyState();
+			return this.doApplyEmptyState(closeContext);
 		} else {
-			return this.doApplyState(state, options);
+			return this.doApplyState(state, options, closeContext);
 		}
 	}
 
-	private async doApplyState(state: IEditorPartUIState, options?: IEditorGroupViewOptions): Promise<void> {
-		const groups = await this.doPrepareApplyState();
+	private async doApplyState(state: IEditorPartUIState, options?: IEditorGroupViewOptions, closeContext?: EditorCloseContext): Promise<void> {
+		const groups = await this.doPrepareApplyState(closeContext);
 
 		// Pause add/remove events for groups during the duration of applying the state
 		// This ensures that we can do this transition atomically with the new state
@@ -1716,13 +1719,13 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		);
 	}
 
-	private async doApplyEmptyState(): Promise<void> {
-		await this.doPrepareApplyState();
+	private async doApplyEmptyState(closeContext?: EditorCloseContext): Promise<void> {
+		await this.doPrepareApplyState(closeContext);
 
 		this.mergeAllGroups(this.activeGroup);
 	}
 
-	private async doPrepareApplyState(): Promise<IEditorGroupView[]> {
+	private async doPrepareApplyState(closeContext?: EditorCloseContext): Promise<IEditorGroupView[]> {
 
 		// Before disposing groups, try to close as many editors as
 		// possible, but skip over those that would trigger a dialog
@@ -1731,7 +1734,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 
 		const groups = this.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 		for (const group of groups) {
-			await group.closeAllEditors({ excludeConfirming: true, force: true });
+			await group.closeAllEditors({ excludeConfirming: true, force: true, context: closeContext });
 		}
 
 		return groups;

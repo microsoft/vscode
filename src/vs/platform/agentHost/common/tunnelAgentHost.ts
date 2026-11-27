@@ -537,6 +537,14 @@ export interface ITunnelAgentHostService {
 	/** Cache a tunnel as recently used. */
 	cacheTunnel(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft'): void;
 
+	/**
+	 * Refresh a cached tunnel's discovered name, cluster, and protocol version
+	 * in place, e.g. after the tunnel was renamed. Unlike {@link cacheTunnel},
+	 * this keeps the entry's auth provider, recency order, and auto-connect
+	 * suppression. Does nothing when the tunnel is not cached.
+	 */
+	updateCachedTunnel(tunnel: ITunnelInfo): void;
+
 	/** Remove a tunnel from the cache. */
 	removeCachedTunnel(tunnelId: string): void;
 

@@ -328,6 +328,12 @@ export interface IRemoteAgentHostConnectOptions {
 	 * must never open prompts, pickers or modals.
 	 */
 	readonly userInitiated: boolean;
+	/**
+	 * Whether an explicit user action has since joined this automatic attempt. A factory can check
+	 * this after awaiting a precondition that only automatic attempts must meet, so the attempt
+	 * doesn't reject the user's request.
+	 */
+	readonly hasUserJoined?: () => boolean;
 	/** Optional client-local observation of transport-specific setup phases. */
 	readonly onDiagnostic?: ConnectionDiagnosticObserver;
 }
@@ -353,6 +359,22 @@ export interface IRemoteAgentHostCreatedConnection {
 /** Observes readiness across inner and outer retries; disposal is intentional, failure is terminal. */
 export type RemoteAgentHostConnectionObserver = (state: 'connecting' | 'connected' | 'reconnecting' | 'failed' | 'disposed') => void;
 
+/** The outcome of one dial whose connection the factory started to build. */
+export interface IRemoteAgentHostConnectionAttempt {
+	readonly userInitiated: boolean;
+	/** Dial number within the current retry cycle, starting at one. */
+	readonly attempt: number;
+	readonly durationMs: number;
+	/** Why the dial failed, or `undefined` when the protocol handshake completed. */
+	readonly failure?: {
+		readonly error: unknown;
+		/** Whether the factory built the connection and the protocol handshake then failed. */
+		readonly duringHandshake: boolean;
+		/** Whether another automatic dial was scheduled, or the client is restoring the connection itself. */
+		readonly willRetry: boolean;
+	};
+}
+
 /** Builds agent host connections of one {@link RemoteAgentHostEntryType}. */
 export interface IRemoteAgentHostConnectionFactory {
 	/** The entry type this factory builds. */
@@ -370,6 +392,12 @@ export interface IRemoteAgentHostConnectionFactory {
 	 * itself so handshake outcome classification lives in exactly one place.
 	 */
 	createConnection(entry: IRemoteAgentHostEntry, options: IRemoteAgentHostConnectOptions): Promise<IRemoteAgentHostCreatedConnection>;
+	/**
+	 * Reports the outcome of a dial after {@link createConnection} was called,
+	 * once the service has decided whether to retry. Not called for dials
+	 * discarded because the entry was removed or replaced.
+	 */
+	reportConnectionAttempt?(entry: IRemoteAgentHostEntry, attempt: IRemoteAgentHostConnectionAttempt): void;
 }
 
 /** Raw shape of persisted remote agent host entries. */
@@ -652,13 +680,50 @@ export function addSSHRemoteAgentHostEntry(storageService: IStorageService, entr
 	storeSSHRemoteAgentHostEntries(storageService, upsertRemoteAgentHostEntry(readSSHRemoteAgentHostEntries(storageService), entry));
 }
 
-/** Removes an SSH entry from its application storage store. */
+/** Removes an SSH entry from its application storage store, along with its disconnected flag. */
 export function removeSSHRemoteAgentHostEntry(storageService: IStorageService, address: string): void {
 	const normalizedAddress = normalizeRemoteAgentHostAddress(address);
 	storeSSHRemoteAgentHostEntries(
 		storageService,
 		readSSHRemoteAgentHostEntries(storageService).filter(entry => entryAddressKey(entry) !== normalizedAddress),
 	);
+	setRemoteAgentHostDisconnected(storageService, normalizedAddress, false);
+}
+
+/**
+ * Storage key for the addresses of SSH and WSL remotes the user disconnected.
+ * Their entries stay known so the remote remains listed, but they are not
+ * dialed until the user connects again.
+ */
+export const DISCONNECTED_REMOTE_AGENT_HOSTS_STORAGE_KEY = 'remoteAgentHost.disconnectedHosts';
+
+/** Reads the addresses of remotes the user disconnected. */
+export function readDisconnectedRemoteAgentHostAddresses(storageService: IStorageService): ReadonlySet<string> {
+	try {
+		const parsed: unknown = JSON.parse(storageService.get(DISCONNECTED_REMOTE_AGENT_HOSTS_STORAGE_KEY, StorageScope.APPLICATION) ?? '[]');
+		return new Set(Array.isArray(parsed) ? parsed.filter((address): address is string => typeof address === 'string').map(normalizeRemoteAgentHostAddress) : []);
+	} catch {
+		return new Set();
+	}
+}
+
+/** Marks or clears a remote as disconnected by the user. */
+export function setRemoteAgentHostDisconnected(storageService: IStorageService, address: string, disconnected: boolean): void {
+	const normalizedAddress = normalizeRemoteAgentHostAddress(address);
+	const addresses = new Set(readDisconnectedRemoteAgentHostAddresses(storageService));
+	if (addresses.has(normalizedAddress) === disconnected) {
+		return;
+	}
+	if (disconnected) {
+		addresses.add(normalizedAddress);
+	} else {
+		addresses.delete(normalizedAddress);
+	}
+	if (addresses.size) {
+		storageService.store(DISCONNECTED_REMOTE_AGENT_HOSTS_STORAGE_KEY, JSON.stringify([...addresses].sort()), StorageScope.APPLICATION, StorageTarget.MACHINE);
+	} else {
+		storageService.remove(DISCONNECTED_REMOTE_AGENT_HOSTS_STORAGE_KEY, StorageScope.APPLICATION);
+	}
 }
 
 function runtimeEntryTypeConfig<TConnection extends RemoteAgentHostConnection>(type: TConnection['type'], normalizedAddress: boolean, address: (connection: TConnection) => string, reconnect: IRemoteAgentHostReconnectPolicy = DEFAULT_RECONNECT_POLICY): IRuntimeEntryTypeConfig<TConnection> {

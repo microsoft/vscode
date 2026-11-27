@@ -6,9 +6,12 @@
 import { decodeHex } from '../../../base/common/buffer.js';
 import { Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
+import type { IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { AgentHostEndpointAddress, AgentHostServerType } from './agentHostEndpointRegistry.js';
+import type { IRemoteAgentHostEntry } from './remoteAgentHostService.js';
 import type { RemoteAgentHostLocationPreference } from './remoteAgentHostLocationPreference.js';
 import type { IRelayMessage } from './relayTransport.js';
 import { AgentHostTransportFailureReason, NonReconnectableTransportError } from './state/sessionTransport.js';
@@ -246,11 +249,26 @@ export interface ISSHRemoteAgentHostService {
 	connect(config: SSHAgentHostConnectionRequest): Promise<ISSHAgentHostConnection>;
 
 	/**
-	 * Disconnect an SSH-bootstrapped connection by host address.
-	 * Tears down the SSH tunnel, stops the remote agent host, and removes its
-	 * persisted SSH entry.
+	 * Persisted SSH entries the user disconnected. They are excluded from the
+	 * dialed entries until {@link clearDisconnected} or a connect restores them.
 	 */
-	disconnect(host: string): Promise<void>;
+	readonly disconnectedEntries: IObservable<readonly IRemoteAgentHostEntry[]>;
+
+	/**
+	 * Disconnect an SSH-bootstrapped connection by its SSH connection key.
+	 * Tears down the SSH tunnel and stops the remote agent host. Removes the
+	 * persisted SSH entries for that key unless `keepEntry` is set, in which
+	 * case they are marked as disconnected and are not dialed until the user
+	 * connects again.
+	 */
+	disconnect(host: string, options?: { readonly keepEntry?: boolean }): Promise<void>;
+
+	/**
+	 * Restore the disconnected SSH entries an entry address or SSH connection
+	 * key identifies, so they are dialed again. The next dial is treated as
+	 * user-initiated.
+	 */
+	clearDisconnected(address: string): void;
 
 	/** List SSH config host aliases (excluding wildcards). */
 	listSSHConfigHosts(): Promise<string[]>;
@@ -362,6 +380,14 @@ export interface ISSHResolvedConfig {
 	readonly pubkeyAuthentication?: boolean;
 	/** `PreferredAuthentications`: the authentication methods to try, in order. */
 	readonly preferredAuthentications?: readonly string[];
+}
+
+/**
+ * Describes how an SSH ProxyCommand exited. Connection errors include this message,
+ * which troubleshooting recognizes in the language it was localized in.
+ */
+export function formatSSHProxyCommandExit(status: string | number, stderr: string): string {
+	return localize('sshProxyExited', "SSH ProxyCommand exited ({0}): {1}", status, stderr);
 }
 
 export interface ISSHConnectProgress {
@@ -491,6 +517,76 @@ export class SSHAuthenticationFailedError extends NonReconnectableTransportError
 /** Identifies SSH authentication failure after IPC has discarded its prototype and reason. */
 export function isSSHAuthenticationFailedError(error: unknown): boolean {
 	return error instanceof Error && error.name === SSH_AUTHENTICATION_FAILED_ERROR_NAME;
+}
+
+/**
+ * Codes the shared process records on SSH connect failures: the stage that
+ * failed and, for the SSH handshake, why. The renderer classifies failures by
+ * these codes and error names only, never by their localized, wrapped or remote
+ * command output messages.
+ */
+export const SSHConnectFailureCode = {
+	/** Resolving SSH configuration, keys or ProxyJump before connecting. */
+	Configuration: 'SSHConnectConfiguration',
+	/** Connecting, verifying the host key or authenticating, for any other reason. */
+	Connection: 'SSHConnectConnection',
+	/** The connection failed, was lost or timed out before the SSH handshake completed, without a ProxyJump or ProxyCommand whose failure could have any cause. */
+	Network: 'SSHConnectNetwork',
+	/** The server only offers host key types ssh2 cannot negotiate, such as OpenSSH host certificates. */
+	HostKeyFormat: 'SSHConnectHostKeyFormat',
+	/** No key exchange algorithm in common, such as a server that only allows post-quantum key exchange. */
+	KexAlgorithm: 'SSHConnectKexAlgorithm',
+	/** Any other SSH handshake or protocol failure. */
+	Handshake: 'SSHConnectHandshake',
+	/** Detecting the remote platform or installing the VS Code CLI. */
+	CliInstall: 'SSHConnectCliInstall',
+	/** Discovering, selecting or starting the remote agent host. */
+	AgentHost: 'SSHConnectAgentHost',
+	/** Opening the relay to the selected agent host. */
+	Relay: 'SSHConnectRelay',
+} as const;
+export type SSHConnectFailureCode = typeof SSHConnectFailureCode[keyof typeof SSHConnectFailureCode];
+
+const sshConnectFailureCodes = new Set<string>(Object.values(SSHConnectFailureCode));
+
+type ErrorWithSSHConnectFailureCode = Error & { sshConnectFailureCode?: SSHConnectFailureCode };
+
+/** Records where an SSH connect attempt failed, unless a more specific code was recorded first. */
+export function setSSHConnectFailureCode(error: unknown, code: SSHConnectFailureCode): void {
+	if (error instanceof Error && getSSHConnectFailureCode(error) === undefined) {
+		(error as ErrorWithSSHConnectFailureCode).sshConnectFailureCode = code;
+	}
+}
+
+/** The failure code recorded by {@link setSSHConnectFailureCode} or restored by {@link decodeSSHConnectFailureCode}. */
+export function getSSHConnectFailureCode(error: unknown): SSHConnectFailureCode | undefined {
+	return error instanceof Error ? (error as ErrorWithSSHConnectFailureCode).sshConnectFailureCode : undefined;
+}
+
+/**
+ * Shared-process IPC only carries an error's name, message and stack, so the
+ * shared process appends the failure code to a generic error name before
+ * rejecting, and {@link decodeSSHConnectFailureCode} moves it back. Names that
+ * identify an error, such as {@link SSH_HOST_KEY_DENIED_ERROR_NAME}, are kept.
+ */
+export function encodeSSHConnectFailureCode(error: unknown): void {
+	const code = getSSHConnectFailureCode(error);
+	if (code && error instanceof Error && (error.name === 'Error' || error.name === 'AggregateError')) {
+		error.name = `${error.name}|${code}`;
+	}
+}
+
+/** Restores an error name and failure code encoded by {@link encodeSSHConnectFailureCode}. */
+export function decodeSSHConnectFailureCode(error: unknown): void {
+	if (!(error instanceof Error)) {
+		return;
+	}
+	const separator = error.name.lastIndexOf('|');
+	const code = error.name.substring(separator + 1);
+	if (separator >= 0 && sshConnectFailureCodes.has(code)) {
+		error.name = error.name.substring(0, separator);
+		(error as ErrorWithSSHConnectFailureCode).sshConnectFailureCode = code as SSHConnectFailureCode;
+	}
 }
 
 /**

@@ -82,7 +82,7 @@ import { skillIcon } from './aiCustomizationIcons.js';
 import { ChatModelsWidget } from '../chatManagement/chatModelsWidget.js';
 import { IChatWidgetService } from '../chat.js';
 import { IChatService } from '../../common/chatService/chatService.js';
-import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
+import { startCopilotChatWithPrompt } from '../agentSessions/copilotChatPrompt.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { PromptsType, Target } from '../../common/promptSyntax/promptTypes.js';
 import { CustomizationMigration, CustomizationMigrationCandidate, CustomizationMigrationType, FileCustomizationMigrationFailureReason, getCustomizationMigrationTargetType, getMcpServerCustomizationMigrationCandidateKey, GuidanceCustomizationMigration, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationExclusion, IMcpServerCustomizationMigrationResult, IPluginMarketplaceCustomizationMigrationCandidate, IPluginMarketplaceCustomizationMigrationResult, isFileCustomizationMigrationCandidate, isMcpServerCustomizationMigrationCandidate, isPluginMarketplaceCustomizationMigrationCandidate, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
@@ -93,7 +93,8 @@ import { AGENT_MD_FILENAME } from '../../common/promptSyntax/config/promptFileLo
 import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
 import { getAttributeDefinition, getTarget } from '../../common/promptSyntax/languageProviders/promptFileAttributes.js';
 import { INewPromptOptions, NEW_PROMPT_COMMAND_ID, NEW_INSTRUCTIONS_COMMAND_ID, NEW_AGENT_COMMAND_ID, NEW_SKILL_COMMAND_ID } from '../promptSyntax/newPromptFileActions.js';
-import { showConfigureHooksQuickPick } from '../promptSyntax/hookActions.js';
+import { createCopilotHook } from '../promptSyntax/hookActions.js';
+import { Range } from '../../../../../editor/common/core/range.js';
 import { resolveWorkspaceTargetDirectory, resolveUserTargetDirectory, CustomizationLocationPicker } from './customizationCreatorService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
@@ -1175,18 +1176,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.updateHomeButtonHarnessPresentation();
 	}
 
-	private async runMarketplacePrompt(prompt: string): Promise<void> {
-		if (this.workspaceService.isSessionsWindow) {
-			await this.commandService.executeCommand('workbench.action.sessions.newChat', { prompt, prefillPrompt: true, noWorkspace: true });
-			return;
-		}
-		const sessionResource = await this.commandService.executeCommand<URI | undefined>(`workbench.action.chat.openNewSessionSidebar.${AgentSessionProviders.AgentHostCopilot}`);
-		const widget = sessionResource ? this.chatWidgetService.getWidgetBySessionResource(sessionResource) : undefined;
-		if (!widget) {
-			throw new Error(localize('marketplaceDetail.chatUnavailable', "The new Copilot session input is unavailable."));
-		}
-		widget.setInput(prompt);
-		widget.focusInput();
+	private runMarketplacePrompt(prompt: string): Promise<void> {
+		return startCopilotChatWithPrompt(prompt, this.workspaceService.isSessionsWindow, this.commandService, this.chatWidgetService);
 	}
 
 	public createCanvas(): Promise<void> {
@@ -4199,28 +4190,20 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		if (type === PromptsType.hook) {
 			const preferredStorage = target === 'user' ? PromptsStorage.user : PromptsStorage.local;
-			if (this.workspaceService.isSessionsWindow) {
-				// Sessions: show hooks filtered to Copilot CLI (GitHub Copilot) hook types
-				await this.instantiationService.invokeFunction(showConfigureHooksQuickPick, {
-					openEditor: async (resource) => {
-						await this.showEmbeddedEditor(resource, basename(resource), PromptsType.hook, preferredStorage, preferredStorage === PromptsStorage.local);
-						return;
-					},
-					target: Target.GitHubCopilot,
-					preferredStorage,
-					workspaceFolder,
-				});
-			} else {
-				// Core: use the default core behaviour
-				await this.instantiationService.invokeFunction(showConfigureHooksQuickPick, {
-					openEditor: async (resource) => {
-						await this.showEmbeddedEditor(resource, basename(resource), PromptsType.hook, preferredStorage, preferredStorage === PromptsStorage.local);
-						return;
-					},
-					preferredStorage,
-					workspaceFolder,
-				});
-			}
+			const isWorkspace = preferredStorage === PromptsStorage.local;
+			await this.instantiationService.invokeFunction(createCopilotHook, {
+				storage: preferredStorage,
+				projectRoot: workspaceFolder ?? this.workspaceService.getActiveProjectRoot(),
+				openEditor: async (resource, selection) => {
+					await this.showEmbeddedEditor(resource, basename(resource), PromptsType.hook, preferredStorage, isWorkspace);
+					if (selection) {
+						const range = new Range(selection.startLineNumber, selection.startColumn, selection.endLineNumber ?? selection.startLineNumber, selection.endColumn ?? selection.startColumn);
+						this.embeddedEditor?.setSelection(range);
+						this.embeddedEditor?.revealRangeInCenter(range);
+					}
+				},
+			});
+			this.listWidget.refresh();
 			return;
 		}
 		const sessionResource = this.harnessService.activeSessionResource.get();

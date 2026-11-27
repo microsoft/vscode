@@ -25,7 +25,8 @@ import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keyb
 import { getEnabledViewContainerContextKey } from '../../../../workbench/common/contextkeys.js';
 import { ChatViewContainerId, ChatViewOpenKeybindings } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsListStateMigrationContribution } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionsListStateMigrationContribution } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SESSIONS_LIST_CANVASES_SECTION_SETTING, SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING } from '../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { SessionsMouseNavigationContribution } from './sessionsMouseNavigation.js';
 import { SessionsListToolsContribution } from './sessionsListTools.js';
 import './sessionDetailsAction.js';
@@ -36,6 +37,7 @@ import { AutomationSessionsListingContribution } from './automationSessionsListi
 import { SessionsUnattendedRestartParticipant } from './sessionsUnattendedRestart.js';
 import '../../../../workbench/contrib/sessions/browser/sessionAttentionService.js';
 import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_DRAFTS_ENABLED_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING, SESSIONS_LIST_AGENT_TOOLS_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, SESSIONS_SIDEBAR_CUSTOMIZATIONS_AT_BOTTOM_SETTING, SESSIONS_SIDEBAR_CUSTOMIZATIONS_CATEGORIES_SETTING, SESSIONS_LIST_REARRANGE_TREATMENT, SessionsChatTabsMode, SessionsSidebarCustomizationsCategories, USE_WORKTREE_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SESSIONS_LIST_WORKSPACES_FILTER_SETTING } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { sessionsListConfigurationProperties } from '../../../../workbench/contrib/sessions/browser/sessionsConfiguration.js';
 
 const agentSessionsViewIcon = registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, localize('agentSessionsViewIcon', 'Icon for Agent Sessions View'));
@@ -133,6 +135,7 @@ export const sessionsConfiguration = {
 		},
 		[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING],
 		[SESSIONS_LIST_INBOX_ENABLED_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_INBOX_ENABLED_SETTING],
+		[SESSIONS_LIST_WORKSPACES_FILTER_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_WORKSPACES_FILTER_SETTING],
 		[SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING],
 		[SESSIONS_LIST_AGENT_TOOLS_SETTING]: {
 			type: 'boolean',
@@ -147,6 +150,7 @@ export const sessionsConfiguration = {
 		[SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING],
 		[SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING],
 		[SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING],
+		[SESSIONS_LIST_CANVASES_SECTION_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_CANVASES_SECTION_SETTING],
 		[SESSIONS_LIST_INDENT_ITEMS_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_INDENT_ITEMS_SETTING],
 		[SESSIONS_CHAT_TABS_SETTING]: {
 			type: 'string',

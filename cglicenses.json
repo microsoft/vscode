@@ -39,6 +39,12 @@
 		"fullLicenseTextUri": "https://raw.githubusercontent.com/node-unicode/node-unicode-data/3fc20740869e4d4eb5a74759c824c019de9b0fb4/LICENSE-MIT.txt"
 	},
 	{
+		// Reason: pdfjs-dist is Apache-2.0 and ships a LICENSE file, but the PR license check could
+		// not read it from the npm tarball. Use the identical LICENSE of the pdf.js 6.4.299 release.
+		"name": "pdfjs-dist",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/mozilla/pdf.js/d0991a0d53f3bb3a7307e3b83f279c1d117aafb3/LICENSE"
+	},
+	{
 		"name": "tunnel-agent",
 		"prependLicenseText": [
 			"Copyright (c) tunnel-agent authors"

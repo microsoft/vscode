@@ -15,7 +15,9 @@
     "documentSyntaxHighlighting",
     "externalUriOpener",
     "linkPresentation",
-    "textEditorDiffInformation"
+    "textDocumentReadonly",
+    "textEditorDiffInformation",
+    "workspaceEditUndoStops"
   ],
   "engines": {
     "vscode": "^1.70.0"
@@ -2192,7 +2194,7 @@
   },
   "dependencies": {
     "@vscode/extension-telemetry": "^0.9.8",
-    "@vscode/markdown-editor": "0.0.2-184",
+    "@vscode/markdown-editor": "0.0.2-185",
     "@vscode/observables": "^0.1.1-0",
     "@vscode/web-editors": "^0.0.2-150",
     "dompurify": "^3.4.10",

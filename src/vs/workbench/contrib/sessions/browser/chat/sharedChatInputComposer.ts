@@ -7,6 +7,7 @@ import './media/chatInput.css';
 import './media/sharedChatInputComposer.css';
 import * as dom from '../../../../../base/browser/dom.js';
 import { ActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { IAction, Separator } from '../../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
@@ -42,7 +43,7 @@ import { ChatInputNoticeHost } from '../../../chat/browser/widget/input/chatInpu
 import { IChatInputHostModelSelection } from '../../../chat/browser/widget/input/chatInputPart.js';
 import { ModelComparisonAvailableContext } from '../../../chat/browser/widget/input/modelPicker/modelPickerComparison.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
-import { IChatDraft } from '../../../chat/common/attachments/chatDraft.js';
+import { IChatDraft, remapChatDraftResources } from '../../../chat/common/attachments/chatDraft.js';
 import { IChatRequestVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
 import { IChatModelReference, IChatService } from '../../../chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
@@ -186,7 +187,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	private readonly _modelSelection: SessionModelSelection;
 	/** The chat the input binds to: the composer's chat, else the session's shown chat. */
 	private readonly _shownChat: IObservable<IChat | undefined>;
-	private readonly _newChatModelPickerService = new NewChatModelPickerService(() => this.focus(), text => this._widget?.input.startPromptWith(text));
+	private readonly _newChatModelPickerService = new NewChatModelPickerService(() => this.focus());
 	private readonly _scopedInstantiationService: IInstantiationService;
 	private readonly _canSendRequest: IObservable<boolean>;
 	private readonly _promptOptions: NewSessionPromptOptionsPresenter;
@@ -208,6 +209,8 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	private _boundResource: URI | undefined;
 	/** Attachments added before the input renders, such as a host's initial context. */
 	private readonly _pendingAttachments: IChatRequestVariableEntry[] = [];
+	/** Remaps of the draft's resources made before its input is restored, which the saved input it restores needs too; `undefined` once restored. */
+	private _remapsBeforeRestore: ((resource: URI) => URI | undefined)[] | undefined = [];
 	private readonly _sending = observableValue(this, false);
 	/** Blocks duplicate sends without showing progress while confirming a send or choosing a send time. */
 	private readonly _suppressSendProgress = observableValue(this, false);
@@ -637,16 +640,23 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		this._bindingModel = true;
 		try {
 			widget.setModel(ref.object);
-			// The references refer to the prompt, which differs from the input editor's text while it shows inline attachment pills.
-			if (widget.inputEditor.getValue() !== inputText) {
-				this.setInputValue(inputText);
-			}
-			widget.attachmentModel.clearAndSetContext(...attachments);
-			widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.setInputState({ [ChatDynamicVariableModel.ID]: references });
+			this._setInputContext(widget, inputText, attachments, references);
 		} finally {
 			this._bindingModel = false;
 		}
 		this._modelRef.value = ref;
+	}
+
+	/**
+	 * Gives the input `attachments` and `references`. The references refer to `inputText`, the prompt, which differs from
+	 * the input editor's text while it shows inline attachment pills.
+	 */
+	private _setInputContext(widget: ChatWidget, inputText: string, attachments: readonly IChatRequestVariableEntry[], references: readonly IDynamicVariable[]): void {
+		if (widget.inputEditor.getValue() !== inputText) {
+			this.setInputValue(inputText);
+		}
+		widget.attachmentModel.clearAndSetContext(...attachments);
+		widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.setInputState({ [ChatDynamicVariableModel.ID]: references });
 	}
 
 	// #endregion
@@ -771,6 +781,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			widget.attachmentModel.addContext(...this._pendingAttachments.splice(0));
 		}
 		this._restoreDraftState();
+		this._remapsBeforeRestore = undefined;
 		// Only once the host's input is restored and the queued context is merged into it, so neither overwrites it.
 		if (this.options.inputSnapshot || this.options.onDidChangeDraft) {
 			this._register(this._trackInputSnapshot(widget));
@@ -815,6 +826,34 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		return true;
 	}
 
+	restoreUnsentInput(input: IChatDraft): boolean {
+		const widget = this._widget;
+		if (!widget?.input || this.getInputValue() || this.attachments.length || this.options.inputSnapshot?.isSubmitting || !this._showRestoredInput(widget, input)) {
+			return false;
+		}
+		status(localize('sharedChatInputComposer.unsentInputRestored', "The prompt of the session that wasn't started is back in the composer."));
+		return true;
+	}
+
+	/**
+	 * Gives back the input of a send that did not go out once the composer is gone: to the composer that shows now, else to
+	 * the saved draft that the next composer restores, unless that has input of its own.
+	 */
+	private _giveBackUnsentInput(input: IChatDraft): void {
+		if (this.options.restoreUnsentInput?.(input) || this.options.shouldPersistInput?.() === false) {
+			return;
+		}
+		let saved: IChatDraft | undefined;
+		try {
+			saved = readNewChatDraftState(this.storageService);
+		} catch {
+			// A saved draft that can't be read has no input to keep.
+		}
+		if (!saved?.inputText && !saved?.attachments.length) {
+			writeNewChatDraftState(this.storageService, input);
+		}
+	}
+
 	private _writeInputSnapshot(widget: ChatWidget): void {
 		if (this._widget === widget && !this._bindingModel) {
 			const draft = { inputText: this.getInputValue(), attachments: [...this.attachments], references: this._getDraftReferences(widget) };
@@ -854,6 +893,9 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			}
 		}
 		if (draft) {
+			for (const mapResource of this._remapsBeforeRestore ?? []) {
+				draft = remapChatDraftResources(draft, mapResource);
+			}
 			this.setInputValue(draft.inputText);
 			if (draft.attachments.length) {
 				this._widget?.attachmentModel.addContext(...draft.attachments);
@@ -914,6 +956,28 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		this._restoreDraftReferences(draft);
 		this.saveState();
 		return true;
+	}
+
+	/**
+	 * Replaces the resources of the draft's attachments and inline references that `mapResource` maps, such as when its
+	 * workspace moves to another connection of its agent host, after which the source's resources cannot be read.
+	 */
+	remapDraftResources(mapResource: (resource: URI) => URI | undefined): void {
+		if (this._remapsBeforeRestore) {
+			// Its queued context and saved input are restored into the input as it renders.
+			this._remapsBeforeRestore.push(mapResource);
+			const { attachments } = remapChatDraftResources({ inputText: '', attachments: this._pendingAttachments }, mapResource);
+			this._pendingAttachments.splice(0, this._pendingAttachments.length, ...attachments);
+		}
+		const widget = this._widget;
+		if (!widget) {
+			return;
+		}
+		const draft = this.getDraft();
+		const remapped = remapChatDraftResources(draft, mapResource);
+		if (remapped !== draft) {
+			this._setInputContext(widget, draft.inputText, remapped.attachments, remapped.references ?? []);
+		}
 	}
 
 	// #endregion
@@ -1228,7 +1292,12 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		let attemptId: string | undefined;
 		let sent = false;
 		const restoreInput = () => {
-			if (isInputAlive() && !this.getInputValue() && !widget.attachmentModel.attachments.length) {
+			if (!isInputAlive()) {
+				// The composer is gone, such as when the session of its draft was removed because the request did not start it.
+				if (this.options.restoreUnsentInput && !this.options.inputSnapshot) {
+					this._giveBackUnsentInput({ inputText: rawQuery, attachments: [...attachments], references: references.length ? references : undefined });
+				}
+			} else if (!this.getInputValue() && !widget.attachmentModel.attachments.length) {
 				this.setInputValue(rawQuery);
 				widget.attachmentModel.addContext(...attachments);
 				// The send cleared the inline references along with the text.

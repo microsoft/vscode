@@ -72,6 +72,13 @@ export {
 
 const LOG_PREFIX = '[TunnelAgentHost]';
 
+/** A tunnel access token and the account it belongs to. */
+interface ITunnelAuth {
+	readonly token: string;
+	readonly provider: 'github' | 'microsoft';
+	readonly accountId: string;
+}
+
 /** Whether `selection` picked a live `editor` endpoint out of `inventory`. */
 function isEditorGatewaySelection(selection: ITunnelGatewaySelection, inventory: ITunnelGatewayInventory): boolean {
 	return hasKey(selection, { instanceId: true })
@@ -174,6 +181,13 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 
 	/** Tracks which auth provider was last used successfully. */
 	private _lastAuthProvider: 'github' | 'microsoft' | undefined;
+
+	/**
+	 * The account that {@link signIn} last created a session for, by provider. Its session takes
+	 * precedence over other accounts' sessions with the tunnel scopes, which the service may reject.
+	 * Relay reconnects keep the account that their connection was established with.
+	 */
+	private readonly _signedInAccounts = new Map<'github' | 'microsoft', string>();
 
 	/** See {@link TunnelFailoverTracker}. */
 	private readonly _failoverTracker = new TunnelFailoverTracker();
@@ -330,7 +344,7 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 					useSeedConnection = false;
 					return { connectionId: result.connectionId };
 				}
-				return this._establishBackgroundRelay(tunnel, auth.provider);
+				return this._establishBackgroundRelay(tunnel, auth.provider, auth.accountId);
 			};
 			const connection = this._instantiationService.createInstance(
 				AgentHostProtocolClient,
@@ -374,9 +388,9 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 		});
 	}
 
-	private async _establishBackgroundRelay(tunnel: ITunnelInfo, authProvider: 'github' | 'microsoft'): Promise<IRelayConnectionHandle> {
+	private async _establishBackgroundRelay(tunnel: ITunnelInfo, authProvider: 'github' | 'microsoft', accountId: string): Promise<IRelayConnectionHandle> {
 		// Resolve a current cached token per attempt; reconnects must never prompt.
-		const auth = await this._getTokenForProvider(authProvider, true);
+		const auth = await this._getTokenForProvider(authProvider, true, accountId);
 		if (!auth) {
 			throw new NonReconnectableTransportError('No cached authentication available to reconnect the tunnel.');
 		}
@@ -528,7 +542,7 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 	 * Get an auth token, trying cached sessions first (silent),
 	 * then prompting interactively if `silent` is false.
 	 */
-	private async _getToken(silent: boolean): Promise<{ token: string; provider: 'github' | 'microsoft' } | undefined> {
+	private async _getToken(silent: boolean): Promise<ITunnelAuth | undefined> {
 		// Try the last known provider first
 		if (this._lastAuthProvider) {
 			const result = await this._getTokenForProvider(this._lastAuthProvider, silent);
@@ -553,20 +567,22 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 		return undefined;
 	}
 
-	/**
-	 * Get a token for a specific auth provider.
-	 * @param provider The auth provider to use.
-	 * @param silent If true, only try cached sessions. If false, prompt the user.
-	 */
 	private _getScopesForProvider(provider: 'github' | 'microsoft'): string[] {
 		const config = this._productService.tunnelApplicationConfig?.authenticationProviders;
 		return config?.[provider]?.scopes ?? [];
 	}
 
+	/**
+	 * Get a token for a specific auth provider.
+	 * @param provider The auth provider to use.
+	 * @param silent If true, only try cached sessions. If false, prompt the user.
+	 * @param accountId The account whose session to prefer, such as the one a connection was established with.
+	 */
 	private async _getTokenForProvider(
 		provider: 'github' | 'microsoft',
 		silent: boolean,
-	): Promise<{ token: string; provider: 'github' | 'microsoft' } | undefined> {
+		accountId?: string,
+	): Promise<ITunnelAuth | undefined> {
 		const providerId = provider;
 		const scopes = this._getScopesForProvider(provider);
 		if (scopes.length === 0) {
@@ -574,16 +590,16 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 		}
 
 		try {
-			// Try exact scope match first
-			let sessions = await this._authenticationService.getSessions(providerId, scopes, {}, true);
-
-			// Fall back: find any session whose scopes are a superset
-			if (sessions.length === 0) {
+			// Fall back to the session whose scopes are the smallest superset of the requested ones
+			const findSupersetSession = async (account?: string) => {
 				const allSessions = await this._authenticationService.getSessions(providerId, undefined, {}, true);
 				const requestedSet = new Set(scopes);
 				let bestSession: typeof allSessions[number] | undefined;
 				let bestExtra = Infinity;
 				for (const session of allSessions) {
+					if (account !== undefined && session.account.id !== account) {
+						continue;
+					}
 					const sessionScopes = new Set(session.scopes);
 					let isSuperset = true;
 					for (const scope of requestedSet) {
@@ -600,6 +616,20 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 						}
 					}
 				}
+				return bestSession;
+			};
+
+			// Try exact scope match first
+			let sessions = await this._authenticationService.getSessions(providerId, scopes, {}, true);
+			const preferredSession = sessions.find(session => session.account.id === accountId)
+				?? (accountId !== undefined ? await findSupersetSession(accountId) : undefined)
+				?? sessions.find(session => session.account.id === this._signedInAccounts.get(provider));
+			if (preferredSession) {
+				sessions = [preferredSession];
+			}
+
+			if (sessions.length === 0) {
+				const bestSession = await findSupersetSession();
 				if (bestSession) {
 					sessions = [bestSession];
 				}
@@ -615,7 +645,7 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 				const token = sessions[0].accessToken;
 				if (token) {
 					this._lastAuthProvider = provider;
-					return { token, provider };
+					return { token, provider, accountId: sessions[0].account.id };
 				}
 			}
 		} catch (err) {
@@ -639,7 +669,8 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 			throw new Error(localize('tunnelAgentHost.authenticationUnsupported', "Tunnel sign-in is not supported by this application."));
 		}
 		try {
-			await this._authenticationService.createSession(authProvider, scopes, { activateImmediate: true });
+			const session = await this._authenticationService.createSession(authProvider, scopes, { activateImmediate: true });
+			this._signedInAccounts.set(authProvider, session.account.id);
 			this._lastAuthProvider = authProvider;
 		} catch (error) {
 			// GitHub Authentication documents this cancellation shape across the extension-host boundary.
@@ -656,6 +687,10 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 
 	cacheTunnel(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft'): void {
 		this._storage.cacheTunnel({ tunnelId: tunnel.tunnelId, clusterId: tunnel.clusterId, name: tunnel.name, protocolVersion: tunnel.protocolVersion, authProvider });
+	}
+
+	updateCachedTunnel(tunnel: ITunnelInfo): void {
+		this._storage.updateCachedTunnel(tunnel);
 	}
 
 	removeCachedTunnel(tunnelId: string): void {

@@ -1907,6 +1907,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const resizeObservation = templateDisposables.add(new MutableDisposable<IDisposable>());
 		connectionObserver.onDidConnect = () => {
 			resizeObservation.value = resizeObserver.observe(rowContainer);
+			// A row that moves in the DOM without rendering again, as when the workbench moves the part that shows the chat,
+			// remounts its parts so that their webviews load again. The list renders a row right after attaching it, which
+			// remounts them itself
+			queueMicrotask(() => {
+				if (!templateDisposables.isDisposed) {
+					this.remountRenderedParts(template);
+				}
+			});
 		};
 		connectionObserver.onDidDisconnect = () => {
 			template.renderedPartsMounted = false;

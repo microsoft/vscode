@@ -979,7 +979,7 @@ suite('SCM structural diff model', () => {
 			textDiffTimedOut = false;
 			resolver.modifiedError = new Error('Cannot resolve modified model');
 			await expand();
-			const requested = (outcome: string, incomplete: 0 | 1 = 0) => ({ eventName: 'scmStructuralDiffRequested', outcome, languageId: 'plaintext', durationMs: 'number', incomplete });
+			const requested = (outcome: string, incomplete: 0 | 1 = 0) => ({ eventName: 'scmStructuralDiffRequested', outcome, languageId: 'plaintext', durationMs: 'number', incomplete, location: 'scm' });
 			assert.deepStrictEqual({ events: telemetryEvents.map(event => ({ ...event, durationMs: typeof event.durationMs })), reported }, {
 				events: [requested('success'), requested('success', 1), requested('noResult'), requested('providerFailed'), requested('providerFailed'), requested('timedOut'), requested('error')],
 				reported: ['Provider failed'],

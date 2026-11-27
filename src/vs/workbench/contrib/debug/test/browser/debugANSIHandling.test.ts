@@ -4,13 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { isHTMLSpanElement } from '../../../../../base/browser/dom.js';
+import { getWindow, isHTMLSpanElement } from '../../../../../base/browser/dom.js';
 import { Color, RGBA } from '../../../../../base/common/color.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { Extensions as ThemeServiceExtensions, IThemingRegistry } from '../../../../../platform/theme/common/themeService.js';
+import { generateColorThemeCSS } from '../../../../services/themes/browser/colorThemeCss.js';
+import { ColorThemeData } from '../../../../services/themes/common/colorThemeData.js';
+import { TestEnvironmentService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { registerColors } from '../../../terminal/common/terminalColorRegistry.js';
 import { appendStylizedStringToContainer, calcANSI8bitColor, handleANSIOutput } from '../../browser/debugANSIHandling.js';
 import { DebugSession } from '../../browser/debugSession.js';
@@ -44,6 +48,47 @@ suite('Debug - ANSI Handling', () => {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('ANSI contrast follows the modern side bar surface', () => {
+		const theme = ColorThemeData.createUnloadedTheme('vs-dark', {
+			'sideBar.background': '#000000',
+			'modernSideBar.background': '#ffffff',
+			'terminal.ansiBlack': '#000000',
+		});
+		const registry = Registry.as<IThemingRegistry>(ThemeServiceExtensions.ThemingContribution);
+		const style = document.createElement('style');
+		style.textContent = generateColorThemeCSS(theme, '.debug-ansi-theme', registry.getThemingParticipants(), TestEnvironmentService).code;
+		document.head.appendChild(style);
+		disposables.add(toDisposable(() => style.remove()));
+		const root = document.createElement('div');
+		root.className = 'debug-ansi-theme monaco-workbench modern-ui';
+		document.body.appendChild(root);
+		disposables.add(toDisposable(() => root.remove()));
+
+		const actual = ['sidebar', 'auxiliarybar'].map(part => {
+			const container = document.createElement('div');
+			container.className = part;
+			root.appendChild(container);
+			const text = document.createElement('span');
+			text.style.color = 'var(--vscode-debug-ansi-terminal-ansiBlack)';
+			container.appendChild(text);
+			const read = () => getWindow(text).getComputedStyle(text).color;
+			const modern = read();
+			root.classList.remove('modern-ui');
+			const legacy = read();
+			root.classList.add('modern-ui');
+			return { modern, legacy, restored: read() };
+		});
+		assert.deepStrictEqual(actual.map(value => ({
+			modern: value.modern,
+			legacyContrast: Color.fromHex('#000000').getContrastRatio(Color.Format.CSS.parse(value.legacy)!) >= 4,
+			restored: value.restored,
+		})), Array.from({ length: 2 }, () => ({
+			modern: 'rgb(0, 0, 0)',
+			legacyContrast: true,
+			restored: 'rgb(0, 0, 0)',
+		})));
+	});
 
 	test('appendStylizedStringToContainer', () => {
 		const root: HTMLSpanElement = document.createElement('span');
@@ -1013,6 +1058,34 @@ suite('Debug - ANSI Handling', () => {
 			assertEmptyOutput('\x1b[content' + terminator);
 		});
 
+	});
+
+	test('Truncates long lines while keeping ANSI styles', () => {
+		const hoverBehavior = { type: DebugLinkHoverBehavior.None, store: new DisposableStore() };
+		const render = (text: string, maxLineLength: number) => [...handleANSIOutput(text, linkDetector, session.root, [], hoverBehavior, maxLineLength).children].map(child => ({ text: child.textContent, className: child.className }));
+		const red = 'code-foreground-colored';
+
+		assert.deepStrictEqual([
+			// a sequence after the cut still styles the ellipsis and the next line
+			render('abcd\x1b[31mefgh\nhello', 6),
+			// a reset in the dropped text still applies to the next line
+			render('\x1b[31mabcdefgh\x1b[0m\nok', 3),
+			// the CR of CRLF is part of the line break
+			render('abc\r\ndef', 3),
+			render('abcd\r\nef', 3),
+			// a surrogate pair is never split
+			render('ab\u{1F600}c', 3),
+			render('ab\u{1F600}c', 4),
+		], [
+			[{ text: 'abcd', className: '' }, { text: 'ef', className: red }, { text: '\u2026', className: red }, { text: '\nhello', className: red }],
+			[{ text: 'abc', className: red }, { text: '\u2026', className: red }, { text: '\nok', className: '' }],
+			[{ text: 'abc\r\ndef', className: '' }],
+			[{ text: 'abc', className: '' }, { text: '\u2026', className: '' }, { text: '\r\nef', className: '' }],
+			[{ text: 'ab', className: '' }, { text: '\u2026', className: '' }],
+			[{ text: 'ab\u{1F600}', className: '' }, { text: '\u2026', className: '' }],
+		]);
+
+		hoverBehavior.store.dispose();
 	});
 
 	test('calcANSI8bitColor', () => {

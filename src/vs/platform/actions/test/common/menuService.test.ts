@@ -9,8 +9,8 @@ import { Event } from '../../../../base/common/event.js';
 import { Separator } from '../../../../base/common/actions.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getMenuActionGroupTitle, IMenuItem, isIMenuItem, MenuId, MenuRegistry, SubmenuItemAction } from '../../common/actions.js';
-import { MenuService } from '../../common/menuService.js';
+import { getMenuActionGroupTitle, IMenuItem, isIMenuItem, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction } from '../../common/actions.js';
+import { getEnabledMenuItems, MenuService } from '../../common/menuService.js';
 import { NullCommandService } from '../../../commands/test/common/nullCommandService.js';
 import { ContextKeyExpr, ContextKeyExpression } from '../../../contextkey/common/contextkey.js';
 import { MockContextKeyService, MockKeybindingService } from '../../../keybinding/test/common/mockKeybindingService.js';
@@ -359,6 +359,40 @@ suite('MenuService', function () {
 		assert.deepStrictEqual(snapshots, [['Explicit', 'Second'], ['Explicit', 'First']]);
 	});
 
+	test('getEnabledMenuItems lists the commands of the enabled menu actions in their order', () => {
+		const context = disposables.add(new TestContextKeyService());
+		const visible = context.createKey<boolean>('visible', true);
+		const enabled = context.createKey<boolean>('enabled', true);
+		const item: IMenuItem = { command: { id: 'dynamic', title: 'B', precondition: ContextKeyExpr.has('enabled') }, group: '2_second', when: ContextKeyExpr.has('visible') };
+		const submenu = new MenuId(`testo/${generateUuid()}`);
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, item));
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, { command: { id: 'fixed', title: 'A' }, group: '1_first' }));
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, { command: { id: 'last', title: 'C' } }));
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, { submenu, title: 'Submenu', group: '1_first' }));
+		disposables.add(MenuRegistry.appendMenuItem(submenu, { command: { id: 'child', title: 'Child' } }));
+		const snapshot = () => ({
+			items: getEnabledMenuItems(testMenuId, context).map(item => item.command.id),
+			actions: menuService.getMenuActions(testMenuId, context).flatMap(([, actions]) => actions)
+				.filter(action => action instanceof MenuItemAction && action.enabled).map(action => action.id),
+		});
+
+		const snapshots = [snapshot()];
+		item.group = '0_zeroth';
+		snapshots.push(snapshot());
+		enabled.set(false);
+		snapshots.push(snapshot());
+		enabled.set(true);
+		visible.set(false);
+		snapshots.push(snapshot());
+
+		assert.deepStrictEqual(snapshots, [
+			{ items: ['fixed', 'dynamic', 'last'], actions: ['fixed', 'dynamic', 'last'] },
+			{ items: ['dynamic', 'fixed', 'last'], actions: ['dynamic', 'fixed', 'last'] },
+			{ items: ['fixed', 'last'], actions: ['fixed', 'last'] },
+			{ items: ['fixed', 'last'], actions: ['fixed', 'last'] },
+		]);
+	});
+
 	test('createMenu still emits changes for nested submenu registrations', async () => {
 		const submenuId = new MenuId(`testo/${generateUuid()}`);
 		disposables.add(MenuRegistry.appendMenuItem(testMenuId, { title: 'Submenu', submenu: submenuId }));
@@ -443,6 +477,24 @@ suite('MenuService', function () {
 			labels: ['Short', 'Long title'],
 			hidden: [true, false, true],
 			calls: [['command', 'first', 'forwarded'], ['command', 'second']],
+		});
+	});
+
+	test('hide actions keep the hidden state of their build and toggle the current one', async () => {
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, { command: { id: 'command', title: 'Command' } }));
+		const getHideActions = () => menuService.getMenuActions(testMenuId, contextKeyService)[0][1][0].hideActions!;
+		const hideActions = getHideActions();
+
+		// hidden through another build before this build's actions are first read
+		await getHideActions().hide.run();
+		const toggle = hideActions.toggle;
+		const built = { isHidden: hideActions.isHidden, checked: toggle.checked, sameActions: toggle === hideActions.toggle && hideActions.hide === hideActions.hide };
+
+		await toggle.run();
+
+		assert.deepStrictEqual({ built, hiddenAfterToggle: getHideActions().isHidden }, {
+			built: { isHidden: false, checked: true, sameActions: true },
+			hiddenAfterToggle: false,
 		});
 	});
 

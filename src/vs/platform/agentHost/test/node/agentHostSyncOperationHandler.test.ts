@@ -36,11 +36,9 @@ suite('AgentHostSyncOperationHandler', () => {
 			_meta: withSessionGitState(undefined, { branchName, baseBranchName: 'main' }),
 			defaultChat: buildDefaultChatUri(session.toString()),
 		});
-		const refreshedSessions: string[] = [];
 		return {
 			handler: new AgentHostSyncOperationHandler(
 				sessionKey => stateManager.getSessionState(sessionKey),
-				async sessionKey => { refreshedSessions.push(sessionKey); },
 				gitService,
 				new class extends mock<IAgentHostGitStateService>() {
 					declare readonly _serviceBrand: undefined;
@@ -51,7 +49,6 @@ suite('AgentHostSyncOperationHandler', () => {
 				createTestGitHubService(),
 			),
 			stateManager,
-			refreshedSessions,
 		};
 	}
 
@@ -92,25 +89,23 @@ suite('AgentHostSyncOperationHandler', () => {
 				gitCalls.push({ operation: 'push', options });
 			}
 		}();
-		const { handler, refreshedSessions } = createHandler(gitService);
+		const { handler } = createHandler(gitService);
 
 		const result = await invoke(handler);
 
 		assert.deepStrictEqual({
 			gitCalls,
-			refreshedSessions,
 			message: result.message,
 		}, {
 			gitCalls: [
 				{ operation: 'pull', options: { remote: 'origin', ref: 'remote-name' } },
 				{ operation: 'push', options: { remote: 'origin', ref: 'refs/heads/local-name:refs/heads/remote-name' } },
 			],
-			refreshedSessions: [buildDefaultChatUri(session.toString())],
 			message: { markdown: 'Synced changes.' },
 		});
 	});
 
-	test('syncs and refreshes a peer chat in its working directory', async () => {
+	test('syncs a peer chat in its working directory', async () => {
 		const workingDirectories: string[] = [];
 		const gitService = new class extends mock<IAgentHostGitService>() {
 			declare readonly _serviceBrand: undefined;
@@ -132,7 +127,7 @@ suite('AgentHostSyncOperationHandler', () => {
 				workingDirectories.push(workingDirectory.toString());
 			}
 		}();
-		const { handler, stateManager, refreshedSessions } = createHandler(gitService, 'feature');
+		const { handler, stateManager } = createHandler(gitService, 'feature');
 		const peer = buildChatUri(session.toString(), 'peer');
 		stateManager.addChat(session.toString(), peer, creationTimeChatStorageResource(session.toString(), peer, buildDefaultChatUri(session.toString())), { workingDirectories: [URI.file('/peer-repo').toString()] });
 
@@ -141,13 +136,7 @@ suite('AgentHostSyncOperationHandler', () => {
 			operationId: AgentHostSyncOperationHandler.OPERATION_SYNC,
 		}, CancellationToken.None);
 
-		assert.deepStrictEqual({
-			workingDirectories,
-			refreshedSessions,
-		}, {
-			workingDirectories: ['file:///peer-repo', 'file:///peer-repo'],
-			refreshedSessions: [peer],
-		});
+		assert.deepStrictEqual(workingDirectories, ['file:///peer-repo', 'file:///peer-repo']);
 	});
 
 	test('rejects a cached branch that no longer matches the current checkout', async () => {

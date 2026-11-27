@@ -183,4 +183,31 @@ suite('RemoteSessions', () => {
 			assert.throws(() => parseCreateRemoteSessionOptions(input), new RegExp(`^Error: ${escapeRegExpCharacters(message)}$`));
 		}
 	});
+
+	test('model options are accepted only while enabled and only with a model', () => {
+		const model = { provider: 'copilot', id: 'test-model' };
+		const parse = (input: object, modelOptions: boolean) => {
+			try {
+				const { reasoningEffort, contextTier } = parseCreateRemoteSessionOptions({ prompt: 'Test', ...input }, modelOptions);
+				return { reasoningEffort, contextTier };
+			} catch (error) {
+				return (error as Error).message;
+			}
+		};
+		assert.deepStrictEqual({
+			disabled: parse({ model, reasoningEffort: 'high' }, false),
+			enabled: parse({ model, reasoningEffort: 'xhigh', contextTier: 'long_context' }, true),
+			omitted: parse({ model }, true),
+			withoutModel: parse({ contextTier: 'long_context' }, true),
+			invalidEffort: parse({ model, reasoningEffort: 'extreme' }, true),
+			invalidTier: parse({ model, contextTier: '1m' }, true),
+		}, {
+			disabled: 'Unknown create_remote_session property "reasoningEffort".',
+			enabled: { reasoningEffort: 'xhigh', contextTier: 'long_context' },
+			omitted: { reasoningEffort: undefined, contextTier: undefined },
+			withoutModel: 'reasoningEffort and contextTier require model.',
+			invalidEffort: 'reasoningEffort must be one of: none, minimal, low, medium, high, xhigh, max, ultra.',
+			invalidTier: 'contextTier must be one of: default, long_context.',
+		});
+	});
 });

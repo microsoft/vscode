@@ -90,11 +90,6 @@ variables:
     value: $[iif(eq(variables['Build.CronSchedule.DisplayName'], 'Monday at 06:00 UTC (stable smoke flaky detection)'), 'stable', '${{ parameters.VSCODE_QUALITY }}')]
   - name: NPM_REGISTRY
     value: ${{ parameters.NPM_REGISTRY }}
-  # Compile templates skip publish/codesign/artifact-staging when VSCODE_CIBUILD
-  # is true; it's passed directly as a job parameter. VSCODE_STEP_ON_IT must be
-  # 'false' to keep the build steps enabled.
-  - name: VSCODE_STEP_ON_IT
-    value: false
   - name: VSCODE_MIXIN_REPO
     value: microsoft/vscode-distro
   - name: VSCODE_OVERWRITE_TPN

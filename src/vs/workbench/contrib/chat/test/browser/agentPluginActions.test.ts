@@ -36,6 +36,7 @@ suite('AgentPluginActions', () => {
 	function createPlugin(remove?: () => Promise<boolean>, policyEnablement?: boolean): IAgentPlugin {
 		return {
 			uri: URI.file('/plugins/local-plugin'),
+			discovery: 'configured',
 			format: PluginFormat.Copilot,
 			label: 'Local Plugin',
 			enablement: observableValue('enablement', ContributionEnablementState.EnabledProfile),

@@ -108,6 +108,10 @@ export class DevContainerEnvironments extends Disposable {
 		this._register(this._remoteAgentHostService.onDidChangeConfiguredEntries(() => this._reconcile()));
 		this._register(this._storageService.onDidChangeValue(StorageScope.APPLICATION, DEV_CONTAINER_ENVIRONMENTS_STORAGE_KEY, this._store)(() => this._restore()));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('dev.containers.dockerPath')) {
+				this._localDockerCheck = undefined;
+				this._updateEnvironmentHosts();
+			}
 			if (e.affectsConfiguration(DevContainerEnvironmentsEnabledSettingId) || e.affectsConfiguration(DevContainerAgentHostEnabledSettingId) || e.affectsConfiguration(RemoteAgentHostsEnabledSettingId) || e.affectsConfiguration('chat.disableAIFeatures')) {
 				this._restore();
 			}
@@ -168,6 +172,8 @@ export class DevContainerEnvironments extends Disposable {
 			state.deleting = false;
 			throw error;
 		}
+		// Its sessions' state was in the container, so they cannot continue or be reopened.
+		state.provider.forgetSessions();
 		this._writeStored(this._readStored().filter(environment => environment.id !== state.stored.id));
 		this._remoteAgentHostService.setDisplayName(address, undefined);
 		this._disposeState(state);
@@ -189,7 +195,8 @@ export class DevContainerEnvironments extends Disposable {
 	}
 
 	private _restore(): void {
-		const stored = areDevContainerEnvironmentsEnabled(this._configurationService) ? this._readStored() : [];
+		const enabled = areDevContainerEnvironmentsEnabled(this._configurationService);
+		const stored = enabled ? this._readStored() : [];
 		const addresses = new Set<string>();
 		for (const environment of stored) {
 			const state = [...this._states.values()].find(state => state.stored.id === environment.id) ?? this._createState(environment, undefined);
@@ -197,6 +204,10 @@ export class DevContainerEnvironments extends Disposable {
 		}
 		for (const [address, state] of this._states) {
 			if (!addresses.has(address)) {
+				// While enabled, a missing environment was deleted, possibly in another window; disabling only hides it.
+				if (enabled && !state.deleting) {
+					state.provider.forgetSessions();
+				}
 				void this._disconnect(state).catch(error => this._logService.warn('[DevContainerEnvironments] Failed to disconnect a removed environment', error));
 				this._disposeState(state);
 			}
@@ -285,7 +296,8 @@ export class DevContainerEnvironments extends Disposable {
 			return;
 		}
 		await this._removeConnection(state);
-		const connection = await connector.createConnection(state.uri, state.address, token, { resume: true });
+		// Named after the environment rather than its host; a rename applies on top as the address's display name.
+		const connection = await connector.createConnection(state.uri, state.address, token, { resume: true, name: state.stored.name });
 		if (token.isCancellationRequested || !this._isCurrent(state)) {
 			connection.transportDisposable?.dispose();
 			throw new CancellationError();

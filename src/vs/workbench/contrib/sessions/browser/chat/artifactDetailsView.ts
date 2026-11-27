@@ -32,16 +32,24 @@ export interface IArtifactListViewData {
 	openItem(item: ArtifactDetailsItem): void;
 }
 
+export interface IArtifactAutopilotChoiceViewData {
+	readonly value: string;
+	readonly label: string;
+	readonly description?: string;
+}
+
 export interface IArtifactAutopilotRuleViewData {
 	readonly id: string;
 	readonly label: string;
 	readonly description: string;
 	readonly checked: boolean;
 	readonly disabled: boolean;
-	readonly pending: boolean;
-	readonly policy?: {
-		readonly label: string;
-		choose(): Promise<void>;
+	/** Set for a rule with several enabled values, shown as one choice each instead of a switch; one of them turns it off. */
+	readonly choices?: {
+		readonly items: readonly IArtifactAutopilotChoiceViewData[];
+		/** The selected choice, which is the one that turns the rule off while it is off. */
+		readonly value: string;
+		select(value: string): Promise<void>;
 	};
 	setEnabled(enabled: boolean): Promise<void>;
 }
@@ -113,7 +121,8 @@ export interface IArtifactDetailsViewData {
 export class ArtifactDetailsViewState {
 	selectedList: string | undefined;
 	readonly expandedAutopilot = new Set<string>();
-	readonly preparedPolicies = new Map<string, string>();
+	/** The last enabled choice of each rule with several, which turning on all rules uses again. */
+	readonly lastChoices = new Map<string, string>();
 	activitiesExpanded = false;
 }
 

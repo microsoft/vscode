@@ -903,7 +903,7 @@ suite('ChatService', () => {
 			await gate.p;
 		}));
 
-		const sending = service.sendRequest(model.sessionResource, '/fork prompt source draft', {
+		const sending = service.sendRequest(model.sessionResource, '/fork source draft', {
 			onDidExecuteSlashCommand: () => completed++,
 		});
 		await started.p;
@@ -932,7 +932,7 @@ suite('ChatService', () => {
 			await gate.p;
 		}));
 
-		const sending = service.sendRequest(model.sessionResource, '/fork prompt source draft', {
+		const sending = service.sendRequest(model.sessionResource, '/fork source draft', {
 			onDidExecuteSlashCommand: () => completed++,
 		});
 		await started.p;

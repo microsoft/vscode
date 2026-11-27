@@ -5,6 +5,7 @@
 
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
@@ -109,7 +110,12 @@ class ChatViewSessionsPresenter implements IEditorWindowSessionsPresenter {
 		await this._chatViewHostService.newChat(aimed, { ownChat: true, preserveFocus: options?.preserveFocus });
 	}
 
-	async closeChat(): Promise<void> { }
+	/** A new chat of the Chat view's own takes the place of `chatResource` while the Chat view shows it; other chats stay. */
+	async closeChat(chatResource: URI): Promise<void> {
+		if (isEqual(this._chatViewHostService.shownSession.get()?.resource, chatResource)) {
+			await this._chatViewHostService.newChat(undefined, { ownChat: true, preserveFocus: true });
+		}
+	}
 
 	isShowing(): boolean {
 		return false;

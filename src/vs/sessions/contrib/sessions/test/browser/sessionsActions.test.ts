@@ -9,7 +9,7 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { KeyChord, KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { decodeKeybinding, KeyCodeChord } from '../../../../../base/common/keybindings.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -67,10 +67,10 @@ import { ArchiveChatAction, ArchiveSessionAction } from '../../../../../workbenc
 import { createTestSession, TestCommandService } from './sessionsListTestUtils.js';
 import { INewSessionComposerService, NewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { ISessionDraftsService } from '../../../../../workbench/contrib/sessions/browser/sessionDraftsService.js';
-import { ISessionSection, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SessionItemIsCloudContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { ISessionSection, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SessionItemIsCloudContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { WorkspaceSelectionOrigin, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../../workbench/services/sessions/common/workspaceSelection.js';
-import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARRANGE_SESSIONS_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, DETACH_CHAT_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SESSION_GRID_FOCUS_COMMANDS, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
-import { SessionInChatEditorContext, IsPhoneLayoutContext, MultipleSessionsVisibleContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatResourceContext, SessionIdContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionsFocusContext, SessionsListPromoteNewChatActionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARRANGE_SESSIONS_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, DETACH_CHAT_COMMAND_ID, EVEN_SESSION_SIZES_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SESSION_GRID_DOCK_COMMANDS, SESSION_GRID_FOCUS_COMMANDS, SESSION_GRID_MOVE_COMMANDS, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, TOGGLE_MAXIMIZE_SESSION_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { SessionInChatEditorContext, IsPhoneLayoutContext, MultipleSessionsVisibleContext, SessionHasSplitChatsContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatResourceContext, SessionIdContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionsFocusContext, SessionsListPromoteNewChatActionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
@@ -100,6 +100,7 @@ suite('Sessions - Actions', () => {
 			CLOSE_CHAT_COMMAND_ID, 'sessions.chatCompositeBar.closeAllChats', 'sessions.chatCompositeBar.deleteChat', 'sessions.showChatsPicker',
 			'sessions.quickSwitchNextChat', 'sessions.quickSwitchPreviousChat', 'sessions.sessionHeader.rename', CLOSE_SESSION_COMMAND_ID,
 			FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, 'sessions.focusSessionInGrid1', SESSION_GRID_FOCUS_COMMANDS.left,
+			EVEN_SESSION_SIZES_COMMAND_ID,
 		];
 		// Whether any value of the keys of `when` other than the auxiliary window key matches it.
 		const matchesSome = (when: ContextKeyExpression, auxiliaryWindow: boolean): boolean => {
@@ -1116,6 +1117,7 @@ suite('Sessions - Actions', () => {
 			readonly activeSession = constObservable<ITestSessionWithChat | undefined>(active);
 			override activatePane() { calls.push('activatePane'); }
 			override arrangeSessions() { calls.push('arrange'); }
+			override evenSessionSizes() { calls.push('evenSessionSizes'); }
 			override focusPaneInDirection() { calls.push('focusPaneInDirection'); }
 			override movePaneInDirection() { calls.push('movePaneInDirection'); }
 			override resizePaneInDirection() { calls.push('resizePaneInDirection'); }
@@ -1143,8 +1145,8 @@ suite('Sessions - Actions', () => {
 		}));
 		const ids = [
 			FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID,
-			MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, DETACH_CHAT_COMMAND_ID, ARRANGE_SESSIONS_COMMAND_ID,
-			SESSION_GRID_FOCUS_COMMANDS.left, 'sessions.moveSessionLeft', 'sessions.narrowSession', 'sessions.chatCompositeBar.toggleMaximize', 'sessions.focusSessionInGrid1',
+			MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, DETACH_CHAT_COMMAND_ID, ARRANGE_SESSIONS_COMMAND_ID, EVEN_SESSION_SIZES_COMMAND_ID,
+			SESSION_GRID_FOCUS_COMMANDS.left, SESSION_GRID_MOVE_COMMANDS.left, SESSION_GRID_DOCK_COMMANDS.left, 'sessions.narrowSession', 'sessions.chatCompositeBar.toggleMaximize', 'sessions.focusSessionInGrid1',
 		];
 		// Commands of the grid's active pane, which act on panes they are passed and are enabled in chat editors' headers.
 		const paneIds = [
@@ -1527,15 +1529,20 @@ suite('Sessions - Actions', () => {
 		});
 	}
 
+	/** A resolver of the default keybindings of `os`, limited to `commands` when given. */
+	function createKeybindingResolver(os: OperatingSystem, commands?: readonly string[]): KeybindingResolver {
+		const items = KeybindingsRegistry.getDefaultKeybindingsForOS(os)
+			.filter(binding => binding.command !== null && (!commands || commands.includes(binding.command)))
+			.flatMap(binding => binding.keybinding ? USLayoutResolvedKeybinding.resolveKeybinding(binding.keybinding, os)
+				.map(resolved => new ResolvedKeybindingItem(resolved, binding.command, binding.commandArgs, binding.when ?? undefined, true, null, false)) : []);
+		return new KeybindingResolver(items, [], () => { });
+	}
+
 	test('macOS Alt-arrow aliases preserve word movement in composers and native inputs', () => {
 		const configuration = new TestConfigurationService();
 		disposables.add(configuration.onDidChangeConfigurationEmitter);
 		const contextKeyService = disposables.add(new ContextKeyService(configuration));
-		const bindings = KeybindingsRegistry.getDefaultKeybindingsForOS(OperatingSystem.Macintosh)
-			.filter(binding => binding.command !== null && ['sessions.goBack', 'sessions.goForward', 'cursorWordLeft', 'cursorWordEndRight'].includes(binding.command))
-			.flatMap(binding => binding.keybinding ? USLayoutResolvedKeybinding.resolveKeybinding(binding.keybinding, OperatingSystem.Macintosh)
-				.map(resolved => new ResolvedKeybindingItem(resolved, binding.command, binding.commandArgs, binding.when ?? undefined, true, null, false)) : []);
-		const resolver = new KeybindingResolver(bindings, [], () => { });
+		const resolver = createKeybindingResolver(OperatingSystem.Macintosh, ['sessions.goBack', 'sessions.goForward', 'cursorWordLeft', 'cursorWordEndRight']);
 		const resolved = [
 			{ inputFocus: false, textInputFocus: false, editorAreaFocus: false },
 			{ inputFocus: true, textInputFocus: true, editorAreaFocus: false },
@@ -1561,6 +1568,87 @@ suite('Sessions - Actions', () => {
 			['cursorWordLeft', 'cursorWordEndRight', undefined],
 			['cursorWordLeft', 'cursorWordEndRight', 'sessions.goBack'],
 		]);
+	});
+
+	for (const os of [OperatingSystem.Macintosh, OperatingSystem.Windows]) {
+		test(`a layout key of editor groups reaches a command of the session grid, or nothing, while a session pane has focus, and no command of the grid while an editor part has focus (${os})`, () => {
+			// The commands of the Agents window, and the keys it reserves without a command.
+			const sessionCommands = KeybindingsRegistry.getDefaultKeybindingsForOS(os).map(binding => binding.command).filter((command): command is string => command === '' || !!command?.startsWith('sessions.'));
+			const resolver = createKeybindingResolver(os, sessionCommands);
+			const context = disposables.add(new ContextKeyService(new TestConfigurationService()));
+			IsSessionsWindowContext.bindTo(context).set(true);
+			ChatContextKeys.enabled.bindTo(context).set(true);
+			const focusKeys = ['sessionsFocus', 'multipleSessionsVisible', 'editorAreaFocus', 'inputFocus', 'textInputFocus'].map(key => ({ key, contextKey: context.createKey<boolean>(key, false) }));
+			// Where focus is: the chat input of a session pane beside others or alone, an inline rename field of a pane, the Sessions list, or an editor of the editor part.
+			const focusStates = {
+				pane: ['sessionsFocus', 'multipleSessionsVisible', 'inputFocus', 'textInputFocus'],
+				alone: ['sessionsFocus', 'inputFocus', 'textInputFocus'],
+				field: ['sessionsFocus', 'multipleSessionsVisible', 'inputFocus'],
+				list: ['multipleSessionsVisible'],
+				editor: ['multipleSessionsVisible', 'editorAreaFocus', 'inputFocus', 'textInputFocus'],
+			};
+			const resolve = (keybinding: number) => {
+				const [first, second] = USLayoutResolvedKeybinding.resolveKeybinding(decodeKeybinding(keybinding, os)!, os)[0].getDispatchChords() as string[];
+				const contextValue = context.getContext(mainWindow.document.documentElement);
+				const started = resolver.resolve(contextValue, [], first);
+				const result = started.kind === ResultKind.MoreChordsNeeded ? resolver.resolve(contextValue, [first], second) : started;
+				return result.kind !== ResultKind.KbFound ? 'none' : result.commandId || 'nothing';
+			};
+			const mac = os === OperatingSystem.Macintosh;
+			const keys: Record<string, number> = {
+				'Focus Left Editor Group': KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.LeftArrow),
+				'Focus Editor Group Above': KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.UpArrow),
+				'Move Editor Group Left': KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.LeftArrow),
+				'Move Editor Group Up': KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.UpArrow),
+				'Dock Session Left, which editor groups lack': KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.Shift | KeyCode.LeftArrow),
+				'Reset Editor Group Sizes': KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.Equal),
+				'Toggle Maximize Editor Group': KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyM),
+				'Focus Second Editor Group': KeyMod.CtrlCmd | KeyCode.Digit2,
+				'Split Editor': KeyMod.CtrlCmd | KeyCode.Backslash,
+				'Split Editor Orthogonal': KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.Backslash),
+				'Toggle Vertical/Horizontal Editor Layout': mac ? KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Digit0 : KeyMod.Shift | KeyMod.Alt | KeyCode.Digit0,
+				'Move Editor into Next Group': mac ? KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.RightArrow : KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.RightArrow,
+				'Move Editor into First Group': mac ? KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.Digit1 : KeyMod.Shift | KeyMod.Alt | KeyCode.Digit1,
+			};
+			const resolved = Object.fromEntries(Object.entries(keys).map(([name, keybinding]) => [name, Object.entries(focusStates).map(([state, focused]) => {
+				focusKeys.forEach(({ key, contextKey }) => contextKey.set(focused.includes(key)));
+				return `${state}: ${resolve(keybinding)}`;
+			})]));
+
+			const blocked = ['pane: nothing', 'alone: nothing', 'field: nothing', 'list: none', 'editor: none'];
+			assert.deepStrictEqual(resolved, {
+				'Focus Left Editor Group': [`pane: ${SESSION_GRID_FOCUS_COMMANDS.left}`, `alone: ${FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID}`, `field: ${SESSION_GRID_FOCUS_COMMANDS.left}`, `list: ${FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID}`, 'editor: none'],
+				'Focus Editor Group Above': [`pane: ${SESSION_GRID_FOCUS_COMMANDS.up}`, 'alone: nothing', `field: ${SESSION_GRID_FOCUS_COMMANDS.up}`, 'list: none', 'editor: none'],
+				'Move Editor Group Left': [`pane: ${SESSION_GRID_MOVE_COMMANDS.left}`, 'alone: nothing', 'field: nothing', 'list: none', 'editor: none'],
+				'Move Editor Group Up': [`pane: ${SESSION_GRID_MOVE_COMMANDS.up}`, 'alone: nothing', 'field: nothing', 'list: none', 'editor: none'],
+				'Dock Session Left, which editor groups lack': [`pane: ${SESSION_GRID_DOCK_COMMANDS.left}`, 'alone: none', 'field: none', 'list: none', 'editor: none'],
+				'Reset Editor Group Sizes': [`pane: ${EVEN_SESSION_SIZES_COMMAND_ID}`, `alone: ${EVEN_SESSION_SIZES_COMMAND_ID}`, 'field: none', `list: ${EVEN_SESSION_SIZES_COMMAND_ID}`, 'editor: none'],
+				'Toggle Maximize Editor Group': [`pane: ${TOGGLE_MAXIMIZE_SESSION_COMMAND_ID}`, 'alone: none', 'field: none', 'list: none', 'editor: none'],
+				'Focus Second Editor Group': ['pane', 'alone', 'field', 'list'].map(state => `${state}: sessions.focusSessionInGrid2`).concat('editor: none'),
+				'Split Editor': blocked,
+				'Split Editor Orthogonal': blocked,
+				'Toggle Vertical/Horizontal Editor Layout': blocked,
+				'Move Editor into Next Group': blocked,
+				'Move Editor into First Group': blocked,
+			});
+		});
+	}
+
+	test('the Session Layout menu shows for one session whose chats are split, offering only Reset Session Sizes', () => {
+		const context = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		IsSessionsWindowContext.bindTo(context).set(true);
+		ChatContextKeys.enabled.bindTo(context).set(true);
+		const splitChats = SessionHasSplitChatsContext.bindTo(context);
+		const multipleSessions = MultipleSessionsVisibleContext.bindTo(context);
+		const menu = () => ({
+			shown: MenuRegistry.getMenuItems(Menus.SessionHeaderContext).some(item => isISubmenuItem(item) && item.submenu === Menus.SessionGridLayout && context.contextMatchesRules(item.when)),
+			items: MenuRegistry.getMenuItems(Menus.SessionGridLayout).filter(item => isIMenuItem(item) && context.contextMatchesRules(item.when)).length,
+		});
+		const single = menu();
+		splitChats.set(true);
+		const split = menu();
+		multipleSessions.set(true);
+		assert.deepStrictEqual({ single, split, multiple: menu() }, { single: { shown: false, items: 1 }, split: { shown: true, items: 1 }, multiple: { shown: true, items: 18 } });
 	});
 
 	test('associates the close shortcut with the header close commands', () => {
@@ -2610,7 +2698,7 @@ suite('Sessions - Actions', () => {
 			await run(NEW_SESSION_FOR_WORKSPACE_ACTION_ID, { sessions: [session] });
 			await run(NEW_SESSION_FOR_WORKSPACE_ACTION_ID, { environment, sessions: [session] });
 
-			// Without a creation target, the environment section still starts in its environment.
+			// Without a creation target, the workspace and environment sections still start in their environment.
 			assert.deepStrictEqual({ selections, environments }, available
 				? {
 					selections: Array.from({ length: 5 }, () => ({
@@ -2624,7 +2712,7 @@ suite('Sessions - Actions', () => {
 						folder: localFolder,
 						options: { providerId: local.providerId, selectionOrigin: WorkspaceSelectionOrigin.User },
 					}],
-					environments: [session.providerId],
+					environments: [session.providerId, session.providerId],
 				});
 		});
 	}
@@ -2676,10 +2764,12 @@ suite('Sessions - Actions', () => {
 		await run({ repository: { owner: 'microsoft', name: 'vscode' }, sessions: [sandbox('sandbox-1'), sandbox('sandbox-2')] });
 		// A workspace section starts like its first session that it can start like.
 		await run({ sessions: [sandbox('sandbox'), local] });
+		// A workspace section of only such sessions, such as those of an extension's host of jobs, starts in their environment.
+		await run({ sessions: [sandbox('sandbox-1'), sandbox('sandbox-2')] });
 		// An environment section of only such sessions, such as an extension's host of jobs, starts in its environment.
 		await run({ environment: { id: 'cloud', label: 'Cloud' }, sessions: [sandbox('sandbox-1'), sandbox('sandbox-2')] });
 
-		assert.deepStrictEqual({ opened, selections }, { opened: 3, selections: ['local-provider file:///local', 'environment of sandbox-provider'] });
+		assert.deepStrictEqual({ opened, selections }, { opened: 4, selections: ['local-provider file:///local', 'environment of sandbox-provider', 'environment of sandbox-provider'] });
 	});
 
 	test('New Session uses the active native canvas for plain invocations and incidental toolbar context', async () => {

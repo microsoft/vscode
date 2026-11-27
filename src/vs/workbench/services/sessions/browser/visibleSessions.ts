@@ -1034,6 +1034,21 @@ export class VisibleSessions extends Disposable {
 		});
 	}
 
+	/** Swap the slots of `first` and `second` (`undefined` for the empty slot) and activate `first`; `false`, changing nothing, unless two distinct slots. */
+	swapSlots(first: string | undefined, second: string | undefined, transaction?: ITransaction): boolean {
+		const firstIndex = this._visibleList.indexOf(first);
+		const secondIndex = this._visibleList.indexOf(second);
+		if (first === second || firstIndex < 0 || secondIndex < 0) {
+			return false;
+		}
+		[this._visibleList[firstIndex], this._visibleList[secondIndex]] = [second, first];
+		subtransaction(transaction, tx => {
+			this._setActiveSession(first === undefined ? undefined : this._wrappers.get(first), false, tx);
+			this._refresh(tx);
+		});
+		return true;
+	}
+
 	/**
 	 * Toggle a session's stickiness in the grid. The session keeps its grid
 	 * slot when toggled.

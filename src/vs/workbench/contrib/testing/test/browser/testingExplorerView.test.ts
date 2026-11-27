@@ -54,7 +54,7 @@ suite('TestingExplorerView', () => {
 			getDefaultContainerById: () => container,
 			getViewContainerModel: () => upcastPartial<IViewContainerModel>({ onDidChangeContainerInfo: Event.None }),
 		});
-		instantiationService.stub(IActivityService, {});
+		instantiationService.stub(IActivityService, upcastPartial<IActivityService>({ onDidChangeViewTitleBadge: Event.None, getViewTitleBadge: () => undefined }));
 		instantiationService.stub(ITestService, {
 			collection: await getInitializedMainTestCollection(),
 			excluded: disposables.add(instantiationService.createInstance(TestExclusions)),

@@ -25,8 +25,8 @@ import { UriIdentityService } from '../../../../../../platform/uriIdentity/commo
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
-import { getInboxWorkspaceFilter, getInboxWorkspaceOptions, getSessionFilterOptions, getWorktreeFilterKeys, listsQuickChatsIn, sessionFilterKey, SessionsListFilters, SessionsWorktreeOpener } from '../../../browser/views/sessionsListFilters.js';
+import { extUriBiasedIgnorePathCase, extUriIgnorePathCase } from '../../../../../../base/common/resources.js';
+import { getInboxWorkspaceFilter, getInboxWorkspaceOptions, getSessionFilterActionId, getSessionFilterOptions, getWorktreeFilterKeys, listsQuickChatsIn, SessionFilter, sessionFilterKey, SessionsListFilters, SessionsWorktreeOpener } from '../../../browser/views/sessionsListFilters.js';
 import { AutomationSessionsListMode, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../../../common/sessionConfig.js';
 
 suite('SessionsListFilters', () => {
@@ -36,6 +36,28 @@ suite('SessionsListFilters', () => {
 	function createFilters(storage = store.add(new InMemoryStorageService()), configurationService: IConfigurationService = new TestConfigurationService()): SessionsListFilters {
 		return store.add(new SessionsListFilters(storage, store.add(new NullLogService()), configurationService, upcastPartial<IUriIdentityService>({ extUri: extUriBiasedIgnorePathCase })));
 	}
+
+	test('names built-in filter options in their action ids and only the kind of any other, kept unique by the number it is given', () => {
+		const filters: SessionFilter[] = [
+			{ kind: 'harness', id: 'copilot' },
+			{ kind: 'environment', id: 'local' },
+			{ kind: 'environment', id: 'agenthost-ssh%3Aalice%40devbox' },
+			{ kind: 'application', environment: 'cloud', id: 'slack' },
+			{ kind: 'application', environment: 'local', id: 'my_team_bot' },
+			{ kind: 'application', environment: 'agenthost-ssh%3Aalice%40devbox', id: 'vscode' },
+			{ kind: 'worktree', id: '/home/alice/repo' },
+		];
+
+		assert.deepStrictEqual(filters.map((filter, index) => getSessionFilterActionId(filter, index)), [
+			'sessionsViewPane.filter.harness.copilot',
+			'sessionsViewPane.filter.environment.local',
+			'sessionsViewPane.filter.environment.remote-agent-host.2',
+			'sessionsViewPane.filter.application.cloud.slack',
+			'sessionsViewPane.filter.application.local.other.4',
+			'sessionsViewPane.filter.application.remote-agent-host.vscode.5',
+			'sessionsViewPane.filter.worktree.6',
+		]);
+	});
 
 	test('tells apart worktree folders whose paths differ only in case where their file system does, such as an agent host\'s', () => {
 		// The URI identity of the window, with an agent host's file system, which is case sensitive
@@ -322,7 +344,7 @@ suite('SessionsListFilters', () => {
 		const resetWorkspace = filters.setInboxEnvironment({ id: 'ssh:work', label: 'Work' });
 		assert.deepStrictEqual({
 			all, environmentOnly, workspaceOnly, combined, resetWorkspace, afterEnvironmentChange: visible(),
-			options: getInboxWorkspaceOptions(sessions).map(option => [option.environment, option.resource]),
+			options: getInboxWorkspaceOptions(sessions, extUriBiasedIgnorePathCase).map(option => [option.environment, option.resource]),
 		}, {
 			all: ['local', 'claude', 'other-folder', 'remote'],
 			environmentOnly: ['remote'],
@@ -336,6 +358,24 @@ suite('SessionsListFilters', () => {
 				['local', 'file:///home/user/projects/other/app'],
 			],
 		});
+
+	});
+
+	test('workspace scope matches case-insensitive paths without mixing environments', () => {
+		const filters = store.add(new SessionsListFilters(store.add(new InMemoryStorageService()), store.add(new NullLogService()), new TestConfigurationService(), upcastPartial<IUriIdentityService>({ extUri: extUriIgnorePathCase })));
+		const local = buildTestSession({ id: 'local', workspace: 'repo', title: 'Local' }).session;
+		const remote = buildTestSession({ id: 'remote', workspace: 'repo', title: 'Remote', environment: 'ssh:other' }).session;
+		const pick = getInboxWorkspaceFilter(local)!;
+		filters.setInboxWorkspace({ ...pick, resource: pick.resource.replace('/repo', '/REPO') });
+		assert.deepStrictEqual([local, remote].filter(session => filters.matchesInboxScope(session)).map(session => session.sessionId), ['local']);
+	});
+
+	test('workspace options deduplicate case-insensitive resource identities only within the same environment', () => {
+		const local = buildTestSession({ id: 'local', workspace: 'repo', title: 'Local' }).session;
+		const workspace = local.workspace.get()!;
+		const same = { ...local, sessionId: 'same', workspace: constObservable({ ...workspace, uri: workspace.uri.with({ path: workspace.uri.path.replace('/repo', '/REPO') }) }) };
+		const remote = { ...local, sessionId: 'remote', environment: 'ssh:other' };
+		assert.deepStrictEqual(getInboxWorkspaceOptions([local, same, remote], extUriIgnorePathCase).map(option => option.environment).sort(), ['local', 'ssh:other']);
 	});
 
 	test('Inbox scope persists, resets and restores independently of ordinary environment filters', () => {
@@ -364,6 +404,48 @@ suite('SessionsListFilters', () => {
 		});
 	});
 
+	test('each window keeps its own workspace pick while sharing the profile\'s other filters', () => {
+		const firstWindow = store.add(new InMemoryStorageService());
+		const secondWindow = store.add(new InMemoryStorageService());
+		const shareProfile = (from: InMemoryStorageService, to: InMemoryStorageService) => {
+			for (const target of [StorageTarget.USER, StorageTarget.MACHINE]) {
+				for (const key of from.keys(StorageScope.PROFILE, target)) {
+					to.store(key, from.get(key, StorageScope.PROFILE), StorageScope.PROFILE, target);
+				}
+			}
+		};
+		const first = createFilters(firstWindow);
+		first.setExcluded({ kind: 'environment', id: 'local' }, true);
+		first.setInboxWorkspace({ environment: 'local', resource: 'file:///first', label: 'first' });
+		shareProfile(firstWindow, secondWindow);
+		const secondOpened = createFilters(secondWindow);
+		const opened = { scope: secondOpened.inboxScope, excluded: secondOpened.isExcluded({ kind: 'environment', id: 'local' }) };
+		secondOpened.setInboxWorkspace({ environment: 'local', resource: 'file:///second', label: 'second' });
+		shareProfile(secondWindow, firstWindow);
+		assert.deepStrictEqual({
+			opened,
+			first: createFilters(firstWindow).inboxScope.workspace,
+			second: createFilters(secondWindow).inboxScope.workspace,
+		}, {
+			opened: { scope: {}, excluded: true },
+			first: { environment: 'local', resource: 'file:///first', label: 'first' },
+			second: { environment: 'local', resource: 'file:///second', label: 'second' },
+		});
+	});
+
+	test('drops the workspace pick that earlier builds stored for the whole profile', () => {
+		const storage = store.add(new InMemoryStorageService());
+		storage.store('sessionsListControl.inboxScope', JSON.stringify({ workspace: { environment: 'local', resource: 'file:///other', label: 'other' } }), StorageScope.PROFILE, StorageTarget.MACHINE);
+		const filters = createFilters(storage);
+		assert.deepStrictEqual({
+			scope: filters.inboxScope,
+			profileValue: storage.get('sessionsListControl.inboxScope', StorageScope.PROFILE),
+		}, {
+			scope: {},
+			profileValue: undefined,
+		});
+	});
+
 	test('No Workspace excludes hydrating sessions and workspace options react to metadata', () => {
 		const filters = createFilters();
 		const workspace = observableValue<ISessionWorkspace | undefined>('workspace', undefined);
@@ -371,7 +453,7 @@ suite('SessionsListFilters', () => {
 		const quick = buildTestSession({ id: 'quick', title: 'Quick', isQuickChat: true }).session;
 		const options: string[][] = [];
 		store.add(autorun(reader => {
-			options.push(getInboxWorkspaceOptions([pending, quick], undefined, reader).map(option => option.label));
+			options.push(getInboxWorkspaceOptions([pending, quick], extUriBiasedIgnorePathCase, undefined, reader).map(option => option.label));
 		}));
 		filters.setInboxWorkspace('none');
 		const before = [pending, quick].filter(session => filters.matchesInboxScope(session)).map(session => session.sessionId);
@@ -716,27 +798,33 @@ suite('SessionsListFilters', () => {
 		]);
 	});
 
-	test('lists quick chats in the Agents window, and in an editor window only while it has no folder, following its folders', () => {
+	test('lists quick chats while the window is about all sessions, and otherwise only while it has no folder, following its folders and scope', () => {
 		const folders: URI[] = [];
+		// A plain empty window: no folder and no scope
+		let scope: URI | undefined = undefined;
 		const onDidChangeWorkspaceFolders = store.add(new Emitter<IWorkspaceFoldersChangeEvent>());
+		const onDidChangeWorkbenchScope = store.add(new Emitter<URI | undefined>());
 		const workspace = upcastPartial<IWorkspaceContextService>({
 			onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
+			onDidChangeWorkbenchScope: onDidChangeWorkbenchScope.event,
+			getWorkbenchScope: () => scope,
 			getWorkspace: () => upcastPartial<IWorkspace>({ folders: folders.map(uri => upcastPartial<IWorkspaceFolder>({ uri })) }),
 		});
 		const changeFolders = (change: () => void) => { change(); onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [] }); };
-		const editorWindow = listsQuickChatsIn(false, workspace);
-		const agentsWindow = listsQuickChatsIn(true, workspace);
+		const changeScope = (value: URI | undefined) => { scope = value; onDidChangeWorkbenchScope.fire(value); };
+		const listsQuickChats = listsQuickChatsIn(workspace);
 		const seen: boolean[] = [];
-		store.add(autorun(reader => { seen.push(editorWindow.read(reader)); }));
+		store.add(autorun(reader => { seen.push(listsQuickChats.read(reader)); }));
 
 		changeFolders(() => folders.push(URI.file('/work/vscode')));
-		const withFolder = { editorWindow: editorWindow.get(), agentsWindow: agentsWindow.get() };
+		changeScope(URI.file('/work/vscode'));
+		changeScope(undefined);
+		changeScope(URI.file('/work/vscode'));
 		changeFolders(() => folders.pop());
 
-		assert.deepStrictEqual({ seen, withFolder }, {
-			// Empty, a folder added, the last folder removed
-			seen: [true, false, true],
-			withFolder: { editorWindow: false, agentsWindow: true },
-		});
+		assert.deepStrictEqual(seen, [
+			// Plain empty window, a folder added (still all sessions, no change), scoped to its folder, all sessions, its own folder again, the last folder removed
+			true, false, true, false, true,
+		]);
 	});
 });

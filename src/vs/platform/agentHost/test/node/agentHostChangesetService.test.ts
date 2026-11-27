@@ -62,7 +62,7 @@ const TEST_GIT_STATE_SERVICE: IAgentHostGitStateService = {
 	getSessionGitState: session => testGitStates.get(session),
 	getMaterializedWorktreeMeta: () => undefined,
 	setFolderGitState: async () => { },
-	resolveSessionBaseBranchName: async session => testGitStates.get(session)?.baseBranchName,
+	resolveSessionBaseBranchRef: async session => testGitStates.get(session)?.baseBranchName,
 	setSessionGitHubState: async () => { },
 	recordSessionMerge: async () => { },
 	attachSessionGitHubPullRequest: async () => { },
@@ -500,12 +500,12 @@ suite.skip('AgentHostChangesetService', () => {
 				workingDirectories: ['file:///wd'],
 				defaultChat: buildDefaultChatUri(sessionStr),
 			});
-			localStateManager.setSessionMeta(sessionStr, withSessionGitState(undefined, { baseBranchName: 'main' }));
+			localStateManager.setSessionMeta(sessionStr, withSessionGitState(undefined, { baseBranchName: 'main', baseBranchRef: 'refs/remotes/origin/main' }));
 
 			localChangesets.refreshSessionChangeset(sessionStr);
 			await waitForChangesetReady(localStateManager, buildSessionChangesetUri(sessionStr));
 
-			assert.deepStrictEqual(computeCalls, [{ baseBranch: 'main' }]);
+			assert.deepStrictEqual(computeCalls, [{ baseBranch: 'refs/remotes/origin/main' }]);
 		});
 
 		test('session changeset keeps persisted diff base ahead of _meta.git base branch', async () => {
@@ -535,7 +535,7 @@ suite.skip('AgentHostChangesetService', () => {
 				workingDirectories: ['file:///wd'],
 				defaultChat: buildDefaultChatUri(sessionStr),
 			});
-			localStateManager.setSessionMeta(sessionStr, withSessionGitState(undefined, { baseBranchName: 'main' }));
+			localStateManager.setSessionMeta(sessionStr, withSessionGitState(undefined, { baseBranchName: 'main', baseBranchRef: 'refs/remotes/origin/main' }));
 
 			localChangesets.refreshSessionChangeset(sessionStr);
 			await waitForChangesetReady(localStateManager, buildSessionChangesetUri(sessionStr));
@@ -1904,6 +1904,33 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		assert.deepStrictEqual({ afterCompute, afterCurrent: updates }, { afterCompute: 0, afterCurrent: [{ owner, changeset: buildBranchChangesetUri(owner) }] });
 	});
 
+	test('a turn end whose branch is unchanged reports the changeset current without diffing it', async () => {
+		const state = { fingerprint: 'tree-1' as string | undefined };
+		const { git, calls } = createCountingBranchGitService(state);
+		const telemetry = new CapturingTelemetryService();
+		const { svc } = build({ workingDirectories: ['file:///repo'], git, checkpoint: NULL_CHECKPOINT_SERVICE, telemetry });
+		const owner = buildFolderChangesetOwnerUri(sessionStr, getWorkingDirectoryScopeId(['file:///repo']));
+		const branchOutcomes = () => telemetry.events.filter(event => event.eventName === 'agentHost.changesetComputed' && event.data.kind === 'branch').map(event => ({ turnId: event.data.turnId, outcome: event.data.outcome, fileCount: event.data.fileCount }));
+
+		const chat = buildDefaultChatUri(sessionStr);
+		svc.onTurnComplete(chat, 'turn-1');
+		await svc.whenStaticComputed(owner, 'branch');
+		svc.onTurnComplete(chat, 'turn-2');
+		await svc.whenStaticComputed(owner, 'branch');
+		state.fingerprint = 'tree-2';
+		svc.onTurnComplete(chat, 'turn-3');
+		await svc.whenStaticComputed(owner, 'branch');
+
+		assert.deepStrictEqual({ diffs: calls.filter(call => call === 'computeSessionFileDiffs').length, outcomes: branchOutcomes() }, {
+			diffs: 2,
+			outcomes: [
+				{ turnId: 'turn-1', outcome: 'computed', fileCount: 1 },
+				{ turnId: 'turn-2', outcome: 'unchanged', fileCount: undefined },
+				{ turnId: 'turn-3', outcome: 'computed', fileCount: 1 },
+			],
+		});
+	});
+
 	test('a branch refresh recomputes when the working tree, a commit or the base changed, or when forced', async () => {
 		const state = { fingerprint: 'tree-1' as string | undefined };
 		const { git, calls } = createCountingBranchGitService(state);
@@ -1969,6 +1996,99 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		await svc.whenStaticComputed(buildFolderChangesetOwnerUri(sessionStr, getWorkingDirectoryScopeId(['file:///repo'])), 'branch');
 
 		assert.strictEqual(calls.filter(call => call === 'computeSessionFileDiffs').length, 2);
+	});
+
+	for (const second of ['refresh', 'turnEnd'] as const) {
+		test(`a branch ${second === 'refresh' ? 'refresh' : 'turn end'} arriving before the running computation reads Git ${second === 'refresh' ? 'is served by that computation' : 'still reports its outcome'}`, async () => {
+			const state = { fingerprint: 'tree-1' as string | undefined };
+			const { git, calls } = createCountingBranchGitService(state);
+			const telemetry = new CapturingTelemetryService();
+			const { svc } = build({ workingDirectories: ['file:///repo'], git, checkpoint: NULL_CHECKPOINT_SERVICE, telemetry });
+			const loadStarted = new DeferredPromise<void>();
+			const releaseLoad = new DeferredPromise<void>();
+			const load = svc.stateStore.load.bind(svc.stateStore);
+			svc.stateStore.load = async resource => {
+				if (!loadStarted.isSettled) {
+					void loadStarted.complete();
+					await releaseLoad.p;
+				}
+				return load(resource);
+			};
+
+			// A file change refreshes the Git state of the session and of its default chat, and each refreshes the Branch changeset.
+			svc.refreshBranchChangeset(sessionStr);
+			// The first computation resolves its base branch and has not read Git yet.
+			await loadStarted.p;
+			if (second === 'refresh') {
+				svc.refreshBranchChangeset(sessionStr);
+			} else {
+				svc.onTurnComplete(buildDefaultChatUri(sessionStr), 'turn-1');
+			}
+			await releaseLoad.complete();
+			await svc.whenStaticComputed(buildFolderChangesetOwnerUri(sessionStr, getWorkingDirectoryScopeId(['file:///repo'])), 'branch');
+
+			assert.deepStrictEqual({
+				fingerprints: calls.filter(call => call === 'getBranchDiffFingerprint').length,
+				diffs: calls.filter(call => call === 'computeSessionFileDiffs').length,
+				outcomes: telemetry.events.filter(event => event.eventName === 'agentHost.changesetComputed' && event.data.kind === 'branch').map(event => event.data.outcome),
+			}, second === 'refresh'
+				? { fingerprints: 1, diffs: 1, outcomes: [] }
+				: { fingerprints: 2, diffs: 1, outcomes: ['unchanged'] });
+		});
+	}
+
+	test('a branch refresh arriving after the running computation read Git computes again', async () => {
+		const release = new DeferredPromise<void>();
+		const diffStarted = new DeferredPromise<void>();
+		const state = { fingerprint: 'tree-1' as string | undefined, holdFirstDiff: release.p, diffStarted };
+		const { git, calls } = createCountingBranchGitService(state);
+		const { svc } = build({ workingDirectories: ['file:///repo'], git, checkpoint: NULL_CHECKPOINT_SERVICE });
+
+		svc.refreshBranchChangeset(sessionStr);
+		await diffStarted.p;
+		// A file edited after the first computation read Git.
+		state.fingerprint = 'tree-2';
+		svc.refreshBranchChangeset(sessionStr);
+		await release.complete();
+		await svc.whenStaticComputed(buildFolderChangesetOwnerUri(sessionStr, getWorkingDirectoryScopeId(['file:///repo'])), 'branch');
+
+		assert.deepStrictEqual({
+			fingerprints: calls.filter(call => call === 'getBranchDiffFingerprint').length,
+			diffs: calls.filter(call => call === 'computeSessionFileDiffs').length,
+		}, { fingerprints: 2, diffs: 2 });
+	});
+
+	test('a branch refresh arriving while a multi-folder computation looks for its repositories computes again', async () => {
+		const workingDirectories = ['file:///repoA', 'file:///repoB'];
+		const repositories = new Set(['file:///repoA']);
+		const lookupsStarted = new DeferredPromise<void>();
+		const releaseLookups = new DeferredPromise<void>();
+		let holdLookups = false;
+		const git = createNoopGitService();
+		git.getRepositoryRoot = async workingDirectory => {
+			const root = repositories.has(workingDirectory.toString()) ? URI.parse(workingDirectory.toString()) : undefined;
+			if (holdLookups) {
+				void lookupsStarted.complete();
+				await releaseLookups.p;
+			}
+			return root;
+		};
+		git.getBranchDiffFingerprint = async workingDirectory => `${workingDirectory}-1`;
+		git.computeSessionFileDiffs = async workingDirectory => [gitDiff(`${URI.parse(workingDirectory.toString()).path}/file.ts`)];
+		const { svc, stateManager } = build({ workingDirectories, git, checkpoint: NULL_CHECKPOINT_SERVICE });
+		const owner = buildFolderChangesetOwnerUri(sessionStr, getWorkingDirectoryScopeId(workingDirectories));
+		await refreshBranch(svc, sessionStr, { workingDirectories });
+
+		holdLookups = true;
+		svc.refreshBranchChangeset(sessionStr);
+		await lookupsStarted.p;
+		// repoB became a Git repository after the computation looked for it.
+		repositories.add('file:///repoB');
+		svc.refreshBranchChangeset(sessionStr);
+		await releaseLookups.complete();
+		await svc.whenStaticComputed(owner, 'branch');
+
+		assert.deepStrictEqual(stateManager.getChangesetState(buildBranchChangesetUri(owner))?.files.map(file => URI.parse(file.id).path), ['/repoA/file.ts', '/repoB/file.ts']);
 	});
 
 	test('a branch refresh always recomputes when no fingerprint can be determined or the last computation failed', async () => {
@@ -2849,17 +2969,22 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		testGitStates.set(peerResource, {
 			branchName: 'chat-feature',
 			baseBranchName: 'chat-main',
+			baseBranchRef: 'refs/remotes/origin/chat-main',
 		});
+		stateManager.dispatchServerAction(sessionStr, { type: ActionType.SessionReady });
 
+		svc.refreshChangesetCatalog(peerResource);
 		svc.refreshBranchChangeset(peerResource);
 		await waitForChangesetReady(stateManager, branchUri);
 
 		assert.deepStrictEqual({
+			description: stateManager.getChatState(peerResource)?.changesets?.find(changeset => changeset.changeKind === 'branch')?.description,
 			diffBaseBranches,
 			reviewBaseBranches,
 		}, {
-			diffBaseBranches: ['chat-main'],
-			reviewBaseBranches: ['chat-main'],
+			description: 'chat-feature → origin/chat-main',
+			diffBaseBranches: ['refs/remotes/origin/chat-main'],
+			reviewBaseBranches: ['refs/remotes/origin/chat-main'],
 		});
 	});
 
@@ -2901,7 +3026,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				diffBases,
 			}, {
 				descriptions: ['feature → origin/release', 'feature → origin/release'],
-				diffBases: ['release'],
+				diffBases: ['origin/release'],
 			});
 		});
 	}
@@ -2981,6 +3106,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		testGitStates.set(peerResource, {
 			branchName: 'chat-feature',
 			baseBranchName: 'chat-main',
+			baseBranchRef: 'refs/remotes/origin/chat-main',
 		});
 		svc.refreshChangesetCatalog(peerResource);
 		const withChatGit = stateManager.getChatState(peerResource)?.changesets;
@@ -3006,7 +3132,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			defaultChatWithoutLiveGit: ['branch', 'uncommitted', 'turn', 'compare-turns'],
 			withoutChatGit: ['session', 'turn'],
 			withChatGit: ['branch', 'uncommitted', 'session', 'turn', 'compare-turns'],
-			branchDescription: 'chat-feature → chat-main',
+			branchDescription: 'chat-feature → origin/chat-main',
 		});
 	});
 

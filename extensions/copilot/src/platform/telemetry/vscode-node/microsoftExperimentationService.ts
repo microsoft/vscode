@@ -220,7 +220,7 @@ class WindowKindFilterProvider implements IExperimentationFilterProvider {
 		const filters = new Map<string, string>();
 
 		// Mirrors the core `X-VSCode-WindowKind` filter (`editor` or `agents`).
-		const windowKind = vscode.workspace.isAgentSessionsWorkspace ? 'agents' : 'editor';
+		const windowKind = vscode.workspace.isAgentManaged ? 'agents' : 'editor';
 		filters.set('X-VSCode-WindowKind', windowKind);
 
 		this._logService.trace(`[WindowKindFilterProvider]::getFilters Filters: ${JSON.stringify(Array.from(filters.entries()))}`);
@@ -254,7 +254,7 @@ export class CopilotAssignmentsFilterProvider implements IExperimentationFilterP
 		if (this._releaseDate) {
 			filters.set('vscode_core_releasedate', this._releaseDate);
 		}
-		filters.set('vscode_core_windowkind', vscode.workspace.isAgentSessionsWorkspace ? 'agents' : 'editor');
+		filters.set('vscode_core_windowkind', vscode.workspace.isAgentManaged ? 'agents' : 'editor');
 		filters.set('devdeviceid', vscode.env.devDeviceId);
 		filters.set('copilottrackingid', token?.getTokenValue('tid'));
 		filters.set('github_core_organizationid', token?.organizationList.join(','));
@@ -265,6 +265,7 @@ export class CopilotAssignmentsFilterProvider implements IExperimentationFilterP
 		filters.set('github_core_copilotsku', token?.sku);
 		filters.set('github_core_issn', token?.isSn() ? '1' : '0');
 		filters.set('github_core_isfcv1', token?.isFcv1() ? '1' : '0');
+		filters.set('github_core_isproxima', token?.isProxima() ? '1' : '0');
 		filters.set('vscode_core_copilotchatextensionversion', trimVersionSuffix(packageJson.version));
 
 		this._logService.trace(`[CopilotAssignmentsFilterProvider]::getFilters Filters: ${JSON.stringify(Array.from(filters.entries()))}`);

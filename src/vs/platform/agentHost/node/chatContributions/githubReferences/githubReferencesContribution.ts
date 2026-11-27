@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { IAgentHostGitStateService } from '../../../common/agentHostGitStateService.js';
 import { type IAgentHostChatContribution, type IAgentHostChatContributionContext, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
 import { isAhpChatChannel, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
@@ -32,8 +31,7 @@ export class GitHubReferencesContribution extends Disposable implements IAgentHo
 			return;
 		}
 		const key = this._getPullRequestKey(turn);
-		const workingDirectory = this._stateManager.getSessionState(key)?.workingDirectories?.[0];
-		void this._gitStateService.attachSessionGitHubPullRequest(key, workingDirectory ? URI.parse(workingDirectory) : undefined);
+		void this._gitStateService.attachSessionGitHubPullRequest(key);
 	}
 
 	/**

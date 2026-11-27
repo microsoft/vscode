@@ -178,6 +178,16 @@ suite('CommandLineAutoApprover', () => {
 				'sort --compress-program\\=/bin/sh input.txt',
 				'sort --"compress-program=/bin/sh" input.txt',
 				'sort $\'--compress-program=/bin/sh\' input.txt',
+				'sort --output=output.txt input.txt',
+				'sort --output output.txt input.txt',
+				'sort --outpu=output.txt input.txt',
+				'sort --o=output.txt input.txt',
+				'sort "--output=output.txt" input.txt',
+				'sort \'--out=output.txt\' input.txt',
+				'sort \\-\\-output=output.txt input.txt',
+				'sort --"output=output.txt" input.txt',
+				'sort $\'--output=output.txt\' input.txt',
+				'sort \\\ninput.txt --output=output.txt',
 			];
 			deepStrictEqual(await Promise.all(commands.map(isAutoApproved)), commands.map(() => false));
 		});

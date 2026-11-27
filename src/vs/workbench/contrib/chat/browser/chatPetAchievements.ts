@@ -410,24 +410,6 @@ export function isUserAuthoredChatPetCustomization(source: AICustomizationSource
 	return !isBuiltin && (source === 'local' || source === 'user');
 }
 
-export function getChatPetCustomizationAchievementIds(
-	skills: readonly { readonly source: AICustomizationSource; readonly isBuiltin?: boolean }[],
-	instructions: readonly { readonly source: AICustomizationSource; readonly isBuiltin?: boolean }[],
-	mcpServerCount: number,
-): readonly ChatPetAchievementId[] {
-	const achievements: ChatPetAchievementId[] = [];
-	if (skills.some(item => isUserAuthoredChatPetCustomization(item.source, item.isBuiltin))) {
-		achievements.push(ChatPetAchievementIds.CustomSkillPresent);
-	}
-	if (instructions.some(item => isUserAuthoredChatPetCustomization(item.source, item.isBuiltin))) {
-		achievements.push(ChatPetAchievementIds.InstructionPresent);
-	}
-	if (mcpServerCount > 0) {
-		achievements.push(ChatPetAchievementIds.McpServerPresent);
-	}
-	return achievements;
-}
-
 export function getChatPetAchievementPresentation(achievement: IChatPetAchievement, unlocked: boolean): ChatPetAchievementPresentation {
 	const rewardLabels = getChatPetAchievementRewardLabels(achievement);
 	return unlocked
@@ -451,11 +433,4 @@ export function getChatPetAchievementRewardLabels(achievement: IChatPetAchieveme
 	return achievement.colorCustomization
 		? [localize('chatPet.achievement.colorCustomization', "Color Customization")]
 		: achievement.accessories.map(accessory => accessory.label);
-}
-
-export function getUnlockedChatPetAccessories(unlockedAchievements: readonly ChatPetAchievementId[]): readonly IChatPetAccessory[] {
-	const unlocked = new Set(unlockedAchievements);
-	return chatPetAchievements
-		.filter(achievement => unlocked.has(achievement.id))
-		.flatMap(achievement => achievement.accessories);
 }

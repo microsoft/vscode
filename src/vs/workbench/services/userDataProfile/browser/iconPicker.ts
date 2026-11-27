@@ -13,6 +13,21 @@ import { defaultInputBoxStyles } from '../../../../platform/theme/browser/defaul
 import { getIconRegistry } from '../../../../platform/theme/common/iconRegistry.js';
 import { WorkbenchIconSelectBox } from './iconSelectBox.js';
 
+/**
+ * The icons that can be picked: the registered icons with a glyph of their own, each glyph once. Read it each time a
+ * picker opens, so that icons registered meanwhile are offered too.
+ */
+function getPickableIcons(): ThemeIcon[] {
+	const characters = new Set<string>();
+	return getIconRegistry().getIcons().filter(icon => {
+		if (icon.id === 'blank' || ThemeIcon.isThemeIcon(icon.defaults) || characters.has(icon.defaults.fontCharacter)) {
+			return false;
+		}
+		characters.add(icon.defaults.fontCharacter);
+		return true;
+	});
+}
+
 export class IconPicker extends Disposable {
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -26,16 +41,8 @@ export class IconPicker extends Disposable {
 		const disposables = this._register(new DisposableStore());
 		try {
 			const picker = disposables.add(this.quickInputService.createQuickWidget());
-			const characters = new Set<string>();
-			const icons = getIconRegistry().getIcons().filter(icon => {
-				if (icon.id === 'blank' || ThemeIcon.isThemeIcon(icon.defaults) || characters.has(icon.defaults.fontCharacter)) {
-					return false;
-				}
-				characters.add(icon.defaults.fontCharacter);
-				return true;
-			});
 			const grid = disposables.add(this.instantiationService.createInstance(WorkbenchIconSelectBox, {
-				icons,
+				icons: getPickableIcons(),
 				inputBoxStyles: defaultInputBoxStyles,
 				showIconInfo: true,
 				showResetButton: true,
