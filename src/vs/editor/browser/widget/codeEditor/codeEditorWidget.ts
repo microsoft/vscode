@@ -1525,11 +1525,24 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (!this._modelData || !this._modelData.hasRealView) {
 			return false;
 		}
+		const domNode = this._modelData.view.domNode.domNode;
+		if (!domNode.isConnected) {
+			// A detached editor can keep a stale text focus. Do not let it win
+			// focus-based command resolution; refresh its focus state instead.
+			// https://github.com/microsoft/vscode/issues/349616
+			this._modelData.view.refreshFocusState();
+			return false;
+		}
 		return this._modelData.view.isFocused();
 	}
 
 	public hasWidgetFocus(): boolean {
 		if (!this._modelData || !this._modelData.hasRealView) {
+			return false;
+		}
+		const domNode = this._modelData.view.domNode.domNode;
+		if (!domNode.isConnected) {
+			this._modelData.view.refreshFocusState();
 			return false;
 		}
 		return this._modelData.view.isWidgetFocused();
