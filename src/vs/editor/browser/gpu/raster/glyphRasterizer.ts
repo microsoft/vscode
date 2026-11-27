@@ -55,8 +55,9 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 	) {
 		super();
 
-		const devicePixelFontSize = Math.ceil(this.fontSize * devicePixelRatio);
-		this._canvas = new OffscreenCanvas(devicePixelFontSize * 3, devicePixelFontSize * 3);
+		const devicePixelFontSize = this.fontSize * devicePixelRatio;
+		const canvasDim = Math.ceil(devicePixelFontSize * 3);
+		this._canvas = new OffscreenCanvas(canvasDim, canvasDim);
 		this._ctx = ensureNonNullable(this._canvas.getContext('2d', {
 			willReadFrequently: true,
 			alpha: this._antiAliasing === 'greyscale',
@@ -104,8 +105,8 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 		decorationStyleSetId: number,
 		colorMap: string[],
 	): Readonly<IRasterizedGlyph> {
-		const devicePixelFontSize = Math.ceil(this.fontSize * this.devicePixelRatio);
-		const canvasDim = devicePixelFontSize * 3;
+		const devicePixelFontSize = this.fontSize * this.devicePixelRatio;
+		const canvasDim = Math.ceil(devicePixelFontSize * 3);
 		if (this._canvas.width !== canvasDim) {
 			this._canvas.width = canvasDim;
 			this._canvas.height = canvasDim;

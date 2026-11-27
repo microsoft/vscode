@@ -13,6 +13,9 @@ import { createCodeEditorServices } from '../../testCodeEditor.js';
 import { assertIsValidGlyph } from './testUtil.js';
 import { TextureAtlasSlabAllocator } from '../../../../browser/gpu/atlas/textureAtlasSlabAllocator.js';
 import { DecorationStyleCache } from '../../../../browser/gpu/css/decorationStyleCache.js';
+import { getActiveWindow } from '../../../../../base/browser/dom.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { TestColorTheme, TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 
 const blackInt = 0x000000FF;
 const nullCharMetadata = 0x0;
@@ -89,6 +92,23 @@ suite('TextureAtlas', () => {
 
 	test('get single glyph', () => {
 		assertIsValidGlyph(atlas.getGlyph(glyphRasterizer, ...getUniqueGlyphId()), atlas);
+	});
+
+	test('idle time does not allocate glyphs that were not requested', async () => {
+		instantiationService.invokeFunction(accessor => {
+			(accessor.get(IThemeService) as TestThemeService).setTheme(new class extends TestColorTheme {
+				override get tokenColorMap(): string[] { return ['#000000', '#ffffff']; }
+			}());
+		});
+		atlas = store.add(instantiationService.createInstance(TextureAtlas, 1024, undefined, new DecorationStyleCache()));
+		const glyph = atlas.getGlyph(glyphRasterizer, 'a', blackInt, nullCharMetadata, 0);
+		await new Promise<void>(resolve => getActiveWindow().requestIdleCallback(() => resolve()));
+		strictEqual(atlas.pages.length, 1);
+		strictEqual([...atlas.pages[0].glyphs].length, 2);
+		strictEqual(atlas.getGlyph(glyphRasterizer, 'a', blackInt, nullCharMetadata, 0), glyph);
+		atlas.clear();
+		strictEqual([...atlas.pages[0].glyphs].length, 1);
+		assertIsValidGlyph(atlas.getGlyph(glyphRasterizer, 'a', blackInt, nullCharMetadata, 0), atlas);
 	});
 
 	test('get multiple glyphs', () => {
