@@ -11,6 +11,8 @@ import { IWorkbenchAssignmentService } from './assignmentService.js';
 /**
  * Reads treatments initially and on refetch, retaining resolved values on failure and ignoring stale results.
  * Invalid values are logged and treated as undefined; `onPendingChange` tracks the latest lookup.
+ * `onChange` is called with the first values that are read, and after that only when a refetch
+ * resolves to different values than the last call.
  */
 export function registerExperimentTreatments<T extends string | number | boolean = string>(
 	treatments: readonly string[],
@@ -24,12 +26,16 @@ export function registerExperimentTreatments<T extends string | number | boolean
 	const store = new DisposableStore();
 	let treatmentRequest = 0;
 	let hasResolved = false;
+	let lastValues: readonly (T | undefined)[] | undefined;
 	const getTreatmentValue = (name: string, value: T | undefined): T | undefined => {
 		if (value === undefined || isValid(value, name)) {
 			return value;
 		}
 		logService.warn(`[${logPrefix}] Ignoring invalid ${name} treatment`);
 		return undefined;
+	};
+	const valuesChanged = (a: readonly (T | undefined)[], b: readonly (T | undefined)[] | undefined): boolean => {
+		return b === undefined || a.length !== b.length || a.some((value, index) => value !== b[index]);
 	};
 	const update = async (): Promise<void> => {
 		const request = ++treatmentRequest;
@@ -59,7 +65,11 @@ export function registerExperimentTreatments<T extends string | number | boolean
 			return;
 		}
 		hasResolved = true;
-		onChange(values.map((value, index) => getTreatmentValue(treatments[index], value)));
+		const resolved = values.map((value, index) => getTreatmentValue(treatments[index], value));
+		if (valuesChanged(resolved, lastValues)) {
+			lastValues = resolved;
+			onChange(resolved);
+		}
 		finish();
 	};
 	store.add(assignmentService.onDidRefetchAssignments(() => void update()));
