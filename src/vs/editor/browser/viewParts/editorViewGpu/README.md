@@ -7,8 +7,9 @@ installed by the distro.
 
 Bracket-pair guides and view zones require a renderer exposing
 `setBracketGuides` and `setVerticalLayout`; these APIs are not in the initial
-npm `0.0.1` release. Pin `0.0.2` or later in the distro: it has them and every
-other API this integration uses.
+npm `0.0.1` release. Pin `0.0.3` or later in the distro: it has them and every
+other API this integration uses, such as the `fontWeight` configuration that
+0.0.3 added.
 
 ## Distro setup
 
@@ -16,7 +17,7 @@ In `microsoft/vscode-distro` (checked out as `.build/distro` during product
 builds), add the pinned runtime dependency to `npm/package.json`:
 
 ```json
-"@vscode/editor-view": "0.0.2"
+"@vscode/editor-view": "0.0.3"
 ```
 
 Then refresh that folder's `pnpm-lock.yaml` by running `pnpm install` in `npm/`.
@@ -70,8 +71,8 @@ published release:
 
 ```sh
 mkdir -p node_modules/@vscode/editor-view
-npm pack @vscode/editor-view@0.0.2 --pack-destination /tmp
-tar -xzf /tmp/vscode-editor-view-0.0.2.tgz -C node_modules/@vscode/editor-view --strip-components=1
+npm pack @vscode/editor-view@0.0.3 --pack-destination /tmp
+tar -xzf /tmp/vscode-editor-view-0.0.3.tgz -C node_modules/@vscode/editor-view --strip-components=1
 ```
 
 To use a local renderer build, run `npm run build` in the package, then link it:
