@@ -110,51 +110,6 @@ interface IFailedRepository {
 	readonly error: unknown;
 }
 
-/**
- * Whether `child` is `parent` or inside it. A URI's string form lower-cases a Windows drive letter, so a repository root
- * Git reports as `C:` and a folder sent as `c:` compare equal on every platform.
- */
-function isEqualOrInside(child: URI, parent: URI): boolean {
-	return extUriBiasedIgnorePathCase.isEqualOrParent(URI.parse(child.toString()), URI.parse(parent.toString()));
-}
-
-/** The working directories in each failed repository, with a reason for the user. */
-function toFolderFailures(workingDirectories: readonly URI[], failedRepositories: readonly IFailedRepository[]): IChangesetFolderFailure[] {
-	const failures: IChangesetFolderFailure[] = [];
-	const toFailure = (folder: URI, failed: IFailedRepository): IChangesetFolderFailure => {
-		const detail = failed.error === undefined ? undefined : toErrorMessage(failed.error);
-		return {
-			folder: folder.toString(),
-			message: localize('folderChangesFailed', "The changes of this folder could not be computed."),
-			...(detail ? { detail } : {}),
-		};
-	};
-	for (const workingDirectory of workingDirectories) {
-		const failed = failedRepositories.find(repository => isEqualOrInside(workingDirectory, repository.root));
-		if (failed) {
-			failures.push(toFailure(workingDirectory, failed));
-		}
-	}
-	// A repository found inside a folder is reported by its own root
-	for (const failed of failedRepositories) {
-		if (!workingDirectories.some(workingDirectory => isEqualOrInside(workingDirectory, failed.root))) {
-			failures.push(toFailure(failed.root, failed));
-		}
-	}
-	return failures;
-}
-
-/** `roots` followed by the `discovered` roots it does not have yet, at most `limit`. */
-function withDiscoveredRepositories(roots: readonly URI[], discovered: readonly URI[], limit: number): URI[] {
-	const result = [...roots];
-	for (const root of discovered) {
-		if (!result.some(candidate => isEqualOrInside(candidate, root) && isEqualOrInside(root, candidate))) {
-			result.push(root);
-		}
-	}
-	return result.slice(0, limit);
-}
-
 /** A repository's {@link IAgentHostGitService.getBranchDiffFingerprint}, with the base branch it was taken against. */
 interface IRepositoryFingerprint {
 	readonly fingerprint: string;
@@ -1172,7 +1127,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		}
 		return {
 			diffs: dedupeSessionFileDiffs(perRepo.map(result => result.diffs).filter(isDefined)),
-			failures: toFolderFailures(directories, [...unresolved, ...failedRepositories]),
+			failures: this._toFolderFailures(directories, [...unresolved, ...failedRepositories]),
 		};
 	}
 
@@ -1427,7 +1382,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		// folder: edits made otherwise, such as in a terminal, are not seen there. A Git-only computation leaves them out.
 		if (source.strategy !== 'git') {
 			const discovered = this._getDiscoveredRepositoryRoots(session, workingDirectories)
-				.filter(root => !gitRepositories.some(repository => isEqualOrInside(repository, root) && isEqualOrInside(root, repository)))
+				.filter(root => !gitRepositories.some(repository => this._isEqualOrInside(repository, root) && this._isEqualOrInside(root, repository)))
 				.slice(0, MAX_UNCOMMITTED_FOLDERS);
 			nonGitDirectories = [...nonGitDirectories, ...discovered];
 		}
@@ -1453,7 +1408,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		}
 		return {
 			diffs,
-			failures: toFolderFailures(workingDirectoryUris, failedRepositories),
+			failures: this._toFolderFailures(workingDirectoryUris, failedRepositories),
 			outcome: 'computed',
 			multiRoot: {
 				uniqueGitFolderCount: gitRepositories.length,
@@ -1696,14 +1651,14 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 */
 	private _getRepositoryBaseBranch(owner: ProtocolURI, workingDirectories: readonly string[], discovered: readonly URI[], repoRoot: URI): string | undefined {
 		const meta = this._stateManager.getSessionState(this._containingSessionUri(owner))?._meta;
-		if (discovered.some(root => isEqualOrInside(root, repoRoot) && isEqualOrInside(repoRoot, root))) {
+		if (discovered.some(root => this._isEqualOrInside(root, repoRoot) && this._isEqualOrInside(repoRoot, root))) {
 			return readFolderScopeGitState(meta, getWorkingDirectoryScopeId([repoRoot.toString()]))?.baseBranchName;
 		}
 		const [first, ...others] = workingDirectories;
-		if (first === undefined || isEqualOrInside(URI.parse(first), repoRoot)) {
+		if (first === undefined || this._isEqualOrInside(URI.parse(first), repoRoot)) {
 			return undefined;
 		}
-		const folder = others.find(candidate => isEqualOrInside(URI.parse(candidate), repoRoot));
+		const folder = others.find(candidate => this._isEqualOrInside(URI.parse(candidate), repoRoot));
 		return folder === undefined ? undefined : readFolderScopeGitState(meta, getWorkingDirectoryScopeId([folder]))?.baseBranchName;
 	}
 
@@ -1720,7 +1675,52 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			this._logService.warn(`[AgentHostChangesetService] Failed to resolve the repository of ${directory.toString()} for ${owner}`, error);
 			unresolved.push({ root: directory, error });
 		});
-		return { repositories: withDiscoveredRepositories(resolved.gitRepositories, discovered, MAX_UNCOMMITTED_FOLDERS), discovered, unresolved };
+		return { repositories: this._withDiscoveredRepositories(resolved.gitRepositories, discovered, MAX_UNCOMMITTED_FOLDERS), discovered, unresolved };
+	}
+
+	/**
+	 * Whether `child` is `parent` or inside it. A URI's string form lower-cases a Windows drive letter, so a repository root
+	 * Git reports as `C:` and a folder sent as `c:` compare equal on every platform.
+	 */
+	private _isEqualOrInside(child: URI, parent: URI): boolean {
+		return extUriBiasedIgnorePathCase.isEqualOrParent(URI.parse(child.toString()), URI.parse(parent.toString()));
+	}
+
+	/** The working directories in each failed repository, with a reason for the user. */
+	private _toFolderFailures(workingDirectories: readonly URI[], failedRepositories: readonly IFailedRepository[]): IChangesetFolderFailure[] {
+		const failures: IChangesetFolderFailure[] = [];
+		const toFailure = (folder: URI, failed: IFailedRepository): IChangesetFolderFailure => {
+			const detail = failed.error === undefined ? undefined : toErrorMessage(failed.error);
+			return {
+				folder: folder.toString(),
+				message: localize('folderChangesFailed', "The changes of this folder could not be computed."),
+				...(detail ? { detail } : {}),
+			};
+		};
+		for (const workingDirectory of workingDirectories) {
+			const failed = failedRepositories.find(repository => this._isEqualOrInside(workingDirectory, repository.root));
+			if (failed) {
+				failures.push(toFailure(workingDirectory, failed));
+			}
+		}
+		// A repository found inside a folder is reported by its own root
+		for (const failed of failedRepositories) {
+			if (!workingDirectories.some(workingDirectory => this._isEqualOrInside(workingDirectory, failed.root))) {
+				failures.push(toFailure(failed.root, failed));
+			}
+		}
+		return failures;
+	}
+
+	/** `roots` followed by the `discovered` roots it does not have yet, at most `limit`. */
+	private _withDiscoveredRepositories(roots: readonly URI[], discovered: readonly URI[], limit: number): URI[] {
+		const result = [...roots];
+		for (const root of discovered) {
+			if (!result.some(candidate => this._isEqualOrInside(candidate, root) && this._isEqualOrInside(root, candidate))) {
+				result.push(root);
+			}
+		}
+		return result.slice(0, limit);
 	}
 
 	/** Whether the changesets of `owner` list each repository: an owner of several folders, or of one with repositories found inside it. */
@@ -1793,7 +1793,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		return {
 			kind: 'ready',
 			diffs: dedupeSessionFileDiffs(perRepoDiffs.map(result => result.diffs).filter(isDefined)),
-			failures: toFolderFailures(workingDirectories.map(directory => URI.parse(directory)), [...unresolved, ...failedRepositories]),
+			failures: this._toFolderFailures(workingDirectories.map(directory => URI.parse(directory)), [...unresolved, ...failedRepositories]),
 			fingerprintOutdated,
 		};
 	}
