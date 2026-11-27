@@ -130,17 +130,20 @@ suite('ConnectionDiagnosticsService', () => {
 	/** Stubs the services that Connect via Dev Tunnel uses, with a picker that records what it shows. */
 	function stubConnectViaTunnel(instantiation: TestInstantiationService, service: ConnectionDiagnosticsService, hasSession: boolean) {
 		instantiation.stub(IConnectionDiagnosticsService, service);
-		const picker = { ready: new DeferredPromise<void>(), hide: store.add(new Emitter<void>()), shows: 0, itemLabels: [] as readonly string[] };
+		const picker = { ready: new DeferredPromise<void>(), hide: store.add(new Emitter<QuickInputHideReason>()), shows: 0, itemLabels: [] as readonly string[], ignoreFocusOut: false };
 		instantiation.stub(IQuickInputService, {
 			createQuickPick: <T extends IQuickPickItem>() => new class extends mock<IQuickPick<T>>() {
 				override items: readonly T[] = [];
 				override readonly onDidTriggerButton = Event.None;
 				override readonly onDidAccept = Event.None;
 				override readonly onDidTriggerItemButton = Event.None;
-				override readonly onDidHide = Event.map(picker.hide.event, () => ({ reason: QuickInputHideReason.Gesture }));
+				override readonly onDidHide = Event.map(picker.hide.event, reason => ({ reason }));
 				override show(): void { picker.shows++; }
-				override hide(): void { picker.hide.fire(); }
-				override dispose(): void { }
+				override hide(): void { picker.hide.fire(QuickInputHideReason.Other); }
+				// Like the real picker, disposing hides it.
+				override dispose(): void { picker.hide.fire(QuickInputHideReason.Other); }
+				override get ignoreFocusOut(): boolean { return picker.ignoreFocusOut; }
+				override set ignoreFocusOut(value: boolean) { picker.ignoreFocusOut = value; }
 				override set busy(value: boolean) {
 					if (!value) {
 						picker.itemLabels = this.items.map(item => item.label);
@@ -399,7 +402,7 @@ suite('ConnectionDiagnosticsService', () => {
 		const { picker, runCommand } = stubConnectViaTunnel(instantiation, service, true);
 		const run = runCommand();
 		await picker.ready.p;
-		picker.hide.fire();
+		picker.hide.fire(QuickInputHideReason.Gesture);
 		await run;
 		const snapshot = await service.getSnapshot();
 		assert.deepStrictEqual({
@@ -435,12 +438,54 @@ suite('ConnectionDiagnosticsService', () => {
 			const run = runCommand();
 			if (hadSession) {
 				await picker.ready.p;
-				picker.hide.fire();
+				picker.hide.fire(QuickInputHideReason.Gesture);
 			}
 			await run;
 			assert.deepStrictEqual({ listed, signIns, shows: picker.shows, itemLabels: picker.itemLabels, errors }, hadSession
 				? { listed: 2, signIns: ['github'], shows: 2, itemLabels: ['Mock host'], errors: [] }
 				: { listed: 1, signIns: [], shows: 1, itemLabels: [], errors: ['Failed to list dev tunnels: Sign in to allow access to your tunnels.'] });
+		});
+	}
+
+	for (const closed of ['while loading', 'while signing in', 'while loading again', 'by the sign-in'] as const) {
+		test(`closing the picker ${closed} ${closed === 'by the sign-in' ? 'continues' : 'stops'} the command`, async () => {
+			const { service, tunnels, instantiation } = createService();
+			const { picker, errors, runCommand } = stubConnectViaTunnel(instantiation, service, true);
+			let listed = 0;
+			tunnels.list = async () => {
+				if (listed++ === 0) {
+					if (closed === 'while loading') {
+						picker.hide.fire(QuickInputHideReason.Gesture);
+					}
+					throw new TunnelAuthenticationRequiredError('github');
+				}
+				if (closed === 'while loading again') {
+					picker.hide.fire(QuickInputHideReason.Gesture);
+				}
+				return [tunnel];
+			};
+			const signIns: { provider: string; ignoreFocusOut: boolean }[] = [];
+			tunnels.signIn = async provider => {
+				signIns.push({ provider, ignoreFocusOut: picker.ignoreFocusOut });
+				if (closed === 'while signing in') {
+					picker.hide.fire(QuickInputHideReason.Gesture);
+				} else if (closed === 'by the sign-in') {
+					picker.hide.fire(QuickInputHideReason.Other);
+				}
+			};
+			const run = runCommand();
+			if (closed === 'by the sign-in') {
+				await picker.ready.p;
+				picker.hide.fire(QuickInputHideReason.Gesture);
+			}
+			await run;
+			const signedIn = [{ provider: 'github', ignoreFocusOut: true }];
+			assert.deepStrictEqual({ listed, signIns, shows: picker.shows, itemLabels: picker.itemLabels, ignoreFocusOut: picker.ignoreFocusOut, errors }, {
+				'while loading': { listed: 1, signIns: [], shows: 1, itemLabels: [], ignoreFocusOut: false, errors: [] },
+				'while signing in': { listed: 1, signIns: signedIn, shows: 1, itemLabels: [], ignoreFocusOut: false, errors: [] },
+				'while loading again': { listed: 2, signIns: signedIn, shows: 2, itemLabels: [], ignoreFocusOut: false, errors: [] },
+				'by the sign-in': { listed: 2, signIns: signedIn, shows: 2, itemLabels: ['Mock host'], ignoreFocusOut: false, errors: [] },
+			}[closed]);
 		});
 	}
 

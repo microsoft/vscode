@@ -731,6 +731,17 @@ export interface ISessionsProvider {
 	removeChatFolder?(sessionId: string, chatUri: URI, folder: URI): Promise<void>;
 
 	/**
+	 * Detaches the provider's sessions, loaded or not, that were created in one of the workspace configurations
+	 * (`.code-workspace` files, in the client's URI space): they no longer record it (see
+	 * {@link ISessionWorkspace.workspaceConfig}) and keep working in their folders. Resolves when there are none, also
+	 * when the provider's backend cannot record workspace configurations.
+	 *
+	 * TODO: no provider implements this yet; the agent host provider implements it in a follow-up. Until then,
+	 * removing or renaming a workspace doesn't detach its sessions.
+	 */
+	detachSessionsFromWorkspace?(workspaceFiles: readonly URI[]): Promise<void>;
+
+	/**
 	 * Rename the session itself, independently of its chats. Single-chat
 	 * providers may implement this by renaming their main chat.
 	 * @param sessionId The ID of the session to rename.

@@ -11,6 +11,7 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IChatDraft } from '../../chat/common/attachments/chatDraft.js';
 import { IWorkspaceSelectionSnapshot } from '../../../services/sessions/common/workspaceSelection.js';
 import { ISendRequestOptions } from '../common/sessionsManagement.js';
 import { ISessionAgentRef } from '../../../services/sessions/common/session.js';
@@ -91,6 +92,11 @@ export interface INewSessionComposer {
 	readonly onDidChangeInput?: Event<void>;
 	readonly onDidFocus?: Event<void>;
 	readonly canApplyWorkspaceDefault?: boolean;
+	/**
+	 * Shows `input`, the input of a send whose composer is gone and whose request did not start its session, such as when
+	 * the user declined to trust its folder, and returns whether it did: only while its own input is empty and it does not send.
+	 */
+	restoreUnsentInput?(input: IChatDraft): boolean;
 	animatePrompt(text: string, durationMs: number, placeholder: string, token: CancellationToken): Promise<boolean>;
 	showPromptOptions(state: NewSessionPromptOptionsState | undefined): boolean;
 	setPromptOptionsController?(controller: INewSessionPromptOptionsController): void;

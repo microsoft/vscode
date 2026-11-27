@@ -11,6 +11,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { isCancellationError, onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../../base/common/observable.js';
 import { isLocalAgentHostProviderDisabledByPolicy } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -27,6 +28,7 @@ import { IStorageService } from '../../../../../../platform/storage/common/stora
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { editorBackground, editorForeground, inputBackground } from '../../../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
+import { registerContentDropTarget } from '../../../../../browser/dnd.js';
 import { AbstractEditorWithViewState } from '../../../../../browser/parts/editor/editorWithViewState.js';
 import { IEditorOpenContext } from '../../../../../common/editor.js';
 import { EditorInput } from '../../../../../common/editor/editorInput.js';
@@ -44,7 +46,8 @@ import { AgentHostSessionInputPills } from '../../agentSessions/agentHost/agentH
 import { IAgentHostUntitledProvisionalSessionService } from '../../agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { ChatEditorInput } from './chatEditorInput.js';
 import { ChatWidget } from '../../widget/chatWidget.js';
-import { IChatWidgetViewState, setModelPreservingInputTypedWhileLoading } from '../../chat.js';
+import { IChatWidgetService, IChatWidgetViewState, setModelPreservingInputTypedWhileLoading } from '../../chat.js';
+import { IChatViewHostService } from '../../chatViewHost.js';
 import { getChatSessionType, isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IChatOpen, IChatOpenDiagnosticsService } from '../../../common/chatOpenDiagnosticsService.js';
 
@@ -122,6 +125,8 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 		@IEditorService editorService: IEditorService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IAgentHostUntitledProvisionalSessionService private readonly provisionalSessionService: IAgentHostUntitledProvisionalSessionService,
+		@IChatViewHostService private readonly chatViewHostService: IChatViewHostService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super(ChatEditorInput.EditorID, group, ChatEditor.VIEW_STATE_KEY, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
 		this._register(chatSessionsService.onDidChangeContentProviderSchemes(({ added, removed }) => {
@@ -208,6 +213,13 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 		}
 	}
 
+	/** Opens `chats` in the editor's group, each in a tab of its own, or where it is open already. */
+	private async openInGroup(chats: readonly URI[]): Promise<void> {
+		for (const chat of chats) {
+			await this.chatWidgetService.openSession(chat, this.group, { pinned: true });
+		}
+	}
+
 	protected override createEditor(parent: HTMLElement): void {
 		this._editorContainer = parent;
 		// Ensure the container has position relative for the loading overlay
@@ -215,6 +227,9 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 		this._scopedContextKeyService = this._register(this.contextKeyService.createScoped(parent));
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 		ChatContextKeys.inChatEditor.bindTo(this._scopedContextKeyService).set(true);
+		// The chat takes what is dropped on it, such as files to attach, anywhere in it: editors and groups dragged over it still
+		// split its group, as over the content of other editors that take drops.
+		this._register(registerContentDropTarget(parent));
 
 		this._widget = this._register(
 			scopedInstantiationService.createInstance(
@@ -240,6 +255,7 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 					enableWorkingSet: 'explicit',
 					supportsChangingModes: true,
 					enableSessionStateIndicator: true,
+					dndContainer: parent,
 				},
 				{
 					listForeground: editorForeground,
@@ -260,6 +276,14 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 			}
 		}));
 		this.widget.render(parent);
+		// What a feature drops on the chat, such as a session, opens beside it, each in a tab of its group; ahead of the chat,
+		// whose input attaches what is dropped on it.
+		this._register(autorun(reader => {
+			const dropTarget = this.chatViewHostService.dropTarget.read(reader);
+			if (dropTarget) {
+				reader.store.add(dropTarget.create(parent, () => this.widget.viewModel?.sessionResource, chats => void this.openInGroup(chats).catch(onUnexpectedError)));
+			}
+		}));
 		this._register(scopedInstantiationService.createInstance(AgentHostSessionInputPills, this.widget, 'auto'));
 		this.widget.setVisible(true);
 	}

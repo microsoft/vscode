@@ -520,6 +520,76 @@ export function isSSHAuthenticationFailedError(error: unknown): boolean {
 }
 
 /**
+ * Codes the shared process records on SSH connect failures: the stage that
+ * failed and, for the SSH handshake, why. The renderer classifies failures by
+ * these codes and error names only, never by their localized, wrapped or remote
+ * command output messages.
+ */
+export const SSHConnectFailureCode = {
+	/** Resolving SSH configuration, keys or ProxyJump before connecting. */
+	Configuration: 'SSHConnectConfiguration',
+	/** Connecting, verifying the host key or authenticating, for any other reason. */
+	Connection: 'SSHConnectConnection',
+	/** The connection failed, was lost or timed out before the SSH handshake completed, without a ProxyJump or ProxyCommand whose failure could have any cause. */
+	Network: 'SSHConnectNetwork',
+	/** The server only offers host key types ssh2 cannot negotiate, such as OpenSSH host certificates. */
+	HostKeyFormat: 'SSHConnectHostKeyFormat',
+	/** No key exchange algorithm in common, such as a server that only allows post-quantum key exchange. */
+	KexAlgorithm: 'SSHConnectKexAlgorithm',
+	/** Any other SSH handshake or protocol failure. */
+	Handshake: 'SSHConnectHandshake',
+	/** Detecting the remote platform or installing the VS Code CLI. */
+	CliInstall: 'SSHConnectCliInstall',
+	/** Discovering, selecting or starting the remote agent host. */
+	AgentHost: 'SSHConnectAgentHost',
+	/** Opening the relay to the selected agent host. */
+	Relay: 'SSHConnectRelay',
+} as const;
+export type SSHConnectFailureCode = typeof SSHConnectFailureCode[keyof typeof SSHConnectFailureCode];
+
+const sshConnectFailureCodes = new Set<string>(Object.values(SSHConnectFailureCode));
+
+type ErrorWithSSHConnectFailureCode = Error & { sshConnectFailureCode?: SSHConnectFailureCode };
+
+/** Records where an SSH connect attempt failed, unless a more specific code was recorded first. */
+export function setSSHConnectFailureCode(error: unknown, code: SSHConnectFailureCode): void {
+	if (error instanceof Error && getSSHConnectFailureCode(error) === undefined) {
+		(error as ErrorWithSSHConnectFailureCode).sshConnectFailureCode = code;
+	}
+}
+
+/** The failure code recorded by {@link setSSHConnectFailureCode} or restored by {@link decodeSSHConnectFailureCode}. */
+export function getSSHConnectFailureCode(error: unknown): SSHConnectFailureCode | undefined {
+	return error instanceof Error ? (error as ErrorWithSSHConnectFailureCode).sshConnectFailureCode : undefined;
+}
+
+/**
+ * Shared-process IPC only carries an error's name, message and stack, so the
+ * shared process appends the failure code to a generic error name before
+ * rejecting, and {@link decodeSSHConnectFailureCode} moves it back. Names that
+ * identify an error, such as {@link SSH_HOST_KEY_DENIED_ERROR_NAME}, are kept.
+ */
+export function encodeSSHConnectFailureCode(error: unknown): void {
+	const code = getSSHConnectFailureCode(error);
+	if (code && error instanceof Error && (error.name === 'Error' || error.name === 'AggregateError')) {
+		error.name = `${error.name}|${code}`;
+	}
+}
+
+/** Restores an error name and failure code encoded by {@link encodeSSHConnectFailureCode}. */
+export function decodeSSHConnectFailureCode(error: unknown): void {
+	if (!(error instanceof Error)) {
+		return;
+	}
+	const separator = error.name.lastIndexOf('|');
+	const code = error.name.substring(separator + 1);
+	if (separator >= 0 && sshConnectFailureCodes.has(code)) {
+		error.name = error.name.substring(0, separator);
+		(error as ErrorWithSSHConnectFailureCode).sshConnectFailureCode = code as SSHConnectFailureCode;
+	}
+}
+
+/**
  * Request from the shared process for the renderer to decide whether a
  * server's host key should be trusted. Fired from ssh2's `hostVerifier` during
  * key exchange — that is, *before* authentication — so declining guarantees no

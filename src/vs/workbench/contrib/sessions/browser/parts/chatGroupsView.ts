@@ -1162,6 +1162,14 @@ export class ChatGroupsView extends Themable {
 		this._persistLayout();
 	}
 
+	/** Gives the groups of each row and column equal sizes, keeping their arrangement. */
+	evenSizes(): void {
+		if (this._grid && this._groups.length > 1) {
+			this._grid.distributeViewSizes();
+			this._persistLayout();
+		}
+	}
+
 	moveActiveChatToAdjacentGroup(direction: 'previous' | 'next'): void {
 		const source = this._activeGroup;
 		const sourceIndex = source ? this._groups.indexOf(source) : -1;

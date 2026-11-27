@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { ipcRenderer } from 'electron';
 import type * as http from 'http';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { IRequestOptions } from '../../../../base/parts/request/common/request.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
@@ -17,11 +18,13 @@ suite('Request Service - Electron redirects', () => {
 	let origin: string;
 	let otherOrigin: string;
 	let captured: { path: string | undefined; method: string | undefined; body: string; authorization: string | undefined; cookie: string | undefined; headers: http.IncomingHttpHeaders }[];
+	let stalledResponseClosed: DeferredPromise<void>;
 
 	setup(async () => {
 		const http = await import('http');
 		servers = [];
 		captured = [];
+		stalledResponseClosed = new DeferredPromise<void>();
 		const listen = async () => {
 			const server = http.createServer((req, res) => {
 				const chunks: Buffer[] = [];
@@ -88,6 +91,12 @@ suite('Request Service - Electron redirects', () => {
 							break;
 						case '/pending':
 							return;
+						case '/stall':
+							// The rest of the body never arrives. Chromium holds back a body until it has enough to sniff its type.
+							res.on('close', () => stalledResponseClosed.complete());
+							res.writeHead(200, { 'Content-Type': 'application/octet-stream' });
+							res.write(Buffer.alloc(64 * 1024));
+							return;
 						default:
 							res.end('ok');
 							return;
@@ -113,17 +122,17 @@ suite('Request Service - Electron redirects', () => {
 		})));
 	});
 
-	function requestWithRedirectModes(path: string, options: Partial<IRequestOptions> = {}, cancelOnRedirect = false): Promise<{ statusCode: number; body: string; redirectModes: string[] }> {
+	function requestWithRedirectModes(path: string, options: Partial<IRequestOptions> = {}, cancelOnRedirect = false, cancelOnBody = false): Promise<{ statusCode: number; body: string; redirectModes: string[] }> {
 		return ipcRenderer.invoke('vscode:test-platform-request', {
 			url: `${origin}${path}`,
 			headers,
 			callSite: 'requestService.test.electronRedirects',
 			...options
-		}, cancelOnRedirect);
+		}, cancelOnRedirect, cancelOnBody);
 	}
 
-	async function request(path: string, options: Partial<IRequestOptions> = {}, cancelOnRedirect = false): Promise<{ statusCode: number; body: string }> {
-		const { statusCode, body } = await requestWithRedirectModes(path, options, cancelOnRedirect);
+	async function request(path: string, options: Partial<IRequestOptions> = {}, cancelOnRedirect = false, cancelOnBody = false): Promise<{ statusCode: number; body: string }> {
+		const { statusCode, body } = await requestWithRedirectModes(path, options, cancelOnRedirect, cancelOnBody);
 		return { statusCode, body };
 	}
 
@@ -270,6 +279,11 @@ suite('Request Service - Electron redirects', () => {
 			await assert.rejects(request('/cancel', options, true), /Canceled/);
 		});
 	}
+
+	test('aborts the Chromium request when cancelled while reading the body', async () => {
+		await assert.rejects(request('/stall', {}, false, true), /Canceled/);
+		await stalledResponseClosed.p;
+	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 });

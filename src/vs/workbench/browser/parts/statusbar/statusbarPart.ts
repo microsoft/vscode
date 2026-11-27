@@ -19,7 +19,7 @@ import { ColorIdentifier, contrastBorder, activeContrastBorder } from '../../../
 import { EventHelper, addDisposableListener, EventType, clearNode, getWindow, isHTMLElement, $ } from '../../../../base/browser/dom.js';
 import { createStyleSheet } from '../../../../base/browser/domStylesheets.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { Parts, IWorkbenchLayoutService, LayoutSettings } from '../../../services/layout/browser/layoutService.js';
+import { ActivityBarPosition, Parts, IWorkbenchLayoutService, LayoutSettings } from '../../../services/layout/browser/layoutService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { equals } from '../../../../base/common/arrays.js';
@@ -238,10 +238,11 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 			updateStyles();
 		}));
 
-		// Floating panels changes the reserved bottom padding (and therefore the
-		// part height) for the main status bar only: signal the grid that the size
-		// constraint changed.
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION)) {
+				this.updateActivityBarPositionClass();
+			}
+			// Signal changes to the main status bar's Modern UI size constraint.
 			if (this.getId() === Parts.STATUSBAR_PART && (e.affectsConfiguration(LayoutSettings.MODERN_UI) || e.affectsConfiguration(LayoutSettings.MODERN_UI_DENSITY))) {
 				this._onDidChange.fire(undefined);
 				if (this.element) {
@@ -249,6 +250,11 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 				}
 			}
 		}));
+	}
+
+	private updateActivityBarPositionClass(): void {
+		const position = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
+		this.element?.classList.toggle('activitybar-horizontal', position === ActivityBarPosition.TOP || position === ActivityBarPosition.BOTTOM);
 	}
 
 	protected hasWindowFocus(): boolean {
@@ -457,6 +463,7 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 
 	protected override createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
+		this.updateActivityBarPositionClass();
 
 		// Track focus within container
 		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.element));

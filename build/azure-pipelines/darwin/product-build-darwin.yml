@@ -13,12 +13,20 @@ parameters:
   # builds of main and release/* branches pass true.
   - name: VSCODE_PRIVILEGED_CONNECTIONS
     type: boolean
+  # Whether a build without the privileged connections still runs the package
+  # job, which then publishes the unsigned product artifacts. Only the product
+  # build passes true, so that its dev builds can be downloaded.
+  - name: VSCODE_PACKAGE_UNSIGNED
+    type: boolean
+    default: false
 
 # Compile mixes in the CLI, publishes the unsigned client for the universal
-# build and publishes unpacked builds for the test and Sign jobs. Sign
-# packages, signs, notarizes and publishes the final artifacts. The test jobs
-# are declared next to this template (see product-build-darwin-test.yml) and
-# run in parallel with Sign after Compile.
+# build and publishes unpacked builds for the test and Package jobs. With the
+# privileged connections, Package signs, notarizes and publishes the final
+# artifacts. Without them, it publishes the unsigned server and web server
+# archives and DMG as unsigned_<artifact>, next to the unsigned client archive
+# that Compile publishes. The test jobs are declared next to this template (see
+# product-build-darwin-test.yml) and run in parallel with Package after Compile.
 jobs:
   - job: macOS_${{ parameters.VSCODE_ARCH }}_Compile
     displayName: macOS (${{ upper(parameters.VSCODE_ARCH) }}) - Compile
@@ -81,11 +89,14 @@ jobs:
         continueOnError: true
         displayName: Check for artifacts published by an earlier attempt
 
-  # Signing needs the ESRP connection, which the SDK validation pipeline
-  # (sdk-validation-build.yml) must not reference.
-  - ${{ if eq(parameters.VSCODE_PRIVILEGED_CONNECTIONS, true) }}:
+  # Signing needs the ESRP connection, which only builds with the privileged
+  # connections may reference. The others package the product unsigned.
+  - ${{ if or(eq(parameters.VSCODE_PRIVILEGED_CONNECTIONS, true), eq(parameters.VSCODE_PACKAGE_UNSIGNED, true)) }}:
     - job: macOS_${{ parameters.VSCODE_ARCH }}_Sign
-      displayName: macOS (${{ upper(parameters.VSCODE_ARCH) }}) - Sign
+      ${{ if eq(parameters.VSCODE_PRIVILEGED_CONNECTIONS, true) }}:
+        displayName: macOS (${{ upper(parameters.VSCODE_ARCH) }}) - Package & Sign
+      ${{ else }}:
+        displayName: macOS (${{ upper(parameters.VSCODE_ARCH) }}) - Package
       dependsOn: macOS_${{ parameters.VSCODE_ARCH }}_Compile
       timeoutInMinutes: 240
       cancelTimeoutInMinutes: 10
@@ -95,41 +106,53 @@ jobs:
       templateContext:
         outputParentDirectory: $(Build.ArtifactStagingDirectory)/out
         outputs:
-          - output: pipelineArtifact
-            ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
-              targetPath: $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin.zip
-            ${{ if eq(parameters.VSCODE_ARCH, 'arm64') }}:
-              targetPath: $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-arm64.zip
-            artifactName: vscode_client_darwin_$(VSCODE_ARCH)_archive
-            condition: and(succeeded(), ne(variables['CLIENT_ARCHIVE_PUBLISHED'], 'true'))
-            displayName: Publish client archive
-            sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)
-            sbomPackageName: "VS Code macOS $(VSCODE_ARCH)"
-            sbomPackageVersion: $(Build.SourceVersion)
+          # Without the privileged connections, the compile job already publishes
+          # the unsigned client archive as unsigned_vscode_client_darwin_<arch>_archive.
+          - ${{ if eq(parameters.VSCODE_PRIVILEGED_CONNECTIONS, true) }}:
+            - output: pipelineArtifact
+              ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+                targetPath: $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin.zip
+              ${{ if eq(parameters.VSCODE_ARCH, 'arm64') }}:
+                targetPath: $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-arm64.zip
+              artifactName: vscode_client_darwin_$(VSCODE_ARCH)_archive
+              condition: and(succeeded(), ne(variables['CLIENT_ARCHIVE_PUBLISHED'], 'true'))
+              displayName: Publish client archive
+              sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)
+              sbomPackageName: "VS Code macOS $(VSCODE_ARCH)"
+              sbomPackageVersion: $(Build.SourceVersion)
           - output: pipelineArtifact
             targetPath: $(Build.ArtifactStagingDirectory)/out/vscode_server_darwin_$(VSCODE_ARCH)_archive/vscode-server-darwin-$(VSCODE_ARCH).zip
-            artifactName: vscode_server_darwin_$(VSCODE_ARCH)_archive
+            artifactName: ${{ iif(parameters.VSCODE_PRIVILEGED_CONNECTIONS, '', 'unsigned_') }}vscode_server_darwin_$(VSCODE_ARCH)_archive
             condition: and(succeeded(), ne(variables['SERVER_ARCHIVE_PUBLISHED'], 'true'))
             displayName: Publish server archive
             sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)
             sbomPackageName: "VS Code macOS $(VSCODE_ARCH) Server"
             sbomPackageVersion: $(Build.SourceVersion)
+            ${{ if ne(parameters.VSCODE_PRIVILEGED_CONNECTIONS, true) }}:
+              sbomEnabled: false
+              isProduction: false
           - output: pipelineArtifact
             targetPath: $(Build.ArtifactStagingDirectory)/out/vscode_web_darwin_$(VSCODE_ARCH)_archive/vscode-server-darwin-$(VSCODE_ARCH)-web.zip
-            artifactName: vscode_web_darwin_$(VSCODE_ARCH)_archive
+            artifactName: ${{ iif(parameters.VSCODE_PRIVILEGED_CONNECTIONS, '', 'unsigned_') }}vscode_web_darwin_$(VSCODE_ARCH)_archive
             condition: and(succeeded(), ne(variables['WEB_ARCHIVE_PUBLISHED'], 'true'))
             displayName: Publish web server archive
             sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)-web
             sbomPackageName: "VS Code macOS $(VSCODE_ARCH) Web"
             sbomPackageVersion: $(Build.SourceVersion)
+            ${{ if ne(parameters.VSCODE_PRIVILEGED_CONNECTIONS, true) }}:
+              sbomEnabled: false
+              isProduction: false
           - output: pipelineArtifact
             targetPath: $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_dmg/VSCode-darwin-$(VSCODE_ARCH).dmg
-            artifactName: vscode_client_darwin_$(VSCODE_ARCH)_dmg
+            artifactName: ${{ iif(parameters.VSCODE_PRIVILEGED_CONNECTIONS, '', 'unsigned_') }}vscode_client_darwin_$(VSCODE_ARCH)_dmg
             condition: and(succeeded(), ne(variables['CLIENT_DMG_PUBLISHED'], 'true'))
             displayName: Publish client DMG
             sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)
             sbomPackageName: "VS Code macOS $(VSCODE_ARCH)"
             sbomPackageVersion: $(Build.SourceVersion)
+            ${{ if ne(parameters.VSCODE_PRIVILEGED_CONNECTIONS, true) }}:
+              sbomEnabled: false
+              isProduction: false
       steps:
         - template: ./steps/product-build-darwin-setup.yml@self
           parameters:
@@ -138,16 +161,18 @@ jobs:
         - template: ./steps/product-build-darwin-download-compilation.yml@self
 
         - template: ./steps/product-build-darwin-package.yml@self
+          parameters:
+            VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
 
         # Pipeline artifacts can't be overwritten, so a retry of this job must skip
         # the artifacts that an earlier attempt already published, for example
         # before timing out (see ../common/checkForArtifact.ts)
         - script: >-
             node build/azure-pipelines/common/checkForArtifact.ts
-            CLIENT_ARCHIVE_PUBLISHED vscode_client_darwin_$(VSCODE_ARCH)_archive
-            SERVER_ARCHIVE_PUBLISHED vscode_server_darwin_$(VSCODE_ARCH)_archive
-            WEB_ARCHIVE_PUBLISHED vscode_web_darwin_$(VSCODE_ARCH)_archive
-            CLIENT_DMG_PUBLISHED vscode_client_darwin_$(VSCODE_ARCH)_dmg
+            ${{ iif(parameters.VSCODE_PRIVILEGED_CONNECTIONS, 'CLIENT_ARCHIVE_PUBLISHED vscode_client_darwin_$(VSCODE_ARCH)_archive', '') }}
+            SERVER_ARCHIVE_PUBLISHED ${{ iif(parameters.VSCODE_PRIVILEGED_CONNECTIONS, '', 'unsigned_') }}vscode_server_darwin_$(VSCODE_ARCH)_archive
+            WEB_ARCHIVE_PUBLISHED ${{ iif(parameters.VSCODE_PRIVILEGED_CONNECTIONS, '', 'unsigned_') }}vscode_web_darwin_$(VSCODE_ARCH)_archive
+            CLIENT_DMG_PUBLISHED ${{ iif(parameters.VSCODE_PRIVILEGED_CONNECTIONS, '', 'unsigned_') }}vscode_client_darwin_$(VSCODE_ARCH)_dmg
           env:
             SYSTEM_ACCESSTOKEN: $(System.AccessToken)
           continueOnError: true

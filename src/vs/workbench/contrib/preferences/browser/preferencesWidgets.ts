@@ -227,6 +227,7 @@ export class SettingsTargetsWidget extends Widget {
 	private options: ISettingsTargetsWidgetOptions;
 
 	private _settingsTarget: SettingsTarget | null = null;
+	private isAgentsMode = false;
 
 	private readonly _onDidTargetChange = this._register(new Emitter<SettingsTarget>());
 	readonly onDidTargetChange: Event<SettingsTarget> = this._onDidTargetChange.event;
@@ -341,8 +342,21 @@ export class SettingsTargetsWidget extends Widget {
 	private onWorkbenchStateChanged(): void {
 		this.folderSettings.folder = null;
 		this.update();
-		if (this.settingsTarget === ConfigurationTarget.WORKSPACE && this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
+		if (this.settingsTarget === ConfigurationTarget.WORKSPACE && (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE || this.isAgentsMode)) {
 			this.updateTarget(ConfigurationTarget.USER_LOCAL);
+		}
+	}
+
+	/**
+	 * Disables the workspace target while Agents mode is active, moving a workspace target to the user target.
+	 */
+	setAgentsMode(isActive: boolean): void {
+		if (this.isAgentsMode !== isActive) {
+			this.isAgentsMode = isActive;
+			this.update();
+			if (isActive && this.settingsTarget === ConfigurationTarget.WORKSPACE) {
+				this.updateTarget(ConfigurationTarget.USER_LOCAL);
+			}
 		}
 	}
 
@@ -360,10 +374,14 @@ export class SettingsTargetsWidget extends Widget {
 		return Promise.resolve(undefined);
 	}
 
+	private hasWorkspaceSettings(): boolean {
+		return this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && !this.isAgentsMode;
+	}
+
 	private async update(): Promise<void> {
-		this.settingsSwitcherBar.domNode.classList.toggle('empty-workbench', this.contextService.getWorkbenchState() === WorkbenchState.EMPTY);
+		this.settingsSwitcherBar.domNode.classList.toggle('empty-workbench', !this.hasWorkspaceSettings());
 		this.userRemoteSettings.enabled = !!(this.options.enableRemoteSettings && this.environmentService.remoteAuthority);
-		this.workspaceSettings.enabled = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY;
+		this.workspaceSettings.enabled = this.hasWorkspaceSettings();
 		this.folderSettings.action.enabled = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && this.contextService.getWorkspace().folders.length > 0;
 
 		this.workspaceSettings.tooltip = localize('workspaceSettings', "Workspace");

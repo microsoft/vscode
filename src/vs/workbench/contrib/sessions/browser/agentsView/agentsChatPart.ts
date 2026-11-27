@@ -46,6 +46,7 @@ import { ChatWindowComposerModel, ChatWindowComposers, createChatWindowComposerR
 import { getChatViewHostOpenReason, IChatViewHostService, IChatViewHostShownSession } from '../../../chat/browser/chatViewHost.js';
 import { IEditorWindowComposerFolderOptions, IEditorWindowComposerFoldersService } from '../editorWindow/editorWindowComposerFolders.js';
 import { SessionChatEditorEntry, waitForSessionChat } from '../chatEditor/sessionChatEditorHost.js';
+import { SessionChatDropTarget } from '../parts/sessionChatDropTarget.js';
 import { IChatViewFactory } from '../chatViewFactory.js';
 import { applyRememberedNewSessionPicks, EditorWindowNewSessionPicks } from './editorWindowNewSessionPicks.js';
 import { INewSessionTarget, ISessionViewHostOptions } from '../parts/chatView.js';
@@ -214,11 +215,13 @@ class AgentsChatPartChat extends SessionChatEditorEntry {
 		readonly window: IObservable<IChatEditorWindow | undefined>,
 		activeInput: IObservable<EditorInput | undefined>,
 		private readonly _close: (chat: AgentsChatPartChat) => void,
+		private readonly _openBeside: (chat: AgentsChatPartChat, chats: readonly URI[]) => void,
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@IChatService chatService: IChatService,
 		@ISessionsListModelService sessionsListModelService: ISessionsListModelService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super(chatResource, sessionsManagementService, chatService, sessionsListModelService, sessionsProvidersService, configurationService);
 		this.active = derived(this, reader => activeInput.read(reader) === this.input);
@@ -228,6 +231,14 @@ class AgentsChatPartChat extends SessionChatEditorEntry {
 
 	protected closeShown(): void {
 		this._close(this);
+	}
+
+	/** What is dropped on the chat, such as a session, opens beside it, each in a tab of its group, as in a chat window. */
+	createDropTarget(element: HTMLElement, chat: () => URI | undefined): IDisposable {
+		return this._instantiationService.createInstance(SessionChatDropTarget, element, {
+			chat,
+			open: chats => this._openBeside(this, chats),
+		});
 	}
 }
 
@@ -657,10 +668,15 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		logAgentsChatPartAction(this._telemetryService, action, this._tabCount());
 	}
 
-	private async _open(chat: AgentsChatPartChat, options: IAgentsChatPartOpenOptions | undefined): Promise<void> {
+	/**
+	 * @param targetGroup The group of the chat part that a chat it does not show yet opens in, rather than its active group,
+	 * such as the group of the chat that the chat is dropped on.
+	 */
+	private async _open(chat: AgentsChatPartChat, options: IAgentsChatPartOpenOptions | undefined, targetGroup?: IEditorGroup): Promise<void> {
 		const part = this._ensurePart();
 		this._layoutService.setPartHidden(false, Parts.CHAT_PART);
 		const group = this._groupOf(chat.input)
+			?? (targetGroup && part.groups.includes(targetGroup) ? targetGroup : undefined)
 			?? (options?.sideBySide && !part.activeGroup.isEmpty ? part.addGroup(part.activeGroup, GroupDirection.RIGHT) : part.activeGroup);
 		// An explicit open of a tab that the chat part still restores is the user's: it is opened, not restored
 		this._restoringTabs.delete(chat.input);
@@ -757,6 +773,14 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		}
 	}
 
+	/** Opens `chats`, dropped on `target`, in the group of the chat part that shows it, each in a tab, or where it shows already. */
+	private async _openBeside(target: AgentsChatPartChat, chats: readonly URI[]): Promise<void> {
+		const group = this._groupOf(target.input);
+		for (const resource of chats) {
+			await this._open(this._findChat(resource) ?? this._addChat(resource, undefined), undefined, group);
+		}
+	}
+
 	private _findChat(resource: URI): AgentsChatPartChat | undefined {
 		for (const [, chat] of this._chats) {
 			if (isEqual(chat.chat.get(), resource)) {
@@ -771,7 +795,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	}
 
 	private _addChat(resource: URI, composer: ChatWindowComposerModel | undefined): AgentsChatPartChat {
-		const chat = this._instantiationService.createInstance(AgentsChatPartChat, resource, composer, constObservable(this._window), this._activeInput, (chat: AgentsChatPartChat) => this._closeChat(chat));
+		const chat = this._instantiationService.createInstance(AgentsChatPartChat, resource, composer, constObservable(this._window), this._activeInput, (chat: AgentsChatPartChat) => this._closeChat(chat), (chat: AgentsChatPartChat, chats: readonly URI[]) => void this._openBeside(chat, chats).catch(onUnexpectedError));
 		this._chats.set(chat.input, chat);
 		if (composer) {
 			this._composerTabs.set(new Set([...this._composerTabs.get(), chat.input]), undefined);

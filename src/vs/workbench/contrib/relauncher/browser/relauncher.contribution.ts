@@ -15,7 +15,7 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IUserDataSyncEnablementService, IUserDataSyncService, SyncStatus } from '../../../../platform/userDataSync/common/userDataSync.js';
 import { IWindowsConfiguration, IWindowSettings, MenuSettings, MenuStyleConfiguration, TitleBarSetting, TitlebarStyle } from '../../../../platform/window/common/window.js';
-import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, WorkbenchMode, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
@@ -289,6 +289,10 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 				return; // no restart for sessions window
 			}
 
+			if (this.contextService.getWorkbenchMode() === WorkbenchMode.Agents) {
+				return; // no restart while the folders follow the focused session in Agents mode
+			}
+
 			if (environmentService.remoteAuthority) {
 				hostService.reload(); // TODO@aeschli, workaround
 			} else if (isNative) {
@@ -317,8 +321,11 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 
 			// Update our known first folder path if we entered workspace
-			const workspace = this.contextService.getWorkspace();
-			this.firstFolderResource = workspace.folders.length > 0 ? workspace.folders[0].uri : undefined;
+			// Keep the window's own first folder while in Agents mode, whose folders follow the focused session
+			if (this.contextService.getWorkbenchMode() === WorkbenchMode.Editor) {
+				const workspace = this.contextService.getWorkspace();
+				this.firstFolderResource = workspace.folders.length > 0 ? workspace.folders[0].uri : undefined;
+			}
 
 			// Install workspace folder listener
 			if (!this.onDidChangeWorkspaceFoldersUnbind) {
@@ -338,8 +345,19 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 
 		// Restart extension host if first root folder changed (impact on deprecated workspace.rootPath API)
 		const newFirstFolderResource = workspace.folders.length > 0 ? workspace.folders[0].uri : undefined;
+		// Agents mode mounts the focused session's folders, and leaving it gives the window its own folders back:
+		// neither restarts the extension host
+		if (this.contextService.getWorkbenchMode() === WorkbenchMode.Agents) {
+			return;
+		}
+
 		if (!isEqual(this.firstFolderResource, newFirstFolderResource)) {
 			this.firstFolderResource = newFirstFolderResource;
+
+			// Leaving Agents mode in an empty window drops the session's folders (the window is EMPTY again by then)
+			if (this.contextService.getWorkbenchState() !== WorkbenchState.WORKSPACE) {
+				return;
+			}
 
 			this.extensionHostRestarter.schedule(); // buffer calls to extension host restart
 		}

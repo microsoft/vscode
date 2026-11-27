@@ -11,7 +11,7 @@ import { autorun, derived, IObservable, observableFromEvent, observableSignalFro
 import { localize } from '../../../../../nls.js';
 import { ILocalizedString } from '../../../../../platform/action/common/action.js';
 import { MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -19,6 +19,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
+import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from '../../../chat/browser/agentSessions/agentSessions.js';
 import { HideAgentSessionsSidebar, ShowAgentSessionsSidebar } from '../../../chat/browser/agentSessions/agentSessionsActions.js';
@@ -30,7 +31,7 @@ import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { registerAgentsViewNewSessionActions } from '../agentsView/agentsChatPartActions.js';
 import { ChatViewSessionsListProvider } from '../agentsView/chatViewSessionsList.js';
 import { IEditorWindowShownChatService } from '../agentsView/editorWindowMainSessionHost.js';
-import { EditorWindowSessionsList } from '../agentsView/editorWindowSessionsList.js';
+import { ChatViewSessionsGroupingState, EditorWindowSessionsList } from '../agentsView/editorWindowSessionsList.js';
 import { ChatViewSessionsListContext, ChatViewSessionsListTitleContext } from '../views/sessionsView.js';
 import { registerSessionsListAccessibilityHelp } from '../views/sessionsListActions.js';
 import { ChatViewSessionsListAccessibilityHelp } from './chatViewSessionsListAccessibilityHelp.js';
@@ -38,6 +39,8 @@ import { AccessibleViewRegistry } from '../../../../../platform/accessibility/br
 import { IEditorWindowSessionsRuntime } from '../editorWindow/editorWindowSessionsRuntime.js';
 import { Menus } from '../menus.js';
 import { ShownChatReadMarker } from '../shownChatReadMarker.js';
+import { SessionChatDropTarget } from '../parts/sessionChatDropTarget.js';
+import { IAgentsViewProvidersService } from '../agentsView/agentsViewProviders.js';
 import { IChatViewSessionsListService } from '../../../chat/common/chatViewSessionsListService.js';
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
@@ -73,6 +76,7 @@ export class ChatViewSessionsGate extends Disposable implements IWorkbenchContri
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IChatViewSessionsListService chatViewSessionsListService: IChatViewSessionsListService,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 	) {
 		super();
 
@@ -93,6 +97,25 @@ export class ChatViewSessionsGate extends Disposable implements IWorkbenchContri
 				reader.store.add(instantiationService.createInstance(ChatViewSessionsListFeature));
 			}
 		}));
+
+		// The old list has no Inbox: turning the list back on starts out of it. The stored Inbox belongs to the profile, so only
+		// the user setting turning off leaves it, and only where this window then shows the old list; not a workspace turning the
+		// list off, nor a window starting with it off, nor the user setting turning off where this window's workspace keeps the
+		// list on, which keeps its Inbox. Leaving it keeps the stored Inbox for the windows whose workspaces keep the list on. The
+		// user value compared is that of the profile it was read in. Switching to another profile moves the value read to it: the
+		// new profile's settings load as a workspace change, which only reads its value, and where they load no change, the value
+		// is already the new profile's.
+		const groupingState = instantiationService.createInstance(ChatViewSessionsGroupingState);
+		const userEnabled = () => ({ profile: userDataProfileService.currentProfile.id, enabled: configurationService.inspect<boolean>(ChatConfiguration.ChatViewSessionsListEnabled).userValue === true });
+		let previous = userEnabled();
+		this._register(userDataProfileService.onDidChangeCurrentProfile(e => previous = { ...previous, profile: e.profile.id }));
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			const current = userEnabled();
+			if (e.source === ConfigurationTarget.USER && current.profile === previous.profile && e.affectsConfiguration(ChatConfiguration.ChatViewSessionsListEnabled) && previous.enabled && !current.enabled && configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsListEnabled) !== true) {
+				groupingState.leaveInbox();
+			}
+			previous = current;
+		}));
 	}
 }
 
@@ -109,6 +132,7 @@ class ChatViewSessionsListFeature extends Disposable {
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IViewsService private readonly _viewsService: IViewsService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
+		@IAgentsViewProvidersService agentsViewProvidersService: IAgentsViewProvidersService,
 	) {
 		super();
 
@@ -119,8 +143,18 @@ class ChatViewSessionsListFeature extends Disposable {
 
 		// The sessions list of the Chat view, whose sessions open where the window presents them. While a host replaces the Chat
 		// view, such as the chat part, its chats show there: the Chat view shows only the sessions, unless it hosts the chat
-		// opened last, one that the host leaves to it, such as a local chat
-		this._register(_chatViewHostService.register({ sessionsList: instantiationService.createInstance(ChatViewSessionsListProvider), sessionsOnly: true }));
+		// opened last, one that the host leaves to it, such as a local chat. A session dropped on the chat opens there, in place of
+		// the chat it shows, as one picked in the list does, while no host replaces the Chat view; one dropped on a chat editor
+		// opens beside it, in its group.
+		this._register(_chatViewHostService.register({
+			sessionsList: instantiationService.createInstance(ChatViewSessionsListProvider),
+			dropTarget: {
+				// The window holds the providers only while its sessions show, not for a chat editor alone: a dragged session holds
+				// them too, so that its session is known as it drops, such as one dragged from another window
+				create: (element, chat, open) => instantiationService.createInstance(SessionChatDropTarget, element, { chat, open, holdSessions: () => agentsViewProvidersService.acquire() }),
+			},
+			sessionsOnly: true,
+		}));
 		const sessionsOnly = _chatViewHostService.sessionsOnly;
 		const sessionsOnlyContext = ChatViewSessionsOnlyContext.bindTo(contextKeyService);
 		this._register(autorun(reader => sessionsOnlyContext.set(sessionsOnly.read(reader))));

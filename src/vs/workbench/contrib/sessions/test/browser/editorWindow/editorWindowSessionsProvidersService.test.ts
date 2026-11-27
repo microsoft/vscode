@@ -16,24 +16,57 @@ import { ILifecycleService } from '../../../../../services/lifecycle/common/life
 import { EditorWindowSessionsProvidersService } from '../../../browser/editorWindow/editorWindowSessionsProvidersService.js';
 import { SessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
 import { ISessionsListingScope, ISessionsProvider } from '../../../common/sessionsProvider.js';
+import { ChatViewSessionsListService, IChatViewSessionsListService } from '../../../../chat/common/chatViewSessionsListService.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { ChatConfiguration } from '../../../../chat/common/constants.js';
+import { SESSIONS_LIST_WORKSPACES_FILTER_SETTING } from '../../../common/chatConstants.js';
+import { IWorkspaceFolderRepositories, WorkspaceFolderRepositories } from '../../../browser/workspaceFolderRepositories.js';
 
 suite('EditorWindowSessionsProvidersService', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService() {
+	function createService(configurationService = new TestConfigurationService()) {
 		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false }));
 		instantiationService.stub(ILifecycleService, upcastPartial<ILifecycleService>({ willShutdown: false }));
 		instantiationService.stub(IFileService, upcastPartial<IFileService>({ stat: () => Promise.reject(new Error('no .git')) }));
 		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IChatViewSessionsListService, instantiationService.createInstance(ChatViewSessionsListService));
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
 			onDidChangeWorkspaceFolders: Event.None,
 			onDidChangeWorkbenchState: Event.None,
 			getWorkbenchState: () => WorkbenchState.FOLDER,
 			getWorkspace: () => upcastPartial<IWorkspace>({ uri: URI.parse('vscode-remote://host/work/repo'), folders: [upcastPartial<IWorkspaceFolder>({ uri: URI.parse('vscode-remote://host/work/repo') })] }),
 		}));
+		instantiationService.stub(IWorkspaceFolderRepositories, store.add(instantiationService.createInstance(WorkspaceFolderRepositories)));
 		return store.add(instantiationService.createInstance(EditorWindowSessionsProvidersService));
 	}
+
+	test('providers list every session while the new editor list is on, whatever its workspaces filter', () => {
+		const configurationService = new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsListEnabled]: true });
+		const service = createService(configurationService);
+		let scope: ISessionsListingScope | undefined;
+		store.add(service.registerProvider(upcastPartial<ISessionsProvider>({
+			id: 'local', order: 0, setListingScope: value => { scope = value; },
+		})));
+		const folders = () => scope!.folders.get().map(uri => uri.toString());
+		const set = (key: string, value: boolean) => {
+			configurationService.setUserConfiguration(key, value);
+			configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([key]), affectsConfiguration: k => k === key }));
+		};
+		const filterOff = folders();
+		set(SESSIONS_LIST_WORKSPACES_FILTER_SETTING, true);
+		const filterOn = folders();
+		set(ChatConfiguration.ChatViewSessionsListEnabled, false);
+		const legacyList = folders();
+		assert.deepStrictEqual({ filterOff, filterOn, legacyList }, {
+			filterOff: [], filterOn: [], legacyList: ['vscode-remote://host/work/repo'],
+		});
+	});
 
 	/** A provider that records the listing scopes it is given, as they are set before it is registered. */
 	function createProvider(id: string, scopes: { readonly id: string; readonly registered: boolean; readonly folders: string[] }[], service: EditorWindowSessionsProvidersService): ISessionsProvider {

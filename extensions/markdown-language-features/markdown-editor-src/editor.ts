@@ -15,7 +15,7 @@ import '@vscode/markdown-editor/commentWidget.css';
 import './markdownEditor.css';
 import { WebviewSyntaxHighlighter } from './syntaxHighlighter';
 import { WebviewLinkPresentationProvider } from './linkPresentationProvider';
-import { markdownEditorHost, markdownEditorRenderer, type CodeBlockEditorProviderDefinition, type MarkdownEditorHost, type MarkdownEditorVersion } from '../src/preview/markdownEditorProtocol';
+import { markdownEditorHost, markdownEditorRenderer, type CodeBlockEditorProviderDefinition, type MarkdownEditorConfiguration, type MarkdownEditorHost, type MarkdownEditorVersion } from '../src/preview/markdownEditorProtocol';
 import { createMarkdownEditorRpcConnection, MarkdownEditorRpcTransport } from '../src/preview/markdownEditorRpc';
 import { LazyCodeBlockEditorFactory } from '../src/preview/lazyCodeBlockEditorFactory';
 import { TextOperation, WebEditorClient, diffText, type ContentEdit } from '@vscode/web-editors';
@@ -304,17 +304,20 @@ class Editor extends Disposable {
 			highlightThemeChanged: () => {
 				this.#syntaxHighlighter.themeChanged();
 			},
-			configurationChanged: ({ highlightActiveBlock, renderWhitespace, lineBreak, documentReadonly }) => {
-				this.#view?.highlightActiveBlock.set(highlightActiveBlock, undefined);
-				this.model.renderWhitespace.set(renderWhitespace, undefined);
-				this.model.lineBreak.set(lineBreak, undefined);
-				this.#setDocumentReadonly(documentReadonly);
+			configurationChanged: configuration => {
+				applyTypography(configuration);
+				this.#view?.highlightActiveBlock.set(configuration.highlightActiveBlock, undefined);
+				this.#view?.zoomPercent.set(configuration.zoomPercent, undefined);
+				this.model.renderWhitespace.set(configuration.renderWhitespace, undefined);
+				this.model.lineBreak.set(configuration.lineBreak, undefined);
+				this.#setDocumentReadonly(configuration.documentReadonly);
 			},
 			richLinkPresentations: ({ presentations }) => {
 				this.#linkPresentationProvider?.updatePresentations(presentations);
 			},
 		}));
-		this.#createView(host, initialState.content, initialState.highlightActiveBlock);
+		applyTypography(initialState);
+		this.#createView(host, initialState.content, initialState.highlightActiveBlock, initialState.zoomPercent);
 		// The host's edits map the selection precisely; comparing texts would move it past all text between separate changes.
 		this._register(content.onDidApplyHostEdits(({ edits, content: text }) => {
 			if (typeof text === 'string' && this.#initialText === undefined && text !== this.model.sourceText.get().value) {
@@ -518,7 +521,7 @@ class Editor extends Disposable {
 		this.#readonlyFeedbackElement?.classList.remove('visible');
 	}
 
-	#createView(host: HTMLElement, content: string, highlightActiveBlock: boolean): void {
+	#createView(host: HTMLElement, content: string, highlightActiveBlock: boolean, zoomPercent: number): void {
 		const model = this.model;
 		const scriptNonce = document.querySelector<HTMLMetaElement>('meta[name="vscode-markdown-editor-script-nonce"]')?.content;
 		const iframeBootstrapUrl = new URL(location.href);
@@ -551,6 +554,7 @@ class Editor extends Disposable {
 		const view = this._register(new EditorView(model, {
 			classNames: ['md-theme-vscode-default'],
 			highlightActiveBlock,
+			zoomPercent,
 			showReadonlyToggle: !this.#documentReadonly,
 			presentation: model.readonlyMode.get() ? 'reading' : 'editing',
 			syntaxHighlighter: this.#syntaxHighlighter,
@@ -937,8 +941,26 @@ function isInitialState(value: unknown): value is InitialState {
 		&& typeof candidate.highlightActiveBlock === 'boolean'
 		&& typeof candidate.renderWhitespace === 'boolean'
 		&& (candidate.lineBreak === '\n' || candidate.lineBreak === '\r\n')
+		&& (candidate.fontFamily === undefined || typeof candidate.fontFamily === 'string')
+		&& (candidate.fontSize === undefined || (typeof candidate.fontSize === 'number' && Number.isFinite(candidate.fontSize)))
+		&& (candidate.lineHeight === undefined || (typeof candidate.lineHeight === 'number' && Number.isFinite(candidate.lineHeight)))
 		&& typeof candidate.richLinksEnabled === 'boolean'
 		&& Array.isArray(candidate.linkPresentationRules);
+}
+
+function applyTypography({ fontFamily, fontSize, lineHeight }: Pick<MarkdownEditorConfiguration, 'fontFamily' | 'fontSize' | 'lineHeight'>): void {
+	const style = document.documentElement.style;
+	setOptionalStyleProperty(style, '--markdown-font-family', fontFamily);
+	setOptionalStyleProperty(style, '--markdown-font-size', fontSize !== undefined ? `${fontSize}px` : undefined);
+	setOptionalStyleProperty(style, '--markdown-line-height', lineHeight !== undefined ? `${lineHeight}` : undefined);
+}
+
+function setOptionalStyleProperty(style: CSSStyleDeclaration, property: string, value: string | undefined): void {
+	if (value === undefined) {
+		style.removeProperty(property);
+	} else {
+		style.setProperty(property, value);
+	}
 }
 
 function isNestedEditableTarget(target: EventTarget | null, editorRoot: HTMLElement): boolean {

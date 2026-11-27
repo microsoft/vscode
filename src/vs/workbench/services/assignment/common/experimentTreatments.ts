@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { equals } from '../../../../base/common/arrays.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -10,7 +11,8 @@ import { IWorkbenchAssignmentService } from './assignmentService.js';
 
 /**
  * Reads treatments initially and on refetch, retaining resolved values on failure and ignoring stale results.
- * Invalid values are logged and treated as undefined; `onPendingChange` tracks the latest lookup.
+ * Invalid values are logged and treated as undefined. `onChange` receives the first values, then only values
+ * that differ from the previous ones; `onPendingChange` tracks the latest lookup.
  */
 export function registerExperimentTreatments<T extends string | number | boolean = string>(
 	treatments: readonly string[],
@@ -23,7 +25,7 @@ export function registerExperimentTreatments<T extends string | number | boolean
 ): IDisposable {
 	const store = new DisposableStore();
 	let treatmentRequest = 0;
-	let hasResolved = false;
+	let resolvedValues: readonly (T | undefined)[] | undefined;
 	const getTreatmentValue = (name: string, value: T | undefined): T | undefined => {
 		if (value === undefined || isValid(value, name)) {
 			return value;
@@ -49,7 +51,7 @@ export function registerExperimentTreatments<T extends string | number | boolean
 			if (!isCancellationError(error)) {
 				logService.warn(`[${logPrefix}] Failed to resolve treatments`, error);
 			}
-			if (hasResolved) {
+			if (resolvedValues) {
 				finish();
 				return;
 			}
@@ -58,8 +60,11 @@ export function registerExperimentTreatments<T extends string | number | boolean
 		if (store.isDisposed || request !== treatmentRequest) {
 			return;
 		}
-		hasResolved = true;
-		onChange(values.map((value, index) => getTreatmentValue(treatments[index], value)));
+		const validValues = values.map((value, index) => getTreatmentValue(treatments[index], value));
+		if (!resolvedValues || !equals(resolvedValues, validValues)) {
+			resolvedValues = validValues;
+			onChange(validValues);
+		}
 		finish();
 	};
 	store.add(assignmentService.onDidRefetchAssignments(() => void update()));

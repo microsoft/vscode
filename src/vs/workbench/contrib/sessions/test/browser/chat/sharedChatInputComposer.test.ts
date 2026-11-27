@@ -41,7 +41,7 @@ import { IChatViewHostService } from '../../../../chat/browser/chatViewHost.js';
 import { ChatWidgetService } from '../../../../chat/browser/widget/chatWidgetService.js';
 import { ChatInputPart } from '../../../../chat/browser/widget/input/chatInputPart.js';
 import { IChatService } from '../../../../chat/common/chatService/chatService.js';
-import { ComposerInputSnapshot, IComposerInputSnapshot, IComposerSendAttempt, readNewChatDraftState } from '../../../common/newChatDraftState.js';
+import { ComposerInputSnapshot, IComposerInputSnapshot, IComposerSendAttempt, readNewChatDraftState, writeNewChatDraftState } from '../../../common/newChatDraftState.js';
 import { IChat } from '../../../../../services/sessions/common/session.js';
 import { ITestSessionWithChat } from '../sessionHostTestUtils.js';
 import { ChatSubmitRequestOutcome, IChatSubmitRequestResult } from '../../../../chat/browser/chatSubmitRequestHandlerService.js';
@@ -52,7 +52,7 @@ suite('SharedChatInputComposer', () => {
 	const context = toPasteVariableEntry('Context', 'Pasted context', { id: 'context' });
 
 	/** A composer over a fake chat widget, recording what the host is asked to send and the commands it runs. */
-	function createComposer(options: { submitOverride?: INewChatComposerInputOptions['submitOverride']; shouldPersistInput?: () => boolean; sendResult?: boolean | Error; disposeDuringSend?: boolean; canSendRequest?: boolean | IObservable<boolean>; text?: string; attachments?: IChatRequestVariableEntry[]; references?: IDynamicVariable[]; confirmSend?: DeferredPromise<boolean>; focused?: boolean; preserveInputFocusOnSend?: boolean; storageService?: IStorageService; onSend?: () => void; inputSnapshot?: IComposerInputSnapshot; getSavedDraftId?: () => string | undefined; onSendRequest?: () => void; scheduleRequest?: INewChatComposerInputOptions['scheduleRequest']; tryHandle?: (input: string) => Promise<boolean | IChatSubmitRequestResult>; session?: IObservable<{ resource: URI; providerId: string; sessionId: string } | undefined> } = {}) {
+	function createComposer(options: { submitOverride?: INewChatComposerInputOptions['submitOverride']; shouldPersistInput?: () => boolean; sendResult?: boolean | Error; disposeDuringSend?: boolean; canSendRequest?: boolean | IObservable<boolean>; text?: string; attachments?: IChatRequestVariableEntry[]; references?: IDynamicVariable[]; confirmSend?: DeferredPromise<boolean>; focused?: boolean; preserveInputFocusOnSend?: boolean; storageService?: IStorageService; onSend?: () => void; inputSnapshot?: IComposerInputSnapshot; restoreUnsentInput?: INewChatComposerInputOptions['restoreUnsentInput']; getSavedDraftId?: () => string | undefined; onSendRequest?: () => void; scheduleRequest?: INewChatComposerInputOptions['scheduleRequest']; tryHandle?: (input: string) => Promise<boolean | IChatSubmitRequestResult>; session?: IObservable<{ resource: URI; providerId: string; sessionId: string } | undefined> } = {}) {
 		let text = options.text ?? 'Build it';
 		let attachments: IChatRequestVariableEntry[] = options.attachments ?? [context];
 		let references = options.references ?? [];
@@ -137,6 +137,7 @@ suite('SharedChatInputComposer', () => {
 				confirmSend: options.confirmSend && (() => options.confirmSend!.p),
 				preserveInputFocusOnSend: options.preserveInputFocusOnSend,
 				inputSnapshot: options.inputSnapshot,
+				restoreUnsentInput: options.restoreUnsentInput,
 				getSavedDraftId: options.getSavedDraftId,
 				sendRequest: async (request: INewChatInputSendRequest) => {
 					attemptIds.push(request.attemptId);
@@ -453,6 +454,66 @@ suite('SharedChatInputComposer', () => {
 			});
 		}
 	}
+
+	for (const { scenario, taken, savedInput, sendResult, saved } of [
+		{ scenario: 'the composer that shows takes it', taken: true, savedInput: undefined, sendResult: false, saved: { inputText: '', attachments: [], references: undefined } },
+		{ scenario: 'the saved draft gets it', taken: false, savedInput: undefined, sendResult: new Error('send failed'), saved: { inputText: 'Fix #a.ts', attachments: ['context'], references: ['file'] } },
+		{ scenario: 'a saved draft with input keeps it', taken: false, savedInput: 'Typed meanwhile', sendResult: false, saved: { inputText: 'Typed meanwhile', attachments: [], references: undefined } },
+	]) {
+		test(`a send that does not go out after its composer is gone gives its input back: ${scenario}`, async () => {
+			const storageService = store.add(new InMemoryStorageService());
+			const reference: IDynamicVariable = { id: 'file', range: new Range(1, 5, 1, 10), data: 'a.ts' };
+			const given: IChatDraft[] = [];
+			const { composer } = createComposer({
+				storageService, text: 'Fix #a.ts', references: [reference], sendResult, disposeDuringSend: true,
+				// Another composer saves its input after this one saved its input cleared for the send.
+				onSendRequest: () => {
+					if (savedInput) {
+						writeNewChatDraftState(storageService, { inputText: savedInput, attachments: [] });
+					}
+				},
+				restoreUnsentInput: input => { given.push(input); return taken; },
+			});
+			await composer.submit(false);
+			const draft = readNewChatDraftState(storageService);
+
+			assert.deepStrictEqual({
+				given: given.map(input => ({ ...input, attachments: input.attachments.map(entry => entry.id) })),
+				saved: draft && { inputText: draft.inputText, attachments: draft.attachments.map(entry => entry.id), references: draft.references?.map(entry => entry.id) },
+			}, {
+				given: [{ inputText: 'Fix #a.ts', attachments: ['context'], references: [reference] }],
+				saved,
+			});
+		});
+	}
+
+	test('gives back no input of a send whose composer is still there, that went out, or whose host keeps its input in a snapshot', async () => {
+		const given: string[] = [];
+		const restoreUnsentInput = (input: IChatDraft) => { given.push(input.inputText); return true; };
+		await createComposer({ sendResult: false, restoreUnsentInput }).composer.submit(false);
+		await createComposer({ sendResult: true, disposeDuringSend: true, restoreUnsentInput }).composer.submit(false);
+		await createComposer({ sendResult: false, disposeDuringSend: true, restoreUnsentInput, inputSnapshot: new ComposerInputSnapshot() }).composer.submit(false);
+		assert.deepStrictEqual(given, []);
+	});
+
+	test('shows the input of a send whose composer is gone only while its own input is empty and it does not send', () => {
+		const reference: IDynamicVariable = { id: 'file', range: new Range(1, 5, 1, 10), data: 'a.ts' };
+		const input: IChatDraft = { inputText: 'Fix #a.ts', attachments: [context], references: [reference] };
+		const empty = createComposer({ text: '', attachments: [] });
+		const typed = createComposer({ text: 'Typed', attachments: [] });
+		const sending = createComposer({ text: '', attachments: [] });
+		Reflect.get(sending.composer, '_sending').set(true, undefined);
+
+		assert.deepStrictEqual({
+			empty: { restored: empty.composer.restoreUnsentInput(input), input: empty.state().input, references: empty.state().restoredReferences },
+			typed: { restored: typed.composer.restoreUnsentInput(input), input: typed.state().input },
+			sending: { restored: sending.composer.restoreUnsentInput(input), input: sending.state().input },
+		}, {
+			empty: { restored: true, input: { text: 'Fix #a.ts', attachments: ['context'], enabled: true }, references: [reference] },
+			typed: { restored: false, input: { text: 'Typed', attachments: [], enabled: true } },
+			sending: { restored: false, input: { text: '', attachments: [], enabled: true } },
+		});
+	});
 
 	for (const confirmed of [true, false]) {
 		test(`keeps the input read-only while the host confirms a send, whose edits would be lost (${confirmed ? 'confirmed' : 'refused'})`, async () => {

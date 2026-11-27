@@ -40,7 +40,7 @@ import { ISessionsListModelService } from '../sessionsListModelService.js';
 import { ISessionsListUndoService } from '../sessionsListUndoService.js';
 import { IPinnedCanvasService, isPinnedCanvasOwnedBy } from '../pinnedCanvases.js';
 import { ISessionComparisonService } from '../../common/sessionComparison.js';
-import { ChatViewSessionsListTitleContext, IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSortingContext, sessionsViewOffersGrouping, EditorWindowSessionsContext, SessionsViewFocusedContext, getActiveSessionsView, ISessionsViewLocator, openSessionsView } from '../views/sessionsView.js';
+import { ChatViewSessionsListTitleContext, IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSortingContext, sessionsViewOffersGrouping, EditorWindowSessionsContext, EditorWindowSessionsViewOffersInboxContext, SessionsViewFocusedContext, getActiveSessionsView, ISessionsViewLocator, openSessionsView, SessionsView, SessionsViewId } from '../views/sessionsView.js';
 import { Menus, SessionHeaderMenus, SessionsViewShowGroup } from '../menus.js';
 import { SESSIONS_LIST_MARK_READ_COMMAND_ID, SESSIONS_LIST_MARK_UNREAD_COMMAND_ID } from '../../../../common/chatSessionCommands.js';
 import { ISessionsNavigationService } from '../sessionsNavigationService.js';
@@ -195,28 +195,28 @@ const InboxModeContext = SessionsViewGroupingContext.isEqualTo(SessionsGrouping.
 /** Grouping sections whose New Session starts in a workspace that their sessions work in. */
 const ConfirmArchiveStorageKey = 'sessions.confirmArchive';
 
-function getArchiveSectionConfirmationMessage(context: ISessionSection, wording: ChatSessionArchiveActionWording): string {
+function getArchiveSectionConfirmationMessage(context: ISessionSection, sessions: readonly ISession[], wording: ChatSessionArchiveActionWording): string {
 	if (context.id === 'pinned') {
-		if (context.sessions.length === 1) {
+		if (sessions.length === 1) {
 			return wording === ChatSessionArchiveActionWording.MarkAsDone
 				? localize('markPinnedSectionSessionDone.confirmSingle', "Are you sure you want to mark 1 pinned session as done?")
 				: localize('archivePinnedSectionSession.confirmSingle', "Are you sure you want to archive 1 pinned session?");
 		}
 
 		return wording === ChatSessionArchiveActionWording.MarkAsDone
-			? localize('markPinnedSectionSessionsDone.confirm', "Are you sure you want to mark {0} pinned sessions as done?", context.sessions.length)
-			: localize('archivePinnedSectionSessions.confirm', "Are you sure you want to archive {0} pinned sessions?", context.sessions.length);
+			? localize('markPinnedSectionSessionsDone.confirm', "Are you sure you want to mark {0} pinned sessions as done?", sessions.length)
+			: localize('archivePinnedSectionSessions.confirm', "Are you sure you want to archive {0} pinned sessions?", sessions.length);
 	}
 
-	if (context.sessions.length === 1) {
+	if (sessions.length === 1) {
 		return wording === ChatSessionArchiveActionWording.MarkAsDone
 			? localize('markSectionSessionDone.confirmSingle', "Are you sure you want to mark 1 session from '{0}' as done?", context.label)
 			: localize('archiveSectionSession.confirmSingle', "Are you sure you want to archive 1 session from '{0}'?", context.label);
 	}
 
 	return wording === ChatSessionArchiveActionWording.MarkAsDone
-		? localize('markSectionSessionsDone.confirm', "Are you sure you want to mark {0} sessions from '{1}' as done?", context.sessions.length, context.label)
-		: localize('archiveSectionSessions.confirm', "Are you sure you want to archive {0} sessions from '{1}'?", context.sessions.length, context.label);
+		? localize('markSectionSessionsDone.confirm', "Are you sure you want to mark {0} sessions from '{1}' as done?", sessions.length, context.label)
+		: localize('archiveSectionSessions.confirm', "Are you sure you want to archive {0} sessions from '{1}'?", sessions.length, context.label);
 }
 
 abstract class BaseArchiveSectionAction extends Action2 {
@@ -243,7 +243,9 @@ abstract class BaseArchiveSectionAction extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor, context?: ISessionSection): Promise<void> {
-		if (!context || !context.sessions || context.sessions.length === 0) {
+		// Pinned also covers the sessions of the groups and folders pinned in it, as its header counts them.
+		const sessions = context?.summarySessions ?? context?.sessions;
+		if (!context || !sessions || sessions.length === 0) {
 			return;
 		}
 
@@ -257,7 +259,7 @@ abstract class BaseArchiveSectionAction extends Action2 {
 		const skipConfirmation = storageService.getBoolean(ConfirmArchiveStorageKey, StorageScope.PROFILE, false);
 		if (!skipConfirmation) {
 			const confirmed = await dialogService.confirm({
-				message: getArchiveSectionConfirmationMessage(context, this.wording),
+				message: getArchiveSectionConfirmationMessage(context, sessions, this.wording),
 				detail: this.wording === ChatSessionArchiveActionWording.MarkAsDone
 					? localize('markSectionSessionsDone.detail', "You can restore sessions later if needed from the sessions view.")
 					: localize('archiveSectionSessions.detail', "You can unarchive sessions later if needed from the sessions view."),
@@ -276,7 +278,7 @@ abstract class BaseArchiveSectionAction extends Action2 {
 			}
 		}
 
-		await archiveSessionsWithUndo(context.sessions, this.wording, sessionsManagementService, groupsService, undoService, comparisonService);
+		await archiveSessionsWithUndo(sessions, this.wording, sessionsManagementService, groupsService, undoService, comparisonService);
 	}
 }
 
@@ -1156,7 +1158,8 @@ function createSessionsListActions(): DisposableStore {
 				icon: Codicon.inbox,
 				category: SessionsCategories.Sessions,
 				f1: true,
-				precondition: ContextKeyExpr.and(ContextKeyExpr.or(IsSessionsWindowContext, EditorWindowSessionsContext), available),
+				// In an editor window, only while a view that offers Inbox is there, such as the Chat view's, not before it first shows
+				precondition: ContextKeyExpr.and(ContextKeyExpr.or(IsSessionsWindowContext, ContextKeyExpr.and(EditorWindowSessionsContext, EditorWindowSessionsViewOffersInboxContext)), available),
 				toggled: InboxModeContext,
 				menu: [
 					...[Menus.SidebarSessionsHeader, Menus.MobileSessionsListActions].map(id => ({
@@ -1166,8 +1169,30 @@ function createSessionsListActions(): DisposableStore {
 				],
 			});
 		}
+		/**
+		 * The Sessions view that offers Inbox: the view registered with its id, else the one that a host embeds. In an editor window,
+		 * only the view the Chat view embeds offers it, not the one of the Agents view.
+		 */
+		private getView(viewsService: IViewsService, locator: ISessionsViewLocator): SessionsView | undefined {
+			const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
+			if (view?.offersGrouping(SessionsGrouping.Inbox)) {
+				return view;
+			}
+			const embedded = locator.getEmbeddedView();
+			return embedded?.offersGrouping(SessionsGrouping.Inbox) ? embedded : undefined;
+		}
+
 		run(accessor: ServicesAccessor): void {
-			getActiveSessionsView(accessor)?.toggleInbox();
+			const view = this.getView(accessor.get(IViewsService), accessor.get(ISessionsViewLocator));
+			if (!view) {
+				return;
+			}
+			// In a host's title, such as the Chat view's, the toggle tells its checked state itself; from the title's overflow or the
+			// Command Palette, the change would be silent. The Agents window's own header keeps telling it as it does.
+			const fromToggle = view.isInboxToggleFocused();
+			if (view.toggleInbox() && view.isHeaderInTitle && !fromToggle) {
+				status(view.grouping === SessionsGrouping.Inbox ? localize('inboxModeOn', "Inbox Mode on.") : localize('inboxModeOff', "Inbox Mode off."));
+			}
 		}
 	}));
 

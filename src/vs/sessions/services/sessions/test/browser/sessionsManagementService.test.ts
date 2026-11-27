@@ -83,7 +83,7 @@ import { SessionsGridContent } from '../../../../../workbench/contrib/sessions/b
 import { SessionGridLayout } from '../../../../../workbench/browser/parts/sessions/sessionGridLayout.js';
 import { createSessionsPartTestHarness } from '../../../../test/browser/sessionViewTestUtils.js';
 import { getChatLayoutOwnerAfterReplacement } from '../../../../common/chatLayout.js';
-import { SESSIONS_CHAT_TABS_SETTING, SESSIONS_DRAFTS_ENABLED_SETTING, SessionsChatTabsMode } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SESSIONS_CHAT_TABS_SETTING, SESSIONS_DRAFTS_ENABLED_SETTING, SESSIONS_SPLIT_SIZING_SETTING, SessionsChatTabsMode } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { DraggedSessionIdentifier, fillSessionChatDragData, getSessionChatDragData, SessionsDataTransfers } from '../../../../../workbench/contrib/sessions/browser/dnd.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ChatHostOpenerService, IChatHostOpenerService } from '../../../../../workbench/services/sessions/browser/chatHostOpener.js';
@@ -1336,6 +1336,25 @@ suite('SessionsManagementService', () => {
 			});
 		}
 
+		test('closing the chat of a detached pane with showNewSession closes the pane and keeps the other sessions', async () => {
+			const a = created('a');
+			const b = created('b');
+			const child: IChat = { ...a.mainChat.get(), resource: URI.parse('test:///a/child') };
+			const parent = { ...a, chats: constObservable([a.mainChat.get(), child]) };
+			const { view } = harness([parent, b]);
+			await view.openSessionsInGrid([parent, b]);
+			await view.moveChatToGrid(parent.sessionId, child.resource, slotPaneOf(view, b.sessionId)!.id, 'down');
+			const childPane = view.activePane.get()!;
+			view.closeSession(parent);
+
+			await view.closeChat(childPane.session.get()!, child, { showNewSession: true });
+
+			assert.deepStrictEqual({
+				panes: view.panes.get().map(pane => `${pane.kind}:${pane.session.get()?.sessionId}${detachedChatOf(pane) ? `:${detachedChatOf(pane)!.path}` : ''}`),
+				active: activeSessionOf(view)?.sessionId,
+			}, { panes: ['slot:b'], active: 'b' });
+		});
+
 		test('a whole-session drag can place its main pane beside its own standalone child', async () => {
 			const a = created('a');
 			const b = created('b');
@@ -2562,6 +2581,109 @@ suite('SessionsManagementService', () => {
 			}, { active: 'b', geometry, same: true });
 		});
 
+		/** Each pane of the grid in visual order: the session it shows, with the size of its place. */
+		function placesOf(content: SessionsGridContent): string[] {
+			const grid = Reflect.get(content, '_gridWidget') as SessionGridLayout;
+			const places: string[] = [];
+			for (let index = 0, pane = content.getPaneAtPosition(0); pane; pane = content.getPaneAtPosition(++index)) {
+				const size = grid.getSize(pane.id)!;
+				places.push(`${pane.session.get()?.sessionId ?? 'new'} ${size.width}x${size.height}`);
+			}
+			return places;
+		}
+
+		/** Whether the places of the grid have equal widths, but for rounding. */
+		function hasEvenWidths(content: SessionsGridContent): boolean {
+			const widths = placesOf(content).map(place => Number(place.split(' ')[1].split('x')[0]));
+			return Math.max(...widths) - Math.min(...widths) <= 2;
+		}
+
+		test('moving a pane swaps it with the pane in that direction: a 2x2 grid keeps its shape, sizes and live views, and survives a reload', async () => {
+			const [a, b, c, d] = ['a', 'b', 'c', 'd'].map(created);
+			const storage = disposables.add(new InMemoryStorageService());
+			const { content, view } = harness([a, b, c, d], { storage });
+			await view.openSessionsInGrid([a, b, c, d]);
+			content.resizePane(slotPaneOf(view, 'a')!, Direction.Right, 80);
+			const sizesOf = (places: string[]) => places.map(place => place.split(' ')[1]).join();
+			const before = placesOf(content);
+			const views = ['a', 'b', 'c', 'd'].map(id => content.getSessionView(id));
+
+			const orders = [Direction.Right, Direction.Down, Direction.Right].map(direction => {
+				view.movePaneInDirection(slotPaneOf(view, 'a')!, direction);
+				return placesOf(content).map(place => place.split(' ')[0]).join('');
+			});
+			const moved = placesOf(content);
+			await storage.flush();
+			const second = harness([a, b, c, d], { storage });
+			await second.view.restoreVisibleSessions();
+
+			assert.deepStrictEqual({
+				orders,
+				sizesKept: sizesOf(moved) === sizesOf(before),
+				sameViews: ['a', 'b', 'c', 'd'].map((id, index) => content.getSessionView(id) === views[index]),
+				active: activeSessionOf(view)?.sessionId,
+				reloaded: placesOf(second.content),
+				reloadedActive: activeSessionOf(second.view)?.sessionId,
+			}, { orders: ['bacd', 'bdca', 'bdca'], sizesKept: true, sameViews: [true, true, true, true], active: 'a', reloaded: moved, reloadedActive: 'a' });
+		});
+
+		test('docking a pane places it beside the pane in that direction, or beside one across it when there is none, changing the grid\'s shape', async () => {
+			const [a, b, c, d] = ['a', 'b', 'c', 'd'].map(created);
+			const { content, view } = harness([a, b, c, d]);
+			await view.openSessionsInGrid([a, b, c, d]);
+			view.movePaneInDirection(slotPaneOf(view, 'a')!, Direction.Down, true);
+			const pair = harness([a, b]);
+			await pair.view.openSessionsInGrid([a, b]);
+			pair.view.movePaneInDirection(slotPaneOf(pair.view, 'a')!, Direction.Up, true);
+			assert.deepStrictEqual({
+				docked: ['c', 'b'].map(id => [Direction.Down, Direction.Left].map(direction => neighborOfSlot(view, content, id, direction))),
+				stacked: neighborOfSlot(pair.view, pair.content, 'b', Direction.Up),
+			}, { docked: [['a', undefined], ['c', undefined]], stacked: 'a' });
+		});
+
+		test('moving a pane swaps it with a detached pane too, each place keeping its size', async () => {
+			const session = created('a');
+			const main = session.mainChat.get();
+			const child = { ...main, resource: main.resource.with({ fragment: 'child' }) };
+			const a = { ...session, chats: constObservable([main, child]) };
+			const [b, c] = ['b', 'c'].map(created);
+			const { content, view } = harness([a, b, c]);
+			await view.openSessionsInGrid([a, b, c]);
+			await view.moveChatToGrid(a.sessionId, child.resource, slotPaneOf(view, 'b')!.id, 'right');
+			const before = placesOf(content);
+			view.movePaneInDirection(slotPaneOf(view, 'b')!, Direction.Right);
+			const swapped = placesOf(content);
+			const detached = view.panes.get().find(pane => pane.kind === SessionGridPaneKind.Detached)!;
+			view.movePaneInDirection(detached, Direction.Right);
+			assert.deepStrictEqual({ before, swapped, back: placesOf(content) }, { before, swapped: ['a 600x400', 'a 300x400', 'b 300x400', 'c 1200x400'], back: before });
+		});
+
+		test('even sizes give uneven panes equal sizes', async () => {
+			const [a, b] = ['a', 'b'].map(created);
+			const { content, view } = harness([a, b]);
+			await view.openSessionsInGrid([a, b]);
+			content.resizePane(slotPaneOf(view, 'a')!, Direction.Right, 150);
+			const uneven = !hasEvenWidths(content);
+			view.evenSessionSizes();
+			assert.deepStrictEqual({ uneven, even: hasEvenWidths(content) }, { uneven: true, even: true });
+		});
+
+		test('changing the split sizing setting applies to the next pane that opens, without reload', async () => {
+			const [a, b, c] = ['a', 'b', 'c'].map(created);
+			const { content, view, configurationService } = harness([a, b, c]);
+			await view.openSessionsInGrid([a, b]);
+			const opensEven = async () => {
+				await view.openSessionsAt([c], 'b', 'right');
+				const even = hasEvenWidths(content);
+				view.closeSession(c);
+				return even;
+			};
+
+			const split = await opensEven();
+			await configurationService.setUserConfiguration(SESSIONS_SPLIT_SIZING_SETTING, 'distribute');
+			assert.deepStrictEqual({ split, distributed: await opensEven() }, { split: false, distributed: true });
+		});
+
 		test('batch opening preserves background activation and the last-selection side-open convention', async () => {
 			const [a, b, c] = ['a', 'b', 'c'].map(created);
 			const { view } = harness([a, b, c]);
@@ -2613,8 +2735,8 @@ suite('SessionsManagementService', () => {
 			}, { visible: [{ id: 'a', sticky: false }, { id: 'b', sticky: true }], active: 'b', wasMaximized: true });
 		});
 
-		for (const cancel of [false, true]) {
-			test(`late restored leaves ${cancel ? 'cannot override a user arrangement' : 'recover saved geometry without replacing live widgets'}`, async () => {
+		for (const intent of ['none', 'arrange', 'reset'] as const) {
+			test(`late restored leaves ${{ none: 'recover saved geometry without replacing live widgets', arrange: 'cannot override a user arrangement', reset: 'still return after Reset Session Sizes, at even sizes' }[intent]}`, async () => {
 				const [a, b] = ['a', 'b'].map(created);
 				const storage = disposables.add(new InMemoryStorageService());
 				const first = harness([a, b], { storage });
@@ -2627,8 +2749,10 @@ suite('SessionsManagementService', () => {
 				const restored = second.view.restoreVisibleSessions();
 				await waitForState(derived(reader => slotSessionsOf(second.view, reader)), sessions => sessions.some(session => session?.sessionId === 'a'));
 				const aView = second.content.getSessionView('a');
-				if (cancel) {
+				if (intent === 'arrange') {
 					second.view.arrangeSessions();
+				} else if (intent === 'reset') {
+					second.view.evenSessionSizes();
 				}
 				sessions.push(b);
 				second.sessionsChanged.fire({ added: [b], removed: [], changed: [] });
@@ -2636,10 +2760,35 @@ suite('SessionsManagementService', () => {
 				assert.deepStrictEqual({
 					visible: slotSessionsOf(second.view).map(session => session?.sessionId),
 					sameView: second.content.getSessionView('a') === aView,
-					geometry: cancel ? undefined : second.content.getGridLayout(),
-				}, { visible: cancel ? ['a'] : ['a', 'b'], sameView: true, geometry: cancel ? undefined : geometry });
+					geometry: intent === 'none' ? second.content.getGridLayout() : undefined,
+					even: intent === 'reset' ? hasEvenWidths(second.content) : undefined,
+				}, { visible: intent === 'arrange' ? ['a'] : ['a', 'b'], sameView: true, geometry: intent === 'none' ? geometry : undefined, even: intent === 'reset' ? true : undefined });
 			});
 		}
+
+		test('late restored leaves of a nested grid stay even after Reset Session Sizes while another saved session is still missing', async () => {
+			const [a, m, b, c] = ['a', 'm', 'b', 'c'].map(created);
+			const storage = disposables.add(new InMemoryStorageService());
+			const first = harness([a, m, b, c], { storage });
+			await first.view.openSessionsInGrid([a, m]);
+			await first.view.openSessionsAt([b], 'm', 'down');
+			await first.view.openSessionsAt([c], 'b', 'right');
+			first.view.activatePane(slotPaneOf(first.view, 'a')!);
+			await storage.flush();
+			const sessions = [a];
+			const second = harness(sessions, { storage });
+			const restored = second.view.restoreVisibleSessions();
+			const slotIds = derived(reader => slotSessionsOf(second.view, reader).map(session => session?.sessionId));
+			await waitForState(slotIds, ids => ids.includes('a'));
+			second.view.evenSessionSizes();
+			sessions.push(b, c);
+			second.sessionsChanged.fire({ added: [b, c], removed: [], changed: [] });
+			await waitForState(slotIds, ids => ids.includes('b') && ids.includes('c'));
+			const even = hasEvenWidths(second.content);
+			second.view.arrangeSessions(); // Ends the restore still waiting for `m`.
+			await restored;
+			assert.strictEqual(even, true);
+		});
 
 		test('invalid grid state falls back to the legacy ordered session array', async () => {
 			const [a, b] = ['a', 'b'].map(created);
@@ -10606,6 +10755,91 @@ suite('SessionsManagementService', () => {
 			await view.openSession(sessionA.resource);
 
 			assert.deepStrictEqual(closedTitles(view), ['b']);
+		});
+
+		/**
+		 * Session A, in a folder that asks for workspace trust, and session B, without one. Trust resolves on the next
+		 * turn, as it does for a folder the user trusted before, or when `trust.pending` completes while it is set.
+		 */
+		function setupInTrustedFolder() {
+			const folderUri = URI.file('/workspace');
+			const workspace: ISessionWorkspace = {
+				uri: folderUri, label: 'workspace', icon: Codicon.folder,
+				folders: [{ root: folderUri, workingDirectory: folderUri, name: 'workspace', description: undefined }],
+				requiresWorkspaceTrust: true, isVirtualWorkspace: false,
+			};
+			const sessionA = stubSession({
+				sessionId: 'A', providerId: 'test',
+				workspace: constObservable(workspace),
+				chats: constObservable([chat('mainA'), chat('b'), chat('c')]),
+				mainChat: constObservable(chat('mainA')),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			});
+			const sessionB = multiChatSession('B', [chat('mainB')]);
+			const draft = stubSession({ sessionId: 'draft', providerId: 'test', status: constObservable(SessionStatus.Untitled), workspace: constObservable(workspace) });
+			const drafts: string[] = [];
+			const provider = new class extends TestSessionsProvider {
+				override getSessions(): ISession[] { return [sessionA, sessionB]; }
+				override resolveWorkspace(): ISessionWorkspace { return workspace; }
+				override createNewSession(): ISession { drafts.push(draft.sessionId); return draft; }
+			}(sessionA);
+			const trust: { pending?: DeferredPromise<boolean> } = {};
+			const trustRequest = new class extends mock<IWorkspaceTrustRequestService>() {
+				override async requestResourcesTrust(): Promise<boolean> {
+					if (trust.pending) {
+						return trust.pending.p;
+					}
+					await timeout(0);
+					return true;
+				}
+			};
+			const { view } = createSessionsManagementService(sessionA, disposables, provider, undefined, trustRequest);
+			return { view, sessionA, sessionB, drafts, trust };
+		}
+
+		test('closing the shown chat with showNewSession shows the new-session view instead of another chat, and keeps the chat closed', async () => {
+			const { view, sessionA } = setupInTrustedFolder();
+			const [, chatB, chatC] = sessionA.chats.get();
+			const closeAsDone = async (shown: IChat, closed: IChat) => {
+				await view.openSession(sessionA.resource);
+				await view.openChat(sessionA, shown.resource);
+				const seen: string[] = [];
+				const observer = autorun(reader => { seen.push(`${activeSessionOf(view, reader)?.sessionId}/${activeChatOf(view, reader)?.title.read(reader)}`); });
+				await view.closeChat(activeSessionOf(view)!, closed, { showNewSession: true });
+				observer.dispose();
+				return seen;
+			};
+
+			const notShown = await closeAsDone(chatB, chatC);
+			const shown = await closeAsDone(chatB, chatB);
+			await view.openSession(sessionA.resource);
+
+			assert.deepStrictEqual({ notShown, shown, reopened: { activeChat: activeChatOf(view)?.title.get(), closed: closedTitles(view) } }, {
+				notShown: ['A/b'],
+				shown: ['A/b', 'draft/Chat'],
+				reopened: { activeChat: 'mainA', closed: ['b', 'c'] },
+			});
+		});
+
+		test('opening another session while showNewSession waits for workspace trust keeps that session, and the chat still closes', async () => {
+			const { view, sessionA, sessionB, drafts, trust } = setupInTrustedFolder();
+			const [, chatB] = sessionA.chats.get();
+			await view.openSession(sessionA.resource);
+			await view.openChat(sessionA, chatB.resource);
+			const pendingTrust = trust.pending = new DeferredPromise<boolean>();
+
+			const closing = view.closeChat(activeSessionOf(view)!, chatB, { showNewSession: true });
+			await view.openSession(sessionB.resource);
+			trust.pending = undefined;
+			pendingTrust.complete(true);
+			await closing;
+			const afterTrust = { active: activeSessionOf(view)?.sessionId, drafts: [...drafts] };
+			await view.openSession(sessionA.resource);
+
+			assert.deepStrictEqual({ afterTrust, reopened: { activeChat: activeChatOf(view)?.title.get(), closed: closedTitles(view) } }, {
+				afterTrust: { active: 'B', drafts: [] },
+				reopened: { activeChat: 'mainA', closed: ['b'] },
+			});
 		});
 
 		test('reopening a closed chat is also persisted across a switch', async () => {

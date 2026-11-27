@@ -31,8 +31,10 @@ import { activeContrastBorder, editorBackground, Extensions as ColorRegistryExte
 import { foreground } from '../../../../../platform/theme/common/colors/baseColors.js';
 import { Extensions as ThemeServiceExtensions, IThemingRegistry } from '../../../../../platform/theme/common/themeService.js';
 import { EDITOR_BORDER, EDITOR_GROUP_HEADER_CONNECTED_TABS_BACKGROUND, EDITOR_GROUP_HEADER_TABS_BACKGROUND, MODERN_ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_BORDER, MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ITEM_ACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ITEM_ACTIVE_FOREGROUND, MODERN_ACTIVITY_BAR_ITEM_HOVER_BACKGROUND, MODERN_ACTIVITY_BAR_ITEM_HOVER_FOREGROUND, MODERN_EDITOR_TAB_ACTIVE_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_FOREGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_ACTION_BACKGROUND, MODERN_EDITOR_TAB_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_FOREGROUND, MODERN_EDITOR_TAB_INACTIVE_BACKGROUND, MODERN_EDITOR_TAB_SELECTED_ACTION_BACKGROUND, MODERN_PANEL_BORDER, MODERN_SASH_GRIP_FOREGROUND, MODERN_SIDE_BAR_BACKGROUND, MODERN_SIDE_BAR_BORDER, MODERN_SIDE_BAR_FOREGROUND, MODERN_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_FOREGROUND, MODERN_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_FOREGROUND, MODERN_UI_INACTIVE_SHELL_BACKGROUND, MODERN_UI_SHELL_BACKGROUND, PANEL_SECTION_BORDER, PANEL_SECTION_HEADER_BORDER, SIDE_BAR_SECTION_HEADER_BORDER, SURFACE_BORDER, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_BORDER, TAB_ACTIVE_BORDER_TOP, TAB_ACTIVE_FOREGROUND, TAB_BORDER, TAB_DIVIDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_HOVER_FOREGROUND, TAB_INACTIVE_BACKGROUND, TAB_INACTIVE_FOREGROUND, TAB_LAST_PINNED_BORDER, TAB_SELECTED_BACKGROUND, TAB_UNFOCUSED_ACTIVE_BACKGROUND, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_INACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_INACTIVE_BACKGROUND } from '../../../../common/theme.js';
-import { TestEnvironmentService, TestLayoutService, TestLifecycleService } from '../../../../test/browser/workbenchTestServices.js';
-import { LayoutSettings, ModernUIDensity, ModernUIEditorTabStyle } from '../../../../services/layout/browser/layoutService.js';
+import { TestEnvironmentService, TestLayoutService, TestLifecycleService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { ActivityBarPosition, LayoutSettings, ModernUIDensity, ModernUIEditorTabStyle } from '../../../../services/layout/browser/layoutService.js';
+import { MainStatusbarPart } from '../../../../browser/parts/statusbar/statusbarPart.js';
+import { StatusbarAlignment } from '../../../../services/statusbar/browser/statusbar.js';
 import { PRESERVE_MERGED_WORKSPACE_NAME_CASE_CLASS, PRESERVE_WORKSPACE_NAME_CASE_CLASS, shouldPreserveWorkspaceNameCase } from '../../../files/browser/views/explorerView.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { joinPath } from '../../../../../base/common/resources.js';
@@ -2510,12 +2512,16 @@ suite('ModernUIContribution', () => {
 		const root = appendElement(document.body, 'monaco-workbench');
 		store.add(toDisposable(() => root.remove()));
 		const statusbar = appendElement(root, 'part statusbar');
-		const left = appendElement(appendElement(statusbar, 'items-container left-items'), 'statusbar-item left first-visible-item');
+		const leftItems = appendElement(statusbar, 'items-container left-items');
+		const left = appendElement(leftItems, 'statusbar-item left first-visible-item');
 		const leftLabel = appendElement(left, 'statusbar-item-label');
+		const inner = appendElement(leftItems, 'statusbar-item left');
+		const innerLabel = appendElement(inner, 'statusbar-item-label');
 		const right = appendElement(appendElement(statusbar, 'items-container right-items'), 'statusbar-item right last-visible-item');
 		const rightLabel = appendElement(right, 'statusbar-item-label');
-		const measure = (classes: string) => {
+		const measure = (classes: string, horizontal: boolean) => {
 			root.className = `monaco-workbench modern-ui ${classes}`;
+			statusbar.classList.toggle('activitybar-horizontal', horizontal);
 			root.style.cssText = '--vscode-cornerRadius-small: 4px; --vscode-spacing-sizeNone: 0px; --vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-spacing-size120: 12px; --window-corner-radius: 16px;';
 			const style = (element: HTMLElement) => getWindow(element).getComputedStyle(element);
 			return [
@@ -2525,20 +2531,86 @@ suite('ModernUIContribution', () => {
 				style(rightLabel).borderBottomRightRadius,
 			];
 		};
+		const standard = ['4px', '4px', '4px', '4px'];
+		const floating = ['12px 14px', '12px 14px', '12px 14px', '12px 14px'];
+		const docked = ['0px', '0px', '0px', '0px'];
 
 		assert.deepStrictEqual({
-			docked: measure('mac'),
-			floating: measure('mac floating-panels'),
-			floatingWithoutActivitybar: measure('mac floating-panels noactivitybar'),
-			fullscreen: measure('mac floating-panels noactivitybar fullscreen'),
-			nonMac: measure('floating-panels noactivitybar'),
+			dockedHorizontal: measure('mac noactivitybar', true),
+			dockedVertical: measure('mac', false),
+			dockedHidden: measure('mac noactivitybar', false),
+			floatingHorizontal: measure('mac floating-panels noactivitybar', true),
+			floatingCompactHorizontal: measure('mac floating-panels modern-ui-compact noactivitybar', true),
+			floatingVerticalLeft: measure('mac floating-panels', false),
+			floatingVerticalRight: measure('mac floating-panels activitybar-right', false),
+			floatingCompactRail: measure('mac floating-panels activitybar-compact', false),
+			floatingCompactDensityVertical: measure('mac floating-panels modern-ui-compact', false),
+			floatingHidden: measure('mac floating-panels noactivitybar', false),
+			fullscreen: measure('mac floating-panels noactivitybar fullscreen', true),
+			web: measure('mac floating-panels noactivitybar web', true),
+			nonMac: measure('floating-panels noactivitybar', true),
+			inner: (() => {
+				measure('mac floating-panels noactivitybar', true);
+				return [getWindow(inner).getComputedStyle(inner).borderBottomLeftRadius, getWindow(innerLabel).getComputedStyle(innerLabel).borderBottomLeftRadius];
+			})(),
 		}, {
-			docked: ['0px', '0px', '0px', '0px'],
-			floating: ['4px 14px', '4px 14px', '4px 14px', '4px 14px'],
-			floatingWithoutActivitybar: ['12px 14px', '12px 14px', '12px 14px', '12px 14px'],
-			fullscreen: ['4px', '4px', '4px', '4px'],
-			nonMac: ['4px', '4px', '4px', '4px'],
+			dockedHorizontal: docked,
+			dockedVertical: standard,
+			dockedHidden: standard,
+			floatingHorizontal: floating,
+			floatingCompactHorizontal: floating,
+			floatingVerticalLeft: standard,
+			floatingVerticalRight: standard,
+			floatingCompactRail: standard,
+			floatingCompactDensityVertical: standard,
+			floatingHidden: standard,
+			fullscreen: standard,
+			web: standard,
+			nonMac: standard,
+			inner: ['4px', '4px'],
 		});
+	});
+
+	test('updates status bar edge corners when the activity bar position changes', async () => {
+		const configurationService = new TestConfigurationService({
+			[LayoutSettings.ACTIVITY_BAR_LOCATION]: ActivityBarPosition.TOP,
+		});
+		const instantiationService = workbenchInstantiationService({ configurationService: () => configurationService }, store);
+		const root = appendElement(document.body, 'monaco-workbench modern-ui mac floating-panels noactivitybar');
+		store.add(toDisposable(() => root.remove()));
+		root.style.cssText = '--vscode-cornerRadius-small: 4px; --vscode-spacing-sizeNone: 0px; --vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-spacing-size120: 12px; --window-corner-radius: 16px;';
+		const container = appendElement(root, 'part statusbar');
+		const entries = store.add(new DisposableStore());
+		const part = store.add(instantiationService.createInstance(MainStatusbarPart));
+		part.create(container);
+		entries.add(part.addEntry({ name: 'Left', text: 'Left', ariaLabel: 'Left' }, 'test.left', StatusbarAlignment.LEFT, 1));
+		entries.add(part.addEntry({ name: 'Right', text: 'Right', ariaLabel: 'Right' }, 'test.right', StatusbarAlignment.RIGHT, 1));
+		const left = container.querySelector<HTMLElement>('.statusbar-item.left');
+		const right = container.querySelector<HTMLElement>('.statusbar-item.right');
+		assert.ok(left && right);
+
+		const measure = () => [
+			getWindow(left).getComputedStyle(left).borderBottomLeftRadius,
+			getWindow(right).getComputedStyle(right).borderBottomRightRadius,
+		];
+		const radii = [measure()];
+		for (const position of [ActivityBarPosition.DEFAULT, ActivityBarPosition.HIDDEN, ActivityBarPosition.BOTTOM]) {
+			await configurationService.setUserConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION, position);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				source: ConfigurationTarget.USER,
+				affectedKeys: new Set([LayoutSettings.ACTIVITY_BAR_LOCATION]),
+				change: { keys: [LayoutSettings.ACTIVITY_BAR_LOCATION], overrides: [] },
+				affectsConfiguration: key => key === LayoutSettings.ACTIVITY_BAR_LOCATION,
+			});
+			radii.push(measure());
+		}
+
+		assert.deepStrictEqual(radii, [
+			['12px 14px', '12px 14px'],
+			['4px', '4px'],
+			['4px', '4px'],
+			['12px 14px', '12px 14px'],
+		]);
 	});
 
 	test('aligns status bar edge icons with activity icons symmetrically across densities', () => {

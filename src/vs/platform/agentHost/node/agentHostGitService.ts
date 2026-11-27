@@ -5,6 +5,7 @@
 
 import * as cp from 'child_process';
 import * as fsPromises from 'fs/promises';
+import type { Dirent } from 'fs';
 import { cp as copyFile } from '@vscode/fs-copyfile';
 import { distinct } from '../../../base/common/arrays.js';
 import { Schemas } from '../../../base/common/network.js';
@@ -302,7 +303,7 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 		this._repositoryRoots.set(roots, undefined);
 	}
 
-	async getRepositoryRoot(workingDirectory: URI, options?: { readonly refreshIfNone?: boolean }): Promise<URI | undefined> {
+	async getRepositoryRoot(workingDirectory: URI, options?: { readonly refreshIfNone?: boolean; readonly fresh?: boolean }): Promise<URI | undefined> {
 		if (workingDirectory.scheme !== Schemas.file) {
 			return undefined;
 		}
@@ -315,23 +316,28 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 		}
 
 		const roots = this._repositoryRoots.get();
-		if (roots.has(workingDirectoryKey)) {
+		if (roots.has(workingDirectoryKey) && !options?.fresh) {
 			const repositoryRoot = roots.get(workingDirectoryKey);
 			if (repositoryRoot || !options?.refreshIfNone) {
 				return repositoryRoot;
 			}
 		}
 
-		const request = this._readRepositoryRoot(workingDirectory, workingDirectoryKey)
+		const request = this._readRepositoryRoot(workingDirectory, workingDirectoryKey, !!options?.fresh)
 			.finally(() => this._pendingRepositoryRoots.delete(workingDirectoryKey));
 		this._pendingRepositoryRoots.set(workingDirectoryKey, request);
 		return request;
 	}
 
-	private async _readRepositoryRoot(workingDirectory: URI, workingDirectoryKey: string): Promise<URI | undefined> {
+	/** @param fresh whether a folder found missing or not in a repository replaces a cached root. */
+	private async _readRepositoryRoot(workingDirectory: URI, workingDirectoryKey: string, fresh = false): Promise<URI | undefined> {
 		const roots = this._repositoryRoots.get();
 		if (await this._isMissingDirectory(workingDirectory.fsPath)) {
 			this._logService.trace(`[agentHostGitService] Skipping repository root lookup for missing directory ${workingDirectory.fsPath}`);
+			if (fresh && roots.peek(workingDirectoryKey)) {
+				roots.delete(workingDirectoryKey);
+				this._repositoryRoots.set(roots, undefined);
+			}
 			return undefined;
 		}
 
@@ -345,7 +351,7 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 			throw new Error('Git repository root lookup returned no path');
 		} catch (error) {
 			if (error instanceof GitCommandError && /^fatal: (?:not a git repository\b|this operation must be run in a work tree\b)/m.test(error.stderr)) {
-				if (!roots.peek(workingDirectoryKey)) {
+				if (fresh || !roots.peek(workingDirectoryKey)) {
 					this._cacheRepositoryRoot(workingDirectoryKey, undefined);
 				}
 			} else {
@@ -366,6 +372,51 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 
 	async getWorktreeRoots(workingDirectory: URI): Promise<URI[]> {
 		return parseGitWorktrees(await this._runGit(workingDirectory, ['worktree', 'list', '--porcelain', '-z']) ?? '').map(worktree => worktree.path);
+	}
+
+	async findRepositories(folder: URI, limit: number): Promise<readonly URI[]> {
+		if (folder.scheme !== Schemas.file || limit <= 0) {
+			return [];
+		}
+		let entries: Dirent[];
+		try {
+			entries = await fsPromises.readdir(folder.fsPath, { withFileTypes: true });
+		} catch {
+			return [];
+		}
+		const found: URI[] = [];
+		for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+			if (found.length >= limit) {
+				break;
+			}
+			// A symbolic link is not a directory entry here, so links are not followed
+			if (!entry.isDirectory() || entry.name.toLowerCase() === '.git') {
+				continue;
+			}
+			const child = path.join(folder.fsPath, entry.name);
+			if (await this._isCheckoutRoot(child)) {
+				found.push(URI.file(child));
+			}
+		}
+		return found;
+	}
+
+	/**
+	 * Whether `directory` has a `.git` entry and Git opens a checkout rooted there: not an empty or broken marker, nor one
+	 * Git skips for an enclosing checkout or refuses as unsafe (`safe.directory`).
+	 */
+	private async _isCheckoutRoot(directory: string): Promise<boolean> {
+		try {
+			await fsPromises.lstat(path.join(directory, '.git'));
+		} catch {
+			return false;
+		}
+		const cdup = await this._runGit(URI.file(directory), ['rev-parse', '--show-cdup'], { throwOnError: true, env: { LC_ALL: 'C' } }).catch(() => undefined);
+		if (cdup?.trim() === '') {
+			return true;
+		}
+		this._logService.trace(`[AgentHostGitService] Skipping ${directory}: it has a .git entry, but Git ${cdup === undefined ? 'did not open it' : 'opens an enclosing checkout'}`);
+		return false;
 	}
 
 	async getWorktrees(workingDirectory: URI): Promise<IAgentHostGitWorktree[]> {

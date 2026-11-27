@@ -103,6 +103,8 @@ export interface ISessionSection {
 	readonly navigationCollapsed?: boolean;
 	readonly label: string;
 	readonly sessions: ISession[];
+	/** The sessions the header counts and summarizes when they differ from its own {@link sessions}, such as those of the groups and sections pinned in the Pinned section too. */
+	readonly summarySessions?: readonly ISession[];
 	readonly pendingItems?: readonly IPendingSessionItem[];
 	/** The repository of a repository section. */
 	readonly repository?: ISessionRepository;

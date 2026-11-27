@@ -275,8 +275,8 @@ suite('RemotesWidget', () => {
 		}));
 		instantiationService.stub(INewSessionComposerService, { activeComposer });
 		instantiationService.stub(ISessionsService, {
-			openNewSession: async () => {
-				sessionActions.push('open');
+			openNewSession: async options => {
+				sessionActions.push(options?.folderUri ? `open ${options.folderUri.toString()}${options.requireDevContainer ? ' in a Dev Container' : ''}` : 'open');
 				return { session: undefined, trustDeclined: false };
 			},
 			focusActiveSession: () => { sessionActions.push('focus'); },
@@ -284,6 +284,7 @@ suite('RemotesWidget', () => {
 		instantiationService.stub(ISessionsProvidersService, {
 			getProviders: () => [
 				upcastPartial<IAgentHostSessionsProvider>({ id: 'agenthost-remote-build', remoteAddress: 'ssh:build' }),
+				upcastPartial<IAgentHostSessionsProvider>({ id: 'agenthost-devcontainer-project', remoteAddress: 'devcontainer:project' }),
 			]
 		});
 		const documentation: string[] = [];
@@ -4143,6 +4144,21 @@ suite('RemotesWidget', () => {
 			disconnected: { connect: 'Connect', newSession: false, menu: ['Connect', 'Hide from Environment Picker', 'Rename...', 'Troubleshoot Connection...', 'Delete Dev Container...'] },
 			connected: { connect: 'Disconnect', newSession: true, menu: ['New Session', 'Disconnect', 'Hide from Environment Picker', 'Rename...', 'Troubleshoot Connection...', 'Delete Dev Container...'] },
 			remote: { connect: undefined, newSession: true, menu: ['New Session', 'Hide from Environment Picker', 'Rename...', 'Troubleshoot Connection...', 'Delete Dev Container...'] },
+		});
+	});
+
+	test('a folder\'s Dev Container starts new sessions in its folder, and offers neither Rename, Delete nor picker visibility', async () => {
+		const { parent, model, sessionActions } = createWidget();
+		const workspaceUri = URI.file('/project');
+		model.remotes.set([
+			{ id: 'devcontainer:project', kind: 'devContainer', name: 'project [Dev Container]', detail: workspaceUri.fsPath, canRemove: false, availability: 'online', devContainerFolder: { workspaceUri }, connectionStatus: RemoteAgentHostConnectionStatus.connected },
+		], undefined);
+		const menu = getMenuActions(parent, 'devcontainer:project').filter(action => action.id !== Separator.ID).map(action => action.label);
+		runMenuAction(parent, 'devcontainer:project', 'newSession');
+		await timeout(0);
+		assert.deepStrictEqual({ menu, sessionActions }, {
+			menu: ['New Session', 'Disconnect', 'Troubleshoot Connection...'],
+			sessionActions: [`open ${workspaceUri.toString()} in a Dev Container`],
 		});
 	});
 

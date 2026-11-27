@@ -11,7 +11,7 @@ import { ITunnelApplicationConfig } from '../../../../../base/common/product.js'
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IConfirmation, IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { AgentHostRemoteConnectionsSettingId } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
@@ -26,7 +26,7 @@ import { IQuickInputHideEvent, IQuickInputService, IQuickPick, IQuickPickItem, Q
 import { INACTIVE_TUNNEL_MODE, IRemoteTunnelService, type ActiveTunnelMode, type TunnelStatus } from '../../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { IAuthenticationProvider, AuthenticationSession, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
+import { IAuthenticationProvider, AuthenticationSession, AuthenticationSessionAccount, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { RemoteTunnelCommandIds, RemoteTunnelWorkbenchContribution } from '../../electron-browser/remoteTunnel.contribution.js';
@@ -61,12 +61,16 @@ class TestAuthenticationService extends mock<IAuthenticationService>() {
 		override readonly supportsMultipleAccounts = false;
 	};
 
-	constructor(private readonly sessions: readonly AuthenticationSession[], private readonly createdSession = githubSession) {
+	constructor(private readonly sessions: readonly AuthenticationSession[], private readonly createdSession = githubSession, private readonly accounts = sessions.map(session => session.account)) {
 		super();
 	}
 
 	override getProvider(): IAuthenticationProvider {
 		return this.provider;
+	}
+
+	override async getAccounts(): Promise<readonly AuthenticationSessionAccount[]> {
+		return this.accounts;
 	}
 
 	override async getSessions(...[providerId, scopes]: Parameters<IAuthenticationService['getSessions']>): Promise<readonly AuthenticationSession[]> {
@@ -156,16 +160,30 @@ class TestExtensionService extends mock<IExtensionService>() {
 class TestDialogService extends mock<IDialogService>() {
 	override async confirm() { return { confirmed: true }; }
 }
+
+/** Records the details of the confirmations it shows and answers them with {@link confirmed}. */
+class RecordingDialogService extends mock<IDialogService>() {
+	readonly details: IConfirmation['detail'][] = [];
+
+	constructor(private readonly confirmed: boolean) {
+		super();
+	}
+
+	override async confirm(confirmation: IConfirmation) {
+		this.details.push(confirmation.detail);
+		return { confirmed: this.confirmed };
+	}
+}
 class TestCommandService extends mock<ICommandService>() { }
 class TestWorkspaceContextService extends mock<IWorkspaceContextService>() {
 	override getWorkspace() { return testIWorkspace({ id: 'test', folders: [] }); }
 }
 class TestNotificationService extends mock<INotificationService>() { }
 
-function createContribution(store: Pick<DisposableStore, 'add'>, authenticationService: TestAuthenticationService, quickInputService: IQuickInputService, remoteTunnelService: TestRemoteTunnelService): RemoteTunnelWorkbenchContribution {
+function createContribution(store: Pick<DisposableStore, 'add'>, authenticationService: TestAuthenticationService, quickInputService: IQuickInputService, remoteTunnelService: TestRemoteTunnelService, dialogService: IDialogService = new TestDialogService()): RemoteTunnelWorkbenchContribution {
 	return store.add(new RemoteTunnelWorkbenchContribution(
 		authenticationService,
-		new TestDialogService(),
+		dialogService,
 		new TestExtensionService(),
 		store.add(new MockContextKeyService()),
 		new class extends mock<IProductService>() {
@@ -348,31 +366,59 @@ suite('RemoteTunnelWorkbenchContribution', () => {
 		});
 	});
 
-	test('signs in to GitHub directly for Agents remote access when no session exists', async () => {
-		const authenticationService = new TestAuthenticationService([]);
-		const quickInputService = new TestQuickInputService();
-		const remoteTunnelService = new TestRemoteTunnelService();
-		const contribution = createContribution(store, authenticationService, quickInputService, remoteTunnelService);
+	for (const { reason, sessions, accounts, rejected, detail } of [
+		{ reason: 'not signed in', sessions: [], accounts: [], rejected: false, detail: 'Dev tunnels use your GitHub account so that only you can connect to this computer. Your browser will open for you to sign in.' },
+		{ reason: 'missing permissions', sessions: [], accounts: [githubSession.account], rejected: false, detail: 'Dev tunnels use your GitHub account so that only you can connect to this computer. You\'re signed in, but dev tunnels also need permission to read your email address and organizations. Your browser will open for you to allow this.' },
+		{ reason: 'rejected session', sessions: [githubSession], accounts: [githubSession.account], rejected: true, detail: 'Dev tunnels use your GitHub account so that only you can connect to this computer. Your current sign-in no longer works for dev tunnels, so your browser will open for you to sign in again.' },
+	]) {
+		test(`explains why Agents remote access needs a GitHub sign-in before signing in (${reason})`, async () => {
+			const authenticationService = new TestAuthenticationService(sessions, githubSession, accounts);
+			const quickInputService = new TestQuickInputService();
+			const remoteTunnelService = new TestRemoteTunnelService();
+			const dialogService = new RecordingDialogService(true);
+			const contribution = createContribution(store, authenticationService, quickInputService, remoteTunnelService, dialogService);
+			if (rejected) {
+				contribution['expiredSessions'].add(githubSession.id);
+			}
 
-		await contribution['startTunnel'](false, 'github');
+			await contribution['startTunnel'](false, 'github');
+
+			assert.deepStrictEqual({
+				details: dialogService.details,
+				quickPickCalls: quickInputService.createQuickPickCalls,
+				createdSessions: authenticationService.createdSessions,
+				startedModes: remoteTunnelService.startedModes,
+			}, {
+				details: [detail],
+				quickPickCalls: 0,
+				createdSessions: [{ providerId: 'github', scopes: ['user:email'] }],
+				startedModes: [{
+					active: true,
+					asService: false,
+					session: {
+						providerId: 'github',
+						sessionId: 'github-session',
+						token: 'github-token',
+						accountLabel: 'GitHub Account',
+					},
+				}],
+			});
+		});
+	}
+
+	test('declining the GitHub sign-in cancels Agents remote access without signing in or starting a tunnel', async () => {
+		const authenticationService = new TestAuthenticationService([]);
+		const remoteTunnelService = new TestRemoteTunnelService();
+		const dialogService = new RecordingDialogService(false);
+		const contribution = createContribution(store, authenticationService, new TestQuickInputService(), remoteTunnelService, dialogService);
+
+		const result = await contribution['startTunnel'](false, 'github');
 
 		assert.deepStrictEqual({
-			quickPickCalls: quickInputService.createQuickPickCalls,
+			result,
+			confirmations: dialogService.details.length,
 			createdSessions: authenticationService.createdSessions,
 			startedModes: remoteTunnelService.startedModes,
-		}, {
-			quickPickCalls: 0,
-			createdSessions: [{ providerId: 'github', scopes: ['user:email'] }],
-			startedModes: [{
-				active: true,
-				asService: false,
-				session: {
-					providerId: 'github',
-					sessionId: 'github-session',
-					token: 'github-token',
-					accountLabel: 'GitHub Account',
-				},
-			}],
-		});
+		}, { result: 'canceled', confirmations: 1, createdSessions: [], startedModes: [] });
 	});
 });
