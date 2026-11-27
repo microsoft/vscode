@@ -52,6 +52,7 @@ import { INativeEnvironmentService } from '../../../environment/common/environme
 import { AgentPermissionKind, AgentChatMigrationDeferred, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, fixedChatOwnerRef } from '../../common/agent.js';
 import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGitHubMcpServerEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { agentModelCatalogStatusKey } from '../../common/agentModelCatalogStatus.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
@@ -3957,6 +3958,34 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
+	test('a root config change unrelated to the GitHub MCP server keeps the materialized Query', async () => {
+		// Other providers publish transient root values at any time. Rebuilding for them would drop a model hot-swapped onto the live Query.
+		const { agent, sdk, configService } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+		const chat = defaultChatUri(created.session);
+		const advance = new DeferredPromise<void>();
+		sdk.queryAdvance = async (idx: number) => {
+			if (idx === 2) {
+				await advance.p;
+			}
+		};
+		sdk.nextQueryMessages = [
+			makeSystemInitMessage(created.sdkSessionId),
+			makeResultSuccess(created.sdkSessionId),
+			makeResultSuccess(created.sdkSessionId),
+		];
+		await agent.chats.sendMessage(chat, 'turn-1', undefined, undefined, 'turn-id-1', undefined, undefined, chatContext(chat));
+
+		configService.publishRootTransientValues({ [agentModelCatalogStatusKey('copilotcli')]: 'ready' });
+		const second = agent.chats.sendMessage(chat, 'turn-2', undefined, undefined, 'turn-id-2', undefined, undefined, chatContext(chat));
+		await tick();
+		advance.complete();
+		await second;
+
+		assert.deepStrictEqual({ startupCallCount: sdk.startupCallCount, warmQueryCount: sdk.warmQueries.length }, { startupCallCount: 1, warmQueryCount: 1 });
+	});
+
 	test('text content_block emits ChatResponsePart(Markdown) before ChatDelta', async () => {
 		// Phase 6 §5.1 Test 6 + §3.6. The protocol reducer at
 		// `actions.ts:233 (ChatDelta)` requires the targeted
@@ -7196,6 +7225,7 @@ suite('ClaudeAgentSession (Phase 7 §3.2)', () => {
 		const workingDirectoryPendingChange = disposables.add(new Emitter<string>());
 		const fakeConfigService: IAgentConfigurationService = {
 			onDidRootConfigChange: Event.None,
+			getRootValue: () => undefined,
 			onDidSessionConfigChange: Event.None,
 			onDidChatConfigChange: Event.None,
 			getSessionConfigValues: () => undefined,
