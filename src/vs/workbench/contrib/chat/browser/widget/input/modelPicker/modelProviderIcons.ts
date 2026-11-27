@@ -9,7 +9,7 @@ import { localize } from '../../../../../../../nls.js';
 import { registerIcon } from '../../../../../../../platform/theme/common/iconRegistry.js';
 import { ILanguageModelChatMetadataAndIdentifier, isAutoLanguageModel } from '../../../../common/languageModels.js';
 import { getCompactCodicon } from '../../../chatIcons.js';
-import { isHydraFusionModel } from './modelPickerPresentation.js';
+import { isHydraFusionModel, isModelRouter } from './modelPickerPresentation.js';
 
 const copilotModelProviderIcon = registerIcon('chat-model-provider-copilot', Codicon.copilotCompact, localize('chatModelProviderCopilotIcon', "Icon for Copilot models."));
 const openAIModelProviderIcon = registerIcon('chat-model-provider-openai', Codicon.openai, localize('chatModelProviderOpenAIIcon', "Icon for OpenAI models."));
@@ -20,6 +20,7 @@ const microsoftModelProviderIcon = registerIcon('chat-model-provider-microsoft',
 const xAIModelProviderIcon = registerIcon('chat-model-provider-xai', Codicon.xai, localize('chatModelProviderXAIIcon', "Icon for xAI models."));
 const genericModelProviderIcon = registerIcon('chat-model-provider-generic', Codicon.sparkle, localize('chatModelProviderGenericIcon', "Icon for other model providers."));
 const genericModelProviderCompactIcon = registerIcon('chat-model-provider-generic-compact', Codicon.sparkleCompact, localize('chatModelProviderGenericCompactIcon', "Compact icon for other model providers."));
+export const modelRouterIcon = registerIcon('chat-model-router', Codicon.typeHierarchySub, localize('chatModelRouterIcon', "Icon for model routers."));
 
 /**
  * The provider icon matching a free-form identity string (vendor, family, model
@@ -54,6 +55,10 @@ export function getProviderIconForIdentity(identity: string, copilotIdentity: st
 
 export function getModelProviderIcon(model: ILanguageModelChatMetadataAndIdentifier): ThemeIcon {
 	const identity = `${model.metadata.vendor} ${model.metadata.family} ${model.metadata.id} ${model.metadata.name}`;
+	// A router is named by its author, so its name says nothing about a provider.
+	if (isModelRouter(model)) {
+		return modelRouterIcon;
+	}
 	if (/grok|xai/i.test(identity)) {
 		return xAIModelProviderIcon;
 	}
