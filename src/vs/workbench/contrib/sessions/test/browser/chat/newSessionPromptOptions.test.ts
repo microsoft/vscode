@@ -11,6 +11,8 @@ import { isMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { withAsyncTestCodeEditor } from '../../../../../../editor/test/browser/testCodeEditor.js';
+import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { INewSessionPromptOption, INewSessionPromptOptionsController, NewSessionPromptOptionsProgress, NewSessionPromptOptionsState } from '../../../browser/newSessionComposerService.js';
 import { NewSessionPromptOptionsPresenter, NewSessionPromptOptionsWidget } from '../../../browser/chat/newSessionPromptOptions.js';
@@ -475,6 +477,30 @@ suite('NewSessionPromptOptionsWidget', () => {
 			resolveCount: 0,
 		});
 	});
+});
+
+suite('NewSessionPromptOptionsPresenter', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('closing clears a generated prompt, so the draft saved on close is empty', () => withAsyncTestCodeEditor('', {}, async (editor, _viewModel, instantiationService) => {
+		instantiationService.stub(IAccessibilityService, { isMotionReduced: () => true, isScreenReaderOptimized: () => false });
+		instantiationService.stub(IHoverService, new TestHoverService());
+		const presenter = instantiationService.createInstance(NewSessionPromptOptionsPresenter, () => undefined);
+		const container = document.createElement('div');
+		presenter.attach(editor, container);
+		const shown = option('feature', 'Implement a feature');
+		presenter.showPromptOptions({ kind: 'resolved', options: [shown] });
+		container.querySelector<HTMLElement>('.monaco-button.new-session-prompt-option')!.click();
+		await timeout(0);
+		const shownBeforeClose = editor.getValue();
+		// As the composer saves its draft on every change of its input
+		const drafts: string[] = [];
+		disposables.add(editor.onDidChangeModelContent(() => drafts.push(editor.getValue())));
+
+		presenter.dispose();
+
+		assert.deepStrictEqual({ shownBeforeClose, drafts }, { shownBeforeClose: shown.prompt, drafts: [''] });
+	}));
 });
 
 function option(id: string, title: string): INewSessionPromptOption {

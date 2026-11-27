@@ -133,7 +133,7 @@ import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { IByokLmProxyService } from './byokLmProxyService.js';
 import { detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, type IAgentHostWorktreeResumeService, SessionWorkingDirectoryMissingError } from '../shared/worktreeIsolation.js';
 import { buildSessionEventLogFromTurns, IMPORTED_TOOL_CALLS_DB_KEY, IMPORTED_TURN_DURATIONS_DB_KEY, serializeImportedToolCalls, serializeImportedTurnDurations } from './buildSessionEvents.js';
-import { CopilotAgentSession, createCanvasConsentExpiredError, type ICopilotCanvasHandoff, type ICopilotWorkingDirectoryChangeTransaction } from './copilotAgentSession.js';
+import { CopilotAgentSession, CopilotProjectExtensionRevocationError, createCanvasConsentExpiredError, type ICopilotCanvasHandoff, type ICopilotWorkingDirectoryChangeTransaction } from './copilotAgentSession.js';
 import { CopilotSandboxCertificate } from './copilotSandboxCertificate.js';
 import { readCopilotSessionMetadataEvents, toCopilotSessionMetadataEvent } from './copilotSessionMetadataEvents.js';
 import { deferCopilotSdkExecution, getDeferredCopilotSdkExecution } from './copilotSessionExecutionMarker.js';
@@ -1706,7 +1706,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._sessionTelemetryRevoked = !isCopilotSessionTelemetryEnabled(this._configurationService, this._telemetryService);
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController, () => this._ensureClient()));
 		this._sessionLauncher = this._instantiationService.createInstance(CopilotSessionLauncher);
-		this._projectExtensionLaunchPolicy = new CopilotProjectExtensionLaunchPolicy(this._configurationService, this._logService);
+		this._projectExtensionLaunchPolicy = this._register(new CopilotProjectExtensionLaunchPolicy(this._configurationService, this._logService));
+		this._register(this._projectExtensionLaunchPolicy.onDidChangeExemptions(change => {
+			// Shutdown and disposal end every admission; no session is left to reconcile.
+			if (!this._isShuttingDown && !this._store.isDisposed) {
+				this._scheduleProjectExtensionTrustReconciliation(change);
+			}
+		}));
 		this._sandboxCertificate = this._instantiationService.createInstance(CopilotSandboxCertificate);
 		this._customizationInstallations = this._register(new CopilotCustomizationInstallations(
 			() => this._ensureClient(),
@@ -2512,6 +2518,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 				);
 			});
 		}
+		if (this._allLiveSessions().some(session => session.requiresRestartAfterProjectExtensionRevocation)) {
+			queueMicrotask(() => {
+				for (const session of this._allLiveSessions()) {
+					if (session.requiresRestartAfterProjectExtensionRevocation) {
+						void this._restartIdleSessionAfterUnconfirmedRevocation(session);
+					}
+				}
+			});
+		}
 		if (this._pendingClientRestartReasons.size === 0) {
 			return;
 		}
@@ -2552,11 +2567,20 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * queued operation on that chat.
 	 */
 	private _scheduleTelemetryRevokedSessionDisposal(session: CopilotAgentSession): Promise<void> {
-		if (this._shutdownPromise || !session.requiresRestartAfterTelemetryRevocation || session.isDisposed || session.hasActiveTurn || session.hasActiveSubagents) {
+		return this._disposeSessionWhenIdle(session, 'disposeTelemetryRevokedSession', () => session.requiresRestartAfterTelemetryRevocation)
+			.catch(error => this._logService.warn(`[Copilot:${session.sessionId}] Failed to dispose telemetry-revoked session`, error));
+	}
+
+	/**
+	 * Tears down `session` through its chat sequencer once it has no active turn or subagent while `required` holds,
+	 * handing its canvases to the runtime that next resumes the chat.
+	 */
+	private _disposeSessionWhenIdle(session: CopilotAgentSession, operation: string, required: () => boolean): Promise<void> {
+		if (this._shutdownPromise || !required() || session.isDisposed || session.hasActiveTurn || session.hasActiveSubagents) {
 			return Promise.resolve();
 		}
-		return this._queueChat(session.sessionId, session.sessionId, 'disposeTelemetryRevokedSession', async () => {
-			if (this._shutdownPromise || session.isDisposed || session.hasActiveTurn || session.hasActiveSubagents || this._findSessionBySdkId(session.sessionId) !== session) {
+		return this._queueChat(session.sessionId, session.sessionId, operation, async () => {
+			if (this._shutdownPromise || !required() || session.isDisposed || session.hasActiveTurn || session.hasActiveSubagents || this._findSessionBySdkId(session.sessionId) !== session) {
 				return;
 			}
 			const canvasHandoff = session.takeCanvasProjection();
@@ -2564,7 +2588,25 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._canvasHandoffs.set(session.chatChannelUri, canvasHandoff);
 			}
 			await this._destroyLiveSession(session, true);
-		}).catch(error => this._logService.warn(`[Copilot:${session.sessionId}] Failed to dispose telemetry-revoked session`, error));
+		});
+	}
+
+	/**
+	 * Restarts `session`, which couldn't confirm that an extension whose workspace trust was revoked stopped, once it is
+	 * idle: now if it is, otherwise after its turn and subagents end ({@link _onChatTurnEnded}), or before its next send.
+	 * Disconnecting the session stops the extensions it ran.
+	 */
+	private _restartSessionAfterUnconfirmedRevocation(session: CopilotAgentSession): void {
+		session.markProjectExtensionRevocationRequiresRestart();
+		void this._restartIdleSessionAfterUnconfirmedRevocation(session);
+	}
+
+	private async _restartIdleSessionAfterUnconfirmedRevocation(session: CopilotAgentSession): Promise<void> {
+		try {
+			await this._disposeSessionWhenIdle(session, 'disposeTrustRevokedSession', () => session.requiresRestartAfterProjectExtensionRevocation);
+		} catch (error) {
+			this._logService.warn(`[Copilot:${session.sessionId}] Failed to restart a session after a workspace trust revocation it couldn't confirm`, error);
+		}
 	}
 
 	private async _disposeIdleTelemetryRevokedSessions(): Promise<void> {
@@ -2748,6 +2790,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 					await session.reconcileProjectExtensionsAfterTrustChange(reconciliation);
 				} catch (error) {
 					this._logService.error(`[Copilot:${session.sessionId}] Failed to reconcile project extensions after workspace trust changed`, error);
+					if (error instanceof CopilotProjectExtensionRevocationError) {
+						this._restartSessionAfterUnconfirmedRevocation(session);
+					}
 				}
 			}));
 	}
@@ -3678,6 +3723,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const continuity = this._releasedCanvasContinuity(context) ?? this._claimedReleasedCanvasContinuity(context);
 		if (continuity) {
 			this._closeReleasedCanvas(continuity, request.resource);
+		}
+		// The chat's runtime is being replaced, so the replacement that adopts the parked handoff must close it.
+		const handoff = this._canvasHandoffs.get(chat);
+		if (handoff && this._recordPendingCanvasClose(handoff, request.resource)) {
+			this._publishCanvasHandoffMembership(chat, handoff, this._canvasWatches.get(chat)?.published());
 		}
 		let liveSession = context.target;
 		if (liveSession && isEqual(liveSession.ownerSessionUri, session)) {
@@ -9020,7 +9070,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					: raceCancellationError(activeClient.snapshot(context.chatKey, anchor, selectedAgentUri), waitToken),
 		]);
 		const primaryDirectoryChanged = !!storedWorkingDirectory && !isEqual(entry.workingDirectory, storedWorkingDirectory);
-		const structuralRestartReason = !entry.requiresRestartAfterWorkingDirectoryChange && !entry.requiresRestartAfterModelChange && !entry.requiresRestartAfterTelemetryRevocation && activeClient && currentSnapshot
+		const structuralRestartReason = !entry.requiresRestartAfterWorkingDirectoryChange && !entry.requiresRestartAfterModelChange && !entry.requiresRestartAfterTelemetryRevocation && !entry.requiresRestartAfterProjectExtensionRevocation && activeClient && currentSnapshot
 			? await raceCancellationError(activeClient.getRestartReason(entry.appliedSnapshot, context.chatKey, currentSnapshot, anchor), waitToken)
 			: undefined;
 		const currentDisabledRootMcpServers = currentSnapshot
@@ -9034,6 +9084,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			?? (primaryDirectoryChanged ? 'primaryDirectoryChanged' : undefined)
 			?? (entry.requiresRestartAfterModelChange ? 'hydraFusionModelChanged' : undefined)
 			?? (entry.requiresRestartAfterTelemetryRevocation ? 'telemetryRevoked' : undefined)
+			?? (entry.requiresRestartAfterProjectExtensionRevocation ? 'projectExtensionTrustRevoked' : undefined)
 			?? (rootsChanged ? 'additionalDirectoriesChanged' : undefined)
 			?? structuralRestartReason
 			?? (disabledRootMcpServersChanged ? 'disabledRootMcpServersChanged' : undefined)
@@ -9306,7 +9357,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _publishReleasedCanvasContinuity(continuity: IReleasedCanvasContinuity, published?: readonly string[]): void {
-		for (const projection of this._openReleasedCanvasProjections(continuity)) {
+		for (const projection of this._openCanvasHandoffProjections(continuity.handoff)) {
 			this._onDidChatProgress.fire({
 				kind: 'canvas',
 				chat: continuity.chat,
@@ -9314,17 +9365,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 				state: projection.canvas,
 			});
 		}
-		this._publishReleasedCanvasMembership(continuity, published);
+		this._publishCanvasHandoffMembership(continuity.chat, continuity.handoff, published);
 	}
 
 	/** Publishes only membership, so states a replacement runtime already published keep their sources. */
-	private _publishReleasedCanvasMembership(continuity: IReleasedCanvasContinuity, published?: readonly string[]): void {
-		const resources = this._openReleasedCanvasProjections(continuity).map(projection => projection.resource.toString());
+	private _publishCanvasHandoffMembership(chat: URI, handoff: ICopilotCanvasHandoff, published?: readonly string[]): void {
+		const resources = this._openCanvasHandoffProjections(handoff).map(projection => projection.resource.toString());
 		const current = published ?? [];
 		if (published === undefined || resources.length !== current.length || resources.some((resource, index) => resource !== current[index])) {
 			this._onDidChatProgress.fire({
 				kind: 'action',
-				resource: continuity.chat,
+				resource: chat,
 				action: {
 					type: ActionType.ChatCanvasesChanged,
 					canvases: resources.length > 0 ? resources.map(resource => ({ resource })) : undefined,
@@ -9333,9 +9384,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private _openReleasedCanvasProjections(continuity: IReleasedCanvasContinuity): ICopilotCanvasHandoff['projections'] {
-		const pendingCloseInstanceIds = continuity.handoff.pendingCloseInstanceIds;
-		return continuity.handoff.projections.filter(projection => !pendingCloseInstanceIds?.has(projection.canvas.instanceId));
+	private _openCanvasHandoffProjections(handoff: ICopilotCanvasHandoff): ICopilotCanvasHandoff['projections'] {
+		const pendingCloseInstanceIds = handoff.pendingCloseInstanceIds;
+		return handoff.projections.filter(projection => !pendingCloseInstanceIds?.has(projection.canvas.instanceId));
 	}
 
 	private _publishCanvasRemoval(chat: URI): void {
@@ -9347,19 +9398,27 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _closeReleasedCanvas(continuity: IReleasedCanvasContinuity, resource: URI): void {
-		const projection = continuity.handoff.projections.find(candidate => isEqual(candidate.resource, resource));
-		if (!projection) {
+		if (!this._recordPendingCanvasClose(continuity.handoff, resource)) {
 			return;
 		}
-		const pendingCloseInstanceIds = continuity.handoff.pendingCloseInstanceIds instanceof Set
-			? continuity.handoff.pendingCloseInstanceIds
-			: new Set<string>(continuity.handoff.pendingCloseInstanceIds);
-		continuity.handoff.pendingCloseInstanceIds = pendingCloseInstanceIds;
-		pendingCloseInstanceIds.add(projection.canvas.instanceId);
 		if (this._claimedReleasedCanvasContinuities.get(continuity.chat.toString()) !== continuity) {
 			this._retainReleasedCanvasContinuity(continuity);
 		}
-		this._publishReleasedCanvasMembership(continuity, this._canvasWatches.get(continuity.chat)?.published());
+		this._publishCanvasHandoffMembership(continuity.chat, continuity.handoff, this._canvasWatches.get(continuity.chat)?.published());
+	}
+
+	/** Records a close for the runtime that adopts the handoff. Returns false when the handoff does not hold the canvas. */
+	private _recordPendingCanvasClose(handoff: ICopilotCanvasHandoff, resource: URI): boolean {
+		const projection = handoff.projections.find(candidate => isEqual(candidate.resource, resource));
+		if (!projection) {
+			return false;
+		}
+		const pendingCloseInstanceIds = handoff.pendingCloseInstanceIds instanceof Set
+			? handoff.pendingCloseInstanceIds
+			: new Set<string>(handoff.pendingCloseInstanceIds);
+		handoff.pendingCloseInstanceIds = pendingCloseInstanceIds;
+		pendingCloseInstanceIds.add(projection.canvas.instanceId);
+		return true;
 	}
 
 	private _refreshCanvasWatch(chat: URI): void {
@@ -11673,8 +11732,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (session.canvasRuntimeEnabled && changeDuringInitialization) {
 				reconciledTrustState = this._projectExtensionLaunchPolicy.trustState;
 				const reconciliation = await this._projectExtensionLaunchPolicy.reconciliationFor(changeDuringInitialization);
-				// It throws only when a revocation fails: an extension that may run without trust fails the session.
-				await session.reconcileProjectExtensionsAfterTrustChange(reconciliation);
+				try {
+					await session.reconcileProjectExtensionsAfterTrustChange(reconciliation);
+				} catch (error) {
+					// It throws only when a revocation fails: an extension that may run without trust fails the session. Its caller
+					// then disposes it, which disconnects the runtime only on a best-effort basis, so it is destroyed here.
+					if (error instanceof CopilotProjectExtensionRevocationError) {
+						session.markProjectExtensionRevocationRequiresRestart();
+						await this._destroyLiveSession(session, true);
+					}
+					throw error;
+				}
 			}
 			await beforeRegistration?.();
 			if (session.hasPendingConnectorRefresh) {
@@ -11692,6 +11760,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 					await session.reconcileProjectExtensionsAfterTrustChange(await this._projectExtensionLaunchPolicy.reconciliationFor(changeBeforeRegistration));
 				} catch (error) {
 					this._logService.error(`[Copilot:${session.sessionId}] Failed to reconcile project extensions after registration`, error);
+					if (error instanceof CopilotProjectExtensionRevocationError) {
+						// The caller is about to use this session, and a session it just created has no restart reason to check.
+						// Initialization already holds the chat's queue, so it destroys the session directly.
+						session.markProjectExtensionRevocationRequiresRestart();
+						await this._destroyLiveSession(session, true);
+						throw error;
+					}
 				}
 			}
 		} finally {

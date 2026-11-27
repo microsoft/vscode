@@ -11,7 +11,7 @@ import { MainThreadConfigurationShape, IConfigurationInitData } from '../../comm
 import { ConfigurationModel, ConfigurationModelParser } from '../../../../platform/configuration/common/configurationModels.js';
 import { TestRPCProtocol } from '../common/testRPCProtocol.js';
 import { mock } from '../../../../base/test/common/mock.js';
-import { IWorkspaceFolder, WorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceFolder, WorkbenchMode, WorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { ConfigurationTarget, IConfigurationModel, IConfigurationChange } from '../../../../platform/configuration/common/configuration.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
 import { IExtHostInitDataService } from '../../common/extHostInitDataService.js';
@@ -385,7 +385,7 @@ suite('ExtHostConfiguration', function () {
 			'id': 'foo',
 			'folders': [aWorkspaceFolder(URI.file('foo'), 0)],
 			'name': 'foo'
-		}, true);
+		}, WorkbenchMode.Editor, true);
 		const testObject = new ExtHostConfigProvider(
 			new class extends mock<MainThreadConfigurationShape>() { },
 			extHostWorkspace,
@@ -472,7 +472,7 @@ suite('ExtHostConfiguration', function () {
 			'id': 'foo',
 			'folders': [aWorkspaceFolder(firstRoot, 0), aWorkspaceFolder(secondRoot, 1)],
 			'name': 'foo'
-		}, true);
+		}, WorkbenchMode.Editor, true);
 		const testObject = new ExtHostConfigProvider(
 			new class extends mock<MainThreadConfigurationShape>() { },
 			extHostWorkspace,
@@ -598,7 +598,7 @@ suite('ExtHostConfiguration', function () {
 			'id': 'foo',
 			'folders': [aWorkspaceFolder(firstRoot, 0), aWorkspaceFolder(secondRoot, 1)],
 			'name': 'foo'
-		}, true);
+		}, WorkbenchMode.Editor, true);
 		const testObject = new ExtHostConfigProvider(
 			new class extends mock<MainThreadConfigurationShape>() { },
 			extHostWorkspace,
@@ -826,7 +826,7 @@ suite('ExtHostConfiguration', function () {
 			'id': 'foo',
 			'folders': [workspaceFolder],
 			'name': 'foo'
-		}, true);
+		}, WorkbenchMode.Editor, true);
 		const testObject = new ExtHostConfigProvider(
 			new class extends mock<MainThreadConfigurationShape>() { },
 			extHostWorkspace,

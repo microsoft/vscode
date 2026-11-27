@@ -705,6 +705,32 @@ suite('SessionsListModelService', () => {
 		assert.strictEqual(changeCount, 0);
 	});
 
+	test('pinned headers keep their pin order and survive reload', () => {
+		service.pinSection('group:a');
+		service.pinSection('workspace:vscode');
+		service.pinSection('group:a');
+		service.pinSection('group:b');
+		service.unpinSection('workspace:vscode');
+		const reloaded = disposables.add(instantiationService.createInstance(SessionsListModelService));
+
+		assert.deepStrictEqual({ current: service.pinnedSectionIds.get(), reloaded: reloaded.pinnedSectionIds.get() }, {
+			current: ['group:a', 'group:b'],
+			reloaded: ['group:a', 'group:b'],
+		});
+	});
+
+	test('header pins from another window of the profile are kept when pinning more', () => {
+		service.pinSection('group:a');
+		storageService.store('sessionsListControl.pinnedSections', JSON.stringify(['group:a', 'group:b']), StorageScope.PROFILE, StorageTarget.USER, true);
+		service.pinSection('group:c');
+		const reloaded = disposables.add(instantiationService.createInstance(SessionsListModelService));
+
+		assert.deepStrictEqual({ current: service.pinnedSectionIds.get(), reloaded: reloaded.pinnedSectionIds.get() }, {
+			current: ['group:a', 'group:b', 'group:c'],
+			reloaded: ['group:a', 'group:b', 'group:c'],
+		});
+	});
+
 	// -- Automation sessions --
 
 	test('scheduled chats bypass automation reply gating and retain their normal listing after reload', () => {

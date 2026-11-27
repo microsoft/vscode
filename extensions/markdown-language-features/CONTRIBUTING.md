@@ -128,6 +128,14 @@ Run `node --test ./scripts/markdownEditorZoom.browser.test.mts` from this extens
 where Markdown syntax is revealed, and defaults to disabled. Like active block
 highlighting, changes are sent to the renderer without reloading the document.
 
+### Typography
+
+The rich editor reuses `markdown.preview.fontFamily`, `markdown.preview.fontSize`,
+and `markdown.preview.lineHeight`, applying them as `--markdown-font-family`,
+`--markdown-font-size`, and `--markdown-line-height` on the webview document root.
+Changes apply live without reloading the editor, and invalid or empty values fall
+back to the theme defaults.
+
 ### Mermaid
 
 The `mermaid-markdown-features` extension contributes the Mermaid code block

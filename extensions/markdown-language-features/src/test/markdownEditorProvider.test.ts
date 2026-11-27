@@ -8,7 +8,7 @@ import 'mocha';
 import * as vscode from 'vscode';
 import { MarkdownContributions } from '../markdownExtensions';
 import { MarkdownPreviewLineDiffProvider } from '../preview/lineDiff';
-import { getInDocumentLinkTargetRange, getMarkdownCodeBlockEditorApiV1, getMarkdownCodeBlockEditorApiV2, isSupportedMarkdownCodeBlockEditorApiVersion, lineRangesToGutterMarkers } from '../preview/markdownEditorProvider';
+import { getInDocumentLinkTargetRange, getMarkdownCodeBlockEditorApiV1, getMarkdownCodeBlockEditorApiV2, getMarkdownEditorConfiguration, isSupportedMarkdownCodeBlockEditorApiVersion, lineRangesToGutterMarkers } from '../preview/markdownEditorProvider';
 import { clampMarkdownEditorZoomPercent, MARKDOWN_EDITOR_ZOOM_STEP_PERCENT, mergeCodeBlockEditorPresentation, stepMarkdownEditorZoomDelta } from '../preview/markdownEditorProtocol';
 import { encodeWebviewInitialState } from '../preview/webviewInitialState';
 
@@ -201,6 +201,56 @@ suite('Markdown editor initial state', () => {
 			containsHtmlAttributeSyntax: false,
 			roundTrip: state,
 		});
+	});
+});
+
+suite('Markdown editor configuration', () => {
+	test('forwards Markdown preview typography settings with clamping and fallbacks', async () => {
+		const document = await vscode.workspace.openTextDocument({ language: 'markdown', content: '# Title' });
+		const previewConfig = vscode.workspace.getConfiguration('markdown.preview', document);
+		const keys = ['fontFamily', 'fontSize', 'lineHeight'] as const;
+		const previous = keys.map(key => previewConfig.inspect(key)?.globalValue);
+		const update = async (values: readonly unknown[]) => {
+			for (let i = 0; i < keys.length; i++) {
+				await previewConfig.update(keys[i], values[i], vscode.ConfigurationTarget.Global);
+			}
+		};
+		try {
+			await update(['Georgia', 22, 1.4]);
+			const configured = getMarkdownEditorConfiguration(document, false);
+
+			await update([undefined, 2, 0.1]);
+			const clamped = getMarkdownEditorConfiguration(document, false);
+
+			await update(['   ', 'not-a-number', 'not-a-number']);
+			const invalidString = getMarkdownEditorConfiguration(document, true);
+
+			await update(['', '', '   ']);
+			const emptyStrings = getMarkdownEditorConfiguration(document, false);
+
+			await update([null, null, false]);
+			const nullAndBoolean = getMarkdownEditorConfiguration(document, false);
+
+			const defaultFontFamily = previewConfig.inspect<string>('fontFamily')?.defaultValue;
+			assert.deepStrictEqual(
+				{
+					configured: { fontFamily: configured.fontFamily, fontSize: configured.fontSize, lineHeight: configured.lineHeight },
+					clamped: { fontFamily: clamped.fontFamily, fontSize: clamped.fontSize, lineHeight: clamped.lineHeight },
+					invalidString: { fontFamily: invalidString.fontFamily, fontSize: invalidString.fontSize, lineHeight: invalidString.lineHeight, documentReadonly: invalidString.documentReadonly },
+					emptyStrings: { fontFamily: emptyStrings.fontFamily, fontSize: emptyStrings.fontSize, lineHeight: emptyStrings.lineHeight },
+					nullAndBoolean: { fontFamily: nullAndBoolean.fontFamily, fontSize: nullAndBoolean.fontSize, lineHeight: nullAndBoolean.lineHeight },
+				},
+				{
+					configured: { fontFamily: 'Georgia', fontSize: 22, lineHeight: 1.4 },
+					clamped: { fontFamily: defaultFontFamily, fontSize: 8, lineHeight: 0.6 },
+					invalidString: { fontFamily: undefined, fontSize: undefined, lineHeight: undefined, documentReadonly: true },
+					emptyStrings: { fontFamily: undefined, fontSize: undefined, lineHeight: undefined },
+					nullAndBoolean: { fontFamily: undefined, fontSize: undefined, lineHeight: undefined },
+				},
+			);
+		} finally {
+			await update(previous);
+		}
 	});
 });
 
