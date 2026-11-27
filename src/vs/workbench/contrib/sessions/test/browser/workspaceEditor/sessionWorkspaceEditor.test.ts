@@ -22,7 +22,7 @@ import { IEditorService } from '../../../../../services/editor/common/editorServ
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { EditorInputCapabilities } from '../../../../../common/editor.js';
 import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
-import { IRecentSessionWorkspace, ISessionWorkspacesService, ISessionWorkspaceUpdate } from '../../../common/sessionWorkspaces.js';
+import { IRecentSessionWorkspace, ISessionWorkspacesService, ISessionWorkspaceUpdate, SessionWorkspaceError } from '../../../common/sessionWorkspaces.js';
 import { SessionWorkspaceDraftModel } from '../../../browser/workspaceEditor/sessionWorkspaceDraft.js';
 import { SessionWorkspaceEditorWidget } from '../../../browser/workspaceEditor/sessionWorkspaceEditor.js';
 import '../../../browser/workspaceEditor/sessionWorkspaceEditor.contribution.js';
@@ -38,12 +38,15 @@ suite('SessionWorkspaceEditor', () => {
 	const agents: IRecentSessionWorkspace = { uri: URI.file('/user/AgentsWorkspaces/Agents.code-workspace'), name: 'Agents', folders: [vscode, docs], owned: true, color: 'terminal.ansiGreen' };
 	const isEqual = (a: URI, b: URI) => a.toString() === b.toString();
 
-	function createWidget(target: SessionWorkspaceEditorTarget, pickedFolders: URI[] = [], whenCreated?: Promise<void>) {
+	function createWidget(target: SessionWorkspaceEditorTarget, pickedFolders: URI[] = [], whenCreated?: Promise<void>, updateError?: Error) {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(IListService, disposables.add(new ListService()));
 		instantiationService.stub(IHoverService, upcastPartial<IHoverService>({ setupDelayedHover: () => Disposable.None }));
 		instantiationService.stub(IFileDialogService, upcastPartial<IFileDialogService>({ showOpenDialog: async () => pickedFolders }));
 		const calls: string[] = [];
+		const errors: string[] = [];
+		instantiationService.stub(INotificationService, upcastPartial<INotificationService>({ error: message => { errors.push(String(message)); } }));
+		instantiationService.stub(ILogService, new NullLogService());
 		let current: IRecentSessionWorkspace | undefined = target.kind === 'edit' ? target.workspace : undefined;
 		const describe = (update: ISessionWorkspaceUpdate) => JSON.stringify({ ...update, folders: update.folders?.map(folder => folder.path) });
 		instantiationService.stub(ISessionWorkspacesService, upcastPartial<ISessionWorkspacesService>({
@@ -54,6 +57,9 @@ suite('SessionWorkspaceEditor', () => {
 			},
 			updateWorkspace: async (uri, update) => {
 				calls.push(`update ${uri.path} ${describe(update)}`);
+				if (updateError) {
+					throw updateError;
+				}
 				return current = { ...current!, name: update.name ?? current!.name, folders: update.folders ?? current!.folders, color: update.color === undefined ? current!.color : update.color ?? undefined };
 			},
 		}));
@@ -74,7 +80,7 @@ suite('SessionWorkspaceEditor', () => {
 			input.dispatchEvent(new Event('input'));
 		};
 		const button = (label: string) => Array.from(container.querySelectorAll<HTMLElement>('.monaco-button')).find(candidate => candidate.textContent === label)!;
-		return { container, widget, calls, state, typeName, button };
+		return { container, widget, calls, errors, state, typeName, button };
 	}
 
 	test('the draft names a new workspace after its default folder until the user names it, and diffs what changed', () => {
@@ -200,6 +206,23 @@ suite('SessionWorkspaceEditor', () => {
 		});
 	});
 
+	test('a failed save shows the workspaces service\'s refusal as it is, and any other error as a generic message', async () => {
+		const save = async (error: Error) => {
+			const { container, widget, errors } = createWidget({ kind: 'edit', workspace: agents }, [], undefined, error);
+			Array.from(container.querySelectorAll<HTMLElement>('.session-workspace-editor-swatch')).find(swatch => swatch.getAttribute('aria-label') === 'Blue')!.click();
+			await widget.flush();
+			return errors;
+		};
+
+		assert.deepStrictEqual({
+			refused: await save(new SessionWorkspaceError('The folders of the workspace file \'Agents.code-workspace\' were not changed.', 'foldersUnknown')),
+			other: await save(new Error('EACCES: /user/AgentsWorkspaces/Agents.code-workspace')),
+		}, {
+			refused: ['The folders of the workspace file \'Agents.code-workspace\' were not changed.'],
+			other: ['Could not save the workspace \'Agents\'. See the log for details.'],
+		});
+	});
+
 	test('the input is a modal fitted to its content, titled by the name, and matches its workspace across renames', () => {
 		const renamed: IRecentSessionWorkspace = { ...agents, uri: URI.file('/user/AgentsWorkspaces/Agents 2.code-workspace'), name: 'Agents 2', previousUris: [agents.uri] };
 		const input = disposables.add(new SessionWorkspaceEditorInput({ kind: 'new' }, extUriIgnorePathCase));
@@ -287,6 +310,7 @@ suite('SessionWorkspaceEditor', () => {
 			deleteFile: await run(true),
 			cancelled: await run(undefined),
 			refused: await run(true, { removeError: new Error('No trash') }),
+			refusedWithReason: await run(true, { removeError: new SessionWorkspaceError('The workspace file cannot be moved to the trash.', 'noTrash') }),
 			detachFailed: await run(false, { detachError: new Error('Failed to detach 1 of 1 sessions: vscode-agent-host://secret') }),
 			pendingRenameKeepFile: await run(false, { pendingRename: true }),
 			pendingRenameDeleteFile: await run(true, { pendingRename: true }),
@@ -297,6 +321,8 @@ suite('SessionWorkspaceEditor', () => {
 			cancelled: [],
 			// A refused removal leaves the sessions with their workspace
 			refused: ['remove /user/AgentsWorkspaces/Agents.code-workspace deleteFile=true', 'error Could not remove the workspace \'Agents\'. See the log for details.'],
+			// The workspaces service's own refusals are shown as they are
+			refusedWithReason: ['remove /user/AgentsWorkspaces/Agents.code-workspace deleteFile=true', 'error The workspace file cannot be moved to the trash.'],
 			// The open editor closes and finishes saving its rename before the workspace, under its new file, is removed
 			pendingRenameKeepFile: ['close 1', 'renamed', 'remove /user/AgentsWorkspaces/Agents 2.code-workspace deleteFile=false', 'detach /user/AgentsWorkspaces/Agents 2.code-workspace, /user/AgentsWorkspaces/Agents.code-workspace, /user/AgentsWorkspaces/Old.code-workspace'],
 			pendingRenameDeleteFile: ['close 1', 'renamed', 'remove /user/AgentsWorkspaces/Agents 2.code-workspace deleteFile=true', 'detach /user/AgentsWorkspaces/Agents 2.code-workspace, /user/AgentsWorkspaces/Agents.code-workspace, /user/AgentsWorkspaces/Old.code-workspace'],

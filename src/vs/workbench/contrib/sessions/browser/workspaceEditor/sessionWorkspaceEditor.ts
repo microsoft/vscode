@@ -53,7 +53,7 @@ import { IconPicker } from '../../../../services/userDataProfile/browser/iconPic
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibilityCommandId } from '../../../accessibility/common/accessibilityCommands.js';
 import { SessionWorkspaceEditorFocusedContext } from '../../common/contextkeys.js';
-import { IRecentSessionWorkspace, ISessionWorkspacesService } from '../../common/sessionWorkspaces.js';
+import { IRecentSessionWorkspace, ISessionWorkspacesService, SessionWorkspaceError } from '../../common/sessionWorkspaces.js';
 import { getSessionWorkspaceCssColor, getSessionWorkspaceIcon, isCustomSessionWorkspaceColor, SESSION_WORKSPACE_COLORS } from './sessionWorkspaceAppearance.js';
 import { ISessionWorkspaceDraft, SessionWorkspaceDraftModel } from './sessionWorkspaceDraft.js';
 import { SessionWorkspaceEditorInput, SessionWorkspaceEditorTarget } from './sessionWorkspaceEditorInput.js';
@@ -872,7 +872,8 @@ export class SessionWorkspaceEditorWidget extends Disposable {
 				this._onDidApply.fire(workspace);
 			} catch (error) {
 				this.logService.error(error);
-				this.notificationService.error(this.workspace
+				// A refusal of the workspaces service explains itself; any other error stays in the log
+				this.notificationService.error(error instanceof SessionWorkspaceError ? error.message : this.workspace
 					? localize('workspaceEditor.saveFailed', "Could not save the workspace '{0}'. See the log for details.", draft.name)
 					: localize('workspaceEditor.createFailed', "Could not create the workspace '{0}'. See the log for details.", draft.name));
 			}

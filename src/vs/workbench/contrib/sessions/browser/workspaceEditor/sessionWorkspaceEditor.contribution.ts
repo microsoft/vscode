@@ -23,7 +23,7 @@ import { EditorExtensions, EditorsOrder } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { CHAT_CATEGORY } from '../../../chat/browser/actions/chatActions.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
-import { IRecentSessionWorkspace, ISessionWorkspacesService } from '../../common/sessionWorkspaces.js';
+import { IRecentSessionWorkspace, ISessionWorkspacesService, SessionWorkspaceError } from '../../common/sessionWorkspaces.js';
 import { getSessionWorkspaceIcon } from './sessionWorkspaceAppearance.js';
 import { SessionWorkspaceEditor } from './sessionWorkspaceEditor.js';
 import { SessionWorkspaceEditorAccessibilityHelp } from './sessionWorkspaceEditorAccessibilityHelp.js';
@@ -160,7 +160,8 @@ registerAction2(class RemoveSessionWorkspaceAction extends SessionWorkspacePickA
 			await workspacesService.removeWorkspace(current.uri, { deleteFile: deleteFile && hasFile });
 		} catch (error) {
 			logService.error(error);
-			notificationService.error(localize('removeWorkspace.failed', "Could not remove the workspace '{0}'. See the log for details.", workspace.name));
+			// A refusal of the workspaces service explains itself; any other error stays in the log
+			notificationService.error(error instanceof SessionWorkspaceError ? error.message : localize('removeWorkspace.failed', "Could not remove the workspace '{0}'. See the log for details.", workspace.name));
 			return;
 		}
 		try {
