@@ -57,6 +57,7 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 	private activeIndex = 0;
 
 	private readonly collapsedTitle: HTMLElement;
+	private readonly agentSeparator: HTMLElement;
 	private readonly agentLabel: HTMLButtonElement;
 	private readonly contentContainer: HTMLElement;
 	private readonly stepIndicator: HTMLElement;
@@ -86,6 +87,7 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 			dom.h('.chat-tool-carousel-overlay@overlay', [
 				dom.h('.chat-tool-carousel-title-group@titleGroup', [
 					dom.h('span.chat-tool-carousel-collapsed-title@collapsedTitle'),
+					dom.h('span.chat-tool-carousel-agent-separator@agentSeparator'),
 					dom.h('button.chat-tool-carousel-agent-label@agentLabel'),
 				]),
 				dom.h(`.chat-tool-carousel-overlay-actions.${CHAT_CARD_HEADER_ACTIONS_CLASS}@overlayActions`, [
@@ -101,6 +103,7 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		this.domNode.setAttribute('role', 'group');
 		this.domNode.setAttribute('aria-label', localize('toolConfirmationCarousel', "Tool confirmation carousel"));
 		this.collapsedTitle = elements.collapsedTitle;
+		this.agentSeparator = elements.agentSeparator;
 		this.agentLabel = elements.agentLabel;
 		this.contentContainer = elements.content;
 		this.contentContainer.id = generateUuid();
@@ -396,15 +399,20 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		const item = this.items[this.activeIndex];
 
 		this.collapsedTitle.textContent = this.getToolTitle(item) ?? '';
-		dom.setVisibility(!!this.collapsedTitle.textContent, this.collapsedTitle);
+		const hasTitle = !!this.collapsedTitle.textContent;
+		dom.setVisibility(hasTitle, this.collapsedTitle);
 
 		if (item?.subagentTitle) {
-			this.agentLabel.textContent = `\u2014 ${item.subagentTitle}`;
+			this.agentSeparator.textContent = '\u2014';
+			dom.setVisibility(hasTitle, this.agentSeparator);
+			this.agentLabel.textContent = item.subagentTitle;
 			this.agentLabel.disabled = !item.subAgentInvocationId || !item.revealSubagent;
 			this.agentLabel.title = item.revealSubagentLabel ?? localize('scrollToSubagent', "Scroll to {0}", item.subagentTitle);
 			this.agentLabel.setAttribute('aria-label', this.agentLabel.title);
 			dom.show(this.agentLabel);
 		} else {
+			this.agentSeparator.textContent = '';
+			dom.hide(this.agentSeparator);
 			this.agentLabel.textContent = '';
 			this.agentLabel.title = '';
 			this.agentLabel.removeAttribute('aria-label');
