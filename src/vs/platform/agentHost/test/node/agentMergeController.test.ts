@@ -34,7 +34,7 @@ import { AgentSystemNotificationKind } from '../../common/meta/agentSystemNotifi
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { AhpErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { ChatOriginKind, MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, createErrorResponsePart, withFolderGitHubState, withSessionGitHubState, withSessionGitState, type SessionSummary, withFolderScopeGitState } from '../../common/state/sessionState.js';
+import { ChatOriginKind, MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, createErrorResponsePart, withFolderGitHubState, withSessionGitHubState, withSessionGitState, type SessionSummary, type SessionSummaryMeta, withFolderScopeGitState } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
@@ -681,7 +681,12 @@ suite('AgentMergeController', () => {
 		});
 	});
 
-	test('runs a folder no chat works in first from its own Git state and pull request, in a chat covering it, naming its repository and changing its shared checkout in place', async () => {
+	/**
+	 * A session whose first folder is followed by `folderOnly`, repositories no chat works in first, each with its own Git
+	 * state and pull request recorded, with the repair turns the controller starts, which run as turns of their chats when
+	 * `runTurns` is set.
+	 */
+	function createFolderOnlyHarness(folderOnly: readonly string[] = [OTHER_REPOSITORY], runTurns = false) {
 		const logService = new NullLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
 		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
@@ -690,23 +695,29 @@ suite('AgentMergeController', () => {
 		const otherKey = getWorkingDirectoryKey(OTHER_REPOSITORY);
 		const otherOwner = buildFolderChangesetOwnerUri(session, getWorkingDirectoryScopeId([OTHER_REPOSITORY]));
 		const started = new DeferredPromise<void>();
-		const startTurns: { readonly chat: string; readonly prompt: string }[] = [];
+		const startTurns: { readonly chat: string; readonly prompt: string; readonly turnId: string }[] = [];
+		const onDidStartTurn = disposables.add(new Emitter<{ readonly chat: string; readonly prompt: string; readonly turnId: string }>());
+		const owners = new Set(folderOnly.map(folder => buildFolderChangesetOwnerUri(session, getWorkingDirectoryScopeId([folder]))));
 		const gitStateKeys: string[] = [];
 		const snapshot = repairSnapshot();
 		const gitStateService = new class extends mock<IAgentHostGitStateService>() {
 			override readonly onDidRefreshSessionGitState = Event.None;
 			override readonly onDidChangeSessionGitHubState = Event.None;
 			override readonly getSessionGitState = (sessionKey: string) => {
-				return sessionKey === otherOwner ? { branchName: 'feature-tools', baseBranchName: 'main' } : undefined;
+				return owners.has(sessionKey) ? { branchName: 'feature-tools', baseBranchName: 'main' } : undefined;
 			};
 			override async refreshSessionGitState(sessionKey: string): Promise<void> { gitStateKeys.push(sessionKey); }
 			override async attachSessionGitHubPullRequest(sessionKey: string): Promise<void> { gitStateKeys.push(sessionKey); }
 		}();
 		disposables.add(new AgentMergeController(
 			{
-				startTurn: (chat, _turnId, prompt) => {
-					startTurns.push({ chat, prompt });
+				startTurn: (chat, turnId, prompt) => {
+					startTurns.push({ chat, prompt, turnId });
+					if (runTurns) {
+						stateManager.dispatchServerAction(chat, chatTurnStarted(turnId, 'repair'));
+					}
 					started.complete();
+					onDidStartTurn.fire({ chat, prompt, turnId });
 					return true;
 				},
 				cancelTurn: () => { },
@@ -738,11 +749,20 @@ suite('AgentMergeController', () => {
 			createProviderService(() => ({})),
 			logService,
 		));
-		stateManager.createSession({ ...summary(session), workingDirectories: [REPOSITORY, OTHER_REPOSITORY] });
+		stateManager.createSession({ ...summary(session), workingDirectories: [REPOSITORY, ...folderOnly] });
 		stateManager.setSessionConfig(session, { schema: platformSessionSchema.toProtocol(), values: {} });
-		// The session's refresh recorded the folder's own Git state
-		const meta = withFolderScopeGitState(undefined, getWorkingDirectoryScopeId([OTHER_REPOSITORY]), { branchName: 'feature-tools', baseBranchName: 'main' }, [OTHER_REPOSITORY]);
-		stateManager.setSessionMeta(session, withFolderGitHubState(meta, otherKey, { pullRequestUrls: ['https://github.com/octo/repo/pull/1'], pullRequestBranchName: 'feature-tools' }));
+		// The session's refresh recorded each folder's own Git state
+		let meta: SessionSummaryMeta | undefined;
+		for (const folder of folderOnly) {
+			meta = withFolderScopeGitState(meta, getWorkingDirectoryScopeId([folder]), { branchName: 'feature-tools', baseBranchName: 'main' }, [folder]);
+			meta = withFolderGitHubState(meta, getWorkingDirectoryKey(folder), { pullRequestUrls: ['https://github.com/octo/repo/pull/1'], pullRequestBranchName: 'feature-tools' });
+		}
+		stateManager.setSessionMeta(session, meta);
+		return { stateManager, configurationService, session, otherKey, otherOwner, started, startTurns, onDidStartTurn: onDidStartTurn.event, gitStateKeys };
+	}
+
+	test('runs a folder no chat works in first from its own Git state and pull request, in a chat covering it, naming its repository and changing its shared checkout in place', async () => {
+		const { stateManager, configurationService, session, otherKey, otherOwner, started, startTurns, gitStateKeys } = createFolderOnlyHarness();
 
 		configurationService.updateSessionConfig(session, {
 			[SessionConfigKey.AgentMergeFolders]: {
@@ -767,6 +787,41 @@ suite('AgentMergeController', () => {
 			gitStateKeys: [otherOwner],
 			target: 'https://github.com/octo/repo/pull/1',
 		});
+	});
+
+	test('runs a folder no chat works in first once its owning chat, busy as Agent Merge was turned on for it, ends its turn', async () => {
+		const { stateManager, configurationService, session, otherKey, started, startTurns } = createFolderOnlyHarness();
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+		stateManager.dispatchServerAction(buildDefaultChatUri(session), chatTurnStarted('user-turn', 'busy'));
+		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMergeFolders]: { [otherKey]: { enabled: true } } });
+		await timeout(10);
+		const whileBusy = startTurns.length;
+
+		stateManager.dispatchServerAction(buildDefaultChatUri(session), chatTurnComplete('user-turn', 0));
+		await started.p;
+
+		assert.deepStrictEqual({ whileBusy, after: startTurns.map(turn => turn.chat) }, { whileBusy: 0, after: [buildDefaultChatUri(session)] });
+	});
+
+	test('evaluates a folder no chat works in first once a repair of another such folder, in the chat that owns both, ends', async () => {
+		const { stateManager, configurationService, session, otherKey, onDidStartTurn } = createFolderOnlyHarness([OTHER_REPOSITORY, THIRD_REPOSITORY], true);
+		const thirdKey = getWorkingDirectoryKey(THIRD_REPOSITORY);
+		// Its first evaluation that the chat does not keep busy records its target
+		const hasThirdTarget = () => readAgentMergeFolderState(stateManager.getSessionState(session)?.config?.values, thirdKey, getWorkingDirectoryKey(REPOSITORY))?.target !== undefined;
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+		const firstRepair = Event.toPromise(onDidStartTurn);
+		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMergeFolders]: { [otherKey]: { enabled: true } } });
+		const { turnId } = await firstRepair;
+		// While the chat repairs the first, Agent Merge is turned on for the second
+		const folders = configurationService.getSessionConfigValues(session)?.[SessionConfigKey.AgentMergeFolders] as Record<string, unknown> | undefined;
+		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMergeFolders]: { ...folders, [thirdKey]: { enabled: true } } });
+		await timeout(10);
+		const whileRepairing = hasThirdTarget();
+
+		stateManager.dispatchServerAction(buildDefaultChatUri(session), chatTurnComplete(turnId, 0));
+		await timeout(10);
+
+		assert.deepStrictEqual({ whileRepairing, afterRepair: hasThirdTarget() }, { whileRepairing: false, afterRepair: true });
 	});
 
 	test('only the chat running a repair turn may use its authorization, and removing that chat ends the turn', async () => {
@@ -2724,6 +2779,7 @@ suite('AgentMergeController', () => {
 
 const REPOSITORY = 'file:///repo';
 const OTHER_REPOSITORY = 'file:///other';
+const THIRD_REPOSITORY = 'file:///third';
 
 function repairSnapshot(): PullRequestSnapshot {
 	return {

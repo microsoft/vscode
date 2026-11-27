@@ -1631,6 +1631,8 @@ export class AgentMergeController extends Disposable {
 			if (folder.folderKey !== undefined) {
 				this._schedule(this._runtimeKey(folder.sessionUri.toString(), folder.folderKey), 0);
 			}
+			const session = folder.sessionUri.toString();
+			this._wakeFolderOnlyRuntimesOwnedBy(session, chat, folder.folderKey !== undefined ? this._runtimeKey(session, folder.folderKey) : undefined);
 			return;
 		}
 		const context = entry[1];
@@ -1692,6 +1694,25 @@ export class AgentMergeController extends Disposable {
 			const current = this._findActiveTurnEntry(context.chat);
 			if (current?.[1] === context) {
 				this._activeTurns.delete(current[0]);
+			}
+			this._wakeFolderOnlyRuntimesOwnedBy(context.session, context.chat, key);
+		}
+	}
+
+	/**
+	 * Evaluates again the repositories of their own scope (see {@link getFolderOnlyAgentMergeRoots}) whose Agent Merge
+	 * `chat` owns, other than the runtime `except`: their evaluation skipped them while a turn kept the chat busy.
+	 */
+	private _wakeFolderOnlyRuntimesOwnedBy(session: string, chat: string, except: string | undefined): void {
+		const roots = getFolderOnlyAgentMergeRoots(this._stateManager, session);
+		if (!roots.size) {
+			return;
+		}
+		const state = this._stateManager.getSessionState(session);
+		for (const [key, runtime] of this._runtimes) {
+			if (key !== except && runtime.session === session && roots.has(runtime.folderKey)
+				&& this._resolveOwningChat(session, runtime.folderKey, readAgentMergeFolderState(state?.config?.values, runtime.folderKey, this._sessionFolderKey(state))) === chat) {
+				this._schedule(key, 0);
 			}
 		}
 	}
