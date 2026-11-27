@@ -296,17 +296,18 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 		// The workspace file, also when `uri` is one that it had before
 		const fileUri = existing?.uri ?? uri;
 		const local = this._localAppearance.get(extUri.getComparisonKey(fileUri));
-		const parsed = await this._editWorkspaceFile(fileUri, current => current
+		const { parsed, remoteFromRecents } = await this._editWorkspaceFile(fileUri, current => current
 			? { name: update.name, folders: update.folders, ...toFileAppearanceEdit(update) }
 			// A missing file is written again from what is known about the workspace
 			: { name: update.name ?? existing?.name, folders: update.folders ?? existing?.folders, icon: update.icon === undefined ? existing?.icon : update.icon, color: update.color === undefined ? existing?.color : update.color },
-			{ forceAbsolute: existing?.owned });
+			{ forceAbsolute: existing?.owned, knownFolders: existing?.folders });
 		const remainingLocal = remainingLocalAppearance(update, local);
 		this._setLocalAppearance(fileUri, undefined);
 
-		// An owned workspace file is named after the workspace, which VS Code names its window after; a user's file keeps its name
+		// An owned workspace file is named after the workspace, which VS Code names its window after; a user's file keeps its name.
+		// So does one that only VS Code's recently opened list tells is on a remote, which knows it by this name only.
 		let newUri = fileUri;
-		if (existing?.owned && this._isOwnedWorkspaceFile(fileUri) && update.name !== undefined) {
+		if (existing?.owned && this._isOwnedWorkspaceFile(fileUri) && update.name !== undefined && !remoteFromRecents) {
 			const renamed = joinPath(dirname(fileUri), toWorkspaceFileName(parsed.name));
 			if (!extUri.isEqual(renamed, fileUri)) {
 				await this.fileService.move(fileUri, renamed);
@@ -474,12 +475,12 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 	private async _writeFileAppearance(workspace: IRecentSessionWorkspace, update: ISessionWorkspaceUpdate): Promise<IRecentSessionWorkspace> {
 		const local = this._localAppearance.get(this.uriIdentityService.extUri.getComparisonKey(workspace.uri));
 		try {
-			const parsed = await this._editWorkspaceFile(workspace.uri, current => {
+			const { parsed } = await this._editWorkspaceFile(workspace.uri, current => {
 				if (!current) {
 					throw new FileOperationError(localize('workspaceFileNotFound', "The workspace file does not exist."), FileOperationResult.FILE_NOT_FOUND);
 				}
 				return toFileAppearanceEdit(update);
-			});
+			}, { knownFolders: workspace.folders });
 			const remainingLocal = remainingLocalAppearance(update, local);
 			this._setLocalAppearance(workspace.uri, remainingLocal);
 			return withAppearance(workspace, displayAppearance(parsed, remainingLocal));
@@ -495,11 +496,15 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 	}
 
 	/**
-	 * Applies an edit to a workspace file, or writes a missing one, and returns what the file has then. The file is
-	 * validated before and after the edit, and written only if it did not change since it was read; when it did, the edit
-	 * is applied once more to its new content, since an edit only sets the properties that it has.
+	 * Applies an edit to a workspace file, or writes a missing one, and returns what the file has then, and whether only
+	 * VS Code's recently opened list tells, or would tell, whether its folder paths are on a remote. The file is validated
+	 * before and after the edit, and written only if it did not change since it was read; when it did, the edit is applied
+	 * once more to its new content, since an edit only sets the properties that it has.
+	 *
+	 * When that list cannot be read and the file has folder paths that may be on a remote, its folders are not changed and
+	 * the returned ones are `knownFolders`; without those, the edit is refused.
 	 */
-	private async _editWorkspaceFile(uri: URI, toEdit: (current: ISessionWorkspaceFileContent | undefined) => ISessionWorkspaceFileEdit, options?: { readonly forceAbsolute?: boolean }): Promise<ISessionWorkspaceFileContent> {
+	private async _editWorkspaceFile(uri: URI, toEdit: (current: ISessionWorkspaceFileContent | undefined) => ISessionWorkspaceFileEdit, options?: { readonly forceAbsolute?: boolean; readonly knownFolders?: readonly URI[] }): Promise<{ readonly parsed: ISessionWorkspaceFileContent; readonly remoteFromRecents: boolean }> {
 		const extUri = this.uriIdentityService.extUri;
 		const authorities = await this._getRemoteAuthorities();
 		const remoteAuthority = authorities?.get(extUri.getComparisonKey(uri));
@@ -516,8 +521,10 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 			const existing = file?.value.toString();
 			const current = existing === undefined ? undefined : parseSessionWorkspaceFile(existing, uri, extUri, { remoteAuthority });
 			const edit = toEdit(current);
-			// Not knowing where VS Code opened the file, its folder paths may be paths on a remote that rewriting would lose
-			if (!authorities && edit.folders && existing !== undefined && hasAmbiguousFolderPaths(existing, uri)) {
+			// Not knowing where VS Code opened the file, its folder paths may be paths on a remote that rewriting would lose,
+			// and that are not this computer's folders
+			const foldersUnknown = !authorities && existing !== undefined && hasAmbiguousFolderPaths(existing, uri);
+			if (foldersUnknown && (edit.folders || !options?.knownFolders)) {
 				throw foldersUnknownError(extUri.basename(uri));
 			}
 			const updated = stringifySessionWorkspaceFile(uri, edit, extUri, { existing, forceAbsolute: options?.forceAbsolute, remoteAuthority });
@@ -532,7 +539,9 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 					}
 					await this.fileService.writeFile(uri, VSBuffer.fromString(updated), { etag: file.etag, mtime: file.mtime });
 				}
-				return parseSessionWorkspaceFile(updated, uri, extUri, { remoteAuthority });
+				const parsed = parseSessionWorkspaceFile(updated, uri, extUri, { remoteAuthority });
+				const remoteFromRecents = hasAmbiguousFolderPaths(updated, uri) && (!authorities || authorities.has(extUri.getComparisonKey(uri)));
+				return { parsed: foldersUnknown && options?.knownFolders ? { ...parsed, folders: [...options.knownFolders] } : parsed, remoteFromRecents };
 			} catch (error) {
 				if (attempt === 0 && (error as FileOperationError).fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
 					continue;

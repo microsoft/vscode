@@ -643,8 +643,9 @@ suite('SessionWorkspacesService', () => {
 		await fileService.writeFile(file, VSBuffer.fromString(content));
 
 		const foldersFailed = await refusal(service.updateWorkspace(file, { folders: [vscode, chat] }));
-		const foldersUnchanged = await readFile(fileService, file) === content;
-		const renamed = await service.updateWorkspace(file, { name: 'WSL' });
+		const renameFailed = await refusal(service.updateWorkspace(file, { name: 'WSL' }));
+		const unchanged = await readFile(fileService, file) === content;
+		const managed = service.managedWorkspaces.get().length;
 
 		const { service: other, fileService: otherFiles, recentlyOpened } = await createService();
 		await other.createWorkspace('One', [vscode, chat]);
@@ -654,7 +655,7 @@ suite('SessionWorkspacesService', () => {
 		const before = recentlyOpened.reads;
 		await other.refresh();
 
-		assert.deepStrictEqual({ foldersFailed, foldersUnchanged, renamed: renamed.name, readsPerRefresh: recentlyOpened.reads - before }, { foldersFailed: 'foldersUnknown', foldersUnchanged: true, renamed: 'WSL', readsPerRefresh: 1 });
+		assert.deepStrictEqual({ foldersFailed, renameFailed, unchanged, managed, readsPerRefresh: recentlyOpened.reads - before }, { foldersFailed: 'foldersUnknown', renameFailed: 'foldersUnknown', unchanged: true, managed: 0, readsPerRefresh: 1 });
 	});
 
 	test('removing a renamed workspace keeps the workspace that now has its former file', async () => {
@@ -691,17 +692,39 @@ suite('SessionWorkspacesService', () => {
 		const resolved = await service.resolveWorkspaceFile(agents.uri);
 		const unknownFailed = await refusal(service.resolveWorkspaceFile(unknownFile));
 		const collapseFailed = await refusal(service.updateWorkspace(agents.uri, { folders: [vscode] }));
+		const unchanged = await readFile(fileService, agents.uri) === edited;
+		const renamed = await service.updateWorkspace(agents.uri, { name: 'Platform' });
 
-		assert.deepStrictEqual({ readsPerRefresh, resolved: resolved.folders.map(folder => folder.path), unknownFailed, collapseFailed, unchanged: await readFile(fileService, agents.uri) === edited, workspaces: snapshot(service.managedWorkspaces.get()) }, {
+		assert.deepStrictEqual({ readsPerRefresh, resolved: resolved.folders.map(folder => folder.path), unknownFailed, collapseFailed, unchanged, sameFile: renamed.uri.toString() === agents.uri.toString(), fileFolders: JSON.parse(await readFile(fileService, agents.uri)).folders, workspaces: snapshot(service.managedWorkspaces.get()) }, {
 			readsPerRefresh: 1,
 			resolved: ['/work/vscode', '/work/vscode-copilot-chat'],
 			unknownFailed: 'foldersUnknown',
 			collapseFailed: 'foldersUnknown',
 			unchanged: true,
+			sameFile: true,
+			fileFolders: [{ path: '/home/me/vscode' }, { path: '/home/me/docs' }],
 			workspaces: [
 				{ name: 'Docs', folders: ['/work/vscode', '/work/vscode-docs'], owned: true, missing: undefined },
-				{ name: 'Agents', folders: ['/work/vscode', '/work/vscode-copilot-chat'], owned: true, missing: undefined },
+				{ name: 'Platform', folders: ['/work/vscode', '/work/vscode-copilot-chat'], owned: true, missing: undefined },
 			],
+		});
+	});
+
+	test('an owned workspace file that only VS Code\'s recently opened list tells is on a remote keeps its file name when renamed, and so stays on the remote', async () => {
+		const recentlyOpened: IRecentlyOpened['workspaces'] = [];
+		const { service, fileService } = await createService({ recentlyOpened });
+		const agents = await service.createWorkspace('Agents', [vscode, chat]);
+		recentlyOpened.push({ workspace: { id: 'agents', configPath: agents.uri }, remoteAuthority: 'wsl+Ubuntu' });
+		await fileService.writeFile(agents.uri, VSBuffer.fromString('{ "name": "Agents", "folders": [{ "path": "/home/me/vscode" }, { "path": "/home/me/docs" }] }'));
+		await service.refresh();
+
+		const renamed = await service.updateWorkspace(agents.uri, { name: 'Platform' });
+		await service.refresh();
+
+		assert.deepStrictEqual({ sameFile: renamed.uri.toString() === agents.uri.toString(), workspaces: snapshot(service.managedWorkspaces.get()), fileFolders: JSON.parse(await readFile(fileService, agents.uri)).folders }, {
+			sameFile: true,
+			workspaces: [{ name: 'Platform', folders: [], owned: true, missing: undefined }],
+			fileFolders: [{ path: '/home/me/vscode' }, { path: '/home/me/docs' }],
 		});
 	});
 
