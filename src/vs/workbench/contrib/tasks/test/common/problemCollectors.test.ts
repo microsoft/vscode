@@ -12,7 +12,7 @@ import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelSc
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
-import { IMarker, IMarkerData, IMarkerService } from '../../../../../platform/markers/common/markers.js';
+import { getMarkerMessageText, IMarker, IMarkerData, IMarkerService } from '../../../../../platform/markers/common/markers.js';
 import { MarkerService } from '../../../../../platform/markers/common/markerService.js';
 import { ProblemCollectorEventKind, WatchingProblemCollector } from '../../common/problemCollectors.js';
 import { ApplyToKind, FileLocationKind, ProblemMatcher } from '../../common/problemMatcher.js';
@@ -46,7 +46,7 @@ suite('ProblemCollectors', () => {
 			const snapshots: string[][] = [];
 			let invalidated = 0;
 			store.add(collector.onDidRequestInvalidateLastMarker(() => invalidated++));
-			store.add(collector.onDidFindErrors((markers: IMarker[]) => snapshots.push(markers.map(m => m.message))));
+			store.add(collector.onDidFindErrors((markers: IMarker[]) => snapshots.push(markers.map(m => getMarkerMessageText(m.message)))));
 			let completed: (() => void) | undefined;
 			store.add(collector.onDidStateChange(event => {
 				if (event.kind === ProblemCollectorEventKind.BackgroundProcessingEnds) {
@@ -90,7 +90,7 @@ suite('ProblemCollectors', () => {
 		const snapshots: string[][] = [];
 		let inactiveEnd: (() => void) | undefined;
 		store.add(collector.onDidFindErrors((markers: IMarker[]) => {
-			snapshots.push(markers.map(marker => marker.message));
+			snapshots.push(markers.map(marker => getMarkerMessageText(marker.message)));
 			inactiveEnd?.();
 			inactiveEnd = undefined;
 		}));
@@ -172,7 +172,7 @@ suite('ProblemCollectors', () => {
 			override readonly onMarkerChanged = Event.None;
 			override read() { return []; }
 			override changeOne(_owner: string, resource: URI, markers: IMarkerData[]) {
-				delivered.set(resource.path, markers.map(marker => marker.message));
+				delivered.set(resource.path, markers.map(marker => getMarkerMessageText(marker.message)));
 			}
 			override remove() { }
 		};

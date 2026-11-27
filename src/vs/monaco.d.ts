@@ -472,6 +472,7 @@ declare namespace monaco {
 
 	export interface IMarkdownString {
 		readonly value: string;
+		readonly plainTextValue?: string;
 		readonly isTrusted?: boolean | MarkdownStringTrustedOptions;
 		readonly supportThemeIcons?: boolean;
 		readonly supportHtml?: boolean;
@@ -1462,7 +1463,7 @@ declare namespace monaco.editor {
 			value: string;
 			target: Uri;
 		};
-		message: string;
+		message: string | IMarkdownString;
 		source?: string;
 		startLineNumber: number;
 		startColumn: number;
@@ -1483,7 +1484,7 @@ declare namespace monaco.editor {
 			target: Uri;
 		};
 		severity: MarkerSeverity;
-		message: string;
+		message: string | IMarkdownString;
 		source?: string;
 		startLineNumber: number;
 		startColumn: number;

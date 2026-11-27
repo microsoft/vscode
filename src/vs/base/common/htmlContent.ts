@@ -15,6 +15,7 @@ export interface MarkdownStringTrustedOptions {
 
 export interface IMarkdownString {
 	readonly value: string;
+	readonly plainTextValue?: string;
 	readonly isTrusted?: boolean | MarkdownStringTrustedOptions;
 	readonly supportThemeIcons?: boolean;
 	readonly supportHtml?: boolean;
@@ -31,7 +32,34 @@ export const enum MarkdownStringTextNewlineStyle {
 
 export class MarkdownString implements IMarkdownString {
 
-	public value: string;
+	private _value: string = '';
+	private _plainTextValue?: string;
+	private _plainTextValueIsExplicit = false;
+
+	public get value(): string {
+		return this._value;
+	}
+
+	public set value(value: string) {
+		if (typeof value !== 'string') {
+			throw illegalArgument('value');
+		}
+
+		this._value = value;
+		if (!this._plainTextValueIsExplicit) {
+			this._plainTextValue = value;
+		}
+	}
+
+	public get plainTextValue(): string | undefined {
+		return this._plainTextValue;
+	}
+
+	public set plainTextValue(value: string | undefined) {
+		this._plainTextValueIsExplicit = true;
+		this._plainTextValue = value;
+	}
+
 	public isTrusted?: boolean | MarkdownStringTrustedOptions;
 	public supportThemeIcons?: boolean;
 	public supportHtml?: boolean;
@@ -48,12 +76,9 @@ export class MarkdownString implements IMarkdownString {
 
 	constructor(
 		value: string = '',
-		isTrustedOrOptions: boolean | { isTrusted?: boolean | MarkdownStringTrustedOptions; supportThemeIcons?: boolean; supportHtml?: boolean; supportAlertSyntax?: boolean } = false,
+		isTrustedOrOptions: boolean | { isTrusted?: boolean | MarkdownStringTrustedOptions; supportThemeIcons?: boolean; supportHtml?: boolean; supportAlertSyntax?: boolean; plainTextValue?: string } = false,
 	) {
 		this.value = value;
-		if (typeof this.value !== 'string') {
-			throw illegalArgument('value');
-		}
 
 		if (typeof isTrustedOrOptions === 'boolean') {
 			this.isTrusted = isTrustedOrOptions;
@@ -66,6 +91,9 @@ export class MarkdownString implements IMarkdownString {
 			this.supportThemeIcons = isTrustedOrOptions.supportThemeIcons ?? false;
 			this.supportHtml = isTrustedOrOptions.supportHtml ?? false;
 			this.supportAlertSyntax = isTrustedOrOptions.supportAlertSyntax ?? false;
+			if (isTrustedOrOptions.plainTextValue !== undefined) {
+				this.plainTextValue = isTrustedOrOptions.plainTextValue;
+			}
 		}
 	}
 
