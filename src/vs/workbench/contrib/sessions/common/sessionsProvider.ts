@@ -189,8 +189,6 @@ export interface ISessionPermissionOption {
 	readonly description: string;
 	readonly isDefault?: boolean;
 	readonly isAllowAll?: boolean;
-	/** Whether the option lets the agent act without asking for some approvals; enterprise auto-approval policy can disable it. */
-	readonly isElevated?: boolean;
 	/** Selected provider execution mode to preserve when launching comparison participants. */
 	readonly comparisonModeId?: string;
 	readonly locked?: boolean;

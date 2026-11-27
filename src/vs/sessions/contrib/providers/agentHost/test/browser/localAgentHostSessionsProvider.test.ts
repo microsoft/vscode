@@ -19070,7 +19070,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('narrows creation permission choices to those a resolved configuration can apply, also for a quick chat', async () => {
+	test('offers only the creation permission choices a resolved configuration can apply, also for a quick chat', async () => {
 		agentHost.setAgents([{ provider: 'claude', displayName: 'Claude', description: '', models: [] } as AgentInfo]);
 		const provider = createProvider(disposables, agentHost);
 		agentHost.resolveSessionConfigHandler = () => ({
@@ -19080,11 +19080,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const config = await provider.resolveSessionConfigForCreation(undefined, 'claude', CancellationToken.None);
 		assert.deepStrictEqual({
 			workspace: agentHost.resolveSessionConfigRequests.map(request => request.workingDirectory?.toString()),
-			catalog: provider.getPermissionOptionsForCreation('claude').map(option => option.id),
 			applicable: provider.getPermissionOptionsForCreation('claude', config).map(option => option.id),
 		}, {
 			workspace: [undefined],
-			catalog: ['default', 'acceptEdits', 'plan', 'auto', 'bypassPermissions'],
 			applicable: ['default', 'acceptEdits', 'plan', 'bypassPermissions'],
 		});
 	});

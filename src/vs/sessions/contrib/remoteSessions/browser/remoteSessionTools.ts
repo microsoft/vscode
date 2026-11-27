@@ -26,7 +26,7 @@ export class ListAgentHostsTool implements IToolImpl {
 			toolReferenceName: 'list_agent_hosts',
 			displayName: localize('remoteSessions.list.displayName', "List Agent Hosts"),
 			userDescription: localize('remoteSessions.list.description', "List connected remote agent hosts and their resources"),
-			modelDescription: 'List remote agent hosts, status, resources, load, agents with their models and permissions, and workspaces to inspect capacity or get exact IDs. Only connected hosts with delegation support are usable; null support or missing resources mean unknown, not unsupported or zero. create_remote_session selects a host itself. This tool changes nothing.',
+			modelDescription: 'List remote agent hosts, status, resources, load, agents/models, and workspaces to inspect capacity or get exact IDs. Only connected hosts with delegation support are usable; null support or missing resources mean unknown, not unsupported or zero. create_remote_session selects a host itself. This tool changes nothing.',
 			source: ToolDataSource.Internal,
 			icon: Codicon.remote,
 			when: remoteSessionToolsWhen,
@@ -79,7 +79,7 @@ export class CreateRemoteSessionTool implements IToolImpl {
 			toolReferenceName: 'create_remote_session',
 			displayName: localize('remoteSessions.create.displayName', "Create Remote Session"),
 			userDescription: localize('remoteSessions.create.description', "Delegate work to a matching remote agent host"),
-			modelDescription: `Start a task on a connected remote agent host; use create_session for same-host work. Requires an Agent Host originating chat. Prefers hosts where the target folder is already trusted, then the host with the fewest running sessions and pending creations. Omitted workspace creates a workspace-less session. Omitted model continues on this chat's model with its options, such as reasoning effort and context window, where the target offers that model, else uses the target default; a named model starts with ${modelOptions ? 'this chat\'s options when it is this chat\'s model, else ' : ''}the user's saved options for it. Omitted permissions and mode are inherited from this chat where the target offers them, else the target uses its default permissions and interactive mode; neither can be more permissive than this chat's, and the result lists what was not inherited. The directory must already exist; nothing is cloned or copied from the origin. Ask for results or blockers via send_remote_message with session "origin"; final answers are not forwarded. Returns on prompt acceptance, not completion; replies arrive as new turns. Use the returned openLink as the Markdown link target and as the session argument to get_remote_session or send_remote_message. Keep the coordinating Agents window connected. Normal tool approval applies; an untrusted folder requires separate user approval. Continue independent work or end your turn; do not sleep or poll for replies. Do not retry an uncertain creation.`,
+			modelDescription: `Start a task on a connected remote agent host; use create_session for same-host work. Requires an Agent Host originating chat. Prefers hosts where the target folder is already trusted, then the host with the fewest running sessions and pending creations. Omitted workspace creates a workspace-less session. Omitted model continues on this chat's model with its options, such as reasoning effort and context window, where the target offers that model, else uses the target default; a named model starts with ${modelOptions ? 'this chat\'s options when it is this chat\'s model, else ' : ''}the user's saved options for it. The session inherits this chat's permissions and mode where the target offers them, else uses the target's default permissions and interactive mode; the result lists what was not inherited. The directory must already exist; nothing is cloned or copied from the origin. Ask for results or blockers via send_remote_message with session "origin"; final answers are not forwarded. Returns on prompt acceptance, not completion; replies arrive as new turns. Use the returned openLink as the Markdown link target and as the session argument to get_remote_session or send_remote_message. Keep the coordinating Agents window connected. Normal tool approval applies; an untrusted folder requires separate user approval. Continue independent work or end your turn; do not sleep or poll for replies. Do not retry an uncertain creation.`,
 			source: ToolDataSource.Internal,
 			icon: Codicon.remote,
 			when: remoteSessionToolsWhen,
@@ -105,8 +105,6 @@ export class CreateRemoteSessionTool implements IToolImpl {
 						},
 					},
 					...(modelOptions ? createRemoteSessionModelOptionsProperties : {}),
-					permissions: { type: 'string', description: 'Permission ID of the target agent from list_agent_hosts. Omit to inherit this chat\'s.' },
-					mode: { type: 'string', enum: ['interactive', 'plan', 'autopilot'], description: 'Omit to inherit this chat\'s; autopilot only when this chat uses it.' },
 					requirements: {
 						type: 'object',
 						additionalProperties: false,
@@ -168,12 +166,6 @@ export class CreateRemoteSessionTool implements IToolImpl {
 				? localize('remoteSessions.create.longContext', "Long context")
 				: localize('remoteSessions.create.defaultContext', "Default"))}`);
 		}
-		message.appendText(`\n\n${options.permissions
-			? localize('remoteSessions.create.permissions', "Permissions: {0}", options.permissions)
-			: localize('remoteSessions.create.sourcePermissions', "Permissions: from this chat, if the host offers them")}`);
-		message.appendText(`\n\n${options.mode
-			? localize('remoteSessions.create.mode', "Mode: {0}", options.mode)
-			: localize('remoteSessions.create.sourceMode', "Mode: from this chat, if the host offers it")}`);
 		if (options.workspace?.branch) {
 			message.appendText(`\n\n${localize('remoteSessions.create.baseBranch', "Worktree base branch: {0}", options.workspace.branch)}`);
 		}

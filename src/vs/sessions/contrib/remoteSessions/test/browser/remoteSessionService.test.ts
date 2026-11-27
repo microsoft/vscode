@@ -68,11 +68,7 @@ class RemoteProvider extends mock<IAgentHostSessionsProvider>() {
 	connection: RemoteConnection;
 	/** Without permission choices or a mode, creation configures neither. */
 	permissionOptions: ISessionPermissionOption[] = [];
-	/** The choices once a configuration is resolved, when they differ from the listed ones. */
-	resolvedPermissionOptions: ISessionPermissionOption[] | undefined;
 	config: ResolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: {} };
-	/** Agent-specific configurations, where they differ from {@link config}. */
-	readonly configsByType = new Map<string, ResolveSessionConfigResult>();
 
 	constructor(name: string, load = 0, platform: 'windows' | 'linux' | 'macos' = 'linux', agentProvider = 'copilot') {
 		super();
@@ -104,10 +100,8 @@ class RemoteProvider extends mock<IAgentHostSessionsProvider>() {
 	override getSessions(): ISession[] { return []; }
 	override getSessionTypes(): ISessionType[] { return this.sessionTypes; }
 	override mapAgentHostResource(resource: URI): URI { return toAgentHostUri(resource, agentHostAuthority(this.remoteAddress)); }
-	override getPermissionOptionsForCreation(_sessionTypeId: string, config?: ResolveSessionConfigResult): readonly ISessionPermissionOption[] {
-		return config && this.resolvedPermissionOptions ? this.resolvedPermissionOptions : this.permissionOptions;
-	}
-	override async resolveSessionConfigForCreation(_workspace: URI | undefined, sessionTypeId: string): Promise<ResolveSessionConfigResult> { return this.configsByType.get(sessionTypeId) ?? this.config; }
+	override getPermissionOptionsForCreation(): readonly ISessionPermissionOption[] { return this.permissionOptions; }
+	override async resolveSessionConfigForCreation(): Promise<ResolveSessionConfigResult> { return this.config; }
 }
 
 /** The provider of the creating chat, with its permissions and mode. */
@@ -128,8 +122,8 @@ class SourceProvider extends mock<IAgentHostSessionsProvider>() {
 
 const copilotPermissions: ISessionPermissionOption[] = [
 	{ id: 'default', label: 'Manual permissions', description: '', isDefault: true },
-	{ id: 'assisted', label: 'Assisted permissions', description: '', isElevated: true },
-	{ id: 'autoApprove', label: 'Allow all', description: '', isAllowAll: true, isElevated: true },
+	{ id: 'assisted', label: 'Assisted permissions', description: '' },
+	{ id: 'autoApprove', label: 'Allow all', description: '', isAllowAll: true },
 ];
 
 function modeConfig(modes: readonly string[] = ['interactive', 'plan', 'autopilot'], mode?: string): ResolveSessionConfigResult {
@@ -336,7 +330,7 @@ suite('RemoteSessionService', () => {
 			resources: { platform: 'linux', architecture: 'x64', cpuCount: 8, memoryBytes: 32 * 1024 ** 3 },
 			runningSessions: 2,
 			pendingCreations: 0,
-			agents: [{ provider: 'copilot', models: [{ id: 'test-model', name: 'Test Model' }], permissions: [] }],
+			agents: [{ provider: 'copilot', models: [{ id: 'test-model', name: 'Test Model' }] }],
 			workspaces: [],
 		}]);
 	});
@@ -451,8 +445,8 @@ suite('RemoteSessionService', () => {
 			permissionId: 'assisted',
 			modeId: 'plan',
 			draftConfiguration: {},
-			permissions: { id: 'assisted', source: 'inherited' },
-			mode: { id: 'plan', source: 'inherited' },
+			permissions: 'assisted',
+			mode: 'plan',
 			notInherited: [],
 		});
 	});
@@ -460,19 +454,19 @@ suite('RemoteSessionService', () => {
 	const fallbacks: { name: string; agentProvider?: string; origin: (provider: SourceProvider) => void; permissions: ISessionPermissionOption[]; modes: string[]; expected: object }[] = [{
 		name: 'another agent, which maps allow-all to allow-all',
 		agentProvider: 'claude',
-		origin: provider => { provider.permission = { id: 'bypassPermissions', label: 'Bypass Permissions', description: '', isAllowAll: true, isElevated: true }; },
+		origin: provider => { provider.permission = { id: 'bypassPermissions', label: 'Bypass Permissions', description: '', isAllowAll: true }; },
 		permissions: copilotPermissions,
 		modes: ['interactive', 'plan', 'autopilot'],
-		expected: { permissions: { id: 'autoApprove', source: 'inherited' }, mode: { id: 'interactive', source: 'default' }, notInherited: [] },
+		expected: { permissions: 'autoApprove', mode: 'interactive', notInherited: [] },
 	}, {
-		name: 'another agent, without a counterpart for an elevated permission',
+		name: 'another agent, without a counterpart for its permission',
 		agentProvider: 'claude',
-		origin: provider => { provider.permission = { id: 'acceptEdits', label: 'Edit Automatically', description: '', isElevated: true }; },
+		origin: provider => { provider.permission = { id: 'acceptEdits', label: 'Edit Automatically', description: '' }; },
 		permissions: copilotPermissions,
 		modes: ['interactive', 'plan', 'autopilot'],
 		expected: {
-			permissions: { id: 'default', source: 'default' },
-			mode: { id: 'interactive', source: 'default' },
+			permissions: 'default',
+			mode: 'interactive',
 			notInherited: ['Permission Edit Automatically is not available for copilot on host; Manual permissions is used.'],
 		},
 	}, {
@@ -484,8 +478,8 @@ suite('RemoteSessionService', () => {
 		permissions: [copilotPermissions[0], copilotPermissions[1], { ...copilotPermissions[2], locked: true }],
 		modes: ['interactive', 'plan'],
 		expected: {
-			permissions: { id: 'default', source: 'default' },
-			mode: { id: 'interactive', source: 'default' },
+			permissions: 'default',
+			mode: 'interactive',
 			notInherited: [
 				'Permission Allow all is not available for copilot on host; Manual permissions is used.',
 				'Mode autopilot is not available for copilot on host; interactive is used.',
@@ -497,8 +491,8 @@ suite('RemoteSessionService', () => {
 		permissions: copilotPermissions,
 		modes: ['interactive', 'plan', 'autopilot'],
 		expected: {
-			permissions: { id: 'default', source: 'default' },
-			mode: { id: 'interactive', source: 'default' },
+			permissions: 'default',
+			mode: 'interactive',
 			notInherited: ['The creating chat\'s permissions could not be read; Manual permissions is used.'],
 		},
 	}, {
@@ -534,51 +528,6 @@ suite('RemoteSessionService', () => {
 		});
 	}
 
-	test('requested permissions and mode must be offered and never exceed the creating chat\'s', async () => {
-		const host = new RemoteProvider('host');
-		host.permissionOptions = copilotPermissions;
-		host.config = modeConfig(['interactive', 'plan']);
-		const { create, calls, sourceProvider } = setup([host]);
-		sourceProvider.permission = copilotPermissions[1];
-		sourceProvider.config = modeConfig(undefined, 'interactive');
-		const rejections = await Promise.all([
-			{ permissions: 'autoApprove' },
-			{ permissions: 'bypassPermissions' },
-			{ mode: 'autopilot' },
-		].map(async (input, index) => {
-			try {
-				await create(input, `rejected-${index}`);
-				return 'created';
-			} catch (error) {
-				return error instanceof Error ? error.message : String(error);
-			}
-		}));
-		host.config = modeConfig();
-		const autopilot = await create({ mode: 'autopilot' }, 'autopilot').then(() => 'created', error => error instanceof Error ? error.message : String(error));
-		const accepted = await create({ permissions: 'assisted', mode: 'plan' }, 'accepted');
-		assert.deepStrictEqual({
-			rejections,
-			autopilot,
-			creations: calls.length,
-			permissionId: calls[0].options?.permissionId,
-			modeId: calls[0].options?.modeId,
-			permissions: accepted.permissions,
-			mode: accepted.mode,
-		}, {
-			rejections: [
-				'Permission autoApprove is more permissive than the creating chat\'s permissions (Assisted permissions).',
-				`No connected remote agent host matches this request. ${JSON.stringify([{ hostId: host.id, reasons: ['Permission bypassPermissions is not available for copilot. Available: default, assisted, autoApprove.'] }])}`,
-				`No connected remote agent host matches this request. ${JSON.stringify([{ hostId: host.id, reasons: ['Mode autopilot is not available for copilot.'] }])}`,
-			],
-			autopilot: 'Mode autopilot is only available when the creating chat uses it.',
-			creations: 1,
-			permissionId: 'assisted',
-			modeId: 'plan',
-			permissions: { id: 'assisted', source: 'explicit' },
-			mode: { id: 'plan', source: 'explicit' },
-		});
-	});
-
 	test('rejects a target that starts in autopilot, where its mode cannot be set, unless the creating chat uses autopilot', async () => {
 		const host = new RemoteProvider('host');
 		const { create, sourceProvider } = setup([host]);
@@ -592,55 +541,6 @@ suite('RemoteSessionService', () => {
 		const fromAutopilot = await outcome('from-autopilot');
 		const rejection = 'copilot sessions on host start in autopilot mode, which is only available when the creating chat uses it.';
 		assert.deepStrictEqual({ readOnly, unrecognized, fromAutopilot }, { readOnly: rejection, unrecognized: rejection, fromAutopilot: null });
-	});
-
-	test('placement accepts permissions an unfamiliar agent\'s resolved configuration offers, though its listing has none', async () => {
-		const host = new RemoteProvider('host', 0, 'linux', 'conforming-host');
-		host.resolvedPermissionOptions = [copilotPermissions[0]];
-		const { create, calls } = setup([host]);
-		const result = await create({ permissions: 'default' });
-		assert.deepStrictEqual({ sessionType: calls[0].options?.sessionTypeId, permissions: result.permissions }, {
-			sessionType: 'conforming-host',
-			permissions: { id: 'default', source: 'explicit' },
-		});
-	});
-
-	test('placement checks requested permissions and mode against each host\'s resolved configuration, not the listing\'s client-side locks', async () => {
-		const idle = new RemoteProvider('idle', 0);
-		const busy = new RemoteProvider('busy', 2);
-		// This client's policy locks Assisted in the listing, but the idle host owns its approval policy and allows it.
-		idle.permissionOptions = [copilotPermissions[0], { ...copilotPermissions[1], locked: true }];
-		idle.resolvedPermissionOptions = copilotPermissions.slice(0, 2);
-		idle.config = modeConfig(['interactive']);
-		busy.permissionOptions = copilotPermissions;
-		busy.config = modeConfig(['interactive', 'plan']);
-		const { create, sourceProvider } = setup([idle, busy]);
-		sourceProvider.permission = copilotPermissions[1];
-		const assisted = await create({ permissions: 'assisted' }, 'assisted');
-		const plan = await create({ mode: 'plan' }, 'plan');
-		assert.deepStrictEqual({
-			assisted: { host: assisted.host.id, permissions: assisted.permissions },
-			plan: { host: plan.host.id, mode: plan.mode },
-		}, {
-			assisted: { host: idle.id, permissions: { id: 'assisted', source: 'explicit' } },
-			plan: { host: busy.id, mode: { id: 'plan', source: 'explicit' } },
-		});
-	});
-
-	test('placement uses another agent on a host when the preferred one cannot apply the requested mode, and keeps it', async () => {
-		const host = new RemoteProvider('host', 0, 'linux', 'claude');
-		const copilot = new RemoteProvider('host', 0, 'linux', 'copilot');
-		host.root.agents.push(...copilot.root.agents);
-		host.sessionTypes.push(...copilot.sessionTypes);
-		host.configsByType.set('copilot', modeConfig(['interactive', 'plan']));
-		const { create, calls } = setup([host]);
-		const result = await create({ mode: 'plan' });
-		assert.deepStrictEqual({
-			sessionType: calls[0].options?.sessionTypeId,
-			modeId: calls[0].options?.modeId,
-			model: result.model.provider,
-			mode: result.mode,
-		}, { sessionType: 'copilot', modeId: 'plan', model: 'copilot', mode: { id: 'plan', source: 'explicit' } });
 	});
 
 	function withModelOptions(host: RemoteProvider, models: Map<string, ILanguageModelChatMetadata>, properties: ILanguageModelConfigurationSchema['properties'] = {

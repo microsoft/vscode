@@ -356,8 +356,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	acquireSessionConfig(sessionId: string, chat: URI, token: CancellationToken): Promise<IDisposable>;
 	/** Resolves a harness's configuration for a new session in the target workspace, or for a quick chat without one, independently of existing sessions. */
 	resolveSessionConfigForCreation(workspace: URI | undefined, sessionTypeId: string, token: CancellationToken): Promise<ResolveSessionConfigResult>;
-	/** A harness's permission choices for a new session, with the ones policy disables locked. With a resolved configuration, only the choices the host offers. */
-	getPermissionOptionsForCreation(sessionTypeId: string, config?: ResolveSessionConfigResult): readonly ISessionPermissionOption[];
+	/** A harness's permission choices for a new session that a resolved configuration can apply, with the ones policy disables locked. */
+	getPermissionOptionsForCreation(sessionTypeId: string, config: ResolveSessionConfigResult): readonly ISessionPermissionOption[];
 	/** Canceled when the draft is disposed, including when its provider disconnects. */
 	getNewSessionCancellationToken(sessionId: string): CancellationToken;
 	/** Effective runtime sandbox policy, refreshed with session configuration notifications. */

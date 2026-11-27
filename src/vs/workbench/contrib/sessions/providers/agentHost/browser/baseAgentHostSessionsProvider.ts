@@ -6890,13 +6890,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return raceCancellationError(connection.resolveSessionConfig({ provider: sessionTypeId, workingDirectory: workspace, config: undefined }), token);
 	}
 
-	getPermissionOptionsForCreation(sessionTypeId: string, config?: ResolveSessionConfigResult): readonly ISessionPermissionOption[] {
-		const policyRestricted = isAutoApprovePolicyRestricted(this._baseConfigurationService, config?.schema);
-		const options = getAgentHostSessionPermissionOptions(sessionTypeId, policyRestricted, true, config);
-		// A resolved configuration narrows the choices to those it can apply; choices policy locks stay listed as locked.
-		return config
-			? options.filter(option => option.locked || getAgentHostSessionPermissionConfig(sessionTypeId, option.id, policyRestricted, true, config) !== undefined)
-			: options;
+	getPermissionOptionsForCreation(sessionTypeId: string, config: ResolveSessionConfigResult): readonly ISessionPermissionOption[] {
+		const policyRestricted = isAutoApprovePolicyRestricted(this._baseConfigurationService, config.schema);
+		// Only the choices the configuration can apply; choices policy locks stay listed as locked.
+		return getAgentHostSessionPermissionOptions(sessionTypeId, policyRestricted, true, config)
+			.filter(option => option.locked || getAgentHostSessionPermissionConfig(sessionTypeId, option.id, policyRestricted, true, config) !== undefined);
 	}
 
 	getNewSessionCancellationToken(sessionId: string): CancellationToken {
