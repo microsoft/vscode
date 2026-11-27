@@ -31,6 +31,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IEditorPaneService } from '../../common/editorPaneService.js';
 import { createEditorTypeActions, getAvailableEditorTypes } from '../../../../browser/parts/editor/editorTypePicker.js';
 import { NullCommandService } from '../../../../../platform/commands/test/common/nullCommandService.js';
+import { ConfirmResult, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { CloseAllEditorGroupsAction, CloseAllEditorsAction, CloseEditorInAllGroupsAction, CloseEditorsInOtherGroupsAction } from '../../../../browser/parts/editor/editorActions.js';
+import { UntitledTextEditorInput } from '../../../untitled/common/untitledTextEditorInput.js';
 
 suite('EditorService', () => {
 
@@ -1655,6 +1658,111 @@ suite('EditorService', () => {
 
 		await rightGroup.closeEditor(input);
 		assert.strictEqual(input.isDisposed(), true);
+	});
+
+	for (const Action of [CloseAllEditorsAction, CloseAllEditorGroupsAction, CloseEditorInAllGroupsAction, CloseEditorsInOtherGroupsAction]) {
+		test(`${Action.name} retains a shared untitled editor after cancellation`, async () => {
+			const instantiationService = workbenchInstantiationService(undefined, disposables);
+			const [part, service] = await createEditorService(instantiationService);
+			const rootGroup = part.activeGroup;
+			const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+			const editor = await service.openEditor({ resource: undefined, forceUntitled: true, contents: 'unsaved shared contents' }, rootGroup);
+			const input = editor?.input;
+			assert.ok(input instanceof UntitledTextEditorInput);
+			disposables.add(input);
+			const model = await input.resolve();
+			await service.openEditor(input, rightGroup);
+
+			const skipActiveGroup = Action === CloseEditorsInOtherGroupsAction;
+			if (skipActiveGroup) {
+				const otherGroup = part.addGroup(rightGroup, GroupDirection.RIGHT);
+				await service.openEditor(createTestFileEditorInput(URI.parse('test:other'), TEST_EDITOR_INPUT_ID), otherGroup);
+			}
+
+			const saveBeforeClosing = Action === CloseAllEditorsAction || Action === CloseAllEditorGroupsAction;
+			let confirmations = 0;
+			instantiationService.stub(IFileDialogService, 'showSaveConfirm', async () => {
+				return ++confirmations === 1 && saveBeforeClosing ? ConfirmResult.SAVE : ConfirmResult.CANCEL;
+			});
+			let saveDialogs = 0;
+			instantiationService.stub(IFileDialogService, 'pickFileToSave', async () => {
+				saveDialogs++;
+				return undefined;
+			});
+
+			await instantiationService.invokeFunction(accessor => new Action().run(accessor));
+
+			assert.deepStrictEqual({
+				confirmations,
+				saveDialogs,
+				openEditors: service.count,
+				disposed: input.isDisposed(),
+				dirty: input.isDirty(),
+				contents: model.textEditorModel?.getValue()
+			}, {
+				confirmations: saveBeforeClosing ? 2 : 1,
+				saveDialogs: saveBeforeClosing ? 1 : 0,
+				openEditors: skipActiveGroup ? 2 : 1,
+				disposed: false,
+				dirty: true,
+				contents: 'unsaved shared contents'
+			});
+		});
+	}
+
+	test('CloseEditorInAllGroupsAction closes a shared clean editor without prompting', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const [part, service] = await createEditorService(instantiationService);
+		const rootGroup = part.activeGroup;
+		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+		const otherGroup = part.addGroup(rightGroup, GroupDirection.RIGHT);
+		const otherInput = createTestFileEditorInput(URI.parse('test:other'), TEST_EDITOR_INPUT_ID);
+		await service.openEditor(otherInput, otherGroup);
+		const input = createTestFileEditorInput(URI.parse('test:shared'), TEST_EDITOR_INPUT_ID);
+		await service.openEditor(input, rootGroup);
+		await service.openEditor(input, rightGroup);
+
+		let confirmations = 0;
+		instantiationService.stub(IFileDialogService, 'showSaveConfirm', async () => {
+			confirmations++;
+			return ConfirmResult.CANCEL;
+		});
+
+		await instantiationService.invokeFunction(accessor => new CloseEditorInAllGroupsAction().run(accessor));
+
+		assert.deepStrictEqual({
+			confirmations,
+			editors: service.editors,
+			disposed: input.isDisposed()
+		}, { confirmations: 0, editors: [otherInput], disposed: true });
+	});
+
+	test('CloseEditorsInOtherGroupsAction keeps a shared dirty editor in the active group without prompting', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const [part, service] = await createEditorService(instantiationService);
+		const rootGroup = part.activeGroup;
+		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+		const editor = await service.openEditor({ resource: undefined, forceUntitled: true, contents: 'unsaved shared contents' }, rootGroup);
+		const input = editor?.input;
+		assert.ok(input instanceof UntitledTextEditorInput);
+		disposables.add(input);
+		await service.openEditor(input, rightGroup);
+
+		let confirmations = 0;
+		instantiationService.stub(IFileDialogService, 'showSaveConfirm', async () => {
+			confirmations++;
+			return ConfirmResult.CANCEL;
+		});
+
+		await instantiationService.invokeFunction(accessor => new CloseEditorsInOtherGroupsAction().run(accessor));
+
+		assert.deepStrictEqual({
+			confirmations,
+			editors: service.editors,
+			activeGroup: part.activeGroup.id,
+			disposed: input.isDisposed(),
+			dirty: input.isDirty()
+		}, { confirmations: 0, editors: [input], activeGroup: rightGroup.id, disposed: false, dirty: true });
 	});
 
 	test('open to the side', async () => {
