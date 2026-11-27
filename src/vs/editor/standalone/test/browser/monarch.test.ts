@@ -516,4 +516,32 @@ suite('Monarch', () => {
 		disposables.dispose();
 	});
 
+	test('Ensure MonarchTokenizer.getLoadStatus() does not infinite loop on circular language embedding', () => {
+		const disposables = new DisposableStore();
+		const languageService = disposables.add(new LanguageService());
+		const configurationService = new StandaloneConfigurationService(new NullLogService());
+
+		disposables.add(languageService.registerLanguage({ id: 'lang1' }));
+		disposables.add(languageService.registerLanguage({ id: 'lang2' }));
+
+		const tokenizer1 = disposables.add(createMonarchTokenizer(languageService, 'lang1', {
+			tokenizer: {
+				root: [[/./, { token: 'token', nextEmbedded: 'lang2' }]]
+			}
+		}, configurationService));
+		disposables.add(TokenizationRegistry.register('lang1', tokenizer1));
+
+		const tokenizer2 = disposables.add(createMonarchTokenizer(languageService, 'lang2', {
+			tokenizer: {
+				root: [[/./, { token: 'token', nextEmbedded: 'lang1' }]]
+			}
+		}, configurationService));
+		disposables.add(TokenizationRegistry.register('lang2', tokenizer2));
+
+		const status = tokenizer1.getLoadStatus();
+		assert.strictEqual(status.loaded, true);
+
+		disposables.dispose();
+	});
+
 });
