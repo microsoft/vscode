@@ -1013,12 +1013,6 @@ interface IMovedAgentMerge {
 	readonly elevated: ReadonlySet<string>;
 }
 
-/** `folder`, in the checkout `checkoutRoot`, at the same place in the worktree `worktreeRoot` of that repository. */
-function toIsolatedFolder(worktreeRoot: URI, checkoutRoot: URI, folder: URI): URI {
-	const path = relativePath(checkoutRoot, folder);
-	return path ? joinPath(worktreeRoot, path) : worktreeRoot;
-}
-
 /**
  * The agent service implementation that runs inside the agent-host utility
  * process. Dispatches to registered {@link IAgent} instances based
@@ -2120,7 +2114,7 @@ export class AgentService extends Disposable implements IAgentService {
 			const result = folders.map((folder, index) => {
 				const checkoutRoot = checkoutRoots[index];
 				const worktreeRoot = checkoutRoot && created.get(extUriBiasedIgnorePathCase.getComparisonKey(checkoutRoot));
-				return checkoutRoot && worktreeRoot ? toIsolatedFolder(worktreeRoot, checkoutRoot, folder) : folder;
+				return checkoutRoot && worktreeRoot ? this._toIsolatedFolder(worktreeRoot, checkoutRoot, folder) : folder;
 			});
 			await this._replaceLaunchFolders(session, chat, folders, result, isCurrentChat);
 			return result;
@@ -13683,7 +13677,7 @@ export class AgentService extends Disposable implements IAgentService {
 					?? (await this._gitService.getDefaultBranch(repositoryRoot))?.name
 					?? 'HEAD';
 				created = await this._createAdditionalWorktree(session, checkoutRoot, repositoryRoot, baseBranch, credentials, undefined, chat);
-				isolated = toIsolatedFolder(URI.parse(created.workingDirectory), checkoutRoot, folder);
+				isolated = this._toIsolatedFolder(URI.parse(created.workingDirectory), checkoutRoot, folder);
 			}
 			try {
 				await this._replaceChatFolder(session, chatKey, URI.parse(chatFolders[index]), isolated, isCurrentChat);
@@ -13782,7 +13776,13 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private _getIsolatedFolder(worktrees: readonly { readonly root: URI; readonly source?: URI }[], checkoutRoot: URI, folder: URI): URI | undefined {
 		const worktree = worktrees.find(candidate => candidate.source && extUriBiasedIgnorePathCase.isEqual(candidate.source, checkoutRoot));
-		return worktree && toIsolatedFolder(worktree.root, checkoutRoot, folder);
+		return worktree && this._toIsolatedFolder(worktree.root, checkoutRoot, folder);
+	}
+
+	/** `folder`, in the checkout `checkoutRoot`, at the same place in the worktree `worktreeRoot` of that repository. */
+	private _toIsolatedFolder(worktreeRoot: URI, checkoutRoot: URI, folder: URI): URI {
+		const path = relativePath(checkoutRoot, folder);
+		return path ? joinPath(worktreeRoot, path) : worktreeRoot;
 	}
 
 	/**
