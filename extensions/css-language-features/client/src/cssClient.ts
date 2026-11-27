@@ -7,6 +7,7 @@ import { CompletionItem, CompletionItemKind, ExtensionContext, languages, Positi
 import { Disposable, LanguageClientOptions, ProvideCompletionItemsSignature, NotificationType, BaseLanguageClient, DocumentRangeFormattingParams, DocumentRangeFormattingRequest } from 'vscode-languageclient';
 import { getCustomDataSource } from './customData';
 import { RequestService, serveFileSystemRequests } from './requests';
+import { registerDropOrPasteResourceSupport } from './dropOrPaste/dropOrPasteResource';
 
 namespace CustomDataChangedNotification {
 	export const type: NotificationType<string[]> = new NotificationType('css/customDataChanged');
@@ -101,6 +102,7 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 	client.registerProposedFeatures();
 
 	await client.start();
+	context.subscriptions.push(registerDropOrPasteResourceSupport(documentSelector));
 
 	client.sendNotification(CustomDataChangedNotification.type, customDataSource.uris);
 	customDataSource.onDidChange(() => {
