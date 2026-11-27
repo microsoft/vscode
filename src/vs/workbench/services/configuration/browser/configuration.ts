@@ -398,7 +398,11 @@ export class RemoteUserConfiguration extends Disposable {
 		this._userConfiguration = this._cachedConfiguration = new CachedRemoteUserConfiguration(remoteAuthority, configurationCache, { scopes: REMOTE_MACHINE_SCOPES }, logService);
 		remoteAgentService.getEnvironment().then(async environment => {
 			if (environment) {
-				const userConfiguration = this._register(new FileServiceBasedRemoteUserConfiguration(environment.settingsPath, { scopes: REMOTE_MACHINE_SCOPES }, this._fileService, uriIdentityService, logService));
+				const standAloneConfigurationResources: [string, URI][] = [];
+				if (environment.mcpResource) {
+					standAloneConfigurationResources.push([MCP_CONFIGURATION_KEY, environment.mcpResource]);
+				}
+				const userConfiguration = this._register(new FileServiceBasedRemoteUserConfiguration(environment.settingsPath, standAloneConfigurationResources, { scopes: REMOTE_MACHINE_SCOPES }, this._fileService, uriIdentityService, logService));
 				this._register(userConfiguration.onDidChangeConfiguration(configurationModel => this.onDidUserConfigurationChange(configurationModel)));
 				this._userConfigurationInitializationPromise = userConfiguration.initialize();
 				const configurationModel = await this._userConfigurationInitializationPromise;
@@ -463,15 +467,19 @@ class FileServiceBasedRemoteUserConfiguration extends Disposable {
 
 	private readonly parser: ConfigurationModelParser;
 	private parseOptions: ConfigurationParseOptions;
+	private _standAloneConfigurations: ConfigurationModel[] = [];
+	private _cache: ConfigurationModel;
 	private readonly reloadConfigurationScheduler: RunOnceScheduler;
 	protected readonly _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
 	readonly onDidChangeConfiguration: Event<ConfigurationModel> = this._onDidChangeConfiguration.event;
 
 	private readonly fileWatcherDisposable = this._register(new MutableDisposable());
 	private readonly directoryWatcherDisposable = this._register(new MutableDisposable());
+	private readonly standAloneWatchers = this._register(new DisposableStore());
 
 	constructor(
 		private readonly configurationResource: URI,
+		private readonly standAloneConfigurationResources: [string, URI][],
 		configurationParseOptions: ConfigurationParseOptions,
 		private readonly fileService: IFileService,
 		private readonly uriIdentityService: IUriIdentityService,
@@ -481,6 +489,7 @@ class FileServiceBasedRemoteUserConfiguration extends Disposable {
 
 		this.parser = new ConfigurationModelParser(this.configurationResource.toString(), logService);
 		this.parseOptions = configurationParseOptions;
+		this._cache = ConfigurationModel.createEmptyModel(this.logService);
 		this._register(fileService.onDidFilesChange(e => this.handleFileChangesEvent(e)));
 		this._register(fileService.onDidRunOperation(e => this.handleFileOperationEvent(e)));
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reload().then(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)), 50));
@@ -488,6 +497,11 @@ class FileServiceBasedRemoteUserConfiguration extends Disposable {
 			this.stopWatchingResource();
 			this.stopWatchingDirectory();
 		}));
+		for (const [, resource] of this.standAloneConfigurationResources) {
+			// Watch both the file and its parent dir to catch create/delete after startup.
+			this.standAloneWatchers.add(this.fileService.watch(resource));
+			this.standAloneWatchers.add(this.fileService.watch(this.uriIdentityService.extUri.dirname(resource)));
+		}
 	}
 
 	private watchResource(): void {
@@ -518,24 +532,51 @@ class FileServiceBasedRemoteUserConfiguration extends Disposable {
 		return content.value.toString();
 	}
 
-	async reload(): Promise<ConfigurationModel> {
+	private async resolveStandAloneContent(resource: URI): Promise<string | undefined> {
 		try {
-			const content = await this.resolveContent();
-			this.parser.parse(content, this.parseOptions);
-			return this.parser.configurationModel;
-		} catch (e) {
-			return ConfigurationModel.createEmptyModel(this.logService);
+			const content = await this.fileService.readFile(resource, { atomic: true });
+			return content.value.toString();
+		} catch (error) {
+			if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND
+				&& (<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_DIRECTORY) {
+				this.logService.error(error);
+			}
+			return undefined;
 		}
+	}
+
+	async reload(): Promise<ConfigurationModel> {
+		const [settingsContent, standAloneContents] = await Promise.all([
+			this.resolveContent().then(c => c, () => undefined),
+			Promise.all(this.standAloneConfigurationResources.map(([, resource]) => this.resolveStandAloneContent(resource))),
+		]);
+		this.parser.parse(settingsContent ?? '', this.parseOptions);
+		this._standAloneConfigurations = [];
+		for (let index = 0; index < this.standAloneConfigurationResources.length; index++) {
+			const contents = standAloneContents[index];
+			if (contents !== undefined) {
+				const standAloneParser = new StandaloneConfigurationModelParser(this.standAloneConfigurationResources[index][1].toString(), this.standAloneConfigurationResources[index][0], this.logService);
+				standAloneParser.parse(contents);
+				this._standAloneConfigurations.push(standAloneParser.configurationModel);
+			}
+		}
+		this.consolidate();
+		return this._cache;
 	}
 
 	reparse(configurationParseOptions: ConfigurationParseOptions): ConfigurationModel {
 		this.parseOptions = configurationParseOptions;
 		this.parser.reparse(this.parseOptions);
-		return this.parser.configurationModel;
+		this.consolidate();
+		return this._cache;
 	}
 
 	getRestrictedSettings(): string[] {
 		return this.parser.restrictedConfigurations;
+	}
+
+	private consolidate(): void {
+		this._cache = this.parser.configurationModel.merge(...this._standAloneConfigurations);
 	}
 
 	private handleFileChangesEvent(event: FileChangesEvent): void {
@@ -552,15 +593,26 @@ class FileServiceBasedRemoteUserConfiguration extends Disposable {
 			affectedByChanges = true;
 		}
 
+		if (!affectedByChanges) {
+			for (const [, resource] of this.standAloneConfigurationResources) {
+				if (event.contains(resource)) {
+					affectedByChanges = true;
+					break;
+				}
+			}
+		}
+
 		if (affectedByChanges) {
 			this.reloadConfigurationScheduler.schedule();
 		}
 	}
 
 	private handleFileOperationEvent(event: FileOperationEvent): void {
-		if ((event.isOperation(FileOperation.CREATE) || event.isOperation(FileOperation.COPY) || event.isOperation(FileOperation.DELETE) || event.isOperation(FileOperation.WRITE))
-			&& this.uriIdentityService.extUri.isEqual(event.resource, this.configurationResource)) {
-			this.reloadConfigurationScheduler.schedule();
+		if (event.isOperation(FileOperation.CREATE) || event.isOperation(FileOperation.COPY) || event.isOperation(FileOperation.DELETE) || event.isOperation(FileOperation.WRITE)) {
+			if (this.uriIdentityService.extUri.isEqual(event.resource, this.configurationResource)
+				|| this.standAloneConfigurationResources.some(([, resource]) => this.uriIdentityService.extUri.isEqual(event.resource, resource))) {
+				this.reloadConfigurationScheduler.schedule();
+			}
 		}
 	}
 
