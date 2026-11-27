@@ -28,6 +28,7 @@ import { Action2, IAction2Options, MenuId, registerAction2 } from '../../../../p
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { FileKind } from '../../../../platform/files/common/files.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -43,10 +44,11 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from '../../../browser/actions/workspaceCommands.js';
 import { CLOSE_EDITOR_COMMAND_ID } from '../../../browser/parts/editor/editorCommands.js';
+import { NewTabButtonEntryAction } from '../../../browser/parts/editor/newTabButton.js';
 import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
 import { ConfigurationResolverExpression } from '../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { editorGroupToColumn } from '../../../services/editor/common/editorGroupColumn.js';
-import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
@@ -293,6 +295,30 @@ function getTerminalServices(accessor: ServicesAccessor): ITerminalServicesColle
 	};
 }
 
+/**
+ * The New Terminal entry of the new tab (`+`) button: a terminal editor in the group of the button.
+ */
+export class CreateTerminalEditorFromNewTabButtonAction extends NewTabButtonEntryAction {
+
+	constructor() {
+		super({
+			id: `${TerminalCommandId.CreateTerminalEditor}.fromNewTabButton`,
+			title: localize2('workbench.action.terminal.createTerminalEditorFromNewTabButton', "New Terminal"),
+			icon: Codicon.terminal,
+			order: 5,
+			when: TerminalContextKeys.processSupported,
+		});
+	}
+
+	// eslint-disable-next-line ts-eslint-js/naming-convention
+	protected override async openTab(accessor: ServicesAccessor, group: IEditorGroup, options: IEditorOptions): Promise<unknown> {
+		const terminalService = accessor.get(ITerminalService);
+		const viewColumn = editorGroupToColumn(accessor.get(IEditorGroupsService), group);
+		const instance = await terminalService.createTerminal({ location: { viewColumn, index: options.index } });
+		return instance.focusWhenReady();
+	}
+}
+
 export function registerTerminalActions() {
 	registerTerminalAction({
 		id: TerminalCommandId.NewInActiveWorkspace,
@@ -352,6 +378,8 @@ export function registerTerminalActions() {
 			await instance.focusWhenReady();
 		}
 	});
+
+	registerAction2(CreateTerminalEditorFromNewTabButtonAction);
 
 	registerTerminalAction({
 		id: TerminalCommandId.NewInNewWindow,
