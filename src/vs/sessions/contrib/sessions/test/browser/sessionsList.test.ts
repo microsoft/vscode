@@ -86,7 +86,8 @@ import '../../../../../workbench/browser/actions/listCommands.js';
 import { AgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { MessageKind } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { getSessionChatDragData, isSessionChatDrag, SessionsDataTransfers } from '../../../../../workbench/contrib/sessions/browser/dnd.js';
-import { IsPhoneLayoutContext, SessionIsArchivedContext, SessionSupportsMultipleChatsContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionIsArchivedContext, SessionSupportsMultipleChatsContext, SessionWorkspacesEnabledContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { WorkbenchScopeContext } from '../../../../../workbench/common/contextkeys.js';
 import { ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID, ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSION_GROUP_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { getSessionApplication } from '../../../../../workbench/services/sessions/common/sessionApplication.js';
 import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
@@ -4337,7 +4338,7 @@ suite('Sessions - SessionsList', () => {
 		const release: ISessionGroup = { id: 'release', name: 'Release', createdAt: 1 };
 		const comparisonGroup: ISessionGroup = { id: 'comparison-group', name: 'Compare: Fix', createdAt: 2 };
 
-		function render(grouping: () => SessionsGrouping) {
+		function render(grouping: () => SessionsGrouping, configure?: (harness: ReturnType<typeof createListHarness>) => void) {
 			const sessions = [
 				createTestSession('in agents', { folders: [vscode, docs], workspaceFile: agents.uri }).session,
 				createTestSession('in agents before rename', { folders: [vscode], workspaceFile: oldAgentsFile }).session,
@@ -4366,6 +4367,7 @@ suite('Sessions - SessionsList', () => {
 				comparisons: [comparison],
 				workspaces: [agents, usersAgents],
 			});
+			configure?.(harness);
 			const container = harness.createContainer(400, 1400);
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
 				grouping,
@@ -4436,6 +4438,28 @@ suite('Sessions - SessionsList', () => {
 				onActions: 0,
 				onRow: [`sessions.workspaces.edit ${agents.uri.toString()}`],
 			});
+		});
+
+		test('a workspace row offers one Open action, Open in Editor Window, also when a comparison is in it and the window lists all sessions', () => {
+			const menus: string[][] = [];
+			const { container } = render(() => SessionsGrouping.WorkspacesAndGroups, harness => {
+				// The production menus, which a real context key service evaluates, in a window that lists all sessions
+				const contextKeyService = disposables.add(new ContextKeyService(harness.instantiationService.get(IConfigurationService)));
+				ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+				SessionWorkspacesEnabledContext.bindTo(contextKeyService).set(true);
+				WorkbenchScopeContext.bindTo(contextKeyService).set('all');
+				harness.instantiationService.stub(IContextKeyService, contextKeyService);
+				harness.instantiationService.stub(IMenuService, disposables.add(harness.instantiationService.createInstance(MenuService)));
+				harness.instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
+					override showContextMenu(delegate: IContextMenuMenuDelegate): void {
+						menus.push(delegate.getActions!().filter(action => action.id !== Separator.ID).map(action => action.label));
+					}
+				});
+			});
+			const row = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].find(candidate => candidate.querySelector('.session-section-label')?.textContent === 'Agents' && candidate.querySelector('.session-section-toolbar .monaco-toolbar'))!;
+			row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
+
+			assert.deepStrictEqual(menus.map(menu => menu.filter(label => label.startsWith('Open'))), [['Open in Editor Window']]);
 		});
 
 		test('keeps the collapse state of its sections and rows, and lists by workspace again once switched back', () => {
