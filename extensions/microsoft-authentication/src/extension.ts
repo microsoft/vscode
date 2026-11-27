@@ -143,7 +143,8 @@ export async function activate(context: ExtensionContext) {
 	let microsoftSovereignCloudAuthProviderDisposable = await initMicrosoftSovereignCloudAuthProvider(context, uriHandler);
 
 	context.subscriptions.push(workspace.onDidChangeConfiguration(async e => {
-		if (e.affectsConfiguration('microsoft-sovereign-cloud')) {
+		// The custom environment's PCAs read instanceDiscovery when they're created, so recreate them
+		if (e.affectsConfiguration('microsoft-sovereign-cloud') || e.affectsConfiguration('microsoft-authentication.instanceDiscovery')) {
 			microsoftSovereignCloudAuthProviderDisposable?.dispose();
 			microsoftSovereignCloudAuthProviderDisposable = await initMicrosoftSovereignCloudAuthProvider(context, uriHandler);
 		}
