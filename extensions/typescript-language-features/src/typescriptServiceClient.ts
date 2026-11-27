@@ -17,6 +17,7 @@ import { ProjectType, inferredProjectCompilerOptions } from './tsconfig';
 import { API } from './tsServer/api';
 import BufferSyncSupport from './tsServer/bufferSyncSupport';
 import { OngoingRequestCancellerFactory } from './tsServer/cancellation';
+import { CrashPluginState, TsServerCrashTracker, getCrashResponse, isOutOfMemoryLikeExit } from './tsServer/crashPolicy';
 import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
 import { NodeVersionManager } from './tsServer/nodeManager';
 import { TypeScriptPluginPathsProvider } from './tsServer/pluginPathsProvider';
@@ -122,8 +123,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 	private readonly typescriptServerSpawner: TypeScriptServerSpawner;
 	private serverState: ServerState.State = ServerState.None;
-	private lastStart: number;
-	private numberRestarts: number;
+	private readonly crashTracker = new TsServerCrashTracker();
 	private _isPromptingAfterCrash = false;
 	private isRestarting: boolean = false;
 	private hasServerFatallyCrashedTooManyTimes = false;
@@ -171,8 +171,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.versionProvider = services.versionProvider;
 		this.processFactory = services.processFactory;
 
-		this.lastStart = Date.now();
-
 		let resolve: () => void;
 		let reject: () => void;
 		const p = new Promise<void>((res, rej) => {
@@ -180,8 +178,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			reject = rej;
 		});
 		this._onReady = { promise: p, resolve: resolve!, reject: reject! };
-
-		this.numberRestarts = 0;
 
 		this._configuration = services.serviceConfigurationProvider.loadFromWorkspace();
 		this.versionProvider.updateConfiguration(this._configuration);
@@ -226,6 +222,9 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				if (!areServiceConfigurationsEqual(this._configuration, oldConfiguration)) {
 					this.restartTsServer();
 				}
+			} else if (this.hasServerFatallyCrashedTooManyTimes && !areServiceConfigurationsEqual(this._configuration, oldConfiguration)) {
+				// Try again after giving up on a crash loop, for example with a higher memory limit
+				this.restartTsServer(true);
 			}
 		}, this, this._disposables);
 
@@ -329,8 +328,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		if (fromUserAction) {
 			// Reset crash trackers
 			this.hasServerFatallyCrashedTooManyTimes = false;
-			this.numberRestarts = 0;
-			this.lastStart = Date.now();
+			this.crashTracker.reset();
 		}
 
 		this.serverState = this.startService(true);
@@ -415,11 +413,13 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 		const apiVersion = version.apiVersion || API.defaultVersion;
 		const mytoken = ++this.token;
+		// The exit of a server killed by `restartTsServer` is ignored by the token check below. Reset the flag here
+		// so that a crash of the new server is not mistaken for that intentional exit.
+		this.isRestarting = false;
 		const handle = this.typescriptServerSpawner.spawn(version, this.capabilities, this.configuration, this.pluginManager, this.cancellerFactory, {
 			onFatalError: (command, err) => this.fatalError(command, err),
 		});
 		this.serverState = new ServerState.Running(handle, apiVersion, undefined, true);
-		this.lastStart = Date.now();
 
 
 		/* __GDPR__FRAGMENT__
@@ -520,7 +520,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			if (handle.tsServerLog?.type === 'file') {
 				this.logger.info(`TSServer log file: ${handle.tsServerLog.uri.fsPath}`);
 			}
-			this.serviceExited(!this.isRestarting, apiVersion);
+			this.serviceExited(!this.isRestarting, apiVersion, data);
 			this.isRestarting = false;
 		});
 
@@ -644,7 +644,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		};
 	}
 
-	private serviceExited(restart: boolean, tsVersion: API): void {
+	private serviceExited(restart: boolean, tsVersion: API, exit?: TypeScriptServerExitEvent): void {
 		this.resetWatchers();
 		this.loadingIndicator.reset();
 
@@ -655,78 +655,65 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		}
 
 		if (restart) {
-			const diff = Date.now() - this.lastStart;
-			this.numberRestarts++;
-			let startService = true;
-
 			const plugins = this.pluginManager.plugins;
 			const pluginsForCrashPrompt = plugins.filter(plugin => plugin.extension.id.toLowerCase() !== copilotChatExtensionId);
 			const pluginExtensionList = [...new Set(pluginsForCrashPrompt.map(plugin => plugin.extension.id))].join(', ');
+			const crashCount = this.crashTracker.recordCrash(Date.now());
+			const { restart: startService, prompt: crashPrompt } = getCrashResponse(
+				crashCount,
+				!!exit && isOutOfMemoryLikeExit(exit),
+				pluginsForCrashPrompt.length ? CrashPluginState.Other : plugins.length ? CrashPluginState.OnlyCopilot : CrashPluginState.None,
+				['vscode-insiders', 'code-oss'].includes(vscode.env.uriScheme));
+
 			const reportIssueItem: vscode.MessageItem = {
 				title: vscode.l10n.t("Report Issue"),
 			};
+			const configureMemoryItem: vscode.MessageItem = {
+				title: vscode.l10n.t("Configure Memory Limit"),
+			};
 			let prompt: Thenable<undefined | vscode.MessageItem> | undefined = undefined;
 
-			if (this.numberRestarts > 5) {
-				this.numberRestarts = 0;
-				if (diff < 10 * 1000 /* 10 seconds */) {
-					this.lastStart = Date.now();
-					startService = false;
-					this.hasServerFatallyCrashedTooManyTimes = true;
-					if (pluginsForCrashPrompt.length) {
-						prompt = vscode.window.showErrorMessage<vscode.MessageItem>(
-							vscode.l10n.t("The JS/TS language service immediately crashed 5 times. The service will not be restarted.\nThis may be caused by a plugin contributed by one of these extensions: {0}.\nPlease try disabling these extensions before filing an issue against VS Code.", pluginExtensionList));
-					} else if (!plugins.length) {
-						prompt = vscode.window.showErrorMessage(
-							vscode.l10n.t("The JS/TS language service immediately crashed 5 times. The service will not be restarted."),
-							reportIssueItem);
-					}
+			if (!startService) {
+				this.hasServerFatallyCrashedTooManyTimes = true;
 
-					/* __GDPR__
-						"serviceExited" : {
-							"owner": "mjbvz",
-							"${include}": [
-								"${TypeScriptCommonProperties}"
-							]
-						}
-					*/
-					this.telemetryReporter.logTelemetry('serviceExited');
-				} else if (diff < 60 * 1000 * 5 /* 5 Minutes */) {
-					this.lastStart = Date.now();
-					if (!this._isPromptingAfterCrash) {
-						if (pluginsForCrashPrompt.length) {
-							prompt = vscode.window.showWarningMessage<vscode.MessageItem>(
-								vscode.l10n.t("The JS/TS language service crashed 5 times in the last 5 Minutes.\nThis may be caused by a plugin contributed by one of these extensions: {0}\nPlease try disabling these extensions before filing an issue against VS Code.", pluginExtensionList));
-						} else if (!plugins.length) {
-							prompt = vscode.window.showWarningMessage(
-								vscode.l10n.t("The JS/TS language service crashed 5 times in the last 5 Minutes."),
-								reportIssueItem);
-						}
+				/* __GDPR__
+					"serviceExited" : {
+						"owner": "mjbvz",
+						"${include}": [
+							"${TypeScriptCommonProperties}"
+						]
 					}
-				}
-			} else if (['vscode-insiders', 'code-oss'].includes(vscode.env.uriScheme)) {
-				// Prompt after a single restart
-				this.numberRestarts = 0;
-				if (!this._isPromptingAfterCrash) {
-					if (pluginsForCrashPrompt.length) {
-						prompt = vscode.window.showWarningMessage<vscode.MessageItem>(
-							vscode.l10n.t("The JS/TS language service crashed.\nThis may be caused by a plugin contributed by one of these extensions: {0}.\nPlease try disabling these extensions before filing an issue against VS Code.", pluginExtensionList));
-					} else if (!plugins.length) {
-						prompt = vscode.window.showWarningMessage(
-							vscode.l10n.t("The JS/TS language service crashed."),
-							reportIssueItem);
-					}
-				}
+				*/
+				this.telemetryReporter.logTelemetry('serviceExited');
 			}
 
-			if (prompt) {
+			// Always tell the user when giving up, even if an earlier crash prompt is still open
+			if (crashPrompt && (!startService || !this._isPromptingAfterCrash)) {
+				const lines = [startService
+					? vscode.l10n.t("The JS/TS language service crashed.")
+					: vscode.l10n.t("The JS/TS language service crashed {0} times and will not be restarted.", crashCount)];
+				if (crashPrompt.suggestMoreMemory) {
+					lines.push(vscode.l10n.t("It may have run out of memory. Try increasing the {0} setting (currently {1} MB).", 'js/ts.tsserver.maxMemory', this._configuration.maxTsServerMemory));
+				}
+				if (crashPrompt.mentionPlugins) {
+					lines.push(vscode.l10n.t("This may be caused by a plugin contributed by one of these extensions: {0}.\nPlease try disabling these extensions before filing an issue against VS Code.", pluginExtensionList));
+				}
+				const items = [
+					...(crashPrompt.suggestMoreMemory ? [configureMemoryItem] : []),
+					...(crashPrompt.offerReportIssue ? [reportIssueItem] : []),
+				];
+				prompt = crashPrompt.severity === 'error'
+					? vscode.window.showErrorMessage(lines.join('\n'), ...items)
+					: vscode.window.showWarningMessage(lines.join('\n'), ...items);
 				this._isPromptingAfterCrash = true;
 			}
 
 			prompt?.then(async item => {
 				this._isPromptingAfterCrash = false;
 
-				if (item === reportIssueItem) {
+				if (item === configureMemoryItem) {
+					vscode.commands.executeCommand('workbench.action.openSettings', '@id:js/ts.tsserver.maxMemory');
+				} else if (item === reportIssueItem) {
 
 					const minModernTsVersion = this.versionProvider.bundledVersion.apiVersion;
 
