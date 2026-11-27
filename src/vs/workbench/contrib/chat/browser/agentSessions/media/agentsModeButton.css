@@ -1,0 +1,45 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* "Agents" title bar button: quiet at rest, background on hover, toggled look while on. */
+.monaco-workbench .agents-mode-titlebar-button {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	padding: 0 var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-medium);
+	cursor: pointer;
+	color: var(--vscode-titleBar-activeForeground);
+	-webkit-app-region: no-drag;
+	white-space: nowrap;
+}
+
+.monaco-workbench .part.titlebar.inactive .agents-mode-titlebar-button {
+	color: var(--vscode-titleBar-inactiveForeground);
+}
+
+.monaco-workbench .agents-mode-titlebar-button > .codicon {
+	color: inherit;
+}
+
+.monaco-workbench .agents-mode-titlebar-button:hover,
+.monaco-workbench .agents-mode-titlebar-button:focus-visible {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.monaco-workbench .agents-mode-titlebar-button.checked,
+.monaco-workbench .agents-mode-titlebar-button.checked:hover {
+	background-color: var(--vscode-actionBar-toggledBackground);
+}
+
+.monaco-workbench .agents-mode-titlebar-button:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.monaco-workbench .agents-mode-titlebar-button.disabled {
+	cursor: default;
+	color: var(--vscode-disabledForeground);
+}

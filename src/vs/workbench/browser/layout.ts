@@ -348,6 +348,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private chatPartHiddenByLayout = false;
 	/** The chat part's own width, without the editor area's, while it is hidden after it filled an editor area hidden for it. */
 	private chatPartOwnWidth: number | undefined;
+	/** The side bars a part squeezed as it showed beside the chat part filling the editor area, with their widths before and after, keyed by that part. */
+	private readonly squeezedBesideChatPart = new Map<ISerializableView, { readonly view: ISerializableView; readonly before: number; readonly after: number }[]>();
 	/** The view the chat part docks beside (see {@link setChatPartAnchor}). */
 	private chatPartAnchor: { readonly viewId: string } | undefined;
 	/** Follows {@link chatPartAnchor} while there is one. */
@@ -2464,6 +2466,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	/** Shows or hides a part beside the chat part so that the chat part gives or takes its width, and the editor area keeps its own. */
 	private setViewVisibleKeepingEditorWidth(view: ISerializableView, visible: boolean): void {
 		const chatPartView = this.chatPartView;
+		if (this.initialized && chatPartView && !this.chatPartHidden && this.isEditorHiddenByChat()) {
+			this.setViewVisibleBesideChatPartFillingEditorArea(view, visible);
+			return;
+		}
+		// Widths it squeezed beside the chat part no longer apply once it shows or hides otherwise
+		this.squeezedBesideChatPart.delete(view);
 		if (!this.initialized || !chatPartView || this.chatPartHidden || !this.isVisible(Parts.EDITOR_PART, mainWindow)) {
 			this.workbenchGrid.setViewVisible(view, visible);
 			return;
@@ -2480,6 +2488,47 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			if (difference !== 0) {
 				const { width, height } = this.workbenchGrid.getViewSize(chatPartView);
 				this.workbenchGrid.resizeView(chatPartView, { width: width + difference, height });
+			}
+		}
+	}
+
+	/**
+	 * Shows or hides a part beside the chat part that fills the editor area. A part that shows takes the chat part's width
+	 * down to its minimum and then the other side bars'. The chat part gets all the width back as the part hides, so the
+	 * side bars it squeezed get back the width it took from them, unless the user widened them in between.
+	 */
+	private setViewVisibleBesideChatPartFillingEditorArea(view: ISerializableView, visible: boolean): void {
+		// Showing a visible part or hiding a hidden one squeezes nothing and keeps what an earlier show squeezed
+		if (this.workbenchGrid.isViewVisible(view) === visible) {
+			return;
+		}
+
+		const others = [this.sideBarPartView, this.auxiliaryBarPartView].filter(other => other !== view && this.workbenchGrid.isViewVisible(other));
+		const widthsBefore = others.map(other => this.workbenchGrid.getViewSize(other).width);
+
+		this.workbenchGrid.setViewVisible(view, visible);
+
+		if (visible) {
+			const squeezed = others
+				.map((other, index) => ({ view: other, before: widthsBefore[index], after: this.workbenchGrid.getViewSize(other).width }))
+				.filter(({ before, after }) => after < before);
+			if (squeezed.length) {
+				this.squeezedBesideChatPart.set(view, squeezed);
+			} else {
+				this.squeezedBesideChatPart.delete(view);
+			}
+			return;
+		}
+
+		const squeezed = this.squeezedBesideChatPart.get(view);
+		this.squeezedBesideChatPart.delete(view);
+		for (const { view: other, before, after } of squeezed ?? []) {
+			if (this.workbenchGrid.isViewVisible(other)) {
+				// Gives back what it took, also when a smaller window squeezed it more since; a side bar the user widened keeps its width
+				const { width, height } = this.workbenchGrid.getViewSize(other);
+				if (width <= after) {
+					this.workbenchGrid.resizeView(other, { width: width + before - after, height });
+				}
 			}
 		}
 	}
@@ -2986,9 +3035,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// What the user chose wins over what the layout would show again
 		this.chatPartHiddenByLayout = false;
 
+		// Focus inside the chat part that hides moves to the panel or the editor, not to the body of the window
+		let hadFocus = false;
 		if (this.chatPartHidden !== hidden) {
-			// Focus inside the chat part that hides moves to the panel or the editor, not to the body of the window
-			const hadFocus = hidden && this.hasFocus(Parts.CHAT_PART);
+			hadFocus = hidden && this.hasFocus(Parts.CHAT_PART);
 			// The grid keeps the width the chat part had, which includes the editor area's where it filled it: it shows again at its own
 			let shownWidth: number | undefined;
 			if (!hidden) {
@@ -3003,14 +3053,16 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 			// The sashes beside it move: where they meet the others changes too
 			this.updateSashEndpoints();
-			if (hadFocus) {
-				this.focusPanelOrEditor();
-			}
 		}
 
 		// Closing the chat part gives the editor area its width back, also when it was hidden, or hidden with the chat part by a maximized secondary side bar
 		if (hidden && !this.isVisible(Parts.EDITOR_PART) && (this.isEditorHiddenByChat() || (!this.isVisible(Parts.PANEL_PART) && !this.isAuxiliaryBarMaximized()))) {
 			this.setEditorHidden(false);
+		}
+
+		// Only once the editor area shows again: while it is hidden, the focus would go to the panel's view, which may open the panel
+		if (hadFocus) {
+			this.focusPanelOrEditor();
 		}
 	}
 
@@ -3169,7 +3221,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	 */
 	private ensureChatPartFits(width?: number): void {
 		const grid = this.workbenchGrid;
-		if (!this.chatPartView || this.chatPartHidden || !grid) {
+		// A chat part that fills the place of an editor area hidden for it, such as one that hides as the chat part shows, takes its room from no one else
+		if (!this.chatPartView || this.chatPartHidden || !grid || this.isEditorHiddenByChat()) {
 			return;
 		}
 		const columnWidth = () => this.getChatPartColumnWidth();
