@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { agentsModeEnabledConfiguration } from '../browser/agents/agentsModeWorkspaceService.js';
+import { AgentsModeWorkspaceService } from '../browser/agents/agentsModeWorkspaceService.js';
 
-Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration(agentsModeEnabledConfiguration);
+AgentsModeWorkspaceService.registerEnabledConfiguration(Registry.as<IConfigurationRegistry>(Extensions.Configuration), product.quality);

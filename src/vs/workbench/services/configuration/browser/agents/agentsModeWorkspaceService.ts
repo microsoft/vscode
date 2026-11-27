@@ -11,14 +11,13 @@ import { equals } from '../../../../../base/common/objects.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationUpdateOptions, IConfigurationUpdateOverrides, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
-import { ConfigurationScope, IConfigurationNode } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { ConfigurationScope, IConfigurationNode, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { localize } from '../../../../../nls.js';
 import { Configuration as BaseConfiguration, ConfigurationChangeEvent } from '../../../../../platform/configuration/common/configurationModels.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IPolicyService } from '../../../../../platform/policy/common/policy.js';
-import product from '../../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IAnyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspace, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, IWorkspaceIdentifier, WorkbenchMode, WorkbenchState, Workspace } from '../../../../../platform/workspace/common/workspace.js';
@@ -40,9 +39,9 @@ import { AgentsWorkspaceContextService } from './agentsWorkspaceContextService.j
 export const AGENTS_MODE_ENABLED_SETTING = 'chat.agentsMode.enabled';
 
 /**
- * Declares {@link AGENTS_MODE_ENABLED_SETTING}. Only desktop editor windows
- * register it, before they read it at startup, since only they support the mode,
- * and only in builds that offer it.
+ * Declares {@link AGENTS_MODE_ENABLED_SETTING}. Registered only by desktop editor
+ * windows, through {@link AgentsModeWorkspaceService.registerEnabledConfiguration},
+ * before they read it at startup, and never in Stable.
  */
 export const agentsModeEnabledConfiguration: IConfigurationNode = {
 	id: 'chat',
@@ -53,8 +52,6 @@ export const agentsModeEnabledConfiguration: IConfigurationNode = {
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
-			// Not in Stable, where Agents mode is not offered: see AgentsModeWorkspaceService.isAvailableInQuality
-			included: product.quality !== 'stable',
 			description: localize('agentsMode.enabled', "Enable toggling Agents mode in a local editor window. A window with a folder or workspace gets its folders back when it leaves the mode. Turning it on takes effect in a window after it is reloaded."),
 		}
 	}
@@ -103,6 +100,17 @@ export class AgentsModeWorkspaceService extends Disposable implements IEditableW
 	 */
 	static isAvailableInQuality(quality: string | undefined): boolean {
 		return quality !== 'stable';
+	}
+
+	/**
+	 * Registers {@link AGENTS_MODE_ENABLED_SETTING} in builds of the given quality that
+	 * offer Agents mode. In Stable it is not registered, so it is neither shown in the
+	 * Settings editor nor suggested in settings.json.
+	 */
+	static registerEnabledConfiguration(registry: IConfigurationRegistry, quality: string | undefined): void {
+		if (AgentsModeWorkspaceService.isAvailableInQuality(quality)) {
+			registry.registerConfiguration(agentsModeEnabledConfiguration);
+		}
 	}
 
 	/**

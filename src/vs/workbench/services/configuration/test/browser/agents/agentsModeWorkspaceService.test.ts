@@ -18,7 +18,6 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { NullPolicyService } from '../../../../../../platform/policy/common/policy.js';
-import product from '../../../../../../platform/product/common/product.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { UriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentityService.js';
 import { FileUserDataProvider } from '../../../../../../platform/userData/common/fileUserDataProvider.js';
@@ -430,15 +429,14 @@ suite('AgentsModeWorkspaceService', () => {
 		});
 	});
 
-	test('the setting is registered only in builds that offer Agents mode, by the same rule that supports the mode', () => {
-		const property = agentsModeEnabledConfiguration.properties![AGENTS_MODE_ENABLED_SETTING];
-		assert.deepStrictEqual({
-			included: property.included,
-			registered: !!configurationRegistry.getConfigurationProperties()[AGENTS_MODE_ENABLED_SETTING],
-		}, {
-			included: AgentsModeWorkspaceService.isAvailableInQuality(product.quality),
-			registered: AgentsModeWorkspaceService.isAvailableInQuality(product.quality),
-		});
+	test('the setting is not registered in Stable, and is registered in Insiders and dev builds', () => {
+		const registered = (quality: string | undefined) => {
+			configurationRegistry.deregisterConfigurations([agentsModeEnabledConfiguration]);
+			AgentsModeWorkspaceService.registerEnabledConfiguration(configurationRegistry, quality);
+			return configurationRegistry.getConfigurationProperties()[AGENTS_MODE_ENABLED_SETTING] !== undefined;
+		};
+
+		assert.deepStrictEqual({ stable: registered('stable'), insider: registered('insider'), dev: registered(undefined) }, { stable: false, insider: true, dev: true });
 	});
 
 	test('a window in a non-default profile reads the Agents mode setting from the default profile', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
