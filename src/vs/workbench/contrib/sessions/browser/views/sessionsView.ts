@@ -115,7 +115,7 @@ export interface ISessionsViewGroupingStorageKeys {
 
 const SEPARATE_GROUPS_AND_WORKSPACES_STORAGE_KEY = 'sessionsViewPane.separateGroupsAndWorkspaces';
 /** Whether Group by Workspace separates groups and workspaces for a user who has not chosen. */
-const DEFAULT_SEPARATE_GROUPS_AND_WORKSPACES = true;
+const DEFAULT_SEPARATE_GROUPS_AND_WORKSPACES = false;
 /** The grouping that listed custom groups and workspaces under headers of their own, which Group by Workspace now does as an option. */
 export const LEGACY_WORKSPACES_AND_GROUPS_GROUPING = 'workspacesAndGroups';
 /** The phone sheet's row that turns {@link SEPARATE_GROUPS_AND_WORKSPACES_LABEL} on or off. */

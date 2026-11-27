@@ -469,8 +469,8 @@ suite('Sessions - SessionsViewPane', () => {
 			reopened: { shown: SessionsGrouping.Workspace, stored: SessionsGrouping.Workspace, nonInbox: undefined, separate: true },
 			explicitOff: { shown: SessionsGrouping.Workspace, stored: SessionsGrouping.Workspace, nonInbox: undefined, separate: false },
 			offWithoutGrouping: { shown: SessionsGrouping.Workspace, stored: undefined, nonInbox: undefined, separate: false },
-			unset: { shown: SessionsGrouping.Workspace, stored: SessionsGrouping.Workspace, nonInbox: undefined, separate: true },
-			invalid: { shown: SessionsGrouping.Workspace, stored: SessionsGrouping.Workspace, nonInbox: undefined, separate: true },
+			unset: { shown: SessionsGrouping.Workspace, stored: SessionsGrouping.Workspace, nonInbox: undefined, separate: false },
+			invalid: { shown: SessionsGrouping.Workspace, stored: SessionsGrouping.Workspace, nonInbox: undefined, separate: false },
 		});
 	});
 
@@ -500,13 +500,13 @@ suite('Sessions - SessionsViewPane', () => {
 		const [a, b] = [createView(), createView()];
 		const state = () => [a, b].map(view => ({ checked: view.separateGroupsAndWorkspacesContextKey.get(), updates: view.updates }));
 		a.toggleSeparateGroupsAndWorkspaces();
-		const offInA = state();
+		const onInA = state();
 		b.toggleSeparateGroupsAndWorkspaces();
 
-		assert.deepStrictEqual({ offInA, onInB: state(), stored: a.groupingState.separateGroupsAndWorkspaces }, {
-			offInA: [{ checked: false, updates: 1 }, { checked: false, updates: 1 }],
-			onInB: [{ checked: true, updates: 2 }, { checked: true, updates: 2 }],
-			stored: true,
+		assert.deepStrictEqual({ onInA, offInB: state(), stored: a.groupingState.separateGroupsAndWorkspaces }, {
+			onInA: [{ checked: true, updates: 1 }, { checked: true, updates: 1 }],
+			offInB: [{ checked: false, updates: 2 }, { checked: false, updates: 2 }],
+			stored: false,
 		});
 	});
 

@@ -697,6 +697,7 @@ suite('Sessions - View Menu', () => {
 		grouping.set(SessionsGrouping.Workspace);
 		const workspacesOff = offered();
 		workspacesEnabled.set(true);
+		separate.set(true);
 		const on = offered();
 		separate.set(false);
 		const off = offered();
