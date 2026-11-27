@@ -207,6 +207,7 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 		}
 
 		let restoreAgentsMode: (() => Promise<void>) | undefined;
+		let entered = false;
 		try {
 			// The window serves the empty workspace again before it enters the new one
 			restoreAgentsMode = await this.leaveAgentsMode();
@@ -215,6 +216,7 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 			const enterWorkspace = async () => {
 				const result = await this.doEnterWorkspace(workspaceUri);
 				if (result) {
+					entered = true;
 
 					// Migrate storage to new workspace
 					await this.storageService.switch(result.workspace, true /* preserve data */);
@@ -238,7 +240,10 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 				await restoreAgentsMode(); // the window stays in its workspace
 			}
 		} catch (error) {
-			await restoreAgentsMode?.();
+			// Once the main process entered the new workspace, the window must not go back into the mode of the old one
+			if (!entered) {
+				await restoreAgentsMode?.();
+			}
 			try {
 				await this.extensionService.startExtensionHosts();
 			} catch (restartError) {
