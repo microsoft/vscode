@@ -15,9 +15,9 @@ import { IWorkspaceEditingService } from '../../../workspaces/common/workspaceEd
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 
 import { localize } from '../../../../../nls.js';
-import { IEditableWorkspaceContextService } from '../../common/configuration.js';
+import { IWorkbenchWorkspaceContextService } from '../../../workspaces/common/workbenchWorkspaceContextService.js';
 
-export class AgentsWorkspaceContextService extends Disposable implements IEditableWorkspaceContextService, IWorkspaceEditingService {
+export class AgentsWorkspaceContextService extends Disposable implements IWorkbenchWorkspaceContextService, IWorkspaceEditingService {
 
 	declare readonly _serviceBrand: undefined;
 

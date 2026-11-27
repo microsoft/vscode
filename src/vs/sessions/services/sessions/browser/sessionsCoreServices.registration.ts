@@ -28,7 +28,6 @@ import { ISessionDraftsService, SessionDraftsService } from '../../../../workben
 import { IScheduledChatsService, ScheduledChatsService } from '../../../../workbench/contrib/sessions/browser/scheduledChatsService.js';
 import { ISideChatPlacementService, SideChatPlacementService } from '../../../../workbench/contrib/sessions/browser/sideChatPlacement.js';
 import { IWorkspaceFolderRepositories, WorkspaceFolderRepositories } from '../../../../workbench/contrib/sessions/browser/workspaceFolderRepositories.js';
-import { ISessionsWorkbenchScopeService, SessionsWorkbenchScopeService } from '../../../../workbench/contrib/sessions/browser/views/sessionsWorkbenchScope.js';
 
 // The session services are implemented in modules that do not register themselves, so that a window loads them only
 // when its entry point imports this module.
@@ -51,5 +50,4 @@ registerSingleton(ISessionComparisonService, SessionComparisonService, Instantia
 registerSingleton(ISessionsManagementService, SessionsManagementService, InstantiationType.Eager);
 registerSingleton(ISessionDraftsService, SessionDraftsService, InstantiationType.Delayed);
 registerSingleton(IWorkspaceFolderRepositories, WorkspaceFolderRepositories, InstantiationType.Delayed);
-registerSingleton(ISessionsWorkbenchScopeService, SessionsWorkbenchScopeService, InstantiationType.Delayed);
 registerSingleton(IScheduledChatsService, ScheduledChatsService, InstantiationType.Delayed);

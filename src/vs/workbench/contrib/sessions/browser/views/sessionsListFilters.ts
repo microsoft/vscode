@@ -58,10 +58,6 @@ export function getInboxWorkspaceFilter(session: ISession, reader?: IReader): II
 	};
 }
 
-function compareInboxWorkspaces(a: IInboxWorkspaceFilter, b: IInboxWorkspaceFilter): number {
-	return a.label.localeCompare(b.label) || a.resource.localeCompare(b.resource) || a.environment.localeCompare(b.environment);
-}
-
 export function getInboxWorkspaceOptions(sessions: readonly ISession[], extUri: IExtUri, environment?: string, reader?: IReader): IInboxWorkspaceFilter[] {
 	const options = new Map<string, IInboxWorkspaceFilter>();
 	for (const session of sessions) {
@@ -70,7 +66,7 @@ export function getInboxWorkspaceOptions(sessions: readonly ISession[], extUri: 
 			options.set(JSON.stringify([workspace.environment, extUri.getComparisonKey(URI.parse(workspace.resource))]), workspace);
 		}
 	}
-	return [...options.values()].sort(compareInboxWorkspaces);
+	return [...options.values()].sort((a, b) => a.label.localeCompare(b.label) || a.resource.localeCompare(b.resource) || a.environment.localeCompare(b.environment));
 }
 
 function isInboxScope(value: unknown): value is IInboxScope {

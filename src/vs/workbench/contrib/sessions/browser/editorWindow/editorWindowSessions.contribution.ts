@@ -29,7 +29,6 @@ import { SessionsManagementService } from '../sessionsManagementService.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { EditorWindowSessionsProvidersService } from './editorWindowSessionsProvidersService.js';
 import { IWorkspaceFolderRepositories, WorkspaceFolderRepositories } from '../workspaceFolderRepositories.js';
-import { ISessionsWorkbenchScopeService, SessionsWorkbenchScopeService } from '../views/sessionsWorkbenchScope.js';
 import { ISessionsRecentWorkspacesService, SessionsRecentWorkspacesService } from '../sessionsRecentWorkspacesService.js';
 import { IAgentHostFilterService } from '../../common/agentHostFilter.js';
 import { ISessionComparisonService } from '../../common/sessionComparison.js';
@@ -89,7 +88,6 @@ registerWorkbenchContribution2(EditorWindowWorktreeCleanup.ID, EditorWindowWorkt
 registerEditorWindowSessionsSingleton(ISessionsHostLayoutService, EditorWindowSessionsHostLayout, InstantiationType.Delayed);
 registerEditorWindowSessionsSingleton(ISessionsProvidersService, EditorWindowSessionsProvidersService, InstantiationType.Delayed);
 registerEditorWindowSessionsSingleton(IWorkspaceFolderRepositories, WorkspaceFolderRepositories, InstantiationType.Delayed);
-registerEditorWindowSessionsSingleton(ISessionsWorkbenchScopeService, SessionsWorkbenchScopeService, InstantiationType.Delayed);
 registerEditorWindowSessionsSingleton(ISessionsManagementService, SessionsManagementService, InstantiationType.Delayed);
 registerEditorWindowSessionsSingleton(IChatHostOpenerService, ChatHostOpenerService, InstantiationType.Delayed);
 registerEditorWindowSessionsSingleton(ISessionChangesStatsCache, SessionChangesStatsCache, InstantiationType.Delayed);

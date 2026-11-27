@@ -10,7 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionGitRepository, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
-import { getWorkingDirectoriesInScope, SessionsListingScopeFilter } from '../../browser/sessionScope.js';
+import { SessionScopeMatcher, SessionsListingScopeFilter } from '../../browser/sessionScope.js';
 import { ISessionChangeEvent } from '../../common/sessionsProvider.js';
 import { buildTestSession, buildTestWorkspace } from '../common/testSessionBuilder.js';
 import { buildAgentHostChatWorkspace, buildAgentHostSessionWorkspace } from '../../common/agentHostSessionWorkspace.js';
@@ -310,6 +310,6 @@ suite('SessionsListingScopeFilter', () => {
 			sessionOf('mainChatWithoutFolder', ['/work/aph.worktrees/notes', '/work/vscode.worktrees/fix'], []),
 		];
 
-		assert.deepStrictEqual(getWorkingDirectoriesInScope(sessions, [URI.file('/work/vscode')], undefined, []).map(uri => uri.path), ['/work/vscode.worktrees/sync', '/work/vscode.worktrees/fix']);
+		assert.deepStrictEqual(new SessionScopeMatcher([URI.file('/work/vscode')], []).getWorkingDirectoriesInScope(sessions, undefined).map(uri => uri.path), ['/work/vscode.worktrees/sync', '/work/vscode.worktrees/fix']);
 	});
 });

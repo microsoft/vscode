@@ -46,7 +46,7 @@ suite('EditorWindowSessionsProvidersService', () => {
 		return store.add(instantiationService.createInstance(EditorWindowSessionsProvidersService));
 	}
 
-	test('providers list every session only while the new editor list and its workspaces filter are both on', () => {
+	test('providers list every session while the new editor list is on, whatever its workspaces filter', () => {
 		const configurationService = new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsListEnabled]: true });
 		const service = createService(configurationService);
 		let scope: ISessionsListingScope | undefined;
@@ -60,11 +60,11 @@ suite('EditorWindowSessionsProvidersService', () => {
 		};
 		const filterOff = folders();
 		set(SESSIONS_LIST_WORKSPACES_FILTER_SETTING, true);
-		const bothOn = folders();
+		const filterOn = folders();
 		set(ChatConfiguration.ChatViewSessionsListEnabled, false);
 		const legacyList = folders();
-		assert.deepStrictEqual({ filterOff, bothOn, legacyList }, {
-			filterOff: ['vscode-remote://host/work/repo'], bothOn: [], legacyList: ['vscode-remote://host/work/repo'],
+		assert.deepStrictEqual({ filterOff, filterOn, legacyList }, {
+			filterOff: [], filterOn: [], legacyList: ['vscode-remote://host/work/repo'],
 		});
 	});
 

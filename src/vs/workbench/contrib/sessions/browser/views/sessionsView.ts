@@ -43,8 +43,8 @@ import { ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionComparisonService } from '../../common/sessionComparison.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { IWorkspaceFolderRepositories } from '../workspaceFolderRepositories.js';
-import { getSessionsInScope, getWorkingDirectoriesInScope } from '../sessionScope.js';
-import { ISessionsWorkbenchScopeService } from './sessionsWorkbenchScope.js';
+import { SessionScopeMatcher } from '../sessionScope.js';
+import { SessionsWindowScopeController } from './sessionsWindowScopeController.js';
 import { getSessionFilterActionId, getSessionFilterEnvironments, getSessionFilterOptions, ISessionFilterOption, listsQuickChatsIn, sessionFilterKey, SessionsWorktreeOpener } from './sessionsListFilters.js';
 import { AICustomizationShortcutsWidget } from '../aiCustomizationShortcutsWidget.js';
 import { AgentHostShortcutsWidget } from '../agentHostShortcutsWidget.js';
@@ -338,6 +338,7 @@ export class SessionsView extends ViewPane {
 	private readonly groupings: ISessionsViewOptions['groupings'];
 	private readonly quickChatsInTimeGrouping: boolean;
 	private readonly scoped: IObservable<boolean> | undefined;
+	private readonly windowScope: SessionsWindowScopeController;
 
 	constructor(
 		options: ISessionsViewOptions,
@@ -369,13 +370,13 @@ export class SessionsView extends ViewPane {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ISessionsListUndoService private readonly undoService: ISessionsListUndoService,
-		@ISessionsWorkbenchScopeService private readonly workbenchScopeService: ISessionsWorkbenchScopeService,
 		@IWorkspaceFolderRepositories private readonly workspaceFolderRepositories: IWorkspaceFolderRepositories,
 	) {
 		super(options.headerInTitle ? { ...options, titleMenuId: Menus.SidebarSessionsHeader } : options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this.headerInTitle = !!options.headerInTitle;
 		this.hideCustomizations = options.showCustomizations === false;
 		this.scoped = options.scoped;
+		this.windowScope = this._register(instantiationService.createInstance(SessionsWindowScopeController));
 		this._mainWindowHost = getMainWindowHost(sessionHostService);
 		this.separateNavigation = observableConfigValue(SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, false, configurationService);
 		this.customizationsAtBottom = observableConfigValue(SESSIONS_SIDEBAR_CUSTOMIZATIONS_AT_BOTTOM_SETTING, false, configurationService);
@@ -446,7 +447,7 @@ export class SessionsView extends ViewPane {
 	}
 
 	private createControls(parent: HTMLElement): void {
-		const barEnabled = this.workbenchScopeService.barShown;
+		const barEnabled = this.windowScope.barShown;
 		const inventoryChanged = observableSignalFromEvent(this, this.sessionsManagementService.onDidChangeSessions);
 		const repositories = this.workspaceFolderRepositories;
 		const sessionScope = derived(this, reader => {
@@ -455,7 +456,8 @@ export class SessionsView extends ViewPane {
 			}
 			inventoryChanged.read(reader);
 			const sessions = this.sessionsManagementService.getSessions();
-			return new Set([...getSessionsInScope(sessions, repositories.folders.read(reader), reader, repositories.gitHubRepositories.read(reader), this.uriIdentityService.extUri)].map(session => session.sessionId));
+			const matcher = new SessionScopeMatcher(repositories.folders.read(reader), repositories.gitHubRepositories.read(reader), this.uriIdentityService.extUri);
+			return new Set([...matcher.getSessionsInScope(sessions, reader)].map(session => session.sessionId));
 		});
 		const pendingSessionScope = derived(this, reader => {
 			const scope = sessionScope.read(reader);
@@ -466,7 +468,8 @@ export class SessionsView extends ViewPane {
 			const scopeFolders = repositories.folders.read(reader);
 			const folders = new ResourceSet(scopeFolders, uri => extUri.getComparisonKey(uri));
 			const sessionsInScope = this.sessionsManagementService.getSessions().filter(session => scope.has(session.sessionId));
-			for (const workingDirectory of getWorkingDirectoriesInScope(sessionsInScope, scopeFolders, reader, repositories.gitHubRepositories.read(reader), extUri)) {
+			const matcher = new SessionScopeMatcher(scopeFolders, repositories.gitHubRepositories.read(reader), extUri);
+			for (const workingDirectory of matcher.getWorkingDirectoriesInScope(sessionsInScope, reader)) {
 				folders.add(workingDirectory);
 			}
 			return (item: IPendingSessionItem) => {
@@ -606,15 +609,11 @@ export class SessionsView extends ViewPane {
 			derived(reader => scopeEnvironments.read(reader).environments),
 			derived(reader => scopeEnvironments.read(reader).localEnvironmentIds),
 			derived(reader => { scopeChanged.read(reader); return this.grouping === SessionsGrouping.Inbox; })));
-		this._register(autorun(reader => {
-			if (barEnabled.read(reader)) {
-				reader.store.add(this.workbenchScopeService.registerScopeBar(sessionsControl.filters));
-			}
-		}));
+		this.windowScope.setScopeBarFilters(sessionsControl.filters);
 		this._register(autorun(reader => {
 			scopeChanged.read(reader);
 			const hidden = this.chatEntitlementService.sentimentObs.read(reader).hidden;
-			inboxScope.setVisible(barEnabled.read(reader) || (this.grouping === SessionsGrouping.Inbox && this.workbenchScopeService.windowShowsBar.read(reader) && !hidden && this.scopedContextKeyService.contextMatchesRules(ChatContextKeys.enabled)));
+			inboxScope.setVisible(barEnabled.read(reader) || (this.grouping === SessionsGrouping.Inbox && this.windowScope.isScopeBarWindow.read(reader) && !hidden && this.scopedContextKeyService.contextMatchesRules(ChatContextKeys.enabled)));
 		}));
 		let scopeHeight = -1;
 		const scopeResizeObserver = this._register(new DOM.DisposableResizeObserver('SessionsView.inboxScope', entries => {
@@ -1031,7 +1030,7 @@ export class SessionsView extends ViewPane {
 					environmentLabels.set(environment.id, environment.label);
 				}
 			}
-			const scopedByBar = this.grouping === SessionsGrouping.Inbox || this.workbenchScopeService.barShown.read(reader);
+			const scopedByBar = this.grouping === SessionsGrouping.Inbox || this.windowScope.barShown.read(reader);
 			const isEnvironmentIncluded = (id: string) => scopedByBar
 				? !sessionsControl.filters.inboxScope.environment || sessionsControl.filters.inboxScope.environment.id === id
 				: !sessionsControl.filters.isExcluded({ kind: 'environment', id });
@@ -1049,7 +1048,7 @@ export class SessionsView extends ViewPane {
 		});
 		this._register(autorun(reader => {
 			const { options, emptySourcesTitle } = menuState.read(reader);
-			if (!this.workbenchScopeService.barShown.read(reader)) {
+			if (!this.windowScope.barShown.read(reader)) {
 				reader.store.add(MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
 					submenu: Menus.SessionsViewEnvironment,
 					title: localize('environment', "Environment"),
