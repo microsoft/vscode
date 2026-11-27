@@ -26,6 +26,14 @@ export class MinimapCharRenderer {
 		return result;
 	}
 
+	/**
+	 * The coverage {@link renderChar} reads: `Constants.CHAR_COUNT` characters,
+	 * each `scale` pixels wide and `2 * scale` tall, row-major.
+	 */
+	public getCharData(useLighterFont: boolean): Uint8ClampedArray {
+		return useLighterFont ? this.charDataLight : this.charDataNormal;
+	}
+
 	public renderChar(
 		target: ImageData,
 		dx: number,

@@ -40,6 +40,7 @@ import { LRUCache } from '../../../../base/common/map.js';
 import { DEFAULT_FONT_FAMILY } from '../../../../base/browser/fonts.js';
 import { ViewModelDecoration } from '../../../common/viewModel/viewModelDecoration.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
+import type { Event } from '../../../../base/common/event.js';
 
 /**
  * The orthogonal distance to the slider at which dragging "resets". This implements "snapping"
@@ -47,6 +48,71 @@ import { RunOnceScheduler } from '../../../../base/common/async.js';
 const POINTER_DRAG_RESET_DISTANCE = 140;
 
 const GUTTER_DECORATION_WIDTH = 2;
+
+/** A decoration's minimap paint, in view coordinates. */
+export interface IMinimapPainterDecoration {
+	readonly range: Range;
+	readonly color: Color;
+	readonly position: MinimapPosition;
+	readonly zIndex: number;
+}
+
+/** One minimap frame for an {@link IMinimapPainter}. Lengths are canvas pixels. */
+export interface IMinimapPainterFrame {
+	/**
+	 * Canvas backing-store size. The canvas is taller than the minimap when it
+	 * paints lines beyond the visible ones; see {@link IMinimapPainter.canOverscan}.
+	 */
+	readonly width: number;
+	readonly height: number;
+	readonly lineHeight: number;
+	readonly charWidth: number;
+	readonly fontScale: number;
+	readonly renderCharacters: boolean;
+	readonly charRenderer: MinimapCharRenderer;
+	readonly useLighterFont: boolean;
+	readonly background: RGBA8;
+	/** Integer in [0-255]. */
+	readonly foregroundAlpha: number;
+	readonly defaultForeground: RGBA8;
+	readonly selectionColor: Color | undefined;
+	readonly tabSize: number;
+	/** One-based first and last painted minimap lines. */
+	readonly startLineNumber: number;
+	readonly endLineNumber: number;
+	readonly topPaddingLineCount: number;
+	/** For a sampled minimap, the one-based view line each minimap line shows. */
+	readonly sampling: { readonly ratio: number; readonly lines: readonly number[] } | undefined;
+	/** Decorations on the painted lines when they may have changed, else `undefined`. */
+	readonly decorations: readonly IMinimapPainterDecoration[] | undefined;
+	/** Whether anything besides the decorations may have changed since the last frame. */
+	readonly invalidated: boolean;
+}
+
+/**
+ * Paints the minimap's characters, selections and decorations into a canvas the
+ * minimap mounts in place of its 2D character canvas (`editorView` GPU
+ * acceleration). The minimap keeps its layout, slider, input and section
+ * headers.
+ */
+export interface IMinimapPainter {
+	/** Fires when {@link canPaint} may have changed. */
+	readonly onDidChangeCanPaint: Event<void>;
+	readonly canPaint: boolean;
+	/**
+	 * Whether the minimap may paint a quarter of its rows beyond the visible
+	 * ones, above and below them, and scroll within them by moving the canvas
+	 * instead of painting it, at device pixel ratio `pixelRatio`.
+	 */
+	canOverscan(pixelRatio: number): boolean;
+	/**
+	 * Paint `frame` into `canvas`. Returns `false` when it cannot this frame;
+	 * the minimap then paints with its 2D canvases.
+	 */
+	paint(canvas: HTMLCanvasElement, frame: IMinimapPainterFrame): boolean;
+	/** Stop painting into `canvas`. */
+	release(canvas: HTMLCanvasElement): void;
+}
 
 class MinimapOptions {
 
@@ -521,30 +587,44 @@ class RenderData {
 	 * last rendered layout.
 	 */
 	public readonly renderedLayout: MinimapLayout;
-	private readonly _imageData: ImageData;
+	/** `null` when an {@link IMinimapPainter} painted the lines. */
+	private readonly _imageData: ImageData | null;
 	private readonly _renderedLines: RenderedLinesCollection<MinimapLine>;
 
 	constructor(
 		renderedLayout: MinimapLayout,
-		imageData: ImageData,
-		lines: MinimapLine[]
+		imageData: ImageData | null,
+		lines: MinimapLine[],
+		/** The line `lines` start at, before the layout's when a painter painted lines beyond it. */
+		linesStartLineNumber: number = renderedLayout.startLineNumber
 	) {
 		this.renderedLayout = renderedLayout;
 		this._imageData = imageData;
 		this._renderedLines = new RenderedLinesCollection({
 			createLine: () => MinimapLine.INVALID
 		});
-		this._renderedLines._set(renderedLayout.startLineNumber, lines);
+		this._renderedLines._set(linesStartLineNumber, lines);
 	}
 
 	/**
 	 * Check if the current RenderData matches accurately the new desired layout and no painting is needed.
 	 */
 	public linesEquals(layout: MinimapLayout): boolean {
-		if (!this.scrollEquals(layout)) {
-			return false;
-		}
+		return this.scrollEquals(layout) && this._linesValid();
+	}
 
+	/**
+	 * Whether the lines from `startLineNumber` to `endLineNumber` are the lines
+	 * rendered last, none of which changed since.
+	 */
+	public paintedLinesEquals(startLineNumber: number, endLineNumber: number): boolean {
+		const { rendLineNumberStart, lines } = this._renderedLines._get();
+		return rendLineNumberStart === startLineNumber
+			&& rendLineNumberStart + lines.length - 1 === endLineNumber
+			&& this._linesValid();
+	}
+
+	private _linesValid(): boolean {
 		const tmp = this._renderedLines._get();
 		const lines = tmp.lines;
 		for (let i = 0, len = lines.length; i < len; i++) {
@@ -565,7 +645,7 @@ class RenderData {
 			&& this.renderedLayout.endLineNumber === layout.endLineNumber;
 	}
 
-	_get(): { imageData: ImageData; rendLineNumberStart: number; lines: MinimapLine[] } {
+	_get(): { imageData: ImageData | null; rendLineNumberStart: number; lines: MinimapLine[] } {
 		const tmp = this._renderedLines._get();
 		return {
 			imageData: this._imageData,
@@ -653,6 +733,10 @@ export interface IMinimapModel {
 	getMinimapLinesRenderingData(startLineNumber: number, endLineNumber: number, needed: boolean[]): (ViewLineData | null)[];
 	getSelections(): Selection[];
 	getMinimapDecorationsInViewport(startLineNumber: number, endLineNumber: number): ViewModelDecoration[];
+	/** Like {@link getMinimapDecorationsInViewport}, in view rather than minimap coordinates. */
+	getMinimapViewDecorationsInViewport(startLineNumber: number, endLineNumber: number): ViewModelDecoration[];
+	/** For a sampled minimap, view lines per minimap line and the one-based view line each shows. */
+	getSampling(): { readonly ratio: number; readonly lines: readonly number[] } | undefined;
 	getSectionHeaderDecorationsInViewport(startLineNumber: number, endLineNumber: number): ViewModelDecoration[];
 	getSectionHeaderText(decoration: ViewModelDecoration, fitWidth: (s: string) => string): string | null;
 	getOptions(): TextModelResolvedOptions;
@@ -927,7 +1011,7 @@ export class Minimap extends ViewPart implements IMinimapModel {
 
 	private _actual: InnerMinimap;
 
-	constructor(context: ViewContext) {
+	constructor(context: ViewContext, painter?: IMinimapPainter) {
 		super(context);
 
 		this.tokensColorTracker = MinimapTokensColorTracker.getInstance();
@@ -940,7 +1024,13 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		this._samplingState = samplingState;
 		this._shouldCheckSampling = false;
 
-		this._actual = new InnerMinimap(context.theme, this);
+		this._actual = new InnerMinimap(context.theme, this, painter);
+		if (painter) {
+			this._register(painter.onDidChangeCanPaint(() => {
+				this._actual.onPainterChanged();
+				this.forceShouldRender();
+			}));
+		}
 	}
 
 	public override dispose(): void {
@@ -1183,6 +1273,17 @@ export class Minimap extends ViewPart implements IMinimapModel {
 			.filter(decoration => !decoration.options.minimap?.sectionHeaderStyle);
 	}
 
+	public getMinimapViewDecorationsInViewport(startLineNumber: number, endLineNumber: number): ViewModelDecoration[] {
+		return this._getViewDecorationsInViewport(startLineNumber, endLineNumber)
+			.filter(decoration => decoration.options.minimap && !decoration.options.minimap.sectionHeaderStyle);
+	}
+
+	public getSampling(): { readonly ratio: number; readonly lines: readonly number[] } | undefined {
+		return this._samplingState
+			? { ratio: this._samplingState.samplingRatio, lines: this._samplingState.minimapLines }
+			: undefined;
+	}
+
 	public getSectionHeaderDecorationsInViewport(startLineNumber: number, endLineNumber: number): ViewModelDecoration[] {
 		const headerHeightInMinimapLines = this.options.sectionHeaderFontSize / this.options.minimapLineHeight;
 		startLineNumber = Math.floor(Math.max(1, startLineNumber - headerHeightInMinimapLines));
@@ -1190,7 +1291,8 @@ export class Minimap extends ViewPart implements IMinimapModel {
 			.filter(decoration => !!decoration.options.minimap?.sectionHeaderStyle);
 	}
 
-	private _getMinimapDecorationsInViewport(startLineNumber: number, endLineNumber: number) {
+	/** Decorations with minimap paint on the given minimap lines, in view coordinates. */
+	private _getViewDecorationsInViewport(startLineNumber: number, endLineNumber: number): ViewModelDecoration[] {
 		let visibleRange: Range;
 		if (this._samplingState) {
 			const modelStartLineNumber = this._samplingState.minimapLines[startLineNumber - 1];
@@ -1199,7 +1301,11 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		} else {
 			visibleRange = new Range(startLineNumber, 1, endLineNumber, this._context.viewModel.getLineMaxColumn(endLineNumber));
 		}
-		const decorations = this._context.viewModel.getMinimapDecorationsInRange(visibleRange);
+		return this._context.viewModel.getMinimapDecorationsInRange(visibleRange);
+	}
+
+	private _getMinimapDecorationsInViewport(startLineNumber: number, endLineNumber: number) {
+		const decorations = this._getViewDecorationsInViewport(startLineNumber, endLineNumber);
 
 		if (this._samplingState) {
 			const result: ViewModelDecoration[] = [];
@@ -1302,15 +1408,34 @@ class InnerMinimap extends Disposable {
 	private _isMouseOverMinimap: boolean = false;
 	private _hideDelayedScheduler: RunOnceScheduler;
 	private _hideSliderAfterScrollScheduler: RunOnceScheduler;
+	private readonly _painter: IMinimapPainter | undefined;
+	/** Where {@link _painter} paints, in the slot of `_canvas`. */
+	private readonly _painterCanvas: FastDomNode<HTMLCanvasElement> | null = null;
+	/** Clips {@link _painterCanvas}, which can be taller than the minimap, to the minimap's rows. */
+	private readonly _painterClip: FastDomNode<HTMLElement> | null = null;
+	/**
+	 * The rows {@link _painterCanvas} paints: from line `top`, below 1 for rows
+	 * of top padding, the minimap's rows and `margin` more above and below
+	 * them. `undefined` until it paints.
+	 */
+	private _painterPlacement: { top: number; margin: number } | undefined;
+	/** Whether {@link _painter} paints the characters and highlights. */
+	private _paintsWithPainter = false;
+	/** Whether the painter's picture may be stale apart from line content and decorations. */
+	private _painterInvalidated = true;
+	/** Whether decorations changed since the painter last got them. */
+	private _painterDecorationsChanged = true;
 
 	constructor(
 		theme: EditorTheme,
-		model: IMinimapModel
+		model: IMinimapModel,
+		painter?: IMinimapPainter
 	) {
 		super();
 
 		this._theme = theme;
 		this._model = model;
+		this._painter = painter;
 
 		this._lastRenderData = null;
 		this._buffers = null;
@@ -1331,6 +1456,21 @@ class InnerMinimap extends Disposable {
 		this._canvas.setPosition('absolute');
 		this._canvas.setLeft(0);
 		this._domNode.appendChild(this._canvas);
+
+		if (painter) {
+			this._painterClip = createFastDomNode(document.createElement('div'));
+			this._painterClip.setPosition('absolute');
+			this._painterClip.setLeft(0);
+			this._painterClip.setTop(0);
+			this._painterClip.domNode.style.overflow = 'hidden';
+			this._painterClip.setDisplay('none');
+			this._painterCanvas = createFastDomNode(document.createElement('canvas'));
+			this._painterCanvas.setPosition('absolute');
+			this._painterCanvas.setLeft(0);
+			this._painterCanvas.setTop(0);
+			this._painterClip.appendChild(this._painterCanvas);
+			this._domNode.appendChild(this._painterClip);
+		}
 
 		this._decorationsCanvas = createFastDomNode(document.createElement('canvas'));
 		this._decorationsCanvas.setPosition('absolute');
@@ -1551,6 +1691,12 @@ class InnerMinimap extends Disposable {
 		this._canvas.domNode.width = this._model.options.canvasInnerWidth;
 		this._canvas.domNode.height = this._model.options.canvasInnerHeight;
 
+		// The painter sizes its canvas's backing store, and the canvas's height
+		// with the rows it paints, when it paints.
+		this._painterClip?.setWidth(this._model.options.canvasOuterWidth);
+		this._painterCanvas?.setWidth(this._model.options.canvasOuterWidth);
+		this._painterInvalidated = true;
+
 		this._decorationsCanvas.setWidth(this._model.options.canvasOuterWidth);
 		this._decorationsCanvas.setHeight(this._model.options.canvasOuterHeight);
 		this._decorationsCanvas.domNode.width = this._model.options.canvasInnerWidth;
@@ -1582,12 +1728,20 @@ class InnerMinimap extends Disposable {
 		this._applyLayout();
 		this._domNode.setClassName(this._getMinimapDomNodeClassName());
 	}
+	public onPainterChanged(): void {
+		// Repaint everything with whichever paints next.
+		this._lastRenderData = null;
+		this._renderDecorations = true;
+		this._painterInvalidated = true;
+	}
 	public onSelectionChanged(): boolean {
 		this._renderDecorations = true;
+		this._painterInvalidated = true;
 		return true;
 	}
 	public onDecorationsChanged(): boolean {
 		this._renderDecorations = true;
+		this._painterDecorationsChanged = true;
 		return true;
 	}
 	public onFlushed(): boolean {
@@ -1602,10 +1756,12 @@ class InnerMinimap extends Disposable {
 	}
 	public onLinesDeleted(deleteFromLineNumber: number, deleteToLineNumber: number): boolean {
 		this._lastRenderData?.onLinesDeleted(deleteFromLineNumber, deleteToLineNumber);
+		this._painterInvalidated = true;
 		return true;
 	}
 	public onLinesInserted(insertFromLineNumber: number, insertToLineNumber: number): boolean {
 		this._lastRenderData?.onLinesInserted(insertFromLineNumber, insertToLineNumber);
+		this._painterInvalidated = true;
 		return true;
 	}
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
@@ -1623,6 +1779,7 @@ class InnerMinimap extends Disposable {
 	public onThemeChanged(): boolean {
 		this._selectionColor = this._theme.getColor(minimapSelection);
 		this._renderDecorations = true;
+		this._painterInvalidated = true;
 		return true;
 	}
 	public onTokensChanged(ranges: { fromLineNumber: number; toLineNumber: number }[]): boolean {
@@ -1681,41 +1838,203 @@ class InnerMinimap extends Disposable {
 		this._sliderHorizontal.setTop(0);
 		this._sliderHorizontal.setHeight(layout.sliderHeight);
 
+		if (this._renderWithPainter(layout)) {
+			return;
+		}
 		this.renderDecorations(layout);
 		this._lastRenderData = this.renderLines(layout);
+	}
+
+	/**
+	 * Paint the characters, selections and decorations with {@link _painter},
+	 * keeping section headers on the decorations canvas. Returns `false` when
+	 * the 2D canvases must paint this frame.
+	 */
+	private _renderWithPainter(layout: MinimapLayout): boolean {
+		const painter = this._painter;
+		const canvas = this._painterCanvas;
+		const options = this._model.options;
+		if (!painter?.canPaint || !canvas || options.canvasInnerWidth === 0 || options.canvasInnerHeight === 0) {
+			this._setPaintsWithPainter(false);
+			return false;
+		}
+		this._setPaintsWithPainter(true);
+
+		const sampling = this._model.getSampling();
+		const rows = Math.floor(options.canvasInnerHeight / options.minimapLineHeight);
+		// A minimap as tall as the editor shows all its lines, so it never scrolls.
+		const margin = !options.minimapHeightIsEditorHeight && painter.canOverscan(options.pixelRatio) ? Math.ceil(rows / 4) : 0;
+		const previous = this._painterPlacement;
+		const top = this._placePainterCanvas(layout, rows, margin);
+		const startLineNumber = Math.max(1, top);
+		const endLineNumber = margin > 0 ? Math.min(this._model.getLineCount(), top + rows + 2 * margin - 1) : layout.endLineNumber;
+		const topPaddingLineCount = startLineNumber - top;
+
+		const lastRenderData = this._lastRenderData;
+		const linesEqual = lastRenderData !== null
+			&& previous?.top === top && previous.margin === margin
+			&& lastRenderData.paintedLinesEquals(startLineNumber, endLineNumber);
+		const invalidated = this._painterInvalidated || !linesEqual;
+		const tokensColorTracker = this._model.tokensColorTracker;
+		const painted = painter.paint(canvas.domNode, {
+			width: options.canvasInnerWidth,
+			height: options.canvasInnerHeight + 2 * margin * options.minimapLineHeight,
+			lineHeight: options.minimapLineHeight,
+			charWidth: options.minimapCharWidth,
+			fontScale: options.fontScale,
+			renderCharacters: options.renderMinimap === RenderMinimap.Text,
+			charRenderer: options.charRenderer(),
+			useLighterFont: tokensColorTracker.backgroundIsLight(),
+			background: options.backgroundColor,
+			foregroundAlpha: options.foregroundAlpha,
+			defaultForeground: tokensColorTracker.getColor(ColorId.DefaultForeground),
+			selectionColor: this._selectionColor,
+			tabSize: this._model.getOptions().tabSize,
+			startLineNumber,
+			endLineNumber,
+			topPaddingLineCount,
+			sampling,
+			// The painter keeps the decorations of the lines it last painted.
+			decorations: this._painterDecorationsChanged || invalidated ? this._getPainterDecorations(startLineNumber, endLineNumber) : undefined,
+			invalidated,
+		});
+		if (!painted) {
+			this._setPaintsWithPainter(false);
+			return false;
+		}
+		this._painterInvalidated = false;
+		this._painterDecorationsChanged = false;
+		this.renderDecorations(layout);
+
+		let lines: MinimapLine[];
+		if (linesEqual) {
+			lines = lastRenderData._get().lines;
+		} else {
+			lines = [];
+			let dy = topPaddingLineCount * options.minimapLineHeight;
+			for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
+				lines.push(new MinimapLine(dy));
+				dy += options.minimapLineHeight;
+			}
+		}
+		this._lastRenderData = new RenderData(layout, null, lines, startLineNumber);
+		return true;
+	}
+
+	/**
+	 * Place {@link _painterCanvas} for `layout`, which shows `rows` rows, and
+	 * return the line its first row shows, below 1 for rows of top padding.
+	 * With a `margin`, the canvas paints that many rows more above and below
+	 * and keeps its place while the minimap's rows stay within them: frames
+	 * that only scroll then paint nothing, and moving the canvas shows the
+	 * margin. Once the minimap leaves them, the canvas leaves the whole margin
+	 * ahead of the scroll.
+	 */
+	private _placePainterCanvas(layout: MinimapLayout, rows: number, margin: number): number {
+		const options = this._model.options;
+		const visibleTop = layout.startLineNumber - layout.topPaddingLineCount;
+		const previous = this._painterPlacement;
+		let top: number;
+		if (previous && previous.margin === margin && visibleTop >= previous.top && visibleTop <= previous.top + 2 * margin) {
+			top = previous.top;
+		} else if (!previous || previous.margin !== margin) {
+			top = visibleTop - margin;
+		} else if (visibleTop > previous.top) {
+			top = visibleTop;
+		} else {
+			top = visibleTop - 2 * margin;
+		}
+		// Rows of padding above the first line are painted only while they show.
+		top = Math.max(top, Math.min(visibleTop, 1));
+		this._painterPlacement = { top, margin };
+
+		// Rows are whole device pixels, so the compositor moves the picture
+		// without resampling it.
+		const lineHeight = options.minimapLineHeight;
+		const pixelRatio = options.pixelRatio;
+		const canvas = this._painterCanvas!;
+		canvas.setHeight((options.canvasInnerHeight + 2 * margin * lineHeight) / pixelRatio);
+		const offset = (top - visibleTop) * lineHeight / pixelRatio;
+		canvas.domNode.style.transform = offset === 0 ? '' : `translate3d(0px, ${offset}px, 0px)`;
+		// Below its last whole row, the minimap shows no line but its background,
+		// so a margin's row must not show there: the clip ends at that row and
+		// its border paints the rest.
+		const clip = this._painterClip!;
+		const shown = margin > 0 ? rows * lineHeight : options.canvasInnerHeight;
+		const rest = options.canvasInnerHeight - shown;
+		const { r, g, b, a } = options.backgroundColor;
+		clip.setHeight(shown / pixelRatio);
+		clip.domNode.style.borderBottom = rest > 0 ? `${rest / pixelRatio}px solid rgba(${r}, ${g}, ${b}, ${a / 255})` : '';
+		return top;
+	}
+
+	private _setPaintsWithPainter(paints: boolean): void {
+		if (this._paintsWithPainter === paints) {
+			return;
+		}
+		this._paintsWithPainter = paints;
+		// Whichever paints now starts from scratch; the decorations canvas drops
+		// or regains the highlights.
+		this._lastRenderData = null;
+		this._lastDecorationsRows = null;
+		this._renderDecorations = true;
+		this._painterInvalidated = true;
+		this._canvas.setDisplay(paints ? 'none' : '');
+		this._painterClip?.setDisplay(paints ? '' : 'none');
+		if (paints) {
+			this._buffers = null;
+		} else if (this._painterCanvas) {
+			this._painter?.release(this._painterCanvas.domNode);
+		}
+	}
+
+	private _getPainterDecorations(startLineNumber: number, endLineNumber: number): IMinimapPainterDecoration[] {
+		const result: IMinimapPainterDecoration[] = [];
+		for (const decoration of this._model.getMinimapViewDecorationsInViewport(startLineNumber, endLineNumber)) {
+			const minimapOptions = <ModelDecorationMinimapOptions>decoration.options.minimap;
+			const color = minimapOptions.getColor(this._theme.value);
+			if (color && !color.isTransparent()) {
+				result.push({ range: decoration.range, color, position: minimapOptions.position, zIndex: decoration.options.zIndex || 0 });
+			}
+		}
+		return result;
 	}
 
 	private renderDecorations(layout: MinimapLayout) {
 		if (this._renderDecorations) {
 			this._renderDecorations = false;
-			const selections = this._model.getSelections();
-			selections.sort(Range.compareRangesUsingStarts);
-
-			const decorations = this._model.getMinimapDecorationsInViewport(layout.startLineNumber, layout.endLineNumber);
-			decorations.sort((a, b) => (a.options.zIndex || 0) - (b.options.zIndex || 0));
-
 			const { canvasInnerWidth, canvasInnerHeight } = this._model.options;
-			const minimapLineHeight = this._model.options.minimapLineHeight;
-			const minimapCharWidth = this._model.options.minimapCharWidth;
-			const tabSize = this._model.getOptions().tabSize;
 			if (canvasInnerWidth === 0 || canvasInnerHeight === 0) {
 				return;
 			}
 			const canvasContext = this._decorationsCanvas.domNode.getContext('2d')!;
 			const frame = new RecordedFrame(canvasInnerHeight);
 
-			// We first need to render line highlights and then render decorations on top of those.
-			// But we need to pick a single color for each line, and use that as a line highlight.
-			// This needs to be the color of the decoration with the highest `zIndex`, but priority
-			// is given to the selection.
+			// The painter paints selections and decorations with the characters.
+			if (!this._paintsWithPainter) {
+				const selections = this._model.getSelections();
+				selections.sort(Range.compareRangesUsingStarts);
 
-			const highlightedLines = new ContiguousLineMap<boolean>(layout.startLineNumber, layout.endLineNumber, false);
-			this._renderSelectionLineHighlights(frame, selections, highlightedLines, layout, minimapLineHeight, canvasInnerWidth);
-			this._renderDecorationsLineHighlights(frame, decorations, highlightedLines, layout, minimapLineHeight, canvasInnerWidth);
+				const decorations = this._model.getMinimapDecorationsInViewport(layout.startLineNumber, layout.endLineNumber);
+				decorations.sort((a, b) => (a.options.zIndex || 0) - (b.options.zIndex || 0));
 
-			const lineOffsetMap = new ContiguousLineMap<number[] | null>(layout.startLineNumber, layout.endLineNumber, null);
-			this._renderSelectionsHighlights(frame, selections, lineOffsetMap, layout, minimapLineHeight, tabSize, minimapCharWidth, canvasInnerWidth);
-			this._renderDecorationsHighlights(frame, decorations, lineOffsetMap, layout, minimapLineHeight, tabSize, minimapCharWidth, canvasInnerWidth);
+				const minimapLineHeight = this._model.options.minimapLineHeight;
+				const minimapCharWidth = this._model.options.minimapCharWidth;
+				const tabSize = this._model.getOptions().tabSize;
+
+				// We first need to render line highlights and then render decorations on top of those.
+				// But we need to pick a single color for each line, and use that as a line highlight.
+				// This needs to be the color of the decoration with the highest `zIndex`, but priority
+				// is given to the selection.
+
+				const highlightedLines = new ContiguousLineMap<boolean>(layout.startLineNumber, layout.endLineNumber, false);
+				this._renderSelectionLineHighlights(frame, selections, highlightedLines, layout, minimapLineHeight, canvasInnerWidth);
+				this._renderDecorationsLineHighlights(frame, decorations, highlightedLines, layout, minimapLineHeight, canvasInnerWidth);
+
+				const lineOffsetMap = new ContiguousLineMap<number[] | null>(layout.startLineNumber, layout.endLineNumber, null);
+				this._renderSelectionsHighlights(frame, selections, lineOffsetMap, layout, minimapLineHeight, tabSize, minimapCharWidth, canvasInnerWidth);
+				this._renderDecorationsHighlights(frame, decorations, lineOffsetMap, layout, minimapLineHeight, tabSize, minimapCharWidth, canvasInnerWidth);
+			}
 			this._renderSectionHeaders(frame, canvasContext, layout);
 
 			// Only redraw the rows that look different from the last frame
@@ -2256,14 +2575,14 @@ class InnerMinimap extends Disposable {
 	): [number, number, boolean[]] {
 
 		const needed: boolean[] = [];
-		if (!lastRenderData) {
+		const _lastData = lastRenderData?._get();
+		if (!_lastData?.imageData) {
 			for (let i = 0, len = endLineNumber - startLineNumber + 1; i < len; i++) {
 				needed[i] = true;
 			}
 			return [-1, -1, needed];
 		}
 
-		const _lastData = lastRenderData._get();
 		const lastTargetData = _lastData.imageData.data;
 		const lastStartLineNumber = _lastData.rendLineNumberStart;
 		const lastLines = _lastData.lines;
