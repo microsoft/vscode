@@ -14,7 +14,7 @@ import { dirname, getComparisonKey, isEqual, isEqualOrParent, joinPath } from '.
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -30,6 +30,8 @@ import { IMarketplacePlugin, IMarketplaceReference, IPluginSourceDescriptor, Mar
 import { IPluginSource } from '../common/plugins/pluginSource.js';
 import { IPluginGitService } from '../common/plugins/pluginGitService.js';
 import { GitHubPluginSource, GitUrlPluginSource, NpmPluginSource, PipPluginSource, RelativePathPluginSource } from './pluginSources.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IPathService } from '../../../services/path/common/pathService.js';
 
 const MARKETPLACE_INDEX_STORAGE_KEY = 'chat.plugins.marketplaces.index.v1';
 const MARKETPLACE_VARIANT_CACHE_SEGMENT = '.marketplace-repositories';
@@ -47,9 +49,8 @@ type IStoredMarketplaceIndex = Dto<Record<string, IMarketplaceIndexEntry>>;
 
 export class AgentPluginRepositoryService implements IAgentPluginRepositoryService {
 	declare readonly _serviceBrand: undefined;
-
-	readonly agentPluginsHome: URI;
-	private readonly _cacheRoot: URI;
+	agentPluginsHome: URI;
+	private _cacheRoot: URI;
 	private readonly _legacyCacheRoot: URI;
 	private readonly _marketplaceIndex = new Lazy<Map<string, IMarketplaceIndexEntry>>(() => this._loadMarketplaceIndex());
 	private readonly _pluginSources: ReadonlyMap<PluginSourceKind, IPluginSource>;
@@ -58,7 +59,7 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 
 	constructor(
 		@ICommandService private readonly _commandService: ICommandService,
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IFileService private readonly _fileService: IFileService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
@@ -67,6 +68,8 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 		@IProgressService private readonly _progressService: IProgressService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
+		@IProductService private readonly _productService: IProductService,
+		@IPathService private readonly _pathService: IPathService,
 	) {
 		// On native, use the well-known ~/{dataFolderName}/agent-plugins/ path
 		// so that external tools can discover it. On web, fall back to the
@@ -78,14 +81,12 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 			? legacyCacheRoot
 			: this.agentPluginsHome;
 		this._cacheRoot = this.agentPluginsHome;
-
-		// Migrate plugin files from the old internal cache directory to the
-		// new well-known location. This is a one-time operation.
-		if (!isEqual(oldCacheRoot, this.agentPluginsHome)) {
-			this._migrationDone = this._migrateDirectory(oldCacheRoot);
-		} else {
-			this._migrationDone = Promise.resolve();
-		}
+		this._migrationDone = this._resolveRemoteHome(environmentService).then(() => {
+			if (!environmentService.remoteAuthority && !isEqual(oldCacheRoot, this.agentPluginsHome)) {
+				return this._migrateDirectory(oldCacheRoot);
+			}
+			return Promise.resolve();
+		});
 
 		// Build per-kind source repository map via instantiation service so
 		// each repository can inject its own dependencies.
@@ -97,7 +98,16 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 			[PluginSourceKind.Pip, instantiationService.createInstance(PipPluginSource)],
 		]);
 	}
-
+	get whenReady(): Promise<void> {
+		return this._migrationDone;
+	}
+	private async _resolveRemoteHome(environmentService: IWorkbenchEnvironmentService): Promise<void> {
+		if (environmentService.remoteAuthority) {
+			const remoteUserHome = await this._pathService.userHome();
+			this.agentPluginsHome = joinPath(remoteUserHome, this._productService.dataFolderName, 'agent-plugins');
+			this._cacheRoot = this.agentPluginsHome;
+		}
+	}
 	getPluginSource(kind: PluginSourceKind): IPluginSource {
 		const repo = this._pluginSources.get(kind);
 		if (!repo) {
