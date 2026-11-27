@@ -3,31 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
-import { IWorkbenchConfigurationService } from '../../configuration/common/configuration.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { INativeWorkbenchEnvironmentService } from '../../environment/electron-browser/environmentService.js';
 import { AgentsModeService } from '../browser/agentsModeService.js';
 import { IAgentsModeService } from '../common/agentsMode.js';
 
 /**
- * Also tells main whether the window is in Agents mode, so that main
- * restores the window in the same mode after a reload or a restart.
+ * Keeps main's record of the window's Agents mode, which it restores the window in,
+ * equal to the mode the window is in, however the mode changed.
  */
-export class NativeAgentsModeService extends AgentsModeService {
+export class AgentsModeWindowStateContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.agentsModeWindowState';
 
 	constructor(
-		@IWorkbenchConfigurationService configurationService: IWorkbenchConfigurationService,
-		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@IAgentsModeService agentsModeService: IAgentsModeService,
+		@INativeHostService nativeHostService: INativeHostService,
+		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 	) {
-		super(configurationService);
-	}
+		super();
 
-	override async setActive(active: boolean, workspaceId?: string): Promise<void> {
-		await super.setActive(active, workspaceId);
-		if (this.isSupported) {
-			await this.nativeHostService.setWindowAgentsMode(this.isActive);
+		// A window main started in the mode can't apply it, for example after the user turned the mode off
+		if (!!environmentService.window.agentsMode !== agentsModeService.isActive) {
+			nativeHostService.setWindowAgentsMode(agentsModeService.isActive);
 		}
+
+		this._register(agentsModeService.onDidChange(active => nativeHostService.setWindowAgentsMode(active)));
 	}
 }
 
-registerSingleton(IAgentsModeService, NativeAgentsModeService, InstantiationType.Delayed);
+registerSingleton(IAgentsModeService, AgentsModeService, InstantiationType.Delayed);
+registerWorkbenchContribution2(AgentsModeWindowStateContribution.ID, AgentsModeWindowStateContribution, WorkbenchPhase.BlockStartup);

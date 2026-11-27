@@ -8,8 +8,9 @@ import { tmpdir } from 'os';
 import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { INativeWindowConfiguration } from '../../../window/common/window.js';
 import { IWindowState as IWindowUIState, WindowMode } from '../../../window/electron-main/window.js';
-import { getWindowsStateStoreData, IWindowsState, IWindowState, restoreWindowsState } from '../../electron-main/windowsStateHandler.js';
+import { getWindowsStateStoreData, IWindowsState, IWindowState, restoreWindowsState, setWindowAgentsMode, wasEmptyWindowInAgentsMode } from '../../electron-main/windowsStateHandler.js';
 import { IWorkspaceIdentifier } from '../../../workspace/common/workspace.js';
 
 suite('Windows State Storing', () => {
@@ -154,6 +155,30 @@ suite('Windows State Storing', () => {
 			lastActiveWindow: true,
 			openedWindows: [true, undefined, true],
 		});
+	});
+
+	test('knows which empty windows hot exit restores in Agents mode', () => {
+		const testBackupPath3 = join(tmpdir(), 'windowStateTest', 'backupFolder3');
+		const state: IWindowsState = {
+			lastActiveWindow: { backupPath: testBackupPath1, uiState: getUIState(), agentsMode: true },
+			openedWindows: [
+				{ backupPath: testBackupPath2, uiState: getUIState(), folderUri: testFolderURI, agentsMode: true },
+				{ backupPath: testBackupPath3, uiState: getUIState() },
+			]
+		};
+
+		assert.deepStrictEqual(['backupFolder1', 'backupFolder2', 'backupFolder3', 'unknown'].map(backupFolder => wasEmptyWindowInAgentsMode(state, backupFolder)), [true, false, false, false]);
+	});
+
+	test('remembers the Agents mode of a window only from a real boolean', () => {
+		const configuration: Partial<INativeWindowConfiguration> = {};
+
+		const recorded = [true, 'false', 0, null, false, 1, true].map(active => {
+			setWindowAgentsMode(configuration as INativeWindowConfiguration, active);
+			return configuration.agentsMode;
+		});
+
+		assert.deepStrictEqual(recorded, [true, true, true, true, undefined, undefined, true]);
 	});
 
 	test('open 1_32', () => {

@@ -40,6 +40,7 @@ import { defaultWindowState, ICodeWindow, LoadReason } from '../../window/electr
 import { AGENTS_LAUNCHER_IPC_CHANNEL, AgentsWindowOpenSource, IAgentsLauncherOptions, IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowFolderLocation, IWindowOpenable } from '../../window/common/window.js';
 import { IFolderLocationsMainService } from '../../windows/electron-main/folderLocationsMainService.js';
 import { defaultBrowserWindowOptions, isBackgroundThrottlingAllowed, isHiddenWindowMode, IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
+import { setWindowAgentsMode } from '../../windows/electron-main/windowsStateHandler.js';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IWorkspacesManagementMainService } from '../../workspaces/electron-main/workspacesManagementMainService.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
@@ -828,7 +829,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	async setWindowAgentsMode(windowId: number | undefined, active: boolean, options?: INativeHostOptions): Promise<void> {
 		const window = this.codeWindowById(options?.targetWindowId ?? windowId);
 		if (window?.config) {
-			window.config.agentsMode = active || undefined;
+			setWindowAgentsMode(window.config, active);
 		}
 	}
 
