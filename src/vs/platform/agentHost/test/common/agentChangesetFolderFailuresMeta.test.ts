@@ -28,4 +28,14 @@ suite('Agent changeset folder failures metadata', () => {
 			cleared: { 'vscode.other': 1 },
 		});
 	});
+
+	test('keeps the latest changeset\'s failures when the most changesets are recorded, dropping the oldest', () => {
+		let meta: Record<string, unknown> | undefined;
+		for (let index = 0; index < 65; index++) {
+			meta = withChangesetFolderFailures(meta, `turn/${index}`, [{ folder: 'file:///repoB', message: 'Failed' }]);
+		}
+		const keys = Object.keys(readChangesetFolderFailures(meta));
+
+		assert.deepStrictEqual({ count: keys.length, first: keys[0], last: keys.at(-1) }, { count: 64, first: 'turn/1', last: 'turn/64' });
+	});
 });

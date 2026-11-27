@@ -65,8 +65,10 @@ export function readChangesetFolderFailures(meta: Record<string, unknown> | unde
  * entries of the changesets `replaces` matches, such as the earlier turns of a chat.
  */
 export function withChangesetFolderFailures(meta: Record<string, unknown> | undefined, changeset: string, failures: readonly IChangesetFolderFailure[], replaces?: (changeset: string) => boolean): Record<string, unknown> | undefined {
-	const others = Object.fromEntries(Object.entries(readChangesetFolderFailures(meta)).filter(([key]) => key !== changeset && !replaces?.(key)));
-	const next = failures.length ? { ...others, [changeset]: failures.slice(0, MAX_FOLDERS).map(toBoundedFailure) } : others;
+	const others = Object.entries(readChangesetFolderFailures(meta)).filter(([key]) => key !== changeset && !replaces?.(key));
+	// The latest write comes last, and the oldest entries make room for it
+	const entries = failures.length ? [...others, [changeset, failures.slice(0, MAX_FOLDERS).map(toBoundedFailure)] as const] : others;
+	const next = Object.fromEntries(entries.slice(-MAX_CHANGESETS));
 	if (!Object.keys(next).length) {
 		if (meta?.[VSCODE_CHANGESET_FOLDER_FAILURES_META_KEY] === undefined) {
 			return meta;
