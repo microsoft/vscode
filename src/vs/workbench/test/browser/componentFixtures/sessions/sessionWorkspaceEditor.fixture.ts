@@ -31,6 +31,7 @@ import { CommandsRegistry } from '../../../../../platform/commands/common/comman
 import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ISessionsManagementService } from '../../../../contrib/sessions/common/sessionsManagement.js';
+import { ISessionGroupsService } from '../../../../contrib/sessions/browser/sessionGroupsService.js';
 import '../../../../contrib/sessions/browser/workspaceEditor/sessionWorkspaceEditor.contribution.js';
 import { REMOVE_SESSION_WORKSPACE_COMMAND_ID } from '../../../../contrib/sessions/browser/workspaceEditor/sessionWorkspaceEditorCommands.js';
 
@@ -103,6 +104,12 @@ export default defineThemedFixtureGroup({ path: 'sessions/workspaceEditor/' }, {
 	EditCustomColorOtherChosen: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: context => renderWorkspaceEditor(context, { kind: 'edit', workspace: AGENTS }, 'rest', '#ff8800'),
+	}),
+	// A custom group, which has a name, an icon and a color, and no folders
+	EditGroup: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderWorkspaceEditor(context, { kind: 'group', group: { id: 'release', name: 'Release work', createdAt: 0, icon: 'rocket', color: 'terminal.ansiMagenta' } }),
 	}),
 	// Remove Workspace... on a workspace file the user made: deleting it says that it is theirs, and where it is
 	RemoveUsersFile: defineComponentFixture({
@@ -200,6 +207,12 @@ async function renderWorkspaceEditor(context: ComponentFixtureContext, target: S
 					return super.showInstantHover({ ...options, container }, focus);
 				}
 			});
+			registration.defineInstance(ISessionGroupsService, new class extends mock<ISessionGroupsService>() {
+				declare readonly _serviceBrand: undefined;
+				override renameGroup(): void { }
+				override setGroupIcon(): void { }
+				override setGroupColor(): void { }
+			}());
 			registration.defineInstance(ISessionWorkspacesService, new class extends mock<ISessionWorkspacesService>() {
 				declare readonly _serviceBrand: undefined;
 				override async updateWorkspace(): Promise<IRecentSessionWorkspace> { return target.kind === 'edit' ? target.workspace : AGENTS; }
@@ -219,7 +232,7 @@ async function renderWorkspaceEditor(context: ComponentFixtureContext, target: S
 		},
 	});
 	const widget = disposableStore.add(instantiationService.createInstance(SessionWorkspaceEditorWidget, editorHost, target));
-	titleLabel.textContent = target.kind === 'edit' ? target.workspace.name : 'New Workspace';
+	titleLabel.textContent = target.kind === 'edit' ? target.workspace.name : target.kind === 'group' ? target.group.name : 'New Workspace';
 	disposableStore.add(widget.onDidChangeName(name => titleLabel.textContent = name || 'New Workspace'));
 	if (interaction === 'newReady') {
 		editorHost.querySelector<HTMLElement>('.session-workspace-editor-add-folder .monaco-button')?.click();

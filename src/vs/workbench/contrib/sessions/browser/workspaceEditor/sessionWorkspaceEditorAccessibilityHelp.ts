@@ -9,7 +9,8 @@ import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType
 import { IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
-import { SessionWorkspaceEditorFocusedContext } from '../../common/contextkeys.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { SessionWorkspaceEditorFocusedContext, SessionWorkspaceEditorIsGroupContext } from '../../common/contextkeys.js';
 
 /**
  * Accessibility help for the Workspace editor, while it has focus: what its fields do and how the keyboard reaches the
@@ -19,7 +20,7 @@ export class SessionWorkspaceEditorAccessibilityHelp implements IAccessibleViewI
 	readonly priority = 130;
 	readonly name = 'sessionWorkspaceEditor';
 	readonly type = AccessibleViewType.Help;
-	readonly when = SessionWorkspaceEditorFocusedContext;
+	readonly when = ContextKeyExpr.and(SessionWorkspaceEditorFocusedContext, SessionWorkspaceEditorIsGroupContext.negate());
 
 	getProvider(_accessor: ServicesAccessor) {
 		const previouslyFocused = getActiveElement();
@@ -30,6 +31,35 @@ export class SessionWorkspaceEditorAccessibilityHelp implements IAccessibleViewI
 			localize('workspaceEditorHelp.color', "Color is a group of options. Use the arrow keys, Home and End to choose a color. After the colors, Choose Custom Color opens the system color picker; Left Arrow moves back to the colors."),
 			localize('workspaceEditorHelp.folders', "The Folders table lists each folder's name and path; the default folder is announced as such. Use {0} and {1} to move between folders, then Tab to reach the focused folder's actions: Set as Default, which makes the folder the default, and Remove Folder. Use Left and Right Arrow to move between the actions and Enter or Space to run one.", '<keybinding:list.focusUp>', '<keybinding:list.focusDown>'),
 			localize('workspaceEditorHelp.close', "Use {0} to close the editor. Focus returns to where it was.", '<keybinding:workbench.action.closeModalEditor>'),
+		];
+		return new AccessibleContentProvider(
+			AccessibleViewProviderId.SessionWorkspaceEditor,
+			{ type: AccessibleViewType.Help },
+			() => content.join('\n'),
+			() => {
+				if (isHTMLElement(previouslyFocused) && previouslyFocused.isConnected) {
+					previouslyFocused.focus();
+				}
+			},
+			AccessibilityVerbositySettingId.SessionWorkspaceEditor,
+		);
+	}
+}
+
+/** Accessibility help for the Workspace editor while it edits a custom group of sessions: its name, icon and color. */
+export class SessionGroupEditorAccessibilityHelp implements IAccessibleViewImplementation {
+	readonly priority = 130;
+	readonly name = 'sessionGroupEditor';
+	readonly type = AccessibleViewType.Help;
+	readonly when = ContextKeyExpr.and(SessionWorkspaceEditorFocusedContext, SessionWorkspaceEditorIsGroupContext);
+
+	getProvider(_accessor: ServicesAccessor) {
+		const previouslyFocused = getActiveElement();
+		const content = [
+			localize('groupEditorHelp.overview', "You are editing a group of sessions. Use Tab and Shift+Tab to move between its fields: Name, Icon and Color. Changes are saved as you make them."),
+			localize('groupEditorHelp.icon', "Activate the Icon button with Enter or Space to open the icon picker and choose an icon. Its Reset button restores the default icon."),
+			localize('groupEditorHelp.color', "Color is a group of options. Use the arrow keys, Home and End to choose a color. After the colors, Choose Custom Color opens the system color picker; Left Arrow moves back to the colors."),
+			localize('groupEditorHelp.close', "Use {0} to close the editor. Focus returns to where it was.", '<keybinding:workbench.action.closeModalEditor>'),
 		];
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.SessionWorkspaceEditor,
