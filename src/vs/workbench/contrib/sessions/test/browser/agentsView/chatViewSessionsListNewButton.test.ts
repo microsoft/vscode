@@ -37,7 +37,7 @@ suite('Sessions - Chat view sessions list New button', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function render(newChatEnabled: boolean, menuAction?: IAction, newChatId = 'newChat', keybindings: Record<string, ResolvedKeybinding> = {}) {
+	function render(newChatEnabled: boolean, menuAction?: IAction, newChatId = ACTION_ID_NEW_CHAT, keybindings: Record<string, ResolvedKeybinding> = {}) {
 		const commands: { id: string; args: unknown[] }[] = [];
 		const commandService = upcastPartial<ICommandService>({ executeCommand: async (id: string, ...args: unknown[]) => { commands.push({ id, args }); return undefined; } });
 		const instantiationService = workbenchInstantiationService(undefined, store);
@@ -62,7 +62,7 @@ suite('Sessions - Chat view sessions list New button', () => {
 			keybindings[id] = keybinding;
 			onDidUpdateKeybindings.fire();
 		};
-		return { item, control, submenu, container, actions, commands, menus, errors, keybindingService, updateKeybinding };
+		return { item, control, submenu, container, actions, commands, menus, errors, keybindingService, updateKeybinding, contextKeyService, commandService };
 	}
 
 	test('shows New Chat as the compact "New" button whose joined ▾ part is the New menu', async () => {
@@ -80,7 +80,7 @@ suite('Sessions - Chat view sessions list New button', () => {
 			disabled: primary.classList.contains('disabled'),
 			commands,
 			menus: menus.map(menu => { const menuActions = menu.getActions(); return menuActions.length === actions.length && menuActions.every((action, index) => action === actions[index]); }),
-		}, { isCompactButton: true, isNewMenu: true, label: 'New', disabled: false, commands: [{ id: 'newChat', args: ['titleContext'] }], menus: [true] });
+		}, { isCompactButton: true, isNewMenu: true, label: 'New', disabled: false, commands: [{ id: ACTION_ID_NEW_CHAT, args: ['titleContext'] }], menus: [true] });
 	});
 
 	test('is disabled when New Chat is, keeping its ▾ part', () => {
@@ -116,19 +116,31 @@ suite('Sessions - Chat view sessions list New button', () => {
 		assert.deepStrictEqual({ contexts, errors: errors.map(error => (error as Error).message) }, { contexts: ['titleContext', 'titleContext'], errors: ['failed'] });
 	});
 
-	test('shows the keybinding of the canonical New Chat for its icon variants, but runs the variant, and none for another command without one', () => {
+	test('runs New Chat, not a contributed command that sorts before it, and leaves a New menu without New Chat to the stock renderer', () => {
+		const { control, actions, commands, contextKeyService, commandService } = render(true);
+		const contributed = new MenuItemAction({ id: 'ext.newSession', title: 'Contributed', icon: undefined, precondition: ContextKeyExpr.false() }, undefined, { shouldForwardArgs: true }, undefined, undefined, contextKeyService, commandService);
+		const newMenu = (menuActions: IAction[]) => new SubmenuItemAction({ submenu: MenuId.ChatNewMenu, title: 'New Chat', isSplitButton: true }, undefined, menuActions);
+		const item = store.add(control.createActionViewItem(newMenu([contributed, new Separator(), ...actions])) as CompactButtonActionViewItem);
+		const container = DOM.$('div');
+		item.render(container);
+		const primary = container.querySelector<HTMLElement>('.agent-sessions-compact-new-button')!;
+		primary.click();
+
+		assert.deepStrictEqual({
+			ariaLabel: primary.getAttribute('aria-label'),
+			disabled: primary.classList.contains('disabled'),
+			commands: commands.map(command => command.id),
+			withoutNewChat: control.createActionViewItem(newMenu([contributed])),
+		}, { ariaLabel: 'New Chat', disabled: false, commands: [ACTION_ID_NEW_CHAT], withoutNewChat: undefined });
+	});
+
+	test('shows the keybinding of the canonical New Chat for its icon variants, but runs the variant', () => {
 		const newChatKeybinding = new USLayoutResolvedKeybinding([new KeyCodeChord(true, false, false, false, KeyCode.KeyN)], OperatingSystem.Macintosh);
 		const variantId = ACTION_ID_NEW_CHAT + NEW_CHAT_ICON_VARIANTS[0].idSuffix;
-		const shown = (newChatId: string) => {
-			const { container, commands } = render(true, undefined, newChatId, { [ACTION_ID_NEW_CHAT]: newChatKeybinding });
-			const primary = container.querySelector<HTMLElement>('.agent-sessions-compact-new-button')!;
-			primary.click();
-			return { ariaLabel: primary.getAttribute('aria-label'), hasChip: !!primary.querySelector('.monaco-keybinding'), commands: commands.map(command => command.id) };
-		};
-		assert.deepStrictEqual({ variant: shown(variantId), other: shown('other.newSession') }, {
-			variant: { ariaLabel: `New Chat (${newChatKeybinding.getAriaLabel()})`, hasChip: true, commands: [variantId] },
-			other: { ariaLabel: 'New Chat', hasChip: false, commands: ['other.newSession'] },
-		});
+		const { container, commands } = render(true, undefined, variantId, { [ACTION_ID_NEW_CHAT]: newChatKeybinding });
+		const primary = container.querySelector<HTMLElement>('.agent-sessions-compact-new-button')!;
+		primary.click();
+		assert.deepStrictEqual({ ariaLabel: primary.getAttribute('aria-label'), hasChip: !!primary.querySelector('.monaco-keybinding'), commands: commands.map(command => command.id) }, { ariaLabel: `New Chat (${newChatKeybinding.getAriaLabel()})`, hasChip: true, commands: [variantId] });
 	});
 
 	test('is one tab stop whose parts the arrow keys move between, and whose menu opens from the keyboard when New Chat is disabled', () => {

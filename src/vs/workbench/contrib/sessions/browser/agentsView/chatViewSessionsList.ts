@@ -149,8 +149,8 @@ export class ChatViewSessionsListControl implements IChatViewSessionsListControl
 	openFind(): void { this._view.openFind(); }
 	createActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {
 		if (action instanceof SubmenuItemAction && action.item.submenu === MenuId.ChatNewMenu) {
-			const newChat = action.actions.find(action => action instanceof MenuItemAction);
-			if (newChat) {
+			const newChat = action.actions.find(action => action instanceof MenuItemAction && (action.id === ACTION_ID_NEW_CHAT || NEW_CHAT_ICON_VARIANTS.some(variant => action.id === ACTION_ID_NEW_CHAT + variant.idSuffix)));
+			if (newChat instanceof MenuItemAction) {
 				return this._instantiationService.createInstance(ChatViewNewButtonActionViewItem, action, newChat);
 			}
 		}
