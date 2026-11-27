@@ -43,7 +43,7 @@ import { ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionComparisonService } from '../../common/sessionComparison.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { IWorkspaceFolderRepositories } from '../workspaceFolderRepositories.js';
-import { getSessionsInScope } from '../sessionScope.js';
+import { getSessionsInScope, getWorkingDirectoriesInScope } from '../sessionScope.js';
 import { ISessionsWorkbenchScopeService } from './sessionsWorkbenchScope.js';
 import { getSessionFilterActionId, getSessionFilterEnvironments, getSessionFilterOptions, ISessionFilterOption, listsQuickChatsIn, sessionFilterKey, SessionsWorktreeOpener } from './sessionsListFilters.js';
 import { AICustomizationShortcutsWidget } from '../aiCustomizationShortcutsWidget.js';
@@ -463,14 +463,11 @@ export class SessionsView extends ViewPane {
 				return undefined;
 			}
 			const extUri = this.uriIdentityService.extUri;
-			const folders = new ResourceSet(repositories.folders.read(reader), uri => extUri.getComparisonKey(uri));
-			for (const session of this.sessionsManagementService.getSessions()) {
-				if (scope.has(session.sessionId)) {
-					const folder = session.mainChat.read(reader).workspace.read(reader)?.folders[0];
-					if (folder) {
-						folders.add(folder.workingDirectory);
-					}
-				}
+			const scopeFolders = repositories.folders.read(reader);
+			const folders = new ResourceSet(scopeFolders, uri => extUri.getComparisonKey(uri));
+			const sessionsInScope = this.sessionsManagementService.getSessions().filter(session => scope.has(session.sessionId));
+			for (const workingDirectory of getWorkingDirectoriesInScope(sessionsInScope, scopeFolders, reader, repositories.gitHubRepositories.read(reader), extUri)) {
+				folders.add(workingDirectory);
 			}
 			return (item: IPendingSessionItem) => {
 				const folderUri = item.folderUri;

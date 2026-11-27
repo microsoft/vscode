@@ -33,7 +33,7 @@ export interface IChatViewSessionsListService {
 	/**
 	 * Whether the window's session providers list every session and the Sessions list narrows them to the window's scope: while
 	 * the Chat view shows the sessions of the Agents window and its workspaces filter is on. Otherwise providers keep listing only
-	 * the sessions of the window's folders.
+	 * the sessions of the window's folders, as they do in a remote window, whose Chat view keeps its own list.
 	 */
 	readonly listsAllSessions: IObservable<boolean>;
 }
@@ -56,7 +56,8 @@ export class ChatViewSessionsListService implements IChatViewSessionsListService
 			? constObservable(true)
 			: environmentService.remoteAuthority ? constObservable(false) : this.enabled;
 		const workspacesFilter = observableConfigValue<boolean>(ChatConfiguration.SessionsListWorkspacesFilterEnabled, false, configurationService);
-		this.listsAllSessions = derived(this, reader => this.enabled.read(reader) && workspacesFilter.read(reader) === true);
+		// Not in remote windows, where the Chat view keeps its own list, which relies on the providers' filtering
+		this.listsAllSessions = environmentService.remoteAuthority ? constObservable(false) : derived(this, reader => this.enabled.read(reader) && workspacesFilter.read(reader) === true);
 	}
 }
 

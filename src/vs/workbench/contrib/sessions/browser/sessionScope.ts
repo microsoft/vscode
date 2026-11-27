@@ -22,10 +22,24 @@ function isGitHubRepositoryOf(uri: URI, repositories: ReadonlySet<string>): bool
 
 /** Matches the main chat's workspace, including worktrees and cloud repositories, without changing the provider inventory. */
 export function getSessionsInScope(sessions: readonly ISession[], scopeFolders: readonly URI[], reader: IReader | undefined, scopeGitHubRepositories: readonly string[], extUri: IExtUri = extUriBiasedIgnorePathCase): ReadonlySet<ISession> {
+	const isInScope = scopeFolderMatcher(scopeFolders, scopeGitHubRepositories, extUri);
+	return new Set(sessions.filter(session => getScopingFolders(session, reader).some(isInScope)));
+}
+
+/**
+ * The working directories by which {@link getSessionsInScope} places `sessions` in the scope, such as worktrees of its folders:
+ * those of the folders that match it, not the other folders of a session it places.
+ */
+export function getWorkingDirectoriesInScope(sessions: readonly ISession[], scopeFolders: readonly URI[], reader: IReader | undefined, scopeGitHubRepositories: readonly string[], extUri: IExtUri = extUriBiasedIgnorePathCase): URI[] {
+	const isInScope = scopeFolderMatcher(scopeFolders, scopeGitHubRepositories, extUri);
+	return sessions.flatMap(session => getScopingFolders(session, reader).filter(isInScope).map(folder => folder.workingDirectory));
+}
+
+function scopeFolderMatcher(scopeFolders: readonly URI[], scopeGitHubRepositories: readonly string[], extUri: IExtUri): (folder: ISessionFolder) => boolean {
 	const gitHubRepositories = new Set(scopeGitHubRepositories.map(repository => repository.toLowerCase()));
 	const worksInScope = (uri: URI) => scopeFolders.some(folder => extUri.isEqualOrParent(uri, folder)) || isGitHubRepositoryOf(uri, gitHubRepositories);
 	const isScopeFolder = (uri: URI | undefined) => !!uri && (scopeFolders.some(folder => extUri.isEqual(uri, folder)) || isGitHubRepositoryOf(uri, gitHubRepositories));
-	return new Set(sessions.filter(session => getScopingFolders(session, reader).some(folder => worksInScope(folder.workingDirectory) || isScopeFolder(folder.root) || isScopeFolder(folder.gitRepository?.uri))));
+	return folder => worksInScope(folder.workingDirectory) || isScopeFolder(folder.root) || isScopeFolder(folder.gitRepository?.uri);
 }
 
 /** Side chats place a session only while its main chat has no workspace. */

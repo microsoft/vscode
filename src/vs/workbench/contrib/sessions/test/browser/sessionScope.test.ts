@@ -10,7 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionGitRepository, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
-import { SessionsListingScopeFilter } from '../../browser/sessionScope.js';
+import { getWorkingDirectoriesInScope, SessionsListingScopeFilter } from '../../browser/sessionScope.js';
 import { ISessionChangeEvent } from '../../common/sessionsProvider.js';
 import { buildTestSession, buildTestWorkspace } from '../common/testSessionBuilder.js';
 import { buildAgentHostChatWorkspace, buildAgentHostSessionWorkspace } from '../../common/agentHostSessionWorkspace.js';
@@ -295,5 +295,21 @@ suite('SessionsListingScopeFilter', () => {
 		listed.push(filter.getSessions().length > 0);
 
 		assert.deepStrictEqual(listed, [false, true, false]);
+	});
+
+	test('places drafts by the working directories that match the scope only: a main chat\'s second folder in a worktree of the scope, not its first, and the session\'s folders when the main chat has none', () => {
+		const options = { fallbackIcon: Codicon.folder, requiresWorkspaceTrust: true };
+		const sessionOf = (id: string, workingDirectories: string[], mainChatWorkingDirectories?: string[]): ISession => {
+			const built = buildTestSession({ id, title: id }).session;
+			const workspace = buildAgentHostSessionWorkspace({ uri: URI.file('/work/aph'), displayName: id }, workingDirectories.map(path => URI.file(path)), options, constObservable(undefined));
+			const mainChatWorkspace = buildAgentHostChatWorkspace(workspace, mainChatWorkingDirectories?.map(path => URI.file(path)), () => constObservable(undefined));
+			return { ...built, mainChat: constObservable({ ...built.mainChat.get(), workspace: constObservable(mainChatWorkspace), ownWorkingDirectories: constObservable(mainChatWorkingDirectories?.map(path => URI.file(path))) }), workspace: constObservable(workspace) };
+		};
+		const sessions = [
+			sessionOf('mainChatSecondFolderInScope', ['/work/aph.worktrees/docs', '/work/vscode.worktrees/sync'], ['/work/aph.worktrees/docs', '/work/vscode.worktrees/sync']),
+			sessionOf('mainChatWithoutFolder', ['/work/aph.worktrees/notes', '/work/vscode.worktrees/fix'], []),
+		];
+
+		assert.deepStrictEqual(getWorkingDirectoriesInScope(sessions, [URI.file('/work/vscode')], undefined, []).map(uri => uri.path), ['/work/vscode.worktrees/sync', '/work/vscode.worktrees/fix']);
 	});
 });
