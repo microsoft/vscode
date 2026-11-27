@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -277,6 +278,46 @@ suite('SessionWorkspacesService', () => {
 			grownFileExistsAfterShrink: false,
 			workspaces: [{ name: 'Renamed', folders: ['/work/vscode-copilot-chat'], owned: true, missing: undefined }],
 		});
+	});
+
+	test('growing a workspace of one folder twice at once gives it one owned workspace file', async () => {
+		const { service, fileService } = await createService();
+		const folderWorkspace = await service.createWorkspace('Agents', [vscode]);
+
+		const [first, second] = await Promise.all([
+			service.updateWorkspace(folderWorkspace.uri, { folders: [vscode, chat] }),
+			service.updateWorkspace(folderWorkspace.uri, { folders: [vscode, docs] }),
+		]);
+
+		assert.deepStrictEqual({
+			sameFile: extUri.isEqual(first.uri, second.uri),
+			ownedFiles: (await fileService.resolve(ownedHome)).children?.length,
+			workspaces: snapshot(service.managedWorkspaces.get()),
+		}, {
+			sameFile: true,
+			ownedFiles: 1,
+			workspaces: [{ name: 'Agents', folders: ['/work/vscode', '/work/vscode-docs'], owned: true, missing: undefined }],
+		});
+	});
+
+	test('an update waiting for another one is dropped when its workspace is removed meanwhile, and does not write its file again', async () => {
+		const fileService = await createFileService();
+		const { service } = await createService({ fileService });
+		const removed = await service.createWorkspace('Removed', [vscode, chat]);
+		const renamed = await service.createWorkspace('Agents', [vscode, docs]);
+
+		fileService.moveBarrier = new DeferredPromise<void>();
+		const renaming = service.updateWorkspace(renamed.uri, { name: 'Platform' });
+		const waiting = service.updateWorkspace(removed.uri, { folders: [vscode, docs] }).then(() => 'updated', error => isCancellationError(error) ? 'dropped' : String(error));
+		await service.removeWorkspace(removed.uri, { deleteFile: true });
+		fileService.moveBarrier.complete();
+		await renaming;
+
+		assert.deepStrictEqual({
+			waiting: await waiting,
+			removedFileExists: await fileService.exists(removed.uri),
+			workspaces: service.managedWorkspaces.get().map(workspace => workspace.name),
+		}, { waiting: 'dropped', removedFileExists: false, workspaces: ['Platform'] });
 	});
 
 	test('rejects a workspace without folders and a workspace file without folders', async () => {

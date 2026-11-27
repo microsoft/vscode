@@ -6,6 +6,7 @@
 import { Limiter, RunOnceScheduler, Sequencer } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { isValidBasename } from '../../../../base/common/extpath.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
@@ -153,6 +154,20 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 	private readonly _changedFiles = new Set<string>();
 	/** Refreshes run one after another, so that an older read never wins over a newer one. */
 	private readonly _refreshes = new Sequencer();
+	/**
+	 * Creates and updates run one after another, since each one decides from the workspaces that the one before it left,
+	 * for example that a standalone folder still needs a workspace file. Removing is not queued behind them: an update in
+	 * progress keeps a workspace that is removed meanwhile removed (see {@link _removals}), and an update still waiting
+	 * for a workspace that is removed meanwhile is dropped.
+	 */
+	private readonly _mutations = new Sequencer();
+	private _queuedMutations = 0;
+	/**
+	 * The URIs that workspaces had before a queued create or update moved them, for example a standalone folder that got a
+	 * workspace file, by their comparison keys, so that an update queued meanwhile with the URI it had follows it.
+	 * Cleared when no create or update is queued.
+	 */
+	private readonly _movedUris = new Map<string, URI>();
 	private readonly _refreshScheduler = this._register(new RunOnceScheduler(() => {
 		const changed = new Set(this._changedFiles);
 		this._changedFiles.clear();
@@ -228,7 +243,33 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 		}, displayAppearance(parsed, local));
 	}
 
-	async createWorkspace(name: string, folders: readonly URI[], appearance?: ISessionWorkspaceAppearance): Promise<IRecentSessionWorkspace> {
+	createWorkspace(name: string, folders: readonly URI[], appearance?: ISessionWorkspaceAppearance): Promise<IRecentSessionWorkspace> {
+		return this._queueMutation(() => this._createWorkspace(name, folders, appearance));
+	}
+
+	private _queueMutation<T>(mutation: () => Promise<T>): Promise<T> {
+		this._queuedMutations++;
+		return this._mutations.queue(async () => {
+			try {
+				return await mutation();
+			} finally {
+				if (--this._queuedMutations === 0) {
+					this._movedUris.clear();
+				}
+			}
+		});
+	}
+
+	/** The URI that a workspace has now, which a create or update queued before may have moved from `uri`. */
+	private _currentUri(uri: URI): URI {
+		const extUri = this.uriIdentityService.extUri;
+		if (this._managedWorkspaces.get().some(workspace => extUri.isEqual(workspace.uri, uri))) {
+			return uri;
+		}
+		return this._movedUris.get(extUri.getComparisonKey(uri)) ?? uri;
+	}
+
+	private async _createWorkspace(name: string, folders: readonly URI[], appearance: ISessionWorkspaceAppearance | undefined): Promise<IRecentSessionWorkspace> {
 		const workspace = await this._create(name, folders, appearance);
 		this._upsert(workspace);
 		return workspace;
@@ -250,10 +291,25 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 		return withAppearance({ uri, name, folders: [...folders], owned: true }, appearance);
 	}
 
-	async updateWorkspace(uri: URI, update: ISessionWorkspaceUpdate): Promise<IRecentSessionWorkspace> {
+	updateWorkspace(uri: URI, update: ISessionWorkspaceUpdate): Promise<IRecentSessionWorkspace> {
+		const removals = this._removals;
+		return this._queueMutation(async () => {
+			const current = this._currentUri(uri);
+			// A workspace removed while its update waited stays removed, and its file is not written again
+			if (this._removedSince([uri, current], removals)) {
+				throw new CancellationError();
+			}
+			return this._updateWorkspace(current, update, removals);
+		});
+	}
+
+	/**
+	 * @param removals The count of removals when the update was asked for, so that a workspace removed since is not
+	 * added again.
+	 */
+	private async _updateWorkspace(uri: URI, update: ISessionWorkspaceUpdate, removals: number): Promise<IRecentSessionWorkspace> {
 		const extUri = this.uriIdentityService.extUri;
 		const existing = this._getManagedWorkspace(uri);
-		const removals = this._removals;
 		// What is shown for a standalone folder, which keeps its icon and color on this computer, or a new workspace file
 		const appearance: ISessionWorkspaceAppearance = {
 			icon: update.icon === undefined ? existing?.icon : update.icon ?? undefined,
@@ -672,12 +728,27 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 		const index = workspaces.findIndex(candidate => extUri.isEqual(candidate.uri, previousUri));
 		if (index >= 0) {
 			workspaces[index] = workspace;
-		} else if (![previousUri, workspace.uri].some(candidate => (this._removedAt.get(extUri.getComparisonKey(candidate)) ?? 0) > removals)) {
+		} else if (!this._removedSince([previousUri, workspace.uri], removals)) {
 			workspaces.unshift(workspace);
 		} else {
 			return;
 		}
+		if (this._queuedMutations && !extUri.isEqual(previousUri, workspace.uri)) {
+			const previousKey = extUri.getComparisonKey(previousUri);
+			for (const [key, moved] of this._movedUris) {
+				if (extUri.isEqual(moved, previousUri)) {
+					this._movedUris.set(key, workspace.uri);
+				}
+			}
+			this._movedUris.set(previousKey, workspace.uri);
+			this._movedUris.delete(extUri.getComparisonKey(workspace.uri));
+		}
 		this._persist(workspaces.slice(0, MAX_MANAGED_WORKSPACES));
+	}
+
+	/** Whether a workspace with one of `uris` was removed after `removals` was read. */
+	private _removedSince(uris: readonly URI[], removals: number): boolean {
+		return uris.some(uri => (this._removedAt.get(this.uriIdentityService.extUri.getComparisonKey(uri)) ?? 0) > removals);
 	}
 
 	private _recordRemoval(uris: readonly URI[]): void {
