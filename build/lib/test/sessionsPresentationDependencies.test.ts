@@ -324,6 +324,24 @@ suite('Sessions presentation entry isolation', () => {
 		]);
 	});
 
+	test('entries that load the Settings editor also register the Agentic Mode service it injects', () => {
+		const settingsEditor = 'src/vs/workbench/contrib/preferences/browser/settingsEditor2.ts';
+		const agenticModeService = 'src/vs/workbench/services/agenticMode/browser/agenticModeService.ts';
+		const entries = [
+			'src/vs/sessions/sessions.desktop.main.ts',
+			'src/vs/sessions/sessions.web.main.ts',
+			'src/vs/sessions/agents.web.mobile.main.ts',
+			'src/vs/workbench/workbench.desktop.main.ts',
+			'src/vs/workbench/workbench.web.main.ts',
+		];
+		const missing = entries.filter(entry => {
+			const dependencies = collectSourceDependencies(entry);
+			return dependencies.has(settingsEditor) && !dependencies.has(agenticModeService);
+		});
+		assert.deepStrictEqual(missing, []);
+		assert.ok(collectSourceDependencies('src/vs/sessions/sessions.desktop.main.ts').has(settingsEditor), 'the Agents window loads the Settings editor');
+	});
+
 	test('full chat imports retain the original script-widget CSS precedence', () => {
 		const source = fs.readFileSync(path.join(repositoryRoot, 'src/vs/sessions/sessions.common.main.ts'), 'utf8');
 		const imports = ts.preProcessFile(source, true).importedFiles.map(reference => reference.fileName);
