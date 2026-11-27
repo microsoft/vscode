@@ -31,7 +31,9 @@ export const INamedLayoutsService = createDecorator<INamedLayoutsService>('named
  * Named layouts are arrangements of the side bars, the panel and the editor groups of the main window
  * that a window can switch between. Changes made while a named layout is active belong to that layout:
  * they are saved into it when the window switches to another layout, when it closes, and on
- * {@link saveLayout}. The default layout is the window's own layout while no named layout is active.
+ * {@link saveLayout}. A window that starts with a named layout active applies the layout as it is
+ * stored, as other windows can have changed it. The default layout is the window's own layout while
+ * no named layout is active.
  */
 export interface INamedLayoutsService {
 

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Emitter } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -40,15 +41,18 @@ suite('NamedLayoutsService', () => {
 
 	/**
 	 * A window whose parts and editor groups show what was applied last, and whose Zen mode hides the parts until it ends.
+	 * With `restore`, the window starts with that layout active, as stored, and optionally in Zen mode.
 	 */
-	function createWindow() {
+	function createWindow(restore?: { layout: Record<string, unknown>; zenMode?: boolean }) {
 		const storageService = store.add(new TestStorageService());
 		const configurationService = new TestConfigurationService({ [NAMED_LAYOUTS_ENABLED_SETTING]: true });
 		const contextKeyService = store.add(new MockContextKeyService());
 		const zenMode = InEditorZenModeContext.bindTo(contextKeyService);
+		const onDidChangeZenMode = store.add(new Emitter<boolean>());
 		const window = {
 			parts: partsState(true, Position.BOTTOM),
 			editorGroups: singleGroup,
+			editorGroupsApplied: 0,
 			partsBeforeZenMode: undefined as IPartsLayoutState | undefined,
 		};
 
@@ -66,20 +70,23 @@ suite('NamedLayoutsService', () => {
 				window.parts = { ...window.parts, sideBar: { ...window.parts.sideBar, visible: false }, panel: { ...window.parts.panel, visible: false } };
 			}
 			zenMode.set(!zenMode.get());
+			onDidChangeZenMode.fire(!!zenMode.get());
 		};
 		instantiationService.stub(IWorkbenchLayoutService, {
 			getPartsLayoutState: () => window.parts,
 			applyPartsLayoutState: (state: IPartsLayoutState) => { window.parts = state; },
 			toggleZenMode,
+			onDidChangeZenMode: onDidChangeZenMode.event,
 		});
 		instantiationService.stub(IEditorGroupsService, {
 			mainPart: upcastPartial<IEditorPart>({
 				getLayout: () => window.editorGroups,
-				applyLayout: (layout: EditorGroupLayout) => { window.editorGroups = layout; },
+				applyLayout: (layout: EditorGroupLayout) => {
+					window.editorGroups = layout;
+					window.editorGroupsApplied++;
+				},
 			})
 		});
-
-		const service = store.add(instantiationService.createInstance(NamedLayoutsService));
 
 		/** The stored layouts, each with its name and the parts that are stored for it. */
 		const storedLayouts = () => {
@@ -98,7 +105,31 @@ suite('NamedLayoutsService', () => {
 			}
 		};
 
+		if (restore) {
+			storageService.store('workbench.namedLayouts.activeLayout', 'restored', StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			for (const [part, value] of Object.entries(restore.layout)) {
+				storeFromOtherWindow('restored', part, value);
+			}
+			if (restore.zenMode) {
+				toggleZenMode();
+			}
+		}
+
+		const service = store.add(instantiationService.createInstance(NamedLayoutsService));
+
 		return { service, window, storageService, configurationService, zenMode, toggleZenMode, storedLayouts, storeFromOtherWindow, removeFromOtherWindow };
+	}
+
+	/** Collects the keys of the layouts that this window writes. */
+	function trackWrites(storageService: TestStorageService): string[] {
+		const written: string[] = [];
+		const listenerStore = store.add(new DisposableStore());
+		listenerStore.add(storageService.onDidChangeValue(StorageScope.PROFILE, undefined, listenerStore)(e => {
+			if (!e.external) {
+				written.push(e.key.slice(LAYOUT_STORAGE_KEY_PREFIX.length));
+			}
+		}));
+		return written;
 	}
 
 	test('creating a layout makes it the active layout, and switching saves the layout that was active and applies the other one, also the default layout', async () => {
@@ -132,13 +163,7 @@ suite('NamedLayoutsService', () => {
 		storeFromOtherWindow(debug.id, 'panel', otherPanel);
 		storeFromOtherWindow(debug.id, 'editorGroups', otherEditorGroups);
 
-		const written: string[] = [];
-		const listenerStore = store.add(new DisposableStore());
-		listenerStore.add(storageService.onDidChangeValue(StorageScope.PROFILE, undefined, listenerStore)(e => {
-			if (!e.external) {
-				written.push(e.key.slice(LAYOUT_STORAGE_KEY_PREFIX.length));
-			}
-		}));
+		const written = trackWrites(storageService);
 		window.parts = partsState(false, Position.BOTTOM);
 		await service.saveLayout();
 
@@ -197,6 +222,40 @@ suite('NamedLayoutsService', () => {
 		});
 	});
 
+	test('a window that starts with a named layout active applies what differs from it as it is stored, as part sizes are stored per profile and other windows can change the layout', async () => {
+		const restoredParts = partsState(false, Position.RIGHT, 'workbench.view.debug');
+		const { service, window } = createWindow({ layout: { name: 'Debug', ...restoredParts, editorGroups: singleGroup } });
+		await service.saveLayout();
+
+		assert.deepStrictEqual({ active: service.activeLayout.name, parts: window.parts, editorGroupsApplied: window.editorGroupsApplied }, {
+			active: 'Debug',
+			parts: restoredParts,
+			editorGroupsApplied: 0,
+		});
+	});
+
+	test('a window that starts in Zen mode applies the parts of its active layout when Zen mode ends, so that it saves only the parts that change after that', async () => {
+		const restoredParts = partsState(false, Position.RIGHT, 'workbench.view.debug');
+		const { service, window, toggleZenMode, storedLayouts, storeFromOtherWindow } = createWindow({ layout: { name: 'Debug', ...restoredParts, editorGroups: singleGroup }, zenMode: true });
+		await service.saveLayout();
+		const inZenMode = window.parts;
+
+		const otherPanel = partsState(true, Position.LEFT).panel;
+		storeFromOtherWindow('restored', 'panel', otherPanel);
+		toggleZenMode();
+		const afterZenMode = window.parts;
+
+		const laterPanel = partsState(true, Position.TOP).panel;
+		storeFromOtherWindow('restored', 'panel', laterPanel);
+		await service.saveLayout();
+
+		assert.deepStrictEqual({ inZenMode, afterZenMode, stored: storedLayouts() }, {
+			inZenMode: { ...partsState(false, Position.BOTTOM), panel: { ...partsState(true, Position.BOTTOM).panel, visible: false } },
+			afterZenMode: { ...restoredParts, panel: otherPanel },
+			stored: [{ name: 'Debug', ...restoredParts, panel: laterPanel, editorGroups: singleGroup }],
+		});
+	});
+
 	test('deleting the active layout applies the default layout without saving the deleted one, and a layout that another window deletes leaves this window with its arrangement as its default layout', async () => {
 		const { service, window, removeFromOtherWindow, storageService, storedLayouts } = createWindow();
 		const scratch = await service.createLayout('Scratch');
@@ -235,7 +294,7 @@ suite('NamedLayoutsService', () => {
 		storeFromOtherWindow('alpha', 'name', 'Alpha');
 		storeFromOtherWindow('alpha', 'sideBar', { visible: 'yes' });
 		storeFromOtherWindow('alpha', 'panel', otherPanel);
-		storeFromOtherWindow('alpha', 'editorGroups', { orientation: GroupOrientation.HORIZONTAL, groups: [{ size: 1, groups: [] }] });
+		storeFromOtherWindow('alpha', 'editorGroups', { orientation: GroupOrientation.HORIZONTAL, groups: [{ groups: [{ groups: [{}, {}] }] }] });
 		storeFromOtherWindow('orphan', 'sideBar', partsState(false, Position.BOTTOM).sideBar);
 		storeFromOtherWindow('blank', 'name', '  ');
 		storeFromOtherWindow('default', 'name', 'Other Default');

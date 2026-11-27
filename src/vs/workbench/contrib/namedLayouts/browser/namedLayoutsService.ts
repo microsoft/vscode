@@ -76,7 +76,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	/** Switches and other changes of the layouts run one after another. */
 	private readonly sequencer = new Sequencer();
 
-	/** Resolves once the parts restored their view containers and the editor groups their editors, as the window starts. */
+	/** Resolves once the parts restored their view containers and the editor groups their editors, as the window starts, and the window applied its active layout. */
 	private readonly whenRestored: Promise<void>;
 
 	constructor(
@@ -99,8 +99,18 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		}
 
 		this.whenRestored = Promise.all([lifecycleService.when(LifecyclePhase.Restored), extensionService.whenInstalledExtensionsRegistered()]).then(() => {
+			// Part sizes are stored per profile, and other windows can have changed the active layout, so the window applies what differs from it
+			if (this.isEnabled() && this.activeLayoutId !== DEFAULT_NAMED_LAYOUT_ID) {
+				this.applyState(this.getChanges(this.readLayoutState(this.activeLayoutId)));
+			}
 			this.baseline = this.captureState();
 		});
+
+		this._register(this.layoutService.onDidChangeZenMode(active => {
+			if (!active) {
+				this.onDidEndZenMode();
+			}
+		}));
 
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._store)(e => {
 			if (e.external && e.key.startsWith(LAYOUT_STORAGE_KEY_PREFIX)) {
@@ -109,7 +119,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		}));
 
 		this._register(this.storageService.onWillSaveState(e => {
-			if (e.reason === WillSaveStateReason.SHUTDOWN && this.configurationService.getValue(NAMED_LAYOUTS_ENABLED_SETTING) === true) {
+			if (e.reason === WillSaveStateReason.SHUTDOWN && this.isEnabled()) {
 				this.saveActiveLayout();
 			}
 		}));
@@ -263,13 +273,29 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		};
 	}
 
+	/**
+	 * Returns what of a state differs from what the window shows, so that applying it leaves the rest, such as the editor grid, as it is.
+	 */
+	private getChanges(state: INamedLayoutState): INamedLayoutState {
+		const current = this.captureState();
+		const differs = (key: NamedLayoutStateKey) => !!state[key] && !equals(state[key], current[key]);
+
+		return {
+			...(differs('sideBar') ? { sideBar: state.sideBar } : {}),
+			...(differs('panel') ? { panel: state.panel } : {}),
+			...(differs('auxiliaryBar') ? { auxiliaryBar: state.auxiliaryBar } : {}),
+			...(differs('editorGroups') ? { editorGroups: state.editorGroups } : {}),
+		};
+	}
+
 	private applyState(state: INamedLayoutState): void {
 		// Changing the editor groups can restore a maximized part, so the parts apply last
 		if (state.editorGroups) {
 			this.editorGroupService.mainPart.applyLayout(state.editorGroups);
 		}
 
-		const parts = this.layoutService.getPartsLayoutState();
+		// Zen mode hides the parts: a window that starts in Zen mode applies them when it ends
+		const parts = this.isZenModeActive() ? undefined : this.layoutService.getPartsLayoutState();
 		if (parts && (state.sideBar || state.panel || state.auxiliaryBar)) {
 			this.layoutService.applyPartsLayoutState({
 				sideBar: state.sideBar ?? parts.sideBar,
@@ -277,6 +303,29 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 				auxiliaryBar: state.auxiliaryBar ?? parts.auxiliaryBar
 			});
 		}
+	}
+
+	/**
+	 * A window that starts in Zen mode has no parts in its baseline, as Zen mode hides them. When Zen mode ends, it applies the parts
+	 * of the active layout, which other windows can have changed meanwhile, and takes them into its baseline, so that saving writes
+	 * only the parts that change after that.
+	 */
+	private onDidEndZenMode(): void {
+		if (!this.baseline || this.baseline.sideBar || this.baseline.panel || this.baseline.auxiliaryBar) {
+			return;
+		}
+
+		if (this.isEnabled() && this.activeLayoutId !== DEFAULT_NAMED_LAYOUT_ID) {
+			const { sideBar, panel, auxiliaryBar } = this.readLayoutState(this.activeLayoutId);
+			this.applyState(this.getChanges({ sideBar, panel, auxiliaryBar }));
+		}
+
+		const { sideBar, panel, auxiliaryBar } = this.captureState();
+		this.baseline = { ...this.baseline, sideBar, panel, auxiliaryBar };
+	}
+
+	private isEnabled(): boolean {
+		return this.configurationService.getValue(NAMED_LAYOUTS_ENABLED_SETTING) === true;
 	}
 
 	private isZenModeActive(): boolean {
@@ -417,14 +466,14 @@ function isAuxiliaryBarState(value: unknown): value is IPartsLayoutState['auxili
 }
 
 function isGroupLayoutArgument(value: unknown): value is GroupLayoutArgument {
-	return isRecord(value) && (value.size === undefined || typeof value.size === 'number') && (value.groups === undefined || isGroupLayoutArguments(value.groups));
+	// The grid turns a nested row or column with fewer than two groups into a single group, so the groups in it would not count
+	return isRecord(value) && (value.size === undefined || typeof value.size === 'number') && (value.groups === undefined || isGroupLayoutArguments(value.groups, 2));
 }
 
-function isGroupLayoutArguments(value: unknown): value is GroupLayoutArgument[] {
-	// A row or column without groups cannot apply
-	return Array.isArray(value) && value.length > 0 && value.every(isGroupLayoutArgument);
+function isGroupLayoutArguments(value: unknown, minimumLength: number): value is GroupLayoutArgument[] {
+	return Array.isArray(value) && value.length >= minimumLength && value.every(isGroupLayoutArgument);
 }
 
 function isEditorGroupLayout(value: unknown): value is EditorGroupLayout {
-	return isRecord(value) && (value.orientation === GroupOrientation.HORIZONTAL || value.orientation === GroupOrientation.VERTICAL) && isGroupLayoutArguments(value.groups);
+	return isRecord(value) && (value.orientation === GroupOrientation.HORIZONTAL || value.orientation === GroupOrientation.VERTICAL) && isGroupLayoutArguments(value.groups, 1);
 }
