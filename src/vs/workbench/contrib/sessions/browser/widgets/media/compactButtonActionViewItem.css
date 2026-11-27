@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Compact "New" session button — rendered by NewSessionActionViewItem and shared
-between the sessions sidebar header and the titlebar. Selectors are intentionally
-unscoped so the widget renders identically wherever it is mounted. */
+/* Compact "New" button — rendered by CompactButtonActionViewItem and shared
+between the sessions sidebar header, the titlebar and the Chat view's sessions list.
+Selectors are intentionally unscoped so the widget renders identically wherever it is mounted. */
 
 .agent-sessions-compact-new-button.monaco-button {
 	display: inline-flex;
@@ -109,4 +109,33 @@ unscoped so the widget renders identically wherever it is mounted. */
 
 .agent-sessions-compact-new-button .new-session-keybinding-hint .monaco-keybinding > .monaco-keybinding-key:last-child {
 	margin-right: 0;
+}
+
+/* The optional dropdown part, joined to the pill and split off by a thin divider */
+
+.agent-sessions-compact-new-button-dropdown.monaco-button-dropdown {
+	display: inline-flex;
+	align-items: stretch;
+}
+
+.agent-sessions-compact-new-button-dropdown > .agent-sessions-compact-new-button.monaco-button {
+	border-right-width: 0 !important;
+	border-top-right-radius: 0;
+	border-bottom-right-radius: 0;
+}
+
+.agent-sessions-compact-new-button-dropdown > .monaco-button.monaco-dropdown-button {
+	width: auto;
+	min-width: 0;
+	height: auto;
+	padding: 0 var(--vscode-spacing-size20);
+	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0;
+}
+
+.agent-sessions-compact-new-button-dropdown > .monaco-button.monaco-dropdown-button:not(.disabled) {
+	cursor: pointer;
+}
+
+.agent-sessions-compact-new-button-dropdown > .monaco-button.monaco-dropdown-button:focus {
+	outline-offset: -1px !important;
 }

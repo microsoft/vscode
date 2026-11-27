@@ -109,7 +109,7 @@ import { TestSessionsList } from '../../../../../workbench/contrib/sessions/test
 import '../../browser/views/sessionsViewActions.js';
 import '../../../../../workbench/contrib/sessions/browser/media/sessionsList.css';
 import '../../../../../workbench/contrib/sessions/browser/media/sessionsViewPane.css';
-import '../../browser/media/newSessionActionViewItem.css';
+import '../../../../../workbench/contrib/sessions/browser/widgets/media/compactButtonActionViewItem.css';
 import { IViewContainerModel, IViewDescriptor, IViewDescriptorService, IViewPaneContainer, ViewContainer, ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';

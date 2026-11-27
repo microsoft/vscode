@@ -11,7 +11,7 @@ import { isCancellationError, onUnexpectedError } from '../../../../base/common/
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
@@ -55,23 +55,16 @@ import { WindowCanvasInput } from '../../../../workbench/contrib/sessions/browse
 import { ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionPresentationWorkspace, getSessionWorkspaceKind, getUntitledSessionTitle, IChat, isSideChatOf, ISession, SessionStatus, SessionWorkspaceKind } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
-import { $, append, EventHelper, EventLike, getWindow, isMouseEvent, ModifierKeyEmitter, reset } from '../../../../base/browser/dom.js';
-import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { EventHelper, EventLike, getWindow, ModifierKeyEmitter } from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
-import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
-import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IAction, toAction } from '../../../../base/common/actions.js';
-import { isWeb, OS } from '../../../../base/common/platform.js';
+import { isWeb } from '../../../../base/common/platform.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { asCssVariable } from '../../../../platform/theme/common/colorRegistry.js';
-import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { IWorkbenchAssignmentService } from '../../../../workbench/services/assignment/common/assignmentService.js';
 import { registerViewNavigationCommand } from '../../../../workbench/browser/actions/navigationActions.js';
-import { agentsNewSessionButtonBackground, agentsNewSessionButtonBorder, agentsNewSessionButtonForeground, agentsNewSessionButtonHoverBackground } from '../../../../workbench/contrib/sessions/common/theme.js';
 import { logSessionsInteraction, SessionsInteractionSource } from '../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
 import { NEW_SESSION_ACTION_ID, NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { IWindowCommandContext } from '../../../../workbench/common/windowCommandContext.js';
@@ -80,7 +73,7 @@ import { getSessionConversationActionId, SESSION_CONVERSATION_SIDE_CHATS_GROUP }
 import { SessionsList } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { ISessionChatItem, SessionChatItemCanDeleteContext, SessionChatItemCanMoveContext, SessionChatItemCanRenameContext, SessionChatItemHasMoveDestinationContext, SessionChatItemIsUntitledContext, SessionItemHasMoveDestinationContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionsGrouping, SessionsListFocusedChatItemContext } from '../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { SessionsView, SessionsViewGroupingContext, SessionsViewId } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
-import './media/newSessionActionViewItem.css';
+import { CompactButtonActionViewItem } from '../../../../workbench/contrib/sessions/browser/widgets/compactButtonActionViewItem.js';
 import { INewSessionComposerService } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
@@ -1602,153 +1595,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab,
 	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab },
 });
-
-/**
- * Base class for the compact pill button rendered in the sessions UI (e.g. the "New" session/chat
- * buttons and the empty file editor actions). Subclasses provide the command id,
- * label, optional icon and hover/aria text.
- */
-export abstract class CompactButtonActionViewItem extends BaseActionViewItem {
-
-	constructor(
-		action: IAction,
-		@IKeybindingService protected readonly keybindingService: IKeybindingService,
-		@IHoverService private readonly hoverService: IHoverService,
-		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
-	) {
-		super(undefined, action);
-	}
-
-	/** Command id used to look up the trailing keybinding hint. */
-	protected abstract get commandId(): string;
-
-	/** Visible pill label (e.g. "New", "New Chat"). */
-	protected abstract get label(): string;
-
-	/** Optional leading icon for the pill. */
-	protected get icon(): ThemeIcon | undefined {
-		return undefined;
-	}
-
-	/** Hover text; receives the resolved keybinding label, if any. */
-	protected abstract getHoverContent(keybindingLabel: string | undefined): string;
-
-	/** Accessible name; receives the resolved keybinding aria label, if any. */
-	protected abstract getAriaLabel(keybindingAriaLabel: string | undefined): string;
-
-	/** Optional onboarding spotlight target id for the pill. */
-	protected get onboardingTargetId(): string | undefined {
-		return undefined;
-	}
-
-	/** Whether to render the trailing keybinding hint chip in the label. */
-	protected get showKeybindingHint(): boolean {
-		return true;
-	}
-
-	/** Hook invoked right before the action runs (e.g. for telemetry). */
-	protected onRun(): void { }
-
-	protected runAction(_event: MouseEvent | undefined): void {
-		void this.actionRunner.run(this.action, this._context);
-	}
-
-	protected configureButton(_button: Button): void { }
-
-	override render(container: HTMLElement): void {
-		super.render(container);
-
-		if (!this.element) {
-			return;
-		}
-
-		const button = this._register(new Button(this.element, {
-			...defaultButtonStyles,
-			buttonSecondaryBackground: asCssVariable(agentsNewSessionButtonBackground),
-			buttonSecondaryForeground: asCssVariable(agentsNewSessionButtonForeground),
-			buttonSecondaryHoverBackground: asCssVariable(agentsNewSessionButtonHoverBackground),
-			buttonSecondaryBorder: asCssVariable(agentsNewSessionButtonBorder),
-			secondary: true,
-			supportIcons: true,
-		}));
-		button.element.classList.add('agent-sessions-compact-new-button');
-		this.configureButton(button);
-		const onboardingTargetId = this.onboardingTargetId;
-		if (onboardingTargetId) {
-			this._register(markOnboardingTarget(button.element, onboardingTargetId, {
-				onDidActivate: Event.map(Event.filter(button.onDidClick, () => this.action.enabled), () => undefined),
-			}));
-		}
-		this._register(button.onDidClick(e => {
-			// Stop propagation so the parent <li> click handler doesn't run the action twice.
-			EventHelper.stop(e, true);
-			if (!this.action.enabled) {
-				return;
-			}
-			this.onRun();
-			this.runAction(isMouseEvent(e) ? e : undefined);
-		}));
-
-		const buttonLabel = $('span.new-session-button-label', undefined, this.label);
-		const icon = this.icon;
-		if (icon) {
-			const iconElement = $('span.new-session-button-icon');
-			iconElement.classList.add(...ThemeIcon.asClassNameArray(icon));
-			iconElement.setAttribute('aria-hidden', 'true');
-			buttonLabel.prepend(iconElement);
-		}
-		const keybindingHint = $('span.new-session-keybinding-hint');
-		const keybindingHintLabel = this.showKeybindingHint
-			? this._register(new KeybindingLabel(keybindingHint, OS, {
-				disableTitle: true,
-				keybindingLabelBackground: 'transparent',
-				keybindingLabelForeground: 'inherit',
-				keybindingLabelBorder: 'transparent',
-				keybindingLabelBottomBorder: undefined,
-				keybindingLabelShadow: undefined,
-			}))
-			: undefined;
-		reset(button.element, buttonLabel);
-
-		const getKeybinding = () => {
-			const primaryKeybinding = this.keybindingService.lookupKeybinding(this.commandId, this.contextKeyService, true);
-			const resolvedKeybindings = this.keybindingService.lookupKeybindings(this.commandId);
-			return primaryKeybinding ?? resolvedKeybindings[0];
-		};
-
-		this._register(this.hoverService.setupDelayedHover(button.element, () => ({
-			content: this.getHoverContent(getKeybinding()?.getLabel() ?? undefined),
-			appearance: { compact: true, showPointer: true },
-			position: { hoverPosition: HoverPosition.BELOW },
-		})));
-
-		let lastRenderedKeybindingLabel: string | undefined | null = null;
-		let lastRenderedKeybindingAriaLabel: string | undefined | null = null;
-		const updateButton = () => {
-			const keybinding = getKeybinding();
-			const keybindingLabel = keybinding?.getLabel() ?? undefined;
-			const keybindingAriaLabel = keybinding?.getAriaLabel() ?? undefined;
-			if (lastRenderedKeybindingLabel === keybindingLabel && lastRenderedKeybindingAriaLabel === keybindingAriaLabel) {
-				return;
-			}
-
-			lastRenderedKeybindingLabel = keybindingLabel;
-			lastRenderedKeybindingAriaLabel = keybindingAriaLabel;
-
-			keybindingHintLabel?.set(keybinding);
-			if (keybindingHintLabel && keybinding) {
-				if (keybindingHint.parentElement !== button.element) {
-					append(button.element, keybindingHint);
-				}
-			} else {
-				keybindingHint.remove();
-			}
-
-			button.element.setAttribute('aria-label', this.getAriaLabel(keybindingAriaLabel));
-		};
-		this._register(Event.runAndSubscribe(this.keybindingService.onDidUpdateKeybindings, updateButton));
-	}
-}
 
 /**
  * Renders the new-session action as the compact "New" pill, shared by the sessions sidebar

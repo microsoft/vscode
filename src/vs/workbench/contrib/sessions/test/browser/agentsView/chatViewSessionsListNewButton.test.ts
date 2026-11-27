@@ -9,64 +9,94 @@ import { Action, IAction, Separator } from '../../../../../../base/common/action
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ToggleMenuAction, ToolBar } from '../../../../../../base/browser/ui/toolbar/toolbar.js';
-import { DropdownWithPrimaryActionViewItem } from '../../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { MenuId, MenuItemAction, SubmenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
+import { IContextMenuDelegate } from '../../../../../../base/browser/contextmenu.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { ChatViewSessionsListControl } from '../../../browser/agentsView/chatViewSessionsList.js';
 import { SessionsView } from '../../../browser/views/sessionsView.js';
+import { CompactButtonActionViewItem } from '../../../browser/widgets/compactButtonActionViewItem.js';
 
 suite('Sessions - Chat view sessions list New button', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function render(newChatEnabled: boolean) {
+	function render(newChatEnabled: boolean, menuAction?: IAction) {
 		const commands: { id: string; args: unknown[] }[] = [];
 		const commandService = upcastPartial<ICommandService>({ executeCommand: async (id: string, ...args: unknown[]) => { commands.push({ id, args }); return undefined; } });
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(ICommandService, commandService);
-		const menus: (readonly IAction[])[] = [];
-		instantiationService.stub(IContextMenuService, upcastPartial<IContextMenuService>({ showContextMenu: delegate => { menus.push(delegate.getActions?.() ?? []); } }));
+		const menus: IContextMenuDelegate[] = [];
+		instantiationService.stub(IContextMenuService, upcastPartial<IContextMenuService>({ showContextMenu: delegate => { menus.push(delegate as IContextMenuDelegate); } }));
+		const errors: unknown[] = [];
+		instantiationService.stub(INotificationService, upcastPartial<INotificationService>({ error: error => { errors.push(error); } }));
 		const contextKeyService = new MockContextKeyService();
-		const newChat = new MenuItemAction({ id: 'newChat', title: 'New Chat', icon: undefined, precondition: newChatEnabled ? undefined : ContextKeyExpr.false() }, undefined, undefined, undefined, undefined, contextKeyService, commandService);
-		const actions = [newChat, new Separator(), store.add(new Action('newChatWindow', 'New Chat Window'))];
+		const newChat = new MenuItemAction({ id: 'newChat', title: 'New Chat', icon: undefined, precondition: newChatEnabled ? undefined : ContextKeyExpr.false() }, undefined, { shouldForwardArgs: true }, undefined, undefined, contextKeyService, commandService);
+		const actions = [newChat, new Separator(), menuAction ?? store.add(new Action('newChatWindow', 'New Chat Window'))];
 		const submenu = new SubmenuItemAction({ submenu: MenuId.ChatNewMenu, title: 'New Chat', isSplitButton: true }, undefined, actions);
 		const control = instantiationService.createInstance(ChatViewSessionsListControl, upcastPartial<SessionsView>({ dispose: () => { }, createActionViewItem: () => undefined }), undefined);
 		const item = store.add(control.createActionViewItem(submenu)!);
 		const container = DOM.$('div');
 		item.render(container);
 		item.setActionContext('titleContext');
-		return { item, control, submenu, container, actions, commands, menus };
+		return { item, control, submenu, container, actions, commands, menus, errors };
 	}
 
-	test('shows New Chat as a "New" split button whose menu is the New menu', async () => {
+	test('shows New Chat as the compact "New" button whose joined ▾ part is the New menu', async () => {
 		const { item, submenu, container, actions, commands, menus } = render(true);
-		const primary = container.querySelector<HTMLElement>('.action-container .action-label')!;
+		const primary = container.querySelector<HTMLElement>('.agent-sessions-compact-new-button')!;
 
 		primary.click();
-		container.querySelector<HTMLElement>('.dropdown-action-container .action-label')!.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }));
+		container.querySelector<HTMLElement>('.monaco-dropdown-button')!.click();
 		await Promise.resolve();
 
 		assert.deepStrictEqual({
-			isSplitButton: item instanceof DropdownWithPrimaryActionViewItem,
+			isCompactButton: item instanceof CompactButtonActionViewItem,
 			isNewMenu: item.action === submenu,
-			label: primary.textContent,
+			label: primary.querySelector('.new-session-button-label')!.textContent,
 			disabled: primary.classList.contains('disabled'),
 			commands,
-			menus: menus.map(menu => menu.length === actions.length && menu.every((action, index) => action === actions[index])),
-		}, { isSplitButton: true, isNewMenu: true, label: 'New', disabled: false, commands: [{ id: 'newChat', args: ['titleContext'] }], menus: [true] });
+			menus: menus.map(menu => { const menuActions = menu.getActions(); return menuActions.length === actions.length && menuActions.every((action, index) => action === actions[index]); }),
+		}, { isCompactButton: true, isNewMenu: true, label: 'New', disabled: false, commands: [{ id: 'newChat', args: ['titleContext'] }], menus: [true] });
 	});
 
-	test('is disabled when New Chat is', () => {
+	test('is disabled when New Chat is, keeping its ▾ part', () => {
 		const { container } = render(false);
+		const primary = container.querySelector<HTMLElement>('.agent-sessions-compact-new-button')!;
+		const dropdown = container.querySelector<HTMLElement>('.monaco-dropdown-button')!;
 		assert.deepStrictEqual({
-			button: container.classList.contains('disabled'),
-			primary: container.querySelector<HTMLElement>('.action-container .action-label')!.classList.contains('disabled'),
-			ariaDisabled: container.querySelector<HTMLElement>(':scope > .action-container')!.getAttribute('aria-disabled'),
-		}, { button: true, primary: true, ariaDisabled: 'true' });
+			primary: primary.classList.contains('disabled'),
+			ariaDisabled: primary.getAttribute('aria-disabled'),
+			dropdown: dropdown.classList.contains('disabled'),
+			tabStop: [primary.tabIndex, dropdown.tabIndex],
+		}, { primary: true, ariaDisabled: 'true', dropdown: false, tabStop: [-1, 0] });
+	});
+
+	test('runs the New menu with the context of the title and reports a failure once, even after the button is gone', async () => {
+		const failure = new DeferredPromise<void>();
+		const cancellation = new DeferredPromise<void>();
+		const contexts: unknown[] = [];
+		const failing = store.add(new Action('failing', 'Failing', undefined, true, context => { contexts.push(context); return failure.p; }));
+		const cancelled = store.add(new Action('cancelled', 'Cancelled', undefined, true, context => { contexts.push(context); return cancellation.p; }));
+		const { item, container, menus, errors } = render(true, failing);
+		container.querySelector<HTMLElement>('.monaco-dropdown-button')!.click();
+		const menu = menus[0];
+
+		// The menu closes as the action starts, and the toolbar may dispose the button before the action ends
+		const failed = menu.actionRunner!.run(failing, null);
+		const cancelledRun = menu.actionRunner!.run(cancelled, null);
+		item.dispose();
+		failure.error(new Error('failed'));
+		cancellation.error(new CancellationError());
+		await Promise.all([failed, cancelledRun]);
+
+		assert.deepStrictEqual({ contexts, errors: errors.map(error => (error as Error).message) }, { contexts: ['titleContext', 'titleContext'], errors: ['failed'] });
 	});
 
 	test('moves into the overflow of a responsive title toolbar as a split button, and back', () => {
