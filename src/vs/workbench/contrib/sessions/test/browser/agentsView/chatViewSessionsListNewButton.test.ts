@@ -55,7 +55,7 @@ suite('Sessions - Chat view sessions list New button', () => {
 		const actions = [newChat, new Separator(), menuAction ?? store.add(new Action('newChatWindow', 'New Chat Window'))];
 		const submenu = new SubmenuItemAction({ submenu: MenuId.ChatNewMenu, title: 'New Chat', isSplitButton: true }, undefined, actions);
 		const control = instantiationService.createInstance(ChatViewSessionsListControl, upcastPartial<SessionsView>({ dispose: () => { }, createActionViewItem: () => undefined }), undefined);
-		const item = store.add(control.createActionViewItem(submenu) as CompactButtonActionViewItem);
+		const item = store.add(control.createActionViewItem(submenu, undefined, true) as CompactButtonActionViewItem);
 		const container = DOM.$('div');
 		item.render(container);
 		item.setActionContext('titleContext');
@@ -121,7 +121,7 @@ suite('Sessions - Chat view sessions list New button', () => {
 		const { control, actions, commands, contextKeyService, commandService } = render(true);
 		const contributed = new MenuItemAction({ id: 'ext.newSession', title: 'Contributed', icon: undefined, precondition: ContextKeyExpr.false() }, undefined, { shouldForwardArgs: true }, undefined, undefined, contextKeyService, commandService);
 		const newMenu = (menuActions: IAction[]) => new SubmenuItemAction({ submenu: MenuId.ChatNewMenu, title: 'New Chat', isSplitButton: true }, undefined, menuActions);
-		const item = store.add(control.createActionViewItem(newMenu([contributed, new Separator(), ...actions])) as CompactButtonActionViewItem);
+		const item = store.add(control.createActionViewItem(newMenu([contributed, new Separator(), ...actions]), undefined, true) as CompactButtonActionViewItem);
 		const container = DOM.$('div');
 		item.render(container);
 		const primary = container.querySelector<HTMLElement>('.agent-sessions-compact-new-button')!;
@@ -131,8 +131,13 @@ suite('Sessions - Chat view sessions list New button', () => {
 			ariaLabel: primary.getAttribute('aria-label'),
 			disabled: primary.classList.contains('disabled'),
 			commands: commands.map(command => command.id),
-			withoutNewChat: control.createActionViewItem(newMenu([contributed])),
+			withoutNewChat: control.createActionViewItem(newMenu([contributed]), undefined, true),
 		}, { ariaLabel: 'New Chat', disabled: false, commands: [ACTION_ID_NEW_CHAT], withoutNewChat: undefined });
+	});
+
+	test('leaves the New menu to the stock renderer in a title that does not fit its actions by their widths', () => {
+		const { control, submenu } = render(true);
+		assert.strictEqual(control.createActionViewItem(submenu, undefined, false), undefined);
 	});
 
 	test('shows the keybinding of the canonical New Chat for its icon variants, but runs the variant', () => {
@@ -185,7 +190,7 @@ suite('Sessions - Chat view sessions list New button', () => {
 		try {
 			let availableWidth = 400;
 			const toolbar = store.add(new ToolBar(container, upcastPartial({ showContextMenu: () => { } }), {
-				actionViewItemProvider: (action, options) => control.createActionViewItem(action, options),
+				actionViewItemProvider: (action, options) => control.createActionViewItem(action, options, true),
 				// As the Chat view's title in the secondary side bar
 				responsiveBehavior: {
 					enabled: true, kind: 'all', minItems: 0, overflowFrom: 'start', actionMinWidth: 22, reserveMinWidth: false, getAvailableWidth: () => availableWidth,
@@ -227,7 +232,7 @@ suite('Sessions - Chat view sessions list New button', () => {
 		const { control, submenu } = rendered;
 		const container = DOM.append(root, DOM.$('.part.auxiliarybar'));
 		const part = createTestAuxiliaryBarPart(container, store, { onDidUpdateKeybindings: rendered.keybindingService.onDidUpdateKeybindings });
-		part.viewActionViewItemProvider = (action, options) => control.createActionViewItem(action, options);
+		part.viewActionViewItemProvider = (action, options) => control.createActionViewItem(action, options, true);
 		const next = store.add(new Action('next', 'Next', 'codicon codicon-gear'));
 		part.setTitleActions('Chat', [submenu, next], []);
 		const layout = (width: number) => {

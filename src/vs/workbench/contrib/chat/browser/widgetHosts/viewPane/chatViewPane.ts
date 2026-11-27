@@ -367,6 +367,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this.updateContextKeys();
 			this.updateViewPaneClasses(true /* layout here */);
 		}));
+		// The title showing the view's actions fits them by the location of its container
+		this._register(Event.filter(this.viewDescriptorService.onDidChangeContainerLocation, e => e.viewContainer === this.viewDescriptorService.getViewContainerByViewId(this.id))(() => this.updateActions()));
 
 		// Settings changes
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => {
@@ -1340,7 +1342,28 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		if (action.id === AICustomizationManagementCommands.OpenEditor && action instanceof MenuItemAction) {
 			return this.instantiationService.createInstance(ChatCustomizationsActionViewItem, action, options, this.instantiationService.createInstance(ChatCustomizationsHover), 'chatToolbar', this.customizationMigrationsAvailable, false, undefined);
 		}
-		return this.sessionsControl?.createActionViewItem?.(action, options) ?? super.createActionViewItem(action, options);
+		return this.sessionsControl?.createActionViewItem?.(action, options, this.titleFitsWidths()) ?? super.createActionViewItem(action, options);
+	}
+
+	/**
+	 * Whether the title showing the view's actions fits them to its width by the widths they need: that of the secondary side
+	 * bar, which shows them while the view is merged with its container. The view's own header, shown otherwise, does not.
+	 */
+	private titleFitsWidths(): boolean {
+		return !this.headerVisible && this.viewDescriptorService.getViewLocationById(this.id) === ViewContainerLocation.AuxiliaryBar;
+	}
+
+	override get headerVisible(): boolean {
+		return super.headerVisible;
+	}
+
+	override set headerVisible(visible: boolean) {
+		const changed = visible !== super.headerVisible;
+		super.headerVisible = visible;
+		if (changed) {
+			// The view's actions move between its own header and the title of its container, which fit them differently
+			this.updateActions();
+		}
 	}
 
 	/** Whether the title is that of the sessions list that a provider gives or is to give, such as "Sessions", rather than the Chat view's own. */

@@ -147,8 +147,12 @@ export class ChatViewSessionsListControl implements IChatViewSessionsListControl
 	/** The sessions of the Chat view's own list that have focus: none of those here. */
 	getFocus(): IAgentSession[] { return []; }
 	openFind(): void { this._view.openFind(); }
-	createActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {
-		if (action instanceof SubmenuItemAction && action.item.submenu === MenuId.ChatNewMenu) {
+	/**
+	 * The New menu shows as the compact "New" button only in a title that fits it by the width it needs; other titles, which
+	 * would cover or clip it, show it as the stock split button.
+	 */
+	createActionViewItem(action: IAction, options: IDropdownMenuActionViewItemOptions | undefined, titleFitsWidths: boolean): IActionViewItem | undefined {
+		if (titleFitsWidths && action instanceof SubmenuItemAction && action.item.submenu === MenuId.ChatNewMenu) {
 			const newChat = action.actions.find(action => action instanceof MenuItemAction && (action.id === ACTION_ID_NEW_CHAT || NEW_CHAT_ICON_VARIANTS.some(variant => action.id === ACTION_ID_NEW_CHAT + variant.idSuffix)));
 			if (newChat instanceof MenuItemAction) {
 				return this._instantiationService.createInstance(ChatViewNewButtonActionViewItem, action, newChat);
