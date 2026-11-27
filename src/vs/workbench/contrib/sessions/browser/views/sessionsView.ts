@@ -9,9 +9,10 @@ import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { getOrSet, ResourceSet } from '../../../../../base/common/map.js';
+import { getOrSet } from '../../../../../base/common/map.js';
 import { autorun, derived, derivedOpts, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { structuralEquals } from '../../../../../base/common/equals.js';
+import { equalSets } from '../../../../../base/common/collections.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { getComparisonKey } from '../../../../../base/common/resources.js';
 import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
@@ -450,7 +451,7 @@ export class SessionsView extends ViewPane {
 		const barEnabled = this.windowScope.barShown;
 		const inventoryChanged = observableSignalFromEvent(this, this.sessionsManagementService.onDidChangeSessions);
 		const repositories = this.workspaceFolderRepositories;
-		const sessionScope = derived(this, reader => {
+		const sessionScope = derivedOpts<ReadonlySet<string> | undefined>({ owner: this, equalsFn: (a, b) => a === b || (!!a && !!b && equalSets(a, b)) }, reader => {
 			if (!this.scoped?.read(reader) || barEnabled.read(reader)) {
 				return undefined;
 			}
@@ -464,18 +465,9 @@ export class SessionsView extends ViewPane {
 			if (!scope) {
 				return undefined;
 			}
-			const extUri = this.uriIdentityService.extUri;
-			const scopeFolders = repositories.folders.read(reader);
-			const folders = new ResourceSet(scopeFolders, uri => extUri.getComparisonKey(uri));
 			const sessionsInScope = this.sessionsManagementService.getSessions().filter(session => scope.has(session.sessionId));
-			const matcher = new SessionScopeMatcher(scopeFolders, repositories.gitHubRepositories.read(reader), extUri);
-			for (const workingDirectory of matcher.getWorkingDirectoriesInScope(sessionsInScope, reader)) {
-				folders.add(workingDirectory);
-			}
-			return (item: IPendingSessionItem) => {
-				const folderUri = item.folderUri;
-				return item.isQuickChat !== true && !!folderUri && [...folders].some(folder => extUri.isEqualOrParent(folderUri, folder));
-			};
+			const matcher = new SessionScopeMatcher(repositories.folders.read(reader), repositories.gitHubRepositories.read(reader), this.uriIdentityService.extUri).withWorkingDirectoriesOf(sessionsInScope, reader);
+			return (item: IPendingSessionItem) => item.isQuickChat !== true && !!item.folderUri && matcher.worksInScope(item.folderUri);
 		});
 		const sessionsContainer = DOM.append(parent, $('.agent-sessions-container'));
 		this.sidebarSplitViewContainer = DOM.append(sessionsContainer, $('.agent-sessions-sidebar-splitview-container'));

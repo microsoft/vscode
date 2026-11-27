@@ -2184,6 +2184,50 @@ suite('Sessions - SessionsList', () => {
 			})));
 		});
 
+		test('tells the context menu of a pinned canvas that its session is listed when the list\'s scope only hides it from view', () => {
+			const now = Date.now();
+			const [here, elsewhere] = ['Here', 'Elsewhere'].map((title, index) => createTestSession(title, { createdAt: new Date(now - index * 1000) }).session);
+			const pin = upcastPartial<IPinnedCanvas>({
+				id: elsewhere.sessionId,
+				identity: { providerId: elsewhere.providerId, session: elsewhere.resource, chat: elsewhere.mainChat.get().resource, extensionId: 'user:canvases', canvasId: 'plan', instanceId: elsewhere.sessionId },
+				title: constObservable('Canvas Elsewhere'),
+				chatTitle: constObservable(undefined),
+				state: constObservable(PinnedCanvasState.Live),
+				canvas: constObservable(undefined),
+			});
+			const menus: unknown[] = [];
+			const harness = createListHarness(disposables, [here, elsewhere]);
+			const contextKeyService = harness.store.add(new ContextKeyService(new TestConfigurationService()));
+			ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+			harness.instantiationService.stub(IContextKeyService, contextKeyService);
+			(harness.instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_CANVASES_SECTION_SETTING, true);
+			harness.instantiationService.stub(IMenuService, harness.store.add(harness.instantiationService.createInstance(MenuService)));
+			harness.instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
+				override readonly activeCustomView = constObservable(undefined);
+			});
+			harness.instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
+				override showContextMenu(delegate: IContextMenuMenuDelegate): void {
+					if (delegate.menuId === Menus.SidebarCanvasContext) {
+						menus.push(delegate.contextKeyService?.getContextKeyValue(PinnedCanvasSessionInSessionsListContext.key));
+					}
+				}
+			});
+			const container = harness.createContainer(300, 600);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				sessionScope: constObservable(new Set([here.sessionId])),
+				pinnedCanvases: upcastPartial<IPinnedCanvasService>({ enabled: constObservable(true), entries: constObservable([pin]), selected: constObservable(undefined) }),
+				onSessionOpen: () => { },
+			}));
+			list.layout(600, 300);
+			const row = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].find(row => (row.querySelector('.session-section-label') ?? row.querySelector('.session-title'))?.textContent === 'Canvas Elsewhere');
+			assert.ok(row);
+			row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
+
+			assert.deepStrictEqual({ visible: list.getVisibleSessions().map(session => session.sessionId), listed: menus }, { visible: ['Here'], listed: [true] });
+		});
+
 		test('switches the navigation treatment without disturbing Find focus', async () => {
 			const commands: string[] = [];
 			const activeEditorChanged = disposables.add(new Emitter<void>());

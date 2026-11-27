@@ -310,6 +310,17 @@ suite('SessionsListingScopeFilter', () => {
 			sessionOf('mainChatWithoutFolder', ['/work/aph.worktrees/notes', '/work/vscode.worktrees/fix'], []),
 		];
 
-		assert.deepStrictEqual(new SessionScopeMatcher([URI.file('/work/vscode')], []).getWorkingDirectoriesInScope(sessions, undefined).map(uri => uri.path), ['/work/vscode.worktrees/sync', '/work/vscode.worktrees/fix']);
+		const drafts = new SessionScopeMatcher([URI.file('/work/vscode')], []).withWorkingDirectoriesOf(sessions, undefined);
+		const paths = ['/work/vscode/src', '/work/vscode.worktrees/sync', '/work/vscode.worktrees/fix', '/work/aph.worktrees/docs', '/work/aph.worktrees/notes'];
+
+		assert.deepStrictEqual(paths.filter(path => drafts.worksInScope(URI.file(path))), ['/work/vscode/src', '/work/vscode.worktrees/sync', '/work/vscode.worktrees/fix']);
+	});
+
+	test('places drafts on GitHub in the scope\'s repositories, such as Copilot Cloud drafts, once widened by working directories', () => {
+		const gitHub = (path: string) => URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path });
+		const drafts = new SessionScopeMatcher([URI.file('/work/vscode')], ['microsoft/vscode']).withWorkingDirectoriesOf([], undefined);
+		const uris = [gitHub('/microsoft/vscode/main'), gitHub('/Microsoft/VSCode/feature/x'), gitHub('/microsoft/other/main'), URI.file('/work/vscode'), URI.file('/work/other')];
+
+		assert.deepStrictEqual(uris.map(uri => drafts.worksInScope(uri)), [true, true, false, true, false]);
 	});
 });

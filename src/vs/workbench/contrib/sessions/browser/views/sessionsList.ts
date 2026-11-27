@@ -4985,7 +4985,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			contextKeyService: this.contextKeyService.createOverlay([
 				[PinnedCanvasConnectedContext.key, entry.canvas.get() !== undefined],
 				[PinnedCanvasSessionCanToggleListingContext.key, session !== undefined],
-				[PinnedCanvasSessionInSessionsListContext.key, session !== undefined && this.isSessionListed(session)],
+				[PinnedCanvasSessionInSessionsListContext.key, session !== undefined && this._sessionsListModelService.isSessionListed(session)],
 			]),
 			getAnchor: () => anchor,
 		});
@@ -5095,7 +5095,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[SessionItemCanImportContext.key, element.isExternal?.get() === true && element.capabilities.get().supportsImport === true],
 			[SessionItemIsAutomationContext.key, isAutomationSession(element)],
 			[SessionItemHasPinnedCanvasContext.key, this.hasPinnedCanvas(element)],
-			[SessionItemIsInSessionsListContext.key, this.isSessionListed(element)],
+			[SessionItemIsInSessionsListContext.key, this._sessionsListModelService.isSessionListed(element)],
 			[SessionTypeContext.key, element.sessionType],
 			[SessionProviderIdContext.key, element.providerId],
 			[SessionSupportsMultipleChatsContext.key, element.capabilities.get().supportsMultipleChats],

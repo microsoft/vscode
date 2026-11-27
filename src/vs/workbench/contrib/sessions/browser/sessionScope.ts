@@ -5,6 +5,7 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../../base/common/map.js';
 import { autorun, IReader, observableSignal } from '../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase, IExtUri } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -37,7 +38,7 @@ export class SessionScopeMatcher {
 
 	constructor(
 		private readonly scopeFolders: readonly URI[],
-		scopeGitHubRepositories: readonly string[],
+		private readonly scopeGitHubRepositories: readonly string[],
 		private readonly extUri: IExtUri = extUriBiasedIgnorePathCase,
 	) {
 		this.gitHubRepositories = new Set(scopeGitHubRepositories.map(repository => repository.toLowerCase()));
@@ -49,18 +50,28 @@ export class SessionScopeMatcher {
 	}
 
 	/**
-	 * The working directories by which {@link getSessionsInScope} places `sessions` in the scope, such as worktrees of its folders:
-	 * those of the folders that match it, not the other folders of a session it places.
+	 * The scope widened by the working directories by which {@link getSessionsInScope} places `sessions` in it, such as worktrees
+	 * of its folders: those of the folders that match it, not the other folders of a session it places. Work that is not a
+	 * session yet, such as a draft, is in the scope when it {@link worksInScope works in} the widened one.
 	 */
-	getWorkingDirectoriesInScope(sessions: readonly ISession[], reader: IReader | undefined): URI[] {
-		return sessions.flatMap(session => this.getScopingFolders(session, reader).filter(folder => this.isFolderInScope(folder)).map(folder => folder.workingDirectory));
+	withWorkingDirectoriesOf(sessions: readonly ISession[], reader: IReader | undefined): SessionScopeMatcher {
+		const folders = new ResourceSet(this.scopeFolders, uri => this.extUri.getComparisonKey(uri));
+		for (const session of sessions) {
+			for (const folder of this.getScopingFolders(session, reader)) {
+				if (this.isFolderInScope(folder)) {
+					folders.add(folder.workingDirectory);
+				}
+			}
+		}
+		return new SessionScopeMatcher([...folders], this.scopeGitHubRepositories, this.extUri);
 	}
 
 	private isFolderInScope(folder: ISessionFolder): boolean {
 		return this.worksInScope(folder.workingDirectory) || this.isScopeFolder(folder.root) || this.isScopeFolder(folder.gitRepository?.uri);
 	}
 
-	private worksInScope(uri: URI): boolean {
+	/** Whether work in `uri` is in the scope: `uri` is in a scope folder, or on GitHub in one of the scope's repositories. */
+	worksInScope(uri: URI): boolean {
 		return this.scopeFolders.some(folder => this.extUri.isEqualOrParent(uri, folder)) || isGitHubRepositoryOf(uri, this.gitHubRepositories);
 	}
 

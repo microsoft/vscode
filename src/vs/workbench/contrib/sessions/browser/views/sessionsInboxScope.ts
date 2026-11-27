@@ -8,7 +8,7 @@ import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IObservable, observableSignalFromEvent } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { ActionListItemKind, IActionListItem, IActionListOptions } from '../../../../../platform/actionWidget/browser/actionList.js';
@@ -42,7 +42,7 @@ export class SessionsInboxScope extends Disposable {
 		sessions: IObservable<readonly ISession[]>,
 		environments: IObservable<readonly ISessionEnvironment[]>,
 		localEnvironmentIds: IObservable<ReadonlySet<string>>,
-		inbox: IObservable<boolean> = constObservable(true),
+		inbox: IObservable<boolean>,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
