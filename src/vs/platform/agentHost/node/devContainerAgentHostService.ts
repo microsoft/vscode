@@ -68,12 +68,6 @@ const DEV_CONTAINER_RELAY_CONNECTION_TIMEOUT_MS = 30_000;
 /** `docker ps` format that prints a container's folder and configuration file id labels and its state as a JSON array. */
 const devContainerFolderContainerFormat = '[{{json (.Label "devcontainer.local_folder")}},{{json (.Label "devcontainer.config_file")}},{{json .State}}]';
 
-/** The `devcontainer.local_folder` id label that the Dev Containers CLI gives the containers of a folder. */
-function getDevContainerLocalFolderLabelValue(platform: string, workspaceFolder: string): string {
-	const label = getDefaultDevContainerIdLabels(platform, workspaceFolder, '')[0];
-	return label.substring(label.indexOf('=') + 1);
-}
-
 function getDevContainerShellArgs(workspaceFolder: string | readonly string[]): readonly string[] {
 	return ['exec', ...DEV_CONTAINER_LOG_ARGS, ...typeof workspaceFolder === 'string' ? ['--workspace-folder', workspaceFolder] : workspaceFolder, '/bin/sh'];
 }
@@ -384,7 +378,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				const userStateMount = config.persistUserState ? await this._getUserStateMountArgs(config.connectionId, configuration, config.workspaceFolder, tokenSource.token) : { args: [], keepExistingFolders: true };
 				const selectorArgs = typeof workspaceSelector === 'string' ? ['--workspace-folder', workspaceSelector] : workspaceSelector;
 				// `up` starts a stopped container, which a connection without user action must not do, so this checks right before it.
-				if (config.requireRunning && !await this._isFolderContainerRunning(config.workspaceFolder)) {
+				if (config.requireRunning && !await this._isFolderContainerRunning(config.workspaceFolder, configuration, tokenSource.token)) {
 					throw new Error(localize('devContainerAgentHost.containerNotRunning', "The Dev Container for '{0}' is not running.", config.name));
 				}
 				const up = await this._runDevContainerStage(
@@ -1392,10 +1386,19 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		}
 	}
 
-	/** Whether the container that a connection with the folder's path reuses is running. */
-	private async _isFolderContainerRunning(workspaceFolder: string): Promise<boolean> {
-		const folder = getDevContainerLocalFolderLabelValue(process.platform, workspaceFolder);
-		return (await this._listFolderContainers()).some(container => container.running && container.workspaceFolder === folder);
+	/**
+	 * Whether the container that `up` reuses for the folder and its selected configuration file runs. Another
+	 * configuration file's container may run while that one is stopped, and `up` would start it.
+	 */
+	private async _isFolderContainerRunning(workspaceFolder: string, configuration: Promise<string>, token: CancellationToken): Promise<boolean> {
+		const { configPath } = parseDevContainerSandboxConfiguration(await configuration);
+		const idLabels = getDefaultDevContainerIdLabels(process.platform, workspaceFolder, configPath);
+		const result = await this._runDocker(['ps', '-a', '--format', '{{.State}}', ...idLabels.flatMap(label => ['--filter', `label=${label}`])], token);
+		if (result.code !== 0) {
+			throw new Error(`Cannot list Docker containers (exit ${result.code}): ${result.stderr}`);
+		}
+		const states = result.stdout.split(/\r?\n/).filter(state => state.trim());
+		return states.length > 0 && states.every(isDevContainerRunning);
 	}
 
 	async stopContainer(source: DevContainerAgentHostSource): Promise<boolean> {

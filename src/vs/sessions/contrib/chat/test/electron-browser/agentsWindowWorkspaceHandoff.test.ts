@@ -368,19 +368,24 @@ suite('Agents Window workspace handoff telemetry', () => {
 			sessionsService: { openChat: async (_session: ISession, chatResource: URI) => { opened.push(chatResource.toString()); } },
 		};
 		const devContainerAuthority = (config: string) => `dev-container+${encodeHex(VSBuffer.fromString(config))}`;
-		const open = async (remoteAuthority: string) => {
-			const result = await harness.resolveAndOpenRemoteSession(URI.parse('agent-host-copilotcli:/known#chat'), remoteAuthority, CancellationToken.None);
+		const open = async (remoteAuthority: string, chat = 'known') => {
+			const result = await harness.resolveAndOpenRemoteSession(URI.parse(`agent-host-copilotcli:/${chat}#chat`), remoteAuthority, CancellationToken.None);
 			return URI.isUri(result) ? result.toString() : result;
 		};
-		const results = [await open(devContainerAuthority(source.fsPath))];
+		const results = [await open(devContainerAuthority(JSON.stringify({ hostPath: source.fsPath })))];
+		// The container this window uses doesn't have it, for example when the window uses another agent host in it.
+		results.push(await open(devContainerAuthority(source.fsPath), 'unknown'));
+		// Another configuration file or Docker host may select another container of the folder.
+		results.push(await open(devContainerAuthority(JSON.stringify({ hostPath: source.fsPath, configFile: URI.file('/source/.devcontainer/other/devcontainer.json').toJSON() }))));
+		results.push(await open(devContainerAuthority(JSON.stringify({ hostPath: source.fsPath, settings: { context: 'remote' } }))));
 		running = false;
 		results.push(await open(devContainerAuthority(source.fsPath)));
 		// A volume's container has no source folder.
 		results.push(await open(devContainerAuthority(JSON.stringify({ volumeName: 'project', folder: 'project' }))));
 		assert.deepStrictEqual({ results, connects, released, opened }, {
-			results: [known.toString(), 'unsupported', 'unsupported'],
-			connects: [{ folder: source.toString(), requireRunning: true }, { folder: source.toString(), requireRunning: true }],
-			released: [source.toString()],
+			results: [known.toString(), 'unsupported', 'unsupported', 'unsupported', 'unsupported', 'unsupported'],
+			connects: [{ folder: source.toString(), requireRunning: true }, { folder: source.toString(), requireRunning: true }, { folder: source.toString(), requireRunning: true }],
+			released: [source.toString(), source.toString()],
 			opened: [known.toString()],
 		});
 	});

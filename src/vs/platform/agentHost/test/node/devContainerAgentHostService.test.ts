@@ -715,30 +715,37 @@ suite('Dev Container Agent Host Main Service', () => {
 		});
 	});
 
-	test('connects to a folder container that must run only while it runs, without starting it', async () => {
+	test('connects to a folder container that must run only while the container of its configuration runs, without starting it', async () => {
 		const service = store.add(new class extends TestDevContainerAgentHostMainService {
 			override async isDockerAvailable() { return true; }
 		}());
 		// The Dev Containers CLI labels a folder with its resolved path, on Windows with a lowercase drive letter.
 		const workspaceFolder = '/workspace';
 		const labelFolder = isWindows ? resolve(workspaceFolder).replace(/^[A-Z]:/, drive => drive.toLowerCase()) : workspaceFolder;
+		const configFile = join(labelFolder, '.devcontainer', 'devcontainer.json');
 		const config = { workspaceFolder, name: 'Project', requireRunning: true };
 		// A container removed after the check is not created again.
 		service.expectExistingContainer = true;
-		service.folderContainers = [[labelFolder, join(labelFolder, '.devcontainer', 'devcontainer.json'), 'exited']];
+		service.sandboxConfigurationOutput = JSON.stringify({ configuration: { configFilePath: URI.file(configFile).toJSON() }, mergedConfiguration: { mounts: [] } });
+		// The container of another configuration file runs, while `up` would start the stopped one of the selected file.
+		service.folderContainers = [[labelFolder, join(labelFolder, '.devcontainer.json'), 'running'], [labelFolder, configFile, 'exited']];
+		service.existingContainerStates = ['exited'];
 		const stopped = await service.connect({ ...config, connectionId: 'stopped' }).then(() => 'connected', (error: Error) => error.message);
 		const upCallsWhileStopped = service.devContainerArgs.filter(args => args[0] === 'up').length;
-		service.folderContainers = [[labelFolder, join(labelFolder, '.devcontainer', 'devcontainer.json'), 'running']];
+		service.existingContainerStates = ['running'];
 		await service.connect({ ...config, connectionId: 'running' });
+		const selectedLabels = [`label=devcontainer.local_folder=${labelFolder}`, `label=devcontainer.config_file=${configFile}`];
 		assert.deepStrictEqual({
 			stopped,
 			upCallsWhileStopped,
 			upCalls: service.devContainerArgs.filter(args => args[0] === 'up').length,
+			checkedLabels: service.dockerCommands.filter(args => args[0] === 'ps' && args[1] === '-a').map(args => args.filter(arg => arg.startsWith('label='))),
 			listed: (await service.listFolderContainers()).map(container => ({ folder: URI.parse(container.folder).fsPath, running: container.running })),
 		}, {
 			stopped: 'The Dev Container for \'Project\' is not running.',
 			upCallsWhileStopped: 0,
 			upCalls: 1,
+			checkedLabels: [selectedLabels, selectedLabels],
 			listed: [{ folder: URI.file(labelFolder).fsPath, running: true }],
 		});
 	});

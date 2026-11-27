@@ -40,7 +40,7 @@ import { AgentsWindowUsage } from '../../../../workbench/contrib/chat/common/age
 import { ISessionsWindowOpenContext, ISessionsWindowOpenViewState, SessionsWindowOpenTelemetry, SessionsWindowSessionStartTelemetry } from '../../sessions/browser/sessionsWindowOpenTelemetry.js';
 import { getNonArchivedSessionListCount } from '../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
 import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
-import { getAgentsWindowWorkspaceArgumentKind, getAgentsWindowWorkspaceArgumentRemoteKind, resolveAgentsWindowFolderIntent } from '../browser/agentsWindowOpenIntent.js';
+import { getAgentsWindowWorkspaceArgumentKind, getAgentsWindowWorkspaceArgumentRemoteKind, resolveAgentsWindowFolderIntent, selectsDefaultDevContainer } from '../browser/agentsWindowOpenIntent.js';
 import { findSessionForOpenSessionLink } from '../browser/openSessionLinkOpener.contribution.js';
 import { getChatWindowLinkSource, IChatWindowLinkSource, openLinkedChatInChatWindow, resolveLinkedChat } from '../browser/chatLinkRouting.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -463,13 +463,13 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 	 * Opens a session of a Dev Container editor window. That window and this one share the agent host in the container,
 	 * which this window reaches through the container provider of the window's source folder, connecting it only while the
 	 * container runs. Containers without a source folder, such as those of a volume or a cloned repository, are
-	 * unsupported, and so are those this window wouldn't use for the folder, such as one the Dev Containers extension
-	 * labeled differently.
+	 * unsupported, and so are those this window wouldn't use for the folder, such as one of another configuration file or
+	 * Docker host, or one the Dev Containers extension labeled differently.
 	 */
 	private async resolveAndOpenDevContainerSession(editorSessionResource: URI, remoteAuthority: string, token: CancellationToken): Promise<URI | 'unsupported' | undefined> {
 		const intent = resolveAgentsWindowFolderIntent(URI.from({ scheme: Schemas.vscodeRemote, authority: remoteAuthority, path: '/' }), this.configurationService);
 		// Set only for a source folder this window can reach while Dev Container sessions are enabled.
-		if (!intent.preferDevContainer) {
+		if (!intent.preferDevContainer || !selectsDefaultDevContainer(remoteAuthority)) {
 			this.logService.info('[AgentsHandoff] sessions of this Dev Container window are not shared with this window');
 			return 'unsupported';
 		}
@@ -512,15 +512,19 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 		}
 		try {
 			const sessionType = toRemoteAgentHostSessionType(editorSessionResource.scheme, target.workspaceUri.authority);
-			return sessionType ? await this.openRemoteWindowSession(editorSessionResource.with({ scheme: sessionType }), token) : 'unsupported';
+			// Without the session, the window likely uses another agent host in the container, so its folder opens instead.
+			return sessionType ? await this.openRemoteWindowSession(editorSessionResource.with({ scheme: sessionType }), token, true) : 'unsupported';
 		} finally {
 			// The connection stays, now with the window's sessions, until the container is idle.
 			await target.release();
 		}
 	}
 
-	/** Opens a remote window's session once this window's provider for its agent host lists it. */
-	private async openRemoteWindowSession(sessionResource: URI, token: CancellationToken): Promise<URI | undefined> {
+	/**
+	 * Opens a remote window's session once this window's provider for its agent host lists it. Returns `'unsupported'`
+	 * when the provider doesn't list it and `unsupportedIfMissing` is set, so the window's folder opens instead.
+	 */
+	private async openRemoteWindowSession(sessionResource: URI, token: CancellationToken, unsupportedIfMissing = false): Promise<URI | 'unsupported' | undefined> {
 		this.logService.info(`[AgentsHandoff] remote session: target=${sessionResource.toString()}`);
 		if (isEqual(this._focusedSessionHostService.focusedHost.get().chatResource.get(), sessionResource)) {
 			return sessionResource;
@@ -531,6 +535,10 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 		}
 		const session = found ? this.getSessionForResource(sessionResource) : undefined;
 		if (!session) {
+			if (unsupportedIfMissing) {
+				this.logService.info('[AgentsHandoff] remote session never appeared in its host\'s provider');
+				return 'unsupported';
+			}
 			this.logService.warn('[AgentsHandoff] remote session never appeared in its host\'s provider; aborting');
 			this.notificationService.warn(localize('agentsHandoff.remoteSessionNotFound', "The session of your remote window could not be found on the remote agent host."));
 			return undefined;

@@ -379,7 +379,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 	}
 
 	private async _connectRunningFolder(key: string, workspaceUri: URI): Promise<void> {
-		const shouldConnect = () => !this._store.isDisposed && this._runningFolders.has(key) && !this._skippedFolders.has(key) && !this._pendingConnections.has(key)
+		const shouldConnect = () => !this._store.isDisposed && isDevContainerDiscoveryEnabled(this._configurationService) && this._runningFolders.has(key) && !this._skippedFolders.has(key) && !this._pendingConnections.has(key)
 			&& !this._isConnectedOrReconnecting(this._activeConnections.get(key)?.address ?? devContainerAddress(workspaceUri));
 		if (!shouldConnect()) {
 			return;
@@ -414,7 +414,8 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 			}
 			for (const [key, workspaceUri] of workspaces) {
 				const provider = this._providers.get(key);
-				if (!provider) {
+				// One that doesn't run stays listed only while its provider has sessions.
+				if (!provider || !this._runningFolders.has(key) && provider.getSessions().length === 0) {
 					continue;
 				}
 				const sourceEntry = getDevContainerSourceEntry(workspaceUri, this._remoteAgentHostService);
@@ -711,6 +712,9 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 			if (event.added.length > 0) {
 				// Keeps the name a connection stored, rather than the one a listed container's provider was created with.
 				this._storeConnection(workspaceUri, this._storedConnections.get(key)?.name ?? name);
+			}
+			if (event.added.length > 0 || event.removed.length > 0) {
+				this._updateFolderContainers();
 			}
 		}));
 		store.add(toDisposable(() => {

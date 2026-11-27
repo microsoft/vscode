@@ -268,6 +268,11 @@ class TestProvider extends mock<RemoteAgentHostSessionsProvider>() {
 		this.sessionsChangedEmitter.fire({ added: [this.testSession], removed: [], changed: [] });
 	}
 
+	removeSession(): void {
+		this.sessionPublished = false;
+		this.sessionsChangedEmitter.fire({ added: [], removed: [this.testSession], changed: [] });
+	}
+
 	override dispose(): void {
 		this.disposed = true;
 		this.sessionsChangedEmitter.dispose();
@@ -1669,7 +1674,7 @@ suite('Dev Container Agent Host Service', () => {
 		const untrusted = URI.file('/untrusted');
 		const stopped = URI.file('/stopped');
 
-		function setupFolders(containers: { folder: URI; running: boolean }[], hostConnection?: IAgentConnection) {
+		function setupFolders(containers: { folder: URI; running: boolean }[], hostConnection?: IAgentConnection, onTrustLookup?: () => void) {
 			const instantiationService = store.add(new TestInstantiationService());
 			instantiationService.stubInstance(AgentHostProtocolClient, new TestAgentConnection());
 			const remoteService = store.add(new TestRemoteAgentHostService());
@@ -1677,7 +1682,10 @@ suite('Dev Container Agent Host Service', () => {
 			const providersService = store.add(new TestSessionsProvidersService());
 			const configurationService = new TestConfigurationService({ [DevContainerAgentHostEnabledSettingId]: true, [RemoteAgentHostsEnabledSettingId]: true, [DevContainerDiscoveryEnabledSettingId]: true });
 			store.add(configurationService.onDidChangeConfigurationEmitter);
-			const trusted = (uri: URI) => uri.path !== untrusted.path;
+			const trusted = (uri: URI) => {
+				onTrustLookup?.();
+				return uri.path !== untrusted.path;
+			};
 			const service = store.add(new TestDevContainerAgentHostService(instantiationService, remoteService, providersService, store.add(new InMemoryStorageService()), configurationService, { trusted, requestTrust: async uri => trusted(uri) }));
 			const connections: { readonly workspaceUri: string; readonly requireRunning: boolean | undefined }[] = [];
 			const local = { containers, failListing: false };
@@ -1762,21 +1770,33 @@ suite('Dev Container Agent Host Service', () => {
 			});
 		});
 
-		test('keeps listing one whose provider has sessions while it is stopped, and none while disabled', async () => {
+		test('does not connect one without user action once discovery is disabled while checking its folder\'s trust', async () => {
+			let onTrustLookup = () => { };
+			const { connections, refresh, configurationService } = setupFolders([{ folder: project, running: true }], undefined, () => onTrustLookup());
+			onTrustLookup = () => { void configurationService.setUserConfiguration(DevContainerDiscoveryEnabledSettingId, false); };
+			await refresh();
+			assert.deepStrictEqual(connections, []);
+		});
+
+		test('keeps listing one whose provider has sessions while it is stopped, until its last session is removed, and none while disabled', async () => {
 			const { local, provider, refresh, rows, configurationService } = setupFolders([{ folder: project, running: true }]);
 			await refresh();
 			provider(project)!.publishSession();
 			local.containers = [{ folder: project, running: false }];
 			await refresh();
 			const stoppedRows = rows();
+			provider(project)!.removeSession();
+			const withoutSessions = rows();
+			provider(project)!.publishSession();
 			await configurationService.setUserConfiguration(DevContainerDiscoveryEnabledSettingId, false);
 			configurationService.onDidChangeConfigurationEmitter.fire({
 				source: ConfigurationTarget.USER, affectedKeys: new Set([DevContainerDiscoveryEnabledSettingId]),
 				change: { keys: [DevContainerDiscoveryEnabledSettingId], overrides: [] }, affectsConfiguration: key => key === DevContainerDiscoveryEnabledSettingId,
 			});
 			await refresh();
-			assert.deepStrictEqual({ stoppedRows, disabled: rows() }, {
+			assert.deepStrictEqual({ stoppedRows, withoutSessions, disabled: rows() }, {
 				stoppedRows: [{ folder: project.toString(), sourceAddress: LocalDevContainerEnvironmentHost, running: false, provider: true }],
+				withoutSessions: [],
 				disabled: [],
 			});
 		});
