@@ -176,16 +176,17 @@ export class AgentsModeWorkspaceService extends Disposable implements IEditableW
 
 	/**
 	 * Enters or leaves Agents mode in place. Resolves once the switch
-	 * was applied and its change events were fired.
+	 * was applied and its change events were fired. When entering, the mode's
+	 * workspace takes `workspaceId`, by default the editor workspace's current id.
 	 */
-	setAgentsMode(enabled: boolean): Promise<void> {
+	setAgentsMode(enabled: boolean, workspaceId?: string): Promise<void> {
 		return this.switchQueue.queue(async () => {
 			if (enabled === this._isAgentsMode) {
 				return;
 			}
 			if (enabled) {
 				// The mode's workspace is empty, with the window's current id (it changes when the window enters a workspace), so its configuration and files never change
-				const workspace = this.agentsWorkspace.value = new AgentsWorkspaceContextService({ id: this.editor.getWorkspace().id }, this.services.uriIdentityService);
+				const workspace = this.agentsWorkspace.value = new AgentsWorkspaceContextService({ id: workspaceId ?? this.editor.getWorkspace().id }, this.services.uriIdentityService);
 				this.agents.value = await this.createAgentsDelegates(workspace);
 			}
 			this.switchDelegates(enabled);

@@ -181,16 +181,19 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 
 	/**
 	 * Leaves Agents mode, if the window is in it, and returns how to go back into it
-	 * when the window does not enter the new workspace after all.
+	 * when the window does not enter the new workspace after all. Going back uses the
+	 * id of the workspace the window left: entering initializes the configuration with
+	 * the new workspace before the main process can decline it.
 	 */
 	private async leaveAgentsMode(): Promise<() => Promise<void>> {
 		if (!this.agentsModeService.isActive) {
 			return async () => { };
 		}
+		const workspaceId = this.contextService.getWorkspace().id;
 		await this.agentsModeService.setActive(false);
 		return async () => {
 			try {
-				await this.agentsModeService.setActive(true);
+				await this.agentsModeService.setActive(true, workspaceId);
 			} catch (error) {
 				this.logService.error(error);
 			}

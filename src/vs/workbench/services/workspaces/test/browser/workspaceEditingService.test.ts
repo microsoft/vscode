@@ -183,6 +183,12 @@ suite('WorkspaceEditingService', () => {
 			});
 		});
 
+		test('in Agents mode, a window that is already restricted moves the mounted folder to an untrusted destination without asking or trusting it', async () => {
+			const fixture = createService({ current: URI.file('/work/project'), primaryTrusted: false, mounted: true, builtIn: false });
+			await fixture.service.setFolderLocation(URI.file('/work/alt'));
+			assert.deepStrictEqual({ prompts: fixture.prompts, trusted: fixture.trusted(), switched: fixture.switched() }, { prompts: [], trusted: [], switched: [URI.file('/work/alt').toString()] });
+		});
+
 		test('in Agents mode, a built-in alternate of a trusted primary location inherits its trust and is moved to without asking', async () => {
 			const fixture = createService({ current: URI.file('/work/project'), primaryTrusted: true, mounted: true });
 			await fixture.service.setFolderLocation(URI.file('/work/alt'));

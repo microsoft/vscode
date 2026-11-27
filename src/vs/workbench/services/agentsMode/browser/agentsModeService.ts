@@ -44,11 +44,11 @@ export class AgentsModeService implements IAgentsModeService {
 		return !!this.workspaceService?.isAgentsMode;
 	}
 
-	async setActive(active: boolean): Promise<void> {
+	async setActive(active: boolean, workspaceId?: string): Promise<void> {
 		if (!this.workspaceService) {
 			return;
 		}
-		await this.workspaceService.setAgentsMode(active);
+		await this.workspaceService.setAgentsMode(active, workspaceId);
 		if (active) {
 			this.storageService.store(AGENTS_MODE_STORAGE_KEY, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		} else {
