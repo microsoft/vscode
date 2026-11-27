@@ -2563,6 +2563,7 @@ export class NewChatWidget extends Disposable {
 			this.logService.trace('Waiting for a compatible harness in the selected environment.');
 			return { session: undefined, trustDeclined: false };
 		}
+		const previousSessionId = this._session.get()?.sessionId;
 		const selectedWorkspaceConfig = this._workspacePicker.selectedWorkspaceConfig;
 		const workspaceConfig = selectedWorkspaceConfig && this.uriIdentityService.extUri.isEqual(selectedWorkspaceConfig.folders[0], folderUri) ? selectedWorkspaceConfig : undefined;
 		try {
@@ -2579,7 +2580,8 @@ export class NewChatWidget extends Disposable {
 						? { providerId: fallbackProviderId }
 						: undefined),
 			}, token);
-			if (result.session) {
+			// A creation that fails keeps the previous draft, which was not requested in this configuration
+			if (result.session && result.session.sessionId !== previousSessionId) {
 				this._requestedWorkspaceConfig = { sessionId: result.session.sessionId, config: workspaceConfig };
 			}
 			if (this._draftHost) {

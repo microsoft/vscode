@@ -141,6 +141,8 @@ interface IRecreateHarness {
 
 /** The collaborators `_createSessionNow` reads while assembling the `openNewSession` options. */
 interface ICreateSessionNowHarness {
+	readonly _session: IObservable<ISession | undefined>;
+	_requestedWorkspaceConfig?: { readonly sessionId: string; readonly config: ISessionWorkspaceConfig | undefined };
 	readonly _preserveCustomView?: boolean;
 	readonly _draftHost?: Partial<INewSessionDraftHost>;
 	_applyRequestedSelection?(session: ISession | undefined): void;
@@ -2117,7 +2119,7 @@ suite('NewChatWidget', () => {
 					_environment: environment,
 					_environments: constObservable([local, cloud, remote]),
 					_pickedEnvironment: picked,
-					_session: constObservable({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID }),
+					_session: constObservable(upcastPartial<ITestSessionWithChat>({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID })),
 					uriIdentityService: { extUri },
 					sessionsManagementService: {
 						getSessionTypesForFolder: () => [{ providerId: remote.providerIds[0], sessionType: { id: 'copilot' } }],
@@ -4006,6 +4008,7 @@ suite('NewChatWidget', () => {
 		const calls: string[] = [];
 		const session = upcastPartial<ITestSessionWithChat>({ sessionId: 'draft', providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionType: 'copilot' });
 		const harness = {
+			_session: constObservable(undefined),
 			_environment: constObservable<ISessionCreationEnvironment>({ id: 'local', kind: 'local', label: 'This Computer', icon: Codicon.deviceDesktop, providerIds: [LOCAL_AGENT_HOST_PROVIDER_ID] }),
 			_newChatInput: { sessionTypePicker: { getPreferredSessionType: () => ({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionTypeId: 'copilot' }) } },
 			_workspacePicker: { selectedResolved: { providerId: LOCAL_AGENT_HOST_PROVIDER_ID } },
@@ -4029,6 +4032,7 @@ suite('NewChatWidget', () => {
 		const workspaceConfig: ISessionWorkspaceConfig = { uri: URI.file('/product.code-workspace'), name: 'Product', folders: [folder, URI.file('/docs')] };
 		const requests: IOpenNewSessionOptions[] = [];
 		const harness: ICreateSessionNowHarness = {
+			_session: constObservable(undefined),
 			_environment: constObservable(undefined),
 			_newChatInput: { sessionTypePicker: { getPreferredSessionType: () => undefined } },
 			_workspacePicker: { selectedResolved: { providerId: 'local' }, selectedWorkspaceConfig: workspaceConfig },
@@ -4051,12 +4055,41 @@ suite('NewChatWidget', () => {
 		]);
 	});
 
+	test('records the workspace configuration requested for a draft only once a new draft is created, so a failed creation is retried', async () => {
+		const folder = URI.file('/project');
+		const workspaceConfig: ISessionWorkspaceConfig = { uri: URI.file('/product.code-workspace'), name: 'Product', folders: [folder, URI.file('/docs')] };
+		const previous = upcastPartial<ITestSessionWithChat>({ sessionId: 'previous' });
+		const created = upcastPartial<ITestSessionWithChat>({ sessionId: 'created' });
+		let result: ITestSessionWithChat = previous;
+		const harness: ICreateSessionNowHarness = {
+			_session: constObservable(previous),
+			_environment: constObservable(undefined),
+			_newChatInput: { sessionTypePicker: { getPreferredSessionType: () => undefined } },
+			_workspacePicker: { selectedResolved: { providerId: 'local' }, selectedWorkspaceConfig: workspaceConfig },
+			uriIdentityService: { extUri },
+			// As `SessionsService.openNewSession`: a creation that fails shows the previous draft
+			sessionsService: { openNewSession: async () => ({ session: result, trustDeclined: false }) },
+			_isPreferredServable: () => true,
+			_requestsDevContainer: () => false,
+			logService: { error: () => assert.fail('unexpected creation error') },
+		};
+		await createSessionNow.call(harness, folder, undefined, CancellationToken.None);
+		const afterFailure = harness._requestedWorkspaceConfig;
+		result = created;
+		await createSessionNow.call(harness, folder, undefined, CancellationToken.None);
+		assert.deepStrictEqual({ afterFailure, afterRetry: harness._requestedWorkspaceConfig && { sessionId: harness._requestedWorkspaceConfig.sessionId, config: harness._requestedWorkspaceConfig.config?.uri.path } }, {
+			afterFailure: undefined,
+			afterRetry: { sessionId: 'created', config: '/product.code-workspace' },
+		});
+	});
+
 	test('a custom-view composer preserves its host when preparing workspace and quick-chat drafts', async () => {
 		const folder = URI.file('/project');
 		const requests: IOpenNewSessionOptions[] = [];
 		const prepared: (ICreateNewSessionOptions | undefined)[] = [];
 		const draft = upcastPartial<ITestSessionWithChat>({ sessionId: 'quick' });
 		const harness: ICreateSessionNowHarness = {
+			_session: constObservable(undefined),
 			_preserveCustomView: true,
 			_environment: constObservable(undefined),
 			_newChatInput: { sessionTypePicker: { getPreferredSessionType: () => undefined } },
@@ -4097,6 +4130,7 @@ suite('NewChatWidget', () => {
 		const folder = URI.file('/project');
 		const requests: IOpenNewSessionOptions[] = [];
 		const harness: ICreateSessionNowHarness = {
+			_session: constObservable(undefined),
 			_environment: constObservable<ISessionCreationEnvironment>({ id: 'container:local', kind: 'container', label: 'Dev Container', icon: Codicon.remote, providerIds: [LOCAL_AGENT_HOST_PROVIDER_ID] }),
 			_newChatInput: { sessionTypePicker: { getPreferredSessionType: () => ({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionTypeId: 'copilot' }) } },
 			_workspacePicker: { selectedResolved: { providerId: LOCAL_AGENT_HOST_PROVIDER_ID } },
@@ -4294,6 +4328,7 @@ suite('NewChatWidget', () => {
 		const requested = await Promise.all(cases.map(async ({ pick, servable, preferred }) => {
 			let options: IOpenNewSessionOptions | undefined;
 			await createSessionNow.call({
+				_session: constObservable(undefined),
 				_environment: constObservable(undefined),
 				_newChatInput: { sessionTypePicker: { getPreferredSessionType: () => preferred } },
 				_workspacePicker: { selectedResolved: { providerId: 'workspace-provider' } },
@@ -5351,6 +5386,7 @@ suite('NewChatWidget', () => {
 			let discarded = 0;
 			const slot = upcastPartial<INewSessionDraftSlot>({ id: 'slot', discardNewSession: () => discarded++ });
 			const harness: ICreateSessionNowHarness = {
+				_session: constObservable(undefined),
 				_draftHost: host(slot),
 				_applyRequestedSelection: () => { },
 				_environment: constObservable(undefined),

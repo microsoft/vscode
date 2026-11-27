@@ -1409,8 +1409,6 @@ export class WorkspacePicker extends Disposable {
 	 *        section in the sessions list, where the existing sessions for the
 	 *        workspace were created by a specific provider).
 	 * @param options.persist Whether to persist the selection as a recent workspace. Defaults to true.
-	 */
-	/**
 	 * @param options.sessionWorkspaceUri The workspace, of the Workspaces group, of the session the folder is selected for.
 	 */
 	setSelectedWorkspace(folderUri: URI, options?: { fireEvent?: boolean; providerId?: string; persist?: boolean; preferDevContainer?: boolean; origin?: WorkspaceSelectionOrigin; sessionWorkspaceUri?: URI }): void {
