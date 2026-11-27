@@ -486,6 +486,7 @@ export class ImageViewer extends Disposable {
 			image.classList.add('scale-to-fit');
 			image.classList.remove('pixelated');
 			image.style.zoom = '';
+			image.style.removeProperty('--image-viewer-zoom');
 			image.style.width = '';
 			image.style.height = '';
 
@@ -521,6 +522,8 @@ export class ImageViewer extends Disposable {
 		image.style.width = size?.width ? `${size.width}px` : '';
 		image.style.height = size?.height ? `${size.height}px` : '';
 		image.style.zoom = String(scale);
+		// Lets backgrounds such as the transparency checkerboard keep their size on screen
+		image.style.setProperty('--image-viewer-zoom', String(scale));
 		container.classList.add('zoomed');
 
 		// Setting the zoom triggers a synchronous layout, so the scroll size reflects the new zoom
