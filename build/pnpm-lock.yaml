@@ -181,8 +181,8 @@ importers:
         specifier: ^4.13.1
         version: 4.13.1
       '@azure/msal-node':
-        specifier: ^5.2.2
-        version: 5.2.2
+        specifier: ^7.1.0
+        version: 7.2.1
       '@azure/storage-blob':
         specifier: ^12.25.0
         version: 12.25.0
@@ -4362,7 +4362,7 @@ snapshots:
       picomatch: 4.0.4
       postcss: 8.5.26
       rolldown: 1.0.0-beta.53
-      tinyglobby: 0.2.16
+      tinyglobby: 0.2.17
     optionalDependencies:
       '@types/node': 24.12.4
       esbuild: 0.27.2
