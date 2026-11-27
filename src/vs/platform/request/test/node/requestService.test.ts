@@ -526,4 +526,29 @@ suite('Request Service', () => {
 			}
 		});
 	}
+
+	test('fails with a CancellationError when cancelled while decompressing a complete gzip body', async () => {
+		const [http, zlib] = await Promise.all([import('http'), import('zlib')]);
+		const source = store.add(new CancellationTokenSource());
+		const compressed = zlib.gzipSync(Buffer.alloc(1024 * 1024, 'a'));
+		const server = http.createServer((_req, res) => {
+			res.writeHead(200, { 'content-encoding': 'gzip', 'content-length': compressed.length });
+			res.end(compressed);
+		});
+		await new Promise<void>((resolve, reject) => server.once('error', reject).listen(0, '127.0.0.1', resolve));
+		const address = server.address();
+		assert.ok(address && typeof address !== 'string');
+		try {
+			const context = await nodeRequest({ url: `http://127.0.0.1:${address.port}/complete`, callSite: 'requestService.test.cancelGzipBody' }, source.token);
+			// The compressed response has ended before the first decompressed chunk is read.
+			const outcome = new DeferredPromise<unknown>();
+			context.stream.on('end', () => outcome.complete('end'));
+			context.stream.on('error', error => outcome.complete(error));
+			context.stream.on('data', () => source.cancel());
+			assert.ok(await outcome.p instanceof CancellationError);
+		} finally {
+			server.closeAllConnections();
+			await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+		}
+	});
 });
