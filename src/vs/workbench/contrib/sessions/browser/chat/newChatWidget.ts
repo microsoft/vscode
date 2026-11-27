@@ -174,12 +174,11 @@ function getDraftWorkspaceConfig(sessionId: string, workspace: ISessionWorkspace
 const SESSION_FOLDER_CONTEXT_ID_PREFIX = 'session-folder:';
 
 /**
- * Whether the composer offers more folders for the session of `draft`: as its agent can, which the draft says
- * ({@link ISessionCapabilities.supportsChatFolders}). Before there is a draft, the provider keeps only the first folder
- * when it cannot.
+ * Whether the composer offers more folders for the session of `draft`: only once the draft says its agent works in
+ * them ({@link ISessionCapabilities.supportsChatFolders}). A provider that cannot drops the folders it is created with.
  */
 export function getSupportsSessionFolders(draft: ISession | undefined, reader: IReader): boolean {
-	return !draft || draft.capabilities.read(reader).supportsChatFolders === true;
+	return draft?.capabilities.read(reader).supportsChatFolders === true;
 }
 
 export function isSessionWorkspaceOptOutEnabled(configurationService: IConfigurationService): boolean {

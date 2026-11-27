@@ -31,7 +31,7 @@ import { IOpenNewSessionOptions, IOpenNewSessionResult, IOpenSessionOptions } fr
 import { SessionsManagementService } from '../../../../../workbench/contrib/sessions/browser/sessionsManagementService.js';
 import { ISessionsProvidersService, SessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IPickedSessionType, IPreferredSessionType } from '../../../../../workbench/contrib/sessions/browser/chat/sessionTypePicker.js';
-import { BackgroundSendStatus, composesForAllSessions, NewChatWidget, shouldShowNewSessionChatTip } from '../../../../../workbench/contrib/sessions/browser/chat/newChatWidget.js';
+import { BackgroundSendStatus, composesForAllSessions, getSupportsSessionFolders, NewChatWidget, shouldShowNewSessionChatTip } from '../../../../../workbench/contrib/sessions/browser/chat/newChatWidget.js';
 import { INewSessionWorktreeSendChoiceProvider, NewSessionWorktreeSendChoiceService } from '../../../../../workbench/contrib/sessions/browser/chat/newSessionWorktreeSendChoice.js';
 import { findOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { OnboardingScenarioService } from '../../../../../workbench/contrib/onboarding/browser/onboardingService.js';
@@ -4054,6 +4054,11 @@ suite('NewChatWidget', () => {
 			{ folderUri: '/project', preserveNavigation: true, workspaceConfig: '/product.code-workspace', folders: ['/project', '/docs', '/lib'], providerId: 'local' },
 			{ folderUri: '/other', preserveNavigation: true, workspaceConfig: undefined, folders: undefined, providerId: 'local' },
 		]);
+	});
+
+	test('offers more folders only once the draft says its agent works in them, never before there is a draft', () => {
+		const draft = (supportsChatFolders: boolean | undefined) => ({ capabilities: constObservable({ supportsMultipleChats: false, supportsChatFolders }) }) as unknown as ISession;
+		assert.deepStrictEqual([undefined, draft(undefined), draft(false), draft(true)].map(session => derived(reader => getSupportsSessionFolders(session, reader)).get()), [false, false, false, true]);
 	});
 
 	test('shows the folders the user added as pills, and keeps them while a send clears the input', () => {
