@@ -31,7 +31,7 @@ import { RemoteAgentService } from '../../../../remote/browser/remoteAgentServic
 import { IRemoteAgentService } from '../../../../remote/common/remoteAgentService.js';
 import { UserDataProfileService } from '../../../../userDataProfile/common/userDataProfileService.js';
 import { IUserDataProfileService } from '../../../../userDataProfile/common/userDataProfile.js';
-import { AGENTS_MODE_ENABLED_SETTING, AgentsModeWorkspaceService, supportsAgentsMode } from '../../../browser/agents/agentsModeWorkspaceService.js';
+import { AGENTS_MODE_ENABLED_SETTING, agentsModeEnabledConfiguration, AgentsModeWorkspaceService, supportsAgentsMode } from '../../../browser/agents/agentsModeWorkspaceService.js';
 import { WorkspaceService } from '../../../browser/configurationService.js';
 import { IConfigurationCache } from '../../../common/configuration.js';
 import { ConfigurationEditingError, ConfigurationEditingErrorCode } from '../../../common/configurationEditing.js';
@@ -51,6 +51,7 @@ suite('AgentsModeWorkspaceService', () => {
 	let userDataProfileService: UserDataProfileService;
 
 	suiteSetup(() => {
+		configurationRegistry.registerConfiguration(agentsModeEnabledConfiguration);
 		configurationRegistry.registerConfiguration({
 			id: '_test_agentsMode',
 			type: 'object',
@@ -67,6 +68,8 @@ suite('AgentsModeWorkspaceService', () => {
 			}
 		});
 	});
+
+	suiteTeardown(() => configurationRegistry.deregisterConfigurations([agentsModeEnabledConfiguration]));
 
 	setup(async () => {
 		const logService = new NullLogService();

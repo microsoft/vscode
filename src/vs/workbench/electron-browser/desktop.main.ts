@@ -14,6 +14,7 @@ import { onUnexpectedError } from '../../base/common/errors.js';
 import { URI } from '../../base/common/uri.js';
 import { WorkspaceService } from '../services/configuration/browser/configurationService.js';
 import { AGENTS_MODE_STORAGE_KEY, AgentsModeWorkspaceService, supportsAgentsMode } from '../services/configuration/browser/agents/agentsModeWorkspaceService.js';
+import '../services/configuration/electron-browser/agentsModeConfiguration.js';
 import { INativeWorkbenchEnvironmentService, NativeWorkbenchEnvironmentService } from '../services/environment/electron-browser/environmentService.js';
 import { ServiceCollection } from '../../platform/instantiation/common/serviceCollection.js';
 import { ILoggerService, ILogService, LogLevel } from '../../platform/log/common/log.js';
