@@ -150,14 +150,15 @@ export class SessionsViewGroupingState {
 
 	/**
 	 * The grouping the view opens with, of those `offered`: the one stored, else, where none is stored and there is a fallback
-	 * key, the grouping other than Inbox stored there (or `fallback`), which `seed` says the view is to store as its own. Inbox
-	 * left while the view was not there opens at the grouping Inbox returns to.
+	 * key, the grouping other than Inbox stored there, which `seed` says the view is to store as its own. Without either, none:
+	 * the view shows the default of the groupings it offers, also as they change. Inbox left while the view was not there opens
+	 * at the grouping Inbox returns to.
 	 */
 	readGrouping(offered: readonly SessionsGrouping[], fallback: SessionsGrouping): { readonly grouping: SessionsGrouping | undefined; readonly seed: boolean } {
 		const stored = this.storageService.get(this.keys.grouping, StorageScope.PROFILE);
 		if (stored === undefined && this.keys.fallbackGrouping) {
 			const seeded = getStoredSessionsGrouping(this.storageService.get(this.keys.fallbackGrouping, StorageScope.PROFILE), offered.filter(grouping => grouping !== SessionsGrouping.Inbox));
-			return { grouping: seeded ?? fallback, seed: true };
+			return { grouping: seeded, seed: seeded !== undefined };
 		}
 		const grouping = getStoredSessionsGrouping(stored, offered);
 		const inboxLeft = this.keys.inboxLeft;
@@ -398,14 +399,6 @@ export interface ISessionsViewGroupings {
 }
 
 /**
- * Whether a sessions view offers the Worktrees filter: outside the Agents mode, such as in an
- * editor window outside Agents mode. Follows the mode as it changes.
- */
-export function createOffersWorktreeFilter(owner: object, workspaceContextService: IWorkspaceContextService): IObservable<boolean> {
-	return observableFromEvent(owner, workspaceContextService.onDidChangeWorkbenchMode, () => workspaceContextService.getWorkbenchMode() !== WorkbenchMode.Agents);
-}
-
-/**
  * The grouping a stored value names, or `undefined` for a value this build does not know or this view does not offer:
  * a view keeps its default for a grouping that another view sharing the stored grouping offers, such as Workspace, which
  * the Sessions view of an editor window does not offer. The stored value stays as it is.
@@ -624,7 +617,7 @@ export class SessionsView extends ViewPane {
 
 		// Restore persisted grouping
 		this.groupings = options.groupings?.get();
-		this.offersWorktreeFilter = createOffersWorktreeFilter(this, workspaceContextService);
+		this.offersWorktreeFilter = this.createOffersWorktreeFilter();
 		this.groupingState = options.groupingState ? instantiationService.createInstance(options.groupingState) : instantiationService.createInstance(SessionsViewGroupingState, undefined);
 		this.inboxAutoAdvance = options.inboxAutoAdvance;
 		this.leaveInboxWithoutChat = options.leaveInboxWithoutChat;
@@ -1716,9 +1709,13 @@ export class SessionsView extends ViewPane {
 		return this.offeredGroupings.includes(grouping);
 	}
 
-	/** The grouping Inbox returns to: in the Chat view, the one this view left for Inbox, else the one stored. */
+	/**
+	 * The grouping Inbox returns to: in the Chat view, the one this view left for Inbox, else the one stored, of those it
+	 * offers now, such as after leaving the Agents mode, which offers Workspace.
+	 */
 	private get nonInboxGrouping(): SessionsGrouping {
-		return this.mountedNonInboxGrouping ?? this.storedNonInboxGrouping;
+		const mounted = this.mountedNonInboxGrouping;
+		return mounted !== undefined && this.offeredGroupings.includes(mounted) ? mounted : this.storedNonInboxGrouping;
 	}
 
 	private get storedNonInboxGrouping(): SessionsGrouping {
@@ -1729,6 +1726,14 @@ export class SessionsView extends ViewPane {
 		return !!this.configurationService.getValue<boolean>(SESSIONS_LIST_INBOX_ENABLED_SETTING)
 			&& !this.configurationService.getValue<boolean>('chat.disableAIFeatures')
 			&& !this.chatEntitlementService.sentiment.hidden;
+	}
+
+	/**
+	 * Whether the view offers the Worktrees filter: outside the Agents mode, such as in an editor window outside Agents mode.
+	 * Follows the mode as it changes.
+	 */
+	private createOffersWorktreeFilter(): IObservable<boolean> {
+		return observableFromEvent(this, this.workspaceContextService.onDidChangeWorkbenchMode, () => this.workspaceContextService.getWorkbenchMode() !== WorkbenchMode.Agents);
 	}
 
 	private readStoredGrouping(): { readonly grouping: SessionsGrouping | undefined; readonly seed: boolean } {

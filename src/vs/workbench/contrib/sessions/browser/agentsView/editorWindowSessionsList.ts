@@ -30,26 +30,16 @@ export const EDITOR_WINDOW_SESSIONS_GROUPINGS: ISessionsViewGroupings = { offere
  * sessions open their folders in the window: by time, environment or workspace, by workspace until one is chosen, as the
  * Agents window does.
  */
-export const ALL_SESSIONS_GROUPINGS: ISessionsViewGroupings = {
+export const AGENTS_MODE_SESSIONS_GROUPINGS: ISessionsViewGroupings = {
 	offered: [SessionsGrouping.Date, SessionsGrouping.Environment, SessionsGrouping.Workspace],
 	default: SessionsGrouping.Workspace,
 };
 
 /** The Chat view's sessions list also offers Inbox, while the Inbox setting is on, by time until a grouping is chosen. */
-const CHAT_VIEW_SESSIONS_GROUPINGS: ISessionsViewGroupings = { offered: [...EDITOR_WINDOW_SESSIONS_GROUPINGS.offered, SessionsGrouping.Inbox], default: SessionsGrouping.Date };
+export const CHAT_VIEW_SESSIONS_GROUPINGS: ISessionsViewGroupings = { offered: [...EDITOR_WINDOW_SESSIONS_GROUPINGS.offered, SessionsGrouping.Inbox], default: SessionsGrouping.Date };
 
-/** In Agents mode, the Chat view's sessions list offers Inbox besides {@link ALL_SESSIONS_GROUPINGS}. */
-const CHAT_VIEW_ALL_SESSIONS_GROUPINGS: ISessionsViewGroupings = { offered: [...ALL_SESSIONS_GROUPINGS.offered, SessionsGrouping.Inbox], default: ALL_SESSIONS_GROUPINGS.default };
-
-/**
- * The groupings of the editor window's Sessions view, as the window is in the Agents mode or not; with `inbox`, as the Chat
- * view's sessions list, they offer Inbox too.
- */
-export function createEditorWindowSessionsGroupings(owner: object, workspaceContextService: IWorkspaceContextService, inbox = false): IObservable<ISessionsViewGroupings> {
-	return observableFromEvent(owner, workspaceContextService.onDidChangeWorkbenchMode, () => workspaceContextService.getWorkbenchMode() === WorkbenchMode.Agents
-		? inbox ? CHAT_VIEW_ALL_SESSIONS_GROUPINGS : ALL_SESSIONS_GROUPINGS
-		: inbox ? CHAT_VIEW_SESSIONS_GROUPINGS : EDITOR_WINDOW_SESSIONS_GROUPINGS);
-}
+/** In Agents mode, the Chat view's sessions list offers Inbox besides {@link AGENTS_MODE_SESSIONS_GROUPINGS}. */
+export const CHAT_VIEW_AGENTS_MODE_SESSIONS_GROUPINGS: ISessionsViewGroupings = { offered: [...AGENTS_MODE_SESSIONS_GROUPINGS.offered, SessionsGrouping.Inbox], default: AGENTS_MODE_SESSIONS_GROUPINGS.default };
 
 /**
  * Where the Chat view's sessions list remembers its grouping and the grouping Inbox returns to: apart from
@@ -91,7 +81,7 @@ export type EditorWindowSessionsHeader = 'title' | 'section';
 /**
  * The options of the Sessions view in an editor window, wherever it shows: the actions of its header in its title or in its
  * section header (`header`), without the customizations, listing the sessions of the window's folders only while it has some (`scoped`), and grouped as
- * `groupings` says ({@link createEditorWindowSessionsGroupings}), with the "Chats" section also under time grouping. With `inbox`,
+ * `groupings` says, such as {@link CHAT_VIEW_SESSIONS_GROUPINGS}, with the "Chats" section also under time grouping. With `inbox`,
  * as the Chat view's sessions list, whose `groupings` then offer Inbox too, it remembers its grouping apart from the Agents window
  * ({@link ChatViewSessionsGroupingState}) and keeps replies and approvals in the current chat.
  */

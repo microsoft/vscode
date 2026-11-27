@@ -66,11 +66,7 @@ export function getInboxWorkspaceOptions(sessions: readonly ISession[], extUri: 
 			options.set(JSON.stringify([workspace.environment, extUri.getComparisonKey(URI.parse(workspace.resource))]), workspace);
 		}
 	}
-	return [...options.values()].sort(compareInboxWorkspaces);
-}
-
-function compareInboxWorkspaces(a: IInboxWorkspaceFilter, b: IInboxWorkspaceFilter): number {
-	return a.label.localeCompare(b.label) || a.resource.localeCompare(b.resource) || a.environment.localeCompare(b.environment);
+	return [...options.values()].sort(SessionsListFilters.compareInboxWorkspaces);
 }
 
 function isInboxScope(value: unknown): value is IInboxScope {
@@ -336,7 +332,7 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 		// Earlier builds stored the pick for the whole profile: drop it rather than seed every window with one window's pick
 		storageService.remove(SessionsListFilters.INBOX_SCOPE_STORAGE_KEY, StorageScope.PROFILE);
 		this._register(storageService.onDidChangeValue(StorageScope.WORKSPACE, SessionsListFilters.INBOX_SCOPE_STORAGE_KEY, this._store)(e => {
-			if (!e.external) {
+			if (!e.external && !this.inboxScopeFixed) {
 				const scope = this.readInboxScope(logService);
 				if (JSON.stringify(scope) !== JSON.stringify(this._inboxScope)) {
 					this._inboxScope = scope;
@@ -367,7 +363,7 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 
 	/**
 	 * Reads the remembered filters again, such as from the profile the window switches to, without storing anything: what the
-	 * list remembered in the previous profile stays there.
+	 * list remembered in the previous profile stays there. A {@link setInboxScopeFixed fixed} inbox scope stays.
 	 */
 	reload(): void {
 		const excluded = this.readExcluded(this.logService);
@@ -376,8 +372,15 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 			this.excluded.set(key, value);
 		}
 		this._worktree = this.storageService.get(SessionsListFilters.WORKTREE_STORAGE_KEY, StorageScope.PROFILE) || undefined;
-		this._inboxScope = this.readInboxScope(this.logService);
+		if (!this.inboxScopeFixed) {
+			this._inboxScope = this.readInboxScope(this.logService);
+		}
 		this._onDidChange.fire();
+	}
+
+	/** The order in which the scope bar lists workspaces: by label. */
+	static compareInboxWorkspaces(a: IInboxWorkspaceFilter, b: IInboxWorkspaceFilter): number {
+		return a.label.localeCompare(b.label) || a.resource.localeCompare(b.resource) || a.environment.localeCompare(b.environment);
 	}
 
 	/** The workspace of a local `folder`, as the scope bar lists and picks it. */
@@ -540,7 +543,7 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 		const added = windowWorkspaces.filter(workspace => (environment === undefined || workspace.environment === environment)
 			&& !options.some(option => this.isSameInboxWorkspace(option, workspace)));
 		return added.length
-			? [...options, ...added].sort(compareInboxWorkspaces)
+			? [...options, ...added].sort(SessionsListFilters.compareInboxWorkspaces)
 			: [...options];
 	}
 
@@ -578,7 +581,10 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 
 	private inboxScopeFixed = false;
 
-	/** Fixes the picked inbox scope while the user can't change it, so that resetting it, or undoing a reset, keeps it. */
+	/**
+	 * Fixes the picked inbox scope while the user can't change it, so that resetting it, undoing a reset, or reading the
+	 * filters again, such as of another profile, keeps it.
+	 */
 	setInboxScopeFixed(fixed: boolean): void {
 		this.inboxScopeFixed = fixed;
 	}

@@ -139,4 +139,17 @@ export interface IHistoryService {
 	 * Clear list of recently opened editors.
 	 */
 	clearRecentlyOpened(): void;
+
+	/**
+	 * Saves the list of recently opened editors, so that {@link restoreRecentlyOpened} brings it back if
+	 * {@link clearRecentlyOpened} clears it in the meantime. The saved list survives a restart of the window.
+	 * Saving again replaces it.
+	 */
+	saveRecentlyOpened(): void;
+
+	/**
+	 * Brings back the list of recently opened editors that {@link saveRecentlyOpened} saved, if the list was
+	 * cleared since, and forgets the saved list. Keeps the current list when it wasn't cleared or nothing was saved.
+	 */
+	restoreRecentlyOpened(): void;
 }

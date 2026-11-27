@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, WorkbenchMode } from '../../../../../../platform/workspace/common/workspace.js';
 import { SESSIONS_LIST_MARK_READ_COMMAND_ID, SESSIONS_LIST_MARK_UNREAD_COMMAND_ID } from '../../../../../common/chatSessionCommands.js';
 import { EditorInput } from '../../../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
@@ -54,7 +54,8 @@ suite('Agents chat part actions', () => {
 	function run(commandId: string, arg: unknown, folderOptions?: IEditorWindowComposerFolderOptions, chatPart = true) {
 		const opened: { readonly target: INewSessionTarget | undefined; readonly newComposer: boolean | undefined }[] = [];
 		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, getWorkspace: () => upcastPartial<IWorkspace>({ folders: [] }) }));
+		// A window about a workspace, outside the Agents mode, whose folders the composers' folder options govern
+		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, getWorkspace: () => upcastPartial<IWorkspace>({ folders: [] }), onDidChangeWorkbenchScope: Event.None, getWorkbenchScope: () => URI.file('/work/repo'), onDidChangeWorkbenchMode: Event.None, getWorkbenchMode: () => WorkbenchMode.Editor }));
 		const composerFolders = instantiationService.createInstance(EditorWindowComposerFoldersService);
 		if (folderOptions) {
 			store.add(composerFolders.setComposerFolderOptions(() => folderOptions));

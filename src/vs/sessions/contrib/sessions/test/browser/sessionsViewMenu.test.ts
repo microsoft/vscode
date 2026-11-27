@@ -68,10 +68,11 @@ import { ISessionsService } from '../../../../../workbench/contrib/sessions/brow
 import { getInboxWorkspaceFilter, getSessionFilterEnvironments, getSessionFilterOptions, SessionsListFilters } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
 import { SessionsInboxScope } from '../../../../../workbench/contrib/sessions/browser/views/sessionsInboxScope.js';
 import { ISessionsListChange, ISessionsListUndoService } from '../../../../../workbench/contrib/sessions/browser/sessionsListUndoService.js';
-import { createOffersWorktreeFilter, IsWorkspaceGroupCappedContext, ISessionsViewLocator, SessionsView, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSeparateGroupsAndWorkspacesContext, SessionsViewSortingContext, DEFAULT_SESSIONS_GROUPINGS, bindSessionsViewGroupings, renderSessionsHeader, SessionsViewGroupingState } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { IsWorkspaceGroupCappedContext, ISessionsViewLocator, SessionsView, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSeparateGroupsAndWorkspacesContext, SessionsViewSortingContext, DEFAULT_SESSIONS_GROUPINGS, bindSessionsViewGroupings, renderSessionsHeader, SessionsViewGroupingState } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { MobileSessionFilterChips } from '../../../../../workbench/contrib/sessions/browser/mobile/mobileSessionFilterChips.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { ALL_SESSIONS_GROUPINGS, createEditorWindowSessionsGroupings, EDITOR_WINDOW_SESSIONS_GROUPINGS } from '../../../../../workbench/contrib/sessions/browser/agentsView/editorWindowSessionsList.js';
+import { AGENTS_MODE_SESSIONS_GROUPINGS, CHAT_VIEW_AGENTS_MODE_SESSIONS_GROUPINGS, CHAT_VIEW_SESSIONS_GROUPINGS, EDITOR_WINDOW_SESSIONS_GROUPINGS } from '../../../../../workbench/contrib/sessions/browser/agentsView/editorWindowSessionsList.js';
+import { ChatViewSessionsListProvider } from '../../../../../workbench/contrib/sessions/browser/agentsView/chatViewSessionsList.js';
 import { createListHarness, TestCommandService } from './sessionsListTestUtils.js';
 import { SessionsArchiveActionsContribution } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
 import { SessionWorkspacesContextKeys } from '../../../../../workbench/contrib/sessions/browser/sessionWorkspacesContextKeys.js';
@@ -818,7 +819,7 @@ suite('Sessions - View Menu', () => {
 			agentsWindow: offered(true, DEFAULT_SESSIONS_GROUPINGS),
 			editorWindow: offered(false, EDITOR_WINDOW_SESSIONS_GROUPINGS.offered),
 			sessionsWindowOffering: offered(true, EDITOR_WINDOW_SESSIONS_GROUPINGS.offered),
-			allSessions: offered(false, ALL_SESSIONS_GROUPINGS.offered),
+			allSessions: offered(false, AGENTS_MODE_SESSIONS_GROUPINGS.offered),
 		}, {
 			agentsWindow: ['Time', 'Workspace', 'Repository', 'Environment'],
 			editorWindow: ['Time', 'Environment'],
@@ -1913,8 +1914,9 @@ suite('Sessions - View Menu', () => {
 			getWorkbenchScope: () => undefined,
 		});
 		const setMode = (value: WorkbenchMode) => { mode = value; onDidChangeWorkbenchMode.fire(value); };
-		const groupings = createEditorWindowSessionsGroupings({}, window);
-		const menu = createMenu(sessions, [], undefined, undefined, { emptyWindow: true, offersWorktreeFilter: createOffersWorktreeFilter({}, window) });
+		const groupings = new ChatViewSessionsListProvider(window).groupings;
+		const createOffersWorktreeFilter = Reflect.get(SessionsView.prototype, 'createOffersWorktreeFilter') as (this: { readonly workspaceContextService: IWorkspaceContextService }) => IObservable<boolean>;
+		const menu = createMenu(sessions, [], undefined, undefined, { emptyWindow: true, offersWorktreeFilter: createOffersWorktreeFilter.call({ workspaceContextService: window }) });
 		const state = () => ({
 			worktreeFilter: menu.snapshot(Menus.SessionsViewFilter).some(item => item.submenu === Menus.SessionsViewWorktree.id),
 			offered: groupings.get().offered,
@@ -1926,9 +1928,9 @@ suite('Sessions - View Menu', () => {
 		setMode(WorkbenchMode.Editor);
 
 		assert.deepStrictEqual({ editor, agents, back: state() }, {
-			editor: { worktreeFilter: true, offered: EDITOR_WINDOW_SESSIONS_GROUPINGS.offered },
-			agents: { worktreeFilter: false, offered: ALL_SESSIONS_GROUPINGS.offered },
-			back: { worktreeFilter: true, offered: EDITOR_WINDOW_SESSIONS_GROUPINGS.offered },
+			editor: { worktreeFilter: true, offered: CHAT_VIEW_SESSIONS_GROUPINGS.offered },
+			agents: { worktreeFilter: false, offered: CHAT_VIEW_AGENTS_MODE_SESSIONS_GROUPINGS.offered },
+			back: { worktreeFilter: true, offered: CHAT_VIEW_SESSIONS_GROUPINGS.offered },
 		});
 	});
 

@@ -5,12 +5,13 @@
 
 import assert from 'assert';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IViewletViewOptions } from '../../../../browser/parts/views/viewsViewlet.js';
-import { ALL_SESSIONS_GROUPINGS, ChatViewSessionsGroupingState, createEditorWindowSessionsGroupings, createEditorWindowSessionsScope, createEditorWindowSessionsViewOptions, EDITOR_WINDOW_SESSIONS_GROUPINGS, EditorWindowSessionsList } from '../../browser/agentsView/editorWindowSessionsList.js';
+import { AGENTS_MODE_SESSIONS_GROUPINGS, ChatViewSessionsGroupingState, createEditorWindowSessionsScope, createEditorWindowSessionsViewOptions, EDITOR_WINDOW_SESSIONS_GROUPINGS, EditorWindowSessionsList } from '../../browser/agentsView/editorWindowSessionsList.js';
+import { ChatViewSessionsListProvider } from '../../browser/agentsView/chatViewSessionsList.js';
 import { EditorWindowSessionsContext, EditorWindowSessionsViewOffersInboxContext, ISessionsViewLocator, SessionsView, SessionsViewId } from '../../browser/views/sessionsView.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { SessionsGrouping } from '../../browser/views/sessionsListCommon.js';
@@ -92,7 +93,7 @@ suite('EditorWindowSessionsList', () => {
 	test('only the Chat view\'s list offers Inbox, remembered apart from the Agents window, and keeps replies in the current chat', () => {
 		const scoped = observableValue('scoped', true);
 		const describe = (inbox: boolean) => {
-			const options = createEditorWindowSessionsViewOptions({ id: SessionsViewId } as IViewletViewOptions, scoped, createEditorWindowSessionsGroupings({}, upcastPartial<IWorkspaceContextService>(createWindow()), inbox), 'title', inbox);
+			const options = createEditorWindowSessionsViewOptions({ id: SessionsViewId } as IViewletViewOptions, scoped, inbox ? new ChatViewSessionsListProvider(upcastPartial<IWorkspaceContextService>(createWindow())).groupings : constObservable(EDITOR_WINDOW_SESSIONS_GROUPINGS), 'title', inbox);
 			return { groupings: options.groupings?.get(), groupingState: options.groupingState?.ctor, inboxAutoAdvance: options.inboxAutoAdvance, leaveInboxWithoutChat: options.leaveInboxWithoutChat };
 		};
 		assert.deepStrictEqual({ editorWindow: describe(false), chatView: describe(true) }, {
@@ -106,25 +107,17 @@ suite('EditorWindowSessionsList', () => {
 		});
 	});
 
-	test('the editor window groups by time or environment, and in Agents mode also by workspace, following the mode; the Chat view\'s list also by Inbox', () => {
+	test('the Chat view\'s list groups by time, environment or Inbox, and in Agents mode also by workspace, following the mode', () => {
 		const window = createWindow();
-		const groupings = createEditorWindowSessionsGroupings({}, upcastPartial<IWorkspaceContextService>(window));
-		const chatViewGroupings = createEditorWindowSessionsGroupings({}, upcastPartial<IWorkspaceContextService>(window), true);
-		const seen: string[][] = [];
+		const chatViewGroupings = new ChatViewSessionsListProvider(upcastPartial<IWorkspaceContextService>(window)).groupings;
 		const chatViewSeen: string[][] = [];
-		store.add(autorun(reader => { seen.push([...groupings.read(reader).offered]); }));
 		store.add(autorun(reader => { chatViewSeen.push([...chatViewGroupings.read(reader).offered]); }));
 		// Without a scope, as a plain empty window, it still groups as an editor window
 		window.setScope(undefined);
 		window.setMode(WorkbenchMode.Agents);
 		window.setMode(WorkbenchMode.Editor);
 
-		assert.deepStrictEqual({ seen, chatViewSeen, chatViewDefault: chatViewGroupings.get().default, all: ALL_SESSIONS_GROUPINGS }, {
-			seen: [
-				[SessionsGrouping.Date, SessionsGrouping.Environment],
-				[SessionsGrouping.Date, SessionsGrouping.Environment, SessionsGrouping.Workspace],
-				[SessionsGrouping.Date, SessionsGrouping.Environment],
-			],
+		assert.deepStrictEqual({ chatViewSeen, chatViewDefault: chatViewGroupings.get().default, all: AGENTS_MODE_SESSIONS_GROUPINGS }, {
 			chatViewSeen: [
 				[SessionsGrouping.Date, SessionsGrouping.Environment, SessionsGrouping.Inbox],
 				[SessionsGrouping.Date, SessionsGrouping.Environment, SessionsGrouping.Workspace, SessionsGrouping.Inbox],

@@ -195,7 +195,10 @@ suite('WorkspaceFolderManagementContribution', () => {
 		let mode = options.mode ?? WorkbenchMode.Agents;
 		const historyService = new class extends mock<IHistoryService>() {
 			clearRecentlyOpenedCalls = 0;
+			readonly savedAndRestored: string[] = [];
 			override clearRecentlyOpened(): void { this.clearRecentlyOpenedCalls++; }
+			override saveRecentlyOpened(): void { this.savedAndRestored.push('save'); }
+			override restoreRecentlyOpened(): void { this.savedAndRestored.push('restore'); }
 		};
 
 		const workspaceContextService = new class extends mock<IWorkspaceContextService>() {
@@ -271,6 +274,20 @@ suite('WorkspaceFolderManagementContribution', () => {
 			onSwitch: historyService.clearRecentlyOpenedCalls,
 			mounted: workspaceEditing.folders.map(folder => folder.uri.path),
 		}, { onEntry: 0, onFirstMount: 0, onSwitch: 1, mounted: ['/second'] });
+	});
+
+	test('saves the history of recently opened editors on entering Agents mode and restores it on leaving, but not when the window restores in the mode', async () => {
+		const { historyService, setMode } = createContribution({ mode: WorkbenchMode.Agents });
+		const onRestoreInMode = [...historyService.savedAndRestored];
+
+		setMode(WorkbenchMode.Editor);
+		setMode(WorkbenchMode.Agents);
+		setMode(WorkbenchMode.Editor);
+
+		assert.deepStrictEqual({ onRestoreInMode, afterSwitches: historyService.savedAndRestored }, {
+			onRestoreInMode: [],
+			afterSwitches: ['restore', 'save', 'restore'],
+		});
 	});
 
 	test('mounts the focused chat only in the Agents mode and drops an update that outlives the mode', async () => {

@@ -526,6 +526,19 @@ suite('SessionsListFilters', () => {
 		assert.deepStrictEqual({ picks, excluded: filters.isExcluded({ kind: 'harness', id: 'copilot' }) }, { picks: [{ workspace: folder }, {}], excluded: false });
 	});
 
+	test('a fixed pick stays as the filters are read again, such as of the profile the window switches to, or as another list stores a pick', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const filters = createFilters(storage);
+		const folder = SessionsListFilters.toLocalInboxWorkspace(URI.file('/work/app'));
+		const other = SessionsListFilters.toLocalInboxWorkspace(URI.file('/work/other'));
+		filters.setInboxWorkspace(folder);
+		filters.setInboxScopeFixed(true);
+		storage.store('sessionsListControl.inboxScope', JSON.stringify({ workspace: other }), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		const stored = filters.inboxScope;
+		filters.reload();
+		assert.deepStrictEqual({ stored, reloaded: filters.inboxScope }, { stored: { workspace: folder }, reloaded: { workspace: folder } });
+	});
+
 	test('undoing a reset keeps a fixed pick', () => {
 		const filters = createFilters();
 		const other = SessionsListFilters.toLocalInboxWorkspace(URI.file('/work/other'));

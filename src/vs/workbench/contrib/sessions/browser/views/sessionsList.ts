@@ -105,7 +105,7 @@ import { getChatMoveDestinations, getSessionMoveDestinations, getSessionsListCha
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { InboxAutoAdvanceSpotlight } from './inboxAutoAdvanceSpotlight.js';
 import { ONBOARDING_ENABLED_CONFIG } from '../../../onboarding/common/onboardingScenarioService.js';
-import { ILogService, LogLevel } from '../../../../../platform/log/common/log.js';
+import { canLog, ILogService, LogLevel } from '../../../../../platform/log/common/log.js';
 import { ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { createSessionSummaryHover, getChatSummaryHoverData, getDistinctChatHarnessLabel } from '../sessionHoverContent.js';
@@ -1961,7 +1961,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 		const unfiltered = filtered;
 		filtered = filtered.filter(session => this.filters.matches(session, environmentPickedByBar, availableWorktrees));
-		if (filtered.length !== unfiltered.length && this.logService.getLevel() <= LogLevel.Trace) {
+		if (filtered.length !== unfiltered.length && canLog(this.logService.getLevel(), LogLevel.Trace)) {
 			this.logFilteredSessions(unfiltered, filtered);
 		}
 		const scheduledOnly = this.options.schedulingEnabled?.get() && this.filters.isScheduledOnly();
@@ -3520,6 +3520,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	private revealOnboardingTarget(session: ISession, archiveAction: boolean): IDisposable & { readonly targetId: string } {
 		if (this.isScopedByBar() && !this.filters.matchesInboxScope(session)) {
+			// A fixed pick can't be reset, so the user is not asked to
+			if (this.options.scopePickFixed?.get()) {
+				throw new Error(localize('sessionsList.outsideFixedScope', "This session is outside the folders of this window, so it can't be revealed here."));
+			}
 			throw new Error(this.isInboxLayout()
 				? localize('sessionsList.outsideInboxScope', "This session is outside the current Inbox scope. Reset the scope to reveal it.")
 				: localize('sessionsList.outsideSessionsScope', "This session is outside the current Sessions scope. Reset the scope to reveal it."));

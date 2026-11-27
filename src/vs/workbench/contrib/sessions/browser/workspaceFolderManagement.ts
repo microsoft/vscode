@@ -30,10 +30,21 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 	constructor(
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IHistoryService historyService: IHistoryService,
 	) {
 		super();
 		// The window's folders follow the focused session only in the Agents mode, as in the Agents window and in Agents mode
 		const isActive = () => workspaceContextService.getWorkbenchMode() === WorkbenchMode.Agents;
+		// Switching sessions in Agents mode clears the history of recently opened editors, so an editor window keeps its own
+		// history from before the mode and gets it back when it leaves the mode. Only switching modes saves and restores it:
+		// a window that restores in the mode keeps what it saved when it entered.
+		this._register(workspaceContextService.onDidChangeWorkbenchMode(mode => {
+			if (mode === WorkbenchMode.Agents) {
+				historyService.saveRecentlyOpened();
+			} else {
+				historyService.restoreRecentlyOpened();
+			}
+		}));
 		const active = observableFromEvent(this, workspaceContextService.onDidChangeWorkbenchMode, isActive);
 		this._register(autorun(reader => {
 			if (active.read(reader)) {

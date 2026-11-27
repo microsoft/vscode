@@ -8,13 +8,14 @@ import { IDropdownMenuActionViewItemOptions } from '../../../../../base/browser/
 import { IAction } from '../../../../../base/common/actions.js';
 import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { IObservable, observableFromEvent } from '../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IStyleOverride } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, WorkbenchMode } from '../../../../../platform/workspace/common/workspace.js';
 import { IAgentSession } from '../../../chat/browser/agentSessions/agentSessionsModel.js';
 import { IChatViewSessionsList, IChatViewSessionsListControl, IChatViewSessionsListProvider } from '../../../chat/browser/widgetHosts/viewPane/chatViewSessionsList.js';
-import { SessionsView } from '../views/sessionsView.js';
-import { createEditorWindowSessionsGroupings, createEditorWindowSessionsScope, createEditorWindowSessionsView } from './editorWindowSessionsList.js';
+import { ISessionsViewGroupings, SessionsView } from '../views/sessionsView.js';
+import { CHAT_VIEW_AGENTS_MODE_SESSIONS_GROUPINGS, CHAT_VIEW_SESSIONS_GROUPINGS, createEditorWindowSessionsScope, createEditorWindowSessionsView } from './editorWindowSessionsList.js';
 import { ChatViewId } from '../../../chat/browser/chat.js';
 import { ACTION_ID_NEW_CHAT } from '../../../chat/browser/actions/chatActions.js';
 import { NEW_CHAT_ICON_VARIANTS } from '../../../chat/browser/actions/chatNewActions.js';
@@ -83,15 +84,21 @@ export class ChatViewSessionsListControl implements IChatViewSessionsListControl
  */
 export class ChatViewSessionsListProvider implements IChatViewSessionsListProvider {
 
+	/** The groupings the list offers, with Inbox, and also by workspace while the window is in the Agents mode, following the mode. */
+	readonly groupings: IObservable<ISessionsViewGroupings>;
+
 	constructor(
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
-	) { }
+	) {
+		this.groupings = observableFromEvent(this, _workspaceContextService.onDidChangeWorkbenchMode,
+			() => _workspaceContextService.getWorkbenchMode() === WorkbenchMode.Agents ? CHAT_VIEW_AGENTS_MODE_SESSIONS_GROUPINGS : CHAT_VIEW_SESSIONS_GROUPINGS);
+	}
 
 	create(container: HTMLElement, instantiationService: IInstantiationService, _options: { readonly overrideStyles: IStyleOverride<IListStyles> }): IChatViewSessionsList {
 		// The Sessions view of an editor window, as the Agents viewlet shows it, with the actions of its header in the title of the
 		// Chat view: embedded in the Chat view, whose id it takes, and found by the actions of the list through the locator it registers with.
 		// It offers Inbox, which it remembers apart from the Agents window
-		const view = instantiationService.createInstance(createEditorWindowSessionsView(createEditorWindowSessionsScope(this, this._workspaceContextService), createEditorWindowSessionsGroupings(this, this._workspaceContextService, true), 'title', true), {
+		const view = instantiationService.createInstance(createEditorWindowSessionsView(createEditorWindowSessionsScope(this, this._workspaceContextService), this.groupings, 'title', true), {
 			id: ChatViewId,
 			title: localize('chatViewSessions.title', "Sessions"),
 			expanded: true,

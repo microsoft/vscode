@@ -196,6 +196,8 @@ export class TestHistoryService implements IHistoryService {
 	removeFromHistory(_input: EditorInput | IResourceEditorInput): void { }
 	clear(): void { }
 	clearRecentlyOpened(): void { }
+	saveRecentlyOpened(): void { }
+	restoreRecentlyOpened(): void { }
 	getHistory(): readonly (EditorInput | IResourceEditorInput)[] { return []; }
 	async openNextRecentlyUsedEditor(group?: GroupIdentifier): Promise<void> { }
 	async openPreviouslyUsedEditor(group?: GroupIdentifier): Promise<void> { }

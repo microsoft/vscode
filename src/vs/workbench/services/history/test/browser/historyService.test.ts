@@ -1453,6 +1453,55 @@ suite('HistoryService', function () {
 			return workbenchTeardown(instantiationService);
 		});
 
+		test('a saved history comes back after a clear, also after a restart, and stays as it is without a clear', async () => {
+			const { contextService, historyService, instantiationService, open, closeAll, reload } = await createFolderServices(folder);
+
+			// The window's own history, with a list put away for another folder
+			await open('/repo/a.txt');
+			contextService.setFolders([worktree], { isFolderLocationChange: true });
+			await closeAll();
+			await open('/worktree/b.txt');
+
+			// Without a clear, restoring keeps what was opened since
+			historyService.saveRecentlyOpened();
+			await open('/worktree/c.txt');
+			historyService.restoreRecentlyOpened();
+			const withoutClear = paths(historyService);
+
+			// Entering, switching (which clears) and leaving brings the saved history back
+			historyService.saveRecentlyOpened();
+			historyService.clearRecentlyOpened();
+			await open('/worktree/d.txt');
+			historyService.restoreRecentlyOpened();
+			const afterClear = paths(historyService);
+
+			// Restarting in between: the saved history and the clear survive the restart
+			historyService.saveRecentlyOpened();
+			historyService.clearRecentlyOpened();
+			const restarted = reload();
+			restarted.restoreRecentlyOpened();
+			const afterRestart = paths(restarted);
+
+			// The list put away for the folder comes back too
+			contextService.setFolders([folder], { isFolderLocationChange: true });
+			const putAway = paths(restarted);
+
+			// Restoring forgets the saved history
+			restarted.clearRecentlyOpened();
+			restarted.restoreRecentlyOpened();
+			const restoredTwice = paths(restarted);
+
+			assert.deepStrictEqual({ withoutClear, afterClear, afterRestart, restoredTwice, putAway }, {
+				withoutClear: ['/worktree/c.txt', '/worktree/b.txt'],
+				afterClear: ['/worktree/c.txt', '/worktree/b.txt'],
+				afterRestart: ['/worktree/c.txt', '/worktree/b.txt'],
+				restoredTwice: [],
+				putAway: ['/repo/a.txt'],
+			});
+
+			return workbenchTeardown(instantiationService);
+		});
+
 		test('clearing recently opened clears the put away lists too', async () => {
 			const { contextService, historyService, instantiationService, open, closeAll, reload } = await createFolderServices(folder);
 

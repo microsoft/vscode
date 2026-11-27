@@ -7893,6 +7893,34 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('revealing a session outside a fixed pick does not ask to reset the scope, which the user can\'t do', () => {
+			const workspaceResource = URI.file('/projects/app');
+			const inside = createTestSession('inside', { workspaceResource }).session;
+			const outside = createTestSession('outside').session;
+			const harness = createListHarness(disposables, [inside, outside]);
+			const scopePickFixed = observableValue('scopePickFixed', true);
+			const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+				grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Updated, onSessionOpen: () => { },
+				scopeBar: constObservable(true), scopePickFixed,
+			}));
+			list.layout(800, 320);
+			list.filters.setInboxWorkspace(getInboxWorkspaceFilter(inside));
+			const message = () => {
+				try {
+					list.revealSessionForOnboarding(outside).dispose();
+					return undefined;
+				} catch (error) {
+					return error instanceof Error ? error.message : undefined;
+				}
+			};
+			const fixed = message();
+			scopePickFixed.set(false, undefined);
+			assert.deepStrictEqual({ fixed, picked: message() }, {
+				fixed: 'This session is outside the folders of this window, so it can\'t be revealed here.',
+				picked: 'This session is outside the current Sessions scope. Reset the scope to reveal it.',
+			});
+		});
+
 		test('Inbox workspace scope hides redundant row badges and accessible locations until reset', () => {
 			const workspaceLabel = 'inbox-scope-workspace';
 			const session = createTestSession('ready', { workspaceLabel }).session;

@@ -46,6 +46,14 @@ interface ISerializedPutAwayHistory {
 	readonly folders: readonly { readonly folder: string; readonly entries: readonly ISerializedEditorHistoryEntry[] }[];
 }
 
+interface ISerializedSavedHistory {
+	readonly version: 1;
+	readonly entries: readonly ISerializedEditorHistoryEntry[];
+	readonly putAway: ISerializedPutAwayHistory['folders'];
+	/** Whether the list was cleared since it was saved. */
+	readonly cleared: boolean;
+}
+
 interface IRecentlyClosedEditor {
 	readonly editorId: string | undefined;
 	readonly editor: IUntypedEditorInput;
@@ -1027,6 +1035,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private static readonly HISTORY_STORAGE_KEY = 'history.entries';
 	private static readonly HISTORY_FOLDERS_STORAGE_KEY = 'history.entries.folders';
 	private static readonly PUT_AWAY_HISTORY_STORAGE_KEY = 'history.entries.putAway';
+	private static readonly SAVED_HISTORY_STORAGE_KEY = 'history.entries.saved';
 	private static readonly MAX_PUT_AWAY_FOLDERS = 20;
 
 	private history: Array<EditorInput | IResourceEditorInput> | undefined = undefined;
@@ -1369,6 +1378,59 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		// Also clear the lists of the folders that left the window
 		this.putAwayHistory = new Map();
+
+		const saved = this.readSavedHistory();
+		if (saved && !saved.cleared) {
+			this.storeSavedHistory({ ...saved, cleared: true });
+		}
+	}
+
+	saveRecentlyOpened(): void {
+		this.ensureHistoryLoaded(this.history);
+
+		// Like the stored history, the saved list keeps the resources of the editors
+		const entries = this.history.flatMap(entry => isSideBySideEditorInput(entry) ? this.toResourceInputs(entry) : [entry]);
+		const putAway = [...this.ensurePutAwayHistoryLoaded()].map(([folder, folderEntries]) => ({ folder, entries: this.serializeHistory(folderEntries) }));
+		this.storeSavedHistory({ version: 1, entries: this.serializeHistory(entries), putAway, cleared: false });
+	}
+
+	restoreRecentlyOpened(): void {
+		const saved = this.readSavedHistory();
+		this.storageService.remove(HistoryService.SAVED_HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
+		if (!saved?.cleared) {
+			return;
+		}
+
+		this.history = [];
+		this.historyLoaded = true;
+		this.editorHistoryListeners.clearAndDisposeAll();
+		for (const editor of this.deserializeHistory(saved.entries)) {
+			if (this.includeInHistory(editor)) {
+				this.addToHistory(editor, false /* in their order */);
+			}
+		}
+
+		this.putAwayHistory = new Map(saved.putAway.map(({ folder, entries }) => [folder, this.deserializeHistory(entries)]));
+	}
+
+	private readSavedHistory(): ISerializedSavedHistory | undefined {
+		const savedRaw = this.storageService.get(HistoryService.SAVED_HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
+		if (savedRaw) {
+			try {
+				const savedParsed: Partial<ISerializedSavedHistory> | undefined = JSON.parse(savedRaw);
+				if (savedParsed?.version === 1 && Array.isArray(savedParsed.entries) && Array.isArray(savedParsed.putAway)) {
+					return { version: 1, entries: savedParsed.entries, putAway: savedParsed.putAway, cleared: savedParsed.cleared === true };
+				}
+			} catch (error) {
+				onUnexpectedError(error);
+			}
+		}
+
+		return undefined;
+	}
+
+	private storeSavedHistory(saved: ISerializedSavedHistory): void {
+		this.storageService.store(HistoryService.SAVED_HISTORY_STORAGE_KEY, JSON.stringify(saved), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	private onDidChangeWorkspaceFolders(event: IWorkspaceFoldersChangeEvent): void {
