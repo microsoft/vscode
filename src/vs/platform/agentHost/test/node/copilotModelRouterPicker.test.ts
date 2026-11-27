@@ -150,4 +150,16 @@ suite('DecisionsModelRouterPicker', () => {
 		const failWith = (kind: string) => new DecisionsModelRouterPicker((_: IAgentDecisionsRequest) => Promise.reject(Object.assign(new Error(kind), { data: { kind } }))).pick(pickRequest()).catch(error => (error as ModelRouterPickerError).failure);
 		assert.deepStrictEqual(await Promise.all([failWith('notEnabled'), failWith('timeout')]), [ModelRouterPickerFailure.NoDecisionModel, ModelRouterPickerFailure.Unavailable]);
 	});
+
+	test('asks the configured decision model, and the default one when none or a blank one is configured', async () => {
+		const askedWith = async (model: string | undefined) => {
+			let asked: string | undefined;
+			await new DecisionsModelRouterPicker(async request => {
+				asked = request.model;
+				return { model: request.model ?? '', answers: [] };
+			}, model).pick(pickRequest());
+			return asked;
+		};
+		assert.deepStrictEqual(await Promise.all([askedWith('microsoft-decision-1-1'), askedWith(undefined), askedWith('  ')]), ['microsoft-decision-1-1', 'gpt-6-luna-decisions', 'gpt-6-luna-decisions']);
+	});
 });
