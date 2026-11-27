@@ -151,8 +151,10 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 					p.open === lineContentLow[startPosition.column - 1] &&
 					// and the snippet prefix contains the opening and closing pair at its edges
 					snippet.prefix.startsWith(p.open) &&
-					snippet.prefix[snippet.prefix.length - 1] === p.close)
-				) {
+					snippet.prefix.endsWith(p.close) &&
+					// and make sure the endColumn isn't already overwriting the closing bracket
+					snippet.prefix.length !== p.open.length + p.close.length
+				)) {
 					// Eat the character that was likely inserted because of auto-closing pairs
 					endColumn++;
 				}
