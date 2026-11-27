@@ -313,7 +313,11 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		// The container user's state folder, see below.
 		'user_state="$state/$user_uid"',
 		'is_other() { [ -L "$1" ] || { [ -e "$1" ] && [ ! -d "$1" ]; }; }',
-		'if is_other "./$user_uid"; then echo "$user_state is not a folder" >&2; exit 1; fi',
+		// E.g., a symlink another user planted while they could change the state folder. Links through it would use their state.
+		'user_state_other() {',
+		'  progress skipped:untrustedState; echo "Not persisting user state: $user_state is not a folder" >&2; unlink_state; exit 0',
+		'}',
+		'if is_other "./$user_uid"; then user_state_other; fi',
 		'if [ -d "./$user_uid" ]; then',
 		'  user_state_uid=$(stat -c %u "./$user_uid")',
 		'  if [ "$user_state_uid" != 0 ]; then progress "stateOwner:$(owner_kind "$user_state_uid")"; not_root_owned "$user_state" "$user_state_uid"; fi',
@@ -347,7 +351,8 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		// The earlier layout kept all users' folders in the state folder itself, which any user could enter. Moves them, and
 		// copies of them, to the state folder of the user who owns them. Keeps a copy where that user has state for the folder
 		// already, e.g., when a client with the earlier layout linked it again. Only renames, in folders only root can change,
-		// so a running container cannot redirect them, and never follows a symlink.
+		// so a running container cannot redirect them, and never follows a symlink. While the container runs, moves only the
+		// container user's folders, whose links are updated below. Another user's links would no longer reach their folders.
 		'migrate_state() {',
 		'  rel=$1',
 		'  shift',
@@ -358,6 +363,7 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'  for entry in "./$rel" "./$rel".deferred.* "./$rel".moving.*; do',
 		'    if [ -L "$entry" ] || [ ! -d "$entry" ]; then continue; fi',
 		'    entry_uid=$(stat -c %u "$entry")',
+		'    if [ -n "$keep_existing" ] && [ "$entry_uid" != "$user_uid" ]; then echo "Not moving $state/${entry#./} while the container is running: another user may be using it" >&2; continue; fi',
 		// A root user's state must not be changeable by another user, see above, who may still have it open.
 		'    if [ "$entry_uid" = 0 ] && ! root_only "$entry"; then echo "Not moving $state/${entry#./}: a user other than root can change it" >&2; continue; fi',
 		'    if ! user_folder "$entry_uid" "$(stat -c %g "$entry")"; then echo "Not moving $state/${entry#./}: $state/$entry_uid is not a folder only root can change" >&2; continue; fi',
@@ -372,7 +378,8 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'    if [ "$to" = "./$entry_uid/$rel" ] && [ -f "./$rel.deferred" ] && [ ! -L "./$rel.deferred" ] && [ ! -e "$to.deferred" ] && [ ! -L "$to.deferred" ]; then mv "./$rel.deferred" "$to.deferred"; fi',
 		'    echo "Moved $state/${entry#./} to $state/${to#./}" >&2',
 		'  done',
-		'  if [ -f "./$rel.deferred" ] && [ ! -L "./$rel.deferred" ]; then rm -f "./$rel.deferred"; fi',
+		// Keeps the marker of a folder that was not moved.
+		'  if [ ! -e "./$rel" ] && [ ! -L "./$rel" ] && [ -f "./$rel.deferred" ] && [ ! -L "./$rel.deferred" ]; then rm -f "./$rel.deferred"; fi',
 		'  parent=$rel',
 		'  while [ "${parent%/*}" != "$parent" ]; do parent=${parent%/*}; rmdir "./$parent" 2>/dev/null || break; done',
 		'}',
@@ -396,7 +403,7 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		// Moved folders are no longer protected by the home folder's permissions, so only the user's group may enter. Root
 		// owns the user's state folder and the parents of moved folders, so the user cannot plant symlinks for this script to
 		// follow. Works inside it, like the state folder above. Checked again, now that only root can change the state folder.
-		'if is_other "./$user_uid"; then echo "$user_state is not a folder" >&2; exit 1; fi',
+		'if is_other "./$user_uid"; then user_state_other; fi',
 		'test -d "./$user_uid" || mkdir "./$user_uid" || test -d "./$user_uid"',
 		'chown -h "$state_owner" "./$user_uid"',
 		'chmod 750 "./$user_uid"',
@@ -522,11 +529,11 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'  if [ -L "$src" ]; then',
 		'    case "$(readlink "$src")" in',
 		'      "$target") ;;',
-		// Replaced below. The earlier layout's folder stays in use if it was not moved, see `migrate_state`, except by a root
-		// user, whose state another user may be able to change there.
+		// Replaced below. Removed if the earlier layout's folder was not moved, see `migrate_state`, because other users can
+		// now enter the state folder and may be able to change the folder there.
 		'      "$link_path/$rel")',
 		'        if [ -e "../$rel" ] || [ -L "../$rel" ]; then',
-		'          if [ "$user_uid" = 0 ]; then rm -f "$src"; fi',
+		'          rm -f "$src"',
 		'          skip notMoved "$state/$rel was not moved to $user_state"; return 0',
 		'        fi',
 		'        earlier_link=1 ;;',
