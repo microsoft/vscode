@@ -3519,6 +3519,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const invocation = this._toolsService.beginToolCall({
 			toolCallId,
 			toolId,
+			chatRequestId: turnId,
 			toolSessionResource,
 			subagentInvocationId,
 			sessionResource: undefined,
@@ -3675,6 +3676,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			result = await this._toolsService.invokeTool({
 				callId: toolCall.toolCallId,
 				toolId: toolData.id,
+				chatRequestId: request.turnId,
 				toolSessionResource,
 				originatingChatResource: getAgentHostSessionResource(sessionResource).with({
 					fragment: chatURI === this._getRawSessionState(backendSession.toString())?.defaultChat ? '' : getAgentHostChatId(chatURI),

@@ -924,6 +924,7 @@ suite('AgentHostClientTools', () => {
 						toolId: options.toolId,
 						toolData,
 						subagentInvocationId: options.subagentInvocationId,
+						chatRequestId: options.chatRequestId,
 					});
 					pendingToolCalls.set(options.toolCallId, invocation);
 					begunToolCalls.push(invocation);
@@ -3230,6 +3231,8 @@ suite('AgentHostClientTools', () => {
 				renderedIsTheBegunInvocation: rendered === toolsService.begunToolCalls.find(inv => inv.toolCallId === 'runTask-call-1'),
 				begun: toolsService.begunToolCalls.filter(inv => inv.toolCallId === 'runTask-call-1').length,
 				invoked: toolsService.invokedToolCalls.filter(inv => inv.chatStreamToolCallId === 'runTask-call-1').length,
+				requestIds: toolsService.invokedToolCalls.filter(inv => inv.chatStreamToolCallId === 'runTask-call-1').map(inv => inv.chatRequestId),
+				streamRequestId: rendered?.chatRequestId,
 				scopes: toolsService.invokedToolCalls.filter(inv => inv.chatStreamToolCallId === 'runTask-call-1').map(inv => inv.toolSessionResource?.toString()),
 				streamScopes: toolsService.begunToolCallOptions.filter(options => options.toolCallId === 'runTask-call-1').map(options => options.toolSessionResource?.toString()),
 				toolId: rendered?.toolId,
@@ -3238,6 +3241,8 @@ suite('AgentHostClientTools', () => {
 				renderedIsTheBegunInvocation: true,
 				begun: 1,
 				invoked: 1,
+				requestIds: ['sub-turn-1'],
+				streamRequestId: 'sub-turn-1',
 				scopes: [sessionResource.toString()],
 				streamScopes: [sessionResource.toString()],
 				toolId: taskTool.id,
@@ -3286,6 +3291,7 @@ suite('AgentHostClientTools', () => {
 					callId: call.callId,
 					parameters: call.parameters,
 					hasContext: call.context !== undefined,
+					requestId: call.chatRequestId,
 					origin: call.originatingChatResource?.toString(),
 					preApprovedKind: call.preApproved?.type,
 				})),
@@ -3297,6 +3303,7 @@ suite('AgentHostClientTools', () => {
 					callId: 'client-tool-1',
 					parameters: { task: 'build' },
 					hasContext: false,
+					requestId: 'subagent-turn-1',
 					origin: sessionResource.with({ fragment: 'subagent/task-call-1' }).toString(),
 					preApprovedKind: ToolConfirmKind.ConfirmationNotNeeded,
 				}],
@@ -3469,12 +3476,12 @@ suite('AgentHostClientTools', () => {
 				// once with chat context (not per-observer, not headless).
 				invocations: toolsService.invokedToolCalls
 					.filter(invocation => invocation.chatStreamToolCallId === 'client-tool-1')
-					.map(invocation => invocation.context !== undefined),
+					.map(invocation => ({ session: invocation.context?.sessionResource.toString(), requestId: invocation.chatRequestId })),
 				declines: connection.dispatchedActions.filter(entry =>
 					entry.action.type === ActionType.ChatToolCallComplete
 					&& entry.action.result.error?.code === 'clientUnavailable').length,
 			}, {
-				invocations: [true],
+				invocations: [{ session: sessionResource.toString(), requestId: 'turn-1' }],
 				declines: 0,
 			});
 		}));
@@ -3604,8 +3611,8 @@ suite('AgentHostClientTools', () => {
 			assert.deepStrictEqual(
 				toolsService.invokedToolCalls
 					.filter(invocation => invocation.chatStreamToolCallId === 'client-tool-1')
-					.map(invocation => invocation.context?.sessionResource.toString()),
-				[sessionResource.toString()],
+					.map(invocation => ({ session: invocation.context?.sessionResource.toString(), requestId: invocation.chatRequestId })),
+				[{ session: sessionResource.toString(), requestId: 'turn-1' }],
 			);
 		}));
 
@@ -3712,11 +3719,13 @@ suite('AgentHostClientTools', () => {
 
 			assert.deepStrictEqual({
 				contexts: toolsService.invokedToolCalls.map(invocation => invocation.context?.sessionResource.toString()),
+				requestIds: toolsService.invokedToolCalls.map(invocation => invocation.chatRequestId),
 				declines: connection.dispatchedActions.filter(entry =>
 					entry.action.type === ActionType.ChatToolCallComplete
 					&& entry.action.result.error?.code === 'clientUnavailable').length,
 			}, {
 				contexts,
+				requestIds: ['turn-1', 'turn-2', 'turn-3'],
 				declines: 0,
 			});
 		}));
