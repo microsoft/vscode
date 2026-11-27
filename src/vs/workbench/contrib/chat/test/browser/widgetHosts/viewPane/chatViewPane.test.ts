@@ -14,7 +14,8 @@ import { IProgressService } from '../../../../../../../platform/progress/common/
 import { IViewsService } from '../../../../../../services/views/common/viewsService.js';
 import { stubChatViewHostServiceDependencies } from '../../../common/chatViewSessionsListServiceTestUtils.js';
 import { ChatViewHostService } from '../../../../browser/widgetHosts/viewPane/chatViewHostService.js';
-import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { IAction, toAction } from '../../../../../../../base/common/actions.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../../base/test/common/virtualScheduling/index.js';
@@ -522,6 +523,54 @@ suite('ChatViewPane sessions refresh', () => {
 		await toolbar.context.refresh();
 
 		assert.deepStrictEqual(reasons, ['automatic', 'automatic', 'manual']);
+	});
+});
+
+suite('ChatViewPane title actions', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('the sessions list fits its title actions by width only in the secondary side bar\'s title, and the title redraws as the view merges, unmerges or moves', () => {
+		const containerLocationChanged = store.add(new Emitter<{ viewContainer: object }>());
+		const container = {};
+		let location = ViewContainerLocation.AuxiliaryBar;
+		const rendered: string[] = [];
+		const host: ChatViewPane & { updateActions(): void } = Object.assign(Object.create(ChatViewPane.prototype), {
+			id: 'chat',
+			_headerVisible: false,
+			element: document.createElement('div'),
+			updateHeader: () => { },
+			_onDidChange: { fire: () => { } },
+			_register: <T extends IDisposable>(disposable: T) => store.add(disposable),
+			chatAgentService: { onDidChangeAgents: Event.None },
+			chatSessionsService: { onDidCommitSession: Event.None },
+			configurationService: { onDidChangeConfiguration: Event.None },
+			layoutService: { onDidChangePanelPosition: Event.None, onDidChangePartVisibility: Event.None },
+			viewDescriptorService: {
+				onDidChangeContainerLocation: containerLocationChanged.event,
+				getViewContainerByViewId: () => container,
+				getViewLocationById: () => location,
+			},
+			updateContextKeys: () => { },
+			updateViewPaneClasses: () => { },
+			registerSessionsListTitle: () => { },
+			sessionsControl: { createActionViewItem: (_action: IAction, _options: unknown, titleFitsWidths: boolean) => ({ titleFitsWidths }) },
+			updateActions: () => rendered.push((host.createActionViewItem(toAction({ id: 'newChat', label: 'New', run: () => { } })) as unknown as { titleFitsWidths: boolean }).titleFitsWidths ? 'split' : 'stock'),
+		});
+		const setHeaderVisible = (visible: boolean) => host.headerVisible = visible;
+		const move = (to: ViewContainerLocation) => {
+			location = to;
+			containerLocationChanged.fire({ viewContainer: container });
+		};
+		(Reflect.get(ChatViewPane.prototype, 'registerListeners') as (this: ChatViewPane) => void).call(host);
+
+		host.updateActions(); // merged in the secondary side bar
+		setHeaderVisible(true); // unmerged: the view's own header
+		setHeaderVisible(true); // unchanged: no redraw
+		setHeaderVisible(false); // merged again
+		move(ViewContainerLocation.Panel); // merged elsewhere
+		move(ViewContainerLocation.AuxiliaryBar);
+
+		assert.deepStrictEqual(rendered, ['split', 'stock', 'split', 'stock', 'split']);
 	});
 });
 

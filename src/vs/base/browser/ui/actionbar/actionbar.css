@@ -125,3 +125,61 @@
 .monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator > div {
 	width: 1px;
 }
+
+/* Filled label buttons and split buttons, such as those of the Extensions editor */
+
+.monaco-action-bar .actions-container .action-item .action-label.filled-label,
+.monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator {
+	background-color: var(--vscode-extensionButton-background);
+	border: 1px solid var(--vscode-extensionButton-border, transparent);
+}
+
+.monaco-action-bar .actions-container .action-item.action-dropdown-item > .action-label.filled-label {
+	border-right-width: 0;
+}
+
+.monaco-action-bar .actions-container .action-item.action-dropdown-item > .monaco-dropdown .action-label.filled-label {
+	border-left-width: 0;
+}
+
+.monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator {
+	border-left-width: 0;
+	border-right-width: 0;
+}
+
+.monaco-action-bar .actions-container .action-item.action-dropdown-item.empty > .action-label.filled-label {
+	border-right-width: 1px;
+}
+
+.monaco-action-bar .action-item.action-dropdown-item.empty > .action-dropdown-item-separator {
+	display: none;
+}
+
+.monaco-action-bar .actions-container .action-item .action-label.filled-label {
+	color: var(--vscode-extensionButton-foreground);
+}
+
+.monaco-action-bar .actions-container .action-item:not(.disabled) .action-label.filled-label:hover {
+	background-color: var(--vscode-extensionButton-hoverBackground);
+}
+
+.monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator > div {
+	background-color: var(--vscode-extensionButton-separator, var(--vscode-extensionButton-border));
+}
+
+.vscode-high-contrast .monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator > div {
+	background-color: var(--vscode-button-border);
+}
+
+.monaco-action-bar .actions-container .action-item .action-label.filled-label.prominent,
+.monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator.prominent {
+	background-color: var(--vscode-extensionButton-prominentBackground);
+}
+
+.monaco-action-bar .actions-container .action-item .action-label.filled-label.prominent {
+	color: var(--vscode-extensionButton-prominentForeground) !important;
+}
+
+.monaco-action-bar .actions-container .action-item.action-item:not(.disabled) .action-label.filled-label.prominent:hover {
+	background-color: var(--vscode-extensionButton-prominentHoverBackground);
+}

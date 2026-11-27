@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Compact "New" button — rendered by CompactButtonActionViewItem and shared
-between the sessions sidebar header, the titlebar and the Chat view's sessions list.
-Selectors are intentionally unscoped so the widget renders identically wherever it is mounted. */
+/* Compact "New" session button — rendered by NewSessionActionViewItem and shared
+between the sessions sidebar header and the titlebar. Selectors are intentionally
+unscoped so the widget renders identically wherever it is mounted. */
 
 .agent-sessions-compact-new-button.monaco-button {
 	display: inline-flex;
@@ -43,15 +43,6 @@ Selectors are intentionally unscoped so the widget renders identically wherever 
 	gap: 2px;
 	min-width: 0;
 	white-space: nowrap;
-}
-
-/* Icons take a fixed slot and paint only inside it, so a product icon theme or its font loading
-never changes the pill's width or paints over its label or the next action. An element's own
-overflow never clips its outline, so the focus outline stays whole. */
-.agent-sessions-compact-new-button .new-session-button-icon {
-	flex-shrink: 0;
-	width: var(--vscode-codiconFontSize, 16px);
-	overflow: hidden;
 }
 
 .agent-sessions-compact-new-button .new-session-keybinding-hint {
@@ -118,35 +109,4 @@ overflow never clips its outline, so the focus outline stays whole. */
 
 .agent-sessions-compact-new-button .new-session-keybinding-hint .monaco-keybinding > .monaco-keybinding-key:last-child {
 	margin-right: 0;
-}
-
-/* The optional dropdown part, joined to the pill and split off by a thin divider */
-
-.agent-sessions-compact-new-button-dropdown.monaco-button-dropdown {
-	display: inline-flex;
-	align-items: stretch;
-}
-
-.agent-sessions-compact-new-button-dropdown > .agent-sessions-compact-new-button.monaco-button {
-	border-right-width: 0 !important;
-	border-top-right-radius: 0;
-	border-bottom-right-radius: 0;
-}
-
-.agent-sessions-compact-new-button-dropdown > .monaco-button.monaco-dropdown-button {
-	box-sizing: content-box;
-	width: var(--vscode-codiconFontSize, 16px);
-	min-width: 0;
-	overflow: hidden;
-	height: auto;
-	padding: 0 var(--vscode-spacing-size20);
-	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0;
-}
-
-.agent-sessions-compact-new-button-dropdown > .monaco-button.monaco-dropdown-button:not(.disabled) {
-	cursor: pointer;
-}
-
-.agent-sessions-compact-new-button-dropdown > .monaco-button.monaco-dropdown-button:focus {
-	outline-offset: -1px !important;
 }

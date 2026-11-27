@@ -248,7 +248,7 @@
 		justify-content: center;
 	}
 
-	/* Compact "New" button in header — styled in widgets/media/compactButtonActionViewItem.css so the same widget can also render in the titlebar. */
+	/* Compact "New" button in header — styled in media/newSessionActionViewItem.css so the same widget can also render in the titlebar. */
 
 	.agent-sessions-control-container {
 		flex: 1;

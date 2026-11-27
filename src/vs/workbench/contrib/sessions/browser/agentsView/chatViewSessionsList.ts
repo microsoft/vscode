@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IActionViewItem } from '../../../../../base/browser/ui/actionbar/actionbar.js';
-import { IDropdownMenuActionViewItemOptions } from '../../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
-import { ActionRunner, IAction } from '../../../../../base/common/actions.js';
-import { isCancellationError } from '../../../../../base/common/errors.js';
+import { IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { ActionWithDropdownActionViewItem, IDropdownMenuActionViewItemOptions } from '../../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
+import { IAction } from '../../../../../base/common/actions.js';
 import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -26,92 +26,92 @@ import { ChatViewSessionsListHelpHint } from '../chatView/chatViewSessionsListAc
 import { MenuId, MenuItemAction, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
-import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { CompactButtonActionViewItem, ICompactButtonDropdown } from '../widgets/compactButtonActionViewItem.js';
+
+/** The class of the filled label buttons of action bars, such as the split buttons of the Extensions editor. */
+const FILLED_LABEL_CLASS = 'filled-label';
 
 /**
- * Runs the actions of the New menu with the context of the title, and reports a failure itself: a menu that closes as
- * the action starts no longer listens to its end, and the button may be gone by then too.
+ * The "New" split button of the Chat view title for the New menu, the split button of the Extensions editor: "New" runs New Chat
+ * and the dropdown opens the New menu. The title's toolbar knows it as the New menu itself, so that it can move it into its overflow
+ * menu, and asks it for the width it needs.
  */
-class ChatViewNewMenuActionRunner extends ActionRunner {
-
-	constructor(
-		private readonly _getContext: () => unknown,
-		@INotificationService private readonly _notificationService: INotificationService,
-	) {
-		super();
-	}
-
-	protected override async runAction(action: IAction): Promise<void> {
-		try {
-			await action.run(this._getContext());
-		} catch (error) {
-			if (!isCancellationError(error)) {
-				this._notificationService.error(error);
-			}
-		}
-	}
-}
-
-/**
- * The compact "New" button of the Agents window for the New menu, with the menu as its joined dropdown part. The button runs
- * New Chat. The title's toolbar knows it as the New menu itself, so that it gives it the room of a split button and can
- * move it into its overflow menu.
- */
-class ChatViewNewButtonActionViewItem extends CompactButtonActionViewItem {
-
-	private readonly _menuActionRunner: ChatViewNewMenuActionRunner;
+class ChatViewNewButtonActionViewItem extends ActionWithDropdownActionViewItem {
 
 	constructor(
 		newMenu: SubmenuItemAction,
 		private readonly _newChat: MenuItemAction,
-		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IHoverService hoverService: IHoverService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		options: IActionViewItemOptions | undefined,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
-		super(newMenu, keybindingService, hoverService, contextKeyService);
-		this._menuActionRunner = this._register(instantiationService.createInstance(ChatViewNewMenuActionRunner, () => this._context));
+		super(null, newMenu, {
+			...options,
+			icon: false,
+			label: true,
+			menuActionsOrProvider: { getActions: () => newMenu.actions },
+			menuActionClassNames: [FILLED_LABEL_CLASS],
+		}, contextMenuService);
 	}
 
-	/** New Chat's own keybinding, or that of the canonical New Chat for its icon variants, which have none. */
-	protected override get commandId(): string {
+	override render(container: HTMLElement): void {
+		super.render(container);
+		// The menu runs its actions with the context of the title, as the button does
+		this.dropdownMenuActionViewItem?.setActionContext(this._context);
+		// The dropdown is created after the first update, enabled with the New menu; it follows New Chat
+		this.updateEnabled();
+	}
+
+	override setActionContext(context: unknown): void {
+		super.setActionContext(context);
+		this.dropdownMenuActionViewItem?.setActionContext(context);
+	}
+
+	/** The width the button needs, for the title to fit it. */
+	getMinimumWidth(): number | undefined {
+		const width = this.element?.getBoundingClientRect().width;
+		return width ? Math.ceil(width) : undefined;
+	}
+
+	/** "New" runs New Chat. */
+	override getActionToRun(): IAction {
+		return this._newChat;
+	}
+
+	protected override updateLabel(): void {
+		if (this.label) {
+			this.label.textContent = localize('chatViewNewButton', "New");
+		}
+	}
+
+	/** The button is disabled when New Chat is, which is only when Chat is. */
+	protected override updateEnabled(): void {
+		const enabled = this._newChat.enabled;
+		this.element?.classList.toggle('disabled', !enabled);
+		this.label?.classList.toggle('disabled', !enabled);
+		if (enabled) {
+			this.label?.removeAttribute('aria-disabled');
+		} else {
+			this.label?.setAttribute('aria-disabled', 'true');
+		}
+		if (this.dropdownMenuActionViewItem) {
+			this.dropdownMenuActionViewItem.action.enabled = enabled;
+		}
+	}
+
+	protected override updateClass(): void {
+		super.updateClass();
+		this.label?.classList.add(FILLED_LABEL_CLASS);
+	}
+
+	/** New Chat with its keybinding, or that of the canonical New Chat for its icon variants, which have none. */
+	protected override getTooltip(): string {
 		const id = this._newChat.id;
 		const isIconVariant = NEW_CHAT_ICON_VARIANTS.some(variant => id === ACTION_ID_NEW_CHAT + variant.idSuffix);
-		return isIconVariant && !this.keybindingService.lookupKeybinding(id) ? ACTION_ID_NEW_CHAT : id;
-	}
-
-	protected override get label(): string {
-		return localize('chatViewNewButton', "New");
-	}
-
-	protected override get dropdown(): ICompactButtonDropdown {
-		return { contextMenuProvider: this._contextMenuService, actions: (this.action as SubmenuItemAction).actions, actionRunner: this._menuActionRunner };
-	}
-
-	/** New Chat, whose precondition was evaluated in the context of the title. */
-	protected override get primaryEnabled(): boolean {
-		return this._newChat.enabled;
-	}
-
-	protected override getHoverContent(keybindingLabel: string | undefined): string {
+		const keybinding = this._keybindingService.lookupKeybinding(id) ?? (isIconVariant ? this._keybindingService.lookupKeybinding(ACTION_ID_NEW_CHAT) : undefined);
+		const keybindingLabel = keybinding?.getLabel();
 		return keybindingLabel
 			? localize('chatViewNewButtonTitle', "{0} ({1})", this._newChat.label, keybindingLabel)
 			: this._newChat.label;
-	}
-
-	protected override getAriaLabel(keybindingAriaLabel: string | undefined): string {
-		return keybindingAriaLabel
-			? localize('chatViewNewButtonAriaLabel', "{0} ({1})", this._newChat.label, keybindingAriaLabel)
-			: this._newChat.label;
-	}
-
-	/** New Chat, with the context of the title. */
-	protected override runAction(_event: MouseEvent | undefined): void {
-		void this.actionRunner.run(this._newChat, this._context);
 	}
 }
 
@@ -148,14 +148,14 @@ export class ChatViewSessionsListControl implements IChatViewSessionsListControl
 	getFocus(): IAgentSession[] { return []; }
 	openFind(): void { this._view.openFind(); }
 	/**
-	 * The New menu shows as the compact "New" button only in a title that fits it by the width it needs; other titles, which
+	 * The New menu shows as the "New" split button only in a title that fits it by the width it needs; other titles, which
 	 * would cover or clip it, show it as the stock split button.
 	 */
 	createActionViewItem(action: IAction, options: IDropdownMenuActionViewItemOptions | undefined, titleFitsWidths: boolean): IActionViewItem | undefined {
 		if (titleFitsWidths && action instanceof SubmenuItemAction && action.item.submenu === MenuId.ChatNewMenu) {
 			const newChat = action.actions.find(action => action instanceof MenuItemAction && (action.id === ACTION_ID_NEW_CHAT || NEW_CHAT_ICON_VARIANTS.some(variant => action.id === ACTION_ID_NEW_CHAT + variant.idSuffix)));
 			if (newChat instanceof MenuItemAction) {
-				return this._instantiationService.createInstance(ChatViewNewButtonActionViewItem, action, newChat);
+				return this._instantiationService.createInstance(ChatViewNewButtonActionViewItem, action, newChat, options);
 			}
 		}
 		return this._view.createActionViewItem(action, options);

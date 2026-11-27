@@ -40,13 +40,10 @@ import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { MicrotaskDelay } from '../../../../base/common/symbols.js';
 
 /**
- * A title action view item that knows the width it needs because it does not shrink, such as a split button showing its
- * keybinding.
+ * A title action view item that knows the width it needs because it does not shrink, such as a split button with a label.
  */
 interface IActionViewItemWithMinimumWidth extends IActionViewItem {
 	getMinimumWidth(): number | undefined;
-	/** Sets the listener the item calls when its width changes while it is shown, such as when its label grows. */
-	setMinimumWidthListener(listener: () => void): void;
 }
 
 interface IAuxiliaryBarPartConfiguration {
@@ -95,6 +92,8 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	private configuration: IAuxiliaryBarPartConfiguration;
 	/** The widths split buttons last reported, which the title toolbar uses while a button is in the overflow. */
 	private splitButtonMinWidths = new WeakMap<SubmenuItemAction, number>();
+	/** The split buttons that reported their own width, which the title toolbar moves into the overflow last. */
+	private readonly selfSizingSplitButtonIds = new Set<string>();
 	private readonly splitButtonRefit = this._register(new Delayer<void>(MicrotaskDelay));
 	private readonly visibleViewContainersTracker: VisibleViewContainersTracker;
 
@@ -152,8 +151,6 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 
 		this.configuration = this.resolveConfiguration();
 
-		this._register(keybindingService.onDidUpdateKeybindings(() => this.remeasureSplitButtons()));
-
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION)) {
 				this.configuration = this.resolveConfiguration();
@@ -180,11 +177,14 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	}
 
 	protected override getToolbarResponsiveBehavior(): IToolBarResponsiveBehaviorOptions {
+		const $this = this;
 		return {
 			enabled: true,
 			kind: 'all',
 			minItems: 0,
-			overflowFrom: 'start',
+			// A split button that sizes itself, such as the Chat view's New button, leads the title and moves into the
+			// overflow last, after the actions that follow it
+			get overflowFrom() { return $this.hasSelfSizingSplitButton() ? 'end' : 'start'; },
 			actionMinWidth: 22,
 			getActionMinWidth: action => action instanceof SubmenuItemAction && action.item.isSplitButton ? this.getSplitButtonMinWidth(action) : undefined,
 		};
@@ -193,7 +193,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	/**
 	 * The width a split button reports for itself, so that it moves into the overflow whole before it covers its neighbors,
 	 * or 36px. While the button is in the overflow it has no view item to ask, so its last reported width is used. When the
-	 * button comes back or is shown and reports another width, such as after its keybinding or label changed, the toolbar is
+	 * button comes back or is shown and reports another width, such as after the theme or zoom changed, the toolbar is
 	 * fitted again.
 	 */
 	private getSplitButtonMinWidth(action: SubmenuItemAction): number {
@@ -205,7 +205,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 					this.splitButtonMinWidths.delete(action);
 					return 36;
 				}
-				viewItem.setMinimumWidthListener(() => this.getSplitButtonMinWidth(action));
+				this.selfSizingSplitButtonIds.add(action.id);
 				const width = viewItem.getMinimumWidth();
 				if (width === undefined) {
 					this.splitButtonMinWidths.delete(action);
@@ -221,22 +221,32 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		return this.splitButtonMinWidths.get(action) ?? 36;
 	}
 
+	/** Includes a split button the title toolbar has moved into the overflow. */
+	private hasSelfSizingSplitButton(): boolean {
+		for (const id of this.selfSizingSplitButtonIds) {
+			if (this.toolBar?.hasPrimaryAction(id)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	private hasMinimumWidth(item: IActionViewItem | undefined): item is IActionViewItemWithMinimumWidth {
 		const candidate = item as Partial<IActionViewItemWithMinimumWidth> | undefined;
-		return typeof candidate?.getMinimumWidth === 'function' && typeof candidate.setMinimumWidthListener === 'function';
+		return typeof candidate?.getMinimumWidth === 'function';
 	}
 
 	/**
-	 * Forgets the widths split buttons last reported, as their keybindings, theme or sizes changed while they may be in the
-	 * overflow, and fits the toolbar again: a button then comes back to report its width, and moves into the overflow again
-	 * before it is painted if it does not fit.
+	 * Forgets the widths split buttons last reported, as the theme changed while they may be in the overflow, and fits the
+	 * toolbar again: a button then comes back to report its width, and moves into the overflow again before it is painted if
+	 * it does not fit.
 	 */
 	private remeasureSplitButtons(): void {
 		this.splitButtonMinWidths = new WeakMap();
 		this.refitSplitButtons();
 	}
 
-	/** Fits the toolbar again once the current fit and the split buttons' own updates, such as of their keybindings, are done. */
+	/** Fits the toolbar again once the current fit is done. */
 	private refitSplitButtons(): void {
 		this.splitButtonRefit.trigger(() => this.toolBar?.relayout()).catch(onUnexpectedError);
 	}

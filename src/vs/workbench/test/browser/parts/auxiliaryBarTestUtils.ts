@@ -12,8 +12,6 @@ import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar
 import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IMenuCreateOptions, IMenuService, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../platform/actions/common/menuService.js';
-import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { MockKeybindingService } from '../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ContextKeyService } from '../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { AuxiliaryBarPart } from '../../../browser/parts/auxiliarybar/auxiliaryBarPart.js';
@@ -26,27 +24,14 @@ const newChatMenu = MenuId.for('test.auxiliaryBar.newChat');
 /** The menu of the part's own title actions, after those of its view, such as Maximize and Hide. */
 export const testAuxiliaryBarGlobalActionsMenu = MenuId.for('test.auxiliaryBar.title');
 
-class TestKeybindingService extends MockKeybindingService {
-	constructor(private readonly onDidUpdate: Event<void>) {
-		super();
-	}
-
-	override get onDidUpdateKeybindings(): Event<void> {
-		return this.onDidUpdate;
-	}
-}
-
 class TestAuxiliaryBarMenuService extends MenuService {
 	override createMenu(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuCreateOptions) {
 		return super.createMenu(id === MenuId.AuxiliaryBarTitle ? testAuxiliaryBarGlobalActionsMenu : id, contextKeyService, options);
 	}
 }
 
-export function createTestAuxiliaryBarPart(container: HTMLElement, store: Pick<DisposableStore, 'add'>, options?: { readonly globalActions?: boolean; readonly onDidUpdateKeybindings?: Event<void> }): TestAuxiliaryBarPart {
+export function createTestAuxiliaryBarPart(container: HTMLElement, store: Pick<DisposableStore, 'add'>, options?: { readonly globalActions?: boolean }): TestAuxiliaryBarPart {
 	const instantiationService = workbenchInstantiationService({}, store);
-	if (options?.onDidUpdateKeybindings) {
-		instantiationService.stub(IKeybindingService, new TestKeybindingService(options.onDidUpdateKeybindings));
-	}
 	instantiationService.stub(IContextKeyService, store.add(instantiationService.createInstance(ContextKeyService)));
 	instantiationService.stub(IViewDescriptorService, store.add(instantiationService.createInstance(ViewDescriptorService)));
 	instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(TestAuxiliaryBarMenuService)));
@@ -91,8 +76,10 @@ export class TestAuxiliaryBarPart extends AuxiliaryBarPart {
 	}
 
 	protected override getToolbarResponsiveBehavior(): IToolBarResponsiveBehaviorOptions {
+		const behavior = super.getToolbarResponsiveBehavior();
 		return {
-			...super.getToolbarResponsiveBehavior(),
+			...behavior,
+			get overflowFrom() { return behavior.overflowFrom; },
 			getAvailableWidth: () => this.toolbarAvailableWidth ?? this.toolBar?.getElement().getBoundingClientRect().width ?? 0,
 		};
 	}

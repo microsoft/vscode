@@ -597,7 +597,7 @@ class UpdatePluginEditorAction extends Action {
 		private readonly liveMarketplacePlugin: IMarketplacePlugin,
 		@IPluginInstallService private readonly pluginInstallService: IPluginInstallService,
 	) {
-		super(UpdatePluginEditorAction.ID, localize('update', "Update"), 'extension-action label prominent install');
+		super(UpdatePluginEditorAction.ID, localize('update', "Update"), 'extension-action label filled-label prominent install');
 	}
 
 	override async run(): Promise<void> {
