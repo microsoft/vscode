@@ -222,19 +222,29 @@ suite('Markdown editor configuration', () => {
 			const clamped = getMarkdownEditorConfiguration(document, false);
 
 			await update(['   ', 'not-a-number', 'not-a-number']);
-			const invalid = getMarkdownEditorConfiguration(document, true);
+			const invalidString = getMarkdownEditorConfiguration(document, true);
+
+			await update(['', '', '   ']);
+			const emptyStrings = getMarkdownEditorConfiguration(document, false);
+
+			await update([null, null, false]);
+			const nullAndBoolean = getMarkdownEditorConfiguration(document, false);
 
 			const defaultFontFamily = previewConfig.inspect<string>('fontFamily')?.defaultValue;
 			assert.deepStrictEqual(
 				{
 					configured: { fontFamily: configured.fontFamily, fontSize: configured.fontSize, lineHeight: configured.lineHeight },
 					clamped: { fontFamily: clamped.fontFamily, fontSize: clamped.fontSize, lineHeight: clamped.lineHeight },
-					invalid: { fontFamily: invalid.fontFamily, fontSize: invalid.fontSize, lineHeight: invalid.lineHeight, documentReadonly: invalid.documentReadonly },
+					invalidString: { fontFamily: invalidString.fontFamily, fontSize: invalidString.fontSize, lineHeight: invalidString.lineHeight, documentReadonly: invalidString.documentReadonly },
+					emptyStrings: { fontFamily: emptyStrings.fontFamily, fontSize: emptyStrings.fontSize, lineHeight: emptyStrings.lineHeight },
+					nullAndBoolean: { fontFamily: nullAndBoolean.fontFamily, fontSize: nullAndBoolean.fontSize, lineHeight: nullAndBoolean.lineHeight },
 				},
 				{
 					configured: { fontFamily: 'Georgia', fontSize: 22, lineHeight: 1.4 },
 					clamped: { fontFamily: defaultFontFamily, fontSize: 8, lineHeight: 0.6 },
-					invalid: { fontFamily: undefined, fontSize: undefined, lineHeight: undefined, documentReadonly: true },
+					invalidString: { fontFamily: undefined, fontSize: undefined, lineHeight: undefined, documentReadonly: true },
+					emptyStrings: { fontFamily: undefined, fontSize: undefined, lineHeight: undefined },
+					nullAndBoolean: { fontFamily: undefined, fontSize: undefined, lineHeight: undefined },
 				},
 			);
 		} finally {

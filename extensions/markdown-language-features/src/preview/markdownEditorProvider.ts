@@ -1372,6 +1372,9 @@ const markdownEditorConfigurationSettings: readonly string[] = [
 
 export function getMarkdownEditorConfiguration(document: vscode.TextDocument, documentReadonly: boolean): MarkdownEditorConfiguration {
 	const config = vscode.workspace.getConfiguration('markdown.editor', document.uri);
+	const previewConfig = vscode.workspace.getConfiguration('markdown.preview', document.uri);
+	const rawFontSize = previewConfig.get<unknown>('fontSize');
+	const rawLineHeight = previewConfig.get<unknown>('lineHeight');
 	const { fontFamily, fontSize, lineHeight } = MarkdownPreviewConfiguration.getForResource(document.uri);
 	return {
 		highlightActiveBlock: config.get<boolean>('highlightActiveBlock', true),
@@ -1379,9 +1382,13 @@ export function getMarkdownEditorConfiguration(document: vscode.TextDocument, do
 		lineBreak: vsCodeLineBreak(document),
 		documentReadonly,
 		fontFamily: typeof fontFamily === 'string' && fontFamily.trim().length > 0 ? fontFamily : undefined,
-		fontSize: Number.isFinite(fontSize) ? fontSize : undefined,
-		lineHeight: Number.isFinite(lineHeight) ? lineHeight : undefined,
+		fontSize: isFiniteNumber(rawFontSize) && Number.isFinite(fontSize) ? fontSize : undefined,
+		lineHeight: isFiniteNumber(rawLineHeight) && Number.isFinite(lineHeight) ? lineHeight : undefined,
 	};
+}
+
+function isFiniteNumber(value: unknown): value is number {
+	return typeof value === 'number' && Number.isFinite(value);
 }
 
 function advancePosition(pos: vscode.Position, text: string): vscode.Position {
