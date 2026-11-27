@@ -21,17 +21,21 @@ import { ViewEventHandler } from '../../common/viewEventHandler.js';
 import { EditorOption } from '../../common/config/editorOptions.js';
 import { NavigationCommandRevealType } from '../coreCommands.js';
 import { MouseWheelClassifier } from '../../../base/browser/ui/scrollbar/scrollableElement.js';
-import type { ViewLinesGpu } from '../viewParts/viewLinesGpu/viewLinesGpu.js';
 import { TopBottomDragScrolling, LeftRightDragScrolling } from './dragScrolling.js';
 import { TextDirection } from '../../common/model.js';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from '../../../base/browser/ui/mouseCursor/mouseCursor.js';
+
+export interface IViewLineHitTestProvider {
+	getLineWidth(lineNumber: number): number | undefined;
+	getPositionAtCoordinate(lineNumber: number, mouseContentHorizontalOffset: number): Position | undefined;
+}
 
 export interface IPointerHandlerHelper {
 	viewDomNode: HTMLElement;
 	marginDomNode: HTMLElement;
 	linesContentDomNode: HTMLElement;
 	viewLinesDomNode: HTMLElement;
-	viewLinesGpu: ViewLinesGpu | undefined;
+	viewLineHitTestProvider: IViewLineHitTestProvider | undefined;
 
 	focusTextArea(): void;
 	dispatchTextAreaEvent(event: CustomEvent): void;

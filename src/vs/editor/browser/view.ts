@@ -454,7 +454,7 @@ export class View extends ViewEventHandler {
 			marginDomNode,
 			linesContentDomNode: this._linesContent.domNode,
 			viewLinesDomNode: this._viewLines.getDomNode().domNode,
-			get viewLinesGpu() {
+			get viewLineHitTestProvider() {
 				return getViewLinesGpu();
 			},
 
