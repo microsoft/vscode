@@ -3481,6 +3481,10 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		// No-op: Zen mode not supported in this layout
 	}
 
+	isZenModeActive(): boolean {
+		return false;
+	}
+
 	toggleMenuBar(): void {
 		// No-op: Menu bar toggle not supported in this layout
 	}

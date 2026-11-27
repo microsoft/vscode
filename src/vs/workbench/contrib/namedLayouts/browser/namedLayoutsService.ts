@@ -10,9 +10,7 @@ import { equals } from '../../../../base/common/objects.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../platform/storage/common/storage.js';
-import { InEditorZenModeContext } from '../../../common/contextkeys.js';
 import { EditorGroupLayout, GroupLayoutArgument, GroupOrientation, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IPartsLayoutState, IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
@@ -86,7 +84,6 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IExtensionService extensionService: IExtensionService,
 	) {
 		super();
@@ -317,7 +314,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 
 	private captureState(): INamedLayoutState {
 		// Zen mode hides the parts: what they show then is not the layout's
-		const parts = this.isZenModeActive() ? undefined : this.layoutService.getPartsLayoutState();
+		const parts = this.layoutService.isZenModeActive() ? undefined : this.layoutService.getPartsLayoutState();
 
 		return {
 			...(parts ? { sideBar: parts.sideBar, panel: parts.panel, auxiliaryBar: parts.auxiliaryBar } : {}),
@@ -345,7 +342,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		const editorGroupsApplied = state.editorGroups ? this.editorGroupService.mainPart.applyLayout(state.editorGroups) : true;
 
 		// Zen mode hides the parts: a window that starts in Zen mode applies them when it ends
-		const parts = this.isZenModeActive() ? undefined : this.layoutService.getPartsLayoutState();
+		const parts = this.layoutService.isZenModeActive() ? undefined : this.layoutService.getPartsLayoutState();
 		if (parts && (state.sideBar || state.panel || state.auxiliaryBar)) {
 			this.layoutService.applyPartsLayoutState({
 				sideBar: state.sideBar ?? parts.sideBar,
@@ -380,12 +377,8 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		return this.configurationService.getValue(NAMED_LAYOUTS_ENABLED_SETTING) === true;
 	}
 
-	private isZenModeActive(): boolean {
-		return !!InEditorZenModeContext.getValue(this.contextKeyService);
-	}
-
 	private endZenMode(): void {
-		if (this.isZenModeActive()) {
+		if (this.layoutService.isZenModeActive()) {
 			this.layoutService.toggleZenMode();
 		}
 	}

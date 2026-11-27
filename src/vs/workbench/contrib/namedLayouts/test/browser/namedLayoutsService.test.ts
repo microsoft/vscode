@@ -11,11 +11,8 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../../platform/storage/common/storage.js';
-import { InEditorZenModeContext } from '../../../../common/contextkeys.js';
 import { EditorGroupLayout, GroupOrientation, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IPartsLayoutState, IWorkbenchLayoutService, Position } from '../../../../services/layout/browser/layoutService.js';
@@ -54,8 +51,6 @@ suite('NamedLayoutsService', () => {
 	function createWindow(restore?: { layout: Record<string, unknown>; zenMode?: boolean; parts?: IPartsLayoutState; editorGroups?: EditorGroupLayout; whenRestored?: Promise<void> }) {
 		const storageService = store.add(new TestStorageService());
 		const configurationService = new TestConfigurationService({ [NAMED_LAYOUTS_ENABLED_SETTING]: true });
-		const contextKeyService = store.add(new MockContextKeyService());
-		const zenMode = InEditorZenModeContext.bindTo(contextKeyService);
 		const onDidChangeZenMode = store.add(new Emitter<boolean>());
 		const window = {
 			parts: restore?.parts ?? partsState(true, Position.BOTTOM),
@@ -63,29 +58,30 @@ suite('NamedLayoutsService', () => {
 			editorGroupsApplied: 0,
 			/** Whether an editor refuses to move, so that a layout with fewer editor groups does not apply. */
 			editorMoveVetoed: false,
+			zenMode: false,
 			partsBeforeZenMode: undefined as IPartsLayoutState | undefined,
 		};
 
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(IConfigurationService, configurationService);
-		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(IExtensionService, { whenInstalledExtensionsRegistered: () => Promise.resolve(true) });
 		const toggleZenMode = () => {
-			if (zenMode.get()) {
+			if (window.zenMode) {
 				window.parts = window.partsBeforeZenMode!;
 			} else {
 				window.partsBeforeZenMode = window.parts;
 				window.parts = { ...window.parts, sideBar: { ...window.parts.sideBar, visible: false }, panel: { ...window.parts.panel, visible: false } };
 			}
-			zenMode.set(!zenMode.get());
-			onDidChangeZenMode.fire(!!zenMode.get());
+			window.zenMode = !window.zenMode;
+			onDidChangeZenMode.fire(window.zenMode);
 		};
 		instantiationService.stub(IWorkbenchLayoutService, {
 			whenRestored: restore?.whenRestored ?? Promise.resolve(),
 			getPartsLayoutState: () => window.parts,
 			applyPartsLayoutState: (state: IPartsLayoutState) => { window.parts = state; },
 			toggleZenMode,
+			isZenModeActive: () => window.zenMode,
 			onDidChangeZenMode: onDidChangeZenMode.event,
 		});
 		instantiationService.stub(IEditorGroupsService, {
@@ -133,7 +129,7 @@ suite('NamedLayoutsService', () => {
 
 		const service = store.add(instantiationService.createInstance(NamedLayoutsService));
 
-		return { service, window, storageService, configurationService, zenMode, toggleZenMode, storedLayouts, storeFromOtherWindow, removeFromOtherWindow };
+		return { service, window, storageService, configurationService, toggleZenMode, storedLayouts, storeFromOtherWindow, removeFromOtherWindow };
 	}
 
 	/** Collects the keys of the layouts that this window writes. */
@@ -223,7 +219,7 @@ suite('NamedLayoutsService', () => {
 	});
 
 	test('Zen mode ends before the window switches, so that the layout that was active saves its parts as they show outside of Zen mode', async () => {
-		const { service, window, zenMode, toggleZenMode, storedLayouts } = createWindow();
+		const { service, window, toggleZenMode, storedLayouts } = createWindow();
 		const debug = (await service.createLayout('Debug'))!;
 		window.parts = partsState(false, Position.RIGHT);
 
@@ -231,7 +227,7 @@ suite('NamedLayoutsService', () => {
 		await service.switchLayout(service.layouts[0]);
 		await service.switchLayout(debug);
 
-		assert.deepStrictEqual({ zenMode: zenMode.get(), parts: window.parts, stored: storedLayouts()[0] }, {
+		assert.deepStrictEqual({ zenMode: window.zenMode, parts: window.parts, stored: storedLayouts()[0] }, {
 			zenMode: false,
 			parts: partsState(false, Position.RIGHT),
 			stored: { name: 'Debug', ...partsState(false, Position.RIGHT), editorGroups: singleGroup },

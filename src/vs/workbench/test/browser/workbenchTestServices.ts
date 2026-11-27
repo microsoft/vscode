@@ -736,6 +736,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	removeClass(_clazz: string): void { }
 	getMaximumEditorDimensions(): IDimension { throw new Error('not implemented'); }
 	toggleZenMode(): void { }
+	isZenModeActive(): boolean { return false; }
 	isMainEditorLayoutCentered(): boolean { return false; }
 	centerMainEditorLayout(_active: boolean): void { }
 	resizePart(_part: Parts, _sizeChangeWidth: number, _sizeChangeHeight: number): void { }

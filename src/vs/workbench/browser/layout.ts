@@ -1574,7 +1574,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
-	private isZenModeActive(): boolean {
+	isZenModeActive(): boolean {
 		return this.stateModel.getRuntimeValue(LayoutStateKeys.ZEN_MODE_ACTIVE);
 	}
 
