@@ -133,7 +133,7 @@
         },
         "html.format.wrapAttributes": {
           "type": "string",
-          "scope": "resource",
+          "scope": "language-overridable",
           "default": "auto",
           "enum": [
             "auto",
@@ -160,7 +160,7 @@
             "number",
             "null"
           ],
-          "scope": "resource",
+          "scope": "language-overridable",
           "default": null,
           "markdownDescription": "%html.format.wrapAttributesIndentSize.desc%"
         },
