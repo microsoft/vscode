@@ -8522,6 +8522,29 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('rejects removing a working directory prepared for a chat until it is released', async () => {
+			const { svc, session, primary, secondary } = await createDynamicWorkingDirectorySession();
+			const added = URI.file('/workspace/added');
+			const prepared = await svc.prepareChatWorkingDirectory(session, added, { isolation: 'folder' });
+			const removal = (clientSeq: number) => {
+				const envelope = Event.toPromise(Event.filter(svc.onDidAction, candidate => candidate.origin?.clientSeq === clientSeq));
+				svc.dispatchAction(session.toString(), { type: ActionType.SessionWorkingDirectoryRemoved, directory: added.toString() }, 'test-client', clientSeq, AgentHostClientType.EditorWindow);
+				return envelope;
+			};
+			const whilePrepared = await removal(1);
+			const foldersWhilePrepared = getStateManager(svc).getSessionSummary(session.toString())?.workingDirectories;
+			await prepared.release();
+
+			assert.deepStrictEqual({
+				rejectionReason: whilePrepared.rejectionReason,
+				foldersWhilePrepared,
+			}, {
+				// As the editor window's workspace sync would, while a chat moves to the folder
+				rejectionReason: `Cannot remove working directory ${added.toString()} because a chat is being created in it or moved to it.`,
+				foldersWhilePrepared: [primary.toString(), secondary.toString(), added.toString()],
+			});
+		});
+
 		test('restores the default chat working directories after session expansion', async () => {
 			const database = new TestSessionDatabase();
 			const sessionDataService = createSessionDataService(database);
@@ -12640,12 +12663,19 @@ suite('AgentService (node dispatcher)', () => {
 			const plainSession = await svc.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: [app, protocol] });
 			const oneFolder = await svc.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: [app] });
 			const oneNonGitFolder = await svc.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: [notes] });
+			const plainBefore = await list(plainSession);
+			// Without worktree isolation, an additional folder can move on its own too
+			const plainChat = URI.parse(buildDefaultChatUri(plainSession));
+			const isolatedAlone = await svc.isolateChatFolder(plainSession, plainChat, protocol, undefined);
+			const plainChatFolders = stateManager.getSessionState(plainSession.toString())?.chats.find(candidate => candidate.resource === plainChat.toString())?.workingDirectories;
 
 			assert.deepStrictEqual({
 				before,
 				afterIsolating,
-				withoutWorktreeIsolation: await list(plainSession),
-				withoutWorktreeIsolationChatThatCannotMove: await list(plainSession, false),
+				withoutWorktreeIsolation: plainBefore,
+				isolatedAlone: isolatedAlone.fsPath,
+				plainChatFolders,
+				withoutWorktreeIsolationAfterIsolatingAlone: await list(plainSession),
 				oneFolder: await list(oneFolder),
 				oneFolderThatCannotMove: await list(oneFolder, false),
 				oneNonGitFolder: await list(oneNonGitFolder),
@@ -12656,7 +12686,9 @@ suite('AgentService (node dispatcher)', () => {
 				afterIsolating: { folders: [docs.fsPath], primary: undefined },
 				// The main folder of a chat of several folders, which moves the chat
 				withoutWorktreeIsolation: { folders: [app.fsPath, protocol.fsPath], primary: app.fsPath },
-				withoutWorktreeIsolationChatThatCannotMove: { folders: [protocol.fsPath], primary: undefined },
+				isolatedAlone: worktreeOf(protocol).fsPath,
+				plainChatFolders: [app.toString(), worktreeOf(protocol).toString()],
+				withoutWorktreeIsolationAfterIsolatingAlone: { folders: [app.fsPath], primary: app.fsPath },
 				oneFolder: { folders: [app.fsPath], primary: app.fsPath },
 				oneFolderThatCannotMove: { folders: [], primary: undefined },
 				oneNonGitFolder: { folders: [], primary: undefined },

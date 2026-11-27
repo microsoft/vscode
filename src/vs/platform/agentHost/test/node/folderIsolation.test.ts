@@ -27,7 +27,7 @@ suite('FolderIsolationService', () => {
 	const worktreeOf = (folder: URI) => URI.file(`${folder.fsPath}.worktrees/task`);
 	const sponsor = { principal: { apiOrigin: 'https://api.github.com', userId: '1' } } as IAgentHostCredentialSource;
 
-	function setup(options: { queuedMessages?: PendingMessage[]; moved?: Promise<void> } = {}) {
+	function setup(options: { queuedMessages?: PendingMessage[]; moved?: Promise<void>; chatMovePending?: () => boolean } = {}) {
 		let activeTurn: string | undefined = 'turn-1';
 		const admissions: string[] = [];
 		const started: { chat: string; text: string; sponsor?: string }[] = [];
@@ -62,6 +62,7 @@ suite('FolderIsolationService', () => {
 				}
 				return worktreeOf(folder);
 			},
+			isChatMovePending: () => options.chatMovePending?.() ?? false,
 		}, turnService as IAgentHostTurnService, stateManager as AgentHostStateManager, new NullLogService()));
 		const end = async (kind: 'success' | 'cancelled') => {
 			activeTurn = undefined;
@@ -78,6 +79,16 @@ suite('FolderIsolationService', () => {
 		assert.throws(() => service.request(session, chat, 'turn-1', [protocol, URI.file('/work/app')], undefined), /primary folder/);
 		await end('success');
 		assert.deepStrictEqual(isolated, []);
+	});
+
+	test('refuses to schedule folders while the chat itself is moving in the turn, and reports what it scheduled', () => {
+		let chatMovePending = true;
+		const { service } = setup({ chatMovePending: () => chatMovePending });
+		assert.throws(() => service.request(session, chat, 'turn-1', [protocol], sponsor), /already moving to a new worktree in this turn/);
+		const requestedAfterRefusal = service.isRequested(chat.toString());
+		chatMovePending = false;
+		service.request(session, chat, 'turn-1', [protocol], sponsor);
+		assert.deepStrictEqual({ requestedAfterRefusal, requested: service.isRequested(chat.toString()) }, { requestedAfterRefusal: false, requested: true });
 	});
 
 	test('once the turn succeeds, isolates each requested folder with its sponsor and continues the task once, naming each worktree or failure', async () => {

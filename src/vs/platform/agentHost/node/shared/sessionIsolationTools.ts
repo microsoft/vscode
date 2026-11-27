@@ -22,10 +22,11 @@ export interface ISessionIsolationToolAccessor {
 	/** Stable provider support for moving a chat; exact-chat eligibility is checked when requesting isolation. */
 	supportsChatIsolation(session: URI): boolean;
 	/**
-	 * Schedules moving the chat, with its primary folder, to a new worktree once `turnId` ends, and then `additionalFolders`
-	 * (other folders of the chat) into worktrees of their own; the host then continues the task.
+	 * Schedules moving the chat, with its primary folder `primary`, to a new worktree once `turnId` ends, and then
+	 * `additionalFolders` (other folders of the chat) into worktrees of their own; the host then continues the task.
+	 * Throws when the chat's primary folder is no longer `primary`, which the user confirmed.
 	 */
-	requestChatIsolation(chat: URI, turnId: string, additionalFolders: readonly URI[]): void;
+	requestChatIsolation(chat: URI, turnId: string, primary: URI, additionalFolders: readonly URI[]): void;
 	/** Whether the chats of `session` can isolate their additional folders: the session uses worktree isolation. */
 	supportsFolderIsolation?(session: URI): boolean;
 	/** Schedules moving additional folders of `chat` into worktrees of their own once `turnId` ends; the host then continues the task. */
@@ -88,7 +89,7 @@ async function isolate(accessor: ISessionIsolationToolAccessor | undefined, cont
 	const primary = isolatable.primary;
 	if (primary && resolved.includes(primary)) {
 		const others = resolved.filter(folder => folder !== primary);
-		accessor.requestChatIsolation(chat, context.turnId, others);
+		accessor.requestChatIsolation(chat, context.turnId, primary, others);
 		return others.length
 			? `Moving this chat to a new worktree of ${JSON.stringify(primary.fsPath)}, and ${others.map(folder => JSON.stringify(folder.fsPath)).join(', ')} into worktrees of their own, is scheduled. End this turn now without calling more tools or replying. The host will move only this chat and those folders, update the session workspace, and continue the original task automatically, telling you each new path. Other chats remain unchanged.`
 			: 'Moving this chat to a new worktree is scheduled. End this turn now without calling more tools or replying. The host will move only this chat to a new worktree, update the session workspace, and continue the original task automatically. Other chats remain unchanged.';

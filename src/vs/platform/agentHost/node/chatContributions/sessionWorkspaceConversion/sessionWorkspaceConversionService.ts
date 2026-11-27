@@ -49,6 +49,18 @@ export interface IChatIsolationHost {
 	runWithChatCatalogLock<T>(session: URI, operation: () => Promise<T>): Promise<T>;
 	/** Moves an additional folder of `chat` into a worktree of its own and returns the folder to work in. */
 	isolateChatFolder?(session: URI, chat: URI, folder: URI, credentials: IAgentHostCredentialSource | undefined): Promise<URI>;
+	/** Whether a move of folders of `chat` on their own is already scheduled, which a move of the chat must not race. */
+	hasPendingFolderIsolation?(chat: URI): boolean;
+}
+
+/** How {@link ISessionWorkspaceConversionService.requestChatIsolation} moves a chat. */
+export interface IChatIsolationRequestOptions {
+	/** The chat's primary folder the user confirmed moving; the request fails when it is no longer its primary folder. */
+	readonly primary?: URI;
+	/** Other folders of the chat to move into worktrees of their own once the chat moved. */
+	readonly isolateFolders?: readonly URI[];
+	/** The source of the turn that asked, which sponsors the worktrees and the continuation. */
+	readonly credentials?: IAgentHostCredentialSource;
 }
 
 /** Where an isolated chat works, its session, and, once resolved with git, the repository the worktree is of. */
@@ -120,8 +132,8 @@ export interface ISessionWorkspaceConversionService {
 	/** Provider support for tool registration, independent of session creation and execution readiness. */
 	supportsChatIsolation(session: URI): boolean;
 	canIsolateChat(chat: URI): boolean;
-	/** Moves the chat to a new worktree of its primary folder, keeping its other folders, of which it moves `isolateFolders` into worktrees of their own. */
-	requestChatIsolation(chat: URI, turnId: string, initiatingClientId?: string, isolateFolders?: readonly URI[]): void;
+	/** Moves the chat to a new worktree of its primary folder, keeping its other folders (see {@link IChatIsolationRequestOptions}). */
+	requestChatIsolation(chat: URI, turnId: string, initiatingClientId?: string, options?: IChatIsolationRequestOptions): void;
 	restoreChatIsolation(session: ProtocolURI, chat: ProtocolURI, storageResource: ProtocolURI): Promise<void>;
 	/** Returns false when the chat already uses the requested folder without needing a workspace change. */
 	requestSessionWorkspaceUpdate(chat: URI, turnId: string, workspaceFolder: URI, isolation: boolean, initiatingClientId?: string, credentials?: IAgentHostCredentialSource): boolean;
@@ -385,7 +397,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			&& !this.isPending(chat.toString());
 	}
 
-	requestChatIsolation(chat: URI, turnId: string, initiatingClientId?: string, isolateFolders: readonly URI[] = []): void {
+	requestChatIsolation(chat: URI, turnId: string, initiatingClientId?: string, { primary, isolateFolders = [], credentials }: IChatIsolationRequestOptions = {}): void {
 		const clientRequiredMessage = localize('agentHost.chatIsolationRequiresTurn', "Changing a chat's workspace with this tool requires an active turn initiated by a connected client.");
 		if (this._stateManager.getActiveTurnId(chat.toString()) !== turnId) {
 			throw new Error(clientRequiredMessage);
@@ -400,8 +412,15 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		// As canIsolateChat reads them
 		const folders = (summary.workingDirectories ?? this._stateManager.getSessionSummary(owner)?.workingDirectories)!.map(folder => URI.parse(folder));
 		const keptFolders = folders.slice(1);
+		// The folders changed while the tool looked them up
+		if (primary && !isEqual(folders[0], primary)) {
+			throw new Error(localize('agentHost.chatIsolationPrimaryChanged', "This chat's main folder changed to {0}; ask again to move it.", folders[0].fsPath));
+		}
 		if (isolateFolders.some(folder => !keptFolders.some(candidate => isEqual(candidate, folder)))) {
 			throw new Error(localize('agentHost.chatIsolationFolders', "Only other folders of this chat can move into worktrees with it."));
+		}
+		if (this._chatIsolationHost?.hasPendingFolderIsolation?.(chat)) {
+			throw new Error(localize('agentHost.chatIsolationFoldersPending', "Other folders of this chat are already moving into worktrees in this turn; name all the folders to move in one request."));
 		}
 		this._trackChat(chat.toString());
 		this._pending.set(chat.toString(), {
@@ -411,6 +430,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			workspaceFolder: folders[0],
 			...(keptFolders.length ? { previousWorkingDirectories: folders, keptFolders, isolateFolders } : {}),
 			isolation: true, initiatingClientId,
+			...(credentials ? { credentials } : {}),
 			prompt: this._stateManager.getChatState(chat.toString())?.activeTurn?.message.text,
 			showTransition: true, phase: 'requested',
 		});

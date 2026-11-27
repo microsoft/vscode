@@ -358,7 +358,7 @@ suite('SessionWorkspaceConversionService', () => {
 	function createIsolationTools(service: SessionWorkspaceConversionService) {
 		return createSessionIsolationToolGroup({
 			supportsChatIsolation: resource => service.supportsChatIsolation(resource),
-			requestChatIsolation: (chat, turnId, additionalFolders) => service.requestChatIsolation(chat, turnId, 'client-1', additionalFolders),
+			requestChatIsolation: (chat, turnId, primary, additionalFolders) => service.requestChatIsolation(chat, turnId, 'client-1', { isolateFolders: additionalFolders }),
 			getIsolatableFolders: async (_session, chat) => service.canIsolateChat(chat) ? { folders: [chatFolder], primary: chatFolder } : { folders: [] },
 		});
 	}
@@ -548,11 +548,17 @@ suite('SessionWorkspaceConversionService', () => {
 			const docs = URI.file('/workspace/docs');
 			const docsWorktree = URI.file('/workspace/docs.worktrees/chat');
 			const moves: { directory: string; replaceSessionWorkspace: boolean; additional: string[] | undefined }[] = [];
-			const isolatedFolders: string[] = [];
+			const isolatedFolders: { folder: string; sponsor: string | undefined }[] = [];
+			const preparedSponsors: (string | undefined)[] = [];
+			const sponsorOf = (source: IAgentHostCredentialSource | undefined) => source?.getCredential({ resource: 'https://api.github.com' })?.token;
+			const credentials: IAgentHostCredentialSource = {
+				getCredential: request => ({ resource: request.resource, token: 'calling-turn', revision: 1, expiresAt: undefined }),
+			};
 			const chatFolders = () => harness.stateManager.getSessionState(harness.session.toString())!.chats.find(chat => chat.resource === harness.chat.toString())?.workingDirectories;
 			const host: IChatIsolationHost = {
 				runWithChatCatalogLock: (_session, operation) => operation(),
-				prepareChatWorkingDirectory: async session => {
+				prepareChatWorkingDirectory: async (session, _folder, options) => {
+					preparedSponsors.push(sponsorOf(options.credentialSource));
 					harness.stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionWorkingDirectorySet, directory: worktree.toString() });
 					return { directory: worktree, release: async () => { throw new Error('Successful isolation must retain its worktree'); } };
 				},
@@ -562,8 +568,8 @@ suite('SessionWorkspaceConversionService', () => {
 						type: ActionType.SessionChatUpdated, chat: chat.toString(), changes: { workingDirectories: [directory, ...additional ?? []].map(folder => folder.toString()) },
 					});
 				},
-				isolateChatFolder: async (session, chat, folder) => {
-					isolatedFolders.push(folder.toString());
+				isolateChatFolder: async (session, chat, folder, sponsor) => {
+					isolatedFolders.push({ folder: folder.toString(), sponsor: sponsorOf(sponsor) });
 					harness.stateManager.dispatchServerAction(session.toString(), {
 						type: ActionType.SessionChatUpdated, chat: chat.toString(), changes: { workingDirectories: chatFolders()!.map(candidate => candidate === folder.toString() ? docsWorktree.toString() : candidate) },
 					});
@@ -586,7 +592,7 @@ suite('SessionWorkspaceConversionService', () => {
 			setProject(harness);
 			const canIsolate = harness.service.canIsolateChat(harness.chat);
 			startTurn(harness.stateManager, harness.chat);
-			harness.service.requestChatIsolation(harness.chat, 'turn-1', 'client-1', withExtraFolder ? [docs] : []);
+			harness.service.requestChatIsolation(harness.chat, 'turn-1', 'client-1', { primary: harness.scratch, isolateFolders: withExtraFolder ? [docs] : [], credentials });
 			completeTurn(harness.stateManager, harness.chat);
 			await updateSessionWorkspace(harness);
 
@@ -598,14 +604,19 @@ suite('SessionWorkspaceConversionService', () => {
 				isolatedFolders,
 				chatFolders: chatFolders(),
 				continuations: harness.continuations.length,
+				// The calling turn's source sponsors every worktree and the continuation
+				preparedSponsors,
+				continuationSponsors: harness.continuationCredentials.map(sponsorOf),
 			}, {
 				canIsolate: true,
 				// Its other folders stay; the session's folders are never replaced by the new one
 				providerMoves: [{ directory: worktree.toString(), additional: kept }],
 				moves: [{ directory: worktree.toString(), replaceSessionWorkspace: false, additional: kept }],
-				isolatedFolders: withExtraFolder ? [docs.toString()] : [],
+				isolatedFolders: withExtraFolder ? [{ folder: docs.toString(), sponsor: 'calling-turn' }] : [],
 				chatFolders: [worktree.toString(), lib.toString(), (withExtraFolder ? docsWorktree : docs).toString()],
 				continuations: 1,
+				preparedSponsors: ['calling-turn'],
+				continuationSponsors: ['calling-turn'],
 			});
 			assert.match(harness.continuations[0].message.text, /Only this chat now uses the worktree at .* instead of /);
 			if (withExtraFolder) {
@@ -635,6 +646,45 @@ suite('SessionWorkspaceConversionService', () => {
 				}
 			})(),
 		}, { canIsolate: false, request: 'rejected' });
+	});
+
+	test('schedules a chat move only for the main folder the user confirmed, and not while its other folders are already moving', () => {
+		let foldersPending = false;
+		const host: IChatIsolationHost = {
+			runWithChatCatalogLock: (_session, operation) => operation(),
+			prepareChatWorkingDirectory: async () => { throw new Error('Nothing is prepared'); },
+			setChatWorkingDirectory: async () => { throw new Error('Nothing moves'); },
+			hasPendingFolderIsolation: () => foldersPending,
+		};
+		const harness = createHarness(new TestWorktreeIsolation(URI.file('/workspace/project.worktrees/chat')), async () => true, new TestSessionDatabase(), 'copilot', host);
+		makeFolderSession(harness);
+		const lib = URI.file('/workspace/lib');
+		harness.stateManager.dispatchServerAction(harness.session.toString(), { type: ActionType.SessionWorkingDirectorySet, directory: lib.toString() });
+		harness.stateManager.dispatchServerAction(harness.session.toString(), {
+			type: ActionType.SessionChatUpdated, chat: harness.chat.toString(), changes: { workingDirectories: [harness.scratch, lib].map(folder => folder.toString()) },
+		});
+		startTurn(harness.stateManager, harness.chat);
+		const request = (options: Parameters<typeof harness.service.requestChatIsolation>[3]) => {
+			try {
+				harness.service.requestChatIsolation(harness.chat, 'turn-1', 'client-1', options);
+				return 'scheduled';
+			} catch (error) {
+				return String(error instanceof Error ? error.message : error);
+			}
+		};
+		const changedPrimary = request({ primary: lib });
+		foldersPending = true;
+		const whileFoldersMove = request({ primary: harness.scratch });
+		const pendingAfterRejections = harness.service.isPending(harness.chat.toString());
+		foldersPending = false;
+		const confirmed = request({ primary: harness.scratch, isolateFolders: [lib] });
+		assert.deepStrictEqual({ changedPrimary, whileFoldersMove, pendingAfterRejections, confirmed, pending: harness.service.isPending(harness.chat.toString()) }, {
+			changedPrimary: `This chat's main folder changed to ${harness.scratch.fsPath}; ask again to move it.`,
+			whileFoldersMove: 'Other folders of this chat are already moving into worktrees in this turn; name all the folders to move in one request.',
+			pendingAfterRejections: false,
+			confirmed: 'scheduled',
+			pending: true,
+		});
 	});
 
 	test('pending workspace preparation is cleared with the session that owns the chat, not the session named by its URI', async () => {

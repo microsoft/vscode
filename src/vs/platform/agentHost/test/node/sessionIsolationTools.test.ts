@@ -34,14 +34,14 @@ suite('Session isolation tool', () => {
 			defaultChat: buildDefaultChatUri(session),
 		});
 		stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer, buildDefaultChatUri(session)));
-		const calls: { chat: string; turnId: string; additional: string[] }[] = [];
+		const calls: { chat: string; turnId: string; primary: string; additional: string[] }[] = [];
 		const folderCalls: { session: string; chat: string; folders: string[]; turnId: string }[] = [];
 		let chatIsolation = true;
 		let folderIsolation = false;
 		let isolatable: IIsolatableFolders = { folders: [app], primary: app };
 		const group = createSessionIsolationToolGroup({
 			supportsChatIsolation: () => chatIsolation,
-			requestChatIsolation: (chat, turnId, additional) => calls.push({ chat: chat.toString(), turnId, additional: additional.map(folder => folder.fsPath) }),
+			requestChatIsolation: (chat, turnId, primary, additional) => calls.push({ chat: chat.toString(), turnId, primary: primary.fsPath, additional: additional.map(folder => folder.fsPath) }),
 			supportsFolderIsolation: () => folderIsolation,
 			requestFolderIsolation: (session, chat, folders, turnId) => {
 				folderCalls.push({ session: session.toString(), chat: chat.toString(), folders: folders.map(folder => folder.fsPath), turnId });
@@ -118,7 +118,7 @@ suite('Session isolation tool', () => {
 			const chat = harness[target];
 			stateManager.dispatchServerAction(chat, chatTurnStarted('turn-1', 'Continue in isolation'));
 			const result = await host.executeTool(chat, SessionServerToolName.IsolateSession, { folders: [app.fsPath] });
-			assert.deepStrictEqual({ calls, folderCalls }, { calls: [{ chat, turnId: 'turn-1', additional: [] }], folderCalls: [] });
+			assert.deepStrictEqual({ calls, folderCalls }, { calls: [{ chat, turnId: 'turn-1', primary: app.fsPath, additional: [] }], folderCalls: [] });
 			assert.match(String(result), /End this turn.*only this chat.*automatically/);
 		});
 	}
@@ -143,8 +143,8 @@ suite('Session isolation tool', () => {
 		const withOthers = await host.executeTool(main, SessionServerToolName.IsolateSession, { folders: [docs.fsPath, app.fsPath] });
 		assert.deepStrictEqual({ calls, folderCalls }, {
 			calls: [
-				{ chat: main, turnId: 'turn-1', additional: [] },
-				{ chat: main, turnId: 'turn-1', additional: [docs.fsPath] },
+				{ chat: main, turnId: 'turn-1', primary: app.fsPath, additional: [] },
+				{ chat: main, turnId: 'turn-1', primary: app.fsPath, additional: [docs.fsPath] },
 			],
 			folderCalls: [],
 		});

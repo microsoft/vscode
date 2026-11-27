@@ -279,7 +279,7 @@ function createTestSideEffects(
 	const services = new ServiceCollection(
 		[IAgentHostAuthenticationService, authenticationService],
 		[ILogService, logService],
-		[IFolderIsolationService, { _serviceBrand: undefined, request: () => { }, onTurnEnd: () => { }, isMoving: () => false } satisfies IFolderIsolationService],
+		[IFolderIsolationService, { _serviceBrand: undefined, request: () => { }, onTurnEnd: () => { }, isMoving: () => false, isRequested: () => false } satisfies IFolderIsolationService],
 		[IAgentConfigurationService, configService],
 		[IAgentHostChangesetService, changesets],
 		[IAgentHostCheckpointService, checkpointService],

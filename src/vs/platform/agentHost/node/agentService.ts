@@ -13519,6 +13519,10 @@ export class AgentService extends Disposable implements IAgentService {
 			if (owningChat) {
 				throw new Error(`Cannot remove working directory ${removed.toString()} because chat ${owningChat.resource} is scoped to it.`);
 			}
+			// A folder reserved for a chat being created or moved, which the chat is not scoped to until it is published
+			if (this._isChatWorkingDirectoryReserved(sessionUri, removed)) {
+				throw new Error(`Cannot remove working directory ${removed.toString()} because a chat is being created in it or moved to it.`);
+			}
 		}
 		return resolved;
 	}
@@ -13618,7 +13622,8 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/**
 	 * Whether a chat of `session` can move its additional folders into worktrees of their own with
-	 * {@link isolateChatFolder}: worktrees are available, and its provider works in several folders.
+	 * {@link isolateChatFolder}: worktrees are available, and its provider works in several folders. Also in a session
+	 * without worktree isolation, alone or as the chat moves its main folder.
 	 */
 	supportsChatFolderIsolation(session: URI): boolean {
 		const state = this._stateManager.getSessionState(session.toString());

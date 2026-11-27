@@ -41,6 +41,8 @@ export interface IFolderIsolationService {
 	onTurnEnd(turn: ITurnEnd): void;
 	/** Whether the folders of `chat` are being moved. */
 	isMoving(chat: string): boolean;
+	/** Whether a move of folders of `chat` is scheduled for the end of its turn. */
+	isRequested(chat: string): boolean;
 }
 
 /** What {@link FolderIsolationService} needs from the agent service. */
@@ -49,6 +51,8 @@ export interface IFolderIsolationHost {
 	validateFolderIsolation(session: URI, chat: URI, folder: URI): void;
 	/** Moves `folder` of `chat` into a worktree and returns the folder to work in. */
 	isolateChatFolder(session: URI, chat: URI, folder: URI, credentials: IAgentHostCredentialSource | undefined): Promise<URI>;
+	/** Whether a move of `chat` itself to a new worktree is scheduled, which moves the folders it names too; a move of its folders must not race it. */
+	isChatMovePending?(chat: URI): boolean;
 }
 
 interface IPendingFolderIsolation {
@@ -84,10 +88,17 @@ export class FolderIsolationService extends Disposable implements IFolderIsolati
 		return this._moving.has(chat);
 	}
 
+	isRequested(chat: string): boolean {
+		return this._pending.has(chat);
+	}
+
 	request(session: URI, chat: URI, turnId: string, folders: readonly URI[], credentials: IAgentHostCredentialSource | undefined): void {
 		const key = chat.toString();
 		if (this._stateManager.getActiveTurnId(key) !== turnId) {
 			throw new Error(localize('agentHost.isolateFolder.activeTurnRequired', "Isolating a folder with this tool requires an active turn."));
+		}
+		if (this._host.isChatMovePending?.(chat)) {
+			throw new Error(localize('agentHost.isolateFolder.chatMovePending', "This chat is already moving to a new worktree in this turn; name all the folders to move in one request."));
 		}
 		for (const folder of folders) {
 			this._host.validateFolderIsolation(session, chat, folder);
