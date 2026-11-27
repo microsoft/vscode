@@ -70,18 +70,21 @@ export const githubSlugifier: ISlugifier = new class implements ISlugifier {
 	}
 
 	createBuilder() {
-		const entries = new Map<string, { count: number }>();
+		// Like github-slugger, every slug handed out is recorded, including
+		// suffixed ones, so that `# a`, `# a`, `# a-1` gives `a`, `a-1`, `a-1-1`.
+		const occurrences = new Map<string, number>();
 		return {
 			add: (heading: string): ISlug => {
-				const slug = this.fromHeading(heading);
-				const existingSlugEntry = entries.get(slug.value);
-				if (existingSlugEntry) {
-					++existingSlugEntry.count;
-					return this.fromHeading(slug.value + '-' + existingSlugEntry.count);
+				const original = this.fromHeading(heading).value;
+				let result = original;
+				while (occurrences.has(result)) {
+					const count = occurrences.get(original)! + 1;
+					occurrences.set(original, count);
+					result = original + '-' + count;
 				}
 
-				entries.set(slug.value, { count: 0 });
-				return slug;
+				occurrences.set(result, 0);
+				return new GithubSlug(result);
 			}
 		};
 	}
