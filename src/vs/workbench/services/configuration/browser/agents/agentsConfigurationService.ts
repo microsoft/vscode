@@ -477,7 +477,7 @@ export class AgentsConfigurationService extends Disposable implements IWorkbench
 		for (const folder of this.workspaceService.getWorkspace().folders) {
 			const folderConfiguration = this.cachedFolderConfigs.get(folder.uri);
 			if (folderConfiguration) {
-				this._configuration.updateFolderConfiguration(folder.uri, folderConfiguration.reparse());
+				this._configuration.updateFolderConfiguration(folder.uri, folderConfiguration.reparseExcluding([...this.readOnlyKeys]));
 			}
 		}
 		this.triggerConfigurationChange(change, previousData, ConfigurationTarget.DEFAULT);
@@ -566,7 +566,7 @@ export class AgentsConfigurationService extends Disposable implements IWorkbench
 		for (const folder of folders) {
 			let folderConfiguration = this.cachedFolderConfigs.get(folder.uri);
 			if (!folderConfiguration) {
-				folderConfiguration = new FolderConfiguration(false, folder, FOLDER_CONFIG_FOLDER_NAME, WorkbenchState.WORKSPACE, true, this.fileService, this.uriIdentityService, this.logService, { needsCaching: () => false, read: async () => '', write: async () => { }, remove: async () => { } });
+				folderConfiguration = new FolderConfiguration(false, folder, FOLDER_CONFIG_FOLDER_NAME, WorkbenchState.WORKSPACE, true, this.fileService, this.uriIdentityService, this.logService, { needsCaching: () => false, read: async () => '', write: async () => { }, remove: async () => { } }, [...this.readOnlyKeys]);
 				folderConfiguration.addRelated(folderConfiguration.onDidChange(() => this.onWorkspaceFolderConfigurationChanged(folder)));
 				this.cachedFolderConfigs.set(folder.uri, folderConfiguration);
 			}

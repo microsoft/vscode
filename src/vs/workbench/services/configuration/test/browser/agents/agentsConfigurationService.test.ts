@@ -468,6 +468,29 @@ suite('AgentsConfigurationService', () => {
 		assert.strictEqual(testObject.getValue('sessionsConfigurationService.agentsWindowReadOnly'), 'readOnlyDefault');
 	}));
 
+	test('agentsWindow.readOnly settings are excluded from folder configuration, also in language overrides and after the folder settings change', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const folder = joinPath(ROOT, 'readOnlyFolder');
+		const folderSettings = joinPath(folder, '.vscode', 'settings.json');
+		await fileService.createFolder(folder);
+		await fileService.writeFile(folderSettings, VSBuffer.fromString('{ "sessionsConfigurationService.agentsWindowReadOnly": "folderValue", "[typescript]": { "sessionsConfigurationService.agentsWindowReadOnly": "typescriptValue" } }'));
+		await workspaceService.addFolders([{ uri: folder }]);
+		const read = () => [
+			testObject.getValue('sessionsConfigurationService.agentsWindowReadOnly', { resource: folder }),
+			testObject.getValue('sessionsConfigurationService.agentsWindowReadOnly', { resource: folder, overrideIdentifier: 'typescript' }),
+			testObject.getValue('sessionsConfigurationService.testSetting', { resource: folder }),
+		];
+		const afterAdd = read();
+
+		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
+		await fileService.writeFile(folderSettings, VSBuffer.fromString('{ "sessionsConfigurationService.agentsWindowReadOnly": "changedValue", "sessionsConfigurationService.testSetting": "folderValue" }'));
+		await promise;
+
+		assert.deepStrictEqual({ afterAdd, afterChange: read() }, {
+			afterAdd: ['readOnlyDefault', 'readOnlyDefault', 'defaultValue'],
+			afterChange: ['readOnlyDefault', 'readOnlyDefault', 'folderValue'],
+		});
+	}));
+
 	test('workspace folder settings override workspace settings', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const folder = joinPath(ROOT, 'myFolder');
 		await fileService.createFolder(folder);
