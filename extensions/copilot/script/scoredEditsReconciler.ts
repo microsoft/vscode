@@ -7,6 +7,11 @@ import * as fs from 'fs';
 import minimist from 'minimist';
 import * as path from 'path';
 
+interface ScoredEditFile {
+	edits: unknown[];
+	[key: string]: unknown;
+}
+
 async function main() {
 	const args = minimist(process.argv.slice(2));
 	const filePath = args.file;
@@ -21,52 +26,72 @@ async function main() {
 	}
 
 	if (filePath) {
+		const resolvedPath = path.resolve(filePath);
+		if (!fs.existsSync(resolvedPath)) {
+			console.error(`Error: File not found at path: ${filePath}`);
+			process.exit(1);
+		}
 		try {
-			const resolvedFileContents = await resolveMergeConflictFromFile(filePath);
-			await fs.promises.writeFile(filePath, resolvedFileContents, 'utf8');
+			const resolvedFileContents = await resolveMergeConflictFromFile(resolvedPath);
+			await fs.promises.writeFile(resolvedPath, resolvedFileContents, 'utf8');
+			console.log(`Successfully resolved conflicts for: ${filePath}`);
 		} catch (e: unknown) {
-			throw e;
+			console.error(`Error resolving conflicts for ${filePath}:`, e instanceof Error ? e.message : e);
+			process.exit(1);
 		}
 		return;
 	}
 
 	if (reconcileUsingGit) {
 		try {
-			await Promise.all(filesWithMergeConflicts.map(async (filePath) => {
-				const resolvedFileContents = await resolveMergeConflictFromFile(filePath);
-				return fs.promises.writeFile(filePath, resolvedFileContents);
-			}));
+			const results = await Promise.allSettled(
+				filesWithMergeConflicts.map(async (file) => {
+					const resolvedFileContents = await resolveMergeConflictFromFile(file);
+					await fs.promises.writeFile(file, resolvedFileContents, 'utf8');
+					return file;
+				})
+			);
+
+			let hasError = false;
+			for (const result of results) {
+				if (result.status === 'fulfilled') {
+					console.log(`Successfully reconciled: ${result.value}`);
+				} else {
+					hasError = true;
+					console.error(`Failed to reconcile file:`, result.reason);
+				}
+			}
+
+			if (hasError) {
+				process.exitCode = 1;
+			}
 			return;
 		} catch (e: unknown) {
-			throw e;
+			console.error('Error during auto reconciliation:', e);
+			process.exit(1);
 		}
 	}
-
 
 	console.log(`
 Usage: scoredEditReconciler [options]
 
 Options:
-  -a, --auto       Reconcile merge conflicts automatically by finding files with merge conflicts using git
-  --file <path>    Path to the file to resolve merge conflicts
-  --list           List files with merge conflicts
-  --help           Show help
+  -a, --auto         Reconcile merge conflicts automatically by finding files with merge conflicts using git
+  --file <path>      Path to the file to resolve merge conflicts
+  --list             List files with merge conflicts
+  --help             Show help
 		`.trim());
 }
 
-async function scoredEditsWithMergeConflicts(): Promise<string[]> /* paths */ {
+async function scoredEditsWithMergeConflicts(): Promise<string[]> {
 	const files = await findFilesWithMergeConflicts();
 	return files.filter(file => file.endsWith('scoredEdits.w.json'));
 }
 
 async function findFilesWithMergeConflicts() {
 	try {
-		// Get files with merge conflicts using git command
 		const gitOutput = execSync('git diff --name-only --diff-filter=U').toString();
-
-		// Split output into array of file paths
 		const conflictFiles = gitOutput.split('\n').filter(file => file.trim().length > 0);
-
 		return conflictFiles.map(file => path.resolve(file));
 	} catch (error) {
 		console.error('Error finding files with merge conflicts:', error);
@@ -76,18 +101,30 @@ async function findFilesWithMergeConflicts() {
 
 async function resolveMergeConflictFromFile(filePath: string) {
 	const fileContents = await fs.promises.readFile(filePath, 'utf8');
-	return resolveMergeConflict(fileContents);
+	return resolveMergeConflict(fileContents, filePath);
 }
 
-export function resolveMergeConflict(fileContents: string): string {
-
+export function resolveMergeConflict(fileContents: string, filePath = 'unknown'): string {
 	const headFileContents = removeNonHeadSections(fileContents);
 	const nonHeadFileContents = removeHeadSections(fileContents);
 
-	const headFileAsObject = JSON.parse(headFileContents);
-	const nonHeadfileAsObject = JSON.parse(nonHeadFileContents);
+	let headFileAsObject: ScoredEditFile;
+	let nonHeadfileAsObject: ScoredEditFile;
+
+	try {
+		headFileAsObject = JSON.parse(headFileContents);
+	} catch (e) {
+		throw new Error(`Failed to parse HEAD JSON in file ${filePath}: ${e instanceof Error ? e.message : e}`);
+	}
+
+	try {
+		nonHeadfileAsObject = JSON.parse(nonHeadFileContents);
+	} catch (e) {
+		throw new Error(`Failed to parse non-HEAD JSON in file ${filePath}: ${e instanceof Error ? e.message : e}`);
+	}
+
 	if (JSON.stringify({ ...headFileAsObject, edits: [] }) !== JSON.stringify({ ...nonHeadfileAsObject, edits: [] })) {
-		throw new Error('There seems to be merge conflict outside `edits` field which this script can resolve automatically.');
+		throw new Error(`Merge conflict detected outside \`edits\` field in ${filePath}, which cannot be resolved automatically.`);
 	}
 
 	const mergedEdits = [...headFileAsObject.edits];
@@ -123,6 +160,7 @@ function removeNonHeadSections(fileContents: string) {
 
 	return headLines.join('\n');
 }
+
 function removeHeadSections(fileContents: string) {
 	const lines = fileContents.split('\n');
 	const nonHeadLines = [];
