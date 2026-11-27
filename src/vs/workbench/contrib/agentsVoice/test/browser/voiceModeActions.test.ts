@@ -16,6 +16,7 @@ import { IWorkbenchEnvironmentService } from '../../../../services/environment/c
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
 import { IVoiceSessionController } from '../../../chat/browser/voiceClient/voiceSessionController.js';
+import { ChatInputPart } from '../../../chat/browser/widget/input/chatInputPart.js';
 import '../../browser/agentsVoice.contribution.js';
 
 suite('Voice Mode input ownership', () => {
@@ -31,9 +32,13 @@ suite('Voice Mode input ownership', () => {
 				override readonly viewModel = new class extends mock<NonNullable<IChatWidget['viewModel']>>() {
 					override readonly sessionResource = URI.parse('vscode-chat:/editor');
 				}();
+				override readonly input = new class extends mock<ChatInputPart>() {
+					override get element() { return document.createElement('div'); }
+				}();
 				override resolveVoiceTarget() {
 					return source === 'agents-draft' ? URI.parse('sessions-voice://new-chat/composer') : this.viewModel.sessionResource;
 				}
+				override focusInput(): void { targets.push('focus'); }
 			}();
 			const focusedWidget = new class extends mock<IChatWidget>() {
 				override readonly viewModel = new class extends mock<NonNullable<IChatWidget['viewModel']>>() {
@@ -68,10 +73,12 @@ suite('Voice Mode input ownership', () => {
 			const command = CommandsRegistry.getCommand('agentsVoice.startVoiceInChat');
 			assert.ok(command);
 			await service.invokeFunction(accessor => command.handler(accessor, source.endsWith('keybinding') ? undefined : { widget: contextWidget }));
+			// A toolbar press focuses its input after retargeting; a keybinding leaves focus alone.
 			assert.deepStrictEqual({ targets, commands }, {
 				targets: [source === 'toolbar' || source === 'agents-chat' ? 'vscode-chat:/editor'
 					: source === 'keybinding' ? 'vscode-chat:/focused'
-						: source.includes('draft') ? 'draft' : 'agent-host-copilotcli:/agents', 'connect'],
+						: source.includes('draft') ? 'draft' : 'agent-host-copilotcli:/agents',
+				...source.endsWith('keybinding') ? [] : ['focus'], 'connect'],
 				commands: windowIsAgents && source.endsWith('keybinding') ? ['_chat.voice.getCurrentSession'] : [],
 			});
 		});

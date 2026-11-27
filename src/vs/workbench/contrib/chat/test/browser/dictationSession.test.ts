@@ -5,9 +5,11 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
+import * as dom from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { EditorOption } from '../../../../../editor/common/config/editorOptions.js';
 import { Position } from '../../../../../editor/common/core/position.js';
@@ -130,6 +132,23 @@ suite('DictationSession', () => {
 		await stopDictation();
 
 		assert.deepStrictEqual([interimValue, editor.getValue()], ['', transcript]);
+	});
+
+	test('stopping does not pull focus back from another editor the user moved into', async () => {
+		const { service } = createService('hello', true);
+		const editor = store.add(createTestCodeEditor(store.add(createTextModel(''))));
+		const focus = sinon.spy(editor, 'focus');
+		const otherEditor = mainWindow.document.body.appendChild(dom.$('.monaco-editor', undefined, dom.$('textarea')));
+		store.add(toDisposable(() => otherEditor.remove()));
+
+		await startDictation(service, editor, mainWindow, new NullLogService());
+		otherEditor.querySelector('textarea')!.focus();
+		await stopDictation();
+		otherEditor.remove();
+		await startDictation(service, editor, mainWindow, new NullLogService());
+		await stopDictation();
+
+		assert.strictEqual(focus.callCount, 1);
 	});
 
 	test('stops and inserts the final transcript after 20 minutes', async () => {

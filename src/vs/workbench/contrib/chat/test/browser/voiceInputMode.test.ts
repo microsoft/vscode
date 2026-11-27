@@ -37,6 +37,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatWidget } from '../../browser/chat.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { createChatInputToolbarContext } from '../../browser/actions/chatExecuteActions.js';
+import { ChatInputPart } from '../../browser/widget/input/chatInputPart.js';
 
 suite('VoiceInputModeService', () => {
 
@@ -255,7 +256,11 @@ suite('VoiceInputModeActionViewItem', () => {
 			const pill = createPill({ isVoiceActive: ownsVoice }, commandService);
 			pill.isConnected.set(false, undefined);
 			let resource = URI.parse('vscode-chat:/clicked');
-			const widget = upcastPartial<IChatWidget>({ resolveVoiceTarget: () => resource });
+			const widget = upcastPartial<IChatWidget>({
+				resolveVoiceTarget: () => resource,
+				input: upcastPartial<ChatInputPart>({ element: pill.container }),
+				focusInput: () => pill.events.push('focus'),
+			});
 			const context = createChatInputToolbarContext(widget);
 			pill.viewItem.setActionContext(context);
 			const activate = async (selector: string) => {
@@ -263,6 +268,7 @@ suite('VoiceInputModeActionViewItem', () => {
 				if (activation === 'click') {
 					button.click();
 				} else {
+					button.focus();
 					for (const type of ['keydown', 'keyup']) {
 						button.dispatchEvent(new KeyboardEvent(type, { bubbles: true, keyCode: activation === 'Enter' ? 13 : 32 }));
 					}
@@ -278,11 +284,15 @@ suite('VoiceInputModeActionViewItem', () => {
 			ownsVoice.set(true, undefined);
 			await activate('.voice');
 
+			// A click leaves focus outside the input and moves it there after retargeting;
+			// keyboard activation is already inside. Dictation's command focuses on its own.
+			const focus = activation === 'click' ? ['focus'] : [];
 			assert.deepStrictEqual({ commands, events: pill.events }, {
 				commands: [{ id: 'workbench.action.chat.toggleSpeechToText', args: [context] }],
 				events: [
-					'target:vscode-chat:/clicked', 'activate:vscode-chat:/clicked', 'connect',
-					'target:vscode-chat:/rebound', 'activate:vscode-chat:/rebound', 'disconnect',
+					'target:vscode-chat:/clicked', 'activate:vscode-chat:/clicked', ...focus, 'connect',
+					'target:vscode-chat:/rebound', 'activate:vscode-chat:/rebound', ...focus,
+					'disconnect',
 				],
 			});
 		});

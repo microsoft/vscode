@@ -27,8 +27,7 @@ suite('retargetVoiceToInput', () => {
 			setTargetSession: () => calls.push('target'),
 			setDraftTarget: () => calls.push('draft'),
 		});
-		await assert.rejects(() => retargetVoiceToInput(widget, commandService, controller), /not available for Voice Mode/);
-		assert.deepStrictEqual(calls, []);
+		assert.deepStrictEqual({ result: await retargetVoiceToInput(widget, commandService, controller), calls }, { result: false, calls: [] });
 	});
 });
 

@@ -44,7 +44,7 @@ import { IVoiceInputModeService, SimulatedVoiceState, VoiceInputMode, VoiceWalkt
 import { SegmentedVoiceInputModePillActive } from './voiceInputModeContextKeys.js';
 import { AGENTS_VOICE_ENABLED, AGENTS_VOICE_TOGGLE_MUTE_COMMAND_ID } from '../../../agentsVoice/common/agentsVoice.js';
 import { IChatExecuteActionContext } from '../actions/chatExecuteActions.js';
-import { retargetVoiceToInput } from '../voiceClient/voiceInputUtils.js';
+import { focusChatInputIfElsewhere, retargetVoiceToInput } from '../voiceClient/voiceInputUtils.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 
 /** Built-in on-device dictation toggle (start/stop). */
@@ -797,26 +797,34 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		this._toggleDictation();
 	}
 
-	/** The voice button connects or disconnects; hands-free mode starts listening after connect. */
+	/**
+	 * The owner's button disconnects; any other input's button connects or takes
+	 * over the session. Focus moves only after retargeting: focusing a draft composer
+	 * outside a voice transition would end the session instead of transferring it.
+	 */
 	private async _onClickVoicePowerToggle(): Promise<void> {
+		const controller = this.voiceSessionController;
+		const connected = controller.isConnected.get() || controller.isConnecting.get();
+		if (connected && this._options?.isVoiceActive?.get() !== false) {
+			this.voiceInputModeService.setSelectedMode('voice');
+			controller.disconnect();
+			return;
+		}
+		const widget = (this._context as IChatExecuteActionContext | undefined)?.widget;
+		const targetWindow = getWindow(this._voiceCell);
+		if (!await retargetVoiceToInput(widget, this.commandService, controller)) {
+			return;
+		}
 		this.voiceInputModeService.setSelectedMode('voice');
 
 		// Mutual exclusion: stop dictation before entering Voice Mode.
 		if (this.chatSpeechToTextService.state !== ChatSpeechToTextState.Idle) {
 			this._toggleDictation();
 		}
-
-		const controller = this.voiceSessionController;
-		const widget = (this._context as IChatExecuteActionContext | undefined)?.widget;
-		const targetWindow = getWindow(this._voiceCell);
-		if (controller.isConnected.get() || controller.isConnecting.get()) {
-			if (this._options?.isVoiceActive?.get() === false) {
-				await retargetVoiceToInput(widget, this.commandService, controller);
-				return;
-			}
-			controller.disconnect();
-		} else {
-			await retargetVoiceToInput(widget, this.commandService, controller);
+		if (widget) {
+			focusChatInputIfElsewhere(widget);
+		}
+		if (!connected) {
 			controller.connect(targetWindow).catch(() => { /* connect failures are surfaced/logged by the controller */ });
 		}
 	}

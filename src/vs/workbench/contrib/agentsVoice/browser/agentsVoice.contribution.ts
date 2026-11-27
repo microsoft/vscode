@@ -57,7 +57,7 @@ import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { IChatExecuteActionContext } from '../../chat/browser/actions/chatExecuteActions.js';
-import { retargetVoiceToInput } from '../../chat/browser/voiceClient/voiceInputUtils.js';
+import { focusChatInputIfElsewhere, retargetVoiceToInput } from '../../chat/browser/voiceClient/voiceInputUtils.js';
 
 // --- Context Keys ---
 
@@ -277,9 +277,15 @@ registerAction2(class extends Action2 {
 
 		// An explicit press in another composer transfers Voice Mode ownership to
 		// that composer. The draft sentinel deliberately clears the concrete target.
-		const widget = context?.widget ?? (accessor.get(IWorkbenchEnvironmentService).isSessionsWindow
-			? undefined : accessor.get(IChatWidgetService).lastFocusedWidget);
-		await retargetVoiceToInput(widget, accessor.get(ICommandService), voiceController);
+		const focused = accessor.get(IWorkbenchEnvironmentService).isSessionsWindow
+			? undefined : accessor.get(IChatWidgetService).lastFocusedWidget;
+		const widget = context?.widget ?? (focused?.viewModel ? focused : undefined);
+		if (!await retargetVoiceToInput(widget, accessor.get(ICommandService), voiceController)) {
+			return;
+		}
+		if (context?.widget) {
+			focusChatInputIfElsewhere(context.widget);
+		}
 
 		// Ensure the session is connected before we start recording. The mic
 		// button's first press connects; a held keybinding also connects here so
