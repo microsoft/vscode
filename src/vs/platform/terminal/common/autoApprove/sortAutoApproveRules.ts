@@ -17,4 +17,7 @@ export const sortAutoApproveRules: Readonly<Record<string, boolean>> = {
 	// abbreviation for `--compress-program`; deny it and every longer spelling. Ignore
 	// shell quote and escape syntax within the prefix since the shell removes it.
 	'/^sort\\b.*\\s(?:\\$?[\'"]|\\\\)*-(?:\\$?[\'"]|\\\\)*-(?:\\$?[\'"]|\\\\)*c(?:\\$?[\'"]|\\\\)*o/': false,
+
+	// `--o` is the shortest unique abbreviation for `--output`, which writes to a file like `-o`.
+	'/^sort\\b.*\\s(?:\\$?[\'"]|\\\\)*-(?:\\$?[\'"]|\\\\)*-(?:\\$?[\'"]|\\\\)*o/': false,
 };
