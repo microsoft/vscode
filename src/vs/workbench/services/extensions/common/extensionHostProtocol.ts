@@ -86,7 +86,8 @@ export interface IStaticWorkspaceData {
 	configuration?: UriComponents | null;
 	isUntitled?: boolean | null;
 	/**
-	 * The mode of the workbench. Absent, as without workspace data, means {@link WorkbenchMode.Editor}.
+	 * The mode of the workbench when the extension host starts. Absent, as without workspace data, means {@link WorkbenchMode.Editor}
+	 * until `$initializeWorkspace` sends the window's actual mode.
 	 */
 	mode?: WorkbenchMode;
 }
