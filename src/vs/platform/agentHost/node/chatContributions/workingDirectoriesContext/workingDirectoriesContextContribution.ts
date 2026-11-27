@@ -18,31 +18,12 @@ import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../agentHostTurn
 const sentFoldersMemento = createChatMementoKey<string | undefined>('workingDirectoriesContext.sent', () => undefined);
 
 /** A working directory as the agent is told about it. */
-export interface IWorkingDirectoryContext {
+interface IWorkingDirectoryContext {
 	readonly path: string;
 	/** The root of the folder's Git repository, `undefined` for a folder that is not in one. */
 	readonly repositoryRoot: string | undefined;
 	/** The folder's GitHub repository, as `owner/repo`, when known. */
 	readonly gitHubRepository: string | undefined;
-}
-
-/**
- * Renders the folders of a turn, its primary (process) folder first. Paths are JSON-quoted, with `<` and `>` escaped,
- * so that a folder name cannot end the block or add lines to it.
- */
-export function renderWorkingDirectoriesContext(folders: readonly IWorkingDirectoryContext[]): string {
-	const quote = (path: string) => JSON.stringify(path).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
-	const describe = (folder: IWorkingDirectoryContext) => folder.repositoryRoot === undefined
-		? 'Not a Git repository.'
-		: `Git repository root: ${quote(folder.repositoryRoot)}${folder.gitHubRepository ? ` (GitHub: ${folder.gitHubRepository})` : ''}.`;
-	const [primary, ...additional] = folders;
-	return [
-		'<working_directories>',
-		'You have read and write access to all of the following folders. Use absolute paths to work in a folder other than the current working directory.',
-		`* Primary folder: ${quote(primary.path)} (the current working directory). ${describe(primary)}`,
-		...additional.map(folder => `* Additional folder: ${quote(folder.path)}. ${describe(folder)}`),
-		'</working_directories>',
-	].join('\n');
 }
 
 /** At most this many folders' repositories are resolved at once, so a chat of many cold folders does not flood Git. */
@@ -109,8 +90,8 @@ export class WorkingDirectoriesContextContribution extends Disposable implements
 			const repositoryRoot = repositoryRoots[index];
 			const gitHub = repositoryRoot ? readSessionGitHubState(meta, directory.toString()) : undefined;
 			return {
-				path: toDisplayPath(directory),
-				repositoryRoot: repositoryRoot && toDisplayPath(repositoryRoot),
+				path: this._toDisplayPath(directory),
+				repositoryRoot: repositoryRoot && this._toDisplayPath(repositoryRoot),
 				gitHubRepository: gitHub?.owner && gitHub.repo ? `${gitHub.owner}/${gitHub.repo}` : undefined,
 			};
 		});
@@ -119,7 +100,7 @@ export class WorkingDirectoriesContextContribution extends Disposable implements
 			return undefined;
 		}
 		this._pending.set(turn.chat, { turnId: turn.turnId, key, isCurrent });
-		return { instructions: [renderWorkingDirectoriesContext(folders)] };
+		return { instructions: [this._renderWorkingDirectories(folders)] };
 	}
 
 	private _onTurnDispatched(chat: ProtocolURI, turnId: string): void {
@@ -142,8 +123,27 @@ export class WorkingDirectoriesContextContribution extends Disposable implements
 			this._context.deleteMemento(sentFoldersMemento, chat);
 		}
 	}
-}
 
-function toDisplayPath(resource: URI): string {
-	return resource.scheme === Schemas.file ? resource.fsPath : resource.toString();
+	/**
+	 * Renders the folders of a turn, its primary (process) folder first. Paths are JSON-quoted, with `<` and `>` escaped,
+	 * so that a folder name cannot end the block or add lines to it.
+	 */
+	private _renderWorkingDirectories(folders: readonly IWorkingDirectoryContext[]): string {
+		const quote = (path: string) => JSON.stringify(path).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
+		const describe = (folder: IWorkingDirectoryContext) => folder.repositoryRoot === undefined
+			? 'Not a Git repository.'
+			: `Git repository root: ${quote(folder.repositoryRoot)}${folder.gitHubRepository ? ` (GitHub: ${folder.gitHubRepository})` : ''}.`;
+		const [primary, ...additional] = folders;
+		return [
+			'<working_directories>',
+			'You have read and write access to all of the following folders. Use absolute paths to work in a folder other than the current working directory.',
+			`* Primary folder: ${quote(primary.path)} (the current working directory). ${describe(primary)}`,
+			...additional.map(folder => `* Additional folder: ${quote(folder.path)}. ${describe(folder)}`),
+			'</working_directories>',
+		].join('\n');
+	}
+
+	private _toDisplayPath(resource: URI): string {
+		return resource.scheme === Schemas.file ? resource.fsPath : resource.toString();
+	}
 }

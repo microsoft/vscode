@@ -13101,7 +13101,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const requiresAnnotationsRestore = isAnnotationsAction(action);
 		// Changes to the folders of a session or a chat are serialized with the other changes to the session's folders
 		const requiresWorkspaceChange = action.type === ActionType.SessionWorkingDirectorySet || action.type === ActionType.SessionWorkingDirectoryRemoved;
-		const requiresChatFolderChange = chatChannel !== undefined && isChatWorkingDirectoryAction(action);
+		const requiresChatFolderChange = chatChannel !== undefined && this._isChatWorkingDirectoryAction(action);
 
 		const pending = this._clientDispatchQueues.get(clientId);
 		if (!pending && knownSessionChannel !== undefined && !requiresSessionRestore && !requiresPeerResolution && !requiresKnownAttachmentRewrite && !requiresReviewStateUpdate && !requiresAnnotationsRestore && !requiresWorkspaceChange && !requiresChatFolderChange && !requiresCredentialResolution) {
@@ -13219,7 +13219,7 @@ export class AgentService extends Disposable implements IAgentService {
 				: passiveMetadataAction ?? action;
 			const workspaceChange = rewritten;
 			if ((workspaceChange.type === ActionType.SessionWorkingDirectorySet || workspaceChange.type === ActionType.SessionWorkingDirectoryRemoved)
-				&& isWorkingDirectoryClient(clientContext.clientType)
+				&& this._isWorkingDirectoryClient(clientContext.clientType)
 				&& channel === sessionChannel) {
 				// Validated, applied and published as one step, so that a concurrent change of another client's sees the result
 				await this._runSessionFolderChange(sessionUri, async () => {
@@ -13232,7 +13232,7 @@ export class AgentService extends Disposable implements IAgentService {
 				});
 				return;
 			}
-			if (chatChannel && isChatWorkingDirectoryAction(workspaceChange)) {
+			if (chatChannel && this._isChatWorkingDirectoryAction(workspaceChange)) {
 				await this._runSessionFolderChange(sessionUri, async () => {
 					const prepared = await this._prepareClientChatWorkingDirectoryAction(sessionUri, chatChannel, workspaceChange);
 					this._dispatchActionNow(channel, sessionChannel, prepared.action, clientId, clientSeq, clientContext, credentials, permissionFeedback);
@@ -14333,7 +14333,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		if (action.type === ActionType.SessionWorkingDirectorySet
 			|| action.type === ActionType.SessionWorkingDirectoryRemoved) {
-			if (!isWorkingDirectoryClient(clientContext.clientType)) {
+			if (!this._isWorkingDirectoryClient(clientContext.clientType)) {
 				this._stateManager.rejectClientAction(channel, action, origin, 'Session working-directory actions require an Editor Window or Agents Window client.');
 				return;
 			}
@@ -17322,6 +17322,15 @@ export class AgentService extends Disposable implements IAgentService {
 		this._startupSettled.open();
 		super.dispose();
 	}
+
+	private _isChatWorkingDirectoryAction(action: { readonly type: ActionType }): action is ChatWorkingDirectoryAction {
+		return action.type === ActionType.ChatWorkingDirectorySet || action.type === ActionType.ChatWorkingDirectoryRemoved;
+	}
+
+	/** Clients that may change the folders of a session: an editor window for its multi-root workspace, and the Agents window for its chats. */
+	private _isWorkingDirectoryClient(clientType: AgentHostClientType | undefined): boolean {
+		return clientType === AgentHostClientType.EditorWindow || clientType === AgentHostClientType.AgentsWindow;
+	}
 }
 
 /**
@@ -17378,12 +17387,3 @@ function collectChangesUnderRoot(event: FileChangesEvent, root: URI): IFileChang
 }
 
 type ChatWorkingDirectoryAction = Extract<ChatAction, { type: ActionType.ChatWorkingDirectorySet | ActionType.ChatWorkingDirectoryRemoved }>;
-
-function isChatWorkingDirectoryAction(action: { readonly type: ActionType }): action is ChatWorkingDirectoryAction {
-	return action.type === ActionType.ChatWorkingDirectorySet || action.type === ActionType.ChatWorkingDirectoryRemoved;
-}
-
-/** Clients that may change the folders of a session: an editor window for its multi-root workspace, and the Agents window for its chats. */
-function isWorkingDirectoryClient(clientType: AgentHostClientType | undefined): boolean {
-	return clientType === AgentHostClientType.EditorWindow || clientType === AgentHostClientType.AgentsWindow;
-}
