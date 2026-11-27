@@ -35,7 +35,7 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { ICompressedTreeNode } from '../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
 import { URI } from '../../../../base/common/uri.js';
 import { FileKind } from '../../../../platform/files/common/files.js';
-import { compareFileNames, comparePaths } from '../../../../base/common/comparers.js';
+import { compareFileExtensions, compareFileNames, comparePaths } from '../../../../base/common/comparers.js';
 import { FuzzyScore, createMatches, IMatch } from '../../../../base/common/filters.js';
 import { IViewDescriptorService } from '../../../common/views.js';
 import { localize } from '../../../../nls.js';
@@ -923,6 +923,14 @@ export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 				return compareFileNames(oneName, otherName);
 			}
 
+			// Extension
+			if (this.viewSortKey() === ViewSortKey.Extension) {
+				const oneName = basename((one as ISCMResource).sourceUri);
+				const otherName = basename((other as ISCMResource).sourceUri);
+
+				return compareFileExtensions(oneName, otherName);
+			}
+
 			// Status
 			if (this.viewSortKey() === ViewSortKey.Status) {
 				const oneTooltip = (one as ISCMResource).decorations.tooltip ?? '';
@@ -1092,7 +1100,8 @@ export class SCMAccessibilityProvider implements IListAccessibilityProvider<Tree
 const enum ViewSortKey {
 	Path = 'path',
 	Name = 'name',
-	Status = 'status'
+	Status = 'status',
+	Extension = 'extension'
 }
 
 const Menus = {
@@ -1451,9 +1460,16 @@ class SetSortByStatusAction extends SetSortKeyAction {
 	}
 }
 
+class SetSortByExtensionAction extends SetSortKeyAction {
+	constructor() {
+		super(ViewSortKey.Extension, localize('sortChangesByExtension', "Sort Changes by Extension"));
+	}
+}
+
 registerAction2(SetSortByNameAction);
 registerAction2(SetSortByPathAction);
 registerAction2(SetSortByStatusAction);
+registerAction2(SetSortByExtensionAction);
 
 type StructuralDiffToggledEvent = {
 	enabled: 0 | 1;
@@ -2211,13 +2227,16 @@ export class SCMViewPane extends ViewPane {
 
 		// List
 		let viewSortKey: ViewSortKey;
-		const viewSortKeyString = this.configurationService.getValue<'path' | 'name' | 'status'>('scm.defaultViewSortKey');
+		const viewSortKeyString = this.configurationService.getValue<'path' | 'name' | 'status' | 'extension'>('scm.defaultViewSortKey');
 		switch (viewSortKeyString) {
 			case 'name':
 				viewSortKey = ViewSortKey.Name;
 				break;
 			case 'status':
 				viewSortKey = ViewSortKey.Status;
+				break;
+			case 'extension':
+				viewSortKey = ViewSortKey.Extension;
 				break;
 			default:
 				viewSortKey = ViewSortKey.Path;
