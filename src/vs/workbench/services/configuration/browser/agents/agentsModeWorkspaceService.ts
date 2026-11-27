@@ -11,6 +11,9 @@ import { equals } from '../../../../../base/common/objects.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationUpdateOptions, IConfigurationUpdateOverrides, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { localize } from '../../../../../nls.js';
 import { Configuration as BaseConfiguration, ConfigurationChangeEvent } from '../../../../../platform/configuration/common/configurationModels.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -39,6 +42,21 @@ export const AGENTS_MODE_STORAGE_KEY = 'workbench.agentsMode.active';
  * read when the window starts, so changing it takes effect after a reload.
  */
 export const AGENTS_MODE_ENABLED_SETTING = 'chat.agentsMode.enabled';
+
+// Registered here so that it is known before the window reads it at startup.
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	id: 'chat',
+	title: localize('chat.configurationTitle', "Chat"),
+	properties: {
+		[AGENTS_MODE_ENABLED_SETTING]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			description: localize('agentsMode.enabled', "Enable toggling Agents mode in a local editor window. A window with a folder or workspace gets its folders back when it leaves the mode. Takes effect in a window after it is reloaded."),
+		}
+	}
+});
 
 /**
  * Whether a window's workspace and configuration service should be able to
