@@ -40,6 +40,10 @@ import { SettingsTargetsWidget } from '../../browser/preferencesWidgets.js';
 import { IManagedSettingsPresentationService, ManagedSettingsPresentationService } from '../../../../services/configuration/common/managedSettingsPresentation.js';
 import { terminalContribConfiguration } from '../../../terminal/terminalContribExports.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IWorkspaceContextService, toWorkspaceFolder, Workspace } from '../../../../../platform/workspace/common/workspace.js';
+import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
+import { IAgenticModeService } from '../../../../services/agenticMode/common/agenticMode.js';
 
 suite('SettingsTargetsWidget Agents mode', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -68,6 +72,38 @@ suite('SettingsTargetsWidget Agents mode', () => {
 			restored: { target: ConfigurationTarget.USER_LOCAL, empty: false },
 			targets: [ConfigurationTarget.WORKSPACE, ConfigurationTarget.USER_LOCAL],
 		});
+	});
+
+	test('moves a folder target of a multi-root workspace to the user target on entering, with the folder target disabled', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const folder = URI.file('/work/app');
+		instantiationService.stub(IWorkspaceContextService, new TestContextService(new Workspace('multi-root', [toWorkspaceFolder(folder)], false, URI.file('/work/app.code-workspace'), () => false)));
+		const parent = DOM.append(document.body, DOM.$('div'));
+		store.add(toDisposable(() => parent.remove()));
+		const widget = store.add(instantiationService.createInstance(SettingsTargetsWidget, parent, undefined));
+		await widget.updateTarget(folder);
+		const isFolderEnabled = () => !parent.querySelector('.folder-settings')!.parentElement!.classList.contains('disabled');
+		const before = { target: widget.settingsTarget?.toString(), folderEnabled: isFolderEnabled() };
+		widget.setAgentsMode(true);
+		assert.deepStrictEqual({ before, entered: { target: widget.settingsTarget, folderEnabled: isFolderEnabled() } }, {
+			before: { target: folder.toString(), folderEnabled: true },
+			entered: { target: ConfigurationTarget.USER_LOCAL, folderEnabled: false },
+		});
+	});
+
+	test('keeps the user target when the mode is active and a workspace or folder target is asked for, as the workspace override link does', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const parent = DOM.append(document.body, DOM.$('div'));
+		store.add(toDisposable(() => parent.remove()));
+		const widget = store.add(instantiationService.createInstance(SettingsTargetsWidget, parent, undefined));
+		await widget.updateTarget(ConfigurationTarget.USER_LOCAL);
+		widget.setAgentsMode(true);
+		const targets: (ConfigurationTarget | string)[] = [];
+		store.add(widget.onDidTargetChange(target => targets.push(target instanceof URI ? target.toString() : target)));
+		await widget.updateTarget(ConfigurationTarget.WORKSPACE);
+		await widget.updateTarget(URI.file('/work/app'));
+		widget.settingsTarget = ConfigurationTarget.WORKSPACE;
+		assert.deepStrictEqual({ target: widget.settingsTarget, targets }, { target: ConfigurationTarget.USER_LOCAL, targets: [] });
 	});
 });
 
@@ -103,6 +139,7 @@ suite('SettingsEditor2', () => {
 			const managedSettings: Record<string, boolean | undefined> = {};
 			const instantiationService = workbenchInstantiationService({ configurationService: () => configuration }, store);
 			instantiationService.stub(IPreferencesService, {});
+			instantiationService.stub(IAgenticModeService, { isActive: false, onDidChange: Event.None });
 			instantiationService.stub(IPreferencesSearchService, {});
 			instantiationService.stub(IUserDataSyncWorkbenchService, {});
 			instantiationService.stub(IUserDataSyncEnablementService, {});

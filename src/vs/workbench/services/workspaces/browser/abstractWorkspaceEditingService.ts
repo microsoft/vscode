@@ -11,7 +11,6 @@ import { localize } from '../../../../nls.js';
 import { hasWorkspaceFileExtension, IAnyWorkspaceIdentifier, isSavedWorkspace, isUntitledWorkspace, isWorkspaceIdentifier, IWorkspaceContextService, IWorkspaceIdentifier, toWorkspaceIdentifier, WorkbenchState, WORKSPACE_EXTENSION, WORKSPACE_FILTER } from '../../../../platform/workspace/common/workspace.js';
 import { IJSONEditingService, JSONEditingError, JSONEditingErrorCode } from '../../configuration/common/jsonEditing.js';
 import { IWorkspaceFolderCreationData, IWorkspacesService, rewriteWorkspaceFileForNewLocation, IEnterWorkspaceResult, IStoredWorkspace } from '../../../../platform/workspaces/common/workspaces.js';
-import { WorkspaceService } from '../../configuration/browser/configurationService.js';
 import { ConfigurationScope, IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationPropertySchema } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -28,7 +27,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { SaveReason } from '../../../common/editor.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
-import { IWorkbenchConfigurationService } from '../../configuration/common/configuration.js';
+import { IEditableWorkspaceContextService, IWorkbenchConfigurationService } from '../../configuration/common/configuration.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -66,7 +65,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 
 	constructor(
 		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
-		@IWorkspaceContextService protected readonly contextService: WorkspaceService,
+		@IWorkspaceContextService protected readonly contextService: IEditableWorkspaceContextService,
 		@IWorkbenchConfigurationService protected readonly configurationService: IWorkbenchConfigurationService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -149,6 +148,16 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 	}
 
 	private async doSetFolderLocation(location: URI, reason?: FolderLocationChangeReason, folder?: URI, force?: boolean): Promise<void> {
+		// In Agentic Mode the workspace moves its mounted folders itself and remembers where each was mounted.
+		// This skips the trust prompt: the caller must have checked that the location is trusted (the session folder mount checks isFolderMountable).
+		const currentFolders = this.contextService.getWorkspace().folders;
+		if (currentFolders.length > 0 && this.contextService.getFolderPrimaryLocation?.(folder ?? currentFolders[0].uri)) {
+			if (!await this.contextService.setFolderLocation(location, { folder })) {
+				throw new Error(localize('folderLocationNotMoved', "The folder could not be moved to '{0}'.", location.toString()));
+			}
+			return;
+		}
+
 		const currentFolder = this.contextService.getWorkspace().folders[0];
 		if (!currentFolder || !this.workspaceFolderLocationService.canSetLocation(currentFolder)) {
 			throw new Error(localize('folderLocationLocalSingleFolderOnly', "Folder locations are only supported in local single-folder workspaces."));
