@@ -29,6 +29,12 @@
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
+/* High contrast hover; the outline colour is only set in high contrast themes */
+.monaco-workbench .agents-mode-titlebar-button:hover:not(:focus-visible):not(.disabled) {
+	outline: var(--vscode-strokeThickness) dashed var(--vscode-toolbar-hoverOutline);
+	outline-offset: -1px;
+}
+
 /* The checked state stays visible under keyboard focus, which only adds its outline */
 .monaco-workbench .agents-mode-titlebar-button.checked {
 	background-color: var(--vscode-actionBar-toggledBackground);
