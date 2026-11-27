@@ -5,9 +5,12 @@
 
 import fs from 'fs';
 import path from 'path';
-import { download, sha256 } from '../lib/download.ts';
+import { sha256 } from '../lib/download.ts';
 import { getElectronVersion } from '../lib/electronVersion.ts';
+import { downloadElectronTypes } from './electronTypesDownload.ts';
 
+// Product builds replace this file with the one in vscode-distro's mixin, so the download logic
+// and its tests live in electronTypesDownload.ts.
 const root = fs.realpathSync.native(path.dirname(path.dirname(import.meta.dirname)));
 const electronTypesPath = path.join(root, '.build', 'typings', 'electron.d.ts');
 
@@ -27,8 +30,7 @@ export async function ensureElectronTypes(): Promise<void> {
 	}
 
 	const { electronVersion } = getElectronVersion();
-	const url = `https://github.com/electron/electron/releases/download/v${electronVersion}/electron.d.ts`;
-	const contents = await download(url, { checksumSha256: expectedChecksum });
+	const contents = await downloadElectronTypes(electronVersion, expectedChecksum);
 
 	fs.mkdirSync(path.dirname(electronTypesPath), { recursive: true });
 	fs.writeFileSync(electronTypesPath, contents);
