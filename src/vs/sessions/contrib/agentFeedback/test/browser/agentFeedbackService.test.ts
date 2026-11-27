@@ -1010,7 +1010,8 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 	let session: URI;
 	let fileA: URI;
 	let widgetOps: string[];
-	let addedEntries: IAgentFeedbackVariableEntry[];
+	let requestEntries: IAgentFeedbackVariableEntry[];
+	let preservesInput: boolean | undefined;
 	/** Settles `acceptInput` once the (possibly queued) request is sent, with its response, or without one if it is never sent. */
 	let acceptInputSent: DeferredPromise<IChatResponseModel | undefined>;
 	/** Whether the widget hands the request over to the chat service. */
@@ -1035,7 +1036,8 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 
 	setup(() => {
 		widgetOps = [];
-		addedEntries = [];
+		requestEntries = [];
+		preservesInput = undefined;
 		widgetLookups = [];
 		widgetChats = undefined;
 		backgroundRequests = [];
@@ -1078,16 +1080,13 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 		const onDidChangeViewModel = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
 		const widget = {
 			onDidChangeViewModel: onDidChangeViewModel.event,
-			attachmentModel: {
-				attachments: [],
-				delete: (id: string) => widgetOps.push(`delete:${id}`),
-				addContext: (...entries: IAgentFeedbackVariableEntry[]) => {
-					addedEntries.push(...entries);
-					widgetOps.push(`add:${entries[0]?.id}`);
-				},
-			},
 			acceptInput: async (query: string, options?: IChatAcceptInputOptions) => {
 				widgetOps.push(`accept:${query}`);
+				preservesInput = options?.preserveInput;
+				for (const entry of options?.requestAttachments ?? []) {
+					assert.strictEqual(entry.kind, 'agentFeedback');
+					requestEntries.push(entry);
+				}
 				if (acceptsRequest) {
 					options?.onRequestAccepted?.();
 				}
@@ -1128,24 +1127,20 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 		} as unknown as ITestSessionWithChat, undefined);
 	}
 
-	test('attaches the just-submitted feedback to the request and clears the attachment afterwards', async () => {
+	test('attaches feedback to the request while preserving the chat input', async () => {
 		service.addFeedback(session, fileA, r(10), 'Please simplify');
 
 		await service.submitFeedback(session);
 
-		const attachmentId = `agentFeedback:${session.toString()}`;
-		assert.deepStrictEqual(widgetOps, [
-			`delete:${attachmentId}`,
-			`add:${attachmentId}`,
-			'accept:/act-on-feedback',
-			`delete:${attachmentId}`,
-		]);
+		assert.deepStrictEqual(widgetOps, ['accept:/act-on-feedback']);
 		assert.deepStrictEqual({
-			count: addedEntries.length,
-			kind: addedEntries[0]?.kind,
-			texts: addedEntries[0]?.feedbackItems.map(item => item.text),
+			preservesInput,
+			count: requestEntries.length,
+			kind: requestEntries[0]?.kind,
+			texts: requestEntries[0]?.feedbackItems.map(item => item.text),
 			state: service.getFeedback(session)[0].state,
 		}, {
+			preservesInput: true,
 			count: 1,
 			kind: 'agentFeedback',
 			texts: ['Please simplify'],
@@ -1167,7 +1162,7 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 		assert.deepStrictEqual({
 			accepted,
 			request: widgetOps.find(operation => operation.startsWith('accept:')),
-			attachedTexts: addedEntries[0]?.feedbackItems.map(item => item.text),
+			attachedTexts: requestEntries[0]?.feedbackItems.map(item => item.text),
 			states: service.getFeedback(session).map(item => ({ id: item.id, state: item.state })),
 		}, {
 			accepted: 1,
@@ -1189,7 +1184,7 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 		assert.deepStrictEqual({
 			submitted,
 			lookups: [...new Set(widgetLookups)],
-			attachedTexts: addedEntries[0]?.feedbackItems.map(item => item.text),
+			attachedTexts: requestEntries[0]?.feedbackItems.map(item => item.text),
 			state: service.getFeedback(session)[0].state,
 		}, {
 			submitted: true,
@@ -1224,7 +1219,7 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 			assert.deepStrictEqual({
 				submitted,
 				lookups: [...new Set(widgetLookups)],
-				attachedTexts: addedEntries[0]?.feedbackItems.map(item => item.text),
+				attachedTexts: requestEntries[0]?.feedbackItems.map(item => item.text),
 				state: service.getFeedback(session)[0].state,
 			}, {
 				submitted: true,
@@ -1306,7 +1301,7 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 		});
 	}
 
-	test('non-agent-host submissions preserve the complete reactive feedback attachment', async () => {
+	test('non-agent-host submissions attach all accepted feedback while preserving the chat input', async () => {
 		providerId = 'test-provider';
 		const first = service.addFeedback(session, fileA, r(10), 'First');
 		const second = service.addFeedback(session, fileA, r(20), 'Second');
@@ -1316,6 +1311,8 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 			feedbackIds: [first.id],
 		});
 
+		assert.strictEqual(preservesInput, true);
+		assert.deepStrictEqual(requestEntries.map(entry => entry.feedbackItems.map(item => item.id)), [[first.id, second.id]]);
 		assert.deepStrictEqual(service.getFeedback(session).map(item => ({
 			id: item.id,
 			state: item.state,
@@ -1323,6 +1320,16 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 			{ id: first.id, state: AgentFeedbackState.Resolved },
 			{ id: second.id, state: AgentFeedbackState.Resolved },
 		]);
+	});
+
+	test('submits newly added non-agent-host feedback without a composer attachment', async () => {
+		providerId = 'test-provider';
+
+		await service.addFeedbackAndSubmit(session, fileA, r(10), 'Feedback from the editor');
+
+		assert.strictEqual(preservesInput, true);
+		assert.deepStrictEqual(requestEntries.map(entry => entry.feedbackItems.map(item => item.text)), [['Feedback from the editor']]);
+		assert.strictEqual(service.getFeedback(session)[0].state, AgentFeedbackState.Resolved);
 	});
 
 	test('marks feedback as submitted once the request is queued behind an in-progress request', async () => {

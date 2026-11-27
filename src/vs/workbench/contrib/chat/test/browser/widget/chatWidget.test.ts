@@ -3453,6 +3453,45 @@ suite('ChatWidget - acceptInput submission', () => {
 		assert.deepStrictEqual(fixture.acceptedRequests, []);
 	});
 
+	for (const activeRequest of [false, true]) {
+		test(`sends programmatic request attachments independently of the preserved draft (active request: ${activeRequest})`, async () => {
+			const fixture = createSubmissionWidget(undefined, 'Keep this draft');
+			fixture.original.hasActiveRequest.set(activeRequest, undefined);
+			fixture.original.requestInProgress.set(activeRequest, undefined);
+			const draftFile = { kind: 'file' as const, id: 'draft', name: 'draft.ts', value: URI.file('/workspace/draft.ts') };
+			const requestFile = { kind: 'file' as const, id: 'request', name: 'request.ts', value: URI.file('/workspace/request.ts') };
+			fixture.attachments.add(draftFile);
+			let accepted = false;
+
+			await fixture.widget.acceptInput('/act-on-feedback', {
+				preserveInput: true,
+				requestAttachments: [requestFile],
+				onRequestAccepted: () => { accepted = true; },
+			});
+
+			const [, query, options] = fixture.chatService.sendRequest.firstCall.args;
+			assert.deepStrictEqual({
+				accepted,
+				query,
+				requestAttachments: options?.attachedContext,
+				queue: options?.queue,
+				draft: fixture.widget.getInput(),
+				draftAttachments: fixture.attachments.asArray(),
+				inputAcceptArgs: fixture.input.acceptInput.firstCall.args,
+				inputReplacements: fixture.input.setValue.callCount,
+			}, {
+				accepted: true,
+				query: '/act-on-feedback',
+				requestAttachments: [requestFile],
+				queue: activeRequest ? ChatRequestQueueKind.Queued : undefined,
+				draft: 'Keep this draft',
+				draftAttachments: [draftFile],
+				inputAcceptArgs: [false, undefined, true],
+				inputReplacements: 0,
+			});
+		});
+	}
+
 	test('a failed send does not report an accepted request', async () => {
 		const fixture = createSubmissionWidget();
 		fixture.chatService.sendRequest.rejects(new Error('Send failed'));
