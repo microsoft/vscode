@@ -261,11 +261,12 @@ suite('Dev Container Agent Host Connector', () => {
 		const reconnected = store.add(target.transportFactory());
 		assert.ok(isClientTransport(reconnected));
 		await reconnected.connect();
-		assert.deepStrictEqual({ engineSources, picks, engines: configs.map(config => config.engine), connectEngines }, {
+		assert.deepStrictEqual({ engineSources, picks, engines: configs.map(config => config.engine), connectEngines, reportedEngine: target.engine }, {
 			engineSources: [workspaceUri.fsPath],
 			picks: [{ labels: ['Docker', 'WSLc'], placeHolder: 'Select the container engine for \'project Dev Container\'' }],
 			engines: ['wslc', 'wslc'],
 			connectEngines: ['wslc', 'wslc'],
+			reportedEngine: 'wslc',
 		});
 	});
 

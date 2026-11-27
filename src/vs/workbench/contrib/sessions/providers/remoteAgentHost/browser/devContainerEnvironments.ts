@@ -15,7 +15,7 @@ import { supportsAgentHostDevContainerEnvironments } from '../../../../../../pla
 import { agentHostUri } from '../../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { isDevContainerEngineAvailable } from '../../../../../../platform/agentHost/common/devContainerAgentHost.js';
+import { DevContainerEngine, isDevContainerEngineAvailable } from '../../../../../../platform/agentHost/common/devContainerAgentHost.js';
 import { devContainerEnvironmentUri, isDevContainerEnvironmentId, localDevContainerEnvironmentUri } from '../../../../../../platform/agentHost/common/devContainerEnvironments.js';
 import { getEntryAddress, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -79,6 +79,8 @@ interface IEnvironmentState {
 	deleting: boolean;
 	/** The container's workspace folder, which takes precedence over the Agent Host's home directory. */
 	defaultDirectory: string | undefined;
+	/** The container engine that runs the container, as reported by its last connection. */
+	engine: DevContainerEngine | undefined;
 }
 
 /**
@@ -155,6 +157,7 @@ export class DevContainerEnvironments extends Disposable {
 		return {
 			...this._toEnvironment(state),
 			workspaceUri: state.defaultDirectory ? agentHostUri(agentHostAuthority(state.address), state.defaultDirectory) : undefined,
+			...(state.engine ? { engine: state.engine } : {}),
 		};
 	}
 
@@ -244,7 +247,7 @@ export class DevContainerEnvironments extends Disposable {
 		}));
 		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
 		store.add(this._sessionsProvidersService.registerProvider(provider));
-		const state: IEnvironmentState = { stored, uri, address, provider, store, operations: new Sequencer(), sourceConnection, pending: undefined, staged: false, deleting: false, defaultDirectory: undefined };
+		const state: IEnvironmentState = { stored, uri, address, provider, store, operations: new Sequencer(), sourceConnection, pending: undefined, staged: false, deleting: false, defaultDirectory: undefined, engine: undefined };
 		this._states.set(address, state);
 		return state;
 	}
@@ -311,6 +314,7 @@ export class DevContainerEnvironments extends Disposable {
 		this._host.stageConnection(connector, state.uri, connection, sourceEntry && resolveRemoteAgentHostEntryAuthority(sourceEntry));
 		state.staged = true;
 		state.defaultDirectory = connection.defaultDirectory;
+		state.engine = connection.engine;
 		try {
 			this._remoteAgentHostService.reconnect(state.address, true);
 			const connectionInfo = await raceCancellationError(this._remoteAgentHostService.waitForConnection(state.address), token);

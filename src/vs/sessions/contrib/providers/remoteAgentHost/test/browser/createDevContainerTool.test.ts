@@ -72,7 +72,8 @@ suite('CreateDevContainerTool', () => {
 				createdEngines.push({ engine: createOptions?.engine, promptForEngine: createOptions?.promptForEngine });
 				const environment = { address: 'devcontainer:1', sourceAddress, providerId: container.id };
 				createOptions?.onWillConnect?.(environment);
-				return { ...environment, workspaceUri };
+				// Without a requested engine, the user's setting or a fallback chooses one, here WSLc.
+				return { ...environment, workspaceUri, engine: createOptions?.engine ?? 'wslc' };
 			},
 		});
 		const tool = new CreateDevContainerTool(
@@ -216,6 +217,7 @@ suite('CreateDevContainerTool', () => {
 					label: 'Dev Container',
 					workspace: workspaceUri.toString(),
 					createdOn: { id: 'agenthost-build', label: 'Build' },
+					engine: 'wslc',
 				}),
 			}],
 			message: logLink('Created Dev Container on Build'),
@@ -233,6 +235,7 @@ suite('CreateDevContainerTool', () => {
 				label: 'Dev Container',
 				workspace: workspaceUri.toString(),
 				createdOn: { id: 'local', label: 'This Computer' },
+				engine: 'wslc',
 				reasons: ['No usable agents have been advertised.'],
 				guidance: 'The container exists and is listed in Remote Environments, but cannot start sessions yet. Do not create another container. Wait briefly, then call create_remote_session with this hostId and workspace; if it still fails, report the reasons to the user.',
 			},

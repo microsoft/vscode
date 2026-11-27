@@ -90,7 +90,7 @@ export class CreateDevContainerTool implements IToolImpl {
 			toolReferenceName: 'create_dev_container',
 			displayName: localize('createDevContainer.displayName', "Create Dev Container"),
 			userDescription: localize('createDevContainer.userDescription', "Create a Dev Container with an agent host running inside"),
-			modelDescription: 'Create a Linux Dev Container from the Ubuntu base image with an agent host running inside, on this computer or on a connected SSH, Tunnel, or WSL host with Docker or WSL containers. Use when work should continue in an isolated container. The container persists, keeps its files in a container volume, and is listed in Remote Environments, where the user can delete it. `host` defaults to the host this session runs on (for a session in a Dev Container, the host that runs that container), or to this computer when that host cannot run Dev Containers. Returns the container\'s `hostId` and its empty `workspace` folder once it can start sessions; to continue there, call create_remote_session with that `hostId` and `workspace: { uri: workspace, isolation: "folder" }`. When `status` is `notReady`, the container exists but cannot start sessions yet: follow its `guidance` instead of creating another. Building can take minutes. Normal approval applies. Each call creates another container, so do not retry a failed creation without addressing its error.',
+			modelDescription: 'Create a Linux Dev Container from the Ubuntu base image with an agent host running inside, on this computer or on a connected SSH, Tunnel, or WSL host with Docker or WSL containers. Use when work should continue in an isolated container. The container persists, keeps its files in a container volume, and is listed in Remote Environments, where the user can delete it. `host` defaults to the host this session runs on (for a session in a Dev Container, the host that runs that container), or to this computer when that host cannot run Dev Containers. Returns the container\'s `hostId` and its empty `workspace` folder once it can start sessions; to continue there, call create_remote_session with that `hostId` and `workspace: { uri: workspace, isolation: "folder" }`. `engine` is the container engine that runs it, `docker` or `wslc` (WSL containers), whose CLI on that host lists and inspects it. When `status` is `notReady`, the container exists but cannot start sessions yet: follow its `guidance` instead of creating another. Building can take minutes. Normal approval applies. Each call creates another container, so do not retry a failed creation without addressing its error.',
 			source: ToolDataSource.Internal,
 			icon: Codicon.remoteExplorer,
 			when: ContextKeyExpr.and(
@@ -157,6 +157,8 @@ export class CreateDevContainerTool implements IToolImpl {
 			label: provider.label,
 			workspace: environment.workspaceUri.toString(),
 			createdOn: { id: host.id, label: host.label },
+			// The agent cannot tell the engine when the user's setting or a fallback chose it, e.g. to look with `wslc ps` rather than `docker ps`.
+			...(environment.engine ? { engine: environment.engine } : {}),
 			...(rejections.length ? {
 				reasons: rejections,
 				guidance: 'The container exists and is listed in Remote Environments, but cannot start sessions yet. Do not create another container. Wait briefly, then call create_remote_session with this hostId and workspace; if it still fails, report the reasons to the user.',

@@ -334,8 +334,8 @@ suite('Dev Container Agent Host Service', () => {
 				requestedNames.push(requested?.name);
 				requestedEngines.push({ engine: requested?.engine, promptForEngine: requested?.promptForEngine });
 				await options.beforeConnect?.();
-				// The host names the connection as requested, as the real connector does.
-				return { address, name: requested?.name ?? 'Dev Container on Build', workspaceUri: URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority(address), path: '/workspaces/ubuntu-2' }), transportFactory: () => undefined as never, defaultDirectory: '/workspaces/ubuntu-2' };
+				// The host names the connection as requested, as the real connector does, and reports the engine it chose.
+				return { address, name: requested?.name ?? 'Dev Container on Build', workspaceUri: URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority(address), path: '/workspaces/ubuntu-2' }), transportFactory: () => undefined as never, defaultDirectory: '/workspaces/ubuntu-2', engine: requested?.engine ?? 'docker' };
 			},
 			removeContainer: async workspaceUri => {
 				removedUris.push(workspaceUri);
@@ -360,7 +360,10 @@ suite('Dev Container Agent Host Service', () => {
 		await provider.config.disconnectOnDemand!();
 		await provider.config.connectOnDemand!();
 		await service.deleteEnvironment(created.address);
-		assert.deepStrictEqual(requestedEngines, [{ engine: 'wslc', promptForEngine: false }, { engine: undefined, promptForEngine: undefined }]);
+		assert.deepStrictEqual({ createdEngine: created.engine, requestedEngines }, {
+			createdEngine: 'wslc',
+			requestedEngines: [{ engine: 'wslc', promptForEngine: false }, { engine: undefined, promptForEngine: undefined }],
+		});
 	});
 
 	test('checks Docker again on a host that was removed and configured again', async () => {

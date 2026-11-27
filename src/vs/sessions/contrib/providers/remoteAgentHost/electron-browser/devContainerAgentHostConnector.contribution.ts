@@ -865,6 +865,7 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 				name,
 				hostWorkspaceFolder: result.hostWorkspaceFolder,
 				repository: result.repository,
+				engine,
 				volumeOnLocalDockerEngine,
 				sandboxSupported: result.sandboxSupported,
 				clientCertificates: remoteService ? undefined : {

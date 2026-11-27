@@ -98,6 +98,8 @@ export interface IDevContainerAgentHostConnection {
 	/** Native source path reported by the host that launched the container. */
 	readonly hostWorkspaceFolder?: string;
 	readonly repository?: IDevContainerRepository;
+	/** The container engine that runs the container. */
+	readonly engine?: DevContainerEngine;
 	/**
 	 * Whether this computer's Docker engine has the volume of a Dev Container environment on a WSL host, so the Dev
 	 * Containers extension, which cannot address the distribution for a volume, opens it there.
@@ -174,6 +176,8 @@ export interface IDevContainerEnvironment {
 export interface ICreatedDevContainerEnvironment extends IDevContainerEnvironment {
 	/** The container's workspace folder on its Agent Host connection, if the connection reported it. */
 	readonly workspaceUri: URI | undefined;
+	/** The container engine that runs the container, if the connector reported it. */
+	readonly engine?: DevContainerEngine;
 }
 
 /**
