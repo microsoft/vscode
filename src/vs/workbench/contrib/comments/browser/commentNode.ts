@@ -71,6 +71,12 @@ const COMMENT_EDITOR_HORIZONTAL_INSET = 14;
 /** Sizes the reaction picker's menu to its emoji rather than to the width of a general menu. */
 const REACTION_PICKER_MENU_CLASS = 'comment-reaction-picker-menu';
 
+/**
+ * The maximum height, in multiples of its font size, of a comment's body that scrolls within its own height (see
+ * `.comment-body-max-height`). A comment that the thread scrolls instead can be collapsed when it's taller than this.
+ */
+const MAX_COMMENT_BODY_HEIGHT_EM = 20;
+
 export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private _domNode: HTMLElement;
 	private _body: HTMLElement;
@@ -98,8 +104,10 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private _commentContextValue: IContextKey<string>;
 	private _commentMenus: CommentMenus;
 
-	private _scrollable!: Scrollable;
-	private _scrollableElement!: SmoothScrollableElement;
+	private _scrollableElement: SmoothScrollableElement | undefined;
+	/** Collapses and expands the body of a long comment that the thread scrolls. */
+	private _bodyToggle: HTMLButtonElement | undefined;
+	private _isBodyCollapsed = false;
 
 	private readonly _actionRunner: CommentsActionRunner = this._register(new CommentsActionRunner());
 	private readonly toolbar: MutableDisposable<ToolBar> = this._register(new MutableDisposable());
@@ -107,6 +115,9 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private _commentEditorActions: CommentFormActions | null = null;
 
 	private readonly _onDidClick = this._register(new Emitter<CommentNode<T>>());
+	private readonly _onDidCollapseBody = this._register(new Emitter<CommentNode<T>>());
+	/** Fires when the user collapses the comment's body. */
+	readonly onDidCollapseBody = this._onDidCollapseBody.event;
 
 	public get domNode(): HTMLElement {
 		return this._domNode;
@@ -124,6 +135,11 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		private parentThread: ICommentThreadWidget,
 		private readonly markdownRendererOptions: IMarkdownRendererExtraOptions,
 		private readonly reactionPickerInTitle: boolean,
+		/**
+		 * Whether the thread scrolls its comments, so that the comment shows its body in full rather than scrolling
+		 * it, and a long comment can be collapsed instead.
+		 */
+		collapsibleBody: boolean,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ICommentService private commentService: ICommentService,
 		@INotificationService private notificationService: INotificationService,
@@ -155,11 +171,21 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this.createHeader(this._commentDetailsContainer);
 		this._body = document.createElement(`div`);
 		this._body.classList.add('comment-body', MOUSE_CURSOR_TEXT_CSS_CLASS_NAME);
-		if (configurationService.getValue<ICommentsConfiguration | undefined>(COMMENTS_SECTION)?.maxHeight !== false) {
-			this._body.classList.add('comment-body-max-height');
+		if (collapsibleBody) {
+			this._commentDetailsContainer.appendChild(this._body);
+			this._bodyToggle = this.createBodyToggle(this._commentDetailsContainer);
+			// Focus that moves to a link in a collapsed comment, which can be clipped, shows the whole comment.
+			this._register(dom.addDisposableListener(this._body, dom.EventType.FOCUS_IN, () => {
+				if (this._isBodyCollapsed) {
+					this.setBodyCollapsed(false);
+				}
+			}));
+		} else {
+			if (configurationService.getValue<ICommentsConfiguration | undefined>(COMMENTS_SECTION)?.maxHeight !== false) {
+				this._body.classList.add('comment-body-max-height');
+			}
+			this.createScroll(this._commentDetailsContainer, this._body);
 		}
-
-		this.createScroll(this._commentDetailsContainer, this._body);
 		this.updateCommentBody(this.comment.body);
 
 		this.createReactionsContainer(this._commentDetailsContainer);
@@ -186,17 +212,17 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	}
 
 	private createScroll(container: HTMLElement, body: HTMLElement) {
-		this._scrollable = this._register(new Scrollable({
+		const scrollable = this._register(new Scrollable({
 			forceIntegerValues: true,
 			smoothScrollDuration: 125,
 			scheduleAtNextAnimationFrame: cb => dom.scheduleAtNextAnimationFrame(dom.getWindow(container), cb)
 		}));
-		this._scrollableElement = this._register(new SmoothScrollableElement(body, {
+		const scrollableElement = this._scrollableElement = this._register(new SmoothScrollableElement(body, {
 			horizontal: ScrollbarVisibility.Auto,
 			vertical: ScrollbarVisibility.Auto
-		}, this._scrollable));
+		}, scrollable));
 
-		this._register(this._scrollableElement.onScroll(e => {
+		this._register(scrollableElement.onScroll(e => {
 			if (e.scrollLeftChanged) {
 				body.scrollLeft = e.scrollLeft;
 			}
@@ -207,16 +233,73 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 		const onDidScrollViewContainer = this._register(new DomEmitter(body, 'scroll')).event;
 		this._register(onDidScrollViewContainer(_ => {
-			const position = this._scrollableElement.getScrollPosition();
+			const position = scrollableElement.getScrollPosition();
 			const scrollLeft = Math.abs(body.scrollLeft - position.scrollLeft) <= 1 ? undefined : body.scrollLeft;
 			const scrollTop = Math.abs(body.scrollTop - position.scrollTop) <= 1 ? undefined : body.scrollTop;
 
 			if (scrollLeft !== undefined || scrollTop !== undefined) {
-				this._scrollableElement.setScrollPosition({ scrollLeft, scrollTop });
+				scrollableElement.setScrollPosition({ scrollLeft, scrollTop });
 			}
 		}));
 
-		container.appendChild(this._scrollableElement.getDomNode());
+		container.appendChild(scrollableElement.getDomNode());
+	}
+
+	/**
+	 * Creates the toggle at the end of the comment's body that collapses the body to its first lines, and expands it
+	 * again. It's only shown for a long comment, by {@link updateBodyToggle}.
+	 */
+	private createBodyToggle(container: HTMLElement): HTMLButtonElement {
+		const toggle = dom.append(container, dom.$<HTMLButtonElement>('button.comment-body-toggle.hidden'));
+		toggle.type = 'button';
+		this._register(dom.addDisposableListener(toggle, dom.EventType.CLICK, e => {
+			// Focus stays on the toggle, rather than moving to the comment as clicking the comment does.
+			e.stopPropagation();
+			this.setBodyCollapsed(!this._isBodyCollapsed);
+			if (this._isBodyCollapsed) {
+				this._onDidCollapseBody.fire(this);
+			}
+		}));
+		this.renderBodyToggle(toggle);
+		return toggle;
+	}
+
+	private setBodyCollapsed(collapsed: boolean): void {
+		this._isBodyCollapsed = collapsed;
+		this._body.classList.toggle('collapsed', collapsed);
+		if (this._bodyToggle) {
+			this.renderBodyToggle(this._bodyToggle);
+		}
+	}
+
+	private renderBodyToggle(toggle: HTMLButtonElement): void {
+		toggle.textContent = this._isBodyCollapsed ? nls.localize('commentBody.showMore', "Show More") : nls.localize('commentBody.showLess', "Show Less");
+		toggle.setAttribute('aria-expanded', String(!this._isBodyCollapsed));
+	}
+
+	/**
+	 * Shows the toggle that collapses the comment's body only while the body, in full, is taller than a body that
+	 * scrolls within its own height can be. A comment that becomes short again is expanded.
+	 */
+	private updateBodyToggle(): void {
+		if (!this._bodyToggle) {
+			return;
+		}
+		if (this.isEditing) {
+			// The body is hidden while the comment is being edited.
+			this._bodyToggle.classList.add('hidden');
+			return;
+		}
+		if (!this._body.offsetHeight) {
+			// The comment isn't rendered, such as while the thread is hidden, so there is nothing to measure.
+			return;
+		}
+		// A collapsed body clips its overflow, so its scroll height is still the height of the whole body.
+		const isLong = this._body.scrollHeight > MAX_COMMENT_BODY_HEIGHT_EM * parseFloat(dom.getComputedStyle(this._body).fontSize);
+		if (!isLong && this._isBodyCollapsed) {
+			this.setBodyCollapsed(false);
+		}
+		this._bodyToggle.classList.toggle('hidden', !isLong);
 	}
 
 	private updateCommentBody(body: string | IMarkdownString) {
@@ -613,6 +696,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this._editModeDisposables.clear();
 		this._commentEditor = null;
 		this._commentEditContainer!.remove();
+		this.updateBodyToggle();
 	}
 
 	layout(widthInPixel?: number) {
@@ -624,11 +708,14 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 				this._commentEditor.layout({ width: editorWidth, height: this._editorHeight });
 			}
 		}
-		const scrollWidth = this._body.scrollWidth;
-		const width = dom.getContentWidth(this._body);
-		const scrollHeight = this._body.scrollHeight;
-		const height = dom.getContentHeight(this._body) + 4;
-		this._scrollableElement.setScrollDimensions({ width, scrollWidth, height, scrollHeight });
+		if (this._scrollableElement) {
+			const scrollWidth = this._body.scrollWidth;
+			const width = dom.getContentWidth(this._body);
+			const scrollHeight = this._body.scrollHeight;
+			const height = dom.getContentHeight(this._body) + 4;
+			this._scrollableElement.setScrollDimensions({ width, scrollWidth, height, scrollHeight });
+		}
+		this.updateBodyToggle();
 	}
 
 	/**
@@ -654,6 +741,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 		this.isEditing = true;
 		this._body.classList.add('hidden');
+		this.updateBodyToggle();
 		this._commentEditContainer = dom.append(this._commentDetailsContainer, dom.$('.edit-container'));
 		await this.createCommentEditor(this._commentEditContainer);
 
@@ -737,6 +825,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 		if (newComment.body !== this.comment.body) {
 			this.updateCommentBody(newComment.body);
+			this.updateBodyToggle();
 		}
 
 		if (!isEqual(URI.revive(this.comment.userIconPath), URI.revive(newComment.userIconPath))) {

@@ -744,6 +744,12 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 	height: 100%;
 }
 
+/* The thread's scrollbars keep clear of the window's border, so that the rounded ends of their sliders show. */
+.monaco-editor .comment-thread-floating-widget > .review-widget > .comment-thread-body-scrollable > .scrollbar.vertical,
+.monaco-editor .comment-thread-floating-widget .review-widget .body .comments-scrollable > .scrollbar.vertical {
+	margin-right: var(--vscode-spacing-size40);
+}
+
 /* The reply looks like an input, and fills the window's width like the comments, without the author's avatar beside it. */
 .monaco-editor .comment-thread-floating-widget .review-widget .body .comment-form-container {
 	margin: 8px 12px 12px;
@@ -814,6 +820,8 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 }
 
 .monaco-editor .comment-thread-floating-widget .review-widget .body .review-comment .review-comment-contents > .monaco-scrollable-element,
+.monaco-editor .comment-thread-floating-widget .review-widget .body .review-comment .review-comment-contents > .comment-body,
+.monaco-editor .comment-thread-floating-widget .review-widget .body .review-comment .review-comment-contents > .comment-body-toggle,
 .monaco-editor .comment-thread-floating-widget .review-widget .body .review-comment .review-comment-contents > .comment-reactions:not(.picker-only),
 .monaco-editor .comment-thread-floating-widget .review-widget .body .review-comment .review-comment-contents > .edit-container {
 	grid-column: 2 / -1;
@@ -928,6 +936,45 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 .monaco-editor .comment-thread-floating-widget .review-widget .body .review-comment .edit-container .form-actions {
 	margin: 8px 0 0;
 	padding-top: 0;
+}
+
+/*
+ * The thread scrolls its comments, so a comment shows its body in full. Long words wrap, and wide tables, like code
+ * blocks, scroll on their own, so that nothing makes the comments wider than the window. Overflow is clipped rather than
+ * hidden, so that the body never scrolls within itself.
+ */
+.monaco-editor .comment-thread-floating-widget .review-widget .body .review-comment .comment-body {
+	overflow-x: clip;
+	overflow-wrap: anywhere;
+}
+
+.monaco-editor .comment-thread-floating-widget .review-widget .body .review-comment .comment-body table {
+	display: block;
+	max-width: 100%;
+	overflow-x: auto;
+}
+
+/* A long comment can be collapsed to its first lines, which fade out toward the toggle that expands it again. */
+.monaco-editor .comment-thread-floating-widget .review-widget .body .review-comment .comment-body.collapsed {
+	max-height: 4lh;
+	overflow: clip;
+	mask-image: linear-gradient(to bottom, black calc(100% - 1lh), transparent);
+}
+
+.monaco-editor .comment-thread-floating-widget .review-widget .body .review-comment .comment-body-toggle {
+	justify-self: start;
+	margin-top: var(--vscode-spacing-size40);
+	padding: 0;
+	border: none;
+	background: none;
+	color: var(--vscode-textLink-foreground);
+	font: inherit;
+	cursor: pointer;
+}
+
+.monaco-editor .comment-thread-floating-widget .review-widget .body .review-comment .comment-body-toggle:hover {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
 }
 
 .monaco-editor .comment-thread-floating-connector {
