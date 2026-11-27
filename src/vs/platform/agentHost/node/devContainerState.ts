@@ -34,7 +34,7 @@ const serverStateFolders = ['data/User/globalStorage', 'data/User/workspaceStora
 const homeStateFolders = ['.copilot'];
 const linkProgressPrefix = 'vscode-state:';
 const linkSteps = ['capabilities', 'rootfs', 'volume', 'stateFolder', 'statePath', 'stateLink', 'home', 'mountinfo', 'folders'];
-const linkSkipReasons = ['parent', 'mounted', 'symlink', 'file', 'state', 'home', 'running', 'untrusted'];
+const linkSkipReasons = ['parent', 'mounted', 'symlink', 'file', 'state', 'home', 'homeUntrusted', 'running', 'untrusted'];
 const linkSkippedOutcomes = ['missingCapabilities', 'readOnlyRootfs', 'homeInaccessible', 'stateNotRootOwned', 'untrustedState'] as const;
 /** Capabilities root needs to manage another user's folders or to enter their home folder, by their bit in `CapEff`. */
 const linkCapabilities = { CAP_CHOWN: 0, CAP_DAC_OVERRIDE: 1, CAP_DAC_READ_SEARCH: 2, CAP_FOWNER: 3 };
@@ -281,18 +281,15 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'progress "volumeOwner:$(owner_kind "$volume_uid")"',
 		// Removes the container user's earlier links to state they cannot trust, so their folders start fresh. Leaves the state
 		// and the link to it, which other users' links may use. A copy of the fresh folders is kept when the state is restored.
-		// The container may be running, so enters one folder at a time without following symlinks and removes the link
-		// relative to the folder it entered.
+		// Removes only links in folders the container user owns, which they could remove themselves, and works inside the folder
+		// it entered, so the container, which may be running, cannot redirect the removal.
 		'unlink_folder() (',
-		'  cd -P "$1" 2>/dev/null || exit 0',
-		'  name=$2',
-		'  while case "$name" in */*) true ;; *) false ;; esac; do',
-		'    part=${name%%/*}',
-		'    dir=$(pwd -P)',
-		'    if [ -L "$part" ] || ! cd -P "$part" 2>/dev/null || [ "$(pwd -P)" != "${dir%/}/$part" ]; then exit 0; fi',
-		'    name=${name#*/}',
-		'  done',
-		'  if [ -L "$name" ] && [ "$(readlink "$name")" = "$link_path/$2" ]; then rm -f "$name"; echo "No longer persisting ~/$2" >&2; fi',
+		'  cd -P "$1/$(dirname "$2")" 2>/dev/null || exit 0',
+		'  name=${2##*/}',
+		'  if [ "$(stat -c %u .)" = "$user_uid" ] && [ -L "$name" ] && [ "$(readlink "$name")" = "$link_path/$2" ]; then',
+		'    rm -f "$name"',
+		'    echo "No longer persisting ~/$2" >&2',
+		'  fi',
 		')',
 		'unlink_state() {',
 		`  for rel in ${serverFolders.map(shellQuote).join(' ')}; do unlink_folder "$home" "$rel"; done`,
@@ -334,16 +331,29 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'  home_prefix=${1%/}',
 		'  home_found=',
 		'  home_inaccessible=',
+		'  home_untrusted=',
 		'  if [ -d "$1" ]; then',
 		'    if home_real=$(cd "$1" 2>/dev/null && pwd -P); then',
 		'      home_real=${home_real%/}',
 		'      home_found=1',
+		'      if home_trusted; then home_prefix=$home_real; else home_untrusted=1; fi',
 		'    else',
 		'      home_inaccessible=1',
 		'    fi',
 		'  else',
 		'    check_home_access "$1"',
 		'  fi',
+		'}',
+		// A home folder another user can replace, e.g., with a symlink to root's home folder, would make root move and link
+		// another user's folders for the container user. The container user must own the home folder, and only root may change
+		// its parents. The script then works with this physical path.
+		'home_trusted() {',
+		'  [ "$(stat -c %u "${home_real:-/}")" = "$user_uid" ] || return 1',
+		'  home_parent=$home_real',
+		'  while [ -n "$home_parent" ]; do',
+		'    home_parent=${home_parent%/*}',
+		'    root_only "${home_parent:-/}" || return 1',
+		'  done',
 		'}',
 		// The home folder or a symlink's target may exist below a folder that root cannot enter. Only reads, never writes.
 		'check_home_access() {',
@@ -417,6 +427,7 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'    if [ -n "$home_inaccessible" ]; then skip home "home folder $home_prefix is not accessible"; else skip home "home folder $home_prefix not found"; fi',
 		'    return 0',
 		'  fi',
+		'  if [ -n "$home_untrusted" ]; then skip homeUntrusted "home folder $home_prefix is not owned by the container user, or a user other than root can replace it"; return 0; fi',
 		'  for parent in "$@"; do',
 		'    if is_other "$home_prefix/$parent" || is_other "./$parent"; then skip parent "~/$parent is not a folder"; return 0; fi',
 		// Like the state folder, only root may change the folders this script works in. Checked top-down, so a checked folder
