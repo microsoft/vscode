@@ -44,6 +44,7 @@ suite('CommentReply', () => {
 		const instantiationService = createCodeEditorServices(store);
 		const model = store.add(createTextModel(''));
 		let editor: ICodeEditor;
+		let editorDomNode: HTMLElement;
 		if (options?.rendered) {
 			const container = dom.append(mainWindow.document.body, dom.$('.monaco-workbench'));
 			store.add(toDisposable(() => container.remove()));
@@ -51,16 +52,15 @@ suite('CommentReply', () => {
 				dimension: { width: 200, height: 200 }, fontSize: options.fontSize, wordWrap: 'on', scrollBeyondLastLine: false,
 			}, { contributions: [] }));
 			editor.setModel(model);
+			editorDomNode = editor.getDomNode()!;
 		} else {
 			editor = store.add(instantiateTestCodeEditor(instantiationService, model, { fontSize: options?.fontSize ?? 14 }));
-			sinon.stub(editor, 'getDomNode').returns(dom.$('div'));
+			// Like a real editor, the editor reports losing focus when focus leaves its DOM node.
+			editorDomNode = dom.$('div');
+			sinon.stub(editor, 'getDomNode').returns(editorDomNode);
+			sinon.stub(editor, 'onDidBlurEditorWidget').value(store.add(dom.trackFocus(editorDomNode)).onDidBlur);
 		}
-		const onDidBlurEditorWidget = store.add(new Emitter<void>());
 		const onDidChangeInput = store.add(new Emitter<CommentInput | undefined>());
-		// Like a real editor, the editor reports losing focus when focus leaves its DOM node.
-		const editorDomNode = dom.$('div');
-		sinon.stub(editor, 'getDomNode').returns(editorDomNode);
-		sinon.stub(editor, 'onDidBlurEditorWidget').value(store.add(dom.trackFocus(editorDomNode)).onDidBlur);
 		const focus = sinon.spy(editor, 'focus');
 		const layout = sinon.spy(editor, 'layout');
 		instantiationService.stubInstance<ICodeEditor>(SimpleCommentEditor, editor);
@@ -100,8 +100,10 @@ suite('CommentReply', () => {
 			{ submitComment: async () => { }, collapse: () => { } }, !!options?.focus, null
 		));
 		await reply.whenInitialized;
-		// The real comment editor is created in the reply's form.
-		container.querySelector('.comment-form')!.appendChild(editorDomNode);
+		if (!options?.rendered) {
+			// The real comment editor is created in the reply's form.
+			container.querySelector('.comment-form')!.appendChild(editorDomNode);
+		}
 
 		return { reply, container, editorDomNode, onDidChangeInput, model, thread, editor, focus, layout };
 	}
