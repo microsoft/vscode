@@ -298,6 +298,19 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 						},
 					}],
 				});
+				markedExtensions.push({
+					extensions: [{
+						name: 'list',
+						renderer(token) {
+							const { ordered, start, items } = token as Tokens.List;
+							if (!ordered) {
+								return false;
+							}
+							const body = items.map(item => this.parser.renderer.listitem(item).replace(/^<li/, `<li value="${/^\s*(\d+)/.exec(item.raw)?.[1]}"`)).join('');
+							return `<ol${start !== 1 ? ` start="${start}"` : ''}>\n${body}</ol>\n`;
+						},
+					}],
+				});
 			}
 
 			// Enables github-flavored-markdown + line breaks with single newlines
