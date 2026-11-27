@@ -347,6 +347,9 @@ export class SettingsTargetsWidget extends Widget {
 		}
 	}
 
+	/**
+	 * Disables the workspace target while Agentic Mode is active, moving a workspace target to the user target.
+	 */
 	setAgenticMode(isActive: boolean): void {
 		if (this.isAgenticMode !== isActive) {
 			this.isAgenticMode = isActive;

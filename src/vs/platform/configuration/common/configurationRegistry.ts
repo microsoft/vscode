@@ -364,7 +364,7 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	 */
 	agenticMode?: {
 		/**
-		 * Default value in Agentic Mode; an experiment default takes precedence.
+		 * Default value in Agentic Mode. This is metadata only: Agentic Mode's configuration service resolves it.
 		 */
 		default?: unknown;
 	};

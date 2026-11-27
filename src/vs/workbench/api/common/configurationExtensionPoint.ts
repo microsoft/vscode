@@ -343,6 +343,10 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 					extension.collector.error(nls.localize('config.property.agentHost.unsupported', "Extension '{0}' CANNOT use the 'agentHost' property on configuration '{1}'.", extension.description.identifier.value, key));
 					delete propertyConfiguration.agentHost;
 				}
+				if (propertyConfiguration.agenticMode) {
+					extension.collector.error(nls.localize('config.property.agenticMode.unsupported', "Extension '{0}' CANNOT use the 'agenticMode' property on configuration '{1}'.", extension.description.identifier.value, key));
+					delete propertyConfiguration.agenticMode;
+				}
 				seenProperties.add(key);
 				propertyConfiguration.scope = propertyConfiguration.scope ? parseScope(propertyConfiguration.scope.toString()) : ConfigurationScope.WINDOW;
 			}

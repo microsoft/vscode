@@ -32,6 +32,9 @@ export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 
 export interface ISettingsEditorViewState {
 	settingsTarget: SettingsTarget;
+	/**
+	 * Whether the settings are presented for Agentic Mode, using its `agenticMode` defaults.
+	 */
 	isAgenticMode?: boolean;
 	query?: string; // used to keep track of loading from setInput vs loading from cache
 	tagFilters?: Set<string>;
@@ -165,6 +168,9 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	 * Whether the setting is read-only in the Agents window.
 	 */
 	isAgentsWindowReadOnly = false;
+	/**
+	 * Whether the setting is presented for Agentic Mode.
+	 */
 	isAgenticMode = false;
 
 	tags?: Set<string>;
