@@ -1336,6 +1336,25 @@ suite('SessionsManagementService', () => {
 			});
 		}
 
+		test('closing the chat of a detached pane with showNewSession closes the pane and keeps the other sessions', async () => {
+			const a = created('a');
+			const b = created('b');
+			const child: IChat = { ...a.mainChat.get(), resource: URI.parse('test:///a/child') };
+			const parent = { ...a, chats: constObservable([a.mainChat.get(), child]) };
+			const { view } = harness([parent, b]);
+			await view.openSessionsInGrid([parent, b]);
+			await view.moveChatToGrid(parent.sessionId, child.resource, slotPaneOf(view, b.sessionId)!.id, 'down');
+			const childPane = view.activePane.get()!;
+			view.closeSession(parent);
+
+			await view.closeChat(childPane.session.get()!, child, { showNewSession: true });
+
+			assert.deepStrictEqual({
+				panes: view.panes.get().map(pane => `${pane.kind}:${pane.session.get()?.sessionId}${detachedChatOf(pane) ? `:${detachedChatOf(pane)!.path}` : ''}`),
+				active: activeSessionOf(view)?.sessionId,
+			}, { panes: ['slot:b'], active: 'b' });
+		});
+
 		test('a whole-session drag can place its main pane beside its own standalone child', async () => {
 			const a = created('a');
 			const b = created('b');
@@ -10738,7 +10757,11 @@ suite('SessionsManagementService', () => {
 			assert.deepStrictEqual(closedTitles(view), ['b']);
 		});
 
-		test('closing the shown chat with showNewSession shows the new-session view instead of another chat, and keeps the chat closed', async () => {
+		/**
+		 * Session A, in a folder that asks for workspace trust, and session B, without one. Trust resolves on the next
+		 * turn, as it does for a folder the user trusted before, or when `trust.pending` completes while it is set.
+		 */
+		function setupInTrustedFolder() {
 			const folderUri = URI.file('/workspace');
 			const workspace: ISessionWorkspace = {
 				uri: folderUri, label: 'workspace', icon: Codicon.folder,
@@ -10752,17 +10775,30 @@ suite('SessionsManagementService', () => {
 				mainChat: constObservable(chat('mainA')),
 				capabilities: constObservable({ supportsMultipleChats: true }),
 			});
+			const sessionB = multiChatSession('B', [chat('mainB')]);
 			const draft = stubSession({ sessionId: 'draft', providerId: 'test', status: constObservable(SessionStatus.Untitled), workspace: constObservable(workspace) });
+			const drafts: string[] = [];
 			const provider = new class extends TestSessionsProvider {
-				override getSessions(): ISession[] { return [sessionA]; }
+				override getSessions(): ISession[] { return [sessionA, sessionB]; }
 				override resolveWorkspace(): ISessionWorkspace { return workspace; }
-				override createNewSession(): ISession { return draft; }
+				override createNewSession(): ISession { drafts.push(draft.sessionId); return draft; }
 			}(sessionA);
-			// Trust resolves later, as it does for a folder the user trusted before.
-			const trust = new class extends mock<IWorkspaceTrustRequestService>() {
-				override async requestResourcesTrust(): Promise<boolean> { await timeout(0); return true; }
+			const trust: { pending?: DeferredPromise<boolean> } = {};
+			const trustRequest = new class extends mock<IWorkspaceTrustRequestService>() {
+				override async requestResourcesTrust(): Promise<boolean> {
+					if (trust.pending) {
+						return trust.pending.p;
+					}
+					await timeout(0);
+					return true;
+				}
 			};
-			const { view } = createSessionsManagementService(sessionA, disposables, provider, undefined, trust);
+			const { view } = createSessionsManagementService(sessionA, disposables, provider, undefined, trustRequest);
+			return { view, sessionA, sessionB, drafts, trust };
+		}
+
+		test('closing the shown chat with showNewSession shows the new-session view instead of another chat, and keeps the chat closed', async () => {
+			const { view, sessionA } = setupInTrustedFolder();
 			const [, chatB, chatC] = sessionA.chats.get();
 			const closeAsDone = async (shown: IChat, closed: IChat) => {
 				await view.openSession(sessionA.resource);
@@ -10782,6 +10818,27 @@ suite('SessionsManagementService', () => {
 				notShown: ['A/b'],
 				shown: ['A/b', 'draft/Chat'],
 				reopened: { activeChat: 'mainA', closed: ['b', 'c'] },
+			});
+		});
+
+		test('opening another session while showNewSession waits for workspace trust keeps that session, and the chat still closes', async () => {
+			const { view, sessionA, sessionB, drafts, trust } = setupInTrustedFolder();
+			const [, chatB] = sessionA.chats.get();
+			await view.openSession(sessionA.resource);
+			await view.openChat(sessionA, chatB.resource);
+			const pendingTrust = trust.pending = new DeferredPromise<boolean>();
+
+			const closing = view.closeChat(activeSessionOf(view)!, chatB, { showNewSession: true });
+			await view.openSession(sessionB.resource);
+			trust.pending = undefined;
+			pendingTrust.complete(true);
+			await closing;
+			const afterTrust = { active: activeSessionOf(view)?.sessionId, drafts: [...drafts] };
+			await view.openSession(sessionA.resource);
+
+			assert.deepStrictEqual({ afterTrust, reopened: { activeChat: activeChatOf(view)?.title.get(), closed: closedTitles(view) } }, {
+				afterTrust: { active: 'B', drafts: [] },
+				reopened: { activeChat: 'mainA', closed: ['b'] },
 			});
 		});
 
