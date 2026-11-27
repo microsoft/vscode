@@ -72,6 +72,18 @@ suite('MobileActionWidgetService', () => {
 		});
 	}
 
+	test('a shown sheet has the focus only while the focus is in it', () => {
+		const { container, service } = createHarness();
+		const outside = dom.append(container, dom.$('button'));
+		service.show('test', false, [{ kind: ActionListItemKind.Action, label: 'Main', item: 'main' }], { onHide: () => { }, onSelect: () => { } }, container, undefined, []);
+		container.querySelector<HTMLElement>('.mobile-picker-sheet-item')!.focus();
+		const inside = { user: service.hasFocus('test'), otherUser: service.hasFocus('other') };
+		outside.focus();
+		const movedOut = service.hasFocus('test');
+		service.hide(true);
+		assert.deepStrictEqual({ inside, movedOut }, { inside: { user: true, otherUser: false }, movedOut: false });
+	});
+
 	test('preserves the filter and rejects stale search results when items update', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { container, service } = createHarness();

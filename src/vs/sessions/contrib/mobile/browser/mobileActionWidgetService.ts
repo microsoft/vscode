@@ -25,6 +25,7 @@ interface IShownWidget {
 	readonly updateItems: (items: readonly IActionListItem<unknown>[], focusItemId?: string, options?: IActionListUpdateOptions) => void;
 	hidden: boolean;
 	setFilter?: (value: string, focusItemId?: string) => void;
+	hasFocus?: () => boolean;
 }
 
 /**
@@ -166,6 +167,7 @@ export class MobileActionWidgetService extends Disposable implements IActionWidg
 			doneLabel: localize('mobileActionWidget.cancel', "Cancel"),
 			search,
 			dismissToken: shown.dismiss.token,
+			onDidCreateHasFocus: hasFocus => shown.hasFocus = hasFocus,
 			initialFocusItemId: listOptions?.initialFocusItemId ? `action-widget-item-${listOptions.initialFocusItemId}` : undefined,
 			itemProvider: { onDidChange: itemsChanged.event, getItems: () => toRows(currentItems) },
 		}).then(pickedId => {
@@ -220,8 +222,7 @@ export class MobileActionWidgetService extends Disposable implements IActionWidg
 	focusItemById(_itemId: string): void { }
 
 	hasFocus(user: string): boolean {
-		// The sheet is modal: while it shows, it has the focus
-		return this._shown?.user === user;
+		return this._shown?.user === user && !!this._shown.hasFocus?.();
 	}
 
 	collapseSection(): void { }
