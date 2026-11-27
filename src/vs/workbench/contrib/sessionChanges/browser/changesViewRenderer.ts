@@ -13,6 +13,7 @@ import { autorun } from '../../../../base/common/observable.js';
 import { basename, dirname, extUriBiasedIgnorePathCase, isEqual, relativePath } from '../../../../base/common/resources.js';
 import { IResourceNode, ResourceTree } from '../../../../base/common/resourceTree.js';
 import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -24,7 +25,8 @@ import { bindContextKey } from '../../../../platform/observable/common/platformO
 import { IResourceLabel, ResourceLabels } from '../../../browser/labels.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { ModifiedFileEntryState } from '../../chat/common/editing/chatEditingService.js';
-import { GITHUB_REMOTE_FILE_SCHEME, ISessionFileChange } from '../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISessionChangesetFolderFailure, ISessionFileChange } from '../../../services/sessions/common/session.js';
+import type { IChangesRepositoryGroup } from '../../sessions/common/changesRepositories.js';
 import { ActiveSessionContextKeys, ChangesContextKeys, ChangesViewMode } from '../../sessions/common/changes.js';
 import { IChangesSessionScope, IChangesViewService } from '../../sessions/common/changesViewService.js';
 import { isIChatSessionFileChange2 } from '../../../common/chatSessionFileChange.js';
@@ -75,12 +77,18 @@ export interface IChangesFileItem {
 	readonly changeType: ChangeType;
 	readonly linesAdded: number;
 	readonly linesRemoved: number;
+	/** The root of the repository the file is listed under, which its path is shown relative to. */
+	readonly root?: URI;
 }
 
 export interface IChangesRootItem {
 	readonly type: 'root';
 	readonly uri: URI;
 	readonly name: string;
+	/** Such as the branch of a repository's root. */
+	readonly description?: string;
+	/** Why a repository's changes could not be computed. */
+	readonly failure?: ISessionChangesetFolderFailure;
 }
 
 export interface IChangesTreeRootInfo {
@@ -98,7 +106,34 @@ export function isChangesRootItem(element: ChangesTreeElement): element is IChan
 	return !ResourceTree.isResourceNode(element) && element.type === 'root';
 }
 
-export function buildTreeChildren(items: IChangesFileItem[], treeRootInfo?: IChangesTreeRootInfo): ICompressedTreeElement<ChangesTreeElement>[] {
+/**
+ * The rows of changes grouped by repository: a root row for each repository, then one for the changes outside every
+ * repository, with the files of each in a tree or flat.
+ */
+export function buildRepositoryChildren(groups: readonly IChangesRepositoryGroup<IChangesFileItem>[], viewMode: ChangesViewMode): ICompressedTreeElement<ChangesTreeElement>[] {
+	return groups.map(group => {
+		const root: IChangesRootItem = group.repository
+			? {
+				type: 'root',
+				uri: group.repository.root,
+				name: group.repository.description ?? group.repository.name,
+				description: group.repository.gitRepository?.branchName,
+				...(group.failure ? { failure: group.failure } : {}),
+			}
+			: { type: 'root', uri: OUTSIDE_REPOSITORIES_ROOT, name: localize('changesOutsideRepositories', "Other Changes") };
+		const items = group.repository ? group.items.map(item => ({ ...item, root: group.repository!.root })) : group.items;
+		// The tree of a repository's files under its own root row, which takes the place of the one the tree builds
+		const children: ICompressedTreeElement<ChangesTreeElement>[] = viewMode === ChangesViewMode.Tree && group.repository
+			? Array.from(buildTreeChildren(items, { root, resourceTreeRootUri: group.repository.root })[0]?.children ?? [])
+			: items.map(item => ({ element: item, collapsible: false, incompressible: true }));
+		return { element: root, children, collapsible: true, collapsed: false, incompressible: true };
+	});
+}
+
+/** The root row of the changes outside every repository, which has no resource. */
+const OUTSIDE_REPOSITORIES_ROOT = URI.from({ scheme: 'changes-outside-repositories', path: '/' });
+
+export function buildTreeChildren(items: readonly IChangesFileItem[], treeRootInfo?: IChangesTreeRootInfo): ICompressedTreeElement<ChangesTreeElement>[] {
 	if (items.length === 0) {
 		return [];
 	}
@@ -277,7 +312,7 @@ export class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTre
 	}
 
 	private renderFileElement(data: IChangesFileItem, templateData: IChangesTreeTemplate): void {
-		const root = this.getRootUri();
+		const root = data.root ?? this.getRootUri();
 		const viewMode = this.changesViewService.viewModeObs.get();
 
 		templateData.label.setResource({
@@ -375,9 +410,12 @@ export class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTre
 		templateData.label.setResource({
 			resource: data.uri,
 			name: data.name,
+			description: data.failure?.message ?? data.description,
 		}, {
 			fileKind: FileKind.ROOT_FOLDER,
 			separator: this.labelService.getSeparator(data.uri.scheme, data.uri.authority),
+			extraClasses: data.failure ? ['changes-repository-failed'] : undefined,
+			title: data.failure ? data.failure.detail ?? data.failure.message : undefined,
 		});
 
 		templateData.reviewCommentsBadge.style.display = 'none';

@@ -13,7 +13,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { DocumentDiffItemViewModel, MultiDiffEditorViewModel } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
 import { MultiDiffEditorWidget } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
 import { DiffEditorViewMode } from '../../../../../editor/common/config/editorOptions.js';
-import { IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { IMenuService, isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { REPOSITORY_PICKER_ACTION_ID } from '../../../../../workbench/contrib/sessionChanges/browser/changesRepositoryPicker.js';
+import { VERSIONS_PICKER_ACTION_ID } from '../../../../../workbench/contrib/sessionChanges/browser/changesView.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -64,6 +67,7 @@ import '../../../../../editor/browser/widget/multiDiffEditor/style.css';
 import '../../../../../workbench/contrib/sessionChanges/browser/media/sessionChangesEditor.css';
 // The changeset picker, as the Agents window registers it; the editor window registers the same
 import '../../browser/changesView.contribution.js';
+import '../../browser/changesRepositoryPicker.contribution.js';
 import '../../../../../workbench/contrib/sessionChanges/browser/changesEditorActions.js';
 import { ActiveEditorContext } from '../../../../../workbench/common/contextkeys.js';
 import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
@@ -466,6 +470,7 @@ suite('SessionChangesEditor header', () => {
 					resourceObs: constObservable(undefined), changesObs: constObservable([]), changesetObs: constObservable(undefined), changesetsObs: constObservable(undefined),
 					changesetOperationsObs: constObservable([]), changesetsLoadingObs: constObservable(false), changesetLoadingObs: constObservable(false), loadingObs: constObservable(false),
 					stateObs: constObservable(undefined), changesSummaryObs: constObservable(undefined), hasGitRepositoryObs: constObservable(false),
+					operationsChangesetObs: constObservable(undefined), repositoriesObs: constObservable([]), repositoryObs: constObservable(undefined),
 				});
 			}
 		}());
@@ -514,6 +519,17 @@ suite('SessionChangesEditor header', () => {
 			agentsWindow: 'none',
 			editorWindow: ['Versions'],
 			editorWindowWithoutAI: [],
+		});
+	});
+
+	test('the Agents window on desktop and web offers the changeset and repository pickers in the headers of the Changes editor and its files', () => {
+		const pickersIn = (menu: MenuId) => [...new Set(MenuRegistry.getMenuItems(menu).filter(isIMenuItem).map(item => item.command.id).filter(id => id === VERSIONS_PICKER_ACTION_ID || id === REPOSITORY_PICKER_ACTION_ID))].sort();
+		assert.deepStrictEqual({
+			editor: pickersIn(Menus.SessionsEditorHeaderPrimary),
+			file: pickersIn(MenuId.ChatEditingSessionChangesFileHeaderToolbar),
+		}, {
+			editor: [VERSIONS_PICKER_ACTION_ID, REPOSITORY_PICKER_ACTION_ID].sort(),
+			file: [VERSIONS_PICKER_ACTION_ID, REPOSITORY_PICKER_ACTION_ID].sort(),
 		});
 	});
 

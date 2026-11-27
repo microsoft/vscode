@@ -25,7 +25,7 @@ export interface ISessionActionContextKeysSource {
 	readonly session: IObservable<ISession | undefined>;
 	/** The chat the host shows of {@link session}. */
 	readonly chat: IObservable<IChat | undefined>;
-	readonly changes: Pick<IChangesSessionObservables, 'changesObs' | 'changesetsLoadingObs' | 'loadingObs' | 'changesetObs' | 'changesetOperationsObs' | 'stateObs'>;
+	readonly changes: Pick<IChangesSessionObservables, 'changesObs' | 'changesetsLoadingObs' | 'loadingObs' | 'changesetObs' | 'changesetOperationsObs' | 'stateObs' | 'operationsChangesetObs' | 'repositoryObs'>;
 	readonly pullRequest: Pick<IGitHubSessionPullRequestObservables, 'pullRequestCIObs'>;
 }
 
@@ -127,7 +127,10 @@ function bindChangesetOperationContextKeys(source: ISessionActionContextKeysSour
 			|| changes.loadingObs.read(reader)) {
 			return;
 		}
-		const operations = changes.changesetObs.read(reader)?.operations.read(reader) ?? [];
+		// The picked repository's own pull request, when one is picked; one without a changeset of its own, as for a
+		// changeset other than Branch, offers none of the chat's
+		const changeset = changes.operationsChangesetObs.read(reader);
+		const operations = changes.repositoryObs.read(reader) && changeset === changes.changesetObs.read(reader) ? [] : changeset?.operations.read(reader) ?? [];
 		const primary = operations.find(op => AGENT_HOST_PULL_REQUEST_OPERATION_IDS.has(op.id))?.id ?? '';
 		const hasOpenPullRequest = changes.stateObs.read(reader)?.hasOpenPullRequest === true;
 		contextKeyService.bufferChangeEvents(() => {

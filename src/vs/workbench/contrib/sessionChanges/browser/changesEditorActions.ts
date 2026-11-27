@@ -665,7 +665,7 @@ function isChangesetOperationBusy(operation: ISessionChangesetOperation): boolea
  * of its uncommitted changes (except Sync and Checkout), and for an existing session the Commit operation of the
  * changeset selected in its Changes view; the title bar's button bar omits Commit, so that it always lives here.
  */
-export function getChangesetOperations(session: ISession | undefined, chat: IChat | undefined, changes: Pick<IChangesSessionObservables, 'changesetObs' | 'changesetOperationsObs'>, reader: IReader | undefined): IChangesetOperations {
+export function getChangesetOperations(session: ISession | undefined, chat: IChat | undefined, changes: Pick<IChangesSessionObservables, 'changesetObs' | 'changesetOperationsObs'> & Partial<Pick<IChangesSessionObservables, 'operationsChangesetObs'>>, reader: IReader | undefined): IChangesetOperations {
 	const entries: IChangesetOperationEntry[] = [];
 	const changeset = changes.changesetObs.read(reader);
 	for (const operation of changeset?.operations.read(reader) ?? []) {
@@ -689,7 +689,8 @@ export function getChangesetOperations(session: ISession | undefined, chat: ICha
 			.filter(operation => operation.scopes.includes(SessionChangesetOperationScope.Changeset)) ?? [];
 		hasUncommittedChanges = (session.workspace.read(reader)?.folders[0]?.gitRepository?.uncommittedChanges ?? 0) > 0;
 	} else {
-		titleChangeset = changeset;
+		// Of one repository shown on its own, its own changeset
+		titleChangeset = changes.operationsChangesetObs?.read(reader) ?? changeset;
 		operations = titleChangeset
 			? changes.changesetOperationsObs.read(reader)
 				.filter(operation => operation.id === AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID)
@@ -712,7 +713,7 @@ function listHas(key: RawContextKey<string[]>, entry: string): ContextKeyExpress
 }
 
 /** The Changes of the Changes editor whose file toolbar or title an action is invoked from, else those of the main window's session. */
-function getInvokingChangesScope(accessor: ServicesAccessor, args: readonly unknown[]): { readonly session: ISession | undefined; readonly chat: IChat | undefined; readonly changes: Pick<IChangesSessionObservables, 'changesObs' | 'changesetObs' | 'changesetOperationsObs'> } {
+function getInvokingChangesScope(accessor: ServicesAccessor, args: readonly unknown[]): { readonly session: ISession | undefined; readonly chat: IChat | undefined; readonly changes: Pick<IChangesSessionObservables, 'changesObs' | 'changesetObs' | 'changesetOperationsObs' | 'operationsChangesetObs'> } {
 	const fileContext = args[1] as Partial<IChangesEditorFileActionContext> | undefined;
 	const editorContext = args.find(isEditorCommandsContext);
 	const editor = fileContext?.editor instanceof SessionChangesEditor
@@ -730,6 +731,7 @@ function getInvokingChangesScope(accessor: ServicesAccessor, args: readonly unkn
 			changesObs: changesViewService.activeSessionChangesObs,
 			changesetObs: changesViewService.activeSessionChangesetObs,
 			changesetOperationsObs: changesViewService.activeSessionChangesetOperationsObs,
+			operationsChangesetObs: changesViewService.activeSessionOperationsChangesetObs,
 		},
 	};
 }

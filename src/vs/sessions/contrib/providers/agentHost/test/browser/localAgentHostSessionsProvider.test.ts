@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { gitHubPullRequestMarkReadyIgnoredChecksSetting } from '../../../../../../platform/agentHost/common/githubPullRequestArtifact.js';
 import assert from 'assert';
 import { agentHostConnectionKinds } from '../../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
 import { identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -53,6 +54,7 @@ import type { AgentChatMoveDestination } from '../../../../../../platform/agentH
 import { PROTOCOL_VERSION } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
+import { buildBranchChangesetUri, buildFolderChangesetOwnerUri } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { withSessionNonRepositoryFolders } from '../../../../../../platform/agentHost/common/meta/agentSessionNonRepositoryFoldersMeta.js';
 import { withSessionRepositories } from '../../../../../../platform/agentHost/common/meta/agentSessionRepositoriesMeta.js';
 import { toRemoteSessionMessageMetadata, withRemoteSessionOrigin } from '../../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
@@ -13391,6 +13393,91 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
+		test('Agent Merge settings are per repository: a repository found in a folder is written and read by its root', async () => {
+			const provider = createProvider(disposables, agentHost);
+			const primaryDirectory = URI.file('/workspace-primary');
+			const peerDirectory = URI.file('/workspace-peer');
+			const nested = URI.file('/workspace-primary/packages/lib');
+			const session = setupMultiChatSession(provider, 'repository-agent-merge', [primaryDirectory, peerDirectory]);
+			const sessionUri = AgentSession.uri('copilotcli', 'repository-agent-merge').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			// The host has published only its folders' keys: the repository gets one with its first settings.
+			let meta: SessionState['_meta'] = withWorkingDirectoryKey(withWorkingDirectoryKey(undefined, primaryDirectory.toString()), peerDirectory.toString());
+			meta = withSessionRepositories(meta, {
+				[getWorkingDirectoryKey(primaryDirectory.toString())]: [{ root: primaryDirectory.toString(), kind: 'folder' }, { root: nested.toString(), kind: 'nested' }],
+				[getWorkingDirectoryKey(peerDirectory.toString())]: [{ root: peerDirectory.toString(), kind: 'folder' }],
+			});
+			const setConfigValues = (values: Record<string, unknown>) => agentHost.setSessionState('repository-agent-merge', 'copilotcli', {
+				...makeState([makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle, [primaryDirectory.toString()])], { defaultChat, meta, workingDirectories: [primaryDirectory.toString(), peerDirectory.toString()] }),
+				config: { schema: { type: 'object', properties: {} }, values },
+			});
+			fireSessionMetaChanged(agentHost, 'repository-agent-merge', meta);
+			setConfigValues({});
+			const mainChat = session.mainChat.get().resource;
+
+			const dispatchCount = agentHost.dispatchedActions.length;
+			await provider.setAgentMergeEnabled(session.sessionId, true, mainChat, nested);
+			const unknownWrite = await provider.setAgentMergeEnabled(session.sessionId, true, mainChat, URI.file('/elsewhere')).then(() => 'written', () => 'rejected');
+			const writes = agentHost.dispatchedActions.slice(dispatchCount).map(({ action }) => action);
+			setConfigValues({ [SessionConfigKey.AgentMergeFolders]: { [getWorkingDirectoryKey(nested.toString())]: { enabled: true, chat: defaultChat } } });
+
+			assert.deepStrictEqual({
+				writes,
+				unknownWrite,
+				repository: provider.getAgentMergeSessionState(session.sessionId, mainChat, nested)?.enabled,
+				repositoryObservable: provider.getAgentMergeClientStateObservable(session.sessionId, mainChat, nested).get()?.enabled,
+				sessionFolder: provider.getAgentMergeSessionState(session.sessionId, mainChat)?.enabled,
+			}, {
+				writes: [{ type: ActionType.SessionConfigChanged, config: { [SessionConfigKey.AgentMergeFolders]: { [nested.toString()]: { enabled: true, chat: defaultChat } } } }],
+				unknownWrite: 'rejected',
+				repository: true,
+				repositoryObservable: true,
+				sessionFolder: undefined,
+			});
+		});
+
+		test('a repository\'s Agent Merge sends the check exclusions of its own folder', async () => {
+			const primaryDirectory = URI.file('/workspace-primary');
+			const peerDirectory = URI.file('/workspace-peer');
+			const nested = URI.file('/workspace-primary/packages/lib');
+			const configurationService = new class extends TestConfigurationService {
+				override inspect<T>(key: string, overrides?: { resource?: URI | null }) {
+					const value = key === gitHubPullRequestMarkReadyIgnoredChecksSetting && overrides?.resource
+						? [isEqual(overrides.resource, peerDirectory) ? 'peer-check' : isEqual(overrides.resource, primaryDirectory) ? 'primary-check' : 'other-check']
+						: undefined;
+					return { ...super.inspect<T>(key, overrides), ...(value ? { workspaceFolderValue: value as T } : {}) };
+				}
+			}();
+			const provider = createProvider(disposables, agentHost, undefined, { configurationService });
+			const session = setupMultiChatSession(provider, 'repository-ignored-checks', [primaryDirectory, peerDirectory]);
+			const sessionUri = AgentSession.uri('copilotcli', 'repository-ignored-checks').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			let meta: SessionState['_meta'] = withWorkingDirectoryKey(withWorkingDirectoryKey(undefined, primaryDirectory.toString()), peerDirectory.toString());
+			meta = withSessionRepositories(meta, {
+				[getWorkingDirectoryKey(primaryDirectory.toString())]: [{ root: primaryDirectory.toString(), kind: 'folder' }, { root: nested.toString(), kind: 'nested' }],
+				[getWorkingDirectoryKey(peerDirectory.toString())]: [{ root: peerDirectory.toString(), kind: 'folder' }],
+			});
+			fireSessionMetaChanged(agentHost, 'repository-ignored-checks', meta);
+			agentHost.setSessionState('repository-ignored-checks', 'copilotcli', {
+				...makeState([makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle, [primaryDirectory.toString()])], { defaultChat, meta, workingDirectories: [primaryDirectory.toString(), peerDirectory.toString()] }),
+				config: { schema: { type: 'object', properties: {} }, values: {} },
+			});
+			const mainChat = session.mainChat.get().resource;
+
+			const dispatchCount = agentHost.dispatchedActions.length;
+			await provider.setAgentMergeEnabled(session.sessionId, true, mainChat, nested);
+			await provider.setAgentMergeEnabled(session.sessionId, true, mainChat, peerDirectory);
+			const readyIgnoredChecks = agentHost.dispatchedActions.slice(dispatchCount).map(({ action }) => {
+				const folders = (action as { config?: Record<string, Record<string, { readyIgnoredChecks?: readonly string[] }>> }).config?.[SessionConfigKey.AgentMergeFolders] ?? {};
+				return Object.entries(folders).map(([folder, state]) => [folder, state.readyIgnoredChecks]);
+			});
+
+			assert.deepStrictEqual(readyIgnoredChecks, [
+				[[nested.toString(), ['primary-check']]],
+				[[peerDirectory.toString(), ['peer-check']]],
+			]);
+		});
+
 		test('a chat that moved away with its Agent Merge leaves its folder off for the chats that stay, at once', () => {
 			const provider = createProvider(disposables, agentHost);
 			const directory = URI.file('/workspace-moved-away');
@@ -20082,6 +20169,74 @@ suite('LocalAgentHostSessionsProvider', () => {
 			// Another host's file alone is not sent
 			await provider.detachSessionsFromWorkspace([toAgentHostUri(projectFile, 'remote-a')]);
 			assert.deepStrictEqual(calls, [[projectFile.toString()]]);
+		});
+
+		for (const kind of agentHostConnectionKinds) {
+			test(`gives a repository of a session its own Branch changeset, observed only while its changes are (${kind.name})`, async () => {
+				agentHost.resourceUris = kind.resourceUris;
+				const provider = createProvider(disposables, agentHost);
+				await timeout(0);
+				fireSessionAdded(agentHost, 'repositories', { workingDirectories: [api.toString(), web.toString()] });
+				const session = provider.getSessions()[0];
+				const owner = URI.parse(buildBranchChangesetUri(buildFolderChangesetOwnerUri(AgentSession.uri('copilotcli', 'repositories').toString(), getWorkingDirectoryScopeId([web.toString()])))).toString();
+				const changeset = session.getRepositoryChangeset?.(kind.toClient(web), BRANCH_CHANGES_CHANGESET_ID);
+				const subscriptions = () => agentHost.sessionSubscribeCounts.get(owner) ?? 0;
+				const before = subscriptions();
+				const observed = session.mainChat.get().observeChanges!();
+				const reader = autorun(r => changeset?.operations.read(r));
+				const during = subscriptions();
+				reader.dispose();
+				observed.dispose();
+				assert.deepStrictEqual({
+					resource: changeset?.resource?.toString(),
+					cached: session.getRepositoryChangeset?.(kind.toClient(web), BRANCH_CHANGES_CHANGESET_ID) === changeset,
+					notARepository: session.getRepositoryChangeset?.(kind.toClient(URI.file('/elsewhere')), BRANCH_CHANGES_CHANGESET_ID),
+					otherChangeset: session.getRepositoryChangeset?.(kind.toClient(web), 'uncommitted'),
+					before,
+					during,
+				}, { resource: owner, cached: true, notARepository: undefined, otherChangeset: undefined, before: 0, during: 1 });
+			});
+		}
+
+		test('scopes a folder\'s own repository by the folder, also below the repository\'s root', async () => {
+			const provider = createProvider(disposables, agentHost);
+			await timeout(0);
+			const apiSource = URI.file('/work/api/src');
+			fireSessionAdded(agentHost, 'subfolder', { workingDirectories: [apiSource.toString(), web.toString()] });
+			fireSessionMetaChanged(agentHost, 'subfolder', withSessionRepositories(undefined, {
+				[getWorkingDirectoryKey(apiSource.toString())]: [{ root: api.toString(), kind: 'folder' }],
+				[getWorkingDirectoryKey(web.toString())]: [{ root: web.toString(), kind: 'folder' }],
+			}));
+			const session = provider.getSessions()[0];
+			const ownerOf = (folder: URI) => URI.parse(buildBranchChangesetUri(buildFolderChangesetOwnerUri(AgentSession.uri('copilotcli', 'subfolder').toString(), getWorkingDirectoryScopeId([folder.toString()])))).toString();
+			assert.deepStrictEqual({
+				repositories: session.workspace.get()?.repositories?.map(repository => repository.root.toString()),
+				api: session.getRepositoryChangeset?.(api, BRANCH_CHANGES_CHANGESET_ID)?.resource?.toString(),
+			}, { repositories: [api.toString(), web.toString()], api: ownerOf(apiSource) });
+		});
+
+		test('gives the one repository of a session that also has a folder in no repository its own Branch changeset', async () => {
+			const provider = createProvider(disposables, agentHost);
+			await timeout(0);
+			const notes = URI.file('/work/notes');
+			fireSessionAdded(agentHost, 'mixed', { workingDirectories: [api.toString(), notes.toString()] });
+			fireSessionMetaChanged(agentHost, 'mixed', withSessionRepositories(undefined, {
+				[getWorkingDirectoryKey(api.toString())]: [{ root: api.toString(), kind: 'folder' }],
+			}));
+			const session = provider.getSessions()[0];
+			const owner = URI.parse(buildBranchChangesetUri(buildFolderChangesetOwnerUri(AgentSession.uri('copilotcli', 'mixed').toString(), getWorkingDirectoryScopeId([api.toString()])))).toString();
+			assert.deepStrictEqual({
+				repositories: session.workspace.get()?.repositories?.map(repository => repository.root.toString()),
+				api: session.getRepositoryChangeset?.(api, BRANCH_CHANGES_CHANGESET_ID)?.resource?.toString(),
+				notes: session.getRepositoryChangeset?.(notes, BRANCH_CHANGES_CHANGESET_ID),
+			}, { repositories: [api.toString()], api: owner, notes: undefined });
+		});
+
+		test('gives a session of one folder no repository changesets', async () => {
+			const provider = createProvider(disposables, agentHost);
+			await timeout(0);
+			fireSessionAdded(agentHost, 'single', { workingDirectories: [api.toString()] });
+			assert.strictEqual(provider.getSessions()[0].getRepositoryChangeset?.(api, BRANCH_CHANGES_CHANGESET_ID), undefined);
 		});
 
 		test('treats a host without detach as having no sessions to detach', async () => {

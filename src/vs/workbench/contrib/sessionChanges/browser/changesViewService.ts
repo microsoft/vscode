@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache, ResourceMap } from '../../../../base/common/map.js';
 import { derived, derivedObservableWithCache, derivedOpts, IObservable, IReader, ISettableObservable, observableSignal, observableSignalFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { basename, extUriBiasedIgnorePathCase, isEqual, relativePath } from '../../../../base/common/resources.js';
+import { findDeepestContainingWorkingDirectory } from '../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_MERGE_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
@@ -16,16 +18,18 @@ import { bindContextKey } from '../../../../platform/observable/common/platformO
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { getMainWindowHost, ISessionHost, ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { BRANCH_CHANGES_CHANGESET_ID, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange, ISessionWorkspace, isSessionCreated, sessionFileChangesEqual, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope } from '../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, IChat, ISession, ISessionChangeset, ISessionChangesetFolderFailure, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange, ISessionGitRepository, ISessionWorkspace, SessionRepositoryKind, isSessionCreated, sessionFileChangesEqual, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../sessions/common/sessionsManagement.js';
 import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, IAgentFeedbackService } from '../../sessions/browser/agentFeedback.js';
 import { AgentFeedbackState } from '../../sessions/browser/agentFeedbackModel.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../sessions/browser/codeReviewService.js';
 import { ChangesViewMode, IsolationMode } from '../../sessions/common/changes.js';
 import { getChangesEditorFileResource } from './changesEditorLabels.js';
+import type { IChangesRepository, IChangesRepositoryGroup } from '../../sessions/common/changesRepositories.js';
 import { ActiveSessionState, ChangesViewSection, findDefaultChangeset, IChangesDetailsViewState, IChangesDetailsViewStateTransfer, IChangesSessionObservables, IChangesViewSectionCollapseState, IChangesViewService, getActiveSessionChanges, getChangesOfSession } from '../../sessions/common/changesViewService.js';
 
 export const ChangesetReviewSupportContext = new RawContextKey<boolean>('sessions.changesetReviewSupport', false);
+export const ChangesHasRepositoriesContext = new RawContextKey<boolean>('sessions.changesHasRepositories', false, localize('changesHasRepositories', "Whether the changes of the chat are in several repositories"));
 export const ChangesetReviewedFilesContext = new RawContextKey<string[]>('sessions.changesetReviewedFiles', []);
 export const ChangesetHasOperationsContext = new RawContextKey<boolean>('sessions.changesetHasOperations', false);
 
@@ -126,6 +130,13 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 	readonly activeSessionBaseBranchRefObs: IObservable<string | undefined>;
 	readonly activeSessionLoadingObs: IObservable<boolean>;
 	readonly activeSessionSectionCollapseStateObs: IObservable<IChangesViewSectionCollapseState>;
+	readonly activeSessionRepositoriesObs: IObservable<readonly IChangesRepository[]>;
+	readonly activeSessionRepositoryObs: IObservable<IChangesRepository | undefined>;
+	readonly activeSessionOperationsChangesetObs: IObservable<ISessionChangeset | undefined>;
+
+	/** The repository each chat shows the changes of, by session and chat; absent for all of them. */
+	private readonly _repositorySelectionsBySession = new ResourceMap<ResourceMap<URI>>();
+	private readonly _repositorySelectionChanged = observableSignal('changesView.repositorySelectionChanged');
 
 	private readonly _sectionCollapseStateBySession = new ResourceMap<IChangesViewSectionCollapseState>();
 	private readonly _sectionCollapseStateChanged = observableSignal('changesView.sectionCollapseStateChanged');
@@ -157,6 +168,30 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			}
 			this._changesetSelectionChanged.trigger(tx);
 		});
+	}
+
+	setRepository(repositoryRoot: URI | undefined, session?: ISession, chat?: IChat): void {
+		const activeSession = session ?? this._mainWindowHost.session.get();
+		const activeChat = session ? chat : this._mainWindowHost.chat.get();
+		if (!activeSession || !activeChat) {
+			return;
+		}
+		let selections = this._repositorySelectionsBySession.get(activeSession.resource);
+		if (isEqual(selections?.get(activeChat.resource), repositoryRoot)) {
+			return;
+		}
+		if (repositoryRoot) {
+			if (!selections) {
+				this._repositorySelectionsBySession.set(activeSession.resource, selections = new ResourceMap());
+			}
+			selections.set(activeChat.resource, repositoryRoot);
+		} else if (selections) {
+			selections.delete(activeChat.resource);
+			if (selections.size === 0) {
+				this._repositorySelectionsBySession.delete(activeSession.resource);
+			}
+		}
+		this._repositorySelectionChanged.trigger(undefined);
 	}
 
 	showChangeset(changeset: ISessionChangeset, session?: ISession, chat?: IChat): void {
@@ -219,6 +254,9 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		this.activeSessionChangesSummaryObs = active.changesSummaryObs;
 		this.activeSessionStateObs = active.stateObs;
 		this.activeSessionBaseBranchRefObs = active.baseBranchRefObs;
+		this.activeSessionRepositoriesObs = active.repositoriesObs;
+		this.activeSessionRepositoryObs = active.repositoryObs;
+		this.activeSessionOperationsChangesetObs = active.operationsChangesetObs;
 
 		// View mode
 		const storedMode = this.storageService.get('changesView.viewMode', StorageScope.WORKSPACE);
@@ -425,14 +463,39 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			return activeChangesStateObs.read(reader).isLoading;
 		});
 
+		// Repositories
+		const repositoriesObs = derivedOpts<readonly IChangesRepository[]>({ equalsFn: (a, b) => this._changesRepositoriesEqual(a, b) }, reader => this._getChangesRepositories(activeSessionChangesetProjectionObs.read(reader).workspace, reader));
+		const repositoryObs = derived(reader => {
+			const session = sessionObs.read(reader);
+			const chat = session ? chatOf(reader) : undefined;
+			this._repositorySelectionChanged.read(reader);
+			const root = session && chat ? this._repositorySelectionsBySession.get(session.resource)?.get(chat.resource) : undefined;
+			// A repository the workspace no longer has shows all of them again
+			return this._findChangesRepository(repositoriesObs.read(reader), root);
+		});
+		// The repository's own changeset, with its Git state, base branch and pull request; subscribed only while one is shown
+		const repositoryChangesetObs = derived(reader => {
+			const repository = repositoryObs.read(reader);
+			const changeset = changesetObs.read(reader);
+			return repository && changeset ? sessionObs.read(reader)?.getRepositoryChangeset?.(repository.root, changeset.id) : undefined;
+		});
+		const operationsChangesetObs = derived(reader => repositoryChangesetObs.read(reader) ?? changesetObs.read(reader));
+
 		const baseBranchProtection = derived(reader => {
-			return chatOf(reader)?.workspace.read(reader)?.folders[0]?.gitRepository?.baseBranchProtected;
+			const repository = repositoryObs.read(reader);
+			return repository ? repository.gitRepository?.baseBranchProtected : chatOf(reader)?.workspace.read(reader)?.folders[0]?.gitRepository?.baseBranchProtected;
 		});
 
 		const changesetOperationsObs = derived(reader => {
-			const changeset = changesetObs.read(reader);
-			const operations = (changeset?.operations.read(reader) ?? [])
+			const repository = repositoryObs.read(reader);
+			const repositoryChangeset = repositoryChangesetObs.read(reader);
+			const changeset = repositoryChangeset ?? changesetObs.read(reader);
+			let operations = (changeset?.operations.read(reader) ?? [])
 				.filter(operation => operation.id !== AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID);
+			if (repository && !repositoryChangeset) {
+				// The changeset's own operations act on every repository, so one repository on its own offers those on its files only
+				operations = operations.filter(operation => !operation.scopes.includes(SessionChangesetOperationScope.Changeset));
+			}
 			return baseBranchProtection.read(reader) === false
 				? operations
 				: operations.filter(operation => operation.id !== AGENT_HOST_MERGE_CHANGESET_OPERATION_ID);
@@ -441,7 +504,9 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		const changesObs = derivedOpts({
 			equalsFn: sessionFileChangesEqual,
 		}, reader => {
-			return activeChangesStateObs.read(reader).changes;
+			const changes = activeChangesStateObs.read(reader).changes;
+			const repository = repositoryObs.read(reader);
+			return repository ? this._filterChangesByRepository(changes, repositoriesObs.read(reader), repository) : changes;
 		});
 
 		const loadingObs = derived(reader => {
@@ -483,8 +548,11 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			equalsFn: structuralEquals
 		}, reader => cachedChangesSummaryObs.read(reader));
 
-		const stateObs = this._getSessionState(sessionObs, chatOf, loadingObs, hasGitRepositoryObs);
-		const baseBranchRefObs = derived(reader => chatOf(reader)?.workspace.read(reader)?.folders[0]?.gitRepository?.baseBranchRef);
+		const stateObs = this._getSessionState(sessionObs, chatOf, loadingObs, hasGitRepositoryObs, repositoryObs, repositoriesObs);
+		const baseBranchRefObs = derived(reader => {
+			const repository = repositoryObs.read(reader);
+			return repository ? repository.gitRepository?.baseBranchRef : chatOf(reader)?.workspace.read(reader)?.folders[0]?.gitRepository?.baseBranchRef;
+		});
 
 		return {
 			resourceObs,
@@ -504,6 +572,9 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			sectionCollapseStateObs,
 			stateObs,
 			baseBranchRefObs,
+			repositoriesObs,
+			repositoryObs,
+			operationsChangesetObs,
 		};
 	}
 
@@ -550,9 +621,19 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		if (this._changesetSelectionsBySession.delete(sessionResource)) {
 			this._changesetSelectionChanged.trigger(undefined);
 		}
+		if (this._repositorySelectionsBySession.delete(sessionResource)) {
+			this._repositorySelectionChanged.trigger(undefined);
+		}
 	}
 
 	private _deleteChatChangesetSelection(sessionResource: URI, chatResource: URI): void {
+		const repositorySelections = this._repositorySelectionsBySession.get(sessionResource);
+		if (repositorySelections?.delete(chatResource)) {
+			if (repositorySelections.size === 0) {
+				this._repositorySelectionsBySession.delete(sessionResource);
+			}
+			this._repositorySelectionChanged.trigger(undefined);
+		}
 		const selections = this._changesetSelectionsBySession.get(sessionResource);
 		if (!selections) {
 			return;
@@ -658,6 +739,8 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		chatOf: (reader: IReader) => IChat | undefined,
 		loadingObs: IObservable<boolean>,
 		hasGitRepositoryObs: IObservable<boolean>,
+		repositoryObs: IObservable<IChangesRepository | undefined>,
+		repositoriesObs: IObservable<readonly IChangesRepository[]>,
 	): IObservable<ActiveSessionState | undefined> {
 		const activeSessionStateObs = derivedObservableWithCache<ActiveSessionState | undefined>(this, (reader, lastValue) => {
 			const loading = loadingObs.read(reader);
@@ -667,12 +750,16 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 
 			const activeSession = sessionObs.read(reader);
 			const activeChat = activeSession ? chatOf(reader) : undefined;
-			const activeSessionChanges = activeChat?.changes.read(reader) ?? [];
 			const workspace = activeChat?.workspace.read(reader);
+			// A repository shown on its own has its own Git state
+			const repository = repositoryObs.read(reader);
+			const activeSessionChanges = repository
+				? this._filterChangesByRepository(activeChat?.changes.read(reader) ?? [], repositoriesObs.read(reader), repository)
+				: activeChat?.changes.read(reader) ?? [];
 
 			// Session state
 			const workspaceFolder = workspace?.folders[0];
-			const gitRepository = workspaceFolder?.gitRepository;
+			const gitRepository = repository ? repository.gitRepository : workspaceFolder?.gitRepository;
 			const hasGitRepository = hasGitRepositoryObs.read(reader);
 
 			const branchName = gitRepository?.branchName;
@@ -776,7 +863,120 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			changesetObs: this.activeSessionChangesetObs,
 			changesetOperationsObs: this.activeSessionChangesetOperationsObs,
 			changesObs: this.activeSessionChangesObs,
+			repositoriesObs: this.activeSessionRepositoriesObs,
 		}, this.contextKeyService));
+	}
+
+	/** Whether two lists of repositories show the same: the same repositories, with the same names and Git state. */
+	private _changesRepositoriesEqual(a: readonly IChangesRepository[], b: readonly IChangesRepository[]): boolean {
+		const gitStateEqual = (one: ISessionGitRepository | undefined, other: ISessionGitRepository | undefined) => one === other || !!one && !!other
+			&& isEqual(one.workTreeUri, other.workTreeUri) && one.branchName === other.branchName && one.baseBranchName === other.baseBranchName
+			&& one.baseBranchRef === other.baseBranchRef && one.baseBranchProtected === other.baseBranchProtected && one.upstreamBranchName === other.upstreamBranchName
+			&& one.defaultBranchName === other.defaultBranchName && one.defaultRemoteBranchName === other.defaultRemoteBranchName
+			&& one.hasGitRemote === other.hasGitRemote && one.hasGitHubRemote === other.hasGitHubRemote
+			&& one.incomingChanges === other.incomingChanges && one.outgoingChanges === other.outgoingChanges && one.uncommittedChanges === other.uncommittedChanges
+			&& one.hasGitOperationInProgress === other.hasGitOperationInProgress && one.gitHubInfo === other.gitHubInfo;
+		return a.length === b.length && a.every((repository, index) => {
+			const other = b[index];
+			return isEqual(repository.root, other.root) && isEqual(repository.folder, other.folder) && repository.name === other.name && repository.description === other.description
+				&& repository.kind === other.kind && gitStateEqual(repository.gitRepository, other.gitRepository);
+		});
+	}
+
+	/**
+	 * The repositories of a workspace that Changes are grouped by, in folder order: each folder's own repository, then those
+	 * found in it. A folder in no repository stands for itself. Empty for a workspace of fewer than two, whose Changes are
+	 * not grouped.
+	 */
+	private _getChangesRepositories(workspace: ISessionWorkspace | undefined, reader: IReader): readonly IChangesRepository[] {
+		if (!workspace) {
+			return [];
+		}
+		const repositories: IChangesRepository[] = [];
+		for (const folder of workspace.folders) {
+			const found = workspace.repositories?.filter(repository => extUriBiasedIgnorePathCase.isEqual(repository.folder, folder.workingDirectory));
+			if (!found?.length) {
+				// Without repository records each folder is its own repository, if any
+				const isRepository = !!folder.gitRepository && folder.gitRepository.isRepository?.read(reader) !== false;
+				repositories.push({ root: folder.workingDirectory, folder: folder.workingDirectory, name: folder.name, description: undefined, kind: isRepository ? SessionRepositoryKind.Folder : undefined, gitRepository: isRepository ? folder.gitRepository : undefined });
+				continue;
+			}
+			for (const repository of found) {
+				const isOwn = repository.kind === SessionRepositoryKind.Folder;
+				repositories.push({
+					root: repository.root,
+					folder: folder.workingDirectory,
+					name: isOwn ? folder.name : basename(repository.root),
+					description: isOwn ? undefined : relativePath(folder.workingDirectory, repository.root),
+					kind: repository.kind,
+					gitRepository: repository.gitRepository ?? (isOwn ? folder.gitRepository : undefined),
+				});
+			}
+		}
+		return repositories.length > 1 ? repositories : [];
+	}
+
+	/** The repository `repositories` has with root `root`. */
+	private _findChangesRepository(repositories: readonly IChangesRepository[], root: URI | undefined): IChangesRepository | undefined {
+		return root ? repositories.find(repository => extUriBiasedIgnorePathCase.isEqual(repository.root, root)) : undefined;
+	}
+
+	/**
+	 * Finds the repository a resource is in: the deepest whose root contains it. Resources and roots are compared as the
+	 * provider gives them, both in the client's space, so a resource of another host at the same path is in none.
+	 */
+	private _createRepositoryLookup(repositories: readonly IChangesRepository[]): (resource: URI) => IChangesRepository | undefined {
+		const roots = repositories.map(repository => repository.root);
+		return resource => {
+			const root = findDeepestContainingWorkingDirectory(resource, roots);
+			return root ? repositories[roots.indexOf(root)] : undefined;
+		};
+	}
+
+	/** Why the changes of `repository` could not be loaded, among the `failures` a changeset reports per folder, if they could not. */
+	findRepositoryFailure(repository: IChangesRepository, failures: readonly ISessionChangesetFolderFailure[]): ISessionChangesetFolderFailure | undefined {
+		// A host reports a folder's own repository by the folder, and one found in it by its root
+		return failures.find(failure => extUriBiasedIgnorePathCase.isEqual(failure.workingDirectory, repository.root)
+			|| repository.kind !== SessionRepositoryKind.Nested && extUriBiasedIgnorePathCase.isEqual(failure.workingDirectory, repository.folder));
+	}
+
+	/**
+	 * Groups items by repository, in repository order, with those outside every repository last. A repository whose changes
+	 * failed is listed with its failure, also without items; one without items otherwise is left out.
+	 */
+	groupByRepository<T>(items: readonly T[], getResource: (item: T) => URI, repositories: readonly IChangesRepository[], failures: readonly ISessionChangesetFolderFailure[] = []): IChangesRepositoryGroup<T>[] {
+		const byRepository = new Map<IChangesRepository | undefined, T[]>();
+		const getRepository = this._createRepositoryLookup(repositories);
+		for (const item of items) {
+			const repository = getRepository(getResource(item));
+			let group = byRepository.get(repository);
+			if (!group) {
+				byRepository.set(repository, group = []);
+			}
+			group.push(item);
+		}
+		const groups: IChangesRepositoryGroup<T>[] = [];
+		for (const repository of repositories) {
+			const failure = this.findRepositoryFailure(repository, failures);
+			const repositoryItems = byRepository.get(repository) ?? [];
+			if (repositoryItems.length || failure) {
+				groups.push({ repository, items: repositoryItems, failure });
+			}
+		}
+		const outside = byRepository.get(undefined);
+		if (outside?.length) {
+			groups.push({ repository: undefined, items: outside, failure: undefined });
+		}
+		return groups;
+	}
+
+	/** The changes in `repository`. */
+	private _filterChangesByRepository<T extends ISessionFileChange>(changes: readonly T[], repositories: readonly IChangesRepository[], repository: IChangesRepository): T[] {
+		const getRepository = this._createRepositoryLookup(repositories);
+		return changes.filter(change => {
+			const changeRepository = getRepository(getChangesEditorFileResource(change));
+			return !!changeRepository && extUriBiasedIgnorePathCase.isEqual(changeRepository.root, repository.root);
+		});
 	}
 }
 
@@ -785,8 +985,9 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
  * can be marked as viewed, on `contextKeyService`: globally for the main window's session, and on the context key service
  * of a host that shows another session, such as a chat window.
  */
-export function bindChangesetContextKeys(changes: Pick<IChangesSessionObservables, 'changesetObs' | 'changesetOperationsObs' | 'changesObs'>, contextKeyService: IContextKeyService): IDisposable {
+export function bindChangesetContextKeys(changes: Pick<IChangesSessionObservables, 'changesetObs' | 'changesetOperationsObs' | 'changesObs' | 'repositoriesObs'>, contextKeyService: IContextKeyService): IDisposable {
 	const store = new DisposableStore();
+	store.add(bindContextKey<boolean>(ChangesHasRepositoriesContext, contextKeyService, reader => changes.repositoriesObs.read(reader).length > 0));
 	store.add(bindContextKey<boolean>(ChangesetReviewSupportContext, contextKeyService, reader => {
 		const changeset = changes.changesetObs.read(reader);
 		return changeset?.capabilities?.review === true;

@@ -92,6 +92,7 @@ suite('ChangesActionsBar', () => {
 		const sessionObs = constObservable(session);
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, getWorkspace: () => ({ folders: [] }) as never }));
 
+		const changesetObs = constObservable(operations.length > 0 ? upcastPartial<ISessionChangeset>({ id: 'branch', operations: constObservable(operations), invokeOperation }) : undefined);
 		const source: IChangesSessionScope = {
 			session: sessionObs,
 			chat: constObservable(session.activeChat.get()),
@@ -100,7 +101,10 @@ suite('ChangesActionsBar', () => {
 			changes: upcastPartial<IChangesSessionObservables>({
 				stateObs: constObservable(undefined),
 				resourceObs: constObservable(undefined),
-				changesetObs: constObservable(operations.length > 0 ? upcastPartial<ISessionChangeset>({ id: 'branch', operations: constObservable(operations), invokeOperation }) : undefined),
+				changesetObs,
+				operationsChangesetObs: changesetObs,
+				repositoriesObs: constObservable([]),
+				repositoryObs: constObservable(undefined),
 				changesetOperationsObs: constObservable(operations),
 				loadingObs: constObservable(false),
 			}),

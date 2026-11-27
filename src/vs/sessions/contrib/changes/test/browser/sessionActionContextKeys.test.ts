@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI } from '../../../../../base/common/uri.js';
+import { IChangesRepository } from '../../../../../workbench/contrib/sessions/common/changesRepositories.js';
 import assert from 'assert';
 import { Event } from '../../../../../base/common/event.js';
 import { constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
@@ -31,7 +33,7 @@ import { SessionChangesReviewedFilesContext } from '../../../../../workbench/con
 suite('Session Action Context Keys', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createSource(overrides: { prOperation?: string; hasOpenPullRequest?: boolean; failedCheck?: boolean; failedCheckCounts?: boolean; reviewed?: boolean }): ISessionActionContextKeysSource {
+	function createSource(overrides: { prOperation?: string; repositoryPrOperation?: string; repositoryWithoutChangeset?: boolean; hasOpenPullRequest?: boolean; failedCheck?: boolean; failedCheckCounts?: boolean; reviewed?: boolean }): ISessionActionContextKeysSource {
 		const changeset = upcastPartial<ISessionChangeset>({
 			operations: constObservable(overrides.prOperation ? [upcastPartial<ISessionChangesetOperation>({ id: overrides.prOperation, scopes: [] })] : []),
 		});
@@ -50,6 +52,11 @@ suite('Session Action Context Keys', () => {
 				loadingObs: constObservable(false),
 				changesetObs: constObservable(changeset),
 				changesetOperationsObs: constObservable([]),
+				// A picked repository's own changeset, else the chat's
+				operationsChangesetObs: constObservable(overrides.repositoryPrOperation
+					? upcastPartial<ISessionChangeset>({ operations: constObservable([upcastPartial<ISessionChangesetOperation>({ id: overrides.repositoryPrOperation, scopes: [] })]) })
+					: changeset),
+				repositoryObs: constObservable(overrides.repositoryPrOperation || overrides.repositoryWithoutChangeset ? upcastPartial<IChangesRepository>({ root: URI.file('/work/api') }) : undefined),
 				stateObs: constObservable(upcastPartial<ActiveSessionState>({ hasOpenPullRequest: overrides.hasOpenPullRequest })),
 			},
 			pullRequest: {
@@ -80,6 +87,30 @@ suite('Session Action Context Keys', () => {
 			scoped: { primary: AgentHostPullRequestOperationId.Merge, open: true, failed: true, fixRequested: false, reviewed: [] },
 			global: { primary: undefined, open: undefined, failed: undefined, fixRequested: undefined, reviewed: undefined },
 		});
+	});
+
+	test('the primary pull request operation follows the picked repository\'s own changeset', () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const scoped = disposables.add(new ContextKeyService(new TestConfigurationService()));
+
+		disposables.add(bindSessionActionContextKeys(instantiationService, createSource({
+			prOperation: AgentHostPullRequestOperationId.Merge,
+			repositoryPrOperation: AgentHostPullRequestOperationId.EnableAutoMerge,
+		}), scoped));
+
+		assert.strictEqual(SessionPrimaryPullRequestOperationContext.getValue(scoped), AgentHostPullRequestOperationId.EnableAutoMerge);
+	});
+
+	test('a picked repository without a changeset of its own offers none of the chat\'s pull request operations', () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const scoped = disposables.add(new ContextKeyService(new TestConfigurationService()));
+
+		disposables.add(bindSessionActionContextKeys(instantiationService, createSource({
+			prOperation: AgentHostPullRequestOperationId.Merge,
+			repositoryWithoutChangeset: true,
+		}), scoped));
+
+		assert.strictEqual(SessionPrimaryPullRequestOperationContext.getValue(scoped), '');
 	});
 
 	test('a failed check that does not count leaves the failed checks key of the session unset', () => {

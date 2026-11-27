@@ -40,9 +40,16 @@ import { GitHubPullRequestCIModel } from '../../../../contrib/sessions/browser/g
 import { IGitHubService } from '../../../../contrib/sessions/browser/github/githubService.js';
 import { GitHubCheckConclusion, GitHubCheckStatus, GitHubCIOverallStatus, IGitHubCICheck } from '../../../../contrib/sessions/common/github/types.js';
 import { IFocusedSessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
-import { focusedSessionHostServiceOf, ITestSessionWithChat, stubSessionHosts, testGridPanes } from '../../../../contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { focusedSessionHostServiceOf, ITestSessionWithChat, sessionHostServiceOf, stubSessionHosts, testGridPanes } from '../../../../contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsService } from '../../../../contrib/sessions/browser/sessionsService.js';
-import { BRANCH_CHANGES_CHANGESET_ID, IChat, IGitHubInfo, ISessionCapabilities, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange, ISessionGitRepository, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, IChat, IGitHubInfo, ISessionCapabilities, ISessionChangesetFolderFailure, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange, ISessionGitRepository, ISessionWorkspace, SessionRepositoryKind, SessionStatus } from '../../../../services/sessions/common/session.js';
+import type { IChangesRepository, IChangesRepositoryGroup } from '../../../../contrib/sessions/common/changesRepositories.js';
+import { ChangesViewService } from '../../../../contrib/sessionChanges/browser/changesViewService.js';
+import { IAgentFeedbackService } from '../../../../contrib/sessions/browser/agentFeedback.js';
+import { ICodeReviewService, PRReviewStateKind } from '../../../../contrib/sessions/browser/codeReviewService.js';
+import { ISessionsManagementService } from '../../../../contrib/sessions/common/sessionsManagement.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { TestStorageService } from '../../../common/workbenchTestServices.js';
 import { isIChatSessionFileChange2 } from '../../../../common/chatSessionFileChange.js';
 import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
@@ -54,6 +61,13 @@ interface IChangesViewFixtureOptions {
 	readonly agentFeedbackCounts?: ReadonlyMap<string, number>;
 	readonly sectionCollapseState?: IChangesViewSectionCollapseState;
 	readonly height?: number;
+	/** A chat in several repositories: the vscode and vscode-docs folders and a repository found in vscode. */
+	readonly repositories?: {
+		/** The root of the repository shown on its own. */
+		readonly selected?: URI;
+		/** The root of a repository whose changes could not be computed. */
+		readonly failed?: URI;
+	};
 }
 
 const WORKSPACE_URI = URI.file('/workspace/vscode');
@@ -80,6 +94,9 @@ class FixtureChangesViewService extends Disposable implements IChangesViewServic
 	readonly activeSessionBaseBranchRefObs = constObservable<string | undefined>(undefined);
 	readonly activeSessionLoadingObs: IObservable<boolean>;
 	readonly activeSessionSectionCollapseStateObs: IObservable<IChangesViewSectionCollapseState>;
+	readonly activeSessionRepositoriesObs: IObservable<readonly IChangesRepository[]>;
+	readonly activeSessionRepositoryObs: IObservable<IChangesRepository | undefined>;
+	readonly activeSessionOperationsChangesetObs: IObservable<ISessionChangeset | undefined>;
 	getSessionChanges(): IChangesSessionObservables {
 		return {
 			resourceObs: this.activeSessionResourceObs,
@@ -99,25 +116,59 @@ class FixtureChangesViewService extends Disposable implements IChangesViewServic
 			sectionCollapseStateObs: this.activeSessionSectionCollapseStateObs,
 			stateObs: this.activeSessionStateObs,
 			baseBranchRefObs: this.activeSessionBaseBranchRefObs,
+			repositoriesObs: this.activeSessionRepositoriesObs,
+			repositoryObs: this.activeSessionRepositoryObs,
+			operationsChangesetObs: this.activeSessionOperationsChangesetObs,
 		};
 	}
 
 	readonly detailsViewStateTransferObs = constObservable(undefined);
 	readonly viewModeObs = observableValue<ChangesViewMode>(this, ChangesViewMode.List);
+	private readonly _repositories: ChangesViewService;
 
 	constructor(session: ITestSessionWithChat, options: IChangesViewFixtureOptions) {
 		super();
 
-		const changeset = createChangeset(options.changes);
+		const changeset = createChangeset(options.changes, options.repositories?.failed);
 		this.viewModeObs.set(options.viewMode, undefined);
+		// The repositories, their grouping and the changes of the shown one are the real service's
+		this._repositories = this._register(new ChangesViewService(
+			new class extends mock<IAgentFeedbackService>() {
+				override readonly onDidChangeFeedback = Event.None;
+				override readonly activeFeedbackSessionResource = constObservable(URI.from({ scheme: 'fixture-feedback' }));
+				override getFeedback() { return []; }
+			}(),
+			new class extends mock<ICodeReviewService>() {
+				override getPRReviewState() { return constObservable({ kind: PRReviewStateKind.None } as const); }
+			}(),
+			this._register(new MockContextKeyService()),
+			sessionHostServiceOf(this._store, { mainWindowActiveSession: constObservable(session), gridShown: constObservable([]), windowSessions: constObservable([]) }),
+			this._register(new TestStorageService()),
+			new class extends mock<ISessionsManagementService>() {
+				override readonly onDidReplaceSession = Event.None;
+				override readonly onDidDeleteSession = Event.None;
+				override readonly onDidDeleteChat = Event.None;
+				override readonly onDidDiscardNewSession = Event.None;
+				override readonly onDidReplaceNewDraftSession = Event.None;
+			}(),
+		));
+		this._repositories.setRepository(options.repositories?.selected);
+		const repositories = this._repositories.activeSessionRepositoriesObs.get();
+		const repository = this._repositories.activeSessionRepositoryObs.get();
+		const changes = repository
+			? this._repositories.groupByRepository(options.changes, getChangeUri, repositories).find(group => group.repository === repository)?.items ?? []
+			: options.changes;
+		this.activeSessionRepositoriesObs = constObservable(repositories);
+		this.activeSessionRepositoryObs = constObservable(repository);
+		this.activeSessionOperationsChangesetObs = constObservable(changeset);
 		this.activeSessionResourceObs = constObservable(session.resource);
 		this.activeSessionTypeObs = constObservable(session.sessionType);
 		this.activeSessionIsVirtualWorkspaceObs = constObservable(false);
-		this.activeSessionChangesObs = constObservable(options.changes);
-		this.activeSessionChangesSummaryObs = constObservable(options.changes.length === 0 ? undefined : {
-			additions: options.changes.reduce((total, change) => total + change.insertions, 0),
-			deletions: options.changes.reduce((total, change) => total + change.deletions, 0),
-			files: options.changes.length,
+		this.activeSessionChangesObs = constObservable(changes);
+		this.activeSessionChangesSummaryObs = constObservable(changes.length === 0 ? undefined : {
+			additions: changes.reduce((total, change) => total + change.insertions, 0),
+			deletions: changes.reduce((total, change) => total + change.deletions, 0),
+			files: changes.length,
 		});
 		this.activeSessionChangesetsObs = constObservable([changeset]);
 		this.activeSessionChangesetsLoadingObs = constObservable(false);
@@ -154,6 +205,15 @@ class FixtureChangesViewService extends Disposable implements IChangesViewServic
 	setDetailsViewState(_sessionResource: URI, _viewMode: ChangesViewMode, _state: IChangesDetailsViewState): void { }
 
 	setChangesetId(_changesetId: string | undefined): void { }
+	setRepository(_repositoryRoot: URI | undefined): void { }
+
+	findRepositoryFailure(repository: IChangesRepository, failures: readonly ISessionChangesetFolderFailure[]): ISessionChangesetFolderFailure | undefined {
+		return this._repositories.findRepositoryFailure(repository, failures);
+	}
+
+	groupByRepository<T>(items: readonly T[], getResource: (item: T) => URI, repositories: readonly IChangesRepository[], failures?: readonly ISessionChangesetFolderFailure[]): IChangesRepositoryGroup<T>[] {
+		return this._repositories.groupByRepository(items, getResource, repositories, failures);
+	}
 	showChangeset(_changeset: ISessionChangeset): void { }
 
 	setChangesetFilesReviewState(_resources: readonly URI[], _reviewed: boolean): void { }
@@ -231,8 +291,9 @@ class FixtureViewDescriptorService extends mock<IViewDescriptorService>() {
 	override reset(): void { }
 }
 
-function createChangeset(changes: readonly ISessionFileChange[]): ISessionChangeset {
+function createChangeset(changes: readonly ISessionFileChange[], failedRepository?: URI): ISessionChangeset {
 	return new class extends mock<ISessionChangeset>() {
+		override readonly folderFailures = constObservable(failedRepository ? [{ workingDirectory: failedRepository, message: 'Git is not available in this folder' }] : []);
 		override readonly id = BRANCH_CHANGES_CHANGESET_ID;
 		override readonly label = 'Branch Changes';
 		override readonly isEnabled = constObservable(true);
@@ -244,6 +305,23 @@ function createChangeset(changes: readonly ISessionFileChange[]): ISessionChange
 		override readonly modifiedCheckpointRef = constObservable(undefined);
 		override async invokeOperation(): Promise<void> { }
 	}();
+}
+
+const DOCS_URI = URI.file('/workspace/vscode-docs');
+const COPILOT_URI = URI.file('/workspace/vscode/extensions/copilot');
+
+function createRepositoriesWorkspace(): ISessionWorkspace {
+	const workspace = createWorkspace();
+	const docsRepository: ISessionGitRepository = { uri: DOCS_URI, workTreeUri: undefined, branchName: 'docs/projects', baseBranchName: 'main', gitHubInfo: constObservable<IGitHubInfo | undefined>(undefined) };
+	return {
+		...workspace,
+		folders: [...workspace.folders, { root: DOCS_URI, workingDirectory: DOCS_URI, name: 'vscode-docs', description: undefined, gitRepository: docsRepository }],
+		repositories: [
+			{ root: WORKSPACE_URI, folder: WORKSPACE_URI, kind: SessionRepositoryKind.Folder },
+			{ root: COPILOT_URI, folder: WORKSPACE_URI, kind: SessionRepositoryKind.Nested, gitRepository: { uri: COPILOT_URI, workTreeUri: undefined, branchName: 'main', baseBranchName: 'main', gitHubInfo: constObservable<IGitHubInfo | undefined>(undefined) } },
+			{ root: DOCS_URI, folder: DOCS_URI, kind: SessionRepositoryKind.Folder },
+		],
+	};
 }
 
 function createWorkspace(): ISessionWorkspace {
@@ -291,7 +369,7 @@ function createSession(options: IChangesViewFixtureOptions): ITestSessionWithCha
 	};
 	const changesets = [createChangeset(options.changes)];
 	// A chat without its own folders shares the session's workspace.
-	const workspace = constObservable(createWorkspace());
+	const workspace = constObservable(options.repositories ? createRepositoriesWorkspace() : createWorkspace());
 	const chat = new class extends mock<IChat>() {
 		override readonly changes = constObservable(options.changes);
 		override readonly changesets = constObservable(changesets);
@@ -330,11 +408,11 @@ function createSession(options: IChangesViewFixtureOptions): ITestSessionWithCha
 	}();
 }
 
-function createFileChange(path: string, kind: 'added' | 'modified' | 'deleted', insertions: number, deletions: number): ISessionFileChange {
-	const uri = URI.file(`/workspace/vscode/${path}`);
+function createFileChange(path: string, kind: 'added' | 'modified' | 'deleted', insertions: number, deletions: number, root = '/workspace/vscode'): ISessionFileChange {
+	const uri = URI.file(`${root}/${path}`);
 	return {
 		uri,
-		originalUri: kind === 'added' ? undefined : URI.file(`/workspace/vscode/.baseline/${path}`),
+		originalUri: kind === 'added' ? undefined : URI.file(`${root}/.baseline/${path}`),
 		modifiedUri: kind === 'deleted' ? undefined : uri,
 		insertions,
 		deletions,
@@ -491,6 +569,14 @@ const SAMPLE_CHANGES = [
 	createFileChange('src/vs/sessions/contrib/changes/browser/oldChangesLayout.ts', 'deleted', 0, 47),
 ];
 
+const REPOSITORY_CHANGES = [
+	createFileChange('src/vs/workbench/contrib/sessionChanges/browser/changesView.ts', 'modified', 42, 18),
+	createFileChange('src/vs/workbench/contrib/sessionChanges/browser/changesRepositoryPicker.ts', 'added', 210, 0),
+	createFileChange('src/extension/prompts/node/agentPrompt.ts', 'modified', 8, 3, COPILOT_URI.path),
+	createFileChange('release-notes/v1_120.md', 'modified', 24, 2, DOCS_URI.path),
+	createFileChange('docs/agents/projects.md', 'added', 96, 0, DOCS_URI.path),
+];
+
 const MANY_CHANGES = Array.from({ length: 40 }, (_, index) =>
 	createFileChange(`src/feature/changed-file-${String(index + 1).padStart(2, '0')}.ts`, 'modified', index + 1, index % 4)
 );
@@ -562,6 +648,71 @@ export default defineThemedFixtureGroup({ path: 'sessions/changes/' }, {
 			changes: [],
 			checks: SAMPLE_CHECKS.slice(0, 2),
 			height: 440,
+		}),
+	}),
+
+	Repositories_List: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The changed files are grouped under three root rows, vscode, extensions/copilot and vscode-docs, each with its branch beside its name and its files listed below it with paths relative to that repository.'],
+		render: ctx => renderChangesView(ctx, {
+			viewMode: ChangesViewMode.List,
+			changes: REPOSITORY_CHANGES,
+			repositories: {},
+			height: 440,
+		}),
+	}),
+
+	Repositories_Tree: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderChangesView(ctx, {
+			viewMode: ChangesViewMode.Tree,
+			changes: REPOSITORY_CHANGES,
+			repositories: {},
+			height: 520,
+		}),
+	}),
+
+	Repositories_OneShown: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['Only the vscode-docs root row and its two files show, the changes of the repository picked on its own.'],
+		render: ctx => renderChangesView(ctx, {
+			viewMode: ChangesViewMode.List,
+			changes: REPOSITORY_CHANGES,
+			repositories: { selected: DOCS_URI },
+			height: 320,
+		}),
+	}),
+
+	Repositories_Failed: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The vscode-docs root row shows "Git is not available in this folder" in the error color instead of its branch, with no files under it; the other repositories show their files.'],
+		render: ctx => renderChangesView(ctx, {
+			viewMode: ChangesViewMode.List,
+			changes: REPOSITORY_CHANGES.slice(0, 3),
+			repositories: { failed: DOCS_URI },
+			height: 360,
+		}),
+	}),
+
+	Repositories_OtherChanges: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['After the repository root rows, a last root row "Other Changes" lists the file changed outside every repository.'],
+		render: ctx => renderChangesView(ctx, {
+			viewMode: ChangesViewMode.List,
+			changes: [...REPOSITORY_CHANGES, createFileChange('notes/plan.md', 'added', 12, 0, '/workspace/scratch')],
+			repositories: {},
+			height: 480,
+		}),
+	}),
+
+	Repositories_OneShownFailed: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['Only the vscode-docs root row shows, picked on its own, with "Git is not available in this folder" in the error color and no files under it.'],
+		render: ctx => renderChangesView(ctx, {
+			viewMode: ChangesViewMode.List,
+			changes: REPOSITORY_CHANGES.slice(0, 3),
+			repositories: { selected: DOCS_URI, failed: DOCS_URI },
+			height: 200,
 		}),
 	}),
 

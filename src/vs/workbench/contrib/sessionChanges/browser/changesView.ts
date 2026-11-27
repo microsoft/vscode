@@ -40,6 +40,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { WorkbenchCompressibleObjectTree } from '../../../../platform/list/browser/listService.js';
+import type { ICompressedTreeElement } from '../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
@@ -91,7 +92,7 @@ import { AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, isAgentHostSkillButtonId } from '
 import { AGENT_HOST_AUTO_MERGE_OPERATION_IDS, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, AGENT_HOST_PULL_REQUEST_OPERATION_IDS } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { getBaseBranchLabel } from '../../../../platform/agentHost/common/agentHostGitService.js';
 import { ActiveSessionContextKeys, CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, IsolationMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../../sessions/common/changes.js';
-import { buildTreeChildren, ChangesTreeElement, ChangesTreeRenderer, IChangesFileItem, IChangesTreeRootInfo, isChangesFileItem, isChangesFileResource, toIChangesFileItem } from './changesViewRenderer.js';
+import { buildRepositoryChildren, buildTreeChildren, ChangesTreeElement, ChangesTreeRenderer, IChangesFileItem, IChangesTreeRootInfo, isChangesFileItem, isChangesRootItem, isChangesFileResource, toIChangesFileItem } from './changesViewRenderer.js';
 import { ResourceTree } from '../../../../base/common/resourceTree.js';
 import { compareFileNames, comparePaths } from '../../../../base/common/comparers.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
@@ -517,7 +518,8 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 		});
 
 		const operationActionGroupsObs = derived<{ readonly groups: IAction[][]; readonly hasRunning: boolean }>(reader => {
-			const changeset = changes.changesetObs.read(reader);
+			// Of one repository shown on its own, its own changeset
+			const changeset = changes.operationsChangesetObs.read(reader);
 			if (!changeset) {
 				return { groups: [], hasRunning: false };
 			}
@@ -1208,7 +1210,12 @@ export class ChangesViewPane extends ViewPane {
 			}
 
 			const stats = topLevelStats.read(reader);
-			const hasEntries = stats !== undefined && stats.files > 0;
+			// A repository whose changes failed shows why, also without files
+			const repositories = this.scope.changes.repositoriesObs.read(reader);
+			const picked = this.scope.changes.repositoryObs.read(reader);
+			const failures = repositories.length ? this.scope.changes.changesetObs.read(reader)?.folderFailures?.read(reader) ?? [] : [];
+			const hasFailedRepository = failures.length > 0 && (picked ? [picked] : repositories).some(repository => this.changesViewService.findRepositoryFailure(repository, failures));
+			const hasEntries = (stats !== undefined && stats.files > 0) || hasFailedRepository;
 
 			// Files header visibility (original layout only; absent in desktop redesign).
 			if (this.filesHeaderNode) {
@@ -1319,7 +1326,10 @@ export class ChangesViewPane extends ViewPane {
 			// Toggle list-mode class to remove tree indentation in list mode
 			this.listContainer?.classList.toggle('list-mode', viewMode === ChangesViewMode.List);
 
-			if (viewMode === ChangesViewMode.Tree) {
+			const repositoryChildren = this.getRepositoryChildren(changes, viewMode, reader);
+			if (repositoryChildren) {
+				this.setDetailsTreeChildren(sessionResource, viewMode, detailsViewState, repositoryChildren);
+			} else if (viewMode === ChangesViewMode.Tree) {
 				// Tree mode: build hierarchical tree from file entries
 				const treeRootInfo = this.getTreeRootInfo(changes, folder);
 				const treeChildren = buildTreeChildren(changes, treeRootInfo);
@@ -1601,6 +1611,25 @@ export class ChangesViewPane extends ViewPane {
 		return this.scope.chat.read(reader)?.workspace.read(reader);
 	}
 
+	/**
+	 * The rows of the changes of a chat in several repositories: grouped under a row for each repository, or, for one
+	 * repository shown on its own, under its row. `undefined` for a chat in one repository, whose rows are as before.
+	 */
+	private getRepositoryChildren(items: IChangesFileItem[], viewMode: ChangesViewMode, reader: IReader | undefined): ICompressedTreeElement<ChangesTreeElement>[] | undefined {
+		const repositories = this.scope.changes.repositoriesObs.read(reader);
+		if (!repositories.length) {
+			return undefined;
+		}
+		const failures = this.scope.changes.changesetObs.read(reader)?.folderFailures?.read(reader) ?? [];
+		const repository = this.scope.changes.repositoryObs.read(reader);
+		if (repository) {
+			// The changes are of that repository already; one that failed shows why, also without changes
+			const failure = this.changesViewService.findRepositoryFailure(repository, failures);
+			return items.length || failure ? buildRepositoryChildren([{ repository, items, failure }], viewMode) : [];
+		}
+		return buildRepositoryChildren(this.changesViewService.groupByRepository(items, item => item.uri, repositories, failures), viewMode);
+	}
+
 	private getTreeRootFolder(workspace: ISessionWorkspace | undefined): ISessionFolder | undefined {
 		return workspace?.folders.length === 1 ? workspace.folders[0] : undefined;
 	}
@@ -1680,7 +1709,10 @@ export class ChangesViewPane extends ViewPane {
 
 		const tree = this.createChangesTree(container, Event.None, disposables, () => tree.getSelection().filter(item => !!item && isChangesFileItem(item)), contextKeyService);
 
-		if (viewMode === ChangesViewMode.Tree) {
+		const repositoryChildren = this.getRepositoryChildren(items, viewMode, undefined);
+		if (repositoryChildren) {
+			tree.setChildren(null, repositoryChildren);
+		} else if (viewMode === ChangesViewMode.Tree) {
 			tree.setChildren(null, buildTreeChildren(items, this.getTreeRootInfo(items, this.getTreeRootFolder(this.getActiveChangesetWorkspace(undefined)))));
 		} else {
 			tree.setChildren(null, items.map(item => ({ element: item as ChangesTreeElement, collapsible: false })));
@@ -1768,7 +1800,11 @@ export class ChangesViewPane extends ViewPane {
 			{
 				alwaysConsumeMouseWheel: false,
 				accessibilityProvider: {
-					getAriaLabel: (element: ChangesTreeElement) => isChangesFileItem(element) ? basename(element.uri) : element.name,
+					getAriaLabel: (element: ChangesTreeElement) => isChangesFileItem(element)
+						? basename(element.uri)
+						: isChangesRootItem(element) && element.failure
+							? localize('changesRepositoryFailedAria', "{0}, its changes could not be loaded: {1}", element.name, element.failure.message)
+							: isChangesRootItem(element) && element.description ? `${element.name}, ${element.description}` : element.name,
 					getWidgetAriaLabel: () => localize('changesViewTree', "Changes Tree")
 				},
 				dnd: {
@@ -2154,6 +2190,10 @@ class ChangesTreeSorter implements ITreeSorter<ChangesTreeElement> {
 	constructor(private readonly viewMode: () => ChangesViewMode) { }
 
 	compare(a: ChangesTreeElement, b: ChangesTreeElement): number {
+		// Repository rows keep their order: the folders', with changes outside every repository last
+		if (isChangesRootItem(a) && isChangesRootItem(b)) {
+			return 0;
+		}
 		if (this.viewMode() === ChangesViewMode.List) {
 			// List
 			const aPath = (a as IChangesFileItem).uri.fsPath;
@@ -2555,6 +2595,10 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 	}
 
 	private _getBaseBranchSelection(reader?: IReader): ISessionChangesetBaseBranchSelection | undefined {
+		// One repository shown on its own compares against its own base branch, which the host does not yet change per repository
+		if (this._changes.repositoryObs.read(reader)) {
+			return undefined;
+		}
 		return this._changes.changesetsObs.read(reader)?.find(changeset => changeset.id === BRANCH_CHANGES_CHANGESET_ID)?.baseBranchSelection?.read(reader);
 	}
 

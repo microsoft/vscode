@@ -278,9 +278,13 @@ suite('Sessions chat window provider', () => {
 		}());
 		// The changes of the session a window shows: a changeset with an operation on its files.
 		const operations = [upcastPartial<ISessionChangesetOperation>({ id: 'discard', label: 'Discard Changes', scopes: [SessionChangesetOperationScope.Resource] })];
+		const changesetObs = constObservable(upcastPartial<ISessionChangeset>({ id: 'uncommitted', operations: constObservable(operations) }));
 		instantiationService.stub(IChangesViewService, upcastPartial<IChangesViewService>({
 			getSessionChanges: () => upcastPartial<IChangesSessionObservables>({
-				changesetObs: constObservable(upcastPartial<ISessionChangeset>({ id: 'uncommitted', operations: constObservable(operations) })),
+				changesetObs: changesetObs,
+				operationsChangesetObs: changesetObs,
+				repositoriesObs: constObservable([]),
+				repositoryObs: constObservable(undefined),
 				changesetOperationsObs: constObservable(operations),
 				changesObs: constObservable([]),
 				changesetsLoadingObs: constObservable(false),

@@ -578,6 +578,8 @@ suite('Changes View Actions', () => {
 			override readonly activeSessionChangesetObs = selected;
 			override readonly activeSessionBaseBranchRefObs = baseBranchRef;
 			override readonly activeSessionResourceObs = resource;
+			override readonly activeSessionRepositoriesObs = constObservable([]);
+			override readonly activeSessionRepositoryObs = constObservable(undefined);
 		}();
 		const lists: (readonly IActionListItem<unknown>[])[] = [];
 		const updates: (IActionListUpdateOptions | undefined)[] = [];
@@ -923,6 +925,8 @@ suite('Changes View Actions', () => {
 				changesetsObs: constObservable([otherChangeset]),
 				changesetsLoadingObs: constObservable(false),
 				changesetObs: constObservable(otherChangeset),
+				repositoriesObs: constObservable([]),
+				repositoryObs: constObservable(undefined),
 				changesSummaryObs: constObservable<ISessionChangesSummary | undefined>({ files: 4, additions: 9, deletions: 2 }),
 				resourceObs: constObservable(otherResource),
 			}),

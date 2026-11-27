@@ -61,6 +61,9 @@ suite('Chat window changeset actions', () => {
 			return upcastPartial<IChangesSessionObservables>({
 				changesetObs: constObservable(changeset),
 				changesetOperationsObs: constObservable(operations),
+				operationsChangesetObs: constObservable(changeset),
+				repositoryObs: constObservable(undefined),
+				repositoriesObs: constObservable([]),
 				changesObs: constObservable([{ modifiedUri: file(session), originalUri: undefined, insertions: 1, deletions: 0 }]),
 				changesetsLoadingObs: constObservable(false),
 				loadingObs: constObservable(false),

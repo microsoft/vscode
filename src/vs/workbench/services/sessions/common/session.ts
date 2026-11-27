@@ -1223,6 +1223,14 @@ export interface ISession {
 	 * arrives after the session's first state update).
 	 */
 	readonly capabilities: IObservable<ISessionCapabilities>;
+	/**
+	 * The changeset `changesetId` of one repository of the session's workspace (see
+	 * {@link ISessionWorkspace.repositories}) on its own: its changes, operations, base branch and pull request, which
+	 * follow that repository's Git state rather than the session's. Subscribed while it is observed. `undefined` when the
+	 * provider has none for that repository or changeset.
+	 * @param repositoryRoot The repository's root, in the client's URI space.
+	 */
+	getRepositoryChangeset?(repositoryRoot: URI, changesetId: string): ISessionChangeset | undefined;
 }
 
 export interface ISessionCreationReference {

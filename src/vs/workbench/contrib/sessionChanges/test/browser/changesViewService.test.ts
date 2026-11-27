@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -15,13 +15,14 @@ import { readSessionGitState, SESSION_META_GIT_KEY } from '../../../../../platfo
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { IChatDeletedEvent, ISessionsManagementService } from '../../../sessions/common/sessionsManagement.js';
-import { BRANCH_CHANGES_CHANGESET_ID, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, IChat, IGitHubInfo, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionRepository, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionRepositoryKind, SessionChangesetOperationScope, SessionChangesetOperationStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { IAgentFeedbackService } from '../../../sessions/browser/agentFeedback.js';
 import { AgentFeedbackState, IAgentFeedback } from '../../../sessions/browser/agentFeedbackModel.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../../sessions/browser/codeReviewService.js';
-import { ChangesetReviewedFilesContext, ChangesViewService } from '../../browser/changesViewService.js';
+import { bindChangesetContextKeys, ChangesetReviewedFilesContext, ChangesHasRepositoriesContext, ChangesViewService } from '../../browser/changesViewService.js';
 import { createChangesEditorScope, createChangesPickerLabelObservable } from '../../browser/changesView.js';
-import { getActiveSessionChanges, getChangesOfSession, IChangesSessionScope } from '../../../sessions/common/changesViewService.js';
+import { getActiveSessionChanges, getChangesOfSession, IChangesSessionObservables, IChangesSessionScope } from '../../../sessions/common/changesViewService.js';
+import { IChangesRepository } from '../../../sessions/common/changesRepositories.js';
 import { buildAgentHostSessionWorkspace } from '../../../sessions/common/agentHostSessionWorkspace.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { SessionHost, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
@@ -32,6 +33,25 @@ import { IChatSessionFileChange2 } from '../../../../common/chatSessionFileChang
 suite('ChangesViewService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('binds whether the changes are in several repositories on each host\'s own context key service', () => {
+		const changesOf = (repositories: readonly IChangesRepository[]) => upcastPartial<IChangesSessionObservables>({
+			changesetObs: constObservable(undefined),
+			changesetOperationsObs: constObservable([]),
+			changesObs: constObservable([]),
+			repositoriesObs: constObservable(repositories),
+		});
+		// The main window shows a chat in one folder; a chat window, one in two repositories.
+		const mainWindow = new MockContextKeyService();
+		const chatWindow = new MockContextKeyService();
+		disposables.add(bindChangesetContextKeys(changesOf([]), mainWindow));
+		disposables.add(bindChangesetContextKeys(changesOf([upcastPartial<IChangesRepository>({ root: URI.file('/api') }), upcastPartial<IChangesRepository>({ root: URI.file('/web') })]), chatWindow));
+
+		assert.deepStrictEqual({
+			mainWindow: mainWindow.getContextKeyValue(ChangesHasRepositoriesContext.key),
+			chatWindow: chatWindow.getContextKeyValue(ChangesHasRepositoriesContext.key),
+		}, { mainWindow: false, chatWindow: true });
+	});
 
 	function createSession(id: string, options?: { readonly workspace?: ISessionWorkspace; readonly changesets?: readonly ISessionChangeset[]; readonly activeChat?: IObservable<IChat>; readonly mainChat?: IObservable<IChat>; readonly chats?: IObservable<readonly IChat[]>; readonly loading?: IObservable<boolean>; readonly baseBranchProtected?: boolean; readonly pullRequestState?: 'open' | 'closed' | 'merged'; readonly livePullRequestState?: 'open' | 'closed' | 'merged'; readonly pullRequestIcon?: { readonly id: string } }): ITestSessionWithChat {
 		const workspace = options?.workspace ?? (options?.baseBranchProtected === undefined && options?.pullRequestState === undefined && options?.livePullRequestState === undefined && options?.pullRequestIcon === undefined
@@ -1327,6 +1347,155 @@ suite('ChangesViewService', () => {
 			['create-pr'],
 			['merge', 'create-pr'],
 		]);
+	});
+
+	suite('repositories', () => {
+		const api = URI.file('/work/api');
+		const web = URI.file('/work/web');
+		const docs = URI.file('/work/docs');
+		const lib = URI.file('/work/api/packages/lib');
+
+		function gitRepository(uri: URI, branchName: string): ISessionGitRepository {
+			return { uri, workTreeUri: undefined, baseBranchName: 'main', branchName, isRepository: constObservable(true), gitHubInfo: constObservable<IGitHubInfo | undefined>(undefined) };
+		}
+
+		function folder(uri: URI, repository?: ISessionGitRepository): ISessionFolder {
+			return { root: uri, workingDirectory: uri, name: uri.path.split('/').pop()!, description: undefined, gitRepository: repository };
+		}
+
+		function repositoriesOf(folders: ISessionFolder[], repositories?: ISessionRepository[]) {
+			const workspace: ISessionWorkspace = { uri: folders[0].workingDirectory, label: 'api', icon: Codicon.folder, folders, repositories, requiresWorkspaceTrust: true, isVirtualWorkspace: false };
+			const { service } = createHarness(createSession('repositories', { workspace }));
+			return { service, repositories: service.activeSessionRepositoriesObs.get() };
+		}
+
+		const resourceOf = (change: ISessionFileChange) => (change as { modifiedUri: URI }).modifiedUri;
+		const change = (path: string, scheme?: string, authority?: string): ISessionFileChange => ({ modifiedUri: scheme ? URI.file(path).with({ scheme, authority }) : URI.file(path), insertions: 1, deletions: 0 });
+
+		test('lists each folder\'s repository, then those found in it, and a folder in none; not for one repository', () => {
+			const { repositories } = repositoriesOf(
+				[folder(api, gitRepository(api, 'feature/api')), folder(web, gitRepository(web, 'feature/web')), folder(docs)],
+				[
+					{ root: api, folder: api, kind: SessionRepositoryKind.Folder },
+					{ root: lib, folder: api, kind: SessionRepositoryKind.Nested, gitRepository: gitRepository(lib, 'lib-branch') },
+					{ root: web, folder: web, kind: SessionRepositoryKind.Folder },
+				],
+			);
+			assert.deepStrictEqual({
+				repositories: repositories.map(repository => ({ root: repository.root.path, name: repository.name, description: repository.description, kind: repository.kind, branch: repository.gitRepository?.branchName })),
+				single: repositoriesOf([folder(api, gitRepository(api, 'main'))]).repositories,
+			}, {
+				repositories: [
+					{ root: '/work/api', name: 'api', description: undefined, kind: SessionRepositoryKind.Folder, branch: 'feature/api' },
+					{ root: '/work/api/packages/lib', name: 'lib', description: 'packages/lib', kind: SessionRepositoryKind.Nested, branch: 'lib-branch' },
+					{ root: '/work/web', name: 'web', description: undefined, kind: SessionRepositoryKind.Folder, branch: 'feature/web' },
+					{ root: '/work/docs', name: 'docs', description: undefined, kind: undefined, branch: undefined },
+				],
+				single: [],
+			});
+		});
+
+		test('groups changes by the deepest repository, failed repositories in place and other changes last', () => {
+			const { service, repositories } = repositoriesOf(
+				[folder(api, gitRepository(api, 'a')), folder(web, gitRepository(web, 'w')), folder(docs)],
+				[
+					{ root: api, folder: api, kind: SessionRepositoryKind.Folder },
+					{ root: lib, folder: api, kind: SessionRepositoryKind.Nested },
+					{ root: web, folder: web, kind: SessionRepositoryKind.Folder },
+				],
+			);
+			const changes = [change('/work/api/packages/lib/index.ts'), change('/work/api/src/a.ts'), change('/elsewhere/x.ts'), change('/work/api/README.md')];
+			// The host reports a folder's own repository by the folder, and one found in it by its root
+			const failures = [{ workingDirectory: web, message: 'Not loaded' }];
+			const groups = service.groupByRepository(changes, resourceOf, repositories, failures);
+			assert.deepStrictEqual({
+				groups: groups.map(group => ({ repository: group.repository?.name, items: group.items.map(item => resourceOf(item).path), failure: group.failure?.message })),
+				nestedByFolder: service.findRepositoryFailure(repositories[1], [{ workingDirectory: api, message: 'Folder' }])?.message,
+			}, {
+				groups: [
+					{ repository: 'api', items: ['/work/api/src/a.ts', '/work/api/README.md'], failure: undefined },
+					{ repository: 'lib', items: ['/work/api/packages/lib/index.ts'], failure: undefined },
+					{ repository: 'web', items: [], failure: 'Not loaded' },
+					{ repository: undefined, items: ['/elsewhere/x.ts'], failure: undefined },
+				],
+				// A failure of its folder is not a failure of a repository found in it
+				nestedByFolder: undefined,
+			});
+		});
+
+		test('notices a folder stop being a repository without the workspace changing', () => {
+			const isRepository = observableValue('test.isRepository', true);
+			const { service } = repositoriesOf([folder(api, { ...gitRepository(api, 'a'), isRepository }), folder(web, gitRepository(web, 'w'))]);
+			const kinds: (SessionRepositoryKind | undefined)[][] = [];
+			disposables.add(autorun(reader => { kinds.push(service.activeSessionRepositoriesObs.read(reader).map(repository => repository.kind)); }));
+			isRepository.set(false, undefined);
+			assert.deepStrictEqual(kinds, [
+				[SessionRepositoryKind.Folder, SessionRepositoryKind.Folder],
+				[undefined, SessionRepositoryKind.Folder],
+			]);
+		});
+
+		test('matches the changes of a remote host to its repositories, and not the same path on another host', () => {
+			const remote = (uri: URI) => uri.with({ scheme: 'vscode-agent-host', authority: 'remote' });
+			const { service, repositories } = repositoriesOf([folder(remote(api), gitRepository(remote(api), 'a')), folder(remote(web), gitRepository(remote(web), 'w'))]);
+			const remoteChange = change('/work/web/index.ts', 'vscode-agent-host', 'remote');
+			const otherHostChange = change('/work/web/other.ts', 'vscode-agent-host', 'other');
+			const groups = service.groupByRepository([remoteChange, otherHostChange, change('/work/web/local.ts')], resourceOf, repositories);
+			assert.deepStrictEqual(groups.map(group => ({ repository: group.repository?.name, items: group.items.map(item => resourceOf(item).toString()) })), [
+				{ repository: 'web', items: [resourceOf(remoteChange).toString()] },
+				{ repository: undefined, items: [resourceOf(otherHostChange).toString(), URI.file('/work/web/local.ts').toString()] },
+			]);
+		});
+	});
+
+	test('shows the changes of one repository of the chat\'s changeset, with that repository\'s own operations and Git state', () => {
+		const repository = (path: string, branchName: string) => {
+			const uri = URI.file(path);
+			return upcastPartial<ISessionFolder>({ root: uri, workingDirectory: uri, name: path.split('/').pop(), gitRepository: upcastPartial<ISessionGitRepository>({ uri, branchName, baseBranchName: 'main', gitHubInfo: constObservable(undefined) }) });
+		};
+		const workspace = upcastPartial<ISessionWorkspace>({ uri: URI.file('/work/api'), folders: [repository('/work/api', 'feature/api'), repository('/work/web', 'feature/web')] });
+		const changes = [URI.file('/work/api/a.ts'), URI.file('/work/web/b.ts')].map(modifiedUri => ({ modifiedUri, insertions: 1, deletions: 0 }));
+		const operation = (id: string, scope: SessionChangesetOperationScope): ISessionChangesetOperation => ({ id, label: id, scopes: [scope], status: SessionChangesetOperationStatus.Idle });
+		const changeset = createChangeset([operation('commit', SessionChangesetOperationScope.Changeset), operation('discard', SessionChangesetOperationScope.Resource)], { changes: constObservable(changes) });
+		const webChangeset = createChangeset([operation('create-pr', SessionChangesetOperationScope.Changeset)]);
+		const asked: string[] = [];
+		const providesRepositoryChangeset = observableValue('test.providesRepositoryChangeset', true);
+		const session = createSession('repositories', { workspace, changesets: [changeset] });
+		const withRepositories: ITestSessionWithChat = {
+			...session,
+			getRepositoryChangeset: (root, changesetId) => {
+				asked.push(`${root.path} ${changesetId}`);
+				return providesRepositoryChangeset.get() ? webChangeset : undefined;
+			},
+		};
+		const { service } = createHarness(withRepositories);
+		const snapshot = () => ({
+			repositories: service.activeSessionRepositoriesObs.get().map(candidate => candidate.name),
+			repository: service.activeSessionRepositoryObs.get()?.name,
+			changes: service.activeSessionChangesObs.get().map(change => (change as { modifiedUri: URI }).modifiedUri.path),
+			operations: service.activeSessionChangesetOperationsObs.get().map(candidate => candidate.id),
+			operationsChangeset: service.activeSessionOperationsChangesetObs.get() === webChangeset ? 'web' : 'chat',
+			branch: service.activeSessionStateObs.get()?.branchName,
+		});
+
+		const all = snapshot();
+		service.setRepository(URI.file('/work/web'));
+		const web = snapshot();
+		// A changeset the repository has none of on its own offers the operations on its files only
+		providesRepositoryChangeset.set(false, undefined);
+		service.setRepository(undefined);
+		service.setRepository(URI.file('/work/web'));
+		const webWithoutOwnChangeset = snapshot();
+		service.setRepository(undefined);
+
+		assert.deepStrictEqual({ all, web, webWithoutOwnChangeset, allAgain: snapshot().repository, asked: [...new Set(asked)] }, {
+			all: { repositories: ['api', 'web'], repository: undefined, changes: ['/work/api/a.ts', '/work/web/b.ts'], operations: ['commit', 'discard'], operationsChangeset: 'chat', branch: 'feature/api' },
+			web: { repositories: ['api', 'web'], repository: 'web', changes: ['/work/web/b.ts'], operations: ['create-pr'], operationsChangeset: 'web', branch: 'feature/web' },
+			webWithoutOwnChangeset: { repositories: ['api', 'web'], repository: 'web', changes: ['/work/web/b.ts'], operations: ['discard'], operationsChangeset: 'chat', branch: 'feature/web' },
+			allAgain: undefined,
+			// Asked only while a repository is shown
+			asked: ['/work/web branch'],
+		});
 	});
 
 	test('reconciles host pull request state with the live icon', () => {

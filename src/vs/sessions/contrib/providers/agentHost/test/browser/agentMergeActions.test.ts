@@ -18,10 +18,19 @@ import { IsSessionsWindowContext } from '../../../../../../workbench/common/cont
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
 import { DesktopChangesEditorTransitionContext, SessionAgentMergeEnabledContext, SessionHasOpenPullRequestContext, SessionIsArchivedContext, SessionPrimaryPullRequestOperationContext, SessionProviderIdContext } from '../../../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { ISessionChangeset } from '../../../../../../workbench/services/sessions/common/session.js';
+import { IChat, ISession, ISessionChangeset } from '../../../../../../workbench/services/sessions/common/session.js';
 import { GitHubPullRequestCIModel } from '../../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
-import { ActiveSessionState } from '../../../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { bindSessionActionContextKeys } from '../../../../../../workbench/contrib/sessionChanges/browser/sessionActionContextKeys.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IChangesRepository } from '../../../../../../workbench/contrib/sessions/common/changesRepositories.js';
+import { ActiveSessionState, IChangesSessionObservables, IChangesViewService } from '../../../../../../workbench/contrib/sessions/common/changesViewService.js';
+import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsManagementService } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionHostService } from '../../../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import '../../browser/agentMergeActions.js';
 
 suite('Agent Merge Actions', () => {
@@ -173,6 +182,51 @@ suite('Agent Merge Actions', () => {
 		});
 	});
 
+	test('enables Agent Merge for the repository the Changes of the target chat show, whichever window runs it', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		const chat = (session: string, name: string) => upcastPartial<IChat>({ resource: URI.parse(`agent-host-copilotcli:/${session}#${name}`), title: constObservable(name) });
+		const sessionOf = (id: string, mainChat: IChat) => upcastPartial<ISession>({ sessionId: id, resource: URI.parse(`agent-host-copilotcli:/${id}`), providerId: LOCAL_AGENT_HOST_PROVIDER_ID, mainChat: constObservable(mainChat) });
+		const first = chat('a', 'first');
+		const second = chat('a', 'second');
+		const other = chat('b', 'main');
+		const sessionA = sessionOf('a', first);
+		const sessionB = sessionOf('b', other);
+		const api = URI.file('/work/api');
+		const web = URI.file('/work/web');
+		// Picked per chat: two chats of one session, and a chat of a session the main window does not show
+		const picked = new Map<IChat, URI | undefined>([[first, api], [second, undefined], [other, web]]);
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+			getSessionForChatResource: (resource: URI) => {
+				const target = [first, second, other].find(candidate => candidate.resource.toString() === resource.toString());
+				return target && { session: target === other ? sessionB : sessionA, chat: target };
+			},
+		}));
+		instantiationService.stub(ISessionHostService, upcastPartial<ISessionHostService>({ getHostOfChat: () => undefined }));
+		instantiationService.stub(IChangesViewService, upcastPartial<IChangesViewService>({
+			getSessionChanges: (_session, chatObs) => upcastPartial<IChangesSessionObservables>({
+				repositoryObs: constObservable(picked.get(chatObs.get()!) ? upcastPartial<IChangesRepository>({ root: picked.get(chatObs.get()!)! }) : undefined),
+			}),
+		}));
+		const writes: { session: string; chat: string | undefined; repository: string | undefined }[] = [];
+		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({
+			getProvider: <T extends ISessionsProvider>() => upcastPartial<IAgentHostSessionsProvider>({
+				id: LOCAL_AGENT_HOST_PROVIDER_ID,
+				setAgentMergeEnabled: async (sessionId: string, _enabled: boolean, chat?: URI, repository?: URI) => { writes.push({ session: sessionId, chat: chat?.fragment, repository: repository?.path }); },
+			}) as unknown as T,
+		}));
+
+		for (const target of [first, second, other]) {
+			await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('sessions.agentHost.agentMerge.enableInSession')!.handler(accessor, { chat: target }));
+		}
+
+		assert.deepStrictEqual(writes, [
+			{ session: 'a', chat: 'first', repository: '/work/api' },
+			{ session: 'a', chat: 'second', repository: undefined },
+			{ session: 'b', chat: 'main', repository: '/work/web' },
+		]);
+	});
+
 	test('the context key binder does not re-read the editor transition key for unrelated context changes', () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const scoped = disposables.add(new ContextKeyService(new TestConfigurationService()));
@@ -193,6 +247,8 @@ suite('Agent Merge Actions', () => {
 				loadingObs: constObservable(false),
 				changesetObs: constObservable(upcastPartial<ISessionChangeset>({ operations: constObservable([]) })),
 				changesetOperationsObs: constObservable([]),
+				operationsChangesetObs: constObservable(upcastPartial<ISessionChangeset>({ operations: constObservable([]) })),
+				repositoryObs: constObservable(undefined),
 				stateObs: constObservable(upcastPartial<ActiveSessionState>({})),
 			},
 			pullRequest: {
