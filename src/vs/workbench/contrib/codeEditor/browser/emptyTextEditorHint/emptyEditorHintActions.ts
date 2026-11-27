@@ -39,6 +39,7 @@ import { ChatAgentLocation } from '../../../chat/common/constants.js';
 import { IChatAgentService } from '../../../chat/common/participants/chatAgents.js';
 import { EmptyEditorHintReopener, markdownEditorId } from './emptyEditorHintReopen.js';
 import { EmptyEditorHintAction, EmptyEditorHintVariant, logEmptyEditorHintEvent } from './emptyTextEditorHintTelemetry.js';
+import { EmptyEditorHintVisible, forwardTypingToEditor, getFocusEmptyEditorHintAriaLabel } from './emptyEditorHintFocus.js';
 
 export const emptyEditorHintActionsSetting = 'workbench.editor.experimental.emptyEditorHintActions';
 
@@ -85,6 +86,7 @@ export class EmptyEditorHintActionsWidget extends Disposable implements IOverlay
 	private readonly _domNode = $('.empty-editor-hint-actions');
 	private readonly _rows = append(this._domNode, $('.empty-editor-hint-actions-rows'));
 	private readonly _rowsDisposables = this._register(new DisposableStore());
+	private _actionBar: ActionBar | undefined;
 	private _ariaLabel = '';
 	private _top = 0;
 	private _requiredSize: IEmptyEditorHintActionsSize | undefined;
@@ -121,6 +123,9 @@ export class EmptyEditorHintActionsWidget extends Disposable implements IOverlay
 		const visible = EmptyEditorHintActionsVisible.bindTo(this._contextKeyService);
 		visible.set(true);
 		this._register(toDisposable(() => visible.reset()));
+		const hintVisible = EmptyEditorHintVisible.bindTo(this._contextKeyService);
+		hintVisible.set(true);
+		this._register(toDisposable(() => hintVisible.reset()));
 
 		this._renderCloseButton();
 		this._renderFooter();
@@ -146,6 +151,15 @@ export class EmptyEditorHintActionsWidget extends Disposable implements IOverlay
 				this.close('closeEscape');
 			}
 		}));
+		// Shift+Tab from the list returns to the editor, where Tab came from
+		this._register(addDisposableListener(this._rows, EventType.KEY_DOWN, e => {
+			if (new StandardKeyboardEvent(e).equals(KeyMod.Shift | KeyCode.Tab)) {
+				e.preventDefault();
+				e.stopPropagation();
+				this._editor.focus();
+			}
+		}));
+		this._register(forwardTypingToEditor(this._domNode, this._editor));
 
 		const onDidFocusEditorText = Event.debounce(this._editor.onDidFocusEditorText, () => undefined, 500);
 		this._register(onDidFocusEditorText(() => {
@@ -181,6 +195,10 @@ export class EmptyEditorHintActionsWidget extends Disposable implements IOverlay
 		this._logEvent('action', action);
 		this._editor.focus();
 		this._options.close();
+	}
+
+	focus(): void {
+		this._actionBar?.focus(0);
 	}
 
 	getId(): string {
@@ -289,7 +307,7 @@ export class EmptyEditorHintActionsWidget extends Disposable implements IOverlay
 		const groups = this._getEntryGroups();
 
 		const entriesById = new Map<string, IEmptyEditorHintActionEntry>();
-		const actionBar = this._rowsDisposables.add(new ActionBar(this._rows, {
+		const actionBar = this._actionBar = this._rowsDisposables.add(new ActionBar(this._rows, {
 			orientation: ActionsOrientation.VERTICAL,
 			ariaLabel: localize('emptyEditorHintActions.ariaLabel', "Empty Editor Actions"),
 			actionViewItemProvider: action => {
@@ -331,8 +349,9 @@ export class EmptyEditorHintActionsWidget extends Disposable implements IOverlay
 		});
 		this._ariaLabel = localize(
 			'emptyEditorHintActions.hintAriaLabel',
-			"Empty editor actions: {0}. Start typing to dismiss. Toggle {1} in settings to disable this hint.",
+			"Empty editor actions: {0}. Start typing to dismiss.{1} Toggle {2} in settings to disable this hint.",
 			labels.join(', '),
+			getFocusEmptyEditorHintAriaLabel(this._keybindingService),
 			AccessibilityVerbositySettingId.EmptyEditorHint
 		);
 		this._domNode.setAttribute('aria-label', this._ariaLabel);
