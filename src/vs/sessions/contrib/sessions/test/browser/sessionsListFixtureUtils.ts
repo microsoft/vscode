@@ -124,6 +124,7 @@ import { ISessionWorktreeCleanupService } from '../../../../../workbench/contrib
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { localize2 } from '../../../../../nls.js';
 import { ILifecycleService, LifecyclePhase, StartupKind } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
+import { SessionWorkspaceEditorAvailableContext } from '../../../../../workbench/contrib/sessions/browser/workspaceEditor/sessionWorkspaceEditorCommands.js';
 
 //#region State
 
@@ -822,6 +823,7 @@ async function createSessionsListFixtureServices(context: ComponentFixtureContex
 	const contextKeyService = instantiationService.get(IContextKeyService);
 	ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 	SessionWorkspacesEnabledContext.bindTo(contextKeyService).set(!!state.workspaces);
+	SessionWorkspaceEditorAvailableContext.bindTo(contextKeyService).set(!!state.workspaces);
 	SessionsViewGroupingContext.bindTo(contextKeyService).set(view.grouping ?? SessionsGrouping.Workspace);
 	SessionsListRearrangeContext.bindTo(contextKeyService).set(header?.navigationShortcuts ?? false);
 	// Phone layout drives both the visual CSS class and the tree delegate's row heights.

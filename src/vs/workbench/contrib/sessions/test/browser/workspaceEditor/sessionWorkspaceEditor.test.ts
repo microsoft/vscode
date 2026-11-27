@@ -37,7 +37,7 @@ import { IRecentSessionWorkspace, ISessionWorkspacesService, ISessionWorkspaceUp
 import { SessionWorkspaceDraftModel } from '../../../browser/workspaceEditor/sessionWorkspaceDraft.js';
 import { SessionWorkspaceEditorWidget } from '../../../browser/workspaceEditor/sessionWorkspaceEditor.js';
 import '../../../browser/workspaceEditor/sessionWorkspaceEditor.contribution.js';
-import { REMOVE_SESSION_WORKSPACE_COMMAND_ID } from '../../../browser/workspaceEditor/sessionWorkspaceEditorCommands.js';
+import { REMOVE_SESSION_WORKSPACE_COMMAND_ID, SessionWorkspaceEditorAvailableContext } from '../../../browser/workspaceEditor/sessionWorkspaceEditorCommands.js';
 import { SessionWorkspaceEditorInput, SessionWorkspaceEditorTarget } from '../../../browser/workspaceEditor/sessionWorkspaceEditorInput.js';
 import { isWindows } from '../../../../../../base/common/platform.js';
 
@@ -459,6 +459,7 @@ suite('SessionWorkspaceEditor', () => {
 			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 			contextKeyService.createKey(ChatContextKeys.enabled.key, true);
 			contextKeyService.createKey(SessionWorkspacesEnabledContext.key, true);
+			contextKeyService.createKey(SessionWorkspaceEditorAvailableContext.key, true);
 			contextKeyService.createKey(SessionSectionWorkspaceKindContext.key, kind);
 			contextKeyService.createKey(SessionSectionWorkspaceIsLocalContext.key, local);
 			return MenuRegistry.getMenuItems(Menus.SessionSectionContext)

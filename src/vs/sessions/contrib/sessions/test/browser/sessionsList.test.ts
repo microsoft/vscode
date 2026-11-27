@@ -150,6 +150,7 @@ import { IChatSessionsService } from '../../../../../workbench/contrib/chat/comm
 import '../../browser/views/sessionsViewActions.js';
 import '../../../../browser/mobile/media/mobileDrawer.css';
 import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
+import { SessionWorkspaceEditorAvailableContext } from '../../../../../workbench/contrib/sessions/browser/workspaceEditor/sessionWorkspaceEditorCommands.js';
 
 function clickRow(row: HTMLElement, modifiers: MouseEventInit = {}): void {
 	row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, ...modifiers }));
@@ -4474,19 +4475,28 @@ suite('Sessions - SessionsList', () => {
 			]);
 		});
 
-		test('edits a known workspace on a double-click on its row, but not on one on the row\'s inline actions', () => {
-			const { container, harness } = render(() => SessionsGrouping.WorkspacesAndGroups);
-			const row = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].find(candidate => candidate.querySelector('.session-section-label')?.textContent === 'Agents' && candidate.querySelector('.session-section-toolbar .monaco-toolbar'))!;
-			const doubleClick = (target: Element) => target.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+		test('edits a known workspace on a double-click on its row, but not on one on the row\'s inline actions, nor where the window has no Workspace editor', () => {
+			const doubleClickAgents = (editorAvailable: boolean) => {
+				const { container, harness } = render(() => SessionsGrouping.WorkspacesAndGroups, harness => {
+					const contextKeyService = disposables.add(new ContextKeyService(harness.instantiationService.get(IConfigurationService)));
+					ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+					SessionWorkspacesEnabledContext.bindTo(contextKeyService).set(true);
+					// The phone has no Workspace editor
+					SessionWorkspaceEditorAvailableContext.bindTo(contextKeyService).set(editorAvailable);
+					harness.instantiationService.stub(IContextKeyService, contextKeyService);
+				});
+				const row = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].find(candidate => candidate.querySelector('.session-section-label')?.textContent === 'Agents' && candidate.querySelector('.session-section-toolbar .monaco-toolbar'))!;
+				const doubleClick = (target: Element) => target.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+				const before = harness.commandService.calls.length;
+				doubleClick(row.querySelector('.session-section-toolbar .monaco-toolbar')!);
+				const onActions = harness.commandService.calls.length - before;
+				doubleClick(row.querySelector('.session-section-label')!);
+				return { onActions, onRow: harness.commandService.calls.slice(before).map(call => `${call.commandId} ${(call.args[0] as URI).toString()}`) };
+			};
 
-			const before = harness.commandService.calls.length;
-			doubleClick(row.querySelector('.session-section-toolbar .monaco-toolbar')!);
-			const onActions = harness.commandService.calls.length - before;
-			doubleClick(row.querySelector('.session-section-label')!);
-
-			assert.deepStrictEqual({ onActions, onRow: harness.commandService.calls.slice(before).map(call => `${call.commandId} ${(call.args[0] as URI).toString()}`) }, {
-				onActions: 0,
-				onRow: [`sessions.workspaces.edit ${agents.uri.toString()}`],
+			assert.deepStrictEqual({ withEditor: doubleClickAgents(true), withoutEditor: doubleClickAgents(false) }, {
+				withEditor: { onActions: 0, onRow: [`sessions.workspaces.edit ${agents.uri.toString()}`] },
+				withoutEditor: { onActions: 0, onRow: [] },
 			});
 		});
 
@@ -4497,6 +4507,7 @@ suite('Sessions - SessionsList', () => {
 				const contextKeyService = disposables.add(new ContextKeyService(harness.instantiationService.get(IConfigurationService)));
 				ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 				SessionWorkspacesEnabledContext.bindTo(contextKeyService).set(true);
+				SessionWorkspaceEditorAvailableContext.bindTo(contextKeyService).set(true);
 				WorkbenchScopeContext.bindTo(contextKeyService).set('all');
 				harness.instantiationService.stub(IContextKeyService, contextKeyService);
 				harness.instantiationService.stub(IMenuService, disposables.add(harness.instantiationService.createInstance(MenuService)));

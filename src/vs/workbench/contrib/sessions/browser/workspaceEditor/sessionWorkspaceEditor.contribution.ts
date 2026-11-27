@@ -24,7 +24,6 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { CHAT_CATEGORY } from '../../../chat/browser/actions/chatActions.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { hasWorkspaceFileExtension } from '../../../../../platform/workspace/common/workspace.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { Menus } from '../menus.js';
@@ -39,7 +38,7 @@ import { SessionWorkspaceEditor } from './sessionWorkspaceEditor.js';
 import { SessionGroupEditorAccessibilityHelp, SessionWorkspaceEditorAccessibilityHelp } from './sessionWorkspaceEditorAccessibilityHelp.js';
 import { EDIT_SESSION_GROUP_COMMAND_ID, EDIT_SESSION_WORKSPACE_COMMAND_ID, NEW_SESSION_WORKSPACE_COMMAND_ID, REMOVE_SESSION_WORKSPACE_COMMAND_ID, SESSION_WORKSPACE_EDITOR_WHEN, SessionWorkspaceEditorAvailableContext } from './sessionWorkspaceEditorCommands.js';
 import { SessionWorkspaceEditorInput } from './sessionWorkspaceEditorInput.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 
 /** Tells the window's UI that it has the Workspace editor, which only the windows that load this contribution have. */

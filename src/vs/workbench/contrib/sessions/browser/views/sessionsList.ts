@@ -1448,9 +1448,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 			if (!element || DOM.isHTMLElement(browserEvent.target) && browserEvent.target.closest('.monaco-toolbar, .monaco-action-bar, input')) {
 				return;
 			}
-			if (isSessionSection(element) && element.workspace?.known) {
+			if (isSessionSection(element) && element.workspace?.known && this.canOpenWorkspaceEditor()) {
 				this.commandService.executeCommand(EDIT_SESSION_WORKSPACE_COMMAND_ID, element.workspace.uri);
-			} else if (isSessionGroupItem(element) && !element.comparison && this.canEditGroups()) {
+			} else if (isSessionGroupItem(element) && !element.comparison && this.canOpenWorkspaceEditor()) {
 				this.commandService.executeCommand(EDIT_SESSION_GROUP_COMMAND_ID, element.group.id);
 			}
 		}));
@@ -4790,8 +4790,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * The workspaces Group by Workspaces & Groups lists sessions under, for one rebuild: each workspace is looked up once.
 	 * The Agents window's own workspaces list even without sessions, unless a search or scope narrows the list.
 	 */
-	/** Whether the Workspace editor edits custom groups: while chat and workspaces are on. */
-	private canEditGroups(): boolean {
+	/** Whether the Workspace editor opens on a workspace or custom group: in a window that has it, while chat and workspaces are on. */
+	private canOpenWorkspaceEditor(): boolean {
 		return this.contextKeyService.contextMatchesRules(SESSION_WORKSPACE_EDITOR_WHEN);
 	}
 
@@ -5691,7 +5691,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 			groups.push(['2_organize', organize]);
 		}
-		if (!comparison && this.canEditGroups()) {
+		if (!comparison && this.canOpenWorkspaceEditor()) {
 			// The Workspace editor edits a group's name, icon and color together
 			groups.push(['4_manage', [
 				toAction({
