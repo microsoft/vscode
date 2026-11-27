@@ -23,6 +23,15 @@ import { IEditorService } from '../../../../../services/editor/common/editorServ
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { EditorInputCapabilities } from '../../../../../common/editor.js';
 import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
+import { isIMenuItem, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
+import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
+import { SessionWorkspacesEnabledContext } from '../../../common/contextkeys.js';
+import { Menus } from '../../../browser/menus.js';
+import { IHostService } from '../../../../../services/host/browser/host.js';
+import { IOpenEmptyWindowOptions, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, IWindowOpenable } from '../../../../../../platform/window/common/window.js';
+import { SessionSectionWorkspaceIsLocalContext, SessionSectionWorkspaceKindContext } from '../../../browser/views/sessionsListCommon.js';
 import { IRecentSessionWorkspace, ISessionWorkspacesService, ISessionWorkspaceUpdate, SessionWorkspaceError } from '../../../common/sessionWorkspaces.js';
 import { SessionWorkspaceDraftModel } from '../../../browser/workspaceEditor/sessionWorkspaceDraft.js';
 import { SessionWorkspaceEditorWidget } from '../../../browser/workspaceEditor/sessionWorkspaceEditor.js';
@@ -415,5 +424,51 @@ suite('SessionWorkspaceEditor', () => {
 			folderNamedLikeFile: { buttons: ['&&Remove Workspace'], detail: 'Its sessions are kept and listed by their folders.' },
 			missingFile: { buttons: ['&&Remove Workspace'], detail: 'Its sessions are kept and listed by their folders.' },
 		});
+	});
+
+	test('a workspace row offers Open in Editor Window only for a workspace on this computer, and Edit and Remove only for one the workspaces service knows', () => {
+		const items = (kind: string, local: boolean) => {
+			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+			contextKeyService.createKey(ChatContextKeys.enabled.key, true);
+			contextKeyService.createKey(SessionWorkspacesEnabledContext.key, true);
+			contextKeyService.createKey(SessionSectionWorkspaceKindContext.key, kind);
+			contextKeyService.createKey(SessionSectionWorkspaceIsLocalContext.key, local);
+			return MenuRegistry.getMenuItems(Menus.SessionSectionContext)
+				.filter(isIMenuItem)
+				.filter(item => item.command.id.startsWith('sessionsView.') && item.command.id.includes('Workspace') && contextKeyService.contextMatchesRules(item.when))
+				.map(item => item.command.id);
+		};
+
+		assert.deepStrictEqual({ local: items('known', true), remote: items('known', false), folder: items('folder', true), remoteFolder: items('folder', false), unknown: items('', false) }, {
+			local: ['sessionsView.openWorkspaceInEditorWindow', 'sessionsView.editWorkspace', 'sessionsView.removeWorkspace'],
+			remote: ['sessionsView.editWorkspace', 'sessionsView.removeWorkspace'],
+			folder: ['sessionsView.openWorkspaceInEditorWindow'],
+			remoteFolder: [],
+			// The row of sessions without a folder lists no workspace
+			unknown: [],
+		});
+	});
+
+	test('Open in Editor Window opens a workspace file as a workspace and a folder as a folder, in a new window', async () => {
+		const opened: unknown[] = [];
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(IHostService, upcastPartial<IHostService>({
+			openWindow: async (toOpen?: IOpenEmptyWindowOptions | IWindowOpenable[], options?: IOpenWindowOptions) => {
+				opened.push({ toOpen: (Array.isArray(toOpen) ? toOpen : []).map(item => isWorkspaceToOpen(item) ? { workspace: item.workspaceUri.toString(true) } : isFolderToOpen(item) ? { folder: item.folderUri.toString(true) } : item), forceNewWindow: options?.forceNewWindow });
+			},
+		}));
+		const open = (uri: URI) => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('sessionsView.openWorkspaceInEditorWindow')!.handler(accessor, { workspace: { uri, known: true } }));
+
+		await open(URI.file('/Users/me/AgentsWorkspaces/Agents.code-workspace'));
+		await open(URI.parse('file:///c:/Users/me/Agents.code-workspace'));
+		await open(URI.parse('file://server/share/project'));
+		// A remote row has nothing to open on this computer
+		await open(URI.parse('vscode-agent-host://host/work/project'));
+
+		assert.deepStrictEqual(opened, [
+			{ toOpen: [{ workspace: 'file:///Users/me/AgentsWorkspaces/Agents.code-workspace' }], forceNewWindow: true },
+			{ toOpen: [{ workspace: 'file:///c:/Users/me/Agents.code-workspace' }], forceNewWindow: true },
+			{ toOpen: [{ folder: 'file://server/share/project' }], forceNewWindow: true },
+		]);
 	});
 });

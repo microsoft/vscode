@@ -22,6 +22,13 @@ import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../browser/e
 import { EditorExtensions, EditorsOrder } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { CHAT_CATEGORY } from '../../../chat/browser/actions/chatActions.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { hasWorkspaceFileExtension } from '../../../../../platform/workspace/common/workspace.js';
+import { IHostService } from '../../../../services/host/browser/host.js';
+import { Menus } from '../menus.js';
+import { ISessionSection, ISessionSectionWorkspace, SessionSectionWorkspaceIsLocalContext, SessionSectionWorkspaceKindContext } from '../views/sessionsListCommon.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { IRecentSessionWorkspace, ISessionWorkspacesService, SessionWorkspaceError } from '../../common/sessionWorkspaces.js';
 import { getSessionWorkspaceIcon } from './sessionWorkspaceAppearance.js';
@@ -183,5 +190,70 @@ registerAction2(class RemoveSessionWorkspaceAction extends SessionWorkspacePickA
 			logService.error(error);
 			notificationService.error(localize('removeWorkspace.detachFailed', "Removed the workspace '{0}', but some of its sessions could not be moved to their folders. See the log for details.", workspace.name));
 		}
+	}
+});
+
+/** A command on a workspace row of Group by Workspaces & Groups, whose context menu passes the row. */
+abstract class SessionWorkspaceRowAction extends Action2 {
+	/** The workspace of the row. */
+	protected getRowWorkspace(section: ISessionSection | undefined): ISessionSectionWorkspace | undefined {
+		return section?.workspace;
+	}
+}
+
+registerAction2(class OpenWorkspaceRowInEditorWindowAction extends SessionWorkspaceRowAction {
+	constructor() {
+		super({
+			id: 'sessionsView.openWorkspaceInEditorWindow',
+			title: localize2('openWorkspaceInEditorWindow', "Open in Editor Window"),
+			category: CHAT_CATEGORY,
+			// An editor window opens a workspace on this computer
+			precondition: ContextKeyExpr.and(SessionSectionWorkspaceKindContext.notEqualsTo(''), SessionSectionWorkspaceIsLocalContext),
+			menu: [{ id: Menus.SessionSectionContext, group: 'navigation', order: 10, when: ContextKeyExpr.and(SESSION_WORKSPACE_EDITOR_WHEN, SessionSectionWorkspaceKindContext.notEqualsTo(''), SessionSectionWorkspaceIsLocalContext) }],
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, section?: ISessionSection): Promise<void> {
+		const workspace = this.getRowWorkspace(section);
+		if (!workspace || workspace.uri.scheme !== Schemas.file) {
+			return;
+		}
+		const toOpen = hasWorkspaceFileExtension(workspace.uri) ? { workspaceUri: workspace.uri } : { folderUri: workspace.uri };
+		await accessor.get(IHostService).openWindow([toOpen], { forceNewWindow: true });
+	}
+});
+
+registerAction2(class EditWorkspaceRowAction extends SessionWorkspaceRowAction {
+	constructor() {
+		super({
+			id: 'sessionsView.editWorkspace',
+			title: localize2('editWorkspaceRow', "Edit Workspace..."),
+			category: CHAT_CATEGORY,
+			precondition: SessionSectionWorkspaceKindContext.isEqualTo('known'),
+			menu: [{ id: Menus.SessionSectionContext, group: '4_manage', order: 1, when: ContextKeyExpr.and(SESSION_WORKSPACE_EDITOR_WHEN, SessionSectionWorkspaceKindContext.isEqualTo('known')) }],
+		});
+	}
+
+	override run(accessor: ServicesAccessor, section?: ISessionSection): Promise<void> | undefined {
+		const workspace = this.getRowWorkspace(section);
+		return workspace ? accessor.get(ICommandService).executeCommand(EDIT_SESSION_WORKSPACE_COMMAND_ID, workspace.uri) : undefined;
+	}
+});
+
+registerAction2(class RemoveWorkspaceRowAction extends SessionWorkspaceRowAction {
+	constructor() {
+		super({
+			id: 'sessionsView.removeWorkspace',
+			title: localize2('removeWorkspaceRow', "Remove Workspace..."),
+			category: CHAT_CATEGORY,
+			precondition: SessionSectionWorkspaceKindContext.isEqualTo('known'),
+			// Destructive, so last
+			menu: [{ id: Menus.SessionSectionContext, group: '4_manage', order: 100, when: ContextKeyExpr.and(SESSION_WORKSPACE_EDITOR_WHEN, SessionSectionWorkspaceKindContext.isEqualTo('known')) }],
+		});
+	}
+
+	override run(accessor: ServicesAccessor, section?: ISessionSection): Promise<void> | undefined {
+		const workspace = this.getRowWorkspace(section);
+		return workspace ? accessor.get(ICommandService).executeCommand(REMOVE_SESSION_WORKSPACE_COMMAND_ID, workspace.uri) : undefined;
 	}
 });

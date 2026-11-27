@@ -70,7 +70,7 @@ import { ComponentFixtureContext, ComponentFixtureOptions, createEditorServices,
 import { TestProductService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { TestQuickInputService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
-import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionsListRearrangeContext, SessionWorkspacesEnabledContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { ISessionsListPresentation } from '../../../../../workbench/contrib/sessions/browser/sessionsListPresentation.js';
 import { DefaultSessionsListPresentation } from '../../../../../workbench/contrib/sessions/browser/defaultSessionsListPresentation.js';
@@ -821,6 +821,7 @@ async function createSessionsListFixtureServices(context: ComponentFixtureContex
 
 	const contextKeyService = instantiationService.get(IContextKeyService);
 	ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+	SessionWorkspacesEnabledContext.bindTo(contextKeyService).set(!!state.workspaces);
 	SessionsViewGroupingContext.bindTo(contextKeyService).set(view.grouping ?? SessionsGrouping.Workspace);
 	SessionsListRearrangeContext.bindTo(contextKeyService).set(header?.navigationShortcuts ?? false);
 	// Phone layout drives both the visual CSS class and the tree delegate's row heights.

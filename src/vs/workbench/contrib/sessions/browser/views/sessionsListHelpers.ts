@@ -661,7 +661,7 @@ export function createWorkspaceRow(uri: URI, workspaces: ISessionListWorkspaces)
 		collapseStateId: id,
 		label: workspace?.name ?? basename(uri),
 		sessions: [],
-		workspace: { uri: workspace?.uri ?? uri, icon: workspace?.icon, color: workspace?.color },
+		workspace: { uri: workspace?.uri ?? uri, icon: workspace?.icon, color: workspace?.color, known: !!workspace },
 	};
 }
 

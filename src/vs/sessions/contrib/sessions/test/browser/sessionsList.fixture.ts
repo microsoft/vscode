@@ -12,6 +12,8 @@ import { ISessionEnvironment, SessionStatus } from '../../../../../workbench/ser
 import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { getTestSessionResource, getTestWorkspaceFile } from '../../../../../workbench/contrib/sessions/test/common/testSessionBuilder.js';
 import { URI } from '../../../../../base/common/uri.js';
+// Registers the workspace and group row actions
+import '../../../../../workbench/contrib/sessions/browser/workspaceEditor/sessionWorkspaceEditor.contribution.js';
 import { ExtUri } from '../../../../../base/common/resources.js';
 import { createSessionArchiveTour } from '../../../../../workbench/contrib/sessions/browser/tours/sessionArchiveTour.js';
 import { SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsGrouping } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
@@ -332,6 +334,12 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	SessionsList_WorkspacesAndGroups_TreeNavigation: defineSessionsListFixture({
 		...WORKSPACES_AND_GROUPS_STATE,
 		header: { navigationShortcuts: false },
+	}),
+	// A workspace row's context menu: Open in Editor Window, Edit Workspace... and Remove Workspace...
+	SessionsList_WorkspacesAndGroups_WorkspaceContextMenu: defineSessionsListFixture({
+		...WORKSPACES_AND_GROUPS_STATE,
+		frame: { ...CONTEXT_MENU_FRAME, height: 820 },
+		interaction: { contextMenu: { workspace: new ExtUri(() => true).getComparisonKey(getTestWorkspaceFile('Agents')) } },
 	}),
 	// The keyboard on a workspace row
 	SessionsList_WorkspacesAndGroups_FocusedWorkspace: defineSessionsListFixture({

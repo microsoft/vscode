@@ -79,6 +79,10 @@ export const SessionSectionHasGitHubRepositoryContext = new RawContextKey<boolea
 export const SessionSectionHasNonCloudRepositoryContext = new RawContextKey<boolean>('sessionSection.hasNonCloudRepository', false);
 /** Whether a section has a {@link ISessionSection.rootFolder}. */
 export const SessionSectionHasRootFolderContext = new RawContextKey<boolean>('sessionSection.hasRootFolder', false);
+/** What a workspace row of Group by Workspaces & Groups lists: a workspace the workspaces service knows (`known`), or a folder (`folder`). */
+export const SessionSectionWorkspaceKindContext = new RawContextKey<'known' | 'folder' | ''>('sessionSection.workspaceKind', '');
+/** Whether a workspace row of Group by Workspaces & Groups lists a workspace on this computer, which an editor window can open. */
+export const SessionSectionWorkspaceIsLocalContext = new RawContextKey<boolean>('sessionSection.workspaceIsLocal', false);
 export const SessionGroupHasVisibleSessionsContext = new RawContextKey<boolean>('sessionGroup.hasVisibleSessions', false);
 export const SessionGroupIsEmptyContext = new RawContextKey<boolean>('sessionGroup.isEmpty', false);
 export const SessionGroupIsComparisonContext = new RawContextKey<boolean>('sessionGroup.isComparison', false);
@@ -129,6 +133,8 @@ export interface ISessionSectionWorkspace {
 	/** The workspace's icon and color, from its workspace file: a theme color ID or a custom `#rrggbb`. */
 	readonly icon?: string;
 	readonly color?: string;
+	/** Whether the workspaces service knows the workspace, which it can edit and remove, rather than only its folder. */
+	readonly known: boolean;
 }
 
 /** A GitHub repository that sessions work in, whichever environment they run in. */
