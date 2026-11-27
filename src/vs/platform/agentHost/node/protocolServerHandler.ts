@@ -673,6 +673,12 @@ export interface IProtocolServerConfig {
 	 * methods such as `vscode/removeSessionArtifact` are always available.
 	 */
 	readonly allowExtensionMethods?: boolean;
+	/**
+	 * Whether to serve the Dev Container methods and advertise their capabilities.
+	 * Defaults to {@link allowExtensionMethods}. Unlike host-control methods, they
+	 * only manage Dev Containers and relay to their agent hosts.
+	 */
+	readonly allowDevContainers?: boolean;
 	/** Restricts experimental relay clients to explicitly granted local roots. */
 	readonly relayRoots?: readonly string[];
 	readonly relayRootMeta?: Record<string, unknown>;
@@ -4684,7 +4690,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				));
 			}
 		}
-		if (this._config.allowExtensionMethods !== false && this._devContainerService) {
+		if ((this._config.allowDevContainers ?? this._config.allowExtensionMethods !== false) && this._devContainerService) {
 			client.devContainers = client.initializationDisposables.add(new DevContainerAgentHostProtocol(
 				async workspace => {
 					const result = await this._sendReverseRequestToConnection<IAgentHostExtensionServerCommandMap[typeof RequestAgentHostWorkspaceTrustExtensionMethod]['result']>(
