@@ -16,6 +16,8 @@ import { workbenchInstantiationService } from '../../../../test/browser/workbenc
 import { renderViewTree } from '../../browser/baseDebugView.js';
 import { DebugExpressionRenderer } from '../../browser/debugExpressionRenderer.js';
 import { isStatusbarInDebugMode } from '../../browser/statusbarColorProvider.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ViewModel } from '../../common/debugViewModel.js';
 import { State } from '../../common/debug.js';
 import { Expression, Scope, StackFrame, Thread, Variable } from '../../common/debugModel.js';
 import { MockSession } from '../common/mockDebug.js';
@@ -100,6 +102,30 @@ suite('Debug - Base Debug View', () => {
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IHoverService, NullHoverService);
 		renderer = instantiationService.createInstance(DebugExpressionRenderer);
+	});
+
+	test('refreshes and renders the error from a lazy variable without hiding retry', async () => {
+		const viewModel = disposables.add(new ViewModel(new MockContextKeyService()));
+		const session = new class extends MockSession {
+			override async variables(): Promise<DebugProtocol.VariablesResponse> {
+				throw new Error('Cannot evaluate variable');
+			}
+		};
+		const scope = new Scope(new StackFrame(new Thread(session, 'mockthread', 1), 1, null!, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 }, 0, true), 1, 'locals', 1, false, 0, 0);
+		const variable = new Variable(session, 1, scope, 2, 'lazyThrow', undefined, '<lazy>', 0, 0, undefined, { lazy: true });
+		const expression = $('.');
+		const name = $('.');
+		const type = $('.');
+		const value = $('.');
+		const label = disposables.add(new HighlightedLabel(name));
+		const lazyButton = $('.');
+		let refreshes = 0;
+		disposables.add(viewModel.onDidEvaluateLazyExpression(e => {
+			refreshes++;
+			disposables.add(renderer.renderVariable({ expression, name, type, value, label, lazyButton }, e as Variable));
+		}));
+		await viewModel.evaluateLazyExpression(variable);
+		assert.deepStrictEqual({ value: value.textContent, retry: expression.classList.contains('lazy'), refreshes }, { value: 'Cannot evaluate variable', retry: true, refreshes: 1 });
 	});
 
 	test('render view tree', () => {
