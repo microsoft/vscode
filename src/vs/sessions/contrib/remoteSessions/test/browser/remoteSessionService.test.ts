@@ -475,7 +475,7 @@ suite('RemoteSessionService', () => {
 			provider.permission = copilotPermissions[2];
 			provider.config = modeConfig(undefined, 'autopilot');
 		},
-		permissions: [copilotPermissions[0], copilotPermissions[1], { ...copilotPermissions[2], locked: true }],
+		permissions: copilotPermissions.slice(0, 2),
 		modes: ['interactive', 'plan'],
 		expected: {
 			permissions: 'default',

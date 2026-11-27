@@ -603,11 +603,6 @@ export class RemoteSessionService implements IRemoteSessionService {
 		}
 	}
 
-	/** Permission choices the target's resolved configuration can apply now, without policy-locked ones. */
-	private getApplicablePermissions(target: IRemoteSessionCandidate, config: ResolveSessionConfigResult): readonly ISessionPermissionOption[] {
-		return target.provider.getPermissionOptionsForCreation(target.sessionType.id, config).filter(option => !option.locked);
-	}
-
 	/**
 	 * Inherits the creating chat's permissions and mode where the target offers them. The fallbacks are the target's
 	 * default permissions and interactive mode, not the user's remembered or configured defaults, which could be more
@@ -618,7 +613,7 @@ export class RemoteSessionService implements IRemoteSessionService {
 		const host = target.host.label;
 		const config = await raceCancellationError(target.provider.resolveSessionConfigForCreation(target.workspace, target.sessionType.id, token), token);
 
-		const permissions = this.getApplicablePermissions(target, config);
+		const permissions = target.provider.getPermissionOptionsForCreation(target.sessionType.id, config);
 		const sourcePermission = source.permission;
 		const sameAgent = source.agentProvider === target.agentProvider;
 		// Across agents, only allow-all and the default correspond.

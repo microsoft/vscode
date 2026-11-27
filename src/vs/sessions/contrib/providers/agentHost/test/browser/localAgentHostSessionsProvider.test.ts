@@ -19070,9 +19070,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('offers only the creation permission choices a resolved configuration can apply, also for a quick chat', async () => {
+	test('offers only the creation permission choices a resolved configuration can apply and policy allows, also for a quick chat', async () => {
 		agentHost.setAgents([{ provider: 'claude', displayName: 'Claude', description: '', models: [] } as AgentInfo]);
 		const provider = createProvider(disposables, agentHost);
+		const restricted = createProvider(disposables, agentHost, undefined, { configurationService: createPolicyRestrictedConfigurationService() });
 		agentHost.resolveSessionConfigHandler = () => ({
 			schema: createVSCodeSessionConfigSchema({ permissionMode: { type: 'string', title: 'Permissions', enum: ['default', 'acceptEdits', 'plan', 'bypassPermissions'] } }),
 			values: {},
@@ -19081,9 +19082,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual({
 			workspace: agentHost.resolveSessionConfigRequests.map(request => request.workingDirectory?.toString()),
 			applicable: provider.getPermissionOptionsForCreation('claude', config).map(option => option.id),
+			policyRestricted: restricted.getPermissionOptionsForCreation('claude', config).map(option => option.id),
 		}, {
 			workspace: [undefined],
 			applicable: ['default', 'acceptEdits', 'plan', 'bypassPermissions'],
+			policyRestricted: ['default', 'plan'],
 		});
 	});
 

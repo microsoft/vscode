@@ -6892,9 +6892,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	getPermissionOptionsForCreation(sessionTypeId: string, config: ResolveSessionConfigResult): readonly ISessionPermissionOption[] {
 		const policyRestricted = isAutoApprovePolicyRestricted(this._baseConfigurationService, config.schema);
-		// Only the choices the configuration can apply; choices policy locks stay listed as locked.
 		return getAgentHostSessionPermissionOptions(sessionTypeId, policyRestricted, true, config)
-			.filter(option => option.locked || getAgentHostSessionPermissionConfig(sessionTypeId, option.id, policyRestricted, true, config) !== undefined);
+			.filter(option => !option.locked && getAgentHostSessionPermissionConfig(sessionTypeId, option.id, policyRestricted, true, config) !== undefined);
 	}
 
 	getNewSessionCancellationToken(sessionId: string): CancellationToken {
