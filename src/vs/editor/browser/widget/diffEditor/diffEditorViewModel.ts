@@ -106,12 +106,11 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 				.map(r => r ? LineRange.fromRangeInclusive(r) : undefined);
 			const updatedLastUnchangedRegions = lastUnchangedRegions.regions.map((r, idx) =>
 				(!lastUnchangedRegionsOrigRanges[idx] || !lastUnchangedRegionsModRanges[idx]) ? undefined :
-					new UnchangedRegion(
+					r.withUpdatedLineRange(
 						lastUnchangedRegionsOrigRanges[idx].startLineNumber,
 						lastUnchangedRegionsModRanges[idx].startLineNumber,
 						lastUnchangedRegionsOrigRanges[idx].length,
-						r.visibleLineCountTop.read(reader),
-						r.visibleLineCountBottom.read(reader),
+						reader,
 					)).filter(isDefined);
 
 			const newRanges: UnchangedRegion[] = [];
@@ -175,13 +174,11 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 						.map((r, idx) => {
 							if (!lastUnchangedRegionsOrigRanges[idx] || !lastUnchangedRegionsModRanges[idx]) { return undefined; }
 							const length = lastUnchangedRegionsOrigRanges[idx].length;
-							return new UnchangedRegion(
+							return r.withUpdatedLineRange(
 								lastUnchangedRegionsOrigRanges[idx].startLineNumber,
 								lastUnchangedRegionsModRanges[idx].startLineNumber,
 								length,
-								// The visible area can shrink by edits -> we have to account for this
-								Math.min(r.visibleLineCountTop.get(), length),
-								Math.min(r.visibleLineCountBottom.get(), length - r.visibleLineCountTop.get()),
+								reader,
 							);
 						}
 						).filter(isDefined),
@@ -564,6 +561,12 @@ export class UnchangedRegion {
 
 	public shouldHideControls(reader: IReader | undefined): boolean {
 		return this._shouldHideControls.read(reader);
+	}
+
+	public withUpdatedLineRange(originalLineNumber: number, modifiedLineNumber: number, lineCount: number, reader: IReader | undefined): UnchangedRegion {
+		const result = new UnchangedRegion(originalLineNumber, modifiedLineNumber, lineCount, 0, 0);
+		result.setState(this.visibleLineCountTop.read(reader), this.visibleLineCountBottom.read(reader), undefined);
+		return result;
 	}
 
 	public getHiddenOriginalRange(reader: IReader | undefined): LineRange {
