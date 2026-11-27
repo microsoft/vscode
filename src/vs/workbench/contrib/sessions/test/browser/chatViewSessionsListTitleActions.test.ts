@@ -13,7 +13,7 @@ import { ContextKeyService } from '../../../../../platform/contextkey/browser/co
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { ChatEntitlementContextKeys } from '../../../../services/chat/common/chatEntitlementService.js';
-import { bindSessionsViewGroupings, ChatViewSessionsListContext, EditorWindowSessionsContext, EditorWindowSessionsViewOffersInboxContext, getTitleToolbarFocusTarget, restoreLostFocus, SessionsView } from '../../browser/views/sessionsView.js';
+import { bindSessionsViewGroupings, ChatViewSessionsListContext, EditorWindowSessionsContext, EditorWindowSessionsViewOffersInboxContext, SessionsView } from '../../browser/views/sessionsView.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -22,12 +22,6 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { CHAT_VIEW_SESSIONS_GROUPINGS, EDITOR_WINDOW_SESSIONS_GROUPINGS } from '../../browser/agentsView/editorWindowSessionsList.js';
 import { SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../../common/sessionConfig.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { timeout } from '../../../../../base/common/async.js';
-import { ToolBar } from '../../../../../base/browser/ui/toolbar/toolbar.js';
-import { Action } from '../../../../../base/common/actions.js';
-import { IContextMenuProvider } from '../../../../../base/browser/contextmenu.js';
-import { scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
-import { getScopeFocusedElement } from '../../browser/views/sessionsInboxScope.js';
 
 suite('Chat view sessions list title actions', () => {
 
@@ -136,121 +130,33 @@ suite('Chat view sessions list focus', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createTitle(container: HTMLElement, withOverflow: boolean): HTMLElement {
-		const toolbar = container.appendChild(mainWindow.document.createElement('div'));
-		toolbar.className = 'monaco-action-bar';
-		const addAction = (className: string) => {
-			const item = toolbar.appendChild(mainWindow.document.createElement('div'));
-			item.className = 'action-item';
-			const label = item.appendChild(mainWindow.document.createElement('a'));
-			label.className = `action-label ${className}`;
-			label.tabIndex = 0;
-			label.textContent = className;
-			return label;
-		};
-		addAction('filter');
-		if (withOverflow) {
-			addAction('codicon codicon-toolbar-more');
-		}
-		return toolbar;
-	}
-
-	test('focus that a vanishing Toggle Inbox or scope picker loses goes to the first candidate that shows, unless it went elsewhere since', async () => {
-		const container = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+	test('focus that Toggle Inbox in the title loses as it goes moves to the toggle that replaces it, else to the list, unless it went elsewhere or the view went too', async () => {
+		const handOver = Reflect.get(SessionsView.prototype, 'handOverInboxToggleFocus') as (this: object) => void;
+		const elsewhere = mainWindow.document.body.appendChild(mainWindow.document.createElement('button'));
 		try {
-			const withOverflow = createTitle(container, true);
-			const withoutOverflow = createTitle(container, false);
-			const hiddenList = container.appendChild(mainWindow.document.createElement('div'));
-			hiddenList.tabIndex = 0;
-			hiddenList.style.display = 'none';
-			const elsewhere = container.appendChild(mainWindow.document.createElement('button'));
-			const focusedName = () => (mainWindow.document.activeElement as HTMLElement | null)?.textContent ?? '';
-
-			// An open picker's input, which keeps the focus while the picker animates closed
-			const pickerWidget = container.appendChild(mainWindow.document.createElement('div'));
-			pickerWidget.className = 'action-widget';
-			const closingPickerInput = pickerWidget.appendChild(mainWindow.document.createElement('input'));
-			const scope = container.appendChild(mainWindow.document.createElement('div'));
-			const lost = async (candidates: Parameters<typeof restoreLostFocus>[0], moveFocusTo?: HTMLElement, focusBeforeHide?: HTMLElement) => {
+			const lost = async ({ toggleShown = false, moveFocusElsewhere = false, viewDisposed = false }) => {
+				const focused: string[] = [];
 				(mainWindow.document.activeElement as HTMLElement | null)?.blur();
-				focusBeforeHide?.focus();
-				// As the view goes with its picker still open
-				restoreLostFocus(candidates, undefined, getScopeFocusedElement(scope, true));
-				moveFocusTo?.focus();
-				await timeout(0);
-				return focusedName();
+				handOver.call({
+					inboxToggles: new Set([{ isShown: () => toggleShown, focus: () => focused.push('toggle') }]),
+					_store: { isDisposed: viewDisposed },
+					isBodyVisible: () => true,
+					sessionsControl: { focus: () => focused.push('list') },
+				});
+				if (moveFocusElsewhere) {
+					elsewhere.focus();
+				}
+				await Promise.resolve();
+				return focused.join() || 'none';
 			};
-
-			elsewhere.textContent = 'elsewhere';
 			assert.deepStrictEqual({
-				overflow: await lost([() => getTitleToolbarFocusTarget(withOverflow)]),
-				firstAction: await lost([() => getTitleToolbarFocusTarget(withoutOverflow)]),
-				skipsHiddenList: await lost([() => hiddenList, () => getTitleToolbarFocusTarget(withoutOverflow)]),
-				keepsFocusMovedElsewhere: await lost([() => getTitleToolbarFocusTarget(withOverflow)], elsewhere),
-				leavesClosingPicker: await lost([() => getTitleToolbarFocusTarget(withoutOverflow)], undefined, closingPickerInput),
-				keepsFocusMovedElsewhereWhilePickerOpen: await lost([() => getTitleToolbarFocusTarget(withoutOverflow)], undefined, elsewhere),
-			}, {
-				overflow: 'codicon codicon-toolbar-more',
-				firstAction: 'filter',
-				skipsHiddenList: 'filter',
-				keepsFocusMovedElsewhere: 'elsewhere',
-				leavesClosingPicker: 'filter',
-				keepsFocusMovedElsewhereWhilePickerOpen: 'elsewhere',
-			});
+				replacementToggle: await lost({ toggleShown: true }),
+				noToggle: await lost({}),
+				focusMovedElsewhere: await lost({ toggleShown: true, moveFocusElsewhere: true }),
+				viewGone: await lost({ viewDisposed: true }),
+			}, { replacementToggle: 'toggle', noToggle: 'list', focusMovedElsewhere: 'none', viewGone: 'none' });
 		} finally {
-			container.remove();
-		}
-	});
-
-	test('focus the view loses as it goes falls back to its part\'s title, whose responsive toolbar overflowed every action from its first render, as the list that replaces it hides on relayout', async () => {
-		const container = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
-		const find = new Action('sessionsViewPane.find', 'Find');
-		const toggleInbox = new Action('sessionsViewPane.inboxMode', 'Toggle Inbox');
-		const handOverLostFocus = Reflect.get(SessionsView.prototype, 'handOverLostFocus') as (this: { element: HTMLElement | undefined }) => void;
-		// The part's title, such as the secondary side bar's, with its tabs before the actions of its only view
-		const title = container.appendChild(mainWindow.document.createElement('div'));
-		title.className = 'composite title';
-		const tabs = title.appendChild(mainWindow.document.createElement('div'));
-		tabs.className = 'composite-bar-container';
-		const tab = tabs.appendChild(mainWindow.document.createElement('div')).appendChild(mainWindow.document.createElement('div'));
-		tab.className = 'monaco-action-bar';
-		const titleActions = title.appendChild(mainWindow.document.createElement('div'));
-		titleActions.className = 'title-actions';
-		titleActions.style.width = '30px';
-		// As the secondary side bar's title toolbar, which keeps no primary action where it has no room
-		const toolbar = new ToolBar(titleActions, upcastPartial<IContextMenuProvider>({ showContextMenu: () => { } }), {
-			responsiveBehavior: { enabled: true, kind: 'all', minItems: 0, overflowFrom: 'start', actionMinWidth: 22 },
-		});
-		try {
-			toolbar.setActions([find, toggleInbox]);
-			const renderedActions = Array.from(titleActions.querySelectorAll('.action-item .action-label')).map(label => label.classList.contains('codicon-toolbar-more') ? 'more actions' : label.textContent);
-			const paneBody = container.appendChild(mainWindow.document.createElement('div'));
-			const view = { element: paneBody.appendChild(mainWindow.document.createElement('div')) };
-			const ownList = view.element.appendChild(mainWindow.document.createElement('div'));
-			ownList.className = 'monaco-list';
-			ownList.tabIndex = 0;
-			const replacement = paneBody.appendChild(mainWindow.document.createElement('div'));
-			replacement.className = 'monaco-list';
-			replacement.tabIndex = 0;
-			const focused = () => {
-				const active = mainWindow.document.activeElement as HTMLElement | null;
-				return active === replacement ? 'replacement' : active?.classList.contains('codicon-toolbar-more') && titleActions.contains(active) ? 'title overflow' : active?.tagName;
-			};
-
-			(mainWindow.document.activeElement as HTMLElement | null)?.blur();
-			handOverLostFocus.call(view);
-			// The hand-over focuses the replacement in a microtask, then checks again at the next animation frame
-			await Promise.resolve();
-			const first = focused();
-			// The host's relayout hides the replacement before that frame, as it lays out synchronously
-			replacement.style.display = 'none';
-			await new Promise<void>(resolve => scheduleAtNextAnimationFrame(mainWindow, () => setTimeout(resolve, 0)));
-			assert.deepStrictEqual({ renderedActions, first, afterRelayout: focused() }, { renderedActions: ['more actions'], first: 'replacement', afterRelayout: 'title overflow' });
-		} finally {
-			toolbar.dispose();
-			find.dispose();
-			toggleInbox.dispose();
-			container.remove();
+			elsewhere.remove();
 		}
 	});
 });

@@ -135,120 +135,29 @@ export function getCustomizationsPresentation(phoneLayout: boolean, aiEnabled: b
 const INBOX_MODE_ACTION_ID = 'sessionsViewPane.inboxMode';
 
 /**
- * Gives the focus, lost as what had it went, such as Toggle Inbox or an open scope picker as the Chat view's list turns off,
- * to the first of `candidates` that shows, once what replaces them rendered; not where the focus went elsewhere since. As the
- * host lays out after that, `afterLayout`, by default the next animation frame, the focus moves on to the next candidate that
- * shows if the one it got went or hid. `closingFocus` is what has the focus as it goes but keeps it while it closes, such as an
- * open picker's input as the picker animates closed; the focus it keeps counts as lost.
- */
-export function restoreLostFocus(candidates: readonly (() => HTMLElement | null | undefined)[], afterLayout: (callback: () => void) => void = callback => DOM.scheduleAtNextAnimationFrame(DOM.getActiveWindow(), callback), closingFocus?: Element | null): void {
-	const lost = (element?: HTMLElement) => {
-		const activeElement = DOM.getActiveElement();
-		return !DOM.isHTMLElement(activeElement) || !activeElement.isConnected || activeElement === activeElement.ownerDocument.body || activeElement === closingFocus || (activeElement === element && element.getClientRects().length === 0);
-	};
-	const focusFrom = (index: number): void => {
-		for (let i = index; i < candidates.length; i++) {
-			const element = candidates[i]();
-			if (element?.isConnected && element.getClientRects().length > 0) {
-				element.focus();
-				afterLayout(() => {
-					if (lost(element)) {
-						focusFrom(i + 1);
-					}
-				});
-				return;
-			}
-		}
-	};
-	queueMicrotask(() => {
-		if (lost()) {
-			focusFrom(0);
-		}
-	});
-}
-
-/** The list that replaces the view in the host's container, such as the Chat view's other list, not the view's own one that goes. */
-export function getReplacementList(container: Element | null | undefined, ownElement: Element | null | undefined): HTMLElement | undefined {
-	// eslint-disable-next-line eslint-js/no-restricted-syntax -- the list that replaces this view is the host's, which renders it into the same container
-	return Array.from(container?.querySelectorAll<HTMLElement>('.monaco-list') ?? []).find(list => !ownElement?.contains(list));
-}
-
-/**
- * The action bar of the title that shows the actions of the view that `element` is in: its pane's header, or, where that
- * header is hidden, such as when the pane is the only view of its container, its part's title. The host owns that title, which
- * stays as its toolbar moves actions into its overflow, so this does not depend on which actions it renders.
- */
-export function getHostTitleActionBar(element: Element | null | undefined): HTMLElement | undefined {
-	for (let ancestor = element?.parentElement; ancestor; ancestor = ancestor.parentElement) {
-		for (const child of Array.from(ancestor.children)) {
-			const isPaneHeader = child.classList.contains('pane-header');
-			if (!child.contains(element!) && (isPaneHeader || (child.classList.contains('composite') && child.classList.contains('title'))) && child.getClientRects().length > 0) {
-				// The view's actions, not the part's tabs or global actions that its title also has
-				// eslint-disable-next-line eslint-js/no-restricted-syntax -- the title, owned by the host, does not expose its toolbar
-				const actionBar = child.querySelector<HTMLElement>(isPaneHeader ? '.actions .monaco-action-bar' : '.title-actions .monaco-action-bar');
-				if (actionBar) {
-					return actionBar;
-				}
-			}
-		}
-	}
-	return undefined;
-}
-
-/** The action of a host's title toolbar that takes the focus Toggle Inbox loses: its overflow, where Toggle Inbox moves when the title has no room for it, or else its first action. */
-export function getTitleToolbarFocusTarget(toolbar: Element | null | undefined): HTMLElement | null | undefined {
-	// eslint-disable-next-line eslint-js/no-restricted-syntax -- the toolbar, owned by the host, does not expose its overflow or action elements
-	return toolbar?.querySelector<HTMLElement>('.action-item .action-label.codicon-toolbar-more') ?? toolbar?.querySelector<HTMLElement>('.action-item:not(.disabled) .action-label:not(.disabled)');
-}
-
-/**
- * Toggle Inbox in a host's title, such as the Chat view's. Toggling rebuilds the title's actions, which keeps the focus by
- * position only: the toggle that had it gives it to the toggle that replaces it, wherever that one is, or where none does,
- * such as as the list turns off, to the title's overflow or first action.
+ * Toggle Inbox in a host's title, such as the Chat view's, which shows as pressed while Inbox is on. Toggling rebuilds the
+ * title's actions, so the view hands the focus of a toggle that goes on to the one that replaces it.
  */
 class InboxToggleActionViewItem extends MenuEntryActionViewItem {
 
-	focusHandOver: { pending: boolean } | undefined;
-	onDispose: (() => void) | undefined;
+	onDispose: ((hadFocus: boolean) => void) | undefined;
 
 	override render(container: HTMLElement): void {
 		super.render(container);
 		// The title's toolbar does not show toggled actions as pressed; this one does
 		this.element?.classList.add('sessions-inbox-toggle');
-		const handOver = this.focusHandOver;
-		if (!handOver?.pending) {
-			return;
-		}
-		handOver.pending = false;
-		queueMicrotask(() => {
-			const element = this.element;
-			const activeElement = DOM.getActiveElement();
-			const toolbar = element?.closest('.monaco-action-bar');
-			// Only where the focus was lost with the old toggle, not where it went since
-			if (element?.isConnected && (!DOM.isHTMLElement(activeElement) || activeElement === element.ownerDocument.body || !!toolbar?.contains(activeElement))) {
-				this.focus();
-			}
-		});
 	}
 
 	hasFocus(): boolean {
 		return !!this.element && DOM.isAncestorOfActiveElement(this.element);
 	}
 
+	isShown(): boolean {
+		return !!this.element?.isConnected && this.element.getClientRects().length > 0;
+	}
+
 	override dispose(): void {
-		const handOver = this.focusHandOver;
-		if (handOver && this.hasFocus()) {
-			handOver.pending = true;
-			const toolbar = this.element?.closest('.monaco-action-bar');
-			// The toggle that replaces it renders right away, if at all
-			queueMicrotask(() => {
-				if (handOver.pending) {
-					handOver.pending = false;
-					restoreLostFocus([() => getTitleToolbarFocusTarget(toolbar)]);
-				}
-			});
-		}
-		this.onDispose?.();
+		this.onDispose?.(this.hasFocus());
 		super.dispose();
 	}
 }
@@ -510,7 +419,6 @@ export class SessionsView extends ViewPane {
 
 	private readonly headerInTitle: boolean;
 	private readonly inboxToggles = new Set<InboxToggleActionViewItem>();
-	private readonly inboxToggleFocusHandOver = { pending: false };
 	private readonly hideCustomizations: boolean;
 	private readonly groupings: ISessionsViewOptions['groupings'];
 	private readonly groupingStorageKeys: ISessionsViewGroupingStorageKeys | undefined;
@@ -786,21 +694,10 @@ export class SessionsView extends ViewPane {
 			scopeChanged.read(reader);
 			return getSessionFilterEnvironments(this.sessionsProvidersService.getProviders(), reader);
 		});
-		// As the view goes with the focus in its scope or the scope's open picker, which it closes, such as as the Chat view's
-		// list turns off, the focus goes to the list that replaces it, or else to the host's title
-		let scopeHadFocus: () => boolean = () => false;
-		let scopeFocusedElement: () => HTMLElement | undefined = () => undefined;
-		this._register(toDisposable(() => {
-			if (this.headerInTitle && scopeHadFocus()) {
-				this.handOverLostFocus(scopeFocusedElement());
-			}
-		}));
 		const inboxScope = this._register(this.instantiationService.createInstance(SessionsInboxScope, inboxScopeContainer, sessionsControl.filters, scopeSessions,
 			derived(reader => scopeEnvironments.read(reader).environments),
 			derived(reader => scopeEnvironments.read(reader).localEnvironmentIds),
 			derived(reader => { scopeChanged.read(reader); return this.grouping === SessionsGrouping.Inbox; })));
-		scopeHadFocus = () => inboxScope.hasFocus;
-		scopeFocusedElement = () => inboxScope.focusedElement;
 		this.windowScope.setScopeBarFilters(sessionsControl.filters);
 		this._register(autorun(reader => {
 			scopeChanged.read(reader);
@@ -983,18 +880,23 @@ export class SessionsView extends ViewPane {
 	}
 
 	/**
-	 * Gives the focus the view loses as it goes to the list that replaces it, or else to the host's title, whose actions may all be in its overflow.
-	 * Focus still on `closingFocus`, the scope's own element or open picker, counts as lost; focus that already moved elsewhere stays.
+	 * Gives the focus that Toggle Inbox in the host's title lost as it went to the toggle that replaces it, or where none shows,
+	 * such as where Inbox is no longer offered, to the view's list. Focus that moved elsewhere stays.
 	 */
-	private handOverLostFocus(closingFocus?: HTMLElement): void {
-		const ownElement = this.element;
-		const host = ownElement?.parentElement;
-		// Found while the view is still in the host, and again where the host's title rerendered since
-		const titleActionBar = getHostTitleActionBar(ownElement);
-		restoreLostFocus([
-			() => getReplacementList(host, ownElement),
-			() => getTitleToolbarFocusTarget(titleActionBar?.isConnected ? titleActionBar : getHostTitleActionBar(host)),
-		], callback => DOM.scheduleAtNextAnimationFrame(DOM.getWindow(host), callback), closingFocus);
+	private handOverInboxToggleFocus(): void {
+		// The title renders the toggle that replaces it right away, if at all
+		queueMicrotask(() => {
+			const activeElement = DOM.getActiveElement();
+			if (DOM.isHTMLElement(activeElement) && activeElement.isConnected && activeElement !== activeElement.ownerDocument.body) {
+				return;
+			}
+			const toggle = Iterable.find(this.inboxToggles, item => item.isShown());
+			if (toggle) {
+				toggle.focus();
+			} else if (!this._store.isDisposed && this.isBodyVisible()) {
+				this.sessionsControl?.focus();
+			}
+		});
 	}
 
 	override createActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {
@@ -1003,9 +905,13 @@ export class SessionsView extends ViewPane {
 		}
 		if (this.headerInTitle && action instanceof MenuItemAction && action.id === INBOX_MODE_ACTION_ID) {
 			const item = this.instantiationService.createInstance(InboxToggleActionViewItem, action, options);
-			item.focusHandOver = this.inboxToggleFocusHandOver;
 			this.inboxToggles.add(item);
-			item.onDispose = () => this.inboxToggles.delete(item);
+			item.onDispose = hadFocus => {
+				this.inboxToggles.delete(item);
+				if (hadFocus) {
+					this.handOverInboxToggleFocus();
+				}
+			};
 			return item;
 		}
 		return super.createActionViewItem(action, options);

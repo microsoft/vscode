@@ -32,18 +32,6 @@ function getEnvironmentIcon(environment: string): ThemeIcon {
 	return environment === LOCAL_SESSIONS_ENVIRONMENT ? Codicon.deviceDesktop : environment === 'cloud' ? Codicon.cloud : Codicon.remote;
 }
 
-/**
- * The focused element when the scope owns it: it is in the scope, or in the scope's open picker, which keeps the focus while it animates closed.
- * Focus that moved to any other control while the picker was still open is not the scope's.
- */
-export function getScopeFocusedElement(scope: HTMLElement, pickerOpen: boolean): HTMLElement | undefined {
-	const activeElement = dom.getActiveElement();
-	if (!dom.isHTMLElement(activeElement)) {
-		return undefined;
-	}
-	return scope.contains(activeElement) || (pickerOpen && activeElement.closest('.action-widget')) ? activeElement : undefined;
-}
-
 export class SessionsInboxScope extends Disposable {
 	readonly element: HTMLElement;
 	private activeTrigger: HTMLElement | undefined;
@@ -267,17 +255,6 @@ export class SessionsInboxScope extends Disposable {
 		}
 	}
 
-	/** Whether the focus is in the scope or its open picker. */
-	get hasFocus(): boolean {
-		const activeElement = dom.getActiveElement();
-		return !!this.activeTrigger || (dom.isHTMLElement(activeElement) && this.element.contains(activeElement));
-	}
-
-	/** The focused element when it is in the scope or its open picker, which keeps the focus while it animates closed. */
-	get focusedElement(): HTMLElement | undefined {
-		return getScopeFocusedElement(this.element, !!this.activeTrigger);
-	}
-
 	/**
 	 * Shows or hides the scope. Hiding closes an open picker first, and returns whether the focus was in the scope or its picker,
 	 * which the caller then moves to a control that stays, as the hidden scope cannot keep it.
@@ -287,7 +264,8 @@ export class SessionsInboxScope extends Disposable {
 			this.element.hidden = !visible;
 			return false;
 		}
-		const hadFocus = this.hasFocus;
+		const activeElement = dom.getActiveElement();
+		const hadFocus = !!this.activeTrigger || (dom.isHTMLElement(activeElement) && this.element.contains(activeElement));
 		this.hidePicker();
 		this.element.hidden = true;
 		return hadFocus;
