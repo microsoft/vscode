@@ -34,6 +34,22 @@ export interface IUpdateRequest {
 export interface IStorageItemsChangeEvent {
 	readonly changed?: Map<string, string>;
 	readonly deleted?: Set<string>;
+
+	/**
+	 * Optional revisions for the changed or deleted items. A revision
+	 * allows a storage instance to identify and ignore delayed
+	 * notifications of changes that are older than a local write.
+	 */
+	readonly revisions?: Map<string, number>;
+}
+
+export interface IStorageUpdateResult {
+
+	/**
+	 * Revisions for the items that were updated, if supported by
+	 * the storage backend.
+	 */
+	readonly revisions?: Map<string, number>;
 }
 
 export function isStorageItemsChangeEvent(thing: unknown): thing is IStorageItemsChangeEvent {
@@ -47,7 +63,7 @@ export interface IStorageDatabase {
 	readonly onDidChangeItemsExternal: Event<IStorageItemsChangeEvent>;
 
 	getItems(): Promise<Map<string, string>>;
-	updateItems(request: IUpdateRequest): Promise<void>;
+	updateItems(request: IUpdateRequest): Promise<IStorageUpdateResult | void>;
 
 	optimize(): Promise<void>;
 
@@ -128,6 +144,22 @@ export class Storage extends Disposable implements IStorage {
 	private pendingDeletes = new Set<string>();
 	private pendingInserts = new Map<string, string>();
 
+	/**
+	 * Number of writes that are currently in flight for a key.
+	 */
+	private readonly inFlightKeys = new Map<string, number>();
+
+	/**
+	 * Latest revision this instance knows to be applied for a key.
+	 */
+	private readonly lastRevisions = new Map<string, number>();
+
+	/**
+	 * External changes that arrived while a local write was pending or
+	 * in flight. They are reconciled once the write completed.
+	 */
+	private readonly deferredExternalChanges = new Map<string, { value: string | undefined; revision: number }>();
+
 	private pendingClose: Promise<void> | undefined = undefined;
 
 	private readonly whenFlushedCallbacks: Function[] = [];
@@ -153,17 +185,58 @@ export class Storage extends Disposable implements IStorage {
 			// caches with the values. we just accept the value and
 			// emit an event if there is a change.
 
-			e.changed?.forEach((value, key) => this.acceptExternal(key, value));
-			e.deleted?.forEach(key => this.acceptExternal(key, undefined));
+			e.changed?.forEach((value, key) => this.acceptExternal(key, value, e.revisions?.get(key)));
+			e.deleted?.forEach(key => this.acceptExternal(key, undefined, e.revisions?.get(key)));
 
 		} finally {
 			this._onDidChangeStorage.resume();
 		}
 	}
 
-	private acceptExternal(key: string, value: string | undefined): void {
+	private acceptExternal(key: string, value: string | undefined, revision: number | undefined): void {
 		if (this.state === StorageState.Closed) {
 			return; // Return early if we are already closed
+		}
+
+		// A notification can be delayed and arrive after a newer local
+		// write. While a write has not been sent yet the local value is
+		// authoritative because it will be applied after this notification.
+		if (this.hasPendingForKey(key)) {
+			if (typeof revision === 'number') {
+				this.deferExternalChange(key, value, revision);
+			}
+
+			return;
+		}
+
+		// An in-flight write may have been applied before or after this
+		// notification. If the notification carries a revision, keep it
+		// around and reconcile it once the write is acknowledged. Without
+		// a revision there is no ordering information, so accept it as
+		// before to preserve immediate external updates.
+		if (this.inFlightKeys.has(key) && typeof revision === 'number') {
+			this.deferExternalChange(key, value, revision);
+			return;
+		}
+
+		this.applyExternalValue(key, value, revision);
+	}
+
+	private deferExternalChange(key: string, value: string | undefined, revision: number): void {
+		const deferred = this.deferredExternalChanges.get(key);
+		if (!deferred || revision > deferred.revision) {
+			this.deferredExternalChanges.set(key, { value, revision });
+		}
+	}
+
+	private applyExternalValue(key: string, value: string | undefined, revision: number | undefined): void {
+		if (typeof revision === 'number') {
+			const lastRevision = this.lastRevisions.get(key);
+			if (typeof lastRevision === 'number' && revision <= lastRevision) {
+				return; // Ignore a delayed notification of an older change
+			}
+
+			this.lastRevisions.set(key, revision);
 		}
 
 		let changed = false;
@@ -360,6 +433,14 @@ export class Storage extends Disposable implements IStorage {
 		return this.pendingInserts.size > 0 || this.pendingDeletes.size > 0;
 	}
 
+	private hasPendingForKey(key: string): boolean {
+		return this.pendingInserts.has(key) || this.pendingDeletes.has(key);
+	}
+
+	private hasPendingFor(key: string): boolean {
+		return this.hasPendingForKey(key) || this.inFlightKeys.has(key);
+	}
+
 	private async flushPending(): Promise<void> {
 		if (!this.hasPending) {
 			return; // return early if nothing to do
@@ -368,18 +449,63 @@ export class Storage extends Disposable implements IStorage {
 		// Get pending data
 		const updateRequest: IUpdateRequest = { insert: this.pendingInserts, delete: this.pendingDeletes };
 
+		// Keep track of the keys that are now in flight so that a delayed
+		// external change cannot overwrite them while the write is pending
+		const keys = new Set<string>();
+		updateRequest.insert?.forEach((_, key) => keys.add(key));
+		updateRequest.delete?.forEach(key => keys.add(key));
+		keys.forEach(key => this.inFlightKeys.set(key, (this.inFlightKeys.get(key) ?? 0) + 1));
+
 		// Reset pending data for next run
 		this.pendingDeletes = new Set<string>();
 		this.pendingInserts = new Map<string, string>();
 
 		// Update in storage and release any
 		// waiters we have once done
-		return this.database.updateItems(updateRequest).finally(() => {
+		let result: IStorageUpdateResult | undefined = undefined;
+		try {
+			const updateResult = await this.database.updateItems(updateRequest);
+			if (typeof updateResult === 'object') {
+				result = updateResult;
+			}
+		} finally {
+			keys.forEach(key => {
+				const inFlight = this.inFlightKeys.get(key);
+				if (inFlight === 1) {
+					this.inFlightKeys.delete(key);
+				} else if (typeof inFlight === 'number') {
+					this.inFlightKeys.set(key, inFlight - 1);
+				}
+			});
+
+			// Remember the revisions of the acknowledged writes so that
+			// older, delayed notifications can be ignored
+			result?.revisions?.forEach((revision, key) => {
+				const lastRevision = this.lastRevisions.get(key);
+				if (typeof lastRevision !== 'number' || revision > lastRevision) {
+					this.lastRevisions.set(key, revision);
+				}
+			});
+
+			this.applyDeferredExternalChanges(keys);
+
 			if (!this.hasPending) {
 				while (this.whenFlushedCallbacks.length) {
 					this.whenFlushedCallbacks.pop()?.();
 				}
 			}
+		}
+	}
+
+	private applyDeferredExternalChanges(keys: Set<string>): void {
+		keys.forEach(key => {
+			const deferred = this.deferredExternalChanges.get(key);
+			if (!deferred || this.hasPendingFor(key)) {
+				return; // A newer local write will supersede the notification
+			}
+
+			this.deferredExternalChanges.delete(key);
+			this.applyExternalValue(key, deferred.value, deferred.revision);
 		});
 	}
 
