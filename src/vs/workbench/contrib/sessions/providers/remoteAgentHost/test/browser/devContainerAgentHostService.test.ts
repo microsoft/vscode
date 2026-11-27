@@ -1833,14 +1833,26 @@ suite('Dev Container Agent Host Service', () => {
 			]);
 		});
 
+		test('lists one with sessions as stopped right after this window stopped it', async () => {
+			const { service, local, provider, refresh, rows } = setupFolders([{ folder: project, running: true }]);
+			await refresh();
+			await (await service.connect(project, CancellationToken.None)).release();
+			provider(project)!.publishSession();
+			local.containers = [{ folder: project, running: false }];
+			await provider(project)!.config.devContainerLifecycle!.stop();
+			await timeout(0);
+			await timeout(0);
+			assert.deepStrictEqual(rows().map(row => row.running), [false]);
+		});
+
 		test('removes the provider of one without sessions once this window stopped it while idle', async () => {
 			const { service, local, provider, refresh, rows } = setupFolders([{ folder: project, running: true }]);
 			await refresh();
 			await (await service.connect(project, CancellationToken.None)).release();
 			const listedProvider = provider(project)!;
+			local.containers = [{ folder: project, running: false }];
 			await listedProvider.config.devContainerLifecycle!.stop();
 			const afterStop = { disposed: listedProvider.disposed, rows: rows().length };
-			local.containers = [{ folder: project, running: false }];
 			await refresh();
 			assert.deepStrictEqual({ afterStop, afterRefresh: { provider: !!provider(project), rows: rows().length } }, {
 				afterStop: { disposed: true, rows: 0 },

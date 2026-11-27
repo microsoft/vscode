@@ -812,8 +812,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 				}
 				await this._disconnectActiveTransport(active);
 				active.state = 'stopped';
-				// The container no longer runs, so its provider isn't kept for listing it until discovery notices.
-				this._runningFolders.delete(key);
+				this._didStopFolderContainer(key);
 				if (active.references === 0 && active.provider.getSessions().length === 0) {
 					this._removeStoredConnection(key);
 					this._removeProvider(key);
@@ -824,6 +823,17 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 				throw error;
 			}
 		});
+	}
+
+	/**
+	 * A folder's container that this window stopped or removed no longer runs: its provider isn't kept for listing it, and
+	 * its row is listed again rather than as running until the next refresh.
+	 */
+	private _didStopFolderContainer(key: string): void {
+		this._runningFolders.delete(key);
+		if (isDevContainerDiscoveryEnabled(this._configurationService)) {
+			void this._folderDiscovery.refresh();
+		}
 	}
 
 	private _removeContainer(key: string): Promise<boolean> {
@@ -844,6 +854,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 				}
 				await this._disconnectActiveTransport(active);
 				active.state = 'removed';
+				this._didStopFolderContainer(key);
 				active.sandboxSupported = undefined;
 				this._knownSandboxSupport.delete(key);
 				active.provider.setDevContainerSandboxSupported(undefined);
