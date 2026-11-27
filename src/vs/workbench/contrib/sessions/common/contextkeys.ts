@@ -74,6 +74,7 @@ export const SessionWorktreeCleanupEditorFocusedContext = new RawContextKey<bool
 export const SessionsChatBackgroundConfiguredContext = new RawContextKey<boolean>('sessionsChatBackgroundConfigured', false, localize('sessionsChatBackgroundConfigured', "Whether a chat background is configured for the current color theme"));
 export const SessionsChatBackgroundImageConfiguredContext = new RawContextKey<boolean>('sessionsChatBackgroundImageConfigured', false, localize('sessionsChatBackgroundImageConfigured', "Whether a chat background image is configured for the current color theme"));
 export const IsQuickChatSessionContext = new RawContextKey<boolean>('isQuickChatSession', false, localize('isQuickChatSession', "Whether the session in scope is a workspace-less quick chat, or, where a chat of the session is shown, whether that chat is one; a chat of a quick chat that works in a folder of its own is not"));
+export const SessionWorkspacesEnabledContext = new RawContextKey<boolean>('sessionsWorkspacesEnabled', false, localize('sessionsWorkspacesEnabled', "Whether the Agents window offers workspaces: named sets of folders saved as workspace files"));
 
 /** Whether the chat in scope has a workspace, as the Changes and Files tabs of a chat window need. */
 export const SessionWithWorkspaceContext = ContextKeyExpr.and(SessionHasWorkspaceContext, IsQuickChatSessionContext.negate())!;

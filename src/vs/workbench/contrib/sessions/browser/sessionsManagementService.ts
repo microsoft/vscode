@@ -1933,6 +1933,17 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		await provider.addChatFolder(session.sessionId, chatUri, folder);
 	}
 
+	async detachSessionsFromWorkspace(workspaceFiles: readonly URI[]): Promise<void> {
+		if (workspaceFiles.length === 0) {
+			return;
+		}
+		const results = await Promise.allSettled(this.sessionsProvidersService.getProviders({ includeSessionBackends: true }).map(provider => provider.detachSessionsFromWorkspace?.(workspaceFiles)));
+		const failures = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected');
+		if (failures.length) {
+			throw failures.length === 1 ? failures[0].reason : new AggregateError(failures.map(failure => failure.reason), 'Detaching sessions from their workspace failed.');
+		}
+	}
+
 	async removeChatFolder(session: ISession, chatUri: URI, folder: URI): Promise<void> {
 		const provider = this._getProvider(session);
 		if (!provider?.removeChatFolder || !session.capabilities.get().supportsChatFolders) {
