@@ -1,3 +1,8 @@
+parameters:
+  - name: captureBranchHead
+    type: boolean
+    default: false
+
 steps:
   # Check out the private microsoft/vscode-distro repository using the agent's
   # GitHub App (Monaco) credentials. This avoids the need for a long-lived PAT.
@@ -11,7 +16,7 @@ steps:
     path: s/.build/distro
     fetchDepth: 1
     fetchTags: false
-    # Needed for the pinned-commit fetch and LFS pull below; removed immediately afterward.
+    # Needed for the pinned-commit fetch, LFS pull, and optional branch-head lookup below.
     persistCredentials: true
     retryCountOnTaskFailure: 3
     displayName: Checkout microsoft/vscode-distro
@@ -34,12 +39,36 @@ steps:
   - script: git -C .build/distro lfs pull
     displayName: Pull Git LFS objects
 
+  - ${{ if eq(parameters.captureBranchHead, true) }}:
+    - pwsh: |
+        $ErrorActionPreference = "Stop"
+        $BranchHead = "query-failed"
+        try {
+          $Branch = $env:BUILD_SOURCEBRANCH -replace '^refs/heads/', ''
+          $Output = git -C .build/distro ls-remote --heads origin "refs/heads/$Branch"
+          if ($LASTEXITCODE -ne 0) { throw "git ls-remote failed" }
+          if ($Output) {
+            $BranchHead = ($Output -split '\s+')[0]
+            if ($BranchHead -notmatch '^[0-9a-f]{40}$') { throw "git ls-remote returned an invalid commit" }
+          } else {
+            $BranchHead = "not-found"
+          }
+        } catch {
+          $BranchHead = "query-failed"
+          $global:LASTEXITCODE = 0
+        }
+        Write-Host "##vso[task.setvariable variable=VSCODE_DISTRO_BRANCH_HEAD]$BranchHead"
+      condition: and(succeeded(), eq(lower(variables['VSCODE_PUBLISH']), 'true'), startsWith(variables['Build.SourceBranch'], 'refs/heads/'))
+      env:
+        BUILD_SOURCEBRANCH: "$(Build.SourceBranch)"
+      displayName: Capture distro branch head
+
   - pwsh: |
       $ErrorActionPreference = "Stop"
       if (Test-Path -LiteralPath .build/distro/.git) {
-        $AuthHeaders = git -C .build/distro config --local --name-only --get-regexp '^http(\..*)?\.extraheader$'
+        $CredentialKeys = git -C .build/distro config --local --name-only --get-regexp '^(http(\..*)?\.extraheader|remote\.origin\.lfs(url|pushurl))$'
         if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 1) { throw "Failed to enumerate distro checkout credentials" }
-        foreach ($Key in ($AuthHeaders | Sort-Object -Unique)) {
+        foreach ($Key in ($CredentialKeys | Sort-Object -Unique)) {
           git -C .build/distro config --local --unset-all $Key
           if ($LASTEXITCODE -ne 0) { throw "Failed to remove distro checkout credentials" }
         }

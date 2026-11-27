@@ -5,14 +5,11 @@
 
 import path from 'path';
 import fs from 'fs';
-import { execFileSync } from 'child_process';
 
 const root = path.dirname(path.dirname(path.dirname(import.meta.dirname)));
 
-// The microsoft/vscode-distro repository is checked out locally by
-// download-distro.yml (into .build/distro) using the agent's GitHub App
-// (Monaco) credentials, so we can resolve branch heads without a token that
-// has private repository access.
+// The branch head is captured by download-distro.yml while checkout credentials
+// are available, before they are removed from the local Git configuration.
 const distroPath = path.join(root, '.build', 'distro');
 
 function getEnv(name: string): string {
@@ -31,15 +28,18 @@ function assertDistroCheckout(): void {
 	}
 }
 
-function getDistroBranchHead(branch: string): string | undefined {
-	// The checkout only fetches the pinned commit, so ask the remote for the branch head
-	const output = execFileSync('git', ['-C', distroPath, 'ls-remote', '--heads', 'origin', `refs/heads/${branch}`], {
-		encoding: 'utf8',
-		env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
-		timeout: 60_000,
-	}).trim();
-
-	return output ? output.split(/\s+/)[0] : undefined;
+function getDistroBranchHead(): string | undefined {
+	const branchHead = getEnv('VSCODE_DISTRO_BRANCH_HEAD');
+	if (branchHead === 'not-found') {
+		return undefined;
+	}
+	if (branchHead === 'query-failed') {
+		throw new Error('Authenticated branch-head query failed');
+	}
+	if (!/^[0-9a-f]{40}$/.test(branchHead)) {
+		throw new Error('Invalid distro branch head');
+	}
+	return branchHead;
 }
 
 async function checkDistroCommit(): Promise<void> {
@@ -73,10 +73,10 @@ async function checkDistroCommit(): Promise<void> {
 	// indistinguishable from a branch that simply doesn't exist in distro.
 	assertDistroCheckout();
 
-	// Resolve the HEAD of the matching branch from vscode-distro
+	// Use the branch head captured before download-distro.yml removed the checkout credentials.
 	let distroBranchHead: string | undefined;
 	try {
-		distroBranchHead = getDistroBranchHead(branch);
+		distroBranchHead = getDistroBranchHead();
 	} catch (error) {
 		const message = `Could not query vscode-distro for branch '${branch}', skipping the distro commit check: ${error}`;
 		console.log(`##vso[task.logissue type=warning]${message.replaceAll('%', '%AZP25').replaceAll('\r', '%0D').replaceAll('\n', '%0A')}`);
