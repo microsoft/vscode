@@ -238,7 +238,7 @@ export interface IModelDecorationOptions {
 	/**
 	 * Font size
 	 */
-	fontSize?: string | null;
+	fontSize?: number | null;
 	/**
 	 * Font weight
 	 */
