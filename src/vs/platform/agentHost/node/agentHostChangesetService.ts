@@ -1657,7 +1657,6 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		return folder === undefined ? undefined : getDiffBaseBranch(readFolderScopeGitState(meta, getWorkingDirectoryScopeId([folder])));
 	}
 
-
 	/**
 	 * The repositories of a Branch changeset of several folders, or of one folder with repositories found inside it: the
 	 * folders' repositories and the found ones, at most {@link MAX_UNCOMMITTED_FOLDERS}. Both the changeset and its
