@@ -75,7 +75,7 @@ suite('NativeWorkspaceEditingService - extension host recovery', () => {
 		instantiationService.stub(ILogService, new class extends NullLogService {
 			override error(message: string | Error): void { errors.push(message); }
 		}());
-		instantiationService.stub(INativeWorkbenchEnvironmentService, { remoteAuthority });
+		instantiationService.stub(INativeWorkbenchEnvironmentService, { remoteAuthority, userRoamingDataHome: URI.file('/user') });
 		instantiationService.stub(IExtensionService, {
 			stopExtensionHosts: async () => { calls.push('stop'); return stopped; },
 			startExtensionHosts: async () => {

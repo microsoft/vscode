@@ -122,13 +122,14 @@ export class SessionsWindowScopeController extends Disposable {
 				return;
 			}
 			const fixed = this.scopePickFixed.read(reader);
-			filters.setInboxScopeFixed(fixed);
 			if (fixed) {
+				filters.setInboxScopeFixed(true);
 				filters.pickInboxWorkspace(this.getAgentsModeStartWorkspace());
-			} else if (sameFilters && wasFixed && this.barShown.read(reader)) {
+			} else {
 				// The bar shows in the mode, as the setting turned on: it starts on the window's own folder, as when the
-				// window enters the mode with the setting on, rather than on the pick from before the mode
-				filters.pickInboxWorkspace(this.getAgentsModeStartWorkspace());
+				// window enters the mode with the setting on, rather than on the pick from before the mode. Kept while
+				// unfixing, so the scope never moves to the pick from before, not even for a moment
+				filters.setInboxScopeFixed(false, sameFilters && wasFixed && this.barShown.read(reader));
 			}
 			wasFixed = fixed;
 		}));

@@ -595,12 +595,18 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 	/**
 	 * Fixes the picked inbox scope while the user can't change it, so that resetting it, undoing a reset, or reading the
 	 * filters again, such as of another profile, keeps it.
+	 * @param keepPick when unfixing, keeps the fixed pick and stores it as the user's, rather than reading the stored pick again
 	 */
-	setInboxScopeFixed(fixed: boolean): void {
+	setInboxScopeFixed(fixed: boolean, keepPick?: boolean): void {
 		if (this.inboxScopeFixed === fixed) {
 			return;
 		}
 		this.inboxScopeFixed = fixed;
+
+		if (!fixed && keepPick) {
+			this.storeInboxScope(this.hasInboxScope ? JSON.stringify(this._inboxScope) : undefined);
+			return;
+		}
 
 		// While fixed, the list ignored what was stored: pick up the stored scope again
 		if (!fixed) {
