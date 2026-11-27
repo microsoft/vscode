@@ -29,7 +29,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { constObservable, waitForState, type IReader } from '../../../../base/common/observable.js';
 import { join } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase, isEqual, isEqualOrParent, joinPath } from '../../../../base/common/resources.js';
-import { isLinux } from '../../../../base/common/platform.js';
+import { isLinux, isWindows } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -12783,6 +12783,39 @@ suite('AgentService (node dispatcher)', () => {
 				sessionFolders: [primary.toString(), joinPath(primary, 'packages/core').toString()],
 			});
 		});
+
+		// Windows paths: Git may report a checkout root in another case than the folder the client sent
+		for (const { name, checkout, folder, worktree } of [
+			{ name: 'a drive letter and path in another case', checkout: 'c:\\work\\app', folder: 'C:\\Work\\App\\packages\\core', worktree: 'c:\\work\\app.worktrees\\session' },
+			{ name: 'a UNC share in another case', checkout: '\\\\server\\share\\app', folder: '\\\\SERVER\\share\\App\\packages\\core', worktree: '\\\\server\\share\\app.worktrees\\session' },
+		]) {
+			(isWindows ? test : test.skip)(`isolating a folder in the checkout of the primary folder maps it into the session's own worktree on Windows, with ${name}`, async () => {
+				const app = URI.file(checkout);
+				const primary = URI.file(worktree);
+				const appPackage = URI.file(folder);
+				const gitService: IAgentHostGitService = {
+					...createNoopGitService(),
+					getRepositoryRoot: async directory => extUriBiasedIgnorePathCase.isEqualOrParent(directory, primary) ? primary : extUriBiasedIgnorePathCase.isEqualOrParent(directory, app) ? app : undefined,
+					getCurrentBranch: async () => 'feature',
+				};
+				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, gitService));
+				const agent = disposables.add(new MockAgent('copilot', { multipleWorkingDirectories: { immutablePrimary: true } }));
+				registerTestAgentProvider(svc, agent);
+				setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
+					supported: true,
+					readWorktreeMetadata: async () => ({ branchName: 'agents/task', worktreePath: primary, repositoryRoot: app, symlinkSourceRoot: app }),
+					createDetachedWorktree: async () => { throw new Error('No new worktree expected'); },
+					claimDetachedWorktree: async () => { },
+				}));
+				const session = await svc.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: [primary, appPackage] });
+				const chat = URI.parse(buildDefaultChatUri(session));
+				getStateManager(svc).setSessionConfig(session.toString(), { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'worktree' } });
+
+				const isolated = await svc.isolateChatFolder(session, chat, appPackage, undefined);
+
+				assert.strictEqual(isolated.fsPath, URI.file(`${worktree}\\packages\\core`).fsPath);
+			});
+		}
 
 		test('isolating a folder waits for a change to the chat\'s folders that holds the chat catalog lock, and leaves a folder the chat no longer works in', async () => {
 			const primary = URI.file('/work/app.worktrees/session');

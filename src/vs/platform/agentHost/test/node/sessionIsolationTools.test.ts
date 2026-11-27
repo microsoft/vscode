@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { isWindows } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -150,6 +151,22 @@ suite('Session isolation tool', () => {
 		});
 		assert.match(String(alone), /Moving this chat to a new worktree is scheduled/);
 		assert.match(String(withOthers), /Moving this chat to a new worktree of .*app.*, and .*docs.* into worktrees of their own, is scheduled.*telling you each new path/);
+	});
+
+	// Windows paths: the tool matches a path the agent passes to a folder of the chat as Windows does, ignoring case
+	(isWindows ? test : test.skip)('matches Windows paths that differ in drive letter or path case, also on a UNC share', async () => {
+		const { stateManager, host, main, session, folderCalls, setIsolatable } = createHarness();
+		const drive = URI.file('c:\\work\\protocol');
+		const share = URI.file('\\\\server\\share\\docs');
+		setIsolatable({ folders: [drive, share] });
+		stateManager.dispatchServerAction(main, chatTurnStarted('turn-1', 'Change both'));
+		await host.executeTool(main, SessionServerToolName.IsolateSession, { folders: ['C:\\Work\\Protocol', '\\\\SERVER\\share\\Docs'] });
+		const duplicate = await errorOf(host.executeTool(main, SessionServerToolName.IsolateSession, { folders: ['C:\\work\\protocol', 'c:\\WORK\\PROTOCOL'] }));
+		assert.deepStrictEqual({ folderCalls, duplicate: !!duplicate }, {
+			// The folders as the chat lists them
+			folderCalls: [{ session, chat: main, folders: [drive.fsPath, share.fsPath], turnId: 'turn-1' }],
+			duplicate: true,
+		});
 	});
 
 	test('a chat of several folders can move one additional folder only', async () => {
