@@ -21,7 +21,7 @@ import { ChatOriginKind, isAhpChatChannel, isSessionChatArchived, parseSubagentS
 import { ActionType } from '../common/state/sessionActions.js';
 import { getSummaryChangesetKind } from './agentHostChangesetSummary.js';
 import { getSessionSummarySources } from './agentHostChatsInUse.js';
-import { resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource } from './agentHostBranchChangesetScope.js';
+import { resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource, resolveChangesetOwnerGitSource } from './agentHostBranchChangesetScope.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
 /**
@@ -275,7 +275,8 @@ export class AgentHostChangesetCoordinator extends Disposable {
 				void this._changesets.computeUncommittedChangeset(parsed.ownerUri);
 				// Catch up Git state missed while the changeset was unobserved.
 				if (!this._isSubagentChat(parsed.ownerUri)) {
-					void this._gitStateService.refreshSessionGitState(parsed.ownerUri);
+					// A folder of the session on its own has no Git state of its own: the session's refresh refreshes it
+					void this._gitStateService.refreshSessionGitState(resolveChangesetOwnerGitSource(this._stateManager, parsed.ownerUri).refreshKey);
 				}
 			}
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.ownerUri);

@@ -124,6 +124,37 @@ export function resolveBranchChangesetScopeForOwner(stateManager: AgentHostState
 	return undefined;
 }
 
+/** What the changesets of an owner are computed from, and the key whose Git state refresh refreshes them. */
+export interface IChangesetOwnerGitSource {
+	/** The folders whose repositories the owner's changesets list; `undefined` until they are known. */
+	readonly workingDirectories: readonly string[] | undefined;
+	/** The session or chat whose Git state refresh refreshes the owner's changesets. */
+	readonly refreshKey: ProtocolURI;
+	/** The session the owner belongs to. */
+	readonly sessionUri: ProtocolURI;
+}
+
+/**
+ * What the changesets of `ownerUri` are computed from. A folder of a session on its own (a folder-only scope) lists its
+ * own folder and is refreshed by the session's Git state refresh, which refreshes the changesets of each folder; a
+ * folder owner that is a chat's scope is that chat's; any other owner is its `sourceUri` (by default itself).
+ */
+export function resolveChangesetOwnerGitSource(stateManager: AgentHostStateManager, ownerUri: ProtocolURI, sourceUri: ProtocolURI = ownerUri): IChangesetOwnerGitSource {
+	if (parseFolderChangesetOwnerUri(ownerUri)) {
+		const scope = resolveChangesetOwnerScope(stateManager, ownerUri);
+		return {
+			workingDirectories: scope.workingDirectories.length ? scope.workingDirectories : undefined,
+			refreshKey: isFolderOnlyScope(stateManager, scope) ? scope.sessionUri : scope.sourceUri,
+			sessionUri: scope.sessionUri,
+		};
+	}
+	return {
+		workingDirectories: getEffectiveWorkingDirectories(stateManager, sourceUri),
+		refreshKey: sourceUri,
+		sessionUri: resolveChangesetOwnerScope(stateManager, sourceUri).sessionUri,
+	};
+}
+
 /**
  * The Git state of a folder-only scope (see {@link isFolderOnlyScope}): the session's for its first folder, and
  * otherwise the state recorded for the folder alone.

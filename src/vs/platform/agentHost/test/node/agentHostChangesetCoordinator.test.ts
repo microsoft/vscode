@@ -590,6 +590,42 @@ suite('ChangesetSessionCoordinator', () => {
 		});
 	});
 
+	test('the first subscriber to a folder\'s Uncommitted changeset refreshes the Git state its changes come from: the session\'s for a folder on its own, the chat\'s for a chat\'s folder', async () => {
+		const environment = createEnvironment(undefined, createRoutingGitService(new Map([['file:///app', URI.parse('file:///app')], ['file:///api', URI.parse('file:///api')], ['file:///lib', URI.parse('file:///lib')]])));
+		const session = AgentSession.uri('mock', 'subscribe').toString();
+		createMultiRootSession(environment.stateManager, session, ['file:///app', 'file:///api', 'file:///lib']);
+		const peer = buildChatUri(session, 'peer');
+		environment.stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer, buildDefaultChatUri(session)), { workingDirectories: ['file:///api'] });
+		const refreshKey = (folder: string) => {
+			environment.gitStateService.clearRefreshes();
+			const changeset = buildUncommittedChangesetUri(buildFolderChangesetOwnerUri(session, getWorkingDirectoryScopeId([folder])));
+			environment.subscriptions.addSubscription(parseChangesetUri(changeset)!.ownerUri, changeset);
+			environment.coordinator.onFirstSubscriber(URI.parse(changeset));
+			return [...environment.gitStateService.refreshed];
+		};
+
+		assert.deepStrictEqual({ folderOnItsOwn: refreshKey('file:///lib'), chatFolder: refreshKey('file:///api') }, { folderOnItsOwn: [session], chatFolder: [peer] });
+	});
+
+	test('a file change in a chat\'s folder refreshes that chat\'s Git state for an observed changeset of its folder owner', async () => {
+		const environment = createEnvironment(undefined, createRoutingGitService(new Map([['file:///app', URI.parse('file:///app')], ['file:///api', URI.parse('file:///api')]])));
+		const session = AgentSession.uri('mock', 'chat-folder').toString();
+		createMultiRootSession(environment.stateManager, session, ['file:///app', 'file:///api']);
+		const peer = buildChatUri(session, 'peer');
+		environment.stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer, buildDefaultChatUri(session)), { workingDirectories: ['file:///api'] });
+		const changeset = buildUncommittedChangesetUri(buildFolderChangesetOwnerUri(session, getWorkingDirectoryScopeId(['file:///api'])));
+		environment.subscriptions.addSubscription(parseChangesetUri(changeset)!.ownerUri, changeset);
+		environment.coordinator.onFirstSubscriber(URI.parse(changeset));
+		await environment.monitor.waitForAcquisitions(1);
+		await tick();
+		environment.gitStateService.clearRefreshes();
+
+		environment.monitor.fire(URI.parse('file:///api'));
+		await tick();
+
+		assert.deepStrictEqual({ watched: environment.monitor.acquisitions, refreshed: environment.gitStateService.refreshed }, { watched: ['file:///api'], refreshed: [peer] });
+	});
+
 	test('refreshes changeset operations when a session gains or loses a working directory', () => {
 		const session = AgentSession.uri('mock', 'session-wd').toString();
 		const peer = buildChatUri(session, 'peer');

@@ -6,14 +6,13 @@
 import { SequencerByKey } from '../../../base/common/async.js';
 import { Disposable, DisposableMap, IReference, ReferenceCollection } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
-import { buildUncommittedChangesetUri, changesetSession, parseChangesetUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
+import { buildUncommittedChangesetUri, changesetSession, parseChangesetUri } from '../common/changesetUri.js';
 import { isAhpChatChannel } from '../common/state/sessionState.js';
 import { DEFAULT_AGENT_HOST_WATCH_EXCLUDES, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { readNestedRepositoryRoots, resolveSessionRepositories } from './agentHostSessionRepositories.js';
-import { isFolderOnlyScope, resolveChangesetOwnerScope } from './agentHostBranchChangesetScope.js';
+import { resolveChangesetOwnerGitSource, type IChangesetOwnerGitSource } from './agentHostBranchChangesetScope.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
-import { getEffectiveWorkingDirectories } from './agentConfigurationService.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
@@ -166,22 +165,9 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 		}
 	}
 
-	/**
-	 * What a watch of `owner` watches and refreshes. A folder of a session on its own (a folder-only changeset owner)
-	 * watches its folder and refreshes the session's Git state, whose refresh refreshes that folder's changesets; any
-	 * other owner watches and refreshes the source its changes come from.
-	 */
-	private _resolveWatch(owner: string): { readonly workingDirectories: readonly string[] | undefined; readonly refreshKey: string; readonly sessionUri: string } {
-		const ownerScope = parseFolderChangesetOwnerUri(owner) ? resolveChangesetOwnerScope(this._stateManager, owner) : undefined;
-		if (ownerScope && isFolderOnlyScope(this._stateManager, ownerScope)) {
-			return { workingDirectories: ownerScope.workingDirectories, refreshKey: ownerScope.sessionUri, sessionUri: ownerScope.sessionUri };
-		}
-		const source = this._watchSources.get(owner) ?? owner;
-		return {
-			workingDirectories: getEffectiveWorkingDirectories(this._stateManager, source),
-			refreshKey: source,
-			sessionUri: resolveChangesetOwnerScope(this._stateManager, source).sessionUri,
-		};
+	/** What a watch of `owner` watches and refreshes; see {@link resolveChangesetOwnerGitSource}. */
+	private _resolveWatch(owner: string): IChangesetOwnerGitSource {
+		return resolveChangesetOwnerGitSource(this._stateManager, owner, this._watchSources.get(owner));
 	}
 
 	/** Retries the watches still waiting for a root watcher, such as one whose acquisition failed. Roots that are already watched keep their watcher. */
