@@ -64,8 +64,6 @@ import type { ChatState, ModelSelection } from './state/protocol/state.js';
  * shared YAML parser is lenient about malformed input.
  */
 
-/** The decision model that routes turns. */
-export const MODEL_ROUTER_DECISION_MODEL = 'gpt-6-luna-decisions';
 /** The runtime flag that turns on `decisions.ask`. */
 export const DecisionsApiFeatureFlag = 'DECISIONS_API';
 
