@@ -25,7 +25,7 @@ import { createExtensionUnitTestingServices } from '../../../test/node/services'
 import { OpenAIEndpoint } from '../openAIEndpoint';
 
 // Test fixtures for thinking content
-const createThinkingMessage = (thinkingId: string | undefined, thinkingText: string | string[]): Raw.ChatMessage => ({
+const createThinkingMessage = (thinkingId: string | undefined, thinkingText: string | string[], metadata?: Record<string, unknown>): Raw.ChatMessage => ({
 	role: Raw.ChatRole.Assistant,
 	content: [
 		{
@@ -34,7 +34,8 @@ const createThinkingMessage = (thinkingId: string | undefined, thinkingText: str
 				type: 'thinking',
 				thinking: {
 					id: thinkingId,
-					text: thinkingText
+					text: thinkingText,
+					...(metadata ? { metadata } : {})
 				}
 			}
 		}
@@ -248,8 +249,57 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 			// And the DeepSeek/Kimi/Moonshot-required field is now present.
 			expect(messages[0].reasoning_content).toBe('The user asked me to analyze the project. I should call the read_file tool.');
 
-			// OpenRouter expects the reasoning echoed back under `reasoning`.
-			expect(messages[0].reasoning).toBe('The user asked me to analyze the project. I should call the read_file tool.');
+			// With no recorded source only `reasoning_content` is sent. A server that returned its reasoning under
+			// `reasoning` (OpenRouter) gets it back under that name, see the source-specific test below.
+			expect(messages[0].reasoning).toBeUndefined();
+		});
+
+		it.each([
+			['reasoning_content', true, false],
+			['reasoning', false, true],
+			[undefined, true, false],
+		] as const)('replays reasoning under the key the server used (source: %s)', (sourceField, hasReasoningContent, hasReasoning) => {
+			// Servers that treat `reasoning` as an alias of `reasoning_content` reject a message that has both,
+			// so the key the server used is recorded with the reasoning and sent back. An unknown source uses `reasoning_content`.
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				{ ...modelMetadata, supported_endpoints: [ModelSupportedEndpoint.ChatCompletions] },
+				'test-api-key',
+				'https://api.example.com/v1/chat/completions');
+
+			const body = endpoint.createRequestBody(createTestOptions([
+				createThinkingMessage('reasoning-1', 'I should read the file first.', sourceField ? { reasoningSourceField: sourceField } : undefined)
+			]));
+			const message = (body.messages as any[])[0];
+
+			expect('reasoning_content' in message).toBe(hasReasoningContent);
+			expect('reasoning' in message).toBe(hasReasoning);
+			expect(message.reasoning_content ?? message.reasoning).toBe('I should read the file first.');
+		});
+
+		it.each([
+			['reasoning', 'reasoning_content'],
+			['reasoning_content', 'reasoning'],
+			['reasoning', undefined],
+			[undefined, 'reasoning'],
+		] as const)('sends a single key when one message holds thinking groups from different sources (%s, then %s)', (firstSource, secondSource) => {
+			// The conversion calls the callback once per thinking group on the same message. Choosing the key per
+			// group would leave both keys on the message, which the servers this change is for reject.
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				{ ...modelMetadata, supported_endpoints: [ModelSupportedEndpoint.ChatCompletions] },
+				'test-api-key',
+				'https://api.example.com/v1/chat/completions');
+			const group = (id: string, text: string, sourceField: string | undefined) => ({
+				type: Raw.ChatCompletionContentPartKind.Opaque as const,
+				value: { type: 'thinking', thinking: { id, text, ...(sourceField ? { metadata: { reasoningSourceField: sourceField } } : {}) } }
+			});
+			const message: Raw.ChatMessage = {
+				role: Raw.ChatRole.Assistant,
+				content: [group('reasoning-1', 'first group', firstSource), group('reasoning-2', 'second group', secondSource)]
+			};
+
+			const [sent] = endpoint.createRequestBody(createTestOptions([message])).messages as any[];
+
+			expect(['reasoning_content' in sent, 'reasoning' in sent].filter(Boolean)).toHaveLength(1);
 		});
 
 		it.each([undefined, ''])('issue #338819: emits reasoning text without a provider ID (%s)', thinkingId => {
@@ -271,7 +321,7 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 				id: undefined,
 				summary: undefined,
 				reasoning: 'Read the file.\nThen explain it.',
-				alias: 'Read the file.\nThen explain it.',
+				alias: undefined,
 			});
 		});
 

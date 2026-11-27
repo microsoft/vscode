@@ -233,7 +233,9 @@ describe('Custom OpenAI reasoning replay through the tool loop', () => {
 			assistant: Array.from({ length: count }, (_, round) => ({
 				calls: [`call-${round}`],
 				reasoning: scenario.thinking && scenario.emitReasoning ? reasoningParts(round).join('') : undefined,
-				alias: scenario.thinking && scenario.emitReasoning ? reasoningParts(round).join('') : undefined,
+				// The server streamed `reasoning_content`, so that is the only key replayed; servers that treat
+				// `reasoning` as an alias of it reject a message that carries both.
+				alias: undefined,
 				id: scenario.id && scenario.emitReasoning ? `${scenario.id}-${round}` : undefined,
 			})),
 			results: Array.from({ length: count }, (_, round) => `call-${round}`),

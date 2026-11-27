@@ -406,7 +406,6 @@ suite('Agent history preserves thinking across user turns', () => {
 			} : {
 				cot_id: 'reasoning-2',
 				cot_summary: 'The file has been read.\nReady to answer.',
-				reasoning: 'The file has been read.\nReady to answer.',
 				reasoning_content: 'The file has been read.\nReady to answer.',
 			}),
 		}]);

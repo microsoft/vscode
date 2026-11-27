@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EncryptedThinkingDelta, RawThinkingDelta, ThinkingDelta } from './thinking';
+import { EncryptedThinkingDelta, RawThinkingDelta, ReasoningSourceField, reasoningSourceFieldMetadataKey, ThinkingDelta } from './thinking';
 
 function getThinkingDeltaText(thinking: RawThinkingDelta | undefined): string | undefined {
 	if (!thinking) {
@@ -43,6 +43,23 @@ function getThinkingDeltaId(thinking: RawThinkingDelta | undefined): string | un
 	return undefined;
 }
 
+/**
+ * The key the text came from, when it is one of the two names servers disagree on. Follows the same
+ * precedence as {@link getThinkingDeltaText}, so it only names a key whose text is the one that was used.
+ */
+function getReasoningSourceField(thinking: RawThinkingDelta): ReasoningSourceField | undefined {
+	if (thinking.cot_summary || thinking.reasoning_text) {
+		return undefined;
+	}
+	if (thinking.reasoning_content) {
+		return 'reasoning_content';
+	}
+	if (thinking.reasoning) {
+		return 'reasoning';
+	}
+	return undefined;
+}
+
 export function extractThinkingDeltaFromChoice(choice: { message?: RawThinkingDelta; delta?: RawThinkingDelta }): ThinkingDelta | EncryptedThinkingDelta | undefined {
 	const thinking = choice.message || choice.delta;
 	if (!thinking) {
@@ -57,10 +74,12 @@ export function extractThinkingDeltaFromChoice(choice: { message?: RawThinkingDe
 		return { id: thinking.reasoning_opaque, text, encrypted: thinking.reasoning_opaque };
 	}
 
+	const sourceField = text ? getReasoningSourceField(thinking) : undefined;
+	const metadata = sourceField ? { metadata: { [reasoningSourceFieldMetadataKey]: sourceField } } : {};
 	if (id && text) {
-		return { id, text };
+		return { id, text, ...metadata };
 	} else if (text) {
-		return { text };
+		return { text, ...metadata };
 	} else if (id) {
 		return { id };
 	}

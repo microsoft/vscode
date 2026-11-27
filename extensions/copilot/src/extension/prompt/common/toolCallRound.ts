@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { FetchSuccess } from '../../../platform/chat/common/commonTypes';
 import { OpenAIContextManagementResponse } from '../../../platform/networking/common/openai';
-import { isEncryptedThinkingDelta, ThinkingData, ThinkingDelta, ThinkingOriginApi } from '../../../platform/thinking/common/thinking';
+import { isEncryptedThinkingDelta, reasoningSourceFieldMetadataKey, ThinkingData, ThinkingDelta, ThinkingOriginApi } from '../../../platform/thinking/common/thinking';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { IToolCall, IToolCallRound } from './intents';
 
@@ -160,7 +160,12 @@ export class ThinkingDataItem implements ThinkingData {
 		}
 		// A completion marker must not overwrite the saved reasoning signature.
 		if (delta.metadata && delta.metadata.vscode_reasoning_done !== true) {
-			this.metadata = delta.metadata;
+			// Deltas that carry their own metadata (such as the tool-call marker) replace it, but the key the
+			// server used for its reasoning is recorded once, with the text, and must not be lost with them.
+			const sourceField = this.metadata?.[reasoningSourceFieldMetadataKey];
+			this.metadata = sourceField !== undefined && delta.metadata[reasoningSourceFieldMetadataKey] === undefined
+				? { ...delta.metadata, [reasoningSourceFieldMetadataKey]: sourceField }
+				: delta.metadata;
 		}
 	}
 
