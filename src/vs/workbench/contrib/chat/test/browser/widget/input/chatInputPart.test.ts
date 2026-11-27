@@ -52,7 +52,8 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../../
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../common/languageModels.js';
 import { IChatSessionsService, SessionType } from '../../../../common/chatSessionsService.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
-import { ChatMode } from '../../../../common/chatModes.js';
+import { ChatMode, IChatMode } from '../../../../common/chatModes.js';
+import { IChatModelInputState } from '../../../../common/model/chatModel.js';
 import { emptySessionEntryDiff, hasUndecidedChatEditingResourceContextKey, IChatEditingSession, IEditSessionEntryDiff, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../../../common/editing/chatEditingService.js';
 import { LocalChatSessionUri } from '../../../../common/model/chatUri.js';
 import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetInstance, IChatAttachmentWidgetRegistry, IChatImageAttachmentEditor } from '../../../../browser/attachments/chatAttachmentWidgetRegistry.js';
@@ -199,6 +200,29 @@ suite('ChatInputPart', () => {
 		});
 		input.refreshToolbars();
 		assert.deepStrictEqual(updates, ['input', 'execute', 'secondary', 'layout']);
+	});
+
+	test('preserves the saved Agent Host mode when flushing a draft that displays default Agent', () => {
+		const savedMode = { id: 'file:///reviewer.agent.md', kind: ChatModeKind.Agent };
+		const draft = observableValue('draft', upcastPartial<IChatModelInputState>({ mode: savedMode }));
+		const input: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+			_inputModelSessionResource: URI.parse('agent-host-copilotcli:/existing'),
+			_inputModel: { state: draft, setState: (state: IChatModelInputState) => draft.set(state, undefined) },
+			_currentModeObservable: observableValue<IChatMode>('mode', ChatMode.Agent),
+			_currentChatModesObservable: constObservable({ findModeById: () => ChatMode.Agent }),
+			_currentLanguageModel: constObservable(undefined),
+			_onDidChangeCurrentChatMode: store.add(new Emitter()),
+			accountPolicyGateService: { gateInfo: {} },
+			configurationService: new TestConfigurationService({ [ChatConfiguration.AgentEnabled]: true }),
+			environmentService: { isSessionsWindow: true },
+			options: { supportsChangingModes: true },
+			logService: new NullLogService(),
+			getCurrentInputState: () => upcastPartial<IChatModelInputState>({ inputText: 'draft', mode: ChatMode.Agent }),
+		});
+		input.flushInputStateToModel();
+		const before = draft.get();
+		input.setChatMode(ChatMode.Agent.id, true, true);
+		assert.deepStrictEqual([before.inputText, before.mode.id, draft.get().mode.id], ['draft', savedMode.id, ChatMode.Agent.id]);
 	});
 
 	test('announces a model once across metadata refreshes and transient loading states', () => {

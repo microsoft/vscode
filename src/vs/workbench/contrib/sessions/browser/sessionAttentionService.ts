@@ -13,10 +13,13 @@ import { autorun, derived, derivedOpts, IObservable, IReader, IReaderWithStore, 
 import { getComparisonKey } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { isCopilotReviewAuthor } from '../../../../platform/github/common/pullRequestFeedback.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IChatModelReference, IChatService, IChatToolInvocation } from '../../chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../chat/common/chatSessionsService.js';
+import { SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../common/sessionConfig.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { IChatModel, IChatResponseModel } from '../../chat/common/model/chatModel.js';
 import { getChatSessionType } from '../../chat/common/model/chatUri.js';
@@ -77,9 +80,12 @@ export class SessionAttentionService extends Disposable implements ISessionAtten
 		@IStorageService private readonly storageService: IStorageService,
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
-		this._trackingEnabled = derived(this, reader => this._attentionConsumers.read(reader) > 0 && !chatEntitlementService.sentimentObs.read(reader).hidden);
+		const inboxEnabled = observableConfigValue(SESSIONS_LIST_INBOX_ENABLED_SETTING, false, configurationService);
+		this._trackingEnabled = derived(this, reader => (inboxEnabled.read(reader) || this._attentionConsumers.read(reader) > 0)
+			&& !chatEntitlementService.sentimentObs.read(reader).hidden);
 		this._attentionStartTime = this.trackAttentionStartTime();
 		const sessionsChanged = observableSignalFromEvent(this, this.sessionsManagementService.onDidChangeSessions);
 		this._register(chatSessionsService.onDidChangeContentProviderSchemes(({ added, removed }) => {

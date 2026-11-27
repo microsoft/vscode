@@ -81,6 +81,8 @@ export const RemoteTunnelCommandIds = {
 	learnMore: 'workbench.remoteTunnel.actions.learnMore',
 } as const;
 
+export type RemoteTunnelStartResult = 'completed' | 'canceled';
+
 // name shown in nofications
 namespace RemoteTunnelCommandLabels {
 	export const turnOn = localize('remoteTunnel.actions.turnOn', 'Turn on Remote Tunnel Access...');
@@ -89,6 +91,19 @@ namespace RemoteTunnelCommandLabels {
 	export const configure = localize('remoteTunnel.actions.configure', 'Configure Tunnel Name...');
 	export const copyToClipboard = localize('remoteTunnel.actions.copyToClipboard', 'Copy Browser URI to Clipboard');
 	export const learnMore = localize('remoteTunnel.actions.learnMore', 'Get Started with Tunnels');
+}
+
+export function validateRemoteTunnelName(input: string): string | undefined {
+	if (input.length === 0) {
+		return undefined;
+	}
+	if (input.length > MAX_TUNNEL_NAME_LENGTH) {
+		return localize('renameTunnel.maxLength', "The name must not be longer than {0} characters.", MAX_TUNNEL_NAME_LENGTH);
+	}
+	if (!TUNNEL_NAME_REGEX.test(input) || input.startsWith('-')) {
+		return localize('renameTunnel.invalidName', "The name must only consist of letters, numbers, underscore and dash. It must not start with a dash.");
+	}
+	return undefined;
 }
 
 export async function promptToRenameRemoteTunnel(
@@ -101,18 +116,7 @@ export async function promptToRenameRemoteTunnel(
 		prompt: localize('renameTunnel.prompt', "Enter a name for this tunnel."),
 		value: currentName,
 		placeHolder: localize('renameTunnel.placeholder', "Leave blank to use this machine's host name."),
-		validateInput: async input => {
-			if (input.length === 0) {
-				return undefined;
-			}
-			if (input.length > MAX_TUNNEL_NAME_LENGTH) {
-				return localize('renameTunnel.maxLength', "The name must not be longer than {0} characters.", MAX_TUNNEL_NAME_LENGTH);
-			}
-			if (!TUNNEL_NAME_REGEX.test(input) || input.startsWith('-')) {
-				return localize('renameTunnel.invalidName', "The name must only consist of letters, numbers, underscore and dash. It must not start with a dash.");
-			}
-			return undefined;
-		},
+		validateInput: async input => validateRemoteTunnelName(input),
 	});
 
 	if (name !== undefined) {
@@ -331,7 +335,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		return session.session.accessToken || session.session.idToken;
 	}
 
-	private async startTunnel(asService: boolean, authenticationProviderId?: 'github'): Promise<ConnectionInfo | undefined> {
+	private async startTunnel(asService: boolean, authenticationProviderId?: 'github'): Promise<ConnectionInfo | 'canceled' | undefined> {
 		if (this.connectionInfo) {
 			return this.connectionInfo;
 		}
@@ -343,6 +347,10 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 			tokenProblems = false;
 
 			const authenticationSession = await this.getAuthenticationSession(authenticationProviderId);
+			if (authenticationSession === 'canceled') {
+				this.logger.info('Account selection canceled, not starting tunnel');
+				return 'canceled';
+			}
 			if (authenticationSession === undefined) {
 				this.logger.info('No authentication session available, not starting tunnel');
 				return undefined;
@@ -408,7 +416,8 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		return undefined;
 	}
 
-	private async getAuthenticationSession(authenticationProviderId?: 'github'): Promise<ExistingSessionItem | undefined> {
+	/** Resolves to `'canceled'` when the account picker is dismissed without choosing an account. */
+	private async getAuthenticationSession(authenticationProviderId?: 'github'): Promise<ExistingSessionItem | 'canceled' | undefined> {
 		if (authenticationProviderId) {
 			return this.getAuthenticationSessionForProvider(authenticationProviderId);
 		}
@@ -424,7 +433,8 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 
 		return new Promise((resolve, reject) => {
 			disposables.add(quickpick.onDidHide((e) => {
-				resolve(undefined);
+				// Accepting an item resolves first, so this only takes effect when the picker was dismissed.
+				resolve('canceled');
 				disposables.dispose();
 			}));
 
@@ -570,7 +580,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 				});
 			}
 
-			async run(accessor: ServicesAccessor, options?: IRemoteTunnelStartOptions) {
+			async run(accessor: ServicesAccessor, options?: IRemoteTunnelStartOptions): Promise<RemoteTunnelStartResult> {
 				const notificationService = accessor.get(INotificationService);
 				const clipboardService = accessor.get(IClipboardService);
 				const commandService = accessor.get(ICommandService);
@@ -586,7 +596,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 						primaryButton: localize({ key: 'enable', comment: ['&& denotes a mnemonic'] }, '&&Enable')
 					});
 					if (!confirmed) {
-						return;
+						return 'canceled';
 					}
 
 					storageService.store(REMOTE_TUNNEL_PROMPTED_PREVIEW_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
@@ -614,10 +624,13 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 					});
 
 				if (asService === undefined) {
-					return; // no-op
+					return 'canceled';
 				}
 
 				const connectionInfo = await that.startTunnel(/* installAsService= */ asService, options?.authenticationProviderId);
+				if (connectionInfo === 'canceled') {
+					return 'canceled';
+				}
 
 				if (connectionInfo) {
 					if (options?.showSuccessNotification !== false) {
@@ -673,6 +686,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 					});
 					await commandService.executeCommand(RemoteTunnelCommandIds.showLog);
 				}
+				return 'completed';
 			}
 
 		}));

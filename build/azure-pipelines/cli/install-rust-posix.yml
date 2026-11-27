@@ -25,7 +25,7 @@ steps:
 
   - script: |
       set -e
-      curl https://sh.rustup.rs -sSf | sh -s -- -y --profile minimal --default-toolchain $RUSTUP_TOOLCHAIN
+      node build/azure-pipelines/cli/install-rustup.ts -y --profile minimal --default-toolchain "$RUSTUP_TOOLCHAIN"
       echo "##vso[task.setvariable variable=PATH;]$PATH:$HOME/.cargo/bin"
     env:
       RUSTUP_TOOLCHAIN: ${{ parameters.rustupChannel }}

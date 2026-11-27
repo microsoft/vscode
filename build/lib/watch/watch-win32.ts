@@ -7,7 +7,7 @@ import path from 'path';
 import cp from 'child_process';
 import fs from 'fs';
 import File from 'vinyl';
-import es from 'event-stream';
+import { through, mapStreamSync, mapStream } from '../streams.ts';
 import { filter, type FileFunction } from '../gulp/facade.ts';
 import { Stream } from 'stream';
 import { fileURLToPath } from 'url';
@@ -23,7 +23,7 @@ function toChangeType(type: '0' | '1' | '2'): 'change' | 'add' | 'unlink' {
 }
 
 function watch(root: string): Stream {
-	const result = es.through();
+	const result = through();
 	let child: cp.ChildProcess | null = cp.spawn(watcherPath, [root]);
 
 	child.stdout!.on('data', function (data) {
@@ -81,7 +81,7 @@ export default function (pattern: string | string[] | FileFunction, options?: { 
 		watcher = cache[cwd] = watch(cwd);
 	}
 
-	const rebase = !options.base ? es.through() : es.mapSync(function (f: File) {
+	const rebase = !options.base ? through() : mapStreamSync(function (f: File) {
 		f.base = options!.base!;
 		return f;
 	});
@@ -89,7 +89,7 @@ export default function (pattern: string | string[] | FileFunction, options?: { 
 	return watcher
 		.pipe(filter(['**', '!.git{,/**}'], { dot: options.dot })) // ignore all things git
 		.pipe(filter(pattern, { dot: options.dot }))
-		.pipe(es.map(function (file: File, cb) {
+		.pipe(mapStream(function (file: File, cb) {
 			fs.stat(file.path, function (err, stat) {
 				if (err && err.code === 'ENOENT') { return cb(undefined, file); }
 				if (err) { return cb(); }

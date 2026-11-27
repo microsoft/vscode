@@ -9,7 +9,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -933,6 +933,36 @@ suite('SessionComparisonService', () => {
 		}, {
 			archived: true,
 			deletedGroupIds: [comparison.groupId],
+		});
+	});
+
+	test('keeps the comparison group while the last archive is pending, through a rejected archive, until an archive is confirmed', async () => {
+		const { service, sessionsManagementService, groupsService } = createServices();
+		const secondArchived = observableValue('secondArchived', false);
+		const secondPending = observableValue('secondPending', false);
+		const firstArchived = observableValue('firstArchived', false);
+		sessionsManagementService.enqueue(stubSession('attempt-one', undefined, undefined, firstArchived));
+		sessionsManagementService.enqueue({ ...stubSession('attempt-two', undefined, undefined, secondArchived), archivePending: secondPending });
+		const comparison = await service.startComparison(startOptions());
+		firstArchived.set(true, undefined);
+		const setArchiveState = (archived: boolean, pending: boolean) => {
+			transaction(tx => {
+				secondArchived.set(archived, tx);
+				secondPending.set(pending, tx);
+			});
+			sessionsManagementService.fireChange();
+			return { archived: service.getComparison(comparison.id)?.archivedAt !== undefined, deletedGroupIds: [...groupsService.deletedGroupIds] };
+		};
+
+		const whilePending = setArchiveState(true, true);
+		const afterRejection = setArchiveState(false, false);
+		setArchiveState(true, true);
+		const afterConfirmation = setArchiveState(true, false);
+
+		assert.deepStrictEqual({ whilePending, afterRejection, afterConfirmation }, {
+			whilePending: { archived: false, deletedGroupIds: [] },
+			afterRejection: { archived: false, deletedGroupIds: [] },
+			afterConfirmation: { archived: true, deletedGroupIds: [comparison.groupId] },
 		});
 	});
 

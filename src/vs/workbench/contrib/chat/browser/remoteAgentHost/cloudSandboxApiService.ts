@@ -515,7 +515,11 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		const environments = await this._withApiClient(token, { caller: 'mc.environmentClient.list' },
 			(client, cancellationToken, options) => client.environments.list(cancellationToken, options),
 			{ action: 'list environments' });
-		const values = environments.map(({ id, name, kind, status }) => ({ id, name, kind, status }));
+		const values = environments.map(({ id, name, kind, status, last_heartbeat_at, capabilities }) => ({
+			id, name, kind, status,
+			...(last_heartbeat_at ? { lastHeartbeatAt: Date.parse(last_heartbeat_at) } : {}),
+			...(capabilities?.current_sessions !== undefined && capabilities.current_sessions !== null ? { reportedSessionCount: capabilities.current_sessions } : {}),
+		}));
 		if (generation !== this._discovery.generation) {
 			throw new CancellationError();
 		}

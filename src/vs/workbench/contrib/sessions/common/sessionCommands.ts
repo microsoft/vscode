@@ -21,6 +21,9 @@ export const UNARCHIVE_SESSION_COMMAND_ID = 'sessionsViewPane.unarchiveSession';
 /** Renames a session. Registered in `sessionsViewActions.ts`. */
 export const RENAME_SESSION_COMMAND_ID = 'sessionsViewPane.renameSession';
 
+/** Opens the root folder (project or repository, not a worktree) of a sessions list section, in a new editor window. Registered in `sessionsListActions.ts`. */
+export const OPEN_SESSION_SECTION_FOLDER_IN_NEW_WINDOW_COMMAND_ID = 'sessionsViewPane.openSectionFolderInNewWindow';
+
 /** Renames a chat. Registered in `sessionsActions.ts`. */
 export const RENAME_CHAT_COMMAND_ID = 'sessions.chatCompositeBar.renameChat';
 
@@ -55,6 +58,12 @@ export const SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID = 'sessionsViewPane.show
 /** Lists automation sessions only in Automations again. Registered in `sessionsViewActions.ts`. */
 export const HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID = 'sessionsViewPane.hideAutomationSessionFromList';
 
+/**
+ * Leaves sessions out of the Sessions list while their canvas is in the sidebar, offering to undo it. Registered in
+ * `sessionsListActions.ts`; the sidebar's pinned canvases run it for their session.
+ */
+export const HIDE_CANVAS_SESSION_FROM_LIST_COMMAND_ID = 'sessionsViewPane.hideCanvasSessionFromList';
+
 export const SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID = 'sessionsViewPane.showApplicationFilters';
 
 export {
@@ -65,6 +74,8 @@ export {
 /** Closes a chat tab. Registered in `sessionsActions.ts`. */
 export const CLOSE_CHAT_COMMAND_ID = 'sessions.chatCompositeBar.closeChat';
 export const CLOSE_SESSION_COMMAND_ID = 'sessions.chatCompositeBar.close';
+/** Closes a chat of the chat part of an editor window. Registered in `agentsChatPartActions.ts`. */
+export const AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID = 'workbench.action.agentsView.closeChat';
 export const TOGGLE_PIN_SESSION_COMMAND_ID = 'sessions.chatCompositeBar.togglePin';
 export const TOGGLE_PIN_CHAT_COMMAND_ID = 'sessions.chatCompositeBar.togglePinChat';
 

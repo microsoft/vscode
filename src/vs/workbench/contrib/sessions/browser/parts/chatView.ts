@@ -162,6 +162,8 @@ export interface INewSessionTarget {
 	 * Worktree for it. A draft whose agent cannot is reported, not created in the folder silently.
 	 */
 	readonly placement?: 'worktree';
+	/** Whether {@link placement} is a remembered preference, which the composer drops silently where it cannot apply it. */
+	readonly placementIsPreference?: boolean;
 }
 
 /** A background send of a composer ({@link INewSessionDraftHost.trackBackgroundSend}). */
@@ -209,6 +211,11 @@ export interface ISessionViewHostOptions {
 	 * session is created; `false` by default.
 	 */
 	readonly showComposerHeader?: boolean;
+	/**
+	 * Whether the session header shows that the chat is working, as the tab of a chat editor does, in place of the working
+	 * indicator below the chat; `false` by default.
+	 */
+	readonly showTitleProgress?: boolean;
 	/** Whether the Session Activity Bar shows beside the chats; `true` by default. */
 	readonly showActivityBar?: boolean;
 	/** Options of the inputs of the chats. */

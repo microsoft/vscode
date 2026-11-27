@@ -4,15 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from '../../../base/common/buffer.js';
+import { joinPath } from '../../../base/common/resources.js';
+import type { URI } from '../../../base/common/uri.js';
 import { parse, type YamlNode, type YamlParseError, type YamlScalarNode } from '../../../base/common/yaml.js';
 import type { IAgentModelInfo } from './agent.js';
 import { readAgentModelByokIdentifier } from './agentModelByokMeta.js';
 import { ContextSizeConfigKey } from './agentModelConfiguration.js';
 import { readAgentModelNoticesMeta } from './agentModelNotices.js';
 import { isAgentModelExperimental, type IAgentModelRouterRoute } from './meta/agentModelMeta.js';
+import { readUsageInfoMeta } from './meta/agentUsageMeta.js';
 import { isCopilotHydraFusionModelId } from './copilotCliConfig.js';
 import { ReasoningEffortConfigKey, reasoningEffortLevels } from './reasoningEffort.js';
 import { PolicyState } from './state/protocol/channels-root/state.js';
+import type { ChatState, ModelSelection } from './state/protocol/state.js';
 
 /*
  * A model router picks the model for each turn of a chat from models the user chose, by asking a
@@ -70,6 +74,11 @@ export const MODEL_ROUTER_MODEL_ID_PREFIX = 'model-router:';
 export const MODEL_ROUTER_FILE_SUFFIXES: readonly string[] = ['.model-router.yaml', '.model-router.yml'];
 /** Folder, under `~/.agents` or `~/.copilot`, that holds router files. */
 export const MODEL_ROUTER_FOLDER = 'model-routers';
+
+/** The folder that holds a user's routers: `~/.agents/model-routers`. */
+export function userModelRouterFolder(userHome: URI): URI {
+	return joinPath(userHome, '.agents', MODEL_ROUTER_FOLDER);
+}
 /** The only file-format version this build reads. */
 export const MODEL_ROUTER_VERSION = 1;
 
@@ -96,6 +105,7 @@ export type ModelRouterContextSize = 'default' | 'long';
 export interface IModelRouterRoute {
 	/** Model ids in preference order; the first one the user has is used. */
 	readonly models: readonly string[];
+	/** Which requests the route is for. Empty for a router's only route, which has nothing to be told apart from. */
 	readonly when: string;
 	readonly examples: readonly string[];
 	/** A fixed effort for this route, overriding the router's unless that is `off`. */
@@ -170,12 +180,127 @@ export function modelRouterNameFromFileName(fileName: string): string | undefine
 	return suffix ? fileName.slice(0, -suffix.length) : undefined;
 }
 
+/** The router name a display name implies: `Daily Driver` → `daily-driver`. Empty when it has no letters or digits. */
+export function modelRouterNameFromDisplayName(displayName: string): string {
+	return displayName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+/** The file of a new router named `name` in `folder`. */
+export function modelRouterFile(folder: URI, name: string): URI {
+	return joinPath(folder, `${name}${MODEL_ROUTER_FILE_SUFFIXES[0]}`);
+}
+
+/**
+ * What a router file is written from: a router as {@link parseModelRouter} reads one, where what has a default can be
+ * left out. The `name` is for a router whose name is not its file's.
+ */
+type IModelRouterDraft = Pick<IModelRouter, 'description' | 'routes'> & Partial<Pick<IModelRouter, 'name' | 'displayName' | 'effort' | 'contextSize' | 'switching' | 'guidance'>>;
+
+/**
+ * The text of a router file for `draft`. {@link parseModelRouter} reads the same router back from it, so a router
+ * can be read, changed and written again. Comments and keys the format does not know are not part of a router.
+ */
+export function writeModelRouter(draft: IModelRouterDraft): string {
+	const lines = [`version: ${MODEL_ROUTER_VERSION}`];
+	if (draft.name) {
+		lines.push(`name: ${draft.name}`);
+	}
+	if (draft.displayName) {
+		lines.push(`display-name: ${yamlText(draft.displayName)}`);
+	}
+	lines.push(`description: ${yamlText(draft.description, '  ')}`);
+	// What the parser assumes for a missing key is left out.
+	if (draft.effort && draft.effort !== 'auto') {
+		lines.push(`effort: ${draft.effort}`);
+	}
+	if (draft.contextSize) {
+		lines.push(`context-size: ${draft.contextSize}`);
+	}
+	if (draft.switching && draft.switching !== 'first-turn') {
+		lines.push(`switching: ${draft.switching}`);
+	}
+	if (draft.guidance) {
+		lines.push(`guidance: ${yamlText(draft.guidance, '  ')}`);
+	}
+	lines.push('routes:');
+	for (const route of draft.routes) {
+		const keys = [
+			...(route.name ? [`name: ${route.name}`] : []),
+			// Several models are a list in preference order, on one line.
+			`model: ${route.models.length === 1 ? yamlText(route.models[0]) : `[${route.models.map(model => /^[\w.:/@-]+$/.test(model) ? model : JSON.stringify(model)).join(', ')}]`}`,
+			...(route.effort ? [`effort: ${route.effort}`] : []),
+			...(route.contextSize ? [`context-size: ${route.contextSize}`] : []),
+			// A router's only route can leave `when` out, and an empty one does not read back.
+			...(route.when ? [`when: ${yamlText(route.when, '      ')}`] : []),
+			...(route.examples.length ? ['examples:', ...route.examples.map(example => `  - ${yamlText(example)}`)] : []),
+			...(route.mainAgentGuidance ? [`guidance: ${yamlText(route.mainAgentGuidance, '      ')}`] : []),
+		];
+		lines.push(...keys.map((key, index) => `${index === 0 ? '  - ' : '    '}${key}`));
+	}
+	return `${lines.join('\n')}\n`;
+}
+
+/** The text of a router file with `switching` set, added before its routes when the file has none. The rest of the file, comments included, is kept. */
+export function withModelRouterSwitching(content: string, switching: ModelRouterSwitching): string {
+	// Offsets are into the text the parser reads, which is without a byte order mark.
+	const start = content.charCodeAt(0) === 0xFEFF ? 1 : 0;
+	const root = parse(content.slice(start), []);
+	const properties = root?.type === 'map' ? root.properties : [];
+	const replace = (from: number, to: number, text: string) => `${content.slice(0, start + from)}${text}${content.slice(start + to)}`;
+	const existing = properties.find(property => property.key.value === 'switching');
+	if (existing) {
+		return replace(existing.value.startOffset, existing.value.endOffset, switching);
+	}
+	const routes = properties.find(property => property.key.value === 'routes');
+	return routes ? replace(routes.key.startOffset, routes.key.startOffset, `switching: ${switching}${content.includes('\r\n') ? '\r\n' : '\n'}`) : content;
+}
+
+/**
+ * Text as a YAML value, quoted unless plain YAML reads it back unchanged. With `blockIndent`, several lines are
+ * written as a `|` block, when a block keeps them as they are: one that starts or ends a line with white space does not.
+ */
+function yamlText(text: string, blockIndent?: string): string {
+	const lines = text.split('\n');
+	if (blockIndent !== undefined && lines.length > 1 && !/^\s/.test(lines[0]) && !lines.some(line => /\s$/.test(line))) {
+		return ['|', ...lines.map(line => line ? `${blockIndent}${line}` : '')].join('\n');
+	}
+	return /^[A-Za-z][\w ,.()/'-]*$/.test(text) && !text.endsWith(' ') && !/^(true|false|null|yes|no|on|off)$/i.test(text) ? text : JSON.stringify(text);
+}
+
 export function modelRouterModelId(name: string): string {
 	return `${MODEL_ROUTER_MODEL_ID_PREFIX}${name}`;
 }
 
 export function isModelRouterModelId(modelId: string | undefined): boolean {
 	return !!modelId?.startsWith(MODEL_ROUTER_MODEL_ID_PREFIX);
+}
+
+/**
+ * For a chat whose provider can't report its model: the model it runs on when `model` is a model
+ * router, from its newest turn that ran on a model: the router's pick or one chosen directly.
+ * Other selections are returned unchanged.
+ */
+export function withRoutedModel(chat: Pick<ChatState, 'turns' | 'activeTurn'>, model: ModelSelection | undefined): ModelSelection | undefined {
+	if (!isModelRouterModelId(model?.id)) {
+		return model;
+	}
+	const turns = chat.activeTurn ? [...chat.turns, chat.activeTurn] : chat.turns;
+	for (let i = turns.length - 1; i >= 0; i--) {
+		const routed = readUsageInfoMeta(turns[i].usage).modelRouted;
+		if (routed) {
+			const config = {
+				...(routed.effort ? { [ReasoningEffortConfigKey]: routed.effort } : {}),
+				...(routed.contextTokens !== undefined ? { [ContextSizeConfigKey]: routed.contextTokens } : {}),
+			};
+			return { id: routed.chosenModel, ...(Object.keys(config).length ? { config } : {}) };
+		}
+		// A turn with usage reached its model; one whose model change failed never did.
+		const chosen = turns[i].message.model;
+		if (chosen && !isModelRouterModelId(chosen.id) && turns[i].usage) {
+			return chosen;
+		}
+	}
+	return undefined;
 }
 
 const MODEL_ROUTER_DESCRIPTION_META_KEY = 'modelRouterDescription';
@@ -340,7 +465,7 @@ export function parseModelRouter(content: string, fileName: string): IModelRoute
 		const seenModels = new Map<string, number>();
 		const seenNames = new Map<string, number>();
 		items.forEach((item, index) => {
-			const route = parseRoute(item, index, report);
+			const route = parseRoute(item, index, items.length === 1, report);
 			if (!route) {
 				return;
 			}
@@ -414,7 +539,7 @@ export function modelRouterRouteLabel(route: Pick<IModelRouterRoute, 'name'>, in
 	return route.name ? `Route \`${route.name}\`` : `Route ${index + 1}`;
 }
 
-function parseRoute(item: YamlNode, index: number, report: IReporter): IModelRouterRoute | undefined {
+function parseRoute(item: YamlNode, index: number, isOnlyRoute: boolean, report: IReporter): IModelRouterRoute | undefined {
 	const position = `Route ${index + 1}`;
 	if (item.type !== 'map') {
 		report.error(`${position} needs \`model\` and \`when\`.`, item);
@@ -443,8 +568,9 @@ function parseRoute(item: YamlNode, index: number, report: IReporter): IModelRou
 	}
 
 	const whenProperty = values.get('when');
-	const when = whenProperty ? scalar(whenProperty.value)?.trim() : undefined;
-	if (!when) {
+	const when = whenProperty ? scalar(whenProperty.value)?.trim() ?? '' : '';
+	// Nothing is decided for a router's only route, so it can leave `when` out.
+	if (!when && (whenProperty || !isOnlyRoute)) {
 		report.error(`${label} needs \`when\`: when to use this model.`, whenProperty?.value ?? item);
 		return undefined;
 	}
@@ -888,14 +1014,31 @@ export interface IResolvedModelRoute {
 	readonly merged?: readonly IModelRouterRoute[];
 }
 
+/** Why a model that a route names was found but cannot be used. `candidates` are the ids or families to name instead. */
+export type ModelRouterUnusableModel =
+	| { readonly kind: 'experimental'; readonly reference: string; readonly candidates: readonly string[] }
+	| { readonly kind: 'ambiguousModel'; readonly reference: string; readonly candidates: readonly string[] }
+	| { readonly kind: 'ambiguousFamily'; readonly reference: string; readonly candidates: readonly string[] }
+	| { readonly kind: 'disabledByPolicy'; readonly model: string };
+
+/** A route that is left out of a router, and why. `index` is its place in the router's list, from 0. */
+export type ModelRouterSkippedRoute = { readonly route: Pick<IModelRouterRoute, 'name' | 'models'>; readonly index: number } & (
+	/** None of its models can be used: they are not on the account, or they are `unusable`. */
+	| { readonly reason: 'unavailable'; readonly unusable: readonly ModelRouterUnusableModel[] }
+	/** `key` is its name and another route's model, or its model and another route's name, so a pick could mean either. */
+	| { readonly reason: 'sharedKey'; readonly key: string }
+);
+
 export interface IModelRouterResolution {
 	/** Usable routes, in the router's order. The first is the fallback. */
 	readonly routes: readonly IResolvedModelRoute[];
 	readonly diagnostics: readonly IModelRouterDiagnostic[];
+	/** The routes that are left out. `diagnostics` has a warning for each, in English. */
+	readonly skipped: readonly ModelRouterSkippedRoute[];
 }
 
 /** Whether a router may pick `model`: models that route themselves never are. */
-export function isRoutableModel(model: IAgentModelInfo): boolean {
+export function isRoutableModel(model: Pick<IAgentModelInfo, 'id'>): boolean {
 	return model.id !== 'auto' && !isModelRouterModelId(model.id) && !isCopilotHydraFusionModelId(model.id);
 }
 
@@ -906,12 +1049,17 @@ export function isRoutableModel(model: IAgentModelInfo): boolean {
 export function resolveModelRouter(router: IModelRouter, models: readonly IAgentModelInfo[]): IModelRouterResolution {
 	const diagnostics: IModelRouterDiagnostic[] = [];
 	const warning = diagnosticReporter(diagnostics, ModelRouterDiagnosticSeverity.Warning);
+	const skipped: ModelRouterSkippedRoute[] = [];
+	const code = (values: readonly string[]) => values.map(value => `\`${value}\``).join(', ');
+	const idOf = (model: IAgentModelInfo) => readAgentModelByokIdentifier(model) ?? model.id;
 	const routable = models.filter(isRoutableModel);
 	const routes: IResolvedModelRoute[] = [];
 	const used = new Set<string>();
 	const merged = new Map<string, IModelRouterRoute[]>();
 	router.routes.forEach((route, index) => {
 		const label = modelRouterRouteLabel(route, index);
+		// Said with the route when it ends up left out.
+		const unusable: ModelRouterUnusableModel[] = [];
 		let match: { model: IAgentModelInfo; reference: string } | undefined;
 		for (const reference of route.models) {
 			const result = matchModelReference(routable, reference);
@@ -919,16 +1067,24 @@ export function resolveModelRouter(router: IModelRouter, models: readonly IAgent
 				continue;
 			}
 			if (result.kind === 'experimental') {
-				warning(`${label}: \`${reference}\` matches only experimental models, which a family never picks; use the id of one, such as ${result.models.map(model => `\`${readAgentModelByokIdentifier(model) ?? model.id}\``).join(', ')}.`);
+				const candidates = result.models.map(idOf);
+				unusable.push({ kind: 'experimental', reference, candidates });
+				warning(`${label}: \`${reference}\` matches only experimental models, which a family never picks; use the id of one, such as ${code(candidates)}.`);
 				continue;
 			}
 			if (result.kind === 'ambiguous') {
-				warning(result.families
-					? `${label}: \`${reference}\` matches more than one model family; use one of ${result.families.map(family => `\`${family}\``).join(', ')}.`
-					: `${label}: \`${reference}\` matches more than one model; use one of ${result.models.map(model => `\`${readAgentModelByokIdentifier(model) ?? model.id}\``).join(', ')}.`);
+				if (result.families) {
+					unusable.push({ kind: 'ambiguousFamily', reference, candidates: result.families });
+					warning(`${label}: \`${reference}\` matches more than one model family; use one of ${code(result.families)}.`);
+				} else {
+					const candidates = result.models.map(idOf);
+					unusable.push({ kind: 'ambiguousModel', reference, candidates });
+					warning(`${label}: \`${reference}\` matches more than one model; use one of ${code(candidates)}.`);
+				}
 				continue;
 			}
 			if (result.model.policyState === PolicyState.Disabled) {
+				unusable.push({ kind: 'disabledByPolicy', model: result.model.name });
 				warning(`${label}: ${result.model.name} is disabled by policy.`);
 				continue;
 			}
@@ -936,6 +1092,7 @@ export function resolveModelRouter(router: IModelRouter, models: readonly IAgent
 			break;
 		}
 		if (!match) {
+			skipped.push({ route, index, reason: 'unavailable', unusable });
 			warning(`${label} (${route.models.join(', ')}) is skipped: none of its models are available on this account.`);
 			return;
 		}
@@ -944,6 +1101,7 @@ export function resolveModelRouter(router: IModelRouter, models: readonly IAgent
 		if (used.has(key)) {
 			// A name can also be a model's id, and a pick could then mean either route.
 			if (route.name || routes.some(other => other.route.name === key)) {
+				skipped.push({ route, index, reason: 'sharedKey', key });
 				warning(`${label} is skipped: \`${key}\` is the name of one route and the model of another.`);
 			} else {
 				merged.set(key, [...merged.get(key) ?? [], route]);
@@ -985,15 +1143,14 @@ export function resolveModelRouter(router: IModelRouter, models: readonly IAgent
 	if (routes.length < MODEL_ROUTER_MIN_ROUTES && router.routes.length >= MODEL_ROUTER_MIN_ROUTES) {
 		warning(`Only ${routes.length} of this router's models ${routes.length === 1 ? 'is' : 'are'} available, so there is nothing to route between.`);
 	}
-	return { routes: merged.size === 0 ? routes : routes.map(route => route.route.name || !merged.has(route.model.id) ? route : { ...route, merged: merged.get(route.model.id) }), diagnostics };
+	return { routes: merged.size === 0 ? routes : routes.map(route => route.route.name || !merged.has(route.model.id) ? route : { ...route, merged: merged.get(route.model.id) }), diagnostics, skipped };
 }
 
 /**
  * The routes of a router that this account can use, in the router's order, as its row in the
  * model picker describes them. A chat starts on the first when none clearly fits.
  */
-export function summarizeModelRouterRoutes(router: IModelRouter, models: readonly IAgentModelInfo[]): IAgentModelRouterRoute[] {
-	const { routes } = resolveModelRouter(router, models);
+export function summarizeModelRouterRoutes(router: IModelRouter, routes: readonly IResolvedModelRoute[]): IAgentModelRouterRoute[] {
 	// Effort is chosen along with the route, so a router with one usable route never chooses it.
 	const choosesEffort = router.effort === 'auto' && routes.length > 1;
 	return routes.map(({ route, model, effort, supportedEfforts, contextSize }) => {
@@ -1001,6 +1158,7 @@ export function summarizeModelRouterRoutes(router: IModelRouter, models: readonl
 		return {
 			...(route.name ? { name: route.name } : {}),
 			model: model.name,
+			...(route.when ? { when: route.when } : {}),
 			...(effort ? { effort } : choosesEffort && supportedEfforts.length ? { effort: 'auto' } : {}),
 			...(contextTokens ? { contextTokens } : {}),
 		};

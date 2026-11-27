@@ -44,18 +44,22 @@ export class GitService extends Disposable implements IGitService {
 		});
 	}
 
-	async openRepository(uri: URI): Promise<IGitRepository | undefined> {
+	async openRepository(uri: URI, token?: CancellationToken): Promise<IGitRepository | undefined> {
 		// We need to wait for the delegate to be set before we can open a repository.
 		// At the moment we are waiting for 10 seconds before we automatically open the
 		// barrier.
 		await this._delegateBarrier.wait();
+
+		if (token?.isCancellationRequested) {
+			return undefined;
+		}
 
 		if (!this._delegate) {
 			this.logService.warn('[GitService][openRepository] GitExtension delegate is not set after 10 seconds. Cannot open repository.');
 			return undefined;
 		}
 
-		return this._delegate.openRepository(uri);
+		return this._delegate.openRepository(uri, token);
 	}
 }
 

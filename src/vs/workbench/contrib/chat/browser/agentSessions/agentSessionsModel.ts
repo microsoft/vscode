@@ -249,16 +249,6 @@ export function isAgentSessionsModel(obj: unknown): obj is IAgentSessionsModel {
 	return Array.isArray(sessionsModel?.sessions) && typeof sessionsModel?.getSession === 'function';
 }
 
-export function countUnreadSessions(sessions: IAgentSession[]): number {
-	let unread = 0;
-	for (const session of sessions) {
-		if (!session.isArchived() && session.status === AgentSessionStatus.Completed && !session.isRead()) {
-			unread++;
-		}
-	}
-	return unread;
-}
-
 interface IAgentSessionState {
 	readonly archived?: boolean;
 	readonly pinned?: boolean;
@@ -338,6 +328,28 @@ export function isMarshalledAgentSessionContext(thing: unknown): thing is IMarsh
 	}
 
 	return false;
+}
+
+/**
+ * Adapts the argument of the shared sessions list menu, an array of selected sessions
+ * that only share a `resource` with agent sessions, to the marshalled context the agent
+ * session actions expect. Any other context is returned unchanged. Returns `undefined`
+ * when none of the selected sessions is a known agent session.
+ */
+export function toAgentSessionContext(context: IAgentSession | IMarshalledAgentSessionContext | readonly { readonly resource: URI }[] | undefined, getSession: (resource: URI) => IAgentSession | undefined): IAgentSession | IMarshalledAgentSessionContext | undefined {
+	if (!Array.isArray(context)) {
+		return context as IAgentSession | IMarshalledAgentSessionContext | undefined;
+	}
+
+	const sessions: IAgentSession[] = [];
+	for (const candidate of context as readonly { readonly resource: URI }[]) {
+		const session = URI.isUri(candidate?.resource) ? getSession(candidate.resource) : undefined;
+		if (session) {
+			sessions.push(session);
+		}
+	}
+
+	return sessions.length > 0 ? { $mid: MarshalledId.AgentSessionContext, session: sessions[0], sessions } : undefined;
 }
 
 //#endregion

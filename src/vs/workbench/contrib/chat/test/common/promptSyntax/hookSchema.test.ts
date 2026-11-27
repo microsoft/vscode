@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { resolveHookCommand, resolveEffectiveCommand, formatHookCommandLabel, IHookCommand, parseSubagentHooksFromYaml, ChatRequestHooks, hookFileSchema, HOOK_COMMAND_FIELD_DESCRIPTIONS } from '../../../common/promptSyntax/hookSchema.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
-import { HookType } from '../../../common/promptSyntax/hookTypes.js';
+import { getLocalFormatHookEventNames, HookType } from '../../../common/promptSyntax/hookTypes.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 
 suite('HookSchema', () => {
@@ -33,15 +33,28 @@ suite('HookSchema', () => {
 		});
 	});
 
-	test('only the Local hook format is deprecated', () => {
+	test('only capitalised event names are deprecated, with or without a version', () => {
+		const deprecated = (properties: Record<string, { deprecationMessage?: string }> | undefined) =>
+			Object.keys(properties ?? {}).filter(key => properties?.[key].deprecationMessage).sort();
+		const message = 'This event name uses the deprecated Local hook format, so this hook may not work in Copilot sessions. Migrate the hook file and its scripts with the agent: open Chat Customizations and select Migrations.';
 		assert.deepStrictEqual({
 			shared: hookFileSchema.properties?.hooks.deprecationMessage,
-			local: hookFileSchema.else?.properties?.hooks.deprecationMessage,
-			cli: hookFileSchema.then?.properties?.hooks.deprecationMessage,
+			withVersion: deprecated(hookFileSchema.then?.properties?.hooks.properties),
+			withoutVersion: deprecated(hookFileSchema.else?.properties?.hooks.properties),
+			nativeName: hookFileSchema.then?.properties?.hooks.properties?.preToolUse.deprecationMessage,
+			message: hookFileSchema.then?.properties?.hooks.properties?.PreToolUse.deprecationMessage,
+			validatesEntries: {
+				withVersion: !!hookFileSchema.then?.properties?.hooks.properties?.PreToolUse.items,
+				withoutVersionLocalName: !!hookFileSchema.else?.properties?.hooks.properties?.PreToolUse.items,
+				withoutVersionOtherAlias: !!hookFileSchema.else?.properties?.hooks.properties?.SessionEnd.items,
+			},
 		}, {
 			shared: undefined,
-			local: 'The Local hook format is deprecated. Use the Copilot CLI format with "version": 1, camelCase event names, and "timeoutSec" instead of "timeout". Migration may require script changes: CLI hooks use different JSON input/output shapes (for example, "toolName" instead of "tool_name" and top-level "permissionDecision" instead of "hookSpecificOutput.permissionDecision"). Renaming configuration fields alone may change behavior.',
-			cli: undefined,
+			withVersion: [...getLocalFormatHookEventNames()].sort(),
+			withoutVersion: [...getLocalFormatHookEventNames()].sort(),
+			nativeName: undefined,
+			message,
+			validatesEntries: { withVersion: false, withoutVersionLocalName: true, withoutVersionOtherAlias: false },
 		});
 	});
 
@@ -118,8 +131,6 @@ suite('HookSchema', () => {
 					type: 'command',
 					linux: 'echo "hello world"',
 					osx: 'echo "hello world"',
-					linuxSource: 'bash',
-					osxSource: 'bash',
 					cwd: workspaceRoot
 				});
 			});
@@ -135,8 +146,6 @@ suite('HookSchema', () => {
 					type: 'command',
 					linux: './test.sh',
 					osx: './test.sh',
-					linuxSource: 'bash',
-					osxSource: 'bash',
 					cwd: URI.file('/workspace/scripts'),
 					env: { DEBUG: '1' }
 				});
@@ -163,7 +172,6 @@ suite('HookSchema', () => {
 				assert.deepStrictEqual(result, {
 					type: 'command',
 					windows: 'Write-Host "hello"',
-					windowsSource: 'powershell',
 					cwd: workspaceRoot
 				});
 			});
@@ -177,7 +185,6 @@ suite('HookSchema', () => {
 				assert.deepStrictEqual(result, {
 					type: 'command',
 					windows: 'Get-Process',
-					windowsSource: 'powershell',
 					cwd: workspaceRoot,
 					timeout: 30
 				});
@@ -207,8 +214,6 @@ suite('HookSchema', () => {
 					command: 'direct-command',
 					linux: 'bash-script.sh',
 					osx: 'bash-script.sh',
-					linuxSource: 'bash',
-					osxSource: 'bash',
 					cwd: workspaceRoot
 				});
 			});
@@ -223,7 +228,6 @@ suite('HookSchema', () => {
 					type: 'command',
 					command: 'direct-command',
 					windows: 'ps-script.ps1',
-					windowsSource: 'powershell',
 					cwd: workspaceRoot
 				});
 			});
@@ -239,9 +243,6 @@ suite('HookSchema', () => {
 					windows: 'ps-script.ps1',
 					linux: 'bash-script.sh',
 					osx: 'bash-script.sh',
-					windowsSource: 'powershell',
-					linuxSource: 'bash',
-					osxSource: 'bash',
 					cwd: workspaceRoot
 				});
 			});
@@ -352,7 +353,6 @@ suite('HookSchema', () => {
 					type: 'command',
 					command: 'default-command',
 					windows: 'win-command',
-					windowsSource: 'windows',
 					cwd: workspaceRoot
 				});
 			});
@@ -367,7 +367,6 @@ suite('HookSchema', () => {
 					type: 'command',
 					command: 'default-command',
 					linux: 'linux-command',
-					linuxSource: 'linux',
 					cwd: workspaceRoot
 				});
 			});
@@ -382,7 +381,6 @@ suite('HookSchema', () => {
 					type: 'command',
 					command: 'default-command',
 					osx: 'osx-command',
-					osxSource: 'osx',
 					cwd: workspaceRoot
 				});
 			});
@@ -401,9 +399,6 @@ suite('HookSchema', () => {
 					windows: 'win-command',
 					linux: 'linux-command',
 					osx: 'osx-command',
-					windowsSource: 'windows',
-					linuxSource: 'linux',
-					osxSource: 'osx',
 					cwd: workspaceRoot
 				});
 			});
@@ -418,8 +413,6 @@ suite('HookSchema', () => {
 					type: 'command',
 					linux: 'explicit-linux.sh',
 					osx: 'default.sh',
-					linuxSource: 'linux',
-					osxSource: 'bash',
 					cwd: workspaceRoot
 				});
 			});

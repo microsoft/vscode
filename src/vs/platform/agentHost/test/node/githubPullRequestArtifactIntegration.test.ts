@@ -467,7 +467,7 @@ suite('GitHub pull request artifact integration', () => {
 	}));
 
 	for (const fragment of ['core', 'checks', 'reviewThreads', 'mergeability'] as const) {
-		test(`requests repository authorization for a SAML refusal in ${fragment}`, () => run(async store => {
+		test(`offers single sign-on authorization without challenging repository credentials for a SAML refusal in ${fragment}`, () => run(async store => {
 			const base = createPullRequestArtifactSnapshot();
 			const refused = {
 				...base,
@@ -498,7 +498,7 @@ suite('GitHub pull request artifact integration', () => {
 				recovery,
 				prompts: f.prompts, mutations: f.mutations,
 			}, {
-				requests: [{ resource: f.endpoint.getRepoResource(), reason: AuthRequiredReason.Required }],
+				requests: [],
 				availability: { kind: 'authenticationRequired', reason: message },
 				loadingAvailability: { kind: 'authenticationRequired', reason: message },
 				details: { kind: 'authenticationRequired', reason: message },
@@ -509,7 +509,7 @@ suite('GitHub pull request artifact integration', () => {
 			f.snapshot.set(base, undefined);
 			const recovered = f.model.snapshot.get().contributions[0].view.availability;
 			f.snapshot.set(refused, undefined);
-			assert.deepStrictEqual({ recovered, requests: f.authenticationRequests.length }, { recovered: { kind: 'available' }, requests: 2 });
+			assert.deepStrictEqual({ recovered, requests: f.authenticationRequests.length }, { recovered: { kind: 'available' }, requests: 0 });
 		}));
 	}
 
@@ -526,10 +526,16 @@ suite('GitHub pull request artifact integration', () => {
 				await f.invoke('markReady');
 			}
 
-			assert.deepStrictEqual(f.model.snapshot.get().contributions[0].view.availability, {
-				kind: 'authenticationRequired',
-				reason: 'Authorize your GitHub account for octo\'s single sign-on to see the state of this pull request.',
-				authorizationUrl: ssoAuthorizationUrl,
+			assert.deepStrictEqual({
+				availability: f.model.snapshot.get().contributions[0].view.availability,
+				requests: f.authenticationRequests,
+			}, {
+				availability: {
+					kind: 'authenticationRequired',
+					reason: 'Authorize your GitHub account for octo\'s single sign-on to see the state of this pull request.',
+					authorizationUrl: ssoAuthorizationUrl,
+				},
+				requests: [],
 			});
 		}));
 	}
@@ -619,7 +625,7 @@ suite('GitHub pull request artifact integration', () => {
 		f.snapshot.set({
 			...base,
 			checks: { ...base.checks, value: { ...base.checks.value!, checks: [{ id: 'ci', name: 'CI', type: 'checkRun', status: 'COMPLETED', conclusion: 'FAILURE' }] } },
-			mergeability: { ...base.mergeability, status: 'error', complete: false, error: { kind: 'authorization', message: 'Resource protected by organization SAML enforcement.' } },
+			mergeability: { ...base.mergeability, status: 'error', complete: false, error: { kind: 'authorization', message: 'Repository access denied' } },
 		}, undefined);
 		await timeout(100);
 		const blockedPrompts = f.prompts.length;
@@ -639,7 +645,7 @@ suite('GitHub pull request artifact integration', () => {
 			const base = createPullRequestArtifactSnapshot();
 			const draft = { ...base, core: { ...base.core, value: { ...base.core.value!, draft: true } } };
 			const f = await fixture(store, draft);
-			const fail = () => { throw new GitHubRequestError('Resource protected by organization SAML enforcement.', 'authorization', 403); };
+			const fail = () => { throw new GitHubRequestError('Repository access denied', 'authorization', 403); };
 			if (phase === 'refresh') {
 				f.onRefresh(fail);
 			} else if (phase === 'dispatchRefresh') {
@@ -663,7 +669,7 @@ suite('GitHub pull request artifact integration', () => {
 				refused, requests: f.authenticationRequests.length, mutations: f.mutations,
 				runs: f.service.ledger.state.get().runs.length,
 			}, {
-				refused: { kind: 'authenticationRequired', reason: 'Authorize your GitHub account for octo\'s single sign-on to see the state of this pull request.' },
+				refused: { kind: 'authenticationRequired', reason: 'Sign in to GitHub to see the state of this pull request.' },
 				requests: 1, mutations: [], runs: 1,
 			});
 		}));
@@ -701,7 +707,7 @@ suite('GitHub pull request artifact integration', () => {
 	test('revalidates an action refusal after same-token reauthorization without replaying the action', () => run(async store => {
 		const base = createPullRequestArtifactSnapshot();
 		const f = await fixture(store, { ...base, core: { ...base.core, value: { ...base.core.value!, draft: true } } });
-		f.onMutation(() => { throw new GitHubRequestError('Resource protected by organization SAML enforcement.', 'authorization', 403); });
+		f.onMutation(() => { throw new GitHubRequestError('Repository access denied', 'authorization', 403); });
 		await f.invoke('markReady');
 		const refused = f.model.snapshot.get().contributions[0].view.availability.kind;
 		let revalidations = 0;

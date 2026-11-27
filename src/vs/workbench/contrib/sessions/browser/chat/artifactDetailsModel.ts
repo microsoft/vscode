@@ -264,8 +264,8 @@ export class ArtifactDetailsModel extends Disposable {
 				}), list.more?.description]),
 				...[...stateActions, ...generalActions].map(action => action.enabled === false ? localize('artifactAccessibleDisabled', "{0}: unavailable. {1}", action.label, action.description ?? '') : action.label),
 				...autopilot.flatMap(group => [group.title, group.summary, ...group.rules.map(rule =>
-					localize('artifactAccessibleAutomation', "{0}: {1}. {2}", rule.label, rule.checked ? rule.policy?.label ?? localize('artifactAutomationOn', "On")
-						: rule.policy ? localize('artifactAutomationOffWithPolicy', "Off; selected policy: {0}", rule.policy.label) : localize('artifactAutomationOff', "Off"), rule.description))]),
+					localize('artifactAccessibleAutomation', "{0}: {1}. {2}", rule.label, rule.choices?.items.find(choice => choice.value === rule.choices?.value)?.label
+						?? (rule.checked ? localize('artifactAutomationOn', "On") : localize('artifactAutomationOff', "Off")), rule.description))]),
 				...activities.items.length ? [localize('artifactActivities', "Activities"), activities.summary, ...activities.items.map(item => item.description), activities.message] : [],
 			].filter(Boolean).join('\n'),
 		};

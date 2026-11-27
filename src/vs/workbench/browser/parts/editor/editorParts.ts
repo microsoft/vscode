@@ -7,7 +7,7 @@ import { localize } from '../../../../nls.js';
 import { EditorGroupLayout, GroupActivationReason, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IEditorGroupContextKeyProvider, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IEditorWorkingSet, IFindGroupScope, IMergeGroupOptions, IEditorWorkingSetOptions, IEditorPart, IModalEditorPart, IEditorGroupActivationEvent, ICreateEditorPartOptions, IContentPart, IResolvedEditorWorkingSet, getWindowMainPart } from '../../../services/editor/common/editorGroupsService.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { EditorsOrder, GroupIdentifier, IEditorPartOptions } from '../../../common/editor.js';
+import { EditorCloseContext, EditorsOrder, GroupIdentifier, IEditorPartOptions } from '../../../common/editor.js';
 import { ISerializedNode } from '../../../../base/browser/ui/grid/gridview.js';
 import { EditorGroupModel, isSerializedEditorGroupModel } from '../../../common/editor/editorGroupModel.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
@@ -17,7 +17,7 @@ import { IEditorGroupView, IEditorPartsView } from './editor.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { distinct } from '../../../../base/common/arrays.js';
-import { AuxiliaryEditorPart, IAuxiliaryEditorPartOpenOptions } from './auxiliaryEditorPart.js';
+import { AuxiliaryEditorPart, AuxiliaryEditorPartImpl, IAuxiliaryEditorPartOpenOptions } from './auxiliaryEditorPart.js';
 import { ModalEditorPart } from './modalEditorPart.js';
 import { ContentPart } from './contentPart.js';
 import { PART_GRID_CLASS } from './partGridClass.js';
@@ -25,7 +25,7 @@ import { MultiWindowParts } from '../../part.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
+import { IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ContextKeyValue, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { addDisposableListener, EventType, getActiveElement, getWindow, getWindowById, IDimension, isAncestor, isAncestorOfActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
@@ -50,7 +50,7 @@ interface IEditorPartsUIState {
 	// main state is managed by the main part
 }
 
-interface IAuxiliaryEditorPartState extends IAuxiliaryWindowOpenOptions {
+interface IAuxiliaryEditorPartState extends IAuxiliaryEditorPartOpenOptions {
 	readonly state: IEditorPartUIState;
 }
 
@@ -689,7 +689,8 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 				.filter(({ auxiliaryWindow }) => auxiliaryWindow !== undefined)
 				.map(({ part, auxiliaryWindow }) => ({
 					state: part.createState(),
-					...auxiliaryWindow!.createState()
+					...auxiliaryWindow!.createState(),
+					...(part instanceof AuxiliaryEditorPartImpl && part.compactAllowsSplit ? { compactAllowsSplit: true } : {})
 				})),
 			mru: this.mostRecentActiveParts.filter(part => !part.isTransient).map(part => this.persistableParts.indexOf(part))
 		};
@@ -737,23 +738,24 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		}
 	}
 
-	private async applyState(state: IEditorPartsUIState | 'empty', options?: { preserveFocus?: boolean }): Promise<boolean> {
+	private async applyState(state: IEditorPartsUIState | 'empty', options?: IEditorWorkingSetOptions): Promise<boolean> {
 
 		// Before closing windows, try to close as many editors as
 		// possible, but skip over those that would trigger a dialog
 		// (for example when being dirty). This is to be able to have
 		// them merge into the main part.
 
+		const closeContext = options?.switchesEditors ? EditorCloseContext.SWITCH : undefined;
 		for (const part of this.parts) {
 			if (part === this.mainPart || part.isTransient) {
 				continue; // main part takes care on its own and transient parts are managed by their owner
 			}
 
 			for (const group of part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
-				await group.closeAllEditors({ excludeConfirming: true, force: true });
+				await group.closeAllEditors({ excludeConfirming: true, force: true, context: closeContext });
 			}
 
-			const closed = (part as unknown as IAuxiliaryEditorPart).close(options); // will move remaining editors to main part
+			const closed = (part as unknown as IAuxiliaryEditorPart).close({ preserveFocus: options?.preserveFocus, closeContext }); // will move remaining editors to main part
 			if (!closed) {
 				return false; // this indicates that closing was vetoed
 			}
@@ -873,7 +875,26 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		}
 	}
 
+	private applyingWorkingSets = 0;
+	get isApplyingWorkingSet(): boolean { return this.applyingWorkingSets > 0; }
+
+	private readonly _onDidChangeApplyingWorkingSet = this._register(new Emitter<boolean>());
+	readonly onDidChangeApplyingWorkingSet = this._onDidChangeApplyingWorkingSet.event;
+
 	async applyWorkingSet(workingSet: IEditorWorkingSet | 'empty', options?: IEditorWorkingSetOptions): Promise<boolean> {
+		if (this.applyingWorkingSets++ === 0) {
+			this._onDidChangeApplyingWorkingSet.fire(true);
+		}
+		try {
+			return await this.doApplyWorkingSet(workingSet, options);
+		} finally {
+			if (--this.applyingWorkingSets === 0) {
+				this._onDidChangeApplyingWorkingSet.fire(false);
+			}
+		}
+	}
+
+	private async doApplyWorkingSet(workingSet: IEditorWorkingSet | 'empty', options?: IEditorWorkingSetOptions): Promise<boolean> {
 		let workingSetState: IEditorWorkingSetState | 'empty' | undefined;
 		if (workingSet === 'empty') {
 			workingSetState = 'empty';
@@ -900,7 +921,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		if (!applied) {
 			return false;
 		}
-		await this.mainPart.applyState(workingSetState === 'empty' ? workingSetState : workingSetState.main, options);
+		await this.mainPart.applyState(workingSetState === 'empty' ? workingSetState : workingSetState.main, options, options?.switchesEditors ? EditorCloseContext.SWITCH : undefined);
 
 		// Restore Focus unless instructed otherwise
 		{

@@ -311,7 +311,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 			actions: ['remoteConnections.off', 'remoteConnections.devTunnel'],
 			updates: [[GitHubEnvironmentsEnabledSettingId, false]],
 			sharing: [],
-			message: new Error('GitHub Environments are disabled by your settings or your organization.'),
+			message: new Error('Sharing through GitHub Environments is disabled by your settings or your organization.'),
 		});
 	});
 
@@ -1019,9 +1019,9 @@ suite('RemoteConnectionsActionViewItem', () => {
 			header: listOptions()?.headerText,
 			state: sharing.state.get(),
 		}, {
-			title: 'Rename Remote Environment', value: 'Test Machine (VS Code Insiders)',
-			empty: 'Enter an environment name without control characters.',
-			control: 'Enter an environment name without control characters.',
+			title: 'Change Sharing Name', value: 'Test Machine (VS Code Insiders)',
+			empty: 'Enter a sharing name.',
+			control: 'Enter a sharing name without control characters.',
 			valid: undefined,
 			name: 'Renamed workstation',
 			header: 'Will be shared as: Renamed workstation',
@@ -1085,7 +1085,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 		});
 	});
 
-	test('reloads names once per change without accumulating subscriptions after tunnel renames', async () => {
+	test('reloads only the changed method name without accumulating subscriptions after tunnel renames', async () => {
 		const { remoteTunnel, configuration, sharing, viewItem } = fixture('githubEnvironment');
 		await timeout(0);
 		const loadName = stub(remoteTunnel, 'getTunnelName').callThrough();
@@ -1108,10 +1108,10 @@ suite('RemoteConnectionsActionViewItem', () => {
 			afterEnvironmentChange,
 			afterDisposal: loadName.callCount,
 		}, {
-			initialEnvironmentChange: 1,
-			afterTunnelRenames: 3,
-			afterEnvironmentChange: 4,
-			afterDisposal: 4,
+			initialEnvironmentChange: 0,
+			afterTunnelRenames: 2,
+			afterEnvironmentChange: 2,
+			afterDisposal: 2,
 		});
 	});
 

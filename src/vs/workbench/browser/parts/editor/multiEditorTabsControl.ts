@@ -20,6 +20,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { EditorCommandsContextActionRunner, EditorTabsControl } from './editorTabsControl.js';
+import { EditorAddTabControl } from './editorAddTabControl.js';
 import { clearConnectedTabClipping, IConnectedTabBounds, updateConnectedTabClipping } from './connectedTabClipping.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { IDisposable, dispose, DisposableStore, combinedDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -118,7 +119,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	private tabsScrollbar: ScrollableElement | undefined;
 	private connectedTabOverflowEdge: HTMLElement | undefined;
 	private connectedTabLabels = false;
-	private addTabContainer: HTMLElement | undefined;
+	private addTabControl: EditorAddTabControl | undefined;
+	/** The Add Tab control after the last tab, while it is shown. */
+	private get addTabContainer(): HTMLElement | undefined {
+		return this.addTabControl?.visible ? this.addTabControl.element : undefined;
+	}
 	private tabSizingFixedDisposables: DisposableStore | undefined;
 	private connectedTabBounds: IConnectedTabBounds | undefined;
 
@@ -295,7 +300,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// container, which tab layout logic relies on (see #324902).
 		if (this.menuIds?.tabsBarAddTab) {
 			this.tabsContainer.classList.add('has-add-tab');
-			this.addTabContainer = this.createAddTabControl(this.tabsContainer, this.menuIds.tabsBarAddTab, undefined, () => this.layout(this.dimensions));
+			this.addTabControl = this.createAddTabControl(this.tabsContainer, this.menuIds.tabsBarAddTab, undefined, () => this.layout(this.dimensions));
 		}
 
 		// Create Editor Toolbar
@@ -509,7 +514,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				tabsContainer.classList.add('scroll');
 
 				// Return if the target is not on the tabs container
-				if (e.target !== tabsContainer) {
+				if (!this.isDropAfterLastTabTarget(e, tabsContainer)) {
 					return;
 				}
 
@@ -549,7 +554,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				this.updateDropFeedback(tabsContainer, false, e);
 				tabsContainer.classList.remove('scroll');
 
-				if (e.target === tabsContainer) {
+				if (this.isDropAfterLastTabTarget(e, tabsContainer)) {
 					const isGroupTransfer = this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype);
 					this.onDrop(e, isGroupTransfer ? this.groupView.count : this.tabsModel.count, tabsContainer);
 				}
@@ -1306,8 +1311,13 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					return;
 				}
 
-				isNewWindowOperation = this.isNewWindowOperation(e);
 				const selectedEditors = this.groupView.selectedEditors;
+				if (!this.canDragEditors(selectedEditors)) {
+					e.preventDefault();
+					return;
+				}
+
+				isNewWindowOperation = this.isNewWindowOperation(e);
 				this.editorTransfer.setData(selectedEditors.map(e => new DraggedEditorIdentifier({ editor: e, groupId: this.groupView.id })), DraggedEditorIdentifier.prototype);
 
 				if (e.dataTransfer) {
@@ -1442,6 +1452,14 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		return false;
 	}
 
+	/**
+	 * Whether dragging over the event's target drops after the last tab: the empty space of the tabs container and the
+	 * add tab button after the last tab.
+	 */
+	private isDropAfterLastTabTarget(e: DragEvent, tabsContainer: HTMLElement): boolean {
+		return e.target === tabsContainer || (!!this.addTabContainer && isHTMLElement(e.target) && this.addTabContainer.contains(e.target));
+	}
+
 	private updateDropFeedback(element: HTMLElement, isDND: boolean, e: DragEvent, tabIndex?: number): void {
 		const isTab = (typeof tabIndex === 'number');
 
@@ -1450,7 +1468,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			if (isTab) {
 				dropTarget = this.computeDropTarget(e, tabIndex, element);
 			} else {
-				dropTarget = { leftElement: element.lastElementChild as HTMLElement, rightElement: undefined };
+				// The add tab button follows the last tab in the container
+				dropTarget = { leftElement: this.getLastTab(), rightElement: undefined };
 			}
 		} else {
 			dropTarget = undefined;
@@ -2110,7 +2129,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			tab.classList.toggle('last-tab', index === this.tabsModel.count - 1);
 			tab.classList.toggle('connected-tab-last', connected && index === this.tabsModel.count - 1);
 		});
-		this.tabsAndActionsContainer?.classList.toggle('has-add-tab', Boolean(this.addTabContainer && !this.addTabContainer.classList.contains('hidden')));
+		this.tabsAndActionsContainer?.classList.toggle('has-add-tab', Boolean(this.addTabContainer));
 		if (connected && upperTabBar) {
 			this.forEachTab((_editor, _index, tab) => tab.classList.add('connected-tab-upper-row'));
 		}
@@ -2126,9 +2145,12 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// need to proceed with the layout without wrapping because even
 		// if wrapping is enabled in settings, there are cases where
 		// wrapping is disabled (e.g. due to space constraints)
+		// The wrapping layout measures the tabs without the Add Tab control following the last tab, see below
+		this.tabsAndActionsContainer?.classList.remove('add-tab-follows-last-tab');
 		const tabsWrapMultiLine = this.doLayoutTabsWrapping(dimensions);
+		this.layoutAddTabWithLastTab(tabsWrapMultiLine);
 		const top = this.getTabAtIndex(0)?.offsetTop;
-		const bottom = tabsWrapMultiLine && this.addTabContainer && !this.addTabContainer.classList.contains('hidden') ? this.addTabContainer.offsetTop : this.getLastTab()?.offsetTop;
+		const bottom = tabsWrapMultiLine && this.addTabContainer ? this.addTabContainer.offsetTop : this.getLastTab()?.offsetTop;
 		this.forEachTab((_editor, _index, tab) => {
 			tab.classList.toggle('connected-tab-upper-row', connected && (upperTabBar || tab.offsetTop !== bottom));
 			tab.classList.toggle('connected-tab-top-row', connected && topTabBar && tab.offsetTop === top);
@@ -2267,7 +2289,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					return true; // no tab always fits
 				}
 
-				const lastItem = this.addTabContainer && !this.addTabContainer.classList.contains('hidden') ? this.addTabContainer : lastTab;
+				const lastItem = this.addTabContainer ?? lastTab;
 				const availableWidth = tabsWrapMultiLine ? Math.min(tabsContainer.offsetWidth, getContentWidth(tabsAndActionsContainer), dimensions.available.width) : dimensions.available.width;
 				let requiredWidth = lastItem === lastTab ? 0 : getTotalWidth(lastItem) + (tabsWrapMultiLine ? 0 : editorToolbarWidth());
 				this.forEachTab((_editor, _index, tab) => {
@@ -2378,6 +2400,42 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}
 
 		return tabsWrapMultiLine;
+	}
+
+	/**
+	 * When wrapped tabs leave the Add Tab control alone on the last row, moves the last tab down next to it, so that the
+	 * control never forms a row of its own. This needs the last tab, the control and the editor toolbar to fit on one
+	 * row; otherwise the control stays on its own row. Applied after the wrapping layout, which it does not change.
+	 */
+	private layoutAddTabWithLastTab(tabsWrapMultiLine: boolean): void {
+		const [tabsAndActionsContainer, tabsContainer, editorToolbarsContainer] = [this.tabsAndActionsContainer, this.tabsContainer, this.editorToolbarsContainer];
+		const addTabContainer = this.addTabContainer;
+		const lastTab = this.getLastTab();
+		if (!tabsWrapMultiLine || !tabsAndActionsContainer || !tabsContainer || !editorToolbarsContainer || !addTabContainer || !lastTab || lastTab.offsetTop === addTabContainer.offsetTop) {
+			return;
+		}
+
+		// Without following, the last tab has just its gutter as end margin
+		const gutter = Number.parseFloat(getWindow(lastTab).getComputedStyle(lastTab).marginInlineEnd) || 0;
+		// Fit tabs of the modern UI shrink to make room, see their maximum width
+		const modernFit = lastTab.classList.contains('sizing-fit') && !!this.parent.closest('.modern-ui-tabs');
+		const tabWidth = modernFit ? Math.min(lastTab.offsetWidth, MultiEditorTabsControl.TAB_WIDTH.shrink) : lastTab.offsetWidth;
+		const rowWidth = tabWidth + gutter * 2 + addTabContainer.offsetWidth + editorToolbarsContainer.offsetWidth;
+		if (rowWidth > Math.min(tabsContainer.offsetWidth, getContentWidth(tabsAndActionsContainer))) {
+			return;
+		}
+
+		tabsAndActionsContainer.classList.add('add-tab-follows-last-tab');
+		if (lastTab.offsetTop !== addTabContainer.offsetTop) {
+			tabsAndActionsContainer.classList.remove('add-tab-follows-last-tab'); // they still do not fit on one row
+			return;
+		}
+
+		// The tab before the last tab now ends its row
+		const tabs: HTMLElement[] = [];
+		this.forEachTab((_editor, _index, tab) => tabs.push(tab));
+		const lastInRow = tabs.map((tab, index) => index === tabs.length - 1 || tabs[index + 1].offsetTop !== tab.offsetTop);
+		tabs.forEach((tab, index) => tab.classList.toggle('last-in-row', lastInRow[index]));
 	}
 
 	private updateWrappedAddTabAlignment(tabsWrapMultiLine: boolean): void {
@@ -2673,7 +2731,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			}
 		} else {
 			if (this.connectedTabBounds) {
-				const viewportRight = this.addTabContainer?.offsetWidth === 0 && this.tabsContainer ? this.tabsContainer.offsetWidth : this.connectedTabBounds.viewportRight;
+				const viewportRight = (this.addTabContainer?.offsetWidth ?? 0) === 0 && this.tabsContainer ? this.tabsContainer.offsetWidth : this.connectedTabBounds.viewportRight;
 				this.connectedTabBounds.overflowEdge.style.left = `${this.connectedTabBounds.viewportLeft}px`;
 				this.connectedTabBounds.overflowEdge.style.right = `${this.tabsContainer ? this.tabsContainer.offsetWidth - viewportRight : 0}px`;
 				updateConnectedTabClipping({ ...this.connectedTabBounds, viewportRight }, scrollLeft);

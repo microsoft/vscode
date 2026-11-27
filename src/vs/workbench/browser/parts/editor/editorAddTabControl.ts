@@ -60,7 +60,7 @@ export interface IEditorAddTabControlOptions {
 
 /**
  * The "Add Tab" (`+`) dropdown that lists the actions of a contributed menu.
- * The control element carries the `hidden` class while the menu has no actions.
+ * The control element is in the DOM only while the menu has actions.
  */
 export class EditorAddTabControl extends Disposable {
 
@@ -69,8 +69,9 @@ export class EditorAddTabControl extends Disposable {
 	private readonly _onDidChangeVisibility = this._register(new Emitter<void>());
 	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
 
+	private _visible = false;
 	get visible(): boolean {
-		return !this.element.classList.contains('hidden');
+		return this._visible;
 	}
 
 	constructor(
@@ -89,7 +90,6 @@ export class EditorAddTabControl extends Disposable {
 		super();
 
 		this.element = $('.tabs-bar-add-tab');
-		parent.insertBefore(this.element, options?.before ?? null);
 
 		const recentEntryStorageKey = `editor.addTabMenu.recentEntry.${menuId.id}`;
 		const recentDescription = localize('addTabRecentlyUsed', "recently used");
@@ -128,40 +128,59 @@ export class EditorAddTabControl extends Disposable {
 			}));
 		}
 		if (options?.defaultEntry) {
-			this._pickDefaultEntryOnSecondPress(dropdown, toolbar, () => getActions().find(action => !(action instanceof Separator)), contextViewService);
+			this._pickDefaultEntryOnSecondPress(dropdown, toolbar, options.context, () => getActions().find(action => !(action instanceof Separator)), contextViewService);
 		}
 		if (options?.defaultEntry || options?.recentFirst) {
 			this._decorateMenu(dropdown, !!options.defaultEntry, () => recentAction ? recentDescription : undefined);
 		}
 
-		const updateVisibility = () => this.element.classList.toggle('hidden', getActions().length === 0);
-		updateVisibility();
-		this._register(menu.onDidChange(() => {
-			const wasVisible = this.visible;
-			updateVisibility();
-			if (wasVisible !== this.visible) {
-				this._onDidChangeVisibility.fire();
+		const updateVisibility = () => {
+			const visible = getActions().length > 0;
+			if (visible === this._visible) {
+				return;
 			}
-		}));
+			this._visible = visible;
+			if (visible) {
+				parent.insertBefore(this.element, options?.before ?? null);
+			} else {
+				this.element.remove();
+			}
+			this._onDidChangeVisibility.fire();
+		};
+		updateVisibility();
+		this._register(menu.onDidChange(updateVisibility));
+	}
+
+	/**
+	 * Whether the mouse event is over the button. Its visible button can extend beyond the control element, such as with
+	 * a negative margin in the Connected tab style.
+	 */
+	private _isOverButton(e: MouseEvent): boolean {
+		// The label is rendered by the toolbar
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
+		const label = this.element.querySelector<HTMLElement>('.action-label');
+		return [this.element, label].some(element => {
+			const bounds = element?.getBoundingClientRect();
+			return !!bounds && e.clientX >= bounds.left && e.clientX < bounds.right && e.clientY >= bounds.top && e.clientY < bounds.bottom;
+		});
 	}
 
 	/**
 	 * While the menu is open, pressing the button picks the default entry rather than only closing the menu. The menu
 	 * blocks the mouse in the rest of the window, so the press is recognized by its position before the block sees it.
 	 */
-	private _pickDefaultEntryOnSecondPress(dropdown: DropdownMenuActionViewItem, toolbar: WorkbenchToolBar, getDefaultEntry: () => IAction | undefined, contextViewService: IContextViewService): void {
+	private _pickDefaultEntryOnSecondPress(dropdown: DropdownMenuActionViewItem, toolbar: WorkbenchToolBar, context: IEditorCommandsContext | undefined, getDefaultEntry: () => IAction | undefined, contextViewService: IContextViewService): void {
 		const whileMenuVisible = this._register(new MutableDisposable());
 		this._register(dropdown.onDidChangeVisibility(visible => {
 			whileMenuVisible.value = visible ? addDisposableListener(getWindow(this.element), EventType.MOUSE_DOWN, e => {
-				const bounds = this.element.getBoundingClientRect();
-				const onButton = e.clientX >= bounds.left && e.clientX < bounds.right && e.clientY >= bounds.top && e.clientY < bounds.bottom;
-				const entry = onButton && e.button === 0 ? getDefaultEntry() : undefined;
+				const entry = this._isOverButton(e) && e.button === 0 ? getDefaultEntry() : undefined;
 				if (!entry) {
 					return;
 				}
 				EventHelper.stop(e, true);
 				contextViewService.hideContextView();
-				toolbar.actionRunner.run(entry, toolbar.context);
+				// The toolbar has no getter for its context
+				toolbar.actionRunner.run(entry, context);
 			}, true) : undefined;
 		}));
 	}
@@ -183,8 +202,14 @@ export class EditorAddTabControl extends Disposable {
 			}
 			const store = whileMenuVisible.value = new DisposableStore();
 			let menuElement: HTMLElement | null = null;
+			let mouseBlock: HTMLElement | null = null;
 			let items: HTMLElement[] = [];
 			const highlightDefault = (onButton: boolean) => {
+				// The menu blocks the mouse in the rest of the window with an arrow cursor; over the button, which a press
+				// still picks the default entry with, show that it can be clicked
+				if (mouseBlock) {
+					mouseBlock.style.cursor = onButton ? 'pointer' : 'initial';
+				}
 				const first = items[0];
 				const focused = items.find(item => item.classList.contains('focused'));
 				if (onButton && first && focused !== first) {
@@ -205,6 +230,8 @@ export class EditorAddTabControl extends Disposable {
 				// eslint-disable-next-line eslint-js/no-restricted-syntax
 				menuElement = targetWindow.document.querySelector<HTMLElement>(`.context-view.${addTabMenuClassName} .monaco-menu`);
 				// eslint-disable-next-line eslint-js/no-restricted-syntax
+				mouseBlock = targetWindow.document.querySelector<HTMLElement>(`.context-view.${addTabMenuClassName} > .context-view-block`);
+				// eslint-disable-next-line eslint-js/no-restricted-syntax
 				items = menuElement ? [...menuElement.querySelectorAll<HTMLElement>('.action-item')].filter(item => item.firstElementChild?.classList.contains('action-menu-item')) : [];
 				const description = getFirstEntryDescription();
 				const firstLabel = [...items[0]?.firstElementChild?.children ?? []].find(child => child.classList.contains('action-label'));
@@ -219,8 +246,7 @@ export class EditorAddTabControl extends Disposable {
 			if (highlightDefaultEntry) {
 				store.add(addDisposableListener(targetWindow, EventType.MOUSE_MOVE, e => {
 					if (menuElement && !isAncestor(e.target as Node, menuElement)) {
-						const bounds = this.element.getBoundingClientRect();
-						highlightDefault(e.clientX >= bounds.left && e.clientX < bounds.right && e.clientY >= bounds.top && e.clientY < bounds.bottom);
+						highlightDefault(this._isOverButton(e));
 					}
 				}, true));
 			}

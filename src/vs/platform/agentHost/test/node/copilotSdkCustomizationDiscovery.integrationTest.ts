@@ -21,8 +21,19 @@ import { readCustomizationDiscoveryMeta } from '../../common/meta/customizationD
 import { CustomizationType, McpServerStatus } from '../../common/state/protocol/state.js';
 import { createCopilotCliEnvironment } from '../../node/copilot/copilotCliEnvironment.js';
 import { SessionCustomizationDiscovery } from '../../node/copilot/sessionCustomizationDiscovery.js';
+import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostWorkspaceTrustConfigKey } from '../../common/agentHostSchema.js';
+import { TestCopilotHomeService } from '../../../environment/test/common/testCopilotHomeService.js';
 import { initTestGitRepo } from './e2e/harness/agentHostE2ETestHarness.js';
 import { createIsolatedProviderEnvironment } from './providerTestEnvironment.js';
+
+/** A configuration in which every folder is trusted, as when VS Code's workspace trust is off. */
+function trustedConfiguration(store: DisposableStore, log: NullLogService): AgentConfigurationService {
+	const configuration = store.add(new AgentConfigurationService(store.add(new AgentHostStateManager(log)), log));
+	configuration.updateRootConfig({ [AgentHostWorkspaceTrustConfigKey]: { enabled: false, trustedUris: [] } });
+	return configuration;
+}
 
 suite('Copilot SDK - customization discovery', function () {
 	this.timeout(60_000);
@@ -58,7 +69,7 @@ suite('Copilot SDK - customization discovery', function () {
 			store.add(files.registerProvider(Schemas.file, store.add(new class extends DiskFileSystemProvider {
 				override watch(): IDisposable { return Disposable.None; }
 			}(log))));
-			const discovery = store.add(new SessionCustomizationDiscovery([URI.file(workspace)], URI.file(home), URI.file, files, log));
+			const discovery = store.add(new SessionCustomizationDiscovery([URI.file(workspace)], URI.file(home), URI.file, files, log, trustedConfiguration(store, log), new TestCopilotHomeService(URI.file(home))));
 			const result = await discovery.discover(client, CancellationToken.None);
 			// Remove the native-gap assertion with the workaround when runtime #30644 is fixed.
 			assert.deepStrictEqual({
@@ -121,7 +132,7 @@ suite('Copilot SDK - customization discovery', function () {
 				// This test refreshes explicitly; filesystem watch behavior has separate unit coverage.
 				override watch(): IDisposable { return Disposable.None; }
 			}(log))));
-			const discovery = store.add(new SessionCustomizationDiscovery([URI.file(home)], URI.file(home), URI.file, files, log));
+			const discovery = store.add(new SessionCustomizationDiscovery([URI.file(home)], URI.file(home), URI.file, files, log, trustedConfiguration(store, log), new TestCopilotHomeService(URI.file(home))));
 			const customizations = await discovery.discover(client, CancellationToken.None);
 			const children = customizations.flatMap(item => item.type === CustomizationType.McpServer ? [item] : item.children ?? []);
 			assert.deepStrictEqual({

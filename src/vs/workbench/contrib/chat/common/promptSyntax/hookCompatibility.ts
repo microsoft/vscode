@@ -6,26 +6,9 @@
 import { URI } from '../../../../../base/common/uri.js';
 import { basename, dirname } from '../../../../../base/common/path.js';
 import { IHookCommand, toHookType } from './hookSchema.js';
-import { parseClaudeHooks, extractHookCommandsFromItem, getClaudeHookTypeName } from './hookClaudeCompat.js';
-import { resolveCopilotCliHookType, getCopilotCliHookTypeName } from './hookCopilotCliCompat.js';
-import { HookType } from './hookTypes.js';
-
-/**
- * Represents a hook source with its original and normalized properties.
- * Used to display hooks from different formats in a unified view.
- */
-export interface IResolvedHookEntry {
-	/** The normalized hook type (our canonical HookType enum) */
-	readonly hookType: HookType;
-	/** The original hook type ID as it appears in the source file */
-	readonly originalHookTypeId: string;
-	/** The source format this hook came from */
-	readonly sourceFormat: HookSourceFormat;
-	/** The resolved hook command */
-	readonly command: IHookCommand;
-	/** The index of this hook in its array (for editing) */
-	readonly index: number;
-}
+import { parseClaudeHooks, extractHookCommandsFromItem } from './hookClaudeCompat.js';
+import { resolveCopilotCliHookType } from './hookCopilotCliCompat.js';
+import { HookType, isLocalFormatHookEventName } from './hookTypes.js';
 
 /**
  * Supported hook file formats.
@@ -54,11 +37,28 @@ export function getHookSourceFormat(fileUri: URI): HookSourceFormat {
 }
 
 /**
- * Checks if a file is read-only based on its source format.
- * Claude settings files should be read-only from our perspective since they have a different format.
+ * Whether a hook file belongs to Claude Code: a Claude settings file, or any file inside a `.claude` folder.
+ * Claude Code hooks use capitalised event names by design and are never treated as Local-format hooks.
  */
-export function isReadOnlyHookSource(format: HookSourceFormat): boolean {
-	return format === HookSourceFormat.Claude;
+export function isClaudeHookFile(fileUri: URI): boolean {
+	return getHookSourceFormat(fileUri) === HookSourceFormat.Claude
+		|| fileUri.path.split('/').some(segment => segment.toLowerCase() === '.claude');
+}
+
+/**
+ * Returns the event names in a hook file that use the deprecated Local hook format
+ * (capitalised names such as `PreToolUse`). Returns an empty array for Claude Code hook files
+ * and for files that use only native event names.
+ */
+export function getLocalFormatHookEvents(fileUri: URI, json: unknown): string[] {
+	if (isClaudeHookFile(fileUri) || !json || typeof json !== 'object') {
+		return [];
+	}
+	const hooks = (json as Record<string, unknown>).hooks;
+	if (!hooks || typeof hooks !== 'object' || Array.isArray(hooks)) {
+		return [];
+	}
+	return Object.keys(hooks).filter(isLocalFormatHookEventName);
 }
 
 /**
@@ -154,53 +154,6 @@ export function parseHooksFromFile(
 }
 
 /**
- * Parses hooks from a file, ignoring the `disableAllHooks` flag.
- * Used by diagnostics to show which hooks are hidden when `disableAllHooks: true` is set.
- */
-export function parseHooksIgnoringDisableAll(
-	fileUri: URI,
-	json: unknown,
-	workspaceRootUri: URI | undefined,
-	userHome: string
-): IParseHooksFromFileResult {
-	const format = getHookSourceFormat(fileUri);
-
-	let hooks: Map<HookType, { hooks: IHookCommand[]; originalId: string }>;
-
-	switch (format) {
-		case HookSourceFormat.Claude: {
-			// Strip `disableAllHooks` before parsing so the hooks are still extracted
-			if (json && typeof json === 'object') {
-				const { disableAllHooks: _, ...rest } = json as Record<string, unknown>;
-				const result = parseClaudeHooks(rest, workspaceRootUri, userHome);
-				hooks = result.hooks;
-			} else {
-				hooks = new Map();
-			}
-			break;
-		}
-		case HookSourceFormat.Copilot:
-		default:
-			hooks = parseCopilotHooks(json, workspaceRootUri, userHome);
-			break;
-	}
-
-	return { format, hooks, disabledAllHooks: true };
-}
-
-/**
- * Gets a human-readable label for a hook source format.
- */
-export function getHookSourceFormatLabel(format: HookSourceFormat): string {
-	switch (format) {
-		case HookSourceFormat.Claude:
-			return 'Claude';
-		case HookSourceFormat.Copilot:
-			return 'GitHub Copilot';
-	}
-}
-
-/**
  * Builds a new hook entry object in the appropriate format for the given source format.
  * - Copilot format: `{ type: 'command', command: '' }`
  * - Claude format: `{ matcher: '', hooks: [{ type: 'command', command: '' }] }`
@@ -214,16 +167,13 @@ export function buildNewHookEntry(format: HookSourceFormat): Record<string, unkn
 }
 
 /**
- * Builds a new hook file, using the versioned CLI format for Copilot hooks.
+ * Builds a new Copilot-format hook file with an empty command hook for the Copilot event `eventName`.
  */
-export function buildNewHookFile(format: HookSourceFormat, hookType: HookType): { version?: number; hooks: Record<string, Record<string, unknown>[]> } {
-	const hookTypeName = format === HookSourceFormat.Claude
-		? (getClaudeHookTypeName(hookType) ?? hookType)
-		: (getCopilotCliHookTypeName(hookType) ?? hookType);
+export function buildNewCopilotHookFile(eventName: string): { version: number; hooks: Record<string, Record<string, unknown>[]> } {
 	return {
-		...(format === HookSourceFormat.Copilot ? { version: 1 } : {}),
+		version: 1,
 		hooks: {
-			[hookTypeName]: [buildNewHookEntry(format)]
+			[eventName]: [buildNewHookEntry(HookSourceFormat.Copilot)]
 		}
 	};
 }

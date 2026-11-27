@@ -13,7 +13,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { AgentSession, fixedChatOwnerRef, type IAgentChatContext } from '../../../common/agent.js';
-import { AgentHostCanvasesEnabledConfigKey } from '../../../common/agentHostSchema.js';
+import { AgentHostCanvasesEnabledConfigKey, AgentHostWorkspaceTrustConfigKey } from '../../../common/agentHostSchema.js';
 import type { CanvasState } from '../../../common/state/protocol/channels-canvas/state.js';
 import type { ToolCallPendingConfirmationState } from '../../../common/state/protocol/channels-chat/state.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
@@ -136,7 +136,10 @@ suite('Agent Host Provider Integration — Copilot native extensions', function 
 
 	/** Starts a chat in `workspace` whose first turn has completed, so its runtime discovered the workspace's extensions. */
 	async function startChat(name: string, workspace: string) {
-		const copilot = createLocalEndpointCopilotAgent(store, directory, `http://127.0.0.1:${(server.address() as { port: number }).port}`, { [AgentHostCanvasesEnabledConfigKey]: true });
+		const copilot = createLocalEndpointCopilotAgent(store, directory, `http://127.0.0.1:${(server.address() as { port: number }).port}`, {
+			[AgentHostCanvasesEnabledConfigKey]: true,
+			[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [URI.file(workspace).toString()] },
+		});
 		agent = copilot;
 		await copilot.authenticate(resource, 'legacy-l', 7200);
 		const session = AgentSession.uri('copilotcli', name);

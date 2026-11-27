@@ -100,7 +100,7 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 			},
 			_store: { isDisposed: false },
 			_sending: observableValue('sending', false),
-			_confirmingSend: observableValue('confirmingSend', false),
+			_suppressSendProgress: observableValue('suppressSendProgress', false),
 			_userInteractionSource: sourceOwner,
 			_canSendRequest: constObservable(true),
 			_modelRef: { value: undefined },

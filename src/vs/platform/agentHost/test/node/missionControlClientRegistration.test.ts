@@ -26,6 +26,10 @@ class TestEnvironment {
 			this.options = undefined;
 			return;
 		}
+		// Mirrors the environment, which cannot rename a configured registration.
+		if (this.options && this.options.name !== options.name) {
+			throw new Error('Cannot rename a configured environment.');
+		}
 		this.calls.push(`configure ${options.accountId} ${options.credential} roots=${options.roots.join(',')} live=${options.live}`);
 		this.options = options;
 		this.onConfigure?.();
@@ -39,11 +43,12 @@ class TestEnvironment {
 suite('MissionControlClientRegistration', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function create(environment: TestEnvironment, name?: string) {
+	function create(environment: TestEnvironment, name?: string, formatClientName?: (name: string) => string) {
 		const registration = disposables.add(new MissionControlClientRegistration(environment, {
 			homeDirectory: '/home/user',
 			getFileSystemRoots: async () => ['/', '/home/user'],
 			...(name ? { name } : {}),
+			...(formatClientName ? { formatClientName } : {}),
 		}));
 		const registered: boolean[] = [];
 		disposables.add(registration.onDidChangeRegistered(value => registered.push(value)));
@@ -104,6 +109,20 @@ suite('MissionControlClientRegistration', () => {
 				'withdraw account',
 			],
 		});
+	});
+
+	test('names a new registration after the client, keeping the name while it is registered', async () => {
+		const environment = new TestEnvironment();
+		const { registration } = create(environment, 'Ubuntu on host', name => `${name} (App)`);
+		const names = [
+			(await registration.register('account', 'token-1', ' nov16 ')).name,
+			(await registration.register('account', 'token-2', 'renamed')).name,
+			await registration.unregister('account'),
+			(await registration.register('account', 'token-3')).name,
+			await registration.unregister('account'),
+			(await registration.register('account', 'token-4', '  ')).name,
+		];
+		assert.deepStrictEqual(names, ['nov16 (App)', 'nov16 (App)', undefined, 'Ubuntu on host', undefined, 'Ubuntu on host']);
 	});
 
 	test('withdraws a failed registration and refuses a host that is already registered by its host', async () => {

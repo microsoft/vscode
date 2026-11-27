@@ -69,6 +69,8 @@ import { createCommitResourceHover, createIssueResourceHover, createPullRequestR
 import { createCustomizationIndexObservable, createProgressiveChatCustomizations, type ICustomizationJobScheduler } from '../../../common/agentHostSessionCustomizations.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatConfiguration } from '../../../common/constants.js';
 import { IChatEditingService, IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
+import { ISessionChangesService } from '../../../../../services/sessions/common/sessionChangesService.js';
+import { BRANCH_CHANGES_CHANGESET_ID, SESSION_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../services/sessions/common/session.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind } from '../../../common/sessionChatPills.js';
 import { ChatArtifactPillSource, mergeChatArtifactSections } from '../../chatArtifactPillSource.js';
@@ -270,10 +272,8 @@ function parseUri(value: string | undefined): URI | undefined {
 }
 
 /**
- * The window's resource for a recorded file or resource, the one its pill entry opens. The agent host's `file:` URIs are
- * mapped into the window, which matters in remote windows; other URIs of files are the agent host file system's, as in
- * {@link AgentHostSessionInputPills._artifactEntry}. Other resources, such as an extension's, already name something in the
- * window. Whether the chat can show it depends on what provides its scheme (see {@link observeChatResourceExists}).
+ * Resolves a recorded resource for both its pill and Show Above Chat Input. Host `file:` URIs use the connection mapper;
+ * other file artifacts use the host filesystem, while generic resource URIs stay in the window's space.
  */
 function getRecordedResource(artifact: ISessionArtifact, resolution: IAgentHostSessionResolution): URI | undefined {
 	const uri = artifact.type === SessionArtifactType.File || artifact.type === SessionArtifactType.Resource ? parseUri(artifact.uri) : undefined;
@@ -600,6 +600,7 @@ export class AgentHostSessionInputPills extends Disposable {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ICommandService commandService: ICommandService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@ISessionChangesService private readonly _sessionChangesService: ISessionChangesService,
 	) {
 		super();
 		this._gitHubReferenceResolver = this._register(instantiationService.createInstance(AgentHostGitHubReferenceResolver));
@@ -991,7 +992,7 @@ export class AgentHostSessionInputPills extends Disposable {
 				pullRequestState: kind === 'pullRequest' ? pullRequestState : undefined,
 				promotedAction: artifact && removeArtifact ? this._createRemoveAction(artifact, removeArtifact) : undefined,
 				toolbarActions: [withChatPillHoverLabel(toAction({
-					id: `chatInputPills.copy.${kind}.${linkKey(link)}`,
+					id: `chatInputPills.copy.${kind}`,
 					label: kind === 'pullRequest'
 						? localize('agentHostSessionPills.copyPullRequest', "Copy Pull Request URL")
 						: localize('agentHostSessionPills.copyIssue', "Copy Issue URL"),
@@ -1044,14 +1045,10 @@ export class AgentHostSessionInputPills extends Disposable {
 
 	private _artifactEntry(artifact: ISessionArtifact, resolution: IAgentHostSessionResolution, commitResolver: GitHubCommitResolver, reader: IReader): IChatPillEntry | undefined {
 		if (artifact.type === SessionArtifactType.File || artifact.type === SessionArtifactType.Resource) {
-			const artifactResource = parseUri(artifact.uri);
-			if (!artifactResource) {
+			const resource = getRecordedResource(artifact, resolution);
+			if (!resource) {
 				return undefined;
 			}
-			const resource = artifact.type === SessionArtifactType.File
-				// eslint-disable-next-line local/code-agent-host-uri-mapping -- file artifacts are Agent Host filesystem resources, not connection workspace resources
-				? toAgentHostUri(artifactResource, getAgentHostResourceAuthority(resolution))
-				: artifactResource;
 			const label = artifact.type === SessionArtifactType.File ? basename(resource) : artifact.label;
 			const imageMimeType = artifact.type === SessionArtifactType.File && !artifact.isArtifact ? getMediaMime(resource.path) : undefined;
 			const fullPath = artifact.type === SessionArtifactType.File ? this._labelService.getUriLabel(resource, { noPrefix: true }) : undefined;
@@ -1062,8 +1059,8 @@ export class AgentHostSessionInputPills extends Disposable {
 				...(artifact.type === SessionArtifactType.File ? { resource } : { icon: Codicon.link }),
 				toolbarActions: [toAction({
 					id: artifact.type === SessionArtifactType.File
-						? `chat.agentHost.sessionPills.copyFilePath.${artifact.id}`
-						: `chat.agentHost.sessionPills.copyResourceUri.${artifact.id}`,
+						? 'chat.agentHost.sessionPills.copyFilePath'
+						: 'chat.agentHost.sessionPills.copyResourceUri',
 					label: artifact.type === SessionArtifactType.File
 						? localize('agentHostSessionPills.copyFilePath', "Copy Path")
 						: localize('agentHostSessionPills.copyResourceUri', "Copy URI"),
@@ -1072,7 +1069,7 @@ export class AgentHostSessionInputPills extends Disposable {
 				})],
 				...(relativePath ? {
 					hoverActions: [toAction({
-						id: `chat.agentHost.sessionPills.copyFileRelativePath.${artifact.id}`,
+						id: 'chat.agentHost.sessionPills.copyFileRelativePath',
 						label: localize('agentHostSessionPills.copyFileRelativePath', "Copy Relative Path"),
 						class: ThemeIcon.asClassName(Codicon.copy),
 						run: () => this._clipboardService.writeText(relativePath),
@@ -1102,21 +1099,21 @@ export class AgentHostSessionInputPills extends Disposable {
 			}) : undefined;
 			const copyAction = artifact.type === SessionArtifactType.Commit
 				? withChatPillHoverLabel(toAction({
-					id: `chat.agentHost.sessionPills.copyCommitUrl.${artifact.id}`,
+					id: 'chat.agentHost.sessionPills.copyCommitUrl',
 					label: localize('agentHostSessionPills.copyCommitUrl', "Copy Commit URL"),
 					class: ThemeIcon.asClassName(Codicon.copy),
 					run: () => this._clipboardService.writeText(link.toString(true)),
 				}), chatPillCopyUrlHoverLabel)
 				: artifact.type === SessionArtifactType.Website
 					? withChatPillHoverLabel(toAction({
-						id: `chat.agentHost.sessionPills.copyWebsiteUrl.${artifact.id}`,
+						id: 'chat.agentHost.sessionPills.copyWebsiteUrl',
 						label: localize('agentHostSessionPills.copyWebsiteUrl', "Copy Website URL"),
 						class: ThemeIcon.asClassName(Codicon.copy),
 						run: () => this._clipboardService.writeText(link.toString(true)),
 					}), chatPillCopyUrlHoverLabel)
 					: artifact.type === SessionArtifactType.PullRequest || artifact.type === SessionArtifactType.Issue
 						? withChatPillHoverLabel(toAction({
-							id: `chat.agentHost.sessionPills.copyReferenceUrl.${artifact.id}`,
+							id: 'chat.agentHost.sessionPills.copyReferenceUrl',
 							label: artifact.type === SessionArtifactType.PullRequest
 								? localize('agentHostSessionPills.copyPullRequestUrl', "Copy Pull Request URL")
 								: localize('agentHostSessionPills.copyIssueUrl', "Copy Issue URL"),
@@ -1155,7 +1152,7 @@ export class AgentHostSessionInputPills extends Disposable {
 				...(copyAction ? { toolbarActions: [copyAction] } : {}),
 				...((artifact.type === SessionArtifactType.Commit && (artifact.commitHash || commit?.sha)) ? {
 					hoverActions: [withChatPillHoverLabel(toAction({
-						id: `chat.agentHost.sessionPills.copyCommitHash.${artifact.id}`,
+						id: 'chat.agentHost.sessionPills.copyCommitHash',
 						label: localize('agentHostSessionPills.copyCommitHash', "Copy Commit Hash"),
 						class: ThemeIcon.asClassName(Codicon.copy),
 						run: () => this._clipboardService.writeText(artifact.commitHash ?? commit!.sha),
@@ -1193,7 +1190,7 @@ export class AgentHostSessionInputPills extends Disposable {
 
 	private _createRemoveAction(artifact: ISessionArtifact, removeArtifact: (artifact: ISessionArtifact) => Promise<void>) {
 		return withChatPillHoverLabel(toAction({
-			id: `chat.agentHost.sessionPills.removeArtifact.${artifact.id}`,
+			id: 'chat.agentHost.sessionPills.removeArtifact',
 			label: artifact.isArtifact
 				? localize('agentHostSessionPills.removeArtifact', "Remove \"{0}\" Artifact", artifact.label)
 				: localize('agentHostSessionPills.removeReference', "Remove \"{0}\" Reference", artifact.label),
@@ -1239,7 +1236,12 @@ export class AgentHostSessionInputPills extends Disposable {
 		await this._editorService.openEditor(target, undefined, targetGroup);
 	}
 
-	private _openChanges(changeset: Changeset | undefined, diffs: readonly IEditSessionEntryDiff[]): void {
+	private async _openChanges(changeset: Changeset | undefined, diffs: readonly IEditSessionEntryDiff[]): Promise<void> {
+		const chatResource = this._widget.viewModel?.sessionResource;
+		const changesetId = getSessionChangesetId(changeset);
+		if (chatResource && changesetId && await this._sessionChangesService.openChatChangesEditor(chatResource, changesetId)) {
+			return;
+		}
 		if (diffs.length > 0) {
 			const sessionEditorLabel = localize('agentHostSessionPills.changesEditor', "Session Changes");
 			let label = changeset?.label ?? sessionEditorLabel;
@@ -1304,6 +1306,20 @@ export interface IAgentHostSessionWorkingSetOptions {
  * operations: in the input of {@link AgentHostSessionInputPills}, and alone in an input that shows the session's pills
  * itself, such as a session's chat outside the Agents window, which hides its Changes pill while {@link changesPillHidden}.
  */
+/**
+ * The changeset of a session's Changes editor that shows the same changes as an agent host changeset, for those that
+ * the Changes editor knows by a well-known id. Others, such as the session's Working Set, which the Changes editor
+ * doesn't offer, have none, so their exact files open in a multi diff editor instead.
+ */
+function getSessionChangesetId(changeset: Changeset | undefined): string | undefined {
+	switch (changeset?.changeKind) {
+		case ChangesetKind.Branch: return BRANCH_CHANGES_CHANGESET_ID;
+		case ChangesetKind.Uncommitted: return UNCOMMITTED_CHANGES_CHANGESET_ID;
+		case ChangesetKind.Session: return SESSION_CHANGES_CHANGESET_ID;
+		default: return undefined;
+	}
+}
+
 export class AgentHostSessionWorkingSet extends Disposable {
 
 	/** Binds operations to the displayed diff, not a newer changeset publication. */
@@ -1338,6 +1354,7 @@ export class AgentHostSessionWorkingSet extends Disposable {
 		@IDialogService private readonly _dialogService: IDialogService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@ISessionChangesService sessionChangesService: ISessionChangesService,
 	) {
 		super();
 		const sessionResource = this.sessionResource = observableFromEvent(this, this._widget.onDidChangeViewModel, () => this._widget.viewModel?.sessionResource);
@@ -1619,7 +1636,11 @@ export class AgentHostSessionWorkingSet extends Disposable {
 		this._register(autorun(reader => {
 			if (workingSetEnabled.read(reader)) {
 				const undo = !!this._options.undoEnabled || isSessionWorkingSet.read(reader) ? workingSetUndo : undefined;
-				reader.store.add(this._widget.inputPart.registerSessionFileChanges(workingSetChanges, undo, workingSetKeep));
+				reader.store.add(this._widget.inputPart.registerSessionFileChanges(workingSetChanges, undo, workingSetKeep, async () => {
+					const chatResource = this._widget.viewModel?.sessionResource;
+					const changesetId = getSessionChangesetId(changesetTarget.read(undefined)?.changeset);
+					return !!chatResource && !!changesetId && sessionChangesService.openChatChangesEditor(chatResource, changesetId);
+				}));
 			}
 		}));
 		// The Changes pill, also the one an input that shows only the working set shows, offers to show the working set again

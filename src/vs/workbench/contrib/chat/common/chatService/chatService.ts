@@ -26,8 +26,6 @@ import { IAutostartResult } from '../../../mcp/common/mcpTypes.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { IWorkspaceSymbol } from '../../../search/common/search.js';
 import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
-import { IChatRequestVariableValue } from '../attachments/chatVariables.js';
-import { ReadonlyChatSessionOptionsMap } from '../chatSessionsService.js';
 import { ChatAgentLocation, SessionTypeSelectionReason, ChatModeKind } from '../constants.js';
 import { IChatEditingSession } from '../editing/chatEditingService.js';
 import type { getAutoModelTier } from '../languageModels.js';
@@ -45,11 +43,6 @@ import { AgentFusionPhaseStatus } from '../../../../../platform/agentHost/common
 import type { IAgentRuntimeModelConfiguration } from '../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
 import type { IImageGenerationToolMetadata } from '../../../../../platform/agentHost/common/meta/agentImageGenerationMeta.js';
 import type { AiCreditsStatus } from '../../../../../platform/agentHost/common/meta/agentUsageMeta.js';
-
-export interface IChatRequest {
-	message: string;
-	variables: Record<string, IChatRequestVariableValue[]>;
-}
 
 export enum ChatErrorLevel {
 	Info = 0,
@@ -129,12 +122,6 @@ export interface IChatContentVariableReference {
 	value?: URI | Location;
 }
 
-export function isChatContentVariableReference(obj: unknown): obj is IChatContentVariableReference {
-	return !!obj &&
-		typeof obj === 'object' &&
-		typeof (obj as IChatContentVariableReference).variableName === 'string';
-}
-
 export enum ChatResponseReferencePartStatusKind {
 	Complete = 1,
 	Partial = 2,
@@ -195,6 +182,8 @@ export interface IChatUsage {
 		readonly reasoningTokens?: number;
 		readonly cacheWriteTokens?: number;
 		readonly duration?: number;
+		/** The call's own output, when it can differ from `completionTokens`: a subagent's call is reported on its parent turn. */
+		readonly outputTokens?: number;
 		readonly timeToFirstTokenMs?: number;
 		readonly providerCallId?: string;
 		readonly serviceRequestId?: string;
@@ -302,32 +291,6 @@ export interface IChatMultiDiffDataSerialized {
 	readOnly?: boolean;
 }
 
-export class ChatMultiDiffData implements IChatMultiDiffData {
-	public readonly kind = 'multiDiffData';
-	public readonly collapsed?: boolean | undefined;
-	public readonly readOnly?: boolean | undefined;
-	public readonly multiDiffData: IChatMultiDiffData['multiDiffData'];
-
-	constructor(opts: {
-		multiDiffData: IChatMultiDiffInnerData | IObservable<IChatMultiDiffInnerData>;
-		collapsed?: boolean;
-		readOnly?: boolean;
-	}) {
-		this.readOnly = opts.readOnly;
-		this.collapsed = opts.collapsed;
-		this.multiDiffData = opts.multiDiffData;
-	}
-
-	toJSON(): IChatMultiDiffDataSerialized {
-		return {
-			kind: this.kind,
-			multiDiffData: hasKey(this.multiDiffData, { title: true }) ? this.multiDiffData : this.multiDiffData.get(),
-			collapsed: this.collapsed,
-			readOnly: this.readOnly,
-		};
-	}
-}
-
 export interface IChatProgressMessage {
 	content: IMarkdownString;
 	kind: 'progressMessage';
@@ -415,6 +378,14 @@ export interface IChatTaskResult {
 	kind: 'progressTaskResult';
 }
 
+/** A bell-slash button on a chat warning that stops that kind of warning, like the chat input notifications' mute action. */
+export interface IChatWarningMuteAction {
+	readonly commandId: string;
+	readonly commandArgs?: unknown[];
+	/** Tooltip and accessible label for the button. */
+	readonly tooltip: string;
+}
+
 export interface IChatWarningMessage {
 	content: IMarkdownString;
 	kind: 'warning';
@@ -423,6 +394,9 @@ export interface IChatWarningMessage {
 	 * response's collapsed steps.
 	 */
 	keepVisibleWhenCollapsed?: boolean;
+	mute?: IChatWarningMuteAction;
+	/** Shows the message as an error, for something that stopped the request rather than a caution about it. */
+	isError?: boolean;
 }
 
 export interface IChatInfoMessage {
@@ -1890,19 +1864,6 @@ export interface IChatUserActionEvent {
 	modeId?: string | undefined;
 }
 
-export interface IChatDynamicRequest {
-	/**
-	 * The message that will be displayed in the UI
-	 */
-	message: string;
-
-	/**
-	 * Any extra metadata/context that will go to the provider.
-	 */
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	metadata?: any;
-}
-
 export interface IChatCompleteResponse {
 	message: string | ReadonlyArray<IChatProgress>;
 	result?: IChatAgentResult;
@@ -1974,10 +1935,6 @@ export interface IChatDetail {
 	 * Only populated in the sessions/agents window context.
 	 */
 	workingDirectory?: URI;
-}
-
-export interface IChatProviderInfo {
-	id: string;
 }
 
 export interface IChatSendRequestResponseState {
@@ -2360,10 +2317,6 @@ export interface IChatService {
 	 * For tests only!
 	 */
 	waitForModelDisposals(): Promise<void>;
-}
-
-export interface IChatSessionContext {
-	readonly initialSessionOptions?: ReadonlyChatSessionOptionsMap;
 }
 
 export const KEYWORD_ACTIVIATION_SETTING_ID = 'accessibility.voice.keywordActivation';

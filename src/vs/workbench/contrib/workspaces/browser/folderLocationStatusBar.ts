@@ -63,11 +63,13 @@ interface IActionWidgetLocation extends ILocationEntry {
 
 /** The locations of one provider, under its label where it has one ({@link IFolderLocationGroup}). */
 interface ILocationGroup {
+	/** Its provider, which identifies its row: providers may share a label. */
+	readonly providerId: string;
 	readonly label: string | undefined;
 	readonly entries: readonly ILocationEntry[];
 }
 
-/** The id prefix of the row of a group of locations. */
+/** The id prefix of the row of a group of locations, which its provider's id follows. */
 const GROUP_ID_PREFIX = 'group:';
 
 interface ILocationQuickPickItem extends IQuickPickItem {
@@ -204,7 +206,7 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 		const command = { id: SWITCH_FOLDER_LOCATION_COMMAND_ID, title: localize('folderLocation', "Folder Location"), arguments: [FOLDER_LOCATION_STATUS_ENTRY_ID] };
 		const props = location ? {
 			name: localize('folderLocation', "Folder Location"),
-			text: `$(${location.icon?.id ?? Codicon.gitBranchCheckout.id}) ${location.label}`,
+			text: `$(${location.icon.id}) ${location.label}`,
 			ariaLabel: localize('folderLocationAria', "Folder Location, {0}", this.labelService.getFolderLocationLabel(folder.uri)),
 			tooltip: localize('folderLocationTooltip', "{0} (alternate location of '{1}')", this.labelService.getFolderLocationLabel(folder.uri), primaryName),
 			command,
@@ -327,10 +329,10 @@ registerAction2(class SwitchFolderLocationAction extends Action2 {
 		const currentLocation = folderLocationService.getLocation(folder);
 		// The folder itself: its name, as the window names it
 		const primaryEntry: ILocationEntry = { uri: primary, label: basename(primary), icon: Codicon.folder };
-		const toEntry = (location: IFolderLocation): ILocationEntry => ({ uri: location.uri, label: location.label, description: location.description, icon: location.icon ?? Codicon.gitBranchCheckout });
+		const toEntry = (location: IFolderLocation): ILocationEntry => ({ uri: location.uri, label: location.label, description: location.description, icon: location.icon });
 		// Seed the current location, in the group of its provider, so that accepting before the lookup resolves keeps it
-		const seedGroups: ILocationGroup[] = currentLocation ? [{ label: currentLocation.group, entries: [{ ...toEntry(currentLocation), uri: folder.uri }] }] : [];
-		const toGroups = (groups: readonly IFolderLocationGroup[]): ILocationGroup[] => groups.map(group => ({ label: group.label, entries: group.locations.map(toEntry) }));
+		const seedGroups: ILocationGroup[] = currentLocation ? [{ providerId: currentLocation.providerId, label: currentLocation.group, entries: [{ ...toEntry(currentLocation), uri: folder.uri }] }] : [];
+		const toGroups = (groups: readonly IFolderLocationGroup[]): ILocationGroup[] => groups.map(group => ({ providerId: group.providerId, label: group.label, entries: group.locations.map(toEntry) }));
 		// The quick pick lists the folder and its locations as one list
 		const toEntries = (groups: readonly ILocationGroup[]) => [primaryEntry, ...groups.flatMap(group => group.entries)];
 		// What a location that is the current one says it is, also to screen readers
@@ -377,7 +379,7 @@ registerAction2(class SwitchFolderLocationAction extends Action2 {
 					}
 					const shown = group.entries.find(entry => isCurrentUri(entry.uri)) ?? group.entries[0];
 					// The row selects what its submenu picks
-					const groupItem: { -readonly [K in keyof IActionWidgetLocation]: IActionWidgetLocation[K] } = { ...shown, description: undefined, id: `${GROUP_ID_PREFIX}${group.label}`, checked: false, groupLabel: group.label };
+					const groupItem: { -readonly [K in keyof IActionWidgetLocation]: IActionWidgetLocation[K] } = { ...shown, description: undefined, id: `${GROUP_ID_PREFIX}${group.providerId}`, checked: false, groupLabel: group.label };
 					return [{
 						kind: ActionListItemKind.Action,
 						item: groupItem,

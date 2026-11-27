@@ -35,7 +35,7 @@ import { GitHubPullRequestState } from '../../common/github/types.js';
 import { getPullRequestKey } from '../../common/github/utils.js';
 import { AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY } from '../../common/github/sessionLifecycleSettings.js';
 import { createSessionArchiveTour, SESSION_ARCHIVE_TOUR_ID } from '../tours/sessionArchiveTour.js';
-import { getSessionArchiveOnboardingTargetId } from '../views/sessionsList.js';
+import { getSessionArchiveOnboardingTargetId } from '../views/sessionsListRenderers.js';
 import { SessionsView, SessionsViewId } from '../views/sessionsView.js';
 
 export const SESSION_ARCHIVE_NUDGE_SETTING = 'chat.agentSessions.archiveNudge.enabled';

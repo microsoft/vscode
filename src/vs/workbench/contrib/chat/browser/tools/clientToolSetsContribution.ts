@@ -58,9 +58,10 @@ export class ClientToolSetsContribution extends Disposable implements IWorkbench
 				referenceName: 'vscodeRemoteSessions',
 				icon: Codicon.remote,
 				description: localize('clientToolSet.remoteSessions.description', "Remote Sessions"),
-				detail: localize('clientToolSet.remoteSessions.detail', "Find remote agent hosts, delegate and inspect work, and send messages between hosts."),
+				detail: localize('clientToolSet.remoteSessions.detail', "Find remote agent hosts, create Dev Containers, delegate and inspect work, and send messages between hosts."),
 				members: [
 					'list_agent_hosts',
+					'create_dev_container',
 					'create_remote_session',
 					'get_remote_session',
 					'send_remote_message',

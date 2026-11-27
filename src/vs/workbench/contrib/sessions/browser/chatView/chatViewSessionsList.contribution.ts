@@ -10,7 +10,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { autorun, derived, IObservable, observableFromEvent, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { ILocalizedString } from '../../../../../platform/action/common/action.js';
-import { MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -31,6 +31,7 @@ import { registerAgentsViewNewSessionActions } from '../agentsView/agentsChatPar
 import { ChatViewSessionsListProvider } from '../agentsView/chatViewSessionsList.js';
 import { IEditorWindowShownChatService } from '../agentsView/editorWindowMainSessionHost.js';
 import { EditorWindowSessionsList } from '../agentsView/editorWindowSessionsList.js';
+import { ChatViewSessionsListContext, ChatViewSessionsListTitleContext } from '../views/sessionsView.js';
 import { registerSessionsListAccessibilityHelp } from '../views/sessionsListActions.js';
 import { ChatViewSessionsListAccessibilityHelp } from './chatViewSessionsListAccessibilityHelp.js';
 import { AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
@@ -125,6 +126,10 @@ class ChatViewSessionsListFeature extends Disposable {
 		this._register(autorun(reader => sessionsOnlyContext.set(sessionsOnly.read(reader))));
 		this._register(toDisposable(() => sessionsOnlyContext.reset()));
 
+		const sessionsListContext = ChatViewSessionsListContext.bindTo(contextKeyService);
+		sessionsListContext.set(true);
+		this._register(toDisposable(() => sessionsListContext.reset()));
+
 		this._register(registerSessionsSidebarToggle());
 		this.showChatViewChat(sessionsOnly);
 	}
@@ -190,6 +195,12 @@ function registerSessionsSidebarToggle(): IDisposable {
 			group: 'navigation',
 			order: 100,
 			when: ContextKeyExpr.and(inChatView, ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(item.orientation), ChatContextKeys.agentSessionsViewerPosition.isEqualTo(item.position)),
+		}));
+		store.add(MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
+			command: { ...item.command, icon: item.icon },
+			group: 'navigation',
+			order: 100,
+			when: ContextKeyExpr.and(ChatViewSessionsListTitleContext, ChatViewSessionsOnlyContext.negate(), ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(item.orientation), ChatContextKeys.agentSessionsViewerPosition.isEqualTo(item.position)),
 		}));
 	}
 	return store;

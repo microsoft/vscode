@@ -89,7 +89,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	properties: {
 		[AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING]: {
 			type: 'boolean',
-			default: false,
+			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },

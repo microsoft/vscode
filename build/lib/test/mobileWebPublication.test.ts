@@ -126,7 +126,7 @@ test('native sanity stages are selected only when at least one of their jobs can
 			assert.ok(parameter, condition);
 			return parameter;
 		}))];
-		assert.equal(condition, `\${{ if and(eq(variables['VSCODE_PUBLISH'], 'true'), eq(variables['VSCODE_STEP_ON_IT'], false), or(${jobParameters.join(', ')})) }}`, file);
+		assert.equal(condition, `\${{ if and(eq(variables['VSCODE_PUBLISH'], 'true'), or(${jobParameters.join(', ')})) }}`, file);
 	}
 });
 

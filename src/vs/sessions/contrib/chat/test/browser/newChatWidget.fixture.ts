@@ -928,7 +928,7 @@ export async function renderNewChatWidget(context: ComponentFixtureContext, opti
 	disposableStore.add(instantiationService.createInstance(SharedChatInputComposerContribution));
 	disposableStore.add(instantiationService.createInstance(ModelPickerToolbarsContribution));
 	menuService.addItem(Menus.NewSessionChatInputToolbar, { command: { id: CHAT_ATTACH_CONTEXT_ACTION_ID, title: 'Add Context...', icon: Codicon.addCompact }, group: 'navigation', order: -2 });
-	if (withControlPickers || mobileWorkbench) {
+	if (withControlPickers && !mobileWorkbench) {
 		menuService.addItem(Menus.NewSessionChatInputToolbar, { command: { id: COMPOSER_SESSION_CONTROLS_ACTION_ID, title: 'Session Controls' }, group: 'navigation', order: 0 });
 	}
 	// The fixture menu service keeps insertion order.
@@ -1058,6 +1058,13 @@ export async function renderNewChatWidget(context: ComponentFixtureContext, opti
 			const touchTargetInset = -parseFloat(targetWindow.getComputedStyle(configuration, '::after').right);
 			const attachBounds = promptBox.querySelector('.chat-input-toolbar .codicon-add-compact')?.getBoundingClientRect();
 			const sendBounds = promptBox.querySelector('.chat-submit-button .action-label')?.getBoundingClientRect();
+			if (withVoiceInputMode) {
+				const voiceBounds = promptBox.querySelector('.chat-voice-input-mode')?.getBoundingClientRect();
+				const labelBounds = configuration.querySelector('.chat-input-picker-label')?.getBoundingClientRect();
+				assert(!!voiceBounds && !!labelBounds && !!sendBounds && labelBounds.width >= 48
+					&& configurationBounds.right <= voiceBounds.left && voiceBounds.right <= sendBounds.left,
+					'The phone toolbar must leave room for a recognizable model name beside voice and Send.');
+			}
 			assert(!!attachBounds && !!sendBounds
 				&& configurationBounds.left >= attachBounds.right
 				&& configurationBounds.right <= sendBounds.left

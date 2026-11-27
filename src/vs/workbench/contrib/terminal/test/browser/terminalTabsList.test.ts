@@ -165,7 +165,8 @@ suite('TerminalTabbedView', () => {
 		const expanded = Event.toPromise(Event.filter(list.onDidScroll, e => e.heightChanged && e.height === 196), store.add(new DisposableStore()));
 		container.style.transition = 'height 80ms linear';
 		container.style.height = '200px';
-		await expanded;
+		// The list measures its rounded offsetHeight, so it can report 196 while the box is still a fraction of a pixel short.
+		await Promise.all([expanded, ...container.getAnimations().map(animation => animation.finished)]);
 		assert.strictEqual(list.renderHeight, listElement.clientHeight);
 		list.reveal(19);
 		const lastRowAfterExpansion = listElement.querySelector<HTMLElement>('.monaco-list-row[data-index="19"]');

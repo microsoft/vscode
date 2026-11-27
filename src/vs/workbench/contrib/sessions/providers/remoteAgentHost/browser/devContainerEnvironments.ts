@@ -12,6 +12,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { supportsAgentHostDevContainerEnvironments } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
+import { agentHostUri } from '../../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { devContainerEnvironmentUri, isDevContainerEnvironmentId, localDevContainerEnvironmentUri } from '../../../../../../platform/agentHost/common/devContainerEnvironments.js';
@@ -21,7 +22,7 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
 import { resolveRemoteAgentHostEntryAuthority } from '../../../browser/openInVSCodeUtils.js';
-import { areDevContainerEnvironmentsEnabled, canUseDevContainerEnvironments, DevContainerAgentHostEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerEnvironment, LocalDevContainerEnvironmentHost } from '../../../common/devContainerAgentHostService.js';
+import { areDevContainerEnvironmentsEnabled, canUseDevContainerEnvironments, DevContainerAgentHostEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, ICreatedDevContainerEnvironment, IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerEnvironment, LocalDevContainerEnvironmentHost } from '../../../common/devContainerAgentHostService.js';
 import { getDevContainerSourceEntry, resolveDevContainerSourceConnection } from './devContainerSource.js';
 import type { IRemoteAgentHostSessionsProviderConfig, RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
 
@@ -119,7 +120,7 @@ export class DevContainerEnvironments extends Disposable {
 		this._reconcile();
 	}
 
-	async create(sourceAddress: string): Promise<IDevContainerEnvironment> {
+	async create(sourceAddress: string, onWillConnect?: (environment: IDevContainerEnvironment) => void): Promise<ICreatedDevContainerEnvironment> {
 		if (!areDevContainerEnvironmentsEnabled(this._configurationService)) {
 			throw new Error(localize('devContainerEnvironment.disabled', "Dev Container environments are not enabled."));
 		}
@@ -132,6 +133,7 @@ export class DevContainerEnvironments extends Disposable {
 		this._writeStored([...this._readStored(), stored]);
 		this._publish();
 		try {
+			onWillConnect?.(this._toEnvironment(state));
 			await this._connect(state.address, true);
 		} catch (error) {
 			// Removing the container would connect a host that was disconnected meanwhile, and with it its other environments.
@@ -141,7 +143,10 @@ export class DevContainerEnvironments extends Disposable {
 			}
 			throw error;
 		}
-		return this._toEnvironment(state);
+		return {
+			...this._toEnvironment(state),
+			workspaceUri: state.defaultDirectory ? agentHostUri(agentHostAuthority(state.address), state.defaultDirectory) : undefined,
+		};
 	}
 
 	async delete(address: string): Promise<void> {
@@ -163,6 +168,8 @@ export class DevContainerEnvironments extends Disposable {
 			state.deleting = false;
 			throw error;
 		}
+		// Its sessions' state was in the container, so they cannot continue or be reopened.
+		state.provider.forgetSessions();
 		this._writeStored(this._readStored().filter(environment => environment.id !== state.stored.id));
 		this._remoteAgentHostService.setDisplayName(address, undefined);
 		this._disposeState(state);
@@ -184,7 +191,8 @@ export class DevContainerEnvironments extends Disposable {
 	}
 
 	private _restore(): void {
-		const stored = areDevContainerEnvironmentsEnabled(this._configurationService) ? this._readStored() : [];
+		const enabled = areDevContainerEnvironmentsEnabled(this._configurationService);
+		const stored = enabled ? this._readStored() : [];
 		const addresses = new Set<string>();
 		for (const environment of stored) {
 			const state = [...this._states.values()].find(state => state.stored.id === environment.id) ?? this._createState(environment, undefined);
@@ -192,6 +200,10 @@ export class DevContainerEnvironments extends Disposable {
 		}
 		for (const [address, state] of this._states) {
 			if (!addresses.has(address)) {
+				// While enabled, a missing environment was deleted, possibly in another window; disabling only hides it.
+				if (enabled && !state.deleting) {
+					state.provider.forgetSessions();
+				}
 				void this._disconnect(state).catch(error => this._logService.warn('[DevContainerEnvironments] Failed to disconnect a removed environment', error));
 				this._disposeState(state);
 			}
@@ -280,7 +292,8 @@ export class DevContainerEnvironments extends Disposable {
 			return;
 		}
 		await this._removeConnection(state);
-		const connection = await connector.createConnection(state.uri, state.address, token, { resume: true });
+		// Named after the environment rather than its host; a rename applies on top as the address's display name.
+		const connection = await connector.createConnection(state.uri, state.address, token, { resume: true, name: state.stored.name });
 		if (token.isCancellationRequested || !this._isCurrent(state)) {
 			connection.transportDisposable?.dispose();
 			throw new CancellationError();

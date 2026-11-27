@@ -15,7 +15,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService, PreferredGroup, SIDE_GROUP, USE_MODAL_EDITOR_SETTING, UseModalEditorMode } from '../../../services/editor/common/editorService.js';
-import { getWindowById } from '../../../../base/browser/dom.js';
+import { getWindow, getWindowById } from '../../../../base/browser/dom.js';
 import { IUnattendedRestartService } from '../../../services/lifecycle/common/unattendedRestart.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -55,6 +55,12 @@ import { localize } from '../../../../nls.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 
 export const BrowserMaxHistoryEntriesSettingId = 'workbench.browser.maxHistoryEntries';
+export const BrowserUserAgentSettingId = 'workbench.browser.userAgent';
+
+/** The renderer shares Electron's default user agent with the browser views. */
+export function getDefaultBrowserUserAgent(): string {
+	return mainWindow.navigator.userAgent;
+}
 export const BrowserNewTabPlacementSettingId = 'workbench.browser.newTabPlacement';
 const OPEN_BROWSER_NAVIGATION_TIMEOUT_MS = 30_000;
 /** How long creation waits for the local extension host to provide network proxies. */
@@ -206,7 +212,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			) {
 				this.notificationService.info(localize('browser.networkFilteringEnabled', "Agent access to browser tabs was revoked because network filtering was enabled."));
 			}
-			if (e.affectsConfiguration(BrowserMaxHistoryEntriesSettingId) || e.affectsConfiguration(BrowserRemoteProxyEnabledSettingId)) {
+			if (e.affectsConfiguration(BrowserMaxHistoryEntriesSettingId) || e.affectsConfiguration(BrowserUserAgentSettingId) || e.affectsConfiguration(BrowserRemoteProxyEnabledSettingId)) {
 				void this._updateWindowConfiguration();
 			}
 		}));
@@ -522,7 +528,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		return input;
 	}
 
-	async createExternalBrowserView(initialUrl: string, openSource?: IBrowserViewWorkbenchCreateOptions['openSource'], networkOwner?: IBrowserViewOwner): Promise<IBrowserViewModel> {
+	async createExternalBrowserView(initialUrl: string, openSource?: IBrowserViewWorkbenchCreateOptions['openSource'], networkOwner?: IBrowserViewOwner, onCreated?: (model: IBrowserViewModel) => void): Promise<IBrowserViewModel> {
 		// Embedded pages have no network indicator, so they require their owner's network, resolved even while
 		// proxying is disabled, rather than silently load from the local network. It is resolved before any
 		// asynchronous work, so an owner that goes away meanwhile cannot leave the view on the local network.
@@ -560,6 +566,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			hold?.dispose();
 		}
 		try {
+			onCreated?.(model);
 			await model.loadURL(initialUrl);
 			return model;
 		} catch (error) {
@@ -880,10 +887,8 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	 */
 	private async _openEditorForCreatedView(view: BrowserEditorInput, owner: IBrowserViewOwner, options: IBrowserViewEditorOpenOptions): Promise<void> {
 		// Give registered handlers a chance to prevent the editor from opening.
-		for (const handler of this._openHandlers) {
-			if (!handler.shouldOpenEditor(view, owner, options)) {
-				return;
-			}
+		if (!this._shouldOpenEditor(view, owner, options)) {
+			return;
 		}
 
 		// Resolve target group: auxiliary window, parent's group, or default
@@ -898,7 +903,8 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		} else {
 			// Keep the browser docked in the main editor area even when editors
 			// are forced modal via `workbench.editor.useModal: 'all'`.
-			targetGroup = await this.getPreferredGroup();
+			const widget = owner.type === 'agent' ? this.chatWidgetService.getWidgetBySessionResource(URI.parse(owner.sessionId)) : undefined;
+			targetGroup = await this.getPreferredGroup(undefined, widget ? getWindow(widget.domNode).vscodeWindowId : undefined);
 		}
 
 		const editorOptions = {
@@ -925,7 +931,21 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			}
 		}
 
+		// The active session may have changed while resolving the target group.
+		if (!this._shouldOpenEditor(view, owner, options)) {
+			return;
+		}
+
 		void this.editorService.openEditor(view, editorOptions, group);
+	}
+
+	private _shouldOpenEditor(view: BrowserEditorInput, owner: IBrowserViewOwner, options: IBrowserViewEditorOpenOptions): boolean {
+		for (const handler of this._openHandlers) {
+			if (!handler.shouldOpenEditor(view, owner, options)) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	/**
@@ -950,11 +970,18 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			theme: this._getTheme(),
 			keybindings: this._getKeybindings(),
 			aiFeaturesDisabled: !this.contextKeyService.contextMatchesRules(ChatContextKeys.enabled),
+			userAgent: this._getUserAgent(),
 			maxHistoryEntries: this.configurationService.getValue<number>(BrowserMaxHistoryEntriesSettingId),
 			remoteNetworks: this._getRemoteNetworks(trustedRoots, trustAllFiles),
 			trustedLocalFileRoots: trustedRoots.filter(root => root.scheme === Schemas.file).map(root => root.fsPath),
 			trustAllLocalFiles: trustAllFiles,
 		});
+	}
+
+	/** Returns the configured user agent, or `undefined` when it matches the default so views keep following Electron's. */
+	private _getUserAgent(): string | undefined {
+		const userAgent = this.configurationService.getValue<string>(BrowserUserAgentSettingId)?.trim();
+		return userAgent && userAgent !== getDefaultBrowserUserAgent() ? userAgent : undefined;
 	}
 
 	/** The remote networks with a published proxy, each with the trusted folders on its file system. */

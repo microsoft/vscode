@@ -98,6 +98,7 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 	attachChat(): void { }
 	async detachChat(): Promise<void> { }
 	async reopenLastClosedItem(): Promise<void> { }
+	forgetClosedSession(): void { }
 	async restoreVisibleSessions(): Promise<void> { }
 	async openPreviousSession(): Promise<void> { }
 	async openNextSession(): Promise<void> { }

@@ -388,6 +388,7 @@ export class Code {
 	): Promise<T> {
 		let trial = 1;
 		let lastError: string = '';
+		let lastResult: string | undefined;
 
 		while (true) {
 			if (trial > retryCount) {
@@ -395,7 +396,7 @@ export class Code {
 				this.logger.log(lastError);
 				this.logger.log(`Timeout: ${timeoutMessage} after ${(retryCount * retryInterval) / 1000} seconds.`);
 
-				throw new Error(`Timeout: ${timeoutMessage} after ${(retryCount * retryInterval) / 1000} seconds.`);
+				throw new Error(`Timeout: ${timeoutMessage} after ${(retryCount * retryInterval) / 1000} seconds.${lastResult !== undefined ? ` Last result: ${lastResult}` : ''}`);
 			}
 
 			let result;
@@ -404,9 +405,11 @@ export class Code {
 				if (acceptFn(result)) {
 					return result;
 				} else {
-					lastError = 'Did not pass accept function';
+					lastResult = describePollResult(result);
+					lastError = `Did not pass accept function, last result: ${lastResult}`;
 				}
 			} catch (e: any) {
+				lastResult = undefined;
 				lastError = Array.isArray(e.stack) ? e.stack.join(os.EOL) : e.stack;
 			}
 
@@ -414,6 +417,18 @@ export class Code {
 			trial++;
 		}
 	}
+}
+
+const MAX_POLL_RESULT_LENGTH = 500;
+
+function describePollResult(result: unknown): string {
+	let text: string;
+	try {
+		text = JSON.stringify(result) ?? String(result);
+	} catch {
+		text = String(result);
+	}
+	return text.length > MAX_POLL_RESULT_LENGTH ? `${text.slice(0, MAX_POLL_RESULT_LENGTH)}… (${text.length} characters)` : text;
 }
 
 export function findElement(element: IElement, fn: (element: IElement) => boolean): IElement | null {

@@ -487,6 +487,12 @@ suite('AhpJsonlLogger', () => {
 		})).params.token), ['<redacted>', '[REDACTED]']);
 	});
 
+	test('redacts an authentication ID token, also when the access token was redacted upstream', () => {
+		assert.deepStrictEqual(['private-token', '[REDACTED]'].map(token => JSON.parse(stringifyAhpLogEntry({
+			method: 'authenticate', params: { token, idToken: 'private-id-token' },
+		})).params), [{ token: '<redacted>', idToken: '<redacted>' }, { token: '[REDACTED]', idToken: '<redacted>' }]);
+	});
+
 	test('coalesces synchronously queued log calls into a single write', async () => {
 		const fileService = store.add(new FileService(new NullLogService()));
 		const provider = store.add(new RecordingInMemoryFileSystemProvider());

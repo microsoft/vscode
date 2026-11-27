@@ -603,6 +603,30 @@ suite('AgentHostCheckpointService', () => {
 		});
 	});
 
+	test('overlaps baseline lookups but deletes checkpoint refs serially', async () => {
+		const { service, session, gitService } = createTestService(async () => undefined, { previous: false, repositoryRootOf: dir => dir });
+		const directories = ['file:///a', 'file:///b', 'file:///c'];
+		let reads = 0, peakReads = 0, writes = 0, peakWrites = 0;
+		const deleted: string[] = [];
+		gitService.revParse = async root => {
+			peakReads = Math.max(peakReads, ++reads);
+			await Promise.resolve();
+			reads--;
+			return root.path === '/b' ? undefined : 'baseline';
+		};
+		gitService.deleteRefs = async (root, refs) => {
+			peakWrites = Math.max(peakWrites, ++writes);
+			await Promise.resolve();
+			writes--;
+			deleted.push(...refs.map(ref => `${root.path}:${ref}`));
+		};
+
+		await service.deleteCheckpoints(session, directories);
+
+		const ref = buildCheckpointRefName(AgentSession.id(session), 0);
+		assert.deepStrictEqual({ peakReads, peakWrites, deleted: deleted.sort() }, { peakReads: 2, peakWrites: 1, deleted: [`/a:${ref}`, `/c:${ref}`] });
+	});
+
 	test('preserves a reused legacy checkpoint ref as an empty turn', async () => {
 		const { database, previousRef, session, service, workingDirectory } = createTestService(async () => undefined);
 		await database.setTurnCheckpointRef('turn-5', previousRef);

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { stubChatViewHostServiceDependencies } from '../../common/chatViewSessionsListServiceTestUtils.js';
 import assert from 'assert';
 import { stub } from 'sinon';
 import { Event } from '../../../../../../base/common/event.js';
@@ -39,6 +40,7 @@ suite('ChatWidgetService', () => {
 		instantiationService.stub(IViewDescriptorService, {});
 		instantiationService.stub(IWorkbenchLayoutService, {});
 		instantiationService.stub(IProgressService, {});
+		stubChatViewHostServiceDependencies(instantiationService);
 		instantiationService.stub(IChatViewHostService, store.add(instantiationService.createInstance(ChatViewHostService)));
 	}
 

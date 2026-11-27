@@ -85,6 +85,23 @@ export const Menus = {
 	/** Actions of the editor header row after {@link SessionsEditorHeaderSecondary}, behind a separator. */
 	SessionsEditorHeaderLayout: new MenuId('SessionsEditorHeaderLayout'),
 	DetailsPosition: new MenuId('SessionsDetailsPosition'),
+	/**
+	 * The Toggle Details split button of the editor title layout actions for Changes, Files, and other tabs with docked
+	 * details. Toggle Details is its primary action, and its dropdown lists the entries of {@link DetailsPosition}.
+	 */
+	DetailsToggle: new MenuId('SessionsDetailsToggle'),
+	/**
+	 * The Toggle Details split button of the editor title layout actions for a multi diff editor with a changed files
+	 * list while the details are docked. Toggle Details, which shows or hides that list, is its primary action, and its
+	 * dropdown puts the list on the left or right of the diffs.
+	 */
+	MultiDiffFileListToggle: new MenuId('SessionsMultiDiffFileListToggle'),
+	/**
+	 * The Toggle Files split button of the header row that a Changes editor draws itself, such as in an editor window:
+	 * Toggle Files is its primary action, and its dropdown switches the list between a list and a tree, and puts it on
+	 * either side of the diffs.
+	 */
+	ChangesEditorFileListToggle: new MenuId('SessionsChangesEditorFileListToggle'),
 	SessionsEditorTitle: new MenuId('SessionsEditorTitle'),
 	SessionsDiffEditorView: new MenuId('SessionsDiffEditorView'),
 	EmptyChangesActions: new MenuId('SessionsEmptyChangesActions'),
@@ -103,7 +120,6 @@ export const Menus = {
 	/** The positions of the Session Activity Bar, docked to the window edge or floating beside the chat, a submenu of {@link SessionActivityBarContext}. */
 	SessionActivityBarPosition: new MenuId('SessionActivityBarPosition'),
 	ChangesFilesView: new MenuId('SessionsChangesFilesView'),
-	ChangesFilesViewAndPosition: new MenuId('SessionsChangesFilesViewAndPosition'),
 	/**
 	 * Entries merged into the dropdown of the changes button bar's primary
 	 * button. A submenu contributed to its `primary` group names a group of

@@ -38,6 +38,7 @@ import type { ArtifactIntegrationRequest, ArtifactIntegrationResponse, ArtifactI
 import type { ArtifactIntegrationDescriptor } from '../../artifactIntegrations/common/artifactIntegration.js';
 import { AgentHostCopilotExtensionsCapabilityMetaKey } from './meta/agentHostCopilotExtensionsMeta.js';
 import { AgentHostGitHubEnvironmentCapabilityMetaKey, type IAgentHostGitHubEnvironmentStatus } from './meta/agentHostGitHubEnvironmentMeta.js';
+import { AgentHostBuildMetaKey, AgentHostUpgradeMethodCapabilityMetaKey, type IAgentHostBuild } from './meta/agentHostUpgradeMeta.js';
 
 export { supportsAgentHostArtifactRemoval } from './meta/agentHostArtifactRemovalMeta.js';
 export { StageCreateSessionImportChunkExtensionMethod, stageCreateSessionImportChunkParamsValidator, supportsAgentHostCreateSessionImport };
@@ -58,6 +59,7 @@ export const DevContainerCloseConnectionNotification = 'vscode/devContainers/clo
 export const DevContainerOutputNotification = 'vscode/devContainers/output';
 export const DevContainerSandboxSupportNotification = 'vscode/devContainers/sandboxSupport';
 export const DevContainerUserStateNotification = 'vscode/devContainers/userState';
+export const DevContainerConnectFailureNotification = 'vscode/devContainers/connectFailure';
 
 export const devContainerConnectionParamsValidator = vObj({ connectionId: vString() });
 export const devContainerConnectParamsValidator = vObj({ connectionId: vString(), workspaceFolder: vString(), name: vString(), resume: vOptionalProp(vBoolean()), sandboxEnabled: vOptionalProp(vBoolean()), persistUserState: vOptionalProp(vBoolean()) });
@@ -71,6 +73,8 @@ export const devContainerUserStateValidator = vObj({
 	stage: vEnum('mount', 'up', 'link', 'userCommands'),
 	outcome: vString(),
 	reason: vOptionalProp(vString()),
+	errorCause: vOptionalProp(vString()),
+	lifecycleInUp: vOptionalProp(vBoolean()),
 	step: vOptionalProp(vString()),
 	exitCode: vOptionalProp(vNumber()),
 	target: vOptionalProp(vString()),
@@ -80,7 +84,23 @@ export const devContainerUserStateValidator = vObj({
 	existingFolders: vOptionalProp(vNumber()),
 	skippedFolders: vOptionalProp(vNumber()),
 	skipReasons: vOptionalProp(vString()),
+	scriptUser: vOptionalProp(vString()),
+	capChown: vOptionalProp(vBoolean()),
+	capDacOverride: vOptionalProp(vBoolean()),
+	capDacReadSearch: vOptionalProp(vBoolean()),
+	capFowner: vOptionalProp(vBoolean()),
+	stateOwner: vOptionalProp(vString()),
+	volumeOwner: vOptionalProp(vString()),
+	capDropChown: vOptionalProp(vBoolean()),
+	privileged: vOptionalProp(vBoolean()),
+	usernsMode: vOptionalProp(vBoolean()),
+	readonlyRootfs: vOptionalProp(vBoolean()),
+	runtime: vOptionalProp(vString()),
 	errorMessage: vOptionalProp(vString()),
+});
+export const devContainerConnectFailureValidator = vObj({
+	connectionId: vString(),
+	stage: vEnum('readConfig', 'prepare', 'mount', 'up', 'link', 'userCommands', 'agentHostStart', 'connect', 'timeout'),
 });
 export const devContainerConnectResultValidator = vObj({
 	connectionId: vString(),
@@ -113,6 +133,9 @@ export const ImportSessionExtensionMethod = 'vscode/importSession';
 /**
  * Registers the host as a live GitHub environment owned by the client's GitHub account, so other GitHub
  * environment clients can reach it. Gated by `vscode.githubEnvironment`; only direct (non-relayed) clients may call it.
+ * The optional `name` is the client's name for the host, which the host uses for a new registration, decorated with its
+ * application name; hosts that predate it ignore it and name the environment after themselves. Registering again
+ * keeps the registration's name.
  */
 export const RegisterGitHubEnvironmentExtensionMethod = 'vscode/registerGitHubEnvironment';
 /** Withdraws a registration made with {@link RegisterGitHubEnvironmentExtensionMethod} for the same account. */
@@ -122,7 +145,7 @@ export const UnregisterGitHubEnvironmentExtensionMethod = 'vscode/unregisterGitH
  * unregistered it. Sent before the response of the request that caused it; params are an `IAgentHostGitHubEnvironmentStatus`.
  */
 export const GitHubEnvironmentChangedNotification = 'vscode/githubEnvironment/changed';
-export const registerGitHubEnvironmentParamsValidator = vObj({ accountId: vString(), credential: vString() });
+export const registerGitHubEnvironmentParamsValidator = vObj({ accountId: vString(), credential: vString(), name: vOptionalProp(vString()) });
 export const unregisterGitHubEnvironmentParamsValidator = vObj({ accountId: vString() });
 /**
  * Moves a single-chat session under another session (Block 4); advertised by `vscode.sessionMove` whether or not moving
@@ -186,6 +209,10 @@ export interface IAgentHostExtensionInitializeResultMeta extends Record<string, 
 	readonly [AgentHostCopilotExtensionsCapabilityMetaKey]?: true;
 	/** Present when this direct client may register the host as a GitHub environment; the host's current status. */
 	readonly [AgentHostGitHubEnvironmentCapabilityMetaKey]?: IAgentHostGitHubEnvironmentStatus;
+	/** Present when a managing VS Code CLI can update this server; the method to request it. */
+	readonly [AgentHostUpgradeMethodCapabilityMetaKey]?: string;
+	/** Present with the upgrade method when this server knows its build. */
+	readonly [AgentHostBuildMetaKey]?: IAgentHostBuild;
 	/** Present when Automation execution does not require a client activation or migration handshake. */
 	readonly [AgentHostAutonomousAutomationsCapabilityMetaKey]?: true;
 	/** Present when removing an Automation can keep or delete its run history. */
@@ -472,6 +499,7 @@ export interface IAgentHostExtensionNotificationMap {
 	[DevContainerOutputNotification]: ValidatorType<typeof devContainerRelayMessageValidator>;
 	[DevContainerSandboxSupportNotification]: ValidatorType<typeof devContainerSandboxSupportValidator>;
 	[DevContainerUserStateNotification]: ValidatorType<typeof devContainerUserStateValidator>;
+	[DevContainerConnectFailureNotification]: ValidatorType<typeof devContainerConnectFailureValidator>;
 }
 
 export interface IAgentHostWorkspaceTrustRequest {

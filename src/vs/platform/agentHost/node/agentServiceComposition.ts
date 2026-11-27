@@ -18,7 +18,8 @@ import { IAgentHostCheckpointService } from '../common/agentHostCheckpointServic
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
-import { AgentHostAgentOrchestrationLimitsConfigKey, platformRootSchema, AgentHostArtifactIntegrationsConfigKey } from '../common/agentHostSchema.js';
+import { AgentHostAgentOrchestrationLimitsConfigKey, platformRootSchema, platformSessionSchema, AgentHostArtifactIntegrationsConfigKey, AgentHostAutoReplyEnabledConfigKey } from '../common/agentHostSchema.js';
+import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, ResponsePartKind } from '../common/state/sessionState.js';
 import { CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, type AgentProvider, type IAgent } from '../common/agent.js';
 import { IAgentHostSessionStateStore } from '../common/agentHostSessionStateStore.js';
@@ -59,6 +60,7 @@ import { IAgentHostTurnTracker } from './agentHostTurnTracker.js';
 import { IAgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
 import { AgentHostSessionLifecycle, type IAgentHostSessionLifecycleAccessor } from './agentHostSessionLifecycle.js';
 import { persistSessionMetadataValues } from './shared/persistSessionMetadata.js';
+import { AgentHostPullRequestAutopilotService, IAgentHostPullRequestAutopilotService } from './agentHostPullRequestAutopilot.js';
 import { IAgentHostPullRequestStatusService } from './agentHostPullRequestStatusService.js';
 import { AgentHostPeerChatStore, IAgentHostPeerChatPersistenceService } from './agentHostPeerChatStore.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
@@ -185,7 +187,7 @@ export function createAgentServiceComposition(
 		const reviewService = accessor.get(IAgentHostReviewService);
 		const changesets = accessor.get(IAgentHostChangesetService);
 		const changesetCoordinator = owned.add(instantiationService.createInstance(AgentHostChangesetCoordinator));
-		owned.add(stateManager.onDidChangeSessionActiveTurn(event => changesetCoordinator.onSessionTurnActiveChanged(event.session, event.active)));
+		owned.add(stateManager.onDidChangeSessionActiveTurn(event => changesetCoordinator.onSessionTurnActiveChanged(event.session)));
 
 		const completions = accessor.get(IAgentHostCompletions);
 
@@ -201,6 +203,7 @@ export function createAgentServiceComposition(
 				agents: providerService.agents,
 				hostLaunchKind: options.hostLaunchKind ?? AgentHostLaunchKind.Unknown,
 				resolveWorkingDirectoryBeforeSend: params => callbackAdapter.value.resolveWorkingDirectoryBeforeSend(params),
+				announceUnsentProvisionalSession: params => callbackAdapter.value.announceUnsentProvisionalSession(params),
 				resolveChatAttachmentTurns: resource => callbackAdapter.value.resolveChatAttachmentTurns(resource),
 			},
 		));
@@ -217,6 +220,7 @@ export function createAgentServiceComposition(
 			? { ...report, clientContext: turnTracker.getClientTelemetryContext(report.chat, report.turnId), telemetryContext: turnTracker.getTelemetryContext(report.chat, report.turnId) }
 			: report;
 		const artifactIntegrationDirectory = accessor.get(IAgentHostArtifactIntegrationDirectory);
+		const artifactEventService = accessor.get(IAgentHostArtifactEventService);
 		// The artifact runtime is created after the server-tool host, so its tools bind it late.
 		const hostArtifactIntegrations: { value: IArtifactIntegrationAccess | undefined } = { value: undefined };
 		const isArtifactIntegrationsEnabled = () => configurationService.getRootValue(platformRootSchema, AgentHostArtifactIntegrationsConfigKey) === true;
@@ -239,6 +243,13 @@ export function createAgentServiceComposition(
 			...callbackAdapter.sessionServerToolAccessor,
 			getChatOwner: chat => chatOwnership.getChatOwner(chat),
 			getDefaultChat: session => chatOwnership.getDefaultChat(session),
+			canAskUser: chat => {
+				const session = chatOwnership.getChatOwner(chat);
+				return session !== undefined
+					&& configurationService.getRootValue(platformRootSchema, AgentHostAutoReplyEnabledConfigKey) !== true
+					&& configurationService.getChatEffectiveValue({ session, chat }, platformSessionSchema, SessionConfigKey.Mode) !== 'autopilot';
+			},
+			onDidChangeRootConfig: configurationService.onDidRootConfigChange,
 			scheduleChatMove: (chat, turnId, move) => scheduledChatMoves.schedule(chat, turnId, move),
 			requestSessionWorkspaceUpdate: (chat, turnId, workspaceFolder, isolation, credentials) => {
 				const initiatingClientId = turnTracker.getInitiatorClientId(chat.toString(), turnId);
@@ -267,6 +278,7 @@ export function createAgentServiceComposition(
 						}
 					},
 					reportArtifactRecorded: report => telemetryReporter.artifactRecorded(withTurnTelemetry(report)),
+					didRecordArtifacts: recorded => artifactEventService.acceptRecordedArtifacts(recorded),
 					reportArtifactRemoved: report => telemetryReporter.artifactRemoved(withTurnTelemetry(report)),
 				},
 				() => configurationService.getRootValue(platformRootSchema, AgentHostAgentOrchestrationLimitsConfigKey) !== 'off',
@@ -303,7 +315,7 @@ export function createAgentServiceComposition(
 		}));
 		workspaceConversionService.value = owned.add(instantiationService.createInstance(SessionWorkspaceConversionService, {
 			runWithChatCatalogLock: (session, operation) => agentService!.runWithChatCatalogLock(session, operation),
-			prepareChatWorkingDirectory: callbackAdapter.sessionServerToolAccessor.prepareChatWorkingDirectory,
+			prepareChatWorkingDirectory: (session, directory, options) => agentService!.prepareChatWorkingDirectory(session, directory, options),
 			setChatWorkingDirectory: (session, chat, directory, replaceSessionWorkspace, expectedSessionDirectories) => agentService!.setChatWorkingDirectory(session, chat, directory, replaceSessionWorkspace, expectedSessionDirectories),
 		}));
 		services.set(ISessionWorkspaceConversionService, workspaceConversionService.value);
@@ -348,9 +360,10 @@ export function createAgentServiceComposition(
 					}
 				},
 			},
-			accessor.get(IArtifactIntegrationRegistry), accessor.get(IAgentHostArtifactEventService), stateManager, configurationService, logService,
+			accessor.get(IArtifactIntegrationRegistry), artifactEventService, stateManager, configurationService, logService,
 		));
 		hostArtifactIntegrations.value = artifactRuntime.integrations;
+		services.set(IAgentHostPullRequestAutopilotService, new AgentHostPullRequestAutopilotService(artifactRuntime.integrations, isArtifactIntegrationsEnabled));
 		const collaborators: IAgentServiceCollaborators = {
 			artifactIntegrations: artifactRuntime.integrations,
 			artifactIntegrationClients: artifactIntegrationDirectory,

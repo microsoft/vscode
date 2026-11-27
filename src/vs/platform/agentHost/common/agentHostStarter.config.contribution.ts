@@ -15,11 +15,11 @@ import {
 	AgentHostAgentOrchestrationLimitsSettingId,
 	AgentHostSessionModelOptionsSettingId,
 	AgentHostAutoAttachPullRequestsSettingId,
+	AgentHostGitCoalesceReadsSettingId,
 	AgentHostByokModelsEnabledSettingId,
 	CanvasesEnabledSettingId,
 	AgentHostGitHubMcpServerEnabledSettingId,
 	AgentHostBrowserUseEnabledSettingId,
-	AgentHostComputerUseEnabledSettingId,
 	AgentHostMcpToolRoutingEnabledSettingId,
 	AgentHostClaudeAgentEnabledSettingId,
 	AgentHostCodexAgentBinaryArgsSettingId,
@@ -49,17 +49,19 @@ import {
 	AgentHostSessionModelOptionsConfigKey,
 	agentHostSessionModelOptionsValues,
 	AgentHostAutoAttachPullRequestsConfigKey,
+	AgentHostGitCoalesceReadsConfigKey,
 	AgentHostByokModelsEnabledConfigKey,
 	AgentHostByokModelsEnabledDefault,
 	AgentHostCanvasesEnabledConfigKey,
 	AgentHostCodexEnabledConfigKey,
 	AgentHostGitHubMcpServerEnabledConfigKey,
 	AgentHostBrowserUseEnabledConfigKey,
-	AgentHostComputerUseEnabledConfigKey,
 	AgentHostMcpToolRoutingEnabledConfigKey,
 	AgentHostMarkdownPlanRichLinksEnabledConfigKey,
 	AgentHostOverlapProviderPreparationConfigKey,
 	AgentHostPrewarmSessionsConfigKey,
+	AgentHostKeepAwakeConfigKey,
+	agentHostKeepAwakeConfiguration,
 	AgentHostSystemProxyEnabledConfigKey,
 	AgentHostWorkspaceSnapshotEnabledConfigKey,
 	AgentHostMcpSkillsEnabledConfigKey,
@@ -67,6 +69,7 @@ import {
 import { AgentMergeConfigKey, AgentMergeSettingId, AGENT_MERGE_SETTING_TAG } from './agentMerge.js';
 import { ChatProvidersConfigKey, ChatProvidersSettingId } from './agentHostChatProviders.js';
 import { artifactToolsConfigurationProperties } from './artifactToolsConfiguration.js';
+import { computerUseConfigurationProperties } from './computerUseConfiguration.js';
 import { chatMoveConfigurationProperties } from './chatMoveConfiguration.js';
 import { titleGenerationConfigurationProperties } from './titleGenerationConfiguration.js';
 import { isAhpJsonlLoggingEnabled } from './ahpJsonlLogger.js';
@@ -237,6 +240,13 @@ configurationRegistry.registerConfiguration({
 		},
 		...chatMoveConfigurationProperties,
 		...titleGenerationConfigurationProperties,
+		'sessions.keepAwakeWhileWorking': {
+			...agentHostKeepAwakeConfiguration,
+			tags: ['preview'],
+			scope: ConfigurationScope.MACHINE,
+			description: nls.localize('sessions.keepAwakeWhileWorking', "Controls when each connected Agent Host keeps its machine from idle-sleeping while a chat is working, where supported. The hold is released shortly after work ends and does not require an open window. The display can turn off and explicit sleep is not inhibited."),
+			agentHost: { key: AgentHostKeepAwakeConfigKey },
+		},
 		...artifactToolsConfigurationProperties,
 		[CanvasesEnabledSettingId]: {
 			type: 'boolean',
@@ -267,6 +277,15 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostAutoAttachPullRequestsConfigKey },
+		},
+		[AgentHostGitCoalesceReadsSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.git.coalesceReads', "Controls whether the Agent Host shares one process between identical read-only git commands that run at the same time, and limits how many read-only git commands run at once. This reduces git process pile-ups and timeouts when many sessions refresh together."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced'],
+			experiment: { mode: 'auto' },
+			agentHost: { key: AgentHostGitCoalesceReadsConfigKey },
 		},
 		[AgentHostMarkdownPlanRichLinksEnabledSettingId]: {
 			type: 'boolean',
@@ -327,7 +346,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.agentHost.agentOrchestrationLimits.on', "Enforce the limits."),
 				nls.localize('chat.agentHost.agentOrchestrationLimits.off', "Do not enforce the limits."),
 			],
-			description: nls.localize('chat.agentHost.agentOrchestrationLimits', "Controls per-session limits, over a sliding one-hour window, on sessions and chats created and messages sent, and the depth of recursive session spawning, by Agent Host session tools. Confirmation requirements and input validation are unchanged."),
+			description: nls.localize('chat.agentHost.agentOrchestrationLimits', "Controls per-session limits, over a sliding one-hour window, on sessions and chats created and messages sent, and the depth of recursive session spawning, by Agent Host session tools. When a session reaches its limit on sessions, chats, or messages, you're asked whether to allow more, except in Autopilot or with auto-reply on, where the tool is refused. Remote session messages have the same limit, counted separately in each Agents window. Confirmation requirements and input validation are unchanged."),
 			default: 'on',
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
@@ -364,14 +383,7 @@ configurationRegistry.registerConfiguration({
 			experiment: { mode: 'startup' },
 			agentHost: { key: AgentHostGitHubMcpServerEnabledConfigKey },
 		},
-		[AgentHostComputerUseEnabledSettingId]: {
-			type: 'boolean',
-			markdownDescription: nls.localize('chat.agentHost.computerUse.enabled', "When enabled, local Copilot agent sessions on macOS and Windows offer GitHub's Computer Use plugin, which can operate desktop applications. The plugin is downloaded on first use. Turn it on with `/computer on` in a Copilot chat, or when the agent asks. Each application still requires your approval. Changes take effect after a restart."),
-			default: false,
-			tags: ['experimental', 'advanced'],
-			experiment: { mode: 'startup' },
-			agentHost: { key: AgentHostComputerUseEnabledConfigKey, scope: AgentHostConfigurationSyncScope.Local },
-		},
+		...computerUseConfigurationProperties,
 		[AgentHostBrowserUseEnabledSettingId]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.agentHost.browserUse.enabled', "When enabled, local Copilot agent sessions offer GitHub's Browser Use plugin, which can operate pages in Google Chrome or Microsoft Edge through the [GitHub Copilot browser extension](https://chromewebstore.google.com/detail/github-copilot/hblomdgalaelcilcdepgohfcogjiijhe). Turn it on with `/plugin enable browser-use` in a Copilot chat, then run `/browser-use:doctor` to check your setup. Requires Node.js 22 or later on your `PATH`. Changes take effect after a restart."),

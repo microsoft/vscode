@@ -5,8 +5,13 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { AbstractProgressScope, ScopedProgressIndicator } from '../../browser/progressIndicator.js';
+import { AbstractProgressScope, EditorProgressIndicator, ScopedProgressIndicator } from '../../browser/progressIndicator.js';
 import { ProgressBar } from '../../../../../base/browser/ui/progressbar/progressbar.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { IEditorGroupView } from '../../../../browser/parts/editor/editor.js';
+import { GroupModelChangeKind } from '../../../../common/editor.js';
+import { IGroupModelChangeEvent } from '../../../../common/editor/editorGroupModel.js';
 
 class TestProgressBar extends ProgressBar {
 	fTotal: number = 0;
@@ -14,6 +19,7 @@ class TestProgressBar extends ProgressBar {
 	fInfinite: boolean = false;
 	fDone: boolean = false;
 	fShowDelay: number | undefined = undefined;
+	fShowCount = 0;
 
 	override infinite() {
 		this.fDone = null!;
@@ -61,6 +67,7 @@ class TestProgressBar extends ProgressBar {
 
 	override show(delay?: number): void {
 		this.fShowDelay = delay;
+		this.fShowCount++;
 	}
 
 	override hide(): void { }
@@ -156,6 +163,93 @@ suite('Progress Indicator', () => {
 		resolvePromise();
 		await showWhileDone;
 		assert.strictEqual(true, testProgressBar.fDone);
+	});
+
+	test('EditorProgressIndicator - only the reporter that showed the progress last hides it, until the active editor changes', async () => {
+		const testProgressBar = disposables.add(new TestProgressBar(document.createElement('div')));
+		const onDidModelChange = disposables.add(new Emitter<IGroupModelChangeEvent>());
+		const group = upcastPartial<IEditorGroupView>({ isEmpty: false, onDidModelChange: onDidModelChange.event });
+		const testObject = disposables.add(new EditorProgressIndicator(testProgressBar, group));
+		const shown = () => !testProgressBar.fDone;
+
+		const opening = testObject.show(true);
+		const loading = testObject.show(true);
+		opening.done();
+		const afterReplacedDone = shown();
+		loading.done();
+		const afterLatestDone = shown();
+		testObject.show(true);
+		const searching = testObject.show(true);
+		searching.done();
+		const afterLatestDoneWithReplacedNotDone = shown();
+		let resolveWhile!: () => void;
+		const showWhileDone = testObject.showWhile(new Promise<void>(resolve => { resolveWhile = resolve; }));
+		const reporting = testObject.show(true);
+		resolveWhile();
+		await showWhileDone;
+		const afterReplacedShowWhileDone = shown();
+		onDidModelChange.fire({ kind: GroupModelChangeKind.EDITOR_ACTIVE });
+		const afterActiveEditorChange = shown();
+		const next = testObject.show(true);
+		reporting.done();
+		const afterDoneOfPreviousEditor = shown();
+		next.done();
+
+		assert.deepStrictEqual({ afterReplacedDone, afterLatestDone, afterLatestDoneWithReplacedNotDone, afterReplacedShowWhileDone, afterActiveEditorChange, afterDoneOfPreviousEditor }, {
+			afterReplacedDone: true,
+			afterLatestDone: false,
+			afterLatestDoneWithReplacedNotDone: false,
+			afterReplacedShowWhileDone: true,
+			afterActiveEditorChange: false,
+			afterDoneOfPreviousEditor: true,
+		});
+	});
+
+	test('EditorProgressIndicator - does not show an infinite progress again while it shows, so as not to restart its accessibility signal, but does while it is yet to show', () => {
+		const testProgressBar = disposables.add(new TestProgressBar(document.createElement('div')));
+		const group = upcastPartial<IEditorGroupView>({ isEmpty: false, onDidModelChange: Event.None });
+		const testObject = disposables.add(new EditorProgressIndicator(testProgressBar, group));
+		const shows = () => testProgressBar.fShowCount;
+
+		testObject.show(true);
+		testObject.show(true, 200);
+		const replacedWhileShowing = shows();
+		testObject.showWhile(new Promise<void>(() => { }));
+		const replacedByShowWhile = shows();
+		testObject.show(true).done();
+		const done = shows();
+		testObject.show(true, 500);
+		testObject.show(true, 1000);
+		const replacedWhileYetToShow = shows();
+		testObject.show(true);
+		const replacedWhileYetToShowRightAway = shows();
+		testObject.show(100);
+		testObject.show(true);
+		const afterTotal = shows();
+
+		assert.deepStrictEqual({ replacedWhileShowing, replacedByShowWhile, done, replacedWhileYetToShow, replacedWhileYetToShowRightAway, afterTotal }, {
+			replacedWhileShowing: 1,
+			replacedByShowWhile: 1,
+			done: 1,
+			replacedWhileYetToShow: 3,
+			replacedWhileYetToShowRightAway: 4,
+			afterTotal: 6,
+		});
+	});
+
+	test('EditorProgressIndicator - a reporter that another replaced reports no more work', () => {
+		const testProgressBar = disposables.add(new TestProgressBar(document.createElement('div')));
+		const group = upcastPartial<IEditorGroupView>({ isEmpty: false, onDidModelChange: Event.None });
+		const testObject = disposables.add(new EditorProgressIndicator(testProgressBar, group));
+
+		const replaced = testObject.show(100);
+		testObject.show(true).done();
+		replaced.total(50);
+		replaced.worked(1);
+		const afterReplacedReported = { done: testProgressBar.fDone, total: testProgressBar.fTotal, worked: testProgressBar.fWorked, infinite: testProgressBar.fInfinite };
+		replaced.done();
+
+		assert.deepStrictEqual(afterReplacedReported, { done: true, total: null, worked: null, infinite: null });
 	});
 
 });

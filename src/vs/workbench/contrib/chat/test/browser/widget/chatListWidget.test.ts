@@ -1578,6 +1578,74 @@ suite('ChatListWidget', () => {
 		});
 	});
 
+	test('loads older history from the focused short list, coalescing gestures and discarding stale navigation', async () => {
+		const { model, viewModel, container, widget } = createWidget();
+		const page = new DeferredPromise<void>();
+		let loads = 0;
+		model.loadOlderHistory = () => { loads++; return page.p; };
+		model.addRequest({ text: 'Recent', parts: [] }, { variables: [] }, 0).response!.complete();
+		widget.layout(300, 500);
+		widget.refresh();
+		widget.focusItem(viewModel.getItems()[0]);
+		const tree = container.querySelector<HTMLElement>('.monaco-list')!;
+		const wheel = (deltaY: number) => tree.dispatchEvent(new WheelEvent('wheel', { deltaY, bubbles: true }));
+		wheel(10);
+		await nextFrame();
+		const before = { loads, scrollable: widget.scrollHeight > widget.renderHeight };
+		const event = new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true });
+		Object.defineProperty(event, 'keyCode', { get: () => 38 });
+		tree.dispatchEvent(event);
+		await nextFrame();
+		const keyboardLoads = loads;
+		wheel(-10);
+		await nextFrame();
+		const whileLoading = loads;
+		await page.complete();
+		await nextFrame();
+		wheel(-10);
+		widget.setViewModel(undefined);
+		await nextFrame();
+		assert.deepStrictEqual({ before, keyboardLoads, whileLoading, final: loads }, {
+			before: { loads: 0, scrollable: false }, keyboardLoads: 1, whileLoading: 1, final: 1,
+		});
+	});
+
+	test('loads older history by wheel without losing the reading row or tree focus', async () => {
+		const { model, viewModel, widget, container } = createWidget();
+		const question = model.addRequest({ text: 'Recent', parts: [] }, { variables: [] }, 0);
+		model.acceptResponseProgress(question, { kind: 'markdownContent', content: new MarkdownString('Recent paragraph\n\n'.repeat(30)) });
+		question.response!.complete();
+		widget.layout(300, 500);
+		widget.refresh();
+		const focused = viewModel.getItems()[1];
+		widget.focusItem(focused);
+		const page = new DeferredPromise<void>();
+		let loads = 0;
+		model.loadOlderHistory = () => { loads++; return page.p; };
+		const tree = container.querySelector<HTMLElement>('.monaco-list')!;
+		widget.scrollToEnd();
+		tree.dispatchEvent(new WheelEvent('wheel', { deltaY: -1, bubbles: true }));
+		await nextFrame();
+		const awayFromTop = loads;
+		widget.scrollTop = widget.getElementTop(focused)! + 12;
+		tree.dispatchEvent(new WheelEvent('wheel', { deltaY: -1, bubbles: true }));
+		await nextFrame();
+		// The user continues reading while the request is in flight.
+		widget.scrollTop = widget.getElementTop(focused)! + 32;
+		const anchor = widget.getScrollAnchor();
+		const insertion: Parameters<ChatModel['addRequest']> = [{ text: 'Older', parts: [] }, { variables: [] }, 0];
+		insertion[24] = { index: 0 };
+		const older = model.addRequest(...insertion);
+		model.acceptResponseProgress(older, { kind: 'markdownContent', content: new MarkdownString('Older paragraph\n\n'.repeat(30)) });
+		older.response!.complete();
+		widget.refresh();
+		await page.complete();
+		await waitForStableLayout(widget);
+		assert.deepStrictEqual({
+			awayFromTop, loads, anchor: widget.getScrollAnchor(), focused: widget.getFocus()[0] === focused && widget.isDOMFocused(),
+		}, { awayFromTop: 0, loads: 1, anchor, focused: true });
+	});
+
 	test('restores the row at the top of the viewport after switching to another chat and back', async () => {
 		const { disposables, instantiationService, model, viewModel, widget } = createWidget();
 		const other = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));

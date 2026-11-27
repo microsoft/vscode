@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'monaco-editor';
 import { createServiceIdentifier } from '../../../util/common/services';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { Event } from '../../../util/vs/base/common/event';
+import type { IDisposable } from '../../../util/vs/base/common/lifecycle';
 import { IObservable } from '../../../util/vs/base/common/observableInternal';
 import { equalsIgnoreCase } from '../../../util/vs/base/common/strings';
 import { URI } from '../../../util/vs/base/common/uri';

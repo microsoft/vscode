@@ -106,6 +106,44 @@ suite('SSH Config Parsing', () => {
 			assert.deepStrictEqual(parseSSHConfigHostEntries(config), ['lower', 'upper', 'mixed']);
 		});
 
+		test('keeps quoted host names with spaces as one entry', () => {
+			assert.deepStrictEqual([
+				parseSSHConfigHostEntries('Host "Dev Instance (EU)"'),
+				parseSSHConfigHostEntries('Host \'Dev Instance (EU)\''),
+			], [
+				['Dev Instance (EU)'],
+				['Dev Instance (EU)'],
+			]);
+		});
+
+		test('mixes plain, double-quoted and single-quoted host names', () => {
+			assert.deepStrictEqual(parseSSHConfigHostEntries('Host plain "With Space" \'single quoted\' other'), ['plain', 'With Space', 'single quoted', 'other']);
+		});
+
+		test('still filters quoted patterns', () => {
+			assert.deepStrictEqual(parseSSHConfigHostEntries('Host "foo*" \'bar?\' "!baz" kept'), ['kept']);
+		});
+
+		test('keeps # inside quoted host names and strips comments between arguments', () => {
+			assert.deepStrictEqual([
+				parseSSHConfigHostEntries('Host "Dev # Instance"'),
+				parseSSHConfigHostEntries('Host \'Dev # Instance\' # my server'),
+				parseSSHConfigHostEntries('Host myserver\t# my server'),
+			], [
+				['Dev # Instance'],
+				['Dev # Instance'],
+				['myserver'],
+			]);
+		});
+
+		test('handles OpenSSH escapes in host names', () => {
+			assert.deepStrictEqual(parseSSHConfigHostEntries(String.raw`Host "foo\"bar" 'it\'s' "a\\b" foo\ bar baz`), ['foo"bar', 'it\'s', 'a\\b', 'foo bar', 'baz']);
+		});
+
+		test('skips Host lines with unterminated quotes', () => {
+			assert.deepStrictEqual(parseSSHConfigHostEntries(['Host "Dev', 'Host \'Dev', 'Host valid'].join('\n')), ['valid']);
+		});
+
 		test('ignores non-Host directives', () => {
 			const config = [
 				'Host myserver',
@@ -232,6 +270,22 @@ suite('SSH Config Parsing', () => {
 				parseSSHGOutput('proxycommand NONE').proxyCommand,
 				parseSSHGOutput('').proxyCommand,
 			], ['"/opt/docker tools/sbx" ssh proxy %n', undefined, undefined, undefined]);
+		});
+
+		test('parses PubkeyAuthentication and PreferredAuthentications', () => {
+			const parse = (output: string) => {
+				const { pubkeyAuthentication, preferredAuthentications } = parseSSHGOutput(output);
+				return { pubkeyAuthentication, preferredAuthentications };
+			};
+			assert.deepStrictEqual([
+				parse('pubkeyauthentication false\npreferredauthentications keyboard-interactive,password'),
+				parse('pubkeyauthentication no'),
+				parse('pubkeyauthentication true\npreferredauthentications gssapi-with-mic,hostbased,publickey,keyboard-interactive,password'),
+			], [
+				{ pubkeyAuthentication: false, preferredAuthentications: ['keyboard-interactive', 'password'] },
+				{ pubkeyAuthentication: false, preferredAuthentications: undefined },
+				{ pubkeyAuthentication: undefined, preferredAuthentications: ['gssapi-with-mic', 'hostbased', 'publickey', 'keyboard-interactive', 'password'] },
+			]);
 		});
 
 		test('does not guess boundaries of unquoted known-hosts paths containing spaces', () => {

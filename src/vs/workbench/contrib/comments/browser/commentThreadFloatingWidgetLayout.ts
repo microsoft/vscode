@@ -28,6 +28,11 @@ const COVERABLE_LINES = 2;
 const MAX_WIDTH_BESIDE_LINES = 640;
 /** Portion of the editor height that a widget sizing itself to its content may take up. */
 const AUTO_HEIGHT_RATIO = 0.6;
+/**
+ * How many columns of code a floating widget leaves in view beside it, at least, which shows the start of most lines.
+ * In an editor that is too narrow for that, the widgets are docked below their code instead.
+ */
+const MIN_COLUMNS_BESIDE_WIDGET = 20;
 
 export interface IRect {
 	readonly top: number;
@@ -63,13 +68,35 @@ export interface ICommentThreadFloatingWidgetLayout {
 	/** Distance from the left edge of the editor to the left edge of the widget. */
 	readonly left: number;
 	readonly width: number;
-	/** The height chosen by the user, or `undefined` when the widget sizes itself to its content. */
+	/**
+	 * The height chosen by the user while the widget floats, or for another widget before this one was placed, or
+	 * `undefined` when it sizes itself to its content.
+	 */
 	readonly height: number | undefined;
+	/**
+	 * The height chosen by the user while the widget is docked below its code, or `undefined` when it sizes itself to its
+	 * content there. It's kept apart from the floating placement and size, which don't apply while the widget is docked.
+	 */
+	readonly dockedHeight?: number;
 	/**
 	 * Whether the user moved or resized the widget. Other widgets are placed around such a widget, rather than moving
 	 * it to keep the widgets in the order of their code.
 	 */
 	readonly isChosenByUser: boolean;
+}
+
+/**
+ * The size that the user last resized a floating comment thread widget to, in each dimension that the user resized a
+ * widget in. Widgets that are placed or docked after that start out at this size, rather than at one that suits the
+ * editor.
+ */
+export interface IFloatingWidgetChosenSize {
+	/** The width that the user last gave a floating widget. */
+	readonly width?: number;
+	/** The height that the user last gave a floating widget. */
+	readonly height?: number;
+	/** The height that the user last gave a widget that is docked below its code. */
+	readonly dockedHeight?: number;
 }
 
 /**
@@ -176,13 +203,58 @@ export function getCenteredTop(codeTop: number, codeBottom: number, height: numb
 }
 
 /**
- * The width a widget starts out with in an editor whose code area has the given width. A new comment starts out wider,
- * when the editor has room for it, so that it invites writing a long comment.
+ * The width a widget starts out with in an editor whose code area has the given width: the width that the user last
+ * gave a widget, as far as the editor has room for it, or else one that suits the editor. A new comment then starts out
+ * wider, when the editor has room for it, so that it invites writing a long comment.
+ * @param chosenWidth The width that the user last gave a widget, or `undefined` when the user hasn't resized one.
  */
-export function getDefaultFloatingWidgetWidth(editorContentWidth: number, availableWidth: number, isNewComment: boolean): number {
+export function getDefaultFloatingWidgetWidth(editorContentWidth: number, availableWidth: number, isNewComment: boolean, chosenWidth?: number): number {
+	if (chosenWidth !== undefined) {
+		return Math.min(chosenWidth, availableWidth);
+	}
 	const ratio = isNewComment ? NEW_COMMENT_WIDTH_RATIO : DEFAULT_WIDTH_RATIO;
 	const maxWidth = isNewComment ? NEW_COMMENT_MAX_WIDTH : DEFAULT_MAX_WIDTH;
 	return Math.min(clamp(Math.round(editorContentWidth * ratio), DEFAULT_MIN_WIDTH, maxWidth), availableWidth);
+}
+
+/**
+ * Whether the widgets of an editor are docked below their code, in space that the editor makes for them between its
+ * lines, rather than floating over the code. That's when the area that shows the code is too narrow for a widget at the
+ * narrowest width that widgets start out with to leave enough columns of code in view beside it, such as in a narrow
+ * diff editor, where a floating widget covers much of the code wherever it's placed.
+ * @param codeAreaWidth The width of the area that shows the code.
+ * @param characterWidth The width of a character of the code.
+ */
+export function shouldDockFloatingWidgets(codeAreaWidth: number, characterWidth: number): boolean {
+	return codeAreaWidth < MIN_COLUMNS_BESIDE_WIDGET * characterWidth + CODE_GAP + DEFAULT_MIN_WIDTH + EDGE_MARGIN;
+}
+
+/**
+ * A view zone of an editor, which takes up vertical space after a line.
+ */
+export interface IViewZoneSpace {
+	readonly id: string;
+	readonly afterLineNumber: number;
+	readonly height: number;
+}
+
+/**
+ * Where a view zone starts: the zones after a line are stacked below its end, in their order.
+ * @param zones The view zones of the editor, in their order.
+ * @returns The line that the zone is after, and the distance from the end of that line to the top of the zone, or
+ * `undefined` when there is no such zone.
+ */
+export function getViewZoneOffset(zones: readonly IViewZoneSpace[], id: string): { afterLineNumber: number; offset: number } | undefined {
+	const index = zones.findIndex(zone => zone.id === id);
+	if (index === -1) {
+		return undefined;
+	}
+	const { afterLineNumber } = zones[index];
+	let offset = 0;
+	for (let i = index - 1; i >= 0 && zones[i].afterLineNumber === afterLineNumber; i--) {
+		offset += zones[i].height;
+	}
+	return { afterLineNumber, offset };
 }
 
 /**
@@ -267,7 +339,10 @@ export function getRevealScrollTop(code: { top: number; bottom: number }, widget
 	return Math.max(0, clamp(code.top - EDGE_MARGIN, widget.bottom + EDGE_MARGIN - viewportHeight, widget.top - EDGE_MARGIN));
 }
 
-function rectsIntersect(a: IRect, b: IRect): boolean {
+/**
+ * Whether two areas overlap.
+ */
+export function rectsIntersect(a: IRect, b: IRect): boolean {
 	return a.left < b.left + b.width && b.left < a.left + a.width && a.top < b.top + b.height && b.top < a.top + a.height;
 }
 
@@ -519,6 +594,15 @@ export class FloatingWidgetSizeModel {
 	 */
 	get maxAutoHeight(): number {
 		return Math.max(MIN_HEIGHT, Math.floor(this._editorSize.height * AUTO_HEIGHT_RATIO));
+	}
+
+	/**
+	 * The tallest that the widget is at the given height chosen by the user, as far as the editor has room for it, or
+	 * that it sizes itself to when the user didn't choose one, unless its title, reply and additional actions alone are
+	 * taller, and before they grow.
+	 */
+	getMaxHeight(chosenHeight: number | undefined): number {
+		return chosenHeight !== undefined ? Math.max(MIN_HEIGHT, Math.min(chosenHeight, this._editorSize.height - 2 * EDGE_MARGIN)) : this.maxAutoHeight;
 	}
 
 	/**

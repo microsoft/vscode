@@ -5,9 +5,11 @@
 
 import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import { Duplex } from 'stream';
+import { DeferredPromise, raceTimeout } from '../../../base/common/async.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { killTree } from '../../../base/node/processes.js';
 import { localize } from '../../../nls.js';
+import { formatSSHProxyCommandExit } from '../common/sshRemoteAgentHost.js';
 import { ILogService } from '../../log/common/log.js';
 import { shellEscape } from './sshRemoteAgentHostHelpers.js';
 
@@ -62,6 +64,8 @@ export class SSHProxyCommand extends Disposable {
 	private readonly _child: ChildProcessWithoutNullStreams;
 	private _stderr = '';
 	private _stopped = false;
+	private _exitStatus: string | number | undefined;
+	private readonly _exited = new DeferredPromise<void>();
 
 	constructor(command: string, logService: ILogService, windows = process.platform === 'win32', terminateProcess: typeof killTree = killTree) {
 		super();
@@ -81,9 +85,26 @@ export class SSHProxyCommand extends Disposable {
 		});
 		this._child.once('error', error => this.stream.destroy(error));
 		this._child.once('exit', (code, signal) => {
+			this._exitStatus = signal ?? code ?? 'unknown';
+			void this._exited.complete();
 			if (!this._stopped && !this.stream.destroyed) {
-				this.stream.destroy(new Error(localize('sshProxyExited', "SSH ProxyCommand exited ({0}): {1}", signal ?? code ?? 'unknown', this._stderr.trim())));
+				this.stream.destroy(new Error(this._describeExit(this._exitStatus)));
 			}
 		});
+	}
+
+	/**
+	 * Describes how the proxy exited. When the proxy has closed its output but not exited yet, waits briefly for it, so a
+	 * connection the proxy dropped is reported with the proxy's error instead of only the SSH library's.
+	 */
+	async describeFailure(): Promise<string | undefined> {
+		if (this._exitStatus === undefined && this._child.stdout.readableEnded) {
+			await raceTimeout(this._exited.p, 1000);
+		}
+		return this._exitStatus === undefined ? undefined : this._describeExit(this._exitStatus);
+	}
+
+	private _describeExit(status: string | number): string {
+		return formatSSHProxyCommandExit(status, this._stderr.trim());
 	}
 }

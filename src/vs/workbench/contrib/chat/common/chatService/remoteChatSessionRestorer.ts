@@ -10,7 +10,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { setTimeout0 } from '../../../../../base/common/platform.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { clearMarks, mark } from '../../../../../base/common/performance.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { getChatSessionHistoryContent, IChatSession, IChatSessionHistoryItem, IChatSessionRequestHistoryItem, IChatSessionServerRequest } from '../chatSessionsService.js';
@@ -143,7 +143,10 @@ export class RemoteChatSessionRestorer extends Disposable {
 	private readonly _localRequestIds = new Set<string>();
 	/** The latest history that is not applied yet. */
 	private _pendingHistory: readonly IChatSessionHistoryItem[] | undefined;
+	private readonly _supersededRequestIds = new Set<string>();
 	private _activeRefresh: Promise<void> | undefined;
+	private _nextRefresh: DeferredPromise<void> | undefined;
+	private readonly _readingPage = observableValue(this, false);
 
 	/** The request that history responses are applied to. */
 	private _lastRequest: ChatRequestModel | undefined;
@@ -165,14 +168,44 @@ export class RemoteChatSessionRestorer extends Disposable {
 		this._model = _options.model;
 		this._session = _options.session;
 		this._restoredHistory = this._session.history;
-		this._hasProgressStreaming = !!(this._session.progressObs && this._session.interruptActiveResponseCallback);
 		// Cancel pending cooperative waits when the restorer is disposed, not only when the service token is.
 		const budgetCancellation = new CancellationTokenSource(_options.token);
 		this._register(toDisposable(() => budgetCancellation.dispose(true)));
 		this._budget = new CooperativeMutationBudget(scheduler, budgetCancellation.token, () => this._state === RestoreState.Disposed);
+		if (this._session.loadOlderHistory) {
+			let page: Promise<void> | undefined;
+			const readPage = async () => {
+				if (this._state === RestoreState.Published) {
+					this._readingPage.set(true, undefined);
+					try {
+						await this._session.loadOlderHistory?.();
+						while (this._activeRefresh || this._pendingHistory) {
+							// A replacement window can wait behind a streaming response until a later refresh.
+							this._budget.throwIfCancelled();
+							const refresh = this._activeRefresh ?? (this._nextRefresh ??= new DeferredPromise<void>()).p;
+							await raceCancellationError(refresh, budgetCancellation.token);
+						}
+					} finally {
+						this._readingPage.set(false, undefined);
+					}
+				}
+			};
+			this._model.loadOlderHistory = () => page ??= readPage().finally(() => { page = undefined; });
+			this._register(toDisposable(() => {
+				this._model.loadOlderHistory = undefined;
+			}));
+		}
+		this._hasProgressStreaming = !!(this._session.progressObs && this._session.interruptActiveResponseCallback);
 
 		if (this._session.onDidChangeHistory) {
 			this._register(this._session.onDidChangeHistory(history => {
+				if (this._session.ownsHistoryRequestIds && this._pendingHistory) {
+					for (const item of this._pendingHistory) {
+						if (item.type === 'request' && item.id !== undefined) {
+							this._supersededRequestIds.add(item.id);
+						}
+					}
+				}
 				this._pendingHistory = history;
 				if (this._state === RestoreState.Published) {
 					this.scheduleHistoryRefresh();
@@ -221,6 +254,23 @@ export class RemoteChatSessionRestorer extends Disposable {
 		}
 
 		this._state = RestoreState.Published;
+		if (this._session.olderHistoryCursor || this._session.olderHistoryUnavailable) {
+			this._register(autorun(reader => {
+				const cursor = this._session.olderHistoryCursor?.read(reader);
+				const unavailable = !!this._session.olderHistoryUnavailable?.read(reader) || (cursor !== undefined && !this._session.loadOlderHistory);
+				const readingPage = this._readingPage.read(reader);
+				transaction(tx => {
+					if (!readingPage) {
+						this._model.olderHistoryCursor.set(this._session.loadOlderHistory ? cursor : undefined, tx);
+					}
+					this._model.olderHistoryUnavailable.set(unavailable, tx);
+				});
+			}));
+			this._register(toDisposable(() => transaction(tx => {
+				this._model.olderHistoryCursor.set(undefined, tx);
+				this._model.olderHistoryUnavailable.set(false, tx);
+			})));
+		}
 		this._register(Event.once(this._model.onDidDispose)(() => this.dispose()));
 		try {
 			this._lastRequest = this._model.getRequests().at(-1);
@@ -368,7 +418,8 @@ export class RemoteChatSessionRestorer extends Disposable {
 		if (this._activeRefresh) {
 			return this._activeRefresh;
 		}
-		const completion = new DeferredPromise<void>();
+		const completion = this._nextRefresh ?? new DeferredPromise<void>();
+		this._nextRefresh = undefined;
 		this._activeRefresh = completion.p;
 		void this._applyPendingHistory(force).then(() => completion.complete(), error => completion.error(error));
 		return completion.p;
@@ -376,10 +427,17 @@ export class RemoteChatSessionRestorer extends Disposable {
 
 	private async _applyPendingHistory(force: boolean): Promise<void> {
 		try {
-			while (this._pendingHistory && (force || !this._model.hasActiveRequest.get())) {
+			while (this._pendingHistory) {
 				const history = this._pendingHistory;
+				const prefixLength = history.length - this._restoredHistory.length;
+				// Only a strict prepend can be applied without touching the live response.
+				const prepended = this._state === RestoreState.Published && this._session.loadOlderHistory && !this._supersededRequestIds.size && this._restoredHistory.length > 0
+					&& prefixLength > 0 && this._restoredHistory.every((item, index) => item === history[index + prefixLength]);
+				if (!prepended && !force && this._model.hasActiveRequest.get()) {
+					break;
+				}
 				this._pendingHistory = undefined;
-				const refresh = this._budget.run(this._refreshSteps(history));
+				const refresh = this._budget.run(prepended ? this._prependSteps(history, prefixLength) : this._refreshSteps(history));
 				if (refresh) {
 					await refresh;
 				}
@@ -390,11 +448,33 @@ export class RemoteChatSessionRestorer extends Disposable {
 		}
 	}
 
+	private *_prependSteps(history: readonly IChatSessionHistoryItem[], prefixLength: number): Generator<void, void> {
+		this._budget.startSlice();
+		const turns = groupHistoryTurns(history.slice(0, prefixLength));
+		const existing = new Set(this._model.getRequests().map(request => request.id));
+		this._lastRequest = undefined;
+		// Inserting backwards keeps the boundary valid even if the user removes a request between slices.
+		for (let i = turns.length - 1; i >= 0; i--) {
+			const turn = turns[i];
+			if (turn.id !== undefined && existing.has(turn.id)) {
+				this._localRequestIds.add(turn.id);
+				continue;
+			}
+			const [request] = yield* this._applyHistorySteps(turn.items, () => ({ index: 0 }));
+			turn.id = request.id;
+		}
+		this._completeLastResponse();
+		this._restoredTurns = [...turns, ...this._restoredTurns];
+		this._restoredHistory = history;
+	}
+
 	private *_refreshSteps(history: readonly IChatSessionHistoryItem[]): Generator<void, void> {
 		const requests = this._model.getRequests();
 		const turns = groupHistoryTurns(history);
 		const restoredTurns = this._restoredTurns;
-		if (turns.length === restoredTurns.length && turns.every((turn, index) => equals(turn.items, restoredTurns[index].items))) {
+		const superseded = new Set(this._supersededRequestIds);
+		this._supersededRequestIds.clear();
+		if (!superseded.size && turns.length === restoredTurns.length && turns.every((turn, index) => equals(turn.items, restoredTurns[index].items))) {
 			return;
 		}
 		const previousAnonymous = restoredTurns.filter(turn => turn.request.id === undefined);
@@ -420,9 +500,11 @@ export class RemoteChatSessionRestorer extends Disposable {
 			this._budget.startSlice();
 		}
 		for (const request of [...requests]) {
-			if (previousTurns.has(request.id) && !incomingIds.has(request.id) && !this._localRequestIds.has(request.id)) {
+			const providerOwned = this._session.ownsHistoryRequestIds && (previousTurns.has(request.id) || superseded.has(request.id));
+			if (!incomingIds.has(request.id) && (providerOwned || (previousTurns.has(request.id) && !this._localRequestIds.has(request.id)))) {
 				yield;
 				this._model.removeRequest(request.id);
+				this._localRequestIds.delete(request.id);
 			}
 		}
 		this._lastRequest = undefined;
@@ -434,6 +516,9 @@ export class RemoteChatSessionRestorer extends Disposable {
 		const isInModel = (request: ChatRequestModel) => this._model.getRequests().includes(request);
 		for (const [turnIndex, turn] of turns.entries()) {
 			if (turn.id !== undefined && this._localRequestIds.has(turn.id)) {
+				if (this._session.ownsHistoryRequestIds) {
+					this._localRequestIds.delete(turn.id);
+				}
 				continue;
 			}
 			const existing = turn.id === undefined ? undefined : requestsById.get(turn.id);

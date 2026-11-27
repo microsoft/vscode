@@ -15,6 +15,7 @@ import { FileService } from '../../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../log/common/log.js';
 import { FileEditKind } from '../../../common/state/sessionState.js';
+import type { ISessionDatabase } from '../../../common/sessionDataService.js';
 import { storeCodexTurnDiffs } from '../../../node/codex/codexTurnDiff.js';
 import { CodexTurnDiffTracker } from '../../../node/codex/codexTurnDiffTracker.js';
 import { SessionDatabase } from '../../../node/sessionDatabase.js';
@@ -24,6 +25,7 @@ suite('Codex turn diff snapshots', () => {
 	const cwd = URI.file(isWindows ? 'c:\\workspace' : '/workspace');
 	const expectedPath = (name: string) => URI.joinPath(cwd, name).path;
 	let database: SessionDatabase;
+	const storeFileEdit: ISessionDatabase['storeFileEdit'] = edit => database.storeFileEdit(edit);
 	let fileService: FileService;
 	const logService = new NullLogService();
 
@@ -67,7 +69,7 @@ suite('Codex turn diff snapshots', () => {
 				fileSequences: fileSequences(fixturePaths(boundaries.map(item => item.diff).join('')), 1, index + 1),
 			})),
 		}], {
-			relatedDiffs: [], cwd, nativeCwd: cwd, database, fileService, logService,
+			relatedDiffs: [], cwd, nativeCwd: cwd, storeFileEdit, fileService, logService,
 		});
 	}
 
@@ -225,7 +227,7 @@ suite('Codex turn diff snapshots', () => {
 				]
 			},
 			{ notification: { threadId: 'child', turnId: 'child-native', diff: child }, initialDiffs: [child], snapshots: [{ turnId: 'host-turn', diff: child, startSequence: 3, sequence: 3, fileSequences: fileSequences(['edit.txt'], 3) }] },
-		], { relatedDiffs: [], cwd, nativeCwd: cwd, database, fileService, logService });
+		], { relatedDiffs: [], cwd, nativeCwd: cwd, storeFileEdit, fileService, logService });
 		assert.deepStrictEqual([await snapshots(), await snapshots('steering-turn')], [
 			[{ path: expectedPath('edit.txt'), kind: FileEditKind.Edit, before: 'original\n', after: 'child\n' }],
 			[{ path: expectedPath('edit.txt'), kind: FileEditKind.Edit, before: 'child\n', after: 'last\n' }],
@@ -239,7 +241,7 @@ suite('Codex turn diff snapshots', () => {
 		await storeCodexTurnDiffs([
 			{ notification: { threadId: 'parent', turnId: 'parent-native', diff: parent }, initialDiffs: [parent], snapshots: [{ turnId: 'host-turn', diff: parent, startSequence: 1, sequence: 4, fileSequences: fileSequences(['edit.txt'], 4) }] },
 			{ notification: { threadId: 'child', turnId: 'child-native', diff: child }, initialDiffs: [child], snapshots: [{ turnId: 'host-turn', diff: child, startSequence: 2, sequence: 3, fileSequences: fileSequences(['edit.txt'], 3) }] },
-		], { relatedDiffs: [], cwd, nativeCwd: cwd, database, fileService, logService });
+		], { relatedDiffs: [], cwd, nativeCwd: cwd, storeFileEdit, fileService, logService });
 		assert.deepStrictEqual(await snapshots(), [{ path: expectedPath('edit.txt'), kind: FileEditKind.Edit, before: 'original\n', after: 'last\n' }]);
 	});
 
@@ -255,7 +257,7 @@ suite('Codex turn diff snapshots', () => {
 				]
 			},
 			{ notification: { threadId: 'child', turnId: 'child-native', diff: child }, initialDiffs: [child], snapshots: [{ turnId: 'steering-turn', diff: child, startSequence: 5, sequence: 6, fileSequences: fileSequences(['edit.txt'], 6) }] },
-		], { relatedDiffs: [], cwd, nativeCwd: cwd, database, fileService, logService });
+		], { relatedDiffs: [], cwd, nativeCwd: cwd, storeFileEdit, fileService, logService });
 		assert.deepStrictEqual([await snapshots(), await snapshots('steering-turn')], [
 			[{ path: expectedPath('edit.txt'), kind: FileEditKind.Edit, before: 'original\n', after: 'parent\n' }],
 			[{ path: expectedPath('edit.txt'), kind: FileEditKind.Edit, before: 'parent\n', after: 'child\n' }],
@@ -275,7 +277,7 @@ suite('Codex turn diff snapshots', () => {
 			await storeCodexTurnDiffs([
 				{ notification: { threadId: 'parent', turnId: 'parent-native', diff: parent }, initialDiffs: [first], snapshots: [{ turnId: 'host-turn', diff: parent, startSequence: 1, sequence: parentSequence, fileSequences: fileSequences(['edit.txt'], 2, parentSequence) }] },
 				{ notification: { threadId: 'child', turnId: 'child-native', diff: child }, initialDiffs: [child], snapshots: [{ turnId: 'host-turn', diff: child, startSequence: 3, sequence: 4, fileSequences: fileSequences(['edit.txt'], 4) }] },
-			], { relatedDiffs: [], cwd, nativeCwd: cwd, database, fileService, logService });
+			], { relatedDiffs: [], cwd, nativeCwd: cwd, storeFileEdit, fileService, logService });
 			assert.deepStrictEqual(await snapshots(), expected);
 		});
 	}
@@ -284,7 +286,7 @@ suite('Codex turn diff snapshots', () => {
 		const store = (threadId: string, patch: string, sequence: number) => storeCodexTurnDiffs([{
 			notification: { threadId, turnId: `${threadId}-native`, diff: patch }, initialDiffs: [patch],
 			snapshots: [{ turnId: 'host-turn', diff: patch, startSequence: sequence, sequence, fileSequences: fileSequences(['edit.txt'], sequence) }],
-		}], { relatedDiffs: [], cwd, nativeCwd: cwd, database, fileService, logService });
+		}], { relatedDiffs: [], cwd, nativeCwd: cwd, storeFileEdit, fileService, logService });
 		await write('child\n');
 		await store('child', diff('original\n', 'child\n', '@@ -1 +1 @@\n-original\n+child\n'), 1);
 		await write('last\n');

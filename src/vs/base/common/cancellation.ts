@@ -100,7 +100,9 @@ export namespace CancellationToken {
 			return CancellationToken.Cancelled;
 		}
 		const token = lifetime.add(new MutableToken());
-		lifetime.add(Event.once(Event.fromDOMEventEmitter(signal, 'abort'))(() => token.cancel()));
+		const onAbort = () => token.cancel();
+		signal.addEventListener('abort', onAbort, { once: true });
+		lifetime.add(toDisposable(() => signal.removeEventListener('abort', onAbort)));
 		return token;
 	}
 

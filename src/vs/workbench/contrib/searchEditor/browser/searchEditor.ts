@@ -570,12 +570,16 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 			isWordMatch: config.matchWholeWord,
 		};
 
+		const folderResources = this.contextService.getWorkspace().folders;
+		const queryBuilder = this.instantiationService.createInstance(QueryBuilder);
+
 		const options: ITextQueryBuilderOptions = {
 			_reason: 'searchEditor',
 			extraFileResources: this.instantiationService.invokeFunction(getOutOfWorkspaceEditorResources),
 			maxResults: this.searchConfig.maxResults ?? undefined,
 			disregardIgnoreFiles: !config.useExcludeSettingsAndIgnoreFiles || undefined,
 			disregardExcludeSettings: !config.useExcludeSettingsAndIgnoreFiles || undefined,
+			ignoreGlobCase: queryBuilder.ignoreGlobCaseForResources(folderResources.map(folder => folder.uri)) || undefined,
 			excludePattern: [{ pattern: config.filesToExclude }],
 			includePattern: config.filesToInclude,
 			onlyOpenEditors: config.onlyOpenEditors,
@@ -594,10 +598,8 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 			}
 		};
 
-		const folderResources = this.contextService.getWorkspace().folders;
 		let query: ITextQuery;
 		try {
-			const queryBuilder = this.instantiationService.createInstance(QueryBuilder);
 			query = queryBuilder.text(content, folderResources.map(folder => folder.uri), options);
 		}
 		catch (err) {

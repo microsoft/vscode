@@ -63,13 +63,13 @@ function formatHourMinute(hour: number, minute: number): string {
 	return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' });
 }
 
-export function getAutomationsViewContent(automations: readonly IAutomationDescriptor[], runs: readonly IAutomationRun[], showOthers: boolean) {
+export function getAutomationsViewContent(automations: readonly IAutomationDescriptor[], runs: readonly IAutomationRun[], showOthers: boolean, sendLaterEnabled: boolean = false) {
 	const hiddenIds = new Set(automations
-		.filter(automation => !isAutomationVisible(automation, showOthers))
+		.filter(automation => !isAutomationVisible(automation, showOthers) || sendLaterEnabled && automation.purpose === 'scheduledChat')
 		.map(automation => automation.id));
 	return {
 		automations: automations.filter(automation => !hiddenIds.has(automation.id)),
-		runs: runs.filter(run => !hiddenIds.has(run.automationId)),
+		runs: runs.filter(run => !hiddenIds.has(run.automationId) && !(sendLaterEnabled && run.purpose === 'scheduledChat')),
 	};
 }
 
@@ -84,11 +84,6 @@ export function getAutomationOwnershipGroups(automations: readonly IAutomationDe
 		},
 	].filter(group => group.automations.length > 0 || group.ownership === 'user' && automations.some(automation => automation.ownership === 'repository'))
 		.map(group => ({ ...group, automations: group.automations.sort((a, b) => Number(b.enabled) - Number(a.enabled)) }));
-}
-
-export function getVisibleAutomations(automations: readonly IAutomationDescriptor[], sendLaterEnabled: boolean): readonly IAutomationDescriptor[] {
-	return automations.filter(automation =>
-		!sendLaterEnabled || automation.purpose !== 'scheduledChat' || automation.oneTimeDispatchedAt !== undefined);
 }
 
 export function hasEmptyAutomationSection(automations: readonly IAutomationDescriptor[]): boolean {

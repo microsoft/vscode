@@ -23,16 +23,16 @@ import { URI } from '../../../../../base/common/uri.js';
 import { getSessionPresentationWorkspace, IChat, ISession } from '../../../../services/sessions/common/session.js';
 import { INewSessionTarget } from '../parts/chatView.js';
 import { SessionIsArchivedContext, SessionIsCreatedContext, SessionItemIsMultiSelectionContext, SessionSupportsRenameContext } from '../../common/contextkeys.js';
-import { ISessionSection, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext } from '../views/sessionsList.js';
+import { SessionItemContextMenuId } from '../views/sessionsListCommon.js';
 import { registerSessionsListActions } from '../views/sessionsListActions.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { RENAME_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
+import { AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
 
 /** Closes the chat of a header of the chat part (see `registerAgentsChatPartActions`). */
-export const AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID = 'workbench.action.agentsView.closeChat';
+export { AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID };
 
 /** Closes all the chats of the chat part, which closes it (see `registerAgentsChatPartActions`). */
 export const AGENTS_CHAT_PART_CLOSE_ALL_CHATS_COMMAND_ID = 'workbench.action.agentsView.closeAllChats';
@@ -63,7 +63,7 @@ export function registerAgentsChatPartActions(): IDisposable {
 		}
 		async run(accessor: ServicesAccessor): Promise<void> {
 			const chatPart = accessor.get(IAgentsChatPartService);
-			await chatPart.openComposer(getEditorWindowComposerTarget(accessor.get(IWorkspaceContextService), accessor.get(IEditorService)));
+			await chatPart.openComposer(getEditorWindowComposerTarget(accessor.get(IWorkspaceContextService), accessor.get(IEditorService)), { useRememberedPicks: true });
 		}
 	}));
 
@@ -100,8 +100,8 @@ export function registerAgentsChatPartActions(): IDisposable {
 				},
 				menu: [
 					{ id: Menus.SessionHeaderContext, group: 'secondary/0_pane', order: 10, when: inChatPart },
-					// Last in its header's toolbar, right before More Actions, as the editor area closes an editor; where it shows tabs,
-					// each tab has its own close, so it stays in More Actions there
+					// Last in its header's toolbar, after More Actions, as a session header closes its chat; where it shows tabs, each
+					// tab has its own close, so it stays in More Actions there
 					{ id: Menus.SessionBarToolbar, group: 'navigation', order: 1000, when: ContextKeyExpr.and(inChatPart, ContextKeyExpr.notEquals(`config.${SESSIONS_CHAT_TABS_SETTING}`, SessionsChatTabsMode.Multiple)) },
 					{ id: Menus.SessionBarToolbar, group: 'secondary/0_pane', order: 10, when: ContextKeyExpr.and(inChatPart, ContextKeyExpr.equals(`config.${SESSIONS_CHAT_TABS_SETTING}`, SessionsChatTabsMode.Multiple)) },
 				],
@@ -195,7 +195,7 @@ export function registerAgentsChatPartActions(): IDisposable {
 			if (layoutService.isVisible(Parts.CHAT_PART)) {
 				layoutService.setPartHidden(true, Parts.CHAT_PART);
 			} else {
-				await chatPart.show(getEditorWindowComposerTarget(accessor.get(IWorkspaceContextService), accessor.get(IEditorService)));
+				await chatPart.show(getEditorWindowComposerTarget(accessor.get(IWorkspaceContextService), accessor.get(IEditorService)), { useRememberedPicks: true });
 			}
 		}
 	}));
@@ -208,41 +208,10 @@ export function registerAgentsChatPartActions(): IDisposable {
 
 /**
  * Registers the actions of the Sessions list of an editor window that start a new session in the chat part, until the
- * returned disposable is disposed: in the worktree of a section of the Worktree grouping, and in the folder of a session.
+ * returned disposable is disposed: in the folder of a session.
  */
 export function registerAgentsViewNewSessionActions(): IDisposable {
 	const store = new DisposableStore();
-
-	// A new session in the folder or worktree of a section of the Worktree grouping: not of its Other section
-	store.add(registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: 'workbench.action.agentsView.newSessionInWorktree',
-				title: localize2('agentsView.newSessionInWorktree', "New Session"),
-				icon: Codicon.plus,
-				precondition: ChatContextKeys.enabled,
-				menu: [SessionSectionToolbarMenuId, Menus.SessionSectionContext].map(id => ({
-					id,
-					group: 'navigation',
-					order: 0,
-					when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals(SessionSectionTypeContext.key, 'worktree')),
-				})),
-			});
-		}
-		async run(accessor: ServicesAccessor, section?: ISessionSection): Promise<void> {
-			// Not in its Other section, of the sessions without a local checkout or worktree
-			if (!section?.id.startsWith('worktree:') || section.id === 'worktree:other') {
-				return;
-			}
-			// In the section's checkout or worktree, which its sessions work in, as its latest session, such as with the same agent
-			const latest = [...section.sessions].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).at(0);
-			const folderUri = latest && getSessionFolder(latest);
-			if (!folderUri) {
-				return;
-			}
-			await accessor.get(IEditorWindowSessionsPresenterService).presenter.get().openComposer(getNewSessionTarget(accessor.get(IEditorWindowComposerFoldersService), folderUri, latest), { newComposer: true });
-		}
-	}));
 
 	// A new session in the folder or worktree of a session
 	store.add(registerAction2(class extends Action2 {

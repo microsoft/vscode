@@ -7,6 +7,7 @@ import type { SessionEvent } from '@microsoft/copilot-sdk';
 import { LRUCache } from '../../../../base/common/map.js';
 import type { CopilotFusionEvent } from './copilotFusionProgress.js';
 import { isHostSentUserMessage } from './copilotMessageSource.js';
+import { isCopilotSdkHookError } from './copilotSdkChatError.js';
 
 /** Follows early Fusion routing through the durable event chain to its genuine user-message echo. */
 export class CopilotFusionRequestCorrelation {
@@ -17,7 +18,7 @@ export class CopilotFusionRequestCorrelation {
 	}
 
 	observe(event: SessionEvent, isKnownResolution = false): void {
-		if (!event.agentId && (event.type === 'abort' || event.type === 'session.idle' || event.type === 'session.error')) {
+		if (!event.agentId && (event.type === 'abort' || event.type === 'session.idle' || (event.type === 'session.error' && !isCopilotSdkHookError(event.data)))) {
 			this.clear();
 			return;
 		}

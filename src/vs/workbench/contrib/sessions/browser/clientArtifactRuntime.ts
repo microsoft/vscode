@@ -109,6 +109,7 @@ export function createClientArtifactRuntime(
 				const result = await transport.request({
 					kind: 'notice', subscription, notice: {
 						kind: notice.kind, content: notice.content, iconId: notice.iconId,
+						...(notice.artifactKind ? { artifactKind: notice.artifactKind } : {}),
 						...(notice.changes && notice.enabledRules ? { changes: notice.changes, enabledRules: notice.enabledRules } : {}),
 					},
 				});

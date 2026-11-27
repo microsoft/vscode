@@ -535,7 +535,7 @@ function usageEnvelope(result: IByokLmChatResult) {
 	const outputTokens = result.usage?.outputTokens ?? 0;
 	return {
 		input_tokens: inputTokens,
-		input_tokens_details: { cached_tokens: 0 },
+		input_tokens_details: { cached_tokens: result.usage?.cachedTokens ?? 0 },
 		output_tokens: outputTokens,
 		output_tokens_details: { reasoning_tokens: result.usage?.reasoningTokens ?? 0 },
 		total_tokens: inputTokens + outputTokens,

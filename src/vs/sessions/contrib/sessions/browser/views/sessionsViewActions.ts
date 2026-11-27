@@ -4,6 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
+import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
+import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { AUTOMATIONS_MODAL_SETTING, AutomationsEditorInput } from '../../../automations/browser/automationsEditorInput.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { isMobile, isWeb } from '../../../../../base/common/platform.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -17,7 +22,8 @@ import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../../browser/work
 import { EditorsVisibleContext, EditorAreaFocusContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { SessionsCategories } from '../../../../../workbench/contrib/sessions/common/categories.js';
 import { IsNewChatSessionContext, IsPhoneLayoutContext, SessionItemIsMultiSelectionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { canStartNewSessionLike, getNewSessionSources, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupIsComparisonContext, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { canStartNewSessionLike, getNewSessionSources } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListHelpers.js';
+import { SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupIsComparisonContext, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
@@ -316,8 +322,9 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 			? latest(getNewSessionSources(context.sessions, accessor.get(ISessionsProvidersService), sessionsManagementService).map(({ session }) => session))
 			: undefined;
 		const like = source ?? context.sessions.find(session => canStartNewSessionLike(session, sessionsManagementService));
-		// An environment whose sessions have no workspace to start in, such as an extension's host of jobs, still starts there.
-		return like || !context.environment ? openNewSessionLike(accessor, like) : openNewSessionLike(accessor, latest(context.sessions), true);
+		// A workspace or environment section whose sessions have no workspace to start in, such as those of an extension's
+		// host of jobs, still starts in their environment. A repository section spans environments, so it keeps the composer's.
+		return like || context.repository ? openNewSessionLike(accessor, like) : openNewSessionLike(accessor, latest(context.sessions), true);
 	}
 });
 
@@ -480,7 +487,16 @@ registerAction2(class ManageAutomationsAction extends Action2 {
 			menu: []
 		});
 	}
-	override run(accessor: ServicesAccessor): void {
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		if (configurationService.getValue<boolean>(AUTOMATIONS_MODAL_SETTING) === true) {
+			if (configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) !== true || configurationService.getValue<boolean>(ChatAIDisabledSettingId)) {
+				return;
+			}
+			accessor.get(ICustomViewService).hideCustomView();
+			await accessor.get(IEditorService).openEditor(AutomationsEditorInput.getOrCreate(), { pinned: true });
+			return;
+		}
 		accessor.get(ICustomViewService).showCustomView(AUTOMATIONS_CUSTOM_VIEW_ID);
 	}
 });

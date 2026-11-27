@@ -11,7 +11,7 @@ import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IRemoteAgentHostConnectionFactory, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IRemoteAgentHostLocationPreferenceService } from '../../../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
-import { ITunnelGatewayInventory, TunnelAuthenticationRequiredError } from '../../../../../../../platform/agentHost/common/tunnelAgentHost.js';
+import { ITunnelGatewayInventory, TUNNEL_DISCOVERY_UNAUTHORIZED, TunnelAuthenticationRequiredError } from '../../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
@@ -179,6 +179,16 @@ suite('TunnelAgentHostService discovery', () => {
 		await assert.rejects(service.listTunnels({ silent: true }), TunnelAuthenticationRequiredError);
 	});
 
+	test('turns an IPC authorization refusal into recovery for the provider that was used', async () => {
+		const service = createService(provider => [{ id: provider, accessToken: 'token', scopes: ['tunnel'], account: { id: provider, label: provider } }], new class extends mock<IChannel>() {
+			override async call<T>(): Promise<T> {
+				throw Object.assign(new Error('Unauthorized'), { name: TUNNEL_DISCOVERY_UNAUTHORIZED });
+			}
+		}());
+		await assert.rejects(service.listTunnels({ silent: true, authProvider: 'microsoft' }),
+			error => error instanceof TunnelAuthenticationRequiredError && error.authProvider === 'microsoft');
+	});
+
 	test('a cached token without the tunnel scope fails silent discovery without network enumeration or prompting', async () => {
 		const service = createService((provider, scopes) => provider === 'github' && scopes === undefined
 			? [{ id: 'github', accessToken: 'token', scopes: ['user:email'], account: { id: 'account', label: 'Account' } }]
@@ -257,6 +267,31 @@ suite('TunnelAgentHostService discovery', () => {
 		await configurationService.setUserConfiguration(RemoteAgentHostsEnabledSettingId, false);
 		await assert.rejects(service.signIn('github'), /disabled/);
 		assert.strictEqual(calls, 2);
+	});
+
+	test('discovery after sign-in uses the signed-in account when another account\'s session was rejected', async () => {
+		const session = (account: string): AuthenticationSession => ({ id: account, accessToken: `${account}-token`, scopes: ['tunnel'], account: { id: account, label: account } });
+		const sessions = [session('rejected')];
+		const tokens: string[] = [];
+		const service = createService(() => sessions, new class extends mock<IChannel>() {
+			override async call<T>(_command: string, args: readonly string[]): Promise<T> {
+				tokens.push(args[0]);
+				if (args[0] === 'rejected-token') {
+					throw Object.assign(new Error('Unauthorized'), { name: TUNNEL_DISCOVERY_UNAUTHORIZED });
+				}
+				return [] as T;
+			}
+		}(), {
+			onFactory: () => { },
+			createSession: async () => {
+				sessions.push(session('signed-in'));
+				return sessions[1];
+			},
+		});
+		await assert.rejects(service.listTunnels({ authProvider: 'github' }), TunnelAuthenticationRequiredError);
+		await service.signIn('github');
+		await service.listTunnels({ authProvider: 'github' });
+		assert.deepStrictEqual(tokens, ['rejected-token', 'signed-in-token']);
 	});
 
 	test('uses the explicit provider for listing, deletion and refresh after another provider was cached', async () => {

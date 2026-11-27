@@ -12,7 +12,7 @@ import { ILogService } from '../../log/common/log.js';
 import { AgentSession } from '../common/agent.js';
 import { buildFolderChangesetOwnerUri, ChangesetKind, parseChangesetUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
 import { getWorkingDirectoryScopeId } from '../common/agentHostWorkingDirectories.js';
-import { EMPTY_TREE_OBJECT, IAgentHostGitService, resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
+import { EMPTY_TREE_OBJECT, IAgentHostGitService } from '../common/agentHostGitService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { buildReviewedRefName, IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
@@ -89,9 +89,9 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 		const persistedBaseBranch = readSessionBaseBranch(await this._sessionStateStore.load(URI.parse(scope.sessionUri)), this._chatOwnership.isRegisteredDefaultChat(scope.sourceUri) ? undefined : scope.sourceUri);
 
 		const workingDirectory = URI.parse(scope.workingDirectories[0]);
-		const gitStateBaseBranch = this._gitStateService.getSessionGitState?.(scope.sourceUri)?.baseBranchName
-			?? (!isAhpChatChannel(scope.sourceUri) || this._chatOwnership.isRegisteredDefaultChat(scope.sourceUri) ? readSessionGitState(sessionState._meta)?.baseBranchName : undefined);
-		const baseBranch = resolveDiffBaseBranchName(persistedBaseBranch, gitStateBaseBranch);
+		const gitStateBaseBranch = this._gitStateService.getSessionGitState?.(scope.sourceUri)?.baseBranchRef
+			?? (!isAhpChatChannel(scope.sourceUri) || this._chatOwnership.isRegisteredDefaultChat(scope.sourceUri) ? readSessionGitState(sessionState._meta)?.baseBranchRef : undefined);
+		const baseBranch = persistedBaseBranch || gitStateBaseBranch;
 		await this._sequencer.queue(parsed.ownerUri, async () => {
 			for (const resource of resources) {
 				await this._setReviewed(parsed.ownerUri, workingDirectory, baseBranch, URI.parse(resource), reviewed);
@@ -197,10 +197,10 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 	}
 
 	private async _getReviewedPaths(session: ProtocolURI, workingDirectory: URI, baseBranch: string | undefined): Promise<ReadonlySet<string>> {
-		const context = await this._resolveContext(session, workingDirectory, baseBranch);
+		// No reviewed ref yet means nothing has been reviewed, so skip
+		// resolving the baseline (merge-base and tree lookups).
+		const context = await this._resolveContext(session, workingDirectory, baseBranch, { requireReviewedCommit: true });
 		if (!context?.reviewedCommit) {
-			// No reviewed ref yet means
-			// nothing has been reviewed.
 			return new Set();
 		}
 
@@ -226,9 +226,26 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 		return new Set(changed.filter(path => !unreviewedSet.has(path)));
 	}
 
-	private async _resolveContext(session: ProtocolURI, workingDirectory: URI, baseBranch: string | undefined): Promise<IReviewContext | undefined> {
+	/**
+	 * @param options.requireReviewedCommit Return `undefined` without resolving
+	 * the baseline when the session has no reviewed ref.
+	 */
+	private async _resolveContext(session: ProtocolURI, workingDirectory: URI, baseBranch: string | undefined, options?: { readonly requireReviewedCommit?: boolean }): Promise<IReviewContext | undefined> {
 		const repoRoot = await this._gitService.getRepositoryRoot(workingDirectory);
 		if (!repoRoot) {
+			return undefined;
+		}
+
+		const reviewedRef = buildReviewedRefName(this._sanitizedOwnerId(session));
+		let reviewedCommit = await this._gitService.revParse(repoRoot, reviewedRef);
+		const folderOwner = parseFolderChangesetOwnerUri(session);
+		let legacyReviewedCommit: string | undefined;
+		if (!reviewedCommit && folderOwner) {
+			const legacyReviewedRef = buildReviewedRefName(this._sanitizedOwnerId(folderOwner.sessionUri));
+			legacyReviewedCommit = await this._gitService.revParse(repoRoot, legacyReviewedRef);
+			reviewedCommit = legacyReviewedCommit;
+		}
+		if (!reviewedCommit && options?.requireReviewedCommit) {
 			return undefined;
 		}
 
@@ -244,15 +261,8 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 			return undefined;
 		}
 
-		const reviewedRef = buildReviewedRefName(this._sanitizedOwnerId(session));
-		let reviewedCommit = await this._gitService.revParse(repoRoot, reviewedRef);
-		const folderOwner = parseFolderChangesetOwnerUri(session);
-		if (!reviewedCommit && folderOwner) {
-			const legacyReviewedRef = buildReviewedRefName(this._sanitizedOwnerId(folderOwner.sessionUri));
-			reviewedCommit = await this._gitService.revParse(repoRoot, legacyReviewedRef);
-			if (reviewedCommit) {
-				await this._gitService.updateRef(repoRoot, reviewedRef, reviewedCommit);
-			}
+		if (legacyReviewedCommit) {
+			await this._gitService.updateRef(repoRoot, reviewedRef, legacyReviewedCommit);
 		}
 		const reviewedTree = reviewedCommit
 			? await this._gitService.revParse(repoRoot, `${reviewedCommit}^{tree}`) ?? baselineTree

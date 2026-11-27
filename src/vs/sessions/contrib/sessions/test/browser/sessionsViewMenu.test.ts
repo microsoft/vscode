@@ -19,6 +19,7 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { isICommandActionToggleInfo } from '../../../../../platform/action/common/action.js';
 import { ActionWidgetService, IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { getActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -40,7 +41,8 @@ import { TestNotificationService } from '../../../../../platform/notification/te
 import { IInputOptions, IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
+import { IsSessionsWindowContext, WorkbenchModeContext } from '../../../../../workbench/common/contextkeys.js';
+import { WorkbenchMode } from '../../../../../platform/workspace/common/workspace.js';
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
@@ -57,13 +59,15 @@ import { ISession, ISessionChangeset, ISessionChangesetOperation, ISessionEnviro
 import { ISessionAttentionService, IInboxSessionAttention, InboxNotificationPriority, InboxTab } from '../../../../../workbench/contrib/sessions/common/sessionAttentionService.js';
 import { buildTestSession } from '../../../../../workbench/contrib/sessions/test/common/testSessionBuilder.js';
 import { TestSessionsList } from '../../../../../workbench/contrib/sessions/test/browser/views/testSessionsList.js';
-import { getSessionArchiveOnboardingTargetId, SessionItemCanAcknowledgeContext, SessionItemCanMergePullRequestContext, SessionItemContextMenuId, SessionItemInboxStateContext, SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionsList } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { getSessionArchiveOnboardingTargetId } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListRenderers.js';
+import { SessionItemCanAcknowledgeContext, SessionItemCanMergePullRequestContext, SessionItemContextMenuId, SessionItemInboxStateContext, SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { getInboxPullRequestMergeOperation, SessionInboxSection } from '../../../../../workbench/contrib/sessions/common/sessionInbox.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { getSessionFilterEnvironments, getSessionFilterOptions, SessionsListFilters } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
 import { SessionsInboxScope } from '../../../../../workbench/contrib/sessions/browser/views/sessionsInboxScope.js';
-import { ISessionsListNotice, SessionsListNotification } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListNotification.js';
+import { ISessionsListChange, ISessionsListUndoService } from '../../../../../workbench/contrib/sessions/browser/sessionsListUndoService.js';
 import { IsWorkspaceGroupCappedContext, ISessionsViewLocator, SessionsView, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSortingContext, DEFAULT_SESSIONS_GROUPINGS, bindSessionsViewGroupings, renderSessionsHeader } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { MobileSessionFilterChips } from '../../../../../workbench/contrib/sessions/browser/mobile/mobileSessionFilterChips.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
@@ -80,7 +84,7 @@ suite('Sessions - View Menu', () => {
 		environments: readonly ISessionEnvironment[] = [],
 		wording = ChatSessionArchiveActionWording.MarkAsDone,
 		providers?: readonly ISessionsProvider[],
-		windowOptions?: { readonly sessionsWindow?: boolean },
+		windowOptions?: { readonly sessionsWindow?: boolean; readonly emptyWindow?: boolean },
 	) {
 		const configurationService = new class extends TestConfigurationService {
 			readonly updates: unknown[][] = [];
@@ -134,7 +138,7 @@ suite('Sessions - View Menu', () => {
 				};
 			},
 		});
-		const notices: ISessionsListNotice[] = [];
+		const notices: ISessionsListChange[] = [];
 		// The session the window shows, and the sessions opened as from the list
 		const shown = observableValue<ISession | undefined>('shown', undefined);
 		const opened: string[] = [];
@@ -142,6 +146,7 @@ suite('Sessions - View Menu', () => {
 		let canOpenSession: (session: ISession) => Promise<boolean> = async () => true;
 		if (windowOptions?.sessionsWindow) {
 			IsSessionsWindowContext.bindTo(contextKeyService).set(true);
+			WorkbenchModeContext.bindTo(contextKeyService).set('agents');
 		}
 		const host = {
 			_mainWindowHost: { session: shown },
@@ -155,10 +160,11 @@ suite('Sessions - View Menu', () => {
 			configurationService,
 			instantiationService: viewInstantiationService,
 			uriIdentityService,
+			workspaceContextService: { getWorkbenchScope: () => windowOptions?.sessionsWindow || windowOptions?.emptyWindow ? undefined : URI.file('/workspace'), getWorkbenchMode: () => windowOptions?.sessionsWindow ? WorkbenchMode.Agents : WorkbenchMode.Editor },
 			workspaceGroupCappedContextKey: capped,
 			filterContextKeys: new Map<string, { key: IContextKey<boolean>; read: () => boolean }>(),
 			archivedFilterRegistration: store.add(new DisposableStore()),
-			listNotification: upcastPartial<SessionsListNotification>({ show: notice => { notices.push(notice); } }),
+			undoService: upcastPartial<ISessionsListUndoService>({ offerUndo: change => { notices.push(change); return true; } }),
 			sessionsManagementService: {
 				onDidChangeSessions: sessionsChanged.event,
 				onDidChangeSessionTypes: Event.None,
@@ -618,11 +624,13 @@ suite('Sessions - View Menu', () => {
 		});
 	});
 
-	test('the Grouping menu offers the groupings of its view: Time, Environment and Worktree in the editor window', () => {
+	test('the Grouping menu offers the groupings of its view: Time and Environment in the editor window', () => {
 		const { snapshot, contextKeyService } = createMenu();
 		const sessionsWindow = IsSessionsWindowContext.bindTo(contextKeyService);
+		const workbenchMode = WorkbenchModeContext.bindTo(contextKeyService);
 		const offered = (isSessionsWindow: boolean, groupings: readonly SessionsGrouping[]) => {
 			sessionsWindow.set(isSessionsWindow);
+			workbenchMode.set(isSessionsWindow ? 'agents' : 'editor');
 			bindSessionsViewGroupings(contextKeyService, groupings);
 			return snapshot(Menus.SessionsViewGrouping).map(item => item.title);
 		};
@@ -632,7 +640,7 @@ suite('Sessions - View Menu', () => {
 			sessionsWindowOffering: offered(true, EDITOR_WINDOW_SESSIONS_GROUPINGS.offered),
 		}, {
 			agentsWindow: ['Time', 'Workspace', 'Repository', 'Environment'],
-			editorWindow: ['Time', 'Environment', 'Worktree'],
+			editorWindow: ['Time', 'Environment'],
 			sessionsWindowOffering: ['Time', 'Environment'],
 		});
 	});
@@ -798,9 +806,9 @@ suite('Sessions - View Menu', () => {
 		const model = store.add(harness.instantiationService.createInstance(SessionsListModelService));
 		harness.instantiationService.stub(ISessionsListModelService, model);
 		model.setInboxState([sessions[2]], 'hold');
-		const notices: ISessionsListNotice[] = [];
-		harness.instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}), 'getViewWithId', () =>
-			upcastPartial<SessionsView>({ listNotification: upcastPartial<SessionsListNotification>({ show: notice => notices.push(notice) }) }));
+		const notices: ISessionsListChange[] = [];
+		harness.instantiationService.stub(ISessionsListUndoService, upcastPartial<ISessionsListUndoService>({ offerUndo: change => { notices.push(change); return true; } }));
+		harness.instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}), 'getViewWithId', () => upcastPartial<SessionsView>({}));
 		await CommandsRegistry.getCommand(ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID)!.handler(harness.instantiationService, sessions);
 		const acknowledged = sessions.map(session => model.getInboxState(session)?.kind);
 		assert.deepStrictEqual({
@@ -900,9 +908,9 @@ suite('Sessions - View Menu', () => {
 		harness.instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
 			closeSession: session => { closed.push(session!.sessionId); },
 		}));
-		const notices: ISessionsListNotice[] = [];
-		harness.instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}), 'getViewWithId', () =>
-			upcastPartial<SessionsView>({ grouping: SessionsGrouping.Inbox, listNotification: upcastPartial<SessionsListNotification>({ show: notice => notices.push(notice) }) }));
+		const notices: ISessionsListChange[] = [];
+		harness.instantiationService.stub(ISessionsListUndoService, upcastPartial<ISessionsListUndoService>({ offerUndo: change => { notices.push(change); return true; } }));
+		harness.instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}), 'getViewWithId', () => upcastPartial<SessionsView>({ grouping: SessionsGrouping.Inbox }));
 		const run = (id: string) => CommandsRegistry.getCommand(id)!.handler(harness.instantiationService, sessions);
 		const states = () => sessions.map(session => {
 			assert.strictEqual(session.isRead.get(), false);
@@ -911,11 +919,11 @@ suite('Sessions - View Menu', () => {
 		model.setInboxState([sessions[0]], 'untilActivity');
 		await run('sessionsViewPane.inboxResume');
 		const resumed = states();
-		await notices[0].undo!();
+		await notices[0].undo();
 		const restored = states();
 		await run('sessionsViewPane.inboxHold');
 		const held = states();
-		await notices[1].undo!();
+		await notices[1].undo();
 		const holdUndone = states();
 		assert.deepStrictEqual({ resumed, restored, held, holdUndone, archived: sessions.map(session => session.isArchived.get()), countdowns: notices.map(notice => notice.showCountdown), closed }, {
 			resumed: [undefined, undefined, undefined], restored: ['untilActivity', undefined, undefined],
@@ -934,9 +942,9 @@ suite('Sessions - View Menu', () => {
 		harness.instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
 			closeSession: session => { closed.push(session!.sessionId); },
 		}));
-		const notices: ISessionsListNotice[] = [];
-		harness.instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}), 'getViewWithId', () =>
-			upcastPartial<SessionsView>({ grouping: SessionsGrouping.Inbox, listNotification: upcastPartial<SessionsListNotification>({ show: notice => notices.push(notice) }) }));
+		const notices: ISessionsListChange[] = [];
+		harness.instantiationService.stub(ISessionsListUndoService, upcastPartial<ISessionsListUndoService>({ offerUndo: change => { notices.push(change); return true; } }));
+		harness.instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}), 'getViewWithId', () => upcastPartial<SessionsView>({ grouping: SessionsGrouping.Inbox }));
 		harness.instantiationService.stub(IQuickInputService, upcastPartial<IQuickInputService>({}), 'pick', async (items: IQuickPickItem[]) => items[0]);
 		const counts: { notices: number; closed: number }[] = [];
 		for (const action of ['inboxAcknowledge', 'inboxHold', 'inboxResume', 'inboxSnooze']) {
@@ -992,16 +1000,21 @@ suite('Sessions - View Menu', () => {
 		});
 	});
 
-	for (const { source, section } of ['toolbar', 'context menu'].flatMap(source =>
-		[SessionInboxSection.ReadyForYou, SessionInboxSection.Working, SessionInboxSection.OnHold].map(section => ({ source, section })))) {
-		test(`Acknowledge from the ${source} quietly moves an already-read active ${section} session to Acknowledged and returns on activity`, async () => {
+	for (const { source, section, acknowledgedExpanded, hasOther, unrelatedSelection } of ['toolbar', 'context menu', 'toolbar click'].flatMap(source => [
+		...(source === 'toolbar click' ? [] : [SessionInboxSection.ReadyForYou, SessionInboxSection.Working, SessionInboxSection.OnHold].map(section => ({ source, section, acknowledgedExpanded: false, hasOther: true, unrelatedSelection: false }))),
+		...[true, false].map(hasOther => ({ source, section: SessionInboxSection.ReadyForYou, acknowledgedExpanded: true, hasOther, unrelatedSelection: false })),
+		...(source === 'toolbar click' ? [{ source, section: SessionInboxSection.ReadyForYou, acknowledgedExpanded: true, hasOther: true, unrelatedSelection: true }] : []),
+	])) {
+		test(`Acknowledge from the ${source} quietly moves an already-read active ${section} session to ${acknowledgedExpanded ? 'expanded' : 'collapsed'} Acknowledged with ${hasOther ? 'another' : 'no other'} Inbox item${unrelatedSelection ? ' preserving unrelated selection' : ''} and returns on activity`, async () => {
 			const built = buildTestSession({ id: 'first', title: 'First', isRead: true, status: section === SessionInboxSection.Working ? SessionStatus.InProgress : SessionStatus.Completed });
 			const other = buildTestSession({ id: 'second', title: 'Second', isRead: false }).session;
+			const existingAcknowledged = buildTestSession({ id: 'acknowledged', title: 'Already Acknowledged' }).session;
 			const session = built.session;
 			const activeSession = constObservable({ ...session, activeChat: session.mainChat });
-			const harness = createListHarness(store, [session, other], { activeSession });
+			const harness = createListHarness(store, [session, ...(hasOther ? [other] : []), existingAcknowledged], { activeSession });
 			const model = store.add(harness.instantiationService.createInstance(SessionsListModelService));
 			harness.instantiationService.stub(ISessionsListModelService, model);
+			model.setInboxState([existingAcknowledged], 'done');
 			if (section === SessionInboxSection.OnHold) {
 				model.setInboxState([session], 'hold');
 			}
@@ -1016,30 +1029,36 @@ suite('Sessions - View Menu', () => {
 			SessionsViewGroupingContext.bindTo(context).set(SessionsGrouping.Inbox);
 			harness.instantiationService.stub(IContextKeyService, context);
 			harness.instantiationService.stub(IMenuService, store.add(harness.instantiationService.createInstance(MenuService)));
-			const notices: ISessionsListNotice[] = [];
-			harness.instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}), 'getViewWithId', () =>
-				upcastPartial<SessionsView>({ listNotification: upcastPartial<SessionsListNotification>({ show: notice => notices.push(notice) }) }));
+			const notices: ISessionsListChange[] = [];
+			harness.instantiationService.stub(ISessionsListUndoService, upcastPartial<ISessionsListUndoService>({ offerUndo: change => { notices.push(change); return true; } }));
+			harness.instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}), 'getViewWithId', () => upcastPartial<SessionsView>({}));
 			let shown: IContextMenuDelegate | undefined;
 			harness.instantiationService.stub(IContextMenuService, {
 				showContextMenu: (delegate: IContextMenuDelegate) => { shown = delegate; },
 			});
 			let grouping = SessionsGrouping.Inbox;
+			let opened = 0;
 			const container = harness.createContainer();
 			const list = store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
-				grouping: () => grouping, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
+				grouping: () => grouping, sorting: () => SessionsSorting.Created, onSessionOpen: () => { opened++; },
 			}));
 			list.layout(600, 400);
 			list.setItemCollapsed({ section }, false);
-			list.setSelectedItems([{ session: session.resource }]);
-			list.setFocusedItem({ session: session.resource });
+			list.setItemCollapsed({ section: SessionInboxSection.Acknowledged }, !acknowledgedExpanded);
+			list.setSelectedItems(unrelatedSelection ? [{ session: other.resource }, { session: existingAcknowledged.resource }] : [{ session: session.resource }]);
+			list.setFocusedItem({ session: source === 'toolbar click' ? existingAcknowledged.resource : session.resource });
 			list.focus();
 			const row = list.getItemRow({ session: session.resource })!;
 			await retry(async () => assert.ok(row.querySelector('.session-title-toolbar [aria-label^="Acknowledge"]')), 10, 100);
 			const button = row.querySelector<HTMLElement>('.session-title-toolbar [aria-label^="Acknowledge"]')!;
-			button.focus();
-			assert.strictEqual(getActiveElement(), button);
-			button.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
-			if (source === 'toolbar') {
+			if (source !== 'toolbar click') {
+				button.focus();
+				assert.strictEqual(getActiveElement(), button);
+				button.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
+			}
+			if (source === 'toolbar click') {
+				button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+			} else if (source === 'toolbar') {
 				button.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
 				button.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', keyCode: 13, bubbles: true }));
 			} else {
@@ -1049,11 +1068,16 @@ suite('Sessions - View Menu', () => {
 				const action = shown.getActions().find(action => action.id === ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID)!;
 				await shown.actionRunner!.run(action, shown.getActionsContext?.());
 			}
-			await retry(async () => assert.deepStrictEqual(list.getVisibleSessions().map(session => session.sessionId), [other.sessionId]), 10, 100);
+			await retry(async () => assert.deepStrictEqual(list.getVisibleSessions().map(session => session.sessionId).sort(), [
+				...(hasOther ? [other.sessionId] : []), ...(acknowledgedExpanded ? [session.sessionId, existingAcknowledged.sessionId] : []),
+			].sort()), 10, 100);
 			const acknowledged = model.getInboxState(session)?.kind;
 			const acknowledgedCategory = list.getItemRow({ section: SessionInboxSection.Acknowledged })?.getAttribute('aria-label');
 			const stillActive = activeSession.get().sessionId;
 			const keyboardFocusRetained = list.element.contains(getActiveElement());
+			const focusedSessions = list.getVisibleSessions().filter(session => list.getItemRow({ session: session.resource })?.classList.contains('focused')).map(session => session.sessionId);
+			const emptyInboxFocused = list.getItemRow({ section: SessionInboxSection.ReadyForYou })?.classList.contains('focused');
+			const selectedSessions = list.getVisibleSessions().filter(session => list.getItemRow({ session: session.resource })?.getAttribute('aria-selected') === 'true').map(session => session.sessionId);
 			grouping = SessionsGrouping.Workspace;
 			list.update();
 			const availableElsewhere = list.getVisibleSessions().includes(session);
@@ -1062,11 +1086,12 @@ suite('Sessions - View Menu', () => {
 			built.status.set(SessionStatus.Completed, undefined);
 			list.update();
 			assert.deepStrictEqual({
-				acknowledged, acknowledgedCategory, notices, stillActive, keyboardFocusRetained, availableElsewhere, resurfaced: list.getVisibleSessions().includes(session),
+				acknowledged, acknowledgedCategory, notices, stillActive, keyboardFocusRetained, focusedSessions, emptyInboxFocused, selectedSessions, opened, availableElsewhere, resurfaced: list.getVisibleSessions().includes(session),
 				read: session.isRead.get(), otherRead: other.isRead.get(), archived: session.isArchived.get(),
 				providerActions: { read: harness.managementService.readSessions, archived: harness.managementService.archived, cancelled: harness.managementService.cancelled, deleted: harness.managementService.deleted },
 			}, {
-				acknowledged: 'done', acknowledgedCategory: 'Acknowledged, 1', notices: [], stillActive: session.sessionId, keyboardFocusRetained: true, availableElsewhere: true, resurfaced: true,
+				acknowledged: 'done', acknowledgedCategory: 'Acknowledged, 2', notices: [], stillActive: session.sessionId, keyboardFocusRetained: true,
+				focusedSessions: hasOther ? [other.sessionId] : [], selectedSessions: [...(hasOther ? [other.sessionId] : []), ...(unrelatedSelection ? [existingAcknowledged.sessionId] : [])], emptyInboxFocused: !hasOther, opened: 0, availableElsewhere: true, resurfaced: true,
 				read: true, otherRead: false, archived: false,
 				providerActions: { read: [], archived: [], cancelled: [], deleted: [] },
 			});
@@ -1281,10 +1306,10 @@ suite('Sessions - View Menu', () => {
 		const model = store.add(harness.instantiationService.createInstance(SessionsListModelService));
 		harness.instantiationService.stub(ISessionsListModelService, model);
 		harness.instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}), 'getViewWithId', () => undefined);
-		let choice: number | undefined;
+		let choice: string | undefined;
 		let input: string | undefined = undefined;
 		const validation: (string | undefined | null)[] = [];
-		harness.instantiationService.stub(IQuickInputService, upcastPartial<IQuickInputService>({}), 'pick', async (items: IQuickPickItem[]) => choice === undefined ? undefined : items[choice]);
+		harness.instantiationService.stub(IQuickInputService, upcastPartial<IQuickInputService>({}), 'pick', async (items: IQuickPickItem[]) => items.find(item => item.label === choice));
 		harness.instantiationService.stub(IQuickInputService, 'input', async (options: IInputOptions) => {
 			for (const value of ['not a date', '2000-01-01 09:00', '2099-02-30 09:00', '2099-12-01 09:00']) {
 				const result = await options.validateInput!(value);
@@ -1295,11 +1320,11 @@ suite('Sessions - View Menu', () => {
 		const run = () => CommandsRegistry.getCommand('sessionsViewPane.inboxSnooze')!.handler(harness.instantiationService, session);
 		await run();
 		const cancelled = model.getInboxState(session);
-		choice = 1;
+		choice = 'Tomorrow Morning';
 		const now = new Date();
 		await run();
 		const timed = model.getInboxState(session);
-		choice = 4;
+		choice = 'Pick a Date and Time...';
 		await run();
 		const cancelledCustom = model.getInboxState(session);
 		input = '2099-12-01 09:00';
@@ -1312,6 +1337,23 @@ suite('Sessions - View Menu', () => {
 			validation: [true, true, true, false, true, true, true, false], archived: false,
 		});
 	});
+
+	for (const minutes of [10, 30]) {
+		test(`inbox snooze for ${minutes} minutes applies the deadline to every selected session`, () => runWithFakedTimers({ useFakeTimers: true, startTime: new Date(2026, 10, 20, 23, 55).getTime() }, async () => {
+			const sessions = ['first', 'second'].map(id => buildTestSession({ id, title: id }).session);
+			const harness = createListHarness(store, sessions);
+			const model = store.add(harness.instantiationService.createInstance(SessionsListModelService));
+			harness.instantiationService.stub(ISessionsListModelService, model);
+			harness.instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}), 'getViewWithId', () => undefined);
+			harness.instantiationService.stub(IQuickInputService, upcastPartial<IQuickInputService>({}), 'pick', async (items: IQuickPickItem[]) => items.find(item => item.label === `In ${minutes} Minutes`));
+			const until = Date.now() + minutes * 60 * 1000;
+			await CommandsRegistry.getCommand('sessionsViewPane.inboxSnooze')!.handler(harness.instantiationService, sessions);
+			assert.deepStrictEqual(sessions.map(session => ({ state: model.getInboxState(session), archived: session.isArchived.get() })), sessions.map(() => ({
+				state: { kind: 'snoozed', until },
+				archived: false,
+			})));
+		}));
+	}
 
 	test('application filter command opens the registered Sessions view, and uses an embedded one only without it', async () => {
 		const run = async (registered: boolean, embedded: boolean) => {
@@ -1532,6 +1574,40 @@ suite('Sessions - View Menu', () => {
 		});
 	});
 
+	test('a worktree row keeps picking its own folder when the folders offered change while the menu shows it', async () => {
+		const inFolder = (id: string, path: string, minutesAgo: number): ISession => {
+			const root = URI.file(path);
+			const workspace: ISessionWorkspace = {
+				uri: root, label: id, icon: Codicon.folder, requiresWorkspaceTrust: false, isVirtualWorkspace: false,
+				folders: [{ root, workingDirectory: root, name: id, description: undefined, gitRepository: undefined }],
+			};
+			return { ...buildTestSession({ id, title: id, minutesAgo }).session, workspace: constObservable(workspace) };
+		};
+		const main = inFolder('main', '/work/vscode', 1);
+		const first = inFolder('first', '/work/vscode.worktrees/first', 20);
+		const second = inFolder('second', '/work/vscode.worktrees/second', 10);
+		const menu = createMenu([main, first, second]);
+		menu.shown.set(main, undefined);
+		const rows = () => MenuRegistry.getMenuItems(Menus.SessionsViewWorktree).filter(isIMenuItem).map(item => ({
+			label: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
+			command: item.command.id,
+			order: item.order ?? 0,
+		}));
+		const [earlier, later] = rows().filter(row => row.label === 'first' || row.label === 'second').sort((a, b) => a.order - b.order);
+		// The earlier folder goes away while the menu still shows the later one's row
+		menu.setSessions([main, earlier.label === 'first' ? second : first]);
+		await menu.run(later.command);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			sameCommand: rows().find(row => row.label === later.label)?.command === later.command,
+			opened: menu.opened,
+		}, {
+			sameCommand: true,
+			opened: [later.label],
+		});
+	});
+
 	test('picking a worktree folder opens its session only once allowed to, as a click in the list does, and not where a later change came meanwhile', async () => {
 		const inFolder = (id: string, path: string, minutesAgo: number): ISession => {
 			const root = URI.file(path);
@@ -1587,6 +1663,24 @@ suite('Sessions - View Menu', () => {
 			opened: ['first'],
 			failed: { opened: 0, errors: ['trust failed'] },
 		});
+	});
+
+	test('offers the Worktrees filter in a plain empty window, which has no scope but is not in the Agents mode', () => {
+		const inFolder = (id: string, path: string): ISession => {
+			const root = URI.file(path);
+			const workspace: ISessionWorkspace = {
+				uri: root, label: id, icon: Codicon.folder, requiresWorkspaceTrust: false, isVirtualWorkspace: false,
+				folders: [{ root, workingDirectory: root, name: id, description: undefined, gitRepository: undefined }],
+			};
+			return { ...buildTestSession({ id, title: id }).session, workspace: constObservable(workspace) };
+		};
+		const sessions = [inFolder('main', '/work/vscode'), inFolder('first', '/work/vscode.worktrees/first')];
+		const menu = createMenu(sessions, [], undefined, undefined, { emptyWindow: true });
+
+		assert.deepStrictEqual({
+			submenu: menu.snapshot(Menus.SessionsViewFilter).some(item => item.submenu === Menus.SessionsViewWorktree.id),
+			entries: MenuRegistry.getMenuItems(Menus.SessionsViewWorktree).filter(isIMenuItem).length > 0,
+		}, { submenu: true, entries: true });
 	});
 
 	test('offers no Worktrees filter in the Agents window, where a folder selected in an editor window selects nothing', () => {
@@ -1862,9 +1956,9 @@ suite('Sessions - View Menu', () => {
 		const before = state();
 		await run('sessionsViewPane.resetFilters');
 		const reset = state();
-		await notices[0].undo!();
+		await notices[0].undo();
 
-		assert.deepStrictEqual({ before, reset, notices: notices.map(notice => notice.message), undone: state() }, {
+		assert.deepStrictEqual({ before, reset, notices: notices.map(notice => notice.message(notice.count)), undone: state() }, {
 			before: { local: false, localChecked: false, showDoneChecked: true, showRecent: false },
 			reset: { local: true, localChecked: true, showDoneChecked: false, showRecent: true },
 			notices: ['Filters reset'],

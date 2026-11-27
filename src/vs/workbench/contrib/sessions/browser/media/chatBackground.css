@@ -9,6 +9,10 @@
 	background-color: transparent;
 }
 
+.monaco-workbench :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .session-view.chat-editor-content {
+	--session-view-background: var(--vscode-activeSessionView-background);
+}
+
 /* Keep each corner mask inside its frame so it cannot paint over neighboring panels. */
 .monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .session-view,
 .monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .chat-groups-view-has-gaps .chat-group-view-surface {

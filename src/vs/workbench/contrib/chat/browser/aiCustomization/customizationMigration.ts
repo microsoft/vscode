@@ -80,6 +80,7 @@ export function createCustomizationMigrationAgentPrompt(
 	migrationFlowId: string,
 	customizations: readonly ICategorizedCustomizationMigrationCandidate[],
 	targetFoldersByType: ReadonlyMap<PromptsType, readonly ICustomizationSourceFolder[]>,
+	hookScriptsByFile: ResourceMap<readonly URI[]> = new ResourceMap(),
 ): string {
 	const customizationLocations = customizations.map(({ category, customization }) => {
 		if (isMcpServerCustomizationMigrationCandidate(customization)) {
@@ -88,7 +89,13 @@ export function createCustomizationMigrationAgentPrompt(
 		if (isPluginMarketplaceCustomizationMigrationCandidate(customization)) {
 			return `- ${category}: Plugin marketplace "${customization.name}" (${getAgentMigrationScope(customization.storage)}): ${customization.source} -> ~/.copilot/settings.json`;
 		}
-		return `- ${category}: ${customization.type} (${getAgentMigrationScope(customization.storage)}): ${customization.uri.toString(true)}`;
+		const line = `- ${category}: ${customization.type} (${getAgentMigrationScope(customization.storage)}): ${customization.uri.toString(true)}`;
+		if (customization.type !== PromptsType.hook) {
+			return line;
+		}
+		// The agent may edit in place only the scripts that the recovery bundle holds.
+		const scripts = hookScriptsByFile.get(customization.uri) ?? [];
+		return `${line}\n  - Scripts backed up with it: ${scripts.length ? scripts.map(uri => uri.toString(true)).join(', ') : 'none'}`;
 	});
 	const targetLocations = [...targetFoldersByType]
 		.flatMap(([type, folders]) => folders.map(folder => `- ${type} (${getAgentMigrationScope(folder.source)}, ${folder.label}): ${folder.uri.toString(true)}`));

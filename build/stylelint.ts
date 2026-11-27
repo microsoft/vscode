@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import es from 'event-stream';
+import { through } from './lib/streams.ts';
 import glob from 'glob';
 import vfs from 'vinyl-fs';
 import { stylelintFilter } from './filters.ts';
@@ -42,7 +42,7 @@ export default function gulpstylelint(reporter: Reporter, designTokensEverywhere
 	const designTokenCounts: Record<string, number> = { codicon: 0, 'font-size': 0, weight: 0, radius: 0, spacing: 0, stroke: 0, deprecated: 0 };
 	let designTokenFileCount = 0;
 
-	return es.through(function (this, file: FileWithLines) {
+	return through(function (this, file: FileWithLines) {
 		const contents = file.contents.toString('utf8');
 		const lines = file.__lines || contents.split(/\r\n|\r|\n/);
 		file.__lines = lines;
@@ -167,7 +167,7 @@ function stylelint(sources: string[] = Array.from(stylelintFilter), explicit = f
 				console.info(message);
 			}
 		}, explicit))
-		.pipe(es.through(function (this, file: FileWithLines) {
+		.pipe(through(function (this, file: FileWithLines) {
 			fileCount++;
 			this.emit('data', file);
 		}, function () {

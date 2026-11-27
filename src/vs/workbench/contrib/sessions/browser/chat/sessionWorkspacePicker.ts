@@ -41,8 +41,8 @@ import { IProgressService, ProgressLocation } from '../../../../../platform/prog
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IFolderLocation } from '../../../../../platform/workspace/common/folderLocations.js';
-import { FolderLocationKind, getCurrentFolderLocationDescription, getFolderLocationDetail, getNewWorktreeDetail, getNewWorktreeLabel, groupFolderLocations } from '../../../../services/workspaces/common/folderLocationSections.js';
-import { IGitHubInfo, isActiveSessionStatus, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
+import { FolderLocationKind, getCurrentFolderLocationDescription, getFolderLocationDetail, getNewWorktreeDetail, getNewWorktreeLabel, groupFolderLocations } from '../../../chat/browser/agentSessions/agentHost/agentHostFolderLocationSections.js';
+import { IGitHubInfo, isActiveSessionStatus, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISessionWorkspaceBrowseOptions, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { cloneRepository } from '../cloneRepository.js';
 import { IAgentHostFilterService } from '../../common/agentHostFilter.js';
@@ -63,6 +63,7 @@ import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin, WorkspaceSession
 import { type IResolvedFolderWorkspace, SessionWorkspaceFallback } from './sessionWorkspaceFallback.js';
 import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
 import { ADDITIONAL_FOLDER_CONTEXT_ID_PREFIX, ADDITIONAL_REPOSITORY_CONTEXT_ID_PREFIX, getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
+import { getSessionsTelemetryProviderId } from '../../common/sessionsTelemetry.js';
 import { registerPickerKeybindingPresentation } from './newChatPickerKeybinding.js';
 import { getNoWorkspaceChoicePresentation } from './noWorkspaceChoice.js';
 import { createSessionPickerToolbar } from './sessionPickerToolbar.js';
@@ -84,7 +85,7 @@ const FILTER_THRESHOLD = 10;
 
 /**
  * The icon of a worktree in a composer's folder picker: New Worktree, each worktree of the window's folder, and the
- * picker's chip at one. The Sessions list keeps its own icon for its Worktree groups.
+ * picker's chip at one.
  */
 const WORKSPACE_PICKER_WORKTREE_ICON = Codicon.worktree;
 
@@ -145,6 +146,7 @@ export interface IWorkspacePickerItem {
 }
 
 export interface IWorkspacePickerOptions {
+	readonly searchWorkspaceTargetDirectly?: boolean;
 	readonly environment?: IObservable<ISessionCreationEnvironment | undefined>;
 	readonly environmentPickerEnabled?: IObservable<boolean>;
 	readonly onUserSelection?: () => void;
@@ -361,6 +363,7 @@ export class WorkspacePicker extends Disposable {
 	private readonly _triggerContents = new Map<HTMLElement, IWorkspacePickerTriggerElements>();
 	private readonly _contextSelections = new Map<string, ISessionWorkspace[]>();
 	private readonly _workspaceItemIds = new Map<string, number>();
+	private readonly _remoteItemIds = new Map<string, number>();
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	private readonly _additionalRepositorySelections = new Map<string, IAttachedRepositorySelection>();
 	private readonly _additionalFolderSelections = new Map<string, IResolvedFolderWorkspace>();
@@ -1038,7 +1041,7 @@ export class WorkspacePicker extends Disposable {
 	 * subclass that opts to render a different UI but reuse the
 	 * selection semantics. Treats unavailable workspaces as a no-op.
 	 */
-	protected async _dispatchPickerItem(item: IWorkspacePickerItem): Promise<boolean> {
+	protected async _dispatchPickerItem(item: IWorkspacePickerItem, browseOptions?: ISessionWorkspaceBrowseOptions): Promise<boolean> {
 		const generation = ++this._selectionGeneration;
 		this._reportPickerClosed(item);
 		if (item.run) {
@@ -1052,7 +1055,7 @@ export class WorkspacePicker extends Disposable {
 			return false;
 		}
 		if (item.browseActionIndex !== undefined || item.browseAction) {
-			const selection = await this._executeBrowseAction(item.browseActionIndex, item.browseAction);
+			const selection = await this._executeBrowseAction(item.browseActionIndex, item.browseAction, browseOptions);
 			const folderUri = selection?.workspace.folders[0]?.root;
 			if (!folderUri || generation !== this._selectionGeneration) {
 				return false;
@@ -1615,7 +1618,7 @@ export class WorkspacePicker extends Disposable {
 	/**
 	 * Executes a provider browse action referenced directly or by picker index.
 	 */
-	private async _executeBrowseAction(actionIndex: number | undefined, browseAction?: ISessionWorkspaceBrowseAction): Promise<IBrowsedWorkspaceSelection | undefined> {
+	private async _executeBrowseAction(actionIndex: number | undefined, browseAction?: ISessionWorkspaceBrowseAction, options?: ISessionWorkspaceBrowseOptions): Promise<IBrowsedWorkspaceSelection | undefined> {
 		const action = browseAction ?? (actionIndex !== undefined ? this._getAllBrowseActions()[actionIndex] : undefined);
 		if (!action) {
 			return undefined;
@@ -1623,7 +1626,7 @@ export class WorkspacePicker extends Disposable {
 
 		// Let the action-list widget hide before a browse action opens another picker.
 		await Promise.resolve();
-		if (action.providerId && !this._isWorkspaceProviderVisible(action.providerId)) {
+		if (options?.token.isCancellationRequested || action.providerId && !this._isWorkspaceProviderVisible(action.providerId)) {
 			return undefined;
 		}
 		try {
@@ -1635,8 +1638,8 @@ export class WorkspacePicker extends Disposable {
 			const currentWorkspace = action.attachesContext && this._selectedFolderUri
 				? (actionProvider?.resolveWorkspace(this._selectedFolderUri) ?? this._selectedResolved?.workspace)
 				: (this._getSelectedRepositoryWorkspace() ?? this._selectedResolved?.workspace);
-			const workspace = await action.run(currentWorkspace);
-			return workspace ? { workspace, providerId: action.providerId, action } : undefined;
+			const workspace = await action.run(currentWorkspace, options);
+			return workspace && !options?.token.isCancellationRequested ? { workspace, providerId: action.providerId, action } : undefined;
 		} catch {
 			// browse action was cancelled or failed
 		}
@@ -1927,7 +1930,7 @@ export class WorkspacePicker extends Disposable {
 				return undefined;
 			}
 			const usingDevContainer = !!this._selectedDevContainerFolderUri && this.uriIdentityService.extUri.isEqual(this._selectedDevContainerFolderUri, folderUri);
-			const actionId = `workspacePicker.devContainer.${providerId}.${devContainerActionIndex++}`;
+			const actionId = `workspacePicker.devContainer.${getSessionsTelemetryProviderId(providerId)}.${devContainerActionIndex++}`;
 			const selectMode = (preferDevContainer: boolean): void => {
 				item.preferDevContainer = preferDevContainer;
 			};
@@ -2033,7 +2036,7 @@ export class WorkspacePicker extends Disposable {
 			previousRecentWorkspaceIsRepository = recentWorkspaceIsRepository;
 			const submenuActions = modeActions
 				? [new SubmenuAction(
-					`workspacePicker.devContainer.${providerId}.${devContainerActionIndex}.options`,
+					`workspacePicker.devContainer.${getSessionsTelemetryProviderId(providerId)}.${devContainerActionIndex}.options`,
 					'',
 					modeActions,
 				)]
@@ -2183,7 +2186,7 @@ export class WorkspacePicker extends Disposable {
 				const status = provider.connectionStatus!.get();
 				const statusDescription = getRemoteHostStatusDescription(provider, status);
 				const action = toAction({
-					id: `workspacePicker.remote.${provider.id}`,
+					id: `workspacePicker.remote.${getSessionsTelemetryProviderId(provider.id)}.${getOrSet(this._remoteItemIds, provider.id, this._remoteItemIds.size)}`,
 					label: provider.label,
 					tooltip: statusDescription,
 					enabled: true,
@@ -2434,7 +2437,7 @@ export class WorkspacePicker extends Disposable {
 	getEnvironmentActions(environment: ISessionCreationEnvironment): IAction[] {
 		const provider = environment.kind === 'remote' && this.sessionsProvidersService.getProvider(environment.providerIds[0]);
 		return provider && isAgentHostProvider(provider) ? [toAction({
-			id: `environmentPicker.manage.${provider.id}`,
+			id: `environmentPicker.manage.${getSessionsTelemetryProviderId(provider.id)}`,
 			label: localize('workspacePicker.manageRemoteHost', "Manage {0}", provider.label),
 			run: () => {
 				this.actionWidgetService.hide();
@@ -2983,7 +2986,7 @@ export class WorkspacePicker extends Disposable {
 					group: { title: '', icon: this._getAllowedFolderIcon(presentation) ?? this._getWorkspaceIcon(resolved.workspace) },
 					disabled: this._isProviderUnavailable(resolved.providerId),
 					item: {
-						id: `workspacePicker.workspace.${this.uriIdentityService.extUri.getComparisonKey(folderUri)}`,
+						id: `workspacePicker.workspace.${getOrSet(this._workspaceItemIds, this.uriIdentityService.extUri.getComparisonKey(folderUri), this._workspaceItemIds.size)}`,
 						folderUri,
 						providerId: resolved.providerId,
 						checked: (!newWorktreeSelected && this._isSelectedFolder(folderUri)) || undefined,

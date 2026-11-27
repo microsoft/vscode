@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { stubChatViewHostServiceDependencies } from '../../../chat/test/common/chatViewSessionsListServiceTestUtils.js';
 import assert from 'assert';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -35,6 +36,7 @@ suite('openPanelChatAndGetWidget', () => {
 		instantiationService.stub(IViewDescriptorService, {});
 		instantiationService.stub(IWorkbenchLayoutService, {});
 		instantiationService.stub(IProgressService, {});
+		stubChatViewHostServiceDependencies(instantiationService);
 		return { service: disposables.add(instantiationService.createInstance(ChatViewHostService)) as IChatViewHostService, calls };
 	}
 

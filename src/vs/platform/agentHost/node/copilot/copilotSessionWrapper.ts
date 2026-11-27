@@ -15,8 +15,11 @@ import { copilotFusionEventTypes, isProvisionalFusionConversationEvent, type Cop
 
 export type CopilotModelCallFinishedOutcome = 'success' | 'error' | 'cancelled' | 'rejected';
 
+/** Streamed model output of a provisional (not yet committed) Fusion phase. */
+export type CopilotProvisionalFusionStreamEvent = SessionEventPayload<'assistant.message_delta'> | SessionEventPayload<'assistant.reasoning_delta'>;
+
 /** Conversation events emitted by a provisional (not yet committed) Fusion phase. */
-export type CopilotProvisionalFusionEvent = SessionEventPayload<'tool.execution_start'> | SessionEventPayload<'tool.execution_complete'> | SessionEventPayload<'assistant.message'>;
+export type CopilotProvisionalFusionEvent = SessionEventPayload<'tool.execution_start'> | SessionEventPayload<'tool.execution_complete'> | SessionEventPayload<'assistant.message'> | CopilotProvisionalFusionStreamEvent;
 
 const mcpServerToolsLoadedEventType = 'session.mcp_server_tools_loaded' as SessionEventType;
 
@@ -88,6 +91,10 @@ export class CopilotSessionWrapper extends Disposable {
 		readonly launchImageGenerationWatermark: boolean,
 		/** The trust the SDK session was created with for its working directory; `undefined` for a resume or no grant. */
 		readonly launchWorkingDirectoryTrust: NonNullable<CreateSessionOptions['filesystem']>['trustWorkingDirectory'],
+		/** Whether the SDK session was launched with the hooks of custom agents, which requires every session folder to be trusted. */
+		readonly launchCustomAgentHooksEnabled: boolean,
+		/** Whether VS Code's `chat.useHooks` setting allowed hooks when the SDK session was launched. */
+		readonly launchHooksEnabled: boolean,
 		/** Whether the SDK session was created with session telemetry, which carries its restricted telemetry. */
 		readonly launchSessionTelemetryEnabled: boolean,
 		readonly launchMcpSkillsEnabled: boolean,
@@ -98,8 +105,14 @@ export class CopilotSessionWrapper extends Disposable {
 		const unsubscribeAll = session.on(event => {
 			this._onEvent.fire(event);
 			if (isProvisionalFusionConversationEvent(event)) {
-				if (event.type === 'tool.execution_start' || event.type === 'tool.execution_complete' || event.type === 'assistant.message') {
-					this._onProvisionalFusionEvent.fire(event);
+				// A phase's message start and whole reasoning add nothing to its deltas and complete message.
+				switch (event.type) {
+					case 'tool.execution_start':
+					case 'tool.execution_complete':
+					case 'assistant.message':
+					case 'assistant.message_delta':
+					case 'assistant.reasoning_delta':
+						this._onProvisionalFusionEvent.fire(event);
 				}
 				return;
 			}

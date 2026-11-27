@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { URI, type UriComponents } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -65,6 +67,45 @@ suite('MainThreadGitExtensionService', () => {
 				ahead: undefined,
 				behind: undefined,
 			},
+		});
+	});
+
+	test('skips a queued open whose token is cancelled before it runs', async () => {
+		const state: GitRepositoryStateDto = { HEAD: { type: GitRefTypeDto.Head, name: 'main', commit: 'abc123' }, remotes: [], mergeChanges: [], indexChanges: [], workingTreeChanges: [], untrackedChanges: [] };
+		const firstOpen = new DeferredPromise<void>();
+		const openedPaths: string[] = [];
+		const proxy = new class extends mock<ExtHostGitExtensionShape>() {
+			override async $isGitExtensionAvailable(): Promise<boolean> {
+				return false;
+			}
+
+			override async $openRepository(uri: UriComponents) {
+				const rootUri = URI.revive(uri);
+				openedPaths.push(rootUri.path);
+				if (openedPaths.length === 1) {
+					await firstOpen.p;
+				}
+				return { handle: openedPaths.length, rootUri, state };
+			}
+		};
+		const service = disposables.add(new MainThreadGitExtensionService(
+			SingleProxyRPCProtocol(proxy),
+			new class extends mock<IGitService>() { },
+		));
+		const cts = disposables.add(new CancellationTokenSource());
+
+		const first = service.openRepository(URI.file('/first'));
+		const second = service.openRepository(URI.file('/second'), cts.token);
+		cts.cancel();
+		firstOpen.complete();
+		const results = await Promise.all([first, second, service.openRepository(URI.file('/third'))]);
+
+		assert.deepStrictEqual({
+			openedPaths,
+			results: results.map(repository => repository?.rootUri.path),
+		}, {
+			openedPaths: ['/first', '/third'],
+			results: ['/first', undefined, '/third'],
 		});
 	});
 

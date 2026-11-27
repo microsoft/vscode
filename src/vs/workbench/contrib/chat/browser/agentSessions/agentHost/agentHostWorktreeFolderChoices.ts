@@ -22,7 +22,7 @@ import { InstantiationType, registerSingleton } from '../../../../../../platform
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IFolderLocation, IWorkspaceFolderLocationService } from '../../../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
-import { getCurrentFolderLocationDescription, getFolderLocationDetail, getNewWorktreeDetail, getNewWorktreeLabel, groupFolderLocations } from '../../../../../services/workspaces/common/folderLocationSections.js';
+import { getCurrentFolderLocationDescription, getFolderLocationDetail, getNewWorktreeDetail, getNewWorktreeLabel, groupFolderLocations } from './agentHostFolderLocationSections.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 import { getLocalAgentHostSessionProvider } from './agentHostSessionUri.js';
@@ -286,11 +286,12 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 		}
 		const folders: IActionWidgetDropdownAction[] = [];
 		const worktrees: IActionWidgetDropdownAction[] = [];
+		let choiceIndex = 0;
 		for (const section of groupFolderLocations(this._choices().map(choice => ({ item: choice, kind: choice.kind, current: choice.current })))) {
 			for (const choice of section.items) {
 				(section.kind === 'worktree' ? worktrees : folders).push({
 					...action,
-					id: `agentHostFolder.${choice.uri.toString()}`,
+					id: `agentHostFolder.${choiceIndex++}`,
 					label: choice.label,
 					detail: section.kind === 'worktree' ? undefined : getFolderLocationDetail(),
 					description: choice.current ? getCurrentFolderLocationDescription() : undefined,

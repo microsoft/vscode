@@ -1,0 +1,19 @@
+steps:
+  # The Chromium build scripts that setup-env.sh and the deb and rpm packaging download (see build/lib/chromiumSource.ts),
+  # so that they don't depend on GitHub's rate limits, which can outlast the download's retries (GH-429)
+  - task: Cache@2
+    inputs:
+      key: '"chromium-files-v5" | cgmanifest.json'
+      path: .build/chromium-files
+      cacheHitVar: CHROMIUM_FILES_RESTORED
+    displayName: Restore Chromium build scripts
+    retryCountOnTaskFailure: 2
+    continueOnError: true
+
+  # On a miss, fill the cache in every job, since Cache@2 fails to save a folder that a job never created
+  - script: node -e 'import { prefetchChromiumBuildFiles } from "./build/lib/chromiumSource.ts"; prefetchChromiumBuildFiles();'
+    env:
+      GITHUB_TOKEN: "$(github-token-code-oss)"
+    displayName: Prefetch Chromium build scripts
+    condition: and(succeeded(), ne(variables['CHROMIUM_FILES_RESTORED'], 'true'))
+    continueOnError: true

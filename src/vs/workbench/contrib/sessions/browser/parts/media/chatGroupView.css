@@ -1,0 +1,11 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The read-only banner sits flush below the tab bar, matching the tab strip's
+ * insets so it starts and ends with the tabs; the extra left inset accounts for
+ * the header's status-icon column. */
+.chat-group-view-bar > .chat-readonly-banner {
+	margin: calc(-1 * var(--vscode-spacing-size20)) var(--vscode-spacing-size100) 0 calc(var(--vscode-spacing-size100) + var(--vscode-codiconFontSize) + var(--vscode-spacing-size60));
+}

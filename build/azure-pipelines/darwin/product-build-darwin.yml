@@ -9,11 +9,10 @@ parameters:
     type: boolean
     default: false
   # Whether to include the steps and jobs that need a privileged service
-  # connection (signing, CDN uploads, Copilot test setup). Only
-  # sdk-validation-build.yml sets this to false.
+  # connection (signing, CDN uploads, Copilot test setup). Required: only
+  # builds of main and release/* branches pass true.
   - name: VSCODE_PRIVILEGED_CONNECTIONS
     type: boolean
-    default: true
 
 # Compile mixes in the CLI, publishes the unsigned client for the universal
 # build and publishes unpacked builds for the test and Sign jobs. Sign

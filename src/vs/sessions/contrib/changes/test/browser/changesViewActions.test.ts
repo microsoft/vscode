@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../base/common/async.js';
+import { IAction, SubmenuAction } from '../../../../../base/common/actions.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { constObservable, derivedObservableWithCache, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -18,13 +20,15 @@ import { NullCommandService } from '../../../../../platform/commands/test/common
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
-import { IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
+import { IActionListDelegate, IActionListItem, IActionListUpdateOptions } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetDropdownAction } from '../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { Context, ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
+import { INotificationHandle, NotificationMessage } from '../../../../../platform/notification/common/notification.js';
 import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
@@ -45,17 +49,18 @@ import { IVisibleEditorPane } from '../../../../../workbench/common/editor.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { SESSIONS_FLOATING_DETAILS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { setHostSessionContextKeys } from '../../../../../workbench/contrib/sessions/common/sessionContextKeys.js';
 import { createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
 import { IFocusedSessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ITestSessionWithChat, stubSessionHosts, stubSessionHostsFromSessionsService, testGridPanes, withCreatedStatus, testPaneContentOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IChat, ISessionChangeset, ISessionChangesSummary, ISessionFolder, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
+import { IChat, ISessionChangeset, ISessionChangesetBaseBranchCandidates, ISessionChangesetBaseBranchSelection, ISessionChangesSummary, ISessionFolder, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ActiveSessionContextKeys, ChangesContextKeys, ChangesViewMode } from '../../../../../workbench/contrib/sessions/common/changes.js';
 import { IChangesSessionObservables, IChangesSessionScope, IChangesViewService, NoChangesEditorScope } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
-import { IsPhoneLayoutContext, SessionArtifactIntegrationsEnabledContext, SessionHasChangesContext, SessionHasWorkspaceContext, SessionIsCreatedContext, SessionWorkspaceIsVirtualContext, DesktopChangesEditorTransitionContext, DesktopDiffEditorInputActiveContext, DesktopLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionArtifactIntegrationsEnabledContext, SessionHasChangesContext, SessionHasWorkspaceContext, SessionIsCreatedContext, SessionWorkspaceIsVirtualContext, DesktopChangesEditorTransitionContext, DesktopDiffEditorInputActiveContext, DesktopLayoutContext, SessionChangesEditorDrawsHeaderContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { activeSessionCIFixRequested, hasActiveSessionFailedCIChecks } from '../../../../../workbench/contrib/sessions/browser/fixCIChecks.js';
 import { CustomViewVisibleContext } from '../../../../common/agentsWindowContextKeys.js';
 import { SessionChangesEditor } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditor.js';
@@ -85,7 +90,7 @@ function getToggledExpression(toggled: ContextKeyExpression | ICommandActionTogg
 }
 
 /** The Changes editor's own actions, which a chat window shows in the editor's header row rather than in its tab row. */
-const CHANGES_EDITOR_OWN_ACTIONS = ['workbench.action.agentSessions.collapseAllDiffs', 'workbench.action.agentSessions.expandAllDiffs', 'workbench.action.agentSessions.toggleDiffEditorWordWrap', 'Diff View'];
+const CHANGES_EDITOR_OWN_ACTIONS = ['workbench.action.agentSessions.collapseAllDiffs', 'workbench.action.agentSessions.expandAllDiffs', 'workbench.action.agentSessions.toggleDiffEditorWordWrap', 'multiDiffEditor.toggleSyncSplitView', 'Diff View'];
 
 suite('Changes View Actions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -312,6 +317,7 @@ suite('Changes View Actions', () => {
 					hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
 					hasTransitionGate: when.includes(DesktopChangesEditorTransitionContext.key),
 					hasDesktopLayoutGate: when.includes(DesktopLayoutContext.key),
+					hasOwnHeaderGate: when.includes(SessionChangesEditorDrawsHeaderContext.key),
 				};
 			}),
 			visibleWhileCatalogueLoads,
@@ -320,11 +326,19 @@ suite('Changes View Actions', () => {
 			hiddenForOtherEditor,
 			mobileHeaderHasDiffStatsAction,
 		}, {
+			// The header that the editor part draws, then the one that the Changes editor draws itself where it does not
 			desktopHeader: [{
 				id: 'chatEditing.versionsPicker',
 				hasActiveEditorGate: true,
 				hasTransitionGate: true,
 				hasDesktopLayoutGate: true,
+				hasOwnHeaderGate: false,
+			}, {
+				id: 'chatEditing.versionsPicker',
+				hasActiveEditorGate: false,
+				hasTransitionGate: false,
+				hasDesktopLayoutGate: false,
+				hasOwnHeaderGate: true,
 			}],
 			visibleWhileCatalogueLoads: true,
 			hiddenWithoutEditor: true,
@@ -364,7 +378,7 @@ suite('Changes View Actions', () => {
 		});
 		const renderPicker = () => {
 			const container = document.createElement('div');
-			disposables.add(new ChangesPickerActionItem(action, undefined, labelObs, undefined, actionWidgetService, new MockKeybindingService(), contextKeyService, changesViewService, telemetryService, new NoChangesEditorScope())).render(container);
+			disposables.add(new ChangesPickerActionItem(action, undefined, labelObs, undefined, actionWidgetService, new MockKeybindingService(), contextKeyService, changesViewService, telemetryService, new NoChangesEditorScope(), new TestNotificationService())).render(container);
 			return container;
 		};
 		const snapshot = (container: HTMLElement) => ({
@@ -411,12 +425,13 @@ suite('Changes View Actions', () => {
 			override readonly activeSessionChangesetsObs = changesets;
 			override readonly activeSessionChangesetsLoadingObs = loading;
 			override readonly activeSessionChangesetObs = selected;
+			override readonly activeSessionBaseBranchRefObs = constObservable(undefined);
 			override readonly activeSessionResourceObs = constObservable(URI.parse('test-session:/session'));
 		}();
 		const contextKeyService = new MockContextKeyService();
 		const action = new MenuItemAction({ id: 'test.versionsPicker', title: 'Versions' }, undefined, undefined, undefined, undefined, contextKeyService, new class extends mock<ICommandService>() { }());
 		const container = document.createElement('div');
-		disposables.add(new ChangesPickerActionItem(action, undefined, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }(), new NoChangesEditorScope())).render(container);
+		disposables.add(new ChangesPickerActionItem(action, undefined, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }(), new NoChangesEditorScope(), new TestNotificationService())).render(container);
 		const snapshot = () => {
 			const label = container.querySelector('.changes-picker-label');
 			return {
@@ -479,10 +494,12 @@ suite('Changes View Actions', () => {
 		const session = createChangeset('session', 'Session', 'Session description');
 		const selected = observableValue<ISessionChangeset | undefined>('picker.selected', branch);
 		const loading = observableValue('picker.loading', false);
+		const baseBranch = observableValue<string | undefined>('picker.baseBranch', 'origin/main');
 		const changesViewService = new class extends mock<IChangesViewService>() {
 			override readonly activeSessionChangesetsObs = constObservable([branch]);
 			override readonly activeSessionChangesetsLoadingObs = loading;
 			override readonly activeSessionChangesetObs = selected;
+			override readonly activeSessionBaseBranchRefObs = baseBranch;
 			override readonly activeSessionResourceObs = constObservable(URI.parse('test-session:/session'));
 		}();
 		const contextKeyService = new MockContextKeyService();
@@ -492,7 +509,7 @@ suite('Changes View Actions', () => {
 			override getTooltip(): string {
 				return super.getTooltip();
 			}
-		}(action, undefined, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }(), new NoChangesEditorScope()));
+		}(action, undefined, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }(), new NoChangesEditorScope(), new TestNotificationService()));
 		picker.render(container);
 		const snapshot = () => ({
 			label: container.querySelector('.changes-picker-label')?.textContent,
@@ -501,7 +518,12 @@ suite('Changes View Actions', () => {
 		});
 
 		const initial = snapshot();
-		selected.set(updatedBranch, undefined);
+		baseBranch.set('origin/release/1.108', undefined);
+		const baseChanged = snapshot();
+		transaction(tx => {
+			baseBranch.set('origin/release', tx);
+			selected.set(updatedBranch, tx);
+		});
 		const updated = snapshot();
 		transaction(tx => {
 			loading.set(true, tx);
@@ -510,24 +532,320 @@ suite('Changes View Actions', () => {
 		const loadingCatalogue = snapshot();
 		transaction(tx => {
 			loading.set(false, tx);
+			baseBranch.set('origin/main', tx);
 			selected.set(withoutDescription, tx);
 		});
 		const missing = snapshot();
+		transaction(tx => {
+			baseBranch.set(undefined, tx);
+			selected.set(branch, tx);
+		});
+		const noBase = snapshot();
 		selected.set(emptyDescription, undefined);
 		const empty = snapshot();
-		selected.set(session, undefined);
+		transaction(tx => {
+			baseBranch.set('origin/main', tx);
+			selected.set(session, tx);
+		});
 		const otherChangeset = snapshot();
 		selected.set(undefined, undefined);
 		const noChangeset = snapshot();
 
-		assert.deepStrictEqual({ initial, updated, loadingCatalogue, missing, empty, otherChangeset, noChangeset }, {
-			initial: { label: 'Branch', tooltip: 'feature -> main', ariaLabel: 'Branch: feature -> main' },
-			updated: { label: 'Branch', tooltip: 'feature -> release', ariaLabel: 'Branch: feature -> release' },
+		assert.deepStrictEqual({ initial, baseChanged, updated, loadingCatalogue, missing, noBase, empty, otherChangeset, noChangeset }, {
+			initial: { label: 'Branch → origin/main', tooltip: 'feature -> main', ariaLabel: 'Branch → origin/main: feature -> main' },
+			baseChanged: { label: 'Branch → origin/release/1.108', tooltip: 'feature -> main', ariaLabel: 'Branch → origin/release/1.108: feature -> main' },
+			updated: { label: 'Branch → origin/release', tooltip: 'feature -> release', ariaLabel: 'Branch → origin/release: feature -> release' },
 			loadingCatalogue: { label: 'Branch', tooltip: 'feature -> release', ariaLabel: 'Branch: feature -> release' },
-			missing: { label: 'Branch', tooltip: 'Branch', ariaLabel: 'Branch' },
+			missing: { label: 'Branch → origin/main', tooltip: 'Branch → origin/main', ariaLabel: 'Branch → origin/main' },
+			noBase: { label: 'Branch', tooltip: 'feature -> main', ariaLabel: 'Branch: feature -> main' },
 			empty: { label: 'Branch', tooltip: 'Branch', ariaLabel: 'Branch' },
 			otherChangeset: { label: 'Session', tooltip: 'Session', ariaLabel: 'Session' },
 			noChangeset: { label: 'Versions', tooltip: 'Versions', ariaLabel: 'Versions' },
+		});
+	});
+
+	/** Renders the picker of Branch and Session changes, Branch compared against `refs/remotes/origin/feature`, recording the lists it shows and the errors it reports. */
+	function renderBaseBranchPicker(baseBranchSelection: IObservable<ISessionChangesetBaseBranchSelection | undefined>) {
+		const branch = upcastPartial<ISessionChangeset>({ id: 'branch', label: 'Branch', isEnabled: constObservable(true), isDefault: constObservable(true), baseBranchSelection });
+		const session = upcastPartial<ISessionChangeset>({ id: 'session', label: 'Session', isEnabled: constObservable(true), isDefault: constObservable(false) });
+		const selected = observableValue<ISessionChangeset | undefined>('picker.selected', branch);
+		const baseBranchRef = observableValue<string | undefined>('picker.baseBranchRef', 'refs/remotes/origin/feature');
+		const loading = observableValue('picker.loading', false);
+		const resource = observableValue('picker.resource', URI.parse('test-session:/session'));
+		const changesViewService = new class extends mock<IChangesViewService>() {
+			override readonly activeSessionChangesetsObs = constObservable([branch, session]);
+			override readonly activeSessionChangesetsLoadingObs = loading;
+			override readonly activeSessionChangesetObs = selected;
+			override readonly activeSessionBaseBranchRefObs = baseBranchRef;
+			override readonly activeSessionResourceObs = resource;
+		}();
+		const lists: (readonly IActionListItem<unknown>[])[] = [];
+		const updates: (IActionListUpdateOptions | undefined)[] = [];
+		let visible: IActionListDelegate<unknown> | undefined;
+		const actionWidgetService = new class extends mock<IActionWidgetService>() {
+			override show(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<unknown>[], delegate: IActionListDelegate<unknown>): void {
+				lists.push(items);
+				visible = delegate;
+			}
+			override updateItems(items: readonly IActionListItem<unknown>[], _focusItemId?: string, options?: IActionListUpdateOptions): void {
+				lists.push(items);
+				updates.push(options);
+			}
+			override hide(): void {
+				const hidden = visible;
+				visible = undefined;
+				hidden?.onHide();
+			}
+		}();
+		const errors: string[] = [];
+		const notificationService = new class extends TestNotificationService {
+			override error(error: NotificationMessage): INotificationHandle {
+				errors.push(error instanceof Error ? error.message : String(error));
+				return super.error(error);
+			}
+		}();
+		const contextKeyService = new MockContextKeyService();
+		const action = new MenuItemAction({ id: 'test.versionsPicker', title: 'Versions' }, undefined, undefined, undefined, undefined, contextKeyService, new class extends mock<ICommandService>() { }());
+		const container = document.createElement('div');
+		const picker = disposables.add(new ChangesPickerActionItem(action, undefined, undefined, undefined, actionWidgetService, new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }(), new NoChangesEditorScope(), notificationService));
+		picker.render(container);
+		return { picker, container, lists, updates, selected, baseBranchRef, loading, resource, session, errors };
+	}
+
+	/** The submenus of the rows of `items` by row: group labels as `[label]`, the checked row marked ✓ and disabled rows marked so. */
+	function listSubmenus(items: readonly IActionListItem<unknown>[]): Record<string, string[]> {
+		const describe = (actions: readonly IAction[]): string[] => actions.flatMap(action => action instanceof SubmenuAction
+			? [...(action.label ? [`[${action.label}]`] : []), ...describe(action.actions)]
+			: [`${action.label}${action.checked ? ' ✓' : ''}${action.enabled ? '' : ' (disabled)'}`]);
+		return Object.fromEntries(items.flatMap(item => item.submenuActions ? [[item.label ?? '', describe(item.submenuActions)]] : []));
+	}
+
+	/** Runs the action labeled `label` in the submenu of the Branch row of `items`. */
+	async function runBranchSubmenuAction(items: readonly IActionListItem<unknown>[], label: string): Promise<void> {
+		const actions = items.find(item => item.label === 'Branch')?.submenuActions?.flatMap(action => action instanceof SubmenuAction ? action.actions : [action]);
+		await actions?.find(action => action.label === label)?.run();
+	}
+
+	test('the label names the base branch without a pen, and only the Branch row offers its base branches in a submenu while its base can change', () => {
+		const selection = upcastPartial<ISessionChangesetBaseBranchSelection>({ getCandidates: () => new DeferredPromise<ISessionChangesetBaseBranchCandidates>().p });
+		const selectionObs = observableValue<ISessionChangesetBaseBranchSelection | undefined>('picker.baseBranchSelection', selection);
+		const { picker, container, lists, selected, baseBranchRef, session } = renderBaseBranchPicker(selectionObs);
+		const open = () => {
+			picker.show();
+			picker.hide();
+			return listSubmenus(lists.at(-1)!);
+		};
+
+		const label = { text: container.querySelector('.action-label')?.textContent, children: [...container.querySelector('.action-label')?.children ?? []].map(child => child.className) };
+		const branchSelected = open();
+		selected.set(session, undefined);
+		const sessionSelected = open();
+		baseBranchRef.set(undefined, undefined);
+		const withoutBase = open();
+		baseBranchRef.set('refs/remotes/origin/feature', undefined);
+		selectionObs.set(undefined, undefined);
+		const withoutSelection = open();
+
+		assert.deepStrictEqual({ label, branchSelected, sessionSelected, withoutBase, withoutSelection }, {
+			label: { text: 'Branch → origin/feature', children: ['changes-picker-label', 'codicon codicon-chevron-down-compact'] },
+			branchSelected: { Branch: ['Loading branches… (disabled)'] },
+			sessionSelected: { Branch: ['Loading branches… (disabled)'] },
+			withoutBase: {},
+			withoutSelection: {},
+		});
+	});
+
+	test('a Change Base Branch pen on the Branch row opens its submenu, which focuses its filter, and the row offers neither while the catalogue loads', () => {
+		const selection = upcastPartial<ISessionChangesetBaseBranchSelection>({ getCandidates: () => new DeferredPromise<ISessionChangesetBaseBranchCandidates>().p });
+		const { picker, lists, loading } = renderBaseBranchPicker(constObservable(selection));
+		const open = () => {
+			picker.show();
+			picker.hide();
+			const branch = lists.at(-1)!.find(item => item.label === 'Branch');
+			return { submenuButton: branch?.submenuButton, focusFilterOnOpen: branch?.submenuOptions?.focusFilterOnOpen, hasSubmenu: !!branch?.submenuActions };
+		};
+
+		const loaded = open();
+		loading.set(true, undefined);
+		const catalogueLoading = open();
+
+		assert.deepStrictEqual({ loaded, catalogueLoading }, {
+			loaded: { submenuButton: { icon: Codicon.editCompact, label: 'Change Base Branch...' }, focusFilterOnOpen: true, hasSubmenu: true },
+			catalogueLoading: { submenuButton: undefined, focusFilterOnOpen: undefined, hasSubmenu: false },
+		});
+	});
+
+	test('the Branch submenu shows a loading row, then the branches grouped as they load, with the current base checked', async () => {
+		const candidates = new DeferredPromise<ISessionChangesetBaseBranchCandidates>();
+		const selection: ISessionChangesetBaseBranchSelection = {
+			getCandidates: () => candidates.p,
+			setBaseBranch: async () => { },
+		};
+		const { picker, lists, updates } = renderBaseBranchPicker(constObservable(selection));
+
+		picker.show();
+		candidates.complete({ refs: ['refs/remotes/origin/main', 'refs/remotes/origin/feature', 'refs/remotes/origin/release'], defaultRef: 'refs/remotes/origin/main' });
+		await timeout(0);
+
+		assert.deepStrictEqual({ lists: lists.map(listSubmenus), updates }, {
+			lists: [
+				{ Branch: ['Loading branches… (disabled)'] },
+				{ Branch: ['[Current Base]', 'origin/feature ✓', '[Default Branch]', 'origin/main', '[Branches]', 'origin/release'] },
+			],
+			updates: [{ preserveHover: true, preserveScrollPosition: true }],
+		});
+	});
+
+	test('a branch of the Branch submenu changes the base to its full ref, unless it is the current base or Branch carries another selection by then', async () => {
+		const sets: string[] = [];
+		const selection: ISessionChangesetBaseBranchSelection = {
+			getCandidates: async () => ({ refs: ['refs/remotes/origin/main', 'refs/remotes/origin/feature', 'refs/remotes/origin/release'], defaultRef: 'refs/remotes/origin/main' }),
+			setBaseBranch: async ref => { sets.push(ref); },
+		};
+		const selectionObs = observableValue<ISessionChangesetBaseBranchSelection | undefined>('picker.baseBranchSelection', selection);
+		const { picker, lists } = renderBaseBranchPicker(selectionObs);
+
+		picker.show();
+		await timeout(0);
+		const items = lists.at(-1)!;
+		await runBranchSubmenuAction(items, 'origin/release');
+		await runBranchSubmenuAction(items, 'origin/feature');
+		const picked = [...sets];
+		// Another session, whose Branch changeset has a selection of its own, becomes active.
+		selectionObs.set(upcastPartial<ISessionChangesetBaseBranchSelection>({ getCandidates: () => new DeferredPromise<ISessionChangesetBaseBranchCandidates>().p }), undefined);
+		await runBranchSubmenuAction(items, 'origin/main');
+
+		assert.deepStrictEqual({ picked, sets }, {
+			picked: ['refs/remotes/origin/release'],
+			sets: ['refs/remotes/origin/release'],
+		});
+	});
+
+	test('a pick from an open Branch submenu changes no base while the catalogue loads, or once the list shows another session', async () => {
+		const sets: string[] = [];
+		const selection: ISessionChangesetBaseBranchSelection = {
+			getCandidates: async () => ({ refs: ['refs/remotes/origin/main', 'refs/remotes/origin/feature', 'refs/remotes/origin/release'], defaultRef: 'refs/remotes/origin/main' }),
+			setBaseBranch: async ref => { sets.push(ref); },
+		};
+		const { picker, lists, loading, resource } = renderBaseBranchPicker(constObservable(selection));
+
+		picker.show();
+		await timeout(0);
+		const items = lists.at(-1)!;
+		// Another session is shown, and its catalogue loads while the previous one's changesets, and selection, are still listed.
+		loading.set(true, undefined);
+		await runBranchSubmenuAction(items, 'origin/release');
+		loading.set(false, undefined);
+		resource.set(URI.parse('test-session:/other'), undefined);
+		await runBranchSubmenuAction(items, 'origin/main');
+
+		assert.deepStrictEqual(sets, []);
+	});
+
+	test('the Branch row drops the branches that load for a selection it no longer carries, and loads those of the new one', async () => {
+		const candidates = new DeferredPromise<ISessionChangesetBaseBranchCandidates>();
+		const sets: string[] = [];
+		const selectionObs = observableValue<ISessionChangesetBaseBranchSelection | undefined>('picker.baseBranchSelection', {
+			getCandidates: () => candidates.p,
+			setBaseBranch: async ref => { sets.push(ref); },
+		});
+		const { picker, lists } = renderBaseBranchPicker(selectionObs);
+
+		picker.show();
+		// Another session, whose Branch changeset has a selection of its own, becomes active while the branches load.
+		selectionObs.set({
+			getCandidates: () => new DeferredPromise<ISessionChangesetBaseBranchCandidates>().p,
+			setBaseBranch: async ref => { sets.push(`other session: ${ref}`); },
+		}, undefined);
+		candidates.complete({ refs: ['refs/remotes/origin/main', 'refs/remotes/origin/feature'], defaultRef: 'refs/remotes/origin/main' });
+		await timeout(0);
+		await runBranchSubmenuAction(lists.at(-1)!, 'origin/main');
+
+		assert.deepStrictEqual({ lists: lists.map(listSubmenus), sets }, {
+			lists: [{ Branch: ['Loading branches… (disabled)'] }, { Branch: ['Loading branches… (disabled)'] }],
+			sets: [],
+		});
+	});
+
+	test('the Branch submenu lists a local branch beside its remote twin and a base that is no candidate by their labels, and records the full ref picked', async () => {
+		const sets: string[] = [];
+		const selection: ISessionChangesetBaseBranchSelection = {
+			getCandidates: async () => ({ refs: ['refs/remotes/origin/main', 'refs/heads/main'], defaultRef: 'refs/remotes/origin/main' }),
+			setBaseBranch: async ref => { sets.push(ref); },
+		};
+		const { picker, lists } = renderBaseBranchPicker(constObservable(selection));
+
+		picker.show();
+		await timeout(0);
+		await runBranchSubmenuAction(lists.at(-1)!, 'main');
+
+		assert.deepStrictEqual({ submenus: listSubmenus(lists.at(-1)!), sets }, {
+			submenus: { Branch: ['[Current Base]', 'origin/feature ✓', '[Default Branch]', 'origin/main', '[Branches]', 'main'] },
+			sets: ['refs/heads/main'],
+		});
+	});
+
+	test('the Branch row drops its submenu and the error is reported when its branches fail to load', async () => {
+		const selection: ISessionChangesetBaseBranchSelection = {
+			getCandidates: async () => { throw new Error('Git failed'); },
+			setBaseBranch: async () => { },
+		};
+		const { picker, lists, errors } = renderBaseBranchPicker(constObservable(selection));
+
+		picker.show();
+		await timeout(0);
+
+		assert.deepStrictEqual({ lists: lists.map(listSubmenus), errors }, {
+			lists: [{ Branch: ['Loading branches… (disabled)'] }, {}],
+			errors: ['Git failed'],
+		});
+	});
+
+	test('an open list of changesets loads the Branch changeset while another is selected, and gives the Branch row its submenu once its base can change', async () => {
+		const candidates = new DeferredPromise<ISessionChangesetBaseBranchCandidates>();
+		const selection: ISessionChangesetBaseBranchSelection = {
+			getCandidates: () => candidates.p,
+			setBaseBranch: async () => { },
+		};
+		const selectionObs = observableValue<ISessionChangesetBaseBranchSelection | undefined>('picker.baseBranchSelection', undefined);
+		const { picker, lists, selected, session } = renderBaseBranchPicker(selectionObs);
+		selected.set(session, undefined);
+
+		picker.show();
+		// The Branch changeset's state, which no one else loads, arrives while the list is open.
+		selectionObs.set(selection, undefined);
+		candidates.complete({ refs: ['refs/remotes/origin/main', 'refs/remotes/origin/feature'], defaultRef: 'refs/remotes/origin/main' });
+		await timeout(0);
+
+		assert.deepStrictEqual(lists.map(listSubmenus), [
+			{},
+			{ Branch: ['Loading branches… (disabled)'] },
+			{ Branch: ['[Current Base]', 'origin/feature ✓', '[Default Branch]', 'origin/main'] },
+		]);
+	});
+
+	test('closing the list of changesets stops loading the branches of the Branch submenu', async () => {
+		const candidates = new DeferredPromise<ISessionChangesetBaseBranchCandidates>();
+		let token: CancellationToken | undefined;
+		const selection: ISessionChangesetBaseBranchSelection = {
+			getCandidates: requestToken => {
+				token = requestToken;
+				return candidates.p;
+			},
+			setBaseBranch: async () => { },
+		};
+		const { picker, lists } = renderBaseBranchPicker(constObservable(selection));
+
+		picker.show();
+		const cancelledWhileOpen = token?.isCancellationRequested;
+		picker.hide();
+		candidates.complete({ refs: ['refs/remotes/origin/main'], defaultRef: 'refs/remotes/origin/main' });
+		await timeout(0);
+
+		assert.deepStrictEqual({ cancelledWhileOpen, cancelled: token?.isCancellationRequested, lists: lists.map(listSubmenus) }, {
+			cancelledWhileOpen: false,
+			cancelled: true,
+			lists: [{ Branch: ['Loading branches… (disabled)'] }],
 		});
 	});
 
@@ -544,6 +862,7 @@ suite('Changes View Actions', () => {
 			override readonly activeSessionChangesetsObs = constObservable([changeset]);
 			override readonly activeSessionChangesetsLoadingObs = constObservable(false);
 			override readonly activeSessionChangesetObs = constObservable(changeset);
+			override readonly activeSessionBaseBranchRefObs = constObservable(undefined);
 			override readonly activeSessionChangesSummaryObs = summary;
 			override readonly activeSessionResourceObs = constObservable(URI.parse('test-session:/session'));
 		}();
@@ -554,7 +873,7 @@ suite('Changes View Actions', () => {
 		instantiationService.stub(IChangesViewService, changesViewService);
 		const pickerSummary = disposables.add(instantiationService.createInstance(ChangesPickerSummary, changesViewService.activeSessionChangesSummaryObs));
 		const container = document.createElement('div');
-		disposables.add(new ChangesPickerActionItem(action, pickerSummary, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }(), new NoChangesEditorScope())).render(container);
+		disposables.add(new ChangesPickerActionItem(action, pickerSummary, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }(), new NoChangesEditorScope(), new TestNotificationService())).render(container);
 
 		const summaryElement = container.querySelector<HTMLElement>('.changes-picker-summary');
 		const snapshot = () => ({
@@ -622,7 +941,7 @@ suite('Changes View Actions', () => {
 			}
 			override hide(): void { }
 		}();
-		const picker = disposables.add(new ChangesPickerActionItem(action, pickerSummary, undefined, scope, actionWidgetService, new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { override publicLog2(): void { } }(), new NoChangesEditorScope()));
+		const picker = disposables.add(new ChangesPickerActionItem(action, pickerSummary, undefined, scope, actionWidgetService, new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { override publicLog2(): void { } }(), new NoChangesEditorScope(), new TestNotificationService()));
 		picker.render(container);
 		picker.show();
 		await items[0].run();
@@ -652,6 +971,7 @@ suite('Changes View Actions', () => {
 			override readonly activeSessionChangesetsObs = constObservable([changeset]);
 			override readonly activeSessionChangesetsLoadingObs = constObservable(false);
 			override readonly activeSessionChangesetObs = constObservable(changeset);
+			override readonly activeSessionBaseBranchRefObs = constObservable(undefined);
 			override readonly activeSessionChangesSummaryObs = constObservable<ISessionChangesSummary | undefined>({ files: 2, additions: 5, deletions: 1 });
 			override readonly activeSessionResourceObs = constObservable(URI.parse('test-session:/session'));
 		}();
@@ -663,7 +983,7 @@ suite('Changes View Actions', () => {
 		const pickerSummary = disposables.add(instantiationService.createInstance(ChangesPickerSummary, changesViewService.activeSessionChangesSummaryObs));
 		const renderPicker = () => {
 			const container = document.createElement('div');
-			const picker = new ChangesPickerActionItem(action, pickerSummary, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }(), new NoChangesEditorScope());
+			const picker = new ChangesPickerActionItem(action, pickerSummary, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }(), new NoChangesEditorScope(), new TestNotificationService());
 			picker.render(container);
 			return { picker, summary: container.querySelector<HTMLElement>('.changes-picker-summary') };
 		};
@@ -713,16 +1033,12 @@ suite('Changes View Actions', () => {
 		});
 	});
 
-	test('Changes editor header shows Run Code Review and the More Actions menu of its diff actions, no Toggle Files where its host enables the list, and its tab row none of them', () => {
+	test('Changes editor header shows Run Code Review and the More Actions menu of its diff actions, no files view or Toggle Files where its host enables the list, and its tab row none of them', () => {
 		const menuService = disposables.add(new MenuService(NullCommandService, new MockKeybindingService(), disposables.add(new TestStorageService())));
 		const getLabels = (menuId: MenuId, contextKeyService: ContextKeyService) => menuService.getMenuActions(menuId, contextKeyService)
 			.map(([group, actions]) => [group, actions.map(action => action.label)] as const);
-		let withFileListContext: ContextKeyService | undefined;
 		const render = (fileListAvailable: boolean) => {
 			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
-			if (fileListAvailable) {
-				withFileListContext = contextKeyService;
-			}
 			for (const [key, value] of Object.entries({
 				[IsSessionsWindowContext.key]: true,
 				[ActiveEditorContext.key]: SessionChangesEditor.ID,
@@ -752,14 +1068,12 @@ suite('Changes View Actions', () => {
 				tabRow: getLabels(Menus.SessionsEditorTitle, contextKeyService),
 			};
 		};
-		const diffActions = ['secondary/1_diff', ['Collapse All Diffs', 'Word Wrap', 'Diff View']] as const;
-		// With its own files list, such as in a chat window: how the list shows and where, not the side pane's Files View
-		const withFileList = render(true);
-		const filesViewAndPosition = getLabels(Menus.ChangesFilesViewAndPosition, withFileListContext!);
-		assert.deepStrictEqual({ withFileList, filesViewAndPosition, withoutFileList: render(false) }, {
-			withFileList: { headerRow: ['Run Code Review', 'More Actions'], moreActions: [diffActions, ['secondary/2_viewMode', ['Files View & Position']]], tabRow: [['3_workbench_layout_move', ['Details Position']]] },
-			filesViewAndPosition: [['1_view', ['View as List', 'View as Tree']], ['2_position', ['On the Left', 'On the Right']]],
-			withoutFileList: { headerRow: ['Run Code Review', 'More Actions'], moreActions: [diffActions, ['secondary/z_filesView', ['Files View']]], tabRow: [['3_workbench_layout_move', ['Details Position']]] },
+		const diffActions = ['secondary/1_diff', ['Collapse All Diffs', 'Word Wrap', 'Resize All Diffs Together', 'Diff View']] as const;
+		// The dropdown of Toggle Details offers how the side pane shows its files; where the editor shows its own files
+		// list, such as in a chat window, the list follows the view mode and position of the multi diff editors.
+		assert.deepStrictEqual({ withFileList: render(true), withoutFileList: render(false) }, {
+			withFileList: { headerRow: ['Run Code Review', 'More Actions'], moreActions: [diffActions], tabRow: [] },
+			withoutFileList: { headerRow: ['Run Code Review', 'More Actions'], moreActions: [diffActions], tabRow: [] },
 		});
 	});
 
@@ -900,10 +1214,37 @@ suite('Changes View Actions', () => {
 			chatWindow: main,
 			mainShowsRunCodeReview: true,
 			ownActionsInTheHeaderRow: {
-				expanded: ['secondary/1_diff:workbench.action.agentSessions.collapseAllDiffs', 'secondary/1_diff:workbench.action.agentSessions.toggleDiffEditorWordWrap', 'secondary/1_diff:Diff View'],
-				allCollapsed: ['secondary/1_diff:workbench.action.agentSessions.expandAllDiffs', 'secondary/1_diff:workbench.action.agentSessions.toggleDiffEditorWordWrap', 'secondary/1_diff:Diff View'],
+				expanded: ['secondary/1_diff:workbench.action.agentSessions.collapseAllDiffs', 'secondary/1_diff:workbench.action.agentSessions.toggleDiffEditorWordWrap', 'secondary/1_diff:multiDiffEditor.toggleSyncSplitView', 'secondary/1_diff:Diff View'],
+				allCollapsed: ['secondary/1_diff:workbench.action.agentSessions.expandAllDiffs', 'secondary/1_diff:workbench.action.agentSessions.toggleDiffEditorWordWrap', 'secondary/1_diff:multiDiffEditor.toggleSyncSplitView', 'secondary/1_diff:Diff View'],
 			},
 			hiddenShowsNoOwnActions: true,
+		});
+	});
+
+	test('Resize All Diffs Together shows below Word Wrap in the Changes editor, except while its diffs are inline', () => {
+		const shownIn = (viewMode: string) => {
+			const context = new Context(1, null);
+			for (const [key, value] of Object.entries({
+				[IsSessionsWindowContext.key]: true,
+				[ActiveEditorContext.key]: SessionChangesEditor.ID,
+				[DesktopLayoutContext.key]: true,
+				[IsTopRightEditorGroupContext.key]: true,
+				[MainEditorAreaVisibleContext.key]: true,
+				[SessionsDiffViewModeContext.key]: viewMode,
+			})) {
+				context.setValue(key, value);
+			}
+			return MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
+				.filter(isIMenuItem)
+				.filter(item => item.group === 'secondary/1_diff' && (item.when?.evaluate(context) ?? true))
+				.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+				.map(item => item.command.id);
+		};
+		const sideBySide = ['workbench.action.agentSessions.collapseAllDiffs', 'workbench.action.agentSessions.toggleDiffEditorWordWrap', 'multiDiffEditor.toggleSyncSplitView'];
+		assert.deepStrictEqual({ automatic: shownIn('automatic'), sideBySide: shownIn('sideBySide'), inline: shownIn('inline') }, {
+			automatic: sideBySide,
+			sideBySide,
+			inline: ['workbench.action.agentSessions.collapseAllDiffs', 'workbench.action.agentSessions.toggleDiffEditorWordWrap'],
 		});
 	});
 
@@ -1113,47 +1454,45 @@ suite('Changes View Actions', () => {
 		assert.strictEqual(getChangesAccessibilityHelp().includes('The floating Files widget remains available alongside Markdown Editor and Markdown previews.'), true);
 	});
 
-	test('Changes accessibility help describes Files View and its selection state', () => {
+	test('Changes accessibility help describes where to switch the view mode and its selection state', () => {
 		const content = getChangesAccessibilityHelp();
 		assert.deepStrictEqual({
-			hasMenuLocation: content.includes('Use Files View in the More Actions menu of the Changes editor\'s header row or of the editor title area'),
-			hasSelectionState: content.includes('Files View shows both options and marks the active one as selected'),
+			hasMenuLocation: content.includes('Use the dropdown beside Toggle Details in the editor toolbar of the Changes editor, Files View in the More Actions menu of the editor title area'),
+			hasSelectionState: content.includes('These menus show both options and mark the active one as selected'),
 		}, {
 			hasMenuLocation: true,
 			hasSelectionState: true,
 		});
 	});
 
-	test('Changes accessibility help describes the header actions and the final Files View group', () => {
+	test('Changes accessibility help describes the header actions', () => {
 		const content = getChangesAccessibilityHelp();
 		assert.deepStrictEqual({
 			hasToolbarLocation: content.includes('Run Code Review and the diff actions of the Changes editor are on the right of its header row'),
-			hasFilesViewGroup: content.includes('Files View submenu in the final group'),
+			hasFilesViewGroup: content.includes('Files View submenu'),
 		}, {
 			hasToolbarLocation: true,
-			hasFilesViewGroup: true,
+			hasFilesViewGroup: false,
 		});
 	});
 
-	test('Files View is in its own final group of the More Actions menus of the Changes editor header and of the tab row', () => {
+	test('Files View is in its own final group of the More Actions menu of the tab row, and not in the Changes editor header', () => {
 		const getGroups = (menuId: MenuId) => [...new Set(MenuRegistry.getMenuItems(menuId).flatMap(item => item.group ? [item.group] : []))].sort();
 		const getGroupItems = (menuId: MenuId, group: string) => MenuRegistry.getMenuItems(menuId)
 			.filter(item => item.group === group)
 			.map(item => isIMenuItem(item) ? item.command.id : item.submenu.id);
 		assert.deepStrictEqual({
-			lastHeaderGroup: getGroups(Menus.SessionsEditorHeaderSecondary).at(-1),
-			headerFilesViewGroupItems: getGroupItems(Menus.SessionsEditorHeaderSecondary, 'secondary/z_filesView'),
+			inHeader: MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary).filter(isISubmenuItem).some(item => item.submenu === Menus.ChangesFilesView),
 			lastOverflowGroup: getGroups(Menus.SessionsEditorTitle).filter(group => group !== 'navigation').at(-1),
 			filesViewGroupItems: getGroupItems(Menus.SessionsEditorTitle, 'z_filesView'),
 		}, {
-			lastHeaderGroup: 'secondary/z_filesView',
-			headerFilesViewGroupItems: [Menus.ChangesFilesView.id],
+			inHeader: false,
 			lastOverflowGroup: 'z_filesView',
 			filesViewGroupItems: [Menus.ChangesFilesView.id],
 		});
 	});
 
-	test('Files View submenu of the editor title overflow shows for single-file diffs, and for the Changes editor in its header', () => {
+	test('Files View submenu of the editor title overflow shows for single-file diffs, and the Changes editor offers the view modes in the dropdown of Toggle Details', () => {
 		const submenu = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
 			.filter(isISubmenuItem)
 			.find(item => item.submenu === Menus.ChangesFilesView);
@@ -1194,10 +1533,17 @@ suite('Changes View Actions', () => {
 			visibleWithoutChangesPane: isVisible({ [AuxiliaryBarVisibleContext.key]: false }),
 			headerLayoutItems: getDirectViewModeItems(Menus.SessionsEditorHeaderLayout),
 			editorTitleItems: getDirectViewModeItems(Menus.SessionsEditorTitle),
-			visibleInChangesEditorHeader: MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
-				.filter(isISubmenuItem)
-				.find(item => item.submenu === Menus.ChangesFilesView)
-				?.when?.evaluate(contextWith({ [IsSessionsWindowContext.key]: true, [ActiveEditorContext.key]: SessionChangesEditor.ID, [DesktopLayoutContext.key]: true, [IsAuxiliaryWindowContext.key]: false, [IsTopRightEditorGroupContext.key]: true, [AuxiliaryBarVisibleContext.key]: true })),
+			// Above the details positions in their `2_organize` group.
+			toggleDetailsItems: MenuRegistry.getMenuItems(Menus.DetailsToggle)
+				.filter(isIMenuItem)
+				.filter(item => item.command.id === 'workbench.action.agentSessions.setChangesListViewMode' || item.command.id === 'workbench.action.agentSessions.setChangesTreeViewMode')
+				.map(item => ({
+					id: item.command.id,
+					group: item.group,
+					order: item.order,
+					forChangesEditor: item.when?.evaluate(contextWith({ [ActiveEditorContext.key]: SessionChangesEditor.ID })) ?? true,
+					forTextEditor: item.when?.evaluate(contextWith({ [ActiveEditorContext.key]: TEXT_FILE_EDITOR_ID })) ?? true,
+				})),
 		}, {
 			title: 'Files View',
 			group: 'z_filesView',
@@ -1214,7 +1560,10 @@ suite('Changes View Actions', () => {
 			visibleWithoutChangesPane: false,
 			headerLayoutItems: [],
 			editorTitleItems: [],
-			visibleInChangesEditorHeader: true,
+			toggleDetailsItems: [
+				{ id: 'workbench.action.agentSessions.setChangesListViewMode', group: '1_viewMode', order: 1, forChangesEditor: true, forTextEditor: false },
+				{ id: 'workbench.action.agentSessions.setChangesTreeViewMode', group: '1_viewMode', order: 2, forChangesEditor: true, forTextEditor: false },
+			],
 		});
 	});
 
@@ -1261,30 +1610,36 @@ suite('Changes View Actions', () => {
 		}]);
 	});
 
-	test('Files View & Position is in the editor title overflow for multi diff editors with a file list', () => {
+	test('Files View & Position is in the editor title overflow for multi diff editors with a file list in a chat window', () => {
 		const items = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
 			.filter(isISubmenuItem)
 			.filter(item => item.submenu.id === MultiDiffEditorFilesViewAndPositionMenu.id);
-		const matches = (activeEditor: string, fileListAvailable: boolean) => {
+		const matches = (activeEditor: string, fileListAvailable: boolean, chatWindow = true, detailsFloating = false) => {
 			const context = new Context(1, null);
 			context.setValue(IsSessionsWindowContext.key, true);
 			context.setValue(DesktopLayoutContext.key, true);
-			context.setValue(IsAuxiliaryWindowContext.key, false);
+			context.setValue(IsAuxiliaryWindowContext.key, chatWindow);
 			context.setValue(IsTopRightEditorGroupContext.key, true);
 			context.setValue(MainEditorAreaVisibleContext.key, true);
 			context.setValue(ActiveEditorContext.key, activeEditor);
 			context.setValue(MultiDiffEditorFileListAvailableContext.key, fileListAvailable);
+			context.setValue(`config.${SESSIONS_FLOATING_DETAILS_SETTING}`, detailsFloating);
 			return items.map(item => item.when?.evaluate(context) ?? true);
 		};
 
+		// The main window offers them in the dropdown of Toggle Details, also while the details float.
 		assert.deepStrictEqual({
 			items: items.map(item => ({ title: typeof item.title === 'string' ? item.title : item.title.value, group: item.group, order: item.order })),
 			multiDiffEditorWithFileList: matches(MultiDiffEditor.ID, true),
+			multiDiffEditorWithFileListInMainWindow: matches(MultiDiffEditor.ID, true, false),
+			multiDiffEditorWithFileListInMainWindowWhileFloating: matches(MultiDiffEditor.ID, true, false, true),
 			multiDiffEditorWithoutFileList: matches(MultiDiffEditor.ID, false),
 			changesEditor: matches(SessionChangesEditor.ID, true),
 		}, {
 			items: [{ title: 'Files View & Position', group: '2_viewMode', order: 10 }],
 			multiDiffEditorWithFileList: [true],
+			multiDiffEditorWithFileListInMainWindow: [false],
+			multiDiffEditorWithFileListInMainWindowWhileFloating: [false],
 			multiDiffEditorWithoutFileList: [false],
 			changesEditor: [false],
 		});

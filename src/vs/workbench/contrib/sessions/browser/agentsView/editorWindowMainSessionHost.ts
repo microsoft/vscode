@@ -23,6 +23,8 @@ export const IEditorWindowShownChatService = createDecorator<IEditorWindowShownC
 export interface IEditorWindowShownChatBindOptions {
 	/** Whether it shows its chat in place of those bound without it, such as the chat of the Chat view while chats open there. */
 	readonly override?: boolean;
+	/** Among bindings of the same kind, the higher one wins over those bound later; 0 by default. */
+	readonly priority?: number;
 }
 
 /**
@@ -43,15 +45,16 @@ export class EditorWindowShownChatService implements IEditorWindowShownChatServi
 	declare readonly _serviceBrand: undefined;
 
 	/** One per call of {@link bind}, in the order bound. */
-	private readonly _bindings = observableValue<readonly { readonly shown: IObservable<IEditorWindowShownChat | undefined>; readonly override: boolean }[]>(this, []);
+	private readonly _bindings = observableValue<readonly { readonly shown: IObservable<IEditorWindowShownChat | undefined>; readonly override: boolean; readonly priority: number }[]>(this, []);
 
 	readonly shown: IObservable<IEditorWindowShownChat | undefined> = derived(this, reader => {
 		const bindings = this._bindings.read(reader);
-		return (bindings.findLast(binding => binding.override) ?? bindings.at(-1))?.shown.read(reader);
+		const winner = bindings.reduce<typeof bindings[number] | undefined>((best, binding) => !best || Number(binding.override) > Number(best.override) || (binding.override === best.override && binding.priority >= best.priority) ? binding : best, undefined);
+		return winner?.shown.read(reader);
 	});
 
 	bind(shown: IObservable<IEditorWindowShownChat | undefined>, options?: IEditorWindowShownChatBindOptions): IDisposable {
-		const binding = { shown, override: !!options?.override };
+		const binding = { shown, override: !!options?.override, priority: options?.priority ?? 0 };
 		this._bindings.set([...this._bindings.get(), binding], undefined);
 		return toDisposable(() => this._bindings.set(this._bindings.get().filter(candidate => candidate !== binding), undefined));
 	}

@@ -30,6 +30,9 @@ export interface INewSessionPresentationController extends IDisposable {
 }
 
 export interface INewSessionPresentation {
+	readonly searchWorkspaceTargetDirectly?: boolean;
+	/** Place notices and the separate provider, repository and status controls row above the prompt. */
+	readonly separateSessionControls?: boolean;
 	getAccessibilityHelp(screenReaderOptimized: boolean, agentPickerInAttachContextMenu: boolean): readonly string[];
 	create(isNewChatInSession: boolean, instantiationService: IInstantiationService): INewSessionPresentationController;
 }

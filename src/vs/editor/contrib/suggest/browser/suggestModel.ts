@@ -135,6 +135,7 @@ export class SuggestModel implements IDisposable {
 
 	private readonly _toDispose = new DisposableStore();
 	private readonly _triggerCharacterListener = new DisposableStore();
+	private readonly _supportsByTriggerCharacter = new Map<string, Set<CompletionItemProvider>>();
 	private readonly _triggerQuickSuggest = new TimeoutTimer();
 	private _waitForInlineCompletions: DisposableStore | undefined;
 
@@ -142,6 +143,22 @@ export class SuggestModel implements IDisposable {
 	private _requestToken?: CancellationTokenSource;
 	private _context?: LineContext;
 	private _currentSelection: Selection;
+
+	/**
+	 * Where automatic suggestions that showed last closed because nothing matched what was typed
+	 * anymore: the line, and the line content before that text. With `editor.suggest.reopenOnDelete`,
+	 * Backspace requests them again while the cursor stays in that text.
+	 */
+	private _closedWithoutMatch: { readonly lineNumber: number; readonly prefix: string } | undefined;
+
+	/**
+	 * The providers that the current suggestions were requested from, `undefined` for all of them,
+	 * and whether they showed any items. Only a new request resets them, not requesting the
+	 * suggestions again (`retrigger`), so that Backspace can request closed suggestions again.
+	 * Typing another trigger character while suggestions show adds its providers.
+	 */
+	private _requestedProviders: Set<CompletionItemProvider> | undefined;
+	private _showedItems = false;
 
 	private _completionModel: CompletionModel | undefined;
 	private readonly _completionDisposables = new DisposableStore();
@@ -202,7 +219,7 @@ export class SuggestModel implements IDisposable {
 			// allow-any-unicode-next-line
 			// e.g. ¨ + u makes ü but just ¨ cannot be used for filtering
 			if (!editorIsComposing && this._triggerState !== undefined) {
-				this._refilterCompletionItems();
+				this._refilterCompletionItems(true);
 			}
 		}));
 
@@ -220,6 +237,7 @@ export class SuggestModel implements IDisposable {
 
 	private _updateTriggerCharacters(): void {
 		this._triggerCharacterListener.clear();
+		this._supportsByTriggerCharacter.clear();
 
 		if (this._editor.getOption(EditorOption.readOnly)
 			|| !this._editor.hasModel()
@@ -228,17 +246,16 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
-		const supportsByTriggerCharacter = new Map<string, Set<CompletionItemProvider>>();
 		for (const support of this._languageFeaturesService.completionProvider.all(this._editor.getModel())) {
 			for (const ch of support.triggerCharacters || []) {
-				let set = supportsByTriggerCharacter.get(ch);
+				let set = this._supportsByTriggerCharacter.get(ch);
 				if (!set) {
 					set = new Set();
 					const suggestSupport = getSnippetSuggestSupport();
 					if (suggestSupport) {
 						set.add(suggestSupport);
 					}
-					supportsByTriggerCharacter.set(ch, set);
+					this._supportsByTriggerCharacter.set(ch, set);
 				}
 				set.add(support);
 			}
@@ -263,42 +280,54 @@ export class SuggestModel implements IDisposable {
 				text = model.getLineContent(position.lineNumber).substr(0, position.column - 1);
 			}
 
-			let lastChar = '';
-			if (isLowSurrogate(text.charCodeAt(text.length - 1))) {
-				if (isHighSurrogate(text.charCodeAt(text.length - 2))) {
-					lastChar = text.substr(text.length - 2);
-				}
-			} else {
-				lastChar = text.charAt(text.length - 1);
-			}
-
-			const supports = supportsByTriggerCharacter.get(lastChar);
-			if (supports) {
-
-				// keep existing items that where not computed by the
-				// supports/providers that want to trigger now
-				const providerItemsToReuse = new Map<CompletionItemProvider, CompletionItem[]>();
-				if (this._completionModel) {
-					for (const [provider, items] of this._completionModel.getItemsByProvider()) {
-						if (!supports.has(provider)) {
-							providerItemsToReuse.set(provider, items);
-						}
-					}
-				}
-
-				this.trigger({
-					auto: true,
-					triggerKind: CompletionTriggerKind.TriggerCharacter,
-					triggerCharacter: lastChar,
-					retrigger: Boolean(this._completionModel),
-					clipboardText: this._completionModel?.clipboardText,
-					completionOptions: { providerFilter: supports, providerItemsToReuse }
-				});
-			}
+			this._triggerOnLastCharacter(text);
 		};
 
 		this._triggerCharacterListener.add(this._editor.onDidType(checkTriggerCharacter));
 		this._triggerCharacterListener.add(this._editor.onDidCompositionEnd(() => checkTriggerCharacter()));
+	}
+
+	/**
+	 * Triggers the providers of the last character of the given text, as typing that character
+	 * does. Returns `false` when it isn't a trigger character.
+	 */
+	private _triggerOnLastCharacter(text: string): boolean {
+		let lastChar = '';
+		if (isLowSurrogate(text.charCodeAt(text.length - 1))) {
+			if (isHighSurrogate(text.charCodeAt(text.length - 2))) {
+				lastChar = text.substr(text.length - 2);
+			}
+		} else {
+			lastChar = text.charAt(text.length - 1);
+		}
+
+		const supports = this._supportsByTriggerCharacter.get(lastChar);
+		if (supports) {
+
+			// keep existing items that where not computed by the
+			// supports/providers that want to trigger now
+			const providerItemsToReuse = new Map<CompletionItemProvider, CompletionItem[]>();
+			if (this._completionModel) {
+				for (const [provider, items] of this._completionModel.getItemsByProvider()) {
+					if (!supports.has(provider)) {
+						providerItemsToReuse.set(provider, items);
+					}
+				}
+				if (this._requestedProviders) {
+					this._requestedProviders = new Set([...this._requestedProviders, ...supports]);
+				}
+			}
+
+			this.trigger({
+				auto: true,
+				triggerKind: CompletionTriggerKind.TriggerCharacter,
+				triggerCharacter: lastChar,
+				retrigger: Boolean(this._completionModel),
+				clipboardText: this._completionModel?.clipboardText,
+				completionOptions: { providerFilter: supports, providerItemsToReuse }
+			});
+		}
+		return Boolean(supports);
 	}
 
 	// --- trigger/retrigger/cancel suggest
@@ -317,6 +346,7 @@ export class SuggestModel implements IDisposable {
 		this._triggerQuickSuggest.cancel();
 		this._waitForInlineCompletions?.dispose();
 		this._waitForInlineCompletions = undefined;
+		this._closedWithoutMatch = undefined;
 
 		if (this._triggerState !== undefined) {
 			this._requestToken?.cancel();
@@ -366,12 +396,19 @@ export class SuggestModel implements IDisposable {
 			if (prevSelection.containsRange(this._currentSelection) || prevSelection.getEndPosition().isBeforeOrEqual(this._currentSelection.getPosition())) {
 				// cursor did move RIGHT due to typing -> trigger quick suggest
 				this._doTriggerQuickSuggest();
+			} else if (e.source === 'deleteLeft') {
+				// cursor did move LEFT due to Backspace -> bring back suggestions that closed because nothing matched
+				this._reopenAfterDelete();
 			}
 
 		} else if (this._triggerState !== undefined && e.reason === CursorChangeReason.Explicit) {
 			// suggest is active and something like cursor keys are used to move
 			// the cursor. this means we can refilter at the new position
 			this._refilterCompletionItems();
+
+		} else if (e.reason === CursorChangeReason.Explicit) {
+			// suggest is inactive and the cursor moved away from where it closed
+			this._closedWithoutMatch = undefined;
 		}
 	}
 
@@ -382,6 +419,42 @@ export class SuggestModel implements IDisposable {
 		} else {
 			this._refilterCompletionItems();
 		}
+	}
+
+	/**
+	 * Brings back automatic suggestions that closed because nothing matched what was typed anymore,
+	 * when Backspace keeps the cursor in that text. It requests them again from the providers that
+	 * they were requested from.
+	 */
+	private _reopenAfterDelete(): void {
+		const closed = this._closedWithoutMatch;
+		this._closedWithoutMatch = undefined;
+		if (!closed || !this._editor.hasModel() || !this._editor.getOption(EditorOption.suggest).reopenOnDelete) {
+			return;
+		}
+
+		const ctx = new LineContext(this._editor.getModel(), this._editor.getPosition(), { auto: true });
+		const text = ctx.leadingLineContent.slice(closed.prefix.length);
+		if (ctx.lineNumber !== closed.lineNumber || !ctx.leadingLineContent.startsWith(closed.prefix) || !text || /\s/.test(text)) {
+			// deleted all of that text, or typed past it
+			return;
+		}
+
+		if (!ctx.leadingWord.word) {
+			this._reopenOnTriggerCharacter(ctx);
+		} else if (canShowQuickSuggest(this._editor, this._contextKeyService, this._configurationService)) {
+			this.trigger({ auto: true, retrigger: true, completionOptions: { providerFilter: this._requestedProviders } });
+		}
+	}
+
+	/**
+	 * With `editor.suggest.reopenOnDelete`, triggers the providers of the trigger character
+	 * before the cursor, as typing it does. Returns `false` when it doesn't.
+	 */
+	private _reopenOnTriggerCharacter(ctx: LineContext): boolean {
+		return this._editor.getOption(EditorOption.suggest).reopenOnDelete
+			&& canShowSuggestOnTriggerCharacters(this._editor, this._contextKeyService, this._configurationService)
+			&& this._triggerOnLastCharacter(ctx.leadingLineContent);
 	}
 
 	private _doTriggerQuickSuggest(): void {
@@ -522,14 +595,14 @@ export class SuggestModel implements IDisposable {
 		});
 	}
 
-	private _refilterCompletionItems(): void {
+	private _refilterCompletionItems(contentChanged = false): void {
 		assertType(this._editor.hasModel());
 		assertType(this._triggerState !== undefined);
 
 		const model = this._editor.getModel();
 		const position = this._editor.getPosition();
 		const ctx = new LineContext(model, position, { ...this._triggerState, refilter: true });
-		this._onNewContext(ctx);
+		this._onNewContext(ctx, contentChanged);
 	}
 
 	trigger(options: SuggestTriggerOptions): void {
@@ -542,6 +615,10 @@ export class SuggestModel implements IDisposable {
 
 		// Cancel previous requests, change state & update UI
 		this.cancel(options.retrigger);
+		if (!options.retrigger) {
+			this._requestedProviders = options.completionOptions?.providerFilter;
+			this._showedItems = false;
+		}
 		this._triggerState = options;
 		this._onDidTrigger.fire({ auto: options.auto, shy: options.shy ?? false, position: this._editor.getPosition() });
 
@@ -716,7 +793,7 @@ export class SuggestModel implements IDisposable {
 		return { itemKind: result, showDeprecated: suggestOptions.showDeprecated };
 	}
 
-	private _onNewContext(ctx: LineContext): void {
+	private _onNewContext(ctx: LineContext, contentChanged = false): void {
 
 		if (!this._context) {
 			// happens when 24x7 IntelliSense is enabled and still in its delay
@@ -737,10 +814,11 @@ export class SuggestModel implements IDisposable {
 		}
 
 		if (ctx.column < this._context.column) {
-			// typed -> moved cursor LEFT -> retrigger if still on a word
+			// typed -> moved cursor LEFT -> retrigger if still on a word,
+			// or if deleted back to a trigger character, as typing it does
 			if (ctx.leadingWord.word) {
 				this.trigger({ auto: this._context.triggerOptions.auto, retrigger: true });
-			} else {
+			} else if (!contentChanged || !this._reopenOnTriggerCharacter(ctx)) {
 				this.cancel();
 			}
 			return;
@@ -830,10 +908,17 @@ export class SuggestModel implements IDisposable {
 				} else {
 					// nothing left
 					this.cancel();
+					if (this._showedItems && this._editor.getOption(EditorOption.suggest).reopenOnDelete) {
+						// remember the text that nothing matched anymore, and whitespace typed after it, for Backspace
+						this._closedWithoutMatch = { lineNumber: ctx.lineNumber, prefix: ctx.leadingLineContent.slice(0, ctx.leadingLineContent.search(/\S*\s*$/)) };
+					}
 					return;
 				}
 			}
 
+			if (this._completionModel.items.length > 0) {
+				this._showedItems = true;
+			}
 			this._onDidSuggest.fire({
 				completionModel: this._completionModel,
 				triggerOptions: ctx.triggerOptions,

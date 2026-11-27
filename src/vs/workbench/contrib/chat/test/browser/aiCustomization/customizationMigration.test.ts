@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { ResourceMap } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -95,6 +96,7 @@ suite('customizationMigration', () => {
 				[CustomizationMigrationCategoryId.PromptFiles, [PromptsType.prompt]],
 				[CustomizationMigrationCategoryId.UserData, [PromptsType.agent, PromptsType.instructions]],
 				[CustomizationMigrationCategoryId.ConfiguredLocations, [PromptsType.agent, PromptsType.instructions, PromptsType.skill]],
+				[CustomizationMigrationCategoryId.Hooks, [PromptsType.hook]],
 				[CustomizationMigrationCategoryId.McpServers, []],
 				[CustomizationMigrationCategoryId.PluginMarketplaces, []],
 			],
@@ -110,6 +112,7 @@ suite('customizationMigration', () => {
 			{ id: CustomizationMigrationCategoryId.PromptFiles, single: 'Converting 1 prompt file to a skill...', multiple: 'Converting 4 prompt files to skills...' },
 			{ id: CustomizationMigrationCategoryId.UserData, single: 'Migrating 1 user data customization...', multiple: 'Migrating 4 user data customizations...' },
 			{ id: CustomizationMigrationCategoryId.ConfiguredLocations, single: 'Migrating 1 customization from a configured location...', multiple: 'Migrating 4 customizations from configured locations...' },
+			{ id: CustomizationMigrationCategoryId.Hooks, single: 'Migrating 1 hook file...', multiple: 'Migrating 4 hook files...' },
 			{ id: CustomizationMigrationCategoryId.McpServers, single: 'Migrating 1 MCP server...', multiple: 'Migrating 4 MCP servers...' },
 			{ id: CustomizationMigrationCategoryId.PluginMarketplaces, single: 'Migrating 1 plugin marketplace...', multiple: 'Migrating 4 plugin marketplaces...' },
 		]);
@@ -179,7 +182,7 @@ suite('customizationMigration', () => {
 		});
 	});
 
-	test('builds an agent prompt from discovered sources and harness-reported targets', () => {
+	test('builds an agent prompt from discovered sources, harness-reported targets and backed-up hook scripts', () => {
 		const prompt = createCustomizationMigrationAgentPrompt(
 			{ id: 'agent-host-copilotcli', label: 'Copilot' },
 			'migration-flow-id',
@@ -204,6 +207,14 @@ suite('customizationMigration', () => {
 					category: CustomizationMigrationType.ConfiguredLocations,
 					customization: { uri: URI.file('/workspace/custom/review.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions },
 				},
+				{
+					category: CustomizationMigrationType.Hooks,
+					customization: { uri: URI.file('/workspace/.github/hooks/guard.json'), storage: PromptsStorage.local, type: PromptsType.hook },
+				},
+				{
+					category: CustomizationMigrationType.Hooks,
+					customization: { uri: URI.file('/home/.copilot/hooks/audit.json'), storage: PromptsStorage.user, type: PromptsType.hook },
+				},
 			],
 			new Map([
 				[PromptsType.skill, [
@@ -211,6 +222,7 @@ suite('customizationMigration', () => {
 					{ uri: URI.file('/home/.copilot/skills'), label: 'User skills', source: 'user' },
 				]],
 			]),
+			new ResourceMap([[URI.file('/workspace/.github/hooks/guard.json'), [URI.file('/workspace/scripts/guard.sh')]]]),
 		);
 
 		assert.strictEqual(prompt.replace(/\\/g, '/'), [
@@ -223,6 +235,10 @@ suite('customizationMigration', () => {
 			'- promptFiles: prompt (workspace): file:///workspace/.github/prompts/review.prompt.md',
 			'- mcpServers: MCP server "Server" (user): file:///profile/mcp.json -> file:///home/.copilot/mcp-config.json',
 			'- configuredLocations: instructions (workspace): file:///workspace/custom/review.instructions.md',
+			'- hooks: hook (workspace): file:///workspace/.github/hooks/guard.json',
+			'  - Scripts backed up with it: file:///workspace/scripts/guard.sh',
+			'- hooks: hook (user): file:///home/.copilot/hooks/audit.json',
+			'  - Scripts backed up with it: none',
 			'',
 			'Valid target folders reported by the selected harness:',
 			'- skill (workspace, Workspace skills): file:///workspace/.github/skills',

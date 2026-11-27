@@ -31,11 +31,13 @@ import { parseMarkSequence, ShellIntegrationOscPs } from '../../../../../platfor
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IEditorConfiguration } from '../../../../browser/parts/editor/textEditor.js';
 import { EditorModel } from '../../../../common/editor/editorModel.js';
-import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from '../../../../common/theme.js';
+import { PANEL_BACKGROUND } from '../../../../common/theme.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { CALL_STACK_WIDGET_HEADER_HEIGHT } from '../../../debug/browser/callStackWidget.js';
 import { DetachedProcessInfo } from '../../../terminal/browser/detachedTerminal.js';
 import { IDetachedTerminalInstance, ITerminalService } from '../../../terminal/browser/terminal.js';
+import { getTerminalSideBarBackground } from '../../../terminal/browser/terminalInstance.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { getXtermScaledDimensions } from '../../../terminal/browser/xterm/xtermTerminal.js';
 import { TERMINAL_BACKGROUND_COLOR } from '../../../terminal/common/terminalColorRegistry.js';
 import { Testing } from '../../common/constants.js';
@@ -436,6 +438,8 @@ export class TerminalMessagePeek extends Disposable implements IPeekOutputRender
 		@ITerminalService private readonly terminalService: ITerminalService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IWorkspaceContextService private readonly workspaceContext: IWorkspaceContextService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 	}
@@ -481,7 +485,7 @@ export class TerminalMessagePeek extends Disposable implements IPeekOutputRender
 					const location = this.viewDescriptorService.getViewLocationById(Testing.ResultsViewId);
 					return location === ViewContainerLocation.Panel
 						? theme.getColor(PANEL_BACKGROUND)
-						: theme.getColor(SIDE_BAR_BACKGROUND);
+						: getTerminalSideBarBackground(theme, this.configurationService, this.environmentService);
 				},
 			}
 		});

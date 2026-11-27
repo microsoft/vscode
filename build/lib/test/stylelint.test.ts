@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import es from 'event-stream';
+import { Readable } from 'stream';
 import { suite, test } from 'node:test';
 import { stylelintFilter } from '../../filters.ts';
 import gulpstylelint, { resolveStylelintMatches, resolveStylelintSources } from '../../stylelint.ts';
@@ -94,7 +94,7 @@ function hasClassAttributeSubstringError(relative: string): Promise<boolean> {
 		stream.on('data', () => undefined);
 		stream.once('error', reject);
 		stream.once('end', () => resolve(errors.some(message => message.includes('Class attribute substring selectors'))));
-		es.readArray([{
+		Readable.from([{
 			relative,
 			contents: Buffer.from('.a[class*=x] {}'),
 		}]).pipe(stream);

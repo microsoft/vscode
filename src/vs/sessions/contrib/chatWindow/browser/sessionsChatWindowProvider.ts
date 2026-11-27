@@ -80,6 +80,7 @@ export const CHAT_WINDOW_MAIN_PART_GROUP_VIEW_OPTIONS: IEditorGroupViewOptions =
 		editorActions: Menus.SessionsEditorTitle,
 		tabsBarContext: AgentsWindowMenus.SessionsEditorTabsBarContext,
 		tabsBarAddTab: AgentsWindowMenus.SessionsEditorTabsBarAddTab,
+		tabsBarAddTabRecentFirst: false,
 	},
 	showHeader: true,
 	useModernUITabs: true,

@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { addDisposableListener } from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -12,6 +14,7 @@ import { disposableTimeout, raceCancellationError, timeout } from '../../../../.
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { localize } from '../../../../../nls.js';
 import { AgentHostTransportFailureReason, NonReconnectableTransportError, IProtocolTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
+import { StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { AgentHostProtocolClient, InitialAuthenticationError, RetryableAuthenticationError } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { sealAgentHostCredential } from '../../../../../platform/agentHost/browser/agentHostCredentialSealing.js';
 import type { AuthenticateParams } from '../../../../../platform/agentHost/common/agent.js';
@@ -377,6 +380,13 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 				},
 			);
 			protocolClient = client;
+			if (telemetry && staged.options.environmentKind === 'user-local') {
+				store.add(telemetry.observeSessionSubscriptions(() => new Map(client.getActiveSubscriptions()
+					.filter(subscription => subscription.kind === StateComponents.Session)
+					.map(subscription => [subscription.resource.toString(), subscription.status]))));
+				store.add(addDisposableListener(mainWindow, 'online', () => telemetry.recordNetworkChange(true)));
+				store.add(addDisposableListener(mainWindow, 'offline', () => telemetry.recordNetworkChange(false)));
+			}
 			store.add(client.onDidConnectionDiagnostic(diagnosticObserver));
 			store.add(client.onDidAction(envelope => telemetry?.recordSessionAction(envelope, client.getConnectionDiagnosticState())));
 			return { connection: client, transportDisposable: store, reconnectManagedByClient: true };

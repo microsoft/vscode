@@ -6,8 +6,9 @@
 import { Color } from '../../../../base/common/color.js';
 import { ColorIdentifier, editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
-import { MODERN_EDITOR_TAB_ACTIVE_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_FOREGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_ACTION_BACKGROUND, MODERN_EDITOR_TAB_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_FOREGROUND, MODERN_EDITOR_TAB_INACTIVE_BACKGROUND, MODERN_EDITOR_TAB_SELECTED_ACTION_BACKGROUND, MODERN_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_FOREGROUND, MODERN_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_FOREGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_BORDER, TAB_ACTIVE_BORDER_TOP, TAB_ACTIVE_FOREGROUND, TAB_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_HOVER_FOREGROUND, TAB_INACTIVE_BACKGROUND, TAB_INACTIVE_FOREGROUND, TAB_LAST_PINNED_BORDER, TAB_SELECTED_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_BACKGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_UNFOCUSED_ACTIVE_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, TAB_UNFOCUSED_HOVER_FOREGROUND, TAB_UNFOCUSED_INACTIVE_BACKGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND } from '../../../common/theme.js';
+import { EDITOR_GROUP_HEADER_TABS_BORDER, MODERN_EDITOR_TAB_ACTIVE_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_FOREGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_ACTION_BACKGROUND, MODERN_EDITOR_TAB_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_FOREGROUND, MODERN_EDITOR_TAB_INACTIVE_BACKGROUND, MODERN_EDITOR_TAB_SELECTED_ACTION_BACKGROUND, MODERN_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_FOREGROUND, MODERN_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_FOREGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_BORDER, TAB_ACTIVE_BORDER_TOP, TAB_ACTIVE_FOREGROUND, TAB_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_HOVER_FOREGROUND, TAB_INACTIVE_BACKGROUND, TAB_INACTIVE_FOREGROUND, TAB_LAST_PINNED_BORDER, TAB_SELECTED_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_BACKGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_UNFOCUSED_ACTIVE_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, TAB_UNFOCUSED_HOVER_FOREGROUND, TAB_UNFOCUSED_INACTIVE_BACKGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND } from '../../../common/theme.js';
 import { ColorThemeData } from '../common/colorThemeData.js';
+import { resolveTabDividerBorderCustomization } from '../common/tabDividerColor.js';
 
 /**
  * Resolves the tab color to emit as a Modern UI variable, or `undefined` to leave the CSS default in place.
@@ -33,6 +34,11 @@ function resolveExplicitTabColor(theme: ColorThemeData, modernColorId: ColorIden
 	return resolveLegacyTabColor(theme, legacyColorId, modernColorIds, ...relatedLegacyColorIds);
 }
 
+function resolveThemeDefinedActiveTabColor(theme: ColorThemeData, baseTheme: ColorThemeData, modernColorId: ColorIdentifier, modernColorIds: readonly ColorIdentifier[], legacyColorId: ColorIdentifier, ...relatedLegacyColorIds: ColorIdentifier[]): Color | undefined {
+	const color = resolveExplicitTabColor(theme, modernColorId, modernColorIds, legacyColorId, ...relatedLegacyColorIds);
+	return color ?? (modernColorIds.some(id => baseTheme.defines(id)) ? theme.getColor(modernColorId) : undefined);
+}
+
 function addColorVariable(collector: (name: string, color: Color) => void, name: string, color: Color | undefined): void {
 	if (color) {
 		collector(name, color);
@@ -44,6 +50,7 @@ function flattenTabBackground(color: Color, editorBackgroundColor: Color | undef
 }
 
 function collectModernTabColorCustomizations(theme: ColorThemeData, collector: (name: string, color: Color) => void): void {
+	const baseTheme = theme.getBaseTheme();
 	const activeBackground = resolveLegacyTabColor(theme, TAB_ACTIVE_BACKGROUND, [MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_BACKGROUND]);
 	const unfocusedActiveBackground = resolveLegacyTabColor(theme, TAB_UNFOCUSED_ACTIVE_BACKGROUND, [MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_BACKGROUND], TAB_ACTIVE_BACKGROUND);
 	const inactiveBackground = resolveLegacyTabColor(theme, TAB_INACTIVE_BACKGROUND, [MODERN_EDITOR_TAB_INACTIVE_BACKGROUND]);
@@ -60,8 +67,8 @@ function collectModernTabColorCustomizations(theme: ColorThemeData, collector: (
 	const explicitHoverActionBackground = hasModernHoverActionBackground ? theme.getColor(MODERN_EDITOR_TAB_HOVER_ACTION_BACKGROUND) : undefined;
 	const explicitActiveHoverActionBackground = hasModernActiveHoverActionBackground ? theme.getColor(MODERN_EDITOR_TAB_ACTIVE_HOVER_ACTION_BACKGROUND) : undefined;
 	const explicitSelectedActionBackground = theme.defines(MODERN_EDITOR_TAB_SELECTED_ACTION_BACKGROUND) ? theme.getColor(MODERN_EDITOR_TAB_SELECTED_ACTION_BACKGROUND) : undefined;
-	const explicitActiveBackground = resolveExplicitTabColor(theme, MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, [MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_BACKGROUND], TAB_ACTIVE_BACKGROUND);
-	const explicitUnfocusedActiveBackground = resolveExplicitTabColor(theme, MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, [MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_BACKGROUND], TAB_UNFOCUSED_ACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND);
+	const explicitActiveBackground = resolveThemeDefinedActiveTabColor(theme, baseTheme, MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, [MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_BACKGROUND], TAB_ACTIVE_BACKGROUND);
+	const explicitUnfocusedActiveBackground = resolveThemeDefinedActiveTabColor(theme, baseTheme, MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, [MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_BACKGROUND], TAB_UNFOCUSED_ACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND);
 	const explicitInactiveBackground = resolveExplicitTabColor(theme, MODERN_EDITOR_TAB_INACTIVE_BACKGROUND, [MODERN_EDITOR_TAB_INACTIVE_BACKGROUND], TAB_INACTIVE_BACKGROUND);
 	const explicitUnfocusedInactiveBackground = resolveExplicitTabColor(theme, MODERN_EDITOR_TAB_INACTIVE_BACKGROUND, [MODERN_EDITOR_TAB_INACTIVE_BACKGROUND], TAB_UNFOCUSED_INACTIVE_BACKGROUND, TAB_INACTIVE_BACKGROUND);
 	const explicitHoverBackground = resolveExplicitTabColor(theme, MODERN_EDITOR_TAB_HOVER_BACKGROUND, [MODERN_EDITOR_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_BACKGROUND], TAB_HOVER_BACKGROUND);
@@ -90,7 +97,8 @@ function collectModernTabColorCustomizations(theme: ColorThemeData, collector: (
 	addColorVariable(collector, '--modern-ui-editor-tab-hover-foreground', resolveLegacyTabColor(theme, TAB_HOVER_FOREGROUND, [MODERN_EDITOR_TAB_HOVER_FOREGROUND, MODERN_TAB_HOVER_FOREGROUND]));
 	addColorVariable(collector, '--modern-ui-editor-tab-unfocused-hover-foreground', resolveLegacyTabColor(theme, TAB_UNFOCUSED_HOVER_FOREGROUND, [MODERN_EDITOR_TAB_HOVER_FOREGROUND, MODERN_TAB_HOVER_FOREGROUND], TAB_HOVER_FOREGROUND));
 	addColorVariable(collector, '--modern-ui-editor-tab-border', tabBorder);
-	addColorVariable(collector, '--modern-ui-editor-tab-custom-border', tabBorder);
+	addColorVariable(collector, '--modern-ui-editor-tab-custom-border', tabBorder ?? resolveLegacyTabColor(theme, EDITOR_GROUP_HEADER_TABS_BORDER, []));
+	addColorVariable(collector, '--vscode-tab-divider', resolveTabDividerBorderCustomization(theme));
 	addColorVariable(collector, '--modern-ui-editor-tab-last-pinned-border', resolveLegacyTabColor(theme, TAB_LAST_PINNED_BORDER, []));
 	addColorVariable(collector, '--modern-ui-editor-tab-active-border', resolveLegacyTabColor(theme, TAB_ACTIVE_BORDER, []));
 	addColorVariable(collector, '--modern-ui-editor-tab-unfocused-active-border', resolveLegacyTabColor(theme, TAB_UNFOCUSED_ACTIVE_BORDER, [], TAB_ACTIVE_BORDER));

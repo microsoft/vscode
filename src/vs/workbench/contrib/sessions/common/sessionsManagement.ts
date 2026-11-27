@@ -15,8 +15,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IAutomationSessionTemplate } from '../../chat/common/automations/automation.js';
-import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionType, ISessionWorkspace, ISideChatSelection, isSessionCreated, type SessionCanvasDefinitionSnapshot } from '../../../services/sessions/common/session.js';
-import type { ICanvasOpenOptions } from '../../../common/canvasReference.js';
+import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionWorkspaceConfig, ISessionType, ISessionWorkspace, ISideChatSelection, isSessionCreated, type SessionCanvasDefinitionSnapshot } from '../../../services/sessions/common/session.js';
+import type { ICanvasOpenOptions, ICanvasReference } from '../../../common/canvasReference.js';
 import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INestedChatWorkspace, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISessionCreationTarget, type ISessionReplacedEvent, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason, ICreateNewChatOptions, ISessionDraftConfiguration } from './sessionsProvider.js';
 
 export interface IManagedSessionWorktree extends IAgentHostManagedWorktree {
@@ -93,6 +93,16 @@ export interface ICreateNewSessionOptions {
 	readonly metadata?: Record<string, unknown>;
 	/** Session that created this session, when it should be presented as a child. */
 	readonly createdBySession?: ISessionCreationReference;
+	/**
+	 * The workspace configuration (a `.code-workspace` file) to create the session in. Without {@link folders}, its default folder must be the folder the
+	 * session is created for. See {@link ISessionsProviderCreateSessionOptions.workspaceConfig}.
+	 */
+	readonly workspaceConfig?: ISessionWorkspaceConfig;
+	/**
+	 * The folders the session works in, the default folder first, which must be the folder the session is created for.
+	 * See {@link ISessionsProviderCreateSessionOptions.folders}.
+	 */
+	readonly folders?: readonly URI[];
 	/**
 	 * Optional model identifier to apply to the new session via
 	 * {@link ISessionsProvider.setModel}. If the provider throws, the
@@ -444,7 +454,7 @@ export interface ISessionsManagementService {
 	 */
 	readonly onDidSendRequest: Event<ISendRequestSentEvent>;
 
-	/** Fires after a session was successfully archived via {@link archiveSession}. */
+	/** Fires after a session was successfully archived via {@link archiveSession} or {@link archiveSessions}. */
 	readonly onDidArchiveSession: Event<ISession>;
 	/** Fires after a session was successfully unarchived via {@link unarchiveSession}. */
 	readonly onDidUnarchiveSession: Event<ISession>;
@@ -683,6 +693,9 @@ export interface ISessionsManagementService {
 	/** Archive a session. */
 	archiveSession(session: ISession): Promise<void>;
 
+	/** Archives every session and returns its settled outcome in input order, after all operations finish. */
+	archiveSessions(sessions: readonly ISession[]): Promise<readonly PromiseSettledResult<void>[]>;
+
 	/** Permanently imports an external session through its provider without sending a message. */
 	importSession(session: ISession): Promise<void>;
 
@@ -752,6 +765,15 @@ export interface ISessionsManagementService {
 	/** Rename a chat within a session. */
 	renameChat(session: ISession, chatUri: URI, title: string): Promise<void>;
 
+	/**
+	 * Adds a folder for a chat to work in. Rejects with {@link WorkspaceNotTrustedError} when the session's workspace
+	 * requires trust and the folder is not trusted. See {@link ISessionsProvider.addChatFolder}.
+	 */
+	addChatFolder(session: ISession, chatUri: URI, folder: URI): Promise<void>;
+
+	/** Removes a folder a chat works in; rejects for the chat's default folder. See {@link ISessionsProvider.removeChatFolder}. */
+	removeChatFolder(session: ISession, chatUri: URI, folder: URI): Promise<void>;
+
 	/** Rename a session, independently of its chats. */
 	renameSession(session: ISession, title: string): Promise<void>;
 
@@ -783,6 +805,12 @@ export interface ISessionsManagementService {
 	/** Open or focus one stable instance of a registered canvas type. */
 	openCanvas(session: ISession, chat: IChat, canvas: Pick<ISessionCanvasDefinition, 'canvasId' | 'extensionId'>, instanceId: string, options?: ICanvasOpenOptions): Promise<void>;
 
+	/**
+	 * Create an unlisted quick chat, on the first provider that supports it, that can start a session with a canvas
+	 * instead of a message. It never replaces the New Session composer's draft. See {@link ICanvasSessionDraft}.
+	 */
+	createCanvasDraft(): ICanvasSessionDraft;
+
 	/** Close one live canvas of a chat through its owning provider, notifying the extension that provides it. */
 	closeCanvas(session: ISession, chat: IChat, canvas: ISessionCanvas): Promise<void>;
 
@@ -811,6 +839,28 @@ export interface ISessionCanvasClosedEvent {
 	readonly session: ISession;
 	readonly chatResource: URI;
 	readonly canvasResource: URI;
+}
+
+/**
+ * An unlisted quick chat whose first content will be a canvas. It lists the canvases it can open without being started.
+ * Disposing it before a canvas opens, or a canvas that does not open, leaves nothing behind.
+ */
+export interface ICanvasSessionDraft extends IDisposable {
+	/**
+	 * The ID of the draft's session, so that list state can apply to the session before it is listed. The session that
+	 * opening a canvas starts replaces it under another ID; see {@link ISessionsManagementService.onDidReplaceSession}.
+	 */
+	readonly sessionId: string;
+	/** The canvas types the draft can open; `undefined` when its extensions did not settle in time. */
+	readonly canvases: Promise<SessionCanvasDefinitionSnapshot>;
+	/**
+	 * Opens a new canvas of `canvas`'s type, which starts the draft as a session titled after the canvas. Resolves once
+	 * the session's chat publishes the canvas, or to `undefined` when the service was disposed meanwhile.
+	 *
+	 * The session is not shown, so its chat publishes its canvases only while they are observed: the reference keeps them
+	 * observed until it is disposed, so that the caller can act on the canvas, for example pin it, first.
+	 */
+	open(canvas: ISessionCanvasDefinition): Promise<IReference<ICanvasReference> | undefined>;
 }
 
 export const ISessionsManagementService = createDecorator<ISessionsManagementService>('sessionsManagementService');

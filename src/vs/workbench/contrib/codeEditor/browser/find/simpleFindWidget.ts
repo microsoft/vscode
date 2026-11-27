@@ -8,7 +8,7 @@ import * as nls from '../../../../../nls.js';
 import * as dom from '../../../../../base/browser/dom.js';
 import { FindInput } from '../../../../../base/browser/ui/findinput/findInput.js';
 import { Widget } from '../../../../../base/browser/ui/widget.js';
-import { Delayer, disposableTimeout } from '../../../../../base/common/async.js';
+import { Delayer, disposableTimeout, TimeoutTimer } from '../../../../../base/common/async.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { FindReplaceState, INewFindReplaceState } from '../../../../../editor/contrib/find/browser/findState.js';
@@ -56,6 +56,14 @@ interface IFindOptions {
 const SIMPLE_FIND_WIDGET_INITIAL_WIDTH = 310;
 const MATCHES_COUNT_WIDTH = 73;
 
+export interface ISimpleFindResultCount {
+	readonly resultIndex: number;
+	readonly resultCount: number;
+	readonly incomplete?: boolean;
+	readonly status?: string;
+	readonly canRetry?: boolean;
+}
+
 export abstract class SimpleFindWidget extends Widget implements IVerticalSashLayoutProvider {
 	private readonly _findInput: FindInput;
 	private readonly _domNode: HTMLElement;
@@ -67,6 +75,8 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 	private readonly nextBtn: SimpleButton;
 	private readonly _matchesLimit: number;
 	private _matchesCount: HTMLElement | undefined;
+	private _countRequest = 0;
+	private readonly _visibilityTimer = this._register(new TimeoutTimer());
 
 	private _isVisible: boolean = false;
 	private _foundMatch: boolean = false;
@@ -126,14 +136,18 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 		this._register(this._findInput.onInput(async (e) => {
 			if (!options.checkImeCompletionState || !this._findInput.isImeSessionInProgress) {
 				this._foundMatch = this._onInputChanged();
-				if (options.showResultCount) {
-					await this.updateResultCount();
+				if (!this._isVisible) {
+					return;
 				}
-				this.updateButtons(this._foundMatch);
 				if (!options.checkImeCompletionState || !e.fromCompositionEnd) {
 					this.focusFindBox();
 				}
 				this._delayedUpdateHistory();
+				if (options.showResultCount) {
+					await this.updateResultCount();
+				} else {
+					this.updateButtons(this._foundMatch);
+				}
 			}
 		}));
 
@@ -227,9 +241,12 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 			}));
 			this._register(this._findInput.onDidOptionChange(async () => {
 				this._foundMatch = this._onInputChanged();
-				await this.updateResultCount();
+				if (!this._isVisible) {
+					return;
+				}
 				this.focusFindBox();
 				this._delayedUpdateHistory();
+				await this.updateResultCount();
 			}));
 		}
 
@@ -279,7 +296,7 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 	protected abstract _onFocusTrackerBlur(): void;
 	protected abstract _onFindInputFocusTrackerFocus(): void;
 	protected abstract _onFindInputFocusTrackerBlur(): void;
-	protected abstract _getResultCount(): Promise<{ resultIndex: number; resultCount: number } | undefined>;
+	protected abstract _getResultCount(): Promise<ISimpleFindResultCount | undefined>;
 
 	protected get inputValue() {
 		return this._findInput.getValue();
@@ -294,6 +311,7 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 	}
 
 	override dispose() {
+		this._isVisible = false;
 		super.dispose();
 
 		this._domNode?.remove();
@@ -326,14 +344,14 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 		this.updateResultCount();
 		this.layout();
 
-		setTimeout(() => {
+		this._visibilityTimer.cancelAndSet(() => {
 			this._innerDomNode.classList.toggle('suppress-transition', !animated);
 			this._innerDomNode.classList.add('visible', 'visible-transition');
 			this._innerDomNode.setAttribute('aria-hidden', 'false');
 			this._findInput.select();
 
 			if (!animated) {
-				setTimeout(() => {
+				this._visibilityTimer.cancelAndSet(() => {
 					this._innerDomNode.classList.remove('suppress-transition');
 				}, 0);
 			}
@@ -348,7 +366,8 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 		this._isVisible = true;
 		this.layout();
 
-		setTimeout(() => {
+		this._visibilityTimer.cancelAndSet(() => {
+			this._innerDomNode.classList.remove('suppress-transition');
 			this._innerDomNode.classList.add('visible', 'visible-transition');
 
 			this._innerDomNode.setAttribute('aria-hidden', 'false');
@@ -357,14 +376,15 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 
 	public hide(animated = true): void {
 		if (this._isVisible) {
+			this._isVisible = false;
+			this._countRequest++;
 			// Reset the accessibility help hint flag so it can be announced again on next reveal
 			this._accessibilityHelpHintAnnounced = false;
 			this._innerDomNode.classList.toggle('suppress-transition', !animated);
 			this._innerDomNode.classList.remove('visible-transition');
 			this._innerDomNode.setAttribute('aria-hidden', 'true');
 			// Need to delay toggling visibility until after Transition, then visibility hidden - removes from tabIndex list
-			setTimeout(() => {
-				this._isVisible = false;
+			this._visibilityTimer.cancelAndSet(() => {
 				this.updateButtons(this._foundMatch);
 				this._innerDomNode.classList.remove('visible', 'suppress-transition');
 			}, animated ? 200 : 0);
@@ -424,19 +444,28 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 	}
 
 	async updateResultCount(): Promise<void> {
+		if (!this._isVisible) {
+			return;
+		}
 		if (!this._matchesCount) {
 			this.updateButtons(this._foundMatch);
 			return;
 		}
 
+		const request = ++this._countRequest;
 		const count = await this._getResultCount();
+		if (request !== this._countRequest || !this._isVisible) {
+			return;
+		}
 		this._matchesCount.textContent = '';
-		const showRedOutline = (this.inputValue.length > 0 && count?.resultCount === 0);
+		const showRedOutline = (this.inputValue.length > 0 && count?.resultCount === 0 && !count.incomplete);
 		this._matchesCount.classList.toggle('no-results', showRedOutline);
 		let label = '';
-		if (count?.resultCount) {
+		if (count?.status) {
+			label = count.status;
+		} else if (count?.resultCount) {
 			let matchesCount: string = String(count.resultCount);
-			if (count.resultCount >= this._matchesLimit) {
+			if (count.incomplete || count.resultCount >= this._matchesLimit) {
 				matchesCount += '+';
 			}
 			let matchesPosition: string = String(count.resultIndex + 1);
@@ -447,9 +476,12 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 		} else {
 			label = NLS_NO_RESULTS;
 		}
-		status(this._announceSearchResults(label, this.inputValue));
+		const partialCount = count?.incomplete && count.resultCount > 0
+			? nls.localize('ariaPartialSearchCount', "Match {0} of at least {1} for '{2}'", count.resultIndex + 1, count.resultCount, this.inputValue)
+			: undefined;
+		status(count?.status ?? partialCount ?? this._announceSearchResults(label, this.inputValue));
 		this._matchesCount.appendChild(document.createTextNode(label));
-		this._foundMatch = !!count && count.resultCount > 0;
+		this._foundMatch = !!count && (count.resultCount > 0 || !!count.canRetry);
 		this.updateButtons(this._foundMatch);
 	}
 

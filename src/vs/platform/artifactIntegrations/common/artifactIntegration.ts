@@ -238,6 +238,8 @@ export interface ArtifactAutomationConfiguration {
 	readonly enabledAt?: Readonly<Record<string, number>>;
 	/** Who turned on each option's current consent generation; meaningful only while the option is enabled. */
 	readonly grants?: Readonly<Record<string, ArtifactActor>>;
+	/** Who turned off each option; meaningful only while the option is disabled without a disablement. */
+	readonly disabledBy?: Readonly<Record<string, ArtifactActor>>;
 	readonly disablements: Readonly<Record<string, ArtifactAutomationDisablement>>;
 }
 
@@ -303,6 +305,8 @@ export interface IArtifactIntegration<TResource extends IDisposable> {
 	readonly description?: string;
 	/** One line of plain text naming several of this integration's artifacts, such as "Pull Requests", when they share a group ID. */
 	readonly groupLabel?: string;
+	/** A short name for the kind of artifact, such as "PR", that automation notices show before the artifact's label. */
+	readonly artifactKind?: string;
 	readonly automationOptions: readonly ArtifactAutomationOption[];
 	/** Higher priority wins; ties are resolved by integration ID, never response order. */
 	readonly presentationPriority?: number;

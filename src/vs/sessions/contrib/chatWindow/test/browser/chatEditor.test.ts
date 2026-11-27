@@ -49,6 +49,7 @@ import { ISessionsListModelService } from '../../../../../workbench/contrib/sess
 import { ChatEditorInput, getChatEditorInputDetails, ChatEditorView, registerSessionChatViewEditor, IInputOnlySessionView, ISessionChatViewHost, SESSION_CHAT_VIEW_HOST_OPTIONS, SESSION_CHAT_VIEW_MINIMUM_HEIGHT, SESSION_CHAT_VIEW_TYPE, SessionChatViewInputOnly } from '../../../../../workbench/contrib/sessions/browser/chatEditor/chatEditor.js';
 import { IChatEditorComposer } from '../../../../../workbench/contrib/sessions/browser/chatEditor/chatEditorContent.js';
 import { ChatWindowSessionDropTarget } from '../../browser/chatWindowSessionDropTarget.js';
+import '../../../../../workbench/contrib/sessions/browser/media/chatBackground.css';
 
 suite('Session chat view editor', () => {
 
@@ -245,6 +246,40 @@ suite('Session chat view editor', () => {
 		assert.deepStrictEqual({ chatViews: chatViews.length, shownTabStrips: shownTabStrips.length, chatsToSwitchTo: view.element.querySelectorAll('.chat-composite-bar-tab').length - 1 }, { chatViews: 1, shownTabStrips: 0, chatsToSwitchTo: 0 });
 	});
 
+	test('over a chat background, a chat editor paints the surfaces over it, such as its pinned request, with the active session color, which follows the theme; without one, it paints nothing new', () => {
+		const { instantiationService } = createServices();
+		const host: ISessionChatViewHost = {
+			content: constObservable(testPaneContentOf(createTestActiveSession('session', true), () => { })),
+			window: constObservable(undefined),
+			active: constObservable(true),
+			attach: () => Disposable.None,
+			view: constObservable(undefined),
+		};
+		const view = disposables.add(instantiationService.createInstance(ChatEditorView, host));
+		const workbench = mainWindow.document.body.appendChild($('.monaco-workbench'));
+		disposables.add(toDisposable(() => workbench.remove()));
+		workbench.style.setProperty('--vscode-activeSessionView-background', '#112233');
+		const surface = workbench.appendChild($('.sessions-chat-surface'));
+		surface.appendChild(view.element);
+		const replica = view.element.querySelector('.session-view-content')!.appendChild($('.sessions-chat-background-replica'));
+		const read = () => ({
+			sessionViewBackground: mainWindow.getComputedStyle(replica).getPropertyValue('--session-view-background').trim(),
+			replicaBackground: mainWindow.getComputedStyle(replica).backgroundColor,
+		});
+
+		const withoutBackground = read();
+		surface.classList.add('has-chat-background');
+		const withBackground = read();
+		workbench.style.setProperty('--vscode-activeSessionView-background', '#aabbcc');
+		const themeChanged = read();
+
+		assert.deepStrictEqual({ withoutBackground, withBackground, themeChanged }, {
+			withoutBackground: { sessionViewBackground: '', replicaBackground: 'rgba(0, 0, 0, 0)' },
+			withBackground: { sessionViewBackground: '#112233', replicaBackground: 'rgb(17, 34, 51)' },
+			themeChanged: { sessionViewBackground: '#aabbcc', replicaBackground: 'rgb(170, 187, 204)' },
+		});
+	});
+
 	test('a chat of another window dragged over a chat editor shows where it opens, and opens beside the chat of the editor on drop', async () => {
 		const { instantiationService } = createServices();
 		const opened: { chat: string; tabOf: string | undefined }[] = [];
@@ -432,7 +467,7 @@ suite('Session chat view editor', () => {
 		view.setProvidedTitleVisible(true);
 		const aloneAgain = headerShown();
 
-		const { menuId, contextKeyService, options } = view.titleMenu;
+		const { menuId, contextKeyService, options } = view.titleMenu!;
 		assert.deepStrictEqual({ alone, withTabs, aloneAgain, menu: menuId.id, inChatEditorScope: SessionInChatEditorContext.getValue(contextKeyService), onSession: options.args?.[0] === session }, {
 			alone: true,
 			withTabs: false,
@@ -688,11 +723,11 @@ suite('Session chat view editor', () => {
 		const multipleSessions = MultipleSessionsVisibleContext.bindTo(contextKeyService);
 		const aiEnabled = ChatContextKeys.enabled.bindTo(contextKeyService);
 		// Its entry among the session header's actions, as the tab bar shows them while the header hides
-		const close = MenuRegistry.getMenuItems(view.titleMenu.menuId).filter(isIMenuItem).find(item => item.command.id === CLOSE_SESSION_COMMAND_ID && item.group === 'secondary/0_pane');
+		const close = MenuRegistry.getMenuItems(view.titleMenu!.menuId).filter(isIMenuItem).find(item => item.command.id === CLOSE_SESSION_COMMAND_ID && item.group === 'secondary/0_pane');
 		const offersClose = (multiple: boolean, ai = true) => {
 			multipleSessions.set(multiple);
 			aiEnabled.set(ai);
-			return !!close && view.titleMenu.contextKeyService.contextMatchesRules(close.when);
+			return !!close && view.titleMenu!.contextKeyService.contextMatchesRules(close.when);
 		};
 
 		const composer = { singleSession: offersClose(false), severalSessions: offersClose(true), aiHidden: offersClose(true, false) };
@@ -729,7 +764,7 @@ suite('Session chat view editor', () => {
 				shown: !!header && header.style.display !== 'none',
 				title: header?.querySelector('.chat-composite-bar-session-title-text')?.textContent,
 				status: header?.querySelector<HTMLElement>('.chat-composite-bar-session-icon')?.style.display !== 'none',
-				onSession: view.titleMenu.options.args?.[0] === draft,
+				onSession: view.titleMenu!.options.args?.[0] === draft,
 			};
 		};
 

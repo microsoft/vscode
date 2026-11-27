@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, getActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append } from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -63,8 +63,6 @@ export async function showMobileDialogSheet(layoutService: IWorkbenchLayoutServi
 	// stale snapshot taken at click time.
 	let chosenButton = cancelIndex;
 	let checkboxChecked = options.checkbox?.checked;
-
-	const previouslyFocused = getActiveElement();
 
 	await showMobileContentSheet(
 		layoutService.mainContainer,
@@ -128,10 +126,6 @@ export async function showMobileDialogSheet(layoutService: IWorkbenchLayoutServi
 		},
 		{ hideDoneButton: true, trapFocus: true },
 	);
-
-	if (isHTMLElement(previouslyFocused) && previouslyFocused.isConnected) {
-		previouslyFocused.focus();
-	}
 
 	return { button: chosenButton, checkboxChecked };
 }

@@ -351,6 +351,11 @@ export interface IEditorGroupMenuIds {
 	readonly tabsBarContext?: MenuId;
 	/** Menu whose actions populate the add-tab (`+`) control in the tab bar. */
 	readonly tabsBarAddTab?: MenuId;
+	/**
+	 * Whether the add-tab menu lists the entry picked last first, as its default entry that a second press of the
+	 * add-tab control picks.
+	 */
+	readonly tabsBarAddTabRecentFirst?: boolean;
 }
 
 /**
@@ -376,6 +381,12 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 	readonly onDidOpenEditorFail: Event<EditorInput>;
 
 	readonly onDidCloseEditor: Event<IEditorCloseEvent>;
+
+	/**
+	 * Fires when the group lays itself out again at its last size, such as
+	 * when the height of its title changes.
+	 */
+	readonly onDidRelayout: Event<void>;
 
 	readonly groupsView: IEditorGroupsView;
 

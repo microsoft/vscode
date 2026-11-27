@@ -155,6 +155,18 @@ export const enum PartOpensMaximizedOptions {
 
 export type PanelAlignment = 'left' | 'center' | 'right' | 'justify';
 
+/**
+ * The arrangement of the primary side bar, the panel and the secondary side bar of the main window.
+ * The size of a part is its size when it shows and is not maximized: the width of a side bar, the
+ * height of a panel at the top or bottom and the width of a panel on the left or right. The view
+ * container of a part is the one that it shows, or that it showed last while it is hidden.
+ */
+export interface IPartsLayoutState {
+	readonly sideBar: { readonly visible: boolean; readonly size: number; readonly viewContainerId?: string };
+	readonly panel: { readonly visible: boolean; readonly size: number; readonly position: Position; readonly maximized: boolean; readonly viewContainerId?: string };
+	readonly auxiliaryBar: { readonly visible: boolean; readonly size: number; readonly maximized: boolean; readonly viewContainerId?: string };
+}
+
 export function positionToString(position: Position): string {
 	switch (position) {
 		case Position.LEFT: return 'left';
@@ -371,14 +383,23 @@ export function getFloatingPaneCompositeVerticalOuterEdges(
 	const siblingStatus = getFloatingSidebarSiblingToEditorStatus(layoutService);
 	const isSiblingToEditor = partId === Parts.SIDEBAR_PART ? siblingStatus.sideBar : siblingStatus.auxBar;
 	const facesPanelAbove = panelVisible && panelPosition === Position.TOP && isSideBar && isSiblingToEditor;
-	const facesEditorAbove = partId === Parts.PANEL_PART && panelPosition === Position.BOTTOM && layoutService.isVisible(Parts.EDITOR_PART, targetWindow);
-	const facesEditorBelow = partId === Parts.PANEL_PART && panelPosition === Position.TOP && layoutService.isVisible(Parts.EDITOR_PART, targetWindow);
+	const editorAreaOccupied = isFloatingEditorAreaOccupied(layoutService, targetWindow);
+	const facesEditorAbove = partId === Parts.PANEL_PART && panelPosition === Position.BOTTOM && editorAreaOccupied;
+	const facesEditorBelow = partId === Parts.PANEL_PART && panelPosition === Position.TOP && editorAreaOccupied;
 	const facesPanelBelow = panelVisible && panelPosition === Position.BOTTOM && isSideBar && isSiblingToEditor;
 
 	return {
 		top: !facesPanelAbove && !facesEditorAbove,
 		bottom: !facesEditorBelow && !facesPanelBelow,
 	};
+}
+
+/**
+ * Whether a card occupies the editor area: the editor, or the chat part filling the editor area hidden for it.
+ */
+function isFloatingEditorAreaOccupied(layoutService: IWorkbenchLayoutService, targetWindow: Window): boolean {
+	return layoutService.isVisible(Parts.EDITOR_PART, targetWindow)
+		|| (targetWindow === mainWindow && layoutService.isEditorHiddenByChat() && layoutService.isVisible(Parts.CHAT_PART));
 }
 
 /**
@@ -679,6 +700,21 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Returns true while any claim made with {@link hideAuxiliaryBarMaximize} is held.
 	 */
 	isAuxiliaryBarMaximizeHidden(): boolean;
+
+	/**
+	 * Returns the arrangement of the primary side bar, the panel and the secondary side bar of the main window,
+	 * or `undefined` where the layout of the window cannot apply one (see {@link applyPartsLayoutState}).
+	 * While the secondary side bar is maximized, the other parts are described as they show when it is restored.
+	 */
+	getPartsLayoutState(): IPartsLayoutState | undefined;
+
+	/**
+	 * Applies an arrangement of the primary side bar, the panel and the secondary side bar of the main window at once,
+	 * without passing through intermediate arrangements and without moving the focus to another part. A part that shows
+	 * opens the view container of the state, without focus, or the one that it showed last if the state has none or
+	 * its view container is not there. Does nothing where the layout of the window cannot apply an arrangement.
+	 */
+	applyPartsLayoutState(state: IPartsLayoutState): void;
 
 	/**
 	 * Returns true if the main window has a border.

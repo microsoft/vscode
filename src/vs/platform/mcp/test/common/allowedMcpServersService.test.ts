@@ -107,6 +107,7 @@ suite('AllowedMcpServersService', () => {
 		];
 		const managed = identities.map(identity => service.isServerAllowed(identity) === true);
 		policy.setValue(mcpAllowedServersConfig, []);
+		configuration.updatePolicyConfiguration(policy);
 		const emptyManaged = identities.map(identity => service.isServerAllowed(identity) === true);
 		assert.deepStrictEqual({
 			managed, emptyManaged, hasManagedAllowlist: service.hasManagedAllowlist,

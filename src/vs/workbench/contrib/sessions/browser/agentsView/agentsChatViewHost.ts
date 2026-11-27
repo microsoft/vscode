@@ -124,7 +124,7 @@ export class AgentsChatViewHost implements IChatViewHost {
 		if (aimed === false) {
 			return false;
 		}
-		await this._chatPart.openComposer(aimed, { newComposer: true, preserveFocus: options?.preserveFocus });
+		await this._chatPart.openComposer(aimed, { newComposer: true, preserveFocus: options?.preserveFocus, useRememberedPicks: !target });
 		return true;
 	}
 
@@ -137,7 +137,7 @@ export class AgentsChatViewHost implements IChatViewHost {
 		if (!this._available) {
 			return undefined;
 		}
-		await this._chatPart.show(this._composerTarget(), { preserveFocus });
+		await this._chatPart.show(this._composerTarget(), { preserveFocus, useRememberedPicks: true });
 		const active = this._chatPart.activeChat.get();
 		return active ? this._waitForWidget(active.chat.resource) : this._chatPart.getComposerWidget();
 	}

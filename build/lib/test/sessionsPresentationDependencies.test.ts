@@ -144,12 +144,12 @@ suite('Sessions presentation entry isolation', () => {
 				backgroundModules: chatBackgroundPresentation.filter(file => dependencies.has(file)),
 				factory: registrations.filter(([id]) => id === 'IChatViewFactory'),
 				backgroundService: registrations.filter(([id]) => id === 'ISessionsChatBackgroundService'),
-				promptsService: registrations.filter(([id]) => id === 'IPromptsService'),
+				agenticSkillsService: registrations.filter(([id]) => id === 'IAgenticSkillsService'),
 			}, {
 				backgroundModules: mobile ? [] : chatBackgroundPresentation,
 				factory: [['IChatViewFactory', mobile ? 'MobileChatViewFactory' : 'DefaultChatViewFactory']],
 				backgroundService: mobile ? [] : [['ISessionsChatBackgroundService', 'SessionsChatBackgroundService']],
-				promptsService: [['IPromptsService', 'AgenticPromptsService']],
+				agenticSkillsService: [['IAgenticSkillsService', 'AgenticSkillsService']],
 			});
 		});
 
@@ -353,7 +353,6 @@ function isMobileEntryFile(file: string): boolean {
 			mobileConfigurationPresenter,
 			mobileInputButton,
 			hostPickerRoot + 'mobileAgentHostFilterService.ts',
-			hostPickerRoot + 'mobileTunnelConnection.ts',
 		].includes(file);
 }
 

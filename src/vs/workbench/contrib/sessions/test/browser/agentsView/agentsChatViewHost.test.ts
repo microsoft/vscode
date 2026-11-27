@@ -344,6 +344,16 @@ suite('AgentsChatViewHost', () => {
 		});
 	});
 
+	test('a default New Chat starts with what the user picked last, and one aimed at a target does not', async () => {
+		const requests: (boolean | undefined)[] = [];
+		const { host } = createHost({ chatPart: { openComposer: async (_target, openOptions) => { requests.push(openOptions?.useRememberedPicks); } } });
+
+		await host.newChat();
+		await host.newChat({ folder: URI.file('/repo'), placement: 'worktree' });
+
+		assert.deepStrictEqual(requests, [true, false]);
+	});
+
 	test('a session started for a new worktree that did not run shows a composer aimed at that worktree; one it cannot have starts nothing', async () => {
 		const untitled = URI.parse('agent-host-copilot:/untitled-1');
 		const folder = URI.file('/repo');

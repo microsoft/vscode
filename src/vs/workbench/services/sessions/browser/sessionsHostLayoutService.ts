@@ -27,6 +27,21 @@ export interface ISessionsHostLayoutService {
 	readonly agentWorkbenchLayout: AgentWorkbenchLayout;
 
 	/**
+	 * Whether the host's editor parts draw the header row of its editors, such as the Changes editor's changeset picker,
+	 * from the editor header menus, as the Agents window's desktop layout does. Where they do not, the editors draw their
+	 * own. Defaults to whether {@link agentWorkbenchLayout} is {@link AgentWorkbenchLayout.Desktop}.
+	 */
+	readonly editorPartDrawsEditorHeaders?: boolean;
+
+	/**
+	 * Whether the editors that show a session, such as the Changes editor, bind the context of that session for their actions
+	 * and offer those actions in the header row they draw, as in an editor window: its window binds no session for them,
+	 * and its editor parts draw no header row. The Changes editor then also shows the list of its changed files beside its
+	 * diffs, as no Changes view lists them. Defaults to `false`.
+	 */
+	readonly editorsBindSessionContext?: boolean;
+
+	/**
 	 * Reveals the (possibly hidden) editor part as an explicit user action. Use for
 	 * deliberate opens like the session-header Changes pill or opening a file diff.
 	 */

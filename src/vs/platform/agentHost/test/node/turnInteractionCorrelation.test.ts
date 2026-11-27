@@ -71,7 +71,20 @@ suite('TurnInteractionCorrelation', () => {
 			snapshot: { sdkSessionId: 'sdk', originalTurnId: 'old', interactionIds: ['a'], interactionIdsTruncated: false },
 			capped: ['a', 'b'], truncated: true, childOriginal: undefined, evicted: undefined,
 		});
+
 		correlation.clear();
 		assert.strictEqual(correlation.get('new'), undefined);
+	});
+
+	test('pending delivery is unknown until echo confirmation even without predecessor context', () => {
+		const correlation = new TurnInteractionCorrelation('sdk', new TestDataTelemetryService());
+		correlation.prepareSteering('pending', undefined);
+		const before = correlation.get('pending');
+		correlation.resolveSteering('pending', 'new-interaction', 'idle');
+		const after = correlation.get('pending');
+		assert.deepStrictEqual({
+			before: [before?.steeringDelivery, before?.originalTurnId],
+			after: [after?.steeringDelivery, after?.originalTurnId],
+		}, { before: ['unknown', undefined], after: ['idle', 'pending'] });
 	});
 });

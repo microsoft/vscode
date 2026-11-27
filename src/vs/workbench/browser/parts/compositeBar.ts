@@ -268,6 +268,14 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 	setCompositeBarItems(items: ICompositeBarItem[]): void {
 		this.model.setItems(items);
+
+		// Items that were not shown before, for example the view container of an extension that another
+		// window added, need their size to compute which items overflow
+		const itemsWithoutSize = this.model.visibleItems.filter(item => !this.compositeSizeInBar.has(item.id));
+		if (itemsWithoutSize.length) {
+			this.computeSizes(itemsWithoutSize);
+		}
+
 		this.updateCompositeSwitcher(true);
 	}
 
@@ -339,10 +347,11 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			return;
 		}
 
-		if (this.compositeSizeInBar.size === 0) {
-			// Compute size of each composite by getting the size from the css renderer
-			// Size is later used for overflow computation
-			this.computeSizes(this.model.visibleItems);
+		// Compute the size of each composite that has none yet by getting the size from the css renderer, for example all of them
+		// on the first layout, or ones that changed while the bar was hidden. Size is later used for overflow computation
+		const itemsWithoutSize = this.model.visibleItems.filter(item => !this.compositeSizeInBar.has(item.id));
+		if (itemsWithoutSize.length) {
+			this.computeSizes(itemsWithoutSize);
 		}
 
 		this.updateCompositeSwitcher();
@@ -504,7 +513,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			items.forEach(composite => this.compositeSizeInBar.set(composite.id, size));
 		} else {
 			const compositeSwitcherBar = this.compositeSwitcherBar;
-			if (compositeSwitcherBar && this.dimension && this.dimension.height !== 0 && this.dimension.width !== 0) {
+			if (compositeSwitcherBar && compositeSwitcherBar.getContainer().getClientRects().length > 0 && this.dimension && this.dimension.height !== 0 && this.dimension.width !== 0) {
 
 				// Compute sizes only if visible. Otherwise the size measurment would be computed wrongly.
 				const currentItemsLength = compositeSwitcherBar.viewItems.length;
@@ -514,6 +523,10 @@ export class CompositeBar extends Widget implements ICompositeBar {
 					: compositeSwitcherBar.getWidth(currentItemsLength + index)
 				));
 				items.forEach(() => compositeSwitcherBar.pull(compositeSwitcherBar.viewItems.length - 1));
+			} else {
+				// The bar cannot measure while it is not rendered or not displayed, for example while its part is hidden, where it
+				// keeps its last dimension. A size measured before may be outdated, for example after a label changed. The next layout measures the items
+				items.forEach(composite => this.compositeSizeInBar.delete(composite.id));
 			}
 		}
 	}

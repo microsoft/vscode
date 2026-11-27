@@ -12,6 +12,7 @@ import { constObservable, observableValue } from '../../../../../base/common/obs
 import { extUri } from '../../../../../base/common/resources.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { isDefined } from '../../../../../base/common/types.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { localize } from '../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -51,6 +52,7 @@ import { createLocalModelPickerPresentation } from '../../../../contrib/chat/bro
 import { SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { IModelPickerComparison } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerComparison.js';
 import { IModelPickerProviderPlaceholder } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerTabs.js';
+import { IAgentModelPreferences } from '../../../../contrib/chat/common/promptSyntax/languageProviders/promptModelResolver.js';
 import { NullLanguageModelsService } from '../../../../contrib/chat/test/common/languageModels.js';
 import { TestChatEntitlementService } from '../../../common/workbenchTestServices.js';
 import { TestEditorService } from '../../workbenchTestServices.js';
@@ -60,6 +62,7 @@ import '../../../../contrib/chat/browser/widget/media/chat.css';
 import '../../../../contrib/chat/browser/widget/input/modelPicker/media/modelPicker.css';
 
 const EXTENSION = new ExtensionIdentifier('fixture.models');
+const RETIRING_MESSAGE = 'This model is retiring soon.';
 
 interface IFixtureModelOptions {
 	readonly vendor?: string;
@@ -128,7 +131,7 @@ function createModel(id: string, name: string, options: IFixtureModelOptions = {
 			modelGroup: options.modelGroupId ? { id: options.modelGroupId } : undefined,
 			targetChatSessionType: options.targetChatSessionType,
 			promo: options.promoDiscount ? { id: 'promo', discountPercent: options.promoDiscount, message: 'Discounted for a limited time.' } : undefined,
-			warningText: options.retiring ? { model_pending_deprecation: 'This model is retiring soon.' } : undefined,
+			warningText: options.retiring ? { model_pending_deprecation: RETIRING_MESSAGE } : undefined,
 			maxInputTokens: 264000,
 			maxOutputTokens: 64000,
 			isDefaultForLocation: {},
@@ -178,6 +181,11 @@ const COPILOT_NOTICE_MODELS = [
 	createModel('gpt-5-1', 'GPT-5.1', { category: 'versatile', priceCategory: 'low', promoDiscount: 25 }),
 	createModel('gpt-4-turbo', 'GPT-4 Turbo', { category: 'versatile', priceCategory: 'medium', retiring: true }),
 ];
+
+/** Copilot also gives a retirement as the model's tooltip, which explains the row's warning icon elsewhere. */
+const PENDING_DEPRECATION_MODEL = createModel('gemini-3-8-flash', 'Gemini 3.8 Flash', {
+	category: 'versatile', priceCategory: 'low', costs: true, retiring: true, tooltip: RETIRING_MESSAGE,
+});
 
 /** The full effort ladder a real model can publish, where the labels vary in width. */
 const MANY_EFFORT_MODEL = createModel('gpt-5-6-terra', 'GPT-5.6 Terra', {
@@ -483,6 +491,8 @@ interface IPickerFixtureOptions {
 	readonly pendingStops?: readonly string[];
 	/** Opens the "On This Device" tab at this family's detail page, as the show-details command does. */
 	readonly openLocalModelDetails?: string;
+	/** The models a custom agent prefers or requires, which narrow the list and explain it in the footer. */
+	readonly agentModelPreferences?: IAgentModelPreferences;
 }
 
 export async function renderPicker(context: ComponentFixtureContext, options: IPickerFixtureOptions = {}): Promise<void> {
@@ -566,6 +576,7 @@ export async function renderPicker(context: ComponentFixtureContext, options: IP
 	}
 	let pickerContext: ITabbedModelPickerContext = {
 		comparison: options.comparison,
+		agentModelPreferences: options.agentModelPreferences,
 		models: [...options.models ?? ALL_MODELS, ...options.localModels?.families.map(family => createOnDeviceModel(family, options.onDeviceThinking?.[family.familyId])).filter(isDefined) ?? []],
 		selectedModelId: options.selectedModelId ?? 'copilot/gpt-5-5',
 		pinnedModelIds: options.pinnedModelIds ?? ['copilot/claude-sonnet-5'],
@@ -832,6 +843,17 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 			},
 		}),
 	}),
+	PickerAnchoredAgentRequiredModels: defineComponentFixture({
+		render: context => renderPicker(context, {
+			anchored: true,
+			anchorRight: true,
+			models: COPILOT_MODELS.filter(model => model.metadata.id === 'claude-sonnet-5' || model.metadata.id === 'gpt-5-3-codex'),
+			selectedModelId: 'copilot/claude-sonnet-5',
+			pinnedModelIds: [],
+			controlModels: { ...CONTROL_MODELS, 'gpt-5-3-codex': { label: 'GPT-5.3-Codex', exists: true, demoted: true } },
+			agentModelPreferences: { models: ['Claude Sonnet 5', 'GPT-5.3-Codex'], required: true, source: { name: 'Reviewer', uri: URI.file('/workspace/.github/agents/reviewer.agent.md') } },
+		}),
+	}),
 	PickerAnchoredAutoSelected: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: context => renderPicker(context, { anchored: true, selectedModelId: AUTO_MODEL.identifier }),
@@ -1092,4 +1114,5 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 		render: context => renderCard(context, MANY_EFFORT_MODEL, false),
 	}),
 	CardWithoutConfiguration: defineComponentFixture({ render: context => renderCard(context, COPILOT_MODELS[2], false) }),
+	CardPendingDeprecation: defineComponentFixture({ render: context => renderCard(context, PENDING_DEPRECATION_MODEL, false) }),
 });

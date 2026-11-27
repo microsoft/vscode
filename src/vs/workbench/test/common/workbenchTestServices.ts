@@ -27,12 +27,12 @@ import product from '../../../platform/product/common/product.js';
 import { IProgress, IProgressStep } from '../../../platform/progress/common/progress.js';
 import { InMemoryStorageService, WillSaveStateReason } from '../../../platform/storage/common/storage.js';
 import { toUserDataProfile } from '../../../platform/userDataProfile/common/userDataProfile.js';
-import { ISingleFolderWorkspaceIdentifier, IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, IWorkspaceIdentifier, WorkbenchState, Workspace } from '../../../platform/workspace/common/workspace.js';
+import { ISingleFolderWorkspaceIdentifier, IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, IWorkspaceIdentifier, WorkbenchState, WorkbenchMode, Workspace, getWorkspaceScope } from '../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, IWorkspaceTrustUriInfo, ResourceTrustRequestOptions, WorkspaceTrustRequestOptions, WorkspaceTrustUriResponse } from '../../../platform/workspace/common/workspaceTrust.js';
 import { TestWorkspace } from '../../../platform/workspace/test/common/testWorkspace.js';
 import { GroupIdentifier, IRevertOptions, ISaveOptions, SaveReason } from '../../common/editor.js';
 import { EditorInput } from '../../common/editor/editorInput.js';
-import { IActivity, IActivityService } from '../../services/activity/common/activity.js';
+import { IActivity, IActivityService, IViewTitleBadge } from '../../services/activity/common/activity.js';
 import { ChatEntitlement, ChatEntitlementContext, IChatEntitlementService } from '../../services/chat/common/chatEntitlementService.js';
 import { Lazy } from '../../../base/common/lazy.js';
 import { NullExtensionService } from '../../services/extensions/common/extensions.js';
@@ -96,6 +96,8 @@ export class TestContextService implements IWorkspaceContextService {
 
 	private readonly _onDidChangeWorkbenchState: Emitter<WorkbenchState>;
 	get onDidChangeWorkbenchState(): Event<WorkbenchState> { return this._onDidChangeWorkbenchState.event; }
+	readonly onDidChangeWorkbenchScope: Event<URI | undefined> = Event.None;
+	readonly onDidChangeWorkbenchMode: Event<WorkbenchMode> = Event.None;
 
 	constructor(workspace = TestWorkspace, options = null) {
 		this.workspace = workspace;
@@ -108,6 +110,14 @@ export class TestContextService implements IWorkspaceContextService {
 
 	getFolders(): IWorkspaceFolder[] {
 		return this.workspace ? this.workspace.folders : [];
+	}
+
+	getWorkbenchScope(): URI | undefined {
+		return getWorkspaceScope(this.workspace);
+	}
+
+	getWorkbenchMode(): WorkbenchMode {
+		return WorkbenchMode.Editor;
 	}
 
 	getWorkbenchState(): WorkbenchState {
@@ -324,6 +334,13 @@ export class TestActivityService implements IActivityService {
 	}
 	showViewActivity(viewId: string, badge: IActivity): IDisposable {
 		return this;
+	}
+	readonly onDidChangeViewTitleBadge = Event.None;
+	showViewTitleBadge(viewId: string, badge: IViewTitleBadge): IDisposable {
+		return this;
+	}
+	getViewTitleBadge(viewId: string): IViewTitleBadge | undefined {
+		return undefined;
 	}
 	showAccountsActivity(activity: IActivity): IDisposable {
 		return this;

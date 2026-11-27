@@ -112,6 +112,10 @@ export class RenderedContentHover extends Disposable {
 		return this._renderedHoverParts.isColorPickerVisible();
 	}
 
+	public getColorPickerRange(): Range | undefined {
+		return this._renderedHoverParts.getColorPickerRange();
+	}
+
 	public static computeHoverPositions(editor: ICodeEditor, anchorRange: Range, hoverParts: IHoverPart[]): { showAtPosition: Position; showAtSecondaryPosition: Position } {
 
 		let startColumnBoundary = 1;
@@ -351,7 +355,7 @@ class RenderedContentHoverParts extends Disposable {
 		if (renderedPart.type === 'hoverPart' && !(renderedPart.hoverPart instanceof ColorHover) && !renderedPart.participant.hideCopyButton) {
 			partDisposables.add(new HoverCopyButton(
 				element,
-				() => renderedPart.participant.getAccessibleContent(renderedPart.hoverPart),
+				() => renderedPart.participant.getCopyContent?.(renderedPart.hoverPart) ?? renderedPart.participant.getAccessibleContent(renderedPart.hoverPart),
 				this._clipboardService,
 				this._hoverService
 			));
@@ -461,6 +465,10 @@ class RenderedContentHoverParts extends Disposable {
 
 	public isColorPickerVisible(): boolean {
 		return this._colorHoverParticipant?.isColorPickerVisible() ?? false;
+	}
+
+	public getColorPickerRange(): Range | undefined {
+		return this._colorHoverParticipant?.getColorPickerRange();
 	}
 
 	private _normalizedIndexToMarkdownHoverIndexRange(markdownHoverParticipant: MarkdownHoverParticipant, index: number): number | undefined {

@@ -25,7 +25,8 @@ import { InMemoryStorageService, IStorageService } from '../../../../../platform
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { CoreEditingCommands } from '../../../../browser/coreCommands.js';
+import { CoreEditingCommands, CoreNavigationCommands } from '../../../../browser/coreCommands.js';
+import { IEditorOptions } from '../../../../common/config/editorOptions.js';
 import { EditOperation } from '../../../../common/core/editOperation.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
@@ -1353,6 +1354,155 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				});
 			});
 		});
+	});
+
+	/**
+	 * Suggests `abc` and `index` for the word at the cursor, triggered by `@`, and asks to be
+	 * queried again as the user types, as the file mentions of the chat input do.
+	 */
+	const mentionSupport: CompletionItemProvider = {
+		_debugDisplayName: 'test',
+		triggerCharacters: ['@'],
+		provideCompletionItems(doc, pos): CompletionList {
+			return {
+				incomplete: true,
+				suggestions: ['abc', 'index'].map(label => ({ label, kind: CompletionItemKind.Property, insertText: label, range: getDefaultSuggestRange(doc, pos) }))
+			};
+		}
+	};
+
+	/**
+	 * Types the keys into an empty editor with the given options, and records what suggestions
+	 * show after each of them, or that they closed.
+	 */
+	async function recordSuggestions(options: IEditorOptions, keys: string[]): Promise<string[]> {
+		model.setValue('');
+		const editor = createMockEditor(model, languageFeaturesService);
+		const suggestModel = editor.invokeWithinContext(accessor => accessor.get(IInstantiationService).createInstance(SuggestModel, editor));
+		const store = new DisposableStore();
+		try {
+			editor.updateOptions(options);
+			const transcript: string[] = [];
+			store.add(suggestModel.onDidSuggest(e => transcript.push(`${editor.getValue()}: ${e.completionModel.items.map(item => item.textLabel).join(', ')}`)));
+			store.add(suggestModel.onDidCancel(e => {
+				if (!e.retrigger) {
+					transcript.push(`${editor.getValue()}: closed`);
+				}
+			}));
+			for (const key of keys) {
+				if (key === 'Backspace') {
+					editor.runCommand(CoreEditingCommands.DeleteLeft, null);
+				} else if (key === 'Left') {
+					editor.runCommand(CoreNavigationCommands.CursorLeft, null);
+				} else if (key === 'Right') {
+					editor.runCommand(CoreNavigationCommands.CursorRight, null);
+				} else if (key === 'Escape') {
+					suggestModel.cancel();
+				} else if (key === 'TurnOffReopenOnDelete') {
+					editor.updateOptions({ suggest: { reopenOnDelete: false } });
+				} else {
+					editor.trigger('keyboard', Handler.Type, { text: key });
+				}
+				await timeout(0);
+			}
+			return transcript;
+		} finally {
+			store.dispose();
+			suggestModel.dispose();
+			editor.dispose();
+		}
+	}
+
+	test('reopenOnDelete brings back suggestions on Backspace', async function () {
+		disposables.add(registry.register({ scheme: 'test' }, mentionSupport));
+
+		const transcripts: Record<string, string[]> = {};
+		for (const reopenOnDelete of [false, true]) {
+			transcripts[`trigger character, reopenOnDelete: ${reopenOnDelete}`] = await recordSuggestions({ quickSuggestions: false, suggest: { reopenOnDelete } }, ['@', 'i', 'q', 'Backspace', 'Backspace']);
+			transcripts[`quick suggest, reopenOnDelete: ${reopenOnDelete}`] = await recordSuggestions({ quickSuggestions: true, quickSuggestionsDelay: 0, suggest: { reopenOnDelete } }, ['i', 'q', 'Backspace']);
+		}
+
+		assert.deepStrictEqual(transcripts, {
+			'trigger character, reopenOnDelete: false': ['@: abc, index', '@i: index', '@iq: closed'],
+			'quick suggest, reopenOnDelete: false': ['i: index', 'iq: closed'],
+			// Backspace after nothing matched does what it does while suggestions show, and Backspace
+			// back to the trigger character retriggers it rather than closing suggestions
+			'trigger character, reopenOnDelete: true': ['@: abc, index', '@i: index', '@iq: closed', '@i: index', '@: abc, index'],
+			'quick suggest, reopenOnDelete: true': ['i: index', 'iq: closed', 'i: index'],
+		});
+	});
+
+	test('reopenOnDelete does not bring back suggestions after Escape, cursor keys, typing past the text, or turning it off', async function () {
+		disposables.add(registry.register({ scheme: 'test' }, mentionSupport));
+
+		const options: IEditorOptions = { quickSuggestions: false, suggest: { reopenOnDelete: true } };
+		assert.deepStrictEqual({
+			escape: await recordSuggestions(options, ['@', 'i', 'Escape', 'Backspace']),
+			cursorKeys: await recordSuggestions(options, ['@', 'i', 'q', 'Left', 'Right', 'Backspace']),
+			typedPast: await recordSuggestions(options, ['@', 'q', ' ', 'a', 'b', 'Backspace']),
+			cursorKeyBackToTriggerCharacter: await recordSuggestions(options, ['@', 'i', 'Left']),
+			turnedOff: await recordSuggestions(options, ['@', 'i', 'q', 'TurnOffReopenOnDelete', 'Backspace']),
+		}, {
+			escape: ['@: abc, index', '@i: index', '@i: closed'],
+			cursorKeys: ['@: abc, index', '@i: index', '@iq: closed'],
+			typedPast: ['@: abc, index', '@q: closed'],
+			cursorKeyBackToTriggerCharacter: ['@: abc, index', '@i: index', '@i: closed'],
+			turnedOff: ['@: abc, index', '@i: index', '@iq: closed'],
+		});
+	});
+
+	test('reopenOnDelete brings back only suggestions that showed, from the providers that they came from', async function () {
+		// Trigger characters with nothing to suggest in plain text, such as the space of the agent host's
+		// commands, and a provider of words without trigger characters, such as the word-based one
+		disposables.add(registry.register({ scheme: 'test' }, {
+			_debugDisplayName: 'test',
+			triggerCharacters: [' ', '.'],
+			provideCompletionItems(): CompletionList {
+				return { suggestions: [] };
+			}
+		}));
+		disposables.add(registry.register({ scheme: 'test' }, {
+			_debugDisplayName: 'test',
+			provideCompletionItems(doc, pos): CompletionList {
+				return { suggestions: ['these', 'item'].map(label => ({ label, kind: CompletionItemKind.Text, insertText: label, range: getDefaultSuggestRange(doc, pos) })) };
+			}
+		}));
+		disposables.add(registry.register({ scheme: 'test' }, mentionSupport));
+
+		const options: IEditorOptions = { quickSuggestions: false, suggest: { reopenOnDelete: true } };
+		assert.deepStrictEqual({
+			space: await recordSuggestions(options, ['t', 'e', 'x', 't', ' ', 'Backspace', 'Backspace', 'Backspace']),
+			period: await recordSuggestions(options, ['t', 'e', 'x', 't', '.', 'Backspace', 'Backspace', 'Backspace']),
+			typoOfTwoCharacters: await recordSuggestions(options, ['@', 'i', 'q', 'x', 'Backspace', 'Backspace']),
+		}, {
+			space: ['text : closed'],
+			period: ['text.: closed'],
+			// the first Backspace finds nothing either, and the word provider never joins the mentions
+			typoOfTwoCharacters: ['@: abc, index', '@i: index', '@iq: closed', '@iq: closed', '@i: index'],
+		});
+	});
+
+	test('reopenOnDelete brings back suggestions that another trigger character added to', async function () {
+		// `foo.bar` still matches after typing `.`, so it keeps showing while `.` adds the suggestions of another provider
+		disposables.add(registry.register({ scheme: 'test' }, {
+			_debugDisplayName: 'test',
+			triggerCharacters: ['@'],
+			provideCompletionItems(doc, pos): CompletionList {
+				return { suggestions: [{ label: 'foo.bar', kind: CompletionItemKind.Property, insertText: 'foo.bar', range: getDefaultSuggestRange(doc, pos) }] };
+			}
+		}));
+		disposables.add(registry.register({ scheme: 'test' }, {
+			_debugDisplayName: 'test',
+			triggerCharacters: ['.'],
+			provideCompletionItems(doc, pos): CompletionList {
+				return { suggestions: [{ label: 'bar', kind: CompletionItemKind.Property, insertText: 'bar', range: getDefaultSuggestRange(doc, pos) }] };
+			}
+		}));
+
+		assert.deepStrictEqual(
+			await recordSuggestions({ quickSuggestions: false, suggest: { reopenOnDelete: true } }, ['@', 'f', '.', 'b', 'q', 'Backspace']),
+			['@: foo.bar', '@f: foo.bar', '@f.: foo.bar', '@f.: foo.bar, bar', '@f.b: foo.bar, bar', '@f.bq: closed', '@f.b: bar, foo.bar']
+		);
 	});
 });
 

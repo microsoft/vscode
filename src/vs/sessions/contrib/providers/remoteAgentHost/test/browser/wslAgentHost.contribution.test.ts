@@ -28,10 +28,11 @@ suite('shouldPauseWSLReconnectAfterFailure', () => {
 
 interface IWSLDisconnectHarness {
 	_reconnectStates: { deleteAndDispose(key: string): void };
-	_wslService: { disconnect(distro: string): Promise<void> };
+	_wslService: { disconnect(distro: string, options?: { readonly keepEntry?: boolean }): Promise<void> };
 	_remoteAgentHostService: { removeRemoteAgentHost(address: string): Promise<void> };
 	_reconcile(): void;
 	_disconnectWSLOnDemand(distro: string, address: string): Promise<void>;
+	_removeWSLOnDemand(distro: string, address: string): Promise<void>;
 }
 
 interface IWSLConnectionWiringHarness {
@@ -68,31 +69,44 @@ interface IWSLConnectionStatusHarness {
 suite('WSLAgentHostContribution disconnect', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('drops the cached distro before tearing down the connection', async () => {
+	function createDisconnectHarness(disconnected: Promise<void>) {
 		const calls: string[] = [];
-		const disconnected = new DeferredPromise<void>();
 		const contribution = Object.create(WSLAgentHostContribution.prototype) as IWSLDisconnectHarness;
 		contribution._reconnectStates = { deleteAndDispose: key => { calls.push(`state:${key}`); } };
-		// `disconnect` is what removes the cached distro. It has to land before
-		// the connection is torn down, or reconciliation still sees the host as
-		// desired and re-dials it.
 		contribution._wslService = {
-			disconnect: async distro => {
-				calls.push(`wsl:${distro}`);
-				await disconnected.p;
+			disconnect: async (distro, options) => {
+				calls.push(`wsl:${distro}${options?.keepEntry ? ':keep' : ''}`);
+				await disconnected;
 			},
 		};
 		contribution._remoteAgentHostService = {
 			removeRemoteAgentHost: async address => { calls.push(`remove:${address}`); },
 		};
 		contribution._reconcile = () => { calls.push('reconcile'); };
+		return { calls, contribution };
+	}
 
+	test('marks the distro disconnected, keeping it, before tearing down the connection', async () => {
+		const disconnected = new DeferredPromise<void>();
+		const { calls, contribution } = createDisconnectHarness(disconnected.p);
+
+		// The disconnected mark is what stops the host from being desired. It has
+		// to land before the connection is torn down, or reconciliation still sees
+		// the host as desired and re-dials it.
 		const pending = contribution._disconnectWSLOnDemand('Ubuntu', 'wsl:Ubuntu');
 		await timeout(0);
-		assert.deepStrictEqual(calls, ['state:Ubuntu', 'wsl:Ubuntu']);
+		assert.deepStrictEqual(calls, ['state:Ubuntu', 'wsl:Ubuntu:keep']);
 
 		disconnected.complete();
 		await pending;
+		assert.deepStrictEqual(calls, ['state:Ubuntu', 'wsl:Ubuntu:keep', 'remove:wsl:Ubuntu', 'reconcile']);
+	});
+
+	test('removing forgets the cached distro', async () => {
+		const { calls, contribution } = createDisconnectHarness(Promise.resolve());
+
+		await contribution._removeWSLOnDemand('Ubuntu', 'wsl:Ubuntu');
+
 		assert.deepStrictEqual(calls, ['state:Ubuntu', 'wsl:Ubuntu', 'remove:wsl:Ubuntu', 'reconcile']);
 	});
 });

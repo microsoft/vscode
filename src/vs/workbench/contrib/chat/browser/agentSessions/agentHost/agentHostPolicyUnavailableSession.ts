@@ -18,8 +18,9 @@ import { IAgentHostConnectionsService } from '../../../../../../platform/agentHo
 import { IAgentHostSavedChat } from '../../../../../../platform/agentHost/common/agentHostSavedChat.js';
 import { IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentConnection, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IChatSession, IChatSessionContentProvider } from '../../../common/chatSessionsService.js';
-import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatModeKind } from '../../../common/constants.js';
+import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
 import { messageAttachmentsToVariableData, turnsToHistory } from './stateToProgressAdapter.js';
 
@@ -76,11 +77,12 @@ export class PolicyUnavailableAgentHostContentProvider implements IChatSessionCo
 	constructor(
 		@IAgentHostService private readonly _connection: IAgentHostService,
 		@IAgentHostConnectionsService private readonly _connections: IAgentHostConnectionsService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) { }
 
 	async provideChatSessionContent(resource: URI, token: CancellationToken): Promise<IChatSession> {
 		const saved = await readAgentHostSavedChat(resource, this._connection, this._connections, token);
-		return new PolicyUnavailableAgentHostSession(resource, saved, this._connection);
+		return new PolicyUnavailableAgentHostSession(resource, saved, this._connection, this._configurationService.getValue<boolean>(ChatConfiguration.HooksShowWarnings) === true);
 	}
 }
 
@@ -92,9 +94,9 @@ class PolicyUnavailableAgentHostSession extends Disposable implements IChatSessi
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
 
-	constructor(readonly sessionResource: URI, saved: IAgentHostSavedChat, connection: IAgentConnection) {
+	constructor(readonly sessionResource: URI, saved: IAgentHostSavedChat, connection: IAgentConnection, showHookFailures: boolean) {
 		super();
-		this.history = turnsToHistory(saved.session, saved.turns, sessionResource.scheme, '', undefined, undefined, undefined, connection.resourceUris);
+		this.history = turnsToHistory(saved.session, saved.turns, sessionResource.scheme, '', undefined, undefined, undefined, connection.resourceUris, undefined, undefined, undefined, showHookFailures);
 		this.title = saved.title;
 		this.transferredState = { editingSession: undefined, inputState: savedChatDraftInput(saved, connection.resourceUris) };
 	}

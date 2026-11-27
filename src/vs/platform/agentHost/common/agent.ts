@@ -466,12 +466,13 @@ export type AgentCanvasOpenFailure = 'dismissed' | 'reloaded' | 'mismatchedDecla
 /**
  * The outcome of opening a canvas. `consentRequired` leaves the open pending until it is answered;
  * `consentDenied` means the extension was not allowed to load, and `retryable` whether asking again can help.
+ * `keptForSession` means the runtime keeps the decline for the rest of the session, so only a new session asks again.
  * `failed` is an open the runtime declined for a known {@link AgentCanvasOpenFailure reason}; other failures throw.
  */
 export type AgentCanvasOpenResult =
 	| { readonly kind: 'opened' }
 	| { readonly kind: 'consentRequired'; readonly consent: IAgentExtensionConsentRequest }
-	| { readonly kind: 'consentDenied'; readonly consent: IAgentExtensionConsentRequest; readonly retryable: boolean }
+	| { readonly kind: 'consentDenied'; readonly consent: IAgentExtensionConsentRequest; readonly retryable: boolean; readonly keptForSession?: boolean }
 	| { readonly kind: 'failed'; readonly failure: AgentCanvasOpenFailure };
 
 /** Closes one canvas that a live provider chat presents, notifying its canvas provider. */
@@ -758,6 +759,7 @@ export interface IAgentTurnInteraction {
 	readonly steeredFromTurn?: string;
 	readonly interactionIds: readonly string[];
 	readonly interactionIdsTruncated: boolean;
+	readonly steeringDelivery?: 'steering' | 'idle' | 'queued' | 'unknown';
 }
 
 /** A point-in-time snapshot; missing counters and missing snapshots remain unknown. */
@@ -836,6 +838,8 @@ export interface AuthenticateParams {
 	readonly target?: AuthenticateTarget;
 	/** Unverified client-local account selection, stable across token renewals. */
 	readonly accountId?: string;
+	/** The OpenID Connect ID Token issued with `token`. Its claims are unverified, and it is never a bearer credential. */
+	readonly idToken?: string;
 	/** Optional client metadata. Hosts must remain usable when it is absent. */
 	readonly _meta?: Record<string, unknown>;
 }
@@ -1077,7 +1081,7 @@ export interface IAgentChatContext {
 	 * reason when the send used it, or with the bounded reason it was discarded
 	 * and the send launched one instead.
 	 */
-	readonly reportPrewarmedSession?: (discardReason?: string) => void;
+	readonly reportPrewarmedSession?: (discardReason?: string, claim?: IAgentPrewarmClaim) => void;
 	/**
 	 * Records, before progress can complete the addressed turn, that its send
 	 * materialized a deferred provider session without a pre-warmed one to
@@ -1488,6 +1492,16 @@ export interface IAgentWarmChatSelection {
 	readonly model: ModelSelection | undefined;
 	/** The custom agent to warm with; `undefined` is the default agent. */
 	readonly agent: AgentSelection | undefined;
+}
+
+/** How a send found the pre-warmed provider session it used, for turn telemetry ({@link IAgentChatContext.reportPrewarmedSession}). */
+export interface IAgentPrewarmClaim {
+	/** When the used launch became ready, as `Date.now()` in the reporting process. */
+	readonly readyAt: number;
+	/** The draft's warm launches so far, including the used one; more than one means it was warmed again. */
+	readonly launchCount: number;
+	/** Whether the launch's background warm-up, such as MCP startup and tool initialization, had finished. */
+	readonly warmUpComplete: boolean;
 }
 
 /**
@@ -2251,9 +2265,6 @@ export interface IAgent {
 
 	/** Streamed progress for an exact chat. */
 	readonly onDidChatProgress: Event<AgentSignal>;
-
-	/** Native snapshots can arrive after host cancellation or steering has already ended a turn. */
-	readonly onDidStoreTurnEdits?: Event<{ readonly chat: URI; readonly turnIds: readonly string[] }>;
 
 	/** Host-wide progress for provider setup, including work without a chat yet. */
 	readonly onDidReportProgress?: Event<Omit<ProgressParams, 'channel'>>;

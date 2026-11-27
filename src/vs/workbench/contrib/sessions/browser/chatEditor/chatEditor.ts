@@ -270,8 +270,10 @@ export class ChatEditorView extends Disposable implements IViewEditorView {
 	/** The session header drags the chat. */
 	get dragHandle(): HTMLElement { return this.sessionView.headerElement; }
 
-	/** The actions of the session header, which the tab bar of its group shows while the header hides. */
-	get titleMenu(): IEditorPaneTitleMenu { return this.sessionView.titleMenu; }
+	/** The actions of the session header, which the tab bar of its group shows while the header hides; none without the header. */
+	get titleMenu(): IEditorPaneTitleMenu | undefined { return this._showsHeader ? this.sessionView.titleMenu : undefined; }
+
+	private readonly _showsHeader: boolean;
 
 	private readonly _onDidChange = this._register(new Emitter<{ width: number; height: number } | undefined>());
 	readonly onDidChange: Event<{ width: number; height: number } | undefined> = this._onDidChange.event;
@@ -326,7 +328,9 @@ export class ChatEditorView extends Disposable implements IViewEditorView {
 			trackActiveGroup();
 		}));
 		const scopedInstantiationService = this._scopedServices.add(instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
-		const sessionView = this.sessionView = this._register(scopedInstantiationService.createInstance(ChatEditorContent, host?.hostOptions ?? SESSION_CHAT_VIEW_HOST_OPTIONS));
+		const hostOptions = host?.hostOptions ?? SESSION_CHAT_VIEW_HOST_OPTIONS;
+		this._showsHeader = hostOptions.showHeader ?? true;
+		const sessionView = this.sessionView = this._register(scopedInstantiationService.createInstance(ChatEditorContent, hostOptions));
 		this.element.appendChild(sessionView.element);
 		// Styled as the active session of the grid is.
 		sessionView.element.classList.add('is-active');

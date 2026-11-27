@@ -258,7 +258,7 @@ suite('Artifact Integration Chat', () => {
 		await waitForState(handle.state, state => state.kind === 'unavailable');
 		const pending = handle.state.get().kind;
 		f.loading.set(false, undefined);
-		await waitForState(handle.state, state => state.kind === 'submitted');
+		await waitForState(handle.state, state => state.kind === 'queued');
 		f.apply({ type: ActionType.ChatPendingMessageRemoved, kind: PendingMessageKind.Queued, id: request.requestId });
 		assert.deepStrictEqual({
 			pending, outcome: (await handle.completion).kind, dispatches: f.dispatches.length,

@@ -403,8 +403,14 @@
 	user-select: text;
 	-webkit-user-select: text;
 
-	.rendered-markdown p {
-		margin: 0;
+	.rendered-markdown {
+		p {
+			margin: 0;
+		}
+
+		> p:not(:last-child) {
+			margin-bottom: var(--vscode-spacing-size160);
+		}
 	}
 }
 

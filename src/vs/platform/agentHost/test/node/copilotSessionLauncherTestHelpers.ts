@@ -21,7 +21,6 @@ import type { IAgentHostTerminalManager } from '../../node/agentHostTerminalMana
 import { ByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { CopilotSessionLauncher, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import type { ICopilotAccountService } from '../../node/copilot/copilotAccountService.js';
-import type { ICopilotApiService } from '../../node/shared/copilotApiService.js';
 
 export const testRuntime: ICopilotSessionRuntime = {
 	chatUri: URI.parse(buildDefaultChatUri('copilot:/sess-1')),
@@ -58,7 +57,7 @@ export const noopSessionOpenTelemetry: IAgentHostSessionOpenTelemetry = {
 	sdkResumeFallbackCreated: () => { },
 };
 
-export function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettingsPermissions, rootValues: Record<string, unknown> = {}, logService: ILogService = new NullLogService(), sessionOpenTelemetry: IAgentHostSessionOpenTelemetry = noopSessionOpenTelemetry, configuration?: IAgentConfigurationService, telemetryService?: ITelemetryService, fileService: IFileService = upcastPartial<IFileService>({ resolve: async resource => upcastPartial<IFileStatWithMetadata>({ resource, isDirectory: true }) }), accountService?: ICopilotAccountService): CopilotSessionLauncher {
+export function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettingsPermissions, rootValues: Record<string, unknown> = {}, logService: ILogService = new NullLogService(), sessionOpenTelemetry: IAgentHostSessionOpenTelemetry = noopSessionOpenTelemetry, configuration?: IAgentConfigurationService, telemetryService?: ITelemetryService, fileService: IFileService = upcastPartial<IFileService>({ resolve: async resource => upcastPartial<IFileStatWithMetadata>({ resource, isDirectory: true }) }), accountService?: ICopilotAccountService, copilotHome = URI.file('/copilot-home')): CopilotSessionLauncher {
 	const configurationService = configuration ?? upcastPartial<IAgentConfigurationService>({
 		getRootValue: stub().callsFake((_schema: unknown, key: string) => rootValues[key]),
 		getRootConfigValues: () => rootValues,
@@ -90,8 +89,7 @@ export function createTestLauncher(managedSettingsPermissions?: IAgentHostManage
 		}),
 		sessionOpenTelemetry,
 		telemetryService ?? upcastPartial<ITelemetryService>({ telemetryLevel: TelemetryLevel.USAGE }),
-		upcastPartial<ICopilotHomeService>({ home: URI.file('/copilot-home') }),
+		upcastPartial<ICopilotHomeService>({ home: copilotHome }),
 		accountService ?? upcastPartial<ICopilotAccountService>({}),
-		upcastPartial<ICopilotApiService>({}),
 	);
 }

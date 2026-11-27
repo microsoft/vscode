@@ -118,12 +118,29 @@
 	text-decoration: line-through;
 }
 
-.monaco-icon-label::after {
+.monaco-icon-label::after,
+.monaco-icon-label > .monaco-decoration-badge-content {
 	opacity: 0.75;
 	font-size: 90%;
 	font-weight: 600;
 	margin: auto 16px 0 5px; /* https://github.com/microsoft/vscode/issues/113223 */
 	text-align: center;
+}
+
+.monaco-icon-label > .monaco-decoration-badge-content {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	white-space: pre;
+}
+
+.monaco-decoration-badge-content > .monaco-decoration-badge-last-character {
+	flex-shrink: 0;
+	width: 16px;
+}
+
+.monaco-list:focus .selected .monaco-icon-label > .monaco-decoration-badge-content {
+	color: inherit;
 }
 
 /* make sure selection color wins when a label is being selected */

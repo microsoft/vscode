@@ -6,7 +6,6 @@
 import assert from 'assert';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { PromptTimelineGutterRail } from '../../../browser/promptTimeline/promptTimelineGutterRail.js';
 import { PromptTick } from '../../../browser/promptTimeline/promptTimelineModel.js';
 import { PromptTimelineRulerRail } from '../../../browser/promptTimeline/promptTimelineRulerRail.js';
 
@@ -42,33 +41,6 @@ suite('PromptTimeline independent tick updates', () => {
 	for (const [field, change] of Object.entries(changes)) {
 		const expectedRerender = [false, field !== 'nothing'];
 		const rerenders = field === 'nothing' ? 'no prompt for an equal copy' : `only the prompt whose ${field} changed`;
-
-		test(`gutter re-renders ${rerenders}`, () => {
-			const rail = store.add(new PromptTimelineGutterRail());
-			attach(rail.domNode);
-			const reviewed: PromptTick[] = [];
-			store.add(rail.onDidReview(tick => reviewed.push(tick)));
-			rail.setTicks(ticks);
-			const rows = [...rail.domNode.querySelectorAll<HTMLElement>('.prompt-timeline-gutter-row')];
-			const statNodes = rows.map(row => row.querySelector('.added'));
-			const updated: PromptTick = { ...ticks[1], ...change };
-			rail.setTicks([ticks[0], updated]);
-			rows[1].querySelector<HTMLButtonElement>('.prompt-timeline-gutter-row-diff')!.click();
-
-			assert.deepStrictEqual({
-				rerendered: rows.map((row, index) => row.querySelector('.added') !== statNodes[index]),
-				text: rows[1].querySelector('.prompt-timeline-gutter-row-label')?.textContent,
-				ariaLabel: rows[1].querySelector('.prompt-timeline-gutter-row-jump')?.getAttribute('aria-label'),
-				stat: rows[1].querySelector('.prompt-timeline-gutter-row-diff')?.textContent,
-				reviewed,
-			}, {
-				rerendered: expectedRerender,
-				text: updated.text,
-				ariaLabel: updated.ariaLabel,
-				stat: `+${updated.stat!.added}\u2212${updated.stat!.removed}`,
-				reviewed: [updated],
-			});
-		});
 
 		test(`ruler re-renders ${rerenders}`, () => {
 			const rail = store.add(new PromptTimelineRulerRail());

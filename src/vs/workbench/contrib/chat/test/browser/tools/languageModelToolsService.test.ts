@@ -1028,6 +1028,42 @@ suite('LanguageModelToolsService', () => {
 		}
 	});
 
+	test('full reference names name a tool in several tool sets after the first one', () => {
+		const sharedTool: IToolData = {
+			id: 'sharedTool',
+			toolReferenceName: 'sharedToolRefName',
+			modelDescription: 'Shared Tool',
+			displayName: 'Shared Tool',
+			source: ToolDataSource.Internal,
+		};
+		const unregisteredTool: IToolData = {
+			id: 'unregisteredTool',
+			toolReferenceName: 'unregisteredToolRefName',
+			modelDescription: 'Unregistered Tool',
+			displayName: 'Unregistered Tool',
+			source: ToolDataSource.Internal,
+		};
+		store.add(service.registerToolData(sharedTool));
+		const firstToolSet = store.add(service.createToolSet(ToolDataSource.Internal, 'firstToolSet', 'firstToolSetRefName'));
+		const secondToolSet = store.add(service.createToolSet(ToolDataSource.Internal, 'secondToolSet', 'secondToolSetRefName'));
+		store.add(firstToolSet.addTool(sharedTool));
+		store.add(secondToolSet.addTool(sharedTool));
+
+		const getFullReferenceName = service.createFullReferenceNameResolver();
+
+		assert.deepStrictEqual({
+			sharedTool: getFullReferenceName(sharedTool),
+			sharedToolFromService: service.getFullReferenceName(sharedTool),
+			secondToolSet: getFullReferenceName(secondToolSet),
+			unregisteredTool: getFullReferenceName(unregisteredTool, secondToolSet),
+		}, {
+			sharedTool: 'firstToolSetRefName/sharedToolRefName',
+			sharedToolFromService: 'firstToolSetRefName/sharedToolRefName',
+			secondToolSet: 'secondToolSetRefName',
+			unregisteredTool: 'secondToolSetRefName/unregisteredToolRefName',
+		});
+	});
+
 
 	test('toToolAndToolSetEnablementMap', () => {
 		setupToolsForTest(service, store);
