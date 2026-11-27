@@ -342,6 +342,8 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 		}
 		this._worktree = storageService.get(SessionsListFilters.WORKTREE_STORAGE_KEY, StorageScope.PROFILE) || undefined;
 		this._inboxScope = this.readInboxScope(logService);
+		// Earlier builds stored the pick for the whole profile: drop it rather than seed every window with one window's pick
+		storageService.remove(SessionsListFilters.INBOX_SCOPE_STORAGE_KEY, StorageScope.PROFILE);
 		this._register(storageService.onDidChangeValue(StorageScope.WORKSPACE, SessionsListFilters.INBOX_SCOPE_STORAGE_KEY, this._store)(e => {
 			if (!e.external) {
 				const scope = this.readInboxScope(logService);

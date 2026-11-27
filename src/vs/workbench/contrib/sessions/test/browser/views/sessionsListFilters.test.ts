@@ -433,6 +433,19 @@ suite('SessionsListFilters', () => {
 		});
 	});
 
+	test('drops the workspace pick that earlier builds stored for the whole profile', () => {
+		const storage = store.add(new InMemoryStorageService());
+		storage.store('sessionsListControl.inboxScope', JSON.stringify({ workspace: { environment: 'local', resource: 'file:///other', label: 'other' } }), StorageScope.PROFILE, StorageTarget.MACHINE);
+		const filters = createFilters(storage);
+		assert.deepStrictEqual({
+			scope: filters.inboxScope,
+			profileValue: storage.get('sessionsListControl.inboxScope', StorageScope.PROFILE),
+		}, {
+			scope: {},
+			profileValue: undefined,
+		});
+	});
+
 	test('No Workspace excludes hydrating sessions and workspace options react to metadata', () => {
 		const filters = createFilters();
 		const workspace = observableValue<ISessionWorkspace | undefined>('workspace', undefined);
