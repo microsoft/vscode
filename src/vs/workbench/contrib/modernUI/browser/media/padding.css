@@ -319,8 +319,8 @@
 	padding-right: var(--vscode-spacing-size40);
 }
 
-/* The tree indent already insets these full-width rows on the left, so match it on the right. */
-.modern-ui.monaco-workbench .scm-view .monaco-tl-contents > :is(.scm-input, .button-container, .scm-repository-notice-container) {
+/* Root rows already have a tree inset; nested rows retain their repository indentation. */
+.modern-ui.monaco-workbench .scm-view .monaco-list-row[aria-level="1"] .monaco-tl-contents > :is(.scm-input, .button-container, .scm-repository-notice-container) {
 	padding-left: 0;
 	padding-right: var(--vscode-spacing-size80);
 }
