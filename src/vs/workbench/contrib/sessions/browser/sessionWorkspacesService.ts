@@ -538,7 +538,10 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 		}
 	}
 
-	/** Writes the icon and color into the workspace file, keeping them on this computer and warning when that fails. */
+	/**
+	 * Writes the icon and color into the workspace file, keeping them on this computer and warning when that fails. The
+	 * workspace takes the name and folders that the file has then, which may have been edited elsewhere since it was read.
+	 */
 	private async _writeFileAppearance(workspace: IRecentSessionWorkspace, update: ISessionWorkspaceUpdate): Promise<IRecentSessionWorkspace> {
 		const local = this._localAppearance.get(this.uriIdentityService.extUri.getComparisonKey(workspace.uri));
 		try {
@@ -550,15 +553,17 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 			}, { knownFolders: workspace.folders });
 			const remainingLocal = remainingLocalAppearance(update, local);
 			this._setLocalAppearance(workspace.uri, remainingLocal);
-			return withAppearance(workspace, displayAppearance(parsed, remainingLocal));
+			const { missing: _missing, ...rest } = workspace;
+			return withAppearance({ ...rest, name: parsed.name, folders: parsed.folders }, displayAppearance(parsed, remainingLocal));
 		} catch (error) {
+			const missing = error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND;
 			const appearance: ISessionWorkspaceAppearance = {
 				icon: update.icon === undefined ? workspace.icon : update.icon ?? undefined,
 				color: update.color === undefined ? workspace.color : update.color ?? undefined,
 			};
 			this._setLocalAppearance(workspace.uri, appearance);
 			this.notificationService.warn(localize('workspaceAppearanceNotSaved', "Could not save the icon and color of '{0}' in its workspace file. They are kept on this computer only. {1}", workspace.name, toErrorMessage(error)));
-			return withAppearance(workspace, appearance);
+			return withAppearance(missing ? { ...workspace, missing: true } : workspace, appearance);
 		}
 	}
 

@@ -425,6 +425,25 @@ suite('SessionWorkspacesService', () => {
 		});
 	});
 
+	test('changing only the icon of a workspace file takes the name and folders that the file has then, and marks a file that is gone as missing', async () => {
+		const { service, fileService, warnings } = await createService();
+		const platform = await service.createWorkspace('Platform', [vscode, chat]);
+		const gone = await service.createWorkspace('Gone', [vscode, docs]);
+		// Edited elsewhere, and deleted, before a refresh reads them
+		await fileService.writeFile(platform.uri, VSBuffer.fromString(JSON.stringify({ name: 'Edited', folders: [{ uri: docs.toString() }] })));
+		await fileService.del(gone.uri);
+
+		const edited = await service.updateWorkspace(platform.uri, { icon: 'rocket' });
+		const goneEdited = await service.updateWorkspace(gone.uri, { icon: 'rocket' });
+
+		assert.deepStrictEqual({ edited: snapshot([edited]), gone: snapshot([goneEdited]), icons: [edited.icon, goneEdited.icon], warnings: warnings.length }, {
+			edited: [{ name: 'Edited', folders: ['/work/vscode-docs'], owned: true, missing: undefined }],
+			gone: [{ name: 'Gone', folders: ['/work/vscode', '/work/vscode-docs'], owned: true, missing: true }],
+			icons: ['rocket', 'rocket'],
+			warnings: 1,
+		});
+	});
+
 	test('picks up a name, icon and color edited in a workspace file elsewhere', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const fileService = await createFileService();
 		const changed = disposables.add(new Emitter<FileChangesEvent>());
