@@ -1207,6 +1207,20 @@ suite('prompt slash command matching', () => {
 		assert.strictEqual(getPromptSlashCommandFilterText('my-plugin:review'), '/my-plugin:review /my-plugin review');
 	});
 
+	test('keeps long hyphenated plugin commands matchable by their plugin prefix', () => {
+		const matches = (name: string, patterns: string[]) => {
+			const filterText = getPromptSlashCommandFilterText(name)!;
+			return patterns.map(pattern => !!fuzzyScore(pattern, pattern.toLowerCase(), 0, filterText, filterText.toLowerCase(), 0, FuzzyScoreOptions.default));
+		};
+		assert.deepStrictEqual([
+			matches('example-dev-tools:migration-example-platform-version-four-to-version-five-guide', ['/example-dev-tools', '/example-dev-tools:migration', '/platform-version', '/qqq']),
+			matches('dev-tools:migrate-platform-from-version-four-to-five', ['/dev-tools', '/dev-tools migrate', '/version-four', '/qqq']),
+		], [
+			[true, true, true, false],
+			[true, true, true, false],
+		]);
+	});
+
 	test('uses the label for commands without word separators', () => {
 		assert.strictEqual(getPromptSlashCommandFilterText('summary'), undefined);
 	});

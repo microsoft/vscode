@@ -17,12 +17,29 @@ export function getAttachedContextCompletionSortText(score: number): string {
 	return `${attachedContextCompletionSortText}${(0x7FFFFFFF - score).toString(16).padStart(8, '0')}`;
 }
 
+/**
+ * `fuzzyScore` only looks at the first 128 characters of the text it matches against.
+ */
+const maxPromptSlashCommandFilterTextLength = 128;
+
 export function getPromptSlashCommandFilterText(name: string): string | undefined {
 	const command = `/${name}`;
 	const displayCommand = name.includes(':') ? `/${name.replace(/:/g, ' ')}` : undefined;
+	const commands = displayCommand ? `${command} ${displayCommand}` : command;
 	const skillName = name.slice(name.lastIndexOf(':') + 1);
 	const wordSuffixes = [...skillName.matchAll(/-(?=[^-])/g)].map(match => `/${skillName.slice(match.index + 1)}`);
-	return displayCommand || wordSuffixes.length ? [...wordSuffixes, command, displayCommand].filter(Boolean).join(' ') : undefined;
+
+	// Word suffixes go before the commands so that a later word of the name ranks like
+	// the start of a command, but only as many as keep the commands matchable: the
+	// shortest suffixes are kept, the longest dropped.
+	let remaining = maxPromptSlashCommandFilterTextLength - commands.length;
+	let firstSuffix = wordSuffixes.length;
+	while (firstSuffix > 0 && wordSuffixes[firstSuffix - 1].length + 1 <= remaining) {
+		firstSuffix--;
+		remaining -= wordSuffixes[firstSuffix].length + 1;
+	}
+	const suffixes = wordSuffixes.slice(firstSuffix);
+	return displayCommand || suffixes.length ? [...suffixes, commands].join(' ') : undefined;
 }
 
 export function getAttachedContextCompletionMatch(typedWord: string, leader: string, name: string, kind: string, suggestOptions: InternalSuggestOptions): { filterText: string; score: number } | undefined {
