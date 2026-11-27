@@ -92,6 +92,21 @@ suite('ExtHostWorkspace', function () {
 		});
 	});
 
+	test('fires the workspace event when a pending folder rename is confirmed together with a mode change', () => {
+		const data: IWorkspaceData = { id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar'), 0, 'One')], mode: WorkbenchMode.Editor };
+		const rpc = new TestRPCProtocol();
+		rpc.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspaceShape>() {
+			override async $updateWorkspaceFolders(): Promise<void> { }
+		});
+		const ws = createExtHostWorkspace(rpc, data, new NullLogService());
+		const events: { kind: string; names?: string[] }[] = [];
+		store.add(ws.onDidChangeWorkspace(() => events.push({ kind: 'folders', names: ws.getWorkspaceFolders()!.map(folder => folder.name) })));
+		store.add(ws.onDidChangeWorkbenchMode(() => events.push({ kind: 'mode' })));
+		const updated = ws.updateWorkspaceFolders(extensionDescriptor, 0, 1, asUpdateWorkspaceFolderData(URI.parse('foo:bar'), 'Renamed'));
+		ws.$acceptWorkspaceData({ ...data, folders: [aWorkspaceFolderData(URI.parse('foo:bar'), 0, 'Renamed')], mode: WorkbenchMode.Agents });
+		assert.deepStrictEqual({ updated, events }, { updated: true, events: [{ kind: 'folders', names: ['Renamed'] }, { kind: 'mode' }] });
+	});
+
 	test('reports removed folders and the new mode when an Agents workspace becomes empty', () => {
 		const data: IWorkspaceData = { id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.file('/Coding/One'), 0)], mode: WorkbenchMode.Agents };
 		const ws = createExtHostWorkspace(new TestRPCProtocol(), data, new NullLogService());

@@ -491,6 +491,8 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	$acceptWorkspaceData(data: IWorkspaceData | null): void {
 
 		const previousWorkspaceKey = ExtHostWorkspace.workspaceEventKey(this._confirmedWorkspace);
+		// An optimistic `updateWorkspaceFolders` already updated the shared folder objects, so its acknowledgement always fires
+		const confirmsPendingUpdate = !!this._unconfirmedWorkspace;
 		const { workspace, added, removed } = ExtHostWorkspaceImpl.toExtHostWorkspace(data, this._confirmedWorkspace, this._unconfirmedWorkspace, this._extHostFileSystemInfo);
 
 		// Update our workspace object. We have a confirmed workspace, so we drop our
@@ -503,7 +505,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		const modeChanged = this._workbenchMode !== mode;
 		this._workbenchMode = mode;
 
-		const onlyModeChanged = modeChanged && previousWorkspaceKey === ExtHostWorkspace.workspaceEventKey(workspace ?? undefined);
+		const onlyModeChanged = modeChanged && !confirmsPendingUpdate && previousWorkspaceKey === ExtHostWorkspace.workspaceEventKey(workspace ?? undefined);
 		if (!onlyModeChanged) {
 			this._onDidChangeWorkspace.fire(Object.freeze({ added, removed }));
 		}
