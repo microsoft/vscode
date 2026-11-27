@@ -420,11 +420,11 @@ export class ToolBar extends Disposable {
 
 	/**
 	 * The separators of the primary actions that show when the given actions are hidden:
-	 * those with a visible action on both sides that are not next to the overflow menu.
+	 * those with a visible action on both sides that are not next to the overflow menu, if it shows.
 	 */
-	private getShownSeparators(hiddenActions: readonly IAction[]): Set<IAction> {
+	private getShownSeparators(hiddenActions: readonly IAction[], toggleMenuShown: boolean): Set<IAction> {
 		const shown = new Set<IAction>();
-		const toggleMenuPosition = this.originalSecondaryActions.length > 0 || hiddenActions.length > 0 ? this.getSecondaryActionsPosition() : -1;
+		const toggleMenuPosition = toggleMenuShown ? this.getSecondaryActionsPosition() : -1;
 		let pendingSeparator: IAction | undefined;
 		let hasVisibleActionBefore = false;
 		this.originalPrimaryActions.forEach((action, position) => {
@@ -457,7 +457,7 @@ export class ToolBar extends Disposable {
 	}
 
 	private updateSeparatorVisibility(): void {
-		const shown = this.getShownSeparators(this.hiddenActions);
+		const shown = this.getShownSeparators(this.hiddenActions, this.hasOverflow());
 		for (const index of this.getPrimarySeparatorIndexes()) {
 			const element = this.getItemElement(index);
 			if (element) {
@@ -727,7 +727,7 @@ export class ToolBar extends Disposable {
 			let itemsWidth = actionsToAdd.reduce((width, action) => width + this.getActionMinWidth(action), 0);
 			if (this.prioritizesOverflow) {
 				const hiddenActions = this.hiddenActions.filter(action => !actionsToAdd.includes(action));
-				const shownSeparators = this.getShownSeparators(hiddenActions);
+				const shownSeparators = this.getShownSeparators(hiddenActions, keepToggleMenuAction);
 				for (let i = 0; i < this.actionBar.length(); i++) {
 					const action = this.actionBar.getAction(i);
 					if (!action || action === this.toggleMenuAction) {

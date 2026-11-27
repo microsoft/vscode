@@ -119,6 +119,21 @@ suite('Auxiliary Bar - Responsive title actions', () => {
 			afterTheyGo: { separatorShown: false, actions: ['submenuitem.test.auxiliaryBar.newChat', 'settings', ToggleMenuAction.ID, Separator.ID], minWidth: '24px' },
 		});
 	}));
+
+	test('does not fit a title without a split button that sizes itself again when the theme changes', async () => {
+		const container = append(root, $('.part.auxiliarybar'));
+		const part = createTestAuxiliaryBarPart(container, store);
+		container.style.width = '300px';
+		part.layout(300, 200, 0, 0);
+		const toolbar = part.toolbar;
+		let relayouts = 0;
+		toolbar.relayout = () => relayouts++;
+
+		part.updateStyles();
+		await timeout(0);
+
+		assert.strictEqual(relayouts, 0);
+	});
 });
 
 suite('Auxiliary Bar - Maximize action', () => {
