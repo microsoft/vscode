@@ -152,7 +152,7 @@ interface ICreateSessionNowHarness {
 			getPreferredSessionType(folderUri: URI): IPreferredSessionType | undefined;
 		};
 	};
-	readonly _workspacePicker: { readonly selectedResolved: { readonly providerId: string } | undefined; readonly selectedWorkspaceConfig?: ISessionWorkspaceConfig };
+	readonly _workspacePicker: { readonly selectedResolved: { readonly providerId: string } | undefined; readonly selectedWorkspaceConfig?: ISessionWorkspaceConfig; readonly sessionFolderUris?: readonly URI[] };
 	readonly uriIdentityService?: { readonly extUri: typeof extUri };
 	readonly sessionsService: { openNewSession(options: IOpenNewSessionOptions, token: CancellationToken): Promise<IOpenNewSessionResult> };
 	readonly logService: { error(message: string, ...args: unknown[]): void };
@@ -4027,15 +4027,16 @@ suite('NewChatWidget', () => {
 		assert.deepStrictEqual(calls, []);
 	});
 
-	test('creates a draft in the picked workspace only for its default folder', async () => {
+	test('creates a draft in the picked workspace and the added folders only for its default folder', async () => {
 		const folder = URI.file('/project');
 		const workspaceConfig: ISessionWorkspaceConfig = { uri: URI.file('/product.code-workspace'), name: 'Product', folders: [folder, URI.file('/docs')] };
+		const sessionFolderUris = [folder, URI.file('/docs'), URI.file('/lib')];
 		const requests: IOpenNewSessionOptions[] = [];
 		const harness: ICreateSessionNowHarness = {
 			_session: constObservable(undefined),
 			_environment: constObservable(undefined),
 			_newChatInput: { sessionTypePicker: { getPreferredSessionType: () => undefined } },
-			_workspacePicker: { selectedResolved: { providerId: 'local' }, selectedWorkspaceConfig: workspaceConfig },
+			_workspacePicker: { selectedResolved: { providerId: 'local' }, selectedWorkspaceConfig: workspaceConfig, sessionFolderUris },
 			uriIdentityService: { extUri },
 			sessionsService: {
 				openNewSession: async options => {
@@ -4049,10 +4050,50 @@ suite('NewChatWidget', () => {
 		};
 		await createSessionNow.call(harness, folder, undefined, CancellationToken.None);
 		await createSessionNow.call(harness, URI.file('/other'), undefined, CancellationToken.None);
-		assert.deepStrictEqual(requests.map(request => ({ ...request, folderUri: request.folderUri?.path, workspaceConfig: request.workspaceConfig?.uri.path })), [
-			{ folderUri: '/project', preserveNavigation: true, workspaceConfig: '/product.code-workspace', providerId: 'local' },
-			{ folderUri: '/other', preserveNavigation: true, workspaceConfig: undefined, providerId: 'local' },
+		assert.deepStrictEqual(requests.map(request => ({ ...request, folderUri: request.folderUri?.path, workspaceConfig: request.workspaceConfig?.uri.path, folders: request.folders?.map(f => f.path) })), [
+			{ folderUri: '/project', preserveNavigation: true, workspaceConfig: '/product.code-workspace', folders: ['/project', '/docs', '/lib'], providerId: 'local' },
+			{ folderUri: '/other', preserveNavigation: true, workspaceConfig: undefined, folders: undefined, providerId: 'local' },
 		]);
+	});
+
+	test('shows the folders the user added as pills, and keeps them while a send clears the input', () => {
+		const syncSessionFolderPills = Reflect.get(NewChatWidget.prototype, '_syncSessionFolderPills') as (this: object) => void;
+		const didSendSessionFolders = Reflect.get(NewChatWidget.prototype, '_didSendSessionFolders') as (this: object, accepted: boolean) => void;
+		let added: URI[] = [URI.file('/lib'), URI.file('/docs')];
+		let attachments: IChatRequestVariableEntry[] = [{ kind: 'file', id: 'file:/readme', name: 'readme', value: URI.file('/readme') }];
+		const harness = {
+			_syncingSessionFolderPills: false,
+			_sendingSessionFolders: false,
+			uriIdentityService: { extUri },
+			_workspacePicker: {
+				get addedSessionFolderUris() { return added; },
+				resetSessionFolders: () => { added = []; },
+			},
+			_newChatInput: {
+				get attachments() { return attachments; },
+				removeAttachment: (id: string) => { attachments = attachments.filter(attachment => attachment.id !== id); },
+				addAttachments: (...entries: IChatRequestVariableEntry[]) => { attachments = [...attachments, ...entries]; },
+			},
+			_syncSessionFolderPills: () => syncSessionFolderPills.call(harness),
+		};
+		const pills = () => attachments.map(attachment => `${attachment.kind}:${attachment.name}`);
+		syncSessionFolderPills.call(harness);
+		const shown = pills();
+		added = [URI.file('/docs')];
+		syncSessionFolderPills.call(harness);
+		const afterRemoval = pills();
+		// A send clears the input, which is restored if the send fails
+		harness._sendingSessionFolders = true;
+		attachments = [];
+		syncSessionFolderPills.call(harness);
+		const whileSending = { pills: pills(), added: added.map(folder => folder.path) };
+		didSendSessionFolders.call(harness, true);
+		assert.deepStrictEqual({ shown, afterRemoval, whileSending, afterSend: { pills: pills(), added: added.map(folder => folder.path) } }, {
+			shown: ['file:readme', 'directory:lib', 'directory:docs'],
+			afterRemoval: ['file:readme', 'directory:docs'],
+			whileSending: { pills: [], added: ['/docs'] },
+			afterSend: { pills: [], added: [] },
+		});
 	});
 
 	test('records the workspace configuration requested for a draft only for a draft created for it, so a failed creation is retried', async () => {
@@ -4215,7 +4256,7 @@ suite('NewChatWidget', () => {
 		const isCurrentWorkspaceSelection = Reflect.get(NewChatWidget.prototype, '_isCurrentWorkspaceSelection') as (
 			this: {
 				readonly _session: IObservable<ITestSessionWithChat | undefined>;
-				readonly _workspacePicker: { readonly selectedResolved: { readonly providerId: string }; readonly selectedWorkspaceConfig: ISessionWorkspaceConfig | undefined };
+				readonly _workspacePicker: { readonly selectedResolved: { readonly providerId: string }; readonly selectedWorkspaceConfig: ISessionWorkspaceConfig | undefined; readonly addedSessionFolderUris: readonly URI[] };
 				readonly _preferredDevContainerFolderUri: URI | undefined;
 				readonly _pendingWorkspaceCreation?: Promise<IOpenNewSessionResult>;
 				readonly uriIdentityService: { readonly extUri: typeof extUri };
@@ -4231,7 +4272,7 @@ suite('NewChatWidget', () => {
 		const configAB: ISessionWorkspaceConfig = { uri: URI.file('/ab.code-workspace'), name: 'AB', folders: [folder, b] };
 		const configAC: ISessionWorkspaceConfig = { uri: URI.file('/ac.code-workspace'), name: 'AC', folders: [folder, c] };
 		const configABEdited: ISessionWorkspaceConfig = { ...configAB, folders: [folder, c] };
-		const cases: { name: string; folderUri: URI | undefined; reuse: boolean; providerId?: string; preferDevContainer?: boolean; devContainerEnabled?: boolean; pending?: boolean; isCreated?: boolean; noDraft?: boolean; draftConfig?: ISessionWorkspaceConfig; requestedConfig?: ISessionWorkspaceConfig; draftRoots?: URI[]; selectedConfig?: ISessionWorkspaceConfig }[] = [
+		const cases: { name: string; folderUri: URI | undefined; reuse: boolean; providerId?: string; preferDevContainer?: boolean; devContainerEnabled?: boolean; pending?: boolean; isCreated?: boolean; noDraft?: boolean; draftConfig?: ISessionWorkspaceConfig; requestedConfig?: ISessionWorkspaceConfig; draftRoots?: URI[]; selectedConfig?: ISessionWorkspaceConfig; added?: URI[] }[] = [
 			{ name: 'same folder', folderUri: URI.file('/project'), reuse: true },
 			{ name: 'different folder', folderUri: URI.file('/other'), reuse: false },
 			{ name: 'cleared folder', folderUri: undefined, reuse: false },
@@ -4249,6 +4290,10 @@ suite('NewChatWidget', () => {
 			{ name: 'same workspace, draft in its first folder only', folderUri: folder, draftConfig: configAB, draftRoots: [folder], selectedConfig: configAB, reuse: true },
 			{ name: 'same workspace, provider does not record it', folderUri: folder, requestedConfig: configAB, draftRoots: [folder], selectedConfig: configAB, reuse: true },
 			{ name: 'same workspace file with other folders', folderUri: folder, draftConfig: configAB, selectedConfig: configABEdited, reuse: false },
+			{ name: 'folder with an added folder', folderUri: folder, added: [c], reuse: false },
+			{ name: 'same folder and added folder', folderUri: folder, draftRoots: [folder, c], added: [c], reuse: true },
+			{ name: 'added folder removed', folderUri: folder, draftRoots: [folder, c], reuse: false },
+			{ name: 'workspace with an added folder', folderUri: folder, draftConfig: configAB, draftRoots: [folder, b, c], selectedConfig: configAB, added: [c], reuse: true },
 		];
 		const results = cases.map(options => ({
 			name: options.name,
@@ -4262,7 +4307,7 @@ suite('NewChatWidget', () => {
 						folders: (options.draftRoots ?? options.draftConfig?.folders ?? [folder]).map(root => ({ root, workingDirectory: root, name: 'project', description: undefined })),
 					})),
 				})),
-				_workspacePicker: { selectedResolved: { providerId: options.providerId ?? LOCAL_AGENT_HOST_PROVIDER_ID }, selectedWorkspaceConfig: options.selectedConfig },
+				_workspacePicker: { selectedResolved: { providerId: options.providerId ?? LOCAL_AGENT_HOST_PROVIDER_ID }, selectedWorkspaceConfig: options.selectedConfig, addedSessionFolderUris: options.added ?? [] },
 				_requestedWorkspaceConfig: options.requestedConfig && { sessionId: 'draft', config: options.requestedConfig },
 				_isSelectedWorkspaceConfig: isSelectedWorkspaceConfig,
 				_preferredDevContainerFolderUri: options.preferDevContainer ? folder : undefined,

@@ -178,6 +178,8 @@ export interface IWorkspacePickerOptions {
 	 * a single folder and nothing else to offer, the picker shows it read-only. Unset or empty, it offers any workspace.
 	 */
 	readonly allowedFolders?: IObservable<readonly URI[]>;
+	/** Whether the session of the selected folder can work in more folders, which the user then adds to it. */
+	readonly supportsSessionFolders?: IObservable<boolean>;
 	/** How the picker shows an allowed folder, such as a linked checkout of a window's folder: by its name and branch. */
 	readonly getAllowedFolderPresentation?: (folderUri: URI) => IAllowedFolderPresentation | undefined;
 	/** Offers New Worktree after the {@link allowedFolders}: a session that works in a new worktree of the selected folder. */
@@ -325,6 +327,8 @@ export class WorkspacePicker extends Disposable {
 	private _selectedFolderUri: URI | undefined;
 	/** The workspace picked from the Workspaces group, while its default folder stays selected. */
 	private _selectedSessionWorkspaceUri: URI | undefined;
+	/** The folders the user added to the session of the selection, besides its folder and its workspace's folders. */
+	private _addedSessionFolders: readonly URI[] = [];
 	/** Whether No Workspace is selected, with {@link IWorkspacePickerOptions.ownNoWorkspaceSelection} or {@link _noWorkspaceUnpersisted}. */
 	private _noWorkspaceSelected = false;
 	/** Whether No Workspace is selected without remembering it in the recent workspaces, such as an environment's only choice. */
@@ -434,6 +438,90 @@ export class WorkspacePicker extends Disposable {
 		return workspace && !workspace.missing && SessionWorkspaceEditorInput.hasWorkspaceFile(this.uriIdentityService.extUri, workspace)
 			? { uri: workspace.uri, name: workspace.name, folders: workspace.folders }
 			: undefined;
+	}
+
+	/**
+	 * The folders the session of the selection works in, its folder first: its workspace's folders, or its folder, and
+	 * the folders the user added. `undefined` for the selected folder alone, or its workspace's folders alone.
+	 */
+	get sessionFolderUris(): readonly URI[] | undefined {
+		const folderUri = this._selectedFolderUri;
+		if (!folderUri || !this._addedSessionFolders.length) {
+			return undefined;
+		}
+		return [...(this.selectedSessionWorkspace?.folders ?? [folderUri]), ...this._addedSessionFolders];
+	}
+
+	/** The folders the user added to the session of the selection. */
+	get addedSessionFolderUris(): readonly URI[] {
+		return this._addedSessionFolders;
+	}
+
+	/** Whether the user can add folders to the session of the selected folder: as its agent can, on this computer. */
+	get canAddSessionFolders(): boolean {
+		const folderUri = this._selectedFolderUri;
+		return !!folderUri && this.options.supportsSessionFolders?.get() === true
+			&& this._getNoWorkspaceOption()?.isSelected !== true
+			&& this._resolveFolder(folderUri)?.workspace.group === SESSION_WORKSPACE_GROUP_LOCAL;
+	}
+
+	/** Lets the user pick folders and adds them to the session of the selected folder. */
+	async promptForSessionFolders(): Promise<void> {
+		if (!this.canAddSessionFolders) {
+			return;
+		}
+		const generation = this._selectionGeneration;
+		const picked = await this.fileDialogService.showOpenDialog({
+			title: localize('workspacePicker.addSessionFolders.title', "Add Folders to Session"),
+			canSelectFiles: false,
+			canSelectFolders: true,
+			canSelectMany: true,
+			openLabel: localize({ key: 'workspacePicker.addSessionFolders.open', comment: ['&& denotes a mnemonic'] }, "&&Add"),
+		});
+		// Folders picked for a selection that changed while picking do not apply to it
+		if (picked?.length && generation === this._selectionGeneration) {
+			this.addSessionFolders(picked);
+		}
+	}
+
+	/** Adds folders to the session of the selected folder, but none it already works in. */
+	addSessionFolders(folders: readonly URI[]): void {
+		const folderUri = this._selectedFolderUri;
+		if (!folderUri) {
+			return;
+		}
+		const extUri = this.uriIdentityService.extUri;
+		const sessionFolders = [...(this.sessionFolderUris ?? this.selectedSessionWorkspace?.folders ?? [folderUri])];
+		const added = [...this._addedSessionFolders];
+		for (const folder of folders) {
+			if (!sessionFolders.some(existing => extUri.isEqual(existing, folder))) {
+				sessionFolders.push(folder);
+				added.push(folder);
+			}
+		}
+		this._setAddedSessionFolders(added);
+	}
+
+	/** Removes a folder the user added to the session of the selected folder. */
+	removeSessionFolder(folder: URI): void {
+		const extUri = this.uriIdentityService.extUri;
+		this._setAddedSessionFolders(this._addedSessionFolders.filter(added => !extUri.isEqual(added, folder)));
+	}
+
+	/** Removes the folders the user added, for the next session of the selection. */
+	resetSessionFolders(): void {
+		this._setAddedSessionFolders([]);
+	}
+
+	private _setAddedSessionFolders(folders: readonly URI[]): void {
+		if (folders.length === this._addedSessionFolders.length) {
+			return;
+		}
+		this._addedSessionFolders = folders;
+		this._updateTriggerLabel();
+		this._onDidChangeSelection.fire();
+		// The session of the selection works in other folders now
+		this._onDidSelectWorkspace.fire(this._selectedFolderUri);
 	}
 
 	get additionalFolderUris(): readonly URI[] {
@@ -1410,12 +1498,19 @@ export class WorkspacePicker extends Disposable {
 	 *        workspace were created by a specific provider).
 	 * @param options.persist Whether to persist the selection as a recent workspace. Defaults to true.
 	 * @param options.sessionWorkspaceUri The workspace, of the Workspaces group, of the session the folder is selected for.
+	 * @param options.sessionFolders The folders of the session the folder is selected for, the folder first.
 	 */
-	setSelectedWorkspace(folderUri: URI, options?: { fireEvent?: boolean; providerId?: string; persist?: boolean; preferDevContainer?: boolean; origin?: WorkspaceSelectionOrigin; sessionWorkspaceUri?: URI }): void {
+	setSelectedWorkspace(folderUri: URI, options?: { fireEvent?: boolean; providerId?: string; persist?: boolean; preferDevContainer?: boolean; origin?: WorkspaceSelectionOrigin; sessionWorkspaceUri?: URI; sessionFolders?: readonly URI[] }): void {
 		this._selectedDevContainerFolderUri = options?.preferDevContainer ? folderUri : undefined;
 		const origin = options?.origin ?? WorkspaceSelectionOrigin.Programmatic;
 		const preserveOrigin = (origin === WorkspaceSelectionOrigin.RestoredDraft || origin === WorkspaceSelectionOrigin.SessionSync)
 			&& this._isSelectedFolder(folderUri);
+		// A session that syncs its folder before it has the workspace and folders it was requested in keeps the picked ones
+		const keepsSession = preserveOrigin && origin === WorkspaceSelectionOrigin.SessionSync;
+		const sessionWorkspaceUri = options?.sessionWorkspaceUri ?? (keepsSession ? this._selectedSessionWorkspaceUri : undefined);
+		const addedSessionFolders = keepsSession
+			? this._addedSessionFolders
+			: this._getAddedSessionFolders(folderUri, sessionWorkspaceUri, options?.sessionFolders);
 		this._selectFolder(
 			folderUri,
 			options?.fireEvent ?? true,
@@ -1423,9 +1518,23 @@ export class WorkspacePicker extends Disposable {
 			options?.persist ?? true,
 			NewSessionWorkspacePreselectionSource.ProvidedWorkspace,
 			preserveOrigin ? this._selectionOrigin : origin,
-			// A session that syncs its folder before it has the workspace it was requested in keeps the picked one
-			options?.sessionWorkspaceUri ?? (preserveOrigin && origin === WorkspaceSelectionOrigin.SessionSync ? this._selectedSessionWorkspaceUri : undefined),
+			sessionWorkspaceUri,
 		);
+		if (addedSessionFolders.length && this._isSelectedFolder(folderUri)) {
+			this._addedSessionFolders = addedSessionFolders;
+			this._updateTriggerLabel();
+		}
+	}
+
+	/** The folders of a session besides its folder and its workspace's folders. */
+	private _getAddedSessionFolders(folderUri: URI, sessionWorkspaceUri: URI | undefined, sessionFolders: readonly URI[] | undefined): readonly URI[] {
+		if (!sessionFolders?.length) {
+			return [];
+		}
+		const extUri = this.uriIdentityService.extUri;
+		const workspace = sessionWorkspaceUri && this._workspacesEnabled.get() ? this.sessionWorkspacesService.getWorkspace(sessionWorkspaceUri) : undefined;
+		const folders = workspace?.folders ?? [folderUri];
+		return sessionFolders.filter(folder => !folders.some(existing => extUri.isEqual(existing, folder)));
 	}
 
 	private _setTriggerExpanded(trigger: HTMLElement, expanded: boolean): void {
@@ -1552,6 +1661,7 @@ export class WorkspacePicker extends Disposable {
 		}
 		this._selectedFolderUri = folderUri;
 		this._selectedSessionWorkspaceUri = sessionWorkspaceUri;
+		this._addedSessionFolders = [];
 		this._selectedResolved = resolved;
 		this._noWorkspaceSelected = false;
 		this._noWorkspaceUnpersisted = false;
@@ -1578,6 +1688,7 @@ export class WorkspacePicker extends Disposable {
 	 */
 	private _applySelection(resolved: IResolvedFolderWorkspace | undefined, source = NewSessionWorkspacePreselectionSource.None, origin = WorkspaceSelectionOrigin.None): void {
 		this._selectedSessionWorkspaceUri = undefined;
+		this._addedSessionFolders = [];
 		this._selectedResolved = resolved;
 		this._selectedFolderUri = resolved?.workspace.folders[0]?.root;
 		if (resolved) {

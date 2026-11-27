@@ -695,6 +695,91 @@ suite('WorkspacePicker - Workspaces group', () => {
 	});
 });
 
+suite('WorkspacePicker - session folders', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	// Folders the mock local agent host resolves
+	const app = URI.file('/agent-host/app');
+	const lib = URI.file('/agent-host/lib');
+	const docs = URI.file('/agent-host/docs');
+	const product: IRecentSessionWorkspace = { uri: URI.file('/ws/product.code-workspace'), name: 'Product', folders: [app, docs], owned: true };
+
+	function setupPicker(options: { supported?: boolean; picked?: URI[] } = {}) {
+		const providersService = store.add(new MockSessionsProvidersService());
+		providersService.setProviders([{ ...createMockProvider('local-agent-host', { group: SESSION_WORKSPACE_GROUP_LOCAL }), supportsLocalWorkspaces: true }]);
+		const supported = observableValue('supported', options.supported ?? true);
+		const picker = createTestPicker(store, providersService, undefined, undefined, DispatchingWorkspacePicker, { showOpenDialog: async () => options.picked }, undefined, undefined, {
+			restoreFromSessions: false,
+			supportsSessionFolders: supported,
+			configuration: { [SESSIONS_WORKSPACES_ENABLED_SETTING]: true },
+			sessionWorkspacesService: {
+				workspaces: constObservable([product]),
+				getWorkspace: uri => extUri.isEqual(uri, product.uri) ? product : undefined,
+				touchWorkspace: () => { },
+			},
+		});
+		assert.ok(picker instanceof DispatchingWorkspacePicker);
+		const state = () => ({ folders: picker.sessionFolderUris?.map(folder => folder.path), added: picker.addedSessionFolderUris.map(folder => folder.path) });
+		return { picker, supported, state };
+	}
+
+	test('adds picked folders to the session of the selected folder or workspace once each, and removes and resets them', async () => {
+		const { picker, state } = setupPicker({ picked: [lib, app, lib] });
+		await picker.dispatchFolder(app, 'local-agent-host');
+		await picker.promptForSessionFolders();
+		const toFolder = state();
+		picker.removeSessionFolder(lib);
+		const removed = state();
+		await picker.dispatchItem({ folderUri: app, providerId: 'local-agent-host', sessionWorkspaceUri: product.uri });
+		picker.addSessionFolders([lib, docs]);
+		const toWorkspace = state();
+		picker.resetSessionFolders();
+		assert.deepStrictEqual({ toFolder, removed, toWorkspace, reset: state() }, {
+			toFolder: { folders: ['/agent-host/app', '/agent-host/lib'], added: ['/agent-host/lib'] },
+			removed: { folders: undefined, added: [] },
+			toWorkspace: { folders: ['/agent-host/app', '/agent-host/docs', '/agent-host/lib'], added: ['/agent-host/lib'] },
+			reset: { folders: undefined, added: [] },
+		});
+	});
+
+	test('offers adding folders only while the session can work in more folders, and forgets them for another selection', async () => {
+		const { picker, supported, state } = setupPicker({ picked: [lib] });
+		const beforeSelection = picker.canAddSessionFolders;
+		await picker.dispatchFolder(app, 'local-agent-host');
+		const selected = picker.canAddSessionFolders;
+		supported.set(false, undefined);
+		const unsupported = picker.canAddSessionFolders;
+		await picker.promptForSessionFolders();
+		const notAdded = state();
+		supported.set(true, undefined);
+		picker.addSessionFolders([lib]);
+		await picker.dispatchFolder(docs, 'local-agent-host');
+		assert.deepStrictEqual({ beforeSelection, selected, unsupported, notAdded, otherFolder: state() }, {
+			beforeSelection: false,
+			selected: true,
+			unsupported: false,
+			notAdded: { folders: undefined, added: [] },
+			otherFolder: { folders: undefined, added: [] },
+		});
+	});
+
+	test('keeps the added folders as its draft syncs its folder, and restores them with a restored draft', async () => {
+		const { picker, state } = setupPicker();
+		await picker.dispatchFolder(app, 'local-agent-host');
+		picker.addSessionFolders([lib]);
+		picker.setSelectedWorkspace(app, { fireEvent: false, origin: WorkspaceSelectionOrigin.SessionSync });
+		const synced = state();
+		picker.setSelectedWorkspace(app, { fireEvent: false, origin: WorkspaceSelectionOrigin.RestoredDraft });
+		const restoredWithout = state();
+		picker.setSelectedWorkspace(app, { fireEvent: false, origin: WorkspaceSelectionOrigin.RestoredDraft, sessionWorkspaceUri: product.uri, sessionFolders: [app, docs, lib] });
+		assert.deepStrictEqual({ synced, restoredWithout, restored: state() }, {
+			synced: { folders: ['/agent-host/app', '/agent-host/lib'], added: ['/agent-host/lib'] },
+			restoredWithout: { folders: undefined, added: [] },
+			restored: { folders: ['/agent-host/app', '/agent-host/docs', '/agent-host/lib'], added: ['/agent-host/lib'] },
+		});
+	});
+});
+
 suite('WorkspacePicker - Dev Container sample telemetry', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 

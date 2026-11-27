@@ -75,6 +75,7 @@ import { ChatInputTipPresenter } from '../../../chat/browser/widget/input/chatIn
 import { chatInputStackClass, chatInputStackSlotClass, chatInputSurfaceStackClass, ChatInputStackSlot, setChatInputStackSlot } from '../../../chat/browser/widget/input/chatInputStack.js';
 import { IChatPetService } from '../../../chat/browser/chatPetService.js';
 import { IChatWidget } from '../../../chat/browser/chat.js';
+import { IChatContextPickService } from '../../../chat/browser/attachments/chatContextPickService.js';
 import type { IChatPetPlatformOccupation } from '../../../chat/browser/widget/chatPetWidget.js';
 import { IChatTipService } from '../../../chat/browser/chatTipService.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
@@ -167,6 +168,18 @@ function isWorktreeSupportEnabled(configurationService: IConfigurationService): 
  */
 function getDraftWorkspaceConfig(sessionId: string, workspace: ISessionWorkspace | undefined, requested: { readonly sessionId: string; readonly config: ISessionWorkspaceConfig | undefined } | undefined): ISessionWorkspaceConfig | undefined {
 	return workspace?.workspaceConfig ?? (requested && requested.sessionId === sessionId ? requested.config : undefined);
+}
+
+/** The prefix of the ids of the pills of the folders the user added to a new session. */
+const SESSION_FOLDER_CONTEXT_ID_PREFIX = 'session-folder:';
+
+/**
+ * Whether the composer offers more folders for the session of `draft`: as its agent can, which the draft says
+ * ({@link ISessionCapabilities.supportsChatFolders}). Before there is a draft, the provider keeps only the first folder
+ * when it cannot.
+ */
+export function getSupportsSessionFolders(draft: ISession | undefined, reader: IReader): boolean {
+	return !draft || draft.capabilities.read(reader).supportsChatFolders === true;
 }
 
 export function isSessionWorkspaceOptOutEnabled(configurationService: IConfigurationService): boolean {
@@ -372,6 +385,7 @@ export class NewChatWidget extends Disposable {
 		@IScheduledChatsService private readonly scheduledChatsService: IScheduledChatsService,
 		@INewSessionWorktreeSendChoiceService private readonly worktreeSendChoiceService: INewSessionWorktreeSendChoiceService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@IChatContextPickService private readonly chatContextPickService: IChatContextPickService,
 	) {
 		super();
 		this._preserveCustomView = options.preserveCustomView === true;
@@ -502,6 +516,7 @@ export class NewChatWidget extends Disposable {
 		const PickerCtor = isWeb ? WebWorkspacePicker : WorkspacePicker;
 		this._workspacePicker = this._register(this.instantiationService.createInstance(PickerCtor, {
 			searchWorkspaceTargetDirectly: this.options.newSessionPresentation.searchWorkspaceTargetDirectly,
+			supportsSessionFolders: derived(this, reader => getSupportsSessionFolders(this._session.read(reader), reader)),
 			environment: this._environment,
 			environmentPickerEnabled,
 			canRestoreWorkspace: () => !this._savedDraftComposer?.isRestoring && !this._savedDraftTargetUnavailable.get()
@@ -690,11 +705,17 @@ export class NewChatWidget extends Disposable {
 			restoreUnsentInput: this._detached ? undefined : input => !!this.newSessionComposerService.activeComposer.get()?.restoreUnsentInput?.(input),
 			getSavedDraftId: () => this._savedDraftComposer && this.sessionDraftsService.getDraftRevision(this._savedDraftComposer) ? this._savedDraftComposer.id : undefined,
 			onDidChangeDraft: this._savedDraftComposer ? input => this._savedDraftComposer!.updateInput(input) : undefined,
-			onWillSendDraft: this._savedDraftComposer ? input => {
-				this._captureSavedDraftTarget();
-				this._savedDraftComposer!.willSend(input);
-			} : undefined,
-			onDidSendDraft: this._savedDraftComposer ? accepted => this._savedDraftComposer!.didSend(accepted) : undefined,
+			onWillSendDraft: input => {
+				this._sendingSessionFolders = true;
+				if (this._savedDraftComposer) {
+					this._captureSavedDraftTarget();
+					this._savedDraftComposer.willSend(input);
+				}
+			},
+			onDidSendDraft: accepted => {
+				this._savedDraftComposer?.didSend(accepted);
+				this._didSendSessionFolders(accepted);
+			},
 			canSchedule: derived(this, reader => {
 				this.scheduledChatsService.enabled.read(reader);
 				this.scheduledChatsService.availableProviders.read(reader);
@@ -865,6 +886,7 @@ export class NewChatWidget extends Disposable {
 			this._newChatInput.focus();
 		}));
 		this._register(this._workspacePicker.onDidRemoveAttachedContext(id => this._newChatInput.removeAttachment(id)));
+		this._registerSessionFolders();
 		const syncAttachedContext = () => this._workspacePicker.syncAttachedContext(this._newChatInput.attachments);
 		syncAttachedContext();
 		this._register(this._newChatInput.onDidChangeAttachments(() => {
@@ -999,7 +1021,7 @@ export class NewChatWidget extends Disposable {
 	private _syncWorkspacePickerFromSessionWorkspace(session: ISession | undefined, workspace: ISessionWorkspace | undefined): void {
 		const folderUri = workspace?.folders[0]?.root;
 		if (session && folderUri && !this._workspacePicker.matchesSelectedWorkspace(workspace)) {
-			this._workspacePicker.setSelectedWorkspace(folderUri, { fireEvent: false, origin: WorkspaceSelectionOrigin.SessionSync, sessionWorkspaceUri: getDraftWorkspaceConfig(session.sessionId, workspace, this._requestedWorkspaceConfig)?.uri });
+			this._workspacePicker.setSelectedWorkspace(folderUri, { fireEvent: false, origin: WorkspaceSelectionOrigin.SessionSync, sessionWorkspaceUri: getDraftWorkspaceConfig(session.sessionId, workspace, this._requestedWorkspaceConfig)?.uri, sessionFolders: workspace?.folders.map(folder => folder.root) });
 		}
 	}
 
@@ -1554,6 +1576,8 @@ export class NewChatWidget extends Disposable {
 			if (accepted) {
 				return () => {
 					this.sessionDraftsService.finishScheduledComposer(composer, revision);
+					// Clearing the input took the pills of the scheduled chat's folders
+					this._didSendSessionFolders(true);
 					this.scheduledChatsService.releaseSource(compositionId);
 				};
 			}
@@ -2390,7 +2414,8 @@ export class NewChatWidget extends Disposable {
 		if (origin === WorkspaceSelectionOrigin.RestoredDraft) {
 			this._reconcileWorkspaceEnvironment({ providerId: activeSession.providerId, preferDevContainer });
 		}
-		this._workspacePicker.setSelectedWorkspace(folderUri, { fireEvent: false, providerId: activeSession.providerId, persist, preferDevContainer, origin, sessionWorkspaceUri: getDraftWorkspaceConfig(activeSession.sessionId, activeSession.workspace.get(), this._requestedWorkspaceConfig)?.uri });
+		const workspace = activeSession.workspace.get();
+		this._workspacePicker.setSelectedWorkspace(folderUri, { fireEvent: false, providerId: activeSession.providerId, persist, preferDevContainer, origin, sessionWorkspaceUri: getDraftWorkspaceConfig(activeSession.sessionId, workspace, this._requestedWorkspaceConfig)?.uri, sessionFolders: workspace?.folders.map(folder => folder.root) });
 		return folderUri;
 	}
 
@@ -2546,6 +2571,80 @@ export class NewChatWidget extends Disposable {
 		return { voiceTarget: this._isMainWindowComposer() };
 	}
 
+	/**
+	 * Offers Add Context's Folder... to add folders to the session of the selected folder, and shows the folders the user
+	 * added as pills in the input, which the user removes as attachments. The picker keeps the folders.
+	 */
+	private _registerSessionFolders(): void {
+		this._register(this.chatContextPickService.registerChatContextItem({
+			type: 'valuePick',
+			label: localize('newChatWidget.addSessionFolders', "Folder..."),
+			icon: Codicon.folder,
+			// Only in this composer, while its session can work in more folders
+			isEnabled: widget => widget === this._newChatInput.widget && this._workspacePicker.canAddSessionFolders,
+			asAttachment: async () => {
+				await this._workspacePicker.promptForSessionFolders();
+				return undefined;
+			},
+		}));
+		this._register(this._workspacePicker.onDidChangeSelection(() => this._syncSessionFolderPills()));
+		this._register(this._newChatInput.onDidRemoveAttachments(removed => {
+			for (const pill of removed) {
+				if (pill.id.startsWith(SESSION_FOLDER_CONTEXT_ID_PREFIX) && URI.isUri(pill.value)) {
+					this._workspacePicker.removeSessionFolder(pill.value);
+				}
+			}
+		}));
+		// The input's attachments are replaced, such as by a restored draft: show the folders again
+		this._register(this._newChatInput.onDidChangeAttachments(() => this._syncSessionFolderPills()));
+		this._syncSessionFolderPills();
+	}
+
+	private _syncingSessionFolderPills = false;
+	/** Whether the input is cleared for a send, which takes the pills of the folders the session is sent with. */
+	private _sendingSessionFolders = false;
+
+	/** Updates the pills to the folders the user added to the session of the selection. */
+	private _syncSessionFolderPills(): void {
+		if (this._syncingSessionFolderPills || this._sendingSessionFolders) {
+			return;
+		}
+		const extUri = this.uriIdentityService.extUri;
+		const folders = this._workspacePicker.addedSessionFolderUris;
+		const pills = this._newChatInput.attachments.filter(attachment => attachment.id.startsWith(SESSION_FOLDER_CONTEXT_ID_PREFIX));
+		const stale = pills.filter(pill => !URI.isUri(pill.value) || !folders.some(folder => extUri.isEqual(folder, pill.value as URI)));
+		const missing = folders.filter(folder => !pills.some(pill => URI.isUri(pill.value) && extUri.isEqual(pill.value, folder)));
+		if (!stale.length && !missing.length) {
+			return;
+		}
+		this._syncingSessionFolderPills = true;
+		try {
+			for (const pill of stale) {
+				this._newChatInput.removeAttachment(pill.id);
+			}
+			if (missing.length) {
+				this._newChatInput.addAttachments(...missing.map(folder => ({
+					kind: 'directory' as const,
+					id: `${SESSION_FOLDER_CONTEXT_ID_PREFIX}${folder.toString()}`,
+					name: basename(folder),
+					fullName: folder.fsPath,
+					value: folder,
+				})));
+			}
+		} finally {
+			this._syncingSessionFolderPills = false;
+		}
+	}
+
+	/** Starts the next session without the folders the user added, once a sent one has taken them. */
+	private _didSendSessionFolders(accepted: boolean): void {
+		this._sendingSessionFolders = false;
+		if (accepted) {
+			this._workspacePicker.resetSessionFolders();
+		}
+		this._syncSessionFolderPills();
+	}
+
 	private _requestsDevContainer(folderUri: URI | undefined): boolean {
 		const target = this._draftHost?.requestedTarget?.get();
 		return !!folderUri && !!target?.requireDevContainer && !!target.folderUri && this.uriIdentityService.extUri.isEqual(target.folderUri, folderUri);
@@ -2565,11 +2664,14 @@ export class NewChatWidget extends Disposable {
 		}
 		const selectedWorkspaceConfig = this._workspacePicker.selectedWorkspaceConfig;
 		const workspaceConfig = selectedWorkspaceConfig && this.uriIdentityService.extUri.isEqual(selectedWorkspaceConfig.folders[0], folderUri) ? selectedWorkspaceConfig : undefined;
+		const sessionFolders = this._workspacePicker.sessionFolderUris;
+		const folders = sessionFolders && this.uriIdentityService.extUri.isEqual(sessionFolders[0], folderUri) ? sessionFolders : undefined;
 		try {
 			const result = await this.sessionsService.openNewSession({
 				folderUri,
 				preserveNavigation: true,
 				...(workspaceConfig ? { workspaceConfig } : undefined),
+				...(folders ? { folders } : undefined),
 				...(this._draftHost ? { draftSlot: this._draftHost.slot } : this._preserveCustomView ? { preserveCustomView: true } : {}),
 				...(environment?.kind === 'container' || this._requestsDevContainer(folderUri) ? { requireDevContainer: true } : undefined),
 				...(background ? { background: true } : undefined),
@@ -3745,20 +3847,28 @@ export class NewChatWidget extends Disposable {
 	}
 
 	/**
-	 * Whether a draft is in the workspace configuration the picker selects for `folderUri`, as it was configured: the same
-	 * file with the same folders, or none. Not the folders the draft works in, which a provider may reduce to the first.
+	 * Whether a draft is in the workspace configuration the picker selects for `folderUri`, as it was configured (the same
+	 * file with the same folders, or none), and works in the folders the user added. Not in all the configured folders,
+	 * which a provider may reduce to the first.
 	 */
 	private _isSelectedWorkspaceConfig(session: ISession, folderUri: URI): boolean {
 		const extUri = this.uriIdentityService.extUri;
 		const selected = this._workspacePicker.selectedWorkspaceConfig;
 		const config = selected && extUri.isEqual(selected.folders[0], folderUri) ? selected : undefined;
-		const draftConfig = getDraftWorkspaceConfig(session.sessionId, session.workspace.get(), this._requestedWorkspaceConfig);
-		if (!draftConfig || !config) {
-			return !draftConfig && !config;
-		}
-		return extUri.isEqual(draftConfig.uri, config.uri)
+		const workspace = session.workspace.get();
+		const draftConfig = getDraftWorkspaceConfig(session.sessionId, workspace, this._requestedWorkspaceConfig);
+		const sameConfig = !draftConfig || !config
+			? !draftConfig && !config
+			: extUri.isEqual(draftConfig.uri, config.uri)
 			&& draftConfig.folders.length === config.folders.length
 			&& draftConfig.folders.every((folder, index) => extUri.isEqual(folder, config.folders[index]));
+		// The folders the user added: those the draft works in besides its configured ones
+		const configuredFolders = draftConfig?.folders ?? [folderUri];
+		const draftAdded = (workspace?.folders ?? []).map(folder => folder.root).filter(root => !configuredFolders.some(folder => extUri.isEqual(folder, root)));
+		const added = this._workspacePicker.addedSessionFolderUris;
+		return sameConfig
+			&& draftAdded.length === added.length
+			&& added.every(folder => draftAdded.some(root => extUri.isEqual(root, folder)));
 	}
 
 	/**
