@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../base/browser/dom.js';
+import { DataTransfers } from '../../../../base/browser/dnd.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { isWeb } from '../../../../base/common/platform.js';
+import { CodeDataTransfers } from '../../../../platform/dnd/browser/dnd.js';
 import { IWebview } from './webview.js';
 
 /**
@@ -17,16 +20,24 @@ import { IWebview } from './webview.js';
 export class WebviewWindowDragMonitor extends Disposable {
 	constructor(targetWindow: CodeWindow, getWebview: () => IWebview | undefined) {
 		super();
+		let isDraggingResource = false;
 
 		const onDragStart = () => {
 			getWebview()?.windowDidDragStart();
 		};
 
 		const onDragEnd = () => {
+			isDraggingResource = false;
 			getWebview()?.windowDidDragEnd();
 		};
 
-		this._register(DOM.addDisposableListener(targetWindow, DOM.EventType.DRAG_START, () => {
+		this._register(DOM.addDisposableListener(targetWindow, DOM.EventType.DRAG_START, event => {
+			// Electron rejects native drags from the workbench into a cross-site iframe.
+			// Keep these drags in the workbench and forward explicitly requested drops.
+			isDraggingResource = !isWeb && !!event.dataTransfer?.types.some(type =>
+				type.toLowerCase() === DataTransfers.RESOURCES.toLowerCase()
+				|| type.toLowerCase() === CodeDataTransfers.FILES.toLowerCase()
+				|| type.toLowerCase() === DataTransfers.INTERNAL_URI_LIST.toLowerCase());
 			onDragStart();
 		}));
 
@@ -39,20 +50,33 @@ export class WebviewWindowDragMonitor extends Disposable {
 		}));
 
 		this._register(DOM.addDisposableListener(targetWindow, DOM.EventType.DRAG, (event) => {
-			if (event.shiftKey) {
-				onDragEnd();
+			if (event.shiftKey && !isDraggingResource) {
+				getWebview()?.windowDidDragEnd();
 			} else {
 				onDragStart();
 			}
 		}));
 
-		this._register(DOM.addDisposableListener(targetWindow, DOM.EventType.DRAG_OVER, (event) => {
+		this._register(DOM.addDisposableListener(targetWindow, DOM.EventType.DRAG_OVER, event => {
+			if (isDraggingResource) {
+				onDragStart();
+				getWebview()?.windowDidDrag(event);
+				return;
+			}
 			if (event.shiftKey) {
-				onDragEnd();
+				getWebview()?.windowDidDragEnd();
 			} else {
 				onDragStart();
 			}
-		}));
+		}, true));
+
+		for (const type of [DOM.EventType.DRAG_LEAVE, DOM.EventType.DROP]) {
+			this._register(DOM.addDisposableListener(targetWindow, type, event => {
+				if (isDraggingResource) {
+					getWebview()?.windowDidDrag(event);
+				}
+			}, true));
+		}
 
 	}
 }
