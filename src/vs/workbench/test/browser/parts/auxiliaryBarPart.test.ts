@@ -11,6 +11,7 @@ import { Separator } from '../../../../base/common/actions.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { createTestAuxiliaryBarPart, testAuxiliaryBarGlobalActionsMenu } from './auxiliaryBarTestUtils.js';
 import { timeout } from '../../../../base/common/async.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
@@ -153,6 +154,47 @@ suite('Auxiliary Bar - Responsive title actions', () => {
 		await timeout(0);
 
 		assert.strictEqual(relayouts, 0);
+	});
+
+	test('fits the title again at the same width when a keybinding change resizes its split button, also while it is in the overflow', async () => {
+		const onDidUpdateKeybindings = store.add(new Emitter<void>());
+		const container = append(root, $('.part.auxiliarybar'));
+		const part = createTestAuxiliaryBarPart(container, store, { globalActions: false, onDidUpdateKeybindings: onDidUpdateKeybindings.event });
+		const [newChat, settings] = [part.toolbar.getItemAction(0)!, part.toolbar.getItemAction(1)!];
+		let newChatWidth = 60;
+		part.viewActionViewItemProvider = (action, options) => action === newChat ? new class extends ActionViewItem { getMinimumWidth() { return newChatWidth; } }(undefined, action, options) : undefined;
+		part.setTitleActions('Chat', [newChat, settings], []);
+		container.style.width = '300px';
+		part.setToolbarAvailableWidth(120);
+		part.layout(300, 200, 0, 0);
+		part.toolbar.relayout();
+		const actions = () => Array.from({ length: part.toolbar.getItemsLength() }, (_, index) => part.toolbar.getItemAction(index)?.id);
+		const before = actions();
+
+		// A longer keybinding widens New
+		newChatWidth = 110;
+		onDidUpdateKeybindings.fire();
+		await timeout(0);
+		const rebound = actions();
+
+		// Without a keybinding New is narrower again, also while it is in the overflow
+		newChatWidth = 60;
+		onDidUpdateKeybindings.fire();
+		await timeout(0);
+		const unbound = actions();
+
+		newChatWidth = 110;
+		onDidUpdateKeybindings.fire();
+		await timeout(0);
+		const restored = actions();
+
+		// New moves into the overflow last, so Settings goes first and comes back after it
+		assert.deepStrictEqual({ before, rebound, unbound, restored }, {
+			before: [newChat.id, 'settings', Separator.ID],
+			rebound: [ToggleMenuAction.ID, Separator.ID],
+			unbound: [newChat.id, 'settings', Separator.ID],
+			restored: [ToggleMenuAction.ID, Separator.ID],
+		});
 	});
 });
 

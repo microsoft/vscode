@@ -162,6 +162,9 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 				this.onDidChangeActivityBarLocation();
 			}
 		}));
+
+		// A split button that shows its keybinding changes its width when the keybinding changes
+		this._register(keybindingService.onDidUpdateKeybindings(() => this.remeasureSplitButtons()));
 	}
 
 	private onDidChangeAutoHideViewContainers(e: { before: number; after: number }): void {

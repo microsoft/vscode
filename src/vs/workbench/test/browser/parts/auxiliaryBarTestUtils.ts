@@ -14,6 +14,8 @@ import { IMenuCreateOptions, IMenuService, MenuId, MenuItemAction, MenuRegistry,
 import { MenuService } from '../../../../platform/actions/common/menuService.js';
 import { ContextKeyService } from '../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { MockKeybindingService } from '../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { AuxiliaryBarPart } from '../../../browser/parts/auxiliarybar/auxiliaryBarPart.js';
 import { IComposite } from '../../../common/composite.js';
 import { IViewDescriptorService } from '../../../common/views.js';
@@ -30,8 +32,14 @@ class TestAuxiliaryBarMenuService extends MenuService {
 	}
 }
 
-export function createTestAuxiliaryBarPart(container: HTMLElement, store: Pick<DisposableStore, 'add'>, options?: { readonly globalActions?: boolean }): TestAuxiliaryBarPart {
+export function createTestAuxiliaryBarPart(container: HTMLElement, store: Pick<DisposableStore, 'add'>, options?: { readonly globalActions?: boolean; readonly onDidUpdateKeybindings?: Event<void> }): TestAuxiliaryBarPart {
 	const instantiationService = workbenchInstantiationService({}, store);
+	const onDidUpdateKeybindings = options?.onDidUpdateKeybindings;
+	if (onDidUpdateKeybindings) {
+		instantiationService.stub(IKeybindingService, new class extends MockKeybindingService {
+			override get onDidUpdateKeybindings() { return onDidUpdateKeybindings; }
+		}());
+	}
 	instantiationService.stub(IContextKeyService, store.add(instantiationService.createInstance(ContextKeyService)));
 	instantiationService.stub(IViewDescriptorService, store.add(instantiationService.createInstance(ViewDescriptorService)));
 	instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(TestAuxiliaryBarMenuService)));

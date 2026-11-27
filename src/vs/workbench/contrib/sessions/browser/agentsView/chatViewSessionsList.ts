@@ -103,6 +103,7 @@ class ChatViewNewButtonActionViewItem extends ActionWithDropdownActionViewItem {
 	/** The dropdown, created here after the first update, takes the title's context and New Chat's enablement. */
 	override render(container: HTMLElement): void {
 		super.render(container);
+		this.element?.classList.add('chat-view-new-button');
 		this.dropdownMenuActionViewItem?.setActionContext(this._context);
 		this.updateEnabled();
 	}

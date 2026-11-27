@@ -146,6 +146,7 @@ export class AgentPluginEditor extends EditorPane {
 							label: true,
 							menuActionsOrProvider: { getActions: () => action.menuActions },
 							menuActionClassNames: action.menuActionClassNames,
+							filledSplitButton: true,
 						},
 						this.contextMenuService,
 					);

@@ -3,8 +3,51 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* The keybinding of the New button of the Chat view title, as the New button of the Agents window shows it
-(newSessionActionViewItem.css), in the colour of the filled button. */
+/* The New split button of the Chat view title has the surface of the New button of the Agents window
+(newSessionActionViewItem.css): no fill, a thin border, and its keybinding in a chip. Its geometry stays that of the
+filled split buttons of actionbar.css. */
+
+.monaco-action-bar .actions-container .action-item.action-dropdown-item.chat-view-new-button > .action-label.filled-label,
+.monaco-action-bar .actions-container .action-item.action-dropdown-item.chat-view-new-button > .monaco-dropdown .action-label.filled-label,
+.monaco-action-bar .actions-container .action-item.action-dropdown-item.chat-view-new-button > .action-dropdown-item-separator {
+	background-color: var(--vscode-agentsNewSessionButton-background, transparent);
+	border-color: var(--vscode-agentsNewSessionButton-border, var(--vscode-button-border, transparent));
+	border-width: var(--vscode-strokeThickness);
+}
+
+.monaco-action-bar .actions-container .action-item.action-dropdown-item.chat-view-new-button > .action-label.filled-label {
+	border-right-width: 0;
+	border-radius: var(--vscode-cornerRadius-small) 0 0 var(--vscode-cornerRadius-small);
+}
+
+.monaco-action-bar .actions-container .action-item.action-dropdown-item.chat-view-new-button > .monaco-dropdown .action-label.filled-label {
+	display: flex; /* centers the chevron, as the part title sets its action labels to block */
+	border-left-width: 0;
+	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0;
+}
+
+.monaco-action-bar .actions-container .action-item.action-dropdown-item.chat-view-new-button > .action-dropdown-item-separator {
+	border-left-width: 0;
+	border-right-width: 0;
+}
+
+.monaco-action-bar .actions-container .action-item.action-dropdown-item.chat-view-new-button > .action-dropdown-item-separator > div {
+	background-color: var(--vscode-agentsNewSessionButton-border, var(--vscode-button-border, transparent));
+}
+
+.monaco-action-bar .actions-container .action-item.action-dropdown-item.chat-view-new-button .action-label.filled-label {
+	color: var(--vscode-agentsNewSessionButton-foreground, var(--vscode-foreground));
+}
+
+.monaco-action-bar .actions-container .action-item.action-dropdown-item.chat-view-new-button:not(.disabled) .action-label.filled-label:hover {
+	background-color: var(--vscode-agentsNewSessionButton-hoverBackground, var(--vscode-toolbar-hoverBackground));
+}
+
+.monaco-action-bar .actions-container .action-item.action-dropdown-item.chat-view-new-button .action-label.filled-label:focus {
+	outline-offset: -1px;
+}
+
+/* The keybinding of the New button of the Chat view title, as the New button of the Agents window shows it. */
 
 .monaco-action-bar .action-item .action-label > .chat-view-new-button-keybinding {
 	display: inline-block;
@@ -17,7 +60,7 @@
 	padding: 2px 4px;
 	border-radius: var(--vscode-cornerRadius-xSmall);
 	background-color: var(--vscode-keybindingLabel-background);
-	color: inherit;
+	color: var(--vscode-keybindingLabel-foreground);
 }
 
 .monaco-action-bar .action-item .action-label > .chat-view-new-button-keybinding .monaco-keybinding {
