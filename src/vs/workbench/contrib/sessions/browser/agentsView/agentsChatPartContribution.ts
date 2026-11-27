@@ -134,8 +134,8 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 			return false;
 		}
 		const content = this._frame.content.get();
-		// A new-session composer with a draft is a chat too, which the user returns to; an empty one, as the chat part shows by
-		// default, is not
+		// A new-session composer in a tab with a draft or a send under way is a chat too, which the user returns to; an idle empty
+		// one, as the chat part shows by default, is not
 		return !!content && (!!content.activeChat.get() || content.hasDraftComposer());
 	}
 
