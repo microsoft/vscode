@@ -13,6 +13,7 @@ import { basename, dirname, isEqual, joinPath } from '../../../../base/common/re
 import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../platform/files/common/files.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { ISessionsListingScope } from '../common/sessionsProvider.js';
@@ -27,6 +28,16 @@ interface IFolderCheckout {
 	readonly gitHubRepository: string | undefined;
 }
 
+export const IWorkspaceFolderRepositories = createDecorator<IWorkspaceFolderRepositories>('workspaceFolderRepositories');
+
+/** The window's {@link WorkspaceFolderRepositories}, read once per window for its sessions providers and Sessions lists. */
+export interface IWorkspaceFolderRepositories extends ISessionsListingScope {
+	readonly _serviceBrand: undefined;
+	readonly folders: IObservable<readonly URI[]>;
+	readonly repositories: IObservable<readonly URI[]>;
+	readonly gitHubRepositories: IObservable<readonly string[]>;
+}
+
 /**
  * The scope the sessions providers of an editor window list their sessions in: the folders of the window's workspace, also
  * the folder's own location while it is at another, such as a worktree the window followed a session into, so that the
@@ -35,7 +46,9 @@ interface IFolderCheckout {
  * `.git/config` are read once, as the folder joins the workspace, and again only after a read that failed; there are no
  * watchers. A folder that leaves the workspace stops counting at once.
  */
-export class WorkspaceFolderRepositories extends Disposable implements ISessionsListingScope {
+export class WorkspaceFolderRepositories extends Disposable implements IWorkspaceFolderRepositories {
+
+	declare readonly _serviceBrand: undefined;
 
 	readonly folders: IObservable<readonly URI[]>;
 

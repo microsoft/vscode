@@ -323,6 +323,58 @@ suite('Sessions - SessionsList', () => {
 		}, { sessions: 0, rows: ['No sessions to show in this folder.'] });
 	});
 
+	test('list-side scope narrows a complete provider inventory and changes without replacing the inventory', () => {
+		const here = createFolderSession('here', 'repo', 'file:///work/repo');
+		const other = createFolderSession('other', 'other', 'file:///work/other');
+		const scope = observableValue<ReadonlySet<string> | undefined>('scope', new Set(['here']));
+		const harness = createListHarness(disposables, [here, other]);
+		const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, harness.createContainer(), {
+			grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Created, sessionScope: scope,
+			onSessionOpen: () => { },
+		}));
+		const snapshot = () => ({
+			listed: harness.managementService.getSessions().filter(session => list.isSessionInScope(session)).map(session => session.sessionId).sort(),
+			visible: list.getVisibleSessions().map(session => session.sessionId).sort(),
+		});
+		const states = [snapshot()];
+		scope.set(undefined, undefined);
+		states.push(snapshot());
+		scope.set(new Set(['other']), undefined);
+		states.push(snapshot());
+		assert.deepStrictEqual({ states, inventory: harness.managementService.getSessions().map(session => session.sessionId) }, {
+			states: [
+				{ listed: ['here'], visible: ['here'] },
+				{ listed: ['here', 'other'], visible: ['here', 'other'] },
+				{ listed: ['other'], visible: ['other'] },
+			],
+			inventory: ['here', 'other'],
+		});
+	});
+
+	test('the workspace bar is strict in every grouping, including quick chats and an active session outside the pick', () => {
+		const here = createTestSession('here', { workspaceResource: URI.file('/work/repo') });
+		const other = createTestSession('other', { workspaceResource: URI.file('/work/other') });
+		const quick = createTestSession('quick', { isQuickChat: true });
+		const harness = createListHarness(disposables, [here.session, other.session, quick.session], { activeSession: constObservable({ ...other.session, activeChat: other.session.mainChat }) });
+		const results = [SessionsGrouping.Date, SessionsGrouping.Environment, SessionsGrouping.Workspace, SessionsGrouping.Repository].map(grouping => {
+			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+				grouping: () => grouping, sorting: () => SessionsSorting.Created, scopeBar: constObservable(true), listsQuickChats: constObservable(true),
+				onSessionOpen: () => { },
+			}));
+			const visible = () => {
+				list.setItemCollapsed({ section: QUICK_CHATS_SECTION_ID }, false);
+				return list.getVisibleSessions().map(session => session.sessionId).sort();
+			};
+			list.filters.setInboxWorkspace({ environment: 'local', resource: 'file:///work/repo', label: 'repo' });
+			const selected = visible();
+			list.filters.setInboxWorkspace('none');
+			const noWorkspace = visible();
+			list.filters.setInboxWorkspace(undefined);
+			return { selected, noWorkspace, all: visible() };
+		});
+		assert.deepStrictEqual(results, results.map(() => ({ selected: ['here'], noWorkspace: ['quick'], all: ['here', 'other', 'quick'] })));
+	});
+
 	test('a scoped list leaves out a comparison whose sessions the providers do not list, nested in a custom group', () => {
 		const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3_600_000);
 		const work: ISessionGroup = { id: 'work', name: 'Work', createdAt: 1 };
@@ -2130,6 +2182,50 @@ suite('Sessions - SessionsList', () => {
 				},
 				sessionMenus: { Listed: ['Hide Canvas Session'], Unpinned: [] },
 			})));
+		});
+
+		test('tells the context menu of a pinned canvas that its session is listed when the list\'s scope only hides it from view', () => {
+			const now = Date.now();
+			const [here, elsewhere] = ['Here', 'Elsewhere'].map((title, index) => createTestSession(title, { createdAt: new Date(now - index * 1000) }).session);
+			const pin = upcastPartial<IPinnedCanvas>({
+				id: elsewhere.sessionId,
+				identity: { providerId: elsewhere.providerId, session: elsewhere.resource, chat: elsewhere.mainChat.get().resource, extensionId: 'user:canvases', canvasId: 'plan', instanceId: elsewhere.sessionId },
+				title: constObservable('Canvas Elsewhere'),
+				chatTitle: constObservable(undefined),
+				state: constObservable(PinnedCanvasState.Live),
+				canvas: constObservable(undefined),
+			});
+			const menus: (boolean | undefined)[] = [];
+			const harness = createListHarness(disposables, [here, elsewhere]);
+			const contextKeyService = harness.store.add(new ContextKeyService(new TestConfigurationService()));
+			ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+			harness.instantiationService.stub(IContextKeyService, contextKeyService);
+			(harness.instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_CANVASES_SECTION_SETTING, true);
+			harness.instantiationService.stub(IMenuService, harness.store.add(harness.instantiationService.createInstance(MenuService)));
+			harness.instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
+				override readonly activeCustomView = constObservable(undefined);
+			});
+			harness.instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
+				override showContextMenu(delegate: IContextMenuMenuDelegate): void {
+					if (delegate.menuId === Menus.SidebarCanvasContext) {
+						menus.push(delegate.contextKeyService?.getContextKeyValue<boolean>(PinnedCanvasSessionInSessionsListContext.key));
+					}
+				}
+			});
+			const container = harness.createContainer(300, 600);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				sessionScope: constObservable(new Set([here.sessionId])),
+				pinnedCanvases: upcastPartial<IPinnedCanvasService>({ enabled: constObservable(true), entries: constObservable([pin]), selected: constObservable(undefined) }),
+				onSessionOpen: () => { },
+			}));
+			list.layout(600, 300);
+			const row = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].find(row => (row.querySelector('.session-section-label') ?? row.querySelector('.session-title'))?.textContent === 'Canvas Elsewhere');
+			assert.ok(row);
+			row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
+
+			assert.deepStrictEqual({ visible: list.getVisibleSessions().map(session => session.sessionId), listed: menus }, { visible: ['Here'], listed: [true] });
 		});
 
 		test('switches the navigation treatment without disturbing Find focus', async () => {

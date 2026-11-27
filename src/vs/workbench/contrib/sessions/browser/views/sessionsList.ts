@@ -356,6 +356,10 @@ interface ISessionsListControlOptions {
 	 * so when it shows no session. The providers scope the sessions themselves.
 	 */
 	readonly scoped?: IObservable<boolean>;
+	/** List-side window scope; providers retain their complete inventories. */
+	readonly sessionScope?: IObservable<ReadonlySet<string> | undefined>;
+	readonly pendingSessionScope?: IObservable<((item: IPendingSessionItem) => boolean) | undefined>;
+	readonly scopeBar?: IObservable<boolean>;
 	/**
 	 * Whether grouping by time lists the sessions without a workspace in the "Chats" section, flat, as the other groupings
 	 * do, rather than among the time sections; it does not by default. A {@link scoped} list has no Chats section at all.
@@ -443,7 +447,7 @@ export interface ISessionsList {
 	pinSession(session: ISession): void;
 	unpinSession(session: ISession): void;
 	isSessionPinned(session: ISession): boolean;
-	isSessionListed(session: ISession, reader?: IReader): boolean;
+	isSessionInScope(session: ISession, reader?: IReader): boolean;
 	readonly filters: SessionsListFilters;
 	setExcludeArchived(exclude: boolean): void;
 	isExcludeArchived(): boolean;
@@ -1056,7 +1060,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			customizationsBadge,
 			section => this.getRowGroupDepth(section),
 			sectionId => this._sessionGroupsService.getSectionAppearance(sectionId),
-			(session, reader) => this.isSessionListed(session, reader),
+			(session, reader) => this.isSessionInScope(session, reader),
 			(entry, reader) => this.customViewService.activeCustomView.read(reader)?.id === PINNED_CANVAS_PAGE_ID
 				&& this.options.pinnedCanvases?.selected.read(reader) === entry,
 		);
@@ -1140,6 +1144,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const scoped = this.options.scoped;
 		if (scoped) {
 			this._register(runOnChange(scoped, () => this.update()));
+		}
+		if (this.options.sessionScope) {
+			this._register(runOnChange(this.options.sessionScope, () => this.update()));
+		}
+		if (this.options.pendingSessionScope) {
+			this._register(runOnChange(this.options.pendingSessionScope, () => this.update()));
+		}
+		if (this.options.scopeBar) {
+			this._register(runOnChange(this.options.scopeBar, () => this.update()));
 		}
 
 		const indentGuides = new SessionsListIndentGuides<SessionListItem>(element => this.getRowIndent(element), () => this.tree);
@@ -1823,7 +1836,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// group with no members yet) matches nothing rather than everything.
 		// Which sessions it can list at all, which no other filter and no active session overrides
 		const listsQuickChats = this.options.listsQuickChats?.get() ?? true;
-		const isEligible = (session: ISession) => this.isSessionListed(session) && (listsQuickChats || !isQuickChatSession(session));
+		const isEligible = (session: ISession) => this.isSessionInScope(session) && (listsQuickChats || !isQuickChatSession(session));
 		let filtered = this.sessions.filter(isEligible);
 		// The Worktrees filter is of an editor window: in the Agents window, a folder selected there selects nothing
 		const availableWorktrees = this.options.offersWorktreeFilter === false ? new Set<string>() : getWorktreeFilterKeys(filtered, () => true, this.uriIdentityService.extUri);
@@ -1832,7 +1845,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			const scoped = new Set(scopedProviderIds);
 			filtered = filtered.filter(s => scoped.has(s.providerId));
 		}
-		filtered = filtered.filter(session => this.filters.matches(session, inbox, availableWorktrees));
+		filtered = filtered.filter(session => this.filters.matches(session, inbox || this.options.scopeBar?.get(), availableWorktrees));
 		const scheduledOnly = this.options.schedulingEnabled?.get() && this.filters.isScheduledOnly();
 		if (scheduledOnly) {
 			filtered = filtered.filter(session => this.options.scheduledSessionResources?.get().has(session.resource.toString()));
@@ -1858,13 +1871,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (this.pendingSessionMoves.size > 0) {
 			filtered = filtered.filter(session => !this.pendingSessionMoves.has(session.sessionId));
 		}
-		if (inbox) {
+		if (inbox || this.options.scopeBar?.get()) {
 			filtered = filtered.filter(session => this.filters.matchesInboxScope(session));
 		}
 		// The same sessions also stay visible past the "+N more" caps of sections and folders.
 		const revealedSessionIds = [activeSession, onboardingSession].flatMap(session => session ? [session.sessionId] : []);
-		// The providers list only the sessions of a host scope (the window's workspace folders), but a comparison can have
-		// sessions of other folders, which lookups still find
+		// Comparisons must obey the same list scope as their sessions, including lookups outside the visible inventory.
 		const scope = this.getHostScope();
 		const isComparisonInScope = (comparison: ISessionComparison) => !scope || getComparisonSessions(comparison, this._sessionsManagementService).some(session => scope.has(session.sessionId));
 		filtered = filtered.filter(session => {
@@ -2438,7 +2450,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const pendingItems = [
 			...(this.options.scheduledSessions?.get() ?? []),
 			...(scheduledOnly ? [] : draftsSection?.items ?? []),
-		].filter(item => matchesPendingSession(item, this.filters, inbox, scopedProviderIds));
+		].filter(item => matchesPendingSession(item, this.filters, inbox || !!this.options.scopeBar?.get(), scopedProviderIds)
+			&& (this.options.pendingSessionScope?.get()?.(item) ?? true));
 		if (pendingItems.length > 0) {
 			const element: ISessionSection = { id: 'drafts', label: draftsSection?.label ?? localize('drafts', "Drafts"), sessions: [], pendingItems };
 			children.push({
@@ -3279,8 +3292,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private revealOnboardingTarget(session: ISession, archiveAction: boolean): IDisposable & { readonly targetId: string } {
-		if (this.isInboxLayout() && !this.filters.matchesInboxScope(session)) {
-			throw new Error(localize('sessionsList.outsideInboxScope', "This session is outside the current Inbox scope. Reset the scope to reveal it."));
+		if ((this.isInboxLayout() || this.options.scopeBar?.get()) && !this.filters.matchesInboxScope(session)) {
+			throw new Error(this.isInboxLayout()
+				? localize('sessionsList.outsideInboxScope', "This session is outside the current Inbox scope. Reset the scope to reveal it.")
+				: localize('sessionsList.outsideSessionsScope', "This session is outside the current Sessions scope. Reset the scope to reveal it."));
 		}
 		this.customViewService.hideCustomView();
 		this.closeFind();
@@ -3551,7 +3566,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * section keeps a fixed order (archived sessions and comparison groups).
 	 */
 	private getReorderScope(session: ISession): string | undefined {
-		if (session.isArchived.get() || !this.isSessionListed(session)) {
+		if (session.isArchived.get() || !this.isSessionInScope(session)) {
 			return undefined;
 		}
 		if (this.isSessionPinned(session)) {
@@ -4970,7 +4985,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			contextKeyService: this.contextKeyService.createOverlay([
 				[PinnedCanvasConnectedContext.key, entry.canvas.get() !== undefined],
 				[PinnedCanvasSessionCanToggleListingContext.key, session !== undefined],
-				[PinnedCanvasSessionInSessionsListContext.key, session !== undefined && this.isSessionListed(session)],
+				[PinnedCanvasSessionInSessionsListContext.key, session !== undefined && this._sessionsListModelService.isSessionListed(session)],
 			]),
 			getAnchor: () => anchor,
 		});
@@ -5080,7 +5095,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[SessionItemCanImportContext.key, element.isExternal?.get() === true && element.capabilities.get().supportsImport === true],
 			[SessionItemIsAutomationContext.key, isAutomationSession(element)],
 			[SessionItemHasPinnedCanvasContext.key, this.hasPinnedCanvas(element)],
-			[SessionItemIsInSessionsListContext.key, this.isSessionListed(element)],
+			[SessionItemIsInSessionsListContext.key, this._sessionsListModelService.isSessionListed(element)],
 			[SessionTypeContext.key, element.sessionType],
 			[SessionProviderIdContext.key, element.providerId],
 			[SessionSupportsMultipleChatsContext.key, element.capabilities.get().supportsMultipleChats],
@@ -5277,10 +5292,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	/** The IDs of the sessions the providers list in the host's scope, or `undefined` while the list is not scoped. See {@link ISessionsListControlOptions.scoped}. */
 	private getHostScope(): ReadonlySet<string> | undefined {
-		if (!this.options.scoped?.get()) {
+		if (!this.options.scoped?.get() && !this.options.sessionScope?.get() && !this.options.scopeBar?.get()) {
 			return undefined;
 		}
-		return new Set(this.sessions.map(session => session.sessionId));
+		return new Set(this.sessions.filter(session => this.isSessionInScope(session)).map(session => session.sessionId));
 	}
 
 	private getMarkAllSessionsReadAction(getSessions: () => readonly ISession[]): IAction {
@@ -5288,7 +5303,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			id: 'sessionsViewPane.markAllInSectionRead',
 			label: localize('markAllInSectionRead', "Mark All as Read"),
 			run: () => {
-				const sessions = getSessions().filter(session => this.isSessionListed(session) && !session.isArchived.get() && !session.isRead.get());
+				const sessions = getSessions().filter(session => this.isSessionInScope(session) && !session.isArchived.get() && !session.isRead.get());
 				return this._sessionsManagementService.markAllRead(sessions);
 			},
 		});
@@ -5532,9 +5547,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return this._sessionsListModelService.isSessionPinned(session);
 	}
 
-	/** Whether the list includes the session before its source filters apply. */
-	isSessionListed(session: ISession, reader?: IReader): boolean {
-		return this._sessionsListModelService.isSessionListed(session, reader);
+	/** Whether the session is in the list's scope (the model, the window scope and the workspaces filter bar), before its source filters apply. */
+	isSessionInScope(session: ISession, reader?: IReader): boolean {
+		return this.isSessionInInventory(session, reader)
+			&& (!this.options.scopeBar?.read(reader) || this.filters.matchesInboxScope(session, reader));
+	}
+
+	/** Whether the list includes the session before its workspaces filter bar and its source filters apply. */
+	isSessionInInventory(session: ISession, reader?: IReader): boolean {
+		return this._sessionsListModelService.isSessionListed(session, reader)
+			&& (this.options.sessionScope?.read(reader)?.has(session.sessionId) ?? true);
 	}
 
 	getRenderedSessionGroup(session: ISession): ISessionGroup | undefined {
@@ -5838,7 +5860,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * folders, which lists no quick chat and starts none.
 	 */
 	private get hasQuickChatsSection(): boolean {
-		return !this.options.scoped?.get();
+		return !!this.options.scopeBar?.get() || !this.options.scoped?.get();
 	}
 
 	private isRenderedInExternalSection(session: ISession): boolean {
