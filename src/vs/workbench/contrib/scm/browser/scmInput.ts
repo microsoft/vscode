@@ -408,6 +408,9 @@ export class SCMInputWidget {
 		}
 
 		const textModel = input.repository.provider.inputBoxTextModel;
+		if (textModel.isDisposed()) {
+			return;
+		}
 		this.inputEditor.setModel(textModel);
 
 		// The source control was removed, so its pending validation must not run on the disposed text model
