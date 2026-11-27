@@ -57,7 +57,7 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { IOpenerService, OpenInternalOptions } from '../../../../../platform/opener/common/opener.js';
+import { IOpenerService, OpenOptions } from '../../../../../platform/opener/common/opener.js';
 import { FolderThemeIcon, IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { isDark } from '../../../../../platform/theme/common/theme.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
@@ -233,8 +233,10 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 
 		// Open file in editor
 		const openTextEditorOptions: ITextEditorOptions | undefined = range ? { selection: range } : undefined;
-		const options: OpenInternalOptions = {
+		const options: OpenOptions = {
 			fromUserGesture: true,
+			// Lets extensions, such as GitHub Pull Requests, open web links like other links in the workbench.
+			allowContributedOpeners: true,
 			openToSide: openOptions.openToSide,
 			editorOptions: {
 				...openTextEditorOptions,
@@ -1125,7 +1127,7 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 				resource = link;
 				const resolver = options.gitHubResourceDetailsResolver ?? this._register(this.instantiationService.createInstance(GitHubResourceDetailsResolver));
 				const repository = URI.parse(`https://github.com/${target.owner}/${target.repo}`);
-				const open = (uri: URI) => { void this.openerService.open(uri, { openExternal: true }); };
+				const open = (uri: URI) => { void this.openerService.open(uri, { openExternal: true, allowContributedOpeners: true, fromUserGesture: true }); };
 				const createHover = () => resolver.createHover(attachment, {
 					kind: issue ? 'issue' : 'pullRequest',
 					target,

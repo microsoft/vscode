@@ -179,7 +179,7 @@ export function getRemoteTroubleshootingGuide(remote: ICustomizationRemote, info
 	let command: IRemoteTroubleshootingGuide['command'];
 	let primary: RemoteTroubleshootingAction | undefined;
 	if (connected) {
-		primary = remote.pickerUnavailableReason ? undefined : 'newSession';
+		primary = remote.pickerUnavailableReason && !remote.devContainerFolder ? undefined : 'newSession';
 		if (!remote.connectsWithHost) {
 			actions.push('disconnect');
 		}

@@ -195,6 +195,7 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 	protected override setEditorVisible(visible: boolean): void {
 		this._paneVisible.set(visible, undefined);
 		super.setEditorVisible(visible);
+		this._multiDiffEditorWithFileListWidget?.setVisible(visible);
 	}
 
 	private _applyOptions(options: IMultiDiffEditorOptions | undefined): void {

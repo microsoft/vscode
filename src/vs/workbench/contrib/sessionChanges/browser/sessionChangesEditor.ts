@@ -296,6 +296,8 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	 */
 	private readonly _showProgressAgain = observableSignal(this);
 	private readonly _paneVisible = observableValue(this, false);
+	/** Whether the editor shows its empty state, during which it hides the changed files list. */
+	private readonly _showsEmptyState = observableValue(this, false);
 	/**
 	 * The chat this editor shows the changes of while it has its input, whose changes it keeps observed though no window
 	 * shows its session: also while the pane is hidden, so its diffs and their view state stay as they are.
@@ -447,6 +449,10 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			const model = this.widget?.viewModel.read(reader);
 			const empty = !!model && !model.isLoading.read(reader) && model.items.read(reader).length === 0 && !this._changesPendingObs.read(reader);
 			emptyState.hidden = !empty;
+			if (empty && !this._showsEmptyState.read(undefined) && fileListWidget.hasFileListFocus()) {
+				this.emptyState?.focus();
+			}
+			this._showsEmptyState.set(empty, undefined);
 			this.bodyContainer?.classList.toggle('has-empty-state', empty);
 			if (empty) {
 				this.emptyState?.layout();
@@ -501,7 +507,10 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			viewMode: fileListViewMode,
 			position: fileListPosition,
 		}));
-		return instantiationService.createInstance(MultiDiffEditorWithFileListWidget, this.bodyContainer!, uiElementFactory, widgetOptions, fileListVisible, fileListViewMode, fileListPosition);
+		// Without changes, the list would only frame the empty state, which then shows as it does with the list hidden. Toggle
+		// Details keeps the user's choice, which applies again once there are changes.
+		const fileListShown = derived(this, reader => fileListVisible.read(reader) && !this._showsEmptyState.read(reader));
+		return instantiationService.createInstance(MultiDiffEditorWithFileListWidget, this.bodyContainer!, uiElementFactory, widgetOptions, fileListShown, fileListViewMode, fileListPosition);
 	}
 
 	/** Moves focus into the changed files list, showing it first when hidden. Does nothing unless the host enables the list. */
@@ -723,6 +732,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			this.saveCurrentEditorViewState();
 		}
 		this._paneVisible.set(visible, undefined);
+		this.fileListWidget?.setVisible(visible);
 		super.setEditorVisible(visible);
 	}
 

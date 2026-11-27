@@ -9,6 +9,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { autorun, constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { CanvasesEnabledSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../common/sessionsManagement.js';
@@ -704,6 +705,32 @@ suite('SessionsListModelService', () => {
 		assert.strictEqual(changeCount, 0);
 	});
 
+	test('pinned headers keep their pin order and survive reload', () => {
+		service.pinSection('group:a');
+		service.pinSection('workspace:vscode');
+		service.pinSection('group:a');
+		service.pinSection('group:b');
+		service.unpinSection('workspace:vscode');
+		const reloaded = disposables.add(instantiationService.createInstance(SessionsListModelService));
+
+		assert.deepStrictEqual({ current: service.pinnedSectionIds.get(), reloaded: reloaded.pinnedSectionIds.get() }, {
+			current: ['group:a', 'group:b'],
+			reloaded: ['group:a', 'group:b'],
+		});
+	});
+
+	test('header pins from another window of the profile are kept when pinning more', () => {
+		service.pinSection('group:a');
+		storageService.store('sessionsListControl.pinnedSections', JSON.stringify(['group:a', 'group:b']), StorageScope.PROFILE, StorageTarget.USER, true);
+		service.pinSection('group:c');
+		const reloaded = disposables.add(instantiationService.createInstance(SessionsListModelService));
+
+		assert.deepStrictEqual({ current: service.pinnedSectionIds.get(), reloaded: reloaded.pinnedSectionIds.get() }, {
+			current: ['group:a', 'group:b', 'group:c'],
+			reloaded: ['group:a', 'group:b', 'group:c'],
+		});
+	});
+
 	// -- Automation sessions --
 
 	test('scheduled chats bypass automation reply gating and retain their normal listing after reload', () => {
@@ -962,6 +989,154 @@ suite('SessionsListModelService', () => {
 				shown: JSON.stringify(['shown', 'replied']),
 				hidden: JSON.stringify(['hidden']),
 			},
+		});
+	});
+
+	// -- Sessions whose canvas is in the sidebar --
+
+	test('leaves a session started from the Canvases section out of the list before it is listed, through its replacement and reloads, until the user replies', () => {
+		const draft = createSession('draft');
+		const committed = createSession('committed');
+		const changes: string[] = [];
+		const observe = () => disposables.add(service.onDidChange(event => changes.push(...event.changes.map(change => `${change.kind} ${change.sessionId}`))));
+		observe();
+
+		service.hideCanvasSessionById(draft.sessionId);
+		const beforeListed = service.isSessionListed(draft);
+		sessionReplacedEmitter.fire({ from: draft, to: committed });
+		const replaced = { draft: service.isSessionListed(draft), committed: service.isSessionListed(committed) };
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		observe();
+		const reloaded = service.isSessionListed(committed);
+		service.showRepliedCanvasSession(committed);
+
+		assert.deepStrictEqual({
+			beforeListed, replaced, reloaded,
+			replied: service.isSessionListed(committed),
+			stored: storageService.get('sessionsListControl.hiddenCanvasSessions', StorageScope.PROFILE),
+			changes,
+		}, {
+			beforeListed: false,
+			replaced: { draft: true, committed: false },
+			reloaded: false,
+			replied: true,
+			stored: undefined,
+			changes: [`${SessionListModelChangeKind.CanvasListing} draft`, `${SessionListModelChangeKind.CanvasListing} committed`],
+		});
+	});
+
+	test('a message does not list a session the user hid while its canvas is in the sidebar, and undoing a hide restores each session except those changed since', () => {
+		const [byDefault, listed, hidden, shownSince] = ['byDefault', 'listed', 'hidden', 'shownSince'].map(id => createSession(id));
+		const sessions = [byDefault, listed, hidden, shownSince];
+		const state = () => sessions.filter(session => service.isSessionListed(session)).map(session => session.sessionId);
+		service.hideCanvasSessionById(byDefault.sessionId);
+		service.hideCanvasSessions([hidden, shownSince]);
+		const before = state();
+
+		const undo = service.hideCanvasSessions(sessions);
+		const afterHide = state();
+		service.showRepliedCanvasSession(byDefault);
+		service.showCanvasSessions([shownSince]);
+		const afterReply = state();
+		undo();
+		const undone = { listed: state(), stored: storageService.get('sessionsListControl.hiddenCanvasSessions', StorageScope.PROFILE) };
+		service.showRepliedCanvasSession(byDefault);
+
+		assert.deepStrictEqual({ before, afterHide, afterReply, undone, repliedAfterUndo: state() }, {
+			before: ['listed'],
+			afterHide: [],
+			afterReply: ['shownSince'],
+			undone: { listed: ['listed', 'shownSince'], stored: JSON.stringify([['byDefault', 'default'], ['hidden', 'explicit']]) },
+			repliedAfterUndo: ['byDefault', 'listed', 'shownSince'],
+		});
+	});
+
+	test('lists automation sessions by their own rules, skips malformed stored entries, and forgets a hidden session once it is deleted', () => {
+		const automation = createSession('automation', SessionStatus.Completed, { isAutomation: true });
+		const [kept, deleted] = ['kept', 'deleted'].map(id => createSession(id));
+		storageService.store('sessionsListControl.hiddenCanvasSessions', JSON.stringify([['kept', 'default'], ['deleted', 'explicit'], ['automation', 'explicit'], ['bogus', 'unknown'], [1, 'default'], 'malformed']), StorageScope.PROFILE, StorageTarget.USER);
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		service.showAutomationSessions([automation]);
+		const listed = () => [automation, kept, deleted].filter(session => service.isSessionListed(session)).map(session => session.sessionId);
+		const loaded = listed();
+		const events: ISessionListModelChangeEvent[] = [];
+		disposables.add(service.onDidChange(e => events.push(e)));
+
+		sessionDeletedEmitter.fire(deleted);
+
+		assert.deepStrictEqual({ loaded, events, stored: storageService.get('sessionsListControl.hiddenCanvasSessions', StorageScope.PROFILE) }, {
+			loaded: ['automation'],
+			events: [{ changes: [{ sessionId: 'deleted', kind: SessionListModelChangeKind.CanvasListing }] }],
+			stored: JSON.stringify([['kept', 'default'], ['automation', 'explicit']]),
+		});
+	});
+
+	test('suspends canvas-session hiding while canvases are disabled, preserving stored reasons and notifying consumers', () => {
+		const [byDefault, explicit, listed] = ['byDefault', 'explicit', 'listed'].map(id => createSession(id));
+		sessions = [byDefault, explicit, listed];
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		const setCanvasesEnabled = (enabled: boolean) => {
+			configurationService.setUserConfiguration(CanvasesEnabledSettingId, enabled);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: key => key === CanvasesEnabledSettingId,
+				affectedKeys: new Set([CanvasesEnabledSettingId]),
+				change: { keys: [CanvasesEnabledSettingId], overrides: [] },
+				source: ConfigurationTarget.USER,
+			});
+		};
+		service.hideCanvasSessionById(byDefault.sessionId);
+		service.hideCanvasSessions([explicit]);
+		const changes: string[] = [];
+		disposables.add(service.onDidChange(e => changes.push(...e.changes.map(c => `${c.kind} ${c.sessionId}`))));
+		const listedIds = () => sessions.filter(session => service.isSessionListed(session)).map(session => session.sessionId);
+
+		setCanvasesEnabled(false);
+		const whileDisabled = {
+			listed: listedIds(),
+			stored: storageService.get('sessionsListControl.hiddenCanvasSessions', StorageScope.PROFILE),
+		};
+		setCanvasesEnabled(true);
+
+		assert.deepStrictEqual({ whileDisabled, afterReenable: listedIds(), changes }, {
+			whileDisabled: {
+				listed: ['byDefault', 'explicit', 'listed'],
+				stored: JSON.stringify([['byDefault', 'default'], ['explicit', 'explicit']]),
+			},
+			afterReenable: ['listed'],
+			changes: [
+				`${SessionListModelChangeKind.CanvasListing} byDefault`,
+				`${SessionListModelChangeKind.CanvasListing} explicit`,
+				`${SessionListModelChangeKind.CanvasListing} byDefault`,
+				`${SessionListModelChangeKind.CanvasListing} explicit`,
+			],
+		});
+	});
+
+	test('undoing a hide follows session identity replacement and stores hidden canvas sessions as machine state', () => {
+		const original = createSession('original');
+		const replacement = createSession('replacement');
+		const defaultOrig = createSession('defaultOrig');
+		const defaultReplacement = createSession('defaultReplacement');
+		service.hideCanvasSessionById(defaultOrig.sessionId);
+
+		const undo = service.hideCanvasSessions([original, defaultOrig]);
+		sessionReplacedEmitter.fire({ from: original, to: replacement });
+		sessionReplacedEmitter.fire({ from: defaultOrig, to: defaultReplacement });
+		const storedAsMachine = storageService.keys(StorageScope.PROFILE, StorageTarget.MACHINE).includes('sessionsListControl.hiddenCanvasSessions');
+		const storedAsUser = storageService.keys(StorageScope.PROFILE, StorageTarget.USER).includes('sessionsListControl.hiddenCanvasSessions');
+		const beforeUndo = { replacement: service.isSessionListed(replacement), defaultReplacement: service.isSessionListed(defaultReplacement) };
+		undo();
+		const afterUndo = { replacement: service.isSessionListed(replacement), defaultReplacement: service.isSessionListed(defaultReplacement) };
+		service.showRepliedCanvasSession(defaultReplacement);
+
+		assert.deepStrictEqual({ beforeUndo, afterUndo, afterReply: service.isSessionListed(defaultReplacement), storedAsMachine, storedAsUser }, {
+			beforeUndo: { replacement: false, defaultReplacement: false },
+			afterUndo: { replacement: true, defaultReplacement: false },
+			afterReply: true,
+			storedAsMachine: true,
+			storedAsUser: false,
 		});
 	});
 

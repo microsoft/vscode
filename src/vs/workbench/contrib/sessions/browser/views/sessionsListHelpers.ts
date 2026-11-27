@@ -6,14 +6,12 @@
 import { SessionsGrouping, SessionsSorting, ISessionSection, ISessionRepository, ISessionShowMore } from './sessionsListCommon.js';
 import { IReader } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { Schemas } from '../../../../../base/common/network.js';
-import { basename, extUriBiasedIgnorePathCase, isEqual } from '../../../../../base/common/resources.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { localize } from '../../../../../nls.js';
-import { getRepositoryRootFromWorktree } from '../../../../../platform/agentHost/common/worktreePaths.js';
 import { isSideChat } from '../sideChatPlacement.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ChatSessionArchiveActionWording, getChatSessionArchivedSectionLabel } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { ChatInteractivity, ChatOriginKind, getGitHubRepositoryOfUrl, getSessionFolderGitHubRepository, getSessionPresentationWorkspace, getUntitledSessionTitle, IChat, ISession, ISessionEnvironment, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, getGitHubRepositoryOfUrl, getSessionFolderGitHubRepository, getSessionPresentationWorkspace, getUntitledSessionTitle, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionEnvironment, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { inheritableSessionTarget, ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { getSessionComparisonChat, getSessionComparisonHarnessDisplayLabel, getSessionComparisonParticipantsInDisplayOrder, ISessionComparison, SessionComparisonParticipantRole } from '../../common/sessionComparison.js';
@@ -63,20 +61,31 @@ function isPinnedCanvasSection(sectionId: string): boolean {
 }
 
 export const REPOSITORY_SECTION_PREFIX = 'repository:';
-/** Prefix of the sections of {@link SessionsGrouping.Worktree}, followed by the URI of the folder: no workspace label produces it. */
-export const WORKTREE_SECTION_PREFIX = 'worktree:';
-/** The section of {@link SessionsGrouping.Worktree} for the sessions without a local folder, such as cloud sessions. */
-export const WORKTREE_OTHER_SECTION_ID = `${WORKTREE_SECTION_PREFIX}other`;
 export const ENVIRONMENT_SECTION_PREFIX = 'environment:';
 
 /** Whether a section lists one workspace, repository, or environment and can be reordered among custom groups. */
 export function isSessionGroupingSection(sectionId: string): boolean {
-	return sectionId.startsWith('workspace:') || sectionId.startsWith(REPOSITORY_SECTION_PREFIX) || sectionId.startsWith(ENVIRONMENT_SECTION_PREFIX) || sectionId.startsWith(WORKTREE_SECTION_PREFIX);
+	return sectionId.startsWith('workspace:') || sectionId.startsWith(REPOSITORY_SECTION_PREFIX) || sectionId.startsWith(ENVIRONMENT_SECTION_PREFIX);
 }
 
 /** The {@link SessionSectionTypeContext} value of a section: its grouping kind, or its id for the fixed sections. */
 export function getSessionSectionType(sectionId: string): string {
-	return sectionId.startsWith('workspace:') ? 'workspace' : sectionId.startsWith(REPOSITORY_SECTION_PREFIX) ? 'repository' : sectionId.startsWith(ENVIRONMENT_SECTION_PREFIX) ? 'environment' : sectionId === WORKTREE_OTHER_SECTION_ID ? 'worktreeOther' : sectionId.startsWith(WORKTREE_SECTION_PREFIX) ? 'worktree' : sectionId;
+	return sectionId.startsWith('workspace:') ? 'workspace' : sectionId.startsWith(REPOSITORY_SECTION_PREFIX) ? 'repository' : sectionId.startsWith(ENVIRONMENT_SECTION_PREFIX) ? 'environment' : sectionId;
+}
+
+/**
+ * The {@link ISessionSection.rootFolder} of a workspace or repository section with these sessions: the root folder of the
+ * first session that has one. A session in a worktree of a repository has that repository as its root. None when that root is
+ * a cloud folder, which an editor window can't open.
+ */
+export function getSessionsRootFolder(sessions: readonly ISession[]): URI | undefined {
+	for (const session of sessions) {
+		const root = getSessionPresentationWorkspace(session, undefined)?.folders[0]?.root;
+		if (root) {
+			return root.scheme === GITHUB_REMOTE_FILE_SCHEME ? undefined : root;
+		}
+	}
+	return undefined;
 }
 
 //#region Approval Helpers
@@ -411,7 +420,7 @@ export function isQuickChatSession(session: ISession): boolean {
  * false), such as a scoped list, has it under no grouping.
  */
 export function groupingHasQuickChatsSection(grouping: SessionsGrouping, quickChatsInTimeGrouping = false, quickChatsSection = true): boolean {
-	return quickChatsSection && (grouping === SessionsGrouping.Workspace || grouping === SessionsGrouping.Repository || grouping === SessionsGrouping.Worktree
+	return quickChatsSection && (grouping === SessionsGrouping.Workspace || grouping === SessionsGrouping.Repository
 		|| (quickChatsInTimeGrouping && grouping === SessionsGrouping.Date));
 }
 
@@ -477,9 +486,7 @@ export function groupSessionsForList(
 				? groupByRepository(regular)
 				: grouping === SessionsGrouping.Environment
 					? groupByEnvironment(regular, normalizedEnvironments)
-					: grouping === SessionsGrouping.Worktree
-						? groupByWorktree(regular)
-						: groupByDate(regular, sorting, getSortKey)));
+					: groupByDate(regular, sorting, getSortKey)));
 
 	if (external.length > 0) {
 		sections.push({ id: EXTERNAL_SESSIONS_SECTION_ID, label: localize('externalSessionsSection', "External"), sessions: external });
@@ -563,12 +570,17 @@ export function groupByWorkspace(sessions: ISession[]): ISessionSection[] {
 		.filter(k => k !== unknownWorkspaceLabel)
 		.sort((a, b) => a.localeCompare(b));
 
-	const result: ISessionSection[] = order.map(label => ({
-		id: `workspace:${label}`,
-		collapseStateId: workspaceCollapseStateId(groups.get(label)!),
-		label,
-		sessions: groups.get(label)!,
-	}));
+	const result: ISessionSection[] = order.map(label => {
+		const sessions = groups.get(label)!;
+		const rootFolder = getSessionsRootFolder(sessions);
+		return {
+			id: `workspace:${label}`,
+			collapseStateId: workspaceCollapseStateId(sessions),
+			label,
+			sessions,
+			...(rootFolder ? { rootFolder } : {}),
+		};
+	});
 
 	// "Unknown Workspace" always at the bottom
 	const unknownWorkspace = groups.get(unknownWorkspaceLabel);
@@ -581,7 +593,7 @@ export function groupByWorkspace(sessions: ISession[]): ISessionSection[] {
 
 /** Whether a persisted collapse state id belongs to a grouping-specific section. */
 export function isGroupingSpecificCollapseStateId(id: string): boolean {
-	return id.startsWith('workspace:') || id.startsWith(ENVIRONMENT_SECTION_PREFIX) || id.startsWith(WORKTREE_SECTION_PREFIX) || id === 'recent' || id === 'older';
+	return id.startsWith('workspace:') || id.startsWith(ENVIRONMENT_SECTION_PREFIX) || id === 'recent' || id === 'older';
 }
 
 function workspaceCollapseStateId(sessions: readonly ISession[]): string | undefined {
@@ -607,9 +619,6 @@ export function getSessionGroupingSectionId(session: ISession, grouping: Session
 	if (grouping === SessionsGrouping.Environment) {
 		return `${ENVIRONMENT_SECTION_PREFIX}${session.environment}`;
 	}
-	if (grouping === SessionsGrouping.Worktree) {
-		return getSessionWorktreeSection(session).id;
-	}
 	const repository = grouping === SessionsGrouping.Repository ? getSessionRepository(session) : undefined;
 	return repository ? getRepositorySectionId(repository) : `workspace:${sessionWorkspaceLabel(session)}`;
 }
@@ -627,68 +636,6 @@ export function groupByEnvironment(sessions: ISession[], normalizedEnvironments:
 		section.sessions.push(session);
 	}
 	return [...sections.values()].sort((a, b) => compareSessionEnvironments(a.environment, b.environment));
-}
-
-interface ISessionWorktreeSection {
-	readonly id: string;
-	readonly label: string;
-	readonly hover?: string;
-	/** Whether the folder is a repository's main checkout, or a folder without a repository, rather than a worktree. */
-	readonly isMainCheckout: boolean;
-}
-
-/**
- * The section of {@link SessionsGrouping.Worktree} that a session belongs to: the local folder its chat works in, as the
- * provider reports it, named by the folder, with the branch the provider reports, if any, on hover. A session without a local folder,
- * such as a cloud session, belongs to the "Other" section.
- */
-export function getSessionWorktreeSection(session: ISession): ISessionWorktreeSection {
-	const folder = getSessionPresentationWorkspace(session, undefined)?.folders[0];
-	const workingDirectory = folder?.workingDirectory;
-	if (!folder || workingDirectory?.scheme !== Schemas.file) {
-		return { id: WORKTREE_OTHER_SECTION_ID, label: localize('worktreeOtherSection', "Other"), isMainCheckout: false };
-	}
-	const repository = folder.gitRepository;
-	const name = basename(workingDirectory) || workingDirectory.path;
-	return {
-		// Keyed like the main-checkout check below, so one checkout reported with different path casing is one section.
-		id: `${WORKTREE_SECTION_PREFIX}${extUriBiasedIgnorePathCase.getComparisonKey(workingDirectory)}`,
-		label: name,
-		// The branch shows on hover, and so in the section's accessible label, not in its label
-		hover: repository?.branchName ? localize('worktreeSectionHover', "{0} (branch {1})", workingDirectory.fsPath, repository.branchName) : workingDirectory.fsPath,
-		// A worktree VS Code created names its repository by its path, also before its provider reports the repository.
-		isMainCheckout: !getRepositoryRootFromWorktree(workingDirectory) && (!repository?.workTreeUri || extUriBiasedIgnorePathCase.isEqual(workingDirectory, repository.uri)),
-	};
-}
-
-/** Whether a section of {@link SessionsGrouping.Worktree} with these sessions is a worktree rather than a main checkout or a plain folder. */
-export function isWorktreeSection(sessions: readonly ISession[]): boolean {
-	return sessions.length === 0 || !getSessionWorktreeSection(sessions[0]).isMainCheckout;
-}
-
-/**
- * Orders the sections of {@link SessionsGrouping.Worktree}: the main checkouts first, then the worktrees, each by their
- * latest activity, then the sessions without a local folder.
- */
-export function compareWorktreeSections(a: ISessionSection, b: ISessionSection): number {
-	const rank = (section: ISessionSection) => section.id === WORKTREE_OTHER_SECTION_ID ? 2 : isWorktreeSection(section.sessions) ? 1 : 0;
-	const latest = (section: ISessionSection) => Math.max(Number.NEGATIVE_INFINITY, ...section.sessions.map(session => session.updatedAt.get().getTime()));
-	return rank(a) - rank(b) || latest(b) - latest(a);
-}
-
-/** Groups sessions by the local folder they work in, in the order of {@link compareWorktreeSections}. */
-export function groupByWorktree(sessions: ISession[]): ISessionSection[] {
-	const sections = new Map<string, ISessionSection>();
-	for (const session of sessions) {
-		const worktree = getSessionWorktreeSection(session);
-		let section = sections.get(worktree.id);
-		if (!section) {
-			section = { id: worktree.id, label: worktree.label, hover: worktree.hover, sessions: [] };
-			sections.set(worktree.id, section);
-		}
-		section.sessions.push(session);
-	}
-	return [...sections.values()].sort(compareWorktreeSections);
 }
 
 /**
@@ -714,7 +661,13 @@ export function groupByRepository(sessions: ISession[]): ISessionSection[] {
 	}
 	const unknownWorkspaceId = `workspace:${localize('unknown', "Unknown")}`;
 	const workspaceSections = groupByWorkspace(withoutRepository);
-	const sections = [...repositorySections.values(), ...workspaceSections.filter(section => section.id !== unknownWorkspaceId)];
+	const sections = [
+		...[...repositorySections.values()].map(section => {
+			const rootFolder = getSessionsRootFolder(section.sessions);
+			return rootFolder ? { ...section, rootFolder } : section;
+		}),
+		...workspaceSections.filter(section => section.id !== unknownWorkspaceId),
+	];
 	labelRepositorySections(sections);
 	sections.sort((a, b) => a.label.localeCompare(b.label));
 	sections.push(...workspaceSections.filter(section => section.id === unknownWorkspaceId));

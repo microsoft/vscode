@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { DEFAULT_FONT_FAMILY } from '../../../../base/browser/fonts.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from '../../../../base/browser/ui/mouseCursor/mouseCursor.js';
+import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
 import { Action, IAction } from '../../../../base/common/actions.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Disposable, IDisposable, dispose } from '../../../../base/common/lifecycle.js';
@@ -33,8 +35,12 @@ import { LayoutableEditor, MIN_EDITOR_HEIGHT, SimpleCommentEditor, calculateEdit
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { Position } from '../../../../editor/common/core/position.js';
+import { defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 
 let INMEM_MODEL_ID = 0;
+
+/** How long an action of the comment form runs before its progress is shown, so that quick actions don't flash it. */
+const FORM_ACTION_PROGRESS_DELAY = 200;
 
 function isCommentThreadReplyContext(context: unknown): context is { thread: languages.CommentThread; text: string } {
 	return typeof context === 'object'
@@ -60,6 +66,9 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 	private _commentEditorActions!: CommentFormActions;
 	private _reviewThreadReplyButton!: HTMLElement;
 	private _editorHeight = MIN_EDITOR_HEIGHT;
+	/** Shows that an action of the form is running, below the comment editor. */
+	private readonly _progressBar: ProgressBar;
+	private _isRunningFormAction = false;
 	/** Resolves once the reply's editor has its model and the reply has its final content, such as its reply button. */
 	readonly whenInitialized: Promise<void>;
 	/** Whether the comment editor was to be focused while the reply wasn't in the document, where it can't take focus. */
@@ -91,6 +100,20 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		this._container = dom.append(container, dom.$('.comment-form-container'));
 		this._form = dom.append(this._container, dom.$('.comment-form'));
 		this.commentEditor = this._register(this._scopedInstatiationService.createInstance(SimpleCommentEditor, this._form, SimpleCommentEditor.getEditorOptions(configurationService), _contextKeyService, this._parentThread));
+		this._progressBar = this._register(new ProgressBar(dom.append(this._container, dom.$('.comment-form-progress')), defaultProgressBarStyles));
+		this._progressBar.hide();
+		if (container.closest('.comment-thread-floating-widget')) {
+			this.commentEditor.updateOptions({
+				fontFamily: DEFAULT_FONT_FAMILY,
+				fontWeight: 'normal',
+				wrappingStrategy: 'advanced',
+				padding: { top: 4, bottom: 4 },
+				scrollbar: { vertical: 'auto' },
+				overviewRulerLanes: 0,
+				overviewRulerBorder: false,
+				hideCursorInOverviewRuler: true
+			});
+		}
 		this.commentEditorIsEmpty = CommentContextKeys.commentIsEmpty.bindTo(this._contextKeyService);
 		this.commentEditorIsEmpty.set(!this._pendingComment);
 
@@ -372,15 +395,23 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		this._register(menu.onDidChange(setActions));
 
 		this._commentFormActions = new CommentFormActions(this.keybindingService, this._contextKeyService, this.contextMenuService, container, async (action: IAction) => {
-			await this._actionRunDelegate?.();
+			if (this._isRunningFormAction) {
+				return;
+			}
+			this.setFormBusy(true);
+			try {
+				await this._actionRunDelegate?.();
 
-			await action.run({
-				thread: this._commentThread,
-				text: this.commentEditor.getValue(),
-				$mid: MarshalledId.CommentThreadReply
-			});
+				await action.run({
+					thread: this._commentThread,
+					text: this.commentEditor.getValue(),
+					$mid: MarshalledId.CommentThreadReply
+				});
 
-			this.hideReplyArea();
+				this.hideReplyArea();
+			} finally {
+				this.setFormBusy(false);
+			}
 		});
 
 		this._register(this._commentFormActions);
@@ -509,6 +540,26 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		this._container.classList.remove('expand');
 		this._error.textContent = '';
 		this._error.classList.add('hidden');
+	}
+
+	/**
+	 * While an action of the form runs, such as one that posts the comment, the form shows its progress and takes no
+	 * other input, so that the action isn't run again and the comment it acts on isn't changed.
+	 */
+	private setFormBusy(isBusy: boolean): void {
+		// An action can remove its thread, which disposes the reply.
+		if (this._store.isDisposed) {
+			return;
+		}
+		this._isRunningFormAction = isBusy;
+		this._commentFormActions.setEnabled(!isBusy);
+		this._commentEditorActions.setEnabled(!isBusy);
+		this.commentEditor.updateOptions({ readOnly: isBusy });
+		if (isBusy) {
+			this._progressBar.infinite().show(FORM_ACTION_PROGRESS_DELAY);
+		} else {
+			this._progressBar.stop().hide();
+		}
 	}
 
 	private createReplyButton(commentEditor: ICodeEditor, commentForm: HTMLElement) {

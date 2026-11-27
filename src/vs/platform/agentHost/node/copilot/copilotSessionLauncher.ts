@@ -451,7 +451,7 @@ export interface ICopilotSessionLauncher {
 }
 
 type CopilotSessionClient = Pick<CopilotClient, 'createSession' | 'resumeSession' | 'deleteSession'> & {
-	readonly rpc: Pick<CopilotClient['rpc'], 'account' | 'sandbox' | 'managedSettings'>;
+	readonly rpc: Pick<CopilotClient['rpc'], 'account' | 'sandbox' | 'managedSettings'> & Partial<Pick<CopilotClient['rpc'], 'mcp'>>;
 };
 
 interface ICopilotSessionLaunchBase {

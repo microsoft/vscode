@@ -95,7 +95,9 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 
 			let aliasHighlights: IMatch[] | undefined;
 			if (commandPick.commandAlias) {
-				aliasHighlights = AbstractCommandsQuickAccessProvider.WORD_FILTER(filter, commandPick.commandAlias) ?? undefined;
+				aliasHighlights = commandPick.commandAlias === commandPick.label
+					? labelHighlights
+					: AbstractCommandsQuickAccessProvider.WORD_FILTER(filter, commandPick.commandAlias) ?? undefined;
 			}
 
 			// Add if matching in label or alias

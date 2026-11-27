@@ -17,6 +17,7 @@ import { DraggedSessionIdentifier, getSessionChatDragData, isSessionChatDrag } f
 import { InputDropTargetHints, isInputDropTarget, isPassThroughToInputDrag, PASS_THROUGH_MODIFIER_LABEL, registerPassThroughDropTarget } from '../../../../browser/dnd.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ISession, isSessionCreated } from '../../../../services/sessions/common/session.js';
+import { ISessionGridPane } from '../../../../services/sessions/browser/sessionGridPane.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ISessionsService, SessionGridDirection } from '../sessionsService.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
@@ -194,8 +195,9 @@ class SessionDropOverlay extends Themable {
 			return;
 		}
 
-		const draft = data.length === 1 ? this._findDraft(data[0].sessionId) : undefined;
-		if (draft) {
+		// A draft a slot shows: provider drafts can be visible before they appear in the session list.
+		const draft = data.length === 1 ? this._slotOf(data[0].sessionId)?.session.get() : undefined;
+		if (draft && !isSessionCreated(draft)) {
 			this._sessionsService.insertAt(draft, this.targetSessionId, side, true, this._targetGridSlotId);
 			return;
 		}
@@ -221,32 +223,38 @@ class SessionDropOverlay extends Themable {
 	}
 
 	/**
-	 * Whether a drop in the middle of the target view opens the drag in the view, in place of what it shows: one created
-	 * session, dropped on the slot of a session or of the new session. Chats, several sessions, drafts and the new session
-	 * only open beside a view, as does anything dropped on a chat's own pane.
+	 * Whether a drop in the middle of the target view opens the drag in the view: one session another slot shows, drafts
+	 * included, which swaps places with it; or one other created session, which replaces what it shows. Chats, several
+	 * sessions, other drafts and the new session only open beside a view, as does anything dropped on a chat's own pane.
 	 */
 	private _opensInView(event: DragEvent): boolean {
 		if (this._targetIsChat || isSessionChatDrag(event)) {
 			return false;
 		}
 		const data = this._sessionTransfer.getData(DraggedSessionIdentifier.prototype);
-		return data?.length === 1 && !!data[0].resource && !this._findDraft(data[0].sessionId);
+		return data?.length === 1 && (!!data[0].resource || !!this._slotOf(data[0].sessionId));
 	}
 
 	/** The dragged session opens in the target view, in place of what it shows, as its main chat (see {@link _opensInView}). */
 	private _openInView(): void {
 		const dragged = this._sessionTransfer.getData(DraggedSessionIdentifier.prototype)?.[0];
 		this._sessionTransfer.clearData(DraggedSessionIdentifier.prototype);
+		const source = this._slotOf(dragged?.sessionId);
+		const target = this._sessionsService.slotPanes.get().find(pane => pane.id === this._targetGridSlotId);
+		if (source && target) {
+			this._sessionsService.swapPanes(source, target);
+			this._sessionsService.focusActiveSession();
+			return;
+		}
 		const session = dragged?.resource && this._sessionsManagementService.getSession(dragged.resource);
 		if (session) {
 			void this._sessionsService.openSessionInSlot(session, this.targetSessionId, { forceMainChat: true }).catch(onUnexpectedError);
 		}
 	}
 
-	/** The draft a slot of the grid shows as `sessionId`: provider drafts can be visible before they appear in the session list. */
-	private _findDraft(sessionId: string | undefined): ISession | undefined {
-		const session = this._sessionsService.slotPanes.get().map(pane => pane.session.get()).find(session => session?.sessionId === sessionId);
-		return session && !isSessionCreated(session) ? session : undefined;
+	/** The slot of the grid that shows the session `sessionId`. */
+	private _slotOf(sessionId: string | undefined): ISessionGridPane | undefined {
+		return sessionId === undefined ? undefined : this._sessionsService.slotPanes.get().find(pane => pane.session.get()?.sessionId === sessionId);
 	}
 
 	private _positionOverlay(event: DragEvent): void {
@@ -312,7 +320,8 @@ class SessionDropOverlay extends Themable {
  *
  * In the middle of a view, one dragged session opens in the view, in place of
  * what it shows, as an editor dropped in the middle of an editor group opens in
- * that group; near an edge, or for drags that only open beside a view, the
+ * that group; a session another slot of the grid shows swaps places with the
+ * view instead. Near an edge, or for drags that only open beside a view, the
  * nearest normalized edge selects a split.
  */
 export class SessionDropTarget extends Themable {

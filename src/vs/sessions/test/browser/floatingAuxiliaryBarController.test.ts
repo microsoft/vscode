@@ -11,6 +11,7 @@ import { Emitter } from '../../../base/common/event.js';
 import { timeout } from '../../../base/common/async.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { isWeb } from '../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { FloatingAuxiliaryBarController } from '../../browser/floatingAuxiliaryBarController.js';
 import { DockedAuxiliaryBarController } from '../../browser/dockedAuxiliaryBarController.js';
@@ -27,12 +28,14 @@ import { IAccessibilityService } from '../../../platform/accessibility/common/ac
 import { NullHoverService } from '../../../platform/hover/test/browser/nullHoverService.js';
 import { getIconRegistry } from '../../../platform/theme/common/iconRegistry.js';
 import { runWithFakedTimers } from '../../../base/test/common/virtualScheduling/index.js';
+import '../../../workbench/browser/media/style.css';
 import '../../browser/media/workbench.css';
 import '../../../base/browser/ui/scrollbar/media/scrollbars.css';
 import '../../../workbench/contrib/sessions/browser/parts/media/sessionActivityBar.css';
 
 suite('Sessions - Floating Details', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const browserTest = isWeb ? test : test.skip;
 
 	function createHost(pinned = true, contentHeight: number | undefined = undefined, relayoutOnWidthChange = false) {
 		const root = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench.dock-detail-panel'));
@@ -499,6 +502,54 @@ suite('Sessions - Floating Details', () => {
 	}
 
 	for (const theme of ['vs-dark', 'vs', 'hc-black', 'hc-light']) {
+		browserTest(`the focused region uses a single surface border in ${theme}`, () => {
+			const { editor, tree, controller } = createHost();
+			const root = editor.closest<HTMLElement>('.monaco-workbench')!;
+			root.classList.add(theme);
+			root.style.setProperty('--vscode-focusBorder', '#007acc');
+			root.style.setProperty('--vscode-editorWidget-border', '#506070');
+			root.style.setProperty('--vscode-contrastBorder', theme.startsWith('hc-') ? '#a0b0c0' : 'var(--vscode-contrastBorder)');
+			controller.layout(33);
+			const widget = editor.querySelector<HTMLElement>('.floating-details')!;
+			const surface = widget.querySelector<HTMLElement>('.floating-details-surface')!;
+			const border = () => mainWindow.getComputedStyle(surface).borderTopColor;
+			const normalBorder = theme.startsWith('hc-') ? 'rgb(160, 176, 192)' : 'rgb(80, 96, 112)';
+			editor.focus();
+			const resting = border();
+			widget.focus();
+			const radii = ['8px', '12px', '0px'];
+			const focused = radii.map(radius => {
+				root.style.setProperty('--vscode-cornerRadius-large', radius);
+				const paint = mainWindow.getComputedStyle(surface);
+				return {
+					focused: getActiveElement() === widget,
+					radius: paint.borderRadius,
+					outline: mainWindow.getComputedStyle(widget).outlineStyle,
+					border: [paint.borderTopWidth, paint.borderTopStyle, paint.borderTopColor],
+				};
+			});
+			root.style.setProperty('--vscode-focusBorder', '#d08040');
+			const updatedFocusColor = border();
+			root.style.setProperty('--vscode-focusBorder', '#007acc');
+			tree.focus();
+			const childStyle = mainWindow.getComputedStyle(tree);
+			const child = {
+				focused: getActiveElement() === tree, border: border(),
+				outline: [childStyle.outlineWidth, childStyle.outlineStyle, childStyle.outlineColor],
+			};
+			editor.focus();
+			const blurred = border();
+			assert.deepStrictEqual({ resting, focused, updatedFocusColor, child, blurred }, {
+				resting: normalBorder,
+				focused: radii.map(radius => ({
+					focused: true, radius, outline: 'none', border: ['1px', 'solid', 'rgb(0, 122, 204)'],
+				})),
+				updatedFocusColor: 'rgb(208, 128, 64)',
+				child: { focused: true, border: normalBorder, outline: ['1px', 'solid', 'rgb(0, 122, 204)'] },
+				blurred: normalBorder,
+			});
+		});
+
 		test(`uses the chat action widget's surface, border, shadow, and icon colors in ${theme}`, () => {
 			const { editor, part, controller } = createHost(false);
 			const root = editor.closest<HTMLElement>('.monaco-workbench')!;

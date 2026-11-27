@@ -27,7 +27,7 @@ import { IProductService } from '../../../product/common/productService.js';
 import { AuthInfo, Credentials, IRequestService } from '../../../request/common/request.js';
 import { InMemoryStorageService, IStorageService } from '../../../storage/common/storage.js';
 import { TelemetryConfiguration, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
-import { ExtensionBlockingOrigin, ExtensionBlockingScope, InstallOperation, StatisticType } from '../../common/extensionManagement.js';
+import { ExtensionBlockingOrigin, ExtensionBlockingScope, IDeprecationInfo, InstallOperation, StatisticType, WEB_EXTENSION_TAG } from '../../common/extensionManagement.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AllowedExtensionsService } from '../../common/allowedExtensionsService.js';
 import { ExtensionGalleryManifestStatus, ExtensionGalleryResourceType, IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../common/extensionGalleryManifest.js';
@@ -80,13 +80,13 @@ function requestContext(statusCode: number, body: object): IRequestContext {
 	};
 }
 
-function galleryQueryResponse(extensions: object[]): object {
+function galleryQueryResponse(extensions: object[], totalCount = extensions.length): object {
 	return {
 		results: [{
 			extensions,
 			resultMetadata: [{
 				metadataType: 'ResultCount',
-				metadataItems: [{ name: 'TotalCount', count: extensions.length }]
+				metadataItems: [{ name: 'TotalCount', count: totalCount }]
 			}]
 		}]
 	};
@@ -183,6 +183,77 @@ suite('Extension Gallery Service', () => {
 		const allowedExtensionsService = disposables.add(new AllowedExtensionsService(productService, configurationService));
 		return new ExtensionGalleryServiceWithNoStorageService(requestService, logService, environmentService, NullTelemetryService, fileService, productService, configurationService, allowedExtensionsService, manifestService);
 	}
+
+	for (const { name, deprecation, expected } of [
+		{ name: 'absent', deprecation: undefined, expected: undefined },
+		{ name: 'null', deprecation: null, expected: undefined },
+		{ name: 'plain', deprecation: {}, expected: { source: 'marketplace', extension: undefined, additionalInfo: undefined } },
+		{ name: 'message', deprecation: { customMessage: '**Retired**' }, expected: { source: 'marketplace', extension: undefined, additionalInfo: '**Retired**' } },
+		{ name: 'null message', deprecation: { customMessage: null }, expected: { source: 'marketplace', extension: undefined, additionalInfo: undefined } },
+		{ name: 'numeric message', deprecation: { customMessage: 42 }, expected: { source: 'marketplace', extension: undefined, additionalInfo: undefined } },
+		{ name: 'object message with replacement', deprecation: { customMessage: { value: 'Retired' }, replacementExtension: { name: 'other.replacement', displayName: 'Replacement' } }, expected: { source: 'marketplace', extension: { id: 'other.replacement', displayName: 'Replacement' }, additionalInfo: undefined } },
+		{ name: 'replacement and message', deprecation: { replacementExtension: { name: 'other.replacement', displayName: 'Replacement' }, customMessage: 'Please switch' }, expected: { source: 'marketplace', extension: { id: 'other.replacement', displayName: 'Replacement' }, additionalInfo: 'Please switch' } },
+		{ name: 'replacement without display name', deprecation: { replacementExtension: { name: 'other.replacement' } }, expected: { source: 'marketplace', extension: { id: 'other.replacement', displayName: 'other.replacement' }, additionalInfo: undefined } },
+		{ name: 'invalid replacement', deprecation: { replacementExtension: { name: 'invalid' }, customMessage: 'Retired' }, expected: { source: 'marketplace', extension: undefined, additionalInfo: 'Retired' } },
+	] satisfies { name: string; deprecation: object | null | undefined; expected: IDeprecationInfo | undefined }[]) {
+		for (const route of ['query', 'latest', 'version'] as const) {
+			test(`Marketplace deprecation ${name} through ${route}`, async () => {
+				const raw = { ...rawLatestExtension(), tags: [WEB_EXTENSION_TAG], deprecation };
+				const requestService = new RecordingRequestService(options => requestContext(200, options.type === 'POST' ? galleryQueryResponse([raw]) : raw));
+				const galleryService = createExtensionGalleryService(requestService);
+				const extensions = route === 'query'
+					? (await galleryService.query({ text: 'extension' }, CancellationToken.None)).firstPage
+					: await galleryService.getExtensions([{ id: 'publisher.extension', uuid: 'extension-uuid', ...(route === 'version' ? { version: '1.0.0' } : {}) }], CancellationToken.None);
+				assert.deepStrictEqual({ records: extensions.map(e => e.deprecationInfo), requests: requestService.requests.length }, { records: [expected], requests: 1 });
+			});
+		}
+	}
+
+	test('deprecated flag alone does not bypass deprecation fallback', async () => {
+		const requestService = new RecordingRequestService(() => requestContext(200, { ...rawLatestExtension(), flags: 'deprecated' }));
+		const [extension] = await createExtensionGalleryService(requestService).getExtensions([{ id: 'publisher.extension', uuid: 'extension-uuid' }], CancellationToken.None);
+		assert.strictEqual(extension.deprecationInfo, undefined);
+	});
+
+	test('Marketplace deprecation maps subsequent query pages without additional lookups', async () => {
+		const flags: number[] = [];
+		const requestService = new RecordingRequestService(options => {
+			const query: { filters: { pageNumber: number }[]; flags: number } = JSON.parse(options.data!);
+			flags.push(query.flags);
+			return requestContext(200, galleryQueryResponse([{ ...rawLatestExtension(), deprecation: { customMessage: `Page ${query.filters[0].pageNumber}` } }], 2));
+		});
+		const pager = await createExtensionGalleryService(requestService).query({ text: 'extension', pageSize: 1 }, CancellationToken.None);
+		const secondPage = await pager.getPage(1, CancellationToken.None);
+		assert.deepStrictEqual({
+			messages: [...pager.firstPage, ...secondPage].map(extension => extension.deprecationInfo?.additionalInfo),
+			requests: requestService.requests.length,
+			sameFlags: flags[0] === flags[1]
+		}, { messages: ['Page 1', 'Page 2'], requests: 2, sameFlags: true });
+	});
+
+	test('Marketplace metadata does not alter legacy control normalization or operational migrations', async () => {
+		productService = {
+			...productService,
+			extensionsGallery: { ...productService.extensionsGallery!, controlUrl: 'https://marketplace.test/control' }
+		};
+		const requestService = new RecordingRequestService(options => requestContext(200, options.url === 'https://marketplace.test/control' ? {
+			malicious: [],
+			deprecated: { 'Publisher.Extension': true },
+			migrateToPreRelease: { 'Publisher.Old': { id: 'publisher.new', displayName: 'New', migrateStorage: true } }
+		} : { ...rawLatestExtension(), deprecation: { replacementExtension: { name: 'publisher.other', displayName: 'Other' } } }));
+		const service = createExtensionGalleryService(requestService);
+		await service.getExtensions([{ id: 'publisher.extension', uuid: 'extension-uuid' }], CancellationToken.None);
+		const report = await service.getExtensionsControlManifest();
+		assert.deepStrictEqual({
+			ordinary: report.deprecated['publisher.extension'],
+			migration: report.deprecated['publisher.old'],
+			copilotMigration: report.deprecated[productService.defaultChatAgent.extensionId.toLowerCase()]?.extension?.autoMigrate
+		}, {
+			ordinary: {},
+			migration: { disallowInstall: true, extension: { id: 'publisher.new', displayName: 'New', autoMigrate: { storage: true }, preRelease: true } },
+			copilotMigration: { storage: false, donotDisable: true }
+		});
+	});
 
 	test('marketplace machine id', async () => {
 		const headers = await resolveMarketplaceHeaders(product.version, productService, environmentService, configurationService, fileService, storageService, NullTelemetryService);

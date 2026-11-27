@@ -13,7 +13,7 @@
 	border-top-style: solid;
 }
 
-.monaco-workbench.nomaineditorarea .part.panel.bottom .composite.title {
+.monaco-workbench.nomaineditorarea:not(.editor-hidden-by-chat) .part.panel.bottom .composite.title {
 	border-top-width: 0; /* no border when main editor area is hiden */
 }
 
@@ -22,7 +22,7 @@
 	border-bottom-style: solid;
 }
 
-.monaco-workbench.nomaineditorarea .part.panel.top {
+.monaco-workbench.nomaineditorarea:not(.editor-hidden-by-chat) .part.panel.top {
 	border-bottom-width: 0; /* no border when main editor area is hiden */
 }
 
@@ -31,7 +31,7 @@
 	border-left-style: solid;
 }
 
-.monaco-workbench.nomaineditorarea .part.panel.right {
+.monaco-workbench.nomaineditorarea:not(.editor-hidden-by-chat) .part.panel.right {
 	border-left-width: 0; /* no border when main editor area is hiden */
 }
 
@@ -40,7 +40,7 @@
 	border-right-style: solid;
 }
 
-.monaco-workbench.nomaineditorarea .part.panel.left {
+.monaco-workbench.nomaineditorarea:not(.editor-hidden-by-chat) .part.panel.left {
 	border-right-width: 0; /* no border when main editor area is hiden */
 }
 

@@ -7,7 +7,7 @@ import assert from 'assert';
 import { spawnSync } from 'child_process';
 import { isWindows } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { buildLinkDevContainerStateCommand, devContainerStateFallbackTarget, devContainerStateWorkspacesTarget, findDevContainerStateMount, getDefaultDevContainerIdLabels, getDevContainerId, getDevContainerSecurityOptions, getDevContainerStateLinkSkippedMessage, getDevContainerStateMountTarget, getDevContainerStateVolumeLabels, getDevContainerStateVolumeName, IDevContainerStateLinkOptions, isDevContainerStateVolumeFor, parseLinkDevContainerStateOutput, sanitizeDevContainerStateErrorMessage } from '../../node/devContainerState.js';
+import { buildLinkDevContainerStateCommand, devContainerStateFallbackTarget, devContainerStateWorkspacesTarget, DevContainerUpErrorCause, findDevContainerStateMount, getDefaultDevContainerIdLabels, getDevContainerId, getDevContainerSecurityOptions, getDevContainerStateLinkSkippedMessage, getDevContainerStateMountTarget, getDevContainerStateVolumeLabels, getDevContainerStateVolumeName, getDevContainerUpErrorCause, IDevContainerStateLinkOptions, isDevContainerStateVolumeFor, parseLinkDevContainerStateOutput, sanitizeDevContainerStateErrorMessage } from '../../node/devContainerState.js';
 
 suite('DevContainerState', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -219,7 +219,7 @@ suite('DevContainerState', () => {
 		assert.strictEqual(getDevContainerStateLinkSkippedMessage(parseLinkDevContainerStateOutput('vscode-state:step:home\nvscode-state:missing:CAP_DAC_OVERRIDE\nvscode-state:missing:CAP_DAC_READ_SEARCH\nvscode-state:skipped:missingCapabilities\n')), 'root lacks capabilities it needs to enter the home folder (CAP_DAC_OVERRIDE or CAP_DAC_READ_SEARCH), e.g., because of cap_drop');
 		assert.strictEqual(getDevContainerStateLinkSkippedMessage(parseLinkDevContainerStateOutput('vscode-state:step:folders\nvscode-state:missing:CAP_FOWNER\nvscode-state:skipped:missingCapabilities\n')), 'root lacks capabilities it needs to copy the container user\'s folders to the volume (CAP_FOWNER), e.g., because of cap_drop');
 		assert.strictEqual(getDevContainerStateLinkSkippedMessage(parseLinkDevContainerStateOutput('vscode-state:step:stateFolder\nvscode-state:skipped:untrustedState\n')), 'another user can change the state folder or the volume\'s root folder');
-		assert.strictEqual(getDevContainerStateLinkSkippedMessage(parseLinkDevContainerStateOutput('vscode-state:step:stateFolder\nvscode-state:stateOwner:user\nvscode-state:skipped:stateNotRootOwned\n')), 'the volume\'s .vscode-state folder is not owned by root, e.g., after a lifecycle command ran `chown -R` on the volume. To keep its state, give it and its contents back to root if you trust them, or remove it to start fresh');
+		assert.strictEqual(getDevContainerStateLinkSkippedMessage(parseLinkDevContainerStateOutput('vscode-state:step:stateFolder\nvscode-state:stateOwner:user\nvscode-state:skipped:stateNotRootOwned\n')), 'the volume\'s .vscode-state folder, or the container user\'s folder in it, is not owned by root, e.g., after a lifecycle command ran `chown -R` on the volume. To keep its state, give it and its contents back to root if you trust them, or remove it to start fresh');
 	});
 
 	test('reads security settings from docker inspect as fixed values', () => {
@@ -265,8 +265,62 @@ suite('DevContainerState', () => {
 		]);
 	});
 
+	test('removes values from error messages that the telemetry service does not redact', () => {
+		const sanitize = (message: string) => sanitizeDevContainerStateErrorMessage([message]);
+		assert.deepStrictEqual({
+			commandPathWithSpace: sanitize('Command failed: C:\\Users\\John Doe\\bin\\docker.exe run --sig-proxy=false alpine'),
+			userCommand: sanitize('Command failed: /home/jdoe/bin/acme-init.sh --region eu'),
+			configPath: sanitize('Dev container config (C:\\Users\\jdoe\\Acme Merger Plan (2)\\.devcontainer\\devcontainer.json) not found.'),
+			configPathWithCode: sanitize('Dev container config (/workspaces/Acme Plan/.devcontainer/devcontainer.json) not found. (ENOENT)'),
+			twoPaths: sanitize('Mounting (/home/jdoe/Acme Plan) at (/workspaces/Acme Plan) failed.'),
+			nestedParentheses: sanitize('Dev container config (/workspaces/Acme Plan (Review (2))/.devcontainer/devcontainer.json) not found.'),
+			unmatchedClosing: sanitize('Dev container config (/workspaces/Acme) Merger Plan/.devcontainer/devcontainer.json) not found. (ENOENT)'),
+			unmatchedOpening: sanitize('Dev container config (/workspaces/Acme (Merger Plan/.devcontainer/devcontainer.json) not found. (ENOENT)'),
+			reversedParentheses: sanitize('Dev container config (/workspaces/Acme) Merger (Plan/.devcontainer/devcontainer.json) not found. (ENOENT)'),
+			reversedParenthesesLastFolder: sanitize('Workspace folder (/workspaces/Acme) Merger (Plan) not found.'),
+			reversedParenthesesUppercaseLastFolder: sanitize('Workspace folder (/workspaces/Acme) Merger (PLAN) not found.'),
+			hostName: sanitize('getaddrinfo ENOTFOUND registry.acme-corp.internal'),
+			address: sanitize('connect ECONNREFUSED 10.1.2.3:443'),
+			dockerHost: sanitize('dial tcp 10.1.2.3:2376: connect: connection refused'),
+		}, {
+			commandPathWithSpace: 'Command failed: <command> <args>',
+			userCommand: 'Command failed: <command> <args>',
+			configPath: 'Dev container config (<path>) not found.',
+			configPathWithCode: 'Dev container config (<path>) not found. (ENOENT)',
+			twoPaths: 'Mounting (<path>) at (<path>) failed.',
+			nestedParentheses: 'Dev container config (<path>) not found.',
+			unmatchedClosing: 'Dev container config (<path>) not found. (ENOENT)',
+			unmatchedOpening: 'Dev container config (<path>)',
+			reversedParentheses: 'Dev container config (<path>) not found. (ENOENT)',
+			reversedParenthesesLastFolder: 'Workspace folder (<path>) not found.',
+			reversedParenthesesUppercaseLastFolder: 'Workspace folder (<path>) not found.',
+			hostName: 'getaddrinfo ENOTFOUND <address>',
+			address: 'connect ECONNREFUSED <address>',
+			dockerHost: 'dial tcp <address>: connect: connection refused',
+		});
+	});
+
 	test('keeps the start and end of long error messages', () => {
 		const message = sanitizeDevContainerStateErrorMessage([`start ${'x'.repeat(2000)} end`]);
 		assert.deepStrictEqual({ length: message?.length, start: message?.startsWith('start x'), end: message?.endsWith('x end'), elided: message?.includes('\n…\n') }, { length: 1000, start: true, end: true, elided: true });
+	});
+
+	test('classifies devcontainer up error causes the failed command does not identify', () => {
+		const setup = 'An error occurred setting up the container.';
+		const cases: [Parameters<typeof getDevContainerUpErrorCause>, DevContainerUpErrorCause][] = [
+			[[{ description: setup, message: 'Command failed: docker run -a STDOUT --mount type=volume,src=s,dst=/workspaces image' }, '[2 ms] docker: Error response from daemon: Duplicate mount point: /workspaces.'], 'duplicateMount'],
+			[[undefined, '\x1b[31mCannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?\x1b[0m'], 'daemon'],
+			[[{ description: 'The postStartCommand in the devcontainer.json failed.' }, 'Error response from daemon: invalid mount config'], 'lifecycle'],
+			[[{ description: '`setup` of postCreateCommand from devcontainer.json failed.' }], 'lifecycle'],
+			[[{ description: 'Dev container config (/home/me/project/.devcontainer/devcontainer.json) not found.' }], 'config'],
+			[[{ description: setup, message: 'Failed to download package for ghcr.io/devcontainers/features/node' }], 'feature'],
+			[[{ description: setup, message: 'Command failed: docker run image' }, 'Error response from daemon: invalid mount config for type "volume": invalid mount path'], 'volume'],
+			[[{ description: setup, message: 'Command failed: docker run image' }, 'Error response from daemon: invalid mount config for type "bind": bind source path does not exist: /home/me/.ssh'], 'mount'],
+			// The failed command identifies build errors.
+			[[{ description: 'An error occurred building the image.', message: 'Command failed: docker buildx build .' }, 'ERROR: failed to solve: process "/bin/sh -c exit 1" did not complete successfully: exit code: 1'], 'other'],
+			// Command lines and their start and stop logs are not classified.
+			[[{ description: setup, message: 'Command failed: docker create --mount type=volume,src=no such volume,dst=/data image' }, '[3 ms] Start: Run: docker run -l "Duplicate mount point" image\n[4 ms] Stop (1 ms): Run: docker run -l "Duplicate mount point" image'], 'other'],
+		];
+		assert.deepStrictEqual(cases.map(([args]) => getDevContainerUpErrorCause(...args)), cases.map(([, cause]) => cause));
 	});
 });

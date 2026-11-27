@@ -13,6 +13,7 @@ import { IPartGridPartFactory } from '../../../browser/parts/partGrid/partGrid.j
 import { IAuxiliaryWindow } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { bindEditorPartsToWindow } from '../../../services/editor/browser/editorPartWindowBinding.js';
 import { IContentPart, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IChatWindowLook } from './chatWindow.js';
 
 /**
@@ -29,9 +30,16 @@ export class ChatWindowPartFactory extends Disposable implements IPartGridPartFa
 		private readonly window: IAuxiliaryWindow,
 		private readonly services: ServiceCollection,
 		private readonly look: IChatWindowLook,
+		private readonly closesWithWindow: (editor: EditorInput) => boolean,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 	) {
 		super();
+		// Its parts close as the window unloads before the window lets go of the factory, which ends their own bindings
+		this._register(Event.once(window.onUnload)(() => {
+			for (const part of [...this.parts.keys()]) {
+				part.forceClose();
+			}
+		}));
 	}
 
 	createPart(): { readonly id: string; readonly part: IContentPart } {
@@ -56,7 +64,7 @@ export class ChatWindowPartFactory extends Disposable implements IPartGridPartFa
 		}
 
 		// Closes with the window, unless it closed first
-		disposables.add(bindEditorPartsToWindow(this.window, [part], this.editorGroupsService));
+		disposables.add(bindEditorPartsToWindow(this.window, [part], this.editorGroupsService, this.closesWithWindow));
 		disposables.add(Event.once(part.onWillClose)(() => this.parts.deleteAndDispose(part)));
 		this.parts.set(part, disposables);
 

@@ -7,7 +7,7 @@ import { localize } from '../../../../nls.js';
 import { EditorGroupLayout, GroupActivationReason, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IEditorGroupContextKeyProvider, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IEditorWorkingSet, IFindGroupScope, IMergeGroupOptions, IEditorWorkingSetOptions, IEditorPart, IModalEditorPart, IEditorGroupActivationEvent, ICreateEditorPartOptions, IContentPart, IResolvedEditorWorkingSet, getWindowMainPart } from '../../../services/editor/common/editorGroupsService.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { EditorsOrder, GroupIdentifier, IEditorPartOptions } from '../../../common/editor.js';
+import { EditorCloseContext, EditorsOrder, GroupIdentifier, IEditorPartOptions } from '../../../common/editor.js';
 import { ISerializedNode } from '../../../../base/browser/ui/grid/gridview.js';
 import { EditorGroupModel, isSerializedEditorGroupModel } from '../../../common/editor/editorGroupModel.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
@@ -738,23 +738,24 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		}
 	}
 
-	private async applyState(state: IEditorPartsUIState | 'empty', options?: { preserveFocus?: boolean }): Promise<boolean> {
+	private async applyState(state: IEditorPartsUIState | 'empty', options?: IEditorWorkingSetOptions): Promise<boolean> {
 
 		// Before closing windows, try to close as many editors as
 		// possible, but skip over those that would trigger a dialog
 		// (for example when being dirty). This is to be able to have
 		// them merge into the main part.
 
+		const closeContext = options?.switchesEditors ? EditorCloseContext.SWITCH : undefined;
 		for (const part of this.parts) {
 			if (part === this.mainPart || part.isTransient) {
 				continue; // main part takes care on its own and transient parts are managed by their owner
 			}
 
 			for (const group of part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
-				await group.closeAllEditors({ excludeConfirming: true, force: true });
+				await group.closeAllEditors({ excludeConfirming: true, force: true, context: closeContext });
 			}
 
-			const closed = (part as unknown as IAuxiliaryEditorPart).close(options); // will move remaining editors to main part
+			const closed = (part as unknown as IAuxiliaryEditorPart).close({ preserveFocus: options?.preserveFocus, closeContext }); // will move remaining editors to main part
 			if (!closed) {
 				return false; // this indicates that closing was vetoed
 			}
@@ -920,7 +921,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		if (!applied) {
 			return false;
 		}
-		await this.mainPart.applyState(workingSetState === 'empty' ? workingSetState : workingSetState.main, options);
+		await this.mainPart.applyState(workingSetState === 'empty' ? workingSetState : workingSetState.main, options, options?.switchesEditors ? EditorCloseContext.SWITCH : undefined);
 
 		// Restore Focus unless instructed otherwise
 		{

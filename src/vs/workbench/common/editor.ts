@@ -152,6 +152,18 @@ export interface IEditorPane extends IComposite {
 	readonly onDidChangeSizeConstraints: Event<{ width: number; height: number } | undefined>;
 
 	/**
+	 * The size the editor's content prefers, for a host that fits the editor
+	 * to its content, such as a modal editor (see `IModalEditorOptions.fitToContent`).
+	 * `undefined` when the editor has no preference.
+	 */
+	readonly preferredContentSize?: { readonly width: number; readonly height: number };
+
+	/**
+	 * An event to notify whenever {@link preferredContentSize} changes.
+	 */
+	readonly onDidChangePreferredContentSize?: Event<void>;
+
+	/**
 	 * Whether the editor renders its own title. A group that holds only
 	 * this editor then does not show its title area, and editors opened
 	 * from it go to the main part of its window rather than beside it.
@@ -1205,7 +1217,14 @@ export enum EditorCloseContext {
 	 * The editor closed because another editor turned into preview
 	 * and this used to be the preview editor before.
 	 */
-	UNPIN
+	UNPIN,
+
+	/**
+	 * The editor closed because a working set that switches the editors of one
+	 * context for the ones of another was applied, for example on a folder location
+	 * switch. It was switched out and not closed by the user.
+	 */
+	SWITCH
 }
 
 export interface IEditorCloseEvent extends IEditorIdentifier {

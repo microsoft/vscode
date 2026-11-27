@@ -103,9 +103,17 @@ export interface IBulkEditOptions {
 	quotableLabel?: string;
 	undoRedoSource?: UndoRedoSource;
 	undoRedoGroupId?: number;
+	undoStopBefore?: boolean;
+	undoStopAfter?: boolean;
 	confirmBeforeUndo?: boolean;
 	respectAutoSaveConfig?: boolean;
 	reason?: TextModelEditSource;
+}
+
+export interface IBulkEditStep {
+	readonly edits: ResourceEdit[] | WorkspaceEdit;
+	readonly undoStopBefore?: boolean;
+	readonly undoStopAfter?: boolean;
 }
 
 export interface IBulkEditResult {
@@ -123,4 +131,6 @@ export interface IBulkEditService {
 	setPreviewHandler(handler: IBulkEditPreviewHandler): IDisposable;
 
 	apply(edit: ResourceEdit[] | WorkspaceEdit, options?: IBulkEditOptions): Promise<IBulkEditResult>;
+
+	applySequence?(steps: readonly IBulkEditStep[], options?: IBulkEditOptions): Promise<IBulkEditResult>;
 }

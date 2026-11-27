@@ -6,7 +6,7 @@
 import { Event } from '../../../../base/common/event.js';
 import { IInstantiationService, createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { IEditorPane, GroupIdentifier, EditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput, isEditorInput, IEditorWillMoveEvent, IMatchEditorOptions, IActiveEditorChangeEvent, IFindEditorOptions, IToolbarActions } from '../../../common/editor.js';
+import { IEditorPane, GroupIdentifier, EditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput, isEditorInput, IEditorWillMoveEvent, IMatchEditorOptions, IActiveEditorChangeEvent, IFindEditorOptions, IToolbarActions, EditorCloseContext } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorOptions, IModalEditorNavigation, IModalEditorPartOptions } from '../../../../platform/editor/common/editor.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -154,6 +154,11 @@ export interface ICloseAllEditorsOptions {
 	readonly excludeSticky?: boolean;
 	readonly excludeConfirming?: boolean;
 	readonly force?: boolean;
+
+	/**
+	 * The context that the close events of the editors report, see {@link IEditorCloseEvent.context}.
+	 */
+	readonly context?: EditorCloseContext;
 }
 
 export interface IEditorReplacement {
@@ -562,7 +567,11 @@ export interface IAuxiliaryEditorPart extends IEditorPart {
 	 *
 	 * @returns `false` if an editor could not be moved back.
 	 */
-	close(options?: { preserveFocus?: boolean }): boolean;
+	/**
+	 * Closes the part: the editors that do not need confirmation close with the close context, if any,
+	 * and the other editors move to the main part.
+	 */
+	close(options?: { preserveFocus?: boolean; closeContext?: EditorCloseContext }): boolean;
 }
 
 /**
@@ -793,6 +802,13 @@ export interface IEditorWorkingSetOptions {
 	 * and focus inside of an editor part moves to the new active editor.
 	 */
 	readonly preserveFocus?: boolean;
+
+	/**
+	 * Whether applying switches the editors of one context for the ones of another, for example
+	 * on a folder location switch: the editors that it closes are switched out, not closed by the user,
+	 * and their close events report {@link EditorCloseContext.SWITCH}.
+	 */
+	readonly switchesEditors?: boolean;
 }
 
 export interface IEditorGroupContextKeyProvider<T extends ContextKeyValue> {
@@ -1228,7 +1244,7 @@ export interface IEditorGroup {
 	 *
 	 * @returns a promise if confirmation is needed when all editors are closed.
 	 */
-	closeAllEditors(options: { excludeConfirming: true; force?: boolean }): boolean;
+	closeAllEditors(options: { excludeConfirming: true; force?: boolean; context?: EditorCloseContext }): boolean;
 	closeAllEditors(options?: ICloseAllEditorsOptions): Promise<boolean>;
 
 	/**

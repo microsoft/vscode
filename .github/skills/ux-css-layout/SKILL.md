@@ -71,6 +71,13 @@ The narrow exception is shared focus/active-outline suppression, where `outline:
 
 Represent semantic state explicitly rather than inferring it from incidental DOM order. For example, a content node ceasing to be `:last-child` does not prove a footer exists: completion widgets can append siblings and leave them mounted while hidden. Let the component that creates/removes the footer own its state class, and test unrelated trailing siblings.
 
+### Clipping ownership and native corners
+
+- Assign rounded clipping to the surface that owns it. If an outer card already clips to its padding edge, a second concentric rounded clip on the content can add offscreen render surfaces on every scroll or keystroke without improving the pixels. Preserve independently positioned webview/notebook overlays that genuinely escape the card's clip; do not remove their clipping mechanically.
+- For a changed rounded clip, compare the painted result and, on frequently repainted surfaces, compositor work during scroll/typing. Tests should establish the owning card's clip and effective border, not require a redundant child radius. Supply a valid border color in the test host: an invalid border shorthand can silently remove the inset being tested.
+- Native-window corner geometry is not an ordinary control radius. CSS normalizes oversized radii to fit a short box, so an item can report the requested radius yet still paint the wrong native curve. Verify zoomed-out docked items as well as floating items; use an appropriately sized frame-relative paint/clipping surface when necessary.
+- Test geometry invalidation on the existing instance. Custom size/radius and theme changes can update CSS without triggering layout. Observe the owning size/theme events and wait for style application instead of relying exclusively on layout callbacks or directly calling the refresh helper in tests.
+
 ## 5. SplitView Layout
 
 **File**: `src/vs/base/browser/ui/splitview/splitview.ts`
@@ -354,7 +361,9 @@ Codicons are **only ever 16px or 12px** — never `14px` or any in-between value
 | 16 | `--vscode-codiconFontSize` (base) | default icon size |
 | 12 | `--vscode-codiconFontSize-compact` | dense/inline chrome |
 
-**Compact-glyph convention:** when sizing an icon at the compact 12px size, also swap the registered glyph to its `*Compact` variant (e.g. `Codicon.close` → `Codicon.closeCompact`, `Codicon.add` → `Codicon.addCompact`). CSS `font-size` alone only scales the icon — it does **not** change to the visually-optimized compact glyph; that requires changing the registered icon (Action2 `icon:` / `renderIcon`). **Only swap the glyph when no CSS selector targets the original glyph class** (e.g. `.codicon-close`); selectors keyed on the glyph class (`.codicon-add`, `.codicon-chevron-down`) break when the class becomes `-compact`, so update those selectors too (or size via a glyph-independent wrapper class like `.monaco-button`). Some icons (settings/sliders, agent, vm, info, lock, plus) have **no** compact variant — keep the regular glyph at 12px.
+**Compact-glyph convention:** when sizing an icon at the compact 12px size, also use its registered `*Compact` variant when available (e.g. `Codicon.close` → `Codicon.closeCompact`). CSS `font-size` alone scales the regular glyph; it does not select the optically tuned variant. Inspect aliases before declaring a variant missing: `pencil` can use the existing `edit-compact` glyph through the canonical `edit` icon. Use the owning layer's existing resolver, such as [getCompactCodicon](../../../src/vs/workbench/contrib/chat/browser/chatIcons.ts) in Chat, preserving color/modifiers and falling back to the original icon when no variant is registered. Do not invent a `-compact` ID or introduce a cross-layer import to reuse a feature-specific helper.
+
+Audit selectors and tests keyed on the original glyph class when swapping it; update them or use a glyph-independent wrapper. Also verify streaming updates, late tool metadata, restored history, and composite renderers, not only initial standalone rendering. A dependency bump and passing leaf-component tests do not prove every surface uses the new glyph.
 
 ### Stroke — border width
 

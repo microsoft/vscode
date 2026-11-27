@@ -29,6 +29,13 @@ export interface IChatViewSessionsListService {
 	 * window. A remote window never does.
 	 */
 	readonly surfacesAllLocalAgentHostAgents: IObservable<boolean>;
+
+	/**
+	 * Whether the window's session providers list every session and the Sessions list narrows them to the window's scope: while
+	 * the Sessions list replaces the Chat view's list, whether or not its workspaces filter is on. Otherwise providers keep listing
+	 * only the sessions of the window's folders, as they do in a remote window, whose Chat view keeps its own list.
+	 */
+	readonly listsAllSessions: IObservable<boolean>;
 }
 
 export class ChatViewSessionsListService implements IChatViewSessionsListService {
@@ -37,6 +44,7 @@ export class ChatViewSessionsListService implements IChatViewSessionsListService
 
 	readonly enabled: IObservable<boolean>;
 	readonly surfacesAllLocalAgentHostAgents: IObservable<boolean>;
+	readonly listsAllSessions: IObservable<boolean>;
 
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService,
@@ -47,6 +55,8 @@ export class ChatViewSessionsListService implements IChatViewSessionsListService
 		this.surfacesAllLocalAgentHostAgents = environmentService.isSessionsWindow
 			? constObservable(true)
 			: environmentService.remoteAuthority ? constObservable(false) : this.enabled;
+		// Not in remote windows, where the Chat view keeps its own list, which relies on the providers' filtering
+		this.listsAllSessions = environmentService.remoteAuthority ? constObservable(false) : this.enabled;
 	}
 }
 

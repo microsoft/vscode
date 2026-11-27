@@ -245,13 +245,6 @@ export class ChatInputModelSelectionController extends Disposable {
 		}
 	}
 
-	/** Takes the default and forgets the preference it overrides, which would otherwise come back. */
-	resetToDefault(sessionType = this._runtime.getCurrentSessionType()): void {
-		this._clearPendingProgrammaticSelection();
-		this._remember(undefined);
-		this.selectDefault(sessionType);
-	}
-
 	ensureCurrentModelSupported(): void {
 		const currentModel = this._currentModel.get();
 		const sessionType = this._runtime.getCurrentSessionType();

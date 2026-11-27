@@ -8,20 +8,23 @@ import { Queue } from '../../../../../base/common/async.js';
 import { removeTrailingPathSeparator } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { Workspace, WorkspaceFolder, IWorkspace, IWorkspaceContextService, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceFolder, WorkbenchState, WorkbenchScope } from '../../../../../platform/workspace/common/workspace.js';
+import { Workspace, WorkspaceFolder, IWorkspace, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceFolder, WorkbenchState, WorkbenchMode } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceFolderCreationData } from '../../../../../platform/workspaces/common/workspaces.js';
 import { getWorkspaceIdentifier } from '../../../../../platform/workspaces/common/workspaceIdentifier.js';
 import { IWorkspaceEditingService } from '../../../workspaces/common/workspaceEditing.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 
 import { localize } from '../../../../../nls.js';
+import { IWorkbenchWorkspaceContextService } from '../../../workspaces/common/workbenchWorkspaceContextService.js';
 
-export class AgentsWorkspaceContextService extends Disposable implements IWorkspaceContextService, IWorkspaceEditingService {
+export class AgentsWorkspaceContextService extends Disposable implements IWorkbenchWorkspaceContextService, IWorkspaceEditingService {
 
 	declare readonly _serviceBrand: undefined;
 
 	readonly onDidChangeWorkbenchState = Event.None;
-	readonly onDidChangeWorkbenchScope: Event<WorkbenchScope> = Event.None;
+	private readonly _onDidChangeWorkbenchScope = this._register(new Emitter<URI | undefined>());
+	readonly onDidChangeWorkbenchScope = this._onDidChangeWorkbenchScope.event;
+	readonly onDidChangeWorkbenchMode: Event<WorkbenchMode> = Event.None;
 	readonly onDidChangeWorkspaceName = Event.None;
 	readonly onDidEnterWorkspace = Event.None;
 	readonly onWillRemoveFolders = Event.None;
@@ -33,6 +36,7 @@ export class AgentsWorkspaceContextService extends Disposable implements IWorksp
 	readonly onDidChangeWorkspaceFolders = this._onDidChangeWorkspaceFolders.event;
 
 	private workspace: Workspace;
+	private workbenchScope: URI | undefined;
 	private readonly _updateFoldersQueue = this._register(new Queue<void>());
 
 	constructor(
@@ -51,8 +55,23 @@ export class AgentsWorkspaceContextService extends Disposable implements IWorksp
 		return this.workspace;
 	}
 
-	getWorkbenchScope(): WorkbenchScope {
-		return WorkbenchScope.ALL;
+	getWorkbenchScope(): URI | undefined {
+		return this.workbenchScope;
+	}
+
+	setWorkbenchScope(scope: URI | undefined): void {
+		if (!this.uriIdentityService.extUri.isEqual(scope, this.workbenchScope)) {
+			this.workbenchScope = scope;
+			this._onDidChangeWorkbenchScope.fire(scope);
+		}
+	}
+
+	resetWorkbenchScope(): void {
+		this.setWorkbenchScope(undefined);
+	}
+
+	getWorkbenchMode(): WorkbenchMode {
+		return WorkbenchMode.Agents;
 	}
 
 	getWorkbenchState(): WorkbenchState {

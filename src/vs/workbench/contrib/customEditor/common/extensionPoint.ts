@@ -20,6 +20,7 @@ const Fields = Object.freeze({
 	displayName: 'displayName',
 	selector: 'selector',
 	priority: 'priority',
+	accessibilityHelpContent: 'accessibilityHelpContent',
 });
 
 const PriorityFields = Object.freeze({
@@ -98,6 +99,10 @@ const customEditorsContributionSchema = {
 				}
 			],
 			default: CustomEditorPriority.default
+		},
+		[Fields.accessibilityHelpContent]: {
+			type: 'string',
+			markdownDescription: nls.localize('contributes.accessibilityHelpContent', "When the accessibility help dialog is invoked in the custom editor, this content will be presented to the user as a markdown string. Keybindings will be resolved when provided in the format of <keybinding:commandId>. Requires the `contribAccessibilityHelpContent` API proposal."),
 		}
 	}
 } as const satisfies IJSONSchema;

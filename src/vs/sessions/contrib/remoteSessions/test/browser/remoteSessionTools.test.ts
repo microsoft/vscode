@@ -20,7 +20,7 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { IToolInvocation } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { CreateRemoteSessionTool, ListAgentHostsTool } from '../../browser/remoteSessionTools.js';
 import { resolveRemoteSessionReference } from '../../browser/remoteSessionSource.js';
-import { ICreatedRemoteSession, ICreateRemoteSessionOptions, IRemoteSessionHost, IRemoteSessionHostName, IRemoteSessionService, RemoteSessionToolsEnabledSettingId } from '../../common/remoteSessions.js';
+import { ICreatedRemoteSession, ICreateRemoteSessionOptions, IRemoteSessionHost, IRemoteSessionHostName, IRemoteSessionService, IRemoteSessionSourceModelInfo, RemoteSessionToolsEnabledSettingId } from '../../common/remoteSessions.js';
 import { DevContainerHandoffEnabledSettingId } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 
 suite('RemoteSessionTools', () => {
@@ -82,7 +82,7 @@ suite('RemoteSessionTools', () => {
 		placement: { runningSessions: 0, pendingCreations: 0 },
 	};
 
-	function setup(sessionModelOptions = 'off') {
+	function setup(sessionModelOptions = 'off', sourceModel?: IRemoteSessionSourceModelInfo) {
 		const calls: { options: ICreateRemoteSessionOptions; source: URI; requestId: string; token: CancellationToken }[] = [];
 		// The result's host `host` is a Dev Container environment; `agenthost-build` a plain remote host.
 		const hostNames = new Map<string, IRemoteSessionHostName>([
@@ -94,6 +94,7 @@ suite('RemoteSessionTools', () => {
 			override getRequestedDestination(options: ICreateRemoteSessionOptions) {
 				return { host: options.hostId !== undefined ? hostNames.get(options.hostId) : undefined, pinnedBy: options.hostId, workspace: options.workspace?.uri.path };
 			}
+			override async getSourceModel() { return sourceModel; }
 			override async createSession(options: ICreateRemoteSessionOptions, source: URI, requestId: string, token: CancellationToken) {
 				calls.push({ options, source, requestId, token });
 				return result;
@@ -135,13 +136,15 @@ suite('RemoteSessionTools', () => {
 		const description = create.getToolData().modelDescription;
 		assert.deepStrictEqual({
 			noWorkspace: description.includes('Omitted workspace creates a workspace-less session'),
-			noInheritance: description.includes('nothing is cloned, copied, or inherited from the origin'),
-			trustedWorkspace: description.includes('already exist and be trusted on the target'),
+			noCopying: description.includes('nothing is cloned or copied from the origin'),
+			trustedWorkspace: description.includes('an untrusted folder requires separate user approval'),
 			replies: description.includes('send_remote_message with session "origin"'),
+			shareLink: description.includes('openLink as the Markdown link target'),
+			reuseLink: description.includes('as the session argument to get_remote_session or send_remote_message'),
 			noBlindRetry: description.includes('Do not retry an uncertain creation'),
 			connectedWindow: description.includes('Keep the coordinating Agents window connected'),
 			agentHostSource: description.includes('Requires an Agent Host originating chat'),
-		}, { noWorkspace: true, noInheritance: true, trustedWorkspace: true, replies: true, noBlindRetry: true, connectedWindow: true, agentHostSource: true });
+		}, { noWorkspace: true, noCopying: true, trustedWorkspace: true, replies: true, shareLink: true, reuseLink: true, noBlindRetry: true, connectedWindow: true, agentHostSource: true });
 	});
 
 	test('creation waits for exact chat context when invoked in the background', () => {
@@ -241,7 +244,29 @@ suite('RemoteSessionTools', () => {
 		});
 	});
 
-	test('invocation uses the calling chat, stable request ID and cancellation token', async () => {
+	test('confirmation shows the source chat\'s model and effort that the session would continue on', async () => {
+		const sourceModel: IRemoteSessionSourceModelInfo = { provider: 'copilot', id: 'claude-opus-5.5', reasoningEffort: 'xhigh' };
+		const lines = async (setting: string, parameters: object) => {
+			const { create } = setup(setting, sourceModel);
+			const prepared = await create.prepareToolInvocation({ toolCallId: 'prepare', parameters: { prompt: 'Continue', ...parameters }, chatSessionResource: source }, CancellationToken.None);
+			const message = prepared.confirmationMessages?.message;
+			return (typeof message === 'object' ? message.value.replace(/&nbsp;/g, ' ').replace(/\\(.)/g, '$1') : '').split(/\n+/).filter(line => /^(Model|Reasoning effort):/.test(line));
+		};
+		const named = { model: { provider: 'copilot', id: 'claude-opus-5.5' } };
+		assert.deepStrictEqual({
+			omitted: await lines('off', {}),
+			namedWithoutModelOptions: await lines('off', named),
+			namedWithModelOptions: await lines('inline', named),
+			otherModel: await lines('inline', { model: { provider: 'copilot', id: 'test-model' } }),
+		}, {
+			omitted: ['Model: copilot/claude-opus-5.5 from this chat, if the host offers it', 'Reasoning effort: Extra High from this chat, if the model on the host supports it'],
+			namedWithoutModelOptions: ['Model: copilot/claude-opus-5.5'],
+			namedWithModelOptions: ['Model: copilot/claude-opus-5.5', 'Reasoning effort: Extra High from this chat, if the model on the host supports it'],
+			otherModel: ['Model: copilot/test-model'],
+		});
+	});
+
+	test('invocation preserves the calling context and returns only openLink as the session reference', async () => {
 		const { create, calls } = setup();
 		const invocation: IToolInvocation = {
 			callId: 'call-id',
@@ -255,13 +280,20 @@ suite('RemoteSessionTools', () => {
 			id: calls[0].requestId,
 			token: calls[0].token,
 			prompt: calls[0].options.prompt,
-			response: response.content,
+			response: response.content.map(part => part.kind === 'text' ? JSON.parse(part.value) : part),
 		}, {
 			source,
 			id: 'call-id',
 			token: CancellationToken.None,
 			prompt: 'Run the Linux tests',
-			response: [{ kind: 'text', value: JSON.stringify(result) }],
+			response: [{
+				status: result.status,
+				openLink: result.openLink,
+				host: result.host,
+				model: result.model,
+				workspace: result.workspace,
+				placement: result.placement,
+			}],
 		});
 	});
 

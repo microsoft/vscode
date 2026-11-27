@@ -29,7 +29,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	public confirmationMessages: IToolConfirmationMessages | undefined;
 	public presentation: IPreparedToolInvocation['presentation'];
 	public readonly toolId: string;
-	public readonly icon?: ThemeIcon;
+	public icon?: ThemeIcon;
 	public source: ToolDataSource;
 	public readonly subAgentInvocationId: string | undefined;
 	public parameters: unknown;
@@ -217,6 +217,13 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		this._state.set({ ...current }, undefined);
 	}
 
+	public updateIcon(icon: ThemeIcon): void {
+		if (!this.icon || !ThemeIcon.isEqual(this.icon, icon)) {
+			this.icon = icon;
+			this.notifyToolSpecificDataChanged();
+		}
+	}
+
 	public updateConfirmationMessages(confirmationMessages: IToolConfirmationMessages): void {
 		const current = this._state.get();
 		if (current.type !== IChatToolInvocation.StateKind.WaitingForConfirmation) {
@@ -329,6 +336,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			this.invocationMessage = preparedInvocation.invocationMessage;
 		}
 		this.originMessage = preparedInvocation.originMessage ?? this.originMessage;
+		this.icon = preparedInvocation.icon ?? this.icon;
 		this.pastTenseMessage = preparedInvocation.pastTenseMessage;
 		this.confirmationMessages = preparedInvocation.confirmationMessages;
 		this.presentation = preparedInvocation.presentation;
@@ -352,6 +360,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			this.invocationMessage = preparedInvocation.invocationMessage;
 		}
 		this.originMessage = preparedInvocation.originMessage ?? this.originMessage;
+		this.icon = preparedInvocation.icon ?? this.icon;
 		this.pastTenseMessage = preparedInvocation.pastTenseMessage;
 		this.confirmationMessages = preparedInvocation.confirmationMessages;
 		this.presentation = preparedInvocation.presentation;

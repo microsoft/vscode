@@ -68,6 +68,27 @@ const mcpConfiguredInstallationContract = {
 };
 
 const maxConfiguredEntries = 128;
+
+/**
+ * Resolves the receipt id of the owned (catalog-installed) MCP installation that
+ * provides `serverName`, or `undefined` for manually configured servers. The
+ * runtime refuses to start, enable, disable or stop an owned server without it.
+ */
+export async function findOwnedMcpInstallationId(rpc: Partial<Pick<CopilotClient['rpc'], 'mcp'>>, policySessionId: string, serverName: string): Promise<string | undefined> {
+	if (!rpc.mcp?.installations?.list) {
+		return undefined;
+	}
+	const result = await rpc.mcp.installations.list({ contract: mcpInstallationContract, policySessionId });
+	if (result.kind !== 'outcome' || result.outcome.kind !== 'listed' && result.outcome.kind !== 'recovered') {
+		return undefined;
+	}
+	const installation = result.outcome.installations.find(candidate => candidate.identity.serverName === serverName);
+	if (!installation) {
+		return undefined;
+	}
+	const portable: IPortableInstallationSummary = installation;
+	return portable.record?.installationId ?? portable.installationId;
+}
 const maxConfiguredKeyBytes = 1024;
 const installationSecretReferencePattern = /\$\{installation-secret:(?<id>[^}]*)\}/g;
 const planSecretPlaceholderPattern = /^\$\{secret:(?<id>[^}]+)\}$/;

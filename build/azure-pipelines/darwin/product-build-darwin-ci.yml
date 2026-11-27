@@ -8,11 +8,10 @@ parameters:
   - name: VSCODE_TEST_IDS
     type: object
   # Whether to include the steps and jobs that need a privileged service
-  # connection (signing, CDN uploads, Copilot test setup). Only
-  # sdk-validation-build.yml sets this to false.
+  # connection (signing, CDN uploads, Copilot test setup). Required: only
+  # builds of main and release/* branches pass true.
   - name: VSCODE_PRIVILEGED_CONNECTIONS
     type: boolean
-    default: true
   # Workspace images (see build/azure-pipelines/common/workspaceImage.ts)
   - name: VSCODE_WORKSPACE_IMAGE
     type: string

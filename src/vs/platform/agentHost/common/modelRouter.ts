@@ -12,9 +12,11 @@ import { readAgentModelByokIdentifier } from './agentModelByokMeta.js';
 import { ContextSizeConfigKey } from './agentModelConfiguration.js';
 import { readAgentModelNoticesMeta } from './agentModelNotices.js';
 import { isAgentModelExperimental, type IAgentModelRouterRoute } from './meta/agentModelMeta.js';
+import { readUsageInfoMeta } from './meta/agentUsageMeta.js';
 import { isCopilotHydraFusionModelId } from './copilotCliConfig.js';
 import { ReasoningEffortConfigKey, reasoningEffortLevels } from './reasoningEffort.js';
 import { PolicyState } from './state/protocol/channels-root/state.js';
+import type { ChatState, ModelSelection } from './state/protocol/state.js';
 
 /*
  * A model router picks the model for each turn of a chat from models the user chose, by asking a
@@ -271,6 +273,34 @@ export function modelRouterModelId(name: string): string {
 
 export function isModelRouterModelId(modelId: string | undefined): boolean {
 	return !!modelId?.startsWith(MODEL_ROUTER_MODEL_ID_PREFIX);
+}
+
+/**
+ * For a chat whose provider can't report its model: the model it runs on when `model` is a model
+ * router, from its newest turn that ran on a model: the router's pick or one chosen directly.
+ * Other selections are returned unchanged.
+ */
+export function withRoutedModel(chat: Pick<ChatState, 'turns' | 'activeTurn'>, model: ModelSelection | undefined): ModelSelection | undefined {
+	if (!isModelRouterModelId(model?.id)) {
+		return model;
+	}
+	const turns = chat.activeTurn ? [...chat.turns, chat.activeTurn] : chat.turns;
+	for (let i = turns.length - 1; i >= 0; i--) {
+		const routed = readUsageInfoMeta(turns[i].usage).modelRouted;
+		if (routed) {
+			const config = {
+				...(routed.effort ? { [ReasoningEffortConfigKey]: routed.effort } : {}),
+				...(routed.contextTokens !== undefined ? { [ContextSizeConfigKey]: routed.contextTokens } : {}),
+			};
+			return { id: routed.chosenModel, ...(Object.keys(config).length ? { config } : {}) };
+		}
+		// A turn with usage reached its model; one whose model change failed never did.
+		const chosen = turns[i].message.model;
+		if (chosen && !isModelRouterModelId(chosen.id) && turns[i].usage) {
+			return chosen;
+		}
+	}
+	return undefined;
 }
 
 const MODEL_ROUTER_DESCRIPTION_META_KEY = 'modelRouterDescription';

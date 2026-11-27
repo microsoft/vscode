@@ -8,27 +8,6 @@ import { CellEditType, ICell, ICellDto2, ICellEditOperation, ICellReplaceEdit, N
 import { ICellDiffInfo, sortCellChanges } from './notebookCellChanges.js';
 
 
-export function adjustCellDiffForKeepingADeletedCell(originalCellIndex: number,
-	cellDiffInfo: ICellDiffInfo[],
-	applyEdits: typeof NotebookTextModel.prototype.applyEdits,
-): ICellDiffInfo[] {
-	// Delete this cell from original as well.
-	const edit: ICellReplaceEdit = { cells: [], count: 1, editType: CellEditType.Replace, index: originalCellIndex, };
-	applyEdits([edit], true, undefined, () => undefined, undefined, true);
-	const diffs = sortCellChanges(cellDiffInfo)
-		.filter(d => !(d.type === 'delete' && d.originalCellIndex === originalCellIndex))
-		.map(diff => {
-			if (diff.type !== 'insert' && diff.originalCellIndex > originalCellIndex) {
-				return {
-					...diff,
-					originalCellIndex: diff.originalCellIndex - 1,
-				};
-			}
-			return diff;
-		});
-	return diffs;
-}
-
 export function adjustCellDiffForRevertingADeletedCell(originalCellIndex: number,
 	cellDiffInfo: ICellDiffInfo[],
 	cellToInsert: ICellDto2,

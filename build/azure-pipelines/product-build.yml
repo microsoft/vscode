@@ -34,18 +34,6 @@ parameters:
       - exploration
       - insider
       - stable
-  - name: VSCODE_BUILD_TITLE_PREFIX
-    displayName: "Build Title Prefix"
-    type: string
-    default: none
-  - name: NPM_REGISTRY
-    displayName: "Custom NPM Registry"
-    type: string
-    default: 'https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/'
-  - name: CARGO_REGISTRY
-    displayName: "Custom Cargo Registry"
-    type: string
-    default: 'sparse+https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/Cargo/index/'
   - name: VSCODE_BUILD_WIN32
     displayName: "🎯 Windows x64"
     type: boolean
@@ -99,7 +87,7 @@ parameters:
     type: boolean
     default: true
   - name: VSCODE_PUBLISH
-    displayName: "Publish to builds.code.visualstudio.com"
+    displayName: "Publish to builds.code.visualstudio.com (ONLY FOR MAIN AND RELEASE BRANCHES)"
     type: boolean
     default: true
   - name: VSCODE_RELEASE
@@ -110,44 +98,23 @@ parameters:
     displayName: "Use legacy OSS Notice"
     type: boolean
     default: false
-  # SDK -> VS Code integration: override Copilot dependencies with versions
-  # already published to the private feed. 'none' = use the OSS SDK version.
-  # See microsoft/vscode-engineering specs/sdk-vscode-integration.spec.md.
-  - name: VSCODE_SDK_CANARY_VERSION
-    displayName: "SDK canary: @microsoft/copilot-sdk version ('none' = normal build)"
-    type: string
-    default: none
-  - name: VSCODE_CLI_CANARY_VERSION
-    displayName: "Expected SDK-bundled runtime version ('auto' = infer from SDK)"
-    type: string
-    default: auto
 
 variables:
-  - name: VSCODE_BUILD_TITLE_PREFIX
-    ${{ if eq(parameters.VSCODE_BUILD_TITLE_PREFIX, 'none') }}:
-      value: ""
-    ${{ else }}:
-      value: ${{ parameters.VSCODE_BUILD_TITLE_PREFIX }}
   - name: VSCODE_PRIVATE_BUILD
     value: ${{ ne(variables['Build.Repository.Uri'], 'https://github.com/microsoft/vscode.git') }}
   - name: NPM_REGISTRY
-    value: ${{ parameters.NPM_REGISTRY }}
-  # Normalize sentinels back to empty so the override script can distinguish
-  # the normal SDK and inferred runtime paths.
-  - name: VSCODE_SDK_CANARY_VERSION
-    ${{ if eq(parameters.VSCODE_SDK_CANARY_VERSION, 'none') }}:
-      value: ""
-    ${{ else }}:
-      value: ${{ parameters.VSCODE_SDK_CANARY_VERSION }}
-  - name: VSCODE_CLI_CANARY_VERSION
-    ${{ if eq(parameters.VSCODE_CLI_CANARY_VERSION, 'auto') }}:
-      value: ""
-    ${{ else }}:
-      value: ${{ parameters.VSCODE_CLI_CANARY_VERSION }}
+    value: 'https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/'
+    readonly: true
   - name: CARGO_REGISTRY
-    value: ${{ parameters.CARGO_REGISTRY }}
+    value: 'sparse+https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/Cargo/index/'
+    readonly: true
   - name: VSCODE_QUALITY
     value: ${{ parameters.VSCODE_QUALITY }}
+  # Builds of branches other than main and release/* are dev builds. They neither sign nor publish, so the
+  # shared templates drop every step and job that needs a signing, publishing or release service connection
+  # (see sdk-validation-build.yml), and those connections can be restricted to the main and release branches.
+  - name: VSCODE_PRIVILEGED_CONNECTIONS
+    value: ${{ or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/')) }}
   - name: VSCODE_BUILD_STAGE_LINUX
     value: ${{ or(eq(parameters.VSCODE_BUILD_LINUX, true), eq(parameters.VSCODE_BUILD_LINUX_SNAP, true), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}
   - name: VSCODE_BUILD_STAGE_ALPINE
@@ -177,19 +144,18 @@ variables:
     value: ${{ eq(parameters.VSCODE_BUILD_MACOS, true) }}
   - name: VSCODE_BUILD_STAGE_MACOS_ARM64
     value: ${{ eq(parameters.VSCODE_BUILD_MACOS_ARM64, true) }}
+  # The universal job only merges and signs the x64 and arm64 clients, so dev builds skip it.
   - name: VSCODE_BUILD_STAGE_MACOS_UNIVERSAL
-    value: ${{ and(eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true), eq(parameters.VSCODE_BUILD_MACOS_UNIVERSAL, true)) }}
+    value: ${{ and(eq(variables.VSCODE_PRIVILEGED_CONNECTIONS, true), eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true), eq(parameters.VSCODE_BUILD_MACOS_UNIVERSAL, true)) }}
   - name: VSCODE_PUBLISH
-    value: ${{ eq(parameters.VSCODE_PUBLISH, true) }}
-  - name: VSCODE_USE_PUBLISHING_POOLS
-    value: ${{ and(eq(variables.VSCODE_PUBLISH, true), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'))) }}
+    value: ${{ and(eq(variables.VSCODE_PRIVILEGED_CONNECTIONS, true), eq(parameters.VSCODE_PUBLISH, true)) }}
   - name: VSCODE_WINDOWS_POOL
-    ${{ if eq(variables.VSCODE_USE_PUBLISHING_POOLS, true) }}:
+    ${{ if eq(variables.VSCODE_PUBLISH, true) }}:
       value: 1es-windows-2022-x64-publishing
     ${{ else }}:
       value: 1es-windows-2022-x64
   - name: VSCODE_UBUNTU_POOL
-    ${{ if eq(variables.VSCODE_USE_PUBLISHING_POOLS, true) }}:
+    ${{ if eq(variables.VSCODE_PUBLISH, true) }}:
       value: 1es-ubuntu-22.04-x64-publishing
     ${{ else }}:
       value: 1es-ubuntu-22.04-x64
@@ -238,7 +204,7 @@ variables:
   - name: ARTIFACT_PREFIX
     value: ''
 
-name: "$(VSCODE_BUILD_TITLE_PREFIX)$(Date:yyyyMMdd).$(Rev:r) (${{ parameters.VSCODE_QUALITY }})"
+name: "$(Date:yyyyMMdd).$(Rev:r) (${{ parameters.VSCODE_QUALITY }})"
 
 resources:
   repositories:
@@ -322,6 +288,8 @@ extends:
           os: linux
         jobs:
           - template: build/azure-pipelines/product-quality-checks.yml@self
+            parameters:
+              VSCODE_PRIVILEGED_CONNECTIONS: ${{ variables.VSCODE_PRIVILEGED_CONNECTIONS }}
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
         - stage: Windows
@@ -343,6 +311,8 @@ extends:
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_RUN_TESTS: true
+                VSCODE_PRIVILEGED_CONNECTIONS: ${{ variables.VSCODE_PRIVILEGED_CONNECTIONS }}
+                VSCODE_PACKAGE_UNSIGNED: true
 
             # Same test jobs as the Windows CI jobs of product-build-ci.yml
             - template: build/azure-pipelines/win32/product-build-win32-test.yml@self
@@ -428,6 +398,8 @@ extends:
                 VSCODE_ARCH: arm64
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_PRIVILEGED_CONNECTIONS: ${{ variables.VSCODE_PRIVILEGED_CONNECTIONS }}
+                VSCODE_PACKAGE_UNSIGNED: true
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX_X64'], true) }}:
         - stage: LinuxX64
@@ -450,6 +422,8 @@ extends:
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_RUN_TESTS: true
                 VSCODE_BUILD_LINUX_SNAP: ${{ parameters.VSCODE_BUILD_LINUX_SNAP }}
+                VSCODE_PRIVILEGED_CONNECTIONS: ${{ variables.VSCODE_PRIVILEGED_CONNECTIONS }}
+                VSCODE_PACKAGE_UNSIGNED: true
 
             # Same test jobs as the Linux CI jobs of product-build-ci.yml
             - template: build/azure-pipelines/linux/product-build-linux-test.yml@self
@@ -532,6 +506,8 @@ extends:
                 NPM_ARCH: arm64
                 VSCODE_ARCH: arm64
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_PRIVILEGED_CONNECTIONS: ${{ variables.VSCODE_PRIVILEGED_CONNECTIONS }}
+                VSCODE_PACKAGE_UNSIGNED: true
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX_ARMHF'], true) }}:
         - stage: LinuxARMHF
@@ -552,6 +528,8 @@ extends:
                 NPM_ARCH: arm
                 VSCODE_ARCH: armhf
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_PRIVILEGED_CONNECTIONS: ${{ variables.VSCODE_PRIVILEGED_CONNECTIONS }}
+                VSCODE_PACKAGE_UNSIGNED: true
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_ALPINE'], true) }}:
         - stage: Alpine
@@ -562,6 +540,7 @@ extends:
                 parameters:
                   VSCODE_ARCH: x64
                   VSCODE_POOL_NAME: ${{ variables.VSCODE_UBUNTU_POOL }}
+                  VSCODE_PRIVILEGED_CONNECTIONS: ${{ variables.VSCODE_PRIVILEGED_CONNECTIONS }}
               - template: build/azure-pipelines/alpine/product-build-alpine-cli.yml@self
                 parameters:
                   VSCODE_ARCH: x64
@@ -572,6 +551,7 @@ extends:
                 parameters:
                   VSCODE_ARCH: arm64
                   VSCODE_POOL_NAME: ${{ variables.VSCODE_UBUNTU_POOL }}
+                  VSCODE_PRIVILEGED_CONNECTIONS: ${{ variables.VSCODE_PRIVILEGED_CONNECTIONS }}
               - template: build/azure-pipelines/alpine/product-build-alpine-cli.yml@self
                 parameters:
                   VSCODE_ARCH: arm64
@@ -594,11 +574,14 @@ extends:
               parameters:
                 VSCODE_ARCH: x64
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_PRIVILEGED_CONNECTIONS: ${{ variables.VSCODE_PRIVILEGED_CONNECTIONS }}
 
             - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
               parameters:
                 VSCODE_ARCH: x64
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_PRIVILEGED_CONNECTIONS: ${{ variables.VSCODE_PRIVILEGED_CONNECTIONS }}
+                VSCODE_PACKAGE_UNSIGNED: true
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS_ARM64'], true) }}:
         - stage: macOSARM64
@@ -616,12 +599,15 @@ extends:
               parameters:
                 VSCODE_ARCH: arm64
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_PRIVILEGED_CONNECTIONS: ${{ variables.VSCODE_PRIVILEGED_CONNECTIONS }}
 
             - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
               parameters:
                 VSCODE_ARCH: arm64
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                 VSCODE_RUN_TESTS: true
+                VSCODE_PRIVILEGED_CONNECTIONS: ${{ variables.VSCODE_PRIVILEGED_CONNECTIONS }}
+                VSCODE_PACKAGE_UNSIGNED: true
 
             # Same test jobs as the macOS CI jobs of product-build-ci.yml
             - template: build/azure-pipelines/darwin/product-build-darwin-test.yml@self
@@ -703,6 +689,7 @@ extends:
             - template: build/azure-pipelines/web/product-build-web.yml@self
               parameters:
                 VSCODE_POOL_NAME: ${{ variables.VSCODE_UBUNTU_POOL }}
+                VSCODE_PRIVILEGED_CONNECTIONS: ${{ variables.VSCODE_PRIVILEGED_CONNECTIONS }}
 
       - ${{ if eq(parameters.VSCODE_BUILD_WEB_MOBILE, true) }}:
         - stage: Mobile
@@ -712,6 +699,7 @@ extends:
               parameters:
                 VSCODE_POOL_NAME: ${{ variables.VSCODE_UBUNTU_POOL }}
                 mobile: true
+                VSCODE_PRIVILEGED_CONNECTIONS: ${{ variables.VSCODE_PRIVILEGED_CONNECTIONS }}
 
       - ${{ if eq(variables['VSCODE_PUBLISH'], true) }}:
         - stage: Publish
@@ -724,7 +712,7 @@ extends:
                 VSCODE_POOL_NAME: ${{ variables.VSCODE_WINDOWS_POOL }}
                 VSCODE_BUILD_WEB_MOBILE: ${{ parameters.VSCODE_BUILD_WEB_MOBILE }}
 
-      - ${{ if and(eq(variables['VSCODE_PUBLISH'], true), parameters.VSCODE_RELEASE, eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['VSCODE_PRIVATE_BUILD'], false), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'))) }}:
+      - ${{ if and(eq(variables['VSCODE_PUBLISH'], true), parameters.VSCODE_RELEASE, eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['VSCODE_PRIVATE_BUILD'], false)) }}:
         - stage: ApproveRelease
           dependsOn: [] # run in parallel to compile stage
           pool:
@@ -1029,15 +1017,17 @@ extends:
                   container: ubuntu-24
                   arch: arm64
 
-      - stage: APIScan
-        dependsOn: []
-        pool:
-          name: ${{ variables.VSCODE_WINDOWS_POOL }}
-          os: windows
-        jobs:
-          - job: WindowsAPIScan
-            steps:
-              - template: build/azure-pipelines/win32/sdl-scan-win32.yml@self
-                parameters:
-                  VSCODE_ARCH: x64
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+      # APIScan authenticates through the vscode-apiscan connection, so builds without the privileged connections skip it.
+      - ${{ if eq(variables.VSCODE_PRIVILEGED_CONNECTIONS, true) }}:
+        - stage: APIScan
+          dependsOn: []
+          pool:
+            name: ${{ variables.VSCODE_WINDOWS_POOL }}
+            os: windows
+          jobs:
+            - job: WindowsAPIScan
+              steps:
+                - template: build/azure-pipelines/win32/sdl-scan-win32.yml@self
+                  parameters:
+                    VSCODE_ARCH: x64
+                    VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}

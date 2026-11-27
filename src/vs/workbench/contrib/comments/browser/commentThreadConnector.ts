@@ -10,7 +10,7 @@ import { EditorOption } from '../../../../editor/common/config/editorOptions.js'
 import { CursorColumns } from '../../../../editor/common/core/cursorColumns.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { commentThreadStateColorVar } from './commentColors.js';
-import { EDGE_MARGIN, getConnectorPoints, getRowsOutlinePath, IPoint, IRect } from './commentThreadFloatingWidgetLayout.js';
+import { EDGE_MARGIN, getConnectorPath, getRowsOutlinePath, IConnectorAnchor, IRect } from './commentThreadFloatingWidgetLayout.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -240,12 +240,6 @@ export class CommentedCodeGeometry extends Disposable {
 	}
 }
 
-function setSvgAttributes(element: SVGElement, attributes: Record<string, number>): void {
-	for (const [name, value] of Object.entries(attributes)) {
-		element.setAttribute(name, String(value));
-	}
-}
-
 function setSvgVisibility(visible: boolean, ...elements: SVGElement[]): void {
 	for (const element of elements) {
 		element.style.display = visible ? '' : 'none';
@@ -260,14 +254,13 @@ export class CommentThreadConnector extends Disposable {
 
 	private readonly _domNode: HTMLElement;
 	private readonly _outline: SVGPathElement;
-	private readonly _line: SVGLineElement;
-	private readonly _anchor: SVGCircleElement;
+	private readonly _line: SVGPathElement;
 	private readonly _overlay: IOverlayWidget;
 	private _position: IOverlayWidgetPosition | null = null;
 	private _renderedBounds: { left: number; width: number; height: number } | undefined;
 	private _renderedOutline: string | undefined;
-	/** The radius of the corners of the outline around the code. */
-	private _outlineCornerRadius = 0;
+	/** The radius of the code outline and connector bends. */
+	private _cornerRadius = 0;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -279,12 +272,9 @@ export class CommentThreadConnector extends Disposable {
 		const svg = document.createElementNS(SVG_NS, 'svg');
 		this._outline = document.createElementNS(SVG_NS, 'path');
 		this._outline.classList.add('code-outline');
-		this._line = document.createElementNS(SVG_NS, 'line');
+		this._line = document.createElementNS(SVG_NS, 'path');
 		this._line.classList.add('connector-line');
-		this._anchor = document.createElementNS(SVG_NS, 'circle');
-		this._anchor.classList.add('connector-anchor');
-		this._anchor.setAttribute('r', '2');
-		svg.append(this._outline, this._line, this._anchor);
+		svg.append(this._outline, this._line);
 		this._domNode.appendChild(svg);
 
 		this._overlay = {
@@ -296,7 +286,7 @@ export class CommentThreadConnector extends Disposable {
 
 	attach(): void {
 		this._editor.addOverlayWidget(this._overlay);
-		this._outlineCornerRadius = parseFloat(dom.getWindow(this._domNode).getComputedStyle(this._domNode).getPropertyValue('--vscode-cornerRadius-small')) || 0;
+		this._cornerRadius = parseFloat(dom.getWindow(this._domNode).getComputedStyle(this._domNode).getPropertyValue('--vscode-cornerRadius-small')) || 0;
 	}
 
 	detach(): void {
@@ -321,7 +311,7 @@ export class CommentThreadConnector extends Disposable {
 	 * editor coordinates. The connector isn't drawn when the anchor is within the outline.
 	 * @param bounds The horizontal extent of the editor's code area.
 	 */
-	render(codeLines: readonly IRect[] | undefined, anchor: IPoint, bounds: { left: number; right: number }): void {
+	render(codeLines: readonly IRect[] | undefined, anchor: IConnectorAnchor, bounds: { left: number; right: number }): void {
 		// The outline of code that starts at the first column extends slightly into the gutter.
 		const originX = bounds.left - CONNECTOR_GUTTER_BLEED;
 		const width = bounds.right - originX;
@@ -335,7 +325,7 @@ export class CommentThreadConnector extends Disposable {
 		}
 
 		if (!codeLines) {
-			setSvgVisibility(false, this._outline, this._line, this._anchor);
+			setSvgVisibility(false, this._outline, this._line);
 			return;
 		}
 
@@ -345,20 +335,19 @@ export class CommentThreadConnector extends Disposable {
 			width: line.width + 2 * OUTLINE_PADDING,
 			height: line.height
 		}));
-		const outline = getRowsOutlinePath(outlineRows, this._outlineCornerRadius);
+		const outline = getRowsOutlinePath(outlineRows, this._cornerRadius);
 		if (outline !== this._renderedOutline) {
 			this._renderedOutline = outline;
 			this._outline.setAttribute('d', outline);
 		}
 		setSvgVisibility(true, this._outline);
 
-		const points = getConnectorPoints(outlineRows, { x: anchor.x - originX, y: anchor.y });
-		if (!points) {
-			setSvgVisibility(false, this._line, this._anchor);
+		const path = getConnectorPath(outlineRows, { ...anchor, x: anchor.x - originX }, this._cornerRadius);
+		if (!path) {
+			setSvgVisibility(false, this._line);
 			return;
 		}
-		setSvgAttributes(this._line, { x1: points.from.x, y1: points.from.y, x2: points.to.x, y2: points.to.y });
-		setSvgAttributes(this._anchor, { cx: points.from.x, cy: points.from.y });
-		setSvgVisibility(true, this._line, this._anchor);
+		this._line.setAttribute('d', path);
+		setSvgVisibility(true, this._line);
 	}
 }

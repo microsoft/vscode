@@ -319,6 +319,12 @@
 	padding-right: var(--vscode-spacing-size40);
 }
 
+/* Root rows already have a tree inset; nested rows retain their repository indentation. */
+.modern-ui.monaco-workbench .scm-view .monaco-list-row[aria-level="1"] .monaco-tl-contents > :is(.scm-input, .button-container, .scm-repository-notice-container) {
+	padding-left: 0;
+	padding-right: var(--vscode-spacing-size80);
+}
+
 .modern-ui.monaco-workbench .search-view .search-widgets-container {
 	margin: 0 var(--vscode-spacing-size80) 0 var(--vscode-spacing-size20);
 }

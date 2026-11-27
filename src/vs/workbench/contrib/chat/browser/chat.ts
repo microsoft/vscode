@@ -363,6 +363,11 @@ export interface IChatWidgetViewOptions {
 	/** Side chat capability supplied by hosts that own their session model. */
 	supportsSideChat?: IObservable<boolean>;
 	dndContainer?: HTMLElement;
+	/**
+	 * Where the chat shows in {@link dndContainer}, when that also holds what takes dragged sessions itself, such as a
+	 * sessions list beside the chat: the chat leaves those drags to it there. Defaults to all of `dndContainer`.
+	 */
+	dndChat?: HTMLElement;
 	inputEditorMinLines?: number;
 	inputEditorOptions?: IChatInputPartOptions['inputEditorOptions'];
 	/** Vertical padding of the input editor. Defaults to the render style's padding. */

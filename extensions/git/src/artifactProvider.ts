@@ -85,7 +85,7 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 		// If this is the agents window we don't need to initialize the
 		// repository artifacts provider since the agents window does not
 		// have the Repository explorer view.
-		if (workspace.isAgentSessionsWorkspace) {
+		if (workspace.isAgentManaged) {
 			this._groups = [];
 			return;
 		}

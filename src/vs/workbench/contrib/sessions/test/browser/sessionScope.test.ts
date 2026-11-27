@@ -5,12 +5,13 @@
 
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionGitRepository, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
-import { SessionsListingScopeFilter } from '../../browser/sessionScope.js';
+import { SessionScopeMatcher, SessionsInScope, SessionsListingScopeFilter } from '../../browser/sessionScope.js';
 import { ISessionChangeEvent } from '../../common/sessionsProvider.js';
 import { buildTestSession, buildTestWorkspace } from '../common/testSessionBuilder.js';
 import { buildAgentHostChatWorkspace, buildAgentHostSessionWorkspace } from '../../common/agentHostSessionWorkspace.js';
@@ -295,5 +296,63 @@ suite('SessionsListingScopeFilter', () => {
 		listed.push(filter.getSessions().length > 0);
 
 		assert.deepStrictEqual(listed, [false, true, false]);
+	});
+});
+
+suite('SessionScopeMatcher', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('places drafts by the working directories that match the scope only: a main chat\'s second folder in a worktree of the scope, not its first, and the session\'s folders when the main chat has none', () => {
+		const options = { fallbackIcon: Codicon.folder, requiresWorkspaceTrust: true };
+		const sessionOf = (id: string, workingDirectories: string[], mainChatWorkingDirectories?: string[]): ISession => {
+			const built = buildTestSession({ id, title: id }).session;
+			const workspace = buildAgentHostSessionWorkspace({ uri: URI.file('/work/aph'), displayName: id }, workingDirectories.map(path => URI.file(path)), options, constObservable(undefined));
+			const mainChatWorkspace = buildAgentHostChatWorkspace(workspace, mainChatWorkingDirectories?.map(path => URI.file(path)), () => constObservable(undefined));
+			return { ...built, mainChat: constObservable({ ...built.mainChat.get(), workspace: constObservable(mainChatWorkspace), ownWorkingDirectories: constObservable(mainChatWorkingDirectories?.map(path => URI.file(path))) }), workspace: constObservable(workspace) };
+		};
+		const sessions = [
+			sessionOf('mainChatSecondFolderInScope', ['/work/aph.worktrees/docs', '/work/vscode.worktrees/sync'], ['/work/aph.worktrees/docs', '/work/vscode.worktrees/sync']),
+			sessionOf('mainChatWithoutFolder', ['/work/aph.worktrees/notes', '/work/vscode.worktrees/fix'], []),
+		];
+
+		const drafts = new SessionScopeMatcher([URI.file('/work/vscode')], []).withWorkingDirectoriesOf(sessions, undefined);
+		const paths = ['/work/vscode/src', '/work/vscode.worktrees/sync', '/work/vscode.worktrees/fix', '/work/aph.worktrees/docs', '/work/aph.worktrees/notes'];
+
+		assert.deepStrictEqual(paths.filter(path => drafts.worksInScope(URI.file(path))), ['/work/vscode/src', '/work/vscode.worktrees/sync', '/work/vscode.worktrees/fix']);
+	});
+
+	test('places drafts on GitHub in the scope\'s repositories, such as Copilot Cloud drafts, once widened by working directories', () => {
+		const gitHub = (path: string) => URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path });
+		const drafts = new SessionScopeMatcher([URI.file('/work/vscode')], ['microsoft/vscode']).withWorkingDirectoriesOf([], undefined);
+		const uris = [gitHub('/microsoft/vscode/main'), gitHub('/Microsoft/VSCode/feature/x'), gitHub('/microsoft/other/main'), URI.file('/work/vscode'), URI.file('/work/other')];
+
+		assert.deepStrictEqual(uris.map(uri => drafts.worksInScope(uri)), [true, true, false, true, false]);
+	});
+});
+
+suite('SessionsInScope', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('places drafts in the worktree of a session that a provider replaces under its ID', () => {
+		const options = { fallbackIcon: Codicon.folder, requiresWorkspaceTrust: true };
+		const sessionIn = (worktree: string): ISession => {
+			const built = buildTestSession({ id: 'session', title: 'session' }).session;
+			const workspace = buildAgentHostSessionWorkspace({ uri: URI.file('/work/vscode'), displayName: 'vscode' }, [URI.file(worktree)], options, constObservable(undefined));
+			return { ...built, workspace: constObservable(workspace), mainChat: constObservable({ ...built.mainChat.get(), workspace: constObservable(buildAgentHostChatWorkspace(workspace, undefined, () => constObservable(undefined))) }) };
+		};
+		let sessions = [sessionIn('/work/vscode.worktrees/old')];
+		const changes = disposables.add(new Emitter<ISessionChangeEvent>());
+		const scope = new SessionsInScope(constObservable([URI.file('/work/vscode')]), constObservable([]), () => sessions, changes.event, extUriBiasedIgnorePathCase);
+		const draft = URI.file('/work/vscode.worktrees/new/src');
+		const placed: (boolean | undefined)[] = [];
+		disposables.add(autorun(reader => { placed.push(scope.work.read(reader)?.worksInScope(draft)); }));
+
+		// The provider replaces the session under its ID, now working in another worktree
+		sessions = [sessionIn('/work/vscode.worktrees/new')];
+		changes.fire({ added: [], removed: [], changed: sessions });
+
+		assert.deepStrictEqual({ placed, sessionIds: [...scope.sessionIds.get() ?? []] }, { placed: [false, true], sessionIds: ['session'] });
 	});
 });

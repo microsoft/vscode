@@ -117,6 +117,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		private _scopedInstatiationService: IInstantiationService,
 		private _parentCommentThreadWidget: ICommentThreadWidget,
 		private readonly _scrollableComments: boolean,
+		private readonly _reactionPickerInTitle: boolean,
 		@ICommentService private readonly commentService: ICommentService,
 	) {
 		super();
@@ -351,7 +352,9 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		}
 
 		this._updateAriaLabel();
-		if (!preserveFocus) {
+		// Updating a thread, such as when comments are computed again in the background, only moves focus to one of its
+		// comments when focus is already in the thread, or when a comment starts being edited.
+		if (!preserveFocus && (newCommentsInEditMode.length || dom.isAncestorOfActiveElement(this.container))) {
 			this._setFocusedComment(this._focusedComment);
 		}
 	}
@@ -394,7 +397,8 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 			this.owner,
 			this.parentResourceUri,
 			this._parentCommentThreadWidget,
-			this._markdownRendererOptions) as unknown as CommentNode<T>;
+			this._markdownRendererOptions,
+			this._reactionPickerInTitle) as unknown as CommentNode<T>;
 
 		const disposables: DisposableStore = new DisposableStore();
 		disposables.add(newCommentNode.onDidClick(clickedNode =>

@@ -60,7 +60,7 @@ export interface IEditorAddTabControlOptions {
 
 /**
  * The "Add Tab" (`+`) dropdown that lists the actions of a contributed menu.
- * The control element carries the `hidden` class while the menu has no actions.
+ * The control element is in the DOM only while the menu has actions.
  */
 export class EditorAddTabControl extends Disposable {
 
@@ -69,8 +69,9 @@ export class EditorAddTabControl extends Disposable {
 	private readonly _onDidChangeVisibility = this._register(new Emitter<void>());
 	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
 
+	private _visible = false;
 	get visible(): boolean {
-		return !this.element.classList.contains('hidden');
+		return this._visible;
 	}
 
 	constructor(
@@ -89,7 +90,6 @@ export class EditorAddTabControl extends Disposable {
 		super();
 
 		this.element = $('.tabs-bar-add-tab');
-		parent.insertBefore(this.element, options?.before ?? null);
 
 		const recentEntryStorageKey = `editor.addTabMenu.recentEntry.${menuId.id}`;
 		const recentDescription = localize('addTabRecentlyUsed', "recently used");
@@ -134,15 +134,21 @@ export class EditorAddTabControl extends Disposable {
 			this._decorateMenu(dropdown, !!options.defaultEntry, () => recentAction ? recentDescription : undefined);
 		}
 
-		const updateVisibility = () => this.element.classList.toggle('hidden', getActions().length === 0);
-		updateVisibility();
-		this._register(menu.onDidChange(() => {
-			const wasVisible = this.visible;
-			updateVisibility();
-			if (wasVisible !== this.visible) {
-				this._onDidChangeVisibility.fire();
+		const updateVisibility = () => {
+			const visible = getActions().length > 0;
+			if (visible === this._visible) {
+				return;
 			}
-		}));
+			this._visible = visible;
+			if (visible) {
+				parent.insertBefore(this.element, options?.before ?? null);
+			} else {
+				this.element.remove();
+			}
+			this._onDidChangeVisibility.fire();
+		};
+		updateVisibility();
+		this._register(menu.onDidChange(updateVisibility));
 	}
 
 	/**

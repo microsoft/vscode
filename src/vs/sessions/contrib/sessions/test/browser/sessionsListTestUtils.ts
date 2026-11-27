@@ -305,8 +305,12 @@ export interface IListHarnessOptions {
 	readonly sectionMemberships?: ReadonlyMap<string, string>;
 	readonly sectionAppearances?: ReadonlyMap<string, ISessionGroupAppearance>;
 	readonly pinnedSessionIds?: ReadonlySet<string>;
+	/** Pinned group (`group:<id>`) and grouping-section headers. The harness updates them as the real service does. */
+	readonly pinnedSectionIds?: readonly string[];
 	/** Automation sessions shown in the Sessions list. The harness updates the set as the real service does. */
 	readonly shownAutomationSessionIds?: ReadonlySet<string>;
+	/** Sessions left out of the Sessions list while their canvas is in the sidebar. */
+	readonly hiddenCanvasSessionIds?: ReadonlySet<string>;
 	/** Apply sort changes and fire change events, as the real service does. */
 	readonly liveListModel?: boolean;
 	/** Apply pin and unpin changes and fire change events, as the real service does. */
@@ -333,8 +337,10 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	const sectionMemberships = options.sectionMemberships ?? new Map();
 	const pinnedSessionIds = options.pinnedSessionIds ?? new Set();
 	const livePinnedSessionIds = new Set<string>();
+	const pinnedSectionIds = observableValue<readonly string[]>('pinnedSectionIds', options.pinnedSectionIds ?? []);
 	const liveUnpinnedSessionIds = new Set<string>();
 	const shownAutomationSessionIds = new Set(options.shownAutomationSessionIds);
+	const hiddenCanvasSessionIds = options.hiddenCanvasSessionIds ?? new Set();
 	const provisionallyHiddenSessionIds = new Map<string, number>();
 	const comparisons = options.comparisons ?? [];
 	const deletedGroupIds: string[] = [];
@@ -365,6 +371,15 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	});
 	instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
 		override readonly onDidChange = onDidChangeListModel.event;
+		override readonly pinnedSectionIds = pinnedSectionIds;
+		override pinSection(sectionId: string): void {
+			if (!pinnedSectionIds.get().includes(sectionId)) {
+				pinnedSectionIds.set([...pinnedSectionIds.get(), sectionId], undefined);
+			}
+		}
+		override unpinSection(sectionId: string): void {
+			pinnedSectionIds.set(pinnedSectionIds.get().filter(id => id !== sectionId), undefined);
+		}
 		override isSessionPinned(session: ISession): boolean {
 			return !liveUnpinnedSessionIds.has(session.sessionId) && (pinnedSessionIds.has(session.sessionId) || livePinnedSessionIds.has(session.sessionId));
 		}
@@ -394,7 +409,7 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		}
 		override migrateLegacyReadState(): void { }
 		override isSessionListed(session: ISession, reader?: IReader): boolean {
-			return !provisionallyHiddenSessionIds.has(session.sessionId) && (!session.isAutomation?.read(reader) || shownAutomationSessionIds.has(session.sessionId));
+			return !provisionallyHiddenSessionIds.has(session.sessionId) && (session.isAutomation?.read(reader) ? shownAutomationSessionIds.has(session.sessionId) : !hiddenCanvasSessionIds.has(session.sessionId));
 		}
 		override hideSessionsProvisionally(sessions: readonly ISession[]): IDisposable {
 			const update = (delta: number) => {

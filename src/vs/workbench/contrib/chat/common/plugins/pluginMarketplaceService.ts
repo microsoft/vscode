@@ -1506,25 +1506,6 @@ function isValidGitHubRepo(repo: string): boolean {
 }
 
 /**
- * Returns a human-readable label for a plugin source descriptor,
- * suitable for error messages and UI display.
- */
-export function getPluginSourceLabel(descriptor: IPluginSourceDescriptor): string {
-	switch (descriptor.kind) {
-		case PluginSourceKind.RelativePath:
-			return descriptor.path || '.';
-		case PluginSourceKind.GitHub:
-			return descriptor.path ? `${descriptor.repo}/${descriptor.path}` : descriptor.repo;
-		case PluginSourceKind.GitUrl:
-			return descriptor.path ? `${descriptor.url}/${descriptor.path}` : descriptor.url;
-		case PluginSourceKind.Npm:
-			return descriptor.version ? `${descriptor.package}@${descriptor.version}` : descriptor.package;
-		case PluginSourceKind.Pip:
-			return descriptor.version ? `${descriptor.package}==${descriptor.version}` : descriptor.package;
-	}
-}
-
-/**
  * Returns `true` when the marketplace source descriptor differs from the
  * installed one — meaning an update should be performed.
  */

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { API } from '@typescript/native/async';
 import type { SourceFile } from '@typescript/native/ast';
 import type * as vscode from 'vscode';
 import type { ILogService } from '../../../../platform/log/common/logService';
@@ -12,14 +11,22 @@ import { StructuralDiffDocuments } from '../structuralDiffDocuments';
 import { computeStructuralDiff } from './structuralDiff';
 import { TypeScript7Api } from './ts7Api';
 
-type StructuralDiffApi = Pick<API<true>, 'clearSourceFileCache' | 'createSnapshot' | 'runWithTemporaryFileUpdate'>;
+/**
+ * The part of the TypeScript 7 API that parses a text without a program. The server keeps a parsed text until it is
+ * disposed.
+ */
+interface StructuralDiffApi {
+	createSourceFile(fileName: string, sourceText: string): Promise<{ readonly sourceFile: SourceFile; dispose(): Promise<void> }>;
+}
 
 interface StructuralDiffApiProvider extends vscode.Disposable {
 	getApi(): Promise<StructuralDiffApi | undefined>;
 }
 
 /**
- * Uses the backing file for TS7 project lookup and analyzes only the supplied document contents in isolated snapshots.
+ * Parses only the supplied document contents, independently of any project, so that computing a structural diff
+ * neither updates a project nor discards its type checker. The backing file only determines how the contents are
+ * parsed, for example as TSX.
  */
 export class TS7StructuralDiffProvider implements vscode.StructuralDiffProvider, vscode.Disposable {
 	private readonly disposables = new DisposableStore();
@@ -43,39 +50,19 @@ export class TS7StructuralDiffProvider implements vscode.StructuralDiffProvider,
 		if (api === undefined) {
 			return undefined;
 		}
-		const file = { uri: fileUri.toString() };
-		api.clearSourceFileCache();
-		const snapshot = await api.createSnapshot({ openFiles: [file] });
-		let result: vscode.StructuralDiff | undefined;
+		let result: vscode.StructuralDiff;
+		const original = await api.createSourceFile(fileUri.fsPath, originalText);
 		try {
 			checkCancellation();
-			const readSource = async (text: string): Promise<SourceFile | undefined> => {
-				let sourceFile: SourceFile | undefined;
-				await api.runWithTemporaryFileUpdate(snapshot, file, text, async temporarySnapshot => {
-					checkCancellation();
-					const project = await temporarySnapshot.getDefaultProjectForFile(file);
-					sourceFile = await project?.program.getSourceFile(file);
-					checkCancellation();
-					if (sourceFile !== undefined && sourceFile.text !== text) {
-						throw new Error('TypeScript structural diff snapshot does not match the requested document');
-					}
-				});
+			const modified = await api.createSourceFile(fileUri.fsPath, modifiedText);
+			try {
 				checkCancellation();
-				return sourceFile;
-			};
-			const original = await readSource(originalText);
-			const modified = await readSource(modifiedText);
-			if (original !== undefined && modified !== undefined) {
-				checkCancellation();
-				result = computeStructuralDiff(original, modified, context, token);
+				result = computeStructuralDiff(original.sourceFile, modified.sourceFile, context, token);
+			} finally {
+				await modified.dispose();
 			}
 		} finally {
-			try {
-				await snapshot.dispose();
-			} finally {
-				const closedSnapshot = await api.createSnapshot({ closeFiles: [file] });
-				await closedSnapshot.dispose();
-			}
+			await original.dispose();
 		}
 		checkCancellation();
 		return result;

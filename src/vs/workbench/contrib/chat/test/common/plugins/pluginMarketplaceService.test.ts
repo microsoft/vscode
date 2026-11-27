@@ -41,7 +41,7 @@ import { AgentPluginEnablementService } from '../../../common/plugins/agentPlugi
 import { IAgentPluginRepositoryService } from '../../../common/plugins/agentPluginRepositoryService.js';
 import { IAgentPluginEnablementService } from '../../../common/plugins/agentPluginService.js';
 import { getPluginCacheUri, parseMarketplaceObjectEntry, validatePluginCacheUri } from '../../../common/plugins/marketplaceReference.js';
-import { IMarketplacePlugin, IMarketplaceReference, IPluginSourceDescriptor, MarketplaceReferenceKind, MarketplaceType, PluginMarketplaceService, PluginSourceKind, extraKnownMarketplacesToConfigDict, getGitHubRepositorySourceUri, getGitHubRepositoryUri, getMarketplacePluginRepositoryUri, getMarketplacePluginSourceUri, getPluginSourceLabel, parseMarketplaceReference, parseMarketplaceReferences, parsePluginSource, readConfiguredMarketplaces } from '../../../common/plugins/pluginMarketplaceService.js';
+import { IMarketplacePlugin, IMarketplaceReference, IPluginSourceDescriptor, MarketplaceReferenceKind, MarketplaceType, PluginMarketplaceService, PluginSourceKind, extraKnownMarketplacesToConfigDict, getGitHubRepositorySourceUri, getGitHubRepositoryUri, getMarketplacePluginRepositoryUri, getMarketplacePluginSourceUri, parseMarketplaceReference, parseMarketplaceReferences, parsePluginSource, readConfiguredMarketplaces } from '../../../common/plugins/pluginMarketplaceService.js';
 import { StrictKnownMarketplaces } from '../../../common/plugins/strictKnownMarketplaces.js';
 import { IWorkspacePluginSettingsService } from '../../../common/plugins/workspacePluginSettingsService.js';
 
@@ -2413,49 +2413,5 @@ suite('parsePluginSource', () => {
 
 	test('returns undefined for object source without source discriminant', () => {
 		assert.strictEqual(parsePluginSource({ package: 'test' } as never, undefined, logContext), undefined);
-	});
-});
-
-suite('getPluginSourceLabel', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('formats relative path', () => {
-		assert.strictEqual(getPluginSourceLabel({ kind: PluginSourceKind.RelativePath, path: 'plugins/foo' }), 'plugins/foo');
-	});
-
-	test('formats empty relative path', () => {
-		assert.strictEqual(getPluginSourceLabel({ kind: PluginSourceKind.RelativePath, path: '' }), '.');
-	});
-
-	test('formats github source', () => {
-		assert.strictEqual(getPluginSourceLabel({ kind: PluginSourceKind.GitHub, repo: 'owner/repo' }), 'owner/repo');
-	});
-
-	test('formats github source with path', () => {
-		assert.strictEqual(getPluginSourceLabel({ kind: PluginSourceKind.GitHub, repo: 'owner/repo', path: 'plugins/foo' }), 'owner/repo/plugins/foo');
-	});
-
-	test('formats url source', () => {
-		assert.strictEqual(getPluginSourceLabel({ kind: PluginSourceKind.GitUrl, url: 'https://example.com/repo.git' }), 'https://example.com/repo.git');
-	});
-
-	test('formats url source with path', () => {
-		assert.strictEqual(getPluginSourceLabel({ kind: PluginSourceKind.GitUrl, url: 'https://example.com/repo.git', path: 'plugins/foo' }), 'https://example.com/repo.git/plugins/foo');
-	});
-
-	test('formats npm source without version', () => {
-		assert.strictEqual(getPluginSourceLabel({ kind: PluginSourceKind.Npm, package: '@acme/plugin' }), '@acme/plugin');
-	});
-
-	test('formats npm source with version', () => {
-		assert.strictEqual(getPluginSourceLabel({ kind: PluginSourceKind.Npm, package: '@acme/plugin', version: '1.0.0' }), '@acme/plugin@1.0.0');
-	});
-
-	test('formats pip source without version', () => {
-		assert.strictEqual(getPluginSourceLabel({ kind: PluginSourceKind.Pip, package: 'my-plugin' }), 'my-plugin');
-	});
-
-	test('formats pip source with version', () => {
-		assert.strictEqual(getPluginSourceLabel({ kind: PluginSourceKind.Pip, package: 'my-plugin', version: '2.0' }), 'my-plugin==2.0');
 	});
 });

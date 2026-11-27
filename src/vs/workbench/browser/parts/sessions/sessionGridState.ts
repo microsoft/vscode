@@ -133,6 +133,19 @@ export function projectSessionGrid(grid: ISerializedGrid, map: (id: string) => s
 	return root ? { ...grid, root } : undefined;
 }
 
+/** Gives the children of each branch in saved geometry `node` equal sizes, and unmaximizes it, in place, as Reset Session Sizes does. */
+export function evenSessionGrid(node: ISerializedNode): void {
+	if (node.type === 'leaf') {
+		delete node.maximized;
+		return;
+	}
+	const total = node.data.reduce((sum, child) => sum + child.size, 0);
+	for (const child of node.data) {
+		child.size = total / node.data.length;
+		evenSessionGrid(child);
+	}
+}
+
 export interface ISessionGridPlacement {
 	readonly reference: string;
 	readonly direction: Direction;

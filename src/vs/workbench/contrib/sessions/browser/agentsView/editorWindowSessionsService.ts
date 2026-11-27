@@ -92,7 +92,9 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 	focusPaneInDirection(): void { }
 	movePaneInDirection(): void { }
 	resizePaneInDirection(): void { }
+	swapPanes(): void { }
 	arrangeSessions(): void { }
+	evenSessionSizes(): void { }
 	toggleSessionStickiness(): void { }
 	closeAllSessions(): void { }
 	attachChat(): void { }

@@ -21,11 +21,10 @@ parameters:
     type: boolean
     default: false
   # Whether to include the steps and jobs that need a privileged service
-  # connection (signing, CDN uploads, Copilot test setup). Only
-  # sdk-validation-build.yml sets this to false.
+  # connection (signing, CDN uploads, Copilot test setup). Required: only
+  # builds of main and release/* branches pass true.
   - name: VSCODE_PRIVILEGED_CONNECTIONS
     type: boolean
-    default: true
   # What the job builds. The product and flaky-smoke builds build everything; a CI test job builds
   # only what its tests use (see product-build-linux-ci.yml).
   - name: VSCODE_BUILD_CLIENT
@@ -192,6 +191,7 @@ steps:
         VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
         VSCODE_BUILD_LINUX_SNAP: ${{ parameters.VSCODE_BUILD_LINUX_SNAP }}
         VSCODE_WAIT_FOR_CLI: true
+        VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
 
   - ${{ if gt(length(parameters.VSCODE_TEST_IDS), 0) }}:
     - template: product-build-linux-test.yml@self
@@ -202,3 +202,5 @@ steps:
 
   - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_BUILD_ONLY, true)) }}:
     - template: product-build-linux-package-finalize.yml@self
+      parameters:
+        VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}

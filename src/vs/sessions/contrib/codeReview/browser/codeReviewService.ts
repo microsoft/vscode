@@ -6,7 +6,7 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { equalsIgnoreCase } from '../../../../base/common/strings.js';
 import { arrayEquals } from '../../../../base/common/equals.js';
-import { autorun, derivedOpts, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derivedOpts, IObservable, ISettableObservable, observableValueOpts } from '../../../../base/common/observable.js';
 import { isEqual, isEqualOrParent, relativePath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
@@ -26,6 +26,30 @@ import { isIChatSessionFileChange2 } from '../../../../workbench/common/chatSess
 
 interface IPRSessionReviewData {
 	readonly state: ISettableObservable<IPRReviewState>;
+}
+
+function isSamePullRequest(a: Pick<IGitHubPullRequestRef, 'owner' | 'repo' | 'number'>, b: Pick<IGitHubPullRequestRef, 'owner' | 'repo' | 'number'>): boolean {
+	return a.owner === b.owner && a.repo === b.repo && a.number === b.number;
+}
+
+function isSamePRReviewComment(a: IPRReviewComment, b: IPRReviewComment): boolean {
+	return a.id === b.id
+		&& a.body === b.body
+		&& a.author === b.author
+		&& isEqual(a.uri, b.uri)
+		&& Range.equalsRange(a.range, b.range)
+		&& isSamePullRequest(a.pullRequest, b.pullRequest);
+}
+
+function isSamePRReviewState(a: IPRReviewState, b: IPRReviewState): boolean {
+	if (a.kind === PRReviewStateKind.Loaded && b.kind === PRReviewStateKind.Loaded) {
+		return arrayEquals(a.comments, b.comments, isSamePRReviewComment)
+			&& arrayEquals(a.incompletePullRequests, b.incompletePullRequests, isSamePullRequest);
+	}
+	if (a.kind === PRReviewStateKind.Error && b.kind === PRReviewStateKind.Error) {
+		return a.reason === b.reason;
+	}
+	return a.kind === b.kind;
 }
 
 export function getPRReviewComments(pullRequest: IGitHubPullRequestRef, threads: readonly IGitHubPullRequestReviewThread[], workingDirectory: URI): IPRReviewComment[] {
@@ -233,17 +257,28 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 		const workspace = chat?.workspace.get();
 		const pullRequestContent = parsePRContentUri(resource);
 		if (pullRequestContent) {
-			const pullRequests = workspace?.folders
+			// Review comments are added to the changed side of the pull request.
+			if (pullRequestContent.isBase) {
+				return undefined;
+			}
+			const { owner, repo, prNumber } = pullRequestContent;
+			const sessionPullRequests = workspace?.folders
 				.flatMap(folder => getGitHubPullRequestRefs(folder.gitRepository?.gitHubInfo.get()))
 				.filter(pullRequest =>
 					// GitHub owner and repository names are case-insensitive, and pull request changes editors lowercase them.
-					equalsIgnoreCase(pullRequest.owner, pullRequestContent.owner)
-					&& equalsIgnoreCase(pullRequest.repo, pullRequestContent.repo)
-					&& pullRequest.number === pullRequestContent.prNumber
+					equalsIgnoreCase(pullRequest.owner, owner)
+					&& equalsIgnoreCase(pullRequest.repo, repo)
+					&& pullRequest.number === prNumber
 				) ?? [];
 			return {
 				path: pullRequestContent.fileName,
-				pullRequests,
+				// Pull request changes editors also open for pull requests the session doesn't track, such as ones linked in chat.
+				pullRequests: sessionPullRequests.length ? sessionPullRequests : [{
+					owner,
+					repo,
+					number: prNumber,
+					uri: URI.from({ scheme: 'https', authority: 'github.com', path: `/${owner}/${repo}/pull/${prNumber}` }),
+				}],
 			};
 		}
 		const workspaceResource = this._resolveWorkspaceResource(resource, chat?.changes.get());
@@ -424,7 +459,8 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 		let data = this._prReviewBySession.get(key);
 		if (!data) {
 			data = {
-				state: observableValue<IPRReviewState>(`prReview.state.${key}`, { kind: PRReviewStateKind.None }),
+				// The review threads are polled, so most polls find the same comments.
+				state: observableValueOpts<IPRReviewState>({ owner: this, debugName: `prReview.state.${key}`, equalsFn: isSamePRReviewState }, { kind: PRReviewStateKind.None }),
 			};
 			this._prReviewBySession.set(key, data);
 		}

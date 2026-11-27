@@ -1292,9 +1292,6 @@ suite('PromptsService', () => {
 				windows: quotedScript('pre-tool.ps1'),
 				linux: quotedScript('pre-tool.sh'),
 				osx: quotedScript('pre-tool.sh'),
-				windowsSource: 'powershell',
-				linuxSource: 'bash',
-				osxSource: 'bash',
 				cwd: workspaceUri,
 				env: {
 					EXISTING: 'value',

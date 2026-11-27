@@ -325,12 +325,24 @@ export class ModalEditorPart {
 		const actionBarContainer = append(headerElement, $('div.modal-editor-action-container'));
 
 		// Sidebar
-		const sidebarResult = this.createSidebar(editorPartContainer, headerElement, options?.sidebar, modalContextKeyService, disposables);
+		// In a modal that fits its content the sidebar can take the width of the window that the content leaves
+		const getFittedSidebarMaxWidth = () => {
+			const contentSize = editorPart.contentSize;
+
+			return contentSize ? Math.max(MODAL_SIDEBAR_MIN_WIDTH, this.layoutService.mainContainerDimension.width - contentSize.width - MODAL_BORDER_SIZE) : undefined;
+		};
+		let isFirstLayout = true;
+		let isLayingOutModal = false;
+		const sidebarResult = this.createSidebar(editorPartContainer, headerElement, options?.sidebar, modalContextKeyService, getFittedSidebarMaxWidth, disposables);
 		if (sidebarResult) {
 			if (sidebarResult.isVisible()) {
 				editorPartContainer.classList.add('has-sidebar');
 			}
-			disposables.add(sidebarResult.onDidResize(() => layoutModal()));
+			disposables.add(sidebarResult.onDidResize(() => {
+				if (!isLayingOutModal) {
+					layoutModal(); // the modal lays itself out with the sidebar width it clamps while laying out
+				}
+			}));
 		}
 
 		// Create the editor part (scoped to the modal context key service so that
@@ -707,7 +719,7 @@ export class ModalEditorPart {
 				dragDisposables.clear();
 
 				// A modal that fits its content opens centered, so where it is dragged to is not kept
-				if (didDrag && !editorPart.contentSize) {
+				if (didDrag && !editorPart.fitsContent) {
 					const currentLeft = parseFloat(resizableElement.domNode.style.left) || 0;
 					const currentTop = parseFloat(resizableElement.domNode.style.top) || 0;
 
@@ -837,11 +849,21 @@ export class ModalEditorPart {
 		};
 
 		// Layout the modal editor part
-		let isFirstLayout = true;
+		let wasFitted = false;
+		let fittedTitleHeight: number | undefined; // the title height the fitted modal was last fitted to
 		const layoutModal = () => {
 			if (isResizing) {
 				return; // skip layout during interactive resize
 			}
+
+			isLayingOutModal = true;
+			try {
+				doLayoutModal();
+			} finally {
+				isLayingOutModal = false;
+			}
+		};
+		const doLayoutModal = () => {
 
 			const containerDimension = this.layoutService.mainContainerDimension;
 			const titleBarOffset = this.layoutService.mainContainerOffset.top;
@@ -850,6 +872,12 @@ export class ModalEditorPart {
 			const defaultSize = getDefaultSize();
 			const contentSize = editorPart.contentSize;
 
+			// A modal that fits its content fits the sidebar to the room its content leaves in the window, before the modal
+			// takes the width of the sidebar
+			if (contentSize) {
+				sidebarResult?.clampWidth(containerDimension.width);
+			}
+
 			let width: number;
 			let height: number;
 
@@ -857,11 +885,16 @@ export class ModalEditorPart {
 				const verticalPadding = Math.max(titleBarOffset /* keep away from title bar to prevent clipping issues with WCO */, MODAL_MAXIMIZED_PADDING);
 				width = Math.max(containerDimension.width - MODAL_MAXIMIZED_PADDING, 0);
 				height = Math.max(availableHeight - verticalPadding, 0);
-			} else if (contentSize) {
-				// Keep to the modal's minimum size here, so that the modal is centered at the size it gets. In a window smaller than
-				// the minimum size the modal keeps that size, so it shows at the window's top left
-				width = Math.min(Math.max(contentSize.width + MODAL_BORDER_SIZE, resizableElement.minSize.width), containerDimension.width);
-				height = Math.max(contentSize.height + (headerElement.offsetHeight || MODAL_HEADER_HEIGHT) + MODAL_BORDER_SIZE, resizableElement.minSize.height);
+			} else if (editorPart.fitsContent) {
+				// Fit the content, or the default size until the editor reports one. The content is the editor pane, so add what the
+				// modal shows around it: the sidebar and the editor group's title. Keep to the modal's minimum size here, so that the
+				// modal is centered at the size it gets. In a window smaller than the minimum size the modal keeps that size, so it
+				// shows at the window's top left
+				const requestedWidth = contentSize ? contentSize.width + (sidebarResult?.getWidth() ?? 0) + MODAL_BORDER_SIZE : defaultSize.width;
+				fittedTitleHeight = editorPart.activeGroup.titleHeight.total;
+				const requestedHeight = contentSize ? contentSize.height + fittedTitleHeight + (headerElement.offsetHeight || MODAL_HEADER_HEIGHT) + MODAL_BORDER_SIZE : defaultSize.height;
+				width = Math.min(Math.max(requestedWidth, resizableElement.minSize.width), containerDimension.width);
+				height = Math.max(requestedHeight, resizableElement.minSize.height);
 			} else if (editorPart.size && editorPart.canResize) {
 				width = Math.min(editorPart.size.width, containerDimension.width);
 				height = Math.min(editorPart.size.height, availableHeight);
@@ -872,11 +905,13 @@ export class ModalEditorPart {
 
 			height = Math.min(height, availableHeight); // Ensure the modal never exceeds available height (below the title bar)
 
-			// On first layout, clamp sidebar width if it would leave the editor too narrow
-			if (isFirstLayout) {
+			// On first layout, clamp sidebar width if it would leave the editor too narrow, and so after a modal that fitted its
+			// content, which can give the sidebar more room than this modal has
+			if (isFirstLayout || (wasFitted && !contentSize)) {
 				isFirstLayout = false;
 				sidebarResult?.clampWidth(width);
 			}
+			wasFitted = !!contentSize;
 
 			// Update resizable element size and constraints
 			resizableElement.maxSize = new Dimension(containerDimension.width, availableHeight);
@@ -888,7 +923,7 @@ export class ModalEditorPart {
 			resizableElement.enableSashes(canResize, canResize, canResize, canResize);
 
 			// Position: use custom position if available (clamped to bounds), otherwise center
-			if (!editorPart.maximized && !contentSize && editorPart.position) {
+			if (!editorPart.maximized && !editorPart.fitsContent && editorPart.position) {
 				const clampedLeft = Math.max(0, Math.min(editorPart.position.left, containerDimension.width - width));
 				const clampedTop = Math.max(titleBarOffset, Math.min(editorPart.position.top, titleBarOffset + availableHeight - height));
 				resizableElement.domNode.style.left = `${clampedLeft}px`;
@@ -922,9 +957,26 @@ export class ModalEditorPart {
 			}
 		};
 		const modalOptionsListener = disposables.add(new MutableDisposable());
+		const contentSizeListener = disposables.add(new MutableDisposable());
+
+		// A modal that fits its content also fits its editor group's title, such as the tabs it shows with more editors or
+		// a row it adds for pinned tabs. The group lays itself out again when the height of its title changes
+		const groupRelayoutListener = disposables.add(new MutableDisposable());
+		disposables.add(Event.runAndSubscribe(editorPart.onDidChangeActiveGroup, () => {
+			groupRelayoutListener.value = editorPart.activeGroup.onDidRelayout(() => {
+				if (editorPart.contentSize && editorPart.activeGroup.titleHeight.total !== fittedTitleHeight) {
+					layoutModal();
+				}
+			});
+		}));
 		disposables.add(Event.runAndSubscribe(modalEditorService.onDidActiveEditorChange, () => {
 			const activeEditor = editorPart.activeGroup.activeEditor;
 			modalOptionsListener.value = isModalEditorOptionsProvider(activeEditor) ? activeEditor.onDidChangeModalEditorOptions?.(updateModalOptions) : undefined;
+			contentSizeListener.value = editorPart.activeGroup.activeEditorPane?.onDidChangePreferredContentSize?.(() => {
+				if (editorPart.fitsContent) {
+					layoutModal();
+				}
+			});
 			updateModalOptions();
 		}));
 
@@ -942,7 +994,7 @@ export class ModalEditorPart {
 		};
 	}
 
-	private createSidebar(container: HTMLElement, headerElement: HTMLElement, content: IModalEditorSidebar | undefined, modalContextKeyService: IContextKeyService, disposables: DisposableStore): IModalEditorSidebarController | undefined {
+	private createSidebar(container: HTMLElement, headerElement: HTMLElement, content: IModalEditorSidebar | undefined, modalContextKeyService: IContextKeyService, getFittedMaxWidth: () => number | undefined, disposables: DisposableStore): IModalEditorSidebarController | undefined {
 		if (!content) {
 			return undefined;
 		}
@@ -990,7 +1042,7 @@ export class ModalEditorPart {
 			}
 
 			const delta = e.currentX - e.startX;
-			const maxWidth = Math.max(MODAL_SIDEBAR_MIN_WIDTH, container.clientWidth - MODAL_MIN_WIDTH);
+			const maxWidth = getFittedMaxWidth() ?? Math.max(MODAL_SIDEBAR_MIN_WIDTH, container.clientWidth - MODAL_MIN_WIDTH);
 			sidebarWidth = Math.min(maxWidth, Math.max(MODAL_SIDEBAR_MIN_WIDTH, sashStartWidth + delta));
 			customWidth = true;
 			sidebarContainer.style.width = `${sidebarWidth}px`;
@@ -998,7 +1050,7 @@ export class ModalEditorPart {
 			onDidResizeEmitter.fire();
 		}));
 		disposables.add(sash.onDidReset(() => {
-			const maxWidth = Math.max(MODAL_SIDEBAR_MIN_WIDTH, container.clientWidth - MODAL_MIN_WIDTH);
+			const maxWidth = getFittedMaxWidth() ?? Math.max(MODAL_SIDEBAR_MIN_WIDTH, container.clientWidth - MODAL_MIN_WIDTH);
 			sidebarWidth = Math.min(maxWidth, MODAL_SIDEBAR_DEFAULT_WIDTH);
 			customWidth = false;
 			sidebarContainer.style.width = `${sidebarWidth}px`;
@@ -1011,7 +1063,17 @@ export class ModalEditorPart {
 			getWidth: () => visible ? sidebarWidth : 0,
 			hasCustomWidth: () => customWidth,
 			clampWidth: (modalWidth: number) => {
-				if (sidebarWidth + MODAL_MIN_WIDTH > modalWidth) {
+				const fittedMaxWidth = getFittedMaxWidth();
+				if (fittedMaxWidth !== undefined) {
+					// Keep a width the user gave the sidebar, otherwise take the default, within the room the content leaves
+					const fittedWidth = Math.min(customWidth ? sidebarWidth : MODAL_SIDEBAR_DEFAULT_WIDTH, fittedMaxWidth);
+					if (fittedWidth !== sidebarWidth) {
+						sidebarWidth = fittedWidth;
+						sidebarContainer.style.width = `${sidebarWidth}px`;
+						sash.layout();
+						onDidResizeEmitter.fire();
+					}
+				} else if (sidebarWidth + MODAL_MIN_WIDTH > modalWidth) {
 					sidebarWidth = Math.min(MODAL_SIDEBAR_DEFAULT_WIDTH, Math.max(MODAL_SIDEBAR_MIN_WIDTH, modalWidth - MODAL_MIN_WIDTH));
 					customWidth = false;
 					sidebarContainer.style.width = `${sidebarWidth}px`;
@@ -1067,11 +1129,11 @@ class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 	private _maximized: boolean;
 	get maximized(): boolean { return this._maximized; }
 
-	/**
-	 * The size the active editor fits the modal to, if any
-	 * (see `IModalEditorOptions.contentSize`).
-	 */
-	get contentSize(): IDimension | undefined { return resolveModalEditorOptions(this.activeGroup.activeEditor)?.contentSize; }
+	/** Whether the modal fits the content of the active editor (see `IModalEditorOptions.fitToContent`). */
+	get fitsContent(): boolean { return resolveModalEditorOptions(this.activeGroup.activeEditor)?.fitToContent === true; }
+
+	/** The size the modal fits, as the active editor pane prefers it, when the modal fits its content. */
+	get contentSize(): IDimension | undefined { return this.fitsContent ? this.activeGroup.activeEditorPane?.preferredContentSize : undefined; }
 
 	/** Whether the active editor allows maximizing the modal. */
 	get canMaximize(): boolean { return resolveModalEditorOptions(this.activeGroup.activeEditor)?.canMaximize !== false; }
@@ -1080,7 +1142,7 @@ class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 	get canResize(): boolean {
 		const options = resolveModalEditorOptions(this.activeGroup.activeEditor);
 
-		return options?.canResize !== false && !options?.contentSize;
+		return options?.canResize !== false && !options?.fitToContent;
 	}
 
 	private _size: IDimension | undefined;

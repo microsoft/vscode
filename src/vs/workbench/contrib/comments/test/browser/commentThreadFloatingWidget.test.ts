@@ -4,18 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import * as dom from '../../../../../base/browser/dom.js';
+import { Menu } from '../../../../../base/browser/ui/menu/menu.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { Event as VSCodeEvent } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../base/common/observable.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { CompressedVirtualizedScrollView } from '../../../../../editor/browser/widget/multiDiffEditor/compressedVirtualizedScrollView.js';
+import { IRange } from '../../../../../editor/common/core/range.js';
+import { Comment, CommentThread, CommentThreadCollapsibleState } from '../../../../../editor/common/languages.js';
 import { createCodeEditorServices } from '../../../../../editor/test/browser/testCodeEditor.js';
 import { createTextModel } from '../../../../../editor/test/common/testTextModel.js';
-import { computeFloatingWidgetPlacement, FloatingWidgetSizeModel, getCenteredTop, getConnectorPoints, getDefaultFloatingWidgetWidth, getPlacementBesideLines, getRevealScrollTop, getRowsOutlinePath, getViewZoneOffset, getWidthBesideCode, IFloatingWidgetPlacementRequest, IRect, isInTheWayOf, shouldDockFloatingWidgets } from '../../browser/commentThreadFloatingWidgetLayout.js';
+import { IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { IContextMenuMenuDelegate, IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { defaultMenuStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { TestMenuService } from '../../../../test/browser/workbenchTestServices.js';
+import { CommentMenus } from '../../browser/commentMenus.js';
+import { ICommentService } from '../../browser/commentService.js';
+import { CommentThreadConnector } from '../../browser/commentThreadConnector.js';
+import { ICommentThreadFloatingWidgetHost, ReviewFloatingWidget } from '../../browser/commentThreadFloatingWidget.js';
+import { computeFloatingWidgetPlacement, FloatingWidgetSizeModel, getCenteredTop, getConnectorPath, getConnectorPoints, getDefaultFloatingWidgetWidth, getPlacementBesideLines, getRevealScrollTop, getRowsOutlinePath, getViewZoneOffset, getWidthBesideCode, IFloatingWidgetPlacementRequest, IRect, isInTheWayOf, shouldDockFloatingWidgets } from '../../browser/commentThreadFloatingWidgetLayout.js';
 import { FloatingWidgetDockZone, FloatingWidgetRoom } from '../../browser/commentThreadFloatingWidgetRoom.js';
+import '../../browser/media/review.css';
+import '../../../../browser/media/style.css';
 
 suite('Comment thread floating widget', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -23,11 +39,157 @@ suite('Comment thread floating widget', () => {
 	/**
 	 * Creates an editor with a view, which view zones need, in the given container.
 	 */
-	function createEditor(disposables: DisposableStore, container: HTMLElement, text: string, height: number): ICodeEditor {
+	function createEditor(disposables: Pick<DisposableStore, 'add'>, container: HTMLElement, text: string, height: number): ICodeEditor {
 		const editor = disposables.add(createCodeEditorServices(disposables).createInstance(CodeEditorWidget, container, { dimension: { width: 400, height }, lineHeight: 20 }, { contributions: [] }));
 		editor.setModel(disposables.add(createTextModel(text)));
 		return editor;
 	}
+
+	/**
+	 * Displays a real floating widget for a thread with the given comments.
+	 */
+	async function createFloatingWidget(comments: Comment[] = [], commentService: Partial<ICommentService> = {}, contextMenuService: Partial<IContextMenuService> = {}) {
+		const container = dom.append(mainWindow.document.body, dom.$('div'));
+		container.classList.add('monaco-workbench');
+		container.style.setProperty('--vscode-focusBorder', 'rgb(0, 120, 212)');
+		container.style.setProperty('--vscode-editorWidget-border', 'rgb(85, 85, 85)');
+		container.style.setProperty('--vscode-strokeThickness', '1px');
+		store.add(toDisposable(() => container.remove()));
+		const instantiationService = createCodeEditorServices(store);
+		instantiationService.stub(IMenuService, new TestMenuService());
+		instantiationService.stub(IContextMenuService, contextMenuService);
+		const menus = store.add(instantiationService.createInstance(CommentMenus));
+		instantiationService.stub(ICommentService, {
+			getCommentMenus: () => menus,
+			getCommentController: () => undefined,
+			setCurrentCommentThread: () => { },
+			setActiveEditingCommentThread: () => { },
+			hasReactionHandler: () => false,
+			...commentService,
+		});
+		const editor = store.add(instantiationService.createInstance(CodeEditorWidget, container, { dimension: { width: 1200, height: 600 }, lineHeight: 20 }, { contributions: [] }));
+		editor.setModel(store.add(createTextModel('example')));
+		const thread = new class extends mock<CommentThread<IRange>>() {
+			override readonly onDidChangeComments = VSCodeEvent.None;
+			override readonly onDidChangeCanReply = VSCodeEvent.None;
+			override readonly onDidChangeLabel = VSCodeEvent.None;
+			override readonly onDidChangeCollapsibleState = VSCodeEvent.None;
+			override readonly onDidChangeState = VSCodeEvent.None;
+			override readonly initialCollapsibleState = CommentThreadCollapsibleState.Expanded;
+			override collapsibleState = CommentThreadCollapsibleState.Expanded;
+			override readonly comments = comments;
+			override readonly canReply = false;
+			override readonly resource = editor.getModel()!.uri.toString();
+			override isDocumentCommentThread(): this is CommentThread<IRange> { return true; }
+		}();
+		const host: ICommentThreadFloatingWidgetHost = {
+			getLayout: () => undefined,
+			setLayout: () => { },
+			getLastChosenSize: () => ({}),
+			setLastChosenSize: () => { },
+			addWidget: () => toDisposable(() => { }),
+			getOtherWidgets: () => [],
+			getRoom: () => undefined,
+		};
+		const widget = store.add(instantiationService.createInstance(ReviewFloatingWidget, editor, 'test', thread, undefined, undefined, host));
+		await widget.display(undefined, false);
+		return { container, widget };
+	}
+
+	suite('drag focus', () => {
+		test('focuses the dragged card without stealing focus from its controls', async () => {
+			const { container, widget } = await createFloatingWidget();
+			const card = container.querySelector<HTMLElement>('.comment-thread-floating-widget')!;
+			card.style.setProperty('--comment-thread-state-color', 'rgb(85, 85, 85)');
+			const header = card.querySelector<HTMLElement>('.head')!;
+			const body = card.querySelector<HTMLElement>('.comments-container')!;
+			const action = card.querySelector<HTMLElement>('.review-actions .action-item')!;
+			const control = dom.append(body, dom.$('button'));
+			// This focus-only control must not change the card's measured content height.
+			control.style.position = 'absolute';
+			const outside = dom.append(mainWindow.document.body, dom.$('button'));
+			store.add(toDisposable(() => outside.remove()));
+
+			const pointerDown = (target: HTMLElement, button: number) => target.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button, buttons: button === 0 ? 1 : 2, pointerId: 1 }));
+			const pointerUp = () => header.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, pointerId: 1 }));
+			const canAssertFocusExit = mainWindow.document.hasFocus();
+			outside.focus();
+			pointerDown(header, 2);
+			const secondaryPreservesFocus = mainWindow.document.activeElement === outside;
+			pointerDown(action, 0);
+			const actionPreservesFocus = mainWindow.document.activeElement === outside;
+			pointerDown(header, 0);
+			const focusBoundary = () => ({
+				frame: mainWindow.getComputedStyle(card).borderColor,
+				bodyOutline: mainWindow.getComputedStyle(body).outlineStyle,
+			});
+			const duringDrag = { focused: mainWindow.document.activeElement === body, active: !!container.querySelector('.comment-thread-floating-connector.active'), dragging: card.classList.contains('dragging'), boundary: focusBoundary() };
+			const initialTop = widget.getDocumentRect()!.top;
+			header.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, cancelable: true, buttons: 1, pointerId: 1, clientY: 40 }));
+			const moved = widget.getDocumentRect()!.top > initialTop;
+			pointerUp();
+			const afterDrag = { focused: mainWindow.document.activeElement === body, dragging: card.classList.contains('dragging'), boundary: focusBoundary() };
+			control.focus();
+			pointerDown(header, 0);
+			const preservesControlFocus = mainWindow.document.activeElement === control;
+			pointerUp();
+			outside.focus();
+			await new Promise<void>(resolve => mainWindow.setTimeout(resolve, 0));
+			const inactiveAfterBlur = canAssertFocusExit ? !container.querySelector('.comment-thread-floating-connector.active') : undefined;
+
+			assert.deepStrictEqual({ secondaryPreservesFocus, actionPreservesFocus, duringDrag, moved, afterDrag, preservesControlFocus, inactiveAfterBlur, blurredBoundary: focusBoundary() }, {
+				secondaryPreservesFocus: true,
+				actionPreservesFocus: true,
+				duringDrag: { focused: true, active: true, dragging: true, boundary: { frame: 'rgb(0, 120, 212)', bodyOutline: 'none' } },
+				moved: true,
+				afterDrag: { focused: true, dragging: false, boundary: { frame: 'rgb(0, 120, 212)', bodyOutline: 'none' } },
+				preservesControlFocus: true,
+				inactiveAfterBlur: canAssertFocusExit ? true : undefined,
+				blurredBoundary: { frame: 'rgb(85, 85, 85)', bodyOutline: 'none' },
+			});
+		});
+	});
+
+	suite('reaction picker', () => {
+		test('precedes the message actions in tab order when there are no reactions', async () => {
+			const comment: Comment = { uniqueIdInThread: 1, body: 'Looks good', userName: 'Reviewer' };
+			const { container } = await createFloatingWidget([comment], { hasReactionHandler: () => true });
+			const message = container.querySelector<HTMLElement>('.review-comment')!;
+			const picker = message.querySelector<HTMLElement>('.toolbar-toggle-pickReactions')!;
+			const actions = message.querySelector<HTMLElement>('.comment-actions')!;
+
+			assert.deepStrictEqual({
+				titleOrder: [...message.querySelector('.comment-title')!.children].map(child => child.className),
+				pickerBeforeActions: !!(picker.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING),
+				pickerLeftOfActions: picker.getBoundingClientRect().right <= actions.getBoundingClientRect().left,
+			}, {
+				titleOrder: ['', 'comment-reactions picker-only', 'comment-actions'],
+				pickerBeforeActions: true,
+				pickerLeftOfActions: true,
+			});
+		});
+
+		test('sizes its menu to the emoji', async () => {
+			const comment: Comment = { uniqueIdInThread: 1, body: 'Looks good', userName: 'Reviewer', commentReactions: [{ label: '👍', count: 0, hasReacted: false }, { label: '🎉', count: 0, hasReacted: false }] };
+			const menuDelegates: (IContextMenuDelegate | IContextMenuMenuDelegate)[] = [];
+			const { container } = await createFloatingWidget([comment], { hasReactionHandler: () => true }, { showContextMenu: delegate => menuDelegates.push(delegate) });
+			container.querySelector<HTMLElement>('.toolbar-toggle-pickReactions')!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+			const delegate = menuDelegates[0];
+			assert.ok(delegate.getActions);
+			const menuContainer = dom.append(container, dom.$('.context-view'));
+			menuContainer.classList.add(...delegate.getMenuClassName!().split(' '));
+			menuContainer.style.position = 'absolute';
+			const menu = store.add(new Menu(menuContainer, delegate.getActions(), {}, defaultMenuStyles));
+
+			assert.deepStrictEqual({
+				labels: [...menu.getContainer().querySelectorAll('.action-label')].map(label => label.textContent),
+				fitsEmoji: menu.getContainer().getBoundingClientRect().width < 60,
+			}, {
+				labels: ['👍', '🎉'],
+				fitsEmoji: true,
+			});
+		});
+	});
 
 	suite('getConnectorPoints', () => {
 		const code: IRect[] = [{ top: 100, left: 50, width: 200, height: 20 }];
@@ -70,6 +232,98 @@ suite('Comment thread floating widget', () => {
 				inside: undefined,
 				onEdge: undefined,
 				noCode: undefined,
+			});
+		});
+	});
+
+	suite('getConnectorPath', () => {
+		const code: IRect[] = [{ top: 100, left: 50, width: 200, height: 20 }];
+
+		test('routes the connector with right angles that enter the widget in the anchor direction', () => {
+			assert.deepStrictEqual({
+				besideBelow: getConnectorPath(code, { x: 400, y: 300, direction: 'horizontal' }, 0),
+				besideLevel: getConnectorPath(code, { x: 400, y: 110, direction: 'horizontal' }, 4),
+				belowRight: getConnectorPath(code, { x: 300, y: 200, direction: 'vertical' }, 0),
+				belowInRange: getConnectorPath(code, { x: 120, y: 160, direction: 'vertical' }, 4),
+				inside: getConnectorPath(code, { x: 100, y: 110, direction: 'horizontal' }, 4),
+			}, {
+				besideBelow: 'M 250 120 L 384 120 L 384 300 L 400 300',
+				besideLevel: 'M 250 110 L 400 110',
+				belowRight: 'M 250 120 L 250 160 L 300 160 L 300 200',
+				belowInRange: 'M 120 120 L 120 160',
+				inside: undefined,
+			});
+		});
+
+		test('rounds both bends without moving the endpoints', () => {
+			assert.deepStrictEqual({
+				right: getConnectorPath(code, { x: 400, y: 300, direction: 'horizontal' }, 4),
+				left: getConnectorPath(code, { x: 10, y: 40, direction: 'horizontal' }, 4),
+				below: getConnectorPath(code, { x: 300, y: 200, direction: 'vertical' }, 4),
+			}, {
+				right: 'M 250 120 L 380 120 Q 384 120 384 124 L 384 296 Q 384 300 388 300 L 400 300',
+				left: 'M 50 100 L 30 100 Q 26 100 26 96 L 26 44 Q 26 40 22 40 L 10 40',
+				below: 'M 250 120 L 250 156 Q 250 160 254 160 L 296 160 Q 300 160 300 164 L 300 200',
+			});
+		});
+
+		test('limits the radius to fit short segments', () => {
+			assert.strictEqual(
+				getConnectorPath(code, { x: 254, y: 124, direction: 'horizontal' }, 4),
+				'M 250 120 L 251 120 Q 252 120 252 121 L 252 123 Q 252 124 253 124 L 254 124'
+			);
+		});
+	});
+
+	suite('CommentThreadConnector', () => {
+		test('uses the focus color for the active connector and code outline, regardless of thread state', () => {
+			const container = dom.append(mainWindow.document.body, dom.$('div'));
+			store.add(toDisposable(() => container.remove()));
+			container.style.setProperty('--vscode-focusBorder', 'rgb(0, 120, 212)');
+			const editor = createEditor(store, container, 'const value = 1;', 400);
+			const connector = store.add(new CommentThreadConnector(editor, 'test.connector'));
+			connector.attach();
+			store.add(toDisposable(() => connector.detach()));
+			connector.render([{ top: 100, left: 50, width: 200, height: 20 }], { x: 350, y: 300, direction: 'horizontal' }, { left: 0, right: 400 });
+			const paths = Array.from(container.querySelectorAll('.comment-thread-floating-connector path'));
+			const colors = () => paths.map(path => mainWindow.getComputedStyle(path).stroke);
+			const states = ['rgb(85, 85, 85)', 'rgb(100, 180, 100)'].map(color => {
+				connector.setColor(color);
+				connector.setActive(false);
+				const inactive = colors();
+				connector.setActive(true);
+				const active = colors();
+				connector.setActive(false);
+				return { inactive, active, blurred: colors() };
+			});
+			assert.deepStrictEqual(states, ['rgb(85, 85, 85)', 'rgb(100, 180, 100)'].map(color => ({
+				inactive: [color, color],
+				active: ['rgb(0, 120, 212)', 'rgb(0, 120, 212)'],
+				blurred: [color, color],
+			})));
+		});
+
+		test('renders rounded dashed connectors without endpoint markers', () => {
+			const container = dom.append(mainWindow.document.body, dom.$('div'));
+			store.add(toDisposable(() => container.remove()));
+			container.style.setProperty('--vscode-cornerRadius-small', '4px');
+			const editor = createEditor(store, container, 'const value = 1;', 400);
+			const connector = store.add(new CommentThreadConnector(editor, 'test.connector'));
+			connector.attach();
+			store.add(toDisposable(() => connector.detach()));
+			connector.render([{ top: 100, left: 50, width: 200, height: 20 }], { x: 350, y: 300, direction: 'horizontal' }, { left: 0, right: 400 });
+			const overlay = container.querySelector('.comment-thread-floating-connector')!;
+			const line = overlay.querySelector('.connector-line')!;
+			assert.deepStrictEqual({
+				hiddenFromAccessibility: overlay.getAttribute('aria-hidden'),
+				endpointMarkers: overlay.querySelectorAll('circle').length,
+				curves: line.getAttribute('d')?.match(/Q/g)?.length,
+				dashes: mainWindow.getComputedStyle(line).strokeDasharray,
+			}, {
+				hiddenFromAccessibility: 'true',
+				endpointMarkers: 0,
+				curves: 2,
+				dashes: '4px, 3px',
 			});
 		});
 	});

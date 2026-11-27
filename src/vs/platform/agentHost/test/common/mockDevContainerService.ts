@@ -5,7 +5,7 @@
 
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import type { DevContainerAgentHostSource, IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport } from '../../common/devContainerAgentHost.js';
+import type { DevContainerAgentHostSource, IDevContainerAgentHostConfig, IDevContainerAgentHostConnectFailure, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport, IDevContainerHostFolderContainer } from '../../common/devContainerAgentHost.js';
 import type { IRelayMessage } from '../../common/relayTransport.js';
 
 export class MockDevContainerService extends Disposable implements IDevContainerAgentHostMainService {
@@ -24,15 +24,22 @@ export class MockDevContainerService extends Disposable implements IDevContainer
 	readonly onDidChangeSandboxSupport = this.sandboxSupport.event;
 	readonly userState = this._register(new Emitter<IDevContainerAgentHostUserStateReport>());
 	readonly onDidReportUserState = this.userState.event;
+	readonly connectFailure = this._register(new Emitter<IDevContainerAgentHostConnectFailure>());
+	readonly onDidFailConnect = this.connectFailure.event;
 	readonly connects: IDevContainerAgentHostConfig[] = [];
 	readonly disconnects: string[] = [];
 	readonly stops: string[] = [];
 	readonly removes: DevContainerAgentHostSource[] = [];
 	readonly sent: IRelayMessage[] = [];
 	connectResult: Promise<IDevContainerAgentHostConnectResult> | undefined;
+	folderContainers: readonly IDevContainerHostFolderContainer[] = [];
 
 	async isDockerAvailable(): Promise<boolean> {
 		return true;
+	}
+
+	async listFolderContainers(): Promise<readonly IDevContainerHostFolderContainer[]> {
+		return this.folderContainers;
 	}
 
 	async connect(config: IDevContainerAgentHostConfig): Promise<IDevContainerAgentHostConnectResult> {

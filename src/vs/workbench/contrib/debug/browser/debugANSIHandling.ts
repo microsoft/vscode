@@ -11,7 +11,7 @@ import { isDefined } from '../../../../base/common/types.js';
 import { editorHoverBackground, listActiveSelectionBackground, listFocusBackground, listInactiveFocusBackground, listInactiveSelectionBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
-import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from '../../../common/theme.js';
+import { getModernSideBarBackground, PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from '../../../common/theme.js';
 import { ansiColorIdentifiers } from '../../terminal/common/terminalColorRegistry.js';
 import { DebugLinkHoverBehaviorTypeData, ILinkDetector } from './linkDetector.js';
 
@@ -565,6 +565,10 @@ registerThemingParticipant((theme, collector) => {
 		{ selector: '.monaco-workbench .monaco-list:focus .monaco-list-row.selected', bg: theme.getColor(listActiveSelectionBackground) },
 		{ selector: '.debug-hover-widget', bg: theme.getColor(editorHoverBackground) },
 	];
+	const modernSideBarBackground = getModernSideBarBackground(theme);
+	if (modernSideBarBackground) {
+		areas.splice(1, 0, { selector: '.monaco-workbench.modern-ui :is(.sidebar, .auxiliarybar)', bg: modernSideBarBackground });
+	}
 
 	for (const { selector, bg } of areas) {
 		const content = ansiColorIdentifiers

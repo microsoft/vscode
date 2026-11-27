@@ -14,14 +14,6 @@ parameters:
     values:
       - Product
       - CI
-  - name: NPM_REGISTRY
-    displayName: "Custom NPM Registry"
-    type: string
-    default: 'https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/'
-  - name: CARGO_REGISTRY
-    displayName: "Custom Cargo Registry"
-    type: string
-    default: 'sparse+https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/Cargo/index/'
   - name: VSCODE_BUILD_WIN32
     displayName: "🎯 Windows x64"
     type: boolean
@@ -82,6 +74,11 @@ parameters:
     displayName: "Release build if successful (ONLY FOR INSIDER)"
     type: boolean
     default: false
+  # Whether to include the steps and jobs that need a privileged service
+  # connection (signing, publishing or release). Required: only builds of
+  # main and release/* branches pass true.
+  - name: VSCODE_PRIVILEGED_CONNECTIONS
+    type: boolean
   - name: VSCODE_USE_LEGACY_OSS_NOTICE
     displayName: "Use legacy OSS Notice"
     type: boolean
@@ -99,6 +96,8 @@ stages:
           os: linux
         jobs:
           - template: product-quality-checks.yml@self
+            parameters:
+              VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
         - stage: Windows
@@ -187,6 +186,7 @@ stages:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_RUN_TESTS: true
+                  VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
               # Same test jobs as the Windows CI jobs above
               - template: win32/product-build-win32-test.yml@self
                 parameters:
@@ -270,6 +270,7 @@ stages:
                 VSCODE_ARCH: arm64
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX_X64'], true) }}:
         - stage: LinuxX64
@@ -291,6 +292,7 @@ stages:
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_RUN_TESTS: true
                 VSCODE_BUILD_LINUX_SNAP: ${{ parameters.VSCODE_BUILD_LINUX_SNAP }}
+                VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
 
             # Same test jobs as the Linux CI jobs
             - template: linux/product-build-linux-test.yml@self
@@ -372,6 +374,7 @@ stages:
                 NPM_ARCH: arm64
                 VSCODE_ARCH: arm64
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX_ARMHF'], true) }}:
         - stage: LinuxARMHF
@@ -391,6 +394,7 @@ stages:
                 NPM_ARCH: arm
                 VSCODE_ARCH: armhf
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
 
       - ${{ if and(eq(variables['VSCODE_BUILD_STAGE_LINUX'], true), eq(variables['VSCODE_CIBUILD'], true)) }}:
         - stage: Linux
@@ -477,6 +481,7 @@ stages:
               - template: alpine/product-build-alpine.yml@self
                 parameters:
                   VSCODE_ARCH: x64
+                  VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
               - template: alpine/product-build-alpine-cli.yml@self
                 parameters:
                   VSCODE_ARCH: x64
@@ -485,6 +490,7 @@ stages:
               - template: alpine/product-build-alpine.yml@self
                 parameters:
                   VSCODE_ARCH: arm64
+                  VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
               - template: alpine/product-build-alpine-cli.yml@self
                 parameters:
                   VSCODE_ARCH: arm64
@@ -508,6 +514,7 @@ stages:
                   VSCODE_ARCH: arm64
                   VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
 
             - template: darwin/product-build-darwin-ci.yml@self
               parameters:
@@ -516,6 +523,7 @@ stages:
                 VSCODE_JOB_DISPLAY_NAME: Unit Tests (Electron)
                 VSCODE_TEST_IDS:
                   - unit-electron
+                VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
             - template: darwin/product-build-darwin-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
@@ -524,6 +532,7 @@ stages:
                 VSCODE_TEST_IDS:
                   - unit-node
                   - unit-browser-webkit
+                VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
             - template: darwin/product-build-darwin-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
@@ -534,6 +543,7 @@ stages:
                   - integration-remote
                   - smoke-browser-chromium
                   - smoke-remote
+                VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
             - template: darwin/product-build-darwin-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
@@ -541,6 +551,7 @@ stages:
                 VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
                 VSCODE_TEST_IDS:
                   - integration-electron
+                VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
             - template: darwin/product-build-darwin-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
@@ -548,6 +559,7 @@ stages:
                 VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
                 VSCODE_TEST_IDS:
                   - integration-agent-host-e2e
+                VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
             - template: darwin/product-build-darwin-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
@@ -558,6 +570,7 @@ stages:
                   - smoke-agents-pac-proxy
                   - smoke-agents-kerberos-pac-proxy
                   - smoke-agents-basic-proxy
+                VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS_X64'], true) }}:
         - stage: macOSX64
@@ -575,11 +588,13 @@ stages:
               parameters:
                 VSCODE_ARCH: x64
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
 
             - template: darwin/product-build-darwin.yml@self
               parameters:
                 VSCODE_ARCH: x64
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS_ARM64'], true) }}:
         - stage: macOSARM64
@@ -597,12 +612,14 @@ stages:
               parameters:
                 VSCODE_ARCH: arm64
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
 
             - template: darwin/product-build-darwin.yml@self
               parameters:
                 VSCODE_ARCH: arm64
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                 VSCODE_RUN_TESTS: true
+                VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
 
             # Same test jobs as the macOS CI jobs
             - template: darwin/product-build-darwin-test.yml@self
@@ -662,8 +679,9 @@ stages:
                   - smoke-agents-basic-proxy
 
       # The universal job waits for the unsigned x64 and arm64 client artifacts
-      # instead of depending on their stages, so that it runs in parallel.
-      - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS_UNIVERSAL'], true) }}:
+      # instead of depending on their stages, so that it runs in parallel. It
+      # only merges and signs, so builds without the privileged connections skip it.
+      - ${{ if and(eq(parameters.VSCODE_PRIVILEGED_CONNECTIONS, true), eq(variables['VSCODE_BUILD_STAGE_MACOS_UNIVERSAL'], true)) }}:
         - stage: macOSUniversal
           displayName: macOS UNIVERSAL
           dependsOn: []
@@ -682,6 +700,8 @@ stages:
           dependsOn: []
           jobs:
             - template: web/product-build-web.yml@self
+              parameters:
+                VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
 
       - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WEB_MOBILE, true)) }}:
         - stage: Mobile
@@ -690,6 +710,7 @@ stages:
             - template: web/product-build-web.yml@self
               parameters:
                 mobile: true
+                VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
 
       - ${{ if eq(variables['VSCODE_PUBLISH'], true) }}:
         - stage: Publish
@@ -1004,7 +1025,8 @@ stages:
                     parameters:
                       VSCODE_RELEASE: ${{ parameters.VSCODE_RELEASE }}
 
-      - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_RUN_APISCAN, true)) }}:
+      # APIScan authenticates through the vscode-apiscan connection, so builds without the privileged connections skip it.
+      - ${{ if and(eq(parameters.VSCODE_PRIVILEGED_CONNECTIONS, true), eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_RUN_APISCAN, true)) }}:
         - stage: APIScan
           dependsOn: []
           pool:

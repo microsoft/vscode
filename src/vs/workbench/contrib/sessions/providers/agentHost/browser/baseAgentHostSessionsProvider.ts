@@ -8352,6 +8352,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		backendChat.catch(() => { /* surfaced through `canvases` or `open` */ });
 		canvases.catch(() => { /* surfaced to whoever reads the canvases */ });
 		return {
+			sessionId: draft.sessionId,
 			canvases,
 			open: async (canvas, instanceId) => {
 				if (state !== 'draft') {

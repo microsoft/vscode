@@ -18,7 +18,7 @@ import { SnippetParser, Variable, VariableResolver } from '../../browser/snippet
 import { ClipboardBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, SelectionBasedVariableResolver, TimeBasedVariableResolver, WorkspaceBasedVariableResolver } from '../../browser/snippetVariables.js';
 import { createTextModel } from '../../../../test/common/testTextModel.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { IWorkspace, IWorkspaceContextService, toWorkspaceFolder, WorkbenchScope } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspace, IWorkspaceContextService, toWorkspaceFolder, WorkbenchMode, getWorkspaceScope } from '../../../../../platform/workspace/common/workspace.js';
 import { Workspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 import { toWorkspaceFolders } from '../../../../../platform/workspaces/common/workspaces.js';
 
@@ -390,13 +390,15 @@ suite('Snippet Variables Resolver', function () {
 			_throw = () => { throw new Error(); };
 			onDidChangeWorkbenchState = this._throw;
 			onDidChangeWorkbenchScope = Event.None;
+			onDidChangeWorkbenchMode = Event.None;
 			onDidChangeWorkspaceName = this._throw;
 			onWillChangeWorkspaceFolders = this._throw;
 			onDidChangeWorkspaceFolders = this._throw;
 			getCompleteWorkspace = this._throw;
 			getWorkspace(): IWorkspace { return workspace; }
 			getWorkbenchState = this._throw;
-			getWorkbenchScope = () => WorkbenchScope.WORKSPACE;
+			getWorkbenchScope = () => getWorkspaceScope(workspace);
+			getWorkbenchMode = () => WorkbenchMode.Editor;
 			hasWorkspaceData = this._throw;
 			getWorkspaceFolder = this._throw;
 			isCurrentWorkspace = this._throw;

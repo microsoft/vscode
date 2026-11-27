@@ -34,29 +34,24 @@ export interface IForkConversationOptions extends IChatSessionForkOptions {
 }
 
 /**
- * Parses the argument after `/fork` for the `prompt` keyword that agent-host
- * chats reserve: `/fork prompt <prompt>` forks and sends `<prompt>`.
+ * Parses the argument after `/fork` in agent-host chats, where
+ * `/fork <prompt>` forks and sends `<prompt>`.
  *
- * @returns `undefined` without the keyword; otherwise the prompt and its offset
- * within the argument. The prompt is empty for a bare `/fork prompt`.
+ * @returns `undefined` for a blank argument; otherwise the prompt and its offset
+ * within the argument.
  */
 export function parseForkPromptArgument(argument: string): { readonly text: string; readonly offset: number } | undefined {
-	const keyword = /^\s*prompt(?=\s|$)/.exec(argument);
-	if (!keyword) {
+	// Drop the whitespace separating the prompt from `/fork`. The remainder,
+	// including internal newlines and whitespace, is user-authored prompt text.
+	const offset = argument.length - argument.trimStart().length;
+	if (offset === argument.length) {
 		return undefined;
 	}
-	const afterKeyword = argument.slice(keyword[0].length);
-	if (!afterKeyword.trim()) {
-		return { text: '', offset: argument.length };
-	}
-	// Drop only the keyword separator. The remainder, including internal
-	// newlines and whitespace, is user-authored prompt text.
-	const separatorLength = /^\s/.test(afterKeyword) ? 1 : 0;
-	return { text: afterKeyword.slice(separatorLength), offset: keyword[0].length + separatorLength };
+	return { text: argument.slice(offset), offset };
 }
 
 /**
- * Owns the source chat's draft of a submitted `/fork prompt <prompt>` until the
+ * Owns the source chat's draft of a submitted `/fork <prompt>` until the
  * fork's outcome is known. Disposing releases the source chat without clearing
  * the draft, so a fork that was not created leaves the prompt to retry.
  */
@@ -66,7 +61,7 @@ export interface IForkPromptSourceInput extends IDisposable {
 }
 
 /**
- * Captures the draft of a widget submitting `/fork prompt <prompt>` in an
+ * Captures the draft of a widget submitting `/fork <prompt>` in an
  * agent-host chat, or returns `undefined` for any other submission.
  *
  * The fork opens before the `/fork` command settles, which releases the source

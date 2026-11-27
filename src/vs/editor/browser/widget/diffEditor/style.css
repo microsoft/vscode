@@ -329,9 +329,16 @@
 .monaco-editor .delete-sign,
 .monaco-diff-editor .delete-sign {
 	font-size: 11px !important;
-	opacity: 0.7 !important;
 	display: flex !important;
 	align-items: center;
+}
+/* The glyph at 70% of the sign's color: opacity would rasterize every sign through
+ * a layer of its own, and on the sign itself currentColor is its parent's color. */
+.monaco-editor .insert-sign::before,
+.monaco-diff-editor .insert-sign::before,
+.monaco-editor .delete-sign::before,
+.monaco-diff-editor .delete-sign::before {
+	color: color-mix(in srgb, currentColor 70%, transparent);
 }
 .monaco-editor.hc-black .insert-sign,
 .monaco-diff-editor.hc-black .insert-sign,

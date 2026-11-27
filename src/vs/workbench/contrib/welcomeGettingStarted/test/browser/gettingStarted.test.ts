@@ -18,6 +18,7 @@ import '../../../../browser/media/style.css';
 import '../../../../browser/media/floatingPanels.css';
 import '../../../modernUI/browser/media/editorBorder.css';
 import '../../browser/media/gettingStarted.css';
+import { GettingStartedPage } from '../../browser/gettingStarted.js';
 import { GettingStartedFocusOutline, updateGettingStartedFocusOutlineRadius } from '../../browser/gettingStartedFocusOutline.js';
 
 suite('Getting started focus styles', () => {
@@ -326,4 +327,76 @@ suite('Getting started focus styles', () => {
 			});
 		}
 	}
+});
+
+suite('Getting started slide focus', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const createPage = () => {
+		const workbench = append(mainWindow.document.body, $('.monaco-workbench'));
+		store.add(toDisposable(() => workbench.remove()));
+		const content = append(append(workbench, $('.part.editor')), $('.content'));
+		content.style.width = '800px';
+		content.style.height = '400px';
+		const container = append(content, $('.gettingStartedContainer'));
+		const slideManager = append(container, $('.gettingStarted'));
+		const categoriesSlide = append(slideManager, $('.gettingStartedSlideCategories.gettingStartedSlide', {},
+			$('a', { href: '#welcome' }, 'Welcome link')));
+		const detailsSlide = append(slideManager, $('.gettingStartedSlideDetails.gettingStartedSlide', {},
+			$('button.prev-button.button-link', {}, $('span.moreText')),
+			$('a', { href: '#walkthrough' }, 'Walkthrough link')));
+		const page = Object.create(GettingStartedPage.prototype) as {
+			container: HTMLElement;
+			categoriesSlide: HTMLElement;
+			stepsSlide: HTMLElement;
+			categoriesSlideShown: { set(value: boolean, tx: undefined): void };
+			_input: { showWelcome: boolean; returnToCommand: boolean };
+			prevWalkthrough: undefined;
+			setSlide(toEnable: 'details' | 'categories', firstLaunch?: boolean): void;
+		};
+		page.container = container;
+		page.categoriesSlide = categoriesSlide;
+		page.stepsSlide = detailsSlide;
+		page.categoriesSlideShown = { set: () => { } };
+		page._input = { showWelcome: false, returnToCommand: false };
+		page.prevWalkthrough = undefined;
+
+		return { page, categoriesSlide, detailsSlide };
+	};
+
+	test('hidden categories slide does not take focus when showing walkthrough details', () => {
+		const { page, categoriesSlide, detailsSlide } = createPage();
+		page.setSlide('details');
+
+		const visibleLink = detailsSlide.querySelector('a')!;
+		const hiddenLink = categoriesSlide.querySelector('a')!;
+		visibleLink.focus();
+		hiddenLink.focus();
+
+		assert.deepStrictEqual({
+			hiddenSlideOpacity: mainWindow.getComputedStyle(categoriesSlide).opacity,
+			focusStayedOnVisibleSlide: mainWindow.document.activeElement === visibleLink,
+		}, {
+			hiddenSlideOpacity: '0',
+			focusStayedOnVisibleSlide: true,
+		});
+	});
+
+	test('hidden walkthrough slide does not take focus when showing categories', () => {
+		const { page, categoriesSlide, detailsSlide } = createPage();
+		page.setSlide('categories');
+
+		const visibleLink = categoriesSlide.querySelector('a')!;
+		const hiddenLink = detailsSlide.querySelector('a')!;
+		visibleLink.focus();
+		hiddenLink.focus();
+
+		assert.deepStrictEqual({
+			hiddenSlideOpacity: mainWindow.getComputedStyle(detailsSlide).opacity,
+			focusStayedOnVisibleSlide: mainWindow.document.activeElement === visibleLink,
+		}, {
+			hiddenSlideOpacity: '0',
+			focusStayedOnVisibleSlide: true,
+		});
+	});
 });

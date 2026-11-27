@@ -17,6 +17,8 @@ import { TestConfigurationService } from '../../../../../../../platform/configur
 import { IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
 import { IEnvironmentService } from '../../../../../../../platform/environment/common/environment.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
+import type { IClientTransport } from '../../../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { ISharedProcessService } from '../../../../../../../platform/ipc/electron-browser/services.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
@@ -54,9 +56,13 @@ suite('TunnelAgentHostService discovery', () => {
 			dialogService?: IDialogService;
 			configurationService?: IConfigurationService;
 			tunnelApplicationConfig?: IProductService['tunnelApplicationConfig'];
+			instantiationService?: Partial<IInstantiationService>;
 		},
 	): TunnelAgentHostService {
 		const instantiationService = store.add(new TestInstantiationService());
+		if (options?.instantiationService) {
+			instantiationService.stub(IInstantiationService, options.instantiationService);
+		}
 		instantiationService.stub(ISharedProcessService, new class extends mock<ISharedProcessService>() {
 			override getChannel(): IChannel {
 				return channel;
@@ -268,6 +274,76 @@ suite('TunnelAgentHostService discovery', () => {
 		await assert.rejects(service.signIn('github'), /disabled/);
 		assert.strictEqual(calls, 2);
 	});
+
+	test('discovery after sign-in uses the signed-in account when another account\'s session was rejected', async () => {
+		const session = (account: string): AuthenticationSession => ({ id: account, accessToken: `${account}-token`, scopes: ['tunnel'], account: { id: account, label: account } });
+		const sessions = [session('rejected')];
+		const tokens: string[] = [];
+		const service = createService(() => sessions, new class extends mock<IChannel>() {
+			override async call<T>(_command: string, args: readonly string[]): Promise<T> {
+				tokens.push(args[0]);
+				if (args[0] === 'rejected-token') {
+					throw Object.assign(new Error('Unauthorized'), { name: TUNNEL_DISCOVERY_UNAUTHORIZED });
+				}
+				return [] as T;
+			}
+		}(), {
+			onFactory: () => { },
+			createSession: async () => {
+				sessions.push(session('signed-in'));
+				return sessions[1];
+			},
+		});
+		await assert.rejects(service.listTunnels({ authProvider: 'github' }), TunnelAuthenticationRequiredError);
+		await service.signIn('github');
+		await service.listTunnels({ authProvider: 'github' });
+		assert.deepStrictEqual(tokens, ['rejected-token', 'signed-in-token']);
+	});
+
+	for (const connectedScopes of [['tunnel'], ['repo', 'tunnel']]) {
+		test(`relay reconnects keep the account that the connection was established with after another account signs in (scopes: ${connectedScopes.join(', ')})`, async () => {
+			const session = (account: string, scopes: string[]): AuthenticationSession => ({ id: account, accessToken: `${account}-token`, scopes, account: { id: account, label: account } });
+			const sessions = [session('connected', connectedScopes)];
+			const tokens: string[] = [];
+			const transportFactories: (() => IClientTransport)[] = [];
+			let factory: IRemoteAgentHostConnectionFactory | undefined;
+			const service = createService((_provider, scopes) => Array.isArray(scopes) ? sessions.filter(session => session.scopes.join() === scopes.join()) : sessions, new class extends mock<IChannel>() {
+				override async call<T>(command: string, args: readonly string[]): Promise<T> {
+					if (command !== 'connect') {
+						return undefined as T;
+					}
+					tokens.push(args[0]);
+					return { connectionId: `relay-${tokens.length}`, address: 'tunnel:cached', selected: { serverType: 'editor' } } as T;
+				}
+				override listen<T>(): Event<T> {
+					return Event.None;
+				}
+			}(), {
+				onFactory: value => { factory = value; },
+				createSession: async (_provider, scopes) => {
+					sessions.push(session('signed-in', [...scopes]));
+					return sessions[1];
+				},
+				instantiationService: {
+					createInstance: (_ctor: unknown, ...args: unknown[]) => {
+						transportFactories.push(args[1] as () => IClientTransport);
+						return { dispose() { } };
+					},
+				},
+			});
+			service.cacheTunnel({ tunnelId: 'cached', clusterId: 'cluster', name: 'Cached', tags: [], protocolVersion: 6, hostConnectionCount: 1 }, 'github');
+			assert.ok(factory);
+			const { transportDisposable } = await factory.createConnection(factory.entries.get()[0], { userInitiated: true });
+			assert.ok(transportDisposable);
+			store.add(transportDisposable);
+			await service.signIn('github');
+			// The first transport adopts the connection that was just established, the second one reconnects the relay.
+			for (let i = 0; i < 2; i++) {
+				await store.add(transportFactories[0]()).connect();
+			}
+			assert.deepStrictEqual(tokens, ['connected-token', 'connected-token']);
+		});
+	}
 
 	test('uses the explicit provider for listing, deletion and refresh after another provider was cached', async () => {
 		const sessions = new Map<string, AuthenticationSession>();

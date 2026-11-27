@@ -67,7 +67,7 @@ export class NullEditArcReporterService implements IEditArcReporterService {
 
 interface IResourceState extends IDisposable {
 	readonly resource: URI;
-	readonly gitWorkingDirectory: Promise<URI>;
+	readonly repositoryRoot: Promise<URI | undefined>;
 	readonly reporters: Set<EditArcReporter>;
 	logicalText: string;
 	isDisposing: boolean;
@@ -143,7 +143,7 @@ export class EditArcReporterService extends Disposable implements IEditArcReport
 
 			state ??= this._createResourceState(key, resource, params.afterText);
 			const resourceState = state;
-			const reporter: EditArcReporter = new EditArcReporter(params, this._sampleScheduleMs, resourceState.gitWorkingDirectory, this._gitService, this._telemetryService, this._logService, (timeDelayMs): Promise<void> => this.reconcileAndSample(resourceState, reporter, timeDelayMs), () => {
+			const reporter: EditArcReporter = new EditArcReporter(params, this._sampleScheduleMs, resourceState.repositoryRoot, this._gitService, this._telemetryService, this._logService, (timeDelayMs): Promise<void> => this.reconcileAndSample(resourceState, reporter, timeDelayMs), () => {
 				resourceState.reporters.delete(reporter);
 				this._reporterCount--;
 				this._retainedCharacters -= retainedCharacters;
@@ -162,7 +162,7 @@ export class EditArcReporterService extends Disposable implements IEditArcReport
 		const fileDirectory = URI.file(dirname(resource.fsPath));
 		const state: IResourceState = {
 			resource,
-			gitWorkingDirectory: this._gitService.getRepositoryRoot(fileDirectory).then(repositoryRoot => repositoryRoot ?? fileDirectory),
+			repositoryRoot: this._gitService.getRepositoryRoot(fileDirectory),
 			logicalText,
 			reporters: new Set(),
 			isDisposing: false,
@@ -284,7 +284,7 @@ class EditArcReporter extends Disposable {
 	constructor(
 		private readonly _params: IEditArcReporterLaunchParams,
 		private readonly _sampleScheduleMs: readonly number[],
-		private readonly _gitWorkingDirectory: Promise<URI>,
+		private readonly _repositoryRoot: Promise<URI | undefined>,
 		private readonly _gitService: IAgentHostGitService,
 		private readonly _telemetryService: ITelemetryService,
 		private readonly _logService: ILogService,
@@ -392,8 +392,12 @@ class EditArcReporter extends Disposable {
 	}
 
 	private async _getCurrentBranchName(): Promise<string | undefined> {
-		const workingDirectory = await this._gitWorkingDirectory;
-		return this._gitService.getCurrentBranchName?.(workingDirectory) ?? this._gitService.getCurrentBranch(workingDirectory);
+		const repositoryRoot = await this._repositoryRoot;
+		if (!repositoryRoot) {
+			// A file outside a repository has no branch; running git there fails, and logs a warning, on every sample.
+			return undefined;
+		}
+		return this._gitService.getCurrentBranchName?.(repositoryRoot) ?? this._gitService.getCurrentBranch(repositoryRoot);
 	}
 }
 

@@ -1271,7 +1271,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		createTerminalForEntry: async () => undefined,
 		profiles: observableValue('test', []),
 		getProfileForConnection: () => undefined,
-		registerEntry: () => ({ dispose() { } }),
+		registerEntry: () => ({ setName() { }, dispose() { } }),
 		...agentHostTerminalServiceOverride,
 	});
 	instantiationService.stub(IAgentHostSessionWorkingDirectoryResolver, {
@@ -9518,7 +9518,7 @@ suite('AgentHostChatContribution', () => {
 
 		test('captures a multiline initial message from the actual source turn rather than the unsent composer selection', async () => {
 			const prompt = 'first line\nsecond line';
-			const prefix = '/fork prompt ';
+			const prefix = '/fork ';
 			const result = await forkSession('Ignored', 'Forked', {
 				text: prompt,
 				textOffset: prefix.length,

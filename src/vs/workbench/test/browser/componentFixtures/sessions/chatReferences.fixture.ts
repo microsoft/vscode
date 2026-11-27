@@ -274,8 +274,9 @@ async function renderReferences(ctx: ComponentFixtureContext, scenario: Scenario
 	toolbar.style.top = referenceList ? '330px' : scenario === 'single' ? '52px' : resourcePreview ? '450px' : dedicatedCollection ? '200px' : `${toolbar.offsetTop}px`;
 	toolbar.style.bottom = 'auto';
 
-	// Icon fonts must be ready before the dropdown measures row widths.
-	await Promise.all(Array.from(dom.getWindow(container).document.fonts, font => font.load()));
+	// Icon fonts must be ready before the dropdown measures row widths. A face whose local
+	// font isn't installed fails to load, and text falls back to the next font in its stack.
+	await Promise.allSettled(Array.from(dom.getWindow(container).document.fonts, font => font.load()));
 	if (referenceList || scenario === 'pullRequests') {
 		const collection = scenario === 'pullRequests' ? 'Pull Requests' : 'References';
 		Array.from(container.querySelectorAll<HTMLElement>('.chat-dropdown-pill-button')).find(button => button.textContent?.includes(collection))!.click();

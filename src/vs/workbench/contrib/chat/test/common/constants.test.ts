@@ -19,12 +19,11 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService, Workspace, toWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
-import { ChatConfiguration, ChatPermissionLevel, CopilotHarnessIntroductionMode, getChatPermissionLevelFromDefaultConfiguration, getComputedDefaultSessionResource, getComputedDefaultSessionType, getCopilotHarnessIntroductionMode, getDefaultNewChatSessionResource, getDefaultNewChatSessionType, getDefaultNewChatSessionTypeAndReason, getDefaultNewChatSessionTypeAndReasonFromServices, getLocalChatFallbackRefusal, getLocalFallbackSessionTypeSelectionReason, IDefaultNewChatSessionTypeOptions, isEditorLocalAgentEnabled, isLocalAgentHostSessionTypeDisabledByPolicy, isNewChatSessionTypeUsable, isVisibleEditorChatSessionType, recordUserSelectedSessionType } from '../../common/constants.js';
+import { ChatConfiguration, ChatPermissionLevel, CopilotHarnessIntroductionMode, getChatPermissionLevelFromDefaultConfiguration, getComputedDefaultSessionType, getCopilotHarnessIntroductionMode, getDefaultNewChatSessionType, getDefaultNewChatSessionTypeAndReason, getDefaultNewChatSessionTypeAndReasonFromServices, getLocalChatFallbackRefusal, getLocalFallbackSessionTypeSelectionReason, IDefaultNewChatSessionTypeOptions, isEditorLocalAgentEnabled, isLocalAgentHostSessionTypeDisabledByPolicy, isNewChatSessionTypeUsable, isVisibleEditorChatSessionType, recordUserSelectedSessionType } from '../../common/constants.js';
 import { localChatSessionType, SessionType, IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { MockChatSessionsService } from './mockChatSessionsService.js';
 import { TestContextService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { getRememberedSessionType, storeUserSelectedSessionType } from '../../common/chatSessionTypePreference.js';
-import { getChatSessionType } from '../../common/model/chatUri.js';
 import { getAgentHostPolicyGaps } from '../../../../../platform/agentHost/common/agentHostPolicyReadiness.js';
 import { Extensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -1073,26 +1072,6 @@ suite('ChatConfiguration defaults', () => {
 		});
 	});
 
-	test('default session resource follows the agent host default', () => {
-		const configurationService = new TestConfigurationService({
-			[ChatConfiguration.DefaultToCopilotHarness]: true,
-		});
-		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot);
-		const storageService = disposables.add(new TestStorageService());
-
-		assert.deepStrictEqual({
-			computedWithAgentHost: getChatSessionType(getComputedDefaultSessionResource(configurationService, chatSessionsService, localWorkspace, true)),
-			computedWithoutAgentHost: getChatSessionType(getComputedDefaultSessionResource(configurationService, chatSessionsService, localWorkspace, false)),
-			defaultNewWithAgentHost: getChatSessionType(getDefaultNewChatSessionResource(configurationService, chatSessionsService, storageService, localWorkspace, true)),
-			defaultNewWithoutAgentHost: getChatSessionType(getDefaultNewChatSessionResource(configurationService, chatSessionsService, storageService, localWorkspace, false)),
-		}, {
-			computedWithAgentHost: SessionType.AgentHostCopilot,
-			computedWithoutAgentHost: localChatSessionType,
-			defaultNewWithAgentHost: SessionType.AgentHostCopilot,
-			defaultNewWithoutAgentHost: localChatSessionType,
-		});
-	});
-
 	test('virtual workspace follows the Copilot harness default and rejects other local harnesses', () => {
 		const configurationService = new TestConfigurationService({
 			[ChatConfiguration.DefaultToCopilotHarness]: true,
@@ -1393,10 +1372,8 @@ suite('ChatConfiguration defaults', () => {
 
 		assert.deepStrictEqual({
 			remembered: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true, undefined, true),
-			resource: getChatSessionType(getDefaultNewChatSessionResource(configurationService, chatSessionsService, storageService, localWorkspace, true, undefined, true)),
 		}, {
 			remembered: SessionType.AgentHostCopilot,
-			resource: SessionType.AgentHostCopilot,
 		});
 	});
 

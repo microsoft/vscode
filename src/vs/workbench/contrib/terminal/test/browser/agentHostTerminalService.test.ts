@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, IReference } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -21,7 +21,7 @@ import { TerminalClaimKind } from '../../../../../platform/agentHost/common/stat
 import type { ClientAnnotationsAction, IRootConfigChangedAction, SessionAction, TerminalAction } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
-import { IShellLaunchConfig, ITerminalChildProcess } from '../../../../../platform/terminal/common/terminal.js';
+import { IExtensionTerminalProfile, IShellLaunchConfig, ITerminalChildProcess } from '../../../../../platform/terminal/common/terminal.js';
 import { AgentHostPty } from '../../browser/agentHostPty.js';
 import { AgentHostTerminalService } from '../../browser/agentHostTerminalService.js';
 import { ICreateTerminalOptions, ITerminalChatService, ITerminalInstance, ITerminalService } from '../../browser/terminal.js';
@@ -130,6 +130,7 @@ suite('AgentHostTerminalService', () => {
 	let terminalService: TestTerminalService;
 	let connection: TestAgentConnection;
 	let profileProviders: Map<string, ITerminalProfileProvider>;
+	let contributedProfiles: IExtensionTerminalProfile[];
 	let remoteHosts: IRemoteAgentHostConnectionInfo[];
 	let service: AgentHostTerminalService;
 
@@ -137,6 +138,7 @@ suite('AgentHostTerminalService', () => {
 		terminalService = new TestTerminalService(store);
 		connection = new TestAgentConnection();
 		profileProviders = new Map();
+		contributedProfiles = [];
 		remoteHosts = [];
 		service = store.add(new AgentHostTerminalService(
 			terminalService,
@@ -144,12 +146,16 @@ suite('AgentHostTerminalService', () => {
 				override registerAhpCommandSource() { return Disposable.None; }
 				override registerTerminalInstanceWithToolSession() { }
 			},
+			// Like the real service, providers are keyed by id.
 			new class extends mock<ITerminalProfileService>() {
 				override registerTerminalProfileProvider(_extensionIdentifier: string, id: string, provider: ITerminalProfileProvider): IDisposable {
 					profileProviders.set(id, provider);
-					return Disposable.None;
+					return toDisposable(() => profileProviders.delete(id));
 				}
-				override registerInternalContributedProfile(): IDisposable { return Disposable.None; }
+				override registerInternalContributedProfile(profile: IExtensionTerminalProfile): IDisposable {
+					contributedProfiles.push(profile);
+					return toDisposable(() => contributedProfiles.splice(contributedProfiles.indexOf(profile), 1));
+				}
 			},
 			new class extends mock<IQuickInputService>() { },
 			new class extends NullLogService { readonly _logBrand = undefined; },
@@ -182,6 +188,23 @@ suite('AgentHostTerminalService', () => {
 			{ name: undefined, icon: undefined, hostLabel: isWeb ? undefined : 'devbox', isRemotePty: true },
 			{ name: undefined, icon: ThemeIcon.fromId(Codicon.chatSparkle.id), hostLabel: isWeb ? undefined : 'buildbox', isRemotePty: true },
 		]);
+	});
+
+	test('a renamed host renames its profile, which still opens a terminal on it', async () => {
+		const registration = store.add(service.registerEntry({ name: 'quick-ocean-0ns5qbp', address: 'tunnel:quick-ocean-0ns5qbp', getConnection: () => connection }));
+
+		registration.setName('agents-3');
+		await profileProviders.get('tunnel:quick-ocean-0ns5qbp')?.createContributedTerminalProfile({});
+
+		assert.deepStrictEqual({
+			contributed: contributedProfiles.map(profile => profile.title),
+			profiles: service.profiles.get().map(profile => profile.title),
+			createdTerminals: terminalService.createdConfigs.length,
+		}, {
+			contributed: ['Agent Host (agents-3)'],
+			profiles: ['Agent Host (agents-3)'],
+			createdTerminals: 1,
+		});
 	});
 
 	test('instance disposal locally disposes a created PTY without deleting the host terminal', async () => {

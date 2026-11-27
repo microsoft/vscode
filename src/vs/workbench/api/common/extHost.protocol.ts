@@ -63,6 +63,7 @@ import { ProvidedPortAttributes, TunnelCreationOptions, TunnelOptions, TunnelPri
 import { ITunnelProxyInfo } from '../../../platform/tunnel/common/tunnelProxy.js';
 import { EditSessionIdentityMatch } from '../../../platform/workspace/common/editSessions.js';
 import { WorkspaceTrustRequestOptions } from '../../../platform/workspace/common/workspaceTrust.js';
+import { WorkbenchMode } from '../../../platform/workspace/common/workspace.js';
 import { SaveReason } from '../../common/editor.js';
 import { IRevealOptions, ITreeItem, IViewBadge } from '../../common/views.js';
 import { CallHierarchyItem } from '../../contrib/callHierarchy/common/callHierarchy.js';
@@ -128,7 +129,7 @@ export interface IWorkspaceFolderLocationsDto {
 	locations: IWorkspaceFolderLocationDto[];
 }
 
-export interface IWorkspaceData extends IStaticWorkspaceData {
+export interface IWorkspaceData extends Omit<IStaticWorkspaceData, 'mode'> {
 	folders: { uri: UriComponents; name: string; index: number }[];
 }
 
@@ -359,8 +360,15 @@ export interface ITextDocumentShowOptions {
 	selection?: IRange;
 }
 
+export interface IWorkspaceEditStepDto {
+	readonly edit: IWorkspaceEditDto;
+	readonly undoStopBefore?: boolean;
+	readonly undoStopAfter?: boolean;
+}
+
 export interface MainThreadBulkEditsShape extends IDisposable {
-	$tryApplyWorkspaceEdit(workspaceEditDto: SerializableObjectWithBuffers<IWorkspaceEditDto>, undoRedoGroupId?: number, isRefactoring?: boolean): Promise<boolean>;
+	$tryApplyWorkspaceEdit(workspaceEditDto: SerializableObjectWithBuffers<IWorkspaceEditDto>, undoRedoGroupId?: number, isRefactoring?: boolean, undoStopBefore?: boolean, undoStopAfter?: boolean): Promise<boolean>;
+	$tryApplyWorkspaceEditSequence(stepsDto: SerializableObjectWithBuffers<IWorkspaceEditStepDto[]>): Promise<boolean>;
 }
 
 export interface MainThreadTextEditorsShape extends IDisposable {
@@ -2549,12 +2557,14 @@ export interface IModelAddedData {
 	EOL: string;
 	languageId: string;
 	isDirty: boolean;
+	isReadonly?: boolean;
 	encoding: string;
 }
 export interface ExtHostDocumentsShape {
 	$acceptModelLanguageChanged(strURL: UriComponents, newLanguageId: string): void;
 	$acceptModelSaved(strURL: UriComponents): void;
 	$acceptDirtyStateChanged(strURL: UriComponents, isDirty: boolean): void;
+	$acceptReadonlyStateChanged(strURL: UriComponents, isReadonly: boolean): void;
 	$acceptEncodingChanged(strURL: UriComponents, encoding: string): void;
 	$acceptModelChanged(strURL: UriComponents, e: ISerializedModelContentChangedEvent, isDirty: boolean): void;
 }
@@ -2663,8 +2673,11 @@ export interface ExtHostTreeViewsShape {
 }
 
 export interface ExtHostWorkspaceShape {
-	$initializeWorkspace(workspace: IWorkspaceData | null, trusted: boolean): void;
-	$acceptWorkspaceData(workspace: IWorkspaceData | null): void;
+	/**
+	 * @param mode The window's mode, sent separately because a window without workspace data can still be in Agents mode.
+	 */
+	$initializeWorkspace(workspace: IWorkspaceData | null, mode: WorkbenchMode, trusted: boolean): void;
+	$acceptWorkspaceData(workspace: IWorkspaceData | null, mode: WorkbenchMode): void;
 	$acceptWorkspaceFolderLocations(data: IWorkspaceFolderLocationsDto[]): void;
 	$handleTextSearchResult(result: search.IRawFileMatch2, requestId: number): void;
 	$onDidGrantWorkspaceTrust(): void;

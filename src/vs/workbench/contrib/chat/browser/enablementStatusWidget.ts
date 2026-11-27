@@ -66,9 +66,3 @@ export const pluginEnablementLabels = {
 	disabledProfile: localize('pluginDisabled', "This plugin is disabled."),
 	disabledWorkspace: localize('pluginDisabledWorkspace', "This plugin is disabled for this workspace."),
 };
-
-/** Default labels for MCP server enablement status. */
-export const mcpServerEnablementLabels = {
-	disabledProfile: localize('mcpServerDisabled', "This MCP server is disabled."),
-	disabledWorkspace: localize('mcpServerDisabledWorkspace', "This MCP server is disabled for this workspace."),
-};

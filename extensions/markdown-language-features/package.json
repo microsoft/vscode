@@ -15,7 +15,9 @@
     "documentSyntaxHighlighting",
     "externalUriOpener",
     "linkPresentation",
-    "textEditorDiffInformation"
+    "textDocumentReadonly",
+    "textEditorDiffInformation",
+    "workspaceEditUndoStops"
   ],
   "engines": {
     "vscode": "^1.70.0"
@@ -154,6 +156,24 @@
       {
         "command": "markdown.editor.rename",
         "title": "%markdown.editor.rename%",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'"
+      },
+      {
+        "command": "markdown.editor.zoomIn",
+        "title": "%markdown.editor.zoomIn%",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'"
+      },
+      {
+        "command": "markdown.editor.zoomOut",
+        "title": "%markdown.editor.zoomOut%",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'"
+      },
+      {
+        "command": "markdown.editor.resetZoom",
+        "title": "%markdown.editor.resetZoom%",
         "category": "Markdown Editor",
         "enablement": "activeCustomEditorId == 'vscode.markdown.editor'"
       },
@@ -749,6 +769,18 @@
         },
         {
           "command": "markdown.editor.rename",
+          "when": "activeCustomEditorId == 'vscode.markdown.editor'"
+        },
+        {
+          "command": "markdown.editor.zoomIn",
+          "when": "activeCustomEditorId == 'vscode.markdown.editor'"
+        },
+        {
+          "command": "markdown.editor.zoomOut",
+          "when": "activeCustomEditorId == 'vscode.markdown.editor'"
+        },
+        {
+          "command": "markdown.editor.resetZoom",
           "when": "activeCustomEditorId == 'vscode.markdown.editor'"
         },
         {
@@ -1611,6 +1643,14 @@
             "description": "%configuration.markdown.editor.highlightActiveBlock%",
             "scope": "resource"
           },
+          "markdown.editor.zoom": {
+            "type": "number",
+            "default": 100,
+            "minimum": 25,
+            "maximum": 400,
+            "description": "%configuration.markdown.editor.zoom%",
+            "scope": "resource"
+          },
           "markdown.editor.initialMode": {
             "type": "string",
             "enum": [
@@ -2154,7 +2194,7 @@
   },
   "dependencies": {
     "@vscode/extension-telemetry": "^0.9.8",
-    "@vscode/markdown-editor": "0.0.2-184",
+    "@vscode/markdown-editor": "0.0.2-185",
     "@vscode/observables": "^0.1.1-0",
     "@vscode/web-editors": "^0.0.2-150",
     "dompurify": "^3.4.10",

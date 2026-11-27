@@ -13,6 +13,7 @@ import { Memento } from '../../../common/memento.js';
 import { CustomEditorDescriptor, CustomEditorInfo, CustomEditorPriority, CustomEditorPriorityInfo } from './customEditor.js';
 import { customEditorsExtensionPoint, ICustomEditorsExtensionPoint } from './extensionPoint.js';
 import { RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
+import { isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { IExtensionPointUser } from '../../../services/extensions/common/extensionsRegistry.js';
 
 type StoredCustomEditorPriorityInfo = Omit<CustomEditorPriorityInfo, 'diff'> & {
@@ -65,6 +66,7 @@ export class ContributedCustomEditors extends Disposable {
 					providerDisplayName: extension.description.isBuiltin ? nls.localize('builtinProviderDisplayName', "Built-in") : extension.description.displayName || extension.description.identifier.value,
 					selector: webviewEditorContribution.selector || [],
 					priority,
+					accessibilityHelpContent: isProposedApiEnabled(extension.description, 'contribAccessibilityHelpContent') ? webviewEditorContribution.accessibilityHelpContent : undefined,
 				}));
 			}
 		}
@@ -111,6 +113,7 @@ function normalizeStoredCustomEditorDescriptor(descriptor: StoredCustomEditorDes
 			editor: descriptor.priority.editor,
 			diff: descriptor.priority.diff ?? RegisteredEditorPriority.explicit,
 		},
+		accessibilityHelpContent: descriptor.accessibilityHelpContent,
 	};
 }
 

@@ -1,9 +1,9 @@
 parameters:
   # Whether to include the steps that need a privileged service connection
-  # (source map upload). Only product-build-ci.yml sets this to false.
+  # (source map upload). Required: only builds of main and release/*
+  # branches pass true.
   - name: VSCODE_PRIVILEGED_CONNECTIONS
     type: boolean
-    default: true
   # Whether to fail on an unreviewed contribution or forbidden module in the mobile web
   # package (see build/next/MOBILE.md). Product builds keep the mobile package best-effort
   # in their Web stage, so only product-build-ci.yml sets this.

@@ -24,6 +24,7 @@ import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIde
 import { VisibleSessions } from '../../../workbench/services/sessions/browser/visibleSessions.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ChatGroupView } from '../../../workbench/contrib/sessions/browser/parts/chatGroupView.js';
+import { SessionGridRequest } from '../../../workbench/services/sessions/browser/sessionsPartService.js';
 
 suite('Sessions - Sessions Part', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -179,6 +180,28 @@ suite('Sessions - Sessions Part', () => {
 		assert.deepStrictEqual({ split, resized, moved: content.getSessionView('c') !== source, after: firstGroupShare() }, {
 			split: 0.5, resized: 0.4, moved: true, after: 0.4,
 		});
+	});
+
+	test('even sizes even the chats split in a session as well', async () => {
+		const { part, content } = createSessionsPartTestHarness(store);
+		const grid = store.add(new VisibleSessions(session => session.mainChat.get(), () => [], () => [], () => { }, new class extends mock<IUriIdentityService>() {
+			override readonly extUri = extUriBiasedIgnorePathCase;
+		}));
+		const session = createTestActiveSession('c', true, { chatCount: 2 });
+		grid.restoreGrid([{ session, sticky: false }], 0);
+		const render = (request?: SessionGridRequest) => content.updatePanes(grid.panes.get(), grid.activePane.get(), grid.getRenderedGridSlots(), request);
+		render();
+		part.layout(1200, 800, 0, 0);
+		content.getSessionView('c')!.splitActiveChat('right');
+		await timeout(0);
+		const groupsView = Reflect.get(content.getSessionView('c')!, '_groupsView');
+		const groupsGrid = Reflect.get(groupsView, '_grid') as SerializableGrid<ChatGroupView>;
+		const first = (Reflect.get(groupsView, '_groups') as { readonly view: ChatGroupView }[])[0].view;
+		groupsGrid.resizeView(first, { width: groupsGrid.width * 0.4 });
+		const share = () => Math.round(groupsGrid.getViewSize(first).width / groupsGrid.width * 10) / 10;
+		const before = share();
+		render({ type: 'even' });
+		assert.deepStrictEqual({ before, even: share() }, { before: 0.4, even: 0.5 });
 	});
 
 	test('session gaps omit separators while compact density preserves themed separators', () => {

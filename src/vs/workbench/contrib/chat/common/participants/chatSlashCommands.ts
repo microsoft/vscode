@@ -10,7 +10,7 @@ import { ContextKeyExpression } from '../../../../../platform/contextkey/common/
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IProgress } from '../../../../../platform/progress/common/progress.js';
 import { IChatMessage } from '../languageModels.js';
-import { IChatFollowup, IChatProgress, IChatResponseProgressFileTreeData, IChatSendRequestOptions } from '../chatService/chatService.js';
+import { IChatFollowup, IChatProgress, IChatSendRequestOptions } from '../chatService/chatService.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ChatAgentLocation, ChatModeKind } from '../constants.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -73,9 +73,6 @@ export interface IChatSlashCommandExecutionContext {
 	readonly input: string;
 }
 
-export interface IChatSlashFragment {
-	content: string | { treeData: IChatResponseProgressFileTreeData };
-}
 /**
  * A silent immediate command may retain ownership of its source draft while
  * an asynchronous action completes. The action must restore or clear that
