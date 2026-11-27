@@ -185,15 +185,17 @@ suite('AutomationImportDropTarget', () => {
 			const overlay = root.querySelector('.automation-import-drop-overlay')!;
 			const label = overlay.querySelector('.drop-overlay-label')!.getBoundingClientRect();
 			const { clientWidth: width, clientHeight: height } = scroller;
+			// Within a pixel: centering a label in an odd width, such as beside a classic scrollbar, lands on a half pixel.
+			const isNear = (value: number, expected: number) => Math.abs(value - expected) <= 1;
 			return {
 				actual: {
 					overlay: rect(overlay),
-					labelCenter: { x: Math.round(label.left + label.width / 2), y: Math.round(label.top + label.height / 2) },
+					labelCentered: { x: isNear(label.left + label.width / 2, width / 2), y: isNear(label.top + label.height / 2, height / 2) },
 					scrollSize: { width: scroller.scrollWidth, height: scroller.scrollHeight },
 				},
 				expected: {
 					overlay: { top: 0, left: 0, width, height },
-					labelCenter: { x: Math.round(width / 2), y: Math.round(height / 2) },
+					labelCentered: { x: true, y: true },
 					scrollSize: { width, height: 1000 },
 				},
 			};
