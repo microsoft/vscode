@@ -6390,7 +6390,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					...subgroups.flatMap(subgroup => subgroup.subtreeSessions),
 					...(nestedSectionsByGroup.get(group.id) ?? []).flatMap(section => section.sessions),
 				],
-				isEmpty: subgroups.length === 0
+				isEmpty: groupTree.getSubgroups(group.id).length === 0
 					&& this._sessionGroupsService.getSessionIdsInGroup(group.id).length === 0
 					&& this._sessionGroupsService.getSectionIdsInGroup(group.id).length === 0,
 				editing: group.id === this._editingGroupId,
@@ -9718,10 +9718,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 			groups.push(['1_state', [this.getMarkAllSessionsReadAction(() => {
 				// The group's branch as displayed: its separately pinned subgroups and sections are listed in Pinned instead.
 				const pinned = this._renderedPinnedHeaderIds;
+				const groupTree = this._sessionGroupsService.getTree();
 				const subtree: ISessionGroup[] = [];
 				const visit = (group: ISessionGroup) => {
 					subtree.push(group);
-					for (const subgroup of this._sessionGroupsService.getTree().getSubgroups(group.id)) {
+					for (const subgroup of groupTree.getSubgroups(group.id)) {
 						if (!pinned.has(getSessionGroupSectionId(subgroup.id))) {
 							visit(subgroup);
 						}

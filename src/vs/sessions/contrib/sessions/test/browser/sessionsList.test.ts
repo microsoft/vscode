@@ -9078,6 +9078,23 @@ suite('Sessions - SessionsList', () => {
 			}, { pinned: [], level: '1', focused: true });
 		});
 
+		test('a group whose only subgroup is pinned is not offered as empty', () => {
+			const { harness, list, container } = render(SessionsGrouping.Workspace, new Map(), true);
+			harness.instantiationService.get(ISessionGroupsService).removeFromGroup(harness.managementService.sessions[1].sessionId);
+			list.setHeaderPinned(`group:${urgent.id}`, true);
+			const createMenu = sinon.spy(harness.instantiationService.get(IMenuService), 'createMenu');
+			disposables.add(toDisposable(() => createMenu.restore()));
+			rowOf(container, 'Hotfixes').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+
+			assert.deepStrictEqual({
+				outline: outline(list.getTreeSnapshot())[0],
+				isEmpty: createMenu.lastCall.args[1].getContextKeyValue('sessionGroup.isEmpty'),
+			}, {
+				outline: { pinned: [`group:${urgent.id}`] },
+				isEmpty: false,
+			});
+		});
+
 		test('pins and unpins headers from their context menus and by dragging them in and out of Pinned', async () => {
 			const { harness, container, contextMenus } = render(SessionsGrouping.Workspace, new Map(), true);
 			const pinnedIds = harness.instantiationService.get(ISessionsListModelService).pinnedSectionIds;
