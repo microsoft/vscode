@@ -863,6 +863,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			.getConfiguration('git', Uri.file(repository.root))
 			.get<number>('detectWorktreesLimit') as number;
 
+		let hasShownSubmodulesLimitWarning = false;
 		const checkForSubmodules = () => {
 			if (!shouldDetectSubmodules) {
 				this.logger.trace('[Model][open] Automatic detection of git submodules is not enabled.');
@@ -870,8 +871,12 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			}
 
 			if (repository.submodules.length > submodulesLimit) {
-				window.showWarningMessage(l10n.t('The "{0}" repository has {1} submodules which won\'t be opened automatically. You can still open each one individually by opening a file within.', path.basename(repository.root), repository.submodules.length), { notificationId: 'git.submoduleLimit' });
-				statusListener.dispose();
+				if (!hasShownSubmodulesLimitWarning) {
+					hasShownSubmodulesLimitWarning = true;
+					window.showWarningMessage(l10n.t('The "{0}" repository has {1} submodules which won\'t be opened automatically. You can still open each one individually by opening a file within.', path.basename(repository.root), repository.submodules.length), { notificationId: 'git.submoduleLimit' });
+				}
+			} else {
+				hasShownSubmodulesLimitWarning = false;
 			}
 
 			repository.submodules
@@ -883,6 +888,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 				});
 		};
 
+		let hasShownWorktreesLimitWarning = false;
 		const checkForWorktrees = () => {
 			if (!shouldDetectWorktrees) {
 				this.logger.trace('[Model][open] Automatic detection of git worktrees is not enabled.');
@@ -895,8 +901,12 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			}
 
 			if (repository.worktrees.length > worktreesLimit) {
-				window.showWarningMessage(l10n.t('The "{0}" repository has {1} worktrees which won\'t be opened automatically. You can still open each one individually by opening a file within.', path.basename(repository.root), repository.worktrees.length), { notificationId: 'git.worktreeLimit' });
-				statusListener.dispose();
+				if (!hasShownWorktreesLimitWarning) {
+					hasShownWorktreesLimitWarning = true;
+					window.showWarningMessage(l10n.t('The "{0}" repository has {1} worktrees which won\'t be opened automatically. You can still open each one individually by opening a file within.', path.basename(repository.root), repository.worktrees.length), { notificationId: 'git.worktreeLimit' });
+				}
+			} else {
+				hasShownWorktreesLimitWarning = false;
 			}
 
 			repository.worktrees
