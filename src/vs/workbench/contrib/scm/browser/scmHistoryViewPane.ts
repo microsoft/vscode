@@ -35,7 +35,7 @@ import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/lis
 import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { Action2, IMenuService, isIMenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { Sequencer, Throttler } from '../../../../base/common/async.js';
+import { DeferredPromise, Sequencer, Throttler } from '../../../../base/common/async.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ActionRunner, IAction, IActionRunner } from '../../../../base/common/actions.js';
 import { delta, groupBy } from '../../../../base/common/arrays.js';
@@ -1148,8 +1148,10 @@ type HistoryItemRefsFilter = 'all' | 'auto' | string[];
 type RepositoryState = {
 	viewModels: SCMHistoryItemViewModelTreeElement[];
 	historyItemsFilter: ISCMHistoryItemRef[];
+	historyItemsCount: number;
 	mergeBase: string | undefined;
 	loadMore: boolean | string;
+	additionalHistoryItemRef?: string;
 };
 
 class SCMHistoryViewModel extends Disposable {
@@ -1269,7 +1271,15 @@ class SCMHistoryViewModel extends Disposable {
 			.find(viewModel => viewModel.historyItemViewModel.historyItem.id === historyItemRef?.revision);
 	}
 
-	loadMore(cursor?: string): void {
+	getHistoryItemTreeElement(historyItemId: string): SCMHistoryItemViewModelTreeElement | undefined {
+		const repository = this.repository.get();
+		return repository
+			? this._repositoryState.get(repository)?.viewModels
+				.find(viewModel => viewModel.historyItemViewModel.historyItem.id === historyItemId)
+			: undefined;
+	}
+
+	loadMore(cursor?: string, additionalHistoryItemRef?: string): void {
 		const repository = this.repository.get();
 		if (!repository) {
 			return;
@@ -1280,7 +1290,7 @@ class SCMHistoryViewModel extends Disposable {
 			return;
 		}
 
-		this._repositoryState.set(repository, { ...state, loadMore: cursor ?? true });
+		this._repositoryState.set(repository, { ...state, loadMore: cursor ?? true, additionalHistoryItemRef });
 	}
 
 	async getHistoryItems(): Promise<SCMHistoryItemViewModelTreeElement[]> {
@@ -1303,19 +1313,46 @@ class SCMHistoryViewModel extends Disposable {
 					vm.historyItemViewModel.kind !== 'incoming-changes' &&
 					vm.historyItemViewModel.kind !== 'outgoing-changes')
 				.map(vm => vm.historyItemViewModel.historyItem) ?? [];
+			const historyItemIds = new Set(historyItems.map(item => item.id));
+			let historyItemsCount = state?.historyItemsCount ?? 0;
 
 			const historyItemRefs = state?.historyItemsFilter ??
 				await this._resolveHistoryItemFilter(repository, historyProvider);
 
 			const limit = clamp(this._configurationService.getValue<number>('scm.graph.pageSize'), 1, 1000);
 			const historyItemRefIds = historyItemRefs.map(ref => ref.revision ?? ref.id);
+			if (state?.additionalHistoryItemRef && !historyItemIds.has(state.additionalHistoryItemRef)) {
+				const additionalHistoryItems = await historyProvider.provideHistoryItems({
+					historyItemRefs: [state.additionalHistoryItemRef],
+					limit: 1,
+				}) ?? [];
+				for (const historyItem of additionalHistoryItems) {
+					if (!historyItemIds.has(historyItem.id)) {
+						historyItems.push(historyItem);
+						historyItemIds.add(historyItem.id);
+					}
+				}
+			}
 
-			do {
+			let loadNextPage = !state
+				|| state.loadMore === true
+				|| (typeof state.loadMore === 'string' && !historyItemIds.has(state.loadMore));
+			while (loadNextPage) {
 				// Fetch the next page of history items
-				historyItems.push(...(await historyProvider.provideHistoryItems({
-					historyItemRefs: historyItemRefIds, limit, skip: historyItems.length
-				}) ?? []));
-			} while (typeof state?.loadMore === 'string' && !historyItems.find(item => item.id === state?.loadMore));
+				const page = await historyProvider.provideHistoryItems({
+					historyItemRefs: historyItemRefIds, limit, skip: historyItemsCount
+				}) ?? [];
+				historyItemsCount += page.length;
+				for (const historyItem of page) {
+					if (!historyItemIds.has(historyItem.id)) {
+						historyItems.push(historyItem);
+						historyItemIds.add(historyItem.id);
+					}
+				}
+				loadNextPage = page.length > 0
+					&& typeof state?.loadMore === 'string'
+					&& !historyItemIds.has(state.loadMore);
+			}
 
 			// Compute the merge base
 			const mergeBase = historyItemRef && historyItemRemoteRef && state?.mergeBase === undefined
@@ -1350,7 +1387,7 @@ class SCMHistoryViewModel extends Disposable {
 					type: 'historyItemViewModel'
 				}) satisfies SCMHistoryItemViewModelTreeElement);
 
-			state = { historyItemsFilter: historyItemRefs, viewModels, mergeBase, loadMore: false };
+			state = { historyItemsFilter: historyItemRefs, historyItemsCount, viewModels, mergeBase, loadMore: false };
 			this._repositoryState.set(repository, state);
 
 			this._scmHistoryItemCountCtx.set(viewModels.length);
@@ -1685,6 +1722,7 @@ export class SCMHistoryViewPane extends ViewPane {
 	private readonly _treeLoadMoreSequencer = new Sequencer();
 	private readonly _refreshThrottler = new Throttler();
 	private readonly _updateChildrenThrottler = new Throttler();
+	private _bodyReady = new DeferredPromise<void>();
 
 	private readonly _scmProviderCtx: IContextKey<string | undefined>;
 	private readonly _scmCurrentHistoryItemRefHasRemote: IContextKey<boolean>;
@@ -1768,6 +1806,7 @@ export class SCMHistoryViewPane extends ViewPane {
 		this.onDidChangeBodyVisibility(async visible => {
 			if (!visible) {
 				this._visibilityDisposables.clear();
+				this._bodyReady = new DeferredPromise<void>();
 				return;
 			}
 
@@ -1910,6 +1949,7 @@ export class SCMHistoryViewPane extends ViewPane {
 
 				this._updateIndentStyles(fileIconTheme, viewMode);
 			}));
+			this._bodyReady.complete();
 		}, this, this._store);
 	}
 
@@ -2037,6 +2077,32 @@ export class SCMHistoryViewPane extends ViewPane {
 
 		// Reveal node
 		revealTreeNode();
+	}
+
+	async revealHistoryItem(repository: ISCMRepository, historyItemId: string): Promise<boolean> {
+		await this._bodyReady.p;
+		this._treeViewModel.setRepository(repository);
+		await this.refresh();
+
+		const revealTreeNode = (): boolean => {
+			const historyItemTreeElement = this._treeViewModel.getHistoryItemTreeElement(historyItemId);
+			if (!historyItemTreeElement || !this._tree.hasNode(historyItemTreeElement)) {
+				return false;
+			}
+
+			this._tree.reveal(historyItemTreeElement, 0.5);
+			this._tree.setSelection([historyItemTreeElement]);
+			this._tree.setFocus([historyItemTreeElement]);
+			this._tree.domFocus();
+			return true;
+		};
+
+		if (revealTreeNode()) {
+			return true;
+		}
+
+		await this._loadMore(historyItemId, historyItemId);
+		return revealTreeNode();
 	}
 
 	setViewMode(viewMode: ViewMode): void {
@@ -2267,14 +2333,14 @@ export class SCMHistoryViewPane extends ViewPane {
 		}
 	}
 
-	private async _loadMore(cursor?: string): Promise<void> {
+	private async _loadMore(cursor?: string, additionalHistoryItemRef?: string): Promise<void> {
 		return this._treeLoadMoreSequencer.queue(async () => {
 			if (this._repositoryIsLoadingMore.get()) {
 				return;
 			}
 
 			this._repositoryIsLoadingMore.set(true, undefined);
-			this._treeViewModel.loadMore(cursor);
+			this._treeViewModel.loadMore(cursor, additionalHistoryItemRef);
 
 			await this._updateChildren();
 			this._repositoryIsLoadingMore.set(false, undefined);
