@@ -41,17 +41,18 @@ suite('NamedLayoutsService', () => {
 
 	/**
 	 * A window whose parts and editor groups show what was applied last, and whose Zen mode hides the parts until it ends.
-	 * With `restore`, the window starts with that layout active, as stored, and optionally in Zen mode.
+	 * Applying editor groups restores a maximized panel, as it activates an editor group. With `restore`, the window
+	 * starts with that layout active, as stored, and with the arrangement that it restores itself.
 	 */
-	function createWindow(restore?: { layout: Record<string, unknown>; zenMode?: boolean }) {
+	function createWindow(restore?: { layout: Record<string, unknown>; zenMode?: boolean; parts?: IPartsLayoutState; editorGroups?: EditorGroupLayout }) {
 		const storageService = store.add(new TestStorageService());
 		const configurationService = new TestConfigurationService({ [NAMED_LAYOUTS_ENABLED_SETTING]: true });
 		const contextKeyService = store.add(new MockContextKeyService());
 		const zenMode = InEditorZenModeContext.bindTo(contextKeyService);
 		const onDidChangeZenMode = store.add(new Emitter<boolean>());
 		const window = {
-			parts: partsState(true, Position.BOTTOM),
-			editorGroups: singleGroup,
+			parts: restore?.parts ?? partsState(true, Position.BOTTOM),
+			editorGroups: restore?.editorGroups ?? singleGroup,
 			editorGroupsApplied: 0,
 			partsBeforeZenMode: undefined as IPartsLayoutState | undefined,
 		};
@@ -84,6 +85,7 @@ suite('NamedLayoutsService', () => {
 				applyLayout: (layout: EditorGroupLayout) => {
 					window.editorGroups = layout;
 					window.editorGroupsApplied++;
+					window.parts = { ...window.parts, panel: { ...window.parts.panel, maximized: false } };
 				},
 			})
 		});
@@ -135,9 +137,9 @@ suite('NamedLayoutsService', () => {
 	test('creating a layout makes it the active layout, and switching saves the layout that was active and applies the other one, also the default layout', async () => {
 		const { service, window, storageService, storedLayouts } = createWindow();
 
-		const debug = await service.createLayout('  Debug  ');
+		const debug = (await service.createLayout('  Debug  '))!;
 		window.parts = partsState(false, Position.RIGHT, 'workbench.view.debug');
-		window.editorGroups = { orientation: GroupOrientation.HORIZONTAL, groups: [{ size: 600 }, { size: 400 }] };
+		window.editorGroups = { orientation: GroupOrientation.HORIZONTAL, groups: [{ size: 330 }, { size: 330 }, { size: 1340 }] };
 
 		await service.switchLayout(service.layouts[0]);
 		const onDefault = { active: service.activeLayout.name, parts: window.parts, editorGroups: window.editorGroups, activeLayoutStored: storageService.get('workbench.namedLayouts.activeLayout', StorageScope.WORKSPACE) };
@@ -146,7 +148,7 @@ suite('NamedLayoutsService', () => {
 		const onDebug = { active: service.activeLayout.name, parts: window.parts, editorGroups: window.editorGroups, defaultLayout: JSON.parse(storageService.get('workbench.namedLayouts.defaultLayout', StorageScope.WORKSPACE)!) };
 
 		const debugParts = partsState(false, Position.RIGHT, 'workbench.view.debug');
-		const debugEditorGroups = { orientation: GroupOrientation.HORIZONTAL, groups: [{ size: 0.6 }, { size: 0.4 }] };
+		const debugEditorGroups = { orientation: GroupOrientation.HORIZONTAL, groups: [{ size: 0.165 }, { size: 0.165 }, { size: 0.67 }] };
 		assert.deepStrictEqual({ layouts: service.layouts.map(layout => layout.name), onDefault, onDebug, stored: storedLayouts() }, {
 			layouts: ['Default', 'Debug'],
 			onDefault: { active: 'Default', parts: partsState(true, Position.BOTTOM), editorGroups: singleGroup, activeLayoutStored: undefined },
@@ -157,7 +159,7 @@ suite('NamedLayoutsService', () => {
 
 	test('saving writes only the parts that this window changed, each under its own key, so that what another window saves into the same layout is kept', async () => {
 		const { service, window, storageService, storedLayouts, storeFromOtherWindow } = createWindow();
-		const debug = await service.createLayout('Debug');
+		const debug = (await service.createLayout('Debug'))!;
 		const otherPanel = partsState(true, Position.RIGHT).panel;
 		const otherEditorGroups = { orientation: GroupOrientation.VERTICAL, groups: [{ size: 0.5 }, { size: 0.5 }] };
 		storeFromOtherWindow(debug.id, 'panel', otherPanel);
@@ -208,7 +210,7 @@ suite('NamedLayoutsService', () => {
 
 	test('Zen mode ends before the window switches, so that the layout that was active saves its parts as they show outside of Zen mode', async () => {
 		const { service, window, zenMode, toggleZenMode, storedLayouts } = createWindow();
-		const debug = await service.createLayout('Debug');
+		const debug = (await service.createLayout('Debug'))!;
 		window.parts = partsState(false, Position.RIGHT);
 
 		toggleZenMode();
@@ -222,16 +224,30 @@ suite('NamedLayoutsService', () => {
 		});
 	});
 
-	test('a window that starts with a named layout active applies what differs from it as it is stored, as part sizes are stored per profile and other windows can change the layout', async () => {
+	test('a window that starts with a named layout active applies what differs from it as it is stored, as part sizes are stored per profile and other windows can change the layout, but not editor groups that only differ by rounding', async () => {
 		const restoredParts = partsState(false, Position.RIGHT, 'workbench.view.debug');
-		const { service, window } = createWindow({ layout: { name: 'Debug', ...restoredParts, editorGroups: singleGroup } });
+		const restoredEditorGroups = { orientation: GroupOrientation.HORIZONTAL, groups: [{ size: 0.5 }, { size: 0.5 }] };
+		const { service, window } = createWindow({
+			layout: { name: 'Debug', ...restoredParts, editorGroups: { orientation: GroupOrientation.HORIZONTAL, groups: [{ size: 0.503 }, { size: 0.497 }] } },
+			editorGroups: restoredEditorGroups,
+		});
 		await service.saveLayout();
 
-		assert.deepStrictEqual({ active: service.activeLayout.name, parts: window.parts, editorGroupsApplied: window.editorGroupsApplied }, {
+		assert.deepStrictEqual({ active: service.activeLayout.name, parts: window.parts, editorGroups: window.editorGroups, editorGroupsApplied: window.editorGroupsApplied }, {
 			active: 'Debug',
 			parts: restoredParts,
+			editorGroups: restoredEditorGroups,
 			editorGroupsApplied: 0,
 		});
+	});
+
+	test('a window that starts with a named layout active applies its editor groups before it compares the parts, as applying editor groups can restore a maximized part', async () => {
+		const maximizedPanel = { ...partsState(true, Position.BOTTOM), panel: { ...partsState(true, Position.BOTTOM).panel, maximized: true } };
+		const twoGroups = { orientation: GroupOrientation.HORIZONTAL, groups: [{ size: 0.5 }, { size: 0.5 }] };
+		const { service, window } = createWindow({ layout: { name: 'Debug', ...maximizedPanel, editorGroups: twoGroups }, parts: maximizedPanel });
+		await service.saveLayout();
+
+		assert.deepStrictEqual({ parts: window.parts, editorGroups: window.editorGroups }, { parts: maximizedPanel, editorGroups: twoGroups });
 	});
 
 	test('a window that starts in Zen mode applies the parts of its active layout when Zen mode ends, so that it saves only the parts that change after that', async () => {
@@ -256,14 +272,36 @@ suite('NamedLayoutsService', () => {
 		});
 	});
 
+	test('while named layouts are disabled, the window does not create, save, switch, rename or delete layouts, also when a command runs that the setting hides', async () => {
+		const { service, window, configurationService, storedLayouts } = createWindow();
+		const debug = (await service.createLayout('Debug'))!;
+		window.parts = partsState(false, Position.LEFT);
+
+		await configurationService.setUserConfiguration(NAMED_LAYOUTS_ENABLED_SETTING, false);
+		const results = {
+			created: await service.createLayout('Other'),
+			saved: await service.saveLayout(),
+			switched: await service.switchLayout(service.layouts[0]),
+			renamed: await service.renameLayout(debug, 'Renamed'),
+			deleted: await service.deleteLayout(debug),
+		};
+
+		assert.deepStrictEqual({ results, active: service.activeLayout.name, parts: window.parts, stored: storedLayouts() }, {
+			results: { created: undefined, saved: false, switched: false, renamed: false, deleted: false },
+			active: 'Debug',
+			parts: partsState(false, Position.LEFT),
+			stored: [{ name: 'Debug', ...partsState(true, Position.BOTTOM), editorGroups: singleGroup }],
+		});
+	});
+
 	test('deleting the active layout applies the default layout without saving the deleted one, and a layout that another window deletes leaves this window with its arrangement as its default layout', async () => {
 		const { service, window, removeFromOtherWindow, storageService, storedLayouts } = createWindow();
-		const scratch = await service.createLayout('Scratch');
+		const scratch = (await service.createLayout('Scratch'))!;
 		window.parts = partsState(false, Position.RIGHT);
 		await service.deleteLayout(scratch);
 		const deleted = { active: service.activeLayout.name, layouts: service.layouts.map(layout => layout.name), parts: window.parts, stored: storedLayouts() };
 
-		const debug = await service.createLayout('Debug');
+		const debug = (await service.createLayout('Debug'))!;
 		window.parts = partsState(false, Position.LEFT);
 		const activeLayouts: string[] = [];
 		store.add(service.onDidChangeActiveLayout(layout => activeLayouts.push(layout.name)));
@@ -287,7 +325,7 @@ suite('NamedLayoutsService', () => {
 
 	test('lists the default layout first and the others by name, also those that another window creates, and ignores what is stored that is not valid', async () => {
 		const { service, window, storeFromOtherWindow } = createWindow();
-		const zeta = await service.createLayout('Zeta');
+		const zeta = (await service.createLayout('Zeta'))!;
 		const renamed = await service.renameLayout(zeta, 'Beta');
 
 		const otherPanel = partsState(true, Position.RIGHT).panel;

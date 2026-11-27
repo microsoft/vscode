@@ -117,6 +117,15 @@ async function inputLayoutName(quickInputService: IQuickInputService, namedLayou
 	}
 }
 
+/**
+ * Announces that a layout that could not be switched to or renamed no longer exists. While named layouts are disabled, it still exists.
+ */
+function announceIfDeleted(namedLayoutsService: INamedLayoutsService, layout: INamedLayout): void {
+	if (!namedLayoutsService.layouts.some(otherLayout => otherLayout.id === layout.id)) {
+		status(localize('layoutNoLongerExists', "The layout {0} no longer exists.", layout.name));
+	}
+}
+
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -137,7 +146,7 @@ registerAction2(class extends Action2 {
 			if (await namedLayoutsService.switchLayout(layout)) {
 				status(localize('switchedLayout', "Switched to layout {0}.", layout.name));
 			} else {
-				status(localize('layoutNoLongerExists', "The layout {0} no longer exists.", layout.name));
+				announceIfDeleted(namedLayoutsService, layout);
 			}
 		}
 	}
@@ -158,8 +167,9 @@ registerAction2(class extends Action2 {
 		const namedLayoutsService = accessor.get(INamedLayoutsService);
 
 		const defaultLayout = namedLayoutsService.layouts[0];
-		await namedLayoutsService.switchLayout(defaultLayout);
-		status(localize('switchedToDefaultLayout', "Switched to layout {0}.", defaultLayout.name));
+		if (await namedLayoutsService.switchLayout(defaultLayout)) {
+			status(localize('switchedToDefaultLayout', "Switched to layout {0}.", defaultLayout.name));
+		}
 	}
 });
 
@@ -182,7 +192,9 @@ registerAction2(class extends Action2 {
 		const name = await inputLayoutName(quickInputService, namedLayoutsService, localize('newLayoutPrompt', "Name of the new layout, created from the current layout of the window"));
 		if (name) {
 			const layout = await namedLayoutsService.createLayout(name);
-			status(localize('createdLayout', "Created layout {0} and switched to it.", layout.name));
+			if (layout) {
+				status(localize('createdLayout', "Created layout {0} and switched to it.", layout.name));
+			}
 		}
 	}
 });
@@ -202,8 +214,9 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const namedLayoutsService = accessor.get(INamedLayoutsService);
 
-		await namedLayoutsService.saveLayout();
-		status(localize('savedLayout', "Saved layout {0}.", namedLayoutsService.activeLayout.name));
+		if (await namedLayoutsService.saveLayout()) {
+			status(localize('savedLayout', "Saved layout {0}.", namedLayoutsService.activeLayout.name));
+		}
 	}
 });
 
@@ -232,7 +245,7 @@ registerAction2(class extends Action2 {
 			if (await namedLayoutsService.renameLayout(layout, name)) {
 				status(localize('renamedLayout', "Renamed layout {0} to {1}.", layout.name, name));
 			} else {
-				status(localize('layoutNoLongerExists', "The layout {0} no longer exists.", layout.name));
+				announceIfDeleted(namedLayoutsService, layout);
 			}
 		}
 	}
@@ -264,8 +277,7 @@ registerAction2(class extends Action2 {
 			detail: layout.id === namedLayoutsService.activeLayout.id ? localize('deleteActiveLayoutDetail', "It is the active layout, so the window switches to the default layout.") : undefined,
 			primaryButton: localize({ key: 'deleteLayoutButton', comment: ['&& denotes a mnemonic'] }, "&&Delete")
 		});
-		if (confirmed) {
-			await namedLayoutsService.deleteLayout(layout);
+		if (confirmed && await namedLayoutsService.deleteLayout(layout)) {
 			status(localize('deletedLayout', "Deleted layout {0}.", layout.name));
 		}
 	}

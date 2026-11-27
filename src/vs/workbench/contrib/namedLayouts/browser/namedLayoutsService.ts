@@ -101,7 +101,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		this.whenRestored = Promise.all([lifecycleService.when(LifecyclePhase.Restored), extensionService.whenInstalledExtensionsRegistered()]).then(() => {
 			// Part sizes are stored per profile, and other windows can have changed the active layout, so the window applies what differs from it
 			if (this.isEnabled() && this.activeLayoutId !== DEFAULT_NAMED_LAYOUT_ID) {
-				this.applyState(this.getChanges(this.readLayoutState(this.activeLayoutId)));
+				this.applyChanges(this.readLayoutState(this.activeLayoutId));
 			}
 			this.baseline = this.captureState();
 		});
@@ -133,9 +133,12 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		return this.storedLayouts.find(layout => layout.id === this.activeLayoutId) ?? this.defaultLayout;
 	}
 
-	createLayout(name: string): Promise<INamedLayout> {
+	createLayout(name: string): Promise<INamedLayout | undefined> {
 		return this.sequencer.queue(async () => {
 			await this.whenRestored;
+			if (!this.isEnabled()) {
+				return undefined;
+			}
 			this.endZenMode();
 
 			// The default layout is the window's own layout, so it keeps what the window shows
@@ -159,6 +162,9 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	switchLayout(layout: INamedLayout): Promise<boolean> {
 		return this.sequencer.queue(async () => {
 			await this.whenRestored;
+			if (!this.isEnabled()) {
+				return false;
+			}
 			if (layout.id === this.activeLayoutId) {
 				return true;
 			}
@@ -184,17 +190,21 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		});
 	}
 
-	saveLayout(): Promise<void> {
+	saveLayout(): Promise<boolean> {
 		return this.sequencer.queue(async () => {
 			await this.whenRestored;
+			if (!this.isEnabled()) {
+				return false;
+			}
 			this.saveActiveLayout();
+			return true;
 		});
 	}
 
 	renameLayout(layout: INamedLayout, name: string): Promise<boolean> {
 		return this.sequencer.queue(async () => {
-			if (!this.hasStoredLayout(layout.id)) {
-				return false; // deleted in another window meanwhile
+			if (!this.isEnabled() || !this.hasStoredLayout(layout.id)) {
+				return false;
 			}
 
 			this.storageService.store(layoutStorageKey(layout.id, 'name'), toLayoutName(name), StorageScope.PROFILE, StorageTarget.MACHINE);
@@ -205,10 +215,13 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		});
 	}
 
-	deleteLayout(layout: INamedLayout): Promise<void> {
+	deleteLayout(layout: INamedLayout): Promise<boolean> {
 		return this.sequencer.queue(async () => {
 			if (layout.id === DEFAULT_NAMED_LAYOUT_ID) {
 				throw new Error('The default layout cannot be deleted.');
+			}
+			if (!this.isEnabled()) {
+				return false;
 			}
 
 			if (layout.id === this.activeLayoutId) {
@@ -227,6 +240,8 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			}
 			this.storedLayouts = this.readStoredLayouts();
 			this._onDidChangeLayouts.fire();
+
+			return true;
 		});
 	}
 
@@ -250,10 +265,10 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			return;
 		}
 
-		const state = this.captureState();
 		const baseline = this.baseline;
-		this.storeLayoutState(this.activeLayoutId, state, NAMED_LAYOUT_STATE_KEYS.filter(key => !equals(state[key], baseline[key])));
-		this.baseline = { ...baseline, ...state };
+		const changes = getChanges(this.captureState(), baseline);
+		this.storeLayoutState(this.activeLayoutId, changes);
+		this.baseline = { ...baseline, ...changes };
 	}
 
 	private setActiveLayout(id: string): void {
@@ -274,18 +289,15 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	}
 
 	/**
-	 * Returns what of a state differs from what the window shows, so that applying it leaves the rest, such as the editor grid, as it is.
+	 * Applies what of a state differs from what the window shows, so that the rest, such as the editor grid, stays as it is.
 	 */
-	private getChanges(state: INamedLayoutState): INamedLayoutState {
-		const current = this.captureState();
-		const differs = (key: NamedLayoutStateKey) => !!state[key] && !equals(state[key], current[key]);
+	private applyChanges(state: INamedLayoutState): void {
+		// Changing the editor groups can restore a maximized part, so the parts compare with what shows after that
+		const { editorGroups } = getChanges({ editorGroups: state.editorGroups }, this.captureState());
+		this.applyState({ editorGroups });
 
-		return {
-			...(differs('sideBar') ? { sideBar: state.sideBar } : {}),
-			...(differs('panel') ? { panel: state.panel } : {}),
-			...(differs('auxiliaryBar') ? { auxiliaryBar: state.auxiliaryBar } : {}),
-			...(differs('editorGroups') ? { editorGroups: state.editorGroups } : {}),
-		};
+		const { sideBar, panel, auxiliaryBar } = state;
+		this.applyState(getChanges({ sideBar, panel, auxiliaryBar }, this.captureState()));
 	}
 
 	private applyState(state: INamedLayoutState): void {
@@ -317,7 +329,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 
 		if (this.isEnabled() && this.activeLayoutId !== DEFAULT_NAMED_LAYOUT_ID) {
 			const { sideBar, panel, auxiliaryBar } = this.readLayoutState(this.activeLayoutId);
-			this.applyState(this.getChanges({ sideBar, panel, auxiliaryBar }));
+			this.applyChanges({ sideBar, panel, auxiliaryBar });
 		}
 
 		const { sideBar, panel, auxiliaryBar } = this.captureState();
@@ -358,8 +370,8 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		return toNamedLayoutState(key => parse(this.storageService.get(layoutStorageKey(id, key), StorageScope.PROFILE)));
 	}
 
-	private storeLayoutState(id: string, state: INamedLayoutState, keys: readonly NamedLayoutStateKey[] = NAMED_LAYOUT_STATE_KEYS): void {
-		for (const key of keys) {
+	private storeLayoutState(id: string, state: INamedLayoutState): void {
+		for (const key of NAMED_LAYOUT_STATE_KEYS) {
 			const value = state[key];
 			if (value) {
 				this.storageService.store(layoutStorageKey(id, key), JSON.stringify(value), StorageScope.PROFILE, StorageTarget.MACHINE);
@@ -401,18 +413,51 @@ function toLayoutName(name: string): string {
 
 /**
  * Returns the layout of editor groups with the sizes of the groups in each row or column as fractions of their sum.
- * Applying a layout sizes the groups in proportion to their sizes.
+ * Applying a layout sizes the groups in proportion to their sizes. The fractions keep four decimals, so that they
+ * still add up to one and applying them gives the same sizes, up to whole pixels.
  */
 function toFractions(layout: EditorGroupLayout): EditorGroupLayout {
 	const toGroups = (groups: readonly GroupLayoutArgument[]): GroupLayoutArgument[] => {
 		const total = groups.reduce((sum, group) => sum + (group.size ?? 0), 0);
 		return groups.map(group => ({
-			...(total && group.size ? { size: Math.round(group.size / total * 100) / 100 } : {}),
+			...(total && group.size ? { size: Math.round(group.size / total * 10000) / 10000 } : {}),
 			...(group.groups ? { groups: toGroups(group.groups) } : {})
 		}));
 	};
 
 	return { orientation: layout.orientation, groups: toGroups(layout.groups) };
+}
+
+/**
+ * Whether two layouts of editor groups have the same rows and columns, with sizes that differ by less than a hundredth,
+ * as applying a layout sizes the groups in whole pixels.
+ */
+function isSameEditorGroupLayout(layout: EditorGroupLayout, other: EditorGroupLayout | undefined): boolean {
+	const isSameGroups = (groups: readonly GroupLayoutArgument[], otherGroups: readonly GroupLayoutArgument[] | undefined): boolean => {
+		if (!otherGroups || groups.length !== otherGroups.length) {
+			return false;
+		}
+		return groups.every((group, index) => {
+			const otherGroup = otherGroups[index];
+			return Math.abs((group.size ?? 0) - (otherGroup.size ?? 0)) < 0.01 && (group.groups ? isSameGroups(group.groups, otherGroup.groups) : !otherGroup.groups);
+		});
+	};
+
+	return !!other && layout.orientation === other.orientation && isSameGroups(layout.groups, other.groups);
+}
+
+/**
+ * Returns the parts of a state that it has and that differ from another state.
+ */
+function getChanges(state: INamedLayoutState, other: INamedLayoutState): INamedLayoutState {
+	const differs = (key: 'sideBar' | 'panel' | 'auxiliaryBar') => !!state[key] && !equals(state[key], other[key]);
+
+	return {
+		...(differs('sideBar') ? { sideBar: state.sideBar } : {}),
+		...(differs('panel') ? { panel: state.panel } : {}),
+		...(differs('auxiliaryBar') ? { auxiliaryBar: state.auxiliaryBar } : {}),
+		...(state.editorGroups && !isSameEditorGroupLayout(state.editorGroups, other.editorGroups) ? { editorGroups: state.editorGroups } : {}),
+	};
 }
 
 function parse(value: string | undefined): unknown {

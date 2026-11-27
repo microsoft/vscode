@@ -33,7 +33,7 @@ export const INamedLayoutsService = createDecorator<INamedLayoutsService>('named
  * they are saved into it when the window switches to another layout, when it closes, and on
  * {@link saveLayout}. A window that starts with a named layout active applies the layout as it is
  * stored, as other windows can have changed it. The default layout is the window's own layout while
- * no named layout is active.
+ * no named layout is active. While named layouts are disabled, the layouts don't change.
  */
 export interface INamedLayoutsService {
 
@@ -62,27 +62,30 @@ export interface INamedLayoutsService {
 	/**
 	 * Creates a named layout from the current layout of this window and makes it the active layout. The layout
 	 * that was active keeps what it saved last; the default layout keeps the current layout of the window.
+	 * @returns the new layout, or undefined while named layouts are disabled.
 	 */
-	createLayout(name: string): Promise<INamedLayout>;
+	createLayout(name: string): Promise<INamedLayout | undefined>;
 
 	/**
 	 * Saves the active layout and applies the given layout to this window. Zen mode ends first.
-	 * @returns whether the layout is active, which it is not when another window deleted it.
+	 * @returns whether the layout is active, which it is not when another window deleted it or named layouts are disabled.
 	 */
 	switchLayout(layout: INamedLayout): Promise<boolean>;
 
 	/**
 	 * Saves the changes of the active named layout.
+	 * @returns false while named layouts are disabled.
 	 */
-	saveLayout(): Promise<void>;
+	saveLayout(): Promise<boolean>;
 
 	/**
-	 * @returns whether the layout was renamed, which it is not when another window deleted it.
+	 * @returns whether the layout was renamed, which it is not when another window deleted it or named layouts are disabled.
 	 */
 	renameLayout(layout: INamedLayout, name: string): Promise<boolean>;
 
 	/**
 	 * Deletes a named layout. When it is active, the default layout is applied first.
+	 * @returns false while named layouts are disabled.
 	 */
-	deleteLayout(layout: INamedLayout): Promise<void>;
+	deleteLayout(layout: INamedLayout): Promise<boolean>;
 }
