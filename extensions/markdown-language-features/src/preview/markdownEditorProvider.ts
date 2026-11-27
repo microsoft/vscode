@@ -32,6 +32,7 @@ import { MarkdownEditorNavigation } from './markdownEditorNavigation';
 import { MarkdownEditorUndoGrouper } from './markdownEditorUndoGrouping';
 import { MarkdownEditorSessionTelemetry, type MarkdownEditorViewState } from './markdownEditorTelemetry';
 import { MAX_SCANNED_DOCUMENT_LENGTH, scanMarkdownFeatures } from './markdownDocumentFeatures';
+import { MarkdownPreviewConfiguration } from './previewConfig';
 
 /** Delay before a new Markdown editor's document is scanned for telemetry, to stay off the open path. */
 const FEATURE_SCAN_DELAY_MS = 2_000;
@@ -569,7 +570,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			params => editorWebview.renderer.richLinkPresentations(params),
 		);
 		const postConfiguration = (): void => {
-			editorWebview.report('Update configuration', editorWebview.renderer.configurationChanged(this.#getEditorConfiguration(document, documentReadonly)));
+			editorWebview.report('Update configuration', editorWebview.renderer.configurationChanged(getMarkdownEditorConfiguration(document, documentReadonly)));
 		};
 		const postCodeBlockEditorProviders = (): void => {
 			if (webviewReady && codeBlockEditorProviders) {
@@ -833,8 +834,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			if (event.affectsConfiguration('markdown.experimental.richLinks.enabled', document.uri)) {
 				reloadWebview();
 			}
-			if ((event.affectsConfiguration('markdown.editor.highlightActiveBlock', document.uri)
-				|| event.affectsConfiguration('markdown.editor.renderWhitespace', document.uri)) && editorWebview.ready) {
+			if (editorWebview.ready && markdownEditorConfigurationSettings.some(setting => event.affectsConfiguration(setting, document.uri))) {
 				postConfiguration();
 			}
 		});
@@ -1320,7 +1320,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		const baseUri = webview.asWebviewUri(document.uri);
 		const nonce = getNonce();
 		const initialState = encodeWebviewInitialState({
-			...this.#getEditorConfiguration(document, documentReadonly),
+			...getMarkdownEditorConfiguration(document, documentReadonly),
 			taskProgressLabels: {
 				title: vscode.l10n.t("Task Progress"),
 				summary: vscode.l10n.t("{0} of {1} tasks completed"),
@@ -1360,16 +1360,35 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 </body>
 </html>`;
 	}
+}
 
-	#getEditorConfiguration(document: vscode.TextDocument, documentReadonly: boolean): MarkdownEditorConfiguration {
-		const config = vscode.workspace.getConfiguration('markdown.editor', document.uri);
-		return {
-			highlightActiveBlock: config.get<boolean>('highlightActiveBlock', true),
-			renderWhitespace: config.get<boolean>('renderWhitespace', false),
-			lineBreak: vsCodeLineBreak(document),
-			documentReadonly,
-		};
-	}
+const markdownEditorConfigurationSettings: readonly string[] = [
+	'markdown.editor.highlightActiveBlock',
+	'markdown.editor.renderWhitespace',
+	'markdown.preview.fontFamily',
+	'markdown.preview.fontSize',
+	'markdown.preview.lineHeight',
+];
+
+export function getMarkdownEditorConfiguration(document: vscode.TextDocument, documentReadonly: boolean): MarkdownEditorConfiguration {
+	const config = vscode.workspace.getConfiguration('markdown.editor', document.uri);
+	const previewConfig = vscode.workspace.getConfiguration('markdown.preview', document.uri);
+	const rawFontSize = previewConfig.get<unknown>('fontSize');
+	const rawLineHeight = previewConfig.get<unknown>('lineHeight');
+	const { fontFamily, fontSize, lineHeight } = MarkdownPreviewConfiguration.getForResource(document.uri);
+	return {
+		highlightActiveBlock: config.get<boolean>('highlightActiveBlock', true),
+		renderWhitespace: config.get<boolean>('renderWhitespace', false),
+		lineBreak: vsCodeLineBreak(document),
+		documentReadonly,
+		fontFamily: typeof fontFamily === 'string' && fontFamily.trim().length > 0 ? fontFamily : undefined,
+		fontSize: isFiniteNumber(rawFontSize) && Number.isFinite(fontSize) ? fontSize : undefined,
+		lineHeight: isFiniteNumber(rawLineHeight) && Number.isFinite(lineHeight) ? lineHeight : undefined,
+	};
+}
+
+function isFiniteNumber(value: unknown): value is number {
+	return typeof value === 'number' && Number.isFinite(value);
 }
 
 function advancePosition(pos: vscode.Position, text: string): vscode.Position {
