@@ -225,6 +225,8 @@ steps:
 
   - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_BUILD_ONLY, true)) }}:
     - template: product-build-darwin-package.yml@self
+      parameters:
+        VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
 
   - ${{ if gt(length(parameters.VSCODE_TEST_IDS), 0) }}:
     - template: product-build-darwin-test.yml@self
