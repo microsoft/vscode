@@ -72,7 +72,12 @@ steps:
         $CredentialKeys = git -C .build/distro config --local --name-only --get-regexp '^(http(\..*)?\.extraheader|remote\.origin\.lfs(url|pushurl))$'
         if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 1) { throw "Failed to enumerate distro checkout credentials" }
         foreach ($Key in ($CredentialKeys | Sort-Object -Unique)) {
-          git -C .build/distro config --local --unset-all $Key
+          if ($Key -like '*.extraheader') {
+            # Erase all header values now; Azure's post-job checkout expects to unset the key itself.
+            git -C .build/distro config --local --replace-all $Key ''
+          } else {
+            git -C .build/distro config --local --unset-all $Key
+          }
           if ($LASTEXITCODE -ne 0) { throw "Failed to remove distro checkout credentials" }
         }
       }
