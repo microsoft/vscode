@@ -5,11 +5,9 @@
 
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { INativeWorkbenchEnvironmentService } from '../../environment/electron-browser/environmentService.js';
-import { AgentsModeService } from '../browser/agentsModeService.js';
 import { IAgentsModeService } from '../common/agentsMode.js';
 
 /**
@@ -38,5 +36,4 @@ export class AgentsModeWindowStateContribution extends Disposable implements IWo
 	}
 }
 
-registerSingleton(IAgentsModeService, AgentsModeService, InstantiationType.Delayed);
 registerWorkbenchContribution2(AgentsModeWindowStateContribution.ID, AgentsModeWindowStateContribution, WorkbenchPhase.BlockStartup);

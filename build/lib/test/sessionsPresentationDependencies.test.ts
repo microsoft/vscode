@@ -328,7 +328,7 @@ suite('Sessions presentation entry isolation', () => {
 		const settingsEditor = 'src/vs/workbench/contrib/preferences/browser/settingsEditor2.ts';
 		const agentsModeRegistrations = [
 			'src/vs/workbench/services/agentsMode/browser/browserAgentsModeService.ts',
-			'src/vs/workbench/services/agentsMode/electron-browser/agentsMode.contribution.ts',
+			'src/vs/workbench/electron-browser/desktop.main.ts',
 		];
 		const entries = [
 			'src/vs/sessions/sessions.desktop.main.ts',
@@ -343,6 +343,19 @@ suite('Sessions presentation entry isolation', () => {
 		});
 		assert.deepStrictEqual(missing, []);
 		assert.ok(collectSourceDependencies('src/vs/sessions/sessions.desktop.main.ts').has(settingsEditor), 'the Agents window loads the Settings editor');
+	});
+
+	test('the desktop editor window gets the Agents mode service only from its main, which no registered singleton overrides', () => {
+		const desktopMain = 'src/vs/workbench/electron-browser/desktop.main.ts';
+		const dependencies = collectSourceDependencies('src/vs/workbench/workbench.desktop.main.ts');
+		const registrations = [...dependencies]
+			.filter(file => file.endsWith('.ts') && !file.endsWith('.d.ts'))
+			.filter(file => getSingletonRegistrations(file).some(([id]) => id === 'IAgentsModeService'));
+		assert.deepStrictEqual({
+			loadsMain: dependencies.has(desktopMain),
+			setsInMain: /serviceCollection\.set\(IAgentsModeService,/.test(fs.readFileSync(path.join(repositoryRoot, desktopMain), 'utf8')),
+			registrations,
+		}, { loadsMain: true, setsInMain: true, registrations: [] });
 	});
 
 	test('full chat imports retain the original script-widget CSS precedence', () => {

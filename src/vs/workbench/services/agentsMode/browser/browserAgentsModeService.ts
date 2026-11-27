@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { IAgentsModeService } from '../common/agentsMode.js';
-import { AgentsModeService } from './agentsModeService.js';
+import { IAgentsModeService, NullAgentsModeService } from '../common/agentsMode.js';
 
-registerSingleton(IAgentsModeService, AgentsModeService, InstantiationType.Delayed);
+// Web windows and the Agents window can't switch into Agents mode. The desktop editor window's main creates its service.
+registerSingleton(IAgentsModeService, NullAgentsModeService, InstantiationType.Delayed);

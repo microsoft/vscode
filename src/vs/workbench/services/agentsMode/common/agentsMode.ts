@@ -46,3 +46,19 @@ export interface IAgentsModeService {
 	 */
 	setActive(active: boolean, workspaceId?: string): Promise<void>;
 }
+
+/**
+ * The Agents mode of a window that can't switch into it, such as a web, remote or Agents window,
+ * or an editor window that didn't opt in when it started.
+ */
+export class NullAgentsModeService implements IAgentsModeService {
+
+	declare readonly _serviceBrand: undefined;
+
+	readonly isSupported = false;
+	readonly windowFolders: readonly URI[] = [];
+	readonly isActive = false;
+	readonly onDidChange: Event<boolean> = Event.None;
+
+	async setActive(): Promise<void> { }
+}
