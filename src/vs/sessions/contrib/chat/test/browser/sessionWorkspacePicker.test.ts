@@ -74,7 +74,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
-import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IDialogService, IFileDialogService, IOpenDialogOptions } from '../../../../../platform/dialogs/common/dialogs.js';
 import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 import { IFileContent, IFileService } from '../../../../../platform/files/common/files.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -708,7 +708,8 @@ suite('WorkspacePicker - session folders', () => {
 		const providersService = store.add(new MockSessionsProvidersService());
 		providersService.setProviders([{ ...createMockProvider('local-agent-host', { group: SESSION_WORKSPACE_GROUP_LOCAL }), supportsLocalWorkspaces: true }]);
 		const supported = observableValue('supported', options.supported ?? true);
-		const picker = createTestPicker(store, providersService, undefined, undefined, DispatchingWorkspacePicker, { showOpenDialog: async () => options.picked }, undefined, undefined, {
+		const dialogs: IOpenDialogOptions[] = [];
+		const picker = createTestPicker(store, providersService, undefined, undefined, DispatchingWorkspacePicker, { showOpenDialog: async dialog => { dialogs.push(dialog); return options.picked; } }, undefined, undefined, {
 			restoreFromSessions: false,
 			supportsSessionFolders: supported,
 			configuration: { [SESSIONS_WORKSPACES_ENABLED_SETTING]: true },
@@ -720,7 +721,7 @@ suite('WorkspacePicker - session folders', () => {
 		});
 		assert.ok(picker instanceof DispatchingWorkspacePicker);
 		const state = () => ({ folders: picker.sessionFolderUris?.map(folder => folder.path), added: picker.addedSessionFolderUris.map(folder => folder.path) });
-		return { picker, supported, state };
+		return { picker, supported, state, dialogs };
 	}
 
 	test('adds picked folders to the session of the selected folder or workspace once each, and removes and resets them', async () => {
@@ -739,6 +740,16 @@ suite('WorkspacePicker - session folders', () => {
 			removed: { folders: undefined, added: [] },
 			toWorkspace: { folders: ['/agent-host/app', '/agent-host/docs', '/agent-host/lib'], added: ['/agent-host/lib'] },
 			reset: { folders: undefined, added: [] },
+		});
+	});
+
+	test('adds only folders on this computer, also when the window is connected to a remote', async () => {
+		const { picker, state, dialogs } = setupPicker({ picked: [lib, URI.from({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+box', path: '/remote/lib' })] });
+		await picker.dispatchFolder(app, 'local-agent-host');
+		await picker.promptForSessionFolders();
+		assert.deepStrictEqual({ fileSystems: dialogs.map(dialog => dialog.availableFileSystems), added: state().added }, {
+			fileSystems: [[Schemas.file]],
+			added: ['/agent-host/lib'],
 		});
 	});
 

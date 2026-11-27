@@ -1598,8 +1598,11 @@ export class NewChatWidget extends Disposable {
 			return;
 		}
 		const provider = this.sessionsProvidersService.getProvider(session.providerId, session.sessionId);
+		const isQuickChat = session.isQuickChat?.get();
 		composer.updateTarget({
-			folderUri: session.isQuickChat?.get() ? undefined : this._workspacePicker.selectedFolderUri,
+			folderUri: isQuickChat ? undefined : this._workspacePicker.selectedFolderUri,
+			sessionWorkspaceUri: isQuickChat ? undefined : this._workspacePicker.selectedSessionWorkspace?.uri,
+			sessionFolders: isQuickChat ? undefined : this._workspacePicker.sessionFolderUris,
 			providerId: session.providerId,
 			sessionTypeId: session.sessionType,
 			modelId: session.modelId.get(),
@@ -1687,7 +1690,7 @@ export class NewChatWidget extends Disposable {
 			const environment = this._environments.get().find(candidate => candidate.id === target.environmentId);
 			this._pickedEnvironment.set(environment, undefined);
 			if (target.folderUri) {
-				this._workspacePicker.setSelectedWorkspace(target.folderUri, { fireEvent: false, providerId: target.providerId, preferDevContainer: target.requireDevContainer, persist: false, origin: WorkspaceSelectionOrigin.RestoredDraft });
+				this._workspacePicker.setSelectedWorkspace(target.folderUri, { fireEvent: false, providerId: target.providerId, preferDevContainer: target.requireDevContainer, persist: false, origin: WorkspaceSelectionOrigin.RestoredDraft, sessionWorkspaceUri: target.sessionWorkspaceUri, sessionFolders: target.sessionFolders });
 			}
 			const options: ICreateNewSessionOptions = {
 				providerId: target.providerId,
@@ -1699,9 +1702,32 @@ export class NewChatWidget extends Disposable {
 				isolationMode: target.configuration?.isolationMode,
 				branch: target.configuration?.branch,
 			};
-			const session = target.folderUri
-				? (await this.sessionsService.openNewSession({ ...options, folderUri: target.folderUri, requireDevContainer: target.requireDevContainer, preserveNavigation: true }, token)).session
-				: this.sessionsService.openQuickChat(options, true);
+			// The workspace and folders of the draft's session, as the picker restored them
+			const workspaceConfig = target.folderUri ? this._workspacePicker.selectedWorkspaceConfig : undefined;
+			const folders = target.folderUri ? this._workspacePicker.sessionFolderUris : undefined;
+			const extUri = this.uriIdentityService.extUri;
+			const workspaceUnavailable = () => new Error(localize('draft.workspaceUnavailable', "The saved draft's workspace is unavailable. Its content has been kept."));
+			// A saved workspace the picker no longer resolves, also by a former name, or saved folders it does not select,
+			// would restore the draft in its folder alone
+			const restoresSession = !!target.folderUri && (!!target.sessionWorkspaceUri || !!target.sessionFolders?.length);
+			// The same folders in any order: a workspace's folders can be reordered after the draft was saved
+			const isSameFolderSet = (candidates: readonly URI[], expected: readonly URI[]) => candidates.length === expected.length
+				&& expected.every(folder => candidates.some(candidate => extUri.isEqual(candidate, folder)));
+			const sessionWorkspace = this._workspacePicker.selectedSessionWorkspace;
+			// A workspace whose file can no longer be read keeps only its last known folders: it is not restored
+			const isSavedWorkspace = !!sessionWorkspace && !sessionWorkspace.missing && !!target.sessionWorkspaceUri
+				&& [sessionWorkspace.uri, ...sessionWorkspace.previousUris ?? []].some(uri => extUri.isEqual(uri, target.sessionWorkspaceUri));
+			if ((target.folderUri && target.sessionWorkspaceUri && !isSavedWorkspace)
+				|| (target.folderUri && target.sessionFolders?.length && !isSameFolderSet(folders ?? [], target.sessionFolders))) {
+				throw workspaceUnavailable();
+			}
+			const opened = target.folderUri
+				? await this.sessionsService.openNewSession({ ...options, folderUri: target.folderUri, requireDevContainer: target.requireDevContainer, preserveNavigation: true, ...(workspaceConfig ? { workspaceConfig } : undefined), ...(folders ? { folders } : undefined) }, token)
+				: undefined;
+			if (opened?.created && opened.session) {
+				this._requestedWorkspaceConfig = { sessionId: opened.session.sessionId, config: workspaceConfig };
+			}
+			const session = target.folderUri ? opened?.session : this.sessionsService.openQuickChat(options, true);
 			if (token.isCancellationRequested) {
 				return;
 			}
@@ -1709,10 +1735,15 @@ export class NewChatWidget extends Disposable {
 				throw new Error(localize('draft.targetUnavailable', "The saved draft's workspace or agent is unavailable. Its content has been kept."));
 			}
 			const workspace = session.workspace.get();
+			// A draft that already existed, which a failed creation falls back to, is the draft's session only with its workspace
+			// file and the same folders
+			const requestedFolders = folders ?? workspaceConfig?.folders ?? (target.folderUri ? [target.folderUri] : []);
+			const isOtherSession = (existing: ISessionWorkspace) => !isSameFolderSet(existing.folders.map(folder => folder.root), requestedFolders)
+				|| !extUri.isEqual(existing.workspaceConfig?.uri, workspaceConfig?.uri);
 			if (target.folderUri
-				? !workspace || !this._workspacePicker.isWorkspaceOfFolder(workspace, target.folderUri)
+				? !workspace || !this._workspacePicker.isWorkspaceOfFolder(workspace, target.folderUri) || (restoresSession && !opened?.created && isOtherSession(workspace))
 				: !session.isQuickChat?.get()) {
-				throw new Error(localize('draft.workspaceUnavailable', "The saved draft's workspace is unavailable. Its content has been kept."));
+				throw workspaceUnavailable();
 			}
 			await this.sessionsManagementService.configureNewSessionDraft(session, options, token);
 			if (token.isCancellationRequested || this._store.isDisposed) {

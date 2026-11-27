@@ -477,10 +477,13 @@ export class WorkspacePicker extends Disposable {
 			canSelectFolders: true,
 			canSelectMany: true,
 			openLabel: localize({ key: 'workspacePicker.addSessionFolders.open', comment: ['&& denotes a mnemonic'] }, "&&Add"),
+			// The session works on this computer, also in a window connected to a remote
+			availableFileSystems: [Schemas.file],
 		});
+		const folders = picked?.filter(folder => folder.scheme === Schemas.file);
 		// Folders picked for a selection that changed while picking do not apply to it
-		if (picked?.length && generation === this._selectionGeneration) {
-			this.addSessionFolders(picked);
+		if (folders?.length && generation === this._selectionGeneration) {
+			this.addSessionFolders(folders);
 		}
 	}
 

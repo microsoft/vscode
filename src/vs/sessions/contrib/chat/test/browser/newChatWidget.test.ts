@@ -948,6 +948,7 @@ suite('NewChatWidget', () => {
 				_environments: constObservable<readonly ISessionCreationEnvironment[]>([]),
 				_pickedEnvironment: observableValue<ISessionCreationEnvironment | undefined>('environment', undefined),
 				_workspacePicker: { ...workspaceIdentity(), setSelectedWorkspace: () => { } },
+				uriIdentityService: { extUri },
 				sessionsService: {
 					openNewSession: async () => ({ session }),
 					openQuickChat: () => session,
@@ -1137,6 +1138,73 @@ suite('NewChatWidget', () => {
 				});
 			}
 
+		}
+
+		const savedWorkspaceUri = URI.file('/product.code-workspace');
+		const savedFolders = [requested, URI.file('/added'), URI.file('/more')];
+		const restoreCases: { readonly name: string; readonly resolved: 'file' | 'folder' | 'renamed' | 'missing' | 'other' | undefined; readonly created: boolean; readonly draftFolders?: readonly URI[]; readonly draftWorkspaceFile?: URI; readonly pickerFolders?: readonly URI[]; readonly savesFolders?: false; readonly restored: boolean }[] = [
+			{ name: 'workspace file', resolved: 'file', created: true, restored: true },
+			// A workspace of one folder has no file, so no configuration
+			{ name: 'workspace of one folder', resolved: 'folder', created: true, restored: true },
+			// A renamed workspace resolves by its former URI
+			{ name: 'renamed workspace', resolved: 'renamed', created: true, restored: true },
+			{ name: 'unresolved workspace', resolved: undefined, created: true, restored: false },
+			// A workspace file that can no longer be read is known by its last folders only; with no added folders saved, only
+			// the workspace stands for the draft's session
+			{ name: 'workspace file that cannot be read', resolved: 'missing', created: true, savesFolders: false, restored: false },
+			{ name: 'another workspace', resolved: 'other', created: true, restored: false },
+			// The workspace's folders were reordered after the draft was saved
+			{ name: 'workspace folders reordered since saving', resolved: 'file', created: true, pickerFolders: [requested, savedFolders[2], savedFolders[1]], restored: true },
+			{ name: 'existing draft of the same session', resolved: 'file', created: false, restored: true },
+			// The same folders, its folder still first
+			{ name: 'existing draft with the same folders in another order', resolved: 'file', created: false, draftFolders: [requested, savedFolders[2], savedFolders[1]], restored: true },
+			{ name: 'existing draft with another folder', resolved: 'file', created: false, draftFolders: [...savedFolders, URI.file('/extra')], restored: false },
+			{ name: 'existing draft of another workspace file', resolved: 'file', created: false, draftWorkspaceFile: URI.file('/other.code-workspace'), restored: false },
+		];
+		for (const restoreCase of restoreCases) {
+			test(`restores the workspace and the added folders of a draft's session, or keeps its content when they are unavailable (${restoreCase.name})`, async () => {
+				const renamedWorkspaceUri = URI.file('/renamed.code-workspace');
+				const workspaceConfig = restoreCase.resolved === 'file' ? { uri: savedWorkspaceUri, name: 'Product', folders: [requested] }
+					: restoreCase.resolved === 'renamed' ? { uri: renamedWorkspaceUri, name: 'Product', folders: [requested] }
+						: undefined;
+				const draftFolders = restoreCase.draftFolders ?? savedFolders;
+				const session = upcastPartial<ISession>({
+					sessionId: 'restored', providerId: 'provider', sessionType: 'agent',
+					isQuickChat: constObservable(false),
+					workspace: constObservable(upcastPartial<ISessionWorkspace>({
+						folders: draftFolders.map(root => ({ root, workingDirectory: root, name: 'folder', description: undefined })),
+						workspaceConfig: restoreCase.draftWorkspaceFile ? { uri: restoreCase.draftWorkspaceFile, name: 'Other', folders: [requested] } : workspaceConfig,
+					})),
+				});
+				const fixture = createHarness(session);
+				const selected: { sessionWorkspaceUri?: URI; sessionFolders?: readonly URI[] }[] = [];
+				const opened: ICreateNewSessionOptions[] = [];
+				const picker = {
+					...workspaceIdentity(),
+					setSelectedWorkspace: (_folder: URI, options?: { sessionWorkspaceUri?: URI; sessionFolders?: readonly URI[] }) => { selected.push({ sessionWorkspaceUri: options?.sessionWorkspaceUri, sessionFolders: options?.sessionFolders }); },
+					get selectedSessionWorkspace() {
+						switch (restoreCase.resolved) {
+							case 'renamed': return { uri: renamedWorkspaceUri, previousUris: [savedWorkspaceUri], name: 'Product', folders: [requested] };
+							case 'missing': return { uri: savedWorkspaceUri, name: 'Product', folders: [requested], missing: true };
+							case 'other': return { uri: URI.file('/other.code-workspace'), name: 'Other', folders: [requested] };
+							case undefined: return undefined;
+							default: return { uri: savedWorkspaceUri, name: 'Product', folders: [requested] };
+						}
+					},
+					get selectedWorkspaceConfig() { return workspaceConfig; },
+					get sessionFolderUris() { return restoreCase.pickerFolders ?? selected.at(-1)?.sessionFolders; },
+				};
+				Reflect.set(fixture.harness, '_workspacePicker', picker);
+				Reflect.set(fixture.harness.sessionsService, 'openNewSession', async (options: ICreateNewSessionOptions) => { opened.push(options); return { session, created: restoreCase.created }; });
+
+				const error = await fixture.restore({ ...draft, target: { ...draft.target, sessionWorkspaceUri: savedWorkspaceUri, sessionFolders: restoreCase.savesFolders === false ? undefined : savedFolders } }).then(() => undefined, (error: Error) => error.message);
+
+				assert.deepStrictEqual({ error, configured: fixture.configured.length, opened: opened.map(options => ({ workspaceConfig: options.workspaceConfig, folders: options.folders })) }, {
+					error: restoreCase.restored ? undefined : 'The saved draft\'s workspace is unavailable. Its content has been kept.',
+					configured: restoreCase.restored ? 1 : 0,
+					opened: restoreCase.resolved === undefined || restoreCase.resolved === 'other' || restoreCase.resolved === 'missing' ? [] : [{ workspaceConfig, folders: restoreCase.pickerFolders ?? savedFolders }],
+				});
+			});
 		}
 
 		test('cancelling before target restoration preserves the previous input and Send availability', async () => {
