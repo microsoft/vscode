@@ -22,7 +22,7 @@ import { IProductService } from '../../product/common/productService.js';
 import { IStateService } from '../../state/node/state.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IUpdateService, StateType } from '../../update/common/update.js';
-import { INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, IWindowOpenable, hasNativeMenu } from '../../window/common/window.js';
+import { INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, IWindowOpenable, getMenuBarVisibility, hasNativeMenu } from '../../window/common/window.js';
 import { IWindowsCountChangedEvent, IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
 import { IWorkspacesHistoryMainService } from '../../workspaces/electron-main/workspacesHistoryMainService.js';
 import { isFocusInFrameNestedInWebview } from '../../webview/electron-main/webviewFrames.js';
@@ -190,6 +190,14 @@ export class Menubar extends Disposable {
 	}
 
 	private get currentEnableMenuBarMnemonics(): boolean {
+
+		// Electron reveals a hidden menu bar when a mnemonic is pressed (e.g. Alt+F)
+		// and never hides it again, so disable mnemonics when the menu bar is hidden
+		// (https://github.com/microsoft/vscode/issues/339706)
+		if (!isMacintosh && getMenuBarVisibility(this.configurationService) === 'hidden') {
+			return false;
+		}
+
 		const enableMenuBarMnemonics = this.configurationService.getValue('window.enableMenuBarMnemonics');
 		if (typeof enableMenuBarMnemonics !== 'boolean') {
 			return true;
