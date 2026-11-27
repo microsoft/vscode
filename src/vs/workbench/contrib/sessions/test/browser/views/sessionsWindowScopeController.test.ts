@@ -252,10 +252,11 @@ suite('SessionsWindowScopeController', () => {
 			folder: { restored: 'other', entered: 'repo', left: 'repo' },
 			multiRoot: { restored: 'other', entered: 'first', left: 'first' },
 			empty: { restored: 'other', entered: 'all', left: 'all' },
-			settingOff: { restored: 'other', entered: 'repo', left: 'repo' },
+			// Without the bar the pick is fixed on the folder, which is not the user's: leaving gives the user's pick back
+			settingOff: { restored: 'other', entered: 'repo', left: 'other' },
 			emptySettingOff: { restored: 'other', entered: 'other', left: 'other' },
 			// Without the bar nothing could have widened the pick, so it starts on the folder again
-			restoredSettingOff: { restored: 'repo', entered: 'repo', left: 'repo' },
+			restoredSettingOff: { restored: 'repo', entered: 'repo', left: 'other' },
 			// With the bar the user's pick stays, until the setting turns off and fixes the pick on the folder again
 			restoredSettingOn: { restored: 'other', settingOff: 'repo' },
 		});

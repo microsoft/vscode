@@ -96,8 +96,9 @@ export class SessionsWindowScopeController extends Disposable {
 		// the window to the stale pick first. The pick is seeded where the window will be scoped in the mode.
 		this._register(agentsModeService.onWillChange(active => {
 			const filters = this.scopeBarFilters.get();
-			const willScopeWindow = aiAvailable.get() && (enabled.get() || agentsModeService.windowFolders.length > 0);
-			if (active && filters && willScopeWindow) {
+			// Only where the bar will show: a fixed pick is set below and is not the user's, so it must not replace theirs
+			const willShowBar = aiAvailable.get() && enabled.get();
+			if (active && filters && willShowBar) {
 				filters.pickInboxWorkspace(this.getAgentsModeStartWorkspace());
 			}
 		}));
