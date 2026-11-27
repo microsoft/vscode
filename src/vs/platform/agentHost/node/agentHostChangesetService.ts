@@ -1090,7 +1090,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	/**
 	 * The repositories the Git state service found inside the owner's folders, other than the folders' own (see
-	 * `vscode.sessionRepositories`). Empty when the client sent no repository detection options.
+	 * `vscode.sessionRepositories`). Empty when no folder has repositories in its immediate subfolders.
 	 */
 	private _getDiscoveredRepositoryRoots(owner: ProtocolURI, workingDirectories: readonly string[] | undefined): URI[] {
 		const repositories = readSessionRepositories(this._stateManager.getSessionState(this._containingSessionUri(owner))?._meta);
@@ -1645,18 +1645,20 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	/**
-	 * The base branch recorded for one repository of an owner of several folders, when it is not the owner's: a
-	 * repository found inside a folder, or the repository of a folder other than the first, which has its own Git state.
-	 * `undefined` for the repository of the owner's first folder, which uses the owner's base branch.
+	 * The base branch the diff of one repository of an owner's changeset is taken against: `ownerBaseBranch` for the
+	 * repository of the owner's first folder, and for any other repository (a repository found inside a folder, or the
+	 * repository of another folder) the base branch recorded in its own Git state. Another repository without a recorded
+	 * base branch has none, so its diff starts at `HEAD` rather than at a ref of the first folder's base branch name that
+	 * may exist in an unrelated repository.
 	 */
-	private _getRepositoryBaseBranch(owner: ProtocolURI, workingDirectories: readonly string[], discovered: readonly URI[], repoRoot: URI): string | undefined {
+	private _getRepositoryBaseBranch(owner: ProtocolURI, workingDirectories: readonly string[], discovered: readonly URI[], repoRoot: URI, ownerBaseBranch: string | undefined): string | undefined {
 		const meta = this._stateManager.getSessionState(this._containingSessionUri(owner))?._meta;
 		if (discovered.some(root => this._isEqualOrInside(root, repoRoot) && this._isEqualOrInside(repoRoot, root))) {
 			return readFolderScopeGitState(meta, getWorkingDirectoryScopeId([repoRoot.toString()]))?.baseBranchName;
 		}
 		const [first, ...others] = workingDirectories;
 		if (first === undefined || this._isEqualOrInside(URI.parse(first), repoRoot)) {
-			return undefined;
+			return ownerBaseBranch;
 		}
 		const folder = others.find(candidate => this._isEqualOrInside(URI.parse(candidate), repoRoot));
 		return folder === undefined ? undefined : readFolderScopeGitState(meta, getWorkingDirectoryScopeId([folder]))?.baseBranchName;
@@ -1757,7 +1759,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		const computedDiffs = new Map<string, { readonly fingerprint: string; readonly diffs: readonly ISessionFileDiff[] }>();
 		const perRepoDiffs = await Promises.settled(gitRepositories.map(repoRoot => limiter.queue(async () => {
 			try {
-				const repositoryBaseBranch = this._getRepositoryBaseBranch(session, workingDirectories, discovered, repoRoot) ?? baseBranch;
+				const repositoryBaseBranch = this._getRepositoryBaseBranch(session, workingDirectories, discovered, repoRoot, baseBranch);
 				// A fingerprint taken against another base branch (the base changed since) does not describe this diff
 				const recorded = repositoryFingerprints?.get(repoRoot.toString());
 				if (repositoryFingerprints && recorded?.baseBranch !== repositoryBaseBranch) {
@@ -2429,7 +2431,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			}
 			// Each repository with the base branch its diff uses, so a change of a folder's own base changes the fingerprint
 			const multipleRepositories = this._hasMultipleRepositories(owner, workingDirectories);
-			const baseBranches = directories.map(directory => (multipleRepositories ? this._getRepositoryBaseBranch(owner, workingDirectories, discovered, directory) : undefined) ?? baseBranch);
+			const baseBranches = directories.map(directory => multipleRepositories ? this._getRepositoryBaseBranch(owner, workingDirectories, discovered, directory, baseBranch) : baseBranch);
 			const limiter = new Limiter<string | undefined>(MAX_DIFF_REPOSITORY_CONCURRENCY);
 			const fingerprints = await Promise.all(directories.map((directory, index) => limiter.queue(async () => this._gitService.getBranchDiffFingerprint?.(directory, baseBranches[index])))).finally(() => limiter.dispose());
 			if (fingerprints.some(fingerprint => fingerprint === undefined)) {

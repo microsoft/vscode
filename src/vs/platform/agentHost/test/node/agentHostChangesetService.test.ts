@@ -2047,6 +2047,35 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		});
 	});
 
+	test('a repository other than the first folder\'s without a recorded base branch is diffed and fingerprinted from HEAD, not against the first folder\'s base branch', async () => {
+		const diffBases: Record<string, string | undefined> = {};
+		const fingerprintBases: Record<string, string | undefined> = {};
+		const git = createNoopGitService();
+		git.getRepositoryRoot = async workingDirectory => URI.parse(workingDirectory.toString());
+		git.getBranchDiffFingerprint = async (workingDirectory, baseBranch) => {
+			fingerprintBases[workingDirectory.path] = baseBranch;
+			return 'tree-1';
+		};
+		git.computeSessionFileDiffs = async (workingDirectory, options) => {
+			diffBases[workingDirectory.path] = options?.baseBranch;
+			return [gitDiff(`${workingDirectory.path}/file.ts`)];
+		};
+		const workingDirectories = ['file:///repoA', 'file:///repoB'];
+		const { svc, stateManager } = build({ workingDirectories, git, checkpoint: NULL_CHECKPOINT_SERVICE });
+		// The session's base branch, and a repository found in the second folder; neither other repository's Git state has a base branch yet
+		stateManager.setSessionMeta(sessionStr, withSessionRepositories(withSessionGitState(stateManager.getSessionState(sessionStr)?._meta, { branchName: 'topic', baseBranchName: 'main', baseBranchRef: 'main' }), {
+			[getWorkingDirectoryKey('file:///repoB')]: [{ root: 'file:///repoB', kind: 'folder' }, { root: 'file:///repoB/docs', kind: 'nested' }],
+		}));
+		stateManager.setSessionMeta(sessionStr, withFolderScopeGitState(stateManager.getSessionState(sessionStr)?._meta, getWorkingDirectoryScopeId(['file:///repoB']), { branchName: 'other' }));
+
+		await refreshBranch(svc, sessionStr, { workingDirectories });
+
+		assert.deepStrictEqual({ diffBases, fingerprintBases }, {
+			diffBases: { '/repoA': 'main', '/repoB': undefined, '/repoB/docs': undefined },
+			fingerprintBases: { '/repoA': 'main', '/repoB': undefined, '/repoB/docs': undefined },
+		});
+	});
+
 	test('a branch changeset lists a repository found inside its folder after the first computation, and diffs again when only that repository changes', async () => {
 		const fingerprints: Record<string, string> = { '/work': 'work-1', '/work/docs': 'docs-1' };
 		const diffed: string[] = [];
