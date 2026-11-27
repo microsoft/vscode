@@ -458,6 +458,7 @@ export class MergeEditorModel extends EditorModel {
 			throw new BugIndicatingError('object must be from this instance');
 		}
 
+		this.resultTextModel.pushStackElement();
 		const conflictingDiffs = this.resultTextModelDiffs.findTouchingDiffs(
 			baseRange.baseRange
 		);
@@ -483,10 +484,9 @@ export class MergeEditorModel extends EditorModel {
 		}
 
 		if (edit) {
-			this.resultTextModel.pushStackElement();
 			this.resultTextModelDiffs.applyEditRelativeToOriginal(edit, tx, group);
-			this.resultTextModel.pushStackElement();
 		}
+		this.resultTextModel.pushStackElement();
 
 		// always set conflict as handled
 		existingState.handledInput1.set(true, tx);
