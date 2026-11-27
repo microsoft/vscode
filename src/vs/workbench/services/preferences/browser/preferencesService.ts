@@ -48,7 +48,7 @@ import { compareIgnoreCase } from '../../../../base/common/strings.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
-import { IAgenticModeService } from '../../agenticMode/common/agenticMode.js';
+import { IAgentsModeService } from '../../agentsMode/common/agentsMode.js';
 
 const emptyEditableSettingsContent = '{\n}';
 
@@ -93,7 +93,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IAgenticModeService private readonly agenticModeService: IAgenticModeService,
+		@IAgentsModeService private readonly agentsModeService: IAgentsModeService,
 	) {
 		super();
 		// The default keybindings.json updates based on keyboard layouts, so here we make sure
@@ -310,8 +310,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	openWorkspaceSettings(options: IOpenSettingsOptions = {}): Promise<IEditorPane | undefined> {
-		if (this.agenticModeService.isActive) {
-			return this.openUserSettings(options); // Agentic Mode applies only User settings
+		if (this.agentsModeService.isActive) {
+			return this.openUserSettings(options); // Agents mode applies only User settings
 		}
 		if (!this.workspaceSettingsResource) {
 			this.notificationService.info(nls.localize('openFolderFirst', "Open a folder or workspace first to create workspace or folder settings."));
@@ -326,8 +326,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	async openFolderSettings(options: IOpenSettingsOptions = {}): Promise<IEditorPane | undefined> {
-		if (this.agenticModeService.isActive) {
-			return this.openUserSettings(options); // Agentic Mode applies only User settings
+		if (this.agentsModeService.isActive) {
+			return this.openUserSettings(options); // Agents mode applies only User settings
 		}
 		options = {
 			...options,

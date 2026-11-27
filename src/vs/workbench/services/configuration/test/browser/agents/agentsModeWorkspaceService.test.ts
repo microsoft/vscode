@@ -31,14 +31,14 @@ import { RemoteAgentService } from '../../../../remote/browser/remoteAgentServic
 import { IRemoteAgentService } from '../../../../remote/common/remoteAgentService.js';
 import { UserDataProfileService } from '../../../../userDataProfile/common/userDataProfileService.js';
 import { IUserDataProfileService } from '../../../../userDataProfile/common/userDataProfile.js';
-import { AGENTIC_MODE_ENABLED_SETTING, AgenticModeWorkspaceService, LEGACY_AGENTIC_MODE_ENABLED_SETTING, supportsAgenticMode } from '../../../browser/agents/agenticModeWorkspaceService.js';
+import { AGENTS_MODE_ENABLED_SETTING, AgentsModeWorkspaceService, LEGACY_AGENTS_MODE_ENABLED_SETTING, supportsAgentsMode } from '../../../browser/agents/agentsModeWorkspaceService.js';
 import { WorkspaceService } from '../../../browser/configurationService.js';
 import { IConfigurationCache } from '../../../common/configuration.js';
 import { ConfigurationEditingError, ConfigurationEditingErrorCode } from '../../../common/configurationEditing.js';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
-suite('AgenticModeWorkspaceService', () => {
+suite('AgentsModeWorkspaceService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -47,23 +47,23 @@ suite('AgenticModeWorkspaceService', () => {
 	let fileService: FileService;
 	let applicationSettingsResource: URI;
 	let profileSettingsResource: URI;
-	let testObject: AgenticModeWorkspaceService;
+	let testObject: AgentsModeWorkspaceService;
 	let userDataProfileService: UserDataProfileService;
 
 	suiteSetup(() => {
 		configurationRegistry.registerConfiguration({
-			id: '_test_agenticMode',
+			id: '_test_agentsMode',
 			type: 'object',
 			properties: {
-				'agenticMode.modeDefault': { type: 'boolean', default: false, agentsMode: { default: true }, agentsWindow: { default: false } },
-				'agenticMode.agentsDefault': { type: 'string', default: 'editor', agentsWindow: { default: 'agents' } },
-				'agenticMode.userWins': { type: 'boolean', default: false, agentsMode: { default: true } },
-				'agenticMode.readOnly': { type: 'string', default: 'editor', agentsWindow: { default: 'agents', readOnly: true } },
-				'agenticMode.modeReadOnly': { type: 'string', default: 'editor', agentsMode: { default: 'mode', readOnly: true } },
-				'agenticMode.application': { type: 'string', default: 'isSet', scope: ConfigurationScope.APPLICATION },
-				'agenticMode.applicationReadOnly': { type: 'string', default: 'editor', scope: ConfigurationScope.APPLICATION, agentsMode: { default: 'mode', readOnly: true } },
-				'agenticMode.folderSetting': { type: 'string', default: 'default', scope: ConfigurationScope.RESOURCE },
-				'agenticMode.languageSetting': { type: 'string', default: 'default', scope: ConfigurationScope.LANGUAGE_OVERRIDABLE },
+				'agentsMode.modeDefault': { type: 'boolean', default: false, agentsMode: { default: true }, agentsWindow: { default: false } },
+				'agentsMode.agentsDefault': { type: 'string', default: 'editor', agentsWindow: { default: 'agents' } },
+				'agentsMode.userWins': { type: 'boolean', default: false, agentsMode: { default: true } },
+				'agentsMode.readOnly': { type: 'string', default: 'editor', agentsWindow: { default: 'agents', readOnly: true } },
+				'agentsMode.modeReadOnly': { type: 'string', default: 'editor', agentsMode: { default: 'mode', readOnly: true } },
+				'agentsMode.application': { type: 'string', default: 'isSet', scope: ConfigurationScope.APPLICATION },
+				'agentsMode.applicationReadOnly': { type: 'string', default: 'editor', scope: ConfigurationScope.APPLICATION, agentsMode: { default: 'mode', readOnly: true } },
+				'agentsMode.folderSetting': { type: 'string', default: 'default', scope: ConfigurationScope.RESOURCE },
+				'agentsMode.languageSetting': { type: 'string', default: 'default', scope: ConfigurationScope.LANGUAGE_OVERRIDABLE },
 			}
 		});
 	});
@@ -85,14 +85,14 @@ suite('AgenticModeWorkspaceService', () => {
 		userDataProfileService = disposables.add(new UserDataProfileService(toUserDataProfile('custom', 'custom', joinPath(environmentService.userRoamingDataHome, 'profiles', 'custom'), joinPath(environmentService.cacheHome, 'profilesCache'))));
 		applicationSettingsResource = userDataProfilesService.defaultProfile.settingsResource;
 		profileSettingsResource = userDataProfileService.currentProfile.settingsResource;
-		await fileService.writeFile(applicationSettingsResource, VSBuffer.fromString('{ "agenticMode.application": "applicationValue", "agenticMode.applicationReadOnly": "user" }'));
-		await fileService.writeFile(profileSettingsResource, VSBuffer.fromString('{ "agenticMode.userWins": false, "agenticMode.readOnly": "user", "agenticMode.modeReadOnly": "user" }'));
+		await fileService.writeFile(applicationSettingsResource, VSBuffer.fromString('{ "agentsMode.application": "applicationValue", "agentsMode.applicationReadOnly": "user" }'));
+		await fileService.writeFile(profileSettingsResource, VSBuffer.fromString('{ "agentsMode.userWins": false, "agentsMode.readOnly": "user", "agentsMode.modeReadOnly": "user" }'));
 
 		const policyService = new NullPolicyService();
 		const editor = disposables.add(new WorkspaceService({ configurationCache }, environmentService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, logService, policyService));
 		const emptyWorkspace = { id: 'empty-window' };
 		await editor.initialize(emptyWorkspace);
-		testObject = disposables.add(new AgenticModeWorkspaceService(editor, { userDataProfileService, userDataProfilesService, uriIdentityService, fileService, policyService, logService, configurationCache, environmentService }));
+		testObject = disposables.add(new AgentsModeWorkspaceService(editor, { userDataProfileService, userDataProfilesService, uriIdentityService, fileService, policyService, logService, configurationCache, environmentService }));
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IWorkspaceContextService, testObject);
 		instantiationService.stub(IConfigurationService, testObject);
@@ -105,16 +105,16 @@ suite('AgenticModeWorkspaceService', () => {
 
 	function snapshot() {
 		return {
-			mode: testObject.isAgenticMode,
+			mode: testObject.isAgentsMode,
 			workspaceId: testObject.getWorkspace().id,
 			state: testObject.getWorkbenchState(),
 			scope: testObject.getWorkbenchScope(),
 			workbenchMode: testObject.getWorkbenchMode(),
-			modeDefault: testObject.getValue('agenticMode.modeDefault'),
-			agentsDefault: testObject.getValue('agenticMode.agentsDefault'),
-			userWins: testObject.getValue('agenticMode.userWins'),
-			readOnly: testObject.getValue('agenticMode.readOnly'),
-			modeReadOnly: testObject.getValue('agenticMode.modeReadOnly'),
+			modeDefault: testObject.getValue('agentsMode.modeDefault'),
+			agentsDefault: testObject.getValue('agentsMode.agentsDefault'),
+			userWins: testObject.getValue('agentsMode.userWins'),
+			readOnly: testObject.getValue('agentsMode.readOnly'),
+			modeReadOnly: testObject.getValue('agentsMode.modeReadOnly'),
 		};
 	}
 
@@ -123,9 +123,9 @@ suite('AgenticModeWorkspaceService', () => {
 		disposables.add(testObject.onDidChangeWorkbenchState(state => events.push(`state:${state}`)));
 		disposables.add(testObject.onDidChangeWorkbenchScope(scope => events.push(`scope:${scope}`)));
 		disposables.add(testObject.onDidChangeWorkbenchMode(mode => events.push(`workbenchMode:${mode}`)));
-		disposables.add(testObject.onDidChangeAgenticMode(enabled => events.push(`mode:${enabled}`)));
+		disposables.add(testObject.onDidChangeAgentsMode(enabled => events.push(`mode:${enabled}`)));
 		disposables.add(testObject.onDidChangeConfiguration(e => {
-			for (const key of ['agenticMode.modeDefault', 'agenticMode.agentsDefault', 'agenticMode.userWins', 'agenticMode.readOnly', 'agenticMode.modeReadOnly']) {
+			for (const key of ['agentsMode.modeDefault', 'agentsMode.agentsDefault', 'agentsMode.userWins', 'agentsMode.readOnly', 'agentsMode.modeReadOnly']) {
 				if (e.affectsConfiguration(key)) {
 					events.push(`config:${key}`);
 				}
@@ -133,9 +133,9 @@ suite('AgenticModeWorkspaceService', () => {
 		}));
 
 		const before = snapshot();
-		await testObject.setAgenticMode(true);
+		await testObject.setAgentsMode(true);
 		const inMode = snapshot();
-		await testObject.setAgenticMode(false);
+		await testObject.setAgentsMode(false);
 		const after = snapshot();
 
 		assert.deepStrictEqual({ before, inMode, after, events }, {
@@ -144,19 +144,19 @@ suite('AgenticModeWorkspaceService', () => {
 			inMode: { mode: true, workspaceId: 'empty-window', state: WorkbenchState.WORKSPACE, scope: undefined, workbenchMode: WorkbenchMode.Agents, modeDefault: true, agentsDefault: 'editor', userWins: false, readOnly: 'user', modeReadOnly: 'mode' },
 			after: { mode: false, workspaceId: 'empty-window', state: WorkbenchState.EMPTY, scope: undefined, workbenchMode: WorkbenchMode.Editor, modeDefault: false, agentsDefault: 'editor', userWins: false, readOnly: 'user', modeReadOnly: 'user' },
 			events: [
-				`state:${WorkbenchState.WORKSPACE}`, `workbenchMode:${WorkbenchMode.Agents}`, 'config:agenticMode.modeDefault', 'config:agenticMode.modeReadOnly', 'mode:true',
-				`state:${WorkbenchState.EMPTY}`, `workbenchMode:${WorkbenchMode.Editor}`, 'config:agenticMode.modeDefault', 'config:agenticMode.modeReadOnly', 'mode:false',
+				`state:${WorkbenchState.WORKSPACE}`, `workbenchMode:${WorkbenchMode.Agents}`, 'config:agentsMode.modeDefault', 'config:agentsMode.modeReadOnly', 'mode:true',
+				`state:${WorkbenchState.EMPTY}`, `workbenchMode:${WorkbenchMode.Editor}`, 'config:agentsMode.modeDefault', 'config:agentsMode.modeReadOnly', 'mode:false',
 			],
 		});
 	}));
 
-	test('refuses writing a setting that is read-only in Agentic Mode, only in the mode', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		await testObject.setAgenticMode(true);
-		const inMode = await testObject.updateValue('agenticMode.modeReadOnly', 'changed').then(() => 'written', error => error.message);
-		await testObject.setAgenticMode(false);
-		await testObject.updateValue('agenticMode.modeReadOnly', 'changed');
-		assert.deepStrictEqual({ inMode, editor: testObject.getValue('agenticMode.modeReadOnly') }, {
-			inMode: 'Unable to write agenticMode.modeReadOnly because it is read-only in Agentic Mode.',
+	test('refuses writing a setting that is read-only in Agents mode, only in the mode', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await testObject.setAgentsMode(true);
+		const inMode = await testObject.updateValue('agentsMode.modeReadOnly', 'changed').then(() => 'written', error => error.message);
+		await testObject.setAgentsMode(false);
+		await testObject.updateValue('agentsMode.modeReadOnly', 'changed');
+		assert.deepStrictEqual({ inMode, editor: testObject.getValue('agentsMode.modeReadOnly') }, {
+			inMode: 'Unable to write agentsMode.modeReadOnly because it is read-only in Agents mode.',
 			editor: 'changed',
 		});
 	}));
@@ -168,15 +168,15 @@ suite('AgenticModeWorkspaceService', () => {
 
 		testObject.setWorkbenchScope(scope);
 		const editor = testObject.getWorkbenchScope()?.path;
-		await testObject.setAgenticMode(true);
+		await testObject.setAgentsMode(true);
 		testObject.setWorkbenchScope(scope);
 		testObject.setWorkbenchScope(URI.file('/work/app'));
 		const inMode = testObject.getWorkbenchScope()?.path;
-		await testObject.setAgenticMode(false);
+		await testObject.setAgentsMode(false);
 		const left = testObject.getWorkbenchScope()?.path;
-		await testObject.setAgenticMode(true);
+		await testObject.setAgentsMode(true);
 		const entered = testObject.getWorkbenchScope()?.path;
-		await testObject.setAgenticMode(false);
+		await testObject.setAgentsMode(false);
 
 		assert.deepStrictEqual({ editor, inMode, left, entered, events }, {
 			editor: '/work/app',
@@ -195,9 +195,9 @@ suite('AgenticModeWorkspaceService', () => {
 		try {
 			disposables.add(testObject.onDidChangeWorkbenchState(() => { throw new Error('state listener failed'); }));
 			disposables.add(testObject.onDidChangeWorkbenchMode(mode => events.push(`workbenchMode:${mode}`)));
-			disposables.add(testObject.onDidChangeAgenticMode(enabled => events.push(`mode:${enabled}`)));
+			disposables.add(testObject.onDidChangeAgentsMode(enabled => events.push(`mode:${enabled}`)));
 
-			await testObject.setAgenticMode(true);
+			await testObject.setAgentsMode(true);
 
 			assert.deepStrictEqual({ workbenchMode: testObject.getWorkbenchMode(), events, errors }, {
 				workbenchMode: WorkbenchMode.Agents,
@@ -210,35 +210,35 @@ suite('AgenticModeWorkspaceService', () => {
 	}));
 
 	test('reads and writes application settings of a non-default profile in the mode', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		await testObject.setAgenticMode(true);
-		const read = testObject.getValue('agenticMode.application');
-		await testObject.updateValue('agenticMode.application', 'written', ConfigurationTarget.USER);
+		await testObject.setAgentsMode(true);
+		const read = testObject.getValue('agentsMode.application');
+		await testObject.updateValue('agentsMode.application', 'written', ConfigurationTarget.USER);
 
 		assert.deepStrictEqual({
 			read,
-			readBack: testObject.getValue('agenticMode.application'),
+			readBack: testObject.getValue('agentsMode.application'),
 			applicationSettings: JSON.parse((await fileService.readFile(applicationSettingsResource)).value.toString()),
 		}, {
 			read: 'applicationValue',
 			readBack: 'written',
-			applicationSettings: { 'agenticMode.application': 'written', 'agenticMode.applicationReadOnly': 'user' },
+			applicationSettings: { 'agentsMode.application': 'written', 'agentsMode.applicationReadOnly': 'user' },
 		});
 	}));
 
 	test('ignores the user\'s value of an application setting that is read-only in the mode', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const editor = testObject.getValue('agenticMode.applicationReadOnly');
-		await testObject.setAgenticMode(true);
-		assert.deepStrictEqual({ editor, inMode: testObject.getValue('agenticMode.applicationReadOnly') }, { editor: 'user', inMode: 'mode' });
+		const editor = testObject.getValue('agentsMode.applicationReadOnly');
+		await testObject.setAgentsMode(true);
+		assert.deepStrictEqual({ editor, inMode: testObject.getValue('agentsMode.applicationReadOnly') }, { editor: 'user', inMode: 'mode' });
 	}));
 
 	test('refuses workspace settings writes in the mode like an empty window', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		await testObject.setAgenticMode(true);
+		await testObject.setAgentsMode(true);
 
-		await assert.rejects(testObject.updateValue('agenticMode.modeDefault', 'written', ConfigurationTarget.WORKSPACE), (error: ConfigurationEditingError) => error.code === ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED);
+		await assert.rejects(testObject.updateValue('agentsMode.modeDefault', 'written', ConfigurationTarget.WORKSPACE), (error: ConfigurationEditingError) => error.code === ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED);
 	}));
 
 	test('keeps the mounted folders when the profile changes in the mode', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		await testObject.setAgenticMode(true);
+		await testObject.setAgentsMode(true);
 		const folder = joinPath(ROOT, 'folder');
 		await testObject.addFolders([{ uri: folder }]);
 		const folderEvents: number[] = [];
@@ -250,14 +250,14 @@ suite('AgenticModeWorkspaceService', () => {
 	}));
 
 	test('keeps the empty window identity with one mounted folder in the mode', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		await testObject.setAgenticMode(true);
+		await testObject.setAgentsMode(true);
 		await testObject.addFolders([{ uri: joinPath(ROOT, 'folder') }]);
 
 		assert.deepStrictEqual(toWorkspaceIdentifier(testObject.getWorkspace()), { id: 'empty-window' });
 	}));
 
 	test('leaving the mode unmounts a moved folder without moving it back first or clearing history', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		await testObject.setAgenticMode(true);
+		await testObject.setAgentsMode(true);
 		const folder = joinPath(ROOT, 'repo');
 		const worktree = joinPath(ROOT, 'repo.worktrees', 'first');
 		await fileService.createFolder(folder);
@@ -274,27 +274,27 @@ suite('AgenticModeWorkspaceService', () => {
 			}
 		}));
 
-		await testObject.setAgenticMode(false);
+		await testObject.setAgentsMode(false);
 
 		assert.deepStrictEqual({ moved, events, historyClears }, { moved: true, events: [], historyClears: 0 });
 	}));
 
 	test('leaves the mode before initializing another workspace', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		await testObject.setAgenticMode(true);
+		await testObject.setAgentsMode(true);
 		await testObject.initialize({ id: 'empty-window' });
 
-		assert.deepStrictEqual({ mode: testObject.isAgenticMode, state: testObject.getWorkbenchState() }, { mode: false, state: WorkbenchState.EMPTY });
+		assert.deepStrictEqual({ mode: testObject.isAgentsMode, state: testObject.getWorkbenchState() }, { mode: false, state: WorkbenchState.EMPTY });
 	}));
 
 	test('enters the mode under the window\'s current workspace id, not the startup one', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		await testObject.initialize({ id: 'another-empty-window' });
-		await testObject.setAgenticMode(true);
+		await testObject.setAgentsMode(true);
 
-		assert.deepStrictEqual({ mode: testObject.isAgenticMode, id: testObject.getWorkspace().id }, { mode: true, id: 'another-empty-window' });
+		assert.deepStrictEqual({ mode: testObject.isAgentsMode, id: testObject.getWorkspace().id }, { mode: true, id: 'another-empty-window' });
 	}));
 
-	/** A window opened on `workspace`, whose `folder` sets `agenticMode.folderSetting` to `folder`, and `agenticMode.languageSetting` to `markdown` for Markdown only. */
-	async function createWindowWithFolderSetting(workspace: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier, folder: URI): Promise<AgenticModeWorkspaceService> {
+	/** A window opened on `workspace`, whose `folder` sets `agentsMode.folderSetting` to `folder`, and `agentsMode.languageSetting` to `markdown` for Markdown only. */
+	async function createWindowWithFolderSetting(workspace: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier, folder: URI): Promise<AgentsModeWorkspaceService> {
 		const logService = new NullLogService();
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const environmentService = TestEnvironmentService;
@@ -302,10 +302,10 @@ suite('AgenticModeWorkspaceService', () => {
 		const uriIdentityService = disposables.add(new UriIdentityService(fileService));
 		const userDataProfilesService = disposables.add(new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService));
 		const policyService = new NullPolicyService();
-		await fileService.writeFile(joinPath(folder, '.vscode', 'settings.json'), VSBuffer.fromString('{ "agenticMode.folderSetting": "folder", "[markdown]": { "agenticMode.languageSetting": "markdown" } }'));
+		await fileService.writeFile(joinPath(folder, '.vscode', 'settings.json'), VSBuffer.fromString('{ "agentsMode.folderSetting": "folder", "[markdown]": { "agentsMode.languageSetting": "markdown" } }'));
 		const editor = disposables.add(new WorkspaceService({ configurationCache }, environmentService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, logService, policyService));
 		await editor.initialize(workspace);
-		const window = disposables.add(new AgenticModeWorkspaceService(editor, { userDataProfileService, userDataProfilesService, uriIdentityService, fileService, policyService, logService, configurationCache, environmentService }));
+		const window = disposables.add(new AgentsModeWorkspaceService(editor, { userDataProfileService, userDataProfilesService, uriIdentityService, fileService, policyService, logService, configurationCache, environmentService }));
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IWorkspaceContextService, window);
 		instantiationService.stub(IConfigurationService, window);
@@ -313,12 +313,12 @@ suite('AgenticModeWorkspaceService', () => {
 		return window;
 	}
 
-	/** The values of `agenticMode.folderSetting` for `resource` that `window`'s change events announce for it. */
-	function recordFolderSettingEvents(window: AgenticModeWorkspaceService, resource: URI): string[] {
+	/** The values of `agentsMode.folderSetting` for `resource` that `window`'s change events announce for it. */
+	function recordFolderSettingEvents(window: AgentsModeWorkspaceService, resource: URI): string[] {
 		const events: string[] = [];
 		disposables.add(window.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('agenticMode.folderSetting', { resource })) {
-				events.push(String(window.getValue('agenticMode.folderSetting', { resource })));
+			if (e.affectsConfiguration('agentsMode.folderSetting', { resource })) {
+				events.push(String(window.getValue('agentsMode.folderSetting', { resource })));
 			}
 		}));
 		return events;
@@ -334,13 +334,13 @@ suite('AgenticModeWorkspaceService', () => {
 			folders: folderObject.getWorkspace().folders.map(folder => folder.uri.toString()),
 			state: folderObject.getWorkbenchState(),
 			windowFolders: folderObject.windowFolders.map(folder => folder.toString()),
-			folderSetting: folderObject.getValue('agenticMode.folderSetting', { resource: joinPath(folderUri, 'a.txt') }),
+			folderSetting: folderObject.getValue('agentsMode.folderSetting', { resource: joinPath(folderUri, 'a.txt') }),
 		});
 		const folderSettingEvents = recordFolderSettingEvents(folderObject, joinPath(folderUri, 'a.txt'));
 		const before = folderSnapshot();
-		await folderObject.setAgenticMode(true);
+		await folderObject.setAgentsMode(true);
 		const inMode = folderSnapshot();
-		await folderObject.setAgenticMode(false);
+		await folderObject.setAgentsMode(false);
 		const after = folderSnapshot();
 
 		assert.deepStrictEqual({ before, inMode, after, folderSettingEvents }, {
@@ -360,13 +360,13 @@ suite('AgenticModeWorkspaceService', () => {
 		const window = await createWindowWithFolderSetting({ id: 'multi-root-window', configPath }, first);
 		const resource = joinPath(first, 'a.txt');
 		// A folder's settings are not the workspace's in a multi-root window: they apply only to resources in that folder
-		const value = () => ({ workspace: window.getValue('agenticMode.folderSetting'), resource: window.getValue('agenticMode.folderSetting', { resource }) });
+		const value = () => ({ workspace: window.getValue('agentsMode.folderSetting'), resource: window.getValue('agentsMode.folderSetting', { resource }) });
 		const events = recordFolderSettingEvents(window, resource);
 
 		const before = value();
-		await window.setAgenticMode(true);
+		await window.setAgentsMode(true);
 		const inMode = value();
-		await window.setAgenticMode(false);
+		await window.setAgentsMode(false);
 		const after = value();
 
 		assert.deepStrictEqual({ before, inMode, after, events }, {
@@ -383,37 +383,37 @@ suite('AgenticModeWorkspaceService', () => {
 		const overrides = { resource: joinPath(folder, 'README.md'), overrideIdentifier: 'markdown' };
 		const events: string[] = [];
 		disposables.add(window.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('agenticMode.languageSetting', overrides)) {
-				events.push(String(window.getValue('agenticMode.languageSetting', overrides)));
+			if (e.affectsConfiguration('agentsMode.languageSetting', overrides)) {
+				events.push(String(window.getValue('agentsMode.languageSetting', overrides)));
 			}
 		}));
 
-		await window.setAgenticMode(true);
-		await window.setAgenticMode(false);
+		await window.setAgentsMode(true);
+		await window.setAgentsMode(false);
 
 		assert.deepStrictEqual(events, ['default', 'markdown']);
 	}));
 
-	test('is only supported in local editor windows with a backup path and the Agentic Mode setting on', () => {
+	test('is only supported in local editor windows with a backup path and the Agents mode setting on', () => {
 		const local = { remoteAuthority: undefined, isExtensionDevelopment: false, isSessionsWindow: false };
 		const settings = (values: Record<string, unknown>) => ({
 			getValue: <T>(key?: unknown, _overrides?: unknown) => values[key as string] as T,
 			inspect: <T>(key: string) => ({ userValue: values[key] as T }) as IConfigurationValue<Readonly<T>>,
 		});
-		const setting = (value: unknown) => settings({ [AGENTIC_MODE_ENABLED_SETTING]: value });
+		const setting = (value: unknown) => settings({ [AGENTS_MODE_ENABLED_SETTING]: value });
 
 		assert.deepStrictEqual({
-			enabled: supportsAgenticMode(local, setting(true), true),
-			settingOff: supportsAgenticMode(local, setting(false), true),
-			settingUnset: supportsAgenticMode(local, setting(undefined), true),
-			settingTruthy: supportsAgenticMode(local, setting('true'), true),
-			noBackup: supportsAgenticMode(local, setting(true), false),
-			workspacesFilterOnly: supportsAgenticMode(local, settings({ 'sessions.list.workspacesFilter.enabled': true }), true),
-			remote: supportsAgenticMode({ ...local, remoteAuthority: 'ssh-remote+host' }, setting(true), true),
-			extensionDevelopment: supportsAgenticMode({ ...local, isExtensionDevelopment: true }, setting(true), true),
-			agentsWindow: supportsAgenticMode({ ...local, isSessionsWindow: true }, setting(true), true),
-			legacyOn: supportsAgenticMode(local, settings({ [LEGACY_AGENTIC_MODE_ENABLED_SETTING]: true }), true),
-			legacyOnNewOff: supportsAgenticMode(local, settings({ [LEGACY_AGENTIC_MODE_ENABLED_SETTING]: true, [AGENTIC_MODE_ENABLED_SETTING]: false }), true),
+			enabled: supportsAgentsMode(local, setting(true), true),
+			settingOff: supportsAgentsMode(local, setting(false), true),
+			settingUnset: supportsAgentsMode(local, setting(undefined), true),
+			settingTruthy: supportsAgentsMode(local, setting('true'), true),
+			noBackup: supportsAgentsMode(local, setting(true), false),
+			workspacesFilterOnly: supportsAgentsMode(local, settings({ 'sessions.list.workspacesFilter.enabled': true }), true),
+			remote: supportsAgentsMode({ ...local, remoteAuthority: 'ssh-remote+host' }, setting(true), true),
+			extensionDevelopment: supportsAgentsMode({ ...local, isExtensionDevelopment: true }, setting(true), true),
+			agentsWindow: supportsAgentsMode({ ...local, isSessionsWindow: true }, setting(true), true),
+			legacyOn: supportsAgentsMode(local, settings({ [LEGACY_AGENTS_MODE_ENABLED_SETTING]: true }), true),
+			legacyOnNewOff: supportsAgentsMode(local, settings({ [LEGACY_AGENTS_MODE_ENABLED_SETTING]: true, [AGENTS_MODE_ENABLED_SETTING]: false }), true),
 		}, {
 			enabled: true, settingOff: false, settingUnset: false, settingTruthy: false, noBackup: false, workspacesFilterOnly: false, remote: false, extensionDevelopment: false, agentsWindow: false, legacyOn: true, legacyOnNewOff: false,
 		});

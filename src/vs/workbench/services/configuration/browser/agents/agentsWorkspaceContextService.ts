@@ -56,7 +56,7 @@ export class AgentsWorkspaceContextService extends Disposable implements IWorkbe
 
 	/**
 	 * @param workspaceIdentifier the Agents window's workspace, or the empty
-	 * identifier of an editor window in Agentic Mode.
+	 * identifier of an editor window in Agents mode.
 	 */
 	constructor(
 		workspaceIdentifier: IWorkspaceIdentifier | IEmptyWorkspaceIdentifier,
@@ -150,7 +150,7 @@ export class AgentsWorkspaceContextService extends Disposable implements IWorkbe
 	/**
 	 * Moves a mounted folder, the first one by default, to another location of it, such as a worktree of its
 	 * repository. The folder keeps its index and name, and remembers the location it was mounted at.
-	 * Only Agentic Mode moves folders; the Agents window replaces them.
+	 * Only Agents mode moves folders; the Agents window replaces them.
 	 */
 	async moveFolder(location: URI, options?: { readonly folder?: URI }): Promise<boolean> {
 		let moved = false;

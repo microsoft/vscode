@@ -7,17 +7,17 @@ import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
-export const IAgenticModeService = createDecorator<IAgenticModeService>('agenticModeService');
+export const IAgentsModeService = createDecorator<IAgentsModeService>('agentsModeService');
 
 /**
- * Agentic Mode of an editor window: an empty local editor window switches in place
+ * Agents mode of an editor window: an empty local editor window switches in place
  * onto the Agents window's workspace and configuration, without reloading.
  */
-export interface IAgenticModeService {
+export interface IAgentsModeService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Whether this window can switch into Agentic Mode. Only local editor
+	 * Whether this window can switch into Agents mode. Only local editor
 	 * windows that opted in when they started can.
 	 */
 	readonly isSupported: boolean;
@@ -29,17 +29,17 @@ export interface IAgenticModeService {
 	readonly windowFolders: readonly URI[];
 
 	/**
-	 * Whether the window is in Agentic Mode.
+	 * Whether the window is in Agents mode.
 	 */
 	readonly isActive: boolean;
 
 	/**
-	 * Fires after the window entered or left Agentic Mode.
+	 * Fires after the window entered or left Agents mode.
 	 */
 	readonly onDidChange: Event<boolean>;
 
 	/**
-	 * Enters or leaves Agentic Mode in place, and remembers it so that the window
+	 * Enters or leaves Agents mode in place, and remembers it so that the window
 	 * restores in the mode. Does nothing when the window doesn't support the mode.
 	 */
 	setActive(active: boolean): Promise<void>;

@@ -13,7 +13,7 @@ import { domContentLoaded } from '../../base/browser/dom.js';
 import { onUnexpectedError } from '../../base/common/errors.js';
 import { URI } from '../../base/common/uri.js';
 import { WorkspaceService } from '../services/configuration/browser/configurationService.js';
-import { AGENTIC_MODE_STORAGE_KEY, AgenticModeWorkspaceService, supportsAgenticMode } from '../services/configuration/browser/agents/agenticModeWorkspaceService.js';
+import { AGENTS_MODE_STORAGE_KEY, AgentsModeWorkspaceService, supportsAgentsMode } from '../services/configuration/browser/agents/agentsModeWorkspaceService.js';
 import { INativeWorkbenchEnvironmentService, NativeWorkbenchEnvironmentService } from '../services/environment/electron-browser/environmentService.js';
 import { ServiceCollection } from '../../platform/instantiation/common/serviceCollection.js';
 import { ILoggerService, ILogService, LogLevel } from '../../platform/log/common/log.js';
@@ -337,9 +337,9 @@ export class DesktopMain extends Disposable {
 			})
 		]);
 
-		// Agentic Mode: restore the mode of an empty window before trust is evaluated
-		if (configurationService instanceof AgenticModeWorkspaceService && storageService.getBoolean(AGENTIC_MODE_STORAGE_KEY, StorageScope.WORKSPACE, false)) {
-			await configurationService.setAgenticMode(true);
+		// Agents mode: restore the mode of an empty window before trust is evaluated
+		if (configurationService instanceof AgentsModeWorkspaceService && storageService.getBoolean(AGENTS_MODE_STORAGE_KEY, StorageScope.WORKSPACE, false)) {
+			await configurationService.setAgentsMode(true);
 		}
 
 		// Workspace Trust Service
@@ -407,7 +407,7 @@ export class DesktopMain extends Disposable {
 		uriIdentityService: IUriIdentityService,
 		logService: ILogService,
 		policyService: IPolicyService
-	): Promise<WorkspaceService | AgenticModeWorkspaceService> {
+	): Promise<WorkspaceService | AgentsModeWorkspaceService> {
 		const configurationCache = new ConfigurationCache([Schemas.file, Schemas.vscodeUserData] /* Cache all non native resources */, environmentService, fileService);
 		const workspaceService = new WorkspaceService({ remoteAuthority: environmentService.remoteAuthority, configurationCache }, environmentService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, logService, policyService);
 
@@ -417,9 +417,9 @@ export class DesktopMain extends Disposable {
 			onUnexpectedError(error);
 		}
 
-		// Local editor windows can switch in place into Agentic Mode, when the user opted in
-		if (supportsAgenticMode(environmentService, workspaceService, !!this.configuration.backupPath)) {
-			return this._register(new AgenticModeWorkspaceService(workspaceService, { userDataProfileService, userDataProfilesService, uriIdentityService, fileService, policyService, logService, configurationCache, environmentService }));
+		// Local editor windows can switch in place into Agents mode, when the user opted in
+		if (supportsAgentsMode(environmentService, workspaceService, !!this.configuration.backupPath)) {
+			return this._register(new AgentsModeWorkspaceService(workspaceService, { userDataProfileService, userDataProfilesService, uriIdentityService, fileService, policyService, logService, configurationCache, environmentService }));
 		}
 
 		return workspaceService;

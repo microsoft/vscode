@@ -43,7 +43,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IWorkspaceContextService, toWorkspaceFolder, Workspace } from '../../../../../platform/workspace/common/workspace.js';
 import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
-import { IAgenticModeService } from '../../../../services/agenticMode/common/agenticMode.js';
+import { IAgentsModeService } from '../../../../services/agentsMode/common/agentsMode.js';
 
 suite('SettingsTargetsWidget Agents mode', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -139,7 +139,7 @@ suite('SettingsEditor2', () => {
 			const managedSettings: Record<string, boolean | undefined> = {};
 			const instantiationService = workbenchInstantiationService({ configurationService: () => configuration }, store);
 			instantiationService.stub(IPreferencesService, {});
-			instantiationService.stub(IAgenticModeService, { isActive: false, onDidChange: Event.None });
+			instantiationService.stub(IAgentsModeService, { isActive: false, onDidChange: Event.None });
 			instantiationService.stub(IPreferencesSearchService, {});
 			instantiationService.stub(IUserDataSyncWorkbenchService, {});
 			instantiationService.stub(IUserDataSyncEnablementService, {});

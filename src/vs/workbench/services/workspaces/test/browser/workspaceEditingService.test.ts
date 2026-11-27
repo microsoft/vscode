@@ -115,7 +115,7 @@ suite('WorkspaceEditingService', () => {
 					getWorkbenchState: () => options.state ?? WorkbenchState.FOLDER,
 					getWorkspace: () => ({ folders: [{ uri: current }], uri: URI.file('/work/project') }),
 					getWorkspaceFolder: (uri: URI) => ({ uri, name: 'project' }),
-					// Agentic Mode: the mounted folder was mounted at the primary location
+					// Agents mode: the mounted folder was mounted at the primary location
 					getFolderPrimaryLocation: options.mounted ? (uri: URI) => extUri.isEqual(uri, current) ? URI.file('/work/project') : undefined : undefined,
 					removeFolders: async (folders: URI[]) => { events.push(`removed:${folders.map(f => f.path).join(',')}`); },
 					updateFolders: async () => { events.push('updated'); },
@@ -163,13 +163,13 @@ suite('WorkspaceEditingService', () => {
 			return { service, reasons, events, dialogs, prompts, switchTrust, trustLookups: () => trustLookups.map(u => u.toString()), trusted: () => trusted.map(u => u.toString()), resolved: () => resolved.length, switched: () => switched.map(u => u?.toString()) };
 		}
 
-		test('in Agentic Mode, a location that is no alternate of the mounted folder\'s primary location is rejected without trusting or moving', async () => {
+		test('in Agents mode, a location that is no alternate of the mounted folder\'s primary location is rejected without trusting or moving', async () => {
 			const fixture = createService({ current: URI.file('/work/project'), primaryTrusted: true, mounted: true, unresolved: true });
 			await assert.rejects(() => fixture.service.setFolderLocation(URI.file('/elsewhere'), { folder: URI.file('/work/project') }), /is not an alternate location/);
 			assert.deepStrictEqual({ resolved: fixture.resolved(), prompts: fixture.prompts, trusted: fixture.trusted(), switched: fixture.switched() }, { resolved: 1, prompts: [], trusted: [], switched: [] });
 		});
 
-		test('in Agentic Mode, an untrusted destination that no built-in provider vouches for asks, and is not moved to when declined', async () => {
+		test('in Agents mode, an untrusted destination that no built-in provider vouches for asks, and is not moved to when declined', async () => {
 			const declined = createService({ current: URI.file('/work/project'), primaryTrusted: true, mounted: true, builtIn: false, confirmed: false });
 			await assert.rejects(() => declined.service.setFolderLocation(URI.file('/work/alt')), /not trusted/);
 			const confirmed = createService({ current: URI.file('/work/project'), primaryTrusted: true, mounted: true, builtIn: false, confirmed: true });
@@ -183,7 +183,7 @@ suite('WorkspaceEditingService', () => {
 			});
 		});
 
-		test('in Agentic Mode, a built-in alternate of a trusted primary location inherits its trust and is moved to without asking', async () => {
+		test('in Agents mode, a built-in alternate of a trusted primary location inherits its trust and is moved to without asking', async () => {
 			const fixture = createService({ current: URI.file('/work/project'), primaryTrusted: true, mounted: true });
 			await fixture.service.setFolderLocation(URI.file('/work/alt'));
 			assert.deepStrictEqual({ prompts: fixture.prompts, trusted: fixture.trusted(), switched: fixture.switched() }, { prompts: [], trusted: [URI.file('/work/alt').toString()], switched: [URI.file('/work/alt').toString()] });

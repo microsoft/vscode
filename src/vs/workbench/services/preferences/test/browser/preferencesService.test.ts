@@ -21,7 +21,7 @@ import { PreferencesService } from '../../browser/preferencesService.js';
 import { IPreferencesService, ISettingsEditorOptions } from '../../common/preferences.js';
 import { SplitSettingsEditorInput } from '../../common/preferencesEditorInput.js';
 import { IRemoteAgentService } from '../../../remote/common/remoteAgentService.js';
-import { IAgenticModeService } from '../../../agenticMode/common/agenticMode.js';
+import { IAgentsModeService } from '../../../agentsMode/common/agentsMode.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { TestRemoteAgentService, ITestInstantiationService, workbenchInstantiationService, TestEditorService, TestEditorGroupsService, TestEditorGroupView } from '../../../../test/browser/workbenchTestServices.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
@@ -34,7 +34,7 @@ suite('PreferencesService', () => {
 	let lastOpenEditorGroup: PreferredGroup | undefined;
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createTestObject(editorGroupsService?: IEditorGroupsService, configurationService?: TestConfigurationService, inAgenticMode = false): PreferencesService {
+	function createTestObject(editorGroupsService?: IEditorGroupsService, configurationService?: TestConfigurationService, inAgentsMode = false): PreferencesService {
 		lastOpenUntypedEditor = undefined;
 		lastOpenEditorOptions = undefined;
 		lastOpenEditorGroup = undefined;
@@ -65,7 +65,7 @@ suite('PreferencesService', () => {
 		testInstantiationService.stub(IRemoteAgentService, TestRemoteAgentService);
 		testInstantiationService.stub(ICommandService, TestCommandService);
 		testInstantiationService.stub(IURLService, { registerHandler: () => { } });
-		testInstantiationService.stub(IAgenticModeService, { isActive: inAgenticMode });
+		testInstantiationService.stub(IAgentsModeService, { isActive: inAgentsMode });
 		if (editorGroupsService) {
 			testInstantiationService.stub(IEditorGroupsService, editorGroupsService);
 		}
@@ -104,7 +104,7 @@ suite('PreferencesService', () => {
 		});
 	});
 
-	test('opens the User settings for workspace and folder settings in Agentic Mode', async () => {
+	test('opens the User settings for workspace and folder settings in Agents mode', async () => {
 		const testObject = createTestObject(undefined, undefined, true);
 		const opened = async (open: () => Promise<unknown>) => {
 			await open();
