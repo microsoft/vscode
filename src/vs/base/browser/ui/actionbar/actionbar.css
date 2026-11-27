@@ -152,6 +152,7 @@ editor header and the New button of the Chat view title, so that they all look t
 }
 
 .monaco-action-bar .actions-container .action-item.action-dropdown-item.filled-split-button > .monaco-dropdown .action-label.filled-label {
+	display: flex; /* centers the chevron also where a host sets its action labels to block, such as part titles */
 	width: auto;
 	height: auto;
 	margin: 2px 2px 2px 0; /* margin for outline */
