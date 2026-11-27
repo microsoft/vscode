@@ -183,13 +183,14 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 
 	/**
 	 * Leaves Agents mode, if the window is in it, and returns how to go back into it
-	 * when the window does not enter the new workspace after all. Going back uses the
+	 * when the window does not enter the new workspace after all, or `undefined` when
+	 * the window was not in the mode. Going back uses the
 	 * id of the workspace the window left: entering initializes the configuration with
 	 * the new workspace before the main process can decline it.
 	 */
-	private async leaveAgentsMode(): Promise<() => Promise<void>> {
+	private async leaveAgentsMode(): Promise<(() => Promise<void>) | undefined> {
 		if (!this.agentsModeService.isActive) {
-			return async () => { };
+			return undefined;
 		}
 		const workspaceId = this.contextService.getWorkspace().id;
 		await this.agentsModeService.setActive(false);
@@ -209,18 +210,24 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 		}
 
 		let restoreAgentsMode: (() => Promise<void>) | undefined;
-		let leftAgentsMode = false;
 		let entered = false;
 		try {
 			// The window serves the empty workspace again before it enters the new one
-			leftAgentsMode = this.agentsModeService.isActive;
 			restoreAgentsMode = await this.leaveAgentsMode();
+			const leftAgentsMode = !!restoreAgentsMode;
 
 			const oldWorkspace = toWorkspaceIdentifier(this.contextService.getWorkspace());
 			const enterWorkspace = async () => {
 				const result = await this.doEnterWorkspace(workspaceUri);
 				if (result) {
 					entered = true;
+
+					// The window left Agents mode for good: bring back the editor history it had before the mode.
+					// The saved history is in the storage of the workspace the window leaves, so restore it before
+					// the storage switches: the history then saves into the new workspace like any other history.
+					if (leftAgentsMode) {
+						this.historyService.restoreRecentlyOpened();
+					}
 
 					// Migrate storage to new workspace
 					await this.storageService.switch(result.workspace, true /* preserve data */);
@@ -238,16 +245,10 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 				? await this.workingCopyBackupService.withBackupPathTransition(enterWorkspace)
 				: await enterWorkspace();
 			if (result) {
-				// The window left Agents mode for good: bring back the editor history it had before
-				// the mode, which the new workspace carried along with the rest of the storage
-				if (leftAgentsMode) {
-					this.historyService.restoreRecentlyOpened();
-				}
-
 				// Fire event to allow participants to join
 				await this.fireDidEnterWorkspace(oldWorkspace, result.workspace);
 			} else {
-				await restoreAgentsMode(); // the window stays in its workspace
+				await restoreAgentsMode?.(); // the window stays in its workspace
 			}
 		} catch (error) {
 			// Once the main process entered the new workspace, the window must not go back into the mode of the old one

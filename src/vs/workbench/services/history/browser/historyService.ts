@@ -1370,7 +1370,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.history = newHistory;
 	}
 
-	clearRecentlyOpened(): void {
+	clearRecentlyOpened(options?: { readonly keepSaved?: boolean }): void {
 		this.history = [];
 		this.historyLoaded = true;
 
@@ -1379,7 +1379,11 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// Also clear the lists of the folders that left the window
 		this.putAwayHistory = new Map();
 
-		if (
+		if (!options?.keepSaved) {
+			// The user cleared the history: the saved list must not bring it back
+			this.storageService.remove(HistoryService.SAVED_HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
+			this.storageService.remove(HistoryService.SAVED_HISTORY_CLEARED_STORAGE_KEY, StorageScope.WORKSPACE);
+		} else if (
 			this.storageService.get(HistoryService.SAVED_HISTORY_STORAGE_KEY, StorageScope.WORKSPACE) !== undefined &&
 			!this.storageService.getBoolean(HistoryService.SAVED_HISTORY_CLEARED_STORAGE_KEY, StorageScope.WORKSPACE, false)
 		) {

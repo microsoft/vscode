@@ -1470,14 +1470,14 @@ suite('HistoryService', function () {
 
 			// Entering, switching (which clears) and leaving brings the saved history back
 			historyService.saveRecentlyOpened();
-			historyService.clearRecentlyOpened();
+			historyService.clearRecentlyOpened({ keepSaved: true });
 			await open('/worktree/d.txt');
 			historyService.restoreRecentlyOpened();
 			const afterClear = paths(historyService);
 
 			// Restarting in between: the saved history and the clear survive the restart
 			historyService.saveRecentlyOpened();
-			historyService.clearRecentlyOpened();
+			historyService.clearRecentlyOpened({ keepSaved: true });
 			const restarted = reload();
 			restarted.restoreRecentlyOpened();
 			const afterRestart = paths(restarted);
@@ -1487,7 +1487,7 @@ suite('HistoryService', function () {
 			const putAway = paths(restarted);
 
 			// Restoring forgets the saved history
-			restarted.clearRecentlyOpened();
+			restarted.clearRecentlyOpened({ keepSaved: true });
 			restarted.restoreRecentlyOpened();
 			const restoredTwice = paths(restarted);
 
@@ -1502,8 +1502,8 @@ suite('HistoryService', function () {
 			return workbenchTeardown(instantiationService);
 		});
 
-		test('restoring a saved history skips what it cannot read, keeps the list when the saved one cannot be read, restores it in the workspace the storage moved to, and forgets it', async () => {
-			const { contextService, historyService, instantiationService, open } = await createFolderServices(folder);
+		test('restoring a saved history skips what it cannot read, keeps the list when the saved one cannot be read, and forgets it', async () => {
+			const { historyService, instantiationService, open } = await createFolderServices(folder);
 			const storageService = instantiationService.invokeFunction(accessor => accessor.get(IStorageService));
 			const restoreAfter = async (saved: object | undefined) => {
 				await open('/repo/a.txt');
@@ -1511,7 +1511,7 @@ suite('HistoryService', function () {
 				if (saved) {
 					storageService.store('history.entries.saved', JSON.stringify(saved), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 				}
-				historyService.clearRecentlyOpened();
+				historyService.clearRecentlyOpened({ keepSaved: true });
 				await open('/repo/b.txt');
 				historyService.restoreRecentlyOpened();
 				return { paths: paths(historyService), forgotten: storageService.get('history.entries.saved', StorageScope.WORKSPACE) === undefined };
@@ -1521,70 +1521,87 @@ suite('HistoryService', function () {
 			const malformedEntry = await restoreAfter({ version: 1, entries: [null], putAway: [] });
 			const malformedPutAway = await restoreAfter({ version: 1, entries: [], putAway: 'folders' });
 
-			// Entering a workspace from the mode takes the saved history along with the storage of the window, and restores it there
-			historyService.clearRecentlyOpened();
-			await open('/repo/a.txt');
-			historyService.saveRecentlyOpened();
-			historyService.clearRecentlyOpened();
-			contextService.setWorkspace(new Workspace('other-workspace', testWorkspace(folder).folders, false, null, () => false));
-			await open('/repo/b.txt');
-			historyService.restoreRecentlyOpened();
-			const enteredWorkspace = paths(historyService);
-
-			assert.deepStrictEqual({ malformedEntry, malformedPutAway, enteredWorkspace }, {
+			assert.deepStrictEqual({ malformedEntry, malformedPutAway }, {
 				malformedEntry: { paths: [], forgotten: true },
 				malformedPutAway: { paths: ['/repo/b.txt'], forgotten: true },
-				enteredWorkspace: ['/repo/a.txt'],
 			});
 
 			return workbenchTeardown(instantiationService);
 		});
 
-		test('leaving Agents mode by entering a workspace keeps the history from before the mode across a restart outside the mode', async () => {
-			const leaveAndRestart = async (restoredOnLeave: boolean) => {
-				const { contextService, historyService, instantiationService, open, closeAll, reload } = await createFolderServices(folder);
+		test('leaving Agents mode by entering a workspace restores the history from before the mode before the storage switches, and the entered workspace keeps it across a restart', async () => {
+			const { contextService, historyService, instantiationService, open, closeAll, reload } = await createFolderServices(folder);
+			const storageService = instantiationService.invokeFunction(accessor => accessor.get(IStorageService));
+			const savedKeysIn = (get: (key: string) => string | undefined) => ['history.entries.saved', 'history.entries.saved.cleared'].filter(key => get(key) !== undefined);
+			const savedKeys = () => savedKeysIn(key => storageService.get(key, StorageScope.WORKSPACE));
+
+			// Entering the mode saves the window's history, and switching sessions in it clears it
+			await open('/repo/a.txt');
+			historyService.saveRecentlyOpened();
+			historyService.clearRecentlyOpened({ keepSaved: true });
+			await open('/repo/session.txt');
+
+			// Entering a workspace leaves the mode without the toggle: the workspace editing service restores the history
+			// while the storage of the left workspace is current. Then the storage switches: it saves the state, and the
+			// entered workspace gets its own storage, without the data of the left one.
+			historyService.restoreRecentlyOpened();
+			(historyService as unknown as { saveState(): void }).saveState(); // the test editor parts cannot save their state
+			const leftWorkspaceStorage = new Map<string, string>();
+			for (const target of [StorageTarget.USER, StorageTarget.MACHINE]) {
+				for (const key of storageService.keys(StorageScope.WORKSPACE, target)) {
+					leftWorkspaceStorage.set(key, storageService.get(key, StorageScope.WORKSPACE)!);
+					storageService.remove(key, StorageScope.WORKSPACE);
+				}
+			}
+			contextService.setWorkspace(new Workspace('entered-workspace', testWorkspace(folder).folders, false, null, () => false));
+			const onLeave = { paths: paths(historyService), savedKeys: savedKeys(), savedKeysLeft: savedKeysIn(key => leftWorkspaceStorage.get(key)) };
+
+			// The window restarts in the entered workspace without editors, where startup restores whatever is still saved
+			await closeAll();
+			const restarted = reload();
+			restarted.restoreRecentlyOpened();
+			const afterRestart = { paths: paths(restarted), savedKeys: savedKeys() };
+
+			// The entered workspace holds the history from before the mode, like entering it outside the mode, and no saved history is left in either storage
+			assert.deepStrictEqual({ onLeave, afterRestart }, {
+				onLeave: { paths: ['/repo/a.txt'], savedKeys: [], savedKeysLeft: [] },
+				afterRestart: { paths: ['/repo/a.txt'], savedKeys: [] },
+			});
+
+			return workbenchTeardown(instantiationService);
+		});
+
+		test('clearing the history as the user does forgets the saved history, also across a restart', async () => {
+			const clearAndRestore = async (restart: boolean) => {
+				const { historyService, instantiationService, open, closeAll, reload } = await createFolderServices(folder);
 				const storageService = instantiationService.invokeFunction(accessor => accessor.get(IStorageService));
 
-				// Entering the mode saves the window's history, and switching sessions in it clears it
+				// Entering the mode saves the window's history, switching sessions clears it, then the user clears the history
 				await open('/repo/a.txt');
 				historyService.saveRecentlyOpened();
-				historyService.clearRecentlyOpened();
+				historyService.clearRecentlyOpened({ keepSaved: true });
 				await open('/repo/session.txt');
+				historyService.clearRecentlyOpened();
+				await open('/repo/b.txt');
 
-				// Entering a workspace leaves the mode without the toggle: the storage moves to the new workspace, and the
-				// workspace editing service restores the history saved with it
-				contextService.setWorkspace(new Workspace('entered-workspace', testWorkspace(folder).folders, false, null, () => false));
-				if (restoredOnLeave) {
-					historyService.restoreRecentlyOpened();
+				let restored = historyService;
+				if (restart) {
+					await closeAll();
+					restored = reload();
 				}
-				const onLeave = { paths: paths(historyService), savedKeys: savedKeys() };
-
-				// The window restarts outside the mode without editors, where startup restores whatever is still saved
-				await closeAll();
-				const restarted = reload();
-				restarted.restoreRecentlyOpened();
-				const afterRestart = { paths: paths(restarted), savedKeys: savedKeys() };
+				restored.restoreRecentlyOpened();
+				const result = {
+					paths: paths(restored),
+					savedKeys: ['history.entries.saved', 'history.entries.saved.cleared'].filter(key => storageService.get(key, StorageScope.WORKSPACE) !== undefined)
+				};
 
 				await workbenchTeardown(instantiationService);
-				return { onLeave, afterRestart };
-
-				function savedKeys(): string[] {
-					return ['history.entries.saved', 'history.entries.saved.cleared'].filter(key => storageService.get(key, StorageScope.WORKSPACE) !== undefined);
-				}
+				return result;
 			};
 
-			assert.deepStrictEqual({ restoredOnLeave: await leaveAndRestart(true), notRestoredOnLeave: await leaveAndRestart(false) }, {
-				// The entered workspace holds the history from before the mode, like entering it outside the mode, and no saved history is left in its storage
-				restoredOnLeave: {
-					onLeave: { paths: ['/repo/a.txt'], savedKeys: [] },
-					afterRestart: { paths: ['/repo/a.txt'], savedKeys: [] },
-				},
-				// When entering fails after the main process entered the workspace, the history is not restored on leave, but
-				// the history saved with the storage comes back when the window starts outside the mode
-				notRestoredOnLeave: {
-					onLeave: { paths: ['/repo/session.txt'], savedKeys: ['history.entries.saved', 'history.entries.saved.cleared'] },
-					afterRestart: { paths: ['/repo/a.txt'], savedKeys: [] },
-				},
+			assert.deepStrictEqual({ onLeave: await clearAndRestore(false), afterRestart: await clearAndRestore(true) }, {
+				onLeave: { paths: ['/repo/b.txt'], savedKeys: [] },
+				afterRestart: { paths: ['/repo/b.txt'], savedKeys: [] },
 			});
 		});
 

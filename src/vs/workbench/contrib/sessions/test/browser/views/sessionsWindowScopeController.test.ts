@@ -206,8 +206,8 @@ suite('SessionsWindowScopeController', () => {
 	});
 
 	test('entering Agents mode scopes the window to where the bar starts, never to the stale pick first', () => {
-		const run = (windowFolders: URI[]) => {
-			const { controller, filters, setAgentsMode, scopeWrites } = createScope({ kind: windowFolders.length ? 'folder' : 'empty', windowFolders });
+		const run = (windowFolders: URI[], enabled = true) => {
+			const { controller, filters, setAgentsMode, scopeWrites } = createScope({ kind: windowFolders.length ? 'folder' : 'empty', windowFolders, enabled });
 			const bar = filters();
 			bar.setInboxWorkspace({ environment: 'local', resource: 'file:///work/other', label: 'other' });
 			controller.setScopeBarFilters(bar);
@@ -215,8 +215,10 @@ suite('SessionsWindowScopeController', () => {
 			setAgentsMode(true);
 			return scopeWrites;
 		};
-		assert.deepStrictEqual({ folder: run([URI.file('/work/app')]), empty: run([]) }, {
+		assert.deepStrictEqual({ folder: run([URI.file('/work/app')]), folderSettingOff: run([URI.file('/work/app')], false), empty: run([]) }, {
 			folder: [`${WorkbenchMode.Agents}:/work/app`],
+			// Without the bar the pick is fixed on the window's folder, before the scope follows it
+			folderSettingOff: [`${WorkbenchMode.Agents}:/work/app`],
 			// The pick of an empty window also scopes it in the editor mode, which it leaves on all sessions
 			empty: [`${WorkbenchMode.Editor}:undefined`, `${WorkbenchMode.Agents}:undefined`],
 		});
@@ -232,7 +234,7 @@ suite('SessionsWindowScopeController', () => {
 	});
 
 	test('starts the bar of a window entering or restoring in Agents mode on its first folder, or an empty window on all sessions with the setting on', async () => {
-		const run = async ({ enabled, windowFolders, restoredInMode = false, turnSettingOff = false }: { enabled: boolean; windowFolders: URI[]; restoredInMode?: boolean; turnSettingOff?: boolean }) => {
+		const run = async ({ enabled, windowFolders, restoredInMode = false, turnSettingOff = false, turnSettingOnInMode = false }: { enabled: boolean; windowFolders: URI[]; restoredInMode?: boolean; turnSettingOff?: boolean; turnSettingOnInMode?: boolean }) => {
 			const { controller, filters, setAgentsMode, setEnabled } = createScope({ kind: windowFolders.length ? 'folder' : 'empty', enabled, windowFolders, restoredInMode });
 			const bar = filters();
 			bar.setInboxWorkspace({ environment: 'local', resource: 'file:///work/other', label: 'other' });
@@ -248,6 +250,12 @@ suite('SessionsWindowScopeController', () => {
 			}
 			setAgentsMode(true);
 			const entered = picked();
+			if (turnSettingOnInMode) {
+				await setEnabled(true);
+				const settingOn = picked();
+				setAgentsMode(false);
+				return { restored, entered, settingOn, left: picked() };
+			}
 			setAgentsMode(false);
 			return { restored, entered, left: picked() };
 		};
@@ -260,6 +268,7 @@ suite('SessionsWindowScopeController', () => {
 			emptySettingOff: await run({ enabled: false, windowFolders: [] }),
 			restoredSettingOff: await run({ enabled: false, windowFolders: [folder('repo')], restoredInMode: true }),
 			restoredSettingOn: await run({ enabled: true, windowFolders: [folder('repo')], restoredInMode: true, turnSettingOff: true }),
+			settingTurnedOnInMode: await run({ enabled: false, windowFolders: [folder('repo')], turnSettingOnInMode: true }),
 		}, {
 			// Leaving keeps the pick, as a pick of the user's would be
 			folder: { restored: 'other', entered: 'repo', left: 'repo' },
@@ -272,6 +281,8 @@ suite('SessionsWindowScopeController', () => {
 			restoredSettingOff: { restored: 'repo', entered: 'repo', left: 'other' },
 			// With the bar the user's pick stays, until the setting turns off and fixes the pick on the folder again
 			restoredSettingOn: { restored: 'other', settingOff: 'repo' },
+			// The bar showing in the mode starts on the folder, as when entering with the setting on, not on the pick from before
+			settingTurnedOnInMode: { restored: 'other', entered: 'repo', settingOn: 'repo', left: 'repo' },
 		});
 	});
 

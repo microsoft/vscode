@@ -66,7 +66,7 @@ export function getInboxWorkspaceOptions(sessions: readonly ISession[], extUri: 
 			options.set(JSON.stringify([workspace.environment, extUri.getComparisonKey(URI.parse(workspace.resource))]), workspace);
 		}
 	}
-	return [...options.values()].sort((a, b) => a.label.localeCompare(b.label) || a.resource.localeCompare(b.resource) || a.environment.localeCompare(b.environment));
+	return [...options.values()].sort(SessionsListFilters.compareInboxWorkspaces);
 }
 
 function isInboxScope(value: unknown): value is IInboxScope {
@@ -378,8 +378,8 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 		this._onDidChange.fire();
 	}
 
-	/** The order in which the scope bar lists workspaces: by label, as {@link getInboxWorkspaceOptions} sorts them. */
-	private static compareInboxWorkspaces(a: IInboxWorkspaceFilter, b: IInboxWorkspaceFilter): number {
+	/** The order in which the scope bar lists workspaces: by label. */
+	static compareInboxWorkspaces(a: IInboxWorkspaceFilter, b: IInboxWorkspaceFilter): number {
 		return a.label.localeCompare(b.label) || a.resource.localeCompare(b.resource) || a.environment.localeCompare(b.environment);
 	}
 
@@ -565,10 +565,13 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 	capture(): () => void {
 		const excluded = [...this.excluded];
 		const inboxScope = this._inboxScope;
+		const storedInboxScope = this.storageService.get(SessionsListFilters.INBOX_SCOPE_STORAGE_KEY, StorageScope.WORKSPACE);
 		const worktree = this._worktree;
 		return () => {
 			if (!this.inboxScopeFixed) {
 				this._inboxScope = inboxScope;
+			} else {
+				this.storeInboxScope(storedInboxScope);
 			}
 			this._worktree = worktree;
 			this.excluded.clear();
@@ -601,11 +604,16 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 		}
 	}
 
-	/** Returns every filter to its default, keeping a {@link setInboxScopeFixed fixed} inbox scope. */
+	/**
+	 * Returns every filter to its default, keeping a {@link setInboxScopeFixed fixed} inbox scope. The user's pick, which comes
+	 * back once the inbox scope is no longer fixed, is reset too.
+	 */
 	reset(): void {
 		this.excluded.clear();
 		if (!this.inboxScopeFixed) {
 			this._inboxScope = {};
+		} else {
+			this.storeInboxScope(undefined);
 		}
 		this._worktree = undefined;
 		this.save();
@@ -614,11 +622,7 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 	private save(): void {
 		// A fixed pick is not the user's: the stored pick stays theirs, to come back once the pick is no longer fixed
 		if (!this.inboxScopeFixed) {
-			if (this.hasInboxScope) {
-				this.storageService.store(SessionsListFilters.INBOX_SCOPE_STORAGE_KEY, JSON.stringify(this._inboxScope), StorageScope.WORKSPACE, StorageTarget.MACHINE);
-			} else {
-				this.storageService.remove(SessionsListFilters.INBOX_SCOPE_STORAGE_KEY, StorageScope.WORKSPACE);
-			}
+			this.storeInboxScope(this.hasInboxScope ? JSON.stringify(this._inboxScope) : undefined);
 		}
 		if (this._worktree === undefined) {
 			this.storageService.remove(SessionsListFilters.WORKTREE_STORAGE_KEY, StorageScope.PROFILE);
@@ -631,5 +635,13 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 			this.storageService.store(SessionsListFilters.STORAGE_KEY, JSON.stringify([...this.excluded]), StorageScope.PROFILE, StorageTarget.USER);
 		}
 		this._onDidChange.fire();
+	}
+
+	private storeInboxScope(value: string | undefined): void {
+		if (value === undefined) {
+			this.storageService.remove(SessionsListFilters.INBOX_SCOPE_STORAGE_KEY, StorageScope.WORKSPACE);
+		} else {
+			this.storageService.store(SessionsListFilters.INBOX_SCOPE_STORAGE_KEY, value, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		}
 	}
 }

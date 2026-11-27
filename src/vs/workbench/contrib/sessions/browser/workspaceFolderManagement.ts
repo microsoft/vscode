@@ -73,7 +73,8 @@ class SessionWorkspaceFolderMount extends Disposable {
 			// Only a switch to another session's folders clears the history: entering or leaving Agents mode also changes the
 			// window's folders
 			if (event.removed.length > 0 && isActive() && this.switchingFolders) {
-				historyService.clearRecentlyOpened();
+				// Leaving the mode brings back the history from before it
+				historyService.clearRecentlyOpened({ keepSaved: true });
 			}
 		}));
 		this._register(autorun(reader => {

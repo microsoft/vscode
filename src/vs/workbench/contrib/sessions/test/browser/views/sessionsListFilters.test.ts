@@ -512,7 +512,7 @@ suite('SessionsListFilters', () => {
 		});
 	});
 
-	test('reset keeps a fixed pick, changing the filters only once, and resets it once no longer fixed', () => {
+	test('reset keeps a fixed pick, changing the filters only once, and resets the user\'s pick, which an undo brings back', () => {
 		const filters = createFilters();
 		const folder = SessionsListFilters.toLocalInboxWorkspace(URI.file('/work/app'));
 		filters.setInboxWorkspace(folder);
@@ -520,10 +520,20 @@ suite('SessionsListFilters', () => {
 		const picks: IInboxScope[] = [];
 		store.add(filters.onDidChange(() => picks.push(filters.inboxScope)));
 		filters.setInboxScopeFixed(true);
+		const undo = filters.capture();
+		filters.reset();
+		const reset = { picks: picks.splice(0), excluded: filters.isExcluded({ kind: 'harness', id: 'copilot' }) };
+		undo();
+		filters.setInboxScopeFixed(false);
+		const undone = filters.inboxScope;
+		filters.setInboxScopeFixed(true);
 		filters.reset();
 		filters.setInboxScopeFixed(false);
-		filters.reset();
-		assert.deepStrictEqual({ picks, excluded: filters.isExcluded({ kind: 'harness', id: 'copilot' }) }, { picks: [{ workspace: folder }, {}], excluded: false });
+		assert.deepStrictEqual({ reset, undone, unfixedAfterReset: filters.inboxScope }, {
+			reset: { picks: [{ workspace: folder }], excluded: false },
+			undone: { workspace: folder },
+			unfixedAfterReset: {},
+		});
 	});
 
 	test('a fixed pick stays as the filters are read again, such as of the profile the window switches to, or as another list stores a pick', () => {

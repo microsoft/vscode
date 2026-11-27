@@ -99,13 +99,22 @@ suite('Agents mode actions', () => {
 		agentsMode.setActive = async () => { calls.push('failed enter'); throw new Error('failed'); };
 		await assert.rejects(Promise.resolve(command.handler(instantiation)), /failed/);
 
+		// An entry that fails after the switch saves the history, which the next session switch would otherwise lose
+		agentsMode.setActive = async () => { calls.push('switched, then failed'); agentsMode.isActive = true; throw new Error('failed late'); };
+		await assert.rejects(Promise.resolve(command.handler(instantiation)), /failed late/);
+
+		// An entry that a leave followed before it finished saves nothing
+		agentsMode.isActive = false;
+		agentsMode.setActive = async () => { calls.push('entered, then left'); };
+		await command.handler(instantiation);
+
 		assert.deepStrictEqual({
 			enter,
 			entryDisabledByAI,
 			entryDisabledBySetting,
 			exit,
 			calls,
-		}, { enter: true, entryDisabledByAI: true, entryDisabledBySetting: true, exit: true, calls: ['leave', 'restore', 'enter', 'save', 'failed enter'] });
+		}, { enter: true, entryDisabledByAI: true, entryDisabledBySetting: true, exit: true, calls: ['leave', 'restore', 'enter', 'save', 'failed enter', 'switched, then failed', 'save', 'entered, then left'] });
 	});
 
 	test('switching stores the secondary side bar width before the switch, which the mode gives it back once switched', async () => {

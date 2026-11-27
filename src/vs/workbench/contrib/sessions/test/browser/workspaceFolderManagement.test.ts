@@ -196,7 +196,8 @@ suite('WorkspaceFolderManagementContribution', () => {
 		const historyService = new class extends mock<IHistoryService>() {
 			clearRecentlyOpenedCalls = 0;
 			readonly savedAndRestored: string[] = [];
-			override clearRecentlyOpened(): void { this.clearRecentlyOpenedCalls++; }
+			// Counts the clears that keep the history from before the mode
+			override clearRecentlyOpened(options?: { readonly keepSaved?: boolean }): void { if (options?.keepSaved) { this.clearRecentlyOpenedCalls++; } }
 			override saveRecentlyOpened(): void { this.savedAndRestored.push('save'); }
 			override restoreRecentlyOpened(): void { this.savedAndRestored.push('restore'); }
 		};

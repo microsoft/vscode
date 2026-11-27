@@ -93,7 +93,8 @@ export class SessionsWindowScopeController extends Disposable {
 
 		// Agents mode starts the bar on the window's own folder, or an empty window on all sessions. The pick is seeded as the
 		// window is about to enter the mode: switching fires the events the scope below follows, so seeding after it would scope
-		// the window to the stale pick first. The pick is seeded where the window will be scoped in the mode.
+		// the window to the stale pick first. Where the bar won't show, the fixed pick below is set instead: it is registered
+		// before the scope, so it runs first in the same update.
 		this._register(agentsModeService.onWillChange(active => {
 			const filters = this.scopeBarFilters.get();
 			// Only where the bar will show: a fixed pick is set below and is not the user's, so it must not replace theirs
@@ -107,20 +108,28 @@ export class SessionsWindowScopeController extends Disposable {
 		// may have been widened while the bar showed. Runs before the scope below, so the window is not scoped to a stale pick first.
 		// Not unfixed on dispose: the filters' list goes away with the view, and unfixing would update its disposed tree
 		let fixedFilters: SessionsListFilters | undefined;
+		let wasFixed = false;
 		this._register(autorun(reader => {
 			const filters = this.scopeBarFilters.read(reader);
-			if (fixedFilters && fixedFilters !== filters) {
+			const sameFilters = fixedFilters === filters;
+			if (fixedFilters && !sameFilters) {
 				fixedFilters.setInboxScopeFixed(false);
 			}
 			fixedFilters = filters;
 			if (!filters) {
+				wasFixed = false;
 				return;
 			}
 			const fixed = this.scopePickFixed.read(reader);
 			filters.setInboxScopeFixed(fixed);
 			if (fixed) {
 				filters.pickInboxWorkspace(this.getAgentsModeStartWorkspace());
+			} else if (sameFilters && wasFixed && this.barShown.read(reader)) {
+				// The bar shows in the mode, as the setting turned on: it starts on the window's own folder, as when the
+				// window enters the mode with the setting on, rather than on the pick from before the mode
+				filters.pickInboxWorkspace(this.getAgentsModeStartWorkspace());
 			}
+			wasFixed = fixed;
 		}));
 
 		let owned = false;

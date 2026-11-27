@@ -9,12 +9,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../../platform/native/common/native.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { testWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 import { IEnterWorkspaceResult } from '../../../../../platform/workspaces/common/workspaces.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
-import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
+import { TestContextService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { IAgentsModeService } from '../../../agentsMode/common/agentsMode.js';
 import { INativeWorkbenchEnvironmentService } from '../../../environment/electron-browser/environmentService.js';
 import { IExtensionService } from '../../../extensions/common/extensions.js';
@@ -84,7 +84,8 @@ suite('NativeWorkspaceEditingService - extension host recovery', () => {
 		});
 		const contextService = instantiationService.get(IWorkspaceContextService) as TestContextService;
 		contextService.setWorkspace(testWorkspace(URI.file('/old')));
-		const storageService = instantiationService.get(IStorageService);
+		const storageService = instantiationService.get(IStorageService) as TestStorageService;
+		const leftWorkspaceStorage = new Map<string, string>();
 		let historyService: HistoryService | undefined;
 		if (withHistory) {
 			// A real history on the window's storage, with the given history from before
@@ -97,16 +98,24 @@ suite('NativeWorkspaceEditingService - extension host recovery', () => {
 		if (storageFailure) {
 			instantiationService.stub(IStorageService, 'switch', async () => { throw storageFailure; });
 		} else {
-			// The in-memory storage keeps its data on a switch, like a switch that preserves the data copies it into the new workspace
+			// Like the real storage, a switch saves the state, keeps the data of the left workspace in its own storage
+			// and opens the empty storage of the new workspace: preserving the data does not copy it
 			instantiationService.stub(IStorageService, 'switch', async (_to: unknown, preserveData: boolean) => {
 				calls.push(`switchStorage:${preserveData}`);
 				if (withHistory) {
+					storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+					for (const target of [StorageTarget.USER, StorageTarget.MACHINE]) {
+						for (const key of storageService.keys(StorageScope.WORKSPACE, target)) {
+							leftWorkspaceStorage.set(key, storageService.get(key, StorageScope.WORKSPACE)!);
+							storageService.remove(key, StorageScope.WORKSPACE);
+						}
+					}
 					contextService.setWorkspace(testWorkspace(URI.file('/new')));
 				}
 			});
 		}
 		const service = store.add(instantiationService.createInstance(TestWorkspaceEditingService));
-		return { service, backups, calls, errors, contextService, storageService, historyService };
+		return { service, backups, calls, errors, contextService, storageService, leftWorkspaceStorage, historyService };
 	}
 
 	for (const remoteAuthority of [undefined, 'test-remote']) {
@@ -173,7 +182,8 @@ suite('NativeWorkspaceEditingService - extension host recovery', () => {
 		const { service, calls } = setupServices(undefined, true, undefined, true, failure);
 		service.result = { workspace: { id: 'new', configPath: URI.file('/new.code-workspace') } };
 		await assert.rejects(service.enterWorkspace(URI.file('/new.code-workspace')), error => error === failure);
-		assert.deepStrictEqual(calls, ['stop', 'agentsMode:false', 'start']);
+		// The window left the mode for good once the main process entered the workspace, so its history comes back
+		assert.deepStrictEqual(calls, ['stop', 'agentsMode:false', 'restoreHistory', 'start']);
 	});
 
 	test('brings back the editor history from before Agents mode when the workspace was entered, and only then', async () => {
@@ -186,32 +196,42 @@ suite('NativeWorkspaceEditingService - extension host recovery', () => {
 		const enteredOutsideMode = calls.splice(0);
 
 		assert.deepStrictEqual({ enteredFromMode, enteredOutsideMode }, {
-			// The history is restored after the storage moved, so it is restored in the storage of the new workspace
-			enteredFromMode: ['stop', 'agentsMode:false', 'switchStorage:true', 'restoreHistory', 'start'],
+			// The saved history is in the storage of the left workspace, so it is restored before the storage switches
+			enteredFromMode: ['stop', 'agentsMode:false', 'restoreHistory', 'switchStorage:true', 'start'],
 			enteredOutsideMode: ['stop', 'switchStorage:true', 'start'],
 		});
 	});
 
 	test('leaves the new workspace with the history from before Agents mode, like entering it outside the mode, and without the saved history', async () => {
 		const enter = async (inAgentsMode: boolean) => {
-			const { service, storageService, historyService } = setupServices(undefined, true, undefined, inAgentsMode, undefined, ['/old/a.txt']);
-			const savedKeys = () => ['history.entries.saved', 'history.entries.saved.cleared'].filter(key => storageService.get(key, StorageScope.WORKSPACE) !== undefined);
+			const { service, storageService, leftWorkspaceStorage, historyService } = setupServices(undefined, true, undefined, inAgentsMode, undefined, ['/old/a.txt']);
+			const savedKeysIn = (get: (key: string) => string | undefined) => ['history.entries.saved', 'history.entries.saved.cleared'].filter(key => get(key) !== undefined);
+			const savedKeys = () => savedKeysIn(key => storageService.get(key, StorageScope.WORKSPACE));
 			historyService!.getHistory(); // load
 			if (inAgentsMode) {
 				// Entering the mode saved the history, and switching sessions in it cleared it
 				historyService!.saveRecentlyOpened();
-				historyService!.clearRecentlyOpened();
+				historyService!.clearRecentlyOpened({ keepSaved: true });
 			}
 			const savedKeysBefore = savedKeys();
 			service.result = { workspace: { id: 'new', configPath: URI.file('/new.code-workspace') } };
 			await service.enterWorkspace(URI.file('/new.code-workspace'));
 
-			return { savedKeysBefore, history: historyService!.getHistory().map(editor => editor.resource?.path), savedKeysAfter: savedKeys() };
+			storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+			const newWorkspaceHistory = (JSON.parse(storageService.get('history.entries', StorageScope.WORKSPACE) ?? '[]') as { editor: { resource: string } }[]).map(entry => URI.parse(entry.editor.resource).path);
+
+			return {
+				savedKeysBefore,
+				history: historyService!.getHistory().map(editor => editor.resource?.path),
+				newWorkspaceHistory,
+				savedKeysAfter: savedKeys(),
+				savedKeysLeft: savedKeysIn(key => leftWorkspaceStorage.get(key)),
+			};
 		};
 
 		assert.deepStrictEqual({ fromMode: await enter(true), outsideMode: await enter(false) }, {
-			fromMode: { savedKeysBefore: ['history.entries.saved', 'history.entries.saved.cleared'], history: ['/old/a.txt'], savedKeysAfter: [] },
-			outsideMode: { savedKeysBefore: [], history: ['/old/a.txt'], savedKeysAfter: [] },
+			fromMode: { savedKeysBefore: ['history.entries.saved', 'history.entries.saved.cleared'], history: ['/old/a.txt'], newWorkspaceHistory: ['/old/a.txt'], savedKeysAfter: [], savedKeysLeft: [] },
+			outsideMode: { savedKeysBefore: [], history: ['/old/a.txt'], newWorkspaceHistory: ['/old/a.txt'], savedKeysAfter: [], savedKeysLeft: [] },
 		});
 	});
 });
