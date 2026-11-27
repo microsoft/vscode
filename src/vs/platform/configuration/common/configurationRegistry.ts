@@ -360,17 +360,17 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	};
 
 	/**
-	 * Default overrides for Agentic Mode in an editor window, independent of Agents window overrides.
+	 * Default overrides for Agents mode in an editor window, independent of Agents window overrides.
 	 */
 	agentsMode?: {
 		/**
-		 * Default value in Agentic Mode. This is metadata only: Agentic Mode's configuration service resolves it.
+		 * Default value in Agents mode. This is metadata only: Agents mode's configuration service resolves it.
 		 */
 		default?: unknown;
 
 		/**
-		 * When `true`, this setting is read-only in Agentic Mode and cannot be changed by the user.
-		 * This is metadata only: Agentic Mode's configuration service enforces it.
+		 * When `true`, this setting is read-only in Agents mode and cannot be changed by the user.
+		 * This is metadata only: Agents mode's configuration service enforces it.
 		 */
 		readOnly?: boolean;
 	};

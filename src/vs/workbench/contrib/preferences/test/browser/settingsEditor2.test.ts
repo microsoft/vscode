@@ -41,7 +41,7 @@ import { IManagedSettingsPresentationService, ManagedSettingsPresentationService
 import { terminalContribConfiguration } from '../../../terminal/terminalContribExports.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 
-suite('SettingsTargetsWidget Agentic Mode', () => {
+suite('SettingsTargetsWidget Agents mode', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('keeps normal workspace targets until explicitly enabled, and restores them on exit', async () => {
@@ -57,10 +57,10 @@ suite('SettingsTargetsWidget Agentic Mode', () => {
 		}));
 		await widget.updateTarget(ConfigurationTarget.WORKSPACE);
 		const initial = { target: widget.settingsTarget, empty: parent.querySelector('.monaco-action-bar')!.classList.contains('empty-workbench') };
-		widget.setAgenticMode(true);
-		widget.setAgenticMode(true);
+		widget.setAgentsMode(true);
+		widget.setAgentsMode(true);
 		const active = { target: widget.settingsTarget, empty: parent.querySelector('.monaco-action-bar')!.classList.contains('empty-workbench') };
-		widget.setAgenticMode(false);
+		widget.setAgentsMode(false);
 		const restored = { target: widget.settingsTarget, empty: parent.querySelector('.monaco-action-bar')!.classList.contains('empty-workbench') };
 		assert.deepStrictEqual({ initial, active, restored, targets }, {
 			initial: { target: ConfigurationTarget.WORKSPACE, empty: false },

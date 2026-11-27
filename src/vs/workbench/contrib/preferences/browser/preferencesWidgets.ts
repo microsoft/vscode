@@ -227,7 +227,7 @@ export class SettingsTargetsWidget extends Widget {
 	private options: ISettingsTargetsWidgetOptions;
 
 	private _settingsTarget: SettingsTarget | null = null;
-	private isAgenticMode = false;
+	private isAgentsMode = false;
 
 	private readonly _onDidTargetChange = this._register(new Emitter<SettingsTarget>());
 	readonly onDidTargetChange: Event<SettingsTarget> = this._onDidTargetChange.event;
@@ -342,17 +342,17 @@ export class SettingsTargetsWidget extends Widget {
 	private onWorkbenchStateChanged(): void {
 		this.folderSettings.folder = null;
 		this.update();
-		if (this.settingsTarget === ConfigurationTarget.WORKSPACE && (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE || this.isAgenticMode)) {
+		if (this.settingsTarget === ConfigurationTarget.WORKSPACE && (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE || this.isAgentsMode)) {
 			this.updateTarget(ConfigurationTarget.USER_LOCAL);
 		}
 	}
 
 	/**
-	 * Disables the workspace target while Agentic Mode is active, moving a workspace target to the user target.
+	 * Disables the workspace target while Agents mode is active, moving a workspace target to the user target.
 	 */
-	setAgenticMode(isActive: boolean): void {
-		if (this.isAgenticMode !== isActive) {
-			this.isAgenticMode = isActive;
+	setAgentsMode(isActive: boolean): void {
+		if (this.isAgentsMode !== isActive) {
+			this.isAgentsMode = isActive;
 			this.update();
 			if (isActive && this.settingsTarget === ConfigurationTarget.WORKSPACE) {
 				this.updateTarget(ConfigurationTarget.USER_LOCAL);
@@ -375,7 +375,7 @@ export class SettingsTargetsWidget extends Widget {
 	}
 
 	private hasWorkspaceSettings(): boolean {
-		return this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && !this.isAgenticMode;
+		return this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && !this.isAgentsMode;
 	}
 
 	private async update(): Promise<void> {

@@ -190,13 +190,13 @@ suite('SettingsTree Agents Window density', () => {
 	});
 });
 
-suite('SettingsTree Agentic Mode presentation', () => {
+suite('SettingsTree Agents mode presentation', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 	const configurationNode: IConfigurationNode = {
-		id: 'agenticModePresentationTest',
+		id: 'agentsModePresentationTest',
 		properties: {
-			'test.agentic': { type: 'boolean', default: true, agentsMode: { default: false }, agentsWindow: { readOnly: true } },
+			'test.agentsModePresentation': { type: 'boolean', default: true, agentsMode: { default: false }, agentsWindow: { readOnly: true } },
 			'test.agentsOnly': { type: 'boolean', default: true, agentsWindow: { default: false, readOnly: true } },
 			'test.agentsModeReadOnly': { type: 'boolean', default: true, agentsMode: { readOnly: true } },
 		},
@@ -207,7 +207,7 @@ suite('SettingsTree Agentic Mode presentation', () => {
 	function createModel(isSessionsWindow = false) {
 		const configuration = new class extends TestConfigurationService {
 			isSettingAppliedForAllProfiles(): boolean { return false; }
-		}({ 'test.agentic': true, 'test.agentsOnly': true, 'test.agentsModeReadOnly': true });
+		}({ 'test.agentsModePresentation': true, 'test.agentsOnly': true, 'test.agentsModeReadOnly': true });
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IWorkbenchConfigurationService, configuration);
@@ -240,12 +240,12 @@ suite('SettingsTree Agentic Mode presentation', () => {
 		return { viewState, read };
 	}
 
-	test('opts in to Agentic metadata without applying Agents window read-only exclusions, then restores editor presentation', () => {
+	test('opts in to Agents mode metadata without applying Agents window read-only exclusions, then restores editor presentation', () => {
 		const { viewState, read } = createModel();
 		const initial = read();
-		viewState.isAgenticMode = true;
+		viewState.isAgentsMode = true;
 		const active = read();
-		viewState.isAgenticMode = false;
+		viewState.isAgentsMode = false;
 		const editable = { value: true, configured: true, readOnly: false, tagged: false };
 		assert.deepStrictEqual({ initial, active, restored: read() }, {
 			initial: [editable, editable, editable],
@@ -254,9 +254,9 @@ suite('SettingsTree Agentic Mode presentation', () => {
 		});
 	});
 
-	test('preserves Agents window metadata even when Agentic presentation is requested', () => {
+	test('preserves Agents window metadata even when Agents mode presentation is requested', () => {
 		const { viewState, read } = createModel(true);
-		viewState.isAgenticMode = true;
+		viewState.isAgentsMode = true;
 		assert.deepStrictEqual(read(), [
 			{ value: true, configured: false, readOnly: true, tagged: true },
 			{ value: true, configured: false, readOnly: true, tagged: true },

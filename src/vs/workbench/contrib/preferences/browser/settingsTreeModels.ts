@@ -33,9 +33,9 @@ export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 export interface ISettingsEditorViewState {
 	settingsTarget: SettingsTarget;
 	/**
-	 * Whether the settings are presented for Agentic Mode, using its `agentsMode` defaults.
+	 * Whether the settings are presented for Agents mode, using its `agentsMode` defaults.
 	 */
-	isAgenticMode?: boolean;
+	isAgentsMode?: boolean;
 	query?: string; // used to keep track of loading from setInput vs loading from cache
 	tagFilters?: Set<string>;
 	extensionFilters?: Set<string>;
@@ -165,13 +165,13 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	policyValueDescription: string | undefined;
 
 	/**
-	 * Whether the setting is read-only in the Agents window or in Agentic Mode.
+	 * Whether the setting is read-only in the Agents window or in Agents mode.
 	 */
 	isAgentsReadOnly = false;
 	/**
-	 * Whether the setting is presented for Agentic Mode.
+	 * Whether the setting is presented for Agents mode.
 	 */
-	isAgenticMode = false;
+	isAgentsMode = false;
 
 	tags?: Set<string>;
 	overriddenScopeList: string[] = [];
@@ -402,7 +402,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 
 		let hasAgentsWindowOverride = false;
 		this.isAgentsReadOnly = false;
-		if (this.isSessionsWindow || this.isAgenticMode) {
+		if (this.isSessionsWindow || this.isAgentsMode) {
 			const property = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()[this.setting.key];
 			hasAgentsWindowOverride = this.isSessionsWindow ? !!property?.agentsWindow : !!property?.agentsMode;
 			this.isAgentsReadOnly = this.isSessionsWindow ? !!property?.agentsWindow?.readOnly : !!property?.agentsMode?.readOnly;
@@ -686,7 +686,7 @@ export class SettingsTreeModel implements IDisposable {
 
 	private reinspectSettings(settings: SettingsTreeSettingElement[]): void {
 		for (const element of settings) {
-			element.isAgenticMode = !!this._viewState.isAgenticMode;
+			element.isAgentsMode = !!this._viewState.isAgentsMode;
 			element.inspectSelf();
 		}
 	}
@@ -745,7 +745,7 @@ export class SettingsTreeModel implements IDisposable {
 			this._environmentService.isSessionsWindow,
 			this._experimentalSettingsService,
 			this._managedSettingsPresentationService);
-		element.isAgenticMode = !!this._viewState.isAgenticMode;
+		element.isAgentsMode = !!this._viewState.isAgentsMode;
 
 		const nameElements = this._treeElementsBySettingName.get(setting.key) ?? [];
 		nameElements.push(element);

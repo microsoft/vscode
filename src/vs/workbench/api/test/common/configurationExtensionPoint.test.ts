@@ -57,8 +57,8 @@ suite('Configuration extension point', () => {
 
 	test('strips the internal agentsMode property from extension settings', () => {
 		const description: IExtensionDescription = {
-			identifier: new ExtensionIdentifier('test.agenticmode'),
-			name: 'agenticmode',
+			identifier: new ExtensionIdentifier('test.agentsmode'),
+			name: 'agentsmode',
 			publisher: 'test',
 			version: '1.0.0',
 			engines: { vscode: '*' },
@@ -67,7 +67,7 @@ suite('Configuration extension point', () => {
 			isUserBuiltin: false,
 			isUnderDevelopment: false,
 			preRelease: false,
-			extensionLocation: URI.file('/extensions/test.agenticmode'),
+			extensionLocation: URI.file('/extensions/test.agentsmode'),
 		};
 		const errors: string[] = [];
 		ExtensionsRegistry.getExtensionPoints().find(point => point.name === 'configuration')!.acceptUsers([{
@@ -79,7 +79,7 @@ suite('Configuration extension point', () => {
 		const property = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()['test.agentsMode.setting'];
 		assert.deepStrictEqual({ agentsMode: property.agentsMode, errors }, {
 			agentsMode: undefined,
-			errors: [`Extension 'test.agenticmode' CANNOT use the 'agentsMode' property on configuration 'test.agentsMode.setting'.`],
+			errors: [`Extension 'test.agentsmode' CANNOT use the 'agentsMode' property on configuration 'test.agentsMode.setting'.`],
 		});
 	});
 });

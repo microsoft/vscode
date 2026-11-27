@@ -375,10 +375,10 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 			this.scopeOverridesIndicator.element.style.display = 'inline';
 			this.scopeOverridesIndicator.element.classList.add('setting-indicator');
 
-			this.scopeOverridesIndicator.label.text = '$(lock) ' + (element.isAgenticMode
+			this.scopeOverridesIndicator.label.text = '$(lock) ' + (element.isAgentsMode
 				? localize('agentsModeReadOnlyLabelText', "Cannot be changed in Agents mode")
 				: localize('agentsWindowReadOnlyLabelText', "Cannot be changed in Agents window"));
-			const content = element.isAgenticMode
+			const content = element.isAgentsMode
 				? localize('agentsModeReadOnlyDescription', "This setting cannot be changed in Agents mode.")
 				: localize('agentsWindowReadOnlyDescription', "This setting cannot be changed in the Agents window.");
 			this.scopeOverridesIndicator.disposables.add(this.hoverService.setupDelayedHover(this.scopeOverridesIndicator.element, {
@@ -581,7 +581,7 @@ export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement,
 	if (element.hasPolicyValue) {
 		ariaLabelSections.push(element.policyValueDescription ?? localize('policyDescriptionAccessible', "Managed by your organization; setting value not applied"));
 	} else if (element.isAgentsReadOnly) {
-		ariaLabelSections.push(element.isAgenticMode
+		ariaLabelSections.push(element.isAgentsMode
 			? localize('agentsModeReadOnlyAccessible', "Cannot be changed in Agents mode")
 			: localize('agentsWindowReadOnlyAccessible', "Cannot be changed in Agents window"));
 	} else if (element.settingsTarget === ConfigurationTarget.USER_LOCAL && configurationService.isSettingAppliedForAllProfiles(element.setting.key)) {
