@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.chat-window-session-drop-overlay {
+.session-chat-drop-overlay {
 	position: fixed;
 	z-index: 10000;
 }
 
-.chat-window-session-drop-overlay > .chat-window-session-drop-overlay-indicator {
+.session-chat-drop-overlay > .session-chat-drop-overlay-indicator {
 	position: absolute;
 	top: 0;
 	left: 0;

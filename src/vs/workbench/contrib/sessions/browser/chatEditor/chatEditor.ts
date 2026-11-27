@@ -113,6 +113,11 @@ export function registerSessionChatViewHost(input: ViewEditorInput, host: ISessi
 	});
 }
 
+/** What gives the session chat view of `input` what it shows, while one is registered ({@link registerSessionChatViewHost}). */
+export function getSessionChatViewHost(input: ViewEditorInput): ISessionChatViewHost | undefined {
+	return hosts.get(input);
+}
+
 /** What a chat editor shows, as far as its input-only state needs it. */
 export interface IInputOnlySessionView {
 	readonly primaryChatView: IObservable<Pick<AbstractChatView, 'inputOnly' | 'inputOnlyHeight' | 'canShowInputOnly' | 'enableInputOnly' | 'disableInputOnly' | 'setInputOnly'> | undefined>;
@@ -400,7 +405,7 @@ export function registerSessionChatViewEditor(): IDisposable {
 				viewType: SESSION_CHAT_VIEW_TYPE,
 				name: localize('sessionChatViewEditor', "Chat"),
 				providesTitle: true,
-				createView: (instantiationService, input) => instantiationService.createInstance(ChatEditorView, hosts.get(input)),
+				createView: (instantiationService, input) => instantiationService.createInstance(ChatEditorView, getSessionChatViewHost(input)),
 			}),
 			references: 0,
 		};

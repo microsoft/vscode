@@ -289,8 +289,15 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 
 	// #region Rendering
 
-	render(parent: HTMLElement, root: HTMLElement, notices?: HTMLElement): void {
-		const { input: container, controls } = createNewChatComposerLayout(parent, !!this.options.separateSessionControls, notices);
+	/**
+	 * @param root The host's view, which bounds where the chat pet moves.
+	 * @param options.notices Where the input's notices show.
+	 * @param options.dropTarget The element around the input, such as the host's whole view, where what the input attaches,
+	 * such as a file, can be dropped. Only the input itself when not set. Drags that a pane around the view places, such as
+	 * a session, still go to the input over the input only.
+	 */
+	render(parent: HTMLElement, root: HTMLElement, options?: { readonly notices?: HTMLElement; readonly dropTarget?: HTMLElement }): void {
+		const { input: container, controls } = createNewChatComposerLayout(parent, !!this.options.separateSessionControls, options?.notices);
 		this._container = container;
 		this._register(toDisposable(() => container.remove()));
 		this._register(toDisposable(() => controls.remove()));
@@ -328,6 +335,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 				enableImplicitContext: false,
 				supportsChangingModes: false,
 				isSessionsWindow: true,
+				dndContainer: options?.dropTarget,
 				inputEditorMinLines: 2,
 				inputEditorOptions: this.options.inputEditorOptions,
 				inputEditorPadding: COMPOSER_INPUT_EDITOR_PADDING,
