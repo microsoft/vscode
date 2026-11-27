@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { renderADMLString } from './render.ts';
+import { renderADMLString, escapeXml } from './render.ts';
 import type { Category, LanguageTranslations, NlsString, Policy, PolicyType } from './types.ts';
 
 export abstract class BasePolicy implements Policy {
@@ -35,8 +35,9 @@ export abstract class BasePolicy implements Policy {
 	}
 
 	renderADMX(regKey: string) {
+		const safeName = escapeXml(this.name);
 		return [
-			`<policy name="${this.name}" class="Both" displayName="$(string.${this.name})" explainText="$(string.${this.name}_${this.description.nlsKey.replace(/\./g, '_')})" key="Software\\Policies\\Microsoft\\${regKey}" presentation="$(presentation.${this.name})">`,
+			`<policy name="${safeName}" class="Both" displayName="$(string.${safeName})" explainText="$(string.${safeName}_${this.description.nlsKey.replace(/\./g, '_')})" key="Software\\Policies\\Microsoft\\${regKey}" presentation="$(presentation.${safeName})">`,
 			`	<parentCategory ref="${this.category.name.nlsKey}" />`,
 			`	<supportedOn ref="Supported_${this.minimumVersion.replace(/\./g, '_')}" />`,
 			`	<elements>`,
@@ -46,15 +47,22 @@ export abstract class BasePolicy implements Policy {
 		];
 	}
 
-	protected abstract renderADMXElements(): string[];
+	  protected abstract renderADMXElements(): string[];
 
 	renderADMLStrings(translations?: LanguageTranslations) {
+		const safeName = escapeXml(this.name);
 		return [
-			`<string id="${this.name}">${this.name}</string>`,
+			`<string id="${safeName}">${safeName}</string>`,
 			this.renderADMLString(this.description, translations)
 		];
 	}
 
+	renderADMLPresentation(): string {
+		const safeName = escapeXml(this.name);
+		return `<presentation id="${safeName}">${this.renderADMLPresentationContents()}</presentation>`;
+	}
+
+	protected abstract renderADMLPresentationContents(): string;
 	renderADMLPresentation(): string {
 		return `<presentation id="${this.name}">${this.renderADMLPresentationContents()}</presentation>`;
 	}
