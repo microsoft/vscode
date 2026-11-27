@@ -81,7 +81,6 @@ const GIT_LFS_DISABLED_CONFIG = ['-c', 'filter.lfs.process=', '-c', 'filter.lfs.
 const INDEX_REFRESH_MAX_ATTEMPTS = 5;
 const INDEX_REFRESH_RETRY_DELAY_MS = 200;
 
-
 export class AgentHostGitService extends Disposable implements IAgentHostGitService {
 	declare readonly _serviceBrand: undefined;
 
