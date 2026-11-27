@@ -55,6 +55,8 @@ suite('NamedLayoutsService', () => {
 			parts: restore?.parts ?? partsState(true, Position.BOTTOM),
 			editorGroups: restore?.editorGroups ?? singleGroup,
 			editorGroupsApplied: 0,
+			/** Whether an editor refuses to move, so that a layout with fewer editor groups does not apply. */
+			editorMoveVetoed: false,
 			partsBeforeZenMode: undefined as IPartsLayoutState | undefined,
 		};
 
@@ -84,9 +86,13 @@ suite('NamedLayoutsService', () => {
 			mainPart: upcastPartial<IEditorPart>({
 				getLayout: () => window.editorGroups,
 				applyLayout: (layout: EditorGroupLayout) => {
+					if (window.editorMoveVetoed && layout.groups.length < window.editorGroups.groups.length) {
+						return false;
+					}
 					window.editorGroups = layout;
 					window.editorGroupsApplied++;
 					window.parts = { ...window.parts, panel: { ...window.parts.panel, maximized: false } };
+					return true;
 				},
 			})
 		});
@@ -223,6 +229,27 @@ suite('NamedLayoutsService', () => {
 			zenMode: false,
 			parts: partsState(false, Position.RIGHT),
 			stored: { name: 'Debug', ...partsState(false, Position.RIGHT), editorGroups: singleGroup },
+		});
+	});
+
+	test('a switch applies the parts even when an editor refuses to move into fewer editor groups, and keeps the stored editor groups of the layout', async () => {
+		const { service, window, storedLayouts } = createWindow();
+		const debug = (await service.createLayout('Debug'))!;
+		await service.switchLayout(service.layouts[0]);
+
+		const twoGroups = { orientation: GroupOrientation.HORIZONTAL, groups: [{ size: 0.5 }, { size: 0.5 }] };
+		window.editorGroups = twoGroups;
+		window.parts = partsState(false, Position.RIGHT);
+		window.editorMoveVetoed = true;
+		const switched = await service.switchLayout(debug);
+		await service.saveLayout();
+
+		assert.deepStrictEqual({ switched, active: service.activeLayout.name, parts: window.parts, editorGroups: window.editorGroups, stored: storedLayouts() }, {
+			switched: true,
+			active: 'Debug',
+			parts: partsState(true, Position.BOTTOM),
+			editorGroups: twoGroups,
+			stored: [{ name: 'Debug', ...partsState(true, Position.BOTTOM), editorGroups: singleGroup }],
 		});
 	});
 

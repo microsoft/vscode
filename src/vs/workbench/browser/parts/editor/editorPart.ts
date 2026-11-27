@@ -552,7 +552,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		}
 	}
 
-	applyLayout(layout: EditorGroupLayout): void {
+	applyLayout(layout: EditorGroupLayout): boolean {
 		const restoreFocus = this.shouldRestoreFocus(this.container);
 
 		// Determine how many groups we need overall
@@ -572,13 +572,25 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		let currentGroupViews = this.getGroups(GroupsOrder.GRID_APPEARANCE);
 		if (layoutGroupsCount < currentGroupViews.length) {
 			const lastGroupInLayout = currentGroupViews[layoutGroupsCount - 1];
-			currentGroupViews.forEach((group, index) => {
-				if (index >= layoutGroupsCount) {
-					this.mergeGroup(group, lastGroupInLayout);
+			const groupsToMerge = currentGroupViews.slice(layoutGroupsCount);
+
+			// All editors go, or the groups stay as they are: a group whose editors cannot all move would remain outside of the new grid
+			for (const group of groupsToMerge) {
+				const veto = getGroupTransferVeto(group, lastGroupInLayout.id);
+				if (veto) {
+					this.editorPartsView.showTransferVeto(veto);
+					return false;
 				}
-			});
+			}
+
+			for (const group of groupsToMerge) {
+				this.mergeGroup(group, lastGroupInLayout);
+			}
 
 			currentGroupViews = this.getGroups(GroupsOrder.GRID_APPEARANCE);
+			if (layoutGroupsCount < currentGroupViews.length) {
+				return false; // an editor refused to move after all
+			}
 		}
 
 		const activeGroup = this.activeGroup;
@@ -601,6 +613,8 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		if (restoreFocus) {
 			this._activeGroup.focus();
 		}
+
+		return true;
 	}
 
 	getLayout(): EditorGroupLayout {
