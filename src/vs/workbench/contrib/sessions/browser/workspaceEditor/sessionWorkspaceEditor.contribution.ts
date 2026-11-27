@@ -7,8 +7,9 @@ import Severity from '../../../../../base/common/severity.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
+import { AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IDialogService, IPromptButton } from '../../../../../platform/dialogs/common/dialogs.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
@@ -16,6 +17,8 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { hasWorkspaceFileExtension } from '../../../../../platform/workspace/common/workspace.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../browser/editor.js';
 import { EditorExtensions, EditorsOrder } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -24,6 +27,7 @@ import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { IRecentSessionWorkspace, ISessionWorkspacesService } from '../../common/sessionWorkspaces.js';
 import { getSessionWorkspaceIcon } from './sessionWorkspaceAppearance.js';
 import { SessionWorkspaceEditor } from './sessionWorkspaceEditor.js';
+import { SessionWorkspaceEditorAccessibilityHelp } from './sessionWorkspaceEditorAccessibilityHelp.js';
 import { EDIT_SESSION_WORKSPACE_COMMAND_ID, NEW_SESSION_WORKSPACE_COMMAND_ID, REMOVE_SESSION_WORKSPACE_COMMAND_ID, SESSION_WORKSPACE_EDITOR_WHEN } from './sessionWorkspaceEditorCommands.js';
 import { isSameWorkspace, SessionWorkspaceEditorInput } from './sessionWorkspaceEditorInput.js';
 
@@ -31,6 +35,8 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	EditorPaneDescriptor.create(SessionWorkspaceEditor, SessionWorkspaceEditor.ID, localize('workspaceEditor.label', "Workspace Editor")),
 	[new SyncDescriptor(SessionWorkspaceEditorInput)],
 );
+
+AccessibleViewRegistry.register(new SessionWorkspaceEditorAccessibilityHelp());
 
 /** A command on a workspace, which the user picks when the command is not given one. */
 abstract class SessionWorkspacePickAction extends Action2 {
@@ -62,7 +68,7 @@ registerAction2(class NewSessionWorkspaceAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<IRecentSessionWorkspace | undefined> {
-		const input = new SessionWorkspaceEditorInput({ kind: 'new' });
+		const input = new SessionWorkspaceEditorInput({ kind: 'new' }, accessor.get(IUriIdentityService).extUri);
 		await accessor.get(IEditorService).openEditor(input, { pinned: true });
 		return input.whenClosed();
 	}
@@ -81,9 +87,10 @@ registerAction2(class EditSessionWorkspaceAction extends SessionWorkspacePickAct
 
 	override async run(accessor: ServicesAccessor, uri?: URI): Promise<void> {
 		const editorService = accessor.get(IEditorService);
+		const extUri = accessor.get(IUriIdentityService).extUri;
 		const workspace = await this.resolveWorkspace(uri, localize('editWorkspace.pick', "Select a workspace to edit"), accessor.get(ISessionWorkspacesService), accessor.get(ILabelService), accessor.get(IQuickInputService));
 		if (workspace) {
-			await editorService.openEditor(new SessionWorkspaceEditorInput({ kind: 'edit', workspace }), { pinned: true });
+			await editorService.openEditor(new SessionWorkspaceEditorInput({ kind: 'edit', workspace }, extUri), { pinned: true });
 		}
 	}
 });
@@ -106,28 +113,49 @@ registerAction2(class RemoveSessionWorkspaceAction extends SessionWorkspacePickA
 		const editorService = accessor.get(IEditorService);
 		const notificationService = accessor.get(INotificationService);
 		const logService = accessor.get(ILogService);
-		const workspace = await this.resolveWorkspace(uri, localize('removeWorkspace.pick', "Select a workspace to remove"), workspacesService, accessor.get(ILabelService), accessor.get(IQuickInputService));
+		const labelService = accessor.get(ILabelService);
+		const extUri = accessor.get(IUriIdentityService).extUri;
+		const workspace = await this.resolveWorkspace(uri, localize('removeWorkspace.pick', "Select a workspace to remove"), workspacesService, labelService, accessor.get(IQuickInputService));
 		if (!workspace) {
 			return;
 		}
 
+		// Only a workspace with a workspace file offers to delete it; a file the user made says that it is theirs
+		const hasFile = hasWorkspaceFileExtension(workspace.uri);
+		const buttons: IPromptButton<boolean>[] = [{ label: localize({ key: 'removeWorkspace.remove', comment: ['&& denotes a mnemonic'] }, "&&Remove Workspace"), run: () => false }];
+		let detail = localize('removeWorkspace.detail', "Its sessions are kept and listed by their folders.");
+		if (hasFile && workspace.owned) {
+			buttons.push({ label: localize({ key: 'removeWorkspace.delete', comment: ['&& denotes a mnemonic'] }, "&&Delete Workspace and File"), run: () => true });
+			detail = localize('removeWorkspace.detailOwnedFile', "Its sessions are kept and listed by their folders. Delete Workspace and File also moves its workspace file to the trash.");
+		} else if (hasFile) {
+			buttons.push({ label: localize({ key: 'removeWorkspace.deleteOwnFile', comment: ['&& denotes a mnemonic'] }, "&&Delete Workspace and Its File"), run: () => true });
+			detail = localize('removeWorkspace.detailOwnFile', "Its sessions are kept and listed by their folders. Delete Workspace and Its File also moves your workspace file {0} to the trash.", labelService.getUriLabel(workspace.uri, { relative: false }));
+		}
 		const { result: deleteFile } = await dialogService.prompt<boolean>({
 			type: Severity.Warning,
 			message: localize('removeWorkspace.message', "Remove the workspace '{0}'?", workspace.name),
-			detail: localize('removeWorkspace.detail', "Its sessions are kept and listed by their folders. Delete Workspace and File also moves its workspace file to the trash."),
-			buttons: [
-				{ label: localize({ key: 'removeWorkspace.remove', comment: ['&& denotes a mnemonic'] }, "&&Remove Workspace"), run: () => false },
-				{ label: localize({ key: 'removeWorkspace.delete', comment: ['&& denotes a mnemonic'] }, "&&Delete Workspace and File"), run: () => true },
-			],
+			detail,
+			buttons,
 			cancelButton: true,
 		});
 		if (deleteFile === undefined) {
 			return;
 		}
 
+		// Its open editors close first and save what they still have to, so nothing writes the workspace once it is removed
+		const editors = editorService.getEditors(EditorsOrder.SEQUENTIAL)
+			.filter(({ editor }) => editor instanceof SessionWorkspaceEditorInput && !!editor.workspace && isSameWorkspace(extUri, workspace, editor.workspace.uri));
+		const inputs = editors.map(({ editor }) => editor as SessionWorkspaceEditorInput);
+		if (editors.length) {
+			await editorService.closeEditors(editors);
+		}
+		await Promise.all(inputs.filter(input => input.isDisposed()).map(input => input.whenClosed()));
+		// A pending rename can have moved the workspace to another file
+		const current = workspacesService.getWorkspace(workspace.uri) ?? workspace;
+
 		try {
 			// Removing can be refused, such as deleting a file where there is no trash, which leaves the workspace as it was
-			await workspacesService.removeWorkspace(workspace.uri, { deleteFile });
+			await workspacesService.removeWorkspace(current.uri, { deleteFile });
 		} catch (error) {
 			logService.error(error);
 			notificationService.error(localize('removeWorkspace.failed', "Could not remove the workspace '{0}'. See the log for details.", workspace.name));
@@ -135,15 +163,10 @@ registerAction2(class RemoveSessionWorkspaceAction extends SessionWorkspacePickA
 		}
 		try {
 			// Its sessions are listed by their folders from now on
-			await sessionsManagementService.detachSessionsFromWorkspace([workspace.uri, ...workspace.previousUris ?? []]);
+			await sessionsManagementService.detachSessionsFromWorkspace([current.uri, ...current.previousUris ?? []]);
 		} catch (error) {
 			logService.error(error);
 			notificationService.error(localize('removeWorkspace.detachFailed', "Removed the workspace '{0}', but some of its sessions could not be moved to their folders. See the log for details.", workspace.name));
 		}
-
-		// An open Workspace editor of the workspace has nothing left to edit
-		const editors = editorService.getEditors(EditorsOrder.SEQUENTIAL)
-			.filter(({ editor }) => editor instanceof SessionWorkspaceEditorInput && !!editor.workspace && isSameWorkspace(workspace, editor.workspace.uri));
-		await editorService.closeEditors(editors);
 	}
 });

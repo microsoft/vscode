@@ -16,7 +16,7 @@ import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/a
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT, SessionsListPromoteNewChatActionContext, SessionWorktreeCleanupEditorFocusedContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT, SessionsListPromoteNewChatActionContext, SessionWorkspaceEditorFocusedContext, SessionWorktreeCleanupEditorFocusedContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { CustomViewVisibleContext } from '../../../common/agentsWindowContextKeys.js';
 import { localize } from '../../../../nls.js';
 import { FOCUS_AI_CUSTOMIZATION_VIEW_ID } from '../../aiCustomizationTreeView/browser/aiCustomizationTreeView.js';
@@ -58,7 +58,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 	readonly name = 'sessionsChat';
 	readonly type = AccessibleViewType.Help;
 	// Leave surfaces with their own help to their providers instead of this window-wide fallback.
-	readonly when = ContextKeyExpr.and(IsSessionsWindowContext, CustomViewVisibleContext.negate(), SessionWorktreeCleanupEditorFocusedContext.negate(), KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED.toNegated());
+	readonly when = ContextKeyExpr.and(IsSessionsWindowContext, CustomViewVisibleContext.negate(), SessionWorktreeCleanupEditorFocusedContext.negate(), SessionWorkspaceEditorFocusedContext.negate(), KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED.toNegated());
 
 	constructor(
 		private readonly _responseSelectionSupported = isResponseSelectionSupported(),

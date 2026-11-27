@@ -20,18 +20,21 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { WorkbenchTable } from '../../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -47,6 +50,9 @@ import { EditorPane } from '../../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../../common/editor.js';
 import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 import { IconPicker } from '../../../../services/userDataProfile/browser/iconPicker.js';
+import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { AccessibilityCommandId } from '../../../accessibility/common/accessibilityCommands.js';
+import { SessionWorkspaceEditorFocusedContext } from '../../common/contextkeys.js';
 import { IRecentSessionWorkspace, ISessionWorkspacesService } from '../../common/sessionWorkspaces.js';
 import { getSessionWorkspaceCssColor, getSessionWorkspaceIcon, isCustomSessionWorkspaceColor, SESSION_WORKSPACE_COLORS } from './sessionWorkspaceAppearance.js';
 import { ISessionWorkspaceDraft, SessionWorkspaceDraftModel } from './sessionWorkspaceDraft.js';
@@ -94,6 +100,8 @@ interface IFolderRow {
 	readonly isDefault: boolean;
 	/** Whether the row offers Set as Default: any folder but the default. */
 	readonly canSetDefault: boolean;
+	/** Whether the folder can be removed: a workspace keeps at least one folder once it exists. */
+	readonly canRemove: boolean;
 }
 
 /** What the folders table's actions do, which the widget owns. */
@@ -217,7 +225,11 @@ class FolderActionsColumnRenderer implements ITableRenderer<IFolderRow, IFolderA
 		if (row.canSetDefault) {
 			template.actionBar.push(template.elementDisposables.add(new Action(SET_DEFAULT_FOLDER_ACTION_ID, localize('workspaceEditor.setDefault', "Set as Default"), undefined, true, async () => this.actions.setDefault(row.folder))), { icon: false, label: true });
 		}
-		template.actionBar.push(template.elementDisposables.add(new Action(REMOVE_FOLDER_ACTION_ID, localize('workspaceEditor.removeFolder', "Remove Folder"), ThemeIcon.asClassName(Codicon.closeSmall), true, async () => this.actions.remove(row.folder))), { icon: true, label: false });
+		const remove = template.elementDisposables.add(new Action(REMOVE_FOLDER_ACTION_ID, localize('workspaceEditor.removeFolder', "Remove Folder"), ThemeIcon.asClassName(Codicon.closeSmall), row.canRemove, async () => this.actions.remove(row.folder)));
+		if (!row.canRemove) {
+			remove.tooltip = localize('workspaceEditor.removeLastFolder', "Remove Folder (a workspace needs at least one folder)");
+		}
+		template.actionBar.push(remove, { icon: true, label: false });
 	}
 
 	disposeTemplate(template: IFolderActionsTemplate): void {
@@ -256,9 +268,12 @@ export class SessionWorkspaceEditorWidget extends Disposable {
 	private readonly isNew: boolean;
 	/** Whether a new workspace is to be created, as the user chose Create. */
 	private createRequested = false;
+	/** Whether the workspace is being created, which disables Create and Cancel. Closing the editor still creates it. */
+	private creating = false;
 	/** Whether a new workspace shows what it still needs: once the user tried to create it, or left its name. */
 	private validationShown: boolean;
 	private readonly createButton: Button | undefined;
+	private readonly cancelButton: Button | undefined;
 	/** Why Create is disabled, for screen readers: what the workspace still needs. */
 	private readonly createReason: HTMLElement | undefined;
 	private readonly nameApply = this._register(new RunOnceScheduler(() => this.apply(), NAME_APPLY_DELAY));
@@ -291,6 +306,8 @@ export class SessionWorkspaceEditorWidget extends Disposable {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super();
 		const isEqual = (a: URI, b: URI) => uriIdentityService.extUri.isEqual(a, b);
@@ -315,7 +332,7 @@ export class SessionWorkspaceEditorWidget extends Disposable {
 		this.nameInput = this._register(new InputBox(nameRow, contextViewService, {
 			inputBoxStyles: defaultInputBoxStyles,
 			placeholder: localize('workspaceEditor.namePlaceholder', "Workspace name"),
-			ariaLabel: this.isNew ? localize('workspaceEditor.nameRequiredAria', "Workspace Name, required") : localize('workspaceEditor.nameAria', "Workspace Name"),
+			ariaLabel: this.withHelpHint(this.isNew ? localize('workspaceEditor.nameRequiredAria', "Workspace Name, required") : localize('workspaceEditor.nameAria', "Workspace Name")),
 			validationOptions: {
 				validation: value => value.trim() || !this.validationShown ? null : { content: localize('workspaceEditor.nameRequired', "A workspace needs a name."), type: MessageType.ERROR },
 			},
@@ -422,9 +439,13 @@ export class SessionWorkspaceEditorWidget extends Disposable {
 		// A new workspace is created once the user chooses Create, in the order the platform's dialogs have their buttons
 		if (this.isNew) {
 			const footer = DOM.append(body, DOM.$('.session-workspace-editor-footer'));
-			const cancel = this._register(new Button(footer, { ...defaultButtonStyles, secondary: true }));
+			const cancel = this.cancelButton = this._register(new Button(footer, { ...defaultButtonStyles, secondary: true }));
 			cancel.label = localize('workspaceEditor.cancel', "Cancel");
-			this._register(cancel.onDidClick(() => this._onDidRequestClose.fire()));
+			this._register(cancel.onDidClick(() => {
+				if (!this.creating) {
+					this._onDidRequestClose.fire();
+				}
+			}));
 			const create = this.createButton = this._register(new Button(footer, defaultButtonStyles));
 			create.label = localize('workspaceEditor.create', "Create");
 			this._register(create.onDidClick(() => void this.create()));
@@ -473,6 +494,17 @@ export class SessionWorkspaceEditorWidget extends Disposable {
 		await this.applies.queue(async () => undefined);
 	}
 
+	/** The Name field, which has focus when the editor opens, says how to open accessibility help, unless turned off. */
+	private withHelpHint(label: string): string {
+		if (!this.configurationService.getValue(AccessibilityVerbositySettingId.SessionWorkspaceEditor)) {
+			return label;
+		}
+		const keybinding = this.keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getAriaLabel();
+		return keybinding
+			? localize('workspaceEditor.nameAriaWithHelp', "{0}, use {1} for accessibility help", label, keybinding)
+			: localize('workspaceEditor.nameAriaWithHelpCommand', "{0}, run the command Open Accessibility Help for accessibility help", label);
+	}
+
 	private renderRow(body: HTMLElement, label: string, labelId?: string, required?: boolean): HTMLElement {
 		const row = DOM.append(body, DOM.$('.session-workspace-editor-row'));
 		const labelElement = DOM.append(row, DOM.$('.session-workspace-editor-label', labelId ? { id: labelId } : undefined, label));
@@ -485,7 +517,13 @@ export class SessionWorkspaceEditorWidget extends Disposable {
 
 	private updateCreateButton(): void {
 		if (this.createButton && this.createReason) {
-			this.createButton.enabled = this.model.isValid;
+			this.createButton.enabled = this.model.isValid && !this.creating;
+			if (this.creating) {
+				this.createButton.label = localize('workspaceEditor.creating', "Creating...");
+			}
+			if (this.cancelButton) {
+				this.cancelButton.enabled = !this.creating;
+			}
 			this.createReason.textContent = [
 				this.model.name.trim() ? undefined : localize('workspaceEditor.nameRequired', "A workspace needs a name."),
 				this.model.folders.length ? undefined : localize('workspaceEditor.foldersRequired', "Add a folder: a workspace needs at least one."),
@@ -504,17 +542,33 @@ export class SessionWorkspaceEditorWidget extends Disposable {
 
 	/** Creates the new workspace, once it has a name and a folder, and closes the editor; else shows what it needs. */
 	private async create(): Promise<void> {
+		if (this.creating) {
+			return;
+		}
 		this.showValidation();
 		if (!this.model.isValid) {
 			return;
 		}
 		this.createRequested = true;
-		await this.apply();
+		this.creating = true;
+		this.updateCreateButton();
+		try {
+			await this.apply();
+		} finally {
+			this.creating = false;
+			if (this.createButton) {
+				this.createButton.label = localize('workspaceEditor.create', "Create");
+			}
+		}
+		if (this._store.isDisposed) {
+			return;
+		}
 		if (this.workspace) {
 			this._onDidRequestClose.fire();
 		} else {
 			// Creating failed, which the user was told
 			this.createRequested = false;
+			this.updateCreateButton();
 		}
 	}
 
@@ -610,7 +664,13 @@ export class SessionWorkspaceEditorWidget extends Disposable {
 			input.value = customColor ?? '#3794ff';
 			input.click();
 		};
+		// The color previews as the user moves through the panel, and applies once they pick it
 		this._register(DOM.addDisposableListener(input, 'input', () => {
+			customColor = input.value.toLowerCase();
+			this.model.setColor(customColor);
+			update();
+		}));
+		this._register(DOM.addDisposableListener(input, 'change', () => {
 			customColor = input.value.toLowerCase();
 			this.storageService.store(LAST_CUSTOM_COLOR_STORAGE_KEY, customColor, StorageScope.PROFILE, StorageTarget.USER);
 			this.model.setColor(customColor);
@@ -677,6 +737,7 @@ export class SessionWorkspaceEditorWidget extends Disposable {
 			// One folder needs no tag
 			isDefault: index === 0 && folders.length > 1,
 			canSetDefault: index > 0,
+			canRemove: this.isNew || folders.length > 1,
 		})));
 		this.tableContainer.classList.toggle('empty', folders.length === 0);
 		this.foldersMessage.textContent = folders.length || !this.validationShown ? '' : localize('workspaceEditor.foldersRequired', "Add a folder: a workspace needs at least one.");
@@ -839,6 +900,7 @@ export class SessionWorkspaceEditor extends EditorPane {
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super(SessionWorkspaceEditor.ID, group, telemetryService, themeService, storageService);
 	}
@@ -849,7 +911,13 @@ export class SessionWorkspaceEditor extends EditorPane {
 	}
 
 	protected override createEditor(parent: HTMLElement): void {
-		this.container = DOM.append(parent, DOM.$('.session-workspace-editor-pane'));
+		const container = this.container = DOM.append(parent, DOM.$('.session-workspace-editor-pane'));
+		// Accessibility help, Alt+F1, explains the editor while it has focus
+		const focused = SessionWorkspaceEditorFocusedContext.bindTo(this.contextKeyService);
+		const focusTracker = this._register(DOM.trackFocus(container));
+		this._register(focusTracker.onDidFocus(() => focused.set(true)));
+		this._register(focusTracker.onDidBlur(() => focused.set(false)));
+		this._register(toDisposable(() => focused.reset()));
 	}
 
 	override async setInput(input: SessionWorkspaceEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {

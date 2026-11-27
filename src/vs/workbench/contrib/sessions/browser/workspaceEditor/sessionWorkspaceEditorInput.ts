@@ -5,7 +5,7 @@
 
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { extUri } from '../../../../../base/common/resources.js';
+import { IExtUri } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -34,7 +34,10 @@ export class SessionWorkspaceEditorInput extends EditorInput implements IModalEd
 	private readonly _closed = new DeferredPromise<IRecentSessionWorkspace | undefined>();
 	private _pendingApply: Promise<unknown> = Promise.resolve();
 
-	constructor(target: SessionWorkspaceEditorTarget) {
+	/**
+	 * @param extUri compares workspace files as the workspaces service does, such as without case where paths ignore it
+	 */
+	constructor(target: SessionWorkspaceEditorTarget, private readonly extUri: IExtUri) {
 		super();
 		this._target = target;
 		this._name = target.kind === 'edit' ? target.workspace.name : '';
@@ -87,7 +90,8 @@ export class SessionWorkspaceEditorInput extends EditorInput implements IModalEd
 
 	override dispose(): void {
 		if (!this._closed.isSettled) {
-			void this._pendingApply.finally(() => this._closed.complete(this.workspace));
+			// The editor can let go of this input, and track its last save, after the input is disposed in the same close
+			void Promise.resolve().then(() => this._pendingApply).finally(() => this._closed.complete(this.workspace));
 		}
 		super.dispose();
 	}
@@ -102,7 +106,7 @@ export class SessionWorkspaceEditorInput extends EditorInput implements IModalEd
 		// A new workspace is only edited by the editor that creates it
 		const workspace = this.workspace;
 		const other = otherInput.workspace;
-		return !!workspace && !!other && isSameWorkspace(workspace, other.uri);
+		return !!workspace && !!other && isSameWorkspace(this.extUri, workspace, other.uri);
 	}
 
 	/**
@@ -121,6 +125,6 @@ export class SessionWorkspaceEditorInput extends EditorInput implements IModalEd
 }
 
 /** Whether `uri` is the workspace's file, or one that the workspace had before a rename. */
-export function isSameWorkspace(workspace: IRecentSessionWorkspace, uri: URI): boolean {
+export function isSameWorkspace(extUri: IExtUri, workspace: IRecentSessionWorkspace, uri: URI): boolean {
 	return extUri.isEqual(workspace.uri, uri) || !!workspace.previousUris?.some(previous => extUri.isEqual(previous, uri));
 }

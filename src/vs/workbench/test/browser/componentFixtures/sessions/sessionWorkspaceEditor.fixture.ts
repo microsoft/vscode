@@ -213,4 +213,3 @@ async function renderWorkspaceEditor(context: ComponentFixtureContext, target: S
 		listService.lastFocusedList?.focusNext();
 	}
 }
-
