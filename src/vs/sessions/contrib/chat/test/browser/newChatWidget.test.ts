@@ -4096,6 +4096,49 @@ suite('NewChatWidget', () => {
 		});
 	});
 
+	test('removing the last folder pill, as the input removes it before saying which, never shows it again', async () => {
+		const registerSessionFolders = Reflect.get(NewChatWidget.prototype, '_registerSessionFolders') as (this: object) => void;
+		const syncSessionFolderPills = Reflect.get(NewChatWidget.prototype, '_syncSessionFolderPills') as (this: object) => void;
+		const lib = URI.file('/lib');
+		let added: URI[] = [lib];
+		let attachments: IChatRequestVariableEntry[] = [];
+		const adds: string[] = [];
+		const selectionChanged = disposables.add(new Emitter<void>());
+		const attachmentsChanged = disposables.add(new Emitter<void>());
+		const attachmentsRemoved = disposables.add(new Emitter<readonly IChatRequestVariableEntry[]>());
+		const harness = {
+			_register: <T extends IDisposable>(disposable: T) => disposables.add(disposable),
+			_syncingSessionFolderPills: false,
+			_sendingSessionFolders: false,
+			uriIdentityService: { extUri },
+			chatContextPickService: { registerChatContextItem: () => Disposable.None },
+			_workspacePicker: {
+				onDidChangeSelection: selectionChanged.event,
+				get addedSessionFolderUris() { return added; },
+				removeSessionFolder: (folder: URI) => { added = added.filter(candidate => !extUri.isEqual(candidate, folder)); selectionChanged.fire(); },
+			},
+			_newChatInput: {
+				onDidChangeAttachments: attachmentsChanged.event,
+				onDidRemoveAttachments: attachmentsRemoved.event,
+				get attachments() { return attachments; },
+				removeAttachment: (id: string) => { attachments = attachments.filter(attachment => attachment.id !== id); attachmentsChanged.fire(); },
+				addAttachments: (...entries: IChatRequestVariableEntry[]) => { adds.push(...entries.map(entry => entry.name)); attachments = [...attachments, ...entries]; attachmentsChanged.fire(); },
+			},
+			_syncSessionFolderPills: () => syncSessionFolderPills.call(harness),
+		};
+		registerSessionFolders.call(harness);
+		await timeout(0);
+		const pill = attachments[0];
+		adds.length = 0;
+		// As the chat input removes the pill the user removed: from its attachments first, then it says which
+		attachments = [];
+		attachmentsChanged.fire();
+		const rightAfterRemoval = attachments.length;
+		attachmentsRemoved.fire([pill]);
+		await timeout(0);
+		assert.deepStrictEqual({ rightAfterRemoval, adds, pills: attachments.length, added }, { rightAfterRemoval: 0, adds: [], pills: 0, added: [] });
+	});
+
 	test('records the workspace configuration requested for a draft only for a draft created for it, so a failed creation is retried', async () => {
 		const folder = URI.file('/project');
 		const workspaceConfig: ISessionWorkspaceConfig = { uri: URI.file('/product.code-workspace'), name: 'Product', folders: [folder, URI.file('/docs')] };

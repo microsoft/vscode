@@ -8,7 +8,7 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Action, toAction } from '../../../../../base/common/actions.js';
-import { disposableTimeout, raceTimeout } from '../../../../../base/common/async.js';
+import { disposableTimeout, raceTimeout, RunOnceScheduler } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { isErrorWithActions, toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
@@ -2595,8 +2595,10 @@ export class NewChatWidget extends Disposable {
 				}
 			}
 		}));
-		// The input's attachments are replaced, such as by a restored draft: show the folders again
-		this._register(this._newChatInput.onDidChangeAttachments(() => this._syncSessionFolderPills()));
+		// The input's attachments are replaced, such as by a restored draft: show the folders again. Once the change is
+		// handled: a user's removal of a pill changes the attachments before it says which pill the user removed.
+		const syncAfterAttachmentChange = this._register(new RunOnceScheduler(() => this._syncSessionFolderPills(), 0));
+		this._register(this._newChatInput.onDidChangeAttachments(() => syncAfterAttachmentChange.schedule()));
 		this._syncSessionFolderPills();
 	}
 

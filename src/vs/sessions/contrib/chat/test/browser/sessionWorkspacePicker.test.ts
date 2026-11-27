@@ -763,6 +763,40 @@ suite('WorkspacePicker - session folders', () => {
 		});
 	});
 
+	test('the composer\'s folder pills stay through a same-folder sync of its draft, which re-selects the folder', async () => {
+		const { picker } = setupPicker();
+		const syncSessionFolderPills = Reflect.get(NewChatWidget.prototype, '_syncSessionFolderPills') as (this: object) => void;
+		let attachments: IChatRequestVariableEntry[] = [];
+		const pillsAtEvents: string[][] = [];
+		const composer = {
+			_syncingSessionFolderPills: false,
+			_sendingSessionFolders: false,
+			uriIdentityService: { extUri },
+			_workspacePicker: picker,
+			_newChatInput: {
+				get attachments() { return attachments; },
+				removeAttachment: (id: string) => { attachments = attachments.filter(attachment => attachment.id !== id); },
+				addAttachments: (...entries: IChatRequestVariableEntry[]) => { attachments = [...attachments, ...entries]; },
+			},
+		};
+		// As the composer syncs its pills on each selection change
+		store.add(picker.onDidChangeSelection(() => {
+			syncSessionFolderPills.call(composer);
+			pillsAtEvents.push(attachments.map(attachment => attachment.name));
+		}));
+		await picker.dispatchFolder(app, 'local-agent-host');
+		picker.addSessionFolders([lib]);
+		pillsAtEvents.length = 0;
+		// As the composer re-selects its draft's folder when the draft's configuration changes
+		picker.setSelectedWorkspace(app, { fireEvent: false, origin: WorkspaceSelectionOrigin.SessionSync, sessionFolders: [app] });
+		assert.deepStrictEqual({ events: pillsAtEvents.length > 0, pillsAtEvents, pills: attachments.map(attachment => attachment.name), folders: picker.sessionFolderUris?.map(folder => folder.path) }, {
+			events: true,
+			pillsAtEvents: pillsAtEvents.map(() => ['lib']),
+			pills: ['lib'],
+			folders: ['/agent-host/app', '/agent-host/lib'],
+		});
+	});
+
 	test('keeps the added folders as its draft syncs its folder, and restores them with a restored draft', async () => {
 		const { picker, state } = setupPicker();
 		await picker.dispatchFolder(app, 'local-agent-host');

@@ -514,7 +514,8 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	private _setAddedSessionFolders(folders: readonly URI[]): void {
-		if (folders.length === this._addedSessionFolders.length) {
+		const extUri = this.uriIdentityService.extUri;
+		if (folders.length === this._addedSessionFolders.length && folders.every((folder, index) => extUri.isEqual(folder, this._addedSessionFolders[index]))) {
 			return;
 		}
 		this._addedSessionFolders = folders;
@@ -1519,11 +1520,9 @@ export class WorkspacePicker extends Disposable {
 			NewSessionWorkspacePreselectionSource.ProvidedWorkspace,
 			preserveOrigin ? this._selectionOrigin : origin,
 			sessionWorkspaceUri,
+			// Before the selection's events, so that its pills never go away meanwhile
+			addedSessionFolders,
 		);
-		if (addedSessionFolders.length && this._isSelectedFolder(folderUri)) {
-			this._addedSessionFolders = addedSessionFolders;
-			this._updateTriggerLabel();
-		}
 	}
 
 	/** The folders of a session besides its folder and its workspace's folders. */
@@ -1628,6 +1627,7 @@ export class WorkspacePicker extends Disposable {
 		source = NewSessionWorkspacePreselectionSource.User,
 		origin = WorkspaceSelectionOrigin.User,
 		sessionWorkspaceUri?: URI,
+		addedSessionFolders: readonly URI[] = [],
 	): void {
 		if (!this._isAllowedFolder(folderUri)) {
 			return;
@@ -1661,7 +1661,7 @@ export class WorkspacePicker extends Disposable {
 		}
 		this._selectedFolderUri = folderUri;
 		this._selectedSessionWorkspaceUri = sessionWorkspaceUri;
-		this._addedSessionFolders = [];
+		this._addedSessionFolders = addedSessionFolders;
 		this._selectedResolved = resolved;
 		this._noWorkspaceSelected = false;
 		this._noWorkspaceUnpersisted = false;
