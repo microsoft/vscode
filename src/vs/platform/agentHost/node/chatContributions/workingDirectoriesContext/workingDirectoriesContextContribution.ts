@@ -8,9 +8,10 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../log/common/log.js';
-import { createChatMementoKey, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IOutgoingTurn, type ISendContribution } from '../../../common/agentHostChatContributionsService.js';
+import { createChatMementoKey, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IDispatchedAction, type IOutgoingTurn, type ISendContribution } from '../../../common/agentHostChatContributionsService.js';
 import { IAgentHostGitService } from '../../../common/agentHostGitService.js';
-import { readSessionGitHubState, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
+import { ActionType } from '../../../common/state/sessionActions.js';
+import { isAhpChatChannel, readSessionGitHubState, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../agentHostTurnTracker.js';
 
@@ -49,6 +50,8 @@ export class WorkingDirectoriesContextContribution extends Disposable implements
 	 * chat: a chat removed meanwhile, whose resource may name a new chat by then, is not recorded as told.
 	 */
 	private readonly _pending = new Map<ProtocolURI, { readonly turnId: string; readonly key: string; readonly isCurrent: () => boolean }>();
+	/** The turn each chat prepares a list for last, so that an earlier turn's list that is ready later is dropped. */
+	private readonly _preparing = new Map<ProtocolURI, string>();
 
 	constructor(
 		private readonly _context: IAgentHostChatContributionContext,
@@ -64,6 +67,7 @@ export class WorkingDirectoriesContextContribution extends Disposable implements
 
 	async onOutgoingTurn(turn: IOutgoingTurn): Promise<ISendContribution | undefined> {
 		const isCurrent = this._stateManager.captureChatValidity(turn.chat);
+		this._preparing.set(turn.chat, turn.turnId);
 		const workingDirectories = turn.workingDirectories ?? [];
 		const told = this._toldChats.has(turn.chat);
 		// Also sent when a chat that was told about several folders is left with one.
@@ -95,8 +99,8 @@ export class WorkingDirectoriesContextContribution extends Disposable implements
 				gitHubRepository: gitHub?.owner && gitHub.repo ? `${gitHub.owner}/${gitHub.repo}` : undefined,
 			};
 		});
-		// The chat may have been removed while its folders' repositories were looked up
-		if (!isCurrent()) {
+		// The chat may have been removed while its folders' repositories were looked up, or a later turn started
+		if (!isCurrent() || this._preparing.get(turn.chat) !== turn.turnId) {
 			return undefined;
 		}
 		this._pending.set(turn.chat, { turnId: turn.turnId, key, isCurrent });
@@ -116,9 +120,20 @@ export class WorkingDirectoriesContextContribution extends Disposable implements
 		this._context.memento(sentFoldersMemento, chat).set(pending.key, undefined);
 	}
 
-	/** Drops what is kept for a chat that left the session, so that a new chat of the same resource starts afresh. */
+	onDidDispatchAction(dispatched: IDispatchedAction): void {
+		// A truncated chat's agent may no longer have the list in its history, so the next turn sends it again
+		if (dispatched.rejectionReason === undefined && dispatched.action.type === ActionType.ChatTruncated && isAhpChatChannel(dispatched.channel)) {
+			this._forgetChat(dispatched.channel);
+		}
+	}
+
+	/**
+	 * Drops what is kept for a chat that left the session, or whose history was truncated, so that its next turn starts
+	 * afresh.
+	 */
 	private _forgetChat(chat: ProtocolURI): void {
 		this._pending.delete(chat);
+		this._preparing.delete(chat);
 		if (this._toldChats.delete(chat)) {
 			this._context.deleteMemento(sentFoldersMemento, chat);
 		}

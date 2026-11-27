@@ -2519,23 +2519,41 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private async _detachSessionFromWorkspace(session: URI): Promise<boolean> {
 		const key = session.toString();
-		const state = this._stateManager.getSessionState(key);
-		if (state) {
-			const multiRoot = readSessionMultiRootMetadata(state._meta);
-			// Published first, as the catalog write below reads the workspace of a loaded session from its state
-			this._stateManager.dispatchServerAction(key, { type: ActionType.SessionMetaChanged, _meta: withSessionMultiRootMetadata(state._meta, undefined) });
-			try {
-				// A failed write undoes its own record too, so that the session stays attached wherever it is read from
-				await this._persistOrderedListVisibleSessionState(session, { [SESSION_META_MULTI_ROOT_KEY]: '' }, undefined, { rollbackOnFailure: true });
-			} catch (error) {
-				const current = this._stateManager.getSessionState(key);
-				if (current && multiRoot && !readSessionMultiRootMetadata(current._meta)) {
-					this._stateManager.dispatchServerAction(key, { type: ActionType.SessionMetaChanged, _meta: withSessionMultiRootMetadata(current._meta, multiRoot) });
-				}
-				throw error;
-			}
+		if (this._stateManager.getSessionState(key)) {
+			await this._detachLoadedSessionFromWorkspace(session);
 			return true;
 		}
+		// Serialized with restores, so that a restore cannot publish the record after it is removed
+		if (await this._queuePassiveMetadataUpdate(key, () => this._detachStoredSessionFromWorkspace(key)) === 'live') {
+			await this._detachLoadedSessionFromWorkspace(session);
+			return true;
+		}
+		return false;
+	}
+
+	/** Removes a loaded session's record, giving it back when it could not be persisted without it. */
+	private async _detachLoadedSessionFromWorkspace(session: URI): Promise<void> {
+		const key = session.toString();
+		const state = this._stateManager.getSessionState(key);
+		if (!state) {
+			return;
+		}
+		const multiRoot = readSessionMultiRootMetadata(state._meta);
+		// Published first, as the catalog write below reads the workspace of a loaded session from its state
+		this._stateManager.dispatchServerAction(key, { type: ActionType.SessionMetaChanged, _meta: withSessionMultiRootMetadata(state._meta, undefined) });
+		try {
+			// A failed write undoes its own record too, so that the session stays attached wherever it is read from
+			await this._persistOrderedListVisibleSessionState(session, { [SESSION_META_MULTI_ROOT_KEY]: '' }, undefined, { rollbackOnFailure: true });
+		} catch (error) {
+			const current = this._stateManager.getSessionState(key);
+			if (current && multiRoot && !readSessionMultiRootMetadata(current._meta)) {
+				this._stateManager.dispatchServerAction(key, { type: ActionType.SessionMetaChanged, _meta: withSessionMultiRootMetadata(current._meta, multiRoot) });
+			}
+			throw error;
+		}
+	}
+
+	private async _detachStoredSessionFromWorkspace(key: string): Promise<void> {
 		await persistSessionMetadataValues(this._sessionStateStore, key, { [SESSION_META_MULTI_ROOT_KEY]: '' });
 		const surfaced = this._stateManager.getSurfacedSessionSummary(key);
 		if (surfaced) {
@@ -2549,7 +2567,6 @@ export class AgentService extends Disposable implements IAgentService {
 			});
 		}
 		await this._markCatalogPayloadDirty(key);
-		return false;
 	}
 
 	async removeSessionArtifact(session: URI, artifactId: string): Promise<ISessionArtifact | undefined> {

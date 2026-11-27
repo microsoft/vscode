@@ -14,6 +14,7 @@ import { ServiceCollection } from '../../../instantiation/common/serviceCollecti
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import type { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
+import { ActionType } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, MessageKind, SessionStatus, withSessionGitHubState } from '../../common/state/sessionState.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
 import { AgentHostStateManager, creationTimeChatStorageResource, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -76,7 +77,9 @@ suite('WorkingDirectoriesContextContribution', () => {
 			}
 			return instructions;
 		};
-		return Object.assign(send, { lookups, state, contribution });
+		/** Tells the contributions that the chat was truncated, as the host does once the action is applied, or rejected. */
+		const truncate = (rejectionReason?: string) => contributions.didDispatchAction({ channel: chat, session, action: { type: ActionType.ChatTruncated }, rejectionReason });
+		return Object.assign(send, { lookups, state, contribution, truncate, dispatched });
 	}
 
 	const header = [
@@ -142,6 +145,35 @@ suite('WorkingDirectoriesContextContribution', () => {
 		const afterDelivery = await send([app, protocol]);
 
 		assert.deepStrictEqual({ cancelled: !!cancelled, retried: !!retried, afterDelivery }, { cancelled: true, retried: true, afterDelivery: undefined });
+	});
+
+	test('sends the list again after the chat is truncated, whose history may no longer have it', async () => {
+		const send = setup();
+
+		await send([app, protocol]);
+		send.truncate('refused');
+		const afterRejectedTruncation = await send([app, protocol]);
+		send.truncate();
+		const afterTruncation = await send([app, protocol]);
+		const afterDelivery = await send([app, protocol]);
+
+		assert.deepStrictEqual({ afterRejectedTruncation, afterTruncation: !!afterTruncation, afterDelivery }, { afterRejectedTruncation: undefined, afterTruncation: true, afterDelivery: undefined });
+	});
+
+	test('a cancelled turn whose list is ready after the next turn\'s does not take the next turn\'s place', async () => {
+		const send = setup();
+		send.lookups.gate = new DeferredPromise<void>();
+		const gate = send.lookups.gate;
+		// Turn 1 waits for its folders' repositories, and is cancelled meanwhile
+		const cancelled = send([app, protocol], false);
+		send.lookups.gate = undefined;
+		// Turn 2 prepares its list first, and reaches the provider only once turn 1's list is ready
+		const next = await send([app, protocol], false);
+		gate.complete();
+		const stale = await cancelled;
+		send.dispatched.fire({ chat, turnId: '2' });
+
+		assert.deepStrictEqual({ stale, next: !!next, afterDelivery: await send([app, protocol]) }, { stale: undefined, next: true, afterDelivery: undefined });
 	});
 
 	test('resolves the folders\' repositories at most four at a time, keeping the folders\' order', async () => {

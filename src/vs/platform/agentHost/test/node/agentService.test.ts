@@ -23571,6 +23571,45 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('detachSessionsFromWorkspace waits for a restore of a stored session, which then keeps the session detached', async () => {
+			const db = new TestSessionDatabase();
+			const workspaceFile = 'file:///work/agents.code-workspace';
+			await db.setMetadata(SESSION_META_MULTI_ROOT_KEY, JSON.stringify({ workspaceFile }));
+			const sessionId = 'test-session-detached-while-restoring';
+			const sessionUri = AgentSession.uri('copilot', sessionId);
+			// Holds loading the history, and so a restore after it has read the session's metadata
+			const agent = new class extends MockAgent {
+				historyGate: DeferredPromise<void> | undefined;
+				readonly historyReached = new DeferredPromise<void>();
+				override async getSessionMessages(session: URI) {
+					if (this.historyGate) {
+						this.historyReached.complete();
+						await this.historyGate.p;
+					}
+					return super.getSessionMessages(session);
+				}
+			}('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
+			registerTestAgentProvider(svc, agent);
+			await svc.listSessions();
+			agent.historyGate = new DeferredPromise<void>();
+			const restore = svc.restoreSession(sessionUri);
+			await agent.historyReached.p;
+			const detaching = svc.detachSessionsFromWorkspace([URI.parse(workspaceFile)]);
+			agent.historyGate.complete();
+			agent.historyGate = undefined;
+			const [, detached] = await Promise.all([restore, detaching]);
+
+			assert.deepStrictEqual({
+				detached: detached.map(String),
+				live: readSessionMultiRootMetadata(getStateManager(svc).getSessionState(sessionUri.toString())?._meta),
+				persisted: await db.getMetadata(SESSION_META_MULTI_ROOT_KEY),
+			}, { detached: [sessionUri.toString()], live: undefined, persisted: '' });
+		});
+
 		test('listSessions restores persisted source-control provenance', async () => {
 			const db = new TestSessionDatabase();
 			const sourceControlState = {
