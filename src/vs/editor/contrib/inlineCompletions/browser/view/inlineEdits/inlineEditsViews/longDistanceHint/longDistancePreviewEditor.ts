@@ -6,7 +6,8 @@
 import { n } from '../../../../../../../../base/browser/dom.js';
 import { Disposable } from '../../../../../../../../base/common/lifecycle.js';
 import { clamp } from '../../../../../../../../base/common/numbers.js';
-import { IObservable, derived, constObservable, IReader, autorun, observableValue } from '../../../../../../../../base/common/observable.js';
+import { Event } from '../../../../../../../../base/common/event.js';
+import { IObservable, derived, constObservable, IReader, autorun, observableValue, observableSignal } from '../../../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../../../../browser/editorBrowser.js';
 import { EditorOption } from '../../../../../../../common/config/editorOptions.js';
@@ -59,6 +60,7 @@ export class LongDistancePreviewEditor extends Disposable {
 	public readonly element = n.div({ class: 'preview', style: { /*pointerEvents: 'none'*/ }, ref: this._previewRef });
 
 	private _parentEditorObs: ObservableCodeEditor;
+	private readonly _previewEditorLayoutInvalidated = observableSignal(this);
 
 	constructor(
 		private readonly _previewTextModel: ITextModel,
@@ -144,6 +146,22 @@ export class LongDistancePreviewEditor extends Disposable {
 			constObservable(false),
 			observableValue(this, false),
 		));
+
+		this._register(autorun((reader) => {
+			const model = this._previewEditorObs.model.read(reader);
+			if (!model) {
+				return;
+			}
+			const onLayoutInvalidated = Event.any(
+				model.onDidChangeTokens,
+				model.onDidChangeOptions,
+				model.onDidChangeLanguage,
+				model.onDidChangeFont,
+			);
+			reader.store.add(onLayoutInvalidated(() => {
+				this._previewEditorLayoutInvalidated.trigger(undefined);
+			}));
+		}));
 
 		this.updatePreviewEditorEffect.recomputeInitiallyAndOnChange(this._store);
 	}
@@ -275,6 +293,7 @@ export class LongDistancePreviewEditor extends Disposable {
 	}).flatten();
 
 	private _getHorizontalContentRangeInPreviewEditorToShow(editor: ICodeEditor, reader: IReader) {
+		this._previewEditorLayoutInvalidated.read(reader);
 		const state = this._state.read(reader);
 		if (!state) { return undefined; }
 
