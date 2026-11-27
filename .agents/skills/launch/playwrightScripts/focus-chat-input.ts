@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Copyright (c) Microsoft Corporation. All rightsrols reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
@@ -13,10 +13,10 @@ async page => {
 	];
 
 	const findVisibleChatInput = async () => {
-		let firstVisible;
 		for (const selector of selectors) {
 			const candidates = page.locator(selector);
-			for (let index = 0; index < await candidates.count(); index++) {
+			const count = await candidates.count();
+			for (let index = 0; index < count; index++) {
 				const candidate = candidates.nth(index);
 				const isExcluded = await candidate.evaluate(element => Boolean(element.closest('.inline-chat-widget, .automation-form-prompt-host')));
 				if (await candidate.isVisible() && !isExcluded) {
@@ -24,11 +24,11 @@ async page => {
 					if (await candidate.evaluate(element => document.activeElement === element)) {
 						return match;
 					}
-					firstVisible ??= match;
+					return match;
 				}
 			}
 		}
-		return firstVisible;
+		return undefined;
 	};
 
 	const isFocused = input => input.evaluate(element => document.activeElement === element);
@@ -42,18 +42,21 @@ async page => {
 		}
 		return true;
 	};
-	const waitForVisibleChatInput = async attempts => {
-		for (let attempt = 0; attempt < attempts; attempt++) {
+
+	// Polling for the visible chat input using a custom timeout-based loop
+	const waitForVisibleChatInput = async (timeoutMs = 1000) => {
+		const startTime = Date.now();
+		while (Date.now() - startTime < timeoutMs) {
 			const match = await findVisibleChatInput();
 			if (match) {
 				return match;
 			}
-			await page.waitForTimeout(100);
+			await page.waitForTimeout(50);
 		}
 		return undefined;
 	};
 
-	let match = await findVisibleChatInput();
+	let match = await waitForVisibleChatInput(500);
 	if (match) {
 		const focusInvoked = await focusIfNeeded(match.input);
 		return { focused: true, focusChanged: focusInvoked, focusInvoked, shortcutInvoked: false, commandPaletteFallbackInvoked: false, selector: match.selector };
@@ -62,7 +65,7 @@ async page => {
 	const platform = await page.evaluate(() => navigator.userAgentData?.platform ?? navigator.platform);
 	const shortcut = /^mac/i.test(platform) ? 'Control+Meta+i' : 'Control+Alt+i';
 	await page.keyboard.press(shortcut);
-	match = await waitForVisibleChatInput(10);
+	match = await waitForVisibleChatInput(1000);
 
 	let commandPaletteFallbackInvoked = false;
 	if (!match) {
@@ -78,7 +81,7 @@ async page => {
 		}
 		await commandPaletteInput.fill(`>${commandId}`);
 		await page.keyboard.press('Enter');
-		match = await waitForVisibleChatInput(50);
+		match = await waitForVisibleChatInput(3000);
 	}
 
 	if (!match) {
