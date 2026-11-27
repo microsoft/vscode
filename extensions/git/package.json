@@ -541,6 +541,24 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.pinBranch",
+        "title": "%command.pinBranch%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.unpinBranch",
+        "title": "%command.unpinBranch%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.pinCurrentBranch",
+        "title": "%command.pinCurrentBranch%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.merge",
         "title": "%command.merge%",
         "category": "Git",
