@@ -8991,6 +8991,64 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		function outline(nodes: readonly SessionsListSnapshotNode[]): unknown[] {
+			return nodes.flatMap(node => node.type === 'session' ? [] : [node.children.some(child => child.type !== 'session') ? { [node.id]: outline(node.children) } : node.id]);
+		}
+
+		test('pinned groups and sections render in Pinned, stepped in, and return to their place when unpinned', () => {
+			const { harness, list } = render(SessionsGrouping.Workspace, new Map([['workspace:vscode', docs.id]]));
+			const depth = (row: HTMLElement | undefined) => row?.querySelector<HTMLElement>('.session-section, .session-group, .session-item')?.style.getPropertyValue('--session-group-depth');
+			list.setHeaderPinned(`group:${hotfixes.id}`, true);
+			list.setHeaderPinned('workspace:vscode', true);
+			const pinned = {
+				outline: outline(list.getTreeSnapshot()),
+				depths: {
+					hotfixes: depth(list.getItemRow({ group: hotfixes.id })),
+					urgent: depth(list.getItemRow({ group: urgent.id })),
+					section: depth(list.getItemRow({ section: 'workspace:vscode' })),
+					sessionInSection: depth(list.getItemRow({ session: harness.managementService.sessions[4].resource })),
+				},
+			};
+			list.setHeaderPinned(`group:${hotfixes.id}`, false);
+			list.setHeaderPinned('workspace:vscode', false);
+
+			assert.deepStrictEqual({ pinned, unpinned: outline(list.getTreeSnapshot()) }, {
+				pinned: {
+					outline: [
+						{ pinned: [{ [`group:${hotfixes.id}`]: [`group:${urgent.id}`] }, 'workspace:vscode'] },
+						{ [`group:${release.id}`]: [`group:${docs.id}`] },
+						`group:${triage.id}`,
+					],
+					depths: { hotfixes: '1', urgent: '2', section: '1', sessionInSection: '1' },
+				},
+				unpinned: [
+					{ [`group:${release.id}`]: [{ [`group:${hotfixes.id}`]: [`group:${urgent.id}`] }, { [`group:${docs.id}`]: ['workspace:vscode'] }] },
+					`group:${triage.id}`,
+				],
+			});
+		});
+
+		test('pins and unpins headers from their context menus and by dragging them in and out of Pinned', async () => {
+			const { harness, container, contextMenus } = render(SessionsGrouping.Workspace, new Map(), true);
+			const pinnedIds = harness.instantiationService.get(ISessionsListModelService).pinnedSectionIds;
+			const menu = (label: string) => {
+				rowOf(container, label).dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+				return contextMenus.at(-1)!;
+			};
+			await menu('Triage').find(action => action.id === 'sessions.pinHeader')!.run();
+			const menuPinned = pinnedIds.get();
+			dragRow(rowOf(container, 'vscode'), rowOf(container, 'Pinned'), 0.5);
+			const dragPinned = pinnedIds.get();
+			await menu('Triage').find(action => action.id === 'sessions.unpinHeader')!.run();
+			dragRow(rowOf(container, 'vscode'), rowOf(container, 'Release work'), 0.1);
+
+			assert.deepStrictEqual({ menuPinned, dragPinned, unpinned: pinnedIds.get() }, {
+				menuPinned: [`group:${triage.id}`],
+				dragPinned: [`group:${triage.id}`, 'workspace:vscode'],
+				unpinned: [],
+			});
+		});
+
 		test('a stale section-removal action does not reorder when no top-level headers remain', async () => {
 			const { harness, list, container, contextMenus } = render(SessionsGrouping.Workspace, new Map([['workspace:vscode', docs.id]]), true);
 			rowOf(container, 'vscode').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));

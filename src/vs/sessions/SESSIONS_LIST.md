@@ -13,7 +13,7 @@ This specification defines stable placement and state-ownership rules. Row styli
 | Concern | Owner |
 |---------|-------|
 | Session catalog and lifecycle | `ISessionsManagementService` |
-| Pin, per-sort ordering, and automation-session listing state | `ISessionsListModelService` |
+| Pin (of sessions, custom groups, and grouping sections), per-sort ordering, and automation-session listing state | `ISessionsListModelService` |
 | Order of a session's nested chats | The session's provider |
 | Custom groups, group and grouping-section appearance, nesting, automatic-section parents, mixed child order, and session membership | `ISessionGroupsService` |
 | Top-level custom group and grouping-section order | `ISessionSectionOrderService` |
@@ -118,6 +118,8 @@ A comparison is one sortable entry alongside ordinary sessions, in its automatic
 Outside Inbox, an agent-created comparison without an explicit custom-group placement appears beneath its initiating chat's session when that session has a rendered, unarchived row. This is presentation only: participants remain independent sessions, and comparison lifecycle and bulk actions do not become operations on the caller. If the caller is unavailable, filtered out, or capped, the comparison keeps its ordinary placement. Inbox continues to place it by participant attention state.
 
 A workspace, repository, or environment section can belong to one custom group at any depth. This places the section, not its sessions, in that group: future matching sessions follow it, and higher-precedence placements remain unchanged. Section placement is remembered independently for each grouping mode, including the workspace fallback in Repository mode, and only applies in that mode. Nested sections do not consume the top-level Recent section limit, while their own session limits still apply. Temporarily empty sections retain their parents and child order without rendering an empty automatic header.
+
+A custom group (other than a comparison) or a workspace, repository, or environment section can be pinned. A pinned header renders, with its contents, at the top of the Pinned section in pin order, instead of in its parent group or the top-level order, and is not capped behind "+N more". Pinning places the header, not its sessions, and keeps its parent and manual position, so unpinning returns it there; moving a pinned header elsewhere unpins it. Section pins are remembered independently for each grouping mode, like section placement. Inbox ignores header pins.
 
 ### Quick chats
 

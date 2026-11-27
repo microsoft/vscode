@@ -70,6 +70,15 @@ export interface ISessionsListModelService {
 	unpinSessions(sessions: ISession[]): void;
 	isSessionPinned(session: ISession): boolean;
 
+	/**
+	 * The pinned headers of the sessions list, in the order they were pinned: custom groups by
+	 * their header id (`group:<id>`), and workspace, repository, or environment sections by their
+	 * placement key. The list shows them in its Pinned section.
+	 */
+	readonly pinnedSectionIds: IObservable<readonly string[]>;
+	pinSection(sectionId: string): void;
+	unpinSection(sectionId: string): void;
+
 	getInboxState(session: ISession, reader?: IReader): SessionInboxState | undefined;
 	/** Changes local triage state, returning an undo that does not overwrite subsequent decisions. */
 	setInboxState(sessions: readonly ISession[], action: SessionInboxAction): () => void;
@@ -143,6 +152,7 @@ export interface ISessionsListModelService {
 export const ISessionsListModelService = createDecorator<ISessionsListModelService>('sessionsListModelService');
 
 const PINNED_SESSIONS_KEY = 'sessionsListControl.pinnedSessions';
+const PINNED_SECTIONS_KEY = 'sessionsListControl.pinnedSections';
 
 /** Reads stored pins for maintenance across profiles without changing profile-local list state. */
 export function readSessionPinnedIds(storageService: IStorageService): readonly string[] {
@@ -185,6 +195,8 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 	readonly onDidChange: Event<ISessionListModelChangeEvent> = this._onDidChange.event;
 
 	private readonly _pinnedSessionIds: Set<string>;
+	private readonly _pinnedSectionIds = observableValue<readonly string[]>(this, []);
+	readonly pinnedSectionIds: IObservable<readonly string[]> = this._pinnedSectionIds;
 	private readonly _inboxState = observableValue<ReadonlyMap<string, StoredSessionInboxState>>(this, new Map());
 	private readonly _inboxUndoTokens = new Map<string, ISessionInboxUndoToken>();
 	private readonly _snoozeTimer = this._register(new RunOnceScheduler(() => this.expireSnoozes(), 0));
@@ -206,6 +218,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		super();
 
 		this._pinnedSessionIds = this.loadSet(PINNED_SESSIONS_KEY);
+		this._pinnedSectionIds.set([...this.loadSet(PINNED_SECTIONS_KEY)], undefined);
 		this.loadInboxState();
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, SessionsListModelService.INBOX_STATE_KEY, this._store)(e => {
 			if (e.external) {
@@ -415,6 +428,25 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 
 	isSessionPinned(session: ISession): boolean {
 		return this._pinnedSessionIds.has(session.sessionId);
+	}
+
+	pinSection(sectionId: string): void {
+		const pinned = this._pinnedSectionIds.get();
+		if (!pinned.includes(sectionId)) {
+			this.setPinnedSectionIds([...pinned, sectionId]);
+		}
+	}
+
+	unpinSection(sectionId: string): void {
+		const pinned = this._pinnedSectionIds.get();
+		if (pinned.includes(sectionId)) {
+			this.setPinnedSectionIds(pinned.filter(id => id !== sectionId));
+		}
+	}
+
+	private setPinnedSectionIds(ids: readonly string[]): void {
+		this.saveSet(PINNED_SECTIONS_KEY, new Set(ids));
+		this._pinnedSectionIds.set(ids, undefined);
 	}
 
 	getInboxState(session: ISession, reader?: IReader): SessionInboxState | undefined {

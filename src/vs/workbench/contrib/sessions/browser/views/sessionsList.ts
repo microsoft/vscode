@@ -282,6 +282,8 @@ export interface ISessionSection {
 	readonly collapseStateId?: string;
 	readonly label: string;
 	readonly sessions: ISession[];
+	/** The sessions the header counts and summarizes when they differ from its own {@link sessions}, such as those of the groups and sections pinned in the Pinned section too. */
+	readonly summarySessions?: readonly ISession[];
 	readonly pendingItems?: readonly IPendingSessionItem[];
 	/** The repository of a repository section. */
 	readonly repository?: ISessionRepository;
@@ -3159,7 +3161,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			} : defaultIcon;
 			renderSessionHeaderIcon(
 				template,
-				element.sessions,
+				element.summarySessions ?? element.sessions,
 				icon,
 				this.showUnreadInCollapsedSections,
 				this.sessionsWithFailingCI,
@@ -3178,7 +3180,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			template.countLabel.textContent = '';
 			template.count.style.display = 'none';
 		} else {
-			template.countLabel.textContent = String(element.pendingItems?.length ?? element.sessions.length);
+			template.countLabel.textContent = String(element.pendingItems?.length ?? (element.summarySessions ?? element.sessions).length);
 			template.count.style.display = '';
 		}
 		if (element.pinnedCanvas) {
@@ -3787,7 +3789,7 @@ class SessionsAccessibilityProvider {
 			if (isShortcutSection(element.id) || element.id === CANVASES_SECTION_ID) {
 				return element.label;
 			}
-			return this.getSectionAriaLabel(element.hover ? localize('sessionSectionWithHoverAria', "{0}, {1}", element.label, element.hover) : element.label, element.sessions);
+			return this.getSectionAriaLabel(element.hover ? localize('sessionSectionWithHoverAria', "{0}, {1}", element.label, element.hover) : element.label, element.summarySessions ?? element.sessions);
 		}
 		if (isSessionShowMore(element)) {
 			if (element.mode === 'less') {
@@ -4093,7 +4095,9 @@ type SessionHeaderDrop =
 	| { readonly kind: 'topLevel'; readonly targetId: string; readonly position: 'before' | 'after'; readonly aboveMore?: boolean }
 	| { readonly kind: 'subgroup'; readonly parentId: string; readonly depth: number; readonly placement: ISessionGroupPlacement }
 	| { readonly kind: 'comparison'; readonly parent: ISessionSection | ISessionGroupItem | ISession; readonly anchor?: ISession | ISessionGroupItem; readonly position: 'before' | 'after'; readonly depth: number }
-	| { readonly kind: 'into'; readonly groupId: string };
+	| { readonly kind: 'into'; readonly groupId: string }
+	/** Pins the header to the Pinned section. */
+	| { readonly kind: 'pinned' };
 
 /** A resolved drop: its hover feedback and what dropping does. */
 interface ISessionsListDropOperation {
@@ -4300,6 +4304,9 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		}
 		if (drop.kind === 'comparison') {
 			return { reaction: toDropReaction(insertionFeedback(drop.position)), insertionDepth: drop.depth, run };
+		}
+		if (drop.kind === 'pinned') {
+			return { reaction: toDropReaction(undefined), header: { kind: 'section', id: 'pinned' }, run };
 		}
 		const isHeaderRow = isSessionGroupItem(target) && target.group.id === drop.groupId;
 		return {
@@ -4955,6 +4962,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	/** The workspace sections capped behind "+N more", shown in the list or not. */
 	private _moreFolderSectionIds: ReadonlySet<string> = new Set();
+
+	/** The pinned group and grouping-section headers the Pinned section currently renders, by their pin key. */
+	private _renderedPinnedHeaderIds: ReadonlySet<string> = new Set();
 
 	private readonly _onDidUpdate = this._register(new Emitter<void>());
 	readonly onDidUpdate: Event<void> = this._onDidUpdate.event;
@@ -5875,6 +5885,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		}));
 
+		this._register(runOnChange(this._sessionsListModelService.pinnedSectionIds, () => {
+			if (this.visible) {
+				this.update();
+			} else {
+				this.changedWhileHidden = true;
+			}
+		}));
+
 		this._register(this._sessionGroupsService.onDidChange(e => {
 			if (this.visible) {
 				this.update();
@@ -6314,23 +6332,35 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 
 		const sectionById = new Map(sections.map(section => [this.getSectionGroupKey(section.id), section]));
+		// Pinned groups and grouping sections render at the top of the Pinned section instead of where they would otherwise.
+		const pinnedHeaderIds = inbox ? [] : this._sessionsListModelService.pinnedSectionIds.get().filter(id => {
+			const groupId = getSessionGroupIdOfSection(id);
+			if (groupId !== undefined) {
+				return groupTree.getPath(groupId).length > 0 && !comparisonsByGroupId.has(groupId);
+			}
+			const section = sectionById.get(id);
+			return !!section && isSessionGroupingSection(section.id);
+		});
+		const pinnedHeaders = new Set(pinnedHeaderIds);
+		this._renderedPinnedHeaderIds = pinnedHeaders;
+		const isPinnedHeader = (id: string) => pinnedHeaders.has(this.getSectionGroupKey(id));
 		const nestedSectionsByGroup = new Map<string, ISessionSection[]>();
 		for (const section of sections) {
 			const parentId = this.getSectionParentId(section.id);
-			if (parentId !== undefined) {
+			if (parentId !== undefined && !isPinnedHeader(section.id)) {
 				const siblings = nestedSectionsByGroup.get(parentId) ?? [];
 				siblings.push(section);
 				nestedSectionsByGroup.set(parentId, siblings);
 			}
 		}
 		const groupItemsById = new Map<string, ISessionGroupItem>();
-		const buildGroupItem = (group: ISessionGroup, depth: number): ISessionGroupItem => {
+		const buildGroupItem = (group: ISessionGroup, depth: number, inPinned = false): ISessionGroupItem => {
 			const comparisonSectionId = this.comparisonSectionIds.get(group.id);
-			const comparisonParentId = inbox ? undefined : group.parentId ?? (comparisonSectionId ? this.getSectionParentId(comparisonSectionId) : undefined);
+			const comparisonParentId = inbox || inPinned ? undefined : group.parentId ?? (comparisonSectionId ? this.getSectionParentId(comparisonSectionId) : undefined);
 			if (comparisonParentId !== undefined) {
 				depth = groupTree.getPath(comparisonParentId).length;
 			}
-			const subgroups = inbox ? [] : groupTree.getSubgroups(group.id).map(subgroup => buildGroupItem(subgroup, depth + 1));
+			const subgroups = inbox ? [] : groupTree.getSubgroups(group.id).map(subgroup => buildGroupItem(subgroup, depth + 1, inPinned));
 			const members = sortedMembersByGroupId.get(group.id)!;
 			const comparison = comparisonsByGroupId.get(group.id);
 			if (comparison) {
@@ -6356,7 +6386,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				sessions: members,
 				subtreeSessions: [
 					...members,
-					...subgroups.flatMap(subgroup => subgroup.subtreeSessions),
+					...subgroups.filter(subgroup => !pinnedHeaders.has(getSessionGroupSectionId(subgroup.group.id))).flatMap(subgroup => subgroup.subtreeSessions),
 					...(nestedSectionsByGroup.get(group.id) ?? []).flatMap(section => section.sessions),
 				],
 				isEmpty: subgroups.length === 0
@@ -6377,6 +6407,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 		};
 		for (const group of topLevelGroups) {
 			buildGroupItem(group, 0);
+		}
+		// Pinned headers step in under the Pinned section, ancestors first so that a pinned subgroup of a pinned group lands directly under Pinned.
+		for (const groupId of pinnedHeaderIds.map(getSessionGroupIdOfSection).filter(isDefined).sort((a, b) => groupTree.getPath(a).length - groupTree.getPath(b).length)) {
+			buildGroupItem(groupTree.getPath(groupId).at(-1)!, 1, true);
+		}
+		for (const group of topLevelGroups) {
+			const comparisonSectionId = this.comparisonSectionIds.get(group.id);
+			if (comparisonSectionId !== undefined && isPinnedHeader(comparisonSectionId)) {
+				buildGroupItem(group, 1, true);
+			}
 		}
 
 		const hasRecentSessions = sections.some(s => s.id === 'recent' && s.sessions.length > 0);
@@ -6404,7 +6444,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const partitionFolders = grouping !== SessionsGrouping.Date && !this.hasFindPattern && this.workspaceGroupCapped && !scope;
 		const moreFolderSectionIds = new Set<string>();
 		if (partitionFolders) {
-			const workspaceSections = sections.filter(s => isSessionGroupingSection(s.id) && this.getSectionParentId(s.id) === undefined);
+			const workspaceSections = sections.filter(s => isSessionGroupingSection(s.id) && this.getSectionParentId(s.id) === undefined && !isPinnedHeader(s.id));
 			// With only two workspaces, hiding one behind a "+1 more" row saves no space.
 			if (workspaceSections.length > 2) {
 				const now = Date.now();
@@ -6578,6 +6618,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 			const subgroupChildren = this._sessionGroupsService.getChildIds(groupItem.group.id).flatMap(id => {
 				const subgroup = groupItemsById.get(id);
 				if (subgroup) {
+					if (pinnedHeaders.has(getSessionGroupSectionId(id))) {
+						return [];
+					}
 					if (subgroup.comparison) {
 						const comparison = comparisonsByGroupId.get(id);
 						if (comparison && !isComparisonInScope(comparison)) {
@@ -6589,7 +6632,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					return [renderGroup(subgroup)];
 				}
 				const section = sectionById.get(id);
-				return section && this.getSectionParentId(section.id) === groupItem.group.id ? [renderWorkspaceSection(section)] : [];
+				return section && this.getSectionParentId(section.id) === groupItem.group.id && !isPinnedHeader(section.id) ? [renderWorkspaceSection(section)] : [];
 			});
 			const sessionChildren: IObjectTreeElement<SessionListItem>[] = groupItem.sessions.length === 0
 				? subgroupChildren.length === 0 && comparisonChildren.length === 0
@@ -6676,9 +6719,26 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 		this.setNavigationSections(navigationSections);
 
-		const pinnedSection = sections.find(s => s.id === 'pinned');
-		if (pinnedSection) {
-			children.push(renderSection(pinnedSection));
+		const pinnedHeaderChildren = pinnedHeaderIds.flatMap(id => {
+			const groupId = getSessionGroupIdOfSection(id);
+			const groupItem = groupId === undefined ? undefined : groupItemsById.get(groupId);
+			const section = groupId === undefined ? sectionById.get(id) : undefined;
+			return groupItem ? [renderGroup(groupItem)] : section ? [renderWorkspaceSection(section)] : [];
+		});
+		const pinnedSessionsSection = sections.find(s => s.id === 'pinned');
+		if (pinnedSessionsSection || pinnedHeaderChildren.length > 0) {
+			// The header counts and summarizes the sessions of the pinned headers too, as a group's header does its subgroups'.
+			const pinnedHeaderSessions = pinnedHeaderChildren.flatMap(child => isSessionGroupItem(child.element) ? child.element.subtreeSessions : isSessionSection(child.element) ? child.element.sessions : []);
+			const pinnedSessions = pinnedSessionsSection?.sessions ?? [];
+			const pinnedSection: ISessionSection = {
+				...pinnedSessionsSection,
+				id: 'pinned',
+				label: pinnedSessionsSection?.label ?? localize('pinned', "Pinned"),
+				sessions: pinnedSessions,
+				summarySessions: pinnedHeaderSessions.length > 0 ? [...pinnedSessions, ...pinnedHeaderSessions] : undefined,
+			};
+			const rendered = renderSection(pinnedSection);
+			children.push({ ...rendered, children: [...pinnedHeaderChildren, ...rendered.children ?? []] });
 		}
 
 		const draftsSection = this.options.pendingSections?.get().find(section => section.id === 'drafts');
@@ -6749,6 +6809,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 			const resolvedIds = keepDateSectionOrder(this._sessionSectionOrderService.resolveOrder([...topLevelGroupIds, ...DATE_SECTION_IDS]));
 			this._topLevelOrder = resolvedIds;
 			for (const id of resolvedIds) {
+				// A pinned header keeps its place in the order, to return to it when unpinned, but renders in Pinned.
+				if (isPinnedHeader(id)) {
+					continue;
+				}
 				const groupId = getSessionGroupIdOfSection(id);
 				if (groupId !== undefined) {
 					renderGroupById(groupId);
@@ -6787,6 +6851,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 			const resolvedIds = this._sessionSectionOrderService.resolveOrder(defaultOrder);
 			this._topLevelOrder = resolvedIds;
 			for (const id of resolvedIds) {
+				// A pinned header keeps its place in the order, to return to it when unpinned, but renders in Pinned.
+				if (isPinnedHeader(id)) {
+					continue;
+				}
 				const groupId = getSessionGroupIdOfSection(id);
 				if (groupId !== undefined) {
 					renderGroupById(groupId);
@@ -8625,6 +8693,20 @@ export class SessionsList extends Disposable implements ISessionsList {
 			? this.canNestGroup(draggedId, groupId, groupTree)
 			: this.canHoldSubgroups(groupId);
 
+		// The Pinned header and the rows directly in it pin the header, except the middle of a pinned group, which nests in it.
+		const targetParent = this.tree.hasElement(target) ? this.tree.getParentElement(target) : null;
+		if (isSessionSection(target) && target.id === 'pinned' || targetParent && isSessionSection(targetParent) && targetParent.id === 'pinned') {
+			if (isSessionGroupItem(target) && target.group.id === draggedId || isSessionSection(target) && target.id === header.id) {
+				return undefined;
+			}
+			const node = isSessionGroupItem(target) ? this.tree.getNode(target) : undefined;
+			const onEdge = sector === ListViewTargetSector.TOP || sector === ListViewTargetSector.BOTTOM;
+			if (isSessionGroupItem(target) && canNestIn(target.group.id) && (!onEdge || (sector === ListViewTargetSector.BOTTOM && !!node && !node.collapsed && node.children.some(child => child.visible)))) {
+				return { kind: 'into', groupId: target.group.id };
+			}
+			return this.isHeaderPinned(header.id) ? undefined : { kind: 'pinned' };
+		}
+
 		if (isSessionGroupItem(target)) {
 			if (target.group.id === draggedId) {
 				return undefined;
@@ -8642,7 +8724,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				return { kind: 'topLevel', targetId: getSessionGroupSectionId(target.group.id), position };
 			}
 			return canNestIn(parentId)
-				? { kind: 'subgroup', parentId, depth: path.length - 1, placement: { siblingId: target.group.id, position } }
+				? { kind: 'subgroup', parentId, depth: target.depth, placement: { siblingId: target.group.id, position } }
 				: undefined;
 		}
 		if (isSessionSection(target)) {
@@ -8655,7 +8737,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			return parentId === undefined
 				? { kind: 'topLevel', targetId: target.id, position }
 				: canNestIn(parentId)
-					? { kind: 'subgroup', parentId, depth: groupTree.getPath(parentId).length, placement: { siblingId: this.getSectionGroupKey(target.id), position } }
+					? { kind: 'subgroup', parentId, depth: (this.groupDepths.get(parentId) ?? groupTree.getPath(parentId).length - 1) + 1, placement: { siblingId: this.getSectionGroupKey(target.id), position } }
 					: undefined;
 		}
 		const groupItem = this.getContainingGroupItem(target);
@@ -8717,6 +8799,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (drop.kind === 'comparison') {
 			return;
 		}
+		if (drop.kind === 'pinned') {
+			this.setHeaderPinned(headerId, true);
+			return;
+		}
 		if (drop.kind !== 'topLevel') {
 			const parentId = drop.kind === 'into' ? drop.groupId : drop.parentId;
 			if (groupId === undefined ? !this.canHoldSubgroups(parentId) : !this.canNestGroup(groupId, parentId)) {
@@ -8731,14 +8817,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 				} else {
 					this._sessionGroupsService.moveSection(this.getSectionGroupKey(headerId), drop.groupId);
 				}
-				return;
+				break;
 			case 'subgroup':
 				if (groupId !== undefined) {
 					this._sessionGroupsService.moveGroup(groupId, drop.parentId, drop.placement);
 				} else {
 					this._sessionGroupsService.moveSection(this.getSectionGroupKey(headerId), drop.parentId, drop.placement);
 				}
-				return;
+				break;
 			case 'topLevel': {
 				const topLevelOrder = this._topLevelOrder;
 				if (groupId !== undefined) {
@@ -8748,9 +8834,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 				}
 				// A moved grouping section is promoted so it stays visible (escapes the "+N more" capping).
 				this._sessionSectionOrderService.reorder(topLevelOrder, headerId, drop.targetId, drop.position, groupId === undefined ? headerId : undefined);
-				return;
+				break;
 			}
 		}
+		// Moving a pinned header out of the Pinned section unpins it.
+		this.setHeaderPinned(headerId, false);
 	}
 
 	/**
@@ -9523,6 +9611,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 		if (grouping !== SessionsGrouping.Date && isSessionGroupingSection(section.id)) {
 			groups.push(['1_state', [this.getMarkAllSessionsReadAction(() => this.sessions.filter(session => getSessionGroupingSectionId(session, grouping) === section.id))]]);
+			if (grouping !== SessionsGrouping.Inbox) {
+				organize.push(this.getHeaderPinAction(section.id, section.label));
+			}
 			const parentId = this.getSectionParentId(section.id);
 			const groupsInDisplayOrder = this.getGroupsInDisplayOrder().filter(group => this.canHoldSubgroups(group.id));
 			if (groupsInDisplayOrder.length > 0) {
@@ -9634,7 +9725,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			})]]);
 		}
 		if (this.canHoldSubgroups(groupItem.group.id)) {
-			groups.push(['2_organize', [this.getCreateSubgroupAction(groupItem)]]);
+			groups.push(['2_organize', [this.getHeaderPinAction(getSessionGroupSectionId(groupItem.group.id), groupItem.group.name), this.getCreateSubgroupAction(groupItem)]]);
 		}
 		if (comparison) {
 			const move = (parentId: string | undefined) => {
@@ -9743,6 +9834,44 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	isSessionPinned(session: ISession): boolean {
 		return this._sessionsListModelService.isSessionPinned(session);
+	}
+
+	/** Whether a custom group (by its `group:<id>` header id) or grouping section is pinned in the current grouping. */
+	isHeaderPinned(headerId: string): boolean {
+		return this._sessionsListModelService.pinnedSectionIds.get().includes(this.getSectionGroupKey(headerId));
+	}
+
+	/** Pins a custom group (by its `group:<id>` header id) or grouping section to the Pinned section, or unpins it. */
+	setHeaderPinned(headerId: string, pinned: boolean): void {
+		const key = this.getSectionGroupKey(headerId);
+		if (pinned) {
+			// Like a first pinned session, a first pinned header opens the Pinned section unless the user chose otherwise.
+			if (this.getSavedCollapseState('pinned') === undefined) {
+				this.saveSectionCollapseState('pinned', false);
+			}
+			this._sessionsListModelService.pinSection(key);
+		} else {
+			this._sessionsListModelService.unpinSection(key);
+		}
+	}
+
+	private getHeaderPinAction(headerId: string, label: string): IAction {
+		const pinned = this.isHeaderPinned(headerId);
+		return toAction({
+			id: pinned ? 'sessions.unpinHeader' : 'sessions.pinHeader',
+			label: pinned ? localize('unpinHeader', "Unpin") : localize('pinHeader', "Pin"),
+			run: () => {
+				this.setHeaderPinned(headerId, !pinned);
+				const element = this.findTreeElement((element): element is ISessionSection | ISessionGroupItem => isSessionGroupItem(element) ? getSessionGroupSectionId(element.group.id) === headerId : isSessionSection(element) && element.id === headerId);
+				if (element) {
+					this.tree.expandTo(element);
+					this.tree.reveal(element);
+					this.tree.setFocus([element]);
+					this.tree.domFocus();
+				}
+				aria.status(pinned ? localize('headerUnpinned', "Unpinned {0}", label) : localize('headerPinned', "Pinned {0}", label));
+			},
+		});
 	}
 
 	/** Whether the list includes the session before its source filters apply. */
@@ -9984,6 +10113,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 			sectionId = element.isArchived.get() || this.isSessionPinned(element) ? undefined : this.getUngroupedSectionIds(element)[0];
 		}
 		if (groupId === undefined && sectionId !== undefined) {
+			// A pinned grouping section steps in under the Pinned section, wherever it is nested otherwise.
+			if (this._renderedPinnedHeaderIds.has(this.getSectionGroupKey(sectionId))) {
+				return 1;
+			}
 			const parentId = this.getSectionParentId(sectionId);
 			if (parentId !== undefined) {
 				return (this.groupDepths.get(parentId) ?? 0) + 1;
