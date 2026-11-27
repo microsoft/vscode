@@ -69,8 +69,8 @@ function isExactRestoreState(value: unknown): value is IExactRestoreState {
 
 export class WindowsStateHandler extends Disposable {
 
-	private static readonly windowsStateStorageKey = 'windowsState';
-	private static readonly exactRestoreStorageKey = 'windowsExactRestore';
+	static readonly windowsStateStorageKey = 'windowsState';
+	static readonly exactRestoreStorageKey = 'windowsExactRestore';
 
 	get state() { return this._state; }
 	private readonly _state: IWindowsState;
@@ -130,7 +130,7 @@ export class WindowsStateHandler extends Disposable {
 		// When a window looses focus, save all windows state. This allows to
 		// prevent loss of window-state data when OS is restarted without properly
 		// shutting down the application (https://github.com/microsoft/vscode/issues/87171)
-		electron.app.on('browser-window-blur', () => {
+		electron.app?.on?.('browser-window-blur', () => {
 			if (!this.shuttingDown) {
 				this.saveWindowsState();
 			}
@@ -218,8 +218,8 @@ export class WindowsStateHandler extends Disposable {
 		// 1.) Find a last active window (pick any other first window otherwise)
 		if (!currentWindowsState.lastActiveWindow) {
 			let activeWindow = this.windowsMainService.getLastActiveWindow();
-			if (!activeWindow || activeWindow.isExtensionDevelopmentHost) {
-				activeWindow = this.windowsMainService.getWindows().find(window => !window.isExtensionDevelopmentHost);
+			if (!activeWindow || activeWindow.isExtensionDevelopmentHost || activeWindow.config?.isSessionsWindow) {
+				activeWindow = this.windowsMainService.getWindows().find(window => !window.isExtensionDevelopmentHost && !window.config?.isSessionsWindow);
 			}
 
 			if (activeWindow) {
@@ -307,8 +307,11 @@ export class WindowsStateHandler extends Disposable {
 		// before quitting, we need to remember the UI state of this window to be able to persist it.
 		// On macOS we keep the last closed window state ready in case the user wants to quit right after or
 		// wants to open another window, in which case we use this state over the persisted one.
-		if (this.windowsMainService.getWindowCount() === 1) {
-			this.lastClosedState = state;
+		if (!window.config?.isSessionsWindow && !window.isExtensionDevelopmentHost) {
+			const nonSessionsWindows = this.windowsMainService.getWindows().filter(w => !w.config?.isSessionsWindow && !w.isExtensionDevelopmentHost);
+			if (nonSessionsWindows.length <= 1) {
+				this.lastClosedState = state;
+			}
 		}
 	}
 
