@@ -273,7 +273,10 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 
 	test('names the URL allow rules that come from registered defaults rather than the user', async () => {
 		const results = [];
-		for (const userValue of [undefined, { 'https://default.test': true }]) {
+		const configured = { 'https://user.test': true };
+		// The last case changes the setting while the push is in flight: both values must come from the same reading.
+		for (const [initial, duringPush] of [[undefined, undefined], [configured, configured], [undefined, configured]]) {
+			let userValue = initial;
 			const configurationService = new class extends TestConfigurationService {
 				override inspect<T>(key: string): IConfigurationValue<T> {
 					const inspected = super.inspect<T>(key);
@@ -285,13 +288,15 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 				[AgentHostDefaultUrlAllowRulesConfigKey]: { type: 'array', title: 'Default URL Allow Rules' },
 				[SessionConfigKey.Permissions]: { type: 'object', title: 'Permissions' },
 			}));
+			userValue = duringPush;
 			await flush();
 			results.push(agentHostService.dispatchedActions.map(({ action }) => (action as IRootConfigChangedAction).config));
 		}
-		const permissions = { allow: ['WebFetch(default.test)'], ask: [], deny: [] };
+		const fromDefaults = [{ [SessionConfigKey.Permissions]: { allow: ['WebFetch(default.test)'], ask: [], deny: [] }, [AgentHostDefaultUrlAllowRulesConfigKey]: ['WebFetch(default.test)'] }];
 		assert.deepStrictEqual(results, [
-			[{ [SessionConfigKey.Permissions]: permissions, [AgentHostDefaultUrlAllowRulesConfigKey]: ['WebFetch(default.test)'] }],
-			[{ [SessionConfigKey.Permissions]: permissions, [AgentHostDefaultUrlAllowRulesConfigKey]: [] }],
+			fromDefaults,
+			[{ [SessionConfigKey.Permissions]: { allow: ['WebFetch(user.test)'], ask: [], deny: [] }, [AgentHostDefaultUrlAllowRulesConfigKey]: [] }],
+			fromDefaults,
 		]);
 	});
 

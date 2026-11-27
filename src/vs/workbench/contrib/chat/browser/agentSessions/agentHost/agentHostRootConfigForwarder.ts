@@ -27,7 +27,7 @@ export interface IForwardedRootConfigKey {
 
 	/**
 	 * Values of further root-config keys that describe this key's value and so must change in the same action as it.
-	 * A key the host's schema does not advertise is left out.
+	 * Read synchronously alongside {@link computeValue}. A key the host's schema does not advertise is left out.
 	 */
 	computeCompanions?(): Partial<Record<IForwardedRootConfigKey['key'], unknown>>;
 
@@ -163,7 +163,10 @@ export class AgentHostRootConfigForwarder extends Disposable {
 		}
 
 		let value: unknown;
+		let companions: ReturnType<NonNullable<IForwardedRootConfigKey['computeCompanions']>> | undefined;
 		try {
+			// Read the companions in the same step as the value they describe, before the await lets anything change.
+			companions = entry.computeCompanions?.();
 			value = await entry.computeValue();
 		} catch {
 			return;
@@ -183,7 +186,7 @@ export class AgentHostRootConfigForwarder extends Disposable {
 		}
 		const values = rootState.config.values;
 		const config: Record<string, unknown> = { [entry.key]: value };
-		for (const [key, companion] of Object.entries(entry.computeCompanions?.() ?? {})) {
+		for (const [key, companion] of Object.entries(companions ?? {})) {
 			if (rootState.config.schema.properties[key]) {
 				config[key] = companion;
 			}

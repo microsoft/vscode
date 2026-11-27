@@ -660,6 +660,8 @@ suite('SessionPermissionManager', () => {
 			// A sub-command that defaults approve gets an exact rule only: a prefix rule would also allow the forms defaults deny, such as `find -delete`.
 			defaultsOnly: optionIds({ ...required, shellCommand: 'find . -name x' }),
 			withoutExactRule: optionIds({ ...required, shellCommand: 'find . -name *.log' }),
+			// Only the redirect keeps this command from approval, and no saved shell rule can change that.
+			redirected: optionIds({ ...required, shellCommand: 'echo hello > out.txt' }),
 		};
 		startConfirmation(required);
 		const before = await permissions.getAutoApproval(event, chat, explicit);
@@ -684,6 +686,7 @@ suite('SessionPermissionManager', () => {
 				],
 				defaultsOnly: ['allow-once', 'allow-session-rules:["Shell(find . -name x)"]', 'allow-always-rules:["Shell(find . -name x)"]', 'skip'],
 				withoutExactRule: ['allow-once', 'skip'],
+				redirected: ['allow-once', 'skip'],
 			},
 			before: undefined,
 			after: ToolCallConfirmationReason.Setting,

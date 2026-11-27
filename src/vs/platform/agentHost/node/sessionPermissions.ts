@@ -1060,14 +1060,15 @@ export class SessionPermissionManager extends Disposable {
 				// Only saved rules can satisfy a reviewer, so a grant must also cover the sub-commands that implicit defaults approve.
 				// Those get exact rules: a prefix rule would also override the defaults' deny rules for riskier forms of the command.
 				// When one of them has no exact rule, or the surface confirms every shell command whatever the rules (inline chat),
-				// the prompt offers what it would without the reviewer.
+				// the prompt offers what it would without the reviewer. So does a command that only a file redirect keeps from
+				// approval: no saved shell rule approves its destination.
 				const defaultApproved = e.requiresUserConfirmation && !this._getSurfaceEditScope(sessionKey)
 					? [...new Set(this._commandAutoApprover.evaluate(commandLine, { ...shellOptions, defaultRules: {} }).unapprovedSubCommands
 						?.filter(command => !unapproved.includes(command)))]
 					: [];
 				const defaultApprovedRules = defaultApproved.map(command => shellExactRule(command));
 				const coveringRules = defaultApprovedRules.every(isDefined) ? defaultApprovedRules : [];
-				if (!evaluation.hasUnsafeSubCommand && !evaluation.hasAskRule && (unapproved.length || coveringRules.length)) {
+				if (!evaluation.hasUnsafeSubCommand && !evaluation.hasAskRule && (unapproved.length || (coveringRules.length && evaluation.result === 'approved'))) {
 					const { subCommandKeys, offerExactCommandLine } = suggestAutoApproveRuleKeys(commandLine, unapproved);
 					const alwaysOptions: ConfirmationOption[] = [];
 					if (subCommandKeys.length) {
