@@ -156,6 +156,15 @@ suite('ViewModel', () => {
 		});
 	}
 
+	test('issue #88178: getRichTextToCopy preserves consecutive spaces', () => {
+		testViewModel(['hello  world'], {}, (viewModel, model) => {
+			model.setLanguage('markdown');
+			const actual = viewModel.getRichTextToCopy([new Range(1, 1, 1, 13)], false);
+
+			assert.ok(actual && !actual.html.includes('&#160;'));
+		});
+	});
+
 	const USUAL_TEXT = [
 		'',
 		'line2',
