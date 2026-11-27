@@ -5,8 +5,10 @@
 
 import { raceCancellation, Throttler } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../base/common/errors.js';
 import { Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, toDisposable } from '../../../base/common/lifecycle.js';
+import { waitForState } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
@@ -54,13 +56,19 @@ export interface IAgentHostPrewarmCandidate {
  * has passed, in this order:
  *
  * 1. the provider supports warming;
- * 2. a client has published its active client (tools and client
+ * 2. the draft has a model to send with: the provider lists one (an
+ *    entitled account's or a BYOK model), or the draft's client sends with
+ *    its own credentials, whose models the provider does not list. Until
+ *    then, as while signed out without a BYOK model, nothing could send, so
+ *    the draft does not launch a session or start its MCP servers. The draft
+ *    warms once a model arrives, such as after signing in;
+ * 3. a client has published its active client (tools and client
  *    customizations), which are fixed in the launch: warming earlier would
  *    only be discarded by the first send;
- * 3. customization enablement for the session has resolved, because pending
+ * 4. customization enablement for the session has resolved, because pending
  *    enablement fails closed: known connectors would start switched off and
  *    a connector with no decision yet could still ask for sign-in;
- * 4. every folder the session launches with is trusted: the picked folder and
+ * 5. every folder the session launches with is trusted: the picked folder and
  *    any additional (multi-root) roots, whose `.mcp.json` servers would
  *    otherwise start before the first send. A workspace-less draft has none:
  *    it runs in a provider-owned scratch folder that holds no workspace
@@ -71,7 +79,7 @@ export interface IAgentHostPrewarmCandidate {
  * arms report the same moment — and only the treatment arm warms.
  *
  * A worktree draft never warms: its enablement stays pending until its
- * worktree is created on the first send, so it fails gate 3. A client that
+ * worktree is created on the first send, so it fails gate 4. A client that
  * keeps the isolation choice local until Send (the Agents window) never
  * creates such a draft: it creates the draft in the picked folder even when
  * the user picked a worktree, so the draft warms as a folder draft, and a
@@ -176,6 +184,10 @@ export class AgentHostSessionPrewarmer extends Disposable {
 		const { candidate, token } = draft;
 		const sessionKey = candidate.session.toString();
 		const noteSkipped = (reason: AgentHostPrewarmSkipReason) => candidate.provider.chats.noteWarmSkipped?.(candidate.defaultChat, this._host.getDefaultChatContext(candidate.session, candidate.defaultChat), reason);
+		noteSkipped('awaitingModels');
+		if (!await this._whenModelAvailable(candidate, token)) {
+			return;
+		}
 		noteSkipped('awaitingActiveClient');
 		if (!await this._whenActiveClientArrived(sessionKey, token)) {
 			return;
@@ -214,8 +226,9 @@ export class AgentHostSessionPrewarmer extends Disposable {
 		if (draft.token.isCancellationRequested || !this._stateManager.isIdleProvisionalSession(sessionKey)) {
 			return;
 		}
-		// Trust, the active client and customization enablement can change after the draft first warmed.
+		// Trust, the active client, customization enablement and the available models can change after the draft first warmed.
 		if (this._configurationService.getRootValue(platformRootSchema, AgentHostPrewarmSessionsConfigKey) === false
+			|| !this._hasModelToSendWith(candidate)
 			|| (this._stateManager.getSessionState(sessionKey)?.activeClients.length ?? 0) === 0
 			|| this._enablementService.getWorkingDirectoryState(sessionKey).kind === 'pending'
 			|| candidate.workingDirectories?.some(folder => !this._isTrusted(folder))) {
@@ -231,6 +244,33 @@ export class AgentHostSessionPrewarmer extends Disposable {
 		}
 		const { candidate } = draft;
 		await candidate.provider.chats.warmChat!(candidate.defaultChat, this._host.getDefaultChatContext(candidate.session, candidate.defaultChat), draft.selection);
+	}
+
+	/**
+	 * Whether the draft could send: its provider lists a model (an entitled
+	 * account's or a BYOK model), or the draft's client sends with its own
+	 * credentials, whose models are listed per client rather than by the provider.
+	 */
+	private _hasModelToSendWith(candidate: IAgentHostPrewarmCandidate): boolean {
+		return candidate.provider.models.get().length > 0
+			|| this._host.getDefaultChatContext(candidate.session, candidate.defaultChat).credentials !== undefined;
+	}
+
+	/** Resolves `true` once the draft has a model to send with, or `false` if it ended first. */
+	private async _whenModelAvailable(candidate: IAgentHostPrewarmCandidate, token: CancellationToken): Promise<boolean> {
+		if (this._hasModelToSendWith(candidate)) {
+			return true;
+		}
+		this._logService.trace(`[AgentHostSessionPrewarmer] Not pre-warming ${candidate.session.toString()} until its provider lists a model`);
+		try {
+			await waitForState(candidate.provider.models, models => models.length > 0, undefined, token);
+		} catch (error) {
+			if (isCancellationError(error)) {
+				return false;
+			}
+			throw error;
+		}
+		return !token.isCancellationRequested;
 	}
 
 	/** Resolves `true` once the draft has an active client, or `false` if it ended first. */
