@@ -13,6 +13,10 @@ import { snapshotToString } from '../../../../services/textfile/common/textfiles
 import { PLAINTEXT_LANGUAGE_ID } from '../../../../../editor/common/languages/modesRegistry.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { DEFAULT_EDITOR_ASSOCIATION, IVisibleEditorPane } from '../../../../common/editor.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 
 suite('TextResourceEditorInput', () => {
 
@@ -40,6 +44,116 @@ suite('TextResourceEditorInput', () => {
 
 		assert.ok(model);
 		assert.strictEqual(snapshotToString(((model as TextResourceEditorModel).createSnapshot()!)), 'function test() {}');
+	});
+
+	test('toUntyped preserves the virtual resource and its labels', () => {
+		const resource = URI.parse('virtual://authority/example.md?version=2#heading');
+		disposables.add(accessor.textModelResolverService.registerTextModelContentProvider(resource.scheme, { provideTextContent: async () => null }));
+		const input = disposables.add(instantiationService.createInstance(TextResourceEditorInput, resource, 'Generated document', 'Virtual content', undefined, undefined));
+
+		assert.deepStrictEqual(input.toUntyped(), {
+			resource,
+			label: 'Generated document',
+			description: 'Virtual content',
+			options: { override: DEFAULT_EDITOR_ASSOCIATION.id }
+		});
+	});
+
+	test('toUntyped preserves view state only for the requested group and matching input', () => {
+		const resource = URI.parse('virtual://authority/example.md');
+		disposables.add(accessor.textModelResolverService.registerTextModelContentProvider(resource.scheme, { provideTextContent: async () => null }));
+		const input = disposables.add(accessor.textEditorService.createTextEditor({ resource }));
+		const otherInput = disposables.add(accessor.textEditorService.createTextEditor({ resource: URI.parse('virtual://authority/other.md') }));
+		const firstViewState = { cursorState: [{ position: { lineNumber: 10, column: 3 } }], viewState: { scrollTop: 100 } };
+		const secondViewState = { cursorState: [{ position: { lineNumber: 20, column: 5 } }], viewState: { scrollTop: 300 } };
+		const createPane = (input: EditorInput, groupId: number, viewState: object): IVisibleEditorPane => new class extends mock<IVisibleEditorPane>() {
+			override input = input;
+			override group = new class extends mock<IEditorGroup>() { override id = groupId; };
+			override getViewState() { return viewState; }
+		};
+		accessor.editorService.visibleEditorPanes = [
+			createPane(input, 1, secondViewState),
+			createPane(otherInput, 0, { unrelated: true }),
+			createPane(input, 0, firstViewState)
+		];
+
+		assert.deepStrictEqual({
+			withoutOptions: input.toUntyped()?.options,
+			emptyOptions: input.toUntyped({})?.options,
+			firstGroup: input.toUntyped({ preserveViewState: 0 })?.options,
+			secondGroup: input.toUntyped({ preserveViewState: 1 })?.options,
+			missingGroup: input.toUntyped({ preserveViewState: 2 })?.options
+		}, {
+			withoutOptions: { override: DEFAULT_EDITOR_ASSOCIATION.id },
+			emptyOptions: { override: DEFAULT_EDITOR_ASSOCIATION.id },
+			firstGroup: { override: DEFAULT_EDITOR_ASSOCIATION.id, viewState: firstViewState },
+			secondGroup: { override: DEFAULT_EDITOR_ASSOCIATION.id, viewState: secondViewState },
+			missingGroup: { override: DEFAULT_EDITOR_ASSOCIATION.id, viewState: undefined }
+		});
+	});
+
+	test('untyped virtual resource resolves to the existing readonly text model', async () => {
+		accessor.filesConfigurationService.isReadonly = () => true;
+		const resource = URI.parse('virtual://authority/example.md');
+		const textModel = disposables.add(accessor.modelService.createModel('# Generated document', accessor.languageService.createById(PLAINTEXT_LANGUAGE_ID), resource));
+		disposables.add(accessor.textModelResolverService.registerTextModelContentProvider(resource.scheme, { provideTextContent: async () => textModel }));
+		const input = disposables.add(accessor.textEditorService.createTextEditor({ resource, label: 'Generated document', description: 'Virtual content' }));
+		const model = disposables.add(await input.resolve());
+		const untyped = input.toUntyped();
+		assert.ok(untyped);
+		const reopened = accessor.textEditorService.createTextEditor(untyped);
+		const reopenedModel = await reopened.resolve();
+
+		assert.deepStrictEqual({
+			sameInput: reopened === input,
+			sameModel: reopenedModel === model,
+			readonly: reopened.isReadonly(),
+			contents: textModel.getValue()
+		}, {
+			sameInput: true,
+			sameModel: true,
+			readonly: true,
+			contents: '# Generated document'
+		});
+	});
+
+	test('model-only resource does not advertise an untyped representation', async () => {
+		const resource = URI.parse('inmemory://model-only/example');
+		disposables.add(accessor.modelService.createModel('Transient content', accessor.languageService.createById(PLAINTEXT_LANGUAGE_ID), resource));
+		const input = disposables.add(accessor.textEditorService.createTextEditor({ resource }));
+		await input.resolve();
+		const untyped = input.toUntyped();
+		assert.strictEqual(untyped, undefined);
+		input.dispose();
+		await new Promise<void>(resolve => setTimeout(resolve, 0));
+		await assert.rejects(accessor.textModelResolverService.createModelReference(resource), /Unable to resolve/);
+	});
+
+	test('resource without a content provider does not advertise an untyped representation', () => {
+		const resource = URI.parse('unregistered://authority/example');
+		const input = disposables.add(instantiationService.createInstance(TextResourceEditorInput, resource, undefined, undefined, undefined, undefined));
+		assert.strictEqual(input.toUntyped(), undefined);
+	});
+
+	test('provider-backed resource can be recreated after the original input is disposed', async () => {
+		const resource = URI.parse('virtual://authority/regenerated');
+		let generations = 0;
+		disposables.add(accessor.textModelResolverService.registerTextModelContentProvider(resource.scheme, {
+			provideTextContent: async () => accessor.modelService.getModel(resource) ?? disposables.add(accessor.modelService.createModel(`Generation ${++generations}`, accessor.languageService.createById(PLAINTEXT_LANGUAGE_ID), resource))
+		}));
+		const input = disposables.add(accessor.textEditorService.createTextEditor({ resource }));
+		await input.resolve();
+		const untyped = input.toUntyped();
+		assert.ok(untyped);
+		input.dispose();
+		await new Promise<void>(resolve => setTimeout(resolve, 0));
+		const reopened = disposables.add(accessor.textEditorService.createTextEditor(untyped));
+		await reopened.resolve();
+		assert.deepStrictEqual({ newInput: reopened !== input, generations, contents: accessor.modelService.getModel(resource)?.getValue() }, {
+			newInput: true,
+			generations: 2,
+			contents: 'Generation 2'
+		});
 	});
 
 	test('preferred language (via ctor)', async () => {
