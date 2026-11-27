@@ -4338,7 +4338,7 @@ suite('Sessions - SessionsList', () => {
 		const release: ISessionGroup = { id: 'release', name: 'Release', createdAt: 1 };
 		const comparisonGroup: ISessionGroup = { id: 'comparison-group', name: 'Compare: Fix', createdAt: 2 };
 
-		function render(grouping: () => SessionsGrouping, configure?: (harness: ReturnType<typeof createListHarness>) => void) {
+		function render(grouping: () => SessionsGrouping, configure?: (harness: ReturnType<typeof createListHarness>) => void, separateNavigation?: boolean) {
 			const sessions = [
 				createTestSession('in agents', { folders: [vscode, docs], workspaceFile: agents.uri }).session,
 				createTestSession('in agents before rename', { folders: [vscode], workspaceFile: oldAgentsFile }).session,
@@ -4373,6 +4373,7 @@ suite('Sessions - SessionsList', () => {
 				grouping,
 				sorting: () => SessionsSorting.Created,
 				onSessionOpen: () => { },
+				showNavigationShortcuts: separateNavigation === undefined ? undefined : () => separateNavigation,
 			}));
 			list.layout(1400, 400);
 			const describe = (node: SessionsListSnapshotNode): unknown => node.type === 'session'
@@ -4392,6 +4393,36 @@ suite('Sessions - SessionsList', () => {
 					]
 				},
 			]);
+		});
+
+		test('a workspace row or group row pinned in Workspaces & Groups or before shows once, in Pinned, and returns to its section when unpinned, in both sidebar layouts', () => {
+			const rows = (list: SessionsList) => list.getTreeSnapshot().flatMap(node => node.type !== 'session' && (node.id === 'pinned' || node.id === 'groups' || node.id === 'workspaces')
+				? [{ [node.label]: node.children.flatMap(child => child.type !== 'session' ? [child.label] : []) }]
+				: []);
+			const results = [false, true].map(separateNavigation => {
+				// The group was pinned before, such as in another grouping
+				const { list } = render(() => SessionsGrouping.WorkspacesAndGroups, harness => harness.instantiationService.get(ISessionsListModelService).pinSection(`group:${release.id}`), separateNavigation);
+				const pinnedBefore = rows(list);
+				// The row's id compares the workspace file's path as the list does, without case
+				const workspaces = list.getTreeSnapshot().find(node => node.type !== 'session' && node.id === 'workspaces');
+				const agentsRow = workspaces?.type !== 'session' ? workspaces?.children.find(child => child.type !== 'session' && child.label === 'Agents') : undefined;
+				const agentsRowId = agentsRow && agentsRow.type !== 'session' ? agentsRow.id : '';
+				list.setHeaderPinned(agentsRowId, true);
+				const pinned = rows(list);
+				list.setHeaderPinned(agentsRowId, false);
+				list.setHeaderPinned(`group:${release.id}`, false);
+				const unpinned = rows(list);
+				list.setHeaderPinned(`group:${release.id}`, true);
+				return { separateNavigation, pinnedBefore, pinned, unpinned, groupPinned: rows(list) };
+			});
+
+			const expected = {
+				pinnedBefore: [{ 'Pinned': ['Release'] }, { 'Workspaces': ['Agents', 'Agents', 'tools'] }],
+				pinned: [{ 'Pinned': ['Release', 'Agents'] }, { 'Workspaces': ['Agents', 'tools'] }],
+				unpinned: [{ 'Groups': ['Release'] }, { 'Workspaces': ['Agents', 'Agents', 'tools'] }],
+				groupPinned: [{ 'Pinned': ['Release'] }, { 'Workspaces': ['Agents', 'Agents', 'tools'] }],
+			};
+			assert.deepStrictEqual(results, [{ separateNavigation: false, ...expected }, { separateNavigation: true, ...expected }]);
 		});
 
 		test('a comparison alone in its workspace gets the workspace\'s row, by the workspace\'s name, in order before Unknown', () => {
