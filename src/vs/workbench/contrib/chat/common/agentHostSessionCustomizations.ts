@@ -64,10 +64,6 @@ export interface ICustomizationRef {
 	readonly value: string;
 }
 
-export function customizationRefsEqual(a: readonly ICustomizationRef[], b: readonly ICustomizationRef[]): boolean {
-	return a === b || (a.length === b.length && a.every((ref, i) => ref.kind === b[i].kind && ref.value === b[i].value));
-}
-
 function sessionChatCustomizationEqual(a: ISessionChatCustomization, b: ISessionChatCustomization): boolean {
 	return a.id === b.id
 		&& a.kind === b.kind
@@ -199,55 +195,6 @@ export function parseTurnCustomizationRefs(responseParts: Turn['responseParts'])
 export interface ICustomizationRefChatState {
 	readonly turns?: readonly { readonly id: string; readonly responseParts: Turn['responseParts'] }[];
 	readonly activeTurn?: { readonly id?: string; readonly responseParts: Turn['responseParts'] };
-}
-
-/**
- * Creates a stateful parser that turns a chat state into its customization
- * references, **parsing each completed turn at most once**.
- *
- * Completed turns are immutable once finalized, so each is parsed once and
- * memoized by turn id. Only the in-progress `activeTurn` is re-parsed on every
- * call, making streamed-delta updates O(active turn) rather than O(all turns).
- */
-export function createIncrementalChatCustomizationRefsParser(
-	parseTurn: (responseParts: Turn['responseParts']) => readonly ICustomizationRef[] = parseTurnCustomizationRefs,
-): (chatState: ICustomizationRefChatState) => readonly ICustomizationRef[] {
-	const completedTurnCache = new Map<string, readonly ICustomizationRef[]>();
-
-	return (chatState: ICustomizationRefChatState): readonly ICustomizationRef[] => {
-		const turns = chatState.turns ?? [];
-		const completedIds = new Set(turns.map(turn => turn.id));
-		for (const id of completedTurnCache.keys()) {
-			if (!completedIds.has(id)) {
-				completedTurnCache.delete(id);
-			}
-		}
-
-		const refs: ICustomizationRef[] = [];
-		const seen = new Set<string>();
-		const append = (parsed: readonly ICustomizationRef[]): void => {
-			for (const ref of parsed) {
-				const key = `${ref.kind}\u0000${ref.value}`;
-				if (!seen.has(key)) {
-					seen.add(key);
-					refs.push(ref);
-				}
-			}
-		};
-
-		for (const turn of turns) {
-			let parsed = completedTurnCache.get(turn.id);
-			if (!parsed) {
-				parsed = parseTurn(turn.responseParts);
-				completedTurnCache.set(turn.id, parsed);
-			}
-			append(parsed);
-		}
-		if (chatState.activeTurn) {
-			append(parseTurn(chatState.activeTurn.responseParts));
-		}
-		return refs;
-	};
 }
 
 const kindByType: ReadonlyMap<CustomizationType, SessionCustomizationKind> = new Map([

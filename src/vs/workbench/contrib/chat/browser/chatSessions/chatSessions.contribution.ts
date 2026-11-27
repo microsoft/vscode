@@ -1578,11 +1578,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}
 	}
 
-	public hasAnySessionOptions(sessionResource: URI): boolean {
-		const session = this._sessions.get(this._resolveResource(sessionResource));
-		return !!session && !!session.options && session.options.size > 0;
-	}
-
 	public getSessionOptions(sessionResource: URI): Map<string, string> | undefined {
 		const session = this._sessions.get(this._resolveResource(sessionResource));
 		if (!session) {
