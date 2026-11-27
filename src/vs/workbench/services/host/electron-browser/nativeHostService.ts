@@ -8,13 +8,12 @@ import { IHostService, IToastOptions, IToastResult } from '../browser/host.js';
 import { FocusMode, INativeHostService } from '../../../../platform/native/common/native.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILabelService, Verbosity } from '../../../../platform/label/common/label.js';
-import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, IOpenEmptyWindowOptions, IPoint, IRectangle, IOpenedAuxiliaryWindow, IOpenedMainWindow } from '../../../../platform/window/common/window.js';
 import { Disposable, DisposableSet, IDisposable } from '../../../../base/common/lifecycle.js';
 import { NativeHostService } from '../../../../platform/native/common/nativeHostService.js';
 import { INativeWorkbenchEnvironmentService } from '../../environment/electron-browser/environmentService.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
-import { disposableWindowInterval, getActiveDocument, getWindowId, getWindowsCount, hasWindow, onDidRegisterWindow } from '../../../../base/browser/dom.js';
+import { disposableWindowInterval, enableFallbackActiveWindow, getActiveDocument, getActiveWindow, getWindowId, getWindowsCount, hasWindow, onDidChangeFallbackActiveWindow, onDidRegisterWindow, setFallbackActiveWindow } from '../../../../base/browser/dom.js';
 import { memoize } from '../../../../base/common/decorators.js';
 import { isAuxiliaryWindow } from '../../../../base/browser/window.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
@@ -32,16 +31,23 @@ class WorkbenchNativeHostService extends NativeHostService {
 	}
 }
 
-class WorkbenchHostService extends Disposable implements IHostService {
+export class WorkbenchHostService extends Disposable implements IHostService {
 
 	declare readonly _serviceBrand: undefined;
+
+	private readonly isHiddenWindowMode: boolean;
 
 	constructor(
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService
 	) {
 		super();
+
+		this.isHiddenWindowMode = this.environmentService.window.hiddenWindow === true;
+		if (this.isHiddenWindowMode) {
+			this._register(enableFallbackActiveWindow()); // hidden windows never get focus
+		}
 
 		this.onDidChangeFocus = Event.latch(
 			Event.any(
@@ -94,6 +100,11 @@ class WorkbenchHostService extends Disposable implements IHostService {
 
 		// Emit via native focus tracking
 		this._register(Event.filter(this.nativeHostService.onDidFocusMainOrAuxiliaryWindow, id => hasWindow(id), this._store)(id => emitter.fire(id)));
+
+		// Emit via the fallback active window: hidden windows never get focus
+		if (this.isHiddenWindowMode) {
+			this._register(onDidChangeFallbackActiveWindow(() => emitter.fire(getActiveWindow().vscodeWindowId)));
+		}
 
 		this._register(onDidRegisterWindow(({ window, disposables }) => {
 
@@ -196,6 +207,10 @@ class WorkbenchHostService extends Disposable implements IHostService {
 	//#region Lifecycle
 
 	focus(targetWindow: Window, options?: { mode?: FocusMode }): Promise<void> {
+		if (this.isHiddenWindowMode && options?.mode !== FocusMode.Notify) {
+			setFallbackActiveWindow(getWindowId(targetWindow)); // hidden windows never get focus, notify only flashes the window
+		}
+
 		return this.nativeHostService.focusWindow({
 			mode: options?.mode,
 			targetWindowId: getWindowId(targetWindow)
