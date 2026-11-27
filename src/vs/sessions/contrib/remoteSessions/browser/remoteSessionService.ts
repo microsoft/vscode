@@ -20,6 +20,7 @@ import { readAgentHostResources } from '../../../../platform/agentHost/common/me
 import { supportsRemoteSessions, toRemoteSessionMessageMetadata, withRemoteSessionOrigin } from '../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { buildOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
 import { isReasoningEffortLevel, ReasoningEffortConfigKey } from '../../../../platform/agentHost/common/reasoningEffort.js';
+import { SessionConfigKey } from '../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { getSessionModeProperty, isSessionConfigWritable } from '../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { PolicyState } from '../../../../platform/agentHost/common/state/protocol/channels-root/state.js';
 import type { ResolveSessionConfigResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -41,7 +42,7 @@ import { ISessionType, SessionTypeAuthRequirement } from '../../../../workbench/
 import { isAutomationModelConfiguration } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { modelConfigurationPreferences } from '../../../../workbench/contrib/chat/browser/widget/input/chatModelConfigurationLogic.js';
 import { ICreateNewSessionOptions, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { areRemoteSessionModelOptionsEnabled, areRemoteSessionToolsEnabled, ICreatedRemoteSession, ICreateRemoteSessionOptions, IRemoteSessionDestination, IRemoteSessionHost, IRemoteSessionHostName, IRemoteSessionModel, IRemoteSessionService, IRemoteSessionSourceModelInfo, IRemoteSessionWorkspace, matchesRemoteSessionAgent, RemoteSessionSettingSource, remoteSessionHostRejections } from '../common/remoteSessions.js';
+import { areRemoteSessionModelOptionsEnabled, areRemoteSessionToolsEnabled, ICreatedRemoteSession, ICreateRemoteSessionOptions, IRemoteSessionDestination, IRemoteSessionHost, IRemoteSessionHostName, IRemoteSessionModel, IRemoteSessionService, IRemoteSessionSourceModelInfo, IRemoteSessionWorkspace, RemoteSessionSettingSource, remoteSessionHostRejections } from '../common/remoteSessions.js';
 import { assertRemoteSessionSource, IRemoteSessionSource, IRemoteSessionSourceModel, resolveRemoteSessionSource } from './remoteSessionSource.js';
 import { IRemoteSessionChatReference, IRemoteSessionChatService } from './remoteSessionChatService.js';
 
@@ -278,7 +279,8 @@ export class RemoteSessionService implements IRemoteSessionService {
 		const types = workspace ? provider.getSessionTypes(workspace) : provider.sessionTypes;
 		const qualifies = (agent: IRemoteSessionHost['agents'][number]) => {
 			const target = remoteAgentHostSessionTypeId(authority, agent.provider);
-			return matchesRemoteSessionAgent(agent, options)
+			// Requested permissions are checked against each agent's resolved configuration, which can offer choices its listing cannot.
+			return (options.model === undefined || options.model.provider === agent.provider)
 				&& (agent.models.length > 0 || this.chatSessionsService.supportsAutoModelForSessionType(target))
 				&& types.some(type => type.chatSessionType === target
 					&& (!workspace || type.supportsWorktreeConfiguration === true));
@@ -723,6 +725,11 @@ export class RemoteSessionService implements IRemoteSessionService {
 			}
 		} else if (source.mode && source.mode !== 'interactive') {
 			notInherited.push(localize('remoteSessions.modeNotConfigurable', "Mode {0} is not available for {1} on {2}; the agent's default behavior is used.", source.mode, target.agentProvider, host));
+		}
+		// A recognized writable mode always includes interactive, so the target's own mode applies only when it cannot be
+		// set; the empty draft configuration keeps client preferences out, but not the host's default.
+		if (!mode && source.mode !== 'autopilot' && (config.values[SessionConfigKey.Mode] ?? config.schema.properties[SessionConfigKey.Mode]?.default) === 'autopilot') {
+			throw new Error(localize('remoteSessions.autopilotDefault', "{0} sessions on {1} start in {2} mode, which is only available when the creating chat uses it.", target.agentProvider, host, 'autopilot'));
 		}
 
 		return { permission, mode, notInherited };

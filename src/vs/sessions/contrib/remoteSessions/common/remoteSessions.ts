@@ -273,15 +273,6 @@ export function parseCreateRemoteSessionOptions(value: unknown, modelOptions = f
 	};
 }
 
-/**
- * Whether the agent offers the requested model provider and permission, when they are given. Policy locks in the listing
- * are a client-side hint, so a permission locked there still matches; creation checks the target's resolved configuration.
- */
-export function matchesRemoteSessionAgent(agent: IRemoteSessionHost['agents'][number], options: Pick<ICreateRemoteSessionOptions, 'model' | 'permissions'>): boolean {
-	return (options.model === undefined || options.model.provider === agent.provider)
-		&& (options.permissions === undefined || agent.permissions.some(permission => permission.id === options.permissions));
-}
-
 export function remoteSessionHostRejections(host: IRemoteSessionHost, options: ICreateRemoteSessionOptions): string[] {
 	const reasons: string[] = [];
 	if (options.hostId !== undefined && options.hostId !== host.id) {
@@ -317,9 +308,6 @@ export function remoteSessionHostRejections(host: IRemoteSessionHost, options: I
 	}
 	if (options.model !== undefined && !host.agents.some(agent => agent.provider === options.model?.provider && agent.models.some(model => model.id === options.model?.id))) {
 		reasons.push(localize('remoteSessions.modelUnavailable', "Model {0}/{1} is not available.", options.model.provider, options.model.id));
-	}
-	if (options.permissions !== undefined && !host.agents.some(agent => matchesRemoteSessionAgent(agent, options))) {
-		reasons.push(localize('remoteSessions.permissionsUnavailable', "Permission {0} is not available.", options.permissions));
 	}
 	if (!host.agents.length) {
 		reasons.push(localize('remoteSessions.noAgents', "No usable agents have been advertised."));

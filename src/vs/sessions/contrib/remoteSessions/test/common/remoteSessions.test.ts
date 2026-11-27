@@ -21,11 +21,7 @@ suite('RemoteSessions', () => {
 		resources: { platform: 'linux', architecture: 'x64', cpuCount: 8, memoryBytes: 32 * 1024 ** 3 },
 		runningSessions: 2,
 		pendingCreations: 0,
-		agents: [{
-			provider: 'copilot',
-			models: [{ id: 'test-model', name: 'Test Model' }],
-			permissions: [{ id: 'default', label: 'Manual permissions' }, { id: 'autoApprove', label: 'Allow all', locked: true }],
-		}],
+		agents: [{ provider: 'copilot', models: [{ id: 'test-model', name: 'Test Model' }], permissions: [] }],
 		workspaces: [],
 	};
 
@@ -90,12 +86,6 @@ suite('RemoteSessions', () => {
 		assert.deepStrictEqual(remoteSessionHostRejections(host, parseCreateRemoteSessionOptions({
 			prompt: 'Test', model: { provider: 'claude', id: 'test-model' },
 		})), ['Model claude/test-model is not available.']);
-	});
-
-	test('requested permissions require an agent whose choices include them, whatever this client\'s policy locks', () => {
-		assert.deepStrictEqual(['default', 'autoApprove', 'bypassPermissions'].map(permissions => remoteSessionHostRejections(host, parseCreateRemoteSessionOptions({
-			prompt: 'Test', permissions,
-		}))), [[], [], ['Permission bypassPermissions is not available.']]);
 	});
 
 	for (const status of ['reconnecting', 'connecting', 'disconnected', 'incompatible']) {

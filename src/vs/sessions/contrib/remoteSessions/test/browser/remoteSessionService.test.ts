@@ -567,7 +567,7 @@ suite('RemoteSessionService', () => {
 		}, {
 			rejections: [
 				'Permission autoApprove is more permissive than the creating chat\'s permissions (Assisted permissions).',
-				`No connected remote agent host matches this request. ${JSON.stringify([{ hostId: host.id, reasons: ['Permission bypassPermissions is not available.'] }])}`,
+				`No connected remote agent host matches this request. ${JSON.stringify([{ hostId: host.id, reasons: ['Permission bypassPermissions is not available for copilot. Available: default, assisted, autoApprove.'] }])}`,
 				`No connected remote agent host matches this request. ${JSON.stringify([{ hostId: host.id, reasons: ['Mode autopilot is not available for copilot.'] }])}`,
 			],
 			autopilot: 'Mode autopilot is only available when the creating chat uses it.',
@@ -576,6 +576,32 @@ suite('RemoteSessionService', () => {
 			modeId: 'plan',
 			permissions: { id: 'assisted', source: 'explicit' },
 			mode: { id: 'plan', source: 'explicit' },
+		});
+	});
+
+	test('rejects a target that starts in autopilot, where its mode cannot be set, unless the creating chat uses autopilot', async () => {
+		const host = new RemoteProvider('host');
+		const { create, sourceProvider } = setup([host]);
+		const outcome = (id: string) => create({}, id).then(result => result.mode, error => error instanceof Error ? error.message : String(error));
+		sourceProvider.config = modeConfig(undefined, 'interactive');
+		host.config = { schema: { type: 'object', properties: { mode: { type: 'string', title: 'Mode', enum: ['interactive', 'autopilot'], default: 'autopilot', readOnly: true } } }, values: {} };
+		const readOnly = await outcome('read-only');
+		host.config = { schema: { type: 'object', properties: { mode: { type: 'string', title: 'Mode', enum: ['review', 'autopilot'] } } }, values: { mode: 'autopilot' } };
+		const unrecognized = await outcome('unrecognized');
+		sourceProvider.config = modeConfig(undefined, 'autopilot');
+		const fromAutopilot = await outcome('from-autopilot');
+		const rejection = 'copilot sessions on host start in autopilot mode, which is only available when the creating chat uses it.';
+		assert.deepStrictEqual({ readOnly, unrecognized, fromAutopilot }, { readOnly: rejection, unrecognized: rejection, fromAutopilot: null });
+	});
+
+	test('placement accepts permissions an unfamiliar agent\'s resolved configuration offers, though its listing has none', async () => {
+		const host = new RemoteProvider('host', 0, 'linux', 'conforming-host');
+		host.resolvedPermissionOptions = [copilotPermissions[0]];
+		const { create, calls } = setup([host]);
+		const result = await create({ permissions: 'default' });
+		assert.deepStrictEqual({ sessionType: calls[0].options?.sessionTypeId, permissions: result.permissions }, {
+			sessionType: 'conforming-host',
+			permissions: { id: 'default', source: 'explicit' },
 		});
 	});
 
