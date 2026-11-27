@@ -20,6 +20,8 @@ export const OpenEditorCommandId = 'search.action.openEditor';
 export const ToggleSearchEditorContextLinesCommandId = 'toggleSearchEditorContextLines';
 
 export const SearchEditorInputTypeId = 'workbench.editorinputs.searchEditorInput';
+export const GoToResultCommandId = 'searchEditor.action.goToResult';
+export const OpenResultToSideCommandId = 'searchEditor.action.openResultToSide';
 export type SearchConfiguration = {
 	query: string;
 	filesToInclude: string;
