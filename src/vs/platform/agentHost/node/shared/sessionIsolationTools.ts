@@ -27,7 +27,7 @@ export interface ISessionIsolationToolAccessor {
 	 * Throws when the chat's primary folder is no longer `primary`, which the user confirmed.
 	 */
 	requestChatIsolation(chat: URI, turnId: string, primary: URI, additionalFolders: readonly URI[]): void;
-	/** Whether the chats of `session` can isolate their additional folders: the session uses worktree isolation. */
+	/** Whether the chats of `session` can move their additional folders into worktrees of their own, with or without worktree isolation. */
 	supportsFolderIsolation?(session: URI): boolean;
 	/** Schedules moving additional folders of `chat` into worktrees of their own once `turnId` ends; the host then continues the task. */
 	requestFolderIsolation?(session: URI, chat: URI, folders: readonly URI[], turnId: string): void;
