@@ -19,17 +19,19 @@ import { IKeybindingService } from '../../../../../../platform/keybinding/common
 import { USLayoutResolvedKeybinding } from '../../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
 import { KeyCodeChord, ResolvedKeybinding } from '../../../../../../base/common/keybindings.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
-import { OperatingSystem } from '../../../../../../base/common/platform.js';
+import { OS } from '../../../../../../base/common/platform.js';
 import { ACTION_ID_NEW_CHAT } from '../../../../chat/browser/actions/chatActions.js';
 import { NEW_CHAT_ICON_VARIANTS } from '../../../../chat/browser/actions/chatNewActions.js';
 import { createTestAuxiliaryBarPart } from '../../../../../test/browser/parts/auxiliaryBarTestUtils.js';
+import { IViewDescriptorService } from '../../../../../common/views.js';
+import { ViewDescriptorService } from '../../../../../services/views/browser/viewDescriptorService.js';
 import { Event } from '../../../../../../base/common/event.js';
 import '../../../../../browser/media/part.css';
 
 suite('Sessions - Chat view sessions list New button', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-	const cmdN = new USLayoutResolvedKeybinding([new KeyCodeChord(true, false, false, false, KeyCode.KeyN)], OperatingSystem.Macintosh);
+	const cmdN = new USLayoutResolvedKeybinding([new KeyCodeChord(true, false, false, false, KeyCode.KeyN)], OS);
 
 	function render(newChatId = ACTION_ID_NEW_CHAT, keybindings: Record<string, ResolvedKeybinding> = {}) {
 		const commands: { id: string; args: unknown[] }[] = [];
@@ -67,11 +69,11 @@ suite('Sessions - Chat view sessions list New button', () => {
 	 * Renders the Chat view's title actions, New and a next icon, in a real secondary side bar title attached to the document,
 	 * mounted at the given width, and with the stock split button for New if asked.
 	 */
-	function renderInSecondarySideBarTitle(root: HTMLElement, options?: { readonly width?: number; readonly stock?: boolean }) {
+	function renderInSecondarySideBarTitle(root: HTMLElement, options?: { readonly width?: number; readonly stock?: boolean; readonly viewDescriptorService?: IViewDescriptorService }) {
 		const rendered = render(ACTION_ID_NEW_CHAT, { [ACTION_ID_NEW_CHAT]: cmdN });
 		const { control, submenu } = rendered;
 		const container = DOM.append(root, DOM.$('.part.auxiliarybar'));
-		const part = createTestAuxiliaryBarPart(container, store);
+		const part = createTestAuxiliaryBarPart(container, store, { viewDescriptorService: options?.viewDescriptorService });
 		if (!options?.stock) {
 			part.viewActionViewItemProvider = (action, options) => control.createActionViewItem(action, options, true);
 		}
@@ -106,6 +108,11 @@ suite('Sessions - Chat view sessions list New button', () => {
 			return states;
 		};
 		return { ...rendered, part, container, previous, next, last, layout, indexOf, newButton, recordShownActions };
+	}
+
+	/** A view descriptor service for the side bar titles that one test renders side by side. */
+	function createViewDescriptorService(): IViewDescriptorService {
+		return store.add(workbenchInstantiationService(undefined, store).createInstance(ViewDescriptorService));
 	}
 
 	/** The widths from the first to the last, one pixel apart. */
@@ -216,8 +223,9 @@ suite('Sessions - Chat view sessions list New button', () => {
 	test('needs less width again when its label does, and fits like a button that never needed more', () => {
 		const root = attachRoot();
 		try {
-			const title = renderInSecondarySideBarTitle(root);
-			const reference = renderInSecondarySideBarTitle(root);
+			const viewDescriptorService = createViewDescriptorService();
+			const title = renderInSecondarySideBarTitle(root, { viewDescriptorService });
+			const reference = renderInSecondarySideBarTitle(root, { viewDescriptorService });
 			title.layout(400);
 			reference.layout(400);
 			const label = title.newButton()!.querySelector<HTMLElement>(':scope > .action-label')!;
@@ -242,8 +250,9 @@ suite('Sessions - Chat view sessions list New button', () => {
 	test('comes back from the overflow at its full width when the title is first shown narrow', () => {
 		const root = attachRoot();
 		try {
-			const title = renderInSecondarySideBarTitle(root, { width: 60 });
-			const reference = renderInSecondarySideBarTitle(root);
+			const viewDescriptorService = createViewDescriptorService();
+			const title = renderInSecondarySideBarTitle(root, { width: 60, viewDescriptorService });
+			const reference = renderInSecondarySideBarTitle(root, { viewDescriptorService });
 			reference.layout(400);
 			const fullWidth = reference.newButton()!.getBoundingClientRect().width;
 			reference.layout(60);
@@ -261,7 +270,8 @@ suite('Sessions - Chat view sessions list New button', () => {
 	test('does not lend its width or its place in the overflow order to the stock split button that replaces it', () => {
 		const root = attachRoot();
 		try {
-			const { part, submenu, next, last, layout, recordShownActions } = renderInSecondarySideBarTitle(root);
+			const viewDescriptorService = createViewDescriptorService();
+			const { part, submenu, next, last, layout, recordShownActions } = renderInSecondarySideBarTitle(root, { viewDescriptorService });
 			part.setTitleActions('Chat', [submenu, next, last], []);
 			layout(300);
 			const own = part.getActionMinWidth(submenu);
@@ -269,7 +279,7 @@ suite('Sessions - Chat view sessions list New button', () => {
 			part.viewActionViewItemProvider = undefined;
 			part.setTitleActions('Chat', [submenu, next, last], []);
 			layout(300);
-			const stock = renderInSecondarySideBarTitle(root, { stock: true });
+			const stock = renderInSecondarySideBarTitle(root, { stock: true, viewDescriptorService });
 			stock.part.setTitleActions('Chat', [stock.submenu, stock.next, stock.last], []);
 
 			assert.ok(own! > 36, `${own}px`);

@@ -13,7 +13,7 @@ import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { KeyCodeChord, ResolvedKeybinding } from '../../../../../../base/common/keybindings.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
-import { OperatingSystem } from '../../../../../../base/common/platform.js';
+import { OS } from '../../../../../../base/common/platform.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { MenuId, MenuItemAction, SubmenuItemAction } from '../../../../../../platform/actions/common/actions.js';
@@ -30,7 +30,7 @@ import { INewSplitButtonOptions, NewSplitButtonActionViewItem } from '../../../b
 suite('Sessions - New split button', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-	const cmdN = new USLayoutResolvedKeybinding([new KeyCodeChord(true, false, false, false, KeyCode.KeyN)], OperatingSystem.Macintosh);
+	const cmdN = new USLayoutResolvedKeybinding([new KeyCodeChord(true, false, false, false, KeyCode.KeyN)], OS);
 	const PRIMARY_ID = 'newChat';
 
 	function render(primaryEnabled: boolean, keybindings: Record<string, ResolvedKeybinding> = {}, menuActions: IAction[] = [], menuId = MenuId.ChatNewMenu, buttonOptions?: INewSplitButtonOptions, primaryId = PRIMARY_ID) {
@@ -104,7 +104,7 @@ suite('Sessions - New split button', () => {
 
 	test('shows the new keybinding of New Chat when it is rebound while shown, and none when it is unbound', () => {
 		const { primary, updateKeybinding, shownKeybinding } = render(true, { [PRIMARY_ID]: cmdN });
-		const cmdShiftN = new USLayoutResolvedKeybinding([new KeyCodeChord(true, true, false, false, KeyCode.KeyN)], OperatingSystem.Macintosh);
+		const cmdShiftN = new USLayoutResolvedKeybinding([new KeyCodeChord(true, true, false, false, KeyCode.KeyN)], OS);
 		const shown = () => ({ label: primary.textContent, keybinding: shownKeybinding(), ariaLabel: primary.getAttribute('aria-label') });
 		updateKeybinding(PRIMARY_ID, cmdShiftN);
 		const rebound = shown();
