@@ -25,8 +25,11 @@ import { TestRemoteAgentService, ITestInstantiationService, workbenchInstantiati
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
-import { IWorkspaceContextService, Workspace, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
-import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { extUri } from '../../../../../base/common/resources.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { AgentsWorkspaceContextService } from '../../../configuration/browser/agents/agentsWorkspaceContextService.js';
 
 suite('PreferencesService', () => {
 	let lastOpenUntypedEditor: IUntypedEditorInput | undefined;
@@ -107,9 +110,8 @@ suite('PreferencesService', () => {
 	});
 
 	test('has no workspace settings for a workspace without a workspace file or folders, like the Agents mode workspace', () => {
-		const agentsWorkspace = new class extends TestContextService {
-			override getWorkbenchState(): WorkbenchState { return WorkbenchState.WORKSPACE; }
-		}(new Workspace('agents-mode', [], false, null, () => false));
+		// An editor window in Agents mode gives the Agents workspace its empty workspace identifier
+		const agentsWorkspace = disposables.add(new AgentsWorkspaceContextService({ id: 'agents-mode' }, upcastPartial<IUriIdentityService>({ extUri })));
 		assert.strictEqual(createTestObject(undefined, undefined, agentsWorkspace).workspaceSettingsResource, null);
 	});
 

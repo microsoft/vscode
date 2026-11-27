@@ -264,10 +264,10 @@ export class AgentsModeWorkspaceService extends Disposable implements IEditableW
 		return added.length || removed.length ? { added, removed, changed: [] } : undefined;
 	}
 
-	/** The keys each language identifier of `configuration` sets in a `[lang]` block, across all its configuration models. */
-	private getLanguageOverrideKeys(configuration: BaseConfiguration): Map<string, Set<string>> {
+	/** The keys each language identifier sets in a `[lang]` block, across all configuration models of the given configurations. */
+	private static getLanguageOverrideKeys(...configurations: BaseConfiguration[]): Map<string, Set<string>> {
 		const result = new Map<string, Set<string>>();
-		const models = [configuration.defaults, configuration.applicationConfiguration, configuration.localUserConfiguration, configuration.remoteUserConfiguration, configuration.workspaceConfiguration, ...configuration.folderConfigurations.values()];
+		const models = configurations.flatMap(configuration => [configuration.defaults, configuration.applicationConfiguration, configuration.localUserConfiguration, configuration.remoteUserConfiguration, configuration.workspaceConfiguration, ...configuration.folderConfigurations.values()]);
 		for (const model of models) {
 			for (const identifier of model.getAllOverrideIdentifiers()) {
 				let keys = result.get(identifier);
@@ -295,10 +295,7 @@ export class AgentsModeWorkspaceService extends Disposable implements IEditableW
 		}));
 		const changedKeys = changes(keys);
 		// Keys set only for a language (`[lang]` blocks) do not show in `allKeys`, so compare those per language too
-		const languageKeys = this.getLanguageOverrideKeys(fromConfiguration);
-		for (const [identifier, identifierKeys] of this.getLanguageOverrideKeys(toConfiguration)) {
-			languageKeys.set(identifier, new Set([...languageKeys.get(identifier) ?? [], ...identifierKeys]));
-		}
+		const languageKeys = AgentsModeWorkspaceService.getLanguageOverrideKeys(fromConfiguration, toConfiguration);
 		const changedOverrides: [string, string[]][] = [];
 		for (const [identifier, identifierKeys] of languageKeys) {
 			const changed = changes(identifierKeys, identifier);
