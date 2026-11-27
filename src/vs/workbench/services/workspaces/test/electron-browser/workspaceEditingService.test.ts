@@ -9,8 +9,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../../platform/native/common/native.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { testWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
+import { IEnterWorkspaceResult } from '../../../../../platform/workspaces/common/workspaces.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
 import { IAgentsModeService } from '../../../agentsMode/common/agentsMode.js';
@@ -35,6 +37,7 @@ class TestWorkspaceEditingService extends NativeWorkspaceEditingService {
 	entered = false;
 	failure: Error | undefined;
 	onEnter: (() => void) | undefined;
+	result: IEnterWorkspaceResult | undefined;
 
 	protected override async doEnterWorkspace() {
 		this.entered = true;
@@ -42,14 +45,14 @@ class TestWorkspaceEditingService extends NativeWorkspaceEditingService {
 		if (this.failure) {
 			throw this.failure;
 		}
-		return undefined;
+		return this.result;
 	}
 }
 
 suite('NativeWorkspaceEditingService - extension host recovery', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setupServices(remoteAuthority?: string, stopped = true, restartFailure?: Error, inAgentsMode = false) {
+	function setupServices(remoteAuthority?: string, stopped = true, restartFailure?: Error, inAgentsMode = false, storageFailure?: Error) {
 		const calls: string[] = [];
 		const errors: (string | Error)[] = [];
 		const fileService = store.add(new FileService(new NullLogService()));
@@ -77,6 +80,9 @@ suite('NativeWorkspaceEditingService - extension host recovery', () => {
 			get isActive() { return inAgentsMode; },
 			setActive: async (active: boolean, workspaceId?: string) => { calls.push(workspaceId ? `agentsMode:${active}:${workspaceId}` : `agentsMode:${active}`); inAgentsMode = active; },
 		});
+		if (storageFailure) {
+			instantiationService.stub(IStorageService, 'switch', async () => { throw storageFailure; });
+		}
 		const contextService = instantiationService.get(IWorkspaceContextService) as TestContextService;
 		contextService.setWorkspace(testWorkspace(URI.file('/old')));
 		const service = store.add(instantiationService.createInstance(TestWorkspaceEditingService));
@@ -140,5 +146,13 @@ suite('NativeWorkspaceEditingService - extension host recovery', () => {
 		const failure = service.failure = new Error('entry failed');
 		await assert.rejects(service.enterWorkspace(URI.file('/new.code-workspace')), error => error === failure);
 		assert.deepStrictEqual(calls, ['stop', 'agentsMode:false', `agentsMode:true:${testWorkspace(URI.file('/old')).id}`, 'start']);
+	});
+
+	test('stays out of Agents mode when the workspace was entered and a later step fails', async () => {
+		const failure = new Error('storage switch failed');
+		const { service, calls } = setupServices(undefined, true, undefined, true, failure);
+		service.result = { workspace: { id: 'new', configPath: URI.file('/new.code-workspace') } };
+		await assert.rejects(service.enterWorkspace(URI.file('/new.code-workspace')), error => error === failure);
+		assert.deepStrictEqual(calls, ['stop', 'agentsMode:false', 'start']);
 	});
 });
