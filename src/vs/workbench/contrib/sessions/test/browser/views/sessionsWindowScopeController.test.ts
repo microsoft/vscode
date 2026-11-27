@@ -178,6 +178,19 @@ suite('SessionsWindowScopeController', () => {
 		});
 	});
 
+	test('disposing with a fixed pick does not update the list, which the view disposes with it', () => {
+		const { controller, filters, setAgentsMode } = createScope({ kind: 'folder', enabled: false, windowFolders: [URI.file('/work/app')] });
+		const bar = filters();
+		bar.setInboxWorkspace({ environment: 'local', resource: 'file:///work/other', label: 'other' });
+		controller.setScopeBarFilters(bar);
+		setAgentsMode(true);
+		let changes = 0;
+		store.add(bar.onDidChange(() => changes++));
+		const fixed = controller.scopePickFixed.get();
+		controller.dispose();
+		assert.deepStrictEqual({ fixed, changes }, { fixed: true, changes: 0 });
+	});
+
 	test('the pick applies again to the mode an empty window switches to, so leaving does not keep an older pick', () => {
 		const { controller, workspace, filters, setAgentsMode } = createScope({ kind: 'empty' });
 		const bar = filters();
