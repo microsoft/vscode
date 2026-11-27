@@ -220,12 +220,12 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			if (layout.id === DEFAULT_NAMED_LAYOUT_ID) {
 				throw new Error('The default layout cannot be deleted.');
 			}
+			await this.whenRestored;
 			if (!this.isEnabled()) {
 				return false;
 			}
 
 			if (layout.id === this.activeLayoutId) {
-				await this.whenRestored;
 				this.endZenMode();
 				const state = this.readDefaultLayoutState();
 				if (state) {
@@ -493,9 +493,14 @@ function toNamedLayoutState(read: (key: NamedLayoutStateKey) => unknown): INamed
 	};
 }
 
+/** Whether a value is a size that can apply. Stored JSON can have sizes such as `1e999`, which parse as infinite. */
+function isSize(value: unknown): value is number {
+	return typeof value === 'number' && Number.isFinite(value) && value >= 0;
+}
+
 /** Whether a value has what each part stores. */
 function hasPartState(value: unknown): value is Record<string, unknown> {
-	return isRecord(value) && typeof value.visible === 'boolean' && typeof value.size === 'number' && (value.viewContainerId === undefined || typeof value.viewContainerId === 'string');
+	return isRecord(value) && typeof value.visible === 'boolean' && isSize(value.size) && (value.viewContainerId === undefined || typeof value.viewContainerId === 'string');
 }
 
 function isSideBarState(value: unknown): value is IPartsLayoutState['sideBar'] {
@@ -512,7 +517,7 @@ function isAuxiliaryBarState(value: unknown): value is IPartsLayoutState['auxili
 
 function isGroupLayoutArgument(value: unknown): value is GroupLayoutArgument {
 	// The grid turns a nested row or column with fewer than two groups into a single group, so the groups in it would not count
-	return isRecord(value) && (value.size === undefined || typeof value.size === 'number') && (value.groups === undefined || isGroupLayoutArguments(value.groups, 2));
+	return isRecord(value) && (value.size === undefined || isSize(value.size)) && (value.groups === undefined || isGroupLayoutArguments(value.groups, 2));
 }
 
 function isGroupLayoutArguments(value: unknown, minimumLength: number): value is GroupLayoutArgument[] {

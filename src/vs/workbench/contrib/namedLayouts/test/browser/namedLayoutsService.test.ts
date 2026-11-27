@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -42,9 +43,9 @@ suite('NamedLayoutsService', () => {
 	/**
 	 * A window whose parts and editor groups show what was applied last, and whose Zen mode hides the parts until it ends.
 	 * Applying editor groups restores a maximized panel, as it activates an editor group. With `restore`, the window
-	 * starts with that layout active, as stored, and with the arrangement that it restores itself.
+	 * starts with that layout active, as stored, and with the arrangement that it restores itself, once `whenRestored` resolves.
 	 */
-	function createWindow(restore?: { layout: Record<string, unknown>; zenMode?: boolean; parts?: IPartsLayoutState; editorGroups?: EditorGroupLayout }) {
+	function createWindow(restore?: { layout: Record<string, unknown>; zenMode?: boolean; parts?: IPartsLayoutState; editorGroups?: EditorGroupLayout; whenRestored?: Promise<void> }) {
 		const storageService = store.add(new TestStorageService());
 		const configurationService = new TestConfigurationService({ [NAMED_LAYOUTS_ENABLED_SETTING]: true });
 		const contextKeyService = store.add(new MockContextKeyService());
@@ -61,7 +62,7 @@ suite('NamedLayoutsService', () => {
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IContextKeyService, contextKeyService);
-		instantiationService.stub(ILifecycleService, { when: () => Promise.resolve() });
+		instantiationService.stub(ILifecycleService, { when: () => restore?.whenRestored ?? Promise.resolve() });
 		instantiationService.stub(IExtensionService, { whenInstalledExtensionsRegistered: () => Promise.resolve(true) });
 		const toggleZenMode = () => {
 			if (zenMode.get()) {
@@ -100,7 +101,8 @@ suite('NamedLayoutsService', () => {
 			}
 			return [...layouts.values()];
 		};
-		const storeFromOtherWindow = (id: string, part: string, value: unknown) => storageService.store(`${LAYOUT_STORAGE_KEY_PREFIX}${id}.${part}`, part === 'name' ? String(value) : JSON.stringify(value), StorageScope.PROFILE, StorageTarget.MACHINE, true);
+		/** Stores a part as another window does. A string is stored as it is, so that it can be JSON that does not parse into what it says. */
+		const storeFromOtherWindow = (id: string, part: string, value: unknown) => storageService.store(`${LAYOUT_STORAGE_KEY_PREFIX}${id}.${part}`, typeof value === 'string' ? value : JSON.stringify(value), StorageScope.PROFILE, StorageTarget.MACHINE, true);
 		const removeFromOtherWindow = (id: string) => {
 			for (const key of storageService.keys(StorageScope.PROFILE).filter(key => key.startsWith(`${LAYOUT_STORAGE_KEY_PREFIX}${id}.`))) {
 				storageService.remove(key, StorageScope.PROFILE, true);
@@ -294,6 +296,21 @@ suite('NamedLayoutsService', () => {
 		});
 	});
 
+	test('a deletion that waits for the window to restore does not delete the layout when named layouts are disabled meanwhile', async () => {
+		const whenRestored = new DeferredPromise<void>();
+		const { service, configurationService, storedLayouts } = createWindow({ layout: { name: 'Debug', ...partsState(false, Position.RIGHT) }, whenRestored: whenRestored.p });
+
+		const deleted = service.deleteLayout(service.activeLayout);
+		await timeout(0);
+		await configurationService.setUserConfiguration(NAMED_LAYOUTS_ENABLED_SETTING, false);
+		whenRestored.complete();
+
+		assert.deepStrictEqual({ deleted: await deleted, stored: storedLayouts() }, {
+			deleted: false,
+			stored: [{ name: 'Debug', ...partsState(false, Position.RIGHT) }],
+		});
+	});
+
 	test('deleting the active layout applies the default layout without saving the deleted one, and a layout that another window deletes leaves this window with its arrangement as its default layout', async () => {
 		const { service, window, removeFromOtherWindow, storageService, storedLayouts } = createWindow();
 		const scratch = (await service.createLayout('Scratch'))!;
@@ -330,18 +347,21 @@ suite('NamedLayoutsService', () => {
 
 		const otherPanel = partsState(true, Position.RIGHT).panel;
 		storeFromOtherWindow('alpha', 'name', 'Alpha');
-		storeFromOtherWindow('alpha', 'sideBar', { visible: 'yes' });
+		storeFromOtherWindow('alpha', 'sideBar', { visible: true, size: -300 });
 		storeFromOtherWindow('alpha', 'panel', otherPanel);
 		storeFromOtherWindow('alpha', 'editorGroups', { orientation: GroupOrientation.HORIZONTAL, groups: [{ groups: [{ groups: [{}, {}] }] }] });
+		storeFromOtherWindow('gamma', 'name', 'Gamma');
+		storeFromOtherWindow('gamma', 'editorGroups', '{"orientation":0,"groups":[{"size":1e999},{"size":1}]}');
 		storeFromOtherWindow('orphan', 'sideBar', partsState(false, Position.BOTTOM).sideBar);
 		storeFromOtherWindow('blank', 'name', '  ');
 		storeFromOtherWindow('default', 'name', 'Other Default');
 		const layouts = service.layouts.map(layout => layout.name);
 		await service.switchLayout(service.layouts[1]);
+		await service.switchLayout(service.layouts[3]);
 
 		assert.deepStrictEqual({ renamed, layouts, parts: window.parts, editorGroups: window.editorGroups }, {
 			renamed: true,
-			layouts: ['Default', 'Alpha', 'Beta'],
+			layouts: ['Default', 'Alpha', 'Beta', 'Gamma'],
 			parts: { ...partsState(true, Position.BOTTOM), panel: otherPanel },
 			editorGroups: singleGroup,
 		});
