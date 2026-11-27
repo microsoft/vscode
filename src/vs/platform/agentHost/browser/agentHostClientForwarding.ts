@@ -134,14 +134,20 @@ export class AgentHostClientForwarding extends Disposable implements IAgentHostC
 	}
 
 	async gitCredential(operation: ClientGitCredentialOperation, input: string): Promise<string> {
-		return this._options.forwardCredentials() ? this._service.gitCredential(operation, input) : '';
+		if (!this._options.forwardCredentials()) {
+			return '';
+		}
+		const output = await this._service.gitCredential(operation, input);
+		// Forwarding may have turned off while a credential manager signed in.
+		return this._options.forwardCredentials() && !this._store.isDisposed ? output : '';
 	}
 
 	async gpgKeys(): Promise<ClientGpgKeys> {
 		return this._options.forwardCredentials() ? this._service.gpgKeys() : {};
 	}
 
-	gitConfig(): Promise<ClientGitConfig> {
-		return this._service.gitConfig(this._options.forwardCredentials(), this._options.folder);
+	async gitConfig(): Promise<ClientGitConfig> {
+		const gitConfig = await this._service.gitConfig(this._options.forwardCredentials(), this._options.folder);
+		return this._options.forwardCredentials() || !gitConfig.gitGlobalConfig ? gitConfig : { user: gitConfig.user };
 	}
 }

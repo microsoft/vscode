@@ -259,7 +259,7 @@ export async function applyClientGitConfig(
 async function getSigningSupport(target: IClientGitConfigTarget, agents: IClientGitSigningAgents): Promise<IGitSigningSupport> {
 	const homedir = parseGpgDirs((await target.run('gpgconf', ['--list-dirs']))?.stdout ?? '', isWindows).homedir;
 	const ownKeys = !!homedir && (await readdir(join(homedir, 'private-keys-v1.d')).catch(() => [])).length > 0;
-	return { sshAgent: agents.sshAgent, gpgSigning: !!homedir && (ownKeys || agents.gpgAgent) };
+	return { sshAgent: agents.sshAgent, gpgSigning: !!homedir && (ownKeys || agents.gpgAgent), gpgOwnKeys: ownKeys };
 }
 
 interface IGitSigningSupport {
@@ -267,6 +267,8 @@ interface IGitSigningSupport {
 	readonly sshAgent: boolean;
 	/** Whether GPG signing can work, with the client's agent or the agent host's own keys. */
 	readonly gpgSigning: boolean;
+	/** Whether GnuPG has private keys of its own, in which case it uses them rather than the client's agent. */
+	readonly gpgOwnKeys: boolean;
 }
 
 /** Settings that run a program, which cannot work without it. */
@@ -340,6 +342,10 @@ async function removeUnavailableSigning(target: IClientGitConfigTarget, files: r
 			// A private key file signs without an agent.
 			available = await stat(path).then(stats => stats.isFile(), () => false) && (signing.sshAgent || !key.endsWith('.pub'));
 		}
+	} else if (available && format === 'openpgp' && signing.gpgOwnKeys) {
+		// Git signs with the configured key, else one for the committer's email, which must then be one of its own.
+		const key = await value('user.signingkey') || await value('user.email');
+		available = !key || (await target.run(getCommandName(program), ['--list-secret-keys', '--with-colons', '--', key]))?.code === 0;
 	} else if (available) {
 		available = signing.gpgSigning;
 	}

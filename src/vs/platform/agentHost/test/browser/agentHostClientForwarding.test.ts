@@ -13,7 +13,7 @@ import type { IAgentHostClientForwardingMainService } from '../../common/agentHo
 suite('AgentHostClientForwarding', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('turning forwarding off closes open agent connections and then forwards only the identity', async () => {
+	test('turning forwarding off drops a pending credential, closes open agent connections and then forwards only the identity', async () => {
 		const onDidChangeForwardCredentials = store.add(new Emitter<void>());
 		const calls: string[] = [];
 		const service: IAgentHostClientForwardingMainService = {
@@ -28,7 +28,11 @@ suite('AgentHostClientForwarding', () => {
 			close: async () => {
 				calls.push('close');
 			},
-			gitCredential: async () => 'password=secret\n',
+			gitCredential: async () => {
+				// Turned off while a credential manager signs in.
+				forward = false;
+				return 'password=secret\n';
+			},
 			gpgKeys: async () => ({ ownertrust: 'dHJ1c3Q=' }),
 			gitConfig: async full => ({ user: { name: full ? 'With configuration' : 'Identity only' } }),
 		};
@@ -42,9 +46,10 @@ suite('AgentHostClientForwarding', () => {
 			connection.dispose();
 		}));
 
-		forward = false;
+		const pendingGitCredential = await forwarding.gitCredential('get', 'host=example.com\n');
 		onDidChangeForwardCredentials.fire();
 		assert.deepStrictEqual({
+			pendingGitCredential,
 			closed,
 			calls,
 			describe: await forwarding.describe(),
@@ -53,6 +58,7 @@ suite('AgentHostClientForwarding', () => {
 			gpgKeys: await forwarding.gpgKeys(),
 			gitConfig: await forwarding.gitConfig(),
 		}, {
+			pendingGitCredential: '',
 			closed: true,
 			calls: ['open ssh-agent', 'close'],
 			describe: { gitConfig: false, gitCredentials: false, sshAgent: false, gpgAgent: false, keyboxd: false },

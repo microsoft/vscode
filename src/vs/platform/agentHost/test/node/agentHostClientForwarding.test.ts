@@ -87,6 +87,7 @@ suite('AgentHostClientForwarding', () => {
 		const onDidReceiveClose = store.add(new Emitter<number>());
 		const requests: unknown[] = [];
 		const closed = new DeferredPromise<void>();
+		let duringCredentialLookup: (() => void) | undefined;
 		const client: IAgentHostForwardingClient = {
 			onDidReceiveData: onDidReceiveData.event,
 			onDidReceiveClose: onDidReceiveClose.event,
@@ -100,6 +101,7 @@ suite('AgentHostClientForwarding', () => {
 			sendClose: () => closed.complete(),
 			gitCredential: async (operation, input) => {
 				requests.push(['gitCredential', operation, input.includes('host=example.com\n')]);
+				duringCredentialLookup?.();
 				return 'protocol=https\nhost=example.com\nusername=user\npassword=secret\n';
 			},
 			gpgKeys: async () => ({}),
@@ -141,17 +143,30 @@ suite('AgentHostClientForwarding', () => {
 			const gitOutput = await run('git', ['credential', 'fill'], 'protocol=https\nhost=example.com\n\n');
 			const identity = await run('git', ['config', '--global', '--get-regexp', '^user\\.']);
 
-			// The processes of a sandboxed session share the environment, so nothing is forwarded while it exists.
-			const session = 'copilot:/sandboxed';
-			stateManager.createSession({
-				resource: session, provider: 'copilot', title: 'Sandboxed', status: SessionStatus.Idle,
-				createdAt: '2026-01-01T00:00:00Z', modifiedAt: '2026-01-01T00:00:00Z',
-				defaultChat: buildDefaultChatUri(session),
+			// A connection that stays open until a session turns sandboxing on.
+			const held = connect(environment.SSH_AUTH_SOCK!);
+			held.on('error', () => { });
+			const heldClosed = new Promise<boolean>(resolve => held.once('close', () => resolve(true)));
+			const heldReply = await new Promise<string>(resolve => {
+				held.once('data', reply => resolve(reply.toString()));
+				held.write('held');
 			});
-			configuration.setChatSandboxEnabled({ session, chat: buildDefaultChatUri(session) }, true);
+			// The processes of a sandboxed session share the environment, so nothing is forwarded once it exists, not even
+			// what a pending lookup returns. Like the Copilot runtime, the session applies its sandbox state to its metadata.
+			duringCredentialLookup = () => {
+				const session = 'copilot:/sandboxed';
+				stateManager.createSession({
+					resource: session, provider: 'copilot', title: 'Sandboxed', status: SessionStatus.Idle,
+					createdAt: '2026-01-01T00:00:00Z', modifiedAt: '2026-01-01T00:00:00Z',
+					defaultChat: buildDefaultChatUri(session),
+				});
+				configuration.setChatSandboxEnabled({ session, chat: buildDefaultChatUri(session) }, true);
+			};
 			const sandboxed = {
-				reply: [...await request(requestIdentities)],
 				gitOutput: await run('git', ['credential', 'fill'], 'protocol=https\nhost=example.com\n\n'),
+				heldReply,
+				heldClosed: await heldClosed,
+				reply: [...await request(requestIdentities)],
 			};
 
 			registration.dispose();
@@ -174,8 +189,8 @@ suite('AgentHostClientForwarding', () => {
 				agentReply: 'agent:request',
 				gitOutput: 'protocol=https\nhost=example.com\nusername=user\npassword=secret\n',
 				identity: 'user.name Client User\nuser.email client@example.com\n',
-				sandboxed: { reply: [0, 0, 0, 5, 12, 0, 0, 0, 0], gitOutput: '' },
-				requests: [['gitConfig'], ['open', 'ssh-agent'], ['gitCredential', 'get', true]],
+				sandboxed: { gitOutput: '', heldReply: 'agent:held', heldClosed: true, reply: [0, 0, 0, 5, 12, 0, 0, 0, 0] },
+				requests: [['gitConfig'], ['open', 'ssh-agent'], ['gitCredential', 'get', true], ['open', 'ssh-agent'], ['gitCredential', 'get', true]],
 				afterClient: { sshAuthSock: true, reply: [0, 0, 0, 5, 12, 0, 0, 0, 0] },
 			});
 		} finally {

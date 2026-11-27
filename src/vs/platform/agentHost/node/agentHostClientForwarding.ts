@@ -25,6 +25,7 @@ import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { readChatSandboxStates, readSessionSandboxState } from '../common/meta/agentSandboxStateMeta.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
+import { ActionType } from '../common/state/sessionActions.js';
 import { shellEscape } from './sshRemoteAgentHostHelpers.js';
 
 /** Set to `1` by a launcher, e.g., for Dev Containers, to have the agent host forward what its clients offer. */
@@ -192,6 +193,12 @@ export class AgentHostClientForwardingService extends Disposable implements IAge
 			};
 			this._register(_configurationService.onDidSessionConfigChange(closeIfSandboxed));
 			this._register(_configurationService.onDidChatConfigChange(closeIfSandboxed));
+			// The sandbox state a session applies changes its metadata, without a configuration change.
+			this._register(_stateManager.onDidEmitEnvelope(({ action }) => {
+				if (action.type === ActionType.SessionMetaChanged) {
+					closeIfSandboxed();
+				}
+			}));
 		}
 	}
 
@@ -345,7 +352,9 @@ export class AgentHostClientForwardingService extends Disposable implements IAge
 		try {
 			// Without a client, Git asks its other helpers or the user.
 			const output = client ? await client.client.gitCredential(content.operation, content.input) : '';
-			response.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ output }));
+			// A session may have turned sandboxing on, or the client left, while a credential manager signed in.
+			const allowed = !!client && this._clients.includes(client) && !this._store.isDisposed && !this._hasSandboxedSession();
+			response.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ output: allowed ? output : '' }));
 		} catch (error) {
 			this._logService.warn('[AgentHostClientForwarding] Git credential request failed', error);
 			response.writeHead(502).end();
@@ -383,7 +392,12 @@ export class AgentHostClientForwardingService extends Disposable implements IAge
 			// A sandboxed session gets only the identity, also where it shares the agent host with others.
 			const offersConfig = description.gitConfig && !this._hasSandboxedSession();
 			const agents = { sshAgent: description.sshAgent, gpgAgent: description.gpgAgent && !isWindows };
-			await applyClientGitConfig(this._getGitConfigTarget(), offersConfig, agents, () => registered.client.gitConfig(), message => this._logService.info(`[AgentHostClientForwarding] ${message}`));
+			const requestGitConfig = async (): Promise<ClientGitConfig> => {
+				const gitConfig = await registered.client.gitConfig();
+				// Also when a session turned sandboxing on while the client answered.
+				return offersConfig && this._hasSandboxedSession() ? { user: gitConfig.user } : gitConfig;
+			};
+			await applyClientGitConfig(this._getGitConfigTarget(), offersConfig, agents, requestGitConfig, message => this._logService.info(`[AgentHostClientForwarding] ${message}`));
 		} catch (error) {
 			this._logService.warn('[AgentHostClientForwarding] Failed to apply the client\'s Git configuration', error);
 		}
@@ -414,7 +428,8 @@ export class AgentHostClientForwardingService extends Disposable implements IAge
 		if (plan.keyboxdSocket) {
 			await this._listen('keyboxd', plan.keyboxdSocket, createServer(socket => this._forwardAgent(socket, 'keyboxd')));
 		}
-		// Only now, as importing would otherwise start an agent of its own. Not awaited, as only signing needs the keys.
+		// Only now, as importing would otherwise start an agent of its own. Awaited, so the keys are there once settled, though
+		// connecting does not wait for it.
 		if ((plan.importKeys || plan.importOwnertrust) && !this._gpgImport) {
 			const gpgImport = this._gpgImport = this._importGpgKeys(plan).catch(error => {
 				this._logService.warn('[AgentHostClientForwarding] Failed to import GPG keys', error);
@@ -423,6 +438,7 @@ export class AgentHostClientForwardingService extends Disposable implements IAge
 					this._gpgImport = undefined;
 				}
 			});
+			await gpgImport;
 		}
 	}
 

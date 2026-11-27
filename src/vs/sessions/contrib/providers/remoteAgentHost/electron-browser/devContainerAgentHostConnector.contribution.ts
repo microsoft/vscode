@@ -911,7 +911,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		[DevContainerCredentialForwardingEnabledSettingId]: {
 			type: 'boolean',
-			description: localize('chat.agentHost.devContainer.credentialForwarding.enabled', "Controls whether Dev Container sessions without terminal sandboxing copy your Git configuration and use your Git credentials, SSH agent, and GPG agent, like the Dev Containers extension. Sessions with terminal sandboxing only get your Git user name and email."),
+			description: localize('chat.agentHost.devContainer.credentialForwarding.enabled', "Controls whether Dev Container sessions without terminal sandboxing copy your Git configuration and use your Git credentials, SSH agent, and GPG agent, like the Dev Containers extension. Sessions with terminal sandboxing only get your Git user name and email. Turning this on applies the next time a Dev Container connects."),
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
