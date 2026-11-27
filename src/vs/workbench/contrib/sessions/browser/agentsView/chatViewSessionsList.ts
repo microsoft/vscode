@@ -18,6 +18,7 @@ import { SessionsView } from '../views/sessionsView.js';
 import { createEditorWindowSessionsScope, createEditorWindowSessionsView } from './editorWindowSessionsList.js';
 import { ChatViewId } from '../../../chat/browser/chat.js';
 import { ACTION_ID_NEW_CHAT } from '../../../chat/browser/actions/chatActions.js';
+import { NEW_CHAT_ICON_VARIANTS } from '../../../chat/browser/actions/chatNewActions.js';
 import { localize } from '../../../../../nls.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
@@ -78,7 +79,9 @@ class ChatViewNewButtonActionViewItem extends CompactButtonActionViewItem {
 
 	/** New Chat's own keybinding, or that of the canonical New Chat for its icon variants, which have none. */
 	protected override get commandId(): string {
-		return this.keybindingService.lookupKeybinding(this._newChat.id) ? this._newChat.id : ACTION_ID_NEW_CHAT;
+		const id = this._newChat.id;
+		const isIconVariant = NEW_CHAT_ICON_VARIANTS.some(variant => id === ACTION_ID_NEW_CHAT + variant.idSuffix);
+		return isIconVariant && !this.keybindingService.lookupKeybinding(id) ? ACTION_ID_NEW_CHAT : id;
 	}
 
 	protected override get label(): string {

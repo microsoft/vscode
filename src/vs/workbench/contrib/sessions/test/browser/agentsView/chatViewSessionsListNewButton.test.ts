@@ -29,6 +29,9 @@ import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { ACTION_ID_NEW_CHAT } from '../../../../chat/browser/actions/chatActions.js';
+import { NEW_CHAT_ICON_VARIANTS } from '../../../../chat/browser/actions/chatNewActions.js';
+import { createTestAuxiliaryBarPart } from '../../../../../test/browser/parts/auxiliaryBarTestUtils.js';
+import '../../../../../browser/media/part.css';
 
 suite('Sessions - Chat view sessions list New button', () => {
 
@@ -107,13 +110,19 @@ suite('Sessions - Chat view sessions list New button', () => {
 		assert.deepStrictEqual({ contexts, errors: errors.map(error => (error as Error).message) }, { contexts: ['titleContext', 'titleContext'], errors: ['failed'] });
 	});
 
-	test('shows the keybinding of the canonical New Chat for its icon variants, but runs the variant', () => {
+	test('shows the keybinding of the canonical New Chat for its icon variants, but runs the variant, and none for another command without one', () => {
 		const newChatKeybinding = new USLayoutResolvedKeybinding([new KeyCodeChord(true, false, false, false, KeyCode.KeyN)], OperatingSystem.Macintosh);
-		const { container, commands } = render(true, undefined, 'newChat.copilot', { [ACTION_ID_NEW_CHAT]: newChatKeybinding });
-		const primary = container.querySelector<HTMLElement>('.agent-sessions-compact-new-button')!;
-		primary.click();
-		assert.deepStrictEqual({ ariaLabel: primary.getAttribute('aria-label'), hasChip: !!primary.querySelector('.monaco-keybinding'), commands: commands.map(command => command.id) },
-			{ ariaLabel: `New Chat (${newChatKeybinding.getAriaLabel()})`, hasChip: true, commands: ['newChat.copilot'] });
+		const variantId = ACTION_ID_NEW_CHAT + NEW_CHAT_ICON_VARIANTS[0].idSuffix;
+		const shown = (newChatId: string) => {
+			const { container, commands } = render(true, undefined, newChatId, { [ACTION_ID_NEW_CHAT]: newChatKeybinding });
+			const primary = container.querySelector<HTMLElement>('.agent-sessions-compact-new-button')!;
+			primary.click();
+			return { ariaLabel: primary.getAttribute('aria-label'), hasChip: !!primary.querySelector('.monaco-keybinding'), commands: commands.map(command => command.id) };
+		};
+		assert.deepStrictEqual({ variant: shown(variantId), other: shown('other.newSession') }, {
+			variant: { ariaLabel: `New Chat (${newChatKeybinding.getAriaLabel()})`, hasChip: true, commands: [variantId] },
+			other: { ariaLabel: 'New Chat', hasChip: false, commands: ['other.newSession'] },
+		});
 	});
 
 	test('is one tab stop whose parts the arrow keys move between, and whose menu opens from the keyboard when New Chat is disabled', () => {
@@ -187,6 +196,73 @@ suite('Sessions - Chat view sessions list New button', () => {
 			});
 		} finally {
 			container.remove();
+		}
+	});
+
+	/**
+	 * Narrows the secondary side bar showing the Chat view one pixel at a time, and records every width at which the shown
+	 * "New" button protrudes: over the title or the next icon, out of the toolbar, shrunk from its full width, or with its
+	 * dropdown part not hit at its centre.
+	 */
+	test('keeps its full width in the secondary side bar title until it moves into the overflow, and comes back', () => {
+		const newChatKeybinding = new USLayoutResolvedKeybinding([new KeyCodeChord(true, false, false, false, KeyCode.KeyN)], OperatingSystem.Macintosh);
+		const { control, submenu } = render(true, undefined, ACTION_ID_NEW_CHAT, { [ACTION_ID_NEW_CHAT]: newChatKeybinding });
+		const root = DOM.append(document.body, DOM.$('.monaco-workbench'));
+		root.style.cssText = 'position: fixed; top: 0; left: 0; z-index: 100000; background: white;';
+		try {
+			const container = DOM.append(root, DOM.$('.part.auxiliarybar'));
+			const part = createTestAuxiliaryBarPart(container, store);
+			part.viewActionViewItemProvider = (action, options) => control.createActionViewItem(action, options);
+			const next = store.add(new Action('next', 'Next', 'codicon codicon-gear'));
+			part.setTitleActions('Chat', [submenu, next], []);
+			const layout = (width: number) => {
+				container.style.width = `${width}px`;
+				part.layout(width, 200, 0, 0);
+				part.toolbar.relayout();
+			};
+			const indexOf = (action: IAction) => [...Array(part.toolbar.getItemsLength()).keys()].find(index => part.toolbar.getItemAction(index) === action);
+			const pill = () => {
+				const index = indexOf(submenu);
+				return index === undefined ? undefined : part.toolbar.getItemElement(index)!.querySelector<HTMLElement>('.agent-sessions-compact-new-button-dropdown')!;
+			};
+
+			layout(400);
+			const pillWidth = pill()!.getBoundingClientRect().width;
+			const protrusions: { width: number; overTitle: boolean; overNextIcon: boolean; outOfToolbar: boolean; shrunk: boolean; dropdownMissed: boolean }[] = [];
+			let overflowAt: number | undefined;
+			for (let width = 300; width >= 60; width--) {
+				layout(width);
+				const shown = pill();
+				if (!shown) {
+					overflowAt ??= width;
+					continue;
+				}
+				const pillRect = shown.getBoundingClientRect();
+				const titleRect = container.querySelector('h2')!.getBoundingClientRect();
+				const toolbarRect = part.toolbar.getElement().getBoundingClientRect();
+				const nextIndex = indexOf(next);
+				const nextRect = nextIndex === undefined ? undefined : part.toolbar.getItemElement(nextIndex)!.getBoundingClientRect();
+				const dropdown = shown.querySelector<HTMLElement>('.monaco-dropdown-button')!;
+				const dropdownRect = dropdown.getBoundingClientRect();
+				const hit = document.elementFromPoint(dropdownRect.left + dropdownRect.width / 2, dropdownRect.top + dropdownRect.height / 2);
+				const protrusion = {
+					width,
+					overTitle: titleRect.right > pillRect.left + 0.5,
+					overNextIcon: !!nextRect && pillRect.right > nextRect.left + 0.5,
+					outOfToolbar: pillRect.left < toolbarRect.left - 0.5 || pillRect.right > toolbarRect.right + 0.5,
+					shrunk: pillRect.width < pillWidth - 0.5,
+					dropdownMissed: !hit || !dropdown.contains(hit),
+				};
+				if (protrusion.overTitle || protrusion.overNextIcon || protrusion.outOfToolbar || protrusion.shrunk || protrusion.dropdownMissed) {
+					protrusions.push(protrusion);
+				}
+			}
+			layout(400);
+
+			assert.ok(pillWidth > 36 && overflowAt !== undefined, `pill ${pillWidth}px, overflow at ${overflowAt}px`);
+			assert.deepStrictEqual({ protrusions, restored: pill()?.getBoundingClientRect().width === pillWidth }, { protrusions: [], restored: true });
+		} finally {
+			root.remove();
 		}
 	});
 });

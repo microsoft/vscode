@@ -26,7 +26,7 @@ import { LayoutPriority } from '../../../../base/browser/ui/splitview/splitview.
 import { ToggleSidebarPositionAction } from '../../actions/layoutActions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { AbstractPaneCompositePart, CompositeBarPosition } from '../paneCompositePart.js';
-import { ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { ActionsOrientation, IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IPaneCompositeBarOptions } from '../paneCompositeBar.js';
 import { IMenuService, MenuId, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -35,6 +35,18 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { VisibleViewContainersTracker } from '../visibleViewContainersTracker.js';
 import { Extensions } from '../../panecomposite.js';
 import { IToolBarResponsiveBehaviorOptions } from '../../../../base/browser/ui/toolbar/toolbar.js';
+
+/**
+ * A title action view item that knows the width it needs because it does not shrink, such as a split button showing its
+ * keybinding.
+ */
+interface IActionViewItemWithMinimumWidth extends IActionViewItem {
+	getMinimumWidth(): number | undefined;
+}
+
+function hasMinimumWidth(item: IActionViewItem | undefined): item is IActionViewItemWithMinimumWidth {
+	return typeof (item as Partial<IActionViewItemWithMinimumWidth> | undefined)?.getMinimumWidth === 'function';
+}
 
 interface IAuxiliaryBarPartConfiguration {
 	position: ActivityBarPosition;
@@ -80,6 +92,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	readonly priority = LayoutPriority.Low;
 
 	private configuration: IAuxiliaryBarPartConfiguration;
+	private readonly splitButtonMinWidths = new Map<string, number>();
 	private readonly visibleViewContainersTracker: VisibleViewContainersTracker;
 
 	constructor(
@@ -168,8 +181,27 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			minItems: 0,
 			overflowFrom: 'start',
 			actionMinWidth: 22,
-			getActionMinWidth: action => action instanceof SubmenuItemAction && action.item.isSplitButton ? 36 : undefined,
+			getActionMinWidth: action => action instanceof SubmenuItemAction && action.item.isSplitButton ? this.getSplitButtonMinWidth(action) : undefined,
 		};
+	}
+
+	/**
+	 * The width a split button reports for itself, so that it moves into the overflow whole before it covers its neighbors,
+	 * or 36px. The width is remembered for while the button is in the overflow, when it has no view item to ask.
+	 */
+	private getSplitButtonMinWidth(action: SubmenuItemAction): number {
+		const toolBar = this.toolBar;
+		for (let index = 0; toolBar && index < toolBar.getItemsLength(); index++) {
+			if (toolBar.getItemAction(index) === action) {
+				const viewItem = toolBar.getItemViewItem(index);
+				const width = hasMinimumWidth(viewItem) ? viewItem.getMinimumWidth() : undefined;
+				if (width !== undefined) {
+					this.splitButtonMinWidths.set(action.item.submenu.id, width);
+				}
+				break;
+			}
+		}
+		return this.splitButtonMinWidths.get(action.item.submenu.id) ?? 36;
 	}
 
 	private resolveConfiguration(): IAuxiliaryBarPartConfiguration {

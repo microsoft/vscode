@@ -8,6 +8,8 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { IToolBarResponsiveBehaviorOptions } from '../../../../base/browser/ui/toolbar/toolbar.js';
+import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IMenuCreateOptions, IMenuService, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../platform/actions/common/menuService.js';
 import { ContextKeyService } from '../../../../platform/contextkey/browser/contextKeyService.js';
@@ -53,6 +55,13 @@ export function createTestAuxiliaryBarPart(container: HTMLElement, store: Pick<D
 export class TestAuxiliaryBarPart extends AuxiliaryBarPart {
 
 	private toolbarAvailableWidth: number | undefined;
+
+	/** Renders title actions as the active view would, such as the Chat view's New button. */
+	viewActionViewItemProvider: ((action: IAction, options: IBaseActionViewItemOptions) => IActionViewItem | undefined) | undefined;
+
+	protected override actionViewItemProvider(action: IAction, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
+		return this.viewActionViewItemProvider?.(action, options) ?? super.actionViewItemProvider(action, options);
+	}
 
 	protected override getActiveComposite(): IComposite {
 		return {

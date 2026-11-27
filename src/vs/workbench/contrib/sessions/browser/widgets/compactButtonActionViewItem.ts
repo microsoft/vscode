@@ -209,6 +209,16 @@ export abstract class CompactButtonActionViewItem extends BaseActionViewItem {
 		}
 	}
 
+	/**
+	 * The width of the pill with its dropdown part, which does not shrink: for the responsive budget of its toolbar, so that
+	 * it moves into the overflow whole instead of covering its neighbors. `undefined` without the dropdown part or while it
+	 * is not laid out.
+	 */
+	getMinimumWidth(): number | undefined {
+		const width = this.dropdownButton?.element.getBoundingClientRect().width;
+		return width ? Math.ceil(width) : undefined;
+	}
+
 	/** The pill and its dropdown part are one tab stop of the toolbar; the arrow keys move between them. */
 	private registerDropdownKeyboardNavigation(dropdownButton: ButtonWithDropdown): void {
 		this._register(addDisposableListener(dropdownButton.primaryButton.element, EventType.KEY_DOWN, e => {
