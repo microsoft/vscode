@@ -91,9 +91,8 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	readonly priority = LayoutPriority.Low;
 
 	private configuration: IAuxiliaryBarPartConfiguration;
-	/** The widths split buttons reported, and those the title toolbar was given for them while they had no view item to ask. */
+	/** The widths split buttons last reported, which the title toolbar uses while a button is in the overflow. */
 	private splitButtonMinWidths = new WeakMap<SubmenuItemAction, number>();
-	private readonly splitButtonAssumedWidths = new WeakMap<SubmenuItemAction, number>();
 	private readonly splitButtonRefit = this._register(new Delayer<void>(MicrotaskDelay));
 	private readonly visibleViewContainersTracker: VisibleViewContainersTracker;
 
@@ -204,22 +203,18 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			if (toolBar.getItemAction(index) === action) {
 				const viewItem = toolBar.getItemViewItem(index);
 				const width = this.hasMinimumWidth(viewItem) ? viewItem.getMinimumWidth() : undefined;
-				const assumedWidth = this.splitButtonAssumedWidths.get(action);
-				this.splitButtonAssumedWidths.delete(action);
 				if (width === undefined) {
 					this.splitButtonMinWidths.delete(action);
 					return 36;
 				}
-				this.splitButtonMinWidths.set(action, width);
-				if (assumedWidth !== undefined && assumedWidth !== width) {
+				if (this.splitButtonMinWidths.get(action) !== width) {
+					this.splitButtonMinWidths.set(action, width);
 					this.refitSplitButtons();
 				}
 				return width;
 			}
 		}
-		const width = this.splitButtonMinWidths.get(action) ?? 36;
-		this.splitButtonAssumedWidths.set(action, width);
-		return width;
+		return this.splitButtonMinWidths.get(action) ?? 36;
 	}
 
 	private hasMinimumWidth(item: IActionViewItem | undefined): item is IActionViewItemWithMinimumWidth {
