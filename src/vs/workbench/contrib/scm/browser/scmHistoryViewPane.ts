@@ -41,7 +41,7 @@ import { ActionRunner, IAction, IActionRunner } from '../../../../base/common/ac
 import { delta, groupBy } from '../../../../base/common/arrays.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IProgressService } from '../../../../platform/progress/common/progress.js';
-import { ContextKeys } from './scmViewPane.js';
+import { ContextKeys, shouldAlignSCMTreeIconsAndTwisties } from './scmViewPane.js';
 import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IDropdownMenuActionViewItemOptions } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -76,11 +76,79 @@ import { SCMHistoryItemTransferData } from './scmHistoryChatContext.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { Mutable } from '../../../../base/common/types.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { IResourceEditorInput } from '../../../../platform/editor/common/editor.js';
+import { IResourceDiffEditorInput, isResourceDiffEditorInput } from '../../../common/editor.js';
+import { getSCMStructuralDiffAriaLabel, getSCMStructuralDiffLabel, isSCMStructuralDiffElement, IStructuralDiffResourceAdapter, SCMStructuralDiffElement, StructuralDiffModel } from '../common/scmStructuralDiff.js';
+import { openStructuralDiff, SCMStructuralDiffRenderer } from './scmStructuralDiffRenderer.js';
 
 const PICK_REPOSITORY_ACTION_ID = 'workbench.scm.action.graph.pickRepository';
 const PICK_HISTORY_ITEM_REFS_ACTION_ID = 'workbench.scm.action.graph.pickHistoryItemRefs';
 
-type TreeElement = SCMHistoryItemViewModelTreeElement | SCMHistoryItemLoadMoreTreeElement | SCMHistoryItemChangeViewModelTreeElement | IResourceNode<SCMHistoryItemChangeViewModelTreeElement, SCMHistoryItemViewModelTreeElement>;
+type HistoryItemStructuralChange = SCMStructuralDiffElement<SCMHistoryItemChangeViewModelTreeElement>;
+
+type TreeElement = SCMHistoryItemViewModelTreeElement | SCMHistoryItemLoadMoreTreeElement | SCMHistoryItemChangeViewModelTreeElement | IResourceNode<SCMHistoryItemChangeViewModelTreeElement, SCMHistoryItemViewModelTreeElement> | HistoryItemStructuralChange;
+
+function isHistoryItemStructuralChange(element: unknown): element is HistoryItemStructuralChange {
+	return isSCMStructuralDiffElement(element);
+}
+
+function getHistoryItemChangeId(repository: ISCMRepository, historyItem: ISCMHistoryItem, historyItemChange: ISCMHistoryItemChange): string {
+	return `historyItemChange:${repository.provider.id}/${historyItem.id}/${historyItem.parentIds.join(',')}/${historyItemChange.uri.fsPath}`;
+}
+
+/** Like the Source Control view, the graph loads the structural changes of a file of a history item when it is expanded. */
+const historyItemChangeStructuralDiffAdapter: IStructuralDiffResourceAdapter<SCMHistoryItemChangeViewModelTreeElement> = {
+	location: 'scmGraph',
+	getDocuments: element => ({ original: element.historyItemChange.originalUri, modified: element.historyItemChange.modifiedUri }),
+	getIdentity: element => [getHistoryItemChangeId(element.repository, element.historyItemViewModel.historyItem, element.historyItemChange)],
+};
+
+/**
+ * The editor that opens a file of a history item: the diff of the file, or the file itself when the history item added
+ * or deleted it. Its title names the history items that it shows.
+ */
+function getHistoryItemChangeEditorInput(element: SCMHistoryItemChangeViewModelTreeElement): IResourceDiffEditorInput | IResourceEditorInput | undefined {
+	const historyItemChange = element.historyItemChange;
+	const historyItem = element.historyItemViewModel.historyItem;
+	const historyItemDisplayId = historyItem.id === SCMIncomingHistoryItemId
+		? localize('incomingChanges', "Incoming Changes")
+		: historyItem.id === SCMOutgoingHistoryItemId
+			? localize('outgoingChanges', "Outgoing Changes")
+			: historyItem.displayId ?? historyItem.id;
+
+	const historyItemParentId = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : undefined;
+	const historyItemParentDisplayId = historyItemParentId && historyItem.displayId
+		? historyItemParentId.substring(0, historyItem.displayId.length)
+		: historyItemParentId;
+
+	if (historyItemChange.originalUri && historyItemChange.modifiedUri) {
+		// Diff Editor
+		const originalUriTitle = `${basename(historyItemChange.originalUri.fsPath)} (${historyItemParentDisplayId})`;
+		const modifiedUriTitle = `${basename(historyItemChange.modifiedUri.fsPath)} (${historyItemDisplayId})`;
+
+		return {
+			label: `${originalUriTitle} \u2194 ${modifiedUriTitle}`,
+			original: { resource: historyItemChange.originalUri },
+			modified: { resource: historyItemChange.modifiedUri }
+		};
+	} else if (historyItemChange.modifiedUri) {
+		return {
+			label: `${basename(historyItemChange.modifiedUri.fsPath)} (${historyItemDisplayId})`,
+			resource: historyItemChange.modifiedUri
+		};
+	} else if (historyItemChange.originalUri) {
+		// Editor (Deleted)
+		return {
+			label: `${basename(historyItemChange.originalUri.fsPath)} (${historyItemParentDisplayId})`,
+			resource: historyItemChange.originalUri
+		};
+	}
+
+	return undefined;
+}
 
 class SCMRepositoryActionViewItem extends ActionViewItem {
 	constructor(private readonly _repository: ISCMRepository, action: IAction, options?: IDropdownMenuActionViewItemOptions) {
@@ -421,6 +489,8 @@ class ListDelegate implements IListVirtualDelegate<TreeElement> {
 			return HistoryItemChangeRenderer.TEMPLATE_ID;
 		} else if (isSCMHistoryItemLoadMoreTreeElement(element)) {
 			return HistoryItemLoadMoreRenderer.TEMPLATE_ID;
+		} else if (isHistoryItemStructuralChange(element)) {
+			return HistoryItemStructuralChangeRenderer.TEMPLATE_ID;
 		} else {
 			throw new Error('Unknown element');
 		}
@@ -695,7 +765,7 @@ class HistoryItemChangeRenderer implements ICompressibleTreeRenderer<SCMHistoryI
 		const historyItemChange = isSCMHistoryItemChangeViewModelTreeElement(elementOrNode.element) ? elementOrNode.element.historyItemChange : elementOrNode.element;
 		const graphColumns = isSCMHistoryItemChangeViewModelTreeElement(elementOrNode.element) ? elementOrNode.element.graphColumns : elementOrNode.element.context.historyItemViewModel.outputSwimlanes;
 
-		this._renderGraphPlaceholder(templateData, historyItemViewModel, graphColumns);
+		renderHistoryItemChildGraphPlaceholder(templateData, historyItemViewModel, graphColumns);
 
 		const hidePath = this.viewMode() === ViewMode.Tree;
 		const fileKind = isSCMHistoryItemChangeViewModelTreeElement(elementOrNode.element) ? FileKind.FILE : FileKind.FOLDER;
@@ -720,7 +790,7 @@ class HistoryItemChangeRenderer implements ICompressibleTreeRenderer<SCMHistoryI
 		const historyItemViewModel = compressed.elements[0].context.historyItemViewModel;
 		const graphColumns = compressed.elements[0].context.historyItemViewModel.outputSwimlanes;
 
-		this._renderGraphPlaceholder(templateData, historyItemViewModel, graphColumns);
+		renderHistoryItemChildGraphPlaceholder(templateData, historyItemViewModel, graphColumns);
 
 		const label = compressed.elements.map(e => e.name);
 		const folder = compressed.elements[compressed.elements.length - 1];
@@ -734,19 +804,68 @@ class HistoryItemChangeRenderer implements ICompressibleTreeRenderer<SCMHistoryI
 		templateData.actionBar.setActions([]);
 	}
 
-	private _renderGraphPlaceholder(templateData: HistoryItemChangeTemplate, historyItemViewModel: ISCMHistoryItemViewModel, graphColumns: ISCMHistoryItemGraphNode[]): void {
-		const graphPlaceholderSvgWidth = SWIMLANE_WIDTH * (graphColumns.length + 1);
-		const marginLeft = graphPlaceholderSvgWidth - 16 /* .monaco-tl-indent left */;
-		templateData.rowElement.style.marginLeft = `${marginLeft}px`;
-
-		templateData.graphPlaceholder.textContent = '';
-		templateData.graphPlaceholder.style.left = `${-1 * marginLeft}px`;
-		templateData.graphPlaceholder.style.width = `${graphPlaceholderSvgWidth}px`;
-		templateData.graphPlaceholder.appendChild(renderSCMHistoryGraphPlaceholder(graphColumns, getHistoryItemIndex(historyItemViewModel)));
-	}
-
 	disposeTemplate(templateData: HistoryItemChangeTemplate): void {
 		templateData.disposables.dispose();
+	}
+}
+
+interface HistoryItemChildTemplate {
+	readonly rowElement: HTMLElement;
+	readonly graphPlaceholder: HTMLElement;
+}
+
+/** Continues the lanes of the graph next to a row below a history item, and indents the row after them. */
+function renderHistoryItemChildGraphPlaceholder(templateData: HistoryItemChildTemplate, historyItemViewModel: ISCMHistoryItemViewModel, graphColumns: ISCMHistoryItemGraphNode[]): void {
+	const graphPlaceholderSvgWidth = SWIMLANE_WIDTH * (graphColumns.length + 1);
+	const marginLeft = graphPlaceholderSvgWidth - 16 /* .monaco-tl-indent left */;
+	templateData.rowElement.style.marginLeft = `${marginLeft}px`;
+
+	templateData.graphPlaceholder.textContent = '';
+	templateData.graphPlaceholder.style.left = `${-1 * marginLeft}px`;
+	templateData.graphPlaceholder.style.width = `${graphPlaceholderSvgWidth}px`;
+	templateData.graphPlaceholder.appendChild(renderSCMHistoryGraphPlaceholder(graphColumns, getHistoryItemIndex(historyItemViewModel)));
+}
+
+interface HistoryItemStructuralChangeTemplate extends HistoryItemChildTemplate {
+	readonly structuralChange: ReturnType<SCMStructuralDiffRenderer['renderTemplate']>;
+}
+
+/** Renders a structural change of a file of a history item like the Source Control view does, next to the lanes of the graph. */
+class HistoryItemStructuralChangeRenderer implements ICompressibleTreeRenderer<HistoryItemStructuralChange, FuzzyScore | void, HistoryItemStructuralChangeTemplate> {
+	static readonly TEMPLATE_ID = 'history-item-structural-change';
+	get templateId(): string { return HistoryItemStructuralChangeRenderer.TEMPLATE_ID; }
+
+	private readonly _structuralChangeRenderer: SCMStructuralDiffRenderer;
+
+	constructor(@IInstantiationService instantiationService: IInstantiationService) {
+		this._structuralChangeRenderer = instantiationService.createInstance(SCMStructuralDiffRenderer);
+	}
+
+	renderTemplate(container: HTMLElement): HistoryItemStructuralChangeTemplate {
+		const rowElement = container.parentElement! as HTMLElement;
+		const element = append(container, $('.history-item-structural-change'));
+		const graphPlaceholder = append(element, $('.graph-placeholder'));
+		const structuralChange = this._structuralChangeRenderer.renderTemplate(element);
+
+		return { rowElement, graphPlaceholder, structuralChange };
+	}
+
+	renderElement(node: ITreeNode<HistoryItemStructuralChange, FuzzyScore | void>, index: number, templateData: HistoryItemStructuralChangeTemplate): void {
+		const historyItemChange = node.element.resource;
+		renderHistoryItemChildGraphPlaceholder(templateData, historyItemChange.historyItemViewModel, historyItemChange.graphColumns);
+		this._structuralChangeRenderer.renderElement(node, index, templateData.structuralChange);
+	}
+
+	renderCompressedElements(): void {
+		throw new Error('Should never happen since node is incompressible');
+	}
+
+	disposeElement(node: ITreeNode<HistoryItemStructuralChange, FuzzyScore | void>, index: number, templateData: HistoryItemStructuralChangeTemplate): void {
+		this._structuralChangeRenderer.disposeElement(node, index, templateData.structuralChange);
+	}
+
+	disposeTemplate(templateData: HistoryItemStructuralChangeTemplate): void {
+		this._structuralChangeRenderer.disposeTemplate(templateData.structuralChange);
 	}
 }
 
@@ -837,6 +956,8 @@ class SCMHistoryTreeAccessibilityProvider implements IListAccessibilityProvider<
 		} else if (isSCMHistoryItemViewModelTreeElement(element)) {
 			const historyItem = element.historyItemViewModel.historyItem;
 			return `${stripIcons(historyItem.message).trim()}${historyItem.author ? `, ${historyItem.author}` : ''}`;
+		} else if (isHistoryItemStructuralChange(element)) {
+			return getSCMStructuralDiffAriaLabel(element);
 		} else {
 			return '';
 		}
@@ -854,9 +975,7 @@ class SCMHistoryTreeIdentityProvider implements IIdentityProvider<TreeElement> {
 			const historyItem = element.historyItemViewModel.historyItem;
 			return `historyItem:${provider.id}/${historyItem.id}/${historyItem.parentIds.join(',')}`;
 		} else if (isSCMHistoryItemChangeViewModelTreeElement(element)) {
-			const provider = element.repository.provider;
-			const historyItem = element.historyItemViewModel.historyItem;
-			return `historyItemChange:${provider.id}/${historyItem.id}/${historyItem.parentIds.join(',')}/${element.historyItemChange.uri.fsPath}`;
+			return getHistoryItemChangeId(element.repository, element.historyItemViewModel.historyItem, element.historyItemChange);
 		} else if (isSCMHistoryItemChangeNode(element)) {
 			const provider = element.context.repository.provider;
 			const historyItem = element.context.historyItemViewModel.historyItem;
@@ -864,6 +983,8 @@ class SCMHistoryTreeIdentityProvider implements IIdentityProvider<TreeElement> {
 		} else if (isSCMHistoryItemLoadMoreTreeElement(element)) {
 			const provider = element.repository.provider;
 			return `historyItemLoadMore:${provider.id}`;
+		} else if (isHistoryItemStructuralChange(element)) {
+			return element.id;
 		} else {
 			throw new Error('Invalid tree element');
 		}
@@ -886,6 +1007,8 @@ class SCMHistoryTreeKeyboardNavigationLabelProvider implements ICompressibleKeyb
 			return basename(element.historyItemChange.uri.fsPath);
 		} else if (isSCMHistoryItemChangeNode(element)) {
 			return element.name;
+		} else if (isHistoryItemStructuralChange(element)) {
+			return getSCMStructuralDiffLabel(element);
 		} else {
 			throw new Error('Invalid tree element');
 		}
@@ -945,8 +1068,19 @@ export class SCMHistoryTreeSorter implements ITreeSorter<TreeElement> {
 	}
 }
 
-class SCMHistoryTreeDataSource extends Disposable implements IAsyncDataSource<SCMHistoryViewModel, TreeElement> {
-	constructor(private readonly viewMode: () => ViewMode) {
+export class SCMHistoryTreeDataSource extends Disposable implements IAsyncDataSource<SCMHistoryViewModel, TreeElement> {
+	/**
+	 * The elements of the files of history items, by id. Refreshing the graph or loading more history items creates its
+	 * history items again, so a file keeps its element while it compares the same documents, and the element takes the
+	 * graph data of the new history item. The structural diff model keeps the structural changes of each element, so an
+	 * expanded file keeps showing them without being analyzed again.
+	 */
+	private readonly _changeElements = new Map<string, Mutable<SCMHistoryItemChangeViewModelTreeElement>>();
+
+	constructor(
+		private readonly viewMode: () => ViewMode,
+		private readonly structuralDiff: StructuralDiffModel<SCMHistoryItemChangeViewModelTreeElement>
+	) {
 		super();
 	}
 
@@ -1022,25 +1156,13 @@ class SCMHistoryTreeDataSource extends Disposable implements IAsyncDataSource<SC
 
 			if (this.viewMode() === ViewMode.List) {
 				// List
-				children.push(...historyItemChanges.map(change => ({
-					repository: inputOrElement.repository,
-					historyItemViewModel: inputOrElement.historyItemViewModel,
-					historyItemChange: change,
-					graphColumns: inputOrElement.historyItemViewModel.outputSwimlanes,
-					type: 'historyItemChangeViewModel'
-				} satisfies SCMHistoryItemChangeViewModelTreeElement)));
+				children.push(...historyItemChanges.map(change => this._getChangeElement(inputOrElement, change)));
 			} else if (this.viewMode() === ViewMode.Tree) {
 				// Tree
 				const rootUri = inputOrElement.repository.provider.rootUri ?? URI.file('/');
 				const historyItemChangesTree = new ResourceTree<SCMHistoryItemChangeViewModelTreeElement, SCMHistoryItemViewModelTreeElement>(inputOrElement, rootUri);
 				for (const change of historyItemChanges) {
-					historyItemChangesTree.add(change.uri, {
-						repository: inputOrElement.repository,
-						historyItemViewModel: inputOrElement.historyItemViewModel,
-						historyItemChange: change,
-						graphColumns: inputOrElement.historyItemViewModel.outputSwimlanes,
-						type: 'historyItemChangeViewModel'
-					});
+					historyItemChangesTree.add(change.uri, this._getChangeElement(inputOrElement, change));
 				}
 				for (const node of historyItemChangesTree.root.children) {
 					children.push(node.element ?? node);
@@ -1051,15 +1173,62 @@ class SCMHistoryTreeDataSource extends Disposable implements IAsyncDataSource<SC
 			for (const node of inputOrElement.children) {
 				children.push(node.element && node.childrenCount === 0 ? node.element : node);
 			}
+		} else if (isSCMHistoryItemChangeViewModelTreeElement(inputOrElement)) {
+			// Structural changes
+			children.push(...await this.structuralDiff.getChildren(inputOrElement));
+		} else if (isHistoryItemStructuralChange(inputOrElement)) {
+			// Structural changes
+			if (this.structuralDiff.enabled && inputOrElement.type === 'structuralDiff') {
+				children.push(...inputOrElement.children);
+			}
 		}
 
 		return children;
 	}
 
 	hasChildren(inputOrElement: SCMHistoryViewModel | TreeElement): boolean {
+		if (isSCMHistoryItemChangeViewModelTreeElement(inputOrElement)) {
+			return this.structuralDiff.hasChildren(inputOrElement);
+		} else if (isHistoryItemStructuralChange(inputOrElement)) {
+			return this.structuralDiff.enabled && inputOrElement.type === 'structuralDiff' && inputOrElement.children.length > 0;
+		}
+
 		return inputOrElement instanceof SCMHistoryViewModel ||
 			isSCMHistoryItemViewModelTreeElement(inputOrElement) ||
 			(isSCMHistoryItemChangeNode(inputOrElement) && inputOrElement.childrenCount > 0);
+	}
+
+	/** Forgets the elements of the files that the predicate selects, for example because the tree no longer shows them. */
+	forgetChangeElements(predicate: (element: SCMHistoryItemChangeViewModelTreeElement) => boolean): void {
+		for (const [id, element] of this._changeElements) {
+			if (predicate(element)) {
+				this._changeElements.delete(id);
+			}
+		}
+	}
+
+	private _getChangeElement(historyItemElement: SCMHistoryItemViewModelTreeElement, historyItemChange: ISCMHistoryItemChange): SCMHistoryItemChangeViewModelTreeElement {
+		const { repository, historyItemViewModel } = historyItemElement;
+		const id = getHistoryItemChangeId(repository, historyItemViewModel.historyItem, historyItemChange);
+
+		let element = this._changeElements.get(id);
+		if (element && isEqual(element.historyItemChange.originalUri, historyItemChange.originalUri) && isEqual(element.historyItemChange.modifiedUri, historyItemChange.modifiedUri)) {
+			element.repository = repository;
+			element.historyItemViewModel = historyItemViewModel;
+			element.historyItemChange = historyItemChange;
+			element.graphColumns = historyItemViewModel.outputSwimlanes;
+		} else {
+			element = {
+				repository,
+				historyItemViewModel,
+				historyItemChange,
+				graphColumns: historyItemViewModel.outputSwimlanes,
+				type: 'historyItemChangeViewModel'
+			};
+			this._changeElements.set(id, element);
+		}
+
+		return element;
 	}
 }
 
@@ -1693,6 +1862,8 @@ export class SCMHistoryViewPane extends ViewPane {
 
 	private readonly _contextMenuDisposables = new MutableDisposable<DisposableStore>();
 
+	private readonly _structuralDiff: StructuralDiffModel<SCMHistoryItemChangeViewModelTreeElement>;
+
 	constructor(
 		options: IViewPaneOptions,
 		@IEditorService private readonly _editorService: IEditorService,
@@ -1726,6 +1897,9 @@ export class SCMHistoryViewPane extends ViewPane {
 
 		this._register(this._refreshThrottler);
 		this._register(this._updateChildrenThrottler);
+
+		this._structuralDiff = this._register(this.instantiationService.createInstance(StructuralDiffModel<SCMHistoryItemChangeViewModelTreeElement>, historyItemChangeStructuralDiffAdapter));
+		this._register(autorun(reader => this._updateStructuralDiffEnablement(this._scmViewService.showStructuralDiff.read(reader))));
 	}
 
 	protected override renderHeaderTitle(container: HTMLElement): void {
@@ -1766,6 +1940,8 @@ export class SCMHistoryViewPane extends ViewPane {
 		this._createTree(this._treeContainer);
 
 		this.onDidChangeBodyVisibility(async visible => {
+			this._structuralDiff.setVisible(visible);
+
 			if (!visible) {
 				this._visibilityDisposables.clear();
 				return;
@@ -1804,6 +1980,7 @@ export class SCMHistoryViewPane extends ViewPane {
 				await this._treeOperationSequencer.queue(async () => {
 					await this._tree.setInput(this._treeViewModel);
 					this._tree.scrollTop = 0;
+					this._forgetRemovedChanges();
 				});
 			});
 
@@ -1899,7 +2076,7 @@ export class SCMHistoryViewPane extends ViewPane {
 				isFirstRun = false;
 			}));
 
-			// FileIconTheme & viewMode change
+			// FileIconTheme, viewMode & structural diff change
 			const fileIconThemeObs = observableFromEvent(
 				this.themeService.onDidFileIconThemeChange,
 				() => this.themeService.getFileIconTheme());
@@ -1907,8 +2084,9 @@ export class SCMHistoryViewPane extends ViewPane {
 			store.add(autorun(reader => {
 				const fileIconTheme = fileIconThemeObs.read(reader);
 				const viewMode = this._treeViewModel.viewMode.read(reader);
+				const canExpandFiles = this._scmViewService.showStructuralDiff.read(reader) && this._structuralDiff.hasProvider.read(reader);
 
-				this._updateIndentStyles(fileIconTheme, viewMode);
+				this._updateIndentStyles(fileIconTheme, viewMode, canExpandFiles);
 			}));
 		}, this, this._store);
 	}
@@ -2049,7 +2227,7 @@ export class SCMHistoryViewPane extends ViewPane {
 		const resourceLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
 		this._register(resourceLabels);
 
-		this._treeDataSource = this.instantiationService.createInstance(SCMHistoryTreeDataSource, () => this._treeViewModel.viewMode.get());
+		this._treeDataSource = this.instantiationService.createInstance(SCMHistoryTreeDataSource, () => this._treeViewModel.viewMode.get(), this._structuralDiff);
 		this._register(this._treeDataSource);
 
 		const compressionEnabled = observableConfigValue('scm.compactFolders', true, this.configurationService);
@@ -2064,29 +2242,53 @@ export class SCMHistoryViewPane extends ViewPane {
 				this.instantiationService.createInstance(HistoryItemRenderer, this.viewDescriptorService.getViewLocationById(this.id)),
 				this.instantiationService.createInstance(HistoryItemChangeRenderer, () => this._treeViewModel.viewMode.get(), resourceLabels),
 				this.instantiationService.createInstance(HistoryItemLoadMoreRenderer, this._repositoryIsLoadingMore, () => this._loadMore()),
+				this.instantiationService.createInstance(HistoryItemStructuralChangeRenderer),
 			],
 			this._treeDataSource,
 			{
 				accessibilityProvider: new SCMHistoryTreeAccessibilityProvider(),
 				identityProvider: this._treeIdentityProvider,
-				collapseByDefault: (e: unknown) => !isSCMHistoryItemChangeNode(e),
+				// Like in the Source Control view, files are collapsed until the user expands them, and their structural changes are expanded
+				collapseByDefault: (e: unknown) => !isSCMHistoryItemChangeNode(e) && !isHistoryItemStructuralChange(e),
 				compressionEnabled: compressionEnabled.get(),
 				dnd: new SCMHistoryTreeDragAndDrop(),
 				keyboardNavigationLabelProvider: new SCMHistoryTreeKeyboardNavigationLabelProvider(),
 				sorter: new SCMHistoryTreeSorter(() => this._treeViewModel.viewMode.get()),
 				horizontalScrolling: false,
 				multipleSelectionSupport: false,
-				twistieAdditionalCssClass: (e: unknown) => {
-					return isSCMHistoryItemViewModelTreeElement(e) || isSCMHistoryItemLoadMoreTreeElement(e)
-						? 'force-no-twistie'
-						: undefined;
-				}
+				// Files and their structural changes open when clicked, so they only expand through their twistie
+				expandOnlyOnTwistieClick: (e: unknown) => isSCMHistoryItemChangeViewModelTreeElement(e) || isHistoryItemStructuralChange(e)
+					|| this.configurationService.getValue<string>('workbench.tree.expandMode') === 'doubleClick',
+				twistieAdditionalCssClass: (e: unknown) => this._getTwistieCssClass(e)
 			}
 		) as WorkbenchCompressibleAsyncDataTree<SCMHistoryViewModel, TreeElement, FuzzyScore>;
 		this._register(this._tree);
 
 		this._tree.onDidOpen(this._onDidOpen, this, this._store);
 		this._tree.onContextMenu(this._onContextMenu, this, this._store);
+		this._tree.onDidChangeCollapseState(e => {
+			const element = e.node.element?.element;
+			// Like in the Source Control view, a collapsed file keeps no structural changes, and loads them again when it is expanded
+			if (e.node.collapsed && element && isSCMHistoryItemChangeViewModelTreeElement(element)) {
+				this._structuralDiff.release(element);
+			}
+		}, this, this._store);
+		this._structuralDiff.onDidChange(this._updateStructuralChanges, this, this._store);
+	}
+
+	/**
+	 * History items and the load more element show the graph instead of a twistie. Like in the Source Control view, see
+	 * `getSCMTreeTwistieCssClass`, files that can expand keep their twistie when the file icon theme hides arrows, and
+	 * structural changes keep their twistie space to indent their children under their icon.
+	 */
+	private _getTwistieCssClass(element: unknown): string | undefined {
+		if (isSCMHistoryItemViewModelTreeElement(element) || isSCMHistoryItemLoadMoreTreeElement(element)) {
+			return 'force-no-twistie';
+		}
+		if (isHistoryItemStructuralChange(element) || (isSCMHistoryItemChangeViewModelTreeElement(element) && this._structuralDiff.hasChildren(element))) {
+			return 'force-twistie';
+		}
+		return undefined;
 	}
 
 	private _isCurrentHistoryItemInFilter(historyItemRefId: string | undefined): boolean {
@@ -2106,44 +2308,16 @@ export class SCMHistoryViewPane extends ViewPane {
 		if (!e.element) {
 			return;
 		} else if (isSCMHistoryItemChangeViewModelTreeElement(e.element)) {
-			const historyItemChange = e.element.historyItemChange;
-			const historyItem = e.element.historyItemViewModel.historyItem;
-			const historyItemDisplayId = historyItem.id === SCMIncomingHistoryItemId
-				? localize('incomingChanges', "Incoming Changes")
-				: historyItem.id === SCMOutgoingHistoryItemId
-					? localize('outgoingChanges', "Outgoing Changes")
-					: historyItem.displayId ?? historyItem.id;
-
-			const historyItemParentId = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : undefined;
-			const historyItemParentDisplayId = historyItemParentId && historyItem.displayId
-				? historyItemParentId.substring(0, historyItem.displayId.length)
-				: historyItemParentId;
-
-			if (historyItemChange.originalUri && historyItemChange.modifiedUri) {
-				// Diff Editor
-				const originalUriTitle = `${basename(historyItemChange.originalUri.fsPath)} (${historyItemParentDisplayId})`;
-				const modifiedUriTitle = `${basename(historyItemChange.modifiedUri.fsPath)} (${historyItemDisplayId})`;
-
-				const title = `${originalUriTitle} \u2194 ${modifiedUriTitle}`;
-				await this._editorService.openEditor({
-					label: title,
-					original: { resource: historyItemChange.originalUri },
-					modified: { resource: historyItemChange.modifiedUri },
-					options: e.editorOptions
-				});
-			} else if (historyItemChange.modifiedUri) {
-				await this._editorService.openEditor({
-					label: `${basename(historyItemChange.modifiedUri.fsPath)} (${historyItemDisplayId})`,
-					resource: historyItemChange.modifiedUri,
-					options: e.editorOptions
-				});
-			} else if (historyItemChange.originalUri) {
-				// Editor (Deleted)
-				await this._editorService.openEditor({
-					label: `${basename(historyItemChange.originalUri.fsPath)} (${historyItemParentDisplayId})`,
-					resource: historyItemChange.originalUri,
-					options: e.editorOptions
-				});
+			const input = getHistoryItemChangeEditorInput(e.element);
+			if (input) {
+				await this._editorService.openEditor({ ...input, options: e.editorOptions });
+			}
+		} else if (isHistoryItemStructuralChange(e.element)) {
+			// Like in the Source Control view, a structural change opens the diff of its file, with the title of the file, at the change
+			const element = e.element;
+			const input = getHistoryItemChangeEditorInput(element.resource);
+			if (element.type === 'structuralDiff' && input && isResourceDiffEditorInput(input)) {
+				await openStructuralDiff(element, input, e.editorOptions, this._editorService, () => this._structuralDiff.isCurrent(element), e.sideBySide);
 			}
 		} else if (isSCMHistoryItemLoadMoreTreeElement(e.element)) {
 			const pageOnScroll = this.configurationService.getValue<boolean>('scm.graph.pageOnScroll') === true;
@@ -2291,13 +2465,55 @@ export class SCMHistoryViewPane extends ViewPane {
 								// diffIdentityProvider: this._treeIdentityProvider
 							});
 						});
+					this._forgetRemovedChanges();
 				}));
 	}
 
-	private _updateIndentStyles(theme: IFileIconTheme, viewMode: ViewMode): void {
+	private _updateStructuralDiffEnablement(enabled: boolean): void {
+		if (this._structuralDiff.enabled === enabled) {
+			return;
+		}
+		// Like in the Source Control view, the files of focused or selected structural changes take their place
+		if (!enabled && this._tree) {
+			const toHistoryItemChange = (element: TreeElement) => isHistoryItemStructuralChange(element) ? element.resource : element;
+			this._tree.setFocus([...new Set(this._tree.getFocus().map(toHistoryItemChange))]);
+			this._tree.setSelection([...new Set(this._tree.getSelection().map(toHistoryItemChange))]);
+		}
+		this._structuralDiff.setEnabled(enabled);
+	}
+
+	/** Updates the structural changes of a file, or of all files, for example after the file's documents changed. */
+	private _updateStructuralChanges(historyItemChange: SCMHistoryItemChangeViewModelTreeElement | undefined): void {
+		// Showing the view renders its history items again, so a hidden view, or one that has not rendered them yet, has nothing to update
+		const input = this._tree.getInput();
+		if (!this.isBodyVisible() || !input || input !== this._treeViewModel) {
+			return;
+		}
+		if (!historyItemChange) {
+			this._updateChildren().catch(onUnexpectedError);
+			return;
+		}
+		this._treeOperationSequencer.queue(async () => {
+			if (this._tree.hasNode(historyItemChange)) {
+				await this._tree.updateChildren(historyItemChange, true, true);
+			}
+		}).catch(onUnexpectedError);
+	}
+
+	/**
+	 * Forgets the elements of files that the tree no longer shows, together with their structural changes, for example
+	 * because their history item was collapsed and refreshed, or left the graph.
+	 */
+	private _forgetRemovedChanges(): void {
+		const isRemoved = (element: SCMHistoryItemChangeViewModelTreeElement) => !this._tree.hasNode(element);
+		this._treeDataSource.forgetChangeElements(isRemoved);
+		this._structuralDiff.releaseWhere(isRemoved);
+	}
+
+	private _updateIndentStyles(theme: IFileIconTheme, viewMode: ViewMode, canExpandFiles: boolean): void {
 		this._treeContainer.classList.toggle('list-view-mode', viewMode === ViewMode.List);
 		this._treeContainer.classList.toggle('tree-view-mode', viewMode === ViewMode.Tree);
-		this._treeContainer.classList.toggle('align-icons-and-twisties', (viewMode === ViewMode.List && theme.hasFileIcons) || (theme.hasFileIcons && !theme.hasFolderIcons));
+		this._treeContainer.classList.toggle('align-icons-and-twisties', shouldAlignSCMTreeIconsAndTwisties(viewMode, theme, canExpandFiles));
 		this._treeContainer.classList.toggle('hide-arrows', viewMode === ViewMode.Tree && theme.hidesExplorerArrows === true);
 	}
 

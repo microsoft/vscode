@@ -70,7 +70,7 @@ export interface SCMStructuralDiffStatus<T extends object = ISCMResource> extend
 export type SCMStructuralDiffElement<T extends object = ISCMResource> = SCMStructuralDiffNode<T> | SCMStructuralDiffStatus<T>;
 
 /** Where structural changes are shown, which is reported with the outcome of their requests. */
-export type StructuralDiffLocation = 'scm' | 'multiDiffEditor';
+export type StructuralDiffLocation = 'scm' | 'scmGraph' | 'multiDiffEditor';
 
 /**
  * Describes the files of a view that shows their structural changes, such as the resources of the Source Control view.
@@ -247,12 +247,12 @@ type StructuralDiffRequestedEvent = {
 
 type StructuralDiffRequestedClassification = {
 	owner: 'dbaeumer';
-	comment: 'Reports the outcome of requesting the structural changes of a file that was expanded in the Source Control view or in the file list of the multi-file diff editor, to understand how often they are used and how often they can be shown.';
+	comment: 'Reports the outcome of requesting the structural changes of a file that was expanded in the Source Control view, in the Source Control Graph view or in the file list of the multi-file diff editor, to understand how often they are used and how often they can be shown.';
 	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'success if structural changes were computed, noResult if no provider supplied any, providerFailed if a provider failed, timedOut if computing them took too long, and error if, for example, a document could not be loaded.' };
 	languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language of the file.' };
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The time in milliseconds from the request until its outcome.' };
 	incomplete: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: '1 if the provider marked its result as incomplete, otherwise 0.' };
-	location: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Where the file was expanded: scm for the Source Control view, and multiDiffEditor for the file list of the multi-file diff editor.' };
+	location: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Where the file was expanded: scm for the Source Control view, scmGraph for the Source Control Graph view, and multiDiffEditor for the file list of the multi-file diff editor.' };
 };
 
 /**

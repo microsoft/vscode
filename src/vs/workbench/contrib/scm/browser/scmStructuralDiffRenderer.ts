@@ -20,7 +20,7 @@ import { ScrollType } from '../../../../editor/common/editorCommon.js';
 import { IEditorOptions, TextEditorSelectionSource } from '../../../../platform/editor/common/editor.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { localize } from '../../../../nls.js';
-import { DEFAULT_EDITOR_ASSOCIATION } from '../../../common/editor.js';
+import { DEFAULT_EDITOR_ASSOCIATION, IResourceDiffEditorInput } from '../../../common/editor.js';
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import '../../../../editor/contrib/symbolIcons/browser/symbolIcons.js';
 import './media/scmStructuralDiff.css';
@@ -104,13 +104,20 @@ export class SCMStructuralDiffRenderer implements ICompressibleTreeRenderer<SCMS
 	}
 }
 
-export async function openSCMStructuralDiff(element: SCMStructuralDiffNode, options: IEditorOptions, editorService: IEditorService, isCurrent: () => boolean, sideBySide = false): Promise<void> {
+export function openSCMStructuralDiff(element: SCMStructuralDiffNode, options: IEditorOptions, editorService: IEditorService, isCurrent: () => boolean, sideBySide = false): Promise<void> {
+	return openStructuralDiff(element, {
+		original: { resource: element.resource.multiDiffEditorOriginalUri! },
+		modified: { resource: element.resource.multiDiffEditorModifiedUri! },
+	}, options, editorService, isCurrent, sideBySide);
+}
+
+/** Opens the diff of the file of a structural change in a text diff editor, and selects the structural change in it. */
+export async function openStructuralDiff(element: SCMStructuralDiffNode<object>, diff: Omit<IResourceDiffEditorInput, 'options'>, options: IEditorOptions, editorService: IEditorService, isCurrent: () => boolean, sideBySide = false): Promise<void> {
 	if (!isCurrent()) {
 		return;
 	}
 	const pane = await editorService.openEditor({
-		original: { resource: element.resource.multiDiffEditorOriginalUri! },
-		modified: { resource: element.resource.multiDiffEditorModifiedUri! },
+		...diff,
 		options: { ...options, override: DEFAULT_EDITOR_ASSOCIATION.id },
 	}, sideBySide ? SIDE_GROUP : undefined);
 	const control = pane?.getControl();
