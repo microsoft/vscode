@@ -78,8 +78,9 @@ export function agentHostSessionWorkspaceKey(workspace: ISessionWorkspace | unde
 	if (!workspace || !folder) {
 		return undefined;
 	}
-	// The Git state of a folder's or a found repository's checkout
+	// The Git state of a folder's or a found repository's checkout: every field it publishes, but its observables
 	const gitRepositoryKey = (repo: ISessionGitRepository | undefined) => [
+		repo?.workTreeUri ? extUri.getComparisonKey(repo.workTreeUri) : '',
 		repo?.branchName ?? '',
 		repo?.baseBranchName ?? '',
 		repo?.baseBranchRef ?? '',
@@ -87,9 +88,12 @@ export function agentHostSessionWorkspaceKey(workspace: ISessionWorkspace | unde
 		String(repo?.hasGitRemote ?? ''),
 		String(repo?.hasGitHubRemote ?? ''),
 		repo?.upstreamBranchName ?? '',
+		repo?.defaultBranchName ?? '',
+		repo?.defaultRemoteBranchName ?? '',
 		String(repo?.incomingChanges ?? ''),
 		String(repo?.outgoingChanges ?? ''),
 		String(repo?.uncommittedChanges ?? ''),
+		String(repo?.hasGitOperationInProgress ?? ''),
 		// Unknown, a repository, or found not to be one
 		repo ? String(repo.isRepository?.get() ?? '') : '-',
 	].join('\u0001');
