@@ -419,7 +419,7 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'legacy_left() {',
 		'  for entry in ./* ./.[!.]* ./..?*; do',
 		'    if [ -L "$entry" ] || [ ! -e "$entry" ] || { [ "$entry" = ./.layout ] && [ -f "$entry" ]; } || { [ -f "$entry" ] && [ ! -s "$entry" ]; }; then continue; fi',
-		'    case "${entry#./}" in *[!0-9]*) ;; *) continue ;; esac',
+		'    case "${entry#./}" in *[!0-9]*) ;; *) if [ -d "$entry" ]; then continue; fi ;; esac',
 		'    case "$(stat -c %A "$entry" 2>/dev/null)" in ????------) ;; *) return 0 ;; esac',
 		'  done',
 		'  return 1',
