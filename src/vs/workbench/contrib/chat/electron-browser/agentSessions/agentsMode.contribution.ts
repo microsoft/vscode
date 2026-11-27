@@ -19,7 +19,7 @@ import { AgentsModeAuxiliaryBar } from '../../browser/agentSessions/agentsModeAu
 import { AgentsModeEditorArea } from '../../browser/agentSessions/agentsModeEditorArea.js';
 import { AgentsModeButtonActionViewItem } from '../../browser/agentSessions/agentsModeButton.js';
 
-class AgentsModeContribution extends Disposable {
+export class AgentsModeContribution extends Disposable {
 	static readonly ID = 'workbench.contrib.agentsMode';
 
 	/** Cancels the layout switch in progress, when the window switches again before it finished. */

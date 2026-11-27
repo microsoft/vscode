@@ -354,7 +354,6 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					id: 'workbench.action.openWorkspaceSettings',
 					title: nls.localize2('openWorkspaceSettings', "Open Workspace Settings"),
 					category,
-					precondition: CONTEXT_HAS_WORKSPACE_SETTINGS,
 					menu: {
 						id: MenuId.CommandPalette,
 						when: CONTEXT_HAS_WORKSPACE_SETTINGS
@@ -390,7 +389,6 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					id: 'workbench.action.openWorkspaceSettingsFile',
 					title: nls.localize2('openWorkspaceSettingsFile', "Open Workspace Settings (JSON)"),
 					category,
-					precondition: CONTEXT_HAS_WORKSPACE_SETTINGS,
 					menu: {
 						id: MenuId.CommandPalette,
 						when: CONTEXT_HAS_WORKSPACE_SETTINGS
