@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { formatOptions, Option, OptionDescriptions, Subcommand, parseArgs, ErrorReporter } from '../../node/argv.js';
-import { addArg } from '../../node/argvHelper.js';
+import { addArg, parseCLIProcessArgv } from '../../node/argvHelper.js';
 
 function o(description: string, type: 'boolean' | 'string' | 'string[]' = 'string'): Option<any> {
 	return {
@@ -216,6 +216,45 @@ suite('parseArgs', () => {
 			{ testcmd: { testArg: 'foo', testX: true, '_': [] }, '_': [] },
 			[]
 		);
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+});
+
+suite('goto validation', () => {
+
+	test('accepts valid paths in --goto mode', () => {
+		const valid = [
+			'README.md',
+			'README.md:1',
+			'README.md:1:1',
+			'D:\\README.md',
+			'D:\\README.md:1',
+			'D:\\README.md:1:1',
+			'\\\\?\\D:\\README.md',
+			'\\\\?\\D:\\README.md:1',
+			'\\\\?\\D:\\README.md:1:1',
+			'\\\\.\\D:\\README.md:1:1',
+			'//?/D:/README.md:1:1',
+			'\\\\?\\UNC\\server\\share\\README.md:1:1',
+			'/home/user/file.txt:10:20',
+		];
+
+		for (const path of valid) {
+			assert.doesNotThrow(() => parseCLIProcessArgv(['node', 'cli.js', '--goto', path]));
+		}
+	});
+
+	test('rejects invalid paths in --goto mode', () => {
+		const invalid = [
+			'\\\\?\\D:\\README.md:invalid',
+			'README.md:foo:bar',
+			'README.md:1:2:3',
+		];
+
+		for (const path of invalid) {
+			assert.throws(() => parseCLIProcessArgv(['node', 'cli.js', '--goto', path]));
+		}
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

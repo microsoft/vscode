@@ -198,6 +198,21 @@ suite('Paths', () => {
 		assert.strictEqual(res.line, 33);
 		assert.strictEqual(res.column, 34);
 
+		res = extpath.parseLineAndColumnAware('\\\\?\\D:\\README.md');
+		assert.strictEqual(res.path, '\\\\?\\D:\\README.md');
+		assert.strictEqual(res.line, undefined);
+		assert.strictEqual(res.column, undefined);
+
+		res = extpath.parseLineAndColumnAware('\\\\?\\D:\\README.md:1');
+		assert.strictEqual(res.path, '\\\\?\\D:\\README.md');
+		assert.strictEqual(res.line, 1);
+		assert.strictEqual(res.column, 1);
+
+		res = extpath.parseLineAndColumnAware('\\\\?\\D:\\README.md:1:2');
+		assert.strictEqual(res.path, '\\\\?\\D:\\README.md');
+		assert.strictEqual(res.line, 1);
+		assert.strictEqual(res.column, 2);
+
 		res = extpath.parseLineAndColumnAware('/foo/bar:abb');
 		assert.strictEqual(res.path, '/foo/bar:abb');
 		assert.strictEqual(res.line, undefined);
