@@ -12012,6 +12012,96 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('a chat of several folders whose primary folder moved to a worktree is restored after a host restart', async () => {
+			const checkouts = ['app', 'lib', 'docs', 'tools'].map(name => URI.file(`/work/${name}`));
+			const [app, ...others] = checkouts;
+			const worktreeOf = (checkout: URI) => URI.file(`${checkout.fsPath}.worktrees/moved`);
+			class WorkspaceAgent extends MockAgent {
+				serverToolHost: IAgentServerToolHost | undefined;
+				setServerToolHost(host: IAgentServerToolHost): void {
+					this.serverToolHost = host;
+				}
+				async setChatWorkingDirectory(): Promise<void> { }
+				override async createChat(_session: URI, chat: URI): Promise<IAgentCreateChatResult> {
+					return { providerData: `backing:${chat.path}` };
+				}
+			}
+			const data = createPerSessionDataService();
+			const database = new RetainedAgentHostDatabase(':memory:');
+			disposables.add(toDisposable(() => void database.release()));
+			const createService = (session?: URI) => {
+				const gitService: IAgentHostGitService = {
+					...createNoopGitService(),
+					getRepositoryRoot: async directory => [...checkouts, ...checkouts.map(worktreeOf)].find(checkout => isEqualOrParent(directory, checkout)),
+					getCurrentBranch: async () => 'main',
+				};
+				const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, data.service, { _serviceBrand: undefined } as IProductService, gitService, undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database));
+				setTestAgentHostWorktreeIsolation(localService, createTestAgentHostWorktreeIsolation({
+					supported: true,
+					createDetachedWorktree: async request => ({ handle: generateUuid(), worktree: worktreeOf(request.workingDirectory!) }),
+					claimDetachedWorktree: async () => { },
+					resolveExternalWorktreeProject: async directory => isEqual(directory, worktreeOf(app)) ? { project: { uri: app, displayName: 'app' }, metadata: {} } : undefined,
+				}));
+				const agent = disposables.add(new WorkspaceAgent('copilot', { multipleChats: { fork: true }, multipleWorkingDirectories: { immutablePrimary: true } }, { workspaceConversion: true }));
+				// The session's project is the repository of its primary folder, which lists the worktree its default chat moved to
+				agent.sessionMetadataOverrides = { project: { uri: app, displayName: 'app' } };
+				if (session) {
+					agent.seedSession(session);
+				}
+				registerTestAgentProvider(localService, agent);
+				const clientConnections = Reflect.get(localService, '_clientConnections') as IAgentHostClientConnectionService;
+				disposables.add(clientConnections.registerSource({
+					hasSeenClient: clientId => clientId === 'client',
+					isClientConnected: clientId => clientId === 'client',
+					isLocalClient: () => true,
+					usesLegacyChatUris: () => false,
+					getConnectedClientTransportCounts: () => new Map([['client', 1]]),
+					requestWorkspaceTrust: async () => true,
+					requestMcpAuthentication: async () => false,
+				}));
+				return { localService, agent };
+			};
+			const first = createService();
+			const session = await first.localService.createSession({ legacyChatUris: false, provider: 'copilot', workingDirectories: checkouts });
+			const firstState = getStateManager(first.localService);
+			firstState.dispatchServerAction(session.toString(), { type: ActionType.SessionConfigChanged, config: { autoApprove: 'autoApprove' } });
+			const main = firstState.getDefaultChat(session.toString())!;
+			const peer = buildChatUri(session, 'peer');
+			await first.localService.createChat(session, URI.parse(peer));
+			first.localService.dispatchAction(main, chatTurnStarted('request-turn', 'Move this chat'), 'client', 1);
+			await waitForCondition(first.agent.onDidSendMessage, () => first.agent.sendMessageCalls.length === 1, 'Expected the requesting turn to start');
+			await first.agent.serverToolHost!.executeTool(main, SessionServerToolName.IsolateSession, { folders: [app.fsPath] });
+			first.agent.fireProgress({ kind: 'action', resource: URI.parse(main), action: chatTurnComplete('request-turn', 1) });
+			await waitForCondition(first.agent.onDidSendMessage, () => first.agent.sendMessageCalls.length === 2, 'Expected the host to continue the task in the worktree');
+			const moved = firstState.getChatState(main)?.workingDirectories;
+			await getTestSessionStateStore(first.localService).whenIdle(undefined);
+			await first.localService.shutdown();
+			first.localService.dispose();
+
+			const restarted = createService(session);
+			await restarted.localService.listSessions();
+			const subscribed = await restarted.localService.subscribe(URI.parse(main), 'client').then(() => true, error => String(error));
+			const state = getStateManager(restarted.localService);
+			// A later session action synchronizes the session's chats
+			state.dispatchServerAction(session.toString(), { type: ActionType.SessionTitleChanged, title: 'Renamed' });
+			assert.deepStrictEqual({
+				moved,
+				subscribed,
+				registered: state.getChatOwner(main),
+				subscribable: state.getSnapshot(main) !== undefined,
+				chat: state.getChatState(main)?.workingDirectories,
+				chats: state.getSessionState(session.toString())?.chats.map(chat => [chat.resource, state.getChatOwner(chat.resource)]),
+			}, {
+				moved: [worktreeOf(app), ...others].map(folder => folder.toString()),
+				subscribed: true,
+				registered: session.toString(),
+				subscribable: true,
+				chat: [worktreeOf(app), ...others].map(folder => folder.toString()),
+				// Its other chat, which did not move, is restored with it
+				chats: [[main, session.toString()], [peer, session.toString()]],
+			});
+		});
+
 		for (const isolateMain of [false, true]) {
 			test(`persists and publishes only the ${isolateMain ? 'main' : 'peer'} chat's replacement workspace`, async () => {
 				class MultiChatAgent extends MockAgent {
