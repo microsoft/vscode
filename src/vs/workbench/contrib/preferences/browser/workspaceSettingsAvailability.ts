@@ -16,10 +16,14 @@ import { CONTEXT_HAS_WORKSPACE_SETTINGS, OPEN_USER_SETTINGS_UI_TITLE } from '../
 import { preferencesOpenSettingsIcon } from './preferencesIcons.js';
 
 /**
- * Follows whether the window has workspace settings to open, which a workspace in
- * Agents mode has only from the folders mounted in it. Tells it to the Command Palette,
- * and shows the "Open Settings (UI)" button in the title of the workspace file
- * while the workspace has one.
+ * Has two separate jobs, each with its own source:
+ * - The `hasWorkspaceSettings` context key for the Command Palette follows
+ *   {@link IPreferencesService.workspaceSettingsResource}: the folder's settings in a
+ *   folder window, the workspace file's in a workspace window, and in Agents mode only
+ *   the settings of a folder mounted in it.
+ * - The "Open Settings (UI)" button in the title of the workspace file reads
+ *   `getWorkspace().configuration` directly, so it is only ever the workspace file's and
+ *   never a mounted folder's settings file, which has its own button.
  */
 export class WorkspaceSettingsAvailabilityContribution extends Disposable implements IWorkbenchContribution {
 

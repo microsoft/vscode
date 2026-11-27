@@ -67,7 +67,7 @@ export const SETTINGS_EDITOR_COMMAND_SUGGEST_FILTERS = 'settings.action.suggestF
 export const OPEN_USER_SETTINGS_UI_TITLE = localize2('openSettings2', "Open Settings (UI)");
 
 export const CONTEXT_SETTINGS_EDITOR = new RawContextKey<boolean>('inSettingsEditor', false);
-export const CONTEXT_HAS_WORKSPACE_SETTINGS = new RawContextKey<boolean>('hasWorkspaceSettings', false, localize('hasWorkspaceSettings', "Whether the window has workspace settings to open"));
+export const CONTEXT_HAS_WORKSPACE_SETTINGS = new RawContextKey<boolean>('hasWorkspaceSettings', false, localize('hasWorkspaceSettings', "Whether the window has workspace settings to open: those of its folder, or of its workspace, or in Agents mode of a folder mounted in it"));
 export const CONTEXT_SETTINGS_JSON_EDITOR = new RawContextKey<boolean>('inSettingsJSONEditor', false);
 export const CONTEXT_SETTINGS_SEARCH_FOCUS = new RawContextKey<boolean>('inSettingsSearch', false);
 export const CONTEXT_TOC_ROW_FOCUS = new RawContextKey<boolean>('settingsTocRowFocus', false);
