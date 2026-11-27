@@ -166,20 +166,23 @@ function renderStatusBar(
 	}
 }
 
-function renderZoomedOutDockedStatusBar({ container, disposableStore, theme }: ComponentFixtureContext): void {
+function renderZoomedOutStatusBar(
+	{ container, disposableStore, theme }: ComponentFixtureContext,
+	{ floatingPanels = false, activityBarHorizontal = true }: { floatingPanels?: boolean; activityBarHorizontal?: boolean } = {},
+): void {
 	container.style.width = '520px';
 	container.style.padding = '16px';
 	container.style.backgroundColor = 'var(--vscode-editor-background)';
 
 	const instantiationService = createEditorServices(disposableStore, { colorTheme: theme });
-	const root = dom.append(container, dom.$('.monaco-workbench.mac.macos-tahoe.border.modern-ui'));
+	const root = dom.append(container, dom.$(`.monaco-workbench.mac.macos-tahoe.border.modern-ui${floatingPanels ? '.floating-panels' : ''}`));
 	root.style.width = '488px';
 	root.style.height = '120px';
 	root.style.setProperty('--window-zoom-factor', '0.5');
 	root.style.setProperty('--window-border-color', 'var(--vscode-widget-border)');
 	root.style.backgroundColor = 'var(--vscode-editor-background)';
 
-	const statusbar = dom.append(root, dom.$('.part.statusbar'));
+	const statusbar = dom.append(root, dom.$(`.part.statusbar${activityBarHorizontal ? '.activitybar-horizontal' : ''}`));
 	statusbar.style.position = 'absolute';
 	statusbar.style.left = '0';
 	statusbar.style.right = '0';
@@ -222,7 +225,17 @@ export default defineThemedFixtureGroup({ path: 'workbench/statusBar/' }, {
 	ZoomedOutDockedCorners: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['A zoomed-out macOS Tahoe workbench shows remote status-bar item and label backgrounds clipped by the native frame curve at both bottom corners, while their remaining control corners stay small and rounded.'],
-		render: renderZoomedOutDockedStatusBar,
+		render: context => renderZoomedOutStatusBar(context),
+	}),
+	ZoomedOutFloatingVerticalCorners: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['A zoomed-out macOS Tahoe workbench with floating panels and a vertical Activity Bar keeps ordinary control-rounded status-bar item corners.'],
+		render: context => renderZoomedOutStatusBar(context, { floatingPanels: true, activityBarHorizontal: false }),
+	}),
+	ZoomedOutFloatingHorizontalCorners: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['A zoomed-out macOS Tahoe workbench with floating panels and a horizontal Activity Bar aligns status-bar item corners with the native window frame.'],
+		render: context => renderZoomedOutStatusBar(context, { floatingPanels: true }),
 	}),
 	Comparison_Default_Before: defineComponentFixture({
 		labels: { kind: 'screenshot' },
