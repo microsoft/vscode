@@ -419,7 +419,7 @@ export class DesktopMain extends Disposable {
 
 		// Local editor windows can switch in place into Agentic Mode, when the user opted in
 		if (supportsAgenticMode(environmentService, workspaceService, !!this.configuration.backupPath)) {
-			return this._register(new AgenticModeWorkspaceService(workspaceService, workspace, { userDataProfileService, userDataProfilesService, uriIdentityService, fileService, policyService, logService, configurationCache, environmentService }));
+			return this._register(new AgenticModeWorkspaceService(workspaceService, { userDataProfileService, userDataProfilesService, uriIdentityService, fileService, policyService, logService, configurationCache, environmentService }));
 		}
 
 		return workspaceService;

@@ -114,9 +114,16 @@ suite('NativeWorkspaceEditingService - extension host recovery', () => {
 		});
 	}
 
-	test('leaves Agentic Mode after stopping hosts and before entering the workspace', async () => {
+	test('leaves Agentic Mode after stopping hosts and before entering the workspace, and goes back into it when the workspace is not entered', async () => {
 		const { service, calls } = setupServices(undefined, true, undefined, true);
 		await service.enterWorkspace(URI.file('/new.code-workspace'));
-		assert.deepStrictEqual({ calls, entered: service.entered }, { calls: ['stop', 'agenticMode:false', 'start'], entered: true });
+		assert.deepStrictEqual({ calls, entered: service.entered }, { calls: ['stop', 'agenticMode:false', 'agenticMode:true', 'start'], entered: true });
+	});
+
+	test('goes back into Agentic Mode when entering the workspace fails', async () => {
+		const { service, calls } = setupServices(undefined, true, undefined, true);
+		const failure = service.failure = new Error('entry failed');
+		await assert.rejects(service.enterWorkspace(URI.file('/new.code-workspace')), error => error === failure);
+		assert.deepStrictEqual(calls, ['stop', 'agenticMode:false', 'agenticMode:true', 'start']);
 	});
 });

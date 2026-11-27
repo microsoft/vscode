@@ -21,6 +21,8 @@ import { PreferencesService } from '../../browser/preferencesService.js';
 import { IPreferencesService, ISettingsEditorOptions } from '../../common/preferences.js';
 import { SplitSettingsEditorInput } from '../../common/preferencesEditorInput.js';
 import { IRemoteAgentService } from '../../../remote/common/remoteAgentService.js';
+import { IAgenticModeService } from '../../../agenticMode/common/agenticMode.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { TestRemoteAgentService, ITestInstantiationService, workbenchInstantiationService, TestEditorService, TestEditorGroupsService, TestEditorGroupView } from '../../../../test/browser/workbenchTestServices.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -32,7 +34,7 @@ suite('PreferencesService', () => {
 	let lastOpenEditorGroup: PreferredGroup | undefined;
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createTestObject(editorGroupsService?: IEditorGroupsService, configurationService?: TestConfigurationService): PreferencesService {
+	function createTestObject(editorGroupsService?: IEditorGroupsService, configurationService?: TestConfigurationService, inAgenticMode = false): PreferencesService {
 		lastOpenUntypedEditor = undefined;
 		lastOpenEditorOptions = undefined;
 		lastOpenEditorGroup = undefined;
@@ -63,6 +65,7 @@ suite('PreferencesService', () => {
 		testInstantiationService.stub(IRemoteAgentService, TestRemoteAgentService);
 		testInstantiationService.stub(ICommandService, TestCommandService);
 		testInstantiationService.stub(IURLService, { registerHandler: () => { } });
+		testInstantiationService.stub(IAgenticModeService, { isActive: inAgenticMode });
 		if (editorGroupsService) {
 			testInstantiationService.stub(IEditorGroupsService, editorGroupsService);
 		}
@@ -99,6 +102,19 @@ suite('PreferencesService', () => {
 			target: ConfigurationTarget.USER_LOCAL,
 			pinned: true
 		});
+	});
+
+	test('opens the User settings for workspace and folder settings in Agentic Mode', async () => {
+		const testObject = createTestObject(undefined, undefined, true);
+		const opened = async (open: () => Promise<unknown>) => {
+			await open();
+			return { resource: EditorResourceAccessor.getCanonicalUri(lastOpenUntypedEditor)?.toString(), target: (lastOpenEditorOptions as ISettingsEditorOptions).target };
+		};
+		const user = { resource: testObject.userSettingsResource.toString(), target: ConfigurationTarget.USER_LOCAL };
+		assert.deepStrictEqual({
+			workspace: await opened(() => testObject.openWorkspaceSettings({ jsonEditor: true })),
+			folder: await opened(() => testObject.openFolderSettings({ folderUri: URI.file('/folder'), jsonEditor: true })),
+		}, { workspace: user, folder: user });
 	});
 
 	test('opens the split settings JSON editor as an untyped editor resolved by its registration', async () => {

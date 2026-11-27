@@ -17,7 +17,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IPolicyService } from '../../../../../platform/policy/common/policy.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IAnyWorkspaceIdentifier, IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspace, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, IWorkspaceIdentifier, WorkbenchMode, WorkbenchState, Workspace } from '../../../../../platform/workspace/common/workspace.js';
+import { IAnyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspace, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, IWorkspaceIdentifier, WorkbenchMode, WorkbenchState, Workspace } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceFolderCreationData } from '../../../../../platform/workspaces/common/workspaces.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../environment/browser/environmentService.js';
 import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
@@ -151,9 +151,6 @@ export class AgenticModeWorkspaceService extends Disposable implements IEditable
 	private readonly switchQueue = this._register(new Queue<void>());
 	private instantiationService: IInstantiationService | undefined;
 
-	/** The workspace of the mode: empty, with the window's own id, so that its configuration and files never change. */
-	private readonly emptyWorkspace: IEmptyWorkspaceIdentifier;
-
 	private _isAgenticMode = false;
 	get isAgenticMode(): boolean { return this._isAgenticMode; }
 
@@ -162,11 +159,9 @@ export class AgenticModeWorkspaceService extends Disposable implements IEditable
 
 	constructor(
 		private readonly editor: WorkspaceService,
-		workspace: IAnyWorkspaceIdentifier,
 		private readonly services: IAgenticModeServices,
 	) {
 		super();
-		this.emptyWorkspace = { id: workspace.id };
 		this.forwardEvents(editor, () => !this._isAgenticMode, this._store);
 		this._register(services.userDataProfileService.onDidChangeCurrentProfile(e => e.join(this.onDidChangeProfile())));
 	}
@@ -189,7 +184,8 @@ export class AgenticModeWorkspaceService extends Disposable implements IEditable
 				return;
 			}
 			if (enabled) {
-				const workspace = this.agentsWorkspace.value = new AgentsWorkspaceContextService(this.emptyWorkspace, this.services.uriIdentityService);
+				// The mode's workspace is empty, with the window's current id (it changes when the window enters a workspace), so its configuration and files never change
+				const workspace = this.agentsWorkspace.value = new AgentsWorkspaceContextService({ id: this.editor.getWorkspace().id }, this.services.uriIdentityService);
 				this.agents.value = await this.createAgentsDelegates(workspace);
 			}
 			this.switchDelegates(enabled);

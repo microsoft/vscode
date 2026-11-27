@@ -92,7 +92,7 @@ suite('AgenticModeWorkspaceService', () => {
 		const editor = disposables.add(new WorkspaceService({ configurationCache }, environmentService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, logService, policyService));
 		const emptyWorkspace = { id: 'empty-window' };
 		await editor.initialize(emptyWorkspace);
-		testObject = disposables.add(new AgenticModeWorkspaceService(editor, emptyWorkspace, { userDataProfileService, userDataProfilesService, uriIdentityService, fileService, policyService, logService, configurationCache, environmentService }));
+		testObject = disposables.add(new AgenticModeWorkspaceService(editor, { userDataProfileService, userDataProfilesService, uriIdentityService, fileService, policyService, logService, configurationCache, environmentService }));
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IWorkspaceContextService, testObject);
 		instantiationService.stub(IConfigurationService, testObject);
@@ -286,6 +286,13 @@ suite('AgenticModeWorkspaceService', () => {
 		assert.deepStrictEqual({ mode: testObject.isAgenticMode, state: testObject.getWorkbenchState() }, { mode: false, state: WorkbenchState.EMPTY });
 	}));
 
+	test('enters the mode under the window\'s current workspace id, not the startup one', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await testObject.initialize({ id: 'another-empty-window' });
+		await testObject.setAgenticMode(true);
+
+		assert.deepStrictEqual({ mode: testObject.isAgenticMode, id: testObject.getWorkspace().id }, { mode: true, id: 'another-empty-window' });
+	}));
+
 	/** A window opened on `workspace`, whose `folder` sets `agenticMode.folderSetting` to `folder`, and `agenticMode.languageSetting` to `markdown` for Markdown only. */
 	async function createWindowWithFolderSetting(workspace: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier, folder: URI): Promise<AgenticModeWorkspaceService> {
 		const logService = new NullLogService();
@@ -298,7 +305,7 @@ suite('AgenticModeWorkspaceService', () => {
 		await fileService.writeFile(joinPath(folder, '.vscode', 'settings.json'), VSBuffer.fromString('{ "agenticMode.folderSetting": "folder", "[markdown]": { "agenticMode.languageSetting": "markdown" } }'));
 		const editor = disposables.add(new WorkspaceService({ configurationCache }, environmentService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, logService, policyService));
 		await editor.initialize(workspace);
-		const window = disposables.add(new AgenticModeWorkspaceService(editor, workspace, { userDataProfileService, userDataProfilesService, uriIdentityService, fileService, policyService, logService, configurationCache, environmentService }));
+		const window = disposables.add(new AgenticModeWorkspaceService(editor, { userDataProfileService, userDataProfilesService, uriIdentityService, fileService, policyService, logService, configurationCache, environmentService }));
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IWorkspaceContextService, window);
 		instantiationService.stub(IConfigurationService, window);
