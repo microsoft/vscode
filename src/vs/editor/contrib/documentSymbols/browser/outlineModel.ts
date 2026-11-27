@@ -205,8 +205,11 @@ export class OutlineModel extends TreeElement {
 
 
 			return Promise.resolve(provider.provideDocumentSymbols(textModel, cts.token)).then(result => {
-				for (const info of result || []) {
-					OutlineModel._makeOutlineElement(info, group);
+				// a reply can arrive after cancellation, nobody uses its tree
+				if (!cts.token.isCancellationRequested) {
+					for (const info of result || []) {
+						OutlineModel._makeOutlineElement(info, group);
+					}
 				}
 				return group;
 			}, err => {
@@ -458,7 +461,7 @@ export class OutlineModelService implements IOutlineModelService {
 				data!.model = outlineModel;
 				this._debounceInformation.update(textModel, Date.now() - now);
 			}).catch(_err => {
-				this._cache.delete(textModel.id);
+				this._deleteCacheEntry(textModel, data!);
 			});
 		}
 
@@ -474,7 +477,7 @@ export class OutlineModelService implements IOutlineModelService {
 			// last -> cancel provider request, remove cached promise
 			if (--data.promiseCnt === 0) {
 				data.source.cancel();
-				this._cache.delete(textModel.id);
+				this._deleteCacheEntry(textModel, data);
 			}
 		});
 
@@ -482,6 +485,13 @@ export class OutlineModelService implements IOutlineModelService {
 			return await data.promise;
 		} finally {
 			listener.dispose();
+		}
+	}
+
+	private _deleteCacheEntry(textModel: ITextModel, entry: CacheEntry): void {
+		// a newer version may have replaced the entry, keep that one
+		if (this._cache.peek(textModel.id) === entry) {
+			this._cache.delete(textModel.id);
 		}
 	}
 

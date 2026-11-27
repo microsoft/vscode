@@ -16,6 +16,7 @@ import { StickyModelProvider, IStickyModelProvider } from './stickyScrollModelPr
 import { StickyElement, StickyModel, StickyRange } from './stickyScrollElement.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
+import { IOutlineModelService } from '../../documentSymbols/browser/outlineModel.js';
 
 export class StickyLineCandidate {
 	constructor(
@@ -71,6 +72,7 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 		editor: ICodeEditor,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
+		@IOutlineModelService private readonly _outlineModelService: IOutlineModelService,
 	) {
 		super();
 		this._editor = editor;
@@ -129,7 +131,8 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 				this._editor,
 				() => this._updateSoon.schedule(),
 				this._languageConfigurationService,
-				this._languageFeaturesService
+				this._languageFeaturesService,
+				this._outlineModelService
 			);
 		}
 	}

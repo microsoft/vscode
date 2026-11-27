@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Range } from '../../../../common/core/range.js';
@@ -107,6 +108,65 @@ suite('OutlineModel', function () {
 		model.dispose();
 		service.dispose();
 
+	});
+
+	test('OutlineModel#create, cancelling an older version keeps the request of the newer version', async function () {
+
+		const insta = createModelServices(disposables);
+		const modelService = insta.get(IModelService);
+		const envService = new class extends mock<IEnvironmentService>() {
+			override isBuilt: boolean = true;
+			override isExtensionDevelopment: boolean = false;
+		};
+		const service = new OutlineModelService(languageFeaturesService, new LanguageFeatureDebounceService(new NullLogService(), envService), modelService);
+		const model = createTextModel('foo', undefined, undefined, URI.file('/fome/path.foo'));
+		const replies: DeferredPromise<DocumentSymbol[]>[] = [];
+		const reg = languageFeaturesService.documentSymbolProvider.register({ pattern: '**/path.foo' }, {
+			provideDocumentSymbols() {
+				const reply = new DeferredPromise<DocumentSymbol[]>();
+				replies.push(reply);
+				return reply.p;
+			}
+		});
+
+		const s1 = new CancellationTokenSource();
+		service.getOrCreate(model, s1.token);
+		model.applyEdits([{ text: 'XXX', range: new Range(1, 1, 1, 1) }]);
+		const s2 = new CancellationTokenSource();
+		const first = service.getOrCreate(model, s2.token);
+
+		// the last consumer of the older version gives up
+		s1.cancel();
+		const second = service.getOrCreate(model, CancellationToken.None);
+
+		replies.forEach(reply => reply.complete([]));
+		await Promise.all([first, second]);
+		assert.strictEqual(replies.length, 2);
+
+		s1.dispose();
+		s2.dispose();
+		reg.dispose();
+		model.dispose();
+		service.dispose();
+	});
+
+	test('OutlineModel#create, a reply after cancellation builds no outline', async function () {
+
+		const model = createTextModel('foo', undefined, undefined, URI.file('/fome/path.foo'));
+		const source = new CancellationTokenSource();
+		const reg = languageFeaturesService.documentSymbolProvider.register({ pattern: '**/path.foo' }, {
+			provideDocumentSymbols() {
+				source.cancel();
+				return [fakeSymbolInformation(new Range(1, 1, 1, 4))];
+			}
+		});
+
+		const outline = await OutlineModel.create(languageFeaturesService.documentSymbolProvider, model, source.token);
+		assert.strictEqual(outline.children.size, 0);
+
+		source.dispose();
+		reg.dispose();
+		model.dispose();
 	});
 
 	function fakeSymbolInformation(range: Range, name: string = 'foo'): DocumentSymbol {
