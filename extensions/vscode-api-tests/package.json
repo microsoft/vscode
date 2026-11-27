@@ -10,6 +10,7 @@
     "browser",
     "environmentPower",
     "chatParticipantPrivate",
+    "chatSendRequest",
     "chatPromptFiles",
     "chatProvider",
     "contribStatusBarItems",
