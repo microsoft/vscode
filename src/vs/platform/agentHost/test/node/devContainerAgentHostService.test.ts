@@ -516,16 +516,22 @@ suite('Dev Container Agent Host Main Service', () => {
 			const available = await service.isDockerAvailable();
 			await service.runDocker(['inspect', 'container-id']);
 			const cliArgs = await service.spawnDevContainer(['exec', '--help']);
-			await configurationService.updateValue('dev.containers.dockerPath', join(dirname(process.execPath), 'missing-docker-executable'));
+			const missingPath = join(dirname(process.execPath), 'missing-docker-executable');
+			await configurationService.updateValue('dev.containers.dockerPath', missingPath);
 			const missing = await service.isDockerAvailable();
+			await assert.rejects(service.runDocker(['version']), /Docker is not available/);
+			await fileService.writeFile(settingsResource, VSBuffer.fromString(JSON.stringify({ 'dev.containers.dockerPath': dockerPath })));
+			const cachedPath = configurationService.getValue<string>('dev.containers.dockerPath');
+			const recovered = await service.isDockerAvailable();
 
-			assert.deepStrictEqual({ available, commands, cliArgs, missing }, {
+			assert.deepStrictEqual({ available, commands, cliArgs, missing, cachedPath, recovered }, {
 				available: true,
 				commands: [{ command: process.execPath, args: ['inspect', 'container-id'] }],
 				cliArgs: [getDevContainerCliPath(), 'exec', '--docker-path', dockerPath, '--help'],
 				missing: false,
+				cachedPath: missingPath,
+				recovered: true,
 			});
-			await assert.rejects(service.runDocker(['version']), /Docker is not available/);
 		});
 	}
 

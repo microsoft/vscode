@@ -1542,6 +1542,12 @@ export class DevContainerAgentHostMainService extends DevContainerAgentHostServi
 		super(_mainLogService, productService, telemetryService, _nativeEnvironmentService, requestService, gitHubService);
 	}
 
+	override async isDockerAvailable(): Promise<boolean> {
+		// The renderer can observe setting changes before the shared process reloads them.
+		await this._configurationService.reloadConfiguration();
+		return super.isDockerAvailable();
+	}
+
 	protected override _resolveUserShellEnvironment(): Promise<typeof process.env> {
 		return getResolvedShellEnv(this._configurationService, this._mainLogService, { ...this._nativeEnvironmentService.args, 'force-user-env': true }, process.env);
 	}
