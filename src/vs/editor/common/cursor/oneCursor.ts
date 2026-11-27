@@ -81,21 +81,21 @@ export class Cursor {
 		this._setState(context, modelState, viewState);
 	}
 
-	private static _validatePositionWithCache(viewModel: ICursorSimpleModel, position: Position, cacheInput: Position, cacheOutput: Position): Position {
+	private static _validatePositionWithCache(viewModel: ICursorSimpleModel, position: Position, cacheInput: Position, cacheOutput: Position, affinity: PositionAffinity): Position {
 		if (position.equals(cacheInput)) {
 			return cacheOutput;
 		}
-		return viewModel.normalizePosition(position, PositionAffinity.None);
+		return viewModel.normalizePosition(position, affinity);
 	}
 
-	private static _validateViewState(viewModel: ICursorSimpleModel, viewState: SingleCursorState): SingleCursorState {
+	private static _validateViewState(viewModel: ICursorSimpleModel, viewState: SingleCursorState, affinity: PositionAffinity): SingleCursorState {
 		const position = viewState.position;
 		const sStartPosition = viewState.selectionStart.getStartPosition();
 		const sEndPosition = viewState.selectionStart.getEndPosition();
 
-		const validPosition = viewModel.normalizePosition(position, PositionAffinity.None);
-		const validSStartPosition = this._validatePositionWithCache(viewModel, sStartPosition, position, validPosition);
-		const validSEndPosition = this._validatePositionWithCache(viewModel, sEndPosition, sStartPosition, validSStartPosition);
+		const validPosition = viewModel.normalizePosition(position, affinity);
+		const validSStartPosition = this._validatePositionWithCache(viewModel, sStartPosition, position, validPosition, affinity);
+		const validSEndPosition = this._validatePositionWithCache(viewModel, sEndPosition, sStartPosition, validSStartPosition, affinity);
 
 		if (position.equals(validPosition) && sStartPosition.equals(validSStartPosition) && sEndPosition.equals(validSEndPosition)) {
 			// fast path: the state is valid
@@ -112,8 +112,9 @@ export class Cursor {
 	}
 
 	private _setState(context: CursorContext, modelState: SingleCursorState | null, viewState: SingleCursorState | null): void {
+		const affinity = context.cursorConfig.cursorPositionAffinity;
 		if (viewState) {
-			viewState = Cursor._validateViewState(context.viewModel, viewState);
+			viewState = Cursor._validateViewState(context.viewModel, viewState, affinity);
 		}
 
 		if (!modelState) {
@@ -145,10 +146,10 @@ export class Cursor {
 
 		if (!viewState) {
 			// We only have the model state => compute the view state
-			const viewSelectionStart1 = context.coordinatesConverter.convertModelPositionToViewPosition(new Position(modelState.selectionStart.startLineNumber, modelState.selectionStart.startColumn));
-			const viewSelectionStart2 = context.coordinatesConverter.convertModelPositionToViewPosition(new Position(modelState.selectionStart.endLineNumber, modelState.selectionStart.endColumn));
+			const viewSelectionStart1 = context.coordinatesConverter.convertModelPositionToViewPosition(new Position(modelState.selectionStart.startLineNumber, modelState.selectionStart.startColumn), affinity);
+			const viewSelectionStart2 = context.coordinatesConverter.convertModelPositionToViewPosition(new Position(modelState.selectionStart.endLineNumber, modelState.selectionStart.endColumn), affinity);
 			const viewSelectionStart = new Range(viewSelectionStart1.lineNumber, viewSelectionStart1.column, viewSelectionStart2.lineNumber, viewSelectionStart2.column);
-			const viewPosition = context.coordinatesConverter.convertModelPositionToViewPosition(modelState.position);
+			const viewPosition = context.coordinatesConverter.convertModelPositionToViewPosition(modelState.position, affinity);
 			viewState = new SingleCursorState(viewSelectionStart, modelState.selectionStartKind, modelState.selectionStartLeftoverVisibleColumns, viewPosition, modelState.leftoverVisibleColumns);
 		} else {
 			// Validate new view state
@@ -158,7 +159,7 @@ export class Cursor {
 		}
 
 		this.modelState = modelState;
-		this.viewState = viewState;
+		this.viewState = affinity === PositionAffinity.None ? viewState : Cursor._validateViewState(context.viewModel, viewState, affinity);
 
 		this._updateTrackedRange(context);
 	}
