@@ -10,7 +10,7 @@ import { workbenchInstantiationService, TestServiceAccessor, TestWillShutdownEve
 import { StoredFileWorkingCopyManager, IStoredFileWorkingCopyManager, IStoredFileWorkingCopySaveEvent } from '../../common/storedFileWorkingCopyManager.js';
 import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel } from '../../common/storedFileWorkingCopy.js';
 import { bufferToStream, VSBuffer } from '../../../../../base/common/buffer.js';
-import { FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult } from '../../../../../platform/files/common/files.js';
+import { ETAG_DISABLED, FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult } from '../../../../../platform/files/common/files.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { TestStoredFileWorkingCopyModel, TestStoredFileWorkingCopyModelFactory } from './storedFileWorkingCopy.test.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -539,6 +539,30 @@ suite('StoredFileWorkingCopyManager', () => {
 		await onDidResolve;
 
 		assert.strictEqual(didResolve, true);
+	});
+
+	test('revert reloads contents when the file did not change on disk', async () => {
+		const resource = URI.file('/test.html');
+		const workingCopy = disposables.add(await manager.resolve(resource));
+
+		workingCopy.model?.updateContents('changed');
+		assert.strictEqual(workingCopy.isDirty(), true);
+
+		const readFileStream = accessor.fileService.readFileStream;
+		accessor.fileService.readFileStream = async (res, options) => {
+			if (options?.etag !== ETAG_DISABLED) {
+				throw new FileOperationError('file not modified since', FileOperationResult.FILE_NOT_MODIFIED_SINCE);
+			}
+			return readFileStream.call(accessor.fileService, res, options);
+		};
+
+		try {
+			await workingCopy.revert();
+		} finally {
+			accessor.fileService.readFileStream = readFileStream;
+		}
+
+		assert.deepStrictEqual({ dirty: workingCopy.isDirty(), contents: workingCopy.model?.contents }, { dirty: false, contents: 'Hello Html' });
 	});
 
 	test('working copy file event handling: create', async () => {
