@@ -9,7 +9,7 @@ import { localize } from '../../../../../../../nls.js';
 import { registerIcon } from '../../../../../../../platform/theme/common/iconRegistry.js';
 import { ILanguageModelChatMetadataAndIdentifier, isAutoLanguageModel } from '../../../../common/languageModels.js';
 import { getCompactCodicon } from '../../../chatIcons.js';
-import { isHydraFusionModel } from './modelPickerPresentation.js';
+import { isHydraFusionModel, isModelRouter } from './modelPickerPresentation.js';
 
 const copilotModelProviderIcon = registerIcon('chat-model-provider-copilot', Codicon.copilotCompact, localize('chatModelProviderCopilotIcon', "Icon for Copilot models."));
 const openAIModelProviderIcon = registerIcon('chat-model-provider-openai', Codicon.openai, localize('chatModelProviderOpenAIIcon', "Icon for OpenAI models."));
@@ -53,6 +53,9 @@ export function getProviderIconForIdentity(identity: string, copilotIdentity: st
 }
 
 export function getModelProviderIcon(model: ILanguageModelChatMetadataAndIdentifier): ThemeIcon {
+	if (isModelRouter(model)) {
+		return Codicon.typeHierarchySub;
+	}
 	const identity = `${model.metadata.vendor} ${model.metadata.family} ${model.metadata.id} ${model.metadata.name}`;
 	if (/grok|xai/i.test(identity)) {
 		return xAIModelProviderIcon;
