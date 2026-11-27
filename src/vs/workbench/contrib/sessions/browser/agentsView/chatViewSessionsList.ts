@@ -32,6 +32,9 @@ import { INotificationService } from '../../../../../platform/notification/commo
 /** The class of the filled label buttons of action bars, such as the split buttons of the Extensions editor. */
 const FILLED_LABEL_CLASS = 'filled-label';
 
+/** The class of a filled label split button that is sized as those of the Extensions editor header. */
+const FILLED_SPLIT_BUTTON_CLASS = 'filled-split-button';
+
 /**
  * Runs the actions of the New menu, and reports a failure itself: the menu closes as the action starts and no longer listens
  * to its end, and the button may be gone by then too.
@@ -83,6 +86,7 @@ class ChatViewNewButtonActionViewItem extends ActionWithDropdownActionViewItem {
 	/** The dropdown, created here after the first update, takes the title's context and New Chat's enablement. */
 	override render(container: HTMLElement): void {
 		super.render(container);
+		this.element?.classList.add(FILLED_SPLIT_BUTTON_CLASS);
 		this.dropdownMenuActionViewItem?.setActionContext(this._context);
 		this.updateEnabled();
 	}

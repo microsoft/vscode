@@ -126,6 +126,46 @@
 	width: 1px;
 }
 
+/* A filled label split button that opts in with the `filled-split-button` class gets the geometry of the split buttons of the
+Extensions editor header, so that it looks exactly like them: the same values as extensionEditor.css and extensionActions.css. */
+
+.monaco-action-bar .actions-container .action-item.action-dropdown-item.filled-split-button > .action-label.filled-label {
+	height: auto;
+	margin: 2px 0 2px 2px; /* margin for outline */
+	max-width: 300px;
+	padding: 0 5px;
+	line-height: 22px;
+	outline-offset: 1px;
+	border-radius: 4px 0 0 4px;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.monaco-action-bar .actions-container .action-item.action-dropdown-item.filled-split-button > .action-dropdown-item-separator {
+	align-self: auto;
+	height: 22px;
+}
+
+.monaco-action-bar .actions-container .action-item.action-dropdown-item.filled-split-button > .action-dropdown-item-separator > div {
+	height: 16px;
+}
+
+.monaco-action-bar .actions-container .action-item.action-dropdown-item.filled-split-button > .monaco-dropdown .action-label.filled-label {
+	width: auto;
+	height: auto;
+	margin: 2px 2px 2px 0; /* margin for outline */
+	padding: 0 2px;
+	line-height: 22px;
+	outline-offset: 1px;
+	border-radius: 0 4px 4px 0;
+}
+
+.monaco-action-bar .actions-container .action-item.action-dropdown-item.filled-split-button.empty > .action-label.filled-label {
+	margin-right: 2px;
+	border-radius: 4px;
+}
+
 /* Filled label buttons and split buttons, such as those of the Extensions editor. A split button opts in with a filled
 primary label: its divider fills the split's full height and its dropdown is a compact chevron. Hosts with their own
 geometry, such as the Extensions editor and list, override it with more specific rules. */
