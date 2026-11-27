@@ -1571,8 +1571,8 @@ suite('HistoryService', function () {
 			return workbenchTeardown(instantiationService);
 		});
 
-		test('clearing the history as the user does in the mode leaves an empty history on leaving, also after more session switches and across a restart', async () => {
-			const clearAndRestore = async (restart: boolean) => {
+		test('clearing the history as the user does in the mode keeps only what is opened after the clear on leaving, also after more session switches and across a restart', async () => {
+			const clearAndRestore = async ({ restart = false, switchAgain = true }: { restart?: boolean; switchAgain?: boolean } = {}) => {
 				const { historyService, instantiationService, open, closeAll, reload } = await createFolderServices(folder);
 				const storageService = instantiationService.invokeFunction(accessor => accessor.get(IStorageService));
 
@@ -1585,8 +1585,10 @@ suite('HistoryService', function () {
 				await open('/repo/b.txt');
 
 				// Switching sessions again clears the history the session opened
-				historyService.clearRecentlyOpened({ keepSaved: true });
-				await open('/repo/other-session.txt');
+				if (switchAgain) {
+					historyService.clearRecentlyOpened({ keepSaved: true });
+					await open('/repo/other-session.txt');
+				}
 
 				let restored = historyService;
 				if (restart) {
@@ -1603,10 +1605,11 @@ suite('HistoryService', function () {
 				return result;
 			};
 
-			// Neither the history from before the mode nor the files of the sessions come back
-			assert.deepStrictEqual({ onLeave: await clearAndRestore(false), afterRestart: await clearAndRestore(true) }, {
+			// The history from before the mode does not come back. Files opened after the clear stay, unless a session switch cleared them.
+			assert.deepStrictEqual({ onLeave: await clearAndRestore(), afterRestart: await clearAndRestore({ restart: true }), withoutSwitch: await clearAndRestore({ switchAgain: false }) }, {
 				onLeave: { paths: [], savedKeys: [] },
 				afterRestart: { paths: [], savedKeys: [] },
+				withoutSwitch: { paths: ['/repo/b.txt'], savedKeys: [] },
 			});
 		});
 

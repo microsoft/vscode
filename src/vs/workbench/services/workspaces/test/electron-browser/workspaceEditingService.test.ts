@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
-import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
@@ -217,17 +215,13 @@ suite('NativeWorkspaceEditingService - extension host recovery', () => {
 	});
 
 	test('still switches the storage and the backups to the entered workspace when bringing back the history fails', async () => {
-		const { service, calls, backups, restoreHistory } = setupServices(undefined, true, undefined, true);
+		const { service, calls, backups, errors, restoreHistory } = setupServices(undefined, true, undefined, true);
 		const failure = restoreHistory.failure = new Error('restore failed');
-		const unexpectedErrors: unknown[] = [];
-		const previousHandler = errorHandler.getUnexpectedErrorHandler();
-		setUnexpectedErrorHandler(error => unexpectedErrors.push(error));
-		store.add(toDisposable(() => setUnexpectedErrorHandler(previousHandler)));
 		service.result = { workspace: { id: 'new', configPath: URI.file('/new.code-workspace') }, backupPath: '/backups/new' };
 		await service.enterWorkspace(URI.file('/new.code-workspace'));
-		assert.deepStrictEqual({ calls, unexpectedErrors, backupHome: backups.reinitialized?.path }, {
+		assert.deepStrictEqual({ calls, errors, backupHome: backups.reinitialized?.path }, {
 			calls: ['stop', 'agentsMode:false', 'restoreHistory', 'switchStorage:true', 'start'],
-			unexpectedErrors: [failure],
+			errors: [failure],
 			backupHome: '/backups/new',
 		});
 	});

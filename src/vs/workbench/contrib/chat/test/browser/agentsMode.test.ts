@@ -18,6 +18,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IAgentsModeService } from '../../../../services/agentsMode/common/agentsMode.js';
 import { IHistoryService } from '../../../../services/history/common/history.js';
@@ -86,6 +87,7 @@ suite('Agents mode actions', () => {
 		instantiation.stub(IAgentsModeService, agentsMode);
 		// Switching sessions in the mode clears the history, which the toggle saves on entering and restores on leaving
 		instantiation.stub(IHistoryService, { saveRecentlyOpened: () => calls.push('save'), restoreRecentlyOpened: () => calls.push('restore') });
+		instantiation.stub(ILogService, new NullLogService());
 		instantiation.stub(IWorkbenchLayoutService, { isVisible: () => false });
 		await command.handler(instantiation);
 		const exit = context.contextMatchesRules(item.when);
@@ -132,6 +134,46 @@ suite('Agents mode actions', () => {
 				'save', 'entered, then left', 'restore',
 			],
 		});
+	});
+
+	test('saving and restoring the history neither blocks the switch nor hides why it failed', async () => {
+		const configuration = new TestConfigurationService();
+		disposables.add(configuration.onDidChangeConfigurationEmitter);
+		const context = disposables.add(new ContextKeyService(configuration));
+		ChatContextKeys.enabled.bindTo(context).set(true);
+		CanEnterAgentsMode.bindTo(context).set(true);
+		const commandId = 'workbench.action.chat.toggleAgentsMode';
+		if (!CommandsRegistry.getCommand(commandId)) {
+			disposables.add(registerAction2(ToggleAgentsModeAction));
+		}
+		const command = CommandsRegistry.getCommand(commandId)!;
+
+		const instantiation = disposables.add(new TestInstantiationService());
+		instantiation.stub(IContextKeyService, context);
+		const calls: string[] = [];
+		const agentsMode: { isSupported: boolean; isActive: boolean; setActive: (active: boolean) => Promise<void> } = { isSupported: true, isActive: false, setActive: async active => { calls.push(active ? 'enter' : 'leave'); agentsMode.isActive = active; } };
+		instantiation.stub(IAgentsModeService, agentsMode);
+		instantiation.stub(IHistoryService, {
+			saveRecentlyOpened: () => { throw new Error('save failed'); },
+			restoreRecentlyOpened: () => { throw new Error('restore failed'); },
+		});
+		const logService = new class extends NullLogService {
+			override error(error: string | Error): void { calls.push(`logged ${error instanceof Error ? error.message : error}`); }
+		};
+		instantiation.stub(ILogService, logService);
+
+		// A save that fails still enters the mode
+		await command.handler(instantiation);
+
+		// A switch that fails rejects with its own error, not with the error of the restore that follows it
+		agentsMode.isActive = false;
+		agentsMode.setActive = async () => { calls.push('failed enter'); throw new Error('switch failed'); };
+		await assert.rejects(Promise.resolve(command.handler(instantiation)), /switch failed/);
+
+		assert.deepStrictEqual(calls, [
+			'logged save failed', 'enter',
+			'logged save failed', 'failed enter', 'logged restore failed',
+		]);
 	});
 
 	test('switching stores the secondary side bar width before the switch, which the mode gives it back once switched', async () => {

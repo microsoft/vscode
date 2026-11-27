@@ -10,6 +10,7 @@ import { Action2, MenuId } from '../../../../../platform/actions/common/actions.
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IAgentsModeService } from '../../../../services/agentsMode/common/agentsMode.js';
 import { IHistoryService } from '../../../../services/history/common/history.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
@@ -58,6 +59,20 @@ export class ToggleAgentsModeAction extends Action2 {
 		// Switching sessions in the mode clears the history of recently opened editors: the window gets its own history back
 		// when the user leaves the mode, or when it enters another workspace from the mode.
 		const historyService = accessor.get(IHistoryService);
+		const logService = accessor.get(ILogService);
+		// Saving and restoring the history must neither block the switch nor hide why it failed
+		const guarded = (step: () => void) => {
+			try {
+				step();
+			} catch (error) {
+				logService.error(error);
+			}
+		};
+		const restoreOutsideMode = () => {
+			if (!agentsModeService.isActive) {
+				guarded(() => historyService.restoreRecentlyOpened());
+			}
+		};
 		// Saved before entering, as the mode can switch sessions as soon as it is entered. Whenever the window ends up
 		// outside the mode, also when switching fails after the switch, the saved history comes back, or is dropped
 		// when nothing cleared it.
@@ -65,18 +80,14 @@ export class ToggleAgentsModeAction extends Action2 {
 			try {
 				await agentsModeService.setActive(false);
 			} finally {
-				if (!agentsModeService.isActive) {
-					historyService.restoreRecentlyOpened();
-				}
+				restoreOutsideMode();
 			}
 		} else {
-			historyService.saveRecentlyOpened();
+			guarded(() => historyService.saveRecentlyOpened());
 			try {
 				await agentsModeService.setActive(true);
 			} finally {
-				if (!agentsModeService.isActive) {
-					historyService.restoreRecentlyOpened();
-				}
+				restoreOutsideMode();
 			}
 		}
 	}
