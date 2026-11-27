@@ -8,6 +8,7 @@ import { DataTransfers } from '../../../../../../base/browser/dnd.js';
 import { $ } from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { timeout } from '../../../../../../base/common/async.js';
+import { Emitter } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../../../base/common/platform.js';
@@ -39,9 +40,9 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 import { ChatGroupDropTarget } from '../../../browser/parts/chatGroupDropTarget.js';
 import { SessionDropTarget } from '../../../browser/parts/sessionDropTarget.js';
 import { SessionChatDropTarget } from '../../../browser/parts/sessionChatDropTarget.js';
-import { DraggedSessionIdentifier, fillChatReferenceDragData, fillSessionChatDragData, getSessionChatDragData, isSessionChatDrag } from '../../../browser/dnd.js';
+import { DraggedSessionIdentifier, fillChatReferenceDragData, fillSessionChatDragData, fillSessionDataTransfer, getSessionChatDragData, isSessionChatDrag } from '../../../browser/dnd.js';
 import { ISessionsService, SessionGridDirection } from '../../../browser/sessionsService.js';
-import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
+import { ISessionChange, ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import '../../../../chat/browser/widget/media/chat.css';
 
 suite('Sessions - Chat Reference Drop Priority', () => {
@@ -185,7 +186,7 @@ suite('Sessions - Chat Reference Drop Priority', () => {
 			assert.deepStrictEqual({ inputHints, moves, attachments }, { inputHints: 0, moves: [scope], attachments: [] });
 		});
 
-		test(`${scope} placement lets the drag through to the chat while the key is held over it, whose input attaches it, as in a chat editor`, async () => {
+		test(`${scope} placement lets the drag through to the chat while the key is held over it, whose input attaches it, as in a chat editor; also once the key is released, as the drag moves on over the chat`, async () => {
 			const { container, widget, transcript, attachments, moves, overlayId, transcriptPoint, drag, dispatch } = setup(scope);
 			const dataTransfer = drag(sourceResource);
 			const held = { ...transcriptPoint, shiftKey: true };
@@ -199,14 +200,18 @@ suite('Sessions - Chat Reference Drop Priority', () => {
 			dispatch(transcript, 'dragover', dataTransfer, held);
 			const inputOverlay = widget.querySelector<HTMLElement>('.chat-dnd-overlay')!;
 			const inputFeedback = { visible: inputOverlay.classList.contains('visible'), text: inputOverlay.textContent, top: inputOverlay.style.top, height: inputOverlay.style.height };
-			dispatch(transcript, 'drop', dataTransfer, held);
+			// Released, the drag moves on to another part of the transcript, which it enters again: the chat still takes it
+			dispatch(transcript, 'dragenter', dataTransfer, transcriptPoint);
+			const overlayOnEnterAfterRelease = !!container.querySelector(overlayId);
+			dispatch(transcript, 'dragover', dataTransfer, transcriptPoint);
+			dispatch(transcript, 'drop', dataTransfer, transcriptPoint);
 			await timeout(0);
 			assert.deepStrictEqual({
-				inputHints, overlayWhileHeld, overlayOnEnterWhileHeld, inputFeedback, moves,
+				inputHints, overlayWhileHeld, overlayOnEnterWhileHeld, overlayOnEnterAfterRelease, inputFeedback, moves,
 				attachments: attachments.map(entry => ({ kind: entry.kind, value: entry.value?.toString() })),
 			}, {
 				inputHints: [`Drag here or hold ${isMacintosh ? '⇧' : 'Shift'} to attach to chat`],
-				overlayWhileHeld: false, overlayOnEnterWhileHeld: false,
+				overlayWhileHeld: false, overlayOnEnterWhileHeld: false, overlayOnEnterAfterRelease: false,
 				// The chat fits its feedback to the input, which takes the drop, as the drag is let through to it, and says what the hint said
 				inputFeedback: { visible: true, text: `Drag here or hold ${isMacintosh ? '⇧' : 'Shift'} to attach to chat`, top: '200px', height: '80px' },
 				moves: [], attachments: [{ kind: 'chatReference', value: backendResource.toString() }],
@@ -618,6 +623,55 @@ suite('Sessions - Session Chat Drop Target', () => {
 		});
 	});
 
+	test('a session of another window that the window does not know yet as it drops, such as while its sessions are released, opens once it is known: the drag and the drop hold the sessions until then', async () => {
+		const services = workbenchInstantiationService(undefined, store);
+		const changed = store.add(new Emitter<readonly ISessionChange[]>());
+		let known = false;
+		const chat = upcastPartial<IChat>({ resource: URI.parse('test-chat:/dragged'), isArchived: constObservable(false) });
+		const session = upcastPartial<ISession>({ sessionId: 'dragged', resource: URI.parse('test-session:/dragged'), loading: constObservable(false), chats: constObservable([chat]), mainChat: constObservable(chat) });
+		services.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override readonly onDidChangeSession = changed.event;
+			override getSession(resource: URI): ISession | undefined {
+				return known && isEqual(resource, session.resource) ? session : undefined;
+			}
+			override getSessionForChatResource() {
+				return undefined;
+			}
+		}());
+		const element = $('.test-chat');
+		element.style.cssText = 'position:fixed;left:0;top:0;width:400px;height:300px;';
+		document.body.appendChild(element);
+		store.add(toDisposable(() => element.remove()));
+		const opened: string[] = [];
+		let holds = 0;
+		store.add(services.createInstance(SessionChatDropTarget, element, {
+			chat: () => undefined,
+			open: chats => opened.push(...chats.map(chat => chat.toString())),
+			holdSessions: () => {
+				holds++;
+				return toDisposable(() => holds--);
+			},
+		}));
+		// A drag of another window has the session only in its data
+		const drag = new DragEvent('dragstart', { dataTransfer: new DataTransfer() });
+		fillSessionDataTransfer(drag, session);
+		const init: DragEventInit = { bubbles: true, cancelable: true, dataTransfer: drag.dataTransfer, clientX: 200, clientY: 150 };
+		element.dispatchEvent(new DragEvent('dragenter', init));
+		const overlay = element.querySelector<HTMLElement>('.session-chat-drop-overlay');
+		const dragged = { overlay: !!overlay, holds };
+		overlay?.dispatchEvent(new DragEvent('drop', init));
+		const dropped = { opened: [...opened], holds };
+		known = true;
+		changed.fire([{ session, kind: 'added' }]);
+		await timeout(0);
+
+		assert.deepStrictEqual({ dragged, dropped, loaded: { opened, holds } }, {
+			dragged: { overlay: true, holds: 1 },
+			dropped: { opened: [], holds: 1 },
+			loaded: { opened: ['test-chat:/dragged'], holds: 0 },
+		});
+	});
+
 	test('in a chat whose drop area holds it, such as the Chat view\'s, the drag that moves from the overlay onto the input keeps what the hint said, and leaves the chat as it enters it', () => {
 		const targetResource = URI.parse('agent-host-copilotcli:/target');
 		const sourceResource = URI.parse('agent-host-copilotcli:/source');
@@ -696,11 +750,27 @@ suite('Sessions - Session Chat Drop Target', () => {
 		dispatch(feedbackElement, 'dragleave', inputPoint);
 		const left = { feedback: inputFeedback() };
 
+		// Back over the chat, with the key held, the drag is let through to the input; released, it stays the input's as it
+		// moves on to another part of the transcript, until it leaves the chat
+		const held = { ...transcriptPoint, shiftKey: true };
+		dispatch(transcript, 'dragenter', transcriptPoint);
+		const placedAgain = workbench.querySelector<HTMLElement>('.session-chat-drop-overlay');
+		dispatch(transcript, 'dragleave', transcriptPoint);
+		placedAgain?.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer, ...held }));
+		dispatch(transcript, 'dragenter', held);
+		dispatch(transcript, 'dragover', held);
+		dispatch(transcript, 'dragenter', transcriptPoint);
+		dispatch(transcript, 'dragleave', transcriptPoint);
+		dispatch(transcript, 'dragover', transcriptPoint);
+		const released = { placedAgain: !!placedAgain, overlay: !!workbench.querySelector('.session-chat-drop-overlay'), feedback: inputFeedback() };
+		dispatch(transcript, 'dragleave', transcriptPoint);
+
 		const hint = `Drag here or hold ${isMacintosh ? '⇧' : 'Shift'} to attach to chat`;
-		assert.deepStrictEqual({ overChat, overInput, left }, {
+		assert.deepStrictEqual({ overChat, overInput, left, released }, {
 			overChat: { overlay: true, feedback: undefined },
 			overInput: { overlay: false, feedback: hint },
 			left: { feedback: undefined },
+			released: { placedAgain: true, overlay: false, feedback: hint },
 		});
 	});
 });

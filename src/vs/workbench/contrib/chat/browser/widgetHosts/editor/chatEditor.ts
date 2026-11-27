@@ -28,6 +28,7 @@ import { IStorageService } from '../../../../../../platform/storage/common/stora
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { editorBackground, editorForeground, inputBackground } from '../../../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
+import { registerContentDropTarget } from '../../../../../browser/dnd.js';
 import { AbstractEditorWithViewState } from '../../../../../browser/parts/editor/editorWithViewState.js';
 import { IEditorOpenContext } from '../../../../../common/editor.js';
 import { EditorInput } from '../../../../../common/editor/editorInput.js';
@@ -226,6 +227,9 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 		this._scopedContextKeyService = this._register(this.contextKeyService.createScoped(parent));
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 		ChatContextKeys.inChatEditor.bindTo(this._scopedContextKeyService).set(true);
+		// The chat takes what is dropped on it, such as files to attach, anywhere in it: editors and groups dragged over it still
+		// split its group, as over the content of other editors that take drops.
+		this._register(registerContentDropTarget(parent));
 
 		this._widget = this._register(
 			scopedInstantiationService.createInstance(
@@ -251,6 +255,7 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 					enableWorkingSet: 'explicit',
 					supportsChangingModes: true,
 					enableSessionStateIndicator: true,
+					dndContainer: parent,
 				},
 				{
 					listForeground: editorForeground,

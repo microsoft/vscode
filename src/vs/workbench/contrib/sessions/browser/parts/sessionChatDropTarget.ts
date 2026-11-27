@@ -5,7 +5,7 @@
 
 import './media/sessionChatDropTarget.css';
 import { $, addDisposableListener, DragAndDropObserver, EventHelper, EventType, getWindow, getWindowId, isHTMLElement } from '../../../../../base/browser/dom.js';
-import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
@@ -15,6 +15,7 @@ import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, InputDropTargetH
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../common/theme.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { IResolvedSessionChat, resolveSessionChat, waitForSessionChat } from '../chatEditor/sessionChatEditorHost.js';
 import { isChatWindowChatGone } from '../chatEditor/sessionChatOpening.js';
 import { DraggedSessionIdentifier, getSessionChatDragData, isSessionChatDrag, SessionsDataTransfers } from '../dnd.js';
 
@@ -24,6 +25,12 @@ export interface ISessionChatDropTargetDelegate {
 	chat(): URI | undefined;
 	/** Opens `chats`, the chats dropped on the target that it takes, in the order they were dragged. */
 	open(chats: readonly URI[]): void;
+	/**
+	 * Holds the sessions of the window, such as by keeping their providers, until the returned disposable is disposed: while a
+	 * session is dragged over the target, and once it drops, until its session is known, such as a session dragged from another
+	 * window while the providers here were released. Not needed where the window always knows its sessions.
+	 */
+	holdSessions?(): IDisposable;
 }
 
 /**
@@ -36,6 +43,8 @@ export interface ISessionChatDropTargetDelegate {
 export class SessionChatDropTarget extends Themable {
 
 	private readonly _overlayStore = this._register(new MutableDisposable<DisposableStore>());
+	/** What holds the sessions of drops that wait for their sessions to be known. */
+	private readonly _pendingDrops = this._register(new DisposableStore());
 
 	private readonly _sessionTransfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();
 	private readonly _editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
@@ -86,20 +95,16 @@ export class SessionChatDropTarget extends Themable {
 		}
 		const dragged = this._sessionTransfer.getData(DraggedSessionIdentifier.prototype);
 		// Not known before it drops, when the drag is of another window's
-		return !dragged || dragged.some(item => !!item.resource && !!this._resolveSessionChat(item.resource));
+		return !dragged || dragged.some(item => !!item.resource && !!this._chatToOpen(resolveSessionChat(this._sessionsManagementService, item.resource)));
 	}
 
-	private _takes(chat: URI): boolean {
-		return !isEqual(chat, this._delegate.chat());
-	}
-
-	private _resolveSessionChat(resource: URI): URI | undefined {
-		const session = this._sessionsManagementService.getSession(resource);
-		if (!session) {
+	/** The chat that the target opens for a dropped session or chat: its session's main chat, or the chat; none that it does not take. */
+	private _chatToOpen(resolved: IResolvedSessionChat | undefined): URI | undefined {
+		if (!resolved) {
 			return undefined;
 		}
-		const chat = session.mainChat.get().resource;
-		return isChatWindowChatGone(session, chat, undefined) || !this._takes(chat) ? undefined : chat;
+		const chat = resolved.chat ?? resolved.session.mainChat.get().resource;
+		return isChatWindowChatGone(resolved.session, chat, undefined) || isEqual(chat, this._delegate.chat()) ? undefined : chat;
 	}
 
 	private _onDragEnter(e: DragEvent): void {
@@ -134,6 +139,11 @@ export class SessionChatDropTarget extends Themable {
 			indicator.style.outlineOffset = '-2px';
 		}
 		overlay.appendChild(indicator);
+		// The sessions stay known while one is dragged over the chat, so that what drops is known as it drops
+		const hold = this._delegate.holdSessions?.();
+		if (hold) {
+			store.add(hold);
+		}
 		// Shown in the window's workbench, not in the chat's element: the drag over the overlay is not over the chat, whose drop
 		// area can hold the element, such as the Chat view's, and counts the drags that enter and leave it.
 		const host = this._element.closest<HTMLElement>('.monaco-workbench') ?? this._element;
@@ -159,8 +169,9 @@ export class SessionChatDropTarget extends Themable {
 			onDragEnd: () => this._hideOverlay(),
 			onDrop: ev => {
 				EventHelper.stop(ev, true);
-				this._hideOverlay();
+				// Before the overlay goes, whose hold keeps the sessions known until the drop holds them itself
 				this._handleDrop(ev);
+				this._hideOverlay();
 			},
 		}));
 	}
@@ -182,23 +193,40 @@ export class SessionChatDropTarget extends Themable {
 		return [];
 	}
 
-	private _handleDrop(e: DragEvent): void {
-		const chats: URI[] = [];
+	/** The chat or the sessions that are dropped, as the drop has them while it lasts. */
+	private _readDropped(e: DragEvent): URI[] {
 		const chat = getSessionChatDragData(e);
 		if (chat) {
-			const resource = URI.parse(chat.resource);
-			const found = this._sessionsManagementService.getSessionForChatResource(resource);
-			if (found && !isChatWindowChatGone(found.session, resource, undefined) && this._takes(resource)) {
-				chats.push(resource);
+			return [URI.parse(chat.resource)];
+		}
+		const dragged = this._sessionTransfer.getData(DraggedSessionIdentifier.prototype) ?? this._readSessionPayload(e);
+		this._sessionTransfer.clearData(DraggedSessionIdentifier.prototype);
+		return dragged.flatMap(item => item.resource ? [item.resource] : []);
+	}
+
+	private _handleDrop(e: DragEvent): void {
+		const dropped = this._readDropped(e);
+		const known = dropped.map(resource => resolveSessionChat(this._sessionsManagementService, resource));
+		if (known.every(resolved => !!resolved)) {
+			this._open(known);
+			return;
+		}
+		// The window does not know every dropped session yet, such as one of another window while the providers here were
+		// released: their chats open once their sessions are known, while the sessions are held.
+		const hold = this._pendingDrops.add(this._delegate.holdSessions?.() ?? toDisposable(() => { }));
+		void Promise.all(dropped.map((resource, index) => known[index] ?? waitForSessionChat(this._sessionsManagementService, resource))).then(resolved => {
+			if (!this._store.isDisposed) {
+				this._open(resolved);
 			}
-		} else {
-			const dragged = this._sessionTransfer.getData(DraggedSessionIdentifier.prototype) ?? this._readSessionPayload(e);
-			this._sessionTransfer.clearData(DraggedSessionIdentifier.prototype);
-			for (const item of dragged) {
-				const resolved = item.resource && this._resolveSessionChat(item.resource);
-				if (resolved) {
-					chats.push(resolved);
-				}
+		}).finally(() => this._pendingDrops.delete(hold));
+	}
+
+	private _open(resolved: readonly (IResolvedSessionChat | undefined)[]): void {
+		const chats: URI[] = [];
+		for (const item of resolved) {
+			const chat = this._chatToOpen(item);
+			if (chat && !chats.some(candidate => isEqual(candidate, chat))) {
+				chats.push(chat);
 			}
 		}
 		if (chats.length) {

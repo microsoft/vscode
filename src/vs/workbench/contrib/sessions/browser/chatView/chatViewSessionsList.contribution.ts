@@ -39,6 +39,7 @@ import { IEditorWindowSessionsRuntime } from '../editorWindow/editorWindowSessio
 import { Menus } from '../menus.js';
 import { ShownChatReadMarker } from '../shownChatReadMarker.js';
 import { SessionChatDropTarget } from '../parts/sessionChatDropTarget.js';
+import { IAgentsViewProvidersService } from '../agentsView/agentsViewProviders.js';
 import { IChatViewSessionsListService } from '../../../chat/common/chatViewSessionsListService.js';
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
@@ -110,6 +111,7 @@ class ChatViewSessionsListFeature extends Disposable {
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IViewsService private readonly _viewsService: IViewsService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
+		@IAgentsViewProvidersService agentsViewProvidersService: IAgentsViewProvidersService,
 	) {
 		super();
 
@@ -121,11 +123,14 @@ class ChatViewSessionsListFeature extends Disposable {
 		// The sessions list of the Chat view, whose sessions open where the window presents them. While a host replaces the Chat
 		// view, such as the chat part, its chats show there: the Chat view shows only the sessions, unless it hosts the chat
 		// opened last, one that the host leaves to it, such as a local chat. A session dropped on the chat opens there, in place of
-		// the chat it shows, as one picked in the list does; one dropped on a chat editor opens beside it, in its group.
+		// the chat it shows, as one picked in the list does, while no host replaces the Chat view; one dropped on a chat editor
+		// opens beside it, in its group.
 		this._register(_chatViewHostService.register({
 			sessionsList: instantiationService.createInstance(ChatViewSessionsListProvider),
 			dropTarget: {
-				create: (element, chat, open) => instantiationService.createInstance(SessionChatDropTarget, element, { chat, open }),
+				// The window holds the providers only while its sessions show, not for a chat editor alone: a dragged session holds
+				// them too, so that its session is known as it drops, such as one dragged from another window
+				create: (element, chat, open) => instantiationService.createInstance(SessionChatDropTarget, element, { chat, open, holdSessions: () => agentsViewProvidersService.acquire() }),
 			},
 			sessionsOnly: true,
 		}));

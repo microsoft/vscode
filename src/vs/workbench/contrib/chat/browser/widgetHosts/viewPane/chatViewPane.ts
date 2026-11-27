@@ -1300,10 +1300,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		widget.render(chatControlsContainer, parent);
 		// What a feature drops on the chat, such as a session, opens here, in place of the chat it shows, as one picked in the
 		// sessions list does; ahead of the chat, whose input attaches what is dropped on it. Not the sessions list beside the
-		// chat, which takes what is dropped on it itself.
+		// chat, which takes what is dropped on it itself. Nor while a host replaces the Chat view, such as the chat area, where
+		// sessions open then, also one picked in the list: the chat here, such as a local chat the host leaves to it, only attaches.
 		this._register(autorun(reader => {
 			const dropTarget = this.chatViewHostService.dropTarget.read(reader);
-			if (dropTarget) {
+			if (dropTarget && !this.chatViewHostService.replaced.read(reader)) {
 				reader.store.add(dropTarget.create(chatControlsContainer, () => widget.viewModel?.sessionResource, chats => void this.chatViewHostService.openSession(chats[0]).catch(onUnexpectedError)));
 			}
 		}));

@@ -287,6 +287,9 @@ suite('Session chat view editor', () => {
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override readonly onDidChangeSessions = Event.None;
 			override readonly onDidChangeSessionTypes = Event.None;
+			override getSession() {
+				return undefined;
+			}
 			override getSessionForChatResource() {
 				const chat = new class extends mock<IChat>() {
 					override readonly resource = other.mainChat.get().resource;

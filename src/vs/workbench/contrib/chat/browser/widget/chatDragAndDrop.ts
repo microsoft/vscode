@@ -140,18 +140,19 @@ export class ChatDragAndDrop extends Themable {
 		const getHint = (passThroughModifier: string | undefined) => passThroughModifier
 			? localize({ key: 'chatInputDropHintWithModifier', comment: ['{0} is a key, such as Shift. Keep the underscores around it: they show it as a key.'] }, "Drag here or hold __{0}__ to attach to chat", passThroughModifier)
 			: localize('chatInputDropHint', "Drag here to attach to chat");
+		// Whether the drag is let through to the input: by a pane around the target, such as the editor area of a chat editor
+		// while the key to drop into the editor is held, or by that key held over the target itself, which lets drags through to
+		// the input of every chat, wherever it shows. The input takes the drag then, as with the drag over it, until the drag
+		// leaves: also once the key is released, and the panes around it leave the drag to it until then (`letsThrough`).
+		let letThrough = false;
 		// The pane around the input, such as a grid that opens what is dropped on it, leaves the input the drags it takes.
 		disposable.add(registerInputDropTarget(inputTarget, {
 			accepts: e => !this.disableOverlay && this.isDragEventSupported(e),
 			area: target,
 			getHint,
 			adoptHint: hint => this.adoptedHints.set(target, hint),
+			letsThrough: () => letThrough && this.currentActiveTarget === target,
 		}));
-		// Whether the drag is let through to the input: by a pane around the target, such as the editor area of a chat editor
-		// while the key to drop into the editor is held, or by that key held over the target itself, which lets drags through to
-		// the input of every chat, wherever it shows. The input takes the drag then, as with the drag over it, until the drag
-		// leaves: also once the key is released, as the drop still attaches until the pane takes the drag again.
-		let letThrough = false;
 		// Whether the overlay fits the input, rather than covering the whole target.
 		let fitsInput = false;
 		const observer = disposable.add(new DragAndDropObserver(target, {
