@@ -22,7 +22,7 @@ import { IEditableWorkspaceContextService } from '../../../../../services/config
 import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
 import { SESSIONS_LIST_WORKSPACES_FILTER_SETTING } from '../../../common/chatConstants.js';
 import { SessionsListFilters } from '../../../browser/views/sessionsListFilters.js';
-import { SessionsWorkbenchScopeService } from '../../../browser/views/sessionsWorkbenchScope.js';
+import { SessionsWorkbenchScopeService, windowShowsSessionsScopeBar } from '../../../browser/views/sessionsWorkbenchScope.js';
 
 suite('SessionsWorkbenchScope', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -96,6 +96,20 @@ suite('SessionsWorkbenchScope', () => {
 			empty: { barShown: true, scope: 'file:///other' },
 			folder: { barShown: false, scope: 'file:///work/repo' },
 			multiRoot: { barShown: false, scope: 'file:///work/repo' },
+		});
+	});
+
+	test('only the Agents window and empty editor windows show a bar, whichever grouping asks', () => {
+		const result: Record<string, { check: boolean; windowShowsBar: boolean }> = {};
+		for (const kind of ['agents', 'empty', 'folder', 'multiRoot'] as const) {
+			const { service, workspace } = createScope({ kind });
+			result[kind] = { check: windowShowsSessionsScopeBar(workspace), windowShowsBar: service.windowShowsBar.get() };
+		}
+		assert.deepStrictEqual(result, {
+			agents: { check: true, windowShowsBar: true },
+			empty: { check: true, windowShowsBar: true },
+			folder: { check: false, windowShowsBar: false },
+			multiRoot: { check: false, windowShowsBar: false },
 		});
 	});
 

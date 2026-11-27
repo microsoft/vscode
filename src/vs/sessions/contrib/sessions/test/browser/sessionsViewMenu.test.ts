@@ -158,7 +158,7 @@ suite('Sessions - View Menu', () => {
 			get grouping() { return contextKeyService.getContextKeyValue<string>(SessionsViewGroupingContext.key); },
 			scopedContextKeyService: contextKeyService,
 			configurationService,
-			workbenchScopeService: { enabled: constObservable(windowOptions?.workspacesFilter?.enabled ?? false), barShown: constObservable(windowOptions?.workspacesFilter?.barShown ?? false) },
+			workbenchScopeService: { enabled: constObservable(windowOptions?.workspacesFilter?.enabled ?? false), windowShowsBar: constObservable(true), barShown: constObservable(windowOptions?.workspacesFilter?.barShown ?? false) },
 			instantiationService: viewInstantiationService,
 			uriIdentityService,
 			workspaceContextService: { getWorkbenchScope: () => windowOptions?.sessionsWindow || windowOptions?.emptyWindow ? undefined : URI.file('/workspace'), getWorkbenchMode: () => windowOptions?.sessionsWindow ? WorkbenchMode.Agents : WorkbenchMode.Editor },

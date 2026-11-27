@@ -13,12 +13,20 @@ import { InstantiationType, registerSingleton } from '../../../../../platform/in
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { observableConfigValue, observableContextKey } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { WorkbenchMode, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, WorkbenchMode, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IEditableWorkspaceContextService } from '../../../../services/configuration/common/configuration.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { SESSIONS_LIST_WORKSPACES_FILTER_SETTING } from '../../common/chatConstants.js';
 import { SessionsListFilters } from './sessionsListFilters.js';
+
+/**
+ * Whether a window shows the Sessions list's workspace and environment bar: the Agents window and empty editor
+ * windows. Folder and multi-root editor windows keep their own folders as their scope, so they show no bar.
+ */
+export function windowShowsSessionsScopeBar(workspaceContextService: Pick<IWorkspaceContextService, 'getWorkbenchMode' | 'getWorkbenchState'>): boolean {
+	return workspaceContextService.getWorkbenchMode() === WorkbenchMode.Agents || workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY;
+}
 
 export const ISessionsWorkbenchScopeService = createDecorator<ISessionsWorkbenchScopeService>('sessionsWorkbenchScopeService');
 
@@ -27,9 +35,11 @@ export interface ISessionsWorkbenchScopeService {
 	readonly _serviceBrand: undefined;
 	/** Whether {@link SESSIONS_LIST_WORKSPACES_FILTER_SETTING} is on. */
 	readonly enabled: IObservable<boolean>;
+	/** Whether this window shows a bar at all, per {@link windowShowsSessionsScopeBar}; Inbox's bar uses it too. */
+	readonly windowShowsBar: IObservable<boolean>;
 	/**
-	 * Whether the lists show the bar in every grouping: the setting is on, the window has no folders (an empty editor
-	 * window or the Agents window) and AI features are neither hidden nor disabled. Only then does a bar scope the window.
+	 * Whether the lists show the bar in every grouping: the setting is on, {@link windowShowsBar} holds and AI features
+	 * are neither hidden nor disabled. Only then does a bar scope the window.
 	 */
 	readonly barShown: IObservable<boolean>;
 	registerScopeBar(filters: SessionsListFilters): IDisposable;
@@ -38,6 +48,7 @@ export interface ISessionsWorkbenchScopeService {
 export class SessionsWorkbenchScopeService extends Disposable implements ISessionsWorkbenchScopeService {
 	declare readonly _serviceBrand: undefined;
 	readonly enabled: IObservable<boolean>;
+	readonly windowShowsBar: IObservable<boolean>;
 	readonly barShown: IObservable<boolean>;
 	private readonly bars: SessionsListFilters[] = [];
 	private readonly current = observableValue<{ readonly filters: SessionsListFilters } | undefined>(this, undefined);
@@ -52,10 +63,9 @@ export class SessionsWorkbenchScopeService extends Disposable implements ISessio
 		super();
 		this.enabled = observableConfigValue<boolean>(SESSIONS_LIST_WORKSPACES_FILTER_SETTING, false, configurationService);
 		const chatEnabled = observableContextKey<boolean>(ChatContextKeys.enabled.key, contextKeyService);
-		// Folder and multi-root editor windows keep their own scope: the setting shows no bar there.
-		const hasFolders = observableFromEvent(this, Event.any<unknown>(workspaceContextService.onDidChangeWorkbenchState, workspaceContextService.onDidChangeWorkbenchMode),
-			() => workspaceContextService.getWorkbenchMode() === WorkbenchMode.Editor && workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY);
-		this.barShown = derived(this, reader => this.enabled.read(reader) && !hasFolders.read(reader) && !!chatEnabled.read(reader) && !chatEntitlementService.sentimentObs.read(reader).hidden);
+		this.windowShowsBar = observableFromEvent(this, Event.any<unknown>(workspaceContextService.onDidChangeWorkbenchState, workspaceContextService.onDidChangeWorkbenchMode),
+			() => windowShowsSessionsScopeBar(workspaceContextService));
+		this.barShown = derived(this, reader => this.enabled.read(reader) && this.windowShowsBar.read(reader) && !!chatEnabled.read(reader) && !chatEntitlementService.sentimentObs.read(reader).hidden);
 		let owned = false;
 		let lastScope: URI | undefined;
 		const reset = () => {
