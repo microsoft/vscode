@@ -225,13 +225,14 @@ async function encodingSSHConnectFailureCode<T>(operation: Promise<T>): Promise<
  * documented at https://www.npmjs.com/package/ssh2#client-methods.
  *
  * `keyPath` is internal-only metadata for logging — it is stripped before the
- * attempt is returned to ssh2.
+ * attempt is returned to ssh2. A `password` attempt without a `password`
+ * prompts the user for one.
  */
 export type SSHAuthAttempt =
 	| { readonly type: 'none'; readonly username: string }
 	| { readonly type: 'publickey'; readonly username: string; readonly key: Buffer; readonly keyPath: string; readonly encrypted?: boolean }
 	| { readonly type: 'agent'; readonly username: string; readonly agent: string }
-	| { readonly type: 'password'; readonly username: string; readonly password: string }
+	| { readonly type: 'password'; readonly username: string; readonly password?: string }
 	| { readonly type: 'keyboard-interactive'; readonly username: string };
 
 function describeAuthAttempt(attempt: SSHAuthAttempt): string {
@@ -270,9 +271,23 @@ export type SSHKeyPassphrasePromptHandler = (
 ) => void;
 
 /**
+ * Callback invoked when the SSH server accepts `password` authentication and
+ * no password was configured. `finish` receives `undefined` when the prompt
+ * was cancelled.
+ */
+export type SSHPasswordPromptHandler = (
+	finish: (password: string | undefined) => void,
+) => void;
+
+/** Returned by {@link toAuthMethod} when a prompt will supply the method to ssh2's callback later. */
+const PROMPTING = Symbol('prompting');
+
+/**
  * Translate a {@link SSHAuthAttempt} into the payload shape ssh2 expects in
  * its `authHandler` callback. Returns `undefined` when the attempt cannot be
- * realized (currently only `keyboard-interactive` without a prompt handler).
+ * realized because it needs a prompt handler that is not available, and
+ * {@link PROMPTING} when a prompt is collecting the credential and will
+ * invoke `callback` itself.
  *
  * The kbi case is the one place where we still need a callback-bridge: ssh2
  * calls our `prompt` with a `finish(string[])` and we hand the responses to
@@ -282,8 +297,9 @@ function toAuthMethod(
 	attempt: SSHAuthAttempt,
 	kbiHandler: SSHKeyboardInteractivePromptHandler | undefined,
 	keyPassphraseHandler: SSHKeyPassphrasePromptHandler | undefined,
+	passwordHandler: SSHPasswordPromptHandler | undefined,
 	callback: (next: AnyAuthMethod | false) => void,
-): AnyAuthMethod | undefined {
+): AnyAuthMethod | typeof PROMPTING | undefined {
 	switch (attempt.type) {
 		case 'publickey': {
 			// Strip our internal `keyPath` metadata before handing to ssh2.
@@ -299,12 +315,22 @@ function toAuthMethod(
 					}
 					callback({ ...payload, passphrase });
 				});
-				return undefined;
+				return PROMPTING;
 			}
 			return payload;
 		}
+		case 'password': {
+			const { username, password } = attempt;
+			if (password !== undefined) {
+				return { type: 'password', username, password };
+			}
+			if (!passwordHandler) {
+				return undefined;
+			}
+			passwordHandler(response => callback(response === undefined ? false : { type: 'password', username, password: response }));
+			return PROMPTING;
+		}
 		case 'agent':
-		case 'password':
 		case 'none':
 			return attempt;
 		case 'keyboard-interactive': {
@@ -344,13 +370,16 @@ function isMethodAllowedByServer(attempt: SSHAuthAttempt, methodsLeft: Authentic
  *
  * `kbiHandler` (when provided) is invoked by ssh2 if the server picks the
  * `keyboard-interactive` attempt, and is responsible for collecting
- * responses (e.g. by prompting the user).
+ * responses (e.g. by prompting the user). `keyPassphraseHandler` and
+ * `passwordHandler` collect the passphrase of an encrypted key and a
+ * password that was not configured, respectively.
  */
 export function makeAuthHandler(
 	attempts: readonly SSHAuthAttempt[],
 	logService: ILogService,
 	kbiHandler?: SSHKeyboardInteractivePromptHandler,
 	keyPassphraseHandler?: SSHKeyPassphrasePromptHandler,
+	passwordHandler?: SSHPasswordPromptHandler,
 ): (methodsLeft: AuthenticationType[] | null, partialSuccess: boolean, callback: (next: AnyAuthMethod | false) => void) => void {
 	let index = 0;
 	return (methodsLeft, _partialSuccess, callback) => {
@@ -360,17 +389,15 @@ export function makeAuthHandler(
 				logService.info(`${LOG_PREFIX} Skipping ${describeAuthAttempt(attempt)} — server only allows ${methodsLeft!.join(', ')}`);
 				continue;
 			}
-			const method = toAuthMethod(attempt, kbiHandler, keyPassphraseHandler, callback);
+			const method = toAuthMethod(attempt, kbiHandler, keyPassphraseHandler, passwordHandler, callback);
 			if (!method) {
-				if (attempt.type === 'publickey' && attempt.encrypted && keyPassphraseHandler) {
-					logService.info(`${LOG_PREFIX} Trying auth: ${describeAuthAttempt(attempt)}`);
-					return;
-				}
 				logService.warn(`${LOG_PREFIX} ${describeAuthAttempt(attempt)} skipped: no prompt handler available`);
 				continue;
 			}
 			logService.info(`${LOG_PREFIX} Trying auth: ${describeAuthAttempt(attempt)}`);
-			callback(method);
+			if (method !== PROMPTING) {
+				callback(method);
+			}
 			return;
 		}
 		logService.info(`${LOG_PREFIX} No more auth methods to try; giving up`);
@@ -1632,10 +1659,26 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				liveKbiRequests.add(requestId);
 			}
 			: undefined;
+		const passwordHandler: SSHPasswordPromptHandler | undefined = attempts.some(a => a.type === 'password' && a.password === undefined)
+			? finish => {
+				armDeadline?.(INTERACTIVE_TIMEOUT_MS);
+				const requestId = this._handleKeyboardInteractive(
+					connectionKey ?? displayHost,
+					displayHost,
+					config.username,
+					localize('sshPasswordName', "SSH Password"),
+					'',
+					[{ prompt: localize('sshPasswordAuthPrompt', "Enter the password for {0}@{1}.", config.username, config.host), echo: false }],
+					wrapPromptFinish((responses: readonly string[]) => finish(responses[0])),
+					() => cancelConnectFromKbi?.(),
+				);
+				liveKbiRequests.add(requestId);
+			}
+			: undefined;
 		// Cast: the ssh2 @types don't model `false` (give-up) for the
 		// callback nor `null` for the first invocation's `methodsLeft`,
 		// even though the runtime supports both per the ssh2 docs.
-		connectConfig.authHandler = makeAuthHandler(attempts, this._logService, kbiHandler, keyPassphraseHandler) as unknown as ConnectConfig['authHandler'];
+		connectConfig.authHandler = makeAuthHandler(attempts, this._logService, kbiHandler, keyPassphraseHandler, passwordHandler) as unknown as ConnectConfig['authHandler'];
 
 		const cancelLiveKbiRequests = () => {
 			for (const requestId of liveKbiRequests) {
@@ -1945,11 +1988,13 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 						}
 					}
 				}
-				// Final fallback: keyboard-interactive (typically a password prompt).
-				// Only meaningful if the server advertises it; the auth handler
-				// will skip it otherwise. The prompt is forwarded to the renderer
-				// via {@link onDidRequestKeyboardInteractive}.
-				attempts.push({ type: 'keyboard-interactive', username });
+				// Final fallbacks, in OpenSSH's default order: keyboard-interactive
+				// (typically a password prompt), then password for servers that
+				// disable keyboard-interactive (e.g. Debian's default sshd_config).
+				// The auth handler skips whichever the server doesn't advertise.
+				// Prompts are forwarded to the renderer via
+				// {@link onDidRequestKeyboardInteractive}.
+				attempts.push({ type: 'keyboard-interactive', username }, { type: 'password', username });
 				break;
 			}
 			case SSHAuthMethod.KeyFile: {
