@@ -298,7 +298,7 @@ export class SettingsEditor2 extends EditorPane {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IExperimentalSettingsService experimentalSettingsService: IExperimentalSettingsService,
 		@IManagedSettingsPresentationService managedSettingsPresentationService: IManagedSettingsPresentationService,
-		@IAgentsModeService agentsModeService: IAgentsModeService,
+		@IAgentsModeService private readonly agentsModeService: IAgentsModeService,
 	) {
 		super(SettingsEditor2.ID, group, telemetryService, themeService, storageService);
 		this.searchDelayer = this._register(new Delayer(200));
@@ -589,7 +589,7 @@ export class SettingsEditor2 extends EditorPane {
 		if (cachedState) {
 			const settingsTarget = cachedState.target;
 			this.settingsTargetsWidget.settingsTarget = settingsTarget;
-			this.viewState.settingsTarget = settingsTarget;
+			this.viewState.settingsTarget = this.settingsTargetsWidget.settingsTarget ?? ConfigurationTarget.USER_LOCAL;
 			if (!this.searchWidget.getValue()) {
 				this.searchWidget.setValue(cachedState.searchQuery);
 			}
@@ -895,6 +895,7 @@ export class SettingsEditor2 extends EditorPane {
 		const targetWidgetContainer = DOM.append(headerControlsContainer, $('.settings-target-container'));
 		this.settingsTargetsWidget = this._register(this.instantiationService.createInstance(SettingsTargetsWidget, targetWidgetContainer, { enableRemoteSettings: true }));
 		this.settingsTargetsWidget.settingsTarget = ConfigurationTarget.USER_LOCAL;
+		this.settingsTargetsWidget.setAgentsMode(this.agentsModeService.isActive);
 		this._register(this.settingsTargetsWidget.onDidTargetChange(target => this.onDidSettingsTargetChange(target)));
 		this._register(DOM.addDisposableListener(targetWidgetContainer, DOM.EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e);
@@ -960,11 +961,12 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	/**
-	 * Agents mode shows its own defaults and read-only settings, so every
-	 * setting element follows the mode.
+	 * Agents mode writes only User settings and shows its own defaults, so the
+	 * targets and every setting element follow the mode.
 	 */
 	private onDidChangeAgentsMode(isActive: boolean): void {
 		this.viewState.isAgentsMode = isActive;
+		this.settingsTargetsWidget?.setAgentsMode(isActive);
 		this.onConfigUpdate(undefined, true);
 	}
 
