@@ -150,7 +150,6 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 
 		this.configuration = this.resolveConfiguration();
 
-		// A split button's keybinding hint can change its width, also while it is in the overflow and cannot report it
 		this._register(keybindingService.onDidUpdateKeybindings(() => {
 			this.splitButtonMinWidths = new WeakMap();
 			this.refitSplitButtons();

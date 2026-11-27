@@ -1039,7 +1039,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}));
 		const sessionsList = this._register(new MutableDisposable<DisposableStore>());
 		sessionsList.value = createSessionsList().store;
-		// The list renders some actions of the title, such as New Chat, which the header rendered without it
 		if (this.chatViewHostService.sessionsList.get() && this.sessionsControl) {
 			this.updateActions();
 		}
@@ -1052,7 +1051,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			sessionsList.clear();
 			const { sessionsControl, store } = createSessionsList();
 			sessionsList.value = store;
-			// The list renders some actions of the title, such as New Chat
 			this.updateActions();
 			sessionsControl?.setVisible(this.isBodyVisible() && this.sessionsViewerVisible);
 			this.updateSessionsControlVisibility();

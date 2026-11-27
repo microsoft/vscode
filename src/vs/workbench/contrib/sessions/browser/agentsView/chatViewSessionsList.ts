@@ -148,7 +148,6 @@ export class ChatViewSessionsListControl implements IChatViewSessionsListControl
 	getFocus(): IAgentSession[] { return []; }
 	openFind(): void { this._view.openFind(); }
 	createActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {
-		// New Chat of the title as the compact "New" button, whose dropdown part is the New menu
 		if (action instanceof SubmenuItemAction && action.item.submenu === MenuId.ChatNewMenu) {
 			const newChat = action.actions.find(action => action instanceof MenuItemAction);
 			if (newChat) {
