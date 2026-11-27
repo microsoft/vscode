@@ -1032,6 +1032,8 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _passiveMetadataSequencer = new SequencerByKey<string>();
 	private readonly _sessionCreationSequencer = new SequencerByKey<string>();
 	private readonly _additionalWorktreeSequencer = new SequencerByKey<string>();
+	/** A first send's pass that moves the other folders of a New Worktree for All Folders session into worktrees, while it runs. */
+	private readonly _sessionFolderIsolations = new Map<string, Promise<unknown>>();
 	private readonly _providerIdentityAdmissionSequencer = new SequencerByKey<AgentProvider>();
 
 	/** Protocol: fires when state is mutated by an action. */
@@ -1988,6 +1990,8 @@ export class AgentService extends Disposable implements IAgentService {
 		if (creationError) {
 			throw creationError;
 		}
+		// A send after the first one was cancelled while moving the other folders into worktrees launches in those worktrees
+		await this._sessionFolderIsolations.get(params.session)?.catch(() => undefined);
 		const pickedFolders = this._configurationService.getEffectiveWorkingDirectories(params.chat);
 		const pickedFolderUri = pickedFolders?.[0] ? URI.parse(pickedFolders[0]) : undefined;
 		const tail = (pickedFolders ?? []).slice(1).map(d => URI.parse(d));
@@ -2033,15 +2037,28 @@ export class AgentService extends Disposable implements IAgentService {
 			return [resolved, ...tail];
 		}
 
-		const resolved = await this._resolveWorktreeBeforeSend({ ...params, sessionId, pickedFolderUri });
-		if (!resolved) {
-			return undefined;
-		}
 		const config = this._configurationService.getSessionConfigValues(params.session);
-		const isolatedTail = config?.[SessionConfigKey.Isolation] === 'worktree' && config[SessionConfigKey.WorktreeFolders] === 'all'
-			? await this._isolateSessionFolders(URI.parse(params.session), params.chat, params.credentials, params.prompt)
-			: tail;
-		return [resolved, ...isolatedTail];
+		if (config?.[SessionConfigKey.Isolation] !== 'worktree' || config[SessionConfigKey.WorktreeFolders] !== 'all') {
+			const resolved = await this._resolveWorktreeBeforeSend({ ...params, sessionId, pickedFolderUri });
+			return resolved && [resolved, ...tail];
+		}
+		// Published before the session's own worktree clears its pending state, so that no send can start in the other folders meanwhile
+		return this._trackSessionFolderIsolation(params.session, (async () => {
+			const resolved = await this._resolveWorktreeBeforeSend({ ...params, sessionId, pickedFolderUri });
+			return resolved && [resolved, ...await this._isolateSessionFolders(URI.parse(params.session), params.chat, params.credentials, params.prompt)];
+		})());
+	}
+
+	/** Lets later sends of `session` wait for `isolation` ({@link _sessionFolderIsolations}) until it settles. */
+	private async _trackSessionFolderIsolation<T>(session: string, isolation: Promise<T>): Promise<T> {
+		this._sessionFolderIsolations.set(session, isolation);
+		try {
+			return await isolation;
+		} finally {
+			if (this._sessionFolderIsolations.get(session) === isolation) {
+				this._sessionFolderIsolations.delete(session);
+			}
+		}
 	}
 
 	/**
@@ -2077,7 +2094,7 @@ export class AgentService extends Disposable implements IAgentService {
 			// A folder in the checkout of the primary folder moves into the session's own worktree.
 			const created = new Map<string, URI>();
 			for (const worktree of await this._getSessionWorktrees(session)) {
-				if (worktree.source) {
+				if (worktree.shared && worktree.source) {
 					created.set(extUriBiasedIgnorePathCase.getComparisonKey(worktree.source), worktree.root);
 				}
 			}
@@ -2101,7 +2118,8 @@ export class AgentService extends Disposable implements IAgentService {
 						const baseBranch = await this._gitService.getCurrentBranch(checkoutRoot)
 							?? (await this._gitService.getDefaultBranch(repositoryRoot))?.name
 							?? 'HEAD';
-						created.set(key, URI.parse((await this._createAdditionalWorktree(session, checkoutRoot, repositoryRoot, baseBranch, credentials, prompt)).workingDirectory));
+						// It replaces the folders of its checkout for every chat of the session, so other folders of that checkout move into it too
+						created.set(key, URI.parse((await this._createAdditionalWorktree(session, checkoutRoot, repositoryRoot, baseBranch, credentials, prompt, undefined, true)).workingDirectory));
 					} catch (error) {
 						this._logService.warn(`[AgentService] Couldn't create a worktree for ${checkoutRoot.toString()} of session ${session.toString()}; its folders stay in place: ${toErrorMessage(error)}`);
 					}
@@ -13655,9 +13673,15 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			const checkoutRoot = await this._gitService.getRepositoryRoot(folder, { refreshIfNone: true });
 			const worktrees = await this._getSessionWorktrees(session);
+			// The worktree of that checkout the chat's main folder moved to, its own; else one any chat shares
+			const getIsolatedFolder = (root: URI) => {
+				const own = worktrees.find(worktree => !!worktree.source && extUriBiasedIgnorePathCase.isEqual(worktree.source, root)
+					&& !!chatFolders[0] && extUriBiasedIgnorePathCase.isEqualOrParent(URI.parse(chatFolders[0]), worktree.root));
+				return own ? this._toIsolatedFolder(own.root, root, folder) : this._getIsolatedFolder(worktrees, root, folder);
+			};
 			if (index === -1) {
 				// The original path of a folder that was already isolated.
-				const isolated = checkoutRoot && this._getIsolatedFolder(worktrees, checkoutRoot, folder);
+				const isolated = checkoutRoot && getIsolatedFolder(checkoutRoot);
 				if (isolated && chatFolders.some(candidate => extUriBiasedIgnorePathCase.isEqual(URI.parse(candidate), isolated))) {
 					return isolated;
 				}
@@ -13669,14 +13693,14 @@ export class AgentService extends Disposable implements IAgentService {
 			if (worktrees.some(worktree => extUriBiasedIgnorePathCase.isEqual(worktree.root, checkoutRoot))) {
 				return URI.parse(chatFolders[index]);
 			}
-			let isolated = this._getIsolatedFolder(worktrees, checkoutRoot, folder);
+			let isolated = getIsolatedFolder(checkoutRoot);
 			let created: ISessionAdditionalWorktree | undefined;
 			if (!isolated) {
 				const repositoryRoot = await tryResolvePrimaryWorktreeRoot(this._gitService, checkoutRoot) ?? checkoutRoot;
 				const baseBranch = await this._gitService.getCurrentBranch(checkoutRoot)
 					?? (await this._gitService.getDefaultBranch(repositoryRoot))?.name
 					?? 'HEAD';
-				created = await this._createAdditionalWorktree(session, checkoutRoot, repositoryRoot, baseBranch, credentials, undefined, chat);
+				created = await this._createAdditionalWorktree(session, checkoutRoot, repositoryRoot, baseBranch, credentials, undefined, chat, true);
 				isolated = this._toIsolatedFolder(URI.parse(created.workingDirectory), checkoutRoot, folder);
 			}
 			try {
@@ -13757,15 +13781,15 @@ export class AgentService extends Disposable implements IAgentService {
 	 * The worktrees the session owns: its primary worktree and its additional ones, with the checkout a worktree
 	 * that replaced a chat's folder was created from.
 	 */
-	private async _getSessionWorktrees(session: URI): Promise<readonly { readonly root: URI; readonly source?: URI }[]> {
+	private async _getSessionWorktrees(session: URI): Promise<readonly { readonly root: URI; readonly source?: URI; readonly shared: boolean }[]> {
 		const [primary, additional] = await Promise.all([
 			this._worktree.readWorktreeMetadata(session),
 			readSessionAdditionalWorktrees(this._sessionStateStore, session),
 		]);
 		return [
 			// Its checkout: the one it was created from, or for a record that predates it, the repository's main checkout.
-			...(primary?.worktreePath ? [{ root: primary.worktreePath, ...(primary.symlinkSourceRoot ?? primary.repositoryRoot ? { source: primary.symlinkSourceRoot ?? primary.repositoryRoot } : {}) }] : []),
-			...additional.map(record => ({ root: URI.parse(record.workingDirectory), ...(record.source ? { source: URI.parse(record.source) } : {}) })),
+			...(primary?.worktreePath ? [{ root: primary.worktreePath, shared: true, ...(primary.symlinkSourceRoot ?? primary.repositoryRoot ? { source: primary.symlinkSourceRoot ?? primary.repositoryRoot } : {}) }] : []),
+			...additional.map(record => ({ root: URI.parse(record.workingDirectory), shared: record.shared ?? !!record.chat, ...(record.source ? { source: URI.parse(record.source) } : {}) })),
 		];
 	}
 
@@ -13774,8 +13798,9 @@ export class AgentService extends Disposable implements IAgentService {
 	 * any, including the session's own worktree for a folder in the checkout of its primary folder. A checkout of the
 	 * same repository on another branch gets a worktree of its own.
 	 */
-	private _getIsolatedFolder(worktrees: readonly { readonly root: URI; readonly source?: URI }[], checkoutRoot: URI, folder: URI): URI | undefined {
-		const worktree = worktrees.find(candidate => candidate.source && extUriBiasedIgnorePathCase.isEqual(candidate.source, checkoutRoot));
+	private _getIsolatedFolder(worktrees: readonly { readonly root: URI; readonly source?: URI; readonly shared: boolean }[], checkoutRoot: URI, folder: URI): URI | undefined {
+		// Never one that is another chat's own, such as the worktree its main folder moved to
+		const worktree = worktrees.find(candidate => candidate.shared && candidate.source && extUriBiasedIgnorePathCase.isEqual(candidate.source, checkoutRoot));
 		return worktree && this._toIsolatedFolder(worktree.root, checkoutRoot, folder);
 	}
 
@@ -13819,7 +13844,9 @@ export class AgentService extends Disposable implements IAgentService {
 		const sessionKey = session.toString();
 		const latestSessionFolders = this._stateManager.getSessionSummary(sessionKey)?.workingDirectories ?? sessionFolders;
 		const isOriginal = (candidate: string) => isEqual(URI.parse(candidate), original);
-		const originalInUse = this._getWorkingDirectoriesInUse(chats, chat, this._sessionFoldersOfChatWithoutOwn(sessionKey))
+		// The session's pinned primary folder stays even when no chat works in it any more: the worktree goes next to it
+		const originalIsPinnedPrimary = capability.immutablePrimary && !capability.primaryReplacement && !!latestSessionFolders[0] && isOriginal(latestSessionFolders[0]);
+		const originalInUse = originalIsPinnedPrimary || this._getWorkingDirectoriesInUse(chats, chat, this._sessionFoldersOfChatWithoutOwn(sessionKey))
 			.some(scope => scope === undefined || scope.some(isOriginal))
 			|| this._isChatWorkingDirectoryReserved(session, original);
 		const hasReplacement = latestSessionFolders.some(candidate => isEqual(URI.parse(candidate), replacement));
@@ -14073,10 +14100,12 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/**
 	 * Creates a worktree of `checkoutRoot`'s repository on a new session branch from `baseBranch`, owned by `session`
-	 * as one of its additional worktrees. With `replacedFolderOf`, the worktree replaces a folder of that chat, and records
-	 * the checkout it was created from. The caller holds the session's additional-worktree lock.
+	 * as one of its additional worktrees, recording the checkout it was created from. With `replacedFolderOf`, the
+	 * worktree replaces a folder of that chat. With `shared`, other folders of that checkout move into it too, for any
+	 * chat; otherwise it is the worktree of the one chat that moves into it. The caller holds the session's
+	 * additional-worktree lock.
 	 */
-	private async _createAdditionalWorktree(session: URI, checkoutRoot: URI, repositoryRoot: URI, baseBranch: string, credentials: IAgentHostCredentialSource | undefined, prompt: string | undefined, replacedFolderOf?: URI): Promise<ISessionAdditionalWorktree> {
+	private async _createAdditionalWorktree(session: URI, checkoutRoot: URI, repositoryRoot: URI, baseBranch: string, credentials: IAgentHostCredentialSource | undefined, prompt: string | undefined, replacedFolderOf?: URI, shared = false): Promise<ISessionAdditionalWorktree> {
 		const records = await readSessionAdditionalWorktrees(this._sessionStateStore, session);
 		const detached = await this._worktree.createDetachedWorktree({
 			workingDirectory: checkoutRoot,
@@ -14100,7 +14129,9 @@ export class AgentService extends Disposable implements IAgentService {
 			handle: detached.handle,
 			workingDirectory: detached.worktree.toString(),
 			repositoryRoot: repositoryRoot.toString(),
-			...(replacedFolderOf ? { chat: replacedFolderOf.toString(), source: checkoutRoot.toString() } : {}),
+			...(replacedFolderOf ? { chat: replacedFolderOf.toString() } : {}),
+			source: checkoutRoot.toString(),
+			shared,
 		};
 		try {
 			await writeSessionAdditionalWorktrees(this._sessionStateStore, session, [...records, record]);

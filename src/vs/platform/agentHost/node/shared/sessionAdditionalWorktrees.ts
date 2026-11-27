@@ -14,8 +14,14 @@ export interface ISessionAdditionalWorktree {
 	readonly workingDirectory: string;
 	readonly repositoryRoot: string;
 	readonly chat?: string;
-	/** The checkout the worktree was created from, for a worktree that replaced a folder of a chat. */
+	/** The checkout the worktree was created from. */
 	readonly source?: string;
+	/**
+	 * Whether other folders of {@link source} may move into the worktree, for any chat: one that replaced the session's
+	 * folders or a chat's additional folder. A worktree a chat's main folder moved to is that chat's own. A record
+	 * without it is shared when it has a {@link chat}, as such records were before.
+	 */
+	readonly shared?: boolean;
 }
 
 /** Reads the additional repository worktrees owned by a multi-folder session, from its session state without importing it. */
@@ -81,7 +87,8 @@ function isSessionAdditionalWorktree(value: unknown): value is ISessionAdditiona
 		&& isUriString(candidate.workingDirectory)
 		&& isUriString(candidate.repositoryRoot)
 		&& (candidate.chat === undefined || isUriString(candidate.chat))
-		&& (candidate.source === undefined || isUriString(candidate.source));
+		&& (candidate.source === undefined || isUriString(candidate.source))
+		&& (candidate.shared === undefined || typeof candidate.shared === 'boolean');
 }
 
 function isUriString(value: unknown): value is string {
