@@ -19,5 +19,6 @@ export const sortAutoApproveRules: Readonly<Record<string, boolean>> = {
 	'/^sort\\b.*\\s(?:\\$?[\'"]|\\\\)*-(?:\\$?[\'"]|\\\\)*-(?:\\$?[\'"]|\\\\)*c(?:\\$?[\'"]|\\\\)*o/': false,
 
 	// `--o` is the shortest unique abbreviation for `--output`, which writes to a file like `-o`.
-	'/^sort\\b.*\\s(?:\\$?[\'"]|\\\\)*-(?:\\$?[\'"]|\\\\)*-(?:\\$?[\'"]|\\\\)*o/': false,
+	// The `s` flag lets `.*` match across a line continuation.
+	'/^sort\\b.*\\s(?:\\$?[\'"]|\\\\)*-(?:\\$?[\'"]|\\\\)*-(?:\\$?[\'"]|\\\\)*o/s': false,
 };

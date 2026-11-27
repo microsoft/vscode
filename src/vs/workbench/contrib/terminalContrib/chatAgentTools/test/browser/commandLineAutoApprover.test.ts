@@ -187,6 +187,7 @@ suite('CommandLineAutoApprover', () => {
 				'sort \\-\\-output=output.txt input.txt',
 				'sort --"output=output.txt" input.txt',
 				'sort $\'--output=output.txt\' input.txt',
+				'sort \\\ninput.txt --output=output.txt',
 			];
 			deepStrictEqual(await Promise.all(commands.map(isAutoApproved)), commands.map(() => false));
 		});
