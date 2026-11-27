@@ -56,9 +56,13 @@ import '../../../../workbench/contrib/chat/browser/chatManagement/modelRouters.c
 import './chatBackgroundTool.contribution.js';
 import { ScreenshotWindowToolContribution } from '../browser/screenshotWindowTool.js';
 import { ISession, isSessionCreated } from '../../../../workbench/services/sessions/common/session.js';
-import { IRemoteWorkspaceHandoffService, RemoteAgentHostHandoffResult } from '../../../common/remoteWorkspaceHandoff.js';
+import { IRemoteWorkspaceHandoffService, RemoteAgentHostHandoffResult, RemoteWorkspaceHandoffResult } from '../../../common/remoteWorkspaceHandoff.js';
 import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { getRemoteName } from '../../../../platform/remote/common/remoteHosts.js';
+import { IDevContainerAgentHostService, IDevContainerAgentHostTarget } from '../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
+import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 
 /** Revokes editor request ownership when the next request is submitted here. */
 export class AgentsWindowRequestActivity extends Disposable implements IWorkbenchContribution {
@@ -117,6 +121,8 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IRemoteWorkspaceHandoffService private readonly remoteWorkspaceHandoffService: IRemoteWorkspaceHandoffService,
 		@IChatWindowService private readonly chatWindowService: IChatWindowService,
+		@IDevContainerAgentHostService private readonly devContainerAgentHostService: IDevContainerAgentHostService,
+		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 	) {
 		super();
 		// Session providers register in contributions instantiated after restore.
@@ -421,6 +427,9 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 	private async resolveAndOpenRemoteSession(editorSessionResource: URI, remoteAuthority: string, token: CancellationToken): Promise<URI | 'unsupported' | undefined> {
 		// Unsupported remotes fall back to their source folder without a notification.
 		const remoteName = getRemoteName(remoteAuthority);
+		if (remoteName === 'dev-container') {
+			return this.resolveAndOpenDevContainerSession(editorSessionResource, remoteAuthority, token);
+		}
 		if (remoteName !== 'tunnel' && remoteName !== 'ssh-remote' && remoteName !== 'wsl') {
 			this.logService.info(`[AgentsHandoff] sessions of ${remoteName} windows are not shared with this window`);
 			return 'unsupported';
@@ -447,7 +456,71 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 			this.notificationService.warn(localize('agentsHandoff.remoteSessionOtherHost', "The session of your remote window can't be opened in the Agents Window, because the Agents Window is connected to a different agent host on the remote machine than your remote window."));
 			return 'unsupported';
 		}
-		const sessionResource = editorSessionResource.with({ scheme: sessionType });
+		return this.openRemoteWindowSession(editorSessionResource.with({ scheme: sessionType }), token);
+	}
+
+	/**
+	 * Opens a session of a Dev Container editor window. That window and this one share the agent host in the container,
+	 * which this window reaches through the container provider of the window's source folder, connecting it only while the
+	 * container runs. Containers without a source folder, such as those of a volume or a cloned repository, are
+	 * unsupported, and so are those this window wouldn't use for the folder, such as one the Dev Containers extension
+	 * labeled differently.
+	 */
+	private async resolveAndOpenDevContainerSession(editorSessionResource: URI, remoteAuthority: string, token: CancellationToken): Promise<URI | 'unsupported' | undefined> {
+		const intent = resolveAgentsWindowFolderIntent(URI.from({ scheme: Schemas.vscodeRemote, authority: remoteAuthority, path: '/' }), this.configurationService);
+		// Set only for a source folder this window can reach while Dev Container sessions are enabled.
+		if (!intent.preferDevContainer) {
+			this.logService.info('[AgentsHandoff] sessions of this Dev Container window are not shared with this window');
+			return 'unsupported';
+		}
+		let folderUri = intent.folderUri;
+		if (!folderUri && intent.remote?.folder) {
+			let resolution: RemoteWorkspaceHandoffResult;
+			try {
+				resolution = await this.remoteWorkspaceHandoffService.resolveFolder(intent.remote.folder, token);
+			} catch (error) {
+				if (isCancellationError(error)) {
+					return undefined;
+				}
+				throw error;
+			}
+			if (resolution.unavailableReason !== undefined) {
+				this.notificationService.warn(localize('agentsHandoff.remoteSessionUnavailable', "The session of your remote window could not be opened in the Agents Window. {0}", resolution.unavailableReason));
+				return undefined;
+			}
+			folderUri = resolution.folderUri;
+		}
+		if (!folderUri) {
+			return 'unsupported';
+		}
+		const trusted = await this.workspaceTrustRequestService.requestResourcesTrust({
+			uri: folderUri,
+			message: localize('agentsHandoff.trustDevContainerFolder', "An agent session will be able to read files, run commands, and make changes in this folder."),
+		});
+		if (!trusted || token.isCancellationRequested) {
+			return undefined;
+		}
+		let target: IDevContainerAgentHostTarget;
+		try {
+			target = await this.devContainerAgentHostService.connect(folderUri, token, { requireRunning: true });
+		} catch (error) {
+			if (isCancellationError(error) || token.isCancellationRequested) {
+				return undefined;
+			}
+			this.logService.info(`[AgentsHandoff] could not connect to the Dev Container of the remote window: ${toErrorMessage(error)}`);
+			return 'unsupported';
+		}
+		try {
+			const sessionType = toRemoteAgentHostSessionType(editorSessionResource.scheme, target.workspaceUri.authority);
+			return sessionType ? await this.openRemoteWindowSession(editorSessionResource.with({ scheme: sessionType }), token) : 'unsupported';
+		} finally {
+			// The connection stays, now with the window's sessions, until the container is idle.
+			await target.release();
+		}
+	}
+
+	/** Opens a remote window's session once this window's provider for its agent host lists it. */
+	private async openRemoteWindowSession(sessionResource: URI, token: CancellationToken): Promise<URI | undefined> {
 		this.logService.info(`[AgentsHandoff] remote session: target=${sessionResource.toString()}`);
 		if (isEqual(this._focusedSessionHostService.focusedHost.get().chatResource.get(), sessionResource)) {
 			return sessionResource;

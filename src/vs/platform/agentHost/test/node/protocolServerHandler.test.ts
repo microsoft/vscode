@@ -845,6 +845,7 @@ suite('ProtocolServerHandler', () => {
 				'vscode.automationHistoryDeletionState': true,
 				'vscode.devContainers': true,
 				'vscode.devContainerEnvironments': true,
+				'vscode.devContainerFolderContainers': true,
 				// Offered whether or not moving chats is enabled, so enabling it needs no reconnect.
 				'vscode.sessionMove': true,
 				'vscode.copilotExtensions': true,

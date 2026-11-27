@@ -28,15 +28,15 @@ import { agentHostUri } from '../../../../../../../platform/agentHost/common/age
 import { getEntryAddress, IRemoteAgentHostConnectionFactory, IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
-import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
-import { IWorkspaceTrustRequestService } from '../../../../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../../../platform/workspace/common/workspaceTrust.js';
 import { ISessionsProvidersService } from '../../../../browser/sessionsProvidersService.js';
 import { ISession } from '../../../../../../services/sessions/common/session.js';
 import { ISessionChangeEvent, ISessionsProvider } from '../../../../common/sessionsProvider.js';
-import { DevContainerAgentHostEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, IDevContainerAgentHostConnector, LocalDevContainerEnvironmentHost } from '../../../../common/devContainerAgentHostService.js';
+import { DevContainerAgentHostEnabledSettingId, DevContainerDiscoveryEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, IDevContainerAgentHostConnector, LocalDevContainerEnvironmentHost } from '../../../../common/devContainerAgentHostService.js';
 import { DevContainerAgentHostService } from '../../browser/devContainerAgentHostService.js';
 import { IRemoteAgentHostSessionsProviderConfig, RemoteAgentHostSessionsProvider } from '../../browser/remoteAgentHostSessionsProvider.js';
 
@@ -278,9 +278,18 @@ class TestDevContainerAgentHostService extends DevContainerAgentHostService {
 	provider: TestProvider | undefined;
 	publishSessionOnCreate = false;
 
-	constructor(...args: [IInstantiationService, IRemoteAgentHostService, ISessionsProvidersService, IStorageService, IConfigurationService?]) {
-		const [instantiationService, remoteService, providersService, storageService, configurationService] = args;
-		super(instantiationService, remoteService, providersService, storageService, new class extends mock<IWorkspaceTrustRequestService>() { }(), configurationService ?? new TestConfigurationService(), new NullLogService());
+	constructor(...args: [IInstantiationService, IRemoteAgentHostService, ISessionsProvidersService, IStorageService, IConfigurationService?, { readonly trusted?: (uri: URI) => boolean; readonly requestTrust?: (uri: URI) => Promise<boolean> }?]) {
+		const [instantiationService, remoteService, providersService, storageService, configurationService, trust] = args;
+		super(
+			instantiationService, remoteService, providersService, storageService,
+			new class extends mock<IWorkspaceTrustRequestService>() {
+				override async requestResourcesTrust(options: ResourceTrustRequestOptions) { return trust?.requestTrust ? trust.requestTrust(options.uri) : true; }
+			}(),
+			new class extends mock<IWorkspaceTrustManagementService>() {
+				override async getUriTrustInfo(uri: URI) { return { uri, trusted: trust?.trusted?.(uri) ?? true }; }
+			}(),
+			configurationService ?? new TestConfigurationService(), new NullLogService(),
+		);
 	}
 
 	protected override _createProvider(config: IRemoteAgentHostSessionsProviderConfig): RemoteAgentHostSessionsProvider {
@@ -1652,6 +1661,113 @@ suite('Dev Container Agent Host Service', () => {
 			registeredProviders: [],
 			connectionDisposed: true,
 			transportDisposed: true,
+		});
+	});
+
+	suite('folder Dev Containers', () => {
+		const project = URI.file('/project');
+		const untrusted = URI.file('/untrusted');
+		const stopped = URI.file('/stopped');
+
+		function setupFolders(containers: { folder: URI; running: boolean }[], hostConnection?: IAgentConnection) {
+			const instantiationService = store.add(new TestInstantiationService());
+			instantiationService.stubInstance(AgentHostProtocolClient, new TestAgentConnection());
+			const remoteService = store.add(new TestRemoteAgentHostService());
+			remoteService.configuredEntries = [{ name: 'Build', connection: { type: RemoteAgentHostEntryType.SSH, address: 'ssh:build', hostName: 'build' } }];
+			const providersService = store.add(new TestSessionsProvidersService());
+			const configurationService = new TestConfigurationService({ [DevContainerAgentHostEnabledSettingId]: true, [RemoteAgentHostsEnabledSettingId]: true, [DevContainerDiscoveryEnabledSettingId]: true });
+			store.add(configurationService.onDidChangeConfigurationEmitter);
+			const trusted = (uri: URI) => uri.path !== untrusted.path;
+			const service = store.add(new TestDevContainerAgentHostService(instantiationService, remoteService, providersService, store.add(new InMemoryStorageService()), configurationService, { trusted, requestTrust: async uri => trusted(uri) }));
+			const connections: { readonly workspaceUri: string; readonly requireRunning: boolean | undefined }[] = [];
+			const local = { containers };
+			store.add(service.registerConnector({
+				isAvailable: async () => true,
+				showLog: async () => { },
+				listLocalFolderContainers: async () => local.containers.map(({ folder, running }) => ({ folder: folder.toString(), running })),
+				createConnection: async (workspaceUri, address, _token, options) => {
+					connections.push({ workspaceUri: workspaceUri.toString(), requireRunning: options?.requireRunning });
+					return { address, name: 'Project Dev Container', workspaceUri: URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority(address), path: '/workspaces/project' }), transportFactory: () => undefined as never };
+				},
+				stopContainer: async () => true,
+			}));
+			if (hostConnection) {
+				remoteService.setHostConnection('ssh:build', hostConnection);
+			}
+			const provider = (workspaceUri: URI) => providersService.providers.get(`agenthost-${agentHostAuthority(devContainerAddress(workspaceUri))}`) as unknown as TestProvider | undefined;
+			const refresh = async () => {
+				await service.refreshFolderContainers();
+				await timeout(0);
+			};
+			const rows = () => service.folderContainers.get().map(({ workspaceUri, sourceAddress, running, providerId }) => ({ folder: workspaceUri.toString(), sourceAddress, running, provider: providerId === provider(workspaceUri)?.id }));
+			return { service, local, connections, provider, refresh, rows, configurationService };
+		}
+
+		test('lists running ones and connects those of trusted folders without user action until this window disconnects them while they run', async () => {
+			const { service, local, connections, provider, refresh, rows } = setupFolders([{ folder: project, running: true }, { folder: untrusted, running: true }, { folder: stopped, running: false }]);
+			await refresh();
+			const listed = rows();
+			const connected = [...connections];
+			const connectUntrusted = await provider(untrusted)!.config.connectOnDemand!().then(() => 'connected', (error: Error) => error.name);
+			await service.disconnect(project);
+			await refresh();
+			const afterDisconnect = { rows: rows().map(row => row.folder), connections: connections.length };
+			local.containers = [{ folder: project, running: false }, { folder: untrusted, running: true }];
+			await refresh();
+			const afterStop = rows().map(row => row.folder);
+			local.containers = [{ folder: project, running: true }, { folder: untrusted, running: true }];
+			await refresh();
+			assert.deepStrictEqual({ listed, connected, connectUntrusted, afterDisconnect, afterStop, afterRestart: connections }, {
+				listed: [
+					{ folder: project.toString(), sourceAddress: LocalDevContainerEnvironmentHost, running: true, provider: true },
+					{ folder: untrusted.toString(), sourceAddress: LocalDevContainerEnvironmentHost, running: true, provider: true },
+				],
+				// Never without the container running, nor for a folder this window doesn't trust.
+				connected: [{ workspaceUri: project.toString(), requireRunning: true }],
+				connectUntrusted: 'Canceled',
+				afterDisconnect: { rows: [project.toString(), untrusted.toString()], connections: 1 },
+				afterStop: [untrusted.toString()],
+				afterRestart: [{ workspaceUri: project.toString(), requireRunning: true }, { workspaceUri: project.toString(), requireRunning: true }],
+			});
+		});
+
+		test('keeps listing one whose provider has sessions while it is stopped, and none while disabled', async () => {
+			const { local, provider, refresh, rows, configurationService } = setupFolders([{ folder: project, running: true }]);
+			await refresh();
+			provider(project)!.publishSession();
+			local.containers = [{ folder: project, running: false }];
+			await refresh();
+			const stoppedRows = rows();
+			await configurationService.setUserConfiguration(DevContainerDiscoveryEnabledSettingId, false);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				source: ConfigurationTarget.USER, affectedKeys: new Set([DevContainerDiscoveryEnabledSettingId]),
+				change: { keys: [DevContainerDiscoveryEnabledSettingId], overrides: [] }, affectsConfiguration: key => key === DevContainerDiscoveryEnabledSettingId,
+			});
+			await refresh();
+			assert.deepStrictEqual({ stoppedRows, disabled: rows() }, {
+				stoppedRows: [{ folder: project.toString(), sourceAddress: LocalDevContainerEnvironmentHost, running: false, provider: true }],
+				disabled: [],
+			});
+		});
+
+		test('lists those of connected hosts that support it, in the folder URIs of their connection', async () => {
+			const listing = (meta: Record<string, unknown>) => new class extends mock<IAgentConnection>() {
+				override readonly initializeResult = constObservable({ protocolVersion: '1', serverSeq: 0, snapshots: [], _meta: meta });
+				override readonly devContainerService = new class extends mock<IDevContainerAgentHostMainService>() {
+					override async isDockerAvailable() { return true; }
+					override async listFolderContainers() { return [{ folder: URI.file('/home/me/project').toString(), running: true }]; }
+				}();
+			}();
+			const supported = setupFolders([], listing(getAgentHostExtensionInitializeResultMeta(true, true)));
+			await supported.refresh();
+			const older = setupFolders([], listing({ 'vscode.devContainers': true }));
+			await older.refresh();
+			const folder = toAgentHostUri(URI.file('/home/me/project'), agentHostAuthority('ssh:build')).toString();
+			assert.deepStrictEqual({ supported: supported.rows(), connections: supported.connections, older: older.rows() }, {
+				supported: [{ folder, sourceAddress: 'ssh:build', running: true, provider: true }],
+				connections: [{ workspaceUri: folder, requireRunning: true }],
+				older: [],
+			});
 		});
 	});
 });

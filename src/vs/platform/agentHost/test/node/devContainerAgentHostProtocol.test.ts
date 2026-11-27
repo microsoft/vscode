@@ -10,7 +10,7 @@ import { CancellationError } from '../../../../base/common/errors.js';
 import { OperatingSystem, OS } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { DevContainerCloseConnectionNotification, DevContainerConnectEnvironmentExtensionMethod, DevContainerConnectExtensionMethod, DevContainerConnectFailureNotification, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerSandboxSupportNotification, DevContainerRelayCloseNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveEnvironmentExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, DevContainerUserStateNotification } from '../../common/agentHostExtensionProtocol.js';
+import { DevContainerCloseConnectionNotification, DevContainerConnectEnvironmentExtensionMethod, DevContainerConnectExtensionMethod, DevContainerConnectFailureNotification, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerListFolderContainersExtensionMethod, DevContainerOutputNotification, DevContainerSandboxSupportNotification, DevContainerRelayCloseNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveEnvironmentExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, DevContainerUserStateNotification, type IAgentHostExtensionCommandMap } from '../../common/agentHostExtensionProtocol.js';
 import { devContainerEnvironmentImage } from '../../common/devContainerEnvironments.js';
 import type { IDevContainerAgentHostConnectResult } from '../../common/devContainerAgentHost.js';
 import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -232,6 +232,30 @@ suite('DevContainerAgentHostProtocol', () => {
 		const { service, protocol } = setup();
 		await protocol.handleRequest(DevContainerConnectExtensionMethod, { ...config, resume: true });
 		assert.strictEqual(service.connects[0].resume, true);
+	});
+
+	test('lists folder containers without workspace trust and forwards connecting only to a running one', async () => {
+		const trustRequests: string[] = [];
+		const { service, protocol } = setup(async workspace => { trustRequests.push(workspace); return true; });
+		service.folderContainers = [{ folder: 'file:///repo', running: true }];
+		const listed = await protocol.handleRequest(DevContainerListFolderContainersExtensionMethod, undefined);
+		await protocol.handleRequest(DevContainerConnectExtensionMethod, { ...config, requireRunning: true });
+		const responses: unknown[] = [[{ folder: 'file:///repo', running: false }], [{ folder: 'file:///repo' }]];
+		const client = store.add(new DevContainerAgentHostProtocolClient(async <M extends keyof IAgentHostExtensionCommandMap>() => responses.shift() as IAgentHostExtensionCommandMap[M]['result']));
+		assert.deepStrictEqual({
+			listed,
+			trustRequests: trustRequests.length,
+			requireRunning: hasKey(service.connects[0], { workspaceFolder: true }) ? service.connects[0].requireRunning : undefined,
+			clientListed: await client.listFolderContainers(),
+			invalid: await client.listFolderContainers().then(() => 'valid', (error: Error) => error.message),
+		}, {
+			listed: [{ folder: 'file:///repo', running: true }],
+			// Only the connection requests trust.
+			trustRequests: 1,
+			requireRunning: true,
+			clientListed: [{ folder: 'file:///repo', running: false }],
+			invalid: 'Invalid Dev Container folder containers response',
+		});
 	});
 
 	test('validates all extension request parameters', async () => {

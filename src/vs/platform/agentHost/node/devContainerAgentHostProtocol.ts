@@ -13,7 +13,7 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { hasKey } from '../../../base/common/types.js';
 import type { IValidator } from '../../../base/common/validation.js';
 import { ILogService } from '../../log/common/log.js';
-import { DevContainerCloseConnectionNotification, DevContainerConnectEnvironmentExtensionMethod, devContainerConnectEnvironmentParamsValidator, DevContainerConnectExtensionMethod, DevContainerConnectFailureNotification, devContainerConnectParamsValidator, devContainerConnectionParamsValidator, DevContainerDisconnectExtensionMethod, devContainerEnvironmentParamsValidator, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerSandboxSupportNotification, DevContainerRelayCloseNotification, DevContainerRelayMessageNotification, devContainerRelayMessageValidator, DevContainerRelaySendExtensionMethod, DevContainerRemoveEnvironmentExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, DevContainerUserStateNotification, devContainerWorkspaceParamsValidator, type IAgentHostExtensionNotificationMap } from '../common/agentHostExtensionProtocol.js';
+import { DevContainerCloseConnectionNotification, DevContainerConnectEnvironmentExtensionMethod, devContainerConnectEnvironmentParamsValidator, DevContainerConnectExtensionMethod, DevContainerConnectFailureNotification, devContainerConnectParamsValidator, devContainerConnectionParamsValidator, DevContainerDisconnectExtensionMethod, devContainerEnvironmentParamsValidator, DevContainerIsDockerAvailableExtensionMethod, DevContainerListFolderContainersExtensionMethod, DevContainerOutputNotification, DevContainerSandboxSupportNotification, DevContainerRelayCloseNotification, DevContainerRelayMessageNotification, devContainerRelayMessageValidator, DevContainerRelaySendExtensionMethod, DevContainerRemoveEnvironmentExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, DevContainerUserStateNotification, devContainerWorkspaceParamsValidator, type IAgentHostExtensionNotificationMap } from '../common/agentHostExtensionProtocol.js';
 import { IDevContainerAgentHostMainService, isValidDevContainerConnectionName, type IDevContainerAgentHostConfig, type IDevContainerAgentHostConnectResult } from '../common/devContainerAgentHost.js';
 import { devContainerEnvironmentImages, isDevContainerEnvironmentId } from '../common/devContainerEnvironments.js';
 import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
@@ -72,6 +72,7 @@ export class DevContainerAgentHostProtocol extends Disposable {
 	handleRequest(method: string, params: unknown): Promise<unknown> | undefined {
 		switch (method) {
 			case DevContainerIsDockerAvailableExtensionMethod:
+			case DevContainerListFolderContainersExtensionMethod:
 			case DevContainerConnectExtensionMethod:
 			case DevContainerConnectEnvironmentExtensionMethod:
 			case DevContainerDisconnectExtensionMethod:
@@ -95,13 +96,19 @@ export class DevContainerAgentHostProtocol extends Disposable {
 					throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'isDockerAvailable does not accept params');
 				}
 				return this._service.isDockerAvailable();
+			case DevContainerListFolderContainersExtensionMethod:
+				if (params !== undefined && params !== null) {
+					throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'listFolderContainers does not accept params');
+				}
+				// Listing reads container labels only, so like Docker availability it needs no workspace trust.
+				return this._service.listFolderContainers?.() ?? [];
 			case DevContainerConnectExtensionMethod: {
 				const config = this._validate(devContainerConnectParamsValidator, params);
 				const workspaceFolder = normalizeDevContainerWorkspaceFolder(config.workspaceFolder, OS);
 				if (!isAbsolute(workspaceFolder) || workspaceFolder.includes('\0') || !isValidDevContainerConnectionName(config.name)) {
 					throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'workspaceFolder must be an absolute host path and name must be non-empty');
 				}
-				return this._connect({ connectionId: config.connectionId, name: config.name, ...(config.resume !== undefined ? { resume: config.resume } : {}), ...(config.sandboxEnabled !== undefined ? { sandboxEnabled: config.sandboxEnabled } : {}), ...(config.persistUserState !== undefined ? { persistUserState: config.persistUserState } : {}), workspaceFolder });
+				return this._connect({ connectionId: config.connectionId, name: config.name, ...(config.resume !== undefined ? { resume: config.resume } : {}), ...(config.sandboxEnabled !== undefined ? { sandboxEnabled: config.sandboxEnabled } : {}), ...(config.persistUserState !== undefined ? { persistUserState: config.persistUserState } : {}), ...(config.requireRunning !== undefined ? { requireRunning: config.requireRunning } : {}), workspaceFolder });
 			}
 			case DevContainerConnectEnvironmentExtensionMethod: {
 				const config = this._validate(devContainerConnectEnvironmentParamsValidator, params);
