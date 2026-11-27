@@ -3,6 +3,8 @@ name: accessibility
 description: Primary accessibility skill for VS Code. REQUIRED for new feature and contribution work, and also applies to updates of existing UI. Covers accessibility help dialogs, accessible views, verbosity settings, signals, ARIA announcements, keyboard navigation, and ARIA labels/roles.
 ---
 
+This skill owns shared accessibility requirements and implementation workflows. The [accessibility design topic](../design-system/foundations/accessibility.design.md) routes design decisions here; component specifications add only their local obligations. Use the existing [implementation instructions](../../instructions/accessibility.instructions.md) for keybinding scoping and announcement patterns.
+
 ## When to Use This Skill
 
 Use this skill for any VS Code feature work that introduces or changes interactive UI. Use this skill by default for new features and contributions, including when the request does not explicitly mention accessibility.
@@ -229,6 +231,10 @@ this._accessibilitySignalService.playSignal(AccessibilitySignal.error, { userGes
 
 ---
 
+### Notifications beyond the active surface
+
+For chat attention requests, use the existing [window notifier](../../../src/vs/workbench/contrib/chat/browser/chatWindowNotifier.ts) and its configured notification mode. The explicit Always mode can notify even in a focused window; do not reduce it to a background-only check or apply this chat-specific policy to every background update.
+
 ## 5. ARIA Alerts vs. Status Messages
 
 Use the `alert()` and `status()` functions from `src/vs/base/browser/ui/aria/aria.ts` to announce dynamic changes to screen readers.
@@ -279,7 +285,7 @@ For deterministic component fixtures, focus the actual element through the fixtu
 
 ### Explaining unavailable options
 
-Follow the [discoverable unavailable-feature pattern](../design-philosophy/SKILL.md#make-unavailable-features-understandable): a feature promoted in documentation should not become inexplicably absent solely because the user cannot enable it. Announce both the disabled state and its reason using the control's supported ARIA semantics; a grey label, briefcase icon, or hover alone is insufficient. Keep icons decorative when text already conveys their meaning.
+Follow the [discoverable unavailable-feature pattern](../design-system/foundations/principles.design.md#make-unavailable-features-understandable): a feature promoted in documentation should not become inexplicably absent solely because the user cannot enable it. Announce both the disabled state and its reason using the control's supported ARIA semantics; a grey label, briefcase icon, or hover alone is insufficient. Keep icons decorative when text already conveys their meaning.
 
 Explanatory links must remain independently mouse- and keyboard-operable without activating the disabled option. Verify actual Tab/Shift+Tab and Enter behavior, not just `tabIndex` or a programmatic `focus()`; list navigation may skip disabled rows. Preserve focus/selection on policy refresh and guard stale actions. Add help only if reaching the explanation or next step requires non-obvious navigation, following the content relevance gate in §1. Reuse the settings, model, harness, and permission-picker examples linked in the design guidance.
 

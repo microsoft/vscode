@@ -112,8 +112,7 @@ We use tabs, not spaces.
 - Don't capitalize prepositions of four or fewer letters unless it's the first or last word (e.g. "in", "with", "for").
 
 ### Designing UI
-- When creating, editing, or reviewing any visual surface, reason in **design terms, not pixels**: name the **feeling** (Calm, Focused, Consistent, Delightful), find the **principle** it breaks, then reach for the **move** (token/tier/ramp) that restores it. Describe a bug by its role/tier/ramp (e.g. "this overlay is rounded at the control tier"), not its number.
-- See the [`design-philosophy` skill](skills/design-philosophy/SKILL.md) for the full Values→Principles→Moves vocabulary, worked examples, and feedback guidance, and [design-tokens.instructions.md](instructions/design-tokens.instructions.md) for the token reference.
+- Before creating, editing, or reviewing UI, use the [design-system skill](skills/design-system/SKILL.md) to find the relevant guidance. The [design principles](skills/design-system/foundations/principles.design.md) own shared design reasoning; [design-token instructions](instructions/design-tokens.instructions.md) cover CSS variable usage. Read the owning documents directly; the viewer is optional.
 
 ### Style
 

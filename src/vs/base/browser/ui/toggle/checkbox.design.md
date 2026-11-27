@@ -1,0 +1,38 @@
+---
+title: "Checkbox"
+kind: "component"
+isDraft: true
+aliases:
+  - "checkbox-label"
+component:
+  implementation: "src/vs/base/browser/ui/toggle/toggle.ts"
+  api:
+    - "Checkbox.constructor"
+    - "Checkbox.checked"
+    - "Checkbox.onChange"
+    - "Checkbox.disable"
+  fixtures:
+    - "baseUI/Toggles"
+---
+
+# Checkbox
+
+## Overview
+
+An independently checked choice, typically part of a form or a set of options.
+
+## Usage
+
+- Use for independent choices; several checkboxes may be checked together.
+- Keep the label stable and explain when the choice is applied.
+- Use Switch when an on/off setting takes effect immediately. This Checkbox API is binary; do not imply an indeterminate state.
+- Disabling a checkbox must not clear its checked state.
+
+## Accessibility
+
+- Space toggles the focused checkbox.
+- Supply an understandable title and a visible label. Read checked for the state; onChange reports keyboard origin.
+
+## Preview
+
+Checked, unchecked, and disabled instances of the shared Checkbox.

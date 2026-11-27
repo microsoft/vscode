@@ -5,6 +5,8 @@ description: VS Code theming, color tokens, composited surfaces, interaction-sta
 
 This skill covers color registration, CSS variable usage, widget style patterns, focus indicators, and high-contrast theme requirements.
 
+For choosing an overlay, shadow ownership, popup nesting, and modal/stacking behavior, use the [elevation guide](../design-system/foundations/elevation.design.md). A theme token alone does not establish those interaction contracts.
+
 ---
 
 ## 1. Registering Colors
@@ -60,6 +62,8 @@ Conversion functions in `colorUtils.ts`:
 Trace the rendered control before choosing a token or selector; custom editor overlays may not use native input pseudo-elements. Inspect inherited and nested styles as well as the component's own declarations.
 
 ### Contrast and Interaction States
+
+For UI or color changes, use the [four-theme validation baseline](../design-system/foundations/theming.design.md#theme-comparisons). Other built-in themes remain best-effort coverage.
 
 - Treat foreground and background as a semantic pair. A background change requires checking text, placeholders, links, operable inactive icons, hover, selection, and focus against the final composited surface.
 - Resolve defaults, opacity, and user overrides before measuring contrast. For example, an opaque icon color may meet contrast requirements while its translucent inactive variant does not.
@@ -197,26 +201,11 @@ Test runtime theme changes and custom color overrides, including transitions whe
 - Hit-test the intended action region, allowing the hit element to be the control or one of its descendants, then activate it and assert the behavior or ARIA change. Exact root equality is brittle; CSS styling alone does not prove that labels, chevrons, or edge padding remain clickable.
 - Follow the [fixture contract checks](../component-fixtures/SKILL.md#validating-fixtures) for readiness, idle, and remount. Keep production behavior tests at the owning production API.
 
-## 7. No Hardcoded Visual Values
+## 7. Use semantic theme values
 
-Reviewers will always flag hardcoded colors, shadows, sizes that should use theme tokens or CSS variables.
+Use registered theme colors or their CSS variables instead of hardcoded color, shadow, or border literals; reviewers flag them. Only `0` and purely structural measurements such as `100%` are exempt. Choose by purpose and foreground/background pairing; a matching current hex value does not establish a shared role.
 
-| Hardcoded (flagged) | Correct |
-|---------------------|---------|
-| `rgba(0, 0, 0, 0.12)` | `var(--vscode-widget-shadow)` or theme-aware variable |
-| `#252526` | `var(--vscode-editor-background)` |
-| `color: white` | `var(--vscode-button-foreground)` |
-| `border: 1px solid #ccc` | `var(--vscode-editorWidget-border)` |
-| `border: 1px solid …` (width) | `var(--vscode-strokeThickness)` for the 1px width |
-| `border-radius: 6px` | `var(--vscode-cornerRadius-medium)` (radius ramp) |
-| `padding: 8px 12px` (off-scale) | spacing ramp (`--vscode-spacing-size*`) |
-| `font-size: 14px` (arbitrary) | size ramp (`--vscode-fontSize-*`) |
-| `font-weight: 500` | `--vscode-fontWeight-semiBold` (no 500) |
-| codicon `font-size: 14px` | `--vscode-codiconFontSize` (16) / `-compact` (12) |
-
-**Rule:** If a value relates to color, shadow, or border — it must come from a CSS variable or registered color token. The only exception is `0` (zero) values and purely structural measurements like `100%`.
-
-**Size, spacing, radius, font and stroke** values have their own design-system **size** tokens (and decision logic — snap maps, the pill→`circle` rule, and the compact-glyph convention). Those live in the **ux-css-layout** skill (§10 Design-System Size Tokens) and the auto-injected `.github/instructions/design-tokens.instructions.md`. Reach for those when a flag is about *how big / how round / how bold* something is rather than *what color*.
+Use the owning guidance for adjacent decisions: [Colors](../design-system/foundations/colors.design.md) for color purpose and component color contracts, [Elevation](../design-system/foundations/elevation.design.md) for surface and shadow ownership, and [Stroke](../design-system/foundations/stroke.design.md) for boundaries. Follow [design-token CSS guidance](../../instructions/design-tokens.instructions.md) for variables, sizing tokens, and validation.
 
 ---
 
