@@ -25,10 +25,10 @@ import { PreferencesService } from '../../../../services/preferences/browser/pre
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { TestRemoteAgentService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
-import { WorkspaceSettingsEditorTitleMenuContribution } from '../../browser/workspaceSettingsEditorTitleMenu.js';
-import { CONTEXT_WORKSPACE_SETTINGS_UNAVAILABLE } from '../../common/preferences.js';
+import { WorkspaceSettingsAvailabilityContribution } from '../../browser/workspaceSettingsAvailability.js';
+import { CONTEXT_HAS_WORKSPACE_SETTINGS } from '../../common/preferences.js';
 
-suite('WorkspaceSettingsEditorTitleMenuContribution', () => {
+suite('WorkspaceSettingsAvailabilityContribution', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -36,6 +36,7 @@ suite('WorkspaceSettingsEditorTitleMenuContribution', () => {
 		const onDidChangeWorkbenchState = disposables.add(new Emitter<WorkbenchState>());
 		const onDidChangeAgentsMode = disposables.add(new Emitter<boolean>());
 		const onDidChangeWorkspaceFolders = disposables.add(new Emitter<IWorkspaceFoldersChangeEvent>());
+		const onDidChangeWorkspaceName = disposables.add(new Emitter<void>());
 		const createWorkspace = (configuration: URI | null, folders: URI[] = []) => new Workspace('workspace', folders.map(folder => toWorkspaceFolder(folder)), false, configuration, () => false);
 		// The Agents mode workspace has neither a workspace file nor folders
 		let workspace = createWorkspace(null);
@@ -49,7 +50,7 @@ suite('WorkspaceSettingsEditorTitleMenuContribution', () => {
 		}
 
 		const testInstantiationService = workbenchInstantiationService(undefined, disposables);
-		testInstantiationService.stub(IWorkspaceContextService, { getWorkbenchState: () => WorkbenchState.WORKSPACE, getWorkspace: () => workspace, onDidChangeWorkbenchState: onDidChangeWorkbenchState.event, onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event });
+		testInstantiationService.stub(IWorkspaceContextService, { getWorkbenchState: () => WorkbenchState.WORKSPACE, getWorkspace: () => workspace, onDidChangeWorkbenchState: onDidChangeWorkbenchState.event, onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event, onDidChangeWorkspaceName: onDidChangeWorkspaceName.event });
 		testInstantiationService.stub(IContextKeyService, contextKeyService);
 		testInstantiationService.stub(INotificationService, new RecordingNotificationService());
 		testInstantiationService.stub(IAgentsModeService, { onDidChange: onDidChangeAgentsMode.event });
@@ -64,27 +65,32 @@ suite('WorkspaceSettingsEditorTitleMenuContribution', () => {
 		instantiationService.stub(IPreferencesService, preferencesService);
 
 		const registered = () => {
-			const titleButtons = MenuRegistry.getMenuItems(MenuId.EditorTitle).filter(item => isIMenuItem(item) && item.command.id === WorkspaceSettingsEditorTitleMenuContribution.COMMAND_ID);
+			const titleButtons = MenuRegistry.getMenuItems(MenuId.EditorTitle).filter(item => isIMenuItem(item) && item.command.id === WorkspaceSettingsAvailabilityContribution.COMMAND_ID);
 			return {
-				command: !!CommandsRegistry.getCommand(WorkspaceSettingsEditorTitleMenuContribution.COMMAND_ID),
-				titleButtons: titleButtons.length,
-				settingsUnavailable: contextKeyService.getContextKeyValue(CONTEXT_WORKSPACE_SETTINGS_UNAVAILABLE.key),
+				command: !!CommandsRegistry.getCommand(WorkspaceSettingsAvailabilityContribution.COMMAND_ID),
+				titleButtons: titleButtons.map(item => /\/workspace\/\w+\.code-workspace/.exec(item.when?.serialize() ?? '')?.[0]),
+				hasWorkspaceSettings: contextKeyService.getContextKeyValue(CONTEXT_HAS_WORKSPACE_SETTINGS.key),
 			};
 		};
 		const states: ReturnType<typeof registered>[] = [];
 
-		const contribution = instantiationService.createInstance(WorkspaceSettingsEditorTitleMenuContribution);
+		const contribution = instantiationService.createInstance(WorkspaceSettingsAvailabilityContribution);
 		states.push(registered());
 		onDidChangeWorkbenchState.fire(WorkbenchState.WORKSPACE);
 		states.push(registered());
 
-		// The Command Palette hides Open Workspace Settings in the mode; run another way, the command it runs tells
-		// the user there are no workspace settings to open, rather than failing or doing nothing
+		// The commands opening workspace settings are disabled in the mode; opened another way, such as from the Settings
+		// editor, the user is told there are no workspace settings to open, rather than it failing or doing nothing
 		const openInMode = await preferencesService.openWorkspaceSettings({ jsonEditor: false }).then(() => 'opened', error => ({ rejectedWith: error }));
 
 		// Leaving the mode brings the workspace file back
 		workspace = createWorkspace(URI.file('/workspace/test.code-workspace'));
 		onDidChangeAgentsMode.fire(false);
+		states.push(registered());
+
+		// Save Workspace As moves the settings to another file, in the same workbench state
+		workspace = createWorkspace(URI.file('/workspace/other.code-workspace'));
+		onDidChangeWorkspaceName.fire();
 		states.push(registered());
 
 		// Entering it again takes the file away
@@ -104,12 +110,13 @@ suite('WorkspaceSettingsEditorTitleMenuContribution', () => {
 
 		assert.deepStrictEqual({ states, openInMode, messages }, {
 			states: [
-				{ command: false, titleButtons: 0, settingsUnavailable: true },
-				{ command: false, titleButtons: 0, settingsUnavailable: true },
-				{ command: true, titleButtons: 1, settingsUnavailable: false },
-				{ command: false, titleButtons: 0, settingsUnavailable: true },
-				{ command: false, titleButtons: 0, settingsUnavailable: false },
-				{ command: false, titleButtons: 0, settingsUnavailable: false },
+				{ command: false, titleButtons: [], hasWorkspaceSettings: false },
+				{ command: false, titleButtons: [], hasWorkspaceSettings: false },
+				{ command: true, titleButtons: ['/workspace/test.code-workspace'], hasWorkspaceSettings: true },
+				{ command: true, titleButtons: ['/workspace/other.code-workspace'], hasWorkspaceSettings: true },
+				{ command: false, titleButtons: [], hasWorkspaceSettings: false },
+				{ command: false, titleButtons: [], hasWorkspaceSettings: true },
+				{ command: false, titleButtons: [], hasWorkspaceSettings: true },
 			],
 			openInMode: { rejectedWith: null },
 			messages: ['Open a folder or workspace first to create workspace or folder settings.'],

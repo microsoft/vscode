@@ -5,7 +5,7 @@
 
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableFromEvent, observableSignalFromEvent, runOnChange, waitForState } from '../../../../../base/common/observable.js';
+import { autorun, derived, derivedOpts, IObservable, observableFromEvent, observableSignalFromEvent, runOnChange, waitForState } from '../../../../../base/common/observable.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { extUri, isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -240,7 +240,7 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 		let chatPartForAgentsMode = agentsModeService.isActive;
 		// Whether the chat stayed in the chat part as the window left Agents mode
 		let chatStayedForAgentsMode = false;
-		this._register(runOnChange(configured, toChatPart => {
+		const moveChat = (toChatPart: boolean) => {
 			const leavingAgentsMode = !toChatPart && chatPartForAgentsMode && !agentsModeService.isActive;
 			const returningToAgentsMode = toChatPart && chatStayedForAgentsMode && agentsModeService.isActive;
 			chatPartForAgentsMode = toChatPart && agentsModeService.isActive;
@@ -265,14 +265,20 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 					onUnexpectedError(error);
 				}
 			});
-		}));
-		// The window can also enter or leave the mode with the setting as the user configured it, which then does not change:
-		// the chats stay where they are, and what the window did in or for the mode no longer applies. Registered after the
-		// setting's listener, so this runs after it as the mode changes
-		this._register(agentsModeService.onDidChange(active => {
-			chatPartForAgentsMode = active && configured.get();
-			if (active) {
-				chatStayedForAgentsMode = false;
+		};
+		// One state of both, so that a change of the mode is handled after the change of the setting it comes with, however late
+		// the setting turned on: the window can also enter or leave the mode with the setting as the user configured it, which then
+		// does not change, so the chats stay where they are, and what the window did in or for the mode no longer applies
+		const state = derivedOpts<{ configured: boolean; agentsMode: boolean }>({ owner: this, equalsFn: (a, b) => a.configured === b.configured && a.agentsMode === b.agentsMode }, reader => ({ configured: configured.read(reader), agentsMode: agentsMode.read(reader) }));
+		this._register(runOnChange(state, (value, previous) => {
+			if (value.configured !== previous.configured) {
+				moveChat(value.configured);
+			}
+			if (value.agentsMode !== previous.agentsMode) {
+				chatPartForAgentsMode = value.agentsMode && value.configured;
+				if (value.agentsMode) {
+					chatStayedForAgentsMode = false;
+				}
 			}
 		}));
 		this._hideMaximizeWhileSessionsOnly();

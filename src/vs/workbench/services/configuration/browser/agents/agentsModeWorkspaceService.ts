@@ -18,6 +18,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IPolicyService } from '../../../../../platform/policy/common/policy.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IAnyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspace, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, IWorkspaceIdentifier, WorkbenchMode, WorkbenchState, Workspace } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceFolderCreationData } from '../../../../../platform/workspaces/common/workspaces.js';
@@ -38,7 +39,8 @@ export const AGENTS_MODE_ENABLED_SETTING = 'chat.agentsMode.enabled';
 
 /**
  * Declares {@link AGENTS_MODE_ENABLED_SETTING}. Only desktop editor windows
- * register it, before they read it at startup, since only they support the mode.
+ * register it, before they read it at startup, since only they support the mode,
+ * and only in builds that offer it.
  */
 export const agentsModeEnabledConfiguration: IConfigurationNode = {
 	id: 'chat',
@@ -92,16 +94,27 @@ export class AgentsModeWorkspaceService extends Disposable implements IEditableW
 	declare readonly _serviceBrand: undefined;
 
 	/**
+	 * Whether builds of the given quality offer Agents mode: not Stable, where
+	 * {@link AGENTS_MODE_ENABLED_SETTING} is neither registered nor read.
+	 */
+	static isAvailableInQuality(quality: string | undefined): boolean {
+		return quality !== 'stable';
+	}
+
+	/**
 	 * Whether a window's workspace and configuration service should be able to
 	 * switch into Agents mode: only local editor windows that have a backup folder,
-	 * and only when the user opted in with {@link AGENTS_MODE_ENABLED_SETTING}.
+	 * in builds that offer the mode, and only when the user opted in with
+	 * {@link AGENTS_MODE_ENABLED_SETTING}.
 	 */
 	static supportsAgentsMode(
+		productService: Pick<IProductService, 'quality'>,
 		environmentService: Pick<IWorkbenchEnvironmentService, 'remoteAuthority' | 'isExtensionDevelopment' | 'isSessionsWindow'>,
 		configurationService: Pick<IConfigurationService, 'getValue'>,
 		hasBackupPath: boolean,
 	): boolean {
-		return !environmentService.remoteAuthority
+		return AgentsModeWorkspaceService.isAvailableInQuality(productService.quality)
+			&& !environmentService.remoteAuthority
 			&& !environmentService.isExtensionDevelopment
 			&& !environmentService.isSessionsWindow
 			&& hasBackupPath

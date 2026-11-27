@@ -10,18 +10,18 @@ import { Action2, MenuId } from '../../../../../platform/actions/common/actions.
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { AGENTS_MODE_ENABLED_SETTING } from '../../../../services/configuration/browser/agents/agentsModeWorkspaceService.js';
 import { IAgentsModeService } from '../../../../services/agentsMode/common/agentsMode.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 
+/** Whether the window can enter Agents mode: it supports the mode, is not in it, and the user has the mode turned on. */
 export const CanEnterAgentsMode = new RawContextKey<boolean>('chatCanEnterAgentsMode', false, true);
 export const AgentsModeActive = new RawContextKey<boolean>('chatAgentsModeActive', false, true);
 /**
  * Matches where the Agents mode toggle can run and is shown in the title bar. Leaving the mode does not need chat, so a
  * window in the mode can always leave it, also once AI features are disabled.
  */
-export const AgentsModeToggleAvailable = ContextKeyExpr.or(AgentsModeActive, ContextKeyExpr.and(ChatContextKeys.enabled, CanEnterAgentsMode, ContextKeyExpr.has(`config.${AGENTS_MODE_ENABLED_SETTING}`)))!;
+export const AgentsModeToggleAvailable = ContextKeyExpr.or(AgentsModeActive, ContextKeyExpr.and(ChatContextKeys.enabled, CanEnterAgentsMode))!;
 
 export class ToggleAgentsModeAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.toggleAgentsMode';

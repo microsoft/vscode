@@ -29,16 +29,18 @@
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-.monaco-workbench .agents-mode-titlebar-button.checked:not(:focus-visible),
-.monaco-workbench .agents-mode-titlebar-button.checked:hover {
+/* The checked state stays visible under keyboard focus, which only adds its outline */
+.monaco-workbench .agents-mode-titlebar-button.checked {
 	background-color: var(--vscode-actionBar-toggledBackground);
 }
 
-/* High contrast has no toggled background: outline the checked state, unless keyboard focus outlines it */
-.monaco-workbench.hc-black .agents-mode-titlebar-button.checked:not(:focus-visible),
-.monaco-workbench.hc-light .agents-mode-titlebar-button.checked:not(:focus-visible) {
-	outline: 1px solid var(--vscode-contrastActiveBorder);
-	outline-offset: -1px;
+/* High contrast has no toggled background: an inner ring, set apart from the focus outline on the edge by a gap */
+.monaco-workbench:is(.hc-black, .hc-light) .agents-mode-titlebar-button.checked {
+	box-shadow: inset 0 0 0 2px var(--vscode-titleBar-activeBackground), inset 0 0 0 3px var(--vscode-contrastActiveBorder);
+}
+
+.monaco-workbench:is(.hc-black, .hc-light) .part.titlebar.inactive .agents-mode-titlebar-button.checked {
+	box-shadow: inset 0 0 0 2px var(--vscode-titleBar-inactiveBackground), inset 0 0 0 3px var(--vscode-contrastActiveBorder);
 }
 
 .monaco-workbench .agents-mode-titlebar-button:focus-visible {

@@ -43,13 +43,13 @@ import { PreferencesEditorInput, SettingsEditor2Input } from '../../../services/
 import { SettingsEditorModel } from '../../../services/preferences/common/preferencesModels.js';
 import { CURRENT_PROFILE_CONTEXT, IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { ExplorerFolderContext, ExplorerRootContext } from '../../files/common/files.js';
-import { CONTEXT_AI_SETTING_RESULTS_AVAILABLE, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, CONTEXT_KEYBINDINGS_SEARCH_HAS_VALUE, CONTEXT_KEYBINDING_FOCUS, CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_FIRST_ROW_FOCUS, CONTEXT_SETTINGS_JSON_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, CONTEXT_WHEN_FOCUS, CONTEXT_WORKSPACE_SETTINGS_UNAVAILABLE, KEYBINDINGS_EDITOR_COMMAND_ACCEPT_WHEN, KEYBINDINGS_EDITOR_COMMAND_ADD, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_HISTORY, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND_TITLE, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN, KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS, KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_REJECT_WHEN, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_SEARCH, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_EXTENSION_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU, SETTINGS_EDITOR_COMMAND_TOGGLE_AI_SEARCH } from '../common/preferences.js';
+import { CONTEXT_AI_SETTING_RESULTS_AVAILABLE, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, CONTEXT_KEYBINDINGS_SEARCH_HAS_VALUE, CONTEXT_KEYBINDING_FOCUS, CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_FIRST_ROW_FOCUS, CONTEXT_SETTINGS_JSON_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, CONTEXT_WHEN_FOCUS, CONTEXT_HAS_WORKSPACE_SETTINGS, KEYBINDINGS_EDITOR_COMMAND_ACCEPT_WHEN, KEYBINDINGS_EDITOR_COMMAND_ADD, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_HISTORY, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND_TITLE, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN, KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS, KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_REJECT_WHEN, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_SEARCH, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_EXTENSION_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU, SETTINGS_EDITOR_COMMAND_TOGGLE_AI_SEARCH } from '../common/preferences.js';
 import { PreferencesContribution } from '../common/preferencesContribution.js';
 import { KeybindingsEditor } from './keybindingsEditor.js';
 import { ConfigureLanguageBasedSettingsAction } from './preferencesActions.js';
 import { PreferencesEditor } from './preferencesEditor.js';
 import { preferencesOpenSettingsIcon } from './preferencesIcons.js';
-import { OPEN_USER_SETTINGS_UI_TITLE, WorkspaceSettingsEditorTitleMenuContribution } from './workspaceSettingsEditorTitleMenu.js';
+import { OPEN_USER_SETTINGS_UI_TITLE, WorkspaceSettingsAvailabilityContribution } from './workspaceSettingsAvailability.js';
 import { IPreferencesRenderer, UserSettingsRenderer, WorkspaceSettingsRenderer } from './preferencesRenderers.js';
 import { SettingsEditor2, SettingsFocusContext } from './settingsEditor2.js';
 
@@ -354,9 +354,10 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					id: 'workbench.action.openWorkspaceSettings',
 					title: nls.localize2('openWorkspaceSettings', "Open Workspace Settings"),
 					category,
+					precondition: CONTEXT_HAS_WORKSPACE_SETTINGS,
 					menu: {
 						id: MenuId.CommandPalette,
-						when: ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('empty'), CONTEXT_WORKSPACE_SETTINGS_UNAVAILABLE.negate())
+						when: CONTEXT_HAS_WORKSPACE_SETTINGS
 					}
 				});
 			}
@@ -389,9 +390,10 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					id: 'workbench.action.openWorkspaceSettingsFile',
 					title: nls.localize2('openWorkspaceSettingsFile', "Open Workspace Settings (JSON)"),
 					category,
+					precondition: CONTEXT_HAS_WORKSPACE_SETTINGS,
 					menu: {
 						id: MenuId.CommandPalette,
-						when: ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('empty'), CONTEXT_WORKSPACE_SETTINGS_UNAVAILABLE.negate())
+						when: CONTEXT_HAS_WORKSPACE_SETTINGS
 					}
 				});
 			}
@@ -1489,7 +1491,7 @@ function getEditorGroupFromArguments(accessor: ServicesAccessor, args: unknown[]
 
 registerWorkbenchContribution2(PreferencesActionsContribution.ID, PreferencesActionsContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(PreferencesContribution.ID, PreferencesContribution, WorkbenchPhase.BlockStartup);
-registerWorkbenchContribution2(WorkspaceSettingsEditorTitleMenuContribution.ID, WorkspaceSettingsEditorTitleMenuContribution, WorkbenchPhase.BlockStartup);
+registerWorkbenchContribution2(WorkspaceSettingsAvailabilityContribution.ID, WorkspaceSettingsAvailabilityContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(SettingsEditorTitleContribution.ID, SettingsEditorTitleContribution, WorkbenchPhase.AfterRestored);
 
 registerEditorContribution(SettingsEditorContribution.ID, SettingsEditorContribution, EditorContributionInstantiation.AfterFirstRender);

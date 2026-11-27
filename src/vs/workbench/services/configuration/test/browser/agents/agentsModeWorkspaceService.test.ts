@@ -398,25 +398,34 @@ suite('AgentsModeWorkspaceService', () => {
 		assert.deepStrictEqual(events, ['default', 'markdown']);
 	}));
 
-	test('is only supported in local editor windows with a backup path and the Agents mode setting on', () => {
+	test('is only supported in local editor windows with a backup path, outside Stable, and the Agents mode setting on', () => {
+		const insider = { quality: 'insider' };
 		const local = { remoteAuthority: undefined, isExtensionDevelopment: false, isSessionsWindow: false };
+		const reads: string[] = [];
 		const settings = (values: Record<string, unknown>) => ({
-			getValue: <T>(key?: unknown, _overrides?: unknown) => values[key as string] as T,
+			getValue: <T>(key?: unknown, _overrides?: unknown) => { reads.push(key as string); return values[key as string] as T; },
 		});
 		const setting = (value: unknown) => settings({ [AGENTS_MODE_ENABLED_SETTING]: value });
 
-		assert.deepStrictEqual({
-			enabled: AgentsModeWorkspaceService.supportsAgentsMode(local, setting(true), true),
-			settingOff: AgentsModeWorkspaceService.supportsAgentsMode(local, setting(false), true),
-			settingUnset: AgentsModeWorkspaceService.supportsAgentsMode(local, setting(undefined), true),
-			settingTruthy: AgentsModeWorkspaceService.supportsAgentsMode(local, setting('true'), true),
-			noBackup: AgentsModeWorkspaceService.supportsAgentsMode(local, setting(true), false),
-			workspacesFilterOnly: AgentsModeWorkspaceService.supportsAgentsMode(local, settings({ 'sessions.list.workspacesFilter.enabled': true }), true),
-			remote: AgentsModeWorkspaceService.supportsAgentsMode({ ...local, remoteAuthority: 'ssh-remote+host' }, setting(true), true),
-			extensionDevelopment: AgentsModeWorkspaceService.supportsAgentsMode({ ...local, isExtensionDevelopment: true }, setting(true), true),
-			agentsWindow: AgentsModeWorkspaceService.supportsAgentsMode({ ...local, isSessionsWindow: true }, setting(true), true),
-		}, {
-			enabled: true, settingOff: false, settingUnset: false, settingTruthy: false, noBackup: false, workspacesFilterOnly: false, remote: false, extensionDevelopment: false, agentsWindow: false,
+		const supported = {
+			enabled: AgentsModeWorkspaceService.supportsAgentsMode(insider, local, setting(true), true),
+			dev: AgentsModeWorkspaceService.supportsAgentsMode({ quality: undefined }, local, setting(true), true),
+			settingOff: AgentsModeWorkspaceService.supportsAgentsMode(insider, local, setting(false), true),
+			settingUnset: AgentsModeWorkspaceService.supportsAgentsMode(insider, local, setting(undefined), true),
+			settingTruthy: AgentsModeWorkspaceService.supportsAgentsMode(insider, local, setting('true'), true),
+			noBackup: AgentsModeWorkspaceService.supportsAgentsMode(insider, local, setting(true), false),
+			workspacesFilterOnly: AgentsModeWorkspaceService.supportsAgentsMode(insider, local, settings({ 'sessions.list.workspacesFilter.enabled': true }), true),
+			remote: AgentsModeWorkspaceService.supportsAgentsMode(insider, { ...local, remoteAuthority: 'ssh-remote+host' }, setting(true), true),
+			extensionDevelopment: AgentsModeWorkspaceService.supportsAgentsMode(insider, { ...local, isExtensionDevelopment: true }, setting(true), true),
+			agentsWindow: AgentsModeWorkspaceService.supportsAgentsMode(insider, { ...local, isSessionsWindow: true }, setting(true), true),
+		};
+		reads.length = 0;
+		const stable = AgentsModeWorkspaceService.supportsAgentsMode({ quality: 'stable' }, local, setting(true), true);
+
+		assert.deepStrictEqual({ supported, stable, stableReads: reads }, {
+			supported: { enabled: true, dev: true, settingOff: false, settingUnset: false, settingTruthy: false, noBackup: false, workspacesFilterOnly: false, remote: false, extensionDevelopment: false, agentsWindow: false },
+			stable: false,
+			stableReads: [],
 		});
 	});
 
@@ -424,6 +433,6 @@ suite('AgentsModeWorkspaceService', () => {
 		await fileService.writeFile(applicationSettingsResource, VSBuffer.fromString(`{ "${AGENTS_MODE_ENABLED_SETTING}": true }`));
 		await testObject.reloadConfiguration();
 
-		assert.strictEqual(AgentsModeWorkspaceService.supportsAgentsMode({ remoteAuthority: undefined, isExtensionDevelopment: false, isSessionsWindow: false }, testObject, true), true);
+		assert.strictEqual(AgentsModeWorkspaceService.supportsAgentsMode({ quality: 'insider' }, { remoteAuthority: undefined, isExtensionDevelopment: false, isSessionsWindow: false }, testObject, true), true);
 	}));
 });

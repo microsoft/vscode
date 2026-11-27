@@ -312,7 +312,7 @@ export class DesktopMain extends Disposable {
 		// Create services that require resolving in parallel
 		const workspace = this.resolveWorkspaceIdentifier(environmentService);
 		const [{ configurationService, agentsModeService }, storageService] = await Promise.all([
-			this.createWorkspaceService(workspace, environmentService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, logService, policyService).then(services => {
+			this.createWorkspaceService(workspace, environmentService, productService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, logService, policyService).then(services => {
 
 				// Workspace
 				serviceCollection.set(IWorkspaceContextService, services.configurationService);
@@ -406,6 +406,7 @@ export class DesktopMain extends Disposable {
 	private async createWorkspaceService(
 		workspace: IAnyWorkspaceIdentifier,
 		environmentService: INativeWorkbenchEnvironmentService,
+		productService: IProductService,
 		userDataProfileService: IUserDataProfileService,
 		userDataProfilesService: IUserDataProfilesService,
 		fileService: FileService,
@@ -424,7 +425,7 @@ export class DesktopMain extends Disposable {
 		}
 
 		// Local editor windows can switch in place into Agents mode, when the user opted in
-		if (AgentsModeWorkspaceService.supportsAgentsMode(environmentService, workspaceService, !!this.configuration.backupPath)) {
+		if (AgentsModeWorkspaceService.supportsAgentsMode(productService, environmentService, workspaceService, !!this.configuration.backupPath)) {
 			const agentsModeWorkspaceService = this._register(new AgentsModeWorkspaceService(workspaceService, { userDataProfileService, userDataProfilesService, uriIdentityService, fileService, policyService, logService, configurationCache, environmentService }));
 			return { configurationService: agentsModeWorkspaceService, agentsModeService: new AgentsModeService(agentsModeWorkspaceService) };
 		}

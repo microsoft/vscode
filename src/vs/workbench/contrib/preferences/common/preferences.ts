@@ -65,7 +65,7 @@ export const SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU = 'settings.action.showCo
 export const SETTINGS_EDITOR_COMMAND_SUGGEST_FILTERS = 'settings.action.suggestFilters';
 
 export const CONTEXT_SETTINGS_EDITOR = new RawContextKey<boolean>('inSettingsEditor', false);
-export const CONTEXT_WORKSPACE_SETTINGS_UNAVAILABLE = new RawContextKey<boolean>('workspaceSettingsUnavailable', false, localize('workspaceSettingsUnavailable', "Whether the window has a workspace but no workspace settings to open, as in Agents mode"));
+export const CONTEXT_HAS_WORKSPACE_SETTINGS = new RawContextKey<boolean>('hasWorkspaceSettings', false, localize('hasWorkspaceSettings', "Whether the window has workspace settings to open: not in an empty window, nor in Agents mode"));
 export const CONTEXT_SETTINGS_JSON_EDITOR = new RawContextKey<boolean>('inSettingsJSONEditor', false);
 export const CONTEXT_SETTINGS_SEARCH_FOCUS = new RawContextKey<boolean>('inSettingsSearch', false);
 export const CONTEXT_TOC_ROW_FOCUS = new RawContextKey<boolean>('settingsTocRowFocus', false);

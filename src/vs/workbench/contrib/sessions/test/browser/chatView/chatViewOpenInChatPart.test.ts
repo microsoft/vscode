@@ -871,6 +871,17 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			});
 		});
 
+		test('leaving Agents mode with the chat part turned on after the window started, also with the configured orientation stacked: the chat stays in the chat part', async () => {
+			const lateChatArea = setup({ chatViewShows: session, orientation: 'stacked' });
+			await lateChatArea.setSetting(true);
+			await lateChatArea.setAgentsMode(true);
+			lateChatArea.shown.part.set(URI.parse('agent-host-copilotcli:/session-b'), undefined);
+			await lateChatArea.setAgentsMode(false);
+			await timeout(0);
+
+			assert.deepStrictEqual(lateChatArea.handovers, ['part opens /session-a']);
+		});
+
 		test('leaving Agents mode right after entering it, the move into the chat part that is still on its way stops; returning to the mode, the chat part keeps the chat that stayed in it', async () => {
 			// The window leaves the mode while the chat part starts the new chat the move takes the draft to: revealing the host in
 			// use then would open the Chat view, and with it the secondary side bar that leaving hides

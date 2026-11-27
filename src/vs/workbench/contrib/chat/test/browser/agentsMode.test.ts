@@ -21,7 +21,6 @@ import { MockKeybindingService } from '../../../../../platform/keybinding/test/c
 import { InMemoryStorageService, IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IAgentsModeService } from '../../../../services/agentsMode/common/agentsMode.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
-import { AGENTS_MODE_ENABLED_SETTING } from '../../../../services/configuration/browser/agents/agentsModeWorkspaceService.js';
 import { IEditorIdentifier } from '../../../../common/editor.js';
 import { IViewDescriptorService, ViewContainer, ViewContainerLocation } from '../../../../common/views.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
@@ -58,8 +57,6 @@ suite('Agents mode actions', () => {
 		const chatEnabled = ChatContextKeys.enabled.bindTo(context);
 		const modeActive = AgentsModeActive.bindTo(context);
 		const canEnter = CanEnterAgentsMode.bindTo(context);
-		const settingsDisabled = context.createOverlay([[`config.${AGENTS_MODE_ENABLED_SETTING}`, false]]);
-		const settingsEnabled = context.createOverlay([[`config.${AGENTS_MODE_ENABLED_SETTING}`, true]]);
 		const commandId = 'workbench.action.chat.toggleAgentsMode';
 		if (!CommandsRegistry.getCommand(commandId)) {
 			disposables.add(registerAction2(ToggleAgentsModeAction));
@@ -70,15 +67,18 @@ suite('Agents mode actions', () => {
 
 		chatEnabled.set(true);
 		canEnter.set(true);
-		const enter = settingsEnabled.contextMatchesRules(item.when);
-		const entryDisabledBySetting = !settingsDisabled.contextMatchesRules(item.when);
+		const enter = context.contextMatchesRules(item.when);
 		chatEnabled.set(false);
-		const entryDisabledByAI = !settingsEnabled.contextMatchesRules(item.when);
-
+		const entryDisabledByAI = !context.contextMatchesRules(item.when);
+		chatEnabled.set(true);
+		// The setting turned off, or a build without the mode, leaves the window unable to enter it
 		canEnter.set(false);
+		const entryDisabledBySetting = !context.contextMatchesRules(item.when);
+		chatEnabled.set(false);
+
 		modeActive.set(true);
 		const instantiation = disposables.add(new TestInstantiationService());
-		instantiation.stub(IContextKeyService, settingsDisabled);
+		instantiation.stub(IContextKeyService, context);
 		instantiation.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 		let toggles = 0;
 		instantiation.stub(IAgentsModeService, { isSupported: true, isActive: true, setActive: async () => { toggles++; } });
@@ -89,7 +89,7 @@ suite('Agents mode actions', () => {
 			enter,
 			entryDisabledByAI,
 			entryDisabledBySetting,
-			exit: settingsDisabled.contextMatchesRules(item.when),
+			exit: context.contextMatchesRules(item.when),
 			toggles,
 		}, { enter: true, entryDisabledByAI: true, entryDisabledBySetting: true, exit: true, toggles: 1 });
 	});

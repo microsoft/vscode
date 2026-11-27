@@ -8,10 +8,12 @@ import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchPhase, registerWorkbenchContribution2 } from '../../../../common/contributions.js';
 import { IAgentsModeService } from '../../../../services/agentsMode/common/agentsMode.js';
+import { AGENTS_MODE_ENABLED_SETTING } from '../../../../services/configuration/browser/agents/agentsModeWorkspaceService.js';
 import { AgentsModeActive, CanEnterAgentsMode, ToggleAgentsModeAction } from '../../browser/agentSessions/agentsModeActions.js';
 import { AgentsModeAuxiliaryBar } from '../../browser/agentSessions/agentsModeAuxiliaryBar.js';
 import { AgentsModeEditorArea } from '../../browser/agentSessions/agentsModeEditorArea.js';
@@ -28,6 +30,7 @@ class AgentsModeContribution extends Disposable {
 		@IAgentsModeService agentsModeService: IAgentsModeService,
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 		// Created also where the mode is not supported, to undo the layout of a window that restarts with it turned off
@@ -43,11 +46,17 @@ class AgentsModeContribution extends Disposable {
 
 		const canEnterContext = CanEnterAgentsMode.bindTo(contextKeyService);
 		const modeActiveContext = AgentsModeActive.bindTo(contextKeyService);
+		// Read only where the mode is supported, so builds without the mode never read the setting
 		const update = () => contextKeyService.bufferChangeEvents(() => {
 			const isActive = agentsModeService.isActive;
 			modeActiveContext.set(isActive);
-			canEnterContext.set(!isActive);
+			canEnterContext.set(!isActive && configurationService.getValue(AGENTS_MODE_ENABLED_SETTING) === true);
 		});
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AGENTS_MODE_ENABLED_SETTING)) {
+				update();
+			}
+		}));
 		this._register(agentsModeService.onDidChange(active => {
 			update();
 			const cancellation = new CancellationTokenSource();
