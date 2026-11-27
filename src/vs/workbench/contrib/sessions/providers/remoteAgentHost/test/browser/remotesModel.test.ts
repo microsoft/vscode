@@ -10,6 +10,8 @@ import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { isCancellationError } from '../../../../../../../base/common/errors.js';
 import { constObservable, derived, ISettableObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { isWindows, OperatingSystem } from '../../../../../../../base/common/platform.js';
+import { basename } from '../../../../../../../base/common/resources.js';
+import { URI } from '../../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../../base/test/common/virtualScheduling/index.js';
@@ -46,7 +48,7 @@ import { TestProgressService } from '../../../../../../test/browser/workbenchTes
 import { IInputOptions, IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../../../platform/quickinput/common/quickInput.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { IAgentHostSessionsProvider, LocalAgentHostRegistration } from '../../../../common/agentHostSessionsProvider.js';
-import { DevContainerAgentHostEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, IDevContainerAgentHostService, IDevContainerEnvironment, LocalDevContainerEnvironmentHost } from '../../../../common/devContainerAgentHostService.js';
+import { DevContainerAgentHostEnabledSettingId, DevContainerDiscoveryEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, IDevContainerAgentHostService, IDevContainerEnvironment, IDevContainerFolderContainer, LocalDevContainerEnvironmentHost } from '../../../../common/devContainerAgentHostService.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { ISessionsProvidersService } from '../../../../browser/sessionsProvidersService.js';
@@ -398,11 +400,16 @@ suite('RemotesModel', () => {
 		const devContainers = {
 			environments: observableValue<readonly IDevContainerEnvironment[]>(store, []),
 			hosts: observableValue<ReadonlySet<string>>(store, new Set()),
+			folders: observableValue<readonly IDevContainerFolderContainer[]>(store, []),
+			folderRefreshes: 0,
 			deletions: [] as string[],
 		};
 		instantiationService.stub(IDevContainerAgentHostService, {
 			environments: devContainers.environments,
 			environmentHosts: devContainers.hosts,
+			folderContainers: devContainers.folders,
+			refreshFolderContainers: async () => { devContainers.folderRefreshes++; },
+			getWorkspaceLabel: workspaceUri => `${basename(workspaceUri)} [Dev Container]`,
 			createEnvironment: async sourceAddress => {
 				const environment = { address: `devcontainer:${sourceAddress}`, sourceAddress, providerId: `agenthost-devcontainer:${sourceAddress}` };
 				devContainers.environments.set([...devContainers.environments.get(), environment], undefined);
@@ -739,6 +746,32 @@ suite('RemotesModel', () => {
 			confirmations: ['Are you sure you want to delete Dev Container \'Dev Container\'?'],
 			deletions: ['devcontainer:wsl:Ubuntu'],
 			deleted: [],
+		});
+	});
+
+	test('lists folder Dev Containers with their running state, named like their sessions, and lists them again on refresh', async () => {
+		const { model, devContainers, setConfiguration } = setup();
+		await setConfiguration(DevContainerAgentHostEnabledSettingId, true);
+		const folder = (path: string, running: boolean | undefined, sourceAddress = LocalDevContainerEnvironmentHost): IDevContainerFolderContainer => ({
+			address: `devcontainer:${path}`, providerId: `agenthost-devcontainer-${path}`, workspaceUri: URI.file(`/${path}`), sourceAddress, running,
+		});
+		devContainers.folders.set([folder('running', true), folder('stopped', false), folder('unknown', undefined, 'ssh:build')], undefined);
+		await model.refresh(CancellationToken.None);
+		const refreshesWhileDisabled = devContainers.folderRefreshes;
+		await setConfiguration(DevContainerDiscoveryEnabledSettingId, true);
+		await model.refresh(CancellationToken.None);
+		assert.deepStrictEqual({
+			refreshesWhileDisabled,
+			refreshes: devContainers.folderRefreshes,
+			rows: model.remotes.get().filter(remote => remote.kind === 'devContainer').map(({ id, name, availability, startsOnConnect, canDelete, canRemove, devContainerFolder }) => ({ id, name, availability, startsOnConnect, canDelete, canRemove, folder: devContainerFolder?.workspaceUri.path })),
+		}, {
+			refreshesWhileDisabled: 0,
+			refreshes: 1,
+			rows: [
+				{ id: 'devcontainer:running', name: 'running [Dev Container]', availability: 'online', startsOnConnect: undefined, canDelete: undefined, canRemove: false, folder: '/running' },
+				{ id: 'devcontainer:stopped', name: 'stopped [Dev Container]', availability: 'offline', startsOnConnect: true, canDelete: undefined, canRemove: false, folder: '/stopped' },
+				{ id: 'devcontainer:unknown', name: 'unknown [Dev Container]', availability: 'unknown', startsOnConnect: undefined, canDelete: undefined, canRemove: false, folder: '/unknown' },
+			],
 		});
 	});
 

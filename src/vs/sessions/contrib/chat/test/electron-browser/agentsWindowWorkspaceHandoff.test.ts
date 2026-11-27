@@ -23,7 +23,7 @@ import { IChat, ISession } from '../../../../../workbench/services/sessions/comm
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IAgentsWindowWorkspaceHandoff } from '../../browser/agentsWindowWorkspaceHandoff.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { AGENT_HOST_SCHEME } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { DevContainerAgentHostEnabledSettingId } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { IOpenNewSessionOptions } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { SessionsManagementService } from '../../../../../workbench/contrib/sessions/browser/sessionsManagementService.js';
@@ -297,6 +297,7 @@ suite('Agents Window workspace handoff telemetry', () => {
 		const results: (string | undefined)[] = [];
 		const harness = {
 			resolveAndOpenRemoteSession: Reflect.get(SelectAgentsFolderContribution.prototype, 'resolveAndOpenRemoteSession') as (resource: URI, remoteAuthority: string, token: CancellationToken) => Promise<URI | 'unsupported' | undefined>,
+			openRemoteWindowSession: Reflect.get(SelectAgentsFolderContribution.prototype, 'openRemoteWindowSession'),
 			remoteWorkspaceHandoffService: { resolveHost: async (remoteAuthority: string) => { resolved.push(remoteAuthority); return hosts[remoteAuthority]; } },
 			notificationService: { warn: (message: string) => { notifications.push(message); } },
 			logService: new NullLogService(),
@@ -316,7 +317,6 @@ suite('Agents Window workspace handoff telemetry', () => {
 			['ssh-remote+host', 'agent-host-copilotcli:/known#chat'],
 			['ssh-remote+editor', 'agent-host-copilotcli:/known#chat'],
 			['wsl+Ubuntu', 'agent-host-copilotcli:/known#chat'],
-			['dev-container+2f736f75726365', 'agent-host-copilotcli:/known#chat'],
 			['codespaces+host', 'agent-host-copilotcli:/known#chat'],
 		]) {
 			const result = await harness.resolveAndOpenRemoteSession(URI.parse(resource), remoteAuthority, CancellationToken.None);
@@ -331,7 +331,62 @@ suite('Agents Window workspace handoff telemetry', () => {
 				'The session of your remote window could not be opened in the Agents Window. Tunnel \'unknown\' was not found for the signed-in accounts.',
 				'The session of your remote window can\'t be opened in the Agents Window, because the Agents Window is connected to a different agent host on the remote machine than your remote window.',
 			],
-			results: [known.toString(), `${sessionType}:/known#focused`, undefined, 'unsupported', undefined, undefined, ssh.toString(), 'unsupported', wsl.toString(), 'unsupported', 'unsupported'],
+			results: [known.toString(), `${sessionType}:/known#focused`, undefined, 'unsupported', undefined, undefined, ssh.toString(), 'unsupported', wsl.toString(), 'unsupported'],
+		});
+	});
+
+	test('opens sessions of a Dev Container window through its folder\'s running container, or else falls back to its folder', async () => {
+		const configurationService = new TestConfigurationService({ [DevContainerAgentHostEnabledSettingId]: true });
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		const source = URI.file('/source');
+		const containerAuthority = agentHostAuthority('devcontainer:source');
+		const known = URI.parse(`${remoteAgentHostSessionTypeId(containerAuthority, 'copilotcli')}:/known#chat`);
+		const connects: { readonly folder: string; readonly requireRunning: boolean | undefined }[] = [];
+		const released: string[] = [];
+		const opened: string[] = [];
+		let running = true;
+		const harness = {
+			resolveAndOpenRemoteSession: Reflect.get(SelectAgentsFolderContribution.prototype, 'resolveAndOpenRemoteSession') as (resource: URI, remoteAuthority: string, token: CancellationToken) => Promise<URI | 'unsupported' | undefined>,
+			resolveAndOpenDevContainerSession: Reflect.get(SelectAgentsFolderContribution.prototype, 'resolveAndOpenDevContainerSession'),
+			openRemoteWindowSession: Reflect.get(SelectAgentsFolderContribution.prototype, 'openRemoteWindowSession'),
+			configurationService,
+			workspaceTrustRequestService: { requestResourcesTrust: async () => true },
+			devContainerAgentHostService: {
+				connect: async (folder: URI, _token: CancellationToken, options?: { readonly requireRunning?: boolean }) => {
+					connects.push({ folder: folder.toString(), requireRunning: options?.requireRunning });
+					if (!running) {
+						throw new Error('The Dev Container of \'source\' is not running.');
+					}
+					return { providerId: 'container', workspaceUri: URI.from({ scheme: AGENT_HOST_SCHEME, authority: containerAuthority, path: '/workspaces/source' }), release: async () => { released.push(folder.toString()); } };
+				},
+			},
+			notificationService: { warn: () => assert.fail('no notification') },
+			logService: new NullLogService(),
+			_focusedSessionHostService: { focusedHost: { get: () => ({ chatResource: { get: () => undefined } }) } },
+			waitForSessionAvailable: async (resource: URI) => extUri.isEqual(resource, known),
+			getSessionForResource: (resource: URI) => extUri.isEqual(resource, known) ? upcastPartial<ISession>({ resource }) : undefined,
+			sessionsService: { openChat: async (_session: ISession, chatResource: URI) => { opened.push(chatResource.toString()); } },
+		};
+		const devContainerAuthority = (config: string) => `dev-container+${encodeHex(VSBuffer.fromString(config))}`;
+		const open = async (remoteAuthority: string, chat = 'known') => {
+			const result = await harness.resolveAndOpenRemoteSession(URI.parse(`agent-host-copilotcli:/${chat}#chat`), remoteAuthority, CancellationToken.None);
+			return URI.isUri(result) ? result.toString() : result;
+		};
+		const results = [await open(devContainerAuthority(JSON.stringify({ hostPath: source.fsPath })))];
+		// The container this window uses doesn't have it, for example when the window uses another agent host in it.
+		results.push(await open(devContainerAuthority(source.fsPath), 'unknown'));
+		// Another configuration file or Docker host may select another container of the folder.
+		results.push(await open(devContainerAuthority(JSON.stringify({ hostPath: source.fsPath, configFile: URI.file('/source/.devcontainer/other/devcontainer.json').toJSON() }))));
+		results.push(await open(devContainerAuthority(JSON.stringify({ hostPath: source.fsPath, settings: { context: 'remote' } }))));
+		running = false;
+		results.push(await open(devContainerAuthority(source.fsPath)));
+		// A volume's container has no source folder.
+		results.push(await open(devContainerAuthority(JSON.stringify({ volumeName: 'project', folder: 'project' }))));
+		assert.deepStrictEqual({ results, connects, released, opened }, {
+			results: [known.toString(), 'unsupported', 'unsupported', 'unsupported', 'unsupported', 'unsupported'],
+			connects: [{ folder: source.toString(), requireRunning: true }, { folder: source.toString(), requireRunning: true }, { folder: source.toString(), requireRunning: true }],
+			released: [source.toString(), source.toString()],
+			opened: [known.toString()],
 		});
 	});
 
