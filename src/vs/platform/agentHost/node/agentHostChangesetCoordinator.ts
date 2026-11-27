@@ -697,7 +697,8 @@ export class AgentHostChangesetCoordinator extends Disposable {
 				this._changesets.refreshBranchChangeset(owner);
 			}
 		}
-		for (const owner of new Set([key, ...folderOwners])) {
+		// Also the folder owners that are the refreshed key's scopes, through which a client may observe its Uncommitted changes
+		for (const owner of new Set([key, ...branchOwners, ...folderOwners])) {
 			if (this._changesetSubscriptions.getSessionSubscriptions(owner).has(buildUncommittedChangesetUri(owner))) {
 				void this._changesets.computeUncommittedChangeset(owner);
 			}

@@ -607,23 +607,29 @@ suite('ChangesetSessionCoordinator', () => {
 		assert.deepStrictEqual({ folderOnItsOwn: refreshKey('file:///lib'), chatFolder: refreshKey('file:///api') }, { folderOnItsOwn: [session], chatFolder: [peer] });
 	});
 
-	test('a file change in a chat\'s folder refreshes that chat\'s Git state for an observed changeset of its folder owner', async () => {
+	test('a file change in a chat\'s folder refreshes that chat\'s Git state and the observed Uncommitted changeset of its folder owner', async () => {
 		const environment = createEnvironment(undefined, createRoutingGitService(new Map([['file:///app', URI.parse('file:///app')], ['file:///api', URI.parse('file:///api')]])));
 		const session = AgentSession.uri('mock', 'chat-folder').toString();
 		createMultiRootSession(environment.stateManager, session, ['file:///app', 'file:///api']);
 		const peer = buildChatUri(session, 'peer');
 		environment.stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer, buildDefaultChatUri(session)), { workingDirectories: ['file:///api'] });
-		const changeset = buildUncommittedChangesetUri(buildFolderChangesetOwnerUri(session, getWorkingDirectoryScopeId(['file:///api'])));
-		environment.subscriptions.addSubscription(parseChangesetUri(changeset)!.ownerUri, changeset);
+		const owner = buildFolderChangesetOwnerUri(session, getWorkingDirectoryScopeId(['file:///api']));
+		const changeset = buildUncommittedChangesetUri(owner);
+		environment.subscriptions.addSubscription(owner, changeset);
 		environment.coordinator.onFirstSubscriber(URI.parse(changeset));
 		await environment.monitor.waitForAcquisitions(1);
 		await tick();
 		environment.gitStateService.clearRefreshes();
 
+		environment.changesets.clearRefreshes();
 		environment.monitor.fire(URI.parse('file:///api'));
 		await tick();
 
-		assert.deepStrictEqual({ watched: environment.monitor.acquisitions, refreshed: environment.gitStateService.refreshed }, { watched: ['file:///api'], refreshed: [peer] });
+		assert.deepStrictEqual({
+			watched: environment.monitor.acquisitions,
+			refreshed: environment.gitStateService.refreshed,
+			uncommitted: environment.changesets.uncommittedRefreshes,
+		}, { watched: ['file:///api'], refreshed: [peer], uncommitted: [owner] });
 	});
 
 	test('refreshes changeset operations when a session gains or loses a working directory', () => {
