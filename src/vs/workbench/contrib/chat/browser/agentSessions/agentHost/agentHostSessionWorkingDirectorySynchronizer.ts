@@ -151,23 +151,8 @@ interface IAgentHostWorkingDirectoryRegistrationEntry extends IAgentHostWorkingD
 	 * again.
 	 */
 	readonly refusedRemovals: ResourceSet;
-	/** The session's folders and chats when a removal was last refused; see {@link refusalInputsKey}. */
+	/** The session's folders and chats when a removal was last refused; see `_refusalInputsKey`. */
 	refusedInputs: string | undefined;
-}
-
-/**
- * Identifies the session's folders, its chats and the folders each chat is
- * scoped to, so a change to any of them can be detected. The refused folders
- * themselves are left out: the host's rollback of a refused removal puts them
- * back, which is not a change.
- */
-function refusalInputsKey(state: SessionState | Error | undefined, isRefused: (directory: string) => boolean): string | undefined {
-	return state && !(state instanceof Error)
-		? JSON.stringify([
-			(state.workingDirectories ?? []).filter(directory => !isRefused(directory)),
-			state.chats.map(chat => [chat.resource, chat.workingDirectories ?? null]),
-		])
-		: undefined;
 }
 
 export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable implements IAgentHostSessionWorkingDirectorySynchronizer {
@@ -239,7 +224,7 @@ export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable imp
 				const directory = registration.connection.resourceUris.fromAgentHost(URI.parse(envelope.action.directory));
 				this._logService.trace(`[AgentHostWorkingDirectories] Host kept ${directory.toString()} in ${key}: ${envelope.rejectionReason}`);
 				entry.refusedRemovals.add(directory);
-				entry.refusedInputs = refusalInputsKey(registration.subscription.value, refused => entry.refusedRemovals.has(registration.connection.resourceUris.fromAgentHost(URI.parse(refused))));
+				entry.refusedInputs = this._refusalInputsKey(registration.subscription.value, refused => entry.refusedRemovals.has(registration.connection.resourceUris.fromAgentHost(URI.parse(refused))));
 			}
 		}));
 		store.add(registration.subscription.onDidApplyAction(() => {
@@ -369,7 +354,7 @@ export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable imp
 		if (candidates.length > 0) {
 			if (registration.refusedRemovals.size > 0) {
 				const isRefused = (directory: string) => registration.refusedRemovals.has(registration.connection.resourceUris.fromAgentHost(URI.parse(directory)));
-				if (registration.refusedInputs !== refusalInputsKey(state, isRefused)) {
+				if (registration.refusedInputs !== this._refusalInputsKey(state, isRefused)) {
 					registration.refusedRemovals.clear();
 					registration.refusedInputs = undefined;
 				}
@@ -420,6 +405,21 @@ export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable imp
 		if (trustError) {
 			throw trustError;
 		}
+	}
+
+	/**
+	 * Identifies the session's folders, its chats and the folders each chat is
+	 * scoped to, so a change to any of them can be detected. The refused folders
+	 * themselves are left out: the host's rollback of a refused removal puts them
+	 * back, which is not a change.
+	 */
+	private _refusalInputsKey(state: SessionState | Error | undefined, isRefused: (directory: string) => boolean): string | undefined {
+		return state && !(state instanceof Error)
+			? JSON.stringify([
+				(state.workingDirectories ?? []).filter(directory => !isRefused(directory)),
+				state.chats.map(chat => [chat.resource, chat.workingDirectories ?? null]),
+			])
+			: undefined;
 	}
 
 	/**
