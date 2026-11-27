@@ -8,6 +8,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { isEqual } from '../../../../base/common/resources.js';
+import { isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
@@ -19,6 +20,7 @@ import { readAgentHostResources } from '../../../../platform/agentHost/common/me
 import { supportsRemoteSessions, toRemoteSessionMessageMetadata, withRemoteSessionOrigin } from '../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { buildOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
 import { isReasoningEffortLevel, ReasoningEffortConfigKey } from '../../../../platform/agentHost/common/reasoningEffort.js';
+import { getSessionModeProperty, isSessionConfigWritable } from '../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { PolicyState } from '../../../../platform/agentHost/common/state/protocol/channels-root/state.js';
 import { JsonPrimitive } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { withSessionCreationReference } from '../../../../platform/agentHost/common/state/sessionState.js';
@@ -33,12 +35,13 @@ import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../wor
 import { AutomationModelConfiguration, InvalidStoredModelConfigurationError } from '../../../../workbench/contrib/sessions/browser/automationModelConfiguration.js';
 import { LocalDevContainerEnvironmentHost } from '../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionPermissionOption } from '../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionType, SessionTypeAuthRequirement } from '../../../../workbench/services/sessions/common/session.js';
 import { isAutomationModelConfiguration } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { modelConfigurationPreferences } from '../../../../workbench/contrib/chat/browser/widget/input/chatModelConfigurationLogic.js';
 import { ICreateNewSessionOptions, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { areRemoteSessionModelOptionsEnabled, areRemoteSessionToolsEnabled, ICreatedRemoteSession, ICreateRemoteSessionOptions, IRemoteSessionDestination, IRemoteSessionHost, IRemoteSessionHostName, IRemoteSessionModel, IRemoteSessionService, IRemoteSessionSourceModelInfo, IRemoteSessionWorkspace, remoteSessionHostRejections } from '../common/remoteSessions.js';
-import { assertRemoteSessionSource, IRemoteSessionSourceModel, resolveRemoteSessionSource } from './remoteSessionSource.js';
+import { areRemoteSessionModelOptionsEnabled, areRemoteSessionToolsEnabled, ICreatedRemoteSession, ICreateRemoteSessionOptions, IRemoteSessionDestination, IRemoteSessionHost, IRemoteSessionHostName, IRemoteSessionModel, IRemoteSessionService, IRemoteSessionSourceModelInfo, IRemoteSessionWorkspace, matchesRemoteSessionAgent, RemoteSessionSettingSource, remoteSessionHostRejections } from '../common/remoteSessions.js';
+import { assertRemoteSessionSource, IRemoteSessionSource, IRemoteSessionSourceModel, resolveRemoteSessionSource } from './remoteSessionSource.js';
 import { IRemoteSessionChatReference, IRemoteSessionChatService } from './remoteSessionChatService.js';
 
 interface IRemoteSessionCandidate {
@@ -57,6 +60,19 @@ interface IRemoteSessionCandidate {
 }
 
 type RemoteSessionsProvider = IAgentHostSessionsProvider & { readonly remoteAddress: string };
+
+/** The permissions and mode of the creating chat, which a new session inherits where its target offers them. */
+interface IRemoteSessionSourceSettings {
+	/** Undefined when the chat's permissions could not be read, which allows only permissions that are not elevated. */
+	readonly permission?: ISessionPermissionOption;
+	readonly mode?: string;
+}
+
+interface IRemoteSessionSettings {
+	readonly permission?: { readonly id: string; readonly source: RemoteSessionSettingSource };
+	readonly mode?: { readonly id: string; readonly source: RemoteSessionSettingSource };
+	readonly notInherited: readonly string[];
+}
 
 const maxRemoteSessionCreations = 500;
 const maxRemoteSessionDepth = 10;
@@ -223,6 +239,8 @@ export class RemoteSessionService implements IRemoteSessionService {
 					provider: agent.provider,
 					models: agent.models.filter(model => model.policyState !== PolicyState.Disabled && visibleModels.has(`${target}:${model.id}`))
 						.map(model => ({ id: model.id, name: model.name })),
+					permissions: provider.getPermissionOptionsForCreation(agent.provider)
+						.map(option => ({ id: option.id, label: option.label, ...(option.locked ? { locked: true as const } : {}) })),
 				};
 			}),
 			workspaces: [...workspaces.values()],
@@ -255,7 +273,7 @@ export class RemoteSessionService implements IRemoteSessionService {
 		const types = workspace ? provider.getSessionTypes(workspace) : provider.sessionTypes;
 		const qualifies = (agent: IRemoteSessionHost['agents'][number]) => {
 			const target = remoteAgentHostSessionTypeId(authority, agent.provider);
-			return (options.model === undefined || options.model.provider === agent.provider)
+			return matchesRemoteSessionAgent(agent, options)
 				&& (agent.models.length > 0 || this.chatSessionsService.supportsAutoModelForSessionType(target))
 				&& types.some(type => type.chatSessionType === target
 					&& (!workspace || type.supportsWorktreeConfiguration === true));
@@ -427,6 +445,7 @@ export class RemoteSessionService implements IRemoteSessionService {
 		if (depth > maxRemoteSessionDepth) {
 			throw new Error(localize('remoteSessions.recursionLimit', "Remote session recursion limit reached (maximum depth {0}).", maxRemoteSessionDepth));
 		}
+		const sourceSettings = await this.readSourceSettings(source, token);
 		const candidates = await this.candidates(options, source.model, token);
 		this.checkEnabled();
 		assertRemoteSessionSource(source, this.sessionsService, this.connectionsService);
@@ -472,6 +491,10 @@ export class RemoteSessionService implements IRemoteSessionService {
 			if (runningSessions === undefined) {
 				throw new Error(localize('remoteSessions.workloadLost', "Remote agent host {0} no longer reports its workload.", target.host.label));
 			}
+			const settings = await this.resolveSettings(target, options, { ...sourceSettings, agentProvider: source.agentProvider }, token);
+			this.checkEnabled();
+			assertRemoteSessionSource(source, this.sessionsService, this.connectionsService);
+			this.assertTargetConnection(target);
 			const origin = { session: source.session.resource.toString(), chat: source.chat.resource.toString(), depth };
 			const metadata = withSessionCreationReference(withRemoteSessionOrigin(undefined, origin), {
 				session: origin.session,
@@ -482,6 +505,8 @@ export class RemoteSessionService implements IRemoteSessionService {
 				sessionTypeId: target.sessionType.id,
 				modelId: target.modelIdentifier,
 				...(target.modelConfiguration ? { modelConfiguration: target.modelConfiguration } : {}),
+				...(settings.permission ? { permissionId: settings.permission.id } : {}),
+				...(settings.mode ? { modeId: settings.mode.id } : {}),
 				metadata,
 				onSessionCreated: async session => {
 					background = await this.backgroundChats.acquire(session.mainChat.get().resource, token);
@@ -522,6 +547,9 @@ export class RemoteSessionService implements IRemoteSessionService {
 				openLink: buildOpenSessionLinkUri(created.resource, chat.resource.fragment),
 				host: { id: target.host.id, label: target.host.label },
 				model: { provider: target.agentProvider, id: modelId ?? null },
+				permissions: settings.permission ?? null,
+				mode: settings.mode ?? null,
+				notInherited: settings.notInherited,
 				workspace: target.workspace && options.workspace ? {
 					requestedUri: target.workspace.toString(),
 					uri: !worktreePending && folder ? folder.workingDirectory.toString() : null,
@@ -541,5 +569,95 @@ export class RemoteSessionService implements IRemoteSessionService {
 				this.pendingCreations.delete(selected.host.id);
 			}
 		}
+	}
+
+	/** Reads the creating chat's permissions and mode as its provider presents them, like model comparisons do. */
+	private async readSourceSettings(source: IRemoteSessionSource, token: CancellationToken): Promise<IRemoteSessionSourceSettings> {
+		const { sessionId, providerId } = source.session;
+		const provider = this.providersService.getProvider(providerId, sessionId);
+		if (!provider || !isAgentHostProvider(provider)) {
+			return {};
+		}
+		try {
+			const lease = await provider.acquireSessionConfig(sessionId, source.chat.resource, token);
+			try {
+				const config = provider.getSessionConfig(sessionId, source.chat.resource);
+				const modeProperty = getSessionModeProperty(config?.schema);
+				const mode = modeProperty && config ? config.values[modeProperty.key] ?? modeProperty.schema.default : undefined;
+				return {
+					permission: provider.getPermissionOptionForSession?.(sessionId, source.chat.resource),
+					...(isString(mode) ? { mode } : {}),
+				};
+			} finally {
+				lease.dispose();
+			}
+		} catch (error) {
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			this.logService.warn('[RemoteSessions] Could not read the configuration of the creating chat', error);
+			return {};
+		}
+	}
+
+	/**
+	 * Applies explicit permissions and mode strictly, and otherwise inherits the creating chat's where the target offers
+	 * them. Neither may exceed the creating chat's: the fallbacks are the target's default permissions and interactive
+	 * mode, not the user's remembered or configured defaults, which could be more permissive.
+	 */
+	private async resolveSettings(target: IRemoteSessionCandidate, options: ICreateRemoteSessionOptions, source: IRemoteSessionSourceSettings & { readonly agentProvider?: string }, token: CancellationToken): Promise<IRemoteSessionSettings> {
+		const notInherited: string[] = [];
+		const host = target.host.label;
+		const sameAgent = source.agentProvider === target.agentProvider;
+		const config = await raceCancellationError(target.provider.resolveSessionConfigForCreation(target.workspace, target.sessionType.id, token), token);
+
+		const permissions = target.provider.getPermissionOptionsForCreation(target.sessionType.id, config).filter(option => !option.locked);
+		let permission: IRemoteSessionSettings['permission'];
+		if (options.permissions !== undefined) {
+			const option = permissions.find(option => option.id === options.permissions);
+			if (!option) {
+				throw new Error(localize('remoteSessions.permissionNotOffered', "Permission {0} is not available for {1} on {2}. Available: {3}.", options.permissions, target.agentProvider, host, permissions.map(option => option.id).join(', ')));
+			}
+			if (option.isElevated && !(source.permission?.isAllowAll || (sameAgent && source.permission?.id === option.id))) {
+				throw new Error(localize('remoteSessions.permissionEscalation', "Permission {0} is more permissive than the creating chat's permissions ({1}).", option.id, source.permission?.label ?? localize('remoteSessions.unknownPermission', "unknown")));
+			}
+			permission = { id: option.id, source: 'explicit' };
+		} else {
+			const sourcePermission = source.permission;
+			// Across agents, only allow-all and the default correspond.
+			const inherited = sourcePermission && permissions.find(option => sameAgent ? option.id === sourcePermission.id
+				: sourcePermission.isAllowAll ? option.isAllowAll === true : sourcePermission.isDefault === true && option.isDefault === true);
+			const fallback = permissions.find(option => option.isDefault);
+			if (inherited) {
+				permission = { id: inherited.id, source: 'inherited' };
+			} else if (fallback) {
+				permission = { id: fallback.id, source: 'default' };
+				notInherited.push(sourcePermission
+					? localize('remoteSessions.permissionNotInherited', "Permission {0} is not available for {1} on {2}; {3} is used.", sourcePermission.label, target.agentProvider, host, fallback.label)
+					: localize('remoteSessions.permissionUnknown', "The creating chat's permissions could not be read; {0} is used.", fallback.label));
+			}
+		}
+
+		const modeProperty = getSessionModeProperty(config.schema);
+		const modes = modeProperty && isSessionConfigWritable(modeProperty.schema, true) ? (modeProperty.schema.enum ?? []).filter(isString) : [];
+		let mode: IRemoteSessionSettings['mode'];
+		if (options.mode !== undefined) {
+			if (!modes.includes(options.mode)) {
+				throw new Error(localize('remoteSessions.modeNotOffered', "Mode {0} is not available for {1} on {2}.", options.mode, target.agentProvider, host));
+			}
+			if (options.mode === 'autopilot' && source.mode !== 'autopilot') {
+				throw new Error(localize('remoteSessions.autopilotEscalation', "Mode {0} is only available when the creating chat uses it.", 'autopilot'));
+			}
+			mode = { id: options.mode, source: 'explicit' };
+		} else if (source.mode && modes.includes(source.mode)) {
+			mode = { id: source.mode, source: 'inherited' };
+		} else if (modes.includes('interactive')) {
+			mode = { id: 'interactive', source: 'default' };
+			if (source.mode && source.mode !== 'interactive') {
+				notInherited.push(localize('remoteSessions.modeNotInherited', "Mode {0} is not available for {1} on {2}; {3} is used.", source.mode, target.agentProvider, host, 'interactive'));
+			}
+		}
+
+		return { permission, mode, notInherited };
 	}
 }

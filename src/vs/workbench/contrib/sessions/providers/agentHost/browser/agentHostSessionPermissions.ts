@@ -52,6 +52,7 @@ export function getAgentHostSessionPermissionOptions(agentProvider: string, poli
 				id: 'assisted',
 				label: localize('sessionComparison.permissions.copilot.assisted', "Assisted permissions"),
 				description: localize('sessionComparison.permissions.copilot.assistedDescription', "An LLM judge evaluates tool calls and asks when it does not approve them."),
+				isElevated: true,
 				locked: policyRestricted,
 				lockedReason: policyRestricted ? policyLockedReason() : undefined,
 			}] : []), {
@@ -59,6 +60,7 @@ export function getAgentHostSessionPermissionOptions(agentProvider: string, poli
 				label: localize('sessionComparison.permissions.copilot.allowAll', "Allow all"),
 				description: localize('sessionComparison.permissions.copilot.allowAllDescription', "Runs all tool calls without asking for approval."),
 				isAllowAll: true,
+				isElevated: true,
 				locked: policyRestricted,
 				lockedReason: policyRestricted ? policyLockedReason() : undefined,
 			}];
@@ -72,6 +74,7 @@ export function getAgentHostSessionPermissionOptions(agentProvider: string, poli
 				id: 'acceptEdits',
 				label: localize('sessionComparison.permissions.claude.acceptEdits', "Edit Automatically"),
 				description: localize('sessionComparison.permissions.claude.acceptEditsDescription', "Claude edits files without asking and asks before using other tools."),
+				isElevated: true,
 				locked: policyRestricted,
 				lockedReason: policyRestricted ? policyLockedReason() : undefined,
 			}, {
@@ -82,6 +85,7 @@ export function getAgentHostSessionPermissionOptions(agentProvider: string, poli
 				id: 'auto',
 				label: localize('sessionComparison.permissions.claude.auto', "Auto Mode"),
 				description: localize('sessionComparison.permissions.claude.autoDescription', "Claude decides whether to ask for each tool operation."),
+				isElevated: true,
 				locked: policyRestricted,
 				lockedReason: policyRestricted ? policyLockedReason() : undefined,
 			}, {
@@ -89,6 +93,7 @@ export function getAgentHostSessionPermissionOptions(agentProvider: string, poli
 				label: localize('sessionComparison.permissions.claude.bypass', "Bypass Permissions"),
 				description: localize('sessionComparison.permissions.claude.bypassDescription', "Claude runs all tools without asking."),
 				isAllowAll: true,
+				isElevated: true,
 				locked: policyRestricted,
 				lockedReason: policyRestricted ? policyLockedReason() : undefined,
 			}];
@@ -102,6 +107,7 @@ export function getAgentHostSessionPermissionOptions(agentProvider: string, poli
 				id: 'auto-review',
 				label: CODEX_PERMISSIONS_PRESET_LABELS['auto-review'],
 				description: localize('sessionComparison.permissions.codex.autoReviewDescription', "Approval requests are routed through the auto-reviewer instead of prompting you."),
+				isElevated: true,
 				locked: policyRestricted,
 				lockedReason: policyRestricted ? policyLockedReason() : undefined,
 			}, {
@@ -109,6 +115,7 @@ export function getAgentHostSessionPermissionOptions(agentProvider: string, poli
 				label: CODEX_PERMISSIONS_PRESET_LABELS['full-access'],
 				description: localize('sessionComparison.permissions.codex.fullAccessDescription', "Codex can use the internet and edit files outside the workspace without asking."),
 				isAllowAll: true,
+				isElevated: true,
 				locked: policyRestricted,
 				lockedReason: policyRestricted ? policyLockedReason() : undefined,
 			}];

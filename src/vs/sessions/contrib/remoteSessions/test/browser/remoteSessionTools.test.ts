@@ -78,6 +78,9 @@ suite('RemoteSessionTools', () => {
 		openLink: 'agent-host-session://remote-host-copilot/child',
 		host: { id: 'host', label: 'Linux' },
 		model: { provider: 'copilot', id: null },
+		permissions: null,
+		mode: null,
+		notInherited: [],
 		workspace: null,
 		placement: { runningSessions: 0, pendingCreations: 0 },
 	};
@@ -144,7 +147,9 @@ suite('RemoteSessionTools', () => {
 			noBlindRetry: description.includes('Do not retry an uncertain creation'),
 			connectedWindow: description.includes('Keep the coordinating Agents window connected'),
 			agentHostSource: description.includes('Requires an Agent Host originating chat'),
-		}, { noWorkspace: true, noCopying: true, trustedWorkspace: true, replies: true, shareLink: true, reuseLink: true, noBlindRetry: true, connectedWindow: true, agentHostSource: true });
+			inheritsPermissionsAndMode: description.includes('Omitted permissions and mode are inherited from this chat where the target offers them'),
+			noEscalation: description.includes('neither can be more permissive than this chat\'s'),
+		}, { noWorkspace: true, noCopying: true, trustedWorkspace: true, replies: true, shareLink: true, reuseLink: true, noBlindRetry: true, connectedWindow: true, agentHostSource: true, inheritsPermissionsAndMode: true, noEscalation: true });
 	});
 
 	test('creation waits for exact chat context when invoked in the background', () => {
@@ -263,6 +268,26 @@ suite('RemoteSessionTools', () => {
 			namedWithoutModelOptions: ['Model: copilot/claude-opus-5.5'],
 			namedWithModelOptions: ['Model: copilot/claude-opus-5.5', 'Reasoning effort: Extra High from this chat, if the model on the host supports it'],
 			otherModel: ['Model: copilot/test-model'],
+		});
+	});
+
+	test('confirmation shows requested permissions and mode, or that they come from this chat, and forwards them', async () => {
+		const { create, calls } = setup();
+		const lines = async (parameters: object) => {
+			const prepared = await create.prepareToolInvocation({ toolCallId: 'prepare', parameters: { prompt: 'Continue', ...parameters }, chatSessionResource: source }, CancellationToken.None);
+			const message = prepared.confirmationMessages?.message;
+			return (typeof message === 'object' ? message.value.replace(/&nbsp;/g, ' ') : '').split(/\n+/).filter(line => /^(Permissions|Mode):/.test(line));
+		};
+		const requested = { permissions: 'assisted', mode: 'plan' };
+		await create.invoke({ callId: 'call', toolId: create.getToolData().id, parameters: { prompt: 'Continue', ...requested }, context: { sessionResource: source } }, async () => 0, progress, CancellationToken.None);
+		assert.deepStrictEqual({
+			omitted: await lines({}),
+			requested: await lines(requested),
+			forwarded: { permissions: calls[0].options.permissions, mode: calls[0].options.mode },
+		}, {
+			omitted: ['Permissions: from this chat, if the host offers them', 'Mode: from this chat, if the host offers it'],
+			requested: ['Permissions: assisted', 'Mode: plan'],
+			forwarded: requested,
 		});
 	});
 

@@ -21,7 +21,11 @@ suite('RemoteSessions', () => {
 		resources: { platform: 'linux', architecture: 'x64', cpuCount: 8, memoryBytes: 32 * 1024 ** 3 },
 		runningSessions: 2,
 		pendingCreations: 0,
-		agents: [{ provider: 'copilot', models: [{ id: 'test-model', name: 'Test Model' }] }],
+		agents: [{
+			provider: 'copilot',
+			models: [{ id: 'test-model', name: 'Test Model' }],
+			permissions: [{ id: 'default', label: 'Manual permissions' }, { id: 'autoApprove', label: 'Allow all', locked: true }],
+		}],
 		workspaces: [],
 	};
 
@@ -88,6 +92,12 @@ suite('RemoteSessions', () => {
 		})), ['Model claude/test-model is not available.']);
 	});
 
+	test('requested permissions require an agent that offers them without a policy lock', () => {
+		assert.deepStrictEqual(['default', 'autoApprove', 'bypassPermissions'].map(permissions => remoteSessionHostRejections(host, parseCreateRemoteSessionOptions({
+			prompt: 'Test', permissions,
+		}))), [[], ['Permission autoApprove is not available.'], ['Permission bypassPermissions is not available.']]);
+	});
+
 	for (const status of ['reconnecting', 'connecting', 'disconnected', 'incompatible']) {
 		test(`${status} hosts report connectivity, not unsupported capabilities`, () => {
 			assert.deepStrictEqual(remoteSessionHostRejections({
@@ -148,6 +158,8 @@ suite('RemoteSessions', () => {
 			{ prompt: 'Test', model: 'test-model' },
 			{ prompt: 'Test', model: { id: 'test-model' } },
 			{ prompt: 'Test', model: { provider: 'copilot', id: 'test-model', fallback: true } },
+			{ prompt: 'Test', permissions: ' ' },
+			{ prompt: 'Test', mode: 'agent' },
 			{ prompt: 'Test', requirements: { platform: 'win32' } },
 			{ prompt: 'Test', requirements: { minCpuCount: 1.5 } },
 			{ prompt: 'Test', requirements: { minCpuCount: '8' } },
@@ -175,6 +187,7 @@ suite('RemoteSessions', () => {
 			{ input: { prompt: 'Test', requirements: { minCpuCount: 1.5 } }, message: 'requirements.minCpuCount must be a positive integer.' },
 			{ input: { prompt: 'Test', requirements: { minMemoryGiB: 0 } }, message: 'requirements.minMemoryGiB must be a positive number.' },
 			{ input: { prompt: 'Test', requirements: { platform: 'win32' } }, message: 'requirements.platform must be windows, linux, or macos.' },
+			{ input: { prompt: 'Test', mode: 'agent' }, message: 'mode must be one of: interactive, plan, autopilot.' },
 			{ input: { prompt: 'Test', workspace: { uri: 'https://example.com/repo' } }, message: 'workspace.uri must identify an absolute folder using a file URI or a remote workspace URI from list_agent_hosts.' },
 			{ input: { prompt: 'Test', workspace: { uri: 'file:///repo', isolation: 'inherit' } }, message: 'workspace.isolation must be folder or worktree.' },
 			{ input: { prompt: 'Test', workspace: { uri: 'file:///repo', isolation: 'folder', branch: 'main' } }, message: 'workspace.branch requires worktree isolation; an existing checkout is never switched to another branch.' },

@@ -66,6 +66,9 @@ export interface IRemoteSessionWorkspace {
 	readonly branch?: string;
 }
 
+export const remoteSessionModes = ['interactive', 'plan', 'autopilot'] as const;
+export type RemoteSessionMode = typeof remoteSessionModes[number];
+
 export interface ICreateRemoteSessionOptions {
 	readonly prompt: string;
 	readonly title?: string;
@@ -75,6 +78,10 @@ export interface ICreateRemoteSessionOptions {
 	readonly reasoningEffort?: ReasoningEffortLevel;
 	/** Requires {@link model}; set as an explicit choice over the context size the session would otherwise start with. */
 	readonly contextTier?: ModelContextTier;
+	/** Permission ID of the target agent; omitted inherits the creating chat's permissions. */
+	readonly permissions?: string;
+	/** Omitted inherits the creating chat's mode. */
+	readonly mode?: RemoteSessionMode;
 	readonly requirements: IRemoteSessionRequirements;
 	readonly workspace?: IRemoteSessionWorkspace;
 }
@@ -91,9 +98,14 @@ export interface IRemoteSessionHost {
 	readonly agents: readonly {
 		readonly provider: string;
 		readonly models: readonly { readonly id: string; readonly name: string }[];
+		/** The agent's permission choices; a host can withhold some, which creation reports. */
+		readonly permissions: readonly { readonly id: string; readonly label: string; readonly locked?: true }[];
 	}[];
 	readonly workspaces: readonly { readonly uri: string; readonly label: string }[];
 }
+
+/** Where a permission or mode of a created session came from. */
+export type RemoteSessionSettingSource = 'explicit' | 'inherited' | 'default';
 
 export interface ICreatedRemoteSession {
 	readonly session: string;
@@ -101,6 +113,10 @@ export interface ICreatedRemoteSession {
 	readonly openLink: string;
 	readonly host: { readonly id: string; readonly label: string };
 	readonly model: { readonly provider: string; readonly id: string | null };
+	readonly permissions: { readonly id: string; readonly source: RemoteSessionSettingSource } | null;
+	readonly mode: { readonly id: string; readonly source: RemoteSessionSettingSource } | null;
+	/** Permissions or mode of the creating chat that the target does not offer, with what it uses instead. */
+	readonly notInherited: readonly string[];
 	readonly workspace: {
 		readonly requestedUri: string;
 		readonly uri: string | null;
@@ -197,7 +213,7 @@ function readChoice<T extends string>(value: unknown, values: readonly T[], labe
  * ({@link areRemoteSessionModelOptionsEnabled}); otherwise those properties are unknown.
  */
 export function parseCreateRemoteSessionOptions(value: unknown, modelOptions = false): ICreateRemoteSessionOptions {
-	const fields = ['prompt', 'title', 'hostId', 'model', 'requirements', 'workspace'];
+	const fields = ['prompt', 'title', 'hostId', 'model', 'permissions', 'mode', 'requirements', 'workspace'];
 	const input = readObject(value, modelOptions ? [...fields, 'reasoningEffort', 'contextTier'] : fields, 'create_remote_session');
 	const prompt = readText(input.prompt, 'prompt');
 	const title = input.title === undefined ? undefined : readText(input.title, 'title');
@@ -215,6 +231,8 @@ export function parseCreateRemoteSessionOptions(value: unknown, modelOptions = f
 	if ((reasoningEffort !== undefined || contextTier !== undefined) && !model) {
 		throw new Error(localize('remoteSessions.modelOptionsRequireModel', "{0} and {1} require {2}.", 'reasoningEffort', 'contextTier', 'model'));
 	}
+	const permissions = input.permissions === undefined ? undefined : readText(input.permissions, 'permissions');
+	const mode = input.mode === undefined ? undefined : readChoice(input.mode, remoteSessionModes, 'mode');
 	const requirements: Record<string, unknown> = input.requirements === undefined ? {} : readObject(input.requirements, ['platform', 'minMemoryGiB', 'minCpuCount'], 'requirements');
 	const platform = requirements.platform;
 	if (platform !== undefined && platform !== 'windows' && platform !== 'linux' && platform !== 'macos') {
@@ -245,12 +263,20 @@ export function parseCreateRemoteSessionOptions(value: unknown, modelOptions = f
 		prompt, title, hostId, model, workspace,
 		...(reasoningEffort !== undefined ? { reasoningEffort } : {}),
 		...(contextTier !== undefined ? { contextTier } : {}),
+		...(permissions !== undefined ? { permissions } : {}),
+		...(mode !== undefined ? { mode } : {}),
 		requirements: {
 			platform,
 			minMemoryGiB: readMinimum(requirements.minMemoryGiB, 'requirements.minMemoryGiB', false),
 			minCpuCount: readMinimum(requirements.minCpuCount, 'requirements.minCpuCount', true),
 		},
 	};
+}
+
+/** Whether the agent offers the requested model provider and permission, when they are given. */
+export function matchesRemoteSessionAgent(agent: IRemoteSessionHost['agents'][number], options: Pick<ICreateRemoteSessionOptions, 'model' | 'permissions'>): boolean {
+	return (options.model === undefined || options.model.provider === agent.provider)
+		&& (options.permissions === undefined || agent.permissions.some(permission => permission.id === options.permissions && !permission.locked));
 }
 
 export function remoteSessionHostRejections(host: IRemoteSessionHost, options: ICreateRemoteSessionOptions): string[] {
@@ -288,6 +314,9 @@ export function remoteSessionHostRejections(host: IRemoteSessionHost, options: I
 	}
 	if (options.model !== undefined && !host.agents.some(agent => agent.provider === options.model?.provider && agent.models.some(model => model.id === options.model?.id))) {
 		reasons.push(localize('remoteSessions.modelUnavailable', "Model {0}/{1} is not available.", options.model.provider, options.model.id));
+	}
+	if (options.permissions !== undefined && !host.agents.some(agent => matchesRemoteSessionAgent(agent, options))) {
+		reasons.push(localize('remoteSessions.permissionsUnavailable', "Permission {0} is not available.", options.permissions));
 	}
 	if (!host.agents.length) {
 		reasons.push(localize('remoteSessions.noAgents', "No usable agents have been advertised."));

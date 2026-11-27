@@ -21,7 +21,7 @@ import { AgentCustomization, Customization, McpServerStatus, RootConfigState, ty
 import { type CustomizationDisabledReason } from '../../../../platform/agentHost/common/customizationEnablement.js';
 import { type McpServerSource } from '../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import type { IMcpServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
-import { ISessionConfigProvider, ISessionsProvider } from './sessionsProvider.js';
+import { ISessionConfigProvider, ISessionPermissionOption, ISessionsProvider } from './sessionsProvider.js';
 import { ISession, ISessionAgentRef } from '../../../services/sessions/common/session.js';
 import type { AgentMergeSessionOverrides, AgentMergeSessionState } from '../../../../platform/agentHost/common/agentMerge.js';
 import type { ISessionSandboxPolicy } from '../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
@@ -354,8 +354,10 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	whenSessionConfigResolved(sessionId: string, token: CancellationToken): Promise<ResolveSessionConfigResult>;
 	/** Retains and awaits the exact chat's configuration, rejecting unavailable state rather than using parent permissions. */
 	acquireSessionConfig(sessionId: string, chat: URI, token: CancellationToken): Promise<IDisposable>;
-	/** Resolves a harness's configuration for a new session in the target workspace, independently of existing sessions. */
-	resolveSessionConfigForCreation(workspace: URI, sessionTypeId: string, token: CancellationToken): Promise<ResolveSessionConfigResult>;
+	/** Resolves a harness's configuration for a new session in the target workspace, or for a quick chat without one, independently of existing sessions. */
+	resolveSessionConfigForCreation(workspace: URI | undefined, sessionTypeId: string, token: CancellationToken): Promise<ResolveSessionConfigResult>;
+	/** A harness's permission choices for a new session, with the ones policy disables locked. With a resolved configuration, only the choices the host offers. */
+	getPermissionOptionsForCreation(sessionTypeId: string, config?: ResolveSessionConfigResult): readonly ISessionPermissionOption[];
 	/** Canceled when the draft is disposed, including when its provider disconnects. */
 	getNewSessionCancellationToken(sessionId: string): CancellationToken;
 	/** Effective runtime sandbox policy, refreshed with session configuration notifications. */
