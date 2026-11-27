@@ -282,9 +282,8 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	private readonly _containerOperations = new SequencerByKey<string>();
 	private _nativeRequire: NodeJS.Require | undefined;
 	private _shellEnvironment: Promise<typeof process.env> | undefined;
-	private _dockerExecutable: Promise<string | undefined> | undefined;
+	private _dockerExecutable: { path: string; executable: Promise<string | undefined> } | undefined;
 	private _certificatesFile: Promise<string | undefined> | undefined;
-	private _dockerAvailable: Promise<boolean> | undefined;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -598,7 +597,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	}
 
 	private async _runReportedDocker(connectionId: string, args: readonly string[], token: CancellationToken): Promise<{ stdout: string; stderr: string; code: number }> {
-		this._reportOutput(connectionId, `$ docker ${args.map(arg => JSON.stringify(arg)).join(' ')}\n`);
+		this._reportOutput(connectionId, `$ ${this._getDockerPath()} ${args.map(arg => JSON.stringify(arg)).join(' ')}\n`);
 		const result = await this._runDocker(args, token);
 		this._reportOutput(connectionId, result.stdout + result.stderr);
 		return result;
@@ -609,7 +608,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		return prepareDevContainerSample(sample, join(this._environmentService.userDataPath, 'devContainerSamples', sample.id), {
 			onContainerStarted,
 			docker: async args => {
-				this._reportOutput(connectionId, `$ docker ${args.map(arg => JSON.stringify(arg)).join(' ')}\n`);
+				this._reportOutput(connectionId, `$ ${this._getDockerPath()} ${args.map(arg => JSON.stringify(arg)).join(' ')}\n`);
 				const result = await this._runDocker(args, token);
 				this._reportOutput(connectionId, result.stdout + result.stderr);
 				return result;
@@ -810,12 +809,11 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				throw new Error('The Dev Container CLI did not report the remote user');
 			}
 			reason = 'user';
-			const environment = await this._resolveShellEnvironment();
 			const userScript = 'id -u; id -g; printf "%s\\n" "$HOME"';
 			// The Agent Host's shell gets `remoteEnv`, which can set another HOME. Only the slower `devcontainer exec` resolves it.
 			const user = await userQuery.remoteEnvSetsHome()
 				? await this._runDevContainer(connectionId, getDevContainerExecArgs([...userQuery.selectorArgs, '--container-id', containerId], userScript), token, userQuery.environment)
-				: await this._runLocalCommand('docker', ['exec', '--user', remoteUser, containerId, '/bin/sh', '-c', userScript], environment, token);
+				: await this._runDocker(['exec', '--user', remoteUser, containerId, '/bin/sh', '-c', userScript], token);
 			const [uid, gid, home] = user.stdout.trim().split(/\r?\n/);
 			homeFolder = home;
 			if (user.code !== 0 || !uid || !gid || !homeFolder) {
@@ -832,7 +830,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				keepExistingFolders,
 			});
 			reason = 'script';
-			const linked = await this._runLocalCommand('docker', ['exec', '--user', 'root', containerId, '/bin/sh', '-c', command], environment, token);
+			const linked = await this._runDocker(['exec', '--user', 'root', containerId, '/bin/sh', '-c', command], token);
 			this._reportOutput(connectionId, linked.stderr);
 			exitCode = linked.code;
 			progress = parseLinkDevContainerStateOutput(linked.stdout);
@@ -927,9 +925,9 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				}
 				try {
 					const cachePath = kind === 'server' ? getDevContainerServerCachePath(serverDataFolderName, platform) : getDevContainerCliCachePath(serverDataFolderName, platform);
-					const created = await this._runLocalCommand('docker', [
+					const created = await this._runDocker([
 						'exec', '--user', 'root', containerId, '/bin/sh', '-c', buildCreateDevContainerCacheCommand(cachePath, uid, gid),
-					], await this._resolveShellEnvironment(), token);
+					], token);
 					if (created.code !== 0) {
 						throw new Error(`Unable to prepare shared ${kind} cache (exit ${created.code}): ${created.stderr}`);
 					}
@@ -1031,11 +1029,8 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	}
 
 	protected async _getContainerMounts(connectionId: string, containerId: string, token: CancellationToken): Promise<readonly IDevContainerMount[]> {
-		const environment = await this._resolveShellEnvironment();
-		const result = await this._runLocalCommand(
-			'docker',
+		const result = await this._runDocker(
 			['inspect', '--format', '{{json .Mounts}}', containerId],
-			environment,
 			token,
 		);
 		if (result.code !== 0) {
@@ -1049,7 +1044,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	/** Reads the container's security settings for link failure telemetry, if Docker can inspect it. */
 	protected async _getContainerSecurityOptions(containerId: string, token: CancellationToken): Promise<IDevContainerSecurityOptions> {
 		try {
-			const result = await this._runLocalCommand('docker', ['inspect', '--format', '{{json .HostConfig}}', containerId], await this._resolveShellEnvironment(), token);
+			const result = await this._runDocker(['inspect', '--format', '{{json .HostConfig}}', containerId], token);
 			return result.code === 0 ? getDevContainerSecurityOptions(JSON.parse(result.stdout)) : {};
 		} catch (error) {
 			if (isCancellationError(error)) {
@@ -1358,8 +1353,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	}
 
 	isDockerAvailable(): Promise<boolean> {
-		this._dockerAvailable ??= this._resolveDockerExecutable().then(executable => executable !== undefined);
-		return this._dockerAvailable;
+		return this._resolveDockerExecutable().then(executable => executable !== undefined);
 	}
 
 	async stopContainer(source: DevContainerAgentHostSource): Promise<boolean> {
@@ -1465,16 +1459,27 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	}
 
 	private _resolveDockerExecutable(): Promise<string | undefined> {
-		this._dockerExecutable ??= this._resolveShellEnvironment()
-			.then(environment => findExecutable('docker', undefined, undefined, environment));
-		return this._dockerExecutable;
+		const path = this._getDockerPath();
+		if (this._dockerExecutable?.path !== path) {
+			this._dockerExecutable = {
+				path,
+				executable: this._resolveShellEnvironment().then(environment => findExecutable(path, undefined, undefined, environment)),
+			};
+		}
+		return this._dockerExecutable.executable;
+	}
+
+	protected _getDockerPath(): string {
+		return 'docker';
 	}
 
 	protected _spawnDevContainer(
 		args: readonly string[],
 		environment: NodeJS.ProcessEnv,
 	): ChildProcessWithoutNullStreams {
-		return spawn(process.execPath, [getDevContainerCliPath(), ...args], {
+		const dockerPath = this._getDockerPath();
+		const dockerArgs = dockerPath !== 'docker' ? ['--docker-path', dockerPath] : [];
+		return spawn(process.execPath, [getDevContainerCliPath(), args[0], ...dockerArgs, ...args.slice(1)], {
 			stdio: ['pipe', 'pipe', 'pipe'],
 			env: this._getDevContainerSpawnEnvironment(environment),
 		});
@@ -1543,6 +1548,10 @@ export class DevContainerAgentHostMainService extends DevContainerAgentHostServi
 
 	protected override _useSystemCertificates(): boolean {
 		return this._configurationService.getValue<boolean>('http.systemCertificates') !== false;
+	}
+
+	protected override _getDockerPath(): string {
+		return this._configurationService.getValue<string>('dev.containers.dockerPath') || 'docker';
 	}
 
 	protected override async _sharesClientNetwork(token: CancellationToken): Promise<boolean> {
