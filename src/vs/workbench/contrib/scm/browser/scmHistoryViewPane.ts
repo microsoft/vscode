@@ -95,6 +95,10 @@ function isHistoryItemStructuralChange(element: unknown): element is HistoryItem
 	return isSCMStructuralDiffElement(element);
 }
 
+function getHistoryItemId(repository: ISCMRepository, historyItem: ISCMHistoryItem): string {
+	return `historyItem:${repository.provider.id}/${historyItem.id}/${historyItem.parentIds.join(',')}`;
+}
+
 function getHistoryItemChangeId(repository: ISCMRepository, historyItem: ISCMHistoryItem, historyItemChange: ISCMHistoryItemChange): string {
 	return `historyItemChange:${repository.provider.id}/${historyItem.id}/${historyItem.parentIds.join(',')}/${historyItemChange.uri.fsPath}`;
 }
@@ -964,16 +968,14 @@ class SCMHistoryTreeAccessibilityProvider implements IListAccessibilityProvider<
 	}
 }
 
-class SCMHistoryTreeIdentityProvider implements IIdentityProvider<TreeElement> {
+export class SCMHistoryTreeIdentityProvider implements IIdentityProvider<TreeElement> {
 
 	getId(element: TreeElement): string {
 		if (isSCMRepository(element)) {
 			const provider = element.provider;
 			return `repo:${provider.id}`;
 		} else if (isSCMHistoryItemViewModelTreeElement(element)) {
-			const provider = element.repository.provider;
-			const historyItem = element.historyItemViewModel.historyItem;
-			return `historyItem:${provider.id}/${historyItem.id}/${historyItem.parentIds.join(',')}`;
+			return getHistoryItemId(element.repository, element.historyItemViewModel.historyItem);
 		} else if (isSCMHistoryItemChangeViewModelTreeElement(element)) {
 			return getHistoryItemChangeId(element.repository, element.historyItemViewModel.historyItem, element.historyItemChange);
 		} else if (isSCMHistoryItemChangeNode(element)) {
@@ -1070,12 +1072,13 @@ export class SCMHistoryTreeSorter implements ITreeSorter<TreeElement> {
 
 export class SCMHistoryTreeDataSource extends Disposable implements IAsyncDataSource<SCMHistoryViewModel, TreeElement> {
 	/**
-	 * The elements of the files of history items, by id. Refreshing the graph or loading more history items creates its
-	 * history items again, so a file keeps its element while it compares the same documents, and the element takes the
-	 * graph data of the new history item. The structural diff model keeps the structural changes of each element, so an
-	 * expanded file keeps showing them without being analyzed again.
+	 * The elements of the files of the history items, by the ids of the history items and of the files. Refreshing the
+	 * graph or loading more history items creates its history items again, so a file keeps its element while its history
+	 * item is in the graph and the file compares the same documents, and the element takes the graph data of the new
+	 * history item. So an expanded file keeps the structural changes that the model keeps for its element, also when its
+	 * folder was collapsed during a refresh and is expanded again.
 	 */
-	private readonly _changeElements = new Map<string, Mutable<SCMHistoryItemChangeViewModelTreeElement>>();
+	private readonly _changeElements = new Map<string, { readonly historyItemElement: SCMHistoryItemViewModelTreeElement; readonly changeElements: ReadonlyMap<string, Mutable<SCMHistoryItemChangeViewModelTreeElement>> }>();
 
 	constructor(
 		private readonly viewMode: () => ViewMode,
@@ -1153,16 +1156,17 @@ export class SCMHistoryTreeDataSource extends Disposable implements IAsyncDataSo
 			}
 
 			const historyItemChanges = await historyProvider?.provideHistoryItemChanges(historyItemId, historyItemParentId) ?? [];
+			const changeElements = this._getChangeElements(inputOrElement, historyItemChanges);
 
 			if (this.viewMode() === ViewMode.List) {
 				// List
-				children.push(...historyItemChanges.map(change => this._getChangeElement(inputOrElement, change)));
+				children.push(...changeElements);
 			} else if (this.viewMode() === ViewMode.Tree) {
 				// Tree
 				const rootUri = inputOrElement.repository.provider.rootUri ?? URI.file('/');
 				const historyItemChangesTree = new ResourceTree<SCMHistoryItemChangeViewModelTreeElement, SCMHistoryItemViewModelTreeElement>(inputOrElement, rootUri);
-				for (const change of historyItemChanges) {
-					historyItemChangesTree.add(change.uri, this._getChangeElement(inputOrElement, change));
+				for (const changeElement of changeElements) {
+					historyItemChangesTree.add(changeElement.historyItemChange.uri, changeElement);
 				}
 				for (const node of historyItemChangesTree.root.children) {
 					children.push(node.element ?? node);
@@ -1198,37 +1202,52 @@ export class SCMHistoryTreeDataSource extends Disposable implements IAsyncDataSo
 			(isSCMHistoryItemChangeNode(inputOrElement) && inputOrElement.childrenCount > 0);
 	}
 
-	/** Forgets the elements of the files that the predicate selects, for example because the tree no longer shows them. */
-	forgetChangeElements(predicate: (element: SCMHistoryItemChangeViewModelTreeElement) => boolean): void {
-		for (const [id, element] of this._changeElements) {
-			if (predicate(element)) {
-				this._changeElements.delete(id);
+	/**
+	 * Forgets the files of the history items that the tree no longer shows, and releases the structural changes of the
+	 * files that it doesn't show expanded, for example because their history item or folder was collapsed during a
+	 * refresh, or because switching between list and tree showed them again, collapsed.
+	 */
+	releaseHiddenChanges(tree: { hasNode(element: TreeElement): boolean; isCollapsed(element: TreeElement): boolean }): void {
+		for (const [historyItemId, { historyItemElement }] of this._changeElements) {
+			if (!tree.hasNode(historyItemElement)) {
+				this._changeElements.delete(historyItemId);
 			}
 		}
+		this.structuralDiff.releaseWhere(element => !tree.hasNode(element) || tree.isCollapsed(element));
 	}
 
-	private _getChangeElement(historyItemElement: SCMHistoryItemViewModelTreeElement, historyItemChange: ISCMHistoryItemChange): SCMHistoryItemChangeViewModelTreeElement {
+	/** The elements of the files of a history item, which keep the elements of its previous files that compare the same documents. */
+	private _getChangeElements(historyItemElement: SCMHistoryItemViewModelTreeElement, historyItemChanges: readonly ISCMHistoryItemChange[]): SCMHistoryItemChangeViewModelTreeElement[] {
 		const { repository, historyItemViewModel } = historyItemElement;
-		const id = getHistoryItemChangeId(repository, historyItemViewModel.historyItem, historyItemChange);
+		const historyItem = historyItemViewModel.historyItem;
+		const historyItemId = getHistoryItemId(repository, historyItem);
+		const previousElements = this._changeElements.get(historyItemId)?.changeElements;
+		const changeElements = new Map<string, Mutable<SCMHistoryItemChangeViewModelTreeElement>>();
+		const result: SCMHistoryItemChangeViewModelTreeElement[] = [];
 
-		let element = this._changeElements.get(id);
-		if (element && isEqual(element.historyItemChange.originalUri, historyItemChange.originalUri) && isEqual(element.historyItemChange.modifiedUri, historyItemChange.modifiedUri)) {
-			element.repository = repository;
-			element.historyItemViewModel = historyItemViewModel;
-			element.historyItemChange = historyItemChange;
-			element.graphColumns = historyItemViewModel.outputSwimlanes;
-		} else {
-			element = {
-				repository,
-				historyItemViewModel,
-				historyItemChange,
-				graphColumns: historyItemViewModel.outputSwimlanes,
-				type: 'historyItemChangeViewModel'
-			};
-			this._changeElements.set(id, element);
+		for (const historyItemChange of historyItemChanges) {
+			const id = getHistoryItemChangeId(repository, historyItem, historyItemChange);
+			let element = previousElements?.get(id);
+			if (element && isEqual(element.historyItemChange.originalUri, historyItemChange.originalUri) && isEqual(element.historyItemChange.modifiedUri, historyItemChange.modifiedUri)) {
+				element.repository = repository;
+				element.historyItemViewModel = historyItemViewModel;
+				element.historyItemChange = historyItemChange;
+				element.graphColumns = historyItemViewModel.outputSwimlanes;
+			} else {
+				element = {
+					repository,
+					historyItemViewModel,
+					historyItemChange,
+					graphColumns: historyItemViewModel.outputSwimlanes,
+					type: 'historyItemChangeViewModel'
+				};
+			}
+			changeElements.set(id, element);
+			result.push(element);
 		}
 
-		return element;
+		this._changeElements.set(historyItemId, { historyItemElement, changeElements });
+		return result;
 	}
 }
 
@@ -1980,7 +1999,7 @@ export class SCMHistoryViewPane extends ViewPane {
 				await this._treeOperationSequencer.queue(async () => {
 					await this._tree.setInput(this._treeViewModel);
 					this._tree.scrollTop = 0;
-					this._forgetRemovedChanges();
+					this._treeDataSource.releaseHiddenChanges(this._tree);
 				});
 			});
 
@@ -2465,7 +2484,7 @@ export class SCMHistoryViewPane extends ViewPane {
 								// diffIdentityProvider: this._treeIdentityProvider
 							});
 						});
-					this._forgetRemovedChanges();
+					this._treeDataSource.releaseHiddenChanges(this._tree);
 				}));
 	}
 
@@ -2498,16 +2517,6 @@ export class SCMHistoryViewPane extends ViewPane {
 				await this._tree.updateChildren(historyItemChange, true, true);
 			}
 		}).catch(onUnexpectedError);
-	}
-
-	/**
-	 * Forgets the elements of files that the tree no longer shows, together with their structural changes, for example
-	 * because their history item was collapsed and refreshed, or left the graph.
-	 */
-	private _forgetRemovedChanges(): void {
-		const isRemoved = (element: SCMHistoryItemChangeViewModelTreeElement) => !this._tree.hasNode(element);
-		this._treeDataSource.forgetChangeElements(isRemoved);
-		this._structuralDiff.releaseWhere(isRemoved);
 	}
 
 	private _updateIndentStyles(theme: IFileIconTheme, viewMode: ViewMode, canExpandFiles: boolean): void {

@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { $ } from '../../../../../base/browser/dom.js';
+import { AsyncDataTree } from '../../../../../base/browser/ui/tree/asyncDataTree.js';
+import { ITreeNode } from '../../../../../base/browser/ui/tree/tree.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { basename } from '../../../../../base/common/path.js';
 import { IResourceNode, ResourceTree } from '../../../../../base/common/resourceTree.js';
@@ -12,10 +15,11 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { SymbolKind } from '../../../../../editor/common/languages.js';
-import { SCMHistoryTreeDataSource, SCMHistoryTreeSorter } from '../../browser/scmHistoryViewPane.js';
+import { SCMHistoryTreeDataSource, SCMHistoryTreeIdentityProvider, SCMHistoryTreeSorter } from '../../browser/scmHistoryViewPane.js';
+import { isSCMHistoryItemChangeViewModelTreeElement } from '../../browser/util.js';
 import { ISCMHistoryItemChange, ISCMHistoryItemViewModel, ISCMHistoryProvider, SCMHistoryItemChangeViewModelTreeElement, SCMHistoryItemLoadMoreTreeElement, SCMHistoryItemViewModelTreeElement } from '../../common/history.js';
 import { ISCMProvider, ISCMRepository, ViewMode } from '../../common/scm.js';
-import { SCMStructuralDiffElement, SCMStructuralDiffNode, StructuralDiffModel } from '../../common/scmStructuralDiff.js';
+import { isSCMStructuralDiffElement, SCMStructuralDiffElement, SCMStructuralDiffNode, StructuralDiffModel } from '../../common/scmStructuralDiff.js';
 
 type TreeElement = SCMHistoryItemViewModelTreeElement | SCMHistoryItemLoadMoreTreeElement | SCMHistoryItemChangeViewModelTreeElement | IResourceNode<SCMHistoryItemChangeViewModelTreeElement, SCMHistoryItemViewModelTreeElement>;
 
@@ -100,7 +104,6 @@ suite('SCMHistoryTreeDataSource', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const rootUri = URI.file('/repo');
-	const fileUri = URI.joinPath(rootUri, 'file.ts');
 	let historyItemChanges: ISCMHistoryItemChange[];
 	let repository: ISCMRepository;
 
@@ -130,17 +133,116 @@ suite('SCMHistoryTreeDataSource', () => {
 		return { repository, historyItemViewModel, type: 'historyItemViewModel' };
 	}
 
-	function toHistoryItemChange(modifiedRef: string): ISCMHistoryItemChange {
+	function toHistoryItemChange(modifiedRef: string, path = 'file.ts'): ISCMHistoryItemChange {
+		const uri = URI.joinPath(rootUri, path);
 		return {
-			uri: fileUri.with({ query: `ref=${modifiedRef}` }),
-			originalUri: fileUri.with({ scheme: 'git', query: JSON.stringify({ path: fileUri.fsPath, ref: 'a' }) }),
-			modifiedUri: fileUri.with({ scheme: 'git', query: JSON.stringify({ path: fileUri.fsPath, ref: modifiedRef }) })
+			uri: uri.with({ query: `ref=${modifiedRef}` }),
+			originalUri: uri.with({ scheme: 'git', query: JSON.stringify({ path: uri.fsPath, ref: 'a' }) }),
+			modifiedUri: uri.with({ scheme: 'git', query: JSON.stringify({ path: uri.fsPath, ref: modifiedRef }) })
 		};
+	}
+
+	/** Records the files whose structural changes it computes, and keeps them until they are released, like the model. */
+	class TestStructuralDiffModel extends mock<StructuralDiffModel<SCMHistoryItemChangeViewModelTreeElement>>() {
+		readonly computed: string[] = [];
+		readonly results = new Map<SCMHistoryItemChangeViewModelTreeElement, readonly SCMStructuralDiffElement<SCMHistoryItemChangeViewModelTreeElement>[]>();
+		override get enabled(): boolean { return true; }
+		override hasChildren(): boolean { return true; }
+		override async getChildren(change: SCMHistoryItemChangeViewModelTreeElement): Promise<readonly SCMStructuralDiffElement<SCMHistoryItemChangeViewModelTreeElement>[]> {
+			let result = this.results.get(change);
+			if (!result) {
+				this.computed.push(basename(change.historyItemChange.uri.path));
+				const range = new Range(1, 1, 3, 1);
+				result = [{
+					type: 'structuralDiff', id: `structuralDiff:${change.historyItemChange.uri.path}`, generation: 1, resource: change, parent: change, order: 0, children: [],
+					node: { id: 'method', originalItem: { name: 'run', kind: SymbolKind.Method, range }, modifiedItem: { name: 'run', kind: SymbolKind.Method, range }, originalChanges: [], modifiedChanges: [], children: [] },
+				}];
+				this.results.set(change, result);
+			}
+			return result;
+		}
+		override release(change: SCMHistoryItemChangeViewModelTreeElement): void {
+			this.results.delete(change);
+		}
+		override releaseWhere(predicate: (change: SCMHistoryItemChangeViewModelTreeElement) => boolean): void {
+			for (const change of [...this.results.keys()]) {
+				if (predicate(change)) {
+					this.results.delete(change);
+				}
+			}
+		}
+	}
+
+	type Element = Parameters<SCMHistoryTreeIdentityProvider['getId']>[0];
+
+	/**
+	 * Shows the files of a history item in a tree like the one of the Graph view: refreshing it creates the history item
+	 * again, and every update of the tree is followed by releasing the files that it no longer shows.
+	 */
+	async function createGraph(viewMode: () => ViewMode) {
+		const structuralDiff = new TestStructuralDiffModel();
+		const dataSource = store.add(new SCMHistoryTreeDataSource(viewMode, structuralDiff));
+		const root = { type: 'graph' } as const;
+		const isRoot = (element: typeof root | Element): element is typeof root => element === root;
+		let historyItemElement = toHistoryItemElement('red');
+		const tree = store.add(new AsyncDataTree<typeof root, Element>('SCM Graph', $('.scm-view'), {
+			getHeight: () => 22,
+			getTemplateId: () => 'element',
+		}, [{
+			templateId: 'element',
+			renderTemplate: container => container,
+			renderElement: () => { },
+			disposeTemplate: () => { },
+		}], {
+			hasChildren: element => isRoot(element) || dataSource.hasChildren(element),
+			getChildren: element => isRoot(element) ? [historyItemElement] : dataSource.getChildren(element),
+		}, {
+			identityProvider: new SCMHistoryTreeIdentityProvider(),
+			collapseByDefault: element => !ResourceTree.isResourceNode(element) && !isSCMStructuralDiffElement(element),
+		}));
+		tree.layout(400);
+
+		const update = async () => {
+			await tree.updateChildren(root);
+			dataSource.releaseHiddenChanges(tree);
+		};
+		const refresh = async () => {
+			historyItemElement = toHistoryItemElement('red');
+			await update();
+		};
+		const find = (isMatch: (element: Element) => boolean) => {
+			const visit = (node: ITreeNode<typeof root | Element, unknown>): Element | undefined => {
+				for (const child of node.children) {
+					const element = child.element as Element;
+					const match = isMatch(element) ? element : visit(child);
+					if (match) {
+						return match;
+					}
+				}
+				return undefined;
+			};
+			const element = visit(tree.getNode());
+			assert.ok(element);
+			return element;
+		};
+		const getFolder = (name: string) => find(element => ResourceTree.isResourceNode(element) && element.name === name);
+		const getFile = (name: string) => {
+			const element = find(element => isSCMHistoryItemChangeViewModelTreeElement(element) && basename(element.historyItemChange.uri.path) === name);
+			assert.ok(isSCMHistoryItemChangeViewModelTreeElement(element));
+			return element;
+		};
+
+		await tree.setInput(root);
+		dataSource.releaseHiddenChanges(tree);
+		await tree.expand(historyItemElement);
+		return { tree, structuralDiff, update, refresh, getFile, getFolder };
 	}
 
 	for (const mode of [ViewMode.List, ViewMode.Tree]) {
 		test(`keeps the element of a file while it compares the same documents, so that it keeps its structural changes, in ${mode} mode`, async () => {
-			const dataSource = store.add(new SCMHistoryTreeDataSource(() => mode, new class extends mock<StructuralDiffModel<SCMHistoryItemChangeViewModelTreeElement>>() { }));
+			const dataSource = store.add(new SCMHistoryTreeDataSource(() => mode, new class extends mock<StructuralDiffModel<SCMHistoryItemChangeViewModelTreeElement>>() {
+				override releaseWhere(): void { }
+			}));
 			const getChange = async (historyItemElement: SCMHistoryItemViewModelTreeElement) => {
 				const [change] = [...await dataSource.getChildren(historyItemElement)];
 				return change as SCMHistoryItemChangeViewModelTreeElement;
@@ -157,7 +259,8 @@ suite('SCMHistoryTreeDataSource', () => {
 			historyItemChanges = [toHistoryItemChange('c')];
 			const otherChange = await getChange(refreshedHistoryItemElement);
 
-			dataSource.forgetChangeElements(() => true);
+			// The history item leaves the graph
+			dataSource.releaseHiddenChanges({ hasNode: () => false, isCollapsed: () => true });
 			const forgottenChange = await getChange(refreshedHistoryItemElement);
 
 			assert.deepStrictEqual({
@@ -173,6 +276,44 @@ suite('SCMHistoryTreeDataSource', () => {
 				other: false,
 				forgotten: false,
 			});
+		});
+	}
+
+	test('keeps the elements of the files below a folder that was collapsed during a refresh, so that a file expanded later is not analyzed again', async () => {
+		historyItemChanges = [toHistoryItemChange('b', 'src/file.ts')];
+		const graph = await createGraph(() => ViewMode.Tree);
+		await graph.tree.expand(graph.getFile('file.ts'));
+		graph.tree.collapse(graph.getFolder('src'));
+		await graph.refresh();
+
+		await graph.tree.expand(graph.getFolder('src'));
+		const change = graph.getFile('file.ts');
+		await graph.tree.expand(change);
+		await graph.refresh();
+
+		assert.deepStrictEqual({ computed: graph.structuralDiff.computed, keptElement: graph.getFile('file.ts') === change }, {
+			// The refresh dropped the file from the collapsed folder, so expanding it again computes its structural changes again
+			computed: ['file.ts', 'file.ts'],
+			keptElement: true,
+		});
+	});
+
+	for (const [from, to] of [[ViewMode.List, ViewMode.Tree], [ViewMode.Tree, ViewMode.List]]) {
+		test(`releases the structural changes of a file that switching from ${from} to ${to} mode shows collapsed, but keeps its element`, async () => {
+			historyItemChanges = [toHistoryItemChange('b', 'src/file.ts')];
+			let mode = from;
+			const graph = await createGraph(() => mode);
+			const change = graph.getFile('file.ts');
+			await graph.tree.expand(change);
+
+			mode = to;
+			await graph.update();
+
+			assert.deepStrictEqual({
+				collapsed: graph.tree.isCollapsed(change),
+				released: !graph.structuralDiff.results.has(change),
+				keptElement: graph.getFile('file.ts') === change,
+			}, { collapsed: true, released: true, keptElement: true });
 		});
 	}
 
