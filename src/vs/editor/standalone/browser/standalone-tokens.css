@@ -25,10 +25,6 @@
 	stroke-width: 1.2px;
 }
 
-.monaco-hover p {
-	margin: 0;
-}
-
 /* See https://github.com/microsoft/monaco-editor/issues/2168#issuecomment-780078600 */
 .monaco-aria-container {
 	position: absolute !important;
