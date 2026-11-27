@@ -8,6 +8,8 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
+import { waitForState } from '../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Position } from '../../../../../editor/common/core/position.js';
@@ -22,6 +24,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IChatService } from '../../common/chatService/chatService.js';
+import { ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { ChatModel } from '../../common/model/chatModel.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../common/tools/languageModelToolsService.js';
 import { createToolSimpleTextResult } from '../../common/tools/builtinTools/toolHelpers.js';
@@ -174,50 +177,80 @@ export class RenameTool extends Disposable implements IToolImpl {
 				const chatModel = this._chatService.getSession(invocation.context.sessionResource) as ChatModel | undefined;
 				const request = chatModel?.getRequests().at(-1);
 
-				if (chatModel && request) {
-					if (renameResult.edits.some(edit => !ResourceTextEdit.is(edit))) {
-						return errorResult(localize('tool.rename.unsupportedEdit', 'Rename was not applied because it produced edits that cannot be reviewed in chat.'));
-					}
-
-					// Group text edits by URI
-					const editsByUri = new ResourceMap<TextEdit[]>();
-					for (const edit of renameResult.edits) {
-						if (ResourceTextEdit.is(edit)) {
-							let edits = editsByUri.get(edit.resource);
-							if (!edits) {
-								edits = [];
-								editsByUri.set(edit.resource, edits);
-							}
-							edits.push(edit.textEdit);
-						}
-					}
-
-					// Push edits through the chat response stream
-					for (const [editUri, edits] of editsByUri) {
-						chatModel.acceptResponseProgress(request, {
-							kind: 'textEdit',
-							uri: editUri,
-							edits: [],
-						});
-						chatModel.acceptResponseProgress(request, {
-							kind: 'textEdit',
-							uri: editUri,
-							edits,
-						});
-						chatModel.acceptResponseProgress(request, {
-							kind: 'textEdit',
-							uri: editUri,
-							edits: [],
-							done: true,
-						});
-					}
-
-					return this._successResult(input, editsByUri.size, renameResult.edits.length);
+				if (renameResult.edits.some(edit => !ResourceTextEdit.is(edit))) {
+					return errorResult(localize('tool.rename.unsupportedEdit', 'Rename was not applied because it produced edits that cannot be reviewed in chat.'));
 				}
+
+				if (!chatModel || !request || !chatModel.editingSession) {
+					return errorResult(localize('tool.rename.noChatEditTarget', 'Rename was not applied because the chat editing session is unavailable.'));
+				}
+
+				// Group text edits by URI
+				const editsByUri = new ResourceMap<TextEdit[]>();
+				for (const edit of renameResult.edits) {
+					if (ResourceTextEdit.is(edit)) {
+						let edits = editsByUri.get(edit.resource);
+						if (!edits) {
+							edits = [];
+							editsByUri.set(edit.resource, edits);
+						}
+						edits.push(edit.textEdit);
+					}
+				}
+
+				for (const [editUri] of editsByUri) {
+					chatModel.acceptResponseProgress(request, {
+						kind: 'textEdit',
+						uri: editUri,
+						edits: [],
+					});
+				}
+
+				const response = request.response;
+				if (!response) {
+					return errorResult(localize('tool.rename.noChatEditTarget', 'Rename was not applied because the chat editing session is unavailable.'));
+				}
+
+				const editState = chatModel.editingSession.entries.map((entries, reader) => {
+					const affectedEntries = Array.from(editsByUri.keys()).map(uri => entries.find(entry =>
+						isEqual(entry.modifiedURI, uri) && entry.lastModifyingResponse.read(reader) === response));
+					if (affectedEntries.some(entry => entry?.state.read(reader) === ModifiedFileEntryState.Rejected)) {
+						return 'rejected';
+					}
+					return affectedEntries.every(entry => entry && !entry.isCurrentlyBeingModifiedBy.read(reader)) ? 'applied' : 'pending';
+				});
+				const editsApplied = waitForState(editState, state => state === 'applied', state => state === 'rejected', token);
+
+				for (const [editUri, edits] of editsByUri) {
+					chatModel.acceptResponseProgress(request, {
+						kind: 'textEdit',
+						uri: editUri,
+						edits,
+					});
+					chatModel.acceptResponseProgress(request, {
+						kind: 'textEdit',
+						uri: editUri,
+						edits: [],
+						done: true,
+					});
+				}
+
+				try {
+					await editsApplied;
+				} catch (error) {
+					if (error === 'rejected') {
+						return errorResult(localize('tool.rename.rejectedChatEdit', 'Rename was not applied because the chat edit was rejected.'));
+					}
+					throw error;
+				}
+				return this._successResult(input, editsByUri.size, renameResult.edits.length);
 			}
 
 			// Fallback: apply via bulk edit service when no chat context is available
-			await this._bulkEditService.apply(renameResult);
+			const result = await this._bulkEditService.apply(renameResult);
+			if (!result.isApplied) {
+				return errorResult(localize('tool.rename.notApplied', 'Rename was not applied.'));
+			}
 			const fileCount = new ResourceSet(renameResult.edits.filter(ResourceTextEdit.is).map(e => e.resource)).size;
 			return this._successResult(input, fileCount, renameResult.edits.length);
 
