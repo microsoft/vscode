@@ -39,6 +39,7 @@ import { IExtensionService, isProposedApiEnabled } from '../../../../services/ex
 import { IExtensionPointUser } from '../../../../services/extensions/common/extensionsRegistry.js';
 import { InstallRecommendedExtensionAction } from '../../../extensions/browser/extensionsActions.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotebookDocument, INotebookDocumentService } from '../../../../services/notebook/common/notebookDocumentService.js';
 import { MergeEditorInput } from '../../../mergeEditor/browser/mergeEditorInput.js';
 import type { EditorInputWithOptions, IResourceDiffEditorInput, IResourceMergeEditorInput } from '../../../../common/editor.js';
@@ -529,6 +530,34 @@ interface NotebookServiceMemento {
 	[viewType: string]: string | undefined;
 }
 
+/**
+ * Registers provider data for a view type in the given map, replacing any
+ * stale registration that may still exist, e.g after a crash or restart of
+ * the extension host while the previous registration was not cleaned up.
+ *
+ * Replacing instead of failing keeps notebooks of this view type working. The
+ * returned disposable only removes the entry while it is still the current
+ * one, so disposing a stale registration never removes a fresh replacement.
+ * Returns the extension id of a replaced registration, if any.
+ * (https://github.com/microsoft/vscode/issues/174051)
+ */
+export function registerProviderData(viewType: string, data: SimpleNotebookProviderInfo, providers: Map<string, SimpleNotebookProviderInfo>, onAddViewType: (viewType: string) => void, onWillRemoveViewType: (viewType: string) => void): { disposable: IDisposable; replacedExtensionId: string | undefined } {
+	const existing = providers.get(viewType);
+	const replacedExtensionId = existing && existing.extensionData.id.value !== data.extensionData.id.value ? existing.extensionData.id.value : undefined;
+
+	providers.set(viewType, data);
+	onAddViewType(viewType);
+
+	const disposable = toDisposable(() => {
+		if (providers.get(viewType) === data) {
+			onWillRemoveViewType(viewType);
+			providers.delete(viewType);
+		}
+	});
+
+	return { disposable, replacedExtensionId };
+}
+
 export class NotebookService extends Disposable implements INotebookService {
 
 	declare readonly _serviceBrand: undefined;
@@ -583,7 +612,8 @@ export class NotebookService extends Disposable implements INotebookService {
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@INotebookDocumentService private readonly _notebookDocumentService: INotebookDocumentService
+		@INotebookDocumentService private readonly _notebookDocumentService: INotebookDocumentService,
+		@ILogService private readonly _logService: ILogService
 	) {
 		super();
 		this._notebookProviders = new Map<string, SimpleNotebookProviderInfo>();
@@ -749,22 +779,26 @@ export class NotebookService extends Disposable implements INotebookService {
 	}
 
 	private _registerProviderData(viewType: string, data: SimpleNotebookProviderInfo): IDisposable {
-		if (this._notebookProviders.has(viewType)) {
-			throw new Error(`notebook provider for viewtype '${viewType}' already exists`);
+		const { disposable, replacedExtensionId } = registerProviderData(viewType, data, this._notebookProviders, viewType => this._onAddViewType.fire(viewType), viewType => this._onWillRemoveViewType.fire(viewType));
+		if (replacedExtensionId) {
+			this._logService.warn(`Notebook serializer for viewtype '${viewType}' changed from '${replacedExtensionId}' to '${data.extensionData.id.value}'`);
 		}
-		this._notebookProviders.set(viewType, data);
-		this._onAddViewType.fire(viewType);
-		return toDisposable(() => {
-			this._onWillRemoveViewType.fire(viewType);
-			this._notebookProviders.delete(viewType);
-		});
+		return disposable;
 	}
 
 	registerNotebookSerializer(viewType: string, extensionData: NotebookExtensionDescription, serializer: INotebookSerializer): IDisposable {
 		this.notebookProviderInfoStore.get(viewType)?.update({ options: serializer.options });
 		this._viewTypeCache[viewType] = extensionData.id.value;
 		this._persistMementos();
-		return this._registerProviderData(viewType, new SimpleNotebookProviderInfo(viewType, serializer, extensionData));
+
+		// The returned disposable removes the serializer again when the extension
+		// host that registered it goes away. When this registration replaces an
+		// earlier stale one (e.g after an extension host restart), disposing the
+		// stale registration must not remove the fresh entry, see _registerProviderData.
+		const registration = this._registerProviderData(viewType, new SimpleNotebookProviderInfo(viewType, serializer, extensionData));
+		return toDisposable(() => {
+			registration.dispose();
+		});
 	}
 
 	async withNotebookDataProvider(viewType: string): Promise<SimpleNotebookProviderInfo> {
