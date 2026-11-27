@@ -125,7 +125,8 @@ registerAction2(class QuitEditCellAction extends NotebookCellAction {
 					},
 					{
 						when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED,
-							NOTEBOOK_OUTPUT_FOCUSED),
+							NOTEBOOK_OUTPUT_FOCUSED,
+							InputFocusedContext.toNegated()),
 						primary: KeyCode.Escape,
 						weight: KeybindingWeight.WorkbenchContrib + 5
 					},
