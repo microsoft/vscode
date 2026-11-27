@@ -237,11 +237,20 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 
 	/** Fits the toolbar again once the current fit is done, while it shows a split button that sizes itself. */
 	private refitSplitButtons(): void {
-		const toolBar = this.toolBar;
-		if (!toolBar || ![...this.selfSizingSplitButtonIds].some(id => toolBar.hasPrimaryAction(id))) {
+		if (!this.showsSelfSizingSplitButton()) {
 			return;
 		}
-		this.splitButtonRefit.trigger(() => this.toolBar?.relayout()).catch(onUnexpectedError);
+		this.splitButtonRefit.trigger(() => {
+			if (this.showsSelfSizingSplitButton()) {
+				this.toolBar?.relayout();
+			}
+		}).catch(onUnexpectedError);
+	}
+
+	/** Whether the current title toolbar has a split button that sizes itself, shown or in the overflow. */
+	private showsSelfSizingSplitButton(): boolean {
+		const toolBar = this.toolBar;
+		return !!toolBar && [...this.selfSizingSplitButtonIds].some(id => toolBar.hasPrimaryAction(id));
 	}
 
 	private resolveConfiguration(): IAuxiliaryBarPartConfiguration {

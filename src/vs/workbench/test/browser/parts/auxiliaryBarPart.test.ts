@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { $, append, getWindow } from '../../../../base/browser/dom.js';
 import { ToggleMenuAction } from '../../../../base/browser/ui/toolbar/toolbar.js';
+import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Separator } from '../../../../base/common/actions.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { createTestAuxiliaryBarPart, testAuxiliaryBarGlobalActionsMenu } from './auxiliaryBarTestUtils.js';
@@ -130,6 +131,25 @@ suite('Auxiliary Bar - Responsive title actions', () => {
 		toolbar.relayout = () => relayouts++;
 
 		part.updateStyles();
+		await timeout(0);
+
+		assert.strictEqual(relayouts, 0);
+	});
+
+	test('does not fit a title again that no longer has a split button that sizes itself when the queued fit runs', async () => {
+		const container = append(root, $('.part.auxiliarybar'));
+		const part = createTestAuxiliaryBarPart(container, store);
+		const [newChat, settings] = [part.toolbar.getItemAction(0)!, part.toolbar.getItemAction(1)!];
+		part.viewActionViewItemProvider = (action, options) => action === newChat ? new class extends ActionViewItem { getMinimumWidth() { return 60; } }(undefined, action, options) : undefined;
+		part.setTitleActions('Chat', [newChat, settings], []);
+		container.style.width = '300px';
+		part.layout(300, 200, 0, 0);
+		const toolbar = part.toolbar;
+		let relayouts = 0;
+		toolbar.relayout = () => relayouts++;
+
+		part.updateStyles();
+		part.setTitleActions('Settings', [settings], []);
 		await timeout(0);
 
 		assert.strictEqual(relayouts, 0);
