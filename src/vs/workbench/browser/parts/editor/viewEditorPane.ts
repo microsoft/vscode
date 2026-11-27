@@ -164,29 +164,35 @@ export class ViewEditorPane extends EditorPane {
 		}
 
 		const disposables = new DisposableStore();
-		const viewInstantiationService = this.instantiationService.createChild(new ServiceCollection(
+		// The view goes before its instantiation service, as it can still create instances while it is disposed,
+		// such as a chat input reacting to its text being reset
+		const viewDisposables = disposables.add(new DisposableStore());
+		const viewInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection(
 			[IEditorService, this.getMainPartEditorService()]
-		));
+		)));
 
-		const view = disposables.add(descriptor.createView(viewInstantiationService, input));
-		disposables.add(toDisposable(() => {
-			view.element.remove();
-			if (this.view === view) {
-				this.view = undefined;
+		try {
+			const view = viewDisposables.add(descriptor.createView(viewInstantiationService, input));
+			viewDisposables.add(toDisposable(() => {
+				view.element.remove();
+				if (this.view === view) {
+					this.view = undefined;
+				}
+			}));
+			viewDisposables.add(view.onDidChange(e => {
+				if (this.view === view) {
+					this._onDidChangeSizeConstraints.fire(e);
+				}
+			}));
+			if (view.dragHandle) {
+				viewDisposables.add(this.registerDragHandle(view.dragHandle, input));
 			}
-		}));
-		disposables.add(view.onDidChange(e => {
-			if (this.view === view) {
-				this._onDidChangeSizeConstraints.fire(e);
-			}
-		}));
-		if (view.dragHandle) {
-			disposables.add(this.registerDragHandle(view.dragHandle, input));
+
+			return { view, disposables, dispose: () => disposables.dispose() };
+		} catch (error) {
+			disposables.dispose();
+			throw error;
 		}
-		// Last: the view can still create instances while it is disposed, such as a chat input reacting to its text being reset.
-		disposables.add(viewInstantiationService);
-
-		return { view, disposables, dispose: () => disposables.dispose() };
 	}
 
 	/**

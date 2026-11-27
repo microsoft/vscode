@@ -124,12 +124,9 @@ suite('View Editors', () => {
 				providesTitle,
 				createView: instantiationService => {
 					const view = new TestView(providesTitle, instantiationService, log, `view${views.length + 1}`);
-					// Test instantiation services do not really dispose, so note when the view's own one is disposed.
-					const disposeInstantiationService = instantiationService.dispose;
-					instantiationService.dispose = () => {
-						view.instantiationServiceDisposed = true;
-						disposeInstantiationService.call(instantiationService);
-					};
+					// Children of test instantiation services only restore sinon as they are disposed, which their root does too,
+					// so note when the view's own one is disposed instead
+					instantiationService.dispose = () => view.instantiationServiceDisposed = true;
 					views.push(view);
 					return view;
 				}

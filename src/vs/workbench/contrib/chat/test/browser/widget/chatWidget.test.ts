@@ -36,6 +36,7 @@ import { createDecorator, IInstantiationService } from '../../../../../../platfo
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
+import { InstantiationService } from '../../../../../../platform/instantiation/common/instantiationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ILinkDescriptor, ILinkOptions, Link } from '../../../../../../platform/opener/browser/link.js';
@@ -1180,6 +1181,32 @@ suite('ChatWidget', () => {
 			.filter((part): part is ChatRequestDynamicVariablePart => part instanceof ChatRequestDynamicVariablePart)
 			.map(part => part.toVariableEntry());
 		assert.deepStrictEqual(resent, variables);
+	});
+
+	test('parses the input after its instantiation service is disposed', () => {
+		// A host tearing down disposes the widget's instantiation service first, then clears the input it still shows.
+		const instantiationService = new InstantiationService();
+		instantiationService.dispose();
+		const { part } = createFakeInputPart('main');
+		const widget = Object.create(ChatWidget.prototype) as ChatWidget;
+		Object.defineProperties(widget, {
+			instantiationService: { value: instantiationService },
+			requestParser: {
+				value: new ChatRequestParser(
+					upcastPartial<IChatAgentService>({}),
+					upcastPartial<IChatVariablesService>({}),
+					upcastPartial<IChatSlashCommandService>({}),
+					upcastPartial<IPromptsService>({}),
+				),
+			},
+			_viewModel: { value: { model: { sessionResource: URI.parse('chat-session:/session') } } },
+			_location: { value: { location: ChatAgentLocation.Chat } },
+			_onDidChangeParsedInput: { value: store.add(new Emitter<void>()) },
+			input: { value: part },
+			contribs: { value: [] },
+		});
+
+		assert.strictEqual(widget.parsedInput.text, 'original request');
 	});
 
 	function createFakeInputPart(name: string) {
@@ -2891,6 +2918,7 @@ suite('ChatWidget - acceptInput submission', () => {
 			inputPartDisposable: { value: inputPartDisposable },
 			contribs: { value: contribs },
 			parsedChatRequest: { value: parsedInput },
+			requestParser: { value: parser },
 			viewOptions: { value: viewOptions },
 			configurationService: { value: configurationService },
 			editorService: { value: editorService },
