@@ -18727,6 +18727,79 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('keeps a canvas closed that was closed while telemetry revocation left its chat without a runtime', async () => {
+			const client = new StopCountingClient([]);
+			const telemetryService = disposables.add(new AgentHostTelemetryService(TelemetryService.createWithLevel({
+				telemetryLevel: TelemetryLevel.USAGE,
+				appenders: [],
+			}, TEST_PRODUCT_SERVICE)));
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const { agent } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				telemetryService,
+				sessionDataService,
+				useRealResumePath: true,
+			});
+			afterTest(() => disposeAgent(agent));
+			const sessionId = 'canvas-revoke-close';
+			const sessionUri = AgentSession.uri('copilotcli', sessionId);
+			const chatUri = defaultChatUri(sessionUri);
+			const closed = URI.parse(`ahp-canvas:/${sessionId}/preview`);
+			const survivor = URI.parse(`ahp-canvas:/${sessionId}/survivor`);
+			const handoff: ICopilotCanvasHandoff = {
+				projections: [{
+					resource: closed,
+					canvas: { instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview' },
+				}, {
+					resource: survivor,
+					canvas: { instanceId: 'survivor', extensionId: 'project:preview', canvasId: 'preview' },
+				}],
+				pendingCloseInstanceIds: new Set<string>(),
+			};
+			const membership: string[][] = [];
+			disposables.add(agent.onDidChatProgress(signal => {
+				if (signal.kind === 'action' && signal.action.type === ActionType.ChatCanvasesChanged) {
+					membership.push(signal.action.canvases?.map(canvas => canvas.resource) ?? []);
+				}
+			}));
+			const internals = agent as unknown as {
+				_resumeSessionOnce: (id: string, chatChannelUri: URI, workspaceless: boolean, acquireClient: () => Promise<CopilotClient>) => Promise<CopilotAgentSession>;
+			};
+			await agent.authenticate('https://api.github.com', 'token');
+			const initialSession = {
+				requiresRestartAfterTelemetryRevocation: false,
+				markTelemetryRevocationRequiresRestart() { initialSession.requiresRestartAfterTelemetryRevocation = true; },
+				takeCanvasProjection: () => handoff,
+			};
+			setDefaultSessionStub(agent, sessionId, initialSession, chatUri);
+			telemetryService.updateTelemetryLevel(TelemetryLevel.NONE);
+			await timeout(0);
+
+			await agent.closeSessionCanvas(sessionUri, { resource: closed }, chatUri, exactChatContext(sessionUri, chatUri, sessionUri));
+			const membershipAfterClose = [...membership];
+			let adoptedPendingCloses: string[] | undefined;
+			internals._resumeSessionOnce = async (_id, _chatChannelUri, _workspaceless, acquireClient) => {
+				await acquireClient();
+				const replacement = {
+					send: async () => { },
+					dispose: () => { },
+					resetTurnState: () => { },
+					adoptCanvasHandoff: (candidate: ICopilotCanvasHandoff) => {
+						adoptedPendingCloses = [...(candidate.pendingCloseInstanceIds ?? [])];
+						return true;
+					},
+				};
+				setDefaultSessionStub(agent, sessionId, replacement, chatUri);
+				return replacement as unknown as CopilotAgentSession;
+			};
+			await agent.chats.sendMessage(chatUri, 'hello', [URI.file('/workspace')], undefined, 'turn-1', undefined, exactChatContext(sessionUri, chatUri, sessionUri));
+
+			assert.deepStrictEqual({ membershipAfterClose, adoptedPendingCloses }, {
+				membershipAfterClose: [[survivor.toString()]],
+				adoptedPendingCloses: ['preview'],
+			});
+		});
+
 		test('does not restart when an unrelated config key changes', async () => {
 			const client = new StopCountingClient([]);
 			const logService = new MutableLogService();
@@ -32678,7 +32751,7 @@ suite('CopilotAgent', () => {
 			}],
 		};
 
-		function startCanvasRefresh(options?: { readonly useRealResumePath?: boolean }) {
+		function startCanvasRefresh(options?: { readonly useRealResumePath?: boolean; readonly handoff?: ICopilotCanvasHandoff }) {
 			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), useRealResumePath: options?.useRealResumePath });
 			const sessionId = 'config-refresh-session';
 			const session = AgentSession.uri('copilotcli', sessionId);
@@ -32689,7 +32762,7 @@ suite('CopilotAgent', () => {
 					membership.push({ resource: signal.resource.toString(), action: signal.action });
 				}
 			}));
-			setDefaultSessionStub(agent, sessionId, { ...refreshSessionStub([]), requiresRestartAfterWorkingDirectoryChange: true, takeCanvasProjection: () => canvasHandoff });
+			setDefaultSessionStub(agent, sessionId, { ...refreshSessionStub([]), requiresRestartAfterWorkingDirectoryChange: true, takeCanvasProjection: () => options?.handoff ?? canvasHandoff });
 			agent.getOrCreateActiveClient(chat, session, { clientId: 'client' }).tools = [
 				{ name: 'new_tool', description: 'A newly registered tool', inputSchema: { type: 'object', properties: {} } },
 			];
@@ -32723,6 +32796,45 @@ suite('CopilotAgent', () => {
 				pendingHandoffs: 0,
 				membership: [],
 				resumedSends: ['hello'],
+			});
+		});
+
+		test('keeps a canvas closed that was closed while a configuration refresh replaces the runtime', async () => {
+			const closed = URI.parse('ahp-canvas:/config-refresh/closed');
+			const survivor = URI.parse('ahp-canvas:/config-refresh/survivor');
+			const { agent, sessionId, session, chat, membership, internals } = startCanvasRefresh({
+				handoff: {
+					projections: [{
+						resource: closed,
+						canvas: { instanceId: 'closed', extensionId: 'project:preview', canvasId: 'preview' },
+					}, {
+						resource: survivor,
+						canvas: { instanceId: 'survivor', extensionId: 'project:preview', canvasId: 'preview' },
+					}],
+				},
+			});
+			let membershipAtResume: unknown[] | undefined;
+			let adoptedPendingCloses: string[] | undefined;
+			internals._resumeSession = async () => {
+				await agent.closeSessionCanvas(session, { resource: closed }, chat, exactChatContext(session, chat, session));
+				membershipAtResume = [...membership];
+				const resumedSession = {
+					...refreshSessionStub([]),
+					adoptCanvasHandoff: (handoff: ICopilotCanvasHandoff) => {
+						adoptedPendingCloses = [...(handoff.pendingCloseInstanceIds ?? [])];
+						return true;
+					},
+				};
+				setDefaultSessionStub(agent, sessionId, resumedSession);
+				return resumedSession as unknown as CopilotAgentSession;
+			};
+
+			afterTest(() => disposeAgent(agent));
+			await agent.chats.sendMessage(chat, 'hello', undefined);
+
+			assert.deepStrictEqual({ membershipAtResume, adoptedPendingCloses }, {
+				membershipAtResume: [{ resource: chat.toString(), action: { type: ActionType.ChatCanvasesChanged, canvases: [{ resource: survivor.toString() }] } }],
+				adoptedPendingCloses: ['closed'],
 			});
 		});
 

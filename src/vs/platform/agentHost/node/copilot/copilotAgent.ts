@@ -3679,6 +3679,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (continuity) {
 			this._closeReleasedCanvas(continuity, request.resource);
 		}
+		// The chat's runtime is being replaced, so the replacement that adopts the parked handoff must close it.
+		const handoff = this._canvasHandoffs.get(chat);
+		if (handoff && this._recordPendingCanvasClose(handoff, request.resource)) {
+			this._publishCanvasHandoffMembership(chat, handoff, this._canvasWatches.get(chat)?.published());
+		}
 		let liveSession = context.target;
 		if (liveSession && isEqual(liveSession.ownerSessionUri, session)) {
 			await liveSession.closeCanvas(request);
@@ -9306,7 +9311,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _publishReleasedCanvasContinuity(continuity: IReleasedCanvasContinuity, published?: readonly string[]): void {
-		for (const projection of this._openReleasedCanvasProjections(continuity)) {
+		for (const projection of this._openCanvasHandoffProjections(continuity.handoff)) {
 			this._onDidChatProgress.fire({
 				kind: 'canvas',
 				chat: continuity.chat,
@@ -9314,17 +9319,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 				state: projection.canvas,
 			});
 		}
-		this._publishReleasedCanvasMembership(continuity, published);
+		this._publishCanvasHandoffMembership(continuity.chat, continuity.handoff, published);
 	}
 
 	/** Publishes only membership, so states a replacement runtime already published keep their sources. */
-	private _publishReleasedCanvasMembership(continuity: IReleasedCanvasContinuity, published?: readonly string[]): void {
-		const resources = this._openReleasedCanvasProjections(continuity).map(projection => projection.resource.toString());
+	private _publishCanvasHandoffMembership(chat: URI, handoff: ICopilotCanvasHandoff, published?: readonly string[]): void {
+		const resources = this._openCanvasHandoffProjections(handoff).map(projection => projection.resource.toString());
 		const current = published ?? [];
 		if (published === undefined || resources.length !== current.length || resources.some((resource, index) => resource !== current[index])) {
 			this._onDidChatProgress.fire({
 				kind: 'action',
-				resource: continuity.chat,
+				resource: chat,
 				action: {
 					type: ActionType.ChatCanvasesChanged,
 					canvases: resources.length > 0 ? resources.map(resource => ({ resource })) : undefined,
@@ -9333,9 +9338,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private _openReleasedCanvasProjections(continuity: IReleasedCanvasContinuity): ICopilotCanvasHandoff['projections'] {
-		const pendingCloseInstanceIds = continuity.handoff.pendingCloseInstanceIds;
-		return continuity.handoff.projections.filter(projection => !pendingCloseInstanceIds?.has(projection.canvas.instanceId));
+	private _openCanvasHandoffProjections(handoff: ICopilotCanvasHandoff): ICopilotCanvasHandoff['projections'] {
+		const pendingCloseInstanceIds = handoff.pendingCloseInstanceIds;
+		return handoff.projections.filter(projection => !pendingCloseInstanceIds?.has(projection.canvas.instanceId));
 	}
 
 	private _publishCanvasRemoval(chat: URI): void {
@@ -9347,19 +9352,27 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _closeReleasedCanvas(continuity: IReleasedCanvasContinuity, resource: URI): void {
-		const projection = continuity.handoff.projections.find(candidate => isEqual(candidate.resource, resource));
-		if (!projection) {
+		if (!this._recordPendingCanvasClose(continuity.handoff, resource)) {
 			return;
 		}
-		const pendingCloseInstanceIds = continuity.handoff.pendingCloseInstanceIds instanceof Set
-			? continuity.handoff.pendingCloseInstanceIds
-			: new Set<string>(continuity.handoff.pendingCloseInstanceIds);
-		continuity.handoff.pendingCloseInstanceIds = pendingCloseInstanceIds;
-		pendingCloseInstanceIds.add(projection.canvas.instanceId);
 		if (this._claimedReleasedCanvasContinuities.get(continuity.chat.toString()) !== continuity) {
 			this._retainReleasedCanvasContinuity(continuity);
 		}
-		this._publishReleasedCanvasMembership(continuity, this._canvasWatches.get(continuity.chat)?.published());
+		this._publishCanvasHandoffMembership(continuity.chat, continuity.handoff, this._canvasWatches.get(continuity.chat)?.published());
+	}
+
+	/** Records a close for the runtime that adopts the handoff. Returns false when the handoff does not hold the canvas. */
+	private _recordPendingCanvasClose(handoff: ICopilotCanvasHandoff, resource: URI): boolean {
+		const projection = handoff.projections.find(candidate => isEqual(candidate.resource, resource));
+		if (!projection) {
+			return false;
+		}
+		const pendingCloseInstanceIds = handoff.pendingCloseInstanceIds instanceof Set
+			? handoff.pendingCloseInstanceIds
+			: new Set<string>(handoff.pendingCloseInstanceIds);
+		handoff.pendingCloseInstanceIds = pendingCloseInstanceIds;
+		pendingCloseInstanceIds.add(projection.canvas.instanceId);
+		return true;
 	}
 
 	private _refreshCanvasWatch(chat: URI): void {
