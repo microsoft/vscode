@@ -13501,8 +13501,9 @@ suite('CopilotAgent', () => {
 			const created = createAgentSessionThroughAgent(agent, instantiationService, { mockSession, workingDirectory: previous, additionalDirectories: [secondary] });
 			const activeClient = created.activeClient as { readonly pluginController: { readonly additionalDirectories: readonly URI[] } };
 			afterTest(async () => {
-				await fs.rm(root, { recursive: true, force: true });
+				// The agent watches its folders' customizations; on Windows a folder it still watches cannot be removed
 				await disposeAgent(agent);
+				await fs.rm(root, { recursive: true, force: true });
 			});
 			await created.session.initializeSession();
 			(agent as unknown as {
