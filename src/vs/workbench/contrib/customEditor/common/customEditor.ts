@@ -9,6 +9,7 @@ import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IDisposable, IReference } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as nls from '../../../../nls.js';
+import { FileFilter } from '../../../../platform/dialogs/common/dialogs.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IRevertOptions, ISaveOptions } from '../../../common/editor.js';
@@ -43,6 +44,7 @@ export function isCustomEditorCompatibleInput(input: EditorInput | undefined): i
 }
 
 export interface CustomEditorCapabilities {
+	readonly saveAsFilters?: FileFilter[];
 	readonly supportsMultipleEditorsPerDocument?: boolean;
 	readonly isTextEditor?: boolean;
 	readonly supportsInlineDiff?: boolean;

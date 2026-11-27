@@ -587,9 +587,10 @@ export interface IFileDialogService {
 	pickWorkspaceAndOpen(options: IPickAndOpenOptions): Promise<void>;
 
 	/**
-	 * Shows a save file dialog and save the file at the chosen file URI.
+	 * Shows a save file dialog and saves the file at the chosen file URI.
+	 * Non-empty filters replace the default list of language file types.
 	 */
-	pickFileToSave(defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined>;
+	pickFileToSave(defaultUri: URI, availableFileSystems?: string[], filters?: FileFilter[]): Promise<URI | undefined>;
 
 	/**
 	 * The preferred folder path to open the dialog at.

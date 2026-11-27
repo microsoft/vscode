@@ -5,7 +5,7 @@
 
 import { SaveDialogOptions, OpenDialogOptions } from '../../../../base/parts/sandbox/common/electronTypes.js';
 import { IHostService } from '../../host/browser/host.js';
-import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService, IDialogService, INativeOpenDialogOptions } from '../../../../platform/dialogs/common/dialogs.js';
+import { FileFilter, IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService, IDialogService, INativeOpenDialogOptions } from '../../../../platform/dialogs/common/dialogs.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IHistoryService } from '../../history/common/history.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
@@ -131,9 +131,9 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		return this.nativeHostService.pickWorkspaceAndOpen(this.toNativeOpenDialogOptions(options));
 	}
 
-	async pickFileToSave(defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined> {
+	async pickFileToSave(defaultUri: URI, availableFileSystems?: string[], filters?: FileFilter[]): Promise<URI | undefined> {
 		const schema = this.getFileSystemSchema({ defaultUri, availableFileSystems });
-		const options = this.getPickFileToSaveDialogOptions(defaultUri, availableFileSystems);
+		const options = this.getPickFileToSaveDialogOptions(defaultUri, availableFileSystems, filters);
 		if (this.shouldUseSimplified(schema).useSimplified) {
 			return this.pickFileToSaveSimplified(schema, options);
 		} else {
