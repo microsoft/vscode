@@ -681,7 +681,7 @@ suite('AgentMergeController', () => {
 		});
 	});
 
-	test('runs a folder no chat works in first from its own Git state and pull request, in a chat covering it, naming its repository', async () => {
+	test('runs a folder no chat works in first from its own Git state and pull request, in a chat covering it, naming its repository and changing its shared checkout in place', async () => {
 		const logService = new NullLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
 		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
@@ -753,11 +753,17 @@ suite('AgentMergeController', () => {
 		await started.p;
 
 		assert.deepStrictEqual({
-			startTurns: startTurns.map(turn => ({ chat: turn.chat, namesRepository: turn.prompt.includes(`repository at the path ${JSON.stringify(URI.parse(OTHER_REPOSITORY).fsPath)}`) })),
+			startTurns: startTurns.map(turn => ({
+				chat: turn.chat,
+				namesRepository: turn.prompt.includes(`repository at the path ${JSON.stringify(URI.parse(OTHER_REPOSITORY).fsPath)}`),
+				// The user's shared checkout is changed in place, as turning on Agent Merge consents to: never moved first
+				changesInPlace: turn.prompt.includes('By turning on Agent Merge, the user consented to changes in this checkout') && turn.prompt.includes('make the fix in place in this checkout'),
+				asksToIsolate: /call the `?isolate_session`? tool/.test(turn.prompt),
+			})),
 			gitStateKeys: [...new Set(gitStateKeys)],
 			target: readAgentMergeFolderState(stateManager.getSessionState(session)?.config?.values, otherKey, getWorkingDirectoryKey(REPOSITORY))?.target?.pullRequestUrl,
 		}, {
-			startTurns: [{ chat: buildDefaultChatUri(session), namesRepository: true }],
+			startTurns: [{ chat: buildDefaultChatUri(session), namesRepository: true, changesInPlace: true, asksToIsolate: false }],
 			gitStateKeys: [otherOwner],
 			target: 'https://github.com/octo/repo/pull/1',
 		});
