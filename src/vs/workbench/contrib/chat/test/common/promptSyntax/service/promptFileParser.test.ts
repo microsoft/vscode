@@ -213,7 +213,10 @@ suite('PromptFileParser', () => {
 		assert.equal(result.body.getContent(), 'Follow my companies coding guidlines at [mycomp-ts-guidelines](https://mycomp/guidelines#typescript.md)');
 
 		assert.deepEqual(result.body.fileReferences, [
-			{ range: new Range(5, 64, 5, 103), content: 'https://mycomp/guidelines#typescript.md', isMarkdownLink: true },
+			// The fragment is stripped from the file reference content so that
+			// resolveFilePath() can correctly look up the file (the # would
+			// otherwise be treated as part of the path by URI.joinPath()).
+			{ range: new Range(5, 64, 5, 103), content: 'https://mycomp/guidelines', isMarkdownLink: true },
 		]);
 		assert.deepEqual(result.body.variableReferences, []);
 		assert.deepEqual(result.header.description, 'Code style instructions for TypeScript');
