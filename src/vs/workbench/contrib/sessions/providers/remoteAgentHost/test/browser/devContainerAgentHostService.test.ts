@@ -1783,6 +1783,22 @@ suite('Dev Container Agent Host Service', () => {
 			assert.deepStrictEqual(connections.length, 2);
 		});
 
+		test('drops an automatic reconnect of a stopped connection that completes after this window disconnected', async () => {
+			const { service, local, provider, refresh } = setupFolders([{ folder: project, running: true }]);
+			await refresh();
+			await (await service.connect(project, CancellationToken.None)).release();
+			provider(project)!.publishSession();
+			await provider(project)!.config.devContainerLifecycle!.stop();
+			const attempt = new DeferredPromise<void>();
+			local.beforeConnect = () => attempt.p;
+			await refresh();
+			const disconnected = service.disconnect(project);
+			attempt.complete();
+			await disconnected;
+			await timeout(0);
+			assert.deepStrictEqual({ connected: !!provider(project)!.wiredConnection, status: provider(project)!.status }, { connected: false, status: RemoteAgentHostConnectionStatus.disconnected });
+		});
+
 		test('removes the provider of one without sessions once this window stopped it while idle', async () => {
 			const { service, local, provider, refresh, rows } = setupFolders([{ folder: project, running: true }]);
 			await refresh();

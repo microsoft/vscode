@@ -868,14 +868,23 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 	private async _connectActive(active: IActiveDevContainerAgentHost, sandboxEnabled?: boolean, requireRunning = false): Promise<void> {
 		const previousState = active.state;
 		const requestedSandboxEnabled = sandboxEnabled ?? active.sandboxEnabled;
+		// Disconnecting doesn't wait for this, so a connection that completes afterwards is dropped.
+		const isCurrent = () => this._activeConnections.get(getComparisonKey(active.workspaceUri)) === active;
 		active.state = 'connecting';
 		try {
 			const connected = await createDevContainerConnection(active.connector, active.workspaceUri, active.address, this._lifecycleTokenSource.token, { resume: true, ...(requestedSandboxEnabled !== undefined ? { sandboxEnabled: requestedSandboxEnabled } : {}), ...(requireRunning ? { requireRunning } : {}) });
+			if (!isCurrent()) {
+				connected.transportDisposable?.dispose();
+				throw new CancellationError();
+			}
 			this._setSandboxSupported(active.workspaceUri, connected.sandboxSupported);
 			const sourceEntry = getDevContainerSourceEntry(active.workspaceUri, this._remoteAgentHostService);
 			this._connectionFactory.stageConnection(active.connector, active.workspaceUri, connected, sourceEntry && resolveRemoteAgentHostEntryAuthority(sourceEntry), requestedSandboxEnabled, requireRunning);
 			this._remoteAgentHostService.reconnect(active.address, true);
 			const connectionInfo = await this._remoteAgentHostService.waitForConnection(active.address);
+			if (!isCurrent()) {
+				throw new CancellationError();
+			}
 			const connection = this._remoteAgentHostService.getConnection(connectionInfo.address);
 			if (!connection) {
 				throw new Error(localize('devContainerAgentHost.connectionUnavailable', "Dev Container Agent Host connection was not available after connecting."));
