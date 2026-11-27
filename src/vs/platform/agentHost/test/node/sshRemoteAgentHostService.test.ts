@@ -2416,29 +2416,31 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 		]);
 	});
 
-	test('Agent skips the agent and keys when SSH config disables public key authentication', async () => {
+	test('Agent skips methods that SSH config disables or does not prefer', async () => {
 		service.agentSock = '/tmp/ssh-agent.sock';
 		const encrypted = openSSHPrivateKeyWithCipher('aes256-ctr');
 		service.keyFiles.set('~/.ssh/id_ed25519', encrypted);
 		const build = (sshGOutput: string) => service.testBuildAuthAttempts(makeConfig({ authMethod: SSHAuthMethod.Agent }), parseSSHGOutput(sshGOutput));
-		const all = [
+		const keys = [
 			{ type: 'agent', username: 'testuser', agent: '/tmp/ssh-agent.sock' },
 			{ type: 'publickey', username: 'testuser', key: encrypted, keyPath: '~/.ssh/id_ed25519', encrypted: true },
-			...interactiveFallbacks,
 		];
+		const keyboardInteractive = { type: 'keyboard-interactive', username: 'testuser' };
 
 		assert.deepStrictEqual({
 			pubkeyDisabled: await build('pubkeyauthentication false\npreferredauthentications gssapi-with-mic,hostbased,publickey,keyboard-interactive,password'),
 			publickeyNotPreferred: await build('pubkeyauthentication true\npreferredauthentications keyboard-interactive,password'),
 			passwordPreferred: await build('pubkeyauthentication true\npreferredauthentications password'),
 			publickeyPreferredLast: await build('pubkeyauthentication true\npreferredauthentications keyboard-interactive,publickey'),
-			defaults: await build('pubkeyauthentication true\npreferredauthentications gssapi-with-mic,hostbased,publickey,keyboard-interactive,password'),
+			passwordDisabled: await build('passwordauthentication no\npreferredauthentications gssapi-with-mic,hostbased,publickey,keyboard-interactive,password'),
+			defaults: await build('pubkeyauthentication true\npasswordauthentication yes\npreferredauthentications gssapi-with-mic,hostbased,publickey,keyboard-interactive,password'),
 		}, {
 			pubkeyDisabled: interactiveFallbacks,
 			publickeyNotPreferred: interactiveFallbacks,
 			passwordPreferred: interactiveFallbacks,
-			publickeyPreferredLast: all,
-			defaults: all,
+			publickeyPreferredLast: [...keys, keyboardInteractive],
+			passwordDisabled: [...keys, keyboardInteractive],
+			defaults: [...keys, ...interactiveFallbacks],
 		});
 	});
 

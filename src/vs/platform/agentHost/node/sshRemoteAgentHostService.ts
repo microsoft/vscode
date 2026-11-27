@@ -246,11 +246,12 @@ function describeAuthAttempt(attempt: SSHAuthAttempt): string {
 }
 
 /**
- * Whether SSH config allows public key authentication: `PubkeyAuthentication` is not disabled and, when set,
- * `PreferredAuthentications` lists `publickey`.
+ * Whether SSH config allows `publickey` or `password` authentication: `PubkeyAuthentication` or
+ * `PasswordAuthentication` is not disabled and, when set, `PreferredAuthentications` lists the method.
  */
-function allowsSSHPublicKeyAuthentication(resolved: ISSHResolvedConfig | undefined): boolean {
-	return resolved?.pubkeyAuthentication !== false && (!resolved?.preferredAuthentications || resolved.preferredAuthentications.includes('publickey'));
+function allowsSSHAuthentication(resolved: ISSHResolvedConfig | undefined, method: 'publickey' | 'password'): boolean {
+	const enabled = method === 'publickey' ? resolved?.pubkeyAuthentication : resolved?.passwordAuthentication;
+	return enabled !== false && (!resolved?.preferredAuthentications || resolved.preferredAuthentications.includes(method));
 }
 
 /**
@@ -1963,7 +1964,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		switch (config.authMethod) {
 			case SSHAuthMethod.Agent: {
 				// Like OpenSSH, offer no agent or key when SSH config disables public key authentication.
-				if (allowsSSHPublicKeyAuthentication(resolved)) {
+				if (allowsSSHAuthentication(resolved, 'publickey')) {
 					// Try the agent first: if it has any of the configured identities
 					// loaded, auth succeeds without ever touching on-disk keys. This
 					// matches OpenSSH's IdentityAgent semantics and avoids an
@@ -1991,10 +1992,14 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				// Final fallbacks, in OpenSSH's default order: keyboard-interactive
 				// (typically a password prompt), then password for servers that
 				// disable keyboard-interactive (e.g. Debian's default sshd_config).
-				// The auth handler skips whichever the server doesn't advertise.
-				// Prompts are forwarded to the renderer via
-				// {@link onDidRequestKeyboardInteractive}.
-				attempts.push({ type: 'keyboard-interactive', username }, { type: 'password', username });
+				// Keyboard-interactive is always offered because it is also how a
+				// `PreferredAuthentications password` host gets its prompt. The auth
+				// handler skips whichever the server doesn't advertise. Prompts are
+				// forwarded to the renderer via {@link onDidRequestKeyboardInteractive}.
+				attempts.push({ type: 'keyboard-interactive', username });
+				if (allowsSSHAuthentication(resolved, 'password')) {
+					attempts.push({ type: 'password', username });
+				}
 				break;
 			}
 			case SSHAuthMethod.KeyFile: {
