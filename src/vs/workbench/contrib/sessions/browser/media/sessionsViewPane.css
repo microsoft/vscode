@@ -394,3 +394,13 @@
 		color: var(--vscode-foreground);
 	}
 }
+
+/* Toggle Inbox in a host's title, such as the Chat view's, looks pressed while checked; the focus outline stays apart from it */
+.monaco-action-bar .action-item.sessions-inbox-toggle > .action-label.checked {
+	background: var(--vscode-actionBar-toggledBackground);
+}
+
+.hc-black .monaco-action-bar .action-item.sessions-inbox-toggle > .action-label.checked,
+.hc-light .monaco-action-bar .action-item.sessions-inbox-toggle > .action-label.checked {
+	box-shadow: inset 0 0 0 1px var(--vscode-contrastActiveBorder);
+}

@@ -6241,7 +6241,7 @@ suite('Sessions - SessionsList', () => {
 
 	suite('groupSessionsForList', () => {
 
-		for (const scenario of ['sidebar', 'transcript', 'postApproval', 'lateRequest', 'newSession', 'off', 'screenReader', 'empty', 'denied', 'automatic', 'background', 'navigated', 'removed', 'undone', 'undoneBeforeTracking', 'partialUndo'] as const) {
+		for (const scenario of ['sidebar', 'transcript', 'postApproval', 'lateRequest', 'newSession', 'off', 'screenReader', 'empty', 'denied', 'automatic', 'background', 'navigated', 'removed', 'undone', 'undoneBeforeTracking', 'partialUndo', 'editor'] as const) {
 			test(`Inbox approvals use accessibility-aware auto-advance (${scenario})`, async () => {
 				const source = createTestSession('source', { status: SessionStatus.NeedsInput, updatedAt: new Date(2) });
 				const next = createTestSession('next', { updatedAt: new Date(1) });
@@ -6252,6 +6252,10 @@ suite('Sessions - SessionsList', () => {
 				await configuration.setUserConfiguration(ONBOARDING_ENABLED_CONFIG, false);
 				if (scenario === 'off' || scenario === 'newSession') {
 					await configuration.setUserConfiguration(SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING, scenario);
+				}
+				// The Chat view's list keeps approvals in the current chat, whatever the setting says
+				if (scenario === 'editor') {
+					await configuration.setUserConfiguration(SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING, 'on');
 				}
 				harness.instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
 					override isScreenReaderOptimized(): boolean { return scenario === 'screenReader' || scenario === 'newSession'; }
@@ -6290,6 +6294,7 @@ suite('Sessions - SessionsList', () => {
 				const opened: string[] = [];
 				const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
 					grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Updated,
+					inboxAutoAdvance: scenario === 'editor' ? false : undefined,
 					onSessionOpen: resource => {
 						const session = harness.managementService.getSession(resource)!;
 						opened.push(session.sessionId);
@@ -6924,40 +6929,45 @@ suite('Sessions - SessionsList', () => {
 			});
 		}
 
-		test('Inbox replies advance within the visible scope and attention order, skipping pinned and working sessions', async () => {
-			const workspaceResource = URI.file('/workspace');
-			const items = [
-				createTestSession('source', { workspaceResource, updatedAt: new Date(4) }),
-				createTestSession('working', { workspaceResource, status: SessionStatus.InProgress }),
-				createTestSession('pinned', { workspaceResource }),
-				createTestSession('out-of-scope', { updatedAt: new Date(3) }),
-				createTestSession('later', { workspaceResource, updatedAt: new Date(2) }),
-				createTestSession('urgent', { workspaceResource, status: SessionStatus.NeedsInput, updatedAt: new Date(1) }),
-			];
-			const source = items[0];
-			const harness = createListHarness(disposables, items.map(item => item.session));
-			stubSessionHosts(harness.instantiationService, disposables, {
-				session: constObservable({ session: source.session, chat: source.session.mainChat.get() }),
-			});
-			const accepted = disposables.add(new Emitter<IChatRequestAcceptedEvent>());
-			harness.instantiationService.stub(IChatService, new class extends MockChatService {
-				override readonly onDidAcceptRequest = accepted.event;
-			});
-			const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
-			harness.instantiationService.stub(ISessionsListModelService, model);
-			model.pinSession(items[2].session);
-			const opened: string[] = [];
-			const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
-				grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Updated,
-				onSessionOpen: resource => { opened.push(harness.managementService.getSession(resource)!.sessionId); },
-			}));
-			list.layout(600, 400);
-			list.filters.setInboxWorkspace(getInboxWorkspaceFilter(source.session));
-			accepted.fire({ chatSessionResource: source.session.mainChat.get().resource, isNewSession: false });
-			await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+		for (const inboxAutoAdvance of [undefined, false]) {
+			test(`Inbox replies advance within the visible scope and attention order, skipping pinned and working sessions, unless the list keeps them in the current chat (auto-advance: ${inboxAutoAdvance})`, async () => {
+				const workspaceResource = URI.file('/workspace');
+				const items = [
+					createTestSession('source', { workspaceResource, updatedAt: new Date(4) }),
+					createTestSession('working', { workspaceResource, status: SessionStatus.InProgress }),
+					createTestSession('pinned', { workspaceResource }),
+					createTestSession('out-of-scope', { updatedAt: new Date(3) }),
+					createTestSession('later', { workspaceResource, updatedAt: new Date(2) }),
+					createTestSession('urgent', { workspaceResource, status: SessionStatus.NeedsInput, updatedAt: new Date(1) }),
+				];
+				const source = items[0];
+				const harness = createListHarness(disposables, items.map(item => item.session));
+				stubSessionHosts(harness.instantiationService, disposables, {
+					session: constObservable({ session: source.session, chat: source.session.mainChat.get() }),
+				});
+				const accepted = disposables.add(new Emitter<IChatRequestAcceptedEvent>());
+				harness.instantiationService.stub(IChatService, new class extends MockChatService {
+					override readonly onDidAcceptRequest = accepted.event;
+				});
+				const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
+				harness.instantiationService.stub(ISessionsListModelService, model);
+				model.pinSession(items[2].session);
+				const opened: string[] = [];
+				if (inboxAutoAdvance === false) {
+					await (harness.instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING, 'on');
+				}
+				const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+					grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Updated, inboxAutoAdvance,
+					onSessionOpen: resource => { opened.push(harness.managementService.getSession(resource)!.sessionId); },
+				}));
+				list.layout(600, 400);
+				list.filters.setInboxWorkspace(getInboxWorkspaceFilter(source.session));
+				accepted.fire({ chatSessionResource: source.session.mainChat.get().resource, isNewSession: false });
+				await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
 
-			assert.deepStrictEqual(opened, ['later']);
-		});
+				assert.deepStrictEqual(opened, inboxAutoAdvance === false ? [] : ['later']);
+			});
+		}
 
 		test('Inbox ignores non-user messages and automatic edit acceptance, including after Return to Inbox', () => {
 			const { session } = buildTestSession({ id: 'ready', title: 'Ready' });

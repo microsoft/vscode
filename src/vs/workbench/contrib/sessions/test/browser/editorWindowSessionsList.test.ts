@@ -10,8 +10,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IViewletViewOptions } from '../../../../browser/parts/views/viewsViewlet.js';
-import { createEditorWindowSessionsScope, createEditorWindowSessionsViewOptions, EDITOR_WINDOW_SESSIONS_GROUPINGS, EditorWindowSessionsList } from '../../browser/agentsView/editorWindowSessionsList.js';
-import { EditorWindowSessionsContext, SessionsView, SessionsViewId } from '../../browser/views/sessionsView.js';
+import { ChatViewSessionsGroupingState, createEditorWindowSessionsScope, createEditorWindowSessionsViewOptions, EDITOR_WINDOW_SESSIONS_GROUPINGS, EditorWindowSessionsList } from '../../browser/agentsView/editorWindowSessionsList.js';
+import { EditorWindowSessionsContext, EditorWindowSessionsViewOffersInboxContext, ISessionsViewLocator, SessionsView, SessionsViewId } from '../../browser/views/sessionsView.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { SessionsGrouping } from '../../browser/views/sessionsListCommon.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -71,6 +71,23 @@ suite('EditorWindowSessionsList', () => {
 		});
 	});
 
+	test('only the Chat view\'s list offers Inbox, remembered apart from the Agents window, and keeps replies in the current chat', () => {
+		const scoped = observableValue('scoped', true);
+		const describe = (inbox: boolean) => {
+			const options = createEditorWindowSessionsViewOptions({ id: SessionsViewId } as IViewletViewOptions, scoped, 'title', inbox);
+			return { groupings: options.groupings, groupingState: options.groupingState?.ctor, inboxAutoAdvance: options.inboxAutoAdvance, leaveInboxWithoutChat: options.leaveInboxWithoutChat };
+		};
+		assert.deepStrictEqual({ editorWindow: describe(false), chatView: describe(true) }, {
+			editorWindow: { groupings: EDITOR_WINDOW_SESSIONS_GROUPINGS, groupingState: undefined, inboxAutoAdvance: undefined, leaveInboxWithoutChat: undefined },
+			chatView: {
+				groupings: { offered: [SessionsGrouping.Date, SessionsGrouping.Environment, SessionsGrouping.Inbox], default: SessionsGrouping.Date },
+				groupingState: ChatViewSessionsGroupingState,
+				inboxAutoAdvance: false,
+				leaveInboxWithoutChat: true,
+			},
+		});
+	});
+
 	test('only the header presentation differs between title and section', () => {
 		const scoped = observableValue('scoped', true);
 		const title = createEditorWindowSessionsViewOptions({ id: SessionsViewId } as IViewletViewOptions, scoped, 'title');
@@ -88,12 +105,20 @@ suite('EditorWindowSessionsList', () => {
 		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({ onDidChangeViewVisibility: visibility.event, isViewVisible: () => false }));
 		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({ onDidChangePartVisibility: Event.None, isVisible: () => false }));
 		instantiationService.stub(ILifecycleService, upcastPartial<ILifecycleService>({ when: () => new Promise<void>(() => { }) }));
+		// The Chat view's list, which offers Inbox, registers as it mounts and goes as it unmounts
+		const locatorChanged = store.add(new Emitter<void>());
+		let embedded: SessionsView | undefined;
+		instantiationService.stub(ISessionsViewLocator, upcastPartial<ISessionsViewLocator>({ onDidChange: locatorChanged.event, getEmbeddedView: () => embedded }));
+		const mount = (view: SessionsView | undefined) => { embedded = view; locatorChanged.fire(); };
 		// The registrations of the sessions list's settings, beyond those of other suites, such as of the Agents window
 		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 		const settings = () => configurationRegistry.getConfigurations().filter(node => node.id === 'sessionsList').length;
 		const initial = settings();
 		const events: string[] = [];
-		const state = () => ({ settings: settings() - initial, contextKey: contextKeyService.getContextKeyValue(EditorWindowSessionsContext.key) ?? false, events: [...events] });
+		const state = () => ({
+			settings: settings() - initial, contextKey: contextKeyService.getContextKeyValue(EditorWindowSessionsContext.key) ?? false, events: [...events],
+			offersInbox: contextKeyService.getContextKeyValue(EditorWindowSessionsViewOffersInboxContext.key) ?? false,
+		});
 
 		const list = store.add(instantiationService.createInstance(EditorWindowSessionsList, () => { events.push('registered'); return toDisposable(() => events.push('unregistered')); }, 'workbench.panel.chat.view.copilot'));
 		const beforeShown = state();
@@ -102,12 +127,22 @@ suite('EditorWindowSessionsList', () => {
 		visibility.fire({ id: 'workbench.panel.chat.view.copilot', visible: true });
 		visibility.fire({ id: 'workbench.panel.chat.view.copilot', visible: true });
 		const shown = state();
+		mount(upcastPartial<SessionsView>({ offersGrouping: grouping => [SessionsGrouping.Date, SessionsGrouping.Environment, SessionsGrouping.Inbox].includes(grouping) }));
+		const mounted = state();
+		mount(upcastPartial<SessionsView>({ offersGrouping: grouping => EDITOR_WINDOW_SESSIONS_GROUPINGS.offered.includes(grouping) }));
+		const mountedWithoutInbox = state();
+		mount(upcastPartial<SessionsView>({ offersGrouping: grouping => [SessionsGrouping.Date, SessionsGrouping.Environment, SessionsGrouping.Inbox].includes(grouping) }));
+		mount(undefined);
+		const unmounted = state();
 		list.dispose();
 
-		assert.deepStrictEqual({ beforeShown, shown, disposed: state() }, {
-			beforeShown: { settings: 1, contextKey: true, events: [] },
-			shown: { settings: 1, contextKey: true, events: ['registered'] },
-			disposed: { settings: 0, contextKey: false, events: ['registered', 'unregistered'] },
+		assert.deepStrictEqual({ beforeShown, shown, mounted, mountedWithoutInbox, unmounted, disposed: state() }, {
+			beforeShown: { settings: 1, contextKey: true, events: [], offersInbox: false },
+			shown: { settings: 1, contextKey: true, events: ['registered'], offersInbox: false },
+			mounted: { settings: 1, contextKey: true, events: ['registered'], offersInbox: true },
+			mountedWithoutInbox: { settings: 1, contextKey: true, events: ['registered'], offersInbox: false },
+			unmounted: { settings: 1, contextKey: true, events: ['registered'], offersInbox: false },
+			disposed: { settings: 0, contextKey: false, events: ['registered', 'unregistered'], offersInbox: false },
 		});
 	});
 

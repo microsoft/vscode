@@ -11,7 +11,7 @@ import { autorun, derived, IObservable, observableFromEvent, observableSignalFro
 import { localize } from '../../../../../nls.js';
 import { ILocalizedString } from '../../../../../platform/action/common/action.js';
 import { MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -19,6 +19,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
+import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from '../../../chat/browser/agentSessions/agentSessions.js';
 import { HideAgentSessionsSidebar, ShowAgentSessionsSidebar } from '../../../chat/browser/agentSessions/agentSessionsActions.js';
@@ -30,7 +31,7 @@ import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { registerAgentsViewNewSessionActions } from '../agentsView/agentsChatPartActions.js';
 import { ChatViewSessionsListProvider } from '../agentsView/chatViewSessionsList.js';
 import { IEditorWindowShownChatService } from '../agentsView/editorWindowMainSessionHost.js';
-import { EditorWindowSessionsList } from '../agentsView/editorWindowSessionsList.js';
+import { ChatViewSessionsGroupingState, EditorWindowSessionsList } from '../agentsView/editorWindowSessionsList.js';
 import { ChatViewSessionsListContext, ChatViewSessionsListTitleContext } from '../views/sessionsView.js';
 import { registerSessionsListAccessibilityHelp } from '../views/sessionsListActions.js';
 import { ChatViewSessionsListAccessibilityHelp } from './chatViewSessionsListAccessibilityHelp.js';
@@ -73,6 +74,7 @@ export class ChatViewSessionsGate extends Disposable implements IWorkbenchContri
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IChatViewSessionsListService chatViewSessionsListService: IChatViewSessionsListService,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 	) {
 		super();
 
@@ -92,6 +94,25 @@ export class ChatViewSessionsGate extends Disposable implements IWorkbenchContri
 			if (enabled.read(reader)) {
 				reader.store.add(instantiationService.createInstance(ChatViewSessionsListFeature));
 			}
+		}));
+
+		// The old list has no Inbox: turning the list back on starts out of it. The stored Inbox belongs to the profile, so only
+		// the user setting turning off leaves it, and only where this window then shows the old list; not a workspace turning the
+		// list off, nor a window starting with it off, nor the user setting turning off where this window's workspace keeps the
+		// list on, which keeps its Inbox. Leaving it keeps the stored Inbox for the windows whose workspaces keep the list on. The
+		// user value compared is that of the profile it was read in. Switching to another profile moves the value read to it: the
+		// new profile's settings load as a workspace change, which only reads its value, and where they load no change, the value
+		// is already the new profile's.
+		const groupingState = instantiationService.createInstance(ChatViewSessionsGroupingState);
+		const userEnabled = () => ({ profile: userDataProfileService.currentProfile.id, enabled: configurationService.inspect<boolean>(ChatConfiguration.ChatViewSessionsListEnabled).userValue === true });
+		let previous = userEnabled();
+		this._register(userDataProfileService.onDidChangeCurrentProfile(e => previous = { ...previous, profile: e.profile.id }));
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			const current = userEnabled();
+			if (e.source === ConfigurationTarget.USER && current.profile === previous.profile && e.affectsConfiguration(ChatConfiguration.ChatViewSessionsListEnabled) && previous.enabled && !current.enabled && configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsListEnabled) !== true) {
+				groupingState.leaveInbox();
+			}
+			previous = current;
 		}));
 	}
 }

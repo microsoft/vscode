@@ -68,7 +68,7 @@ import { ISessionsService } from '../../../../../workbench/contrib/sessions/brow
 import { getInboxWorkspaceFilter, getSessionFilterEnvironments, getSessionFilterOptions, SessionsListFilters } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
 import { SessionsInboxScope } from '../../../../../workbench/contrib/sessions/browser/views/sessionsInboxScope.js';
 import { ISessionsListChange, ISessionsListUndoService } from '../../../../../workbench/contrib/sessions/browser/sessionsListUndoService.js';
-import { IsWorkspaceGroupCappedContext, ISessionsViewLocator, SessionsView, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSortingContext, DEFAULT_SESSIONS_GROUPINGS, bindSessionsViewGroupings, renderSessionsHeader } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { IsWorkspaceGroupCappedContext, ISessionsViewLocator, SessionsView, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSortingContext, DEFAULT_SESSIONS_GROUPINGS, bindSessionsViewGroupings, renderSessionsHeader, SessionsViewGroupingState } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { MobileSessionFilterChips } from '../../../../../workbench/contrib/sessions/browser/mobile/mobileSessionFilterChips.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { EDITOR_WINDOW_SESSIONS_GROUPINGS } from '../../../../../workbench/contrib/sessions/browser/agentsView/editorWindowSessionsList.js';
@@ -550,6 +550,47 @@ suite('Sessions - View Menu', () => {
 		});
 	});
 
+	test('hiding the Inbox scope hands over only the focus it had: in its controls or its open picker, its filter or results, not focus moved elsewhere as the picker closes', () => {
+		const harness = createListHarness(store, []);
+		const actionWidgetService = store.add(harness.instantiationService.createInstance(ActionWidgetService));
+		harness.instantiationService.stub(IActionWidgetService, actionWidgetService);
+		const filters = store.add(harness.instantiationService.createInstance(SessionsListFilters));
+		const container = harness.createContainer();
+		const elsewhere = container.appendChild(document.createElement('button'));
+		const scope = store.add(harness.instantiationService.createInstance(SessionsInboxScope, container, filters, constObservable([]), constObservable([]), constObservable(new Set<string>()), constObservable(true)));
+		const trigger = scope.element.querySelector<HTMLElement>('.workspace-picker .action-label')!;
+		const open = () => trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+		const hide = () => {
+			const handedOver = scope.setVisible(false);
+			const result = { handedOver, focusKeptElsewhere: getActiveElement() === elsewhere, picker: actionWidgetService.isVisible };
+			scope.setVisible(true);
+			return result;
+		};
+		trigger.focus();
+		const inControls = hide();
+		open();
+		const inPicker = hide();
+		// Down (the widget's focus next command) moves the focus from the picker's filter into its results
+		open();
+		actionWidgetService.focusNext();
+		const resultsFocused = !!getActiveElement()?.closest('.action-widget .monaco-list');
+		const inResults = hide();
+		// The picker closes as its blur is noticed, later: the bar hides first
+		open();
+		elsewhere.focus();
+		const movedElsewhere = hide();
+		elsewhere.focus();
+		const notInScope = hide();
+		assert.deepStrictEqual({ inControls, inPicker, resultsFocused, inResults, movedElsewhere, notInScope }, {
+			inControls: { handedOver: true, focusKeptElsewhere: false, picker: false },
+			inPicker: { handedOver: true, focusKeptElsewhere: false, picker: false },
+			resultsFocused: true,
+			inResults: { handedOver: true, focusKeptElsewhere: false, picker: false },
+			movedElsewhere: { handedOver: false, focusKeptElsewhere: true, picker: false },
+			notInScope: { handedOver: false, focusKeptElsewhere: true, picker: false },
+		});
+	});
+
 	test('the shared bar labels its controls for the current grouping', () => {
 		const harness = createListHarness(store, []);
 		const actionWidgetService = store.add(harness.instantiationService.createInstance(ActionWidgetService));
@@ -687,15 +728,23 @@ suite('Sessions - View Menu', () => {
 				currentGrouping: SessionsGrouping.Repository,
 				get grouping(): SessionsGrouping { return this.currentGrouping; },
 				get nonInboxGrouping(): SessionsGrouping { return Reflect.get(SessionsView.prototype, 'nonInboxGrouping', this); },
+				get storedNonInboxGrouping(): SessionsGrouping { return Reflect.get(SessionsView.prototype, 'storedNonInboxGrouping', this); },
+				mountedNonInboxGrouping: undefined,
 				get inboxAvailable(): boolean { return Reflect.get(SessionsView.prototype, 'inboxAvailable', this); },
+				get canEnterInbox(): boolean { return Reflect.get(SessionsView.prototype, 'canEnterInbox', this); },
 				offeredGroupings: DEFAULT_SESSIONS_GROUPINGS,
 				configurationService,
-				storageService: store.add(new InMemoryStorageService()),
+				groupingState: new SessionsViewGroupingState(undefined, store.add(new InMemoryStorageService()), configurationService),
 				chatEntitlementService: { sentiment: { hidden: false } },
 				groupingContextKey: grouping,
+				scopedContextKeyService: contextKeyService,
+				isHeaderInTitle: false,
+				isInboxToggleFocused: () => false,
+				offersGrouping: SessionsView.prototype.offersGrouping,
 				setGrouping: SessionsView.prototype.setGrouping,
 				toggleInbox: SessionsView.prototype.toggleInbox,
 				updateInboxAvailability: Reflect.get(SessionsView.prototype, 'updateInboxAvailability') as () => void,
+				leaveInbox: Reflect.get(SessionsView.prototype, 'leaveInbox') as () => void,
 				updateHeaderLayout: () => { },
 			};
 			grouping.set(view.grouping);

@@ -72,8 +72,9 @@ export class ChatViewSessionsListProvider implements IChatViewSessionsListProvid
 
 	create(container: HTMLElement, instantiationService: IInstantiationService, _options: { readonly overrideStyles: IStyleOverride<IListStyles> }): IChatViewSessionsList {
 		// The Sessions view of an editor window, as the Agents viewlet shows it, with the actions of its header in the title of the
-		// Chat view: embedded in the Chat view, whose id it takes, and found by the actions of the list through the locator it registers with
-		const view = instantiationService.createInstance(createEditorWindowSessionsView(createEditorWindowSessionsScope(this, this._workspaceContextService), 'title'), {
+		// Chat view: embedded in the Chat view, whose id it takes, and found by the actions of the list through the locator it registers with.
+		// It offers Inbox, which it remembers apart from the Agents window
+		const view = instantiationService.createInstance(createEditorWindowSessionsView(createEditorWindowSessionsScope(this, this._workspaceContextService), 'title', true), {
 			id: ChatViewId,
 			title: localize('chatViewSessions.title', "Sessions"),
 			expanded: true,
