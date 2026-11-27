@@ -13,6 +13,7 @@ import { IViewletViewOptions } from '../../../../browser/parts/views/viewsViewle
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { ChatConfiguration } from '../../../chat/common/constants.js';
 import { registerSessionsListConfiguration } from '../sessionsConfiguration.js';
 import { SessionsGrouping } from '../views/sessionsListCommon.js';
 import { registerSessionsListActions, registerSessionsListReadStateMenus, SessionsArchiveActionsContribution } from '../views/sessionsListActions.js';
@@ -35,6 +36,8 @@ export const CHAT_VIEW_SESSIONS_GROUPING_STORAGE_KEYS: ISessionsViewGroupingStor
 	target: StorageTarget.MACHINE,
 	// The grouping the list stored before it had its own keys, which it shared with the Agents window
 	fallbackGrouping: 'sessionsViewPane.grouping',
+	// The user turning the list off, where it then goes, leaves Inbox in the windows whose workspaces do not keep it on
+	inboxLeft: { key: 'chatViewSessionsList.inboxLeft', keptBy: ChatConfiguration.ChatViewSessionsListEnabled },
 };
 
 /** The services of the Sessions view, which its constructor takes after its options. */

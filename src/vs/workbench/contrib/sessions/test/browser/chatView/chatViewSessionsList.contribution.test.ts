@@ -400,10 +400,10 @@ suite('ChatViewSessionsGate', () => {
 		assert.deepStrictEqual({ off, on, offAgain, onAgain }, { off: { ...offState, sessionsOnlyKey: undefined }, on: onState, offAgain: { ...offState, sessionsOnlyKey: false }, onAgain: onState });
 	});
 
-	test('a Chat view list left in Inbox starts out of it, at the grouping Inbox returns to, once the list turns off, and the Agents window keeps its Inbox', () => {
+	test('a Chat view list left in Inbox is remembered to have left it, keeping the stored Inbox for workspaces that keep the list on, once the list turns off, and the Agents window keeps its Inbox', () => {
 		const storageService = disposables.add(new TestStorageService());
 		const keys = CHAT_VIEW_SESSIONS_GROUPING_STORAGE_KEYS;
-		const stored = () => ({ chat: storageService.get(keys.grouping, StorageScope.PROFILE), agents: storageService.get('sessionsViewPane.grouping', StorageScope.PROFILE) });
+		const stored = () => ({ chat: storageService.get(keys.grouping, StorageScope.PROFILE), left: storageService.getBoolean(keys.inboxLeft!.key, StorageScope.PROFILE, false), agents: storageService.get('sessionsViewPane.grouping', StorageScope.PROFILE) });
 		storageService.store(keys.grouping, SessionsGrouping.Inbox, StorageScope.PROFILE, StorageTarget.MACHINE);
 		storageService.store(keys.nonInboxGrouping, SessionsGrouping.Environment, StorageScope.PROFILE, StorageTarget.MACHINE);
 		storageService.store('sessionsViewPane.grouping', SessionsGrouping.Inbox, StorageScope.PROFILE, StorageTarget.USER);
@@ -412,13 +412,14 @@ suite('ChatViewSessionsGate', () => {
 		change(ChatConfiguration.ChatViewSessionsListEnabled, false);
 		const off = stored();
 
-		assert.deepStrictEqual({ on, off }, { on: { chat: SessionsGrouping.Inbox, agents: SessionsGrouping.Inbox }, off: { chat: SessionsGrouping.Environment, agents: SessionsGrouping.Inbox } });
+		assert.deepStrictEqual({ on, off }, { on: { chat: SessionsGrouping.Inbox, left: false, agents: SessionsGrouping.Inbox }, off: { chat: SessionsGrouping.Inbox, left: true, agents: SessionsGrouping.Inbox } });
 	});
 
 	test('windows of one profile keep the Chat view\'s stored Inbox when one starts with the list off or its workspace turns the list off', () => {
 		const storageService = disposables.add(new TestStorageService());
 		const keys = CHAT_VIEW_SESSIONS_GROUPING_STORAGE_KEYS;
-		const stored = () => storageService.get(keys.grouping, StorageScope.PROFILE);
+		// The stored grouping stays Inbox: the flag tells that the windows not keeping the list on left it
+		const stored = () => storageService.getBoolean(keys.inboxLeft!.key, StorageScope.PROFILE, false) ? 'left' : storageService.get(keys.grouping, StorageScope.PROFILE);
 		storageService.store(keys.grouping, SessionsGrouping.Inbox, StorageScope.PROFILE, StorageTarget.MACHINE);
 		storageService.store(keys.nonInboxGrouping, SessionsGrouping.Environment, StorageScope.PROFILE, StorageTarget.MACHINE);
 		const shareStorage = (service: TestInstantiationService) => service.stub(IStorageService, storageService);
@@ -436,13 +437,14 @@ suite('ChatViewSessionsGate', () => {
 		change(ChatConfiguration.ChatViewSessionsListEnabled, false);
 		const userTurnsOff = stored();
 
-		assert.deepStrictEqual({ otherWindowStartsOff, workspaceTurnsOff, userTurnsOff }, { otherWindowStartsOff: SessionsGrouping.Inbox, workspaceTurnsOff: SessionsGrouping.Inbox, userTurnsOff: SessionsGrouping.Environment });
+		assert.deepStrictEqual({ otherWindowStartsOff, workspaceTurnsOff, userTurnsOff }, { otherWindowStartsOff: SessionsGrouping.Inbox, workspaceTurnsOff: SessionsGrouping.Inbox, userTurnsOff: 'left' });
 	});
 
 	test('windows of one profile whose workspaces alone turn the list on keep the Chat view\'s stored Inbox when one workspace turns it off, and when the user setting turns off where a workspace keeps the list on', () => {
 		const storageService = disposables.add(new TestStorageService());
 		const keys = CHAT_VIEW_SESSIONS_GROUPING_STORAGE_KEYS;
-		const stored = () => storageService.get(keys.grouping, StorageScope.PROFILE);
+		// The stored grouping stays Inbox: the flag tells that the windows not keeping the list on left it
+		const stored = () => storageService.getBoolean(keys.inboxLeft!.key, StorageScope.PROFILE, false) ? 'left' : storageService.get(keys.grouping, StorageScope.PROFILE);
 		const shareStorage = (service: TestInstantiationService) => service.stub(IStorageService, storageService);
 		// Workspace B turns the list on with the user setting off, and chooses Inbox
 		createGate(false, undefined, undefined, shareStorage);
@@ -465,13 +467,14 @@ suite('ChatViewSessionsGate', () => {
 		change(ChatConfiguration.ChatViewSessionsListEnabled, false);
 		const userTurnsOff = stored();
 
-		assert.deepStrictEqual({ workspaceTurnsOff, userTurnsOffWhileWorkspaceKeepsIt, userTurnsOff }, { workspaceTurnsOff: SessionsGrouping.Inbox, userTurnsOffWhileWorkspaceKeepsIt: SessionsGrouping.Inbox, userTurnsOff: SessionsGrouping.Environment });
+		assert.deepStrictEqual({ workspaceTurnsOff, userTurnsOffWhileWorkspaceKeepsIt, userTurnsOff }, { workspaceTurnsOff: SessionsGrouping.Inbox, userTurnsOffWhileWorkspaceKeepsIt: SessionsGrouping.Inbox, userTurnsOff: 'left' });
 	});
 
 	test('switching to a profile whose user setting has the list off, or whose settings match, keeps that profile\'s stored Inbox, and the user turning it off there leaves it', () => {
 		const storageService = disposables.add(new TestStorageService());
 		const keys = CHAT_VIEW_SESSIONS_GROUPING_STORAGE_KEYS;
-		const stored = () => storageService.get(keys.grouping, StorageScope.PROFILE);
+		// The stored grouping stays Inbox: the flag tells that the windows not keeping the list on left it
+		const stored = () => storageService.getBoolean(keys.inboxLeft!.key, StorageScope.PROFILE, false) ? 'left' : storageService.get(keys.grouping, StorageScope.PROFILE);
 		storageService.store(keys.grouping, SessionsGrouping.Inbox, StorageScope.PROFILE, StorageTarget.MACHINE);
 		storageService.store(keys.nonInboxGrouping, SessionsGrouping.Environment, StorageScope.PROFILE, StorageTarget.MACHINE);
 		// Profile A has the user setting on
@@ -483,8 +486,9 @@ suite('ChatViewSessionsGate', () => {
 		change(ChatConfiguration.ChatViewSessionsListEnabled, true);
 		change(ChatConfiguration.ChatViewSessionsListEnabled, false);
 		const userTurnsOff = stored();
-		// Profile B chooses Inbox again, the user setting is on, and switching to profile C, whose setting is on too, changes no setting
+		// Profile B chooses Inbox again, which forgets that it left it, the user setting is on, and switching to profile C, whose setting is on too, changes no setting
 		storageService.store(keys.grouping, SessionsGrouping.Inbox, StorageScope.PROFILE, StorageTarget.MACHINE);
+		storageService.remove(keys.inboxLeft!.key, StorageScope.PROFILE);
 		change(ChatConfiguration.ChatViewSessionsListEnabled, true);
 		switchProfile('c', true);
 		const switchedAlike = stored();
@@ -492,7 +496,7 @@ suite('ChatViewSessionsGate', () => {
 		change(ChatConfiguration.ChatViewSessionsListEnabled, false);
 		const userTurnsOffAlike = stored();
 
-		assert.deepStrictEqual({ switched, userTurnsOff, switchedAlike, userTurnsOffAlike }, { switched: SessionsGrouping.Inbox, userTurnsOff: SessionsGrouping.Environment, switchedAlike: SessionsGrouping.Inbox, userTurnsOffAlike: SessionsGrouping.Environment });
+		assert.deepStrictEqual({ switched, userTurnsOff, switchedAlike, userTurnsOffAlike }, { switched: SessionsGrouping.Inbox, userTurnsOff: 'left', switchedAlike: SessionsGrouping.Inbox, userTurnsOffAlike: 'left' });
 	});
 
 	test('the Chat view shows only its sessions while a host, such as the chat part, replaces it, but a chat that the host leaves to it', () => {

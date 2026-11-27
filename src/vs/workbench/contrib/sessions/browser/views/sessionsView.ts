@@ -104,6 +104,12 @@ export interface ISessionsViewGroupingStorageKeys {
 	 * keys, which the view then stores as its own once. Only a grouping other than Inbox is taken, and the key is only read.
 	 */
 	readonly fallbackGrouping?: string;
+	/**
+	 * Where it is remembered that Inbox was left while the view was not there to leave it, such as as `keptBy` turned off, and
+	 * the view went: the view then opens at the grouping Inbox returns to, unless the window's workspace keeps `keptBy` on. The
+	 * stored grouping stays Inbox for such a window until the view stores a grouping again, which forgets this.
+	 */
+	readonly inboxLeft?: { readonly key: string; readonly keptBy: string };
 }
 
 const DEFAULT_GROUPING_STORAGE_KEYS: ISessionsViewGroupingStorageKeys = {
@@ -129,8 +135,35 @@ export function getCustomizationsPresentation(phoneLayout: boolean, aiEnabled: b
 const INBOX_MODE_ACTION_ID = 'sessionsViewPane.inboxMode';
 
 /**
+ * Gives the focus, lost as what had it went, such as Toggle Inbox or an open scope picker as the Chat view's list turns off,
+ * to the first of `candidates` that shows, once what replaces them rendered; not where the focus went elsewhere since.
+ */
+export function restoreLostFocus(candidates: readonly (() => HTMLElement | null | undefined)[]): void {
+	queueMicrotask(() => {
+		const activeElement = DOM.getActiveElement();
+		if (DOM.isHTMLElement(activeElement) && activeElement.isConnected && activeElement !== activeElement.ownerDocument.body) {
+			return;
+		}
+		for (const candidate of candidates) {
+			const element = candidate();
+			if (element?.isConnected && element.getClientRects().length > 0) {
+				element.focus();
+				return;
+			}
+		}
+	});
+}
+
+/** The action of a host's title toolbar that takes the focus Toggle Inbox loses: its overflow, where Toggle Inbox moves when the title has no room for it, or else its first action. */
+export function getTitleToolbarFocusTarget(toolbar: Element | null | undefined): HTMLElement | null | undefined {
+	// eslint-disable-next-line eslint-js/no-restricted-syntax -- the toolbar, owned by the host, does not expose its overflow or action elements
+	return toolbar?.querySelector<HTMLElement>('.action-item .action-label.codicon-toolbar-more') ?? toolbar?.querySelector<HTMLElement>('.action-item:not(.disabled) .action-label:not(.disabled)');
+}
+
+/**
  * Toggle Inbox in a host's title, such as the Chat view's. Toggling rebuilds the title's actions, which keeps the focus by
- * position only: the toggle that had it gives it to the toggle that replaces it, wherever that one is.
+ * position only: the toggle that had it gives it to the toggle that replaces it, wherever that one is, or where none does,
+ * such as as the list turns off, to the title's overflow or first action.
  */
 class InboxToggleActionViewItem extends MenuEntryActionViewItem {
 
@@ -139,6 +172,8 @@ class InboxToggleActionViewItem extends MenuEntryActionViewItem {
 
 	override render(container: HTMLElement): void {
 		super.render(container);
+		// The title's toolbar does not show toggled actions as pressed; this one does
+		this.element?.classList.add('sessions-inbox-toggle');
 		const handOver = this.focusHandOver;
 		if (!handOver?.pending) {
 			return;
@@ -163,8 +198,14 @@ class InboxToggleActionViewItem extends MenuEntryActionViewItem {
 		const handOver = this.focusHandOver;
 		if (handOver && this.hasFocus()) {
 			handOver.pending = true;
+			const toolbar = this.element?.closest('.monaco-action-bar');
 			// The toggle that replaces it renders right away, if at all
-			queueMicrotask(() => handOver.pending = false);
+			queueMicrotask(() => {
+				if (handOver.pending) {
+					handOver.pending = false;
+					restoreLostFocus([() => getTitleToolbarFocusTarget(toolbar)]);
+				}
+			});
 		}
 		this.onDispose?.();
 		super.dispose();
@@ -439,6 +480,11 @@ export class SessionsView extends ViewPane {
 	 * switches profile, so that another window entering Inbox from another grouping does not change where this one returns.
 	 */
 	private mountedNonInboxGrouping: SessionsGrouping | undefined;
+	/**
+	 * Whether the window switches to another profile, until Chat is back ({@link ISessionsViewOptions.leaveInboxWithoutChat}):
+	 * meanwhile, its storage and its settings arrive in any order, and the view only shows what they hold, storing nothing.
+	 */
+	private inProfileTransition = false;
 	private readonly quickChatsInTimeGrouping: boolean;
 	private readonly scoped: IObservable<boolean> | undefined;
 	private readonly windowScope: SessionsWindowScopeController;
@@ -699,10 +745,22 @@ export class SessionsView extends ViewPane {
 			scopeChanged.read(reader);
 			return getSessionFilterEnvironments(this.sessionsProvidersService.getProviders(), reader);
 		});
+		// As the view goes with the focus in its scope or the scope's open picker, which it closes, such as as the Chat view's
+		// list turns off, the focus goes to the list that replaces it, or else to the host's title
+		let scopeHadFocus: () => boolean = () => false;
+		this._register(toDisposable(() => {
+			if (this.headerInTitle && scopeHadFocus()) {
+				const host = this.element?.parentElement;
+				const toolbar = Iterable.first(this.inboxToggles)?.element?.closest('.monaco-action-bar');
+				// eslint-disable-next-line eslint-js/no-restricted-syntax -- the list that replaces this view is the host's, which renders it into the same container
+				restoreLostFocus([() => host?.querySelector<HTMLElement>('.monaco-list'), () => getTitleToolbarFocusTarget(toolbar)]);
+			}
+		}));
 		const inboxScope = this._register(this.instantiationService.createInstance(SessionsInboxScope, inboxScopeContainer, sessionsControl.filters, scopeSessions,
 			derived(reader => scopeEnvironments.read(reader).environments),
 			derived(reader => scopeEnvironments.read(reader).localEnvironmentIds),
 			derived(reader => { scopeChanged.read(reader); return this.grouping === SessionsGrouping.Inbox; })));
+		scopeHadFocus = () => inboxScope.hasFocus;
 		this.windowScope.setScopeBarFilters(sessionsControl.filters);
 		this._register(autorun(reader => {
 			scopeChanged.read(reader);
@@ -1545,7 +1603,13 @@ export class SessionsView extends ViewPane {
 				this.offeredGroupings.filter(grouping => grouping !== SessionsGrouping.Inbox));
 			return { grouping: fallback ?? this.groupings?.default ?? SessionsGrouping.Workspace, seed: true };
 		}
-		return { grouping: getStoredSessionsGrouping(stored, this.offeredGroupings), seed: false };
+		const grouping = getStoredSessionsGrouping(stored, this.offeredGroupings);
+		const inboxLeft = this.groupingStorageKeys?.inboxLeft;
+		if (grouping === SessionsGrouping.Inbox && inboxLeft && this.storageService.getBoolean(inboxLeft.key, StorageScope.PROFILE, false)
+			&& this.configurationService.inspect<boolean>(inboxLeft.keptBy).workspaceValue !== true) {
+			return { grouping: this.storedNonInboxGrouping, seed: false };
+		}
+		return { grouping, seed: false };
 	}
 
 	private initializeGrouping(): void {
@@ -1576,7 +1640,7 @@ export class SessionsView extends ViewPane {
 					return;
 				}
 				const enabled = this.scopedContextKeyService.contextMatchesRules(ChatContextKeys.enabled);
-				if (chatEnabled && !enabled) {
+				if (chatEnabled && !enabled && !this.inProfileTransition) {
 					this.leaveInbox();
 				}
 				chatEnabled = enabled;
@@ -1587,17 +1651,21 @@ export class SessionsView extends ViewPane {
 	/**
 	 * In the Chat view ({@link ISessionsViewOptions.leaveInboxWithoutChat}), as the window switches to another profile, shows
 	 * the grouping and the filters that profile remembers, as the view would open in it, without storing anything: what the
-	 * view remembered in the previous profile stays there. It reads them once the new profile's storage tells the values that
-	 * differ, if any, and again once Chat is back after the switch restarts the extension host, whose stopping, before the
-	 * switch, left Inbox in the previous profile.
+	 * view remembered in the previous profile stays there. Until Chat is back after the switch restarts the extension host,
+	 * whose stopping, before the switch, left Inbox in the previous profile, it reads them again as the new profile's storage
+	 * tells the values that differ, if any, and as its settings arrive, in either order, and then once more.
 	 */
 	private followProfileSwitches(): void {
 		if (!this.leaveInboxWithoutChat) {
 			return;
 		}
 		let pendingStorage = false;
-		let pendingChat = false;
-		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => pendingStorage = pendingChat = true));
+		this._register(this.userDataProfileService.onDidChangeCurrentProfile(e => {
+			// Not as the current profile only changes, such as its name
+			if (e.previous.id !== e.profile.id) {
+				pendingStorage = this.inProfileTransition = true;
+			}
+		}));
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._store)(e => {
 			if (pendingStorage && e.external && this.storageService.hasScope(this.userDataProfileService.currentProfile)) {
 				pendingStorage = false;
@@ -1606,8 +1674,8 @@ export class SessionsView extends ViewPane {
 		}));
 		const chatEnabledKeys = new Set([ChatContextKeys.enabled.key]);
 		this._register(this.scopedContextKeyService.onDidChangeContext(e => {
-			if (pendingChat && e.affectsSome(chatEnabledKeys) && this.scopedContextKeyService.contextMatchesRules(ChatContextKeys.enabled)) {
-				pendingStorage = pendingChat = false;
+			if (this.inProfileTransition && e.affectsSome(chatEnabledKeys) && this.scopedContextKeyService.contextMatchesRules(ChatContextKeys.enabled)) {
+				pendingStorage = this.inProfileTransition = false;
 				this.restoreStoredGrouping();
 			}
 		}));
@@ -1644,7 +1712,10 @@ export class SessionsView extends ViewPane {
 	}
 
 	private updateInboxAvailability(): void {
-		if (!this.inboxAvailable) {
+		if (this.inProfileTransition) {
+			// The settings may be the new profile's while the storage is still the previous one's, or the other way around
+			this.restoreStoredGrouping();
+		} else if (!this.inboxAvailable) {
 			this.leaveInbox();
 		}
 	}
@@ -1700,7 +1771,11 @@ export class SessionsView extends ViewPane {
 			this.storageService.store(storageKeys.nonInboxGrouping, this.grouping, StorageScope.PROFILE, target);
 		}
 		this.currentGrouping = grouping;
+		this.inProfileTransition = false;
 		this.storageService.store(storageKeys.grouping, this.currentGrouping, StorageScope.PROFILE, target);
+		if (storageKeys.inboxLeft) {
+			this.storageService.remove(storageKeys.inboxLeft.key, StorageScope.PROFILE);
+		}
 		this.groupingContextKey?.set(this.currentGrouping);
 		if (!preserveCollapseState) {
 			this.sessionsControl?.resetSectionCollapseState();

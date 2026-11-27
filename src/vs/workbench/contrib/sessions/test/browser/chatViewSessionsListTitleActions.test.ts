@@ -13,7 +13,7 @@ import { ContextKeyService } from '../../../../../platform/contextkey/browser/co
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { ChatEntitlementContextKeys } from '../../../../services/chat/common/chatEntitlementService.js';
-import { bindSessionsViewGroupings, ChatViewSessionsListContext, EditorWindowSessionsContext, EditorWindowSessionsViewOffersInboxContext, SessionsView } from '../../browser/views/sessionsView.js';
+import { bindSessionsViewGroupings, ChatViewSessionsListContext, EditorWindowSessionsContext, EditorWindowSessionsViewOffersInboxContext, getTitleToolbarFocusTarget, restoreLostFocus, SessionsView } from '../../browser/views/sessionsView.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -21,6 +21,8 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { CHAT_VIEW_SESSIONS_GROUPINGS, EDITOR_WINDOW_SESSIONS_GROUPINGS } from '../../browser/agentsView/editorWindowSessionsList.js';
 import { SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../../common/sessionConfig.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { timeout } from '../../../../../base/common/async.js';
 
 suite('Chat view sessions list title actions', () => {
 
@@ -121,6 +123,66 @@ suite('Chat view sessions list title actions', () => {
 			});
 		} finally {
 			store.dispose();
+		}
+	});
+});
+
+suite('Chat view sessions list focus', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createTitle(container: HTMLElement, withOverflow: boolean): HTMLElement {
+		const toolbar = container.appendChild(mainWindow.document.createElement('div'));
+		toolbar.className = 'monaco-action-bar';
+		const addAction = (className: string) => {
+			const item = toolbar.appendChild(mainWindow.document.createElement('div'));
+			item.className = 'action-item';
+			const label = item.appendChild(mainWindow.document.createElement('a'));
+			label.className = `action-label ${className}`;
+			label.tabIndex = 0;
+			label.textContent = className;
+			return label;
+		};
+		addAction('filter');
+		if (withOverflow) {
+			addAction('codicon codicon-toolbar-more');
+		}
+		return toolbar;
+	}
+
+	test('focus that a vanishing Toggle Inbox or scope picker loses goes to the first candidate that shows, unless it went elsewhere since', async () => {
+		const container = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+		try {
+			const withOverflow = createTitle(container, true);
+			const withoutOverflow = createTitle(container, false);
+			const hiddenList = container.appendChild(mainWindow.document.createElement('div'));
+			hiddenList.tabIndex = 0;
+			hiddenList.style.display = 'none';
+			const elsewhere = container.appendChild(mainWindow.document.createElement('button'));
+			const focusedName = () => (mainWindow.document.activeElement as HTMLElement | null)?.textContent ?? '';
+
+			const lost = async (candidates: Parameters<typeof restoreLostFocus>[0], moveFocusTo?: HTMLElement) => {
+				(mainWindow.document.activeElement as HTMLElement | null)?.blur();
+				restoreLostFocus(candidates);
+				moveFocusTo?.focus();
+				await timeout(0);
+				return focusedName();
+			};
+
+			elsewhere.textContent = 'elsewhere';
+			assert.deepStrictEqual({
+				overflow: await lost([() => getTitleToolbarFocusTarget(withOverflow)]),
+				firstAction: await lost([() => getTitleToolbarFocusTarget(withoutOverflow)]),
+				skipsHiddenList: await lost([() => hiddenList, () => getTitleToolbarFocusTarget(withoutOverflow)]),
+				keepsFocusMovedElsewhere: await lost([() => getTitleToolbarFocusTarget(withOverflow)], elsewhere),
+			}, {
+				overflow: 'codicon codicon-toolbar-more',
+				firstAction: 'filter',
+				skipsHiddenList: 'filter',
+				keepsFocusMovedElsewhere: 'elsewhere',
+			});
+		} finally {
+			container.remove();
 		}
 	});
 });

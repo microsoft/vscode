@@ -32,8 +32,8 @@ import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { registerAgentsViewNewSessionActions } from '../agentsView/agentsChatPartActions.js';
 import { ChatViewSessionsListProvider } from '../agentsView/chatViewSessionsList.js';
 import { IEditorWindowShownChatService } from '../agentsView/editorWindowMainSessionHost.js';
-import { CHAT_VIEW_SESSIONS_GROUPING_STORAGE_KEYS, CHAT_VIEW_SESSIONS_GROUPINGS, EditorWindowSessionsList } from '../agentsView/editorWindowSessionsList.js';
-import { ChatViewSessionsListContext, ChatViewSessionsListTitleContext, getStoredSessionsGrouping } from '../views/sessionsView.js';
+import { CHAT_VIEW_SESSIONS_GROUPING_STORAGE_KEYS, EditorWindowSessionsList } from '../agentsView/editorWindowSessionsList.js';
+import { ChatViewSessionsListContext, ChatViewSessionsListTitleContext } from '../views/sessionsView.js';
 import { SessionsGrouping } from '../views/sessionsListCommon.js';
 import { registerSessionsListAccessibilityHelp } from '../views/sessionsListActions.js';
 import { ChatViewSessionsListAccessibilityHelp } from './chatViewSessionsListAccessibilityHelp.js';
@@ -102,9 +102,10 @@ export class ChatViewSessionsGate extends Disposable implements IWorkbenchContri
 		// The old list has no Inbox: turning the list back on starts out of it. The stored Inbox belongs to the profile, so only
 		// the user setting turning off leaves it, and only where this window then shows the old list; not a workspace turning the
 		// list off, nor a window starting with it off, nor the user setting turning off where this window's workspace keeps the
-		// list on, which keeps its Inbox. The user value compared is that of the profile it was read in. Switching to another
-		// profile moves the value read to it: the new profile's settings load as a workspace change, which only reads its value,
-		// and where they load no change, the value is already the new profile's.
+		// list on, which keeps its Inbox. Leaving it keeps the stored Inbox for the windows whose workspaces keep the list on. The
+		// user value compared is that of the profile it was read in. Switching to another profile moves the value read to it: the
+		// new profile's settings load as a workspace change, which only reads its value, and where they load no change, the value
+		// is already the new profile's.
 		const userEnabled = () => ({ profile: userDataProfileService.currentProfile.id, enabled: configurationService.inspect<boolean>(ChatConfiguration.ChatViewSessionsListEnabled).userValue === true });
 		let previous = userEnabled();
 		this._register(userDataProfileService.onDidChangeCurrentProfile(e => previous = { ...previous, profile: e.profile.id }));
@@ -118,16 +119,14 @@ export class ChatViewSessionsGate extends Disposable implements IWorkbenchContri
 	}
 
 	/**
-	 * Leaves Inbox in what the Chat view's list stored, for the grouping Inbox returns to, while the list is not there to leave
-	 * it itself, so that it does not come back in Inbox.
+	 * Remembers that the Chat view's list left Inbox while it was not there to leave it itself, so that it does not come back
+	 * in Inbox, except in a window whose workspace keeps the list on: the stored Inbox stays for it.
 	 */
 	private leaveStoredInbox(storageService: IStorageService): void {
 		const keys = CHAT_VIEW_SESSIONS_GROUPING_STORAGE_KEYS;
-		if (storageService.get(keys.grouping, StorageScope.PROFILE) !== SessionsGrouping.Inbox) {
-			return;
+		if (keys.inboxLeft && storageService.get(keys.grouping, StorageScope.PROFILE) === SessionsGrouping.Inbox) {
+			storageService.store(keys.inboxLeft.key, true, StorageScope.PROFILE, keys.target ?? StorageTarget.USER);
 		}
-		const grouping = getStoredSessionsGrouping(storageService.get(keys.nonInboxGrouping, StorageScope.PROFILE), CHAT_VIEW_SESSIONS_GROUPINGS.offered.filter(grouping => grouping !== SessionsGrouping.Inbox)) ?? CHAT_VIEW_SESSIONS_GROUPINGS.default;
-		storageService.store(keys.grouping, grouping, StorageScope.PROFILE, keys.target ?? StorageTarget.USER);
 	}
 }
 

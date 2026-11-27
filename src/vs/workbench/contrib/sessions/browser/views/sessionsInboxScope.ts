@@ -255,6 +255,12 @@ export class SessionsInboxScope extends Disposable {
 		}
 	}
 
+	/** Whether the focus is in the scope or its open picker. */
+	get hasFocus(): boolean {
+		const activeElement = dom.getActiveElement();
+		return !!this.activeTrigger || (dom.isHTMLElement(activeElement) && this.element.contains(activeElement));
+	}
+
 	/**
 	 * Shows or hides the scope. Hiding closes an open picker first, and returns whether the focus was in the scope or its picker,
 	 * which the caller then moves to a control that stays, as the hidden scope cannot keep it.
@@ -264,8 +270,7 @@ export class SessionsInboxScope extends Disposable {
 			this.element.hidden = !visible;
 			return false;
 		}
-		const activeElement = dom.getActiveElement();
-		const hadFocus = !!this.activeTrigger || (dom.isHTMLElement(activeElement) && this.element.contains(activeElement));
+		const hadFocus = this.hasFocus;
 		this.hidePicker();
 		this.element.hidden = true;
 		return hadFocus;

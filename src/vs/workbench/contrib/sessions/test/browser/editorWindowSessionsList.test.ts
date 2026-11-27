@@ -82,7 +82,7 @@ suite('EditorWindowSessionsList', () => {
 			editorWindow: { groupings: EDITOR_WINDOW_SESSIONS_GROUPINGS, groupingStorageKeys: undefined, inboxAutoAdvance: undefined, leaveInboxWithoutChat: undefined },
 			chatView: {
 				groupings: { offered: [SessionsGrouping.Date, SessionsGrouping.Environment, SessionsGrouping.Inbox], default: SessionsGrouping.Date },
-				groupingStorageKeys: { grouping: 'chatViewSessionsList.grouping', nonInboxGrouping: 'chatViewSessionsList.nonInboxGrouping', target: StorageTarget.MACHINE, fallbackGrouping: 'sessionsViewPane.grouping' },
+				groupingStorageKeys: { grouping: 'chatViewSessionsList.grouping', nonInboxGrouping: 'chatViewSessionsList.nonInboxGrouping', target: StorageTarget.MACHINE, fallbackGrouping: 'sessionsViewPane.grouping', inboxLeft: { key: 'chatViewSessionsList.inboxLeft', keptBy: 'chat.viewSessions.sessionsList.enabled' } },
 				inboxAutoAdvance: false,
 				leaveInboxWithoutChat: true,
 			},
