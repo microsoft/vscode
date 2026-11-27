@@ -10,7 +10,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { LogOutputChannel, window } from 'vscode';
-import { splitInChunks } from '../util';
+import { isDescendant, pathEquals, relativePathWithNoFallback, splitInChunks } from '../util';
 
 suite('git', () => {
 	suite('Git process input', () => {
@@ -903,6 +903,20 @@ suite('git', () => {
 			assert.deepStrictEqual(
 				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 9)],
 				[['0', '01', '012', '0', '01'], ['012', '0', '01', '012']]
+			);
+		});
+	});
+
+	suite('path helpers', () => {
+		test('file system root contains its descendants', () => {
+			// "C:\" on Windows, "/" on macOS and Linux
+			const root = path.parse(os.tmpdir()).root;
+			const folder = path.join(root, 'repo');
+			const file = path.join(folder, 'file.txt');
+
+			assert.deepStrictEqual(
+				[isDescendant(root, file), relativePathWithNoFallback(root, file), pathEquals(`${folder}/`, folder)],
+				[true, path.join('repo', 'file.txt'), true]
 			);
 		});
 	});
