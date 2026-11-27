@@ -1463,7 +1463,7 @@ suite('Sessions - SessionsList', () => {
 			});
 		}
 
-		test('the New navigation row starts a session and, while workspaces are on, its chevron opens the New menu below it, announced as a popup', async () => {
+		test('the New navigation row starts a session and, while workspaces are on, its chevron opens the New menu below it by click, Enter or Space, announced as a popup', async () => {
 			const menus: (readonly string[])[] = [];
 			let contextKeyService!: ContextKeyService;
 			const harness = createListHarness(disposables, [], instantiationService => {
@@ -1517,6 +1517,11 @@ suite('Sessions - SessionsList', () => {
 			const focusAfterLeft = mainWindow.document.activeElement === navigationListElement;
 			chevron.click();
 			await timeout(0);
+			// Enter and Space on the chevron open the menu too, and the list does not also open the row
+			chevron.focus();
+			press(chevron, 'Enter', 13);
+			press(chevron, ' ', 32);
+			await timeout(0);
 
 			assert.deepStrictEqual({
 				chevronWhileOff,
@@ -1537,7 +1542,7 @@ suite('Sessions - SessionsList', () => {
 				menusOnRowClick: 0,
 				keyboard: { focusAfterRight: true, focusAfterLeft: true },
 				// New Chat needs the agent host
-				menus: [['New Session', 'New Workspace...']],
+				menus: [['New Session', 'New Workspace...'], ['New Session', 'New Workspace...'], ['New Session', 'New Workspace...']],
 				commands: [],
 			});
 		});

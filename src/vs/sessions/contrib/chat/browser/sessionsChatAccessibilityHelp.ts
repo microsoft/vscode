@@ -271,7 +271,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		content.push(localize('sessionsChat.devContainer', "In a supported folder's workspace submenu, choose Use Dev Container with arrow keys and Enter. Choose Use This Computer or Use Remote Host to switch back."));
 		content.push(localize('sessionsChat.pullRequestSession', "In a repository section where New Session is a split button, focus New Session and press Right Arrow to reach its dropdown, then activate New Session from Pull Request to open a searchable pull request picker. Pull requests are grouped by review and assignment status. Use the arrow keys to navigate, Enter to create the session, and Escape to close the picker."));
 		if (configurationService.getValue<boolean>(SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING) && configurationService.getValue<boolean>(SESSIONS_WORKSPACES_ENABLED_SETTING)) {
-			content.push(localize('sessionsChat.newRowMoreActions', "Focus New and press Right Arrow to reach More New Actions, then Enter to open it for New Chat and New Workspace. Left Arrow or Escape returns to New."));
+			content.push(localize('sessionsChat.newRowMoreActions', "Focus New and press Right Arrow to reach More New Actions, then Enter to open the New menu. Left Arrow or Escape returns to New."));
 		}
 		content.push(localize('sessionsChat.githubReferences', "Pull request and issue pills above the chat input open their GitHub item in the GitHub Pull Requests extension when it is available. Pills that represent several items open a keyboard-accessible picker."));
 		if (configurationService.getValue<boolean>(ArtifactIntegrationsSettingId) !== true) {

@@ -14,7 +14,7 @@ import { decodeKeybinding, KeyCodeChord } from '../../../../../base/common/keybi
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
-import { OperatingSystem } from '../../../../../base/common/platform.js';
+import { isMacintosh, OperatingSystem } from '../../../../../base/common/platform.js';
 import { extUri, isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -2013,7 +2013,7 @@ suite('Sessions - Actions', () => {
 		});
 	});
 
-	test('the New split button\'s chevron opens the New menu without starting a session', () => {
+	test('the New split button\'s chevron opens the New menu without starting a session, by click, macOS Ctrl+click, Enter or Space', () => {
 		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
 		const commandService = new TestCommandService();
 		instantiationService.stub(ICommandService, commandService);
@@ -2031,12 +2031,31 @@ suite('Sessions - Actions', () => {
 
 		const chevron = container.querySelector<HTMLElement>('.agent-sessions-new-split-button > .monaco-dropdown-button')!;
 		const before = { label: chevron.getAttribute('aria-label'), popup: chevron.getAttribute('aria-haspopup'), expanded: chevron.getAttribute('aria-expanded') };
+		const opened = () => menus.length;
 		chevron.click();
+		const byClick = opened();
+		// macOS Ctrl+click, a secondary click, which the action item would otherwise take as a click on New Session
+		chevron.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 0, ctrlKey: true }));
+		const byCtrlClick = opened() - byClick;
+		const press = (key: string, keyCode: number) => {
+			for (const type of ['keydown', 'keyup']) {
+				const event = new KeyboardEvent(type, { key, code: key, bubbles: true, cancelable: true });
+				Object.defineProperty(event, 'keyCode', { get: () => keyCode });
+				chevron.dispatchEvent(event);
+			}
+		};
+		press('Enter', 13);
+		press(' ', 32);
+		const byKeyboard = opened() - byClick - byCtrlClick;
 
-		assert.deepStrictEqual({ before, menus, expanded: chevron.getAttribute('aria-expanded'), primaryRuns, commands: commandService.calls }, {
+		assert.deepStrictEqual({ before, menu: menus[0], byClick, byCtrlClick, byKeyboard, expanded: chevron.getAttribute('aria-expanded'), primaryRuns, commands: commandService.calls }, {
 			before: { label: 'More New Actions', popup: 'true', expanded: 'false' },
 			// New Chat needs the agent host, and New Workspace... the Workspace editor
-			menus: [['New Session']],
+			menu: ['New Session'],
+			byClick: 1,
+			// Elsewhere a Ctrl+click is no click
+			byCtrlClick: isMacintosh ? 1 : 0,
+			byKeyboard: 2,
 			expanded: 'true',
 			primaryRuns: 0,
 			commands: [],

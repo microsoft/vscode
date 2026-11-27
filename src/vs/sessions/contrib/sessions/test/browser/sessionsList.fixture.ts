@@ -1514,7 +1514,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		header: { newButton: 'menuOpen' },
 		view: { height: 300 },
 		// Room for the menu, which opens to the right of the chevron at the sidebar's edge
-		frame: { width: 520, height: 300 },
+		frame: { width: 560, height: 300 },
 	}, {
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
@@ -1572,7 +1572,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		header: { navigationShortcuts: true, newRowMenu: true },
 		view: { height: 300 },
 		// Room for the menu, which opens to the right of the chevron at the sidebar's edge
-		frame: { width: 520, height: 300 },
+		frame: { width: 560, height: 300 },
 	}, {
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],

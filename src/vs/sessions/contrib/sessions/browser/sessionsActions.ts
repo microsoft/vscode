@@ -57,13 +57,13 @@ import { WindowCanvasInput } from '../../../../workbench/contrib/sessions/browse
 import { ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionPresentationWorkspace, getSessionWorkspaceKind, getUntitledSessionTitle, IChat, isSideChatOf, ISession, SessionStatus, SessionWorkspaceKind } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
-import { $, append, EventHelper, EventLike, getWindow, isMouseEvent, ModifierKeyEmitter, reset } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventHelper, EventLike, EventType, getWindow, isMouseEvent, ModifierKeyEmitter, reset } from '../../../../base/browser/dom.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Button, ButtonWithDropdown, IButtonOptions } from '../../../../base/browser/ui/button/button.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IAction, toAction } from '../../../../base/common/actions.js';
-import { isWeb, OS } from '../../../../base/common/platform.js';
+import { isMacintosh, isWeb, OS } from '../../../../base/common/platform.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
@@ -1805,6 +1805,16 @@ export class NewSessionActionViewItem extends CompactButtonActionViewItem {
 		splitButton.element.classList.add('agent-sessions-new-split-button');
 		// As the main part's click: the action item's own click handler would start a session too
 		this._register(splitButton.dropdownButton.onDidClick(e => EventHelper.stop(e, true)));
+		// A Ctrl+click on macOS, a secondary click, opens the menu as a click does, rather than reaching the action item's
+		// own Ctrl+click handler, which would start a session
+		if (isMacintosh) {
+			this._register(addDisposableListener(splitButton.dropdownButton.element, EventType.CONTEXT_MENU, e => {
+				if (e.button === 0 && e.ctrlKey) {
+					EventHelper.stop(e, true);
+					splitButton.dropdownButton.element.click();
+				}
+			}));
+		}
 		const moreActions = localize('newSessionMoreActions', "More New Actions");
 		splitButton.dropdownButton.setTitle(moreActions);
 		splitButton.dropdownButton.element.setAttribute('aria-label', moreActions);

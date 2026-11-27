@@ -1186,8 +1186,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 			// The New row gets its chevron, or loses it, as workspaces are turned on or off
 			const newMenuKeys = new Set(SESSION_WORKSPACE_EDITOR_WHEN?.keys());
 			this._register(this.contextKeyService.onDidChangeContext(e => {
+				if (!e.affectsSome(newMenuKeys)) {
+					return;
+				}
 				const index = this.navigationSections.findIndex(section => section.id === NEW_SESSION_SECTION_ID);
-				if (index >= 0 && e.affectsSome(newMenuKeys)) {
+				if (index >= 0) {
 					navigationList.splice(index, 1, [this.navigationSections[index]]);
 				}
 			}));
