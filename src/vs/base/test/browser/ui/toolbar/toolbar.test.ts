@@ -1000,7 +1000,7 @@ suite('ToolBar', () => {
 
 		function createToolBar(ids: readonly string[], getAvailableWidth: () => number, overflowFrom: 'start' | 'end' = 'start', minItems = 0, overflowsLast = true): ToolBar {
 			const toolbar = store.add(new ToolBar(container, contextMenuProvider, {
-				actionViewItemProvider: action => new FixedWidthActionViewItem(action, action instanceof Separator ? 10 : 20),
+				actionViewItemProvider: action => new FixedWidthActionViewItem(action, action instanceof Separator ? 10 : 20, action.id !== 'cssHidden'),
 				responsiveBehavior: {
 					enabled: true,
 					kind: 'all',
@@ -1032,6 +1032,18 @@ suite('ToolBar', () => {
 				toolbar.relayout();
 				return { width, ...snapshot(toolbar) };
 			});
+		}
+
+		function sweep(toolbar: ToolBar, setWidth: (width: number) => void) {
+			const widths = [...Array.from({ length: 120 }, (_, index) => 120 - index), ...Array.from({ length: 120 }, (_, index) => index + 1)];
+			const transitions: { width: number; items: string[]; overflow: string[] }[] = [];
+			for (const state of relayoutAt(toolbar, setWidth, widths)) {
+				const last = transitions.at(-1);
+				if (!last || JSON.stringify([last.items, last.overflow]) !== JSON.stringify([state.items, state.overflow])) {
+					transitions.push(state);
+				}
+			}
+			return transitions;
 		}
 
 		for (const overflowFrom of ['start', 'end'] as const) {
@@ -1090,6 +1102,50 @@ suite('ToolBar', () => {
 				{ width: 105, ...withoutA },
 				{ width: 106, ...all },
 			]);
+		});
+
+		test('keeps the stock behavior while no protected action is shown', () => {
+			let availableWidth = 120;
+			const setWidth = (width: number) => availableWidth = width;
+			const ids = ['a', Separator.ID, 'b'];
+			const withOption = sweep(createToolBar(ids, () => availableWidth, 'start', 0, true), setWidth);
+			const withoutOption = sweep(createToolBar(ids, () => availableWidth, 'start', 0, false), setWidth);
+			assert.deepStrictEqual(withOption, withoutOption);
+		});
+
+		test('ignores a primary action hidden by style when restoring and placing separators', () => {
+			let availableWidth = 120;
+			const toolbar = createToolBar(['cssHidden', Separator.ID, 'new', 'b'], () => availableWidth);
+			const all = { items: ['new', 'b'], overflow: [] };
+			const newOnly = { items: ['new', ToggleMenuAction.ID], overflow: ['b'] };
+			const collapsed = { items: [ToggleMenuAction.ID], overflow: ['new', 'b'] };
+			assert.deepStrictEqual(sweep(toolbar, width => availableWidth = width), [
+				{ width: 120, ...all },
+				{ width: 65, ...newOnly },
+				{ width: 63, ...collapsed },
+				{ width: 64, ...newOnly },
+				{ width: 66, ...all },
+			]);
+		});
+
+		test('passes separators to getOverflowAction in stock mode', () => {
+			const overflowActionIds: string[] = [];
+			const toolbar = store.add(new ToolBar(container, contextMenuProvider, {
+				actionViewItemProvider: action => new FixedWidthActionViewItem(action, action instanceof Separator ? 10 : 20),
+				responsiveBehavior: {
+					enabled: true,
+					kind: 'all',
+					minItems: 0,
+					getAvailableWidth: () => 1,
+					getOverflowAction: action => {
+						overflowActionIds.push(action.id);
+						return action;
+					},
+				},
+			}));
+			toolbar.setActions([store.add(new Action('a', 'a')), new Separator(), store.add(new Action('b', 'b'))]);
+			toolbar.relayout();
+			assert.deepStrictEqual(overflowActionIds.includes(Separator.ID), true);
 		});
 
 		test('is ignored with a positive minItems', () => {
