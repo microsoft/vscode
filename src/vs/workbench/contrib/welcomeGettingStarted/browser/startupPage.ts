@@ -18,7 +18,7 @@ import { Disposable, } from '../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
-import { GettingStartedEditorOptions, GettingStartedInput, gettingStartedInputTypeId, closeGettingStartedEditors } from './gettingStartedInput.js';
+import { GettingStartedEditorOptions, GettingStartedInput, gettingStartedInputTypeId } from './gettingStartedInput.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { getTelemetryLevel } from '../../../../platform/telemetry/common/telemetryUtils.js';
@@ -117,10 +117,8 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 		// Wait for resolving startup editor until we are restored to reduce startup pressure
 		await this.lifecycleService.when(LifecyclePhase.Restored);
 
-		// Agents mode never shows the Welcome page, so close any that the window restored in the mode. Entering the mode
-		// closes the open ones itself
+		// Agents mode shows no startup editor; it closes the Welcome pages the window restored in the mode itself
 		if (this.agentsModeService.isActive) {
-			await closeGettingStartedEditors(this.editorService);
 			return;
 		}
 

@@ -11,12 +11,13 @@ import { IViewDescriptorService, ViewContainerLocation } from '../../../../commo
 import { IAgentsModeService } from '../../../../services/agentsMode/common/agentsMode.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { ChatViewContainerId } from '../chat.js';
+import { ChatViewId } from '../chat.js';
 
 /**
  * Brings the Chat view, which hosts the sessions list, to the front of the secondary side bar when the window enters
  * Agents mode, showing the secondary side bar if it is hidden, and hides it again when the window leaves the mode if the
- * mode had shown it. Where the user moved the Chat view out of the secondary side bar, it is left alone. Switching keeps
+ * mode had shown it. Where the user moved the Chat view out of the secondary side bar, it is left alone; where they moved
+ * it into another view container of the secondary side bar, that container comes to the front. Switching keeps
  * the secondary side bar at the width it had in the mode, however the window switches.
  */
 export class AgentsModeAuxiliaryBar extends Disposable {
@@ -53,8 +54,7 @@ export class AgentsModeAuxiliaryBar extends Disposable {
 	 * @param token cancelled when the window switches again before entering finished
 	 */
 	async enter(token: CancellationToken = CancellationToken.None): Promise<void> {
-		const chatViewContainer = this.viewDescriptorService.getViewContainerById(ChatViewContainerId);
-		if (!chatViewContainer || this.viewDescriptorService.getViewContainerLocation(chatViewContainer) !== ViewContainerLocation.AuxiliaryBar) {
+		if (this.viewDescriptorService.getViewLocationById(ChatViewId) !== ViewContainerLocation.AuxiliaryBar) {
 			return;
 		}
 
@@ -64,7 +64,7 @@ export class AgentsModeAuxiliaryBar extends Disposable {
 			this.storageService.store(AgentsModeAuxiliaryBar.SHOWN_ON_ENTER_STORAGE_KEY, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}
 		try {
-			await this.viewsService.openViewContainer(ChatViewContainerId, false);
+			await this.viewsService.openView(ChatViewId, false);
 		} catch (error) {
 			onUnexpectedError(error);
 		}

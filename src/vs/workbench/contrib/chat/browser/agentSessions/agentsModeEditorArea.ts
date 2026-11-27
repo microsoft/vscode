@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IAgentsModeService } from '../../../../services/agentsMode/common/agentsMode.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
-import { closeGettingStartedEditors } from '../../../welcomeGettingStarted/browser/gettingStartedInput.js';
+import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
+import { EditorsOrder } from '../../../../common/editor.js';
+import { gettingStartedInputTypeId } from '../../../welcomeGettingStarted/browser/gettingStartedInput.js';
 
 /**
  * Hides an empty editor area when the window enters Agents mode, and shows it again
@@ -18,7 +21,8 @@ import { closeGettingStartedEditors } from '../../../welcomeGettingStarted/brows
  * shows the editor area again. The editor area is only hidden when another part takes its
  * place (the chat part, the panel or a maximized secondary side bar), so hiding it never makes
  * the layout open the panel; otherwise it is hidden once the chat part shows. Closing the chat
- * part shows the editor area again; the next chat part shown in the mode takes its place again.
+ * part shows the editor area again; the next chat part shown in the mode takes its place again. The Welcome page, which is
+ * not for the mode, closes on entering and when the window restores in the mode.
  */
 export class AgentsModeEditorArea extends Disposable {
 
@@ -32,6 +36,7 @@ export class AgentsModeEditorArea extends Disposable {
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IEditorService private readonly editorService: IEditorService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 	) {
 		super();
 
@@ -48,6 +53,9 @@ export class AgentsModeEditorArea extends Disposable {
 					this.hideIfEmpty();
 				}
 			}));
+			if (agentsModeService.isActive) {
+				lifecycleService.when(LifecyclePhase.Restored).then(() => this.agentsModeService.isActive ? this.closeWelcomePages() : undefined).catch(onUnexpectedError);
+			}
 		}
 	}
 
@@ -55,8 +63,15 @@ export class AgentsModeEditorArea extends Disposable {
 	 * Closes the Welcome page, which is not for the mode, and then hides the editor area if nothing else is open in it.
 	 */
 	async enter(): Promise<void> {
-		await closeGettingStartedEditors(this.editorService);
+		await this.closeWelcomePages();
 		this.hideIfEmpty();
+	}
+
+	private async closeWelcomePages(): Promise<void> {
+		const welcomePages = this.editorService.getEditors(EditorsOrder.SEQUENTIAL).filter(({ editor }) => editor.typeId === gettingStartedInputTypeId);
+		if (welcomePages.length) {
+			await this.editorService.closeEditors(welcomePages);
+		}
 	}
 
 	private hideIfEmpty(): void {
