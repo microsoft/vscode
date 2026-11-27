@@ -789,9 +789,10 @@ export class SessionsView extends ViewPane {
 		// As the view goes with the focus in its scope or the scope's open picker, which it closes, such as as the Chat view's
 		// list turns off, the focus goes to the list that replaces it, or else to the host's title
 		let scopeHadFocus: () => boolean = () => false;
+		let scopeFocusedElement: () => HTMLElement | undefined = () => undefined;
 		this._register(toDisposable(() => {
 			if (this.headerInTitle && scopeHadFocus()) {
-				this.handOverLostFocus();
+				this.handOverLostFocus(scopeFocusedElement());
 			}
 		}));
 		const inboxScope = this._register(this.instantiationService.createInstance(SessionsInboxScope, inboxScopeContainer, sessionsControl.filters, scopeSessions,
@@ -799,6 +800,7 @@ export class SessionsView extends ViewPane {
 			derived(reader => scopeEnvironments.read(reader).localEnvironmentIds),
 			derived(reader => { scopeChanged.read(reader); return this.grouping === SessionsGrouping.Inbox; })));
 		scopeHadFocus = () => inboxScope.hasFocus;
+		scopeFocusedElement = () => inboxScope.focusedElement;
 		this.windowScope.setScopeBarFilters(sessionsControl.filters);
 		this._register(autorun(reader => {
 			scopeChanged.read(reader);
@@ -980,8 +982,11 @@ export class SessionsView extends ViewPane {
 		this._register(DOM.scheduleAtNextAnimationFrame(DOM.getWindow(parent), () => this.layoutSidebarSplitView()));
 	}
 
-	/** Gives the focus the view loses as it goes to the list that replaces it, or else to the host's title, whose actions may all be in its overflow. */
-	private handOverLostFocus(): void {
+	/**
+	 * Gives the focus the view loses as it goes to the list that replaces it, or else to the host's title, whose actions may all be in its overflow.
+	 * Focus still on `closingFocus`, the scope's own element or open picker, counts as lost; focus that already moved elsewhere stays.
+	 */
+	private handOverLostFocus(closingFocus?: HTMLElement): void {
 		const ownElement = this.element;
 		const host = ownElement?.parentElement;
 		// Found while the view is still in the host, and again where the host's title rerendered since
@@ -989,7 +994,7 @@ export class SessionsView extends ViewPane {
 		restoreLostFocus([
 			() => getReplacementList(host, ownElement),
 			() => getTitleToolbarFocusTarget(titleActionBar?.isConnected ? titleActionBar : getHostTitleActionBar(host)),
-		], callback => DOM.scheduleAtNextAnimationFrame(DOM.getWindow(host), callback), DOM.getActiveElement());
+		], callback => DOM.scheduleAtNextAnimationFrame(DOM.getWindow(host), callback), closingFocus);
 	}
 
 	override createActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {

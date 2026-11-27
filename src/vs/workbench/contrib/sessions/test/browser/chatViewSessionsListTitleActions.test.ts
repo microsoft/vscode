@@ -27,6 +27,7 @@ import { ToolBar } from '../../../../../base/browser/ui/toolbar/toolbar.js';
 import { Action } from '../../../../../base/common/actions.js';
 import { IContextMenuProvider } from '../../../../../base/browser/contextmenu.js';
 import { scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
+import { getScopeFocusedElement } from '../../browser/views/sessionsInboxScope.js';
 
 suite('Chat view sessions list title actions', () => {
 
@@ -166,11 +167,15 @@ suite('Chat view sessions list focus', () => {
 			const focusedName = () => (mainWindow.document.activeElement as HTMLElement | null)?.textContent ?? '';
 
 			// An open picker's input, which keeps the focus while the picker animates closed
-			const closingPickerInput = container.appendChild(mainWindow.document.createElement('input'));
-			const lost = async (candidates: Parameters<typeof restoreLostFocus>[0], moveFocusTo?: HTMLElement, closingFocus?: HTMLElement) => {
+			const pickerWidget = container.appendChild(mainWindow.document.createElement('div'));
+			pickerWidget.className = 'action-widget';
+			const closingPickerInput = pickerWidget.appendChild(mainWindow.document.createElement('input'));
+			const scope = container.appendChild(mainWindow.document.createElement('div'));
+			const lost = async (candidates: Parameters<typeof restoreLostFocus>[0], moveFocusTo?: HTMLElement, focusBeforeHide?: HTMLElement) => {
 				(mainWindow.document.activeElement as HTMLElement | null)?.blur();
-				closingFocus?.focus();
-				restoreLostFocus(candidates, undefined, closingFocus);
+				focusBeforeHide?.focus();
+				// As the view goes with its picker still open
+				restoreLostFocus(candidates, undefined, getScopeFocusedElement(scope, true));
 				moveFocusTo?.focus();
 				await timeout(0);
 				return focusedName();
@@ -183,12 +188,14 @@ suite('Chat view sessions list focus', () => {
 				skipsHiddenList: await lost([() => hiddenList, () => getTitleToolbarFocusTarget(withoutOverflow)]),
 				keepsFocusMovedElsewhere: await lost([() => getTitleToolbarFocusTarget(withOverflow)], elsewhere),
 				leavesClosingPicker: await lost([() => getTitleToolbarFocusTarget(withoutOverflow)], undefined, closingPickerInput),
+				keepsFocusMovedElsewhereWhilePickerOpen: await lost([() => getTitleToolbarFocusTarget(withoutOverflow)], undefined, elsewhere),
 			}, {
 				overflow: 'codicon codicon-toolbar-more',
 				firstAction: 'filter',
 				skipsHiddenList: 'filter',
 				keepsFocusMovedElsewhere: 'elsewhere',
 				leavesClosingPicker: 'filter',
+				keepsFocusMovedElsewhereWhilePickerOpen: 'elsewhere',
 			});
 		} finally {
 			container.remove();
