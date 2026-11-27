@@ -35,7 +35,7 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { NotificationTelemetryId } from '../../../../../platform/notification/common/notificationTelemetry.js';
-import { IQuickInputButton, IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputButton, IQuickInputService, IQuickPick, IQuickPickItem, QuickInputHideReason } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IRemoteTunnelService, TunnelStatus } from '../../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -974,25 +974,50 @@ async function promptToConnectViaTunnel(
 	}
 	tunnelPicker.show();
 
+	// Closing the picker while tunnels load cancels the command. While signing in, the picker stays open when
+	// focus moves to the sign-in, and only Escape closes it, because the sign-in can replace it with its own.
+	let dismissed = false;
+	let signingIn = false;
+	store.add(tunnelPicker.onDidHide(event => {
+		if (!signingIn || event.reason === QuickInputHideReason.Gesture) {
+			dismissed = true;
+		}
+	}));
+
 	const listTunnels = () => diagnosticsService.trackDiscovery('interactive', onDiagnostic => tunnelService.listTunnels({ authProvider, onDiagnostic }));
 	try {
 		try {
 			tunnels = await listTunnels();
 		} catch (err) {
 			// The tunnel service can reject a GitHub session that works elsewhere. Like Remote - Tunnels, sign in
-			// again once, unless the session was just created.
-			if (!(err instanceof TunnelAuthenticationRequiredError) || signedIn || !tunnelService.signIn) {
+			// again once, unless the session was just created or the picker was closed.
+			if (!(err instanceof TunnelAuthenticationRequiredError) || signedIn || dismissed || !tunnelService.signIn) {
 				throw err;
 			}
-			await tunnelService.signIn(err.authProvider);
-			tunnelPicker.show();
-			tunnels = await listTunnels();
+			const previousIgnoreFocusOut = tunnelPicker.ignoreFocusOut;
+			tunnelPicker.ignoreFocusOut = true;
+			signingIn = true;
+			try {
+				await tunnelService.signIn(err.authProvider);
+			} finally {
+				signingIn = false;
+				tunnelPicker.ignoreFocusOut = previousIgnoreFocusOut;
+			}
+			if (!dismissed) {
+				tunnelPicker.show();
+				tunnels = await listTunnels();
+			}
 		}
 	} catch (err) {
 		store.dispose();
-		if (!isCancellationError(err)) {
+		if (!dismissed && !isCancellationError(err)) {
 			notificationService.error(localize('tunnelListFailed', "Failed to list dev tunnels: {0}", err instanceof Error ? err.message : String(err)));
 		}
+		return;
+	}
+
+	if (dismissed) {
+		store.dispose();
 		return;
 	}
 
