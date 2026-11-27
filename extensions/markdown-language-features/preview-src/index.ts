@@ -26,6 +26,8 @@ let documentVersion = 0;
 let documentResource = settings.settings.source;
 let lineChanges = settings.settings.lineChanges;
 
+const codeBlockCopyButtonClass = 'code-block-copy-button';
+
 const vscode = acquireVsCodeApi();
 
 const onDiffScroll = (mappedLine: number) => {
@@ -240,9 +242,9 @@ function addCodeBlockCopyButtons() {
 		const pre = code.parentElement!;
 
 		// Inject copy button if not already present
-		if (!pre.querySelector('.code-block-copy-button')) {
+		if (!pre.querySelector(`.${codeBlockCopyButtonClass}`)) {
 			const button = document.createElement('button');
-			button.className = 'code-block-copy-button';
+			button.className = codeBlockCopyButtonClass;
 			button.setAttribute('aria-label', 'Copy code block');
 			button.appendChild(createCopyIcon());
 			button.addEventListener('click', async (e) => {
@@ -392,6 +394,9 @@ window.addEventListener('message', async event => {
 
 						return true;
 					},
+					// The copy buttons are added to the page after rendering, so the new content never has them.
+					// Keep them instead of removing and adding thousands of buttons again on every update.
+					onBeforeNodeDiscarded: (node: Node) => !(node instanceof HTMLElement && node.classList.contains(codeBlockCopyButtonClass)),
 					addChild: (parentNode: Node, childNode: Node) => {
 						parentNode.appendChild(childNode);
 						if (childNode instanceof HTMLElement) {
