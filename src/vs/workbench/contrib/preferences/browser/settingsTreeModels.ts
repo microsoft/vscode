@@ -32,6 +32,7 @@ export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 
 export interface ISettingsEditorViewState {
 	settingsTarget: SettingsTarget;
+	isAgenticMode?: boolean;
 	query?: string; // used to keep track of loading from setInput vs loading from cache
 	tagFilters?: Set<string>;
 	extensionFilters?: Set<string>;
@@ -164,6 +165,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	 * Whether the setting is read-only in the Agents window.
 	 */
 	isAgentsWindowReadOnly = false;
+	isAgenticMode = false;
 
 	tags?: Set<string>;
 	overriddenScopeList: string[] = [];
@@ -393,10 +395,11 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		}
 
 		let hasAgentsWindowOverride = false;
-		if (this.isSessionsWindow) {
+		this.isAgentsWindowReadOnly = false;
+		if (this.isSessionsWindow || this.isAgenticMode) {
 			const property = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()[this.setting.key];
-			hasAgentsWindowOverride = !!property?.agentsWindow;
-			this.isAgentsWindowReadOnly = !!property?.agentsWindow?.readOnly;
+			hasAgentsWindowOverride = this.isSessionsWindow ? !!property?.agentsWindow : property?.agenticMode?.default !== undefined;
+			this.isAgentsWindowReadOnly = this.isSessionsWindow && !!property?.agentsWindow?.readOnly;
 			if (this.isAgentsWindowReadOnly) {
 				isConfigured = false;
 			}
@@ -677,6 +680,7 @@ export class SettingsTreeModel implements IDisposable {
 
 	private reinspectSettings(settings: SettingsTreeSettingElement[]): void {
 		for (const element of settings) {
+			element.isAgenticMode = !!this._viewState.isAgenticMode;
 			element.inspectSelf();
 		}
 	}
@@ -735,6 +739,7 @@ export class SettingsTreeModel implements IDisposable {
 			this._environmentService.isSessionsWindow,
 			this._experimentalSettingsService,
 			this._managedSettingsPresentationService);
+		element.isAgenticMode = !!this._viewState.isAgenticMode;
 
 		const nameElements = this._treeElementsBySettingName.get(setting.key) ?? [];
 		nameElements.push(element);
