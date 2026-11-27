@@ -25,7 +25,7 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { QueryBuilder } from '../../../../services/search/common/queryBuilder.js';
 import { ISearchService } from '../../../../services/search/common/search.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { detectLinks, getLinkSuffix } from './terminalLinkParsing.js';
+import { detectLinks, getLinkSuffix, IParsedLink } from './terminalLinkParsing.js';
 import { ITerminalLogService } from '../../../../../platform/terminal/common/terminal.js';
 
 export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
@@ -145,8 +145,22 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 			if (!iso8601Pattern.test(link.text)) {
 				const parsedLinks = detectLinks(link.contextLine, this._getOS());
 				// Optimistically check that the link _starts with_ the parsed link text. If so,
-				// continue to use the parsed link
-				const matchingParsedLink = parsedLinks.find(parsedLink => parsedLink.suffix && link.text.startsWith(parsedLink.path.text));
+				// continue to use the parsed link. The same path can appear more than once in the
+				// line, so prefer the parsed link whose suffix is also part of the link text, taking
+				// the longest one so `foo:12` is not matched by `foo:1`
+				let matchingParsedLink: IParsedLink | undefined;
+				let matchingLength = -1;
+				for (const parsedLink of parsedLinks) {
+					if (!parsedLink.suffix || !link.text.startsWith(parsedLink.path.text)) {
+						continue;
+					}
+					const parsedLinkText = parsedLink.path.text + parsedLink.suffix.suffix.text;
+					const length = link.text.startsWith(parsedLinkText) ? parsedLinkText.length : 0;
+					if (length > matchingLength) {
+						matchingParsedLink = parsedLink;
+						matchingLength = length;
+					}
+				}
 				if (matchingParsedLink) {
 					if (matchingParsedLink.suffix?.row !== undefined) {
 						// Normalize the path based on the parsed link

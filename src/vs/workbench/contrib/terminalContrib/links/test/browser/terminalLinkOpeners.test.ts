@@ -562,6 +562,29 @@ suite('Workbench - TerminalLinkOpeners', () => {
 				});
 			});
 
+			test('should use the line and column of the clicked link when the same path appears more than once in the line', async () => {
+				localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener);
+				const localFolderOpener = instantiationService.createInstance(TerminalLocalFolderInWorkspaceLinkOpener);
+				opener = instantiationService.createInstance(TestTerminalSearchLinkOpener, capabilities, '/folder', localFileOpener, localFolderOpener, () => OperatingSystem.Linux);
+				fileService.setFiles([]);
+				const contextLine = 'foo/bar.txt:1 foo/bar.txt:20 foo/bar.txt:12:3';
+				const results: (ITerminalLinkActivationResult | undefined)[] = [];
+				for (const [text, x] of [['foo/bar.txt:1', 1], ['foo/bar.txt:20', 15], ['foo/bar.txt:12:3', 30]] as const) {
+					await opener.open({
+						text,
+						contextLine,
+						bufferRange: { start: { x, y: 1 }, end: { x: x + text.length - 1, y: 1 } },
+						type: TerminalBuiltinLinkType.Search
+					});
+					results.push(activationResult);
+				}
+				deepStrictEqual(results, [
+					{ link: 'foo/bar.txt:1', source: 'search' },
+					{ link: 'foo/bar.txt:20', source: 'search' },
+					{ link: 'foo/bar.txt:12:3', source: 'search' },
+				]);
+			});
+
 			test('should not misinterpret ISO 8601 timestamps as line:column numbers', async () => {
 				localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener);
 				const localFolderOpener = instantiationService.createInstance(TerminalLocalFolderInWorkspaceLinkOpener);
