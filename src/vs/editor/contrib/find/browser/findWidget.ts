@@ -86,6 +86,181 @@ let MAX_MATCHES_COUNT_WIDTH = 69;
 
 const FIND_INPUT_AREA_HEIGHT = 33; // The height of Find Widget when Replace Input is not visible.
 
+// Patterns up to this length are shown in full in the regex error message.
+const MAX_REGEX_PATTERN_LENGTH_IN_ERROR = 60;
+// How much of the pattern to show before and after the error location.
+const REGEX_ERROR_CONTEXT_BEFORE = 50;
+const REGEX_ERROR_CONTEXT_AFTER = 10;
+// Locating the error scans the pattern once and compiles O(log n) prefixes of it.
+// Up to this length that takes a few milliseconds (about 10ms for 40k characters),
+// which stays within a single frame. Longer patterns skip the search and only show
+// the start of the pattern, so typing never becomes sluggish.
+const MAX_REGEX_PATTERN_LENGTH_TO_LOCATE_ERROR = 50_000;
+
+function getRegexError(pattern: string, flags: string): string | undefined {
+	try {
+		new RegExp(pattern, flags);
+		return undefined;
+	} catch (e) {
+		return e.message;
+	}
+}
+
+/**
+ * Splits a native error message of the form `Invalid regular expression: /<pattern>/<flags>: <reason>`.
+ */
+function parseRegexError(message: string, pattern: string, flags: string): { prefix: string; reason: string } | undefined {
+	const source = `/${pattern}/${flags}: `;
+	const index = message.indexOf(source);
+	if (index === -1) {
+		return undefined;
+	}
+	return { prefix: message.substring(0, index), reason: message.substring(index + source.length) };
+}
+
+interface IRegexCutPoint {
+	/** Length of the prefix. */
+	readonly offset: number;
+	/** Number of groups that are open at the end of the prefix. */
+	readonly openGroups: number;
+	/** Whether the prefix ends inside a character class. */
+	readonly inCharacterClass: boolean;
+}
+
+/**
+ * Returns the offsets at which the pattern can be cut without splitting an escape sequence,
+ * a group opening such as `(?<name>` or a `{n,m}` quantifier, together with the open
+ * character class and groups at that offset.
+ */
+function getRegexCutPoints(pattern: string): IRegexCutPoint[] {
+	const result: IRegexCutPoint[] = [{ offset: 0, openGroups: 0, inCharacterClass: false }];
+	let openGroups = 0;
+	let inCharacterClass = false;
+	let i = 0;
+	while (i < pattern.length) {
+		const ch = pattern.charAt(i);
+		if (ch === '\\') {
+			const kind = pattern.charAt(i + 1);
+			i += 2;
+			if ((kind === 'u' || kind === 'p' || kind === 'P') && pattern.charAt(i) === '{') {
+				const close = pattern.indexOf('}', i);
+				i = close === -1 ? pattern.length : close + 1;
+			} else if (kind === 'k' && pattern.charAt(i) === '<') {
+				const close = pattern.indexOf('>', i);
+				i = close === -1 ? pattern.length : close + 1;
+			} else if (kind === 'u') {
+				i += 4;
+			} else if (kind === 'x') {
+				i += 2;
+			} else if (kind === 'c') {
+				i += 1;
+			}
+		} else if (inCharacterClass) {
+			if (ch === ']') {
+				inCharacterClass = false;
+			}
+			i++;
+		} else if (ch === '[') {
+			inCharacterClass = true;
+			i++;
+			if (pattern.charAt(i) === '^') {
+				i++;
+			}
+		} else if (ch === '(') {
+			openGroups++;
+			i++;
+			if (pattern.charAt(i) === '?') {
+				const groupStart = /^\?(?:[:=!]|<[=!]|<[^>]*>|[a-z-]*:)/.exec(pattern.substring(i, i + 64));
+				i += groupStart ? groupStart[0].length : 1;
+			}
+		} else if (ch === ')') {
+			openGroups--;
+			i++;
+		} else if (ch === '{') {
+			const quantifier = /^\{\d+(?:,\d*)?\}/.exec(pattern.substring(i, i + 64));
+			i += quantifier ? quantifier[0].length : 1;
+		} else {
+			i++;
+		}
+		result.push({ offset: Math.min(i, pattern.length), openGroups, inCharacterClass });
+	}
+	return result;
+}
+
+/**
+ * Returns the offset in `pattern` right after the error.
+ *
+ * A prefix of the pattern is completable if closing its open character class and groups
+ * makes it a valid regular expression. Every prefix of a completable prefix is completable
+ * too, so a binary search finds the first prefix that is not completable, which ends right
+ * after the error. This only relies on whether a regular expression is valid, not on the
+ * engine specific error messages. A backreference to a group that is defined later in the
+ * pattern makes its prefixes invalid, so such a reference may be reported as the error.
+ */
+function locateRegexError(pattern: string, flags: string): number {
+	const cutPoints = getRegexCutPoints(pattern);
+	const isCompletable = (cutPoint: IRegexCutPoint) => {
+		if (cutPoint.openGroups < 0) {
+			return false;
+		}
+		const completion = (cutPoint.inCharacterClass ? ']' : '') + ')'.repeat(cutPoint.openGroups);
+		return getRegexError(pattern.substring(0, cutPoint.offset) + completion, flags) === undefined;
+	};
+
+	let low = 0;
+	let high = cutPoints.length - 1;
+	if (isCompletable(cutPoints[high])) {
+		// the error is only detected at the end, e.g. a reference to a group that does not exist
+		return pattern.length;
+	}
+	while (low < high) {
+		const mid = Math.floor((low + high) / 2);
+		if (isCompletable(cutPoints[mid])) {
+			low = mid + 1;
+		} else {
+			high = mid;
+		}
+	}
+	return cutPoints[low].offset;
+}
+
+/**
+ * Returns the validation message for an invalid regular expression, or `null` if it is valid.
+ *
+ * The native error message contains the whole pattern, which makes the message huge for
+ * long patterns and hides the actual reason. For long patterns, show the reason first,
+ * followed by the part of the pattern around the location of the error.
+ */
+export function getRegexValidationErrorMessage(pattern: string, flags: string): string | null {
+	const message = getRegexError(pattern, flags);
+	if (message === undefined) {
+		return null;
+	}
+
+	if (pattern.length <= MAX_REGEX_PATTERN_LENGTH_IN_ERROR) {
+		return message;
+	}
+
+	const parsed = parseRegexError(message, pattern, flags);
+	if (!parsed) {
+		// unknown message format
+		return message;
+	}
+	const { prefix, reason } = parsed;
+
+	let snippet: string;
+	if (pattern.length > MAX_REGEX_PATTERN_LENGTH_TO_LOCATE_ERROR) {
+		snippet = strings.truncate(pattern, MAX_REGEX_PATTERN_LENGTH_IN_ERROR);
+	} else {
+		const errorEnd = locateRegexError(pattern, flags);
+		const start = Math.max(0, errorEnd - REGEX_ERROR_CONTEXT_BEFORE);
+		const end = Math.min(pattern.length, errorEnd + REGEX_ERROR_CONTEXT_AFTER);
+		snippet = (start > 0 ? strings.Ellipsis : '') + pattern.substring(start, end) + (end < pattern.length ? strings.Ellipsis : '');
+	}
+
+	return `${prefix}${reason}: ${snippet}`;
+}
+
 const ctrlKeyMod = (platform.isMacintosh ? KeyMod.WinCtrl : KeyMod.CtrlCmd);
 export class FindWidgetViewZone implements IViewZone {
 	public readonly afterLineNumber: number;
@@ -998,13 +1173,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 				if (value.length === 0 || !this._findInput.getRegex()) {
 					return null;
 				}
-				try {
-					// use `g` and `u` which are also used by the TextModel search
-					new RegExp(value, 'gu');
-					return null;
-				} catch (e) {
-					return { content: e.message };
-				}
+				// use `g` and `u` which are also used by the TextModel search
+				const message = getRegexValidationErrorMessage(value, 'gu');
+				return message ? { content: message } : null;
 			},
 			flexibleHeight,
 			flexibleWidth,
