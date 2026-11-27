@@ -323,72 +323,6 @@ export interface IAgentHostGitWorktree {
 	readonly branchName: string | undefined;
 }
 
-/** See {@link IAgentHostGitService.findRepositories}. */
-export interface IFindRepositoriesOptions {
-	/** How many folder levels below the scanned folder are read; `-1` for no limit (the scan still has a depth bound). */
-	readonly scanMaxDepth: number;
-	/** Folder names that are not read, compared case-insensitively. */
-	readonly scanIgnoredFolders: readonly string[];
-	/** Whether the submodules a found repository's (or the scanned folder's) `.gitmodules` lists are repositories too. */
-	readonly detectSubmodules: boolean;
-	/**
-	 * How many of the submodules a `.gitmodules` file lists are repositories too: the first ones, as Source Control
-	 * opens the first `git.detectSubmodulesLimit`.
-	 */
-	readonly detectSubmodulesLimit: number;
-	/** Paths relative to the scanned folder that are checked for a repository too; absolute paths and `.git` are skipped. */
-	readonly scanRepositories: readonly string[];
-	/** Repository roots that are not returned, nor scanned for their submodules. */
-	readonly ignoredRepositories: readonly URI[];
-	/** The most repositories to return. */
-	readonly limit: number;
-}
-
-/** A repository {@link IAgentHostGitService.findRepositories} found. */
-export interface IFoundRepository {
-	readonly root: URI;
-	readonly kind: 'nested' | 'submodule';
-}
-
-/**
- * The file system work and time that repository scans may take, shared by every scan it is passed to. Each file system
- * call of a scan (reading a folder, checking for a `.git` entry, checking a path component, reading a `.gitmodules`
- * file) charges one probe before it runs; once the probes are used up or the deadline passes, the scans stop and return
- * what they found.
- */
-export class RepositoryScanBudget {
-	private _used = 0;
-
-	constructor(
-		private readonly _maxProbes: number,
-		private readonly _deadline: number,
-		private readonly _now: () => number = Date.now,
-	) { }
-
-	/** How many probes were charged. */
-	get used(): number {
-		return this._used;
-	}
-
-	/** How many probes are left, ignoring the deadline. */
-	get remaining(): number {
-		return Math.max(0, this._maxProbes - this._used);
-	}
-
-	get exhausted(): boolean {
-		return this._used >= this._maxProbes || this._now() > this._deadline;
-	}
-
-	/** Charges one probe. Returns `false`, charging nothing, when the budget is exhausted. */
-	charge(): boolean {
-		if (this.exhausted) {
-			return false;
-		}
-		this._used++;
-		return true;
-	}
-}
-
 export interface IAgentHostGitService {
 	readonly _serviceBrand: undefined;
 	getCurrentBranch(workingDirectory: URI): Promise<string | undefined>;
@@ -412,18 +346,11 @@ export interface IAgentHostGitService {
 	/** Returns worktree roots in Git's porcelain order, with the primary worktree first. */
 	getWorktreeRoots(workingDirectory: URI): Promise<URI[]>;
 	/**
-	 * Finds the Git repositories in the subfolders of `folder`, as source control does: folders that have a `.git` entry
-	 * and that Git opens as the root of a checkout (one Git call each, charged to `budget`), down to `scanMaxDepth` levels (`-1` for no limit), not in the `scanIgnoredFolders` or a `.git` folder, the paths
-	 * `scanRepositories` lists, and, with `detectSubmodules`, the first `detectSubmodulesLimit` submodules that the
-	 * `.gitmodules` file of a found repository (or of `folder` itself, or of a submodule) lists, read as the Git
-	 * extension reads it. Leaves out the `ignoredRepositories` and their submodules. Does not include `folder` itself,
-	 * and does not search inside a found repository except for its submodules, nor follow symbolic links. Returns at most `limit` repositories, in the order they are found, breadth
-	 * first. A submodule or a `scanRepositories` path counts only when it stays inside its repository or `folder` and no
-	 * component of it, nor the `.gitmodules` file, is a symbolic link. Whatever the options, a scan is bounded in depth and in repositories found,
-	 * and every file system call it makes is charged to `budget` (by default, a budget of its own): once that is used
-	 * up, the scan returns what it found.
+	 * The Git repositories in the immediate subfolders of `folder`: each subfolder with a `.git` entry that Git opens as
+	 * the root of a checkout, in name order, at most `limit`. Reads `folder` once, does not follow symbolic links, and
+	 * does not look deeper or inside the repositories it finds.
 	 */
-	findRepositories?(folder: URI, options: IFindRepositoriesOptions, budget?: RepositoryScanBudget): Promise<readonly IFoundRepository[]>;
+	findRepositories?(folder: URI, limit: number): Promise<readonly URI[]>;
 	/** Reads roots and branches in one Git invocation, with unquoted, NUL-delimited paths. Throws if inventory fails. */
 	getWorktrees(workingDirectory: URI): Promise<IAgentHostGitWorktree[]>;
 	/**

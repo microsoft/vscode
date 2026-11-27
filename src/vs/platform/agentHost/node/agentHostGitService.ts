@@ -5,6 +5,7 @@
 
 import * as cp from 'child_process';
 import * as fsPromises from 'fs/promises';
+import type { Dirent } from 'fs';
 import { cp as copyFile } from '@vscode/fs-copyfile';
 import { distinct } from '../../../base/common/arrays.js';
 import { Schemas } from '../../../base/common/network.js';
@@ -21,8 +22,7 @@ import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { FileEditKind, type ISessionFileDiff, type ISessionGitState } from '../common/state/sessionState.js';
 import { buildGitBlobUri } from './gitDiffContent.js';
-import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IAgentHostGitWorktree, IBranch, IBranchDiffSafetyInfo, ICommitOptions, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IGitRemote, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress, IDetachedHead, BaseBranch, parseBaseBranchRef, WorktreeAddError, IAddWorktreeResult, type IFindRepositoriesOptions, type IFoundRepository, RepositoryScanBudget } from '../common/agentHostGitService.js';
-import { parseGitmodules } from '../common/gitmodules.js';
+import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IAgentHostGitWorktree, IBranch, IBranchDiffSafetyInfo, ICommitOptions, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IGitRemote, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress, IDetachedHead, BaseBranch, parseBaseBranchRef, WorktreeAddError, IAddWorktreeResult } from '../common/agentHostGitService.js';
 import { LRUCache } from '../../../base/common/map.js';
 import { isWindows } from '../../../base/common/platform.js';
 import { localize } from '../../../nls.js';
@@ -81,18 +81,6 @@ const GIT_LFS_DISABLED_CONFIG = ['-c', 'filter.lfs.process=', '-c', 'filter.lfs.
 const INDEX_REFRESH_MAX_ATTEMPTS = 5;
 const INDEX_REFRESH_RETRY_DELAY_MS = 200;
 
-/** The deepest a repository scan goes, whatever its options say, as `git.repositoryScanMaxDepth` `-1` has no limit. */
-const MAX_REPOSITORY_SCAN_DEPTH = 10;
-/** The file system calls a repository scan makes at most, unless it is given a budget. */
-const MAX_REPOSITORY_SCAN_PROBES = 10_000;
-/** How long a repository scan runs at most, unless it is given a budget. */
-const REPOSITORY_SCAN_TIMEOUT_MS = 5_000;
-/** The most repositories a scan finds. */
-const MAX_REPOSITORY_SCAN_RESULTS = 64;
-/** The largest `.gitmodules` file a scan reads. */
-const MAX_GITMODULES_BYTES = 64 * 1024;
-/** The most submodules a scan takes from one `.gitmodules` file, whatever `git.detectSubmodulesLimit` says. */
-const MAX_GITMODULES_ENTRIES = 64;
 
 export class AgentHostGitService extends Disposable implements IAgentHostGitService {
 	declare readonly _serviceBrand: undefined;
@@ -387,163 +375,49 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 		return parseGitWorktrees(await this._runGit(workingDirectory, ['worktree', 'list', '--porcelain', '-z']) ?? '').map(worktree => worktree.path);
 	}
 
-	async findRepositories(folder: URI, options: IFindRepositoriesOptions, budget = new RepositoryScanBudget(MAX_REPOSITORY_SCAN_PROBES, Date.now() + REPOSITORY_SCAN_TIMEOUT_MS)): Promise<readonly IFoundRepository[]> {
-		if (folder.scheme !== Schemas.file || options.limit <= 0) {
+	async findRepositories(folder: URI, limit: number): Promise<readonly URI[]> {
+		if (folder.scheme !== Schemas.file || limit <= 0) {
 			return [];
 		}
-		const limit = Math.min(options.limit, MAX_REPOSITORY_SCAN_RESULTS);
-		const maxDepth = options.scanMaxDepth < 0 ? MAX_REPOSITORY_SCAN_DEPTH : Math.min(options.scanMaxDepth, MAX_REPOSITORY_SCAN_DEPTH);
-		const ignored = new Set(options.scanIgnoredFolders.map(name => name.toLowerCase()));
-		const found: IFoundRepository[] = [];
-		const seen = new Set<string>([extUriBiasedIgnorePathCase.getComparisonKey(folder)]);
-		const done = () => found.length >= limit || budget.exhausted;
-		// Every file system call is charged first; one the budget no longer allows, or that fails, finds nothing
-		const probe = async <T>(run: () => Promise<T>): Promise<T | undefined> => budget.charge() ? run().catch(() => undefined) : undefined;
-		const hasGitEntry = async (directory: string) => !!await probe(() => fsPromises.lstat(path.join(directory, '.git')));
-		// A `.git` entry is a repository only when Git opens a checkout rooted there, as Source Control asks Git for the
-		// root before it opens one: not an empty or broken marker, nor one Git skips for an enclosing checkout
-		const isCheckoutRoot = async (directory: string) => {
-			const cdup = await probe(() => this._runGit(URI.file(directory), ['rev-parse', '--show-cdup'], { throwOnError: true, env: { LC_ALL: 'C' } }));
-			if (cdup?.trim() === '') {
-				return true;
-			}
-			// For example a checkout Git refuses as unsafe (`safe.directory`), which Source Control lists as such
-			this._logService.trace(`[AgentHostGitService] Skipping ${directory}: it has a .git entry, but Git ${cdup === undefined ? 'did not open it (an error, or the scan reached its bounds)' : 'opens an enclosing checkout'}`);
-			return false;
-		};
-		const isRepository = async (directory: string) => await hasGitEntry(directory) && await isCheckoutRoot(directory);
-		const isPlainDirectory = async (directory: string) => {
-			const stat = await probe(() => fsPromises.lstat(directory));
-			return !!stat && stat.isDirectory() && !stat.isSymbolicLink();
-		};
-		const ignoredRoots = new Set(options.ignoredRepositories.map(root => extUriBiasedIgnorePathCase.getComparisonKey(root)));
-		const isIgnored = (root: URI) => ignoredRoots.has(extUriBiasedIgnorePathCase.getComparisonKey(root));
-		const add = (root: URI, kind: IFoundRepository['kind']) => {
-			const key = extUriBiasedIgnorePathCase.getComparisonKey(root);
-			if (found.length < limit && !seen.has(key)) {
-				seen.add(key);
-				found.push({ root, kind });
-			}
-		};
-		// The components of `relativePath`, when it stays inside its folder and names no `.git` folder (in any case, as
-		// on a case-insensitive file system), which the scan never enters
-		const relativeParts = (relativePath: string) => {
-			const parts = !path.isAbsolute(relativePath) ? relativePath.split(/[\\/]/).filter(part => part && part !== '.') : [];
-			return parts.length && !parts.some(part => part === '..' || part.toLowerCase() === '.git') ? parts : undefined;
-		};
-		// The plain folder at `parts` inside `parent`, when no component of it is a symbolic link
-		const containedFolder = async (parent: string, parts: readonly string[]) => {
-			let candidate = parent;
-			for (const part of parts) {
-				candidate = path.join(candidate, part);
-				if (!await isPlainDirectory(candidate)) {
-					return undefined;
-				}
-			}
-			return candidate;
-		};
-		// A negative `git.detectSubmodulesLimit` takes none
-		const submodulesLimit = Math.max(0, Math.min(options.detectSubmodulesLimit, MAX_GITMODULES_ENTRIES));
-		// The least submodule depth each repository's `.gitmodules` was read at: a repository found again, by another
-		// declaration, the subfolder scan or a scanned path, is not read again unless it is now less deep
-		const expanded = new Map<string, number>();
-		// The submodules of `repository`, and theirs, as Source Control opens them
-		const addSubmodules = async (repository: URI, depth = 0): Promise<void> => {
-			const key = extUriBiasedIgnorePathCase.getComparisonKey(repository);
-			const expandedDepth = expanded.get(key);
-			if (!options.detectSubmodules || !submodulesLimit || done() || depth > MAX_REPOSITORY_SCAN_DEPTH || (expandedDepth !== undefined && expandedDepth <= depth)) {
-				return;
-			}
-			expanded.set(key, depth);
-			const file = path.join(repository.fsPath, '.gitmodules');
-			const stat = await probe(() => fsPromises.lstat(file));
-			if (!stat || !stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_GITMODULES_BYTES) {
-				return;
-			}
-			const content = await probe(() => fsPromises.readFile(file, 'utf8'));
-			for (const submodule of parseGitmodules(content ?? '').slice(0, submodulesLimit)) {
-				if (done()) {
-					return;
-				}
-				const parts = relativeParts(submodule.path);
-				if (!parts) {
-					continue;
-				}
-				// A repository already found needs no probes
-				const known = URI.file(path.join(repository.fsPath, ...parts));
-				if (seen.has(extUriBiasedIgnorePathCase.getComparisonKey(known))) {
-					await addSubmodules(known, depth + 1);
-					continue;
-				}
-				const candidate = await containedFolder(repository.fsPath, parts);
-				if (candidate && await isRepository(candidate)) {
-					const root = URI.file(candidate);
-					if (!isIgnored(root)) {
-						add(root, 'submodule');
-						await addSubmodules(root, depth + 1);
-					}
-				}
-			}
-		};
-		const addRepository = async (root: URI) => {
-			if (!isIgnored(root)) {
-				add(root, 'nested');
-				await addSubmodules(root);
-			}
-		};
-		await addSubmodules(folder);
-		let level: URI[] = [folder];
-		for (let depth = 1; level.length && depth <= maxDepth && !done(); depth++) {
-			const next: URI[] = [];
-			for (const parent of level) {
-				if (done()) {
-					break;
-				}
-				const entries = await probe(() => fsPromises.readdir(parent.fsPath, { withFileTypes: true }));
-				for (const entry of entries?.sort((a, b) => a.name.localeCompare(b.name)) ?? []) {
-					if (done()) {
-						break;
-					}
-					// A symbolic link is not a directory entry here, so links are not followed
-					if (!entry.isDirectory() || entry.name.toLowerCase() === '.git' || ignored.has(entry.name.toLowerCase())) {
-						continue;
-					}
-					const child = URI.file(path.join(parent.fsPath, entry.name));
-					if (await hasGitEntry(child.fsPath)) {
-						// A folder with a `.git` entry is not searched further, whether or not it is a repository
-						if (await isCheckoutRoot(child.fsPath)) {
-							await addRepository(child);
-						}
-					} else if (depth < maxDepth && next.length < budget.remaining) {
-						// Only folders the scan can still read are queued
-						next.push(child);
-					}
-				}
-			}
-			level = next;
+		let entries: Dirent[];
+		try {
+			entries = await fsPromises.readdir(folder.fsPath, { withFileTypes: true });
+		} catch {
+			return [];
 		}
-		// The paths `git.scanRepositories` lists, as Source Control checks them besides the subfolders
-		const scannedPaths = new Set<string>();
-		for (const scanPath of options.scanRepositories) {
-			if (done()) {
+		const found: URI[] = [];
+		for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+			if (found.length >= limit) {
 				break;
 			}
-			const parts = relativeParts(scanPath);
-			const key = parts && extUriBiasedIgnorePathCase.getComparisonKey(URI.file(path.join(folder.fsPath, ...parts)));
-			// A path listed twice, or a repository the scan already found, is not probed again
-			if (!key || scannedPaths.has(key) || seen.has(key)) {
+			// A symbolic link is not a directory entry here, so links are not followed
+			if (!entry.isDirectory() || entry.name.toLowerCase() === '.git') {
 				continue;
 			}
-			scannedPaths.add(key);
-			const candidate = await containedFolder(folder.fsPath, parts);
-			if (candidate && await isRepository(candidate)) {
-				await addRepository(URI.file(candidate));
+			const child = path.join(folder.fsPath, entry.name);
+			if (await this._isCheckoutRoot(child)) {
+				found.push(URI.file(child));
 			}
 		}
-		if (budget.exhausted && found.length < limit) {
-			this._logService.info(`[AgentHostGitService] Stopped finding the repositories of ${folder.toString()} after ${budget.used} file system calls: the scan reached its bounds`);
-		}
 		return found;
+	}
+
+	/**
+	 * Whether `directory` has a `.git` entry and Git opens a checkout rooted there: not an empty or broken marker, nor one
+	 * Git skips for an enclosing checkout or refuses as unsafe (`safe.directory`).
+	 */
+	private async _isCheckoutRoot(directory: string): Promise<boolean> {
+		try {
+			await fsPromises.lstat(path.join(directory, '.git'));
+		} catch {
+			return false;
+		}
+		const cdup = await this._runGit(URI.file(directory), ['rev-parse', '--show-cdup'], { throwOnError: true, env: { LC_ALL: 'C' } }).catch(() => undefined);
+		if (cdup?.trim() === '') {
+			return true;
+		}
+		this._logService.trace(`[AgentHostGitService] Skipping ${directory}: it has a .git entry, but Git ${cdup === undefined ? 'did not open it' : 'opens an enclosing checkout'}`);
+		return false;
 	}
 
 	async getWorktrees(workingDirectory: URI): Promise<IAgentHostGitWorktree[]> {

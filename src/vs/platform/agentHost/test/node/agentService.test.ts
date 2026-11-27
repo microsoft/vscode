@@ -7811,27 +7811,6 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('a client sets the repository detection options of the session\'s folders', async () => {
-			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			const agent = new MockAgent('copilot');
-			disposables.add(toDisposable(() => agent.dispose()));
-			registerTestAgentProvider(svc, agent);
-			const atCreate = { 'file:///work': { scanSubfolders: false, scanMaxDepth: 1, scanIgnoredFolders: [], detectSubmodules: true } };
-			const session = await svc.createSession({ legacyChatUris: true, provider: 'copilot', config: { [SessionConfigKey.RepositoryDetection]: atCreate } });
-			const created = getStateManager(svc).getSessionState(session.toString())?.config?.values[SessionConfigKey.RepositoryDetection];
-			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
-			const changed = { 'file:///work': { scanSubfolders: true, scanMaxDepth: 1, scanIgnoredFolders: ['node_modules'], detectSubmodules: true } };
-
-			svc.dispatchAction(session.toString(), { type: ActionType.SessionConfigChanged, config: { [SessionConfigKey.RepositoryDetection]: changed } }, 'agents-window-client', 1, AgentHostClientType.AgentsWindow);
-			const envelope = await envelopePromise;
-
-			assert.deepStrictEqual({
-				created,
-				rejectionReason: envelope.rejectionReason,
-				value: getStateManager(svc).getSessionState(session.toString())?.config?.values[SessionConfigKey.RepositoryDetection],
-			}, { created: atCreate, rejectionReason: undefined, value: changed });
-		});
-
 		test('rejects client writes to host-owned Agent Merge controller state', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = new MockAgent('copilot');

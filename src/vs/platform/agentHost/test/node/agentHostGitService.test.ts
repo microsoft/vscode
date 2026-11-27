@@ -13,7 +13,7 @@ import { AgentHostGitService, canRestageOntoIndexCopy, formatGitError, getWorktr
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isWindows } from '../../../../base/common/platform.js';
-import { Branch, EMPTY_TREE_OBJECT, getBaseBranchLabel, getBranchCompletions, GitRefType, IRefQuery, parseBaseBranchRef, RepositoryScanBudget, type IFindRepositoriesOptions } from '../../common/agentHostGitService.js';
+import { Branch, EMPTY_TREE_OBJECT, getBaseBranchLabel, getBranchCompletions, GitRefType, IRefQuery, parseBaseBranchRef } from '../../common/agentHostGitService.js';
 import { needsSessionGitStateRefresh } from '../../common/state/sessionState.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
@@ -365,197 +365,53 @@ suite('AgentHostGitService', () => {
 
 		const initRepository = (folder: string, ...args: string[]) => new Promise<void>((resolve, reject) => execFile('git', ['init', '-q', ...args, folder], error => error ? reject(error) : resolve()));
 
-		async function makeFolder(relative: string, options?: { readonly repository?: boolean; readonly gitFile?: boolean; readonly gitmodules?: readonly string[] }): Promise<void> {
+		async function makeFolder(relative: string, options?: { readonly repository?: boolean; readonly gitFile?: boolean }): Promise<void> {
 			const folder = join(root, relative);
 			await fsPromises.mkdir(folder, { recursive: true });
 			if (options?.repository) {
 				await initRepository(folder);
 			}
 			if (options?.gitFile) {
-				// A submodule's or worktree's `.git` is a file pointing at its Git directory
+				// A worktree's or submodule's `.git` is a file pointing at its Git directory
 				await initRepository(folder, `--separate-git-dir=${join(gitDirs, relative.replace(/[\\/.]/g, '_') || 'root')}`);
 			}
-			if (options?.gitmodules) {
-				await fsPromises.writeFile(join(folder, '.gitmodules'), options.gitmodules.map(path => `[submodule "${path.replaceAll('"', '')}"]\n\tpath = ${path}\n\turl = https://example.test/${path.replaceAll('"', '')}\n`).join(''));
-			}
 		}
 
-		function find(options: Partial<IFindRepositoriesOptions>, budget?: RepositoryScanBudget): Promise<string[]> {
+		async function find(limit = 16, folder = root): Promise<string[]> {
 			const git = store.add(new AgentHostGitService(...gitArguments()));
-			return git.findRepositories(URI.file(root), { scanMaxDepth: 1, scanIgnoredFolders: ['node_modules'], scanRepositories: [], ignoredRepositories: [], detectSubmodules: true, detectSubmodulesLimit: 10, limit: 16, ...options }, budget)
-				.then(found => found.map(repository => `${repository.kind} ${relative(root, repository.root.fsPath).split(sep).join('/')}`));
+			return (await git.findRepositories(URI.file(folder), limit)).map(repository => relative(root, repository.fsPath).split(sep).join('/'));
 		}
 
-		test('charges every file system call to its budget and stops where the budget ends', async () => {
-			await makeFolder('a', { repository: true });
-			await makeFolder('b/c');
-			const scan = async (probes: number) => {
-				const budget = new RepositoryScanBudget(probes, Number.MAX_SAFE_INTEGER);
-				return { found: await find({ scanMaxDepth: 2, detectSubmodules: false }, budget), used: budget.used };
-			};
-
-			assert.deepStrictEqual({ full: await scan(100), short: await scan(3) }, {
-				// readdir of the folder, .git of a, Git's check of a, .git of b, readdir of b, .git of b/c
-				full: { found: ['nested a'], used: 6 },
-				short: { found: ['nested a'], used: 3 },
-			});
-		});
-
-		test('takes a submodule path written with backslashes, but none outside the repository or absolute', async () => {
-			await makeFolder('.', { repository: true, gitmodules: ['libs\\core', '../outside', '/etc/absolute', 'libs/../../escape'] });
-			await makeFolder('libs/core', { gitFile: true });
-
-			assert.deepStrictEqual(await find({ scanMaxDepth: 0 }), ['submodule libs/core']);
-		});
-
-		test('takes a submodule path written in quotes', async () => {
-			await makeFolder('.', { repository: true, gitmodules: ['"libs/core"'] });
-			await makeFolder('libs/core', { gitFile: true });
-
-			assert.deepStrictEqual(await find({ scanMaxDepth: 0 }), ['submodule libs/core']);
-		});
-
-		test('takes no submodule through a symbolic link, nor from a .gitmodules file that is one', async () => {
-			await makeFolder('elsewhere/core', { repository: true });
-			await makeFolder('linked', { repository: true, gitmodules: ['libs/core'] });
-			await fsPromises.symlink(join(root, 'elsewhere'), join(root, 'linked', 'libs'), 'dir');
-			await makeFolder('modules', { repository: true });
-			await makeFolder('modules/core', { gitFile: true });
-			await makeFolder('real', { gitmodules: ['core'] });
-			await fsPromises.symlink(join(root, 'real', '.gitmodules'), join(root, 'modules', '.gitmodules'));
-
-			assert.deepStrictEqual(await find({ scanIgnoredFolders: ['elsewhere', 'real'] }), ['nested linked', 'nested modules']);
-		});
-
-		test('finds the repositories of the subfolders as source control does', async () => {
-			await makeFolder('vscode', { repository: true, gitmodules: ['extensions/lib'] });
-			await makeFolder('vscode/extensions/lib', { gitFile: true });
-			// Not searched inside a found repository, except for its submodules
-			await makeFolder('vscode/nested', { repository: true });
-			await makeFolder('vscode-docs', { repository: true });
-			await makeFolder('node_modules/package', { repository: true });
+		test('finds the repositories in the immediate subfolders, in name order, up to the limit', async () => {
+			await makeFolder('lib', { repository: true });
+			await makeFolder('app', { gitFile: true });
+			// Not looked into: deeper folders, and the inside of a found repository
 			await makeFolder('group/deep', { repository: true });
+			await makeFolder('app/nested', { repository: true });
 			await makeFolder('notes');
 
-			assert.deepStrictEqual({
-				depth1: await find({}),
-				depth2: await find({ scanMaxDepth: 2 }),
-				unlimited: await find({ scanMaxDepth: -1, detectSubmodules: false }),
-				noIgnored: await find({ scanMaxDepth: 2, scanIgnoredFolders: [], detectSubmodules: false }),
-				onlySubmodules: await find({ scanMaxDepth: 0 }),
-				capped: await find({ limit: 1 }),
-			}, {
-				depth1: ['nested vscode', 'submodule vscode/extensions/lib', 'nested vscode-docs'],
-				depth2: ['nested vscode', 'submodule vscode/extensions/lib', 'nested vscode-docs', 'nested group/deep'],
-				unlimited: ['nested vscode', 'nested vscode-docs', 'nested group/deep'],
-				noIgnored: ['nested vscode', 'nested vscode-docs', 'nested group/deep', 'nested node_modules/package'],
-				onlySubmodules: [],
-				capped: ['nested vscode'],
-			});
-		});
-
-		test('bounds a scan without a depth limit, and does not follow symbolic links', async () => {
-			await makeFolder('a/b/c/repo3', { repository: true });
-			await makeFolder('1/2/3/4/5/6/7/8/9/10/11/repo12', { repository: true });
-			await makeFolder('elsewhere/linked', { repository: true });
-			await fsPromises.symlink(join(root, 'elsewhere'), join(root, 'link'), 'dir');
-
-			assert.deepStrictEqual(await find({ scanMaxDepth: -1, scanIgnoredFolders: ['elsewhere'] }), ['nested a/b/c/repo3']);
-		});
-
-		test('takes a folder with a .git entry only when Git opens a checkout rooted there', async () => {
-			await makeFolder('.', { repository: true, gitmodules: ['libs/empty', 'libs/broken', 'libs/core'] });
-			await makeFolder('libs/core', { gitFile: true });
-			// An empty `.git` folder, which Git skips for the enclosing checkout, and a broken `.git` file
-			await fsPromises.mkdir(join(root, 'libs/empty/.git'), { recursive: true });
-			await fsPromises.mkdir(join(root, 'libs/broken'), { recursive: true });
-			await fsPromises.writeFile(join(root, 'libs/broken/.git'), 'gitdir: ../missing');
-			await makeFolder('valid', { repository: true });
-			await fsPromises.mkdir(join(root, 'stale/.git'), { recursive: true });
-
-			assert.deepStrictEqual(await find({ scanRepositories: ['libs/empty', 'libs/broken'] }), ['submodule libs/core', 'nested valid']);
-		});
-
-		test('takes the first submodules up to the limit, as Source Control opens them, and the submodules of submodules', async () => {
-			await makeFolder('.', { repository: true, gitmodules: ['a', 'b', 'c'] });
-			await makeFolder('a', { gitFile: true, gitmodules: ['inner'] });
-			await makeFolder('a/inner', { gitFile: true });
-			await makeFolder('b', { gitFile: true });
-			await makeFolder('c', { gitFile: true });
-
-			assert.deepStrictEqual({
-				limited: await find({ scanMaxDepth: 0, detectSubmodulesLimit: 2 }),
-				none: await find({ scanMaxDepth: 0, detectSubmodulesLimit: 0 }),
-			}, {
-				limited: ['submodule a', 'submodule a/inner', 'submodule b'],
+			assert.deepStrictEqual({ found: await find(), capped: await find(1), none: await find(0) }, {
+				found: ['app', 'lib'],
+				capped: ['app'],
 				none: [],
 			});
 		});
 
-		test('checks the scanRepositories paths inside the folder, and leaves out ignored repositories and their submodules', async () => {
-			await makeFolder('deep/er/repo', { repository: true });
-			await makeFolder('skipped', { repository: true, gitmodules: ['lib'] });
-			await makeFolder('skipped/lib', { gitFile: true });
-			await makeFolder('kept', { repository: true });
+		test('takes a subfolder with a .git entry only when Git opens a checkout rooted there, and follows no symbolic link', async () => {
+			// An empty `.git` folder and a broken `.git` file, which Git does not open
+			await fsPromises.mkdir(join(root, 'empty/.git'), { recursive: true });
+			await fsPromises.mkdir(join(root, 'broken'), { recursive: true });
+			await fsPromises.writeFile(join(root, 'broken/.git'), 'gitdir: ../missing');
+			await makeFolder('valid', { repository: true });
+			await fsPromises.mkdir(gitDirs + '/linked-repository', { recursive: true });
+			await initRepository(join(gitDirs, 'linked-repository'));
+			await fsPromises.symlink(join(gitDirs, 'linked-repository'), join(root, 'link'), 'dir');
 
-			assert.deepStrictEqual(await find({
-				scanRepositories: ['deep/er/repo', '.git', '/etc', '../outside'],
-				ignoredRepositories: [URI.file(join(root, 'skipped'))],
-			}), ['nested kept', 'nested deep/er/repo']);
+			assert.deepStrictEqual(await find(), ['valid']);
 		});
 
-		test('never enters a .git folder, by a submodule path or a scanned path, in any case', async () => {
-			await makeFolder('.', { repository: true, gitmodules: ['.git/inner', './.GIT/inner'] });
-			// A repository inside the folder's Git metadata
-			await makeFolder('.git/inner', { repository: true });
-
-			assert.deepStrictEqual(await find({ scanRepositories: ['.git/inner', './.git/inner', '.GIT/inner', '.git'] }), []);
-		});
-
-		test('takes no submodule for a negative limit, and at most 64 from one file whatever the limit', async () => {
-			const paths = Array.from({ length: 70 }, (_, index) => `libs/m${String(index).padStart(2, '0')}`);
-			await makeFolder('.', { repository: true, gitmodules: paths });
-			for (const path of paths) {
-				await makeFolder(path, { gitFile: true });
-			}
-
-			assert.deepStrictEqual({
-				negative: await find({ scanMaxDepth: 0, detectSubmodulesLimit: -1 }),
-				large: (await find({ scanMaxDepth: 0, detectSubmodulesLimit: 100, limit: 100 })).length,
-			}, { negative: [], large: 64 });
-		});
-
-		test('reads the .gitmodules of a repository found more than once, and probes a scanned path listed twice, only once', async () => {
-			const scan = async (gitmodules: readonly string[], scanRepositories: readonly string[]) => {
-				await fsPromises.rm(root, { recursive: true, force: true });
-				await makeFolder('.', { repository: true, gitmodules });
-				await makeFolder('lib', { gitFile: true, gitmodules: ['inner'] });
-				await makeFolder('lib/inner', { gitFile: true });
-				await makeFolder('tools');
-				const budget = new RepositoryScanBudget(1_000, Number.MAX_SAFE_INTEGER);
-				return { found: await find({ scanMaxDepth: 0, scanRepositories }, budget), used: budget.used };
-			};
-			const once = await scan(['lib'], ['tools']);
-			const repeated = await scan(['lib', 'lib', './lib'], ['tools', 'tools', 'lib', './lib']);
-
-			assert.deepStrictEqual(repeated, once);
-		});
-
-		test('a folder that is a repository itself lists its submodules and the repositories nested in it', async () => {
-			await makeFolder('.', { repository: true, gitmodules: ['libs/core', '../outside'] });
-			await makeFolder('libs/core', { gitFile: true });
-			await makeFolder('tools', { repository: true });
-
-			assert.deepStrictEqual({
-				withSubmodules: await find({ scanMaxDepth: 0 }),
-				withoutSubmodules: await find({ scanMaxDepth: 0, detectSubmodules: false }),
-				scanned: await find({}),
-			}, {
-				// A submodule path leaving the repository is not followed
-				withSubmodules: ['submodule libs/core'],
-				withoutSubmodules: [],
-				scanned: ['submodule libs/core', 'nested tools'],
-			});
+		test('finds nothing in a folder it cannot read', async () => {
+			assert.deepStrictEqual(await find(16, join(root, 'missing')), []);
 		});
 	});
 

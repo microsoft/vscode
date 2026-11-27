@@ -4,75 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * How a session folder's Git repositories are found, from that folder's `git.autoRepositoryDetection`,
- * `git.repositoryScanMaxDepth`, `git.repositoryScanIgnoredFolders`, `git.scanRepositories`, `git.ignoredRepositories`,
- * `git.detectSubmodules` and `git.detectSubmodulesLimit` settings, as Source Control finds them. A client sends them in
- * the session's `repositoryDetection` configuration, by working-directory key. Without options for a folder, only the
- * folder's own repository is used.
- */
-export interface IRepositoryDetectionOptions {
-	/** Whether repositories in the folder's subfolders are found (`git.autoRepositoryDetection` `true` or `subFolders`). */
-	readonly scanSubfolders: boolean;
-	/** How many folder levels below the folder are scanned (`git.repositoryScanMaxDepth`); `-1` for no limit. */
-	readonly scanMaxDepth: number;
-	/** Folder names that are not scanned (`git.repositoryScanIgnoredFolders`). */
-	readonly scanIgnoredFolders: readonly string[];
-	/** Whether the submodules of a found repository are repositories too (`git.detectSubmodules`). */
-	readonly detectSubmodules: boolean;
-	/** How many submodules of one repository are repositories too (`git.detectSubmodulesLimit`); 10 when absent, none when negative. */
-	readonly detectSubmodulesLimit?: number;
-	/**
-	 * Paths, relative to the folder, that are checked for a repository too when subfolders are scanned
-	 * (`git.scanRepositories`). Absolute paths and `.git` are ignored, as Source Control ignores them.
-	 */
-	readonly scanRepositories?: readonly string[];
-	/**
-	 * Repositories that are not used (`git.ignoredRepositories`): an absolute path is a repository root, a relative one
-	 * is resolved against each session folder. A folder's own repository is always used.
-	 */
-	readonly ignoredRepositories?: readonly string[];
-}
-
-/** Source Control's default `git.detectSubmodulesLimit`. */
-export const DEFAULT_DETECT_SUBMODULES_LIMIT = 10;
-
-function isStringArray(value: unknown): value is readonly string[] {
-	return Array.isArray(value) && value.every(item => typeof item === 'string');
-}
-
-/** Reads the options of each folder from the session's `repositoryDetection` configuration value, dropping malformed entries. */
-export function readRepositoryDetectionOptions(value: unknown): Readonly<Record<string, IRepositoryDetectionOptions>> {
-	if (!value || typeof value !== 'object' || Array.isArray(value)) {
-		return {};
-	}
-	const result: Record<string, IRepositoryDetectionOptions> = {};
-	for (const [folderKey, options] of Object.entries(value)) {
-		if (!options || typeof options !== 'object') {
-			continue;
-		}
-		const { scanSubfolders, scanMaxDepth, scanIgnoredFolders, detectSubmodules, detectSubmodulesLimit, scanRepositories, ignoredRepositories } = options as Record<string, unknown>;
-		// The fields a client of an earlier version does not send are optional
-		if (typeof scanSubfolders === 'boolean' && typeof scanMaxDepth === 'number' && Number.isInteger(scanMaxDepth) && typeof detectSubmodules === 'boolean'
-			&& isStringArray(scanIgnoredFolders)
-			&& (detectSubmodulesLimit === undefined || typeof detectSubmodulesLimit === 'number' && Number.isInteger(detectSubmodulesLimit))
-			&& (scanRepositories === undefined || isStringArray(scanRepositories))
-			&& (ignoredRepositories === undefined || isStringArray(ignoredRepositories))) {
-			result[folderKey] = {
-				scanSubfolders, scanMaxDepth, scanIgnoredFolders, detectSubmodules,
-				...(detectSubmodulesLimit !== undefined ? { detectSubmodulesLimit } : {}),
-				...(scanRepositories !== undefined ? { scanRepositories } : {}),
-				...(ignoredRepositories !== undefined ? { ignoredRepositories } : {}),
-			};
-		}
-	}
-	return result;
-}
-
-/**
  * VS Code-owned session metadata listing the Git repositories the host found for each session folder, by
- * working-directory key: the folder's own repository first, when it is in one, then the repositories nested in it and
- * their submodules, as its {@link IRepositoryDetectionOptions} say. Absent metadata, from another or an older host,
- * means each folder is its own repository.
+ * working-directory key: the folder's own repository, when it is in one, or else the repositories in its immediate
+ * subfolders (for example `app` and `lib` in a `work` folder). The host records it only when a folder has such nested
+ * repositories. Absent metadata, from another or an older host, means each folder is its own repository.
  *
  * Where each repository's Git state is: a folder's own repository (`folder`) has the folder's Git state, under the
  * folder's working directory (the session's Git state for its first folder), also when its root is above the folder;
@@ -81,7 +16,7 @@ export function readRepositoryDetectionOptions(value: unknown): Readonly<Record<
 export const VSCODE_SESSION_REPOSITORIES_META_KEY = 'vscode.sessionRepositories';
 
 /** How a repository was found; see {@link ISessionRepositoryEntry}. */
-export type SessionRepositoryEntryKind = 'folder' | 'nested' | 'submodule';
+export type SessionRepositoryEntryKind = 'folder' | 'nested';
 
 /** A repository of a session folder. */
 export interface ISessionRepositoryEntry {
@@ -92,7 +27,7 @@ export interface ISessionRepositoryEntry {
 
 const MAX_FOLDERS = 64;
 const MAX_REPOSITORIES = 64;
-const KINDS: ReadonlySet<string> = new Set<SessionRepositoryEntryKind>(['folder', 'nested', 'submodule']);
+const KINDS: ReadonlySet<string> = new Set<SessionRepositoryEntryKind>(['folder', 'nested']);
 
 /** Reads the repositories of each folder; `undefined` when the host has not said, including for a malformed value. */
 export function readSessionRepositories(meta: Record<string, unknown> | undefined): Readonly<Record<string, readonly ISessionRepositoryEntry[]>> | undefined {

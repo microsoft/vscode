@@ -39,11 +39,6 @@ export const enum SessionConfigKey {
 	WorktreeSymlinkFolders = 'worktreeSymlinkFolders',
 	/** `'pullRequestUrl'` — host-owned pull request the session is created from; implies worktree isolation. */
 	PullRequestUrl = 'pullRequestUrl',
-	/**
-	 * `'repositoryDetection'` — client-owned options for finding the Git repositories of each session folder, by
-	 * working-directory key, from the folder's Git settings; see `IRepositoryDetectionOptions`.
-	 */
-	RepositoryDetection = 'repositoryDetection',
 	/** `'agentMerge'` — client-owned Agent Merge enablement and session overrides. */
 	AgentMerge = 'agentMerge',
 	/** `'agentMerge.controller'` — host-owned Agent Merge lifecycle state. */
