@@ -661,6 +661,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private _delegate!: SessionsTreeDelegate;
 	/** The top-level headers with a gap above them, by id: with groups and workspaces separate, each but the first. */
 	private _spacedHeaderIds: ReadonlySet<string> = new Set();
+	/** The top-level headers shown as muted labels with a compact twistie, by id: with groups and workspaces separate, all of them. */
+	private _mutedHeaderIds: ReadonlySet<string> = new Set();
 	/** Approval model tracking pending tool confirmations across the shown chats. */
 	private _approvalModel!: AgentSessionApprovalModel;
 	private _sessionRenderer!: SessionItemRenderer;
@@ -1089,6 +1091,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			(entry, reader) => this.customViewService.activeCustomView.read(reader)?.id === PINNED_CANVAS_PAGE_ID
 				&& this.options.pinnedCanvases?.selected.read(reader) === entry,
 			section => this._spacedHeaderIds.has(section.id),
+			section => this._mutedHeaderIds.has(section.id),
 		);
 		const sectionRenderer = createSectionRenderer(undefined, 'session-list-section-row');
 		const shortcutSectionRenderer = createSectionRenderer(SESSION_SHORTCUT_SECTION_TEMPLATE_ID, 'session-list-shortcut-row');
@@ -2759,6 +2762,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// With groups and workspaces separate, the top-level headers are muted labels, each but the first with a gap above it
 		this.listContainer.classList.toggle('separate-groups-and-workspaces', separateGroupsAndWorkspaces);
 		const previousSpacedHeaderIds = this._spacedHeaderIds;
+		const previousMutedHeaderIds = this._mutedHeaderIds;
+		const topLevelHeaderIds = separateGroupsAndWorkspaces
+			? attachedChildren.map(child => child.element).filter((element): element is ISessionSection => isSessionSection(element) && !isShortcutSection(element.id)).map(section => section.id)
+			: [];
+		this._mutedHeaderIds = new Set(topLevelHeaderIds);
 		this._spacedHeaderIds = new Set(separateGroupsAndWorkspaces
 			? attachedChildren.slice(1).map(child => child.element).filter((element): element is ISessionSection => isSessionSection(element) && !isShortcutSection(element.id)).map(section => section.id)
 			: []);
@@ -2767,7 +2775,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.tree.setChildren(null, attachedChildren);
 		// A header that keeps its identity keeps its height, so measure the headers again when the gaps move
 		for (const child of attachedChildren) {
-			if (isSessionSection(child.element) && previousSpacedHeaderIds.has(child.element.id) !== this._spacedHeaderIds.has(child.element.id) && this.tree.hasElement(child.element)) {
+			if (isSessionSection(child.element) && (previousSpacedHeaderIds.has(child.element.id) !== this._spacedHeaderIds.has(child.element.id) || previousMutedHeaderIds.has(child.element.id) !== this._mutedHeaderIds.has(child.element.id)) && this.tree.hasElement(child.element)) {
 				this.tree.updateElementHeight(child.element, this._delegate.getHeight(child.element));
 				this.tree.rerender(child.element);
 			}

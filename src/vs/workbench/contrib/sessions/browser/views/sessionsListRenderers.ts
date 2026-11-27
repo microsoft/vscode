@@ -2452,6 +2452,8 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		private readonly isPinnedCanvasActive: (entry: IPinnedCanvas, reader: IReader) => boolean = () => false,
 		/** Whether the header has a gap above it; see {@link SESSION_SPACED_HEADER_CLASS}. */
 		private readonly isSpacedHeader: (section: ISessionSection) => boolean = () => false,
+		/** Whether the header is a muted label with a compact twistie, such as the top-level headers with groups and workspaces separate. */
+		private readonly isMutedHeader: (section: ISessionSection) => boolean = () => false,
 	) { }
 
 	renderTemplate(container: HTMLElement): ISessionSectionTemplate {
@@ -2649,7 +2651,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			}));
 		}
 
-		this.updateChevron(template, collapsible, collapsed);
+		this.updateChevron(template, collapsible, collapsed, this.isMutedHeader(element));
 
 		if (element.id === AUTOMATIONS_SECTION_ID) {
 			template.elementDisposables.add(markOnboardingTarget(template.container, 'sessions.automations.entry'));
@@ -2753,7 +2755,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 	updateCollapseState(element: ISessionSection, collapsible: boolean, collapsed: boolean): void {
 		for (const [template, renderedElement] of this.renderedSections) {
 			if (renderedElement === element) {
-				this.updateChevron(template, collapsible, collapsed);
+				this.updateChevron(template, collapsible, collapsed, this.isMutedHeader(element));
 			}
 		}
 	}
@@ -2794,12 +2796,14 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		})));
 	}
 
-	private updateChevron(template: ISessionSectionTemplate, collapsible: boolean, collapsed: boolean): void {
+	private updateChevron(template: ISessionSectionTemplate, collapsible: boolean, collapsed: boolean, compact: boolean): void {
 		template.collapsed.set(collapsible && collapsed, undefined);
 		template.chevron.className = 'session-section-chevron';
 		if (collapsible) {
 			template.chevron.classList.add('collapsible');
-			const icon = collapsed ? Codicon.chevronRight : Codicon.chevronDown;
+			const icon = compact
+				? collapsed ? Codicon.chevronRightCompact : Codicon.chevronDownCompact
+				: collapsed ? Codicon.chevronRight : Codicon.chevronDown;
 			template.chevron.classList.add(...ThemeIcon.asClassNameArray(icon));
 		}
 	}

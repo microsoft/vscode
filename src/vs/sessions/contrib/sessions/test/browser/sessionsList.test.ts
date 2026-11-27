@@ -4531,6 +4531,20 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual(menus.map(menu => menu.filter(label => label.startsWith('Open'))), [['Open in Editor Window']]);
 		});
 
+		test('the top-level headers, and only those, take the compact twistie while groups and workspaces are separate', () => {
+			let separate = true;
+			const { list, container } = render(undefined, undefined, () => separate);
+			const twisties = () => [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].flatMap(row => {
+				const chevron = row.querySelector('.session-section-chevron.collapsible');
+				return chevron ? [`${row.getAttribute('aria-level')} ${chevron.classList.contains('codicon-chevron-down-compact') ? 'compact' : chevron.classList.contains('codicon-chevron-down') ? 'base' : 'other'}`] : [];
+			});
+			const on = [...new Set(twisties())];
+			separate = false;
+			list.update();
+
+			assert.deepStrictEqual({ on, off: [...new Set(twisties())] }, { on: ['1 compact', '2 base', '3 base'], off: ['1 base', '2 base'] });
+		});
+
 		test('the row of a workspace without sessions offers no New Session, which would have no session to start like', () => {
 			const empty: IRecentSessionWorkspace = { uri: URI.file('/user/AgentsWorkspaces/Empty.code-workspace'), name: 'Empty', folders: [URI.file('/work/notes')], owned: true };
 			const menus: string[][] = [];
