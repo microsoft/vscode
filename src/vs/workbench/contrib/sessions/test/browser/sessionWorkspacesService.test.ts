@@ -27,6 +27,7 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IRecentlyOpened, IWorkspacesService } from '../../../../../platform/workspaces/common/workspaces.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { ISessionsRecentWorkspacesService, IVSCodeRecentWorkspaceFile } from '../../browser/sessionsRecentWorkspacesService.js';
 import { SessionWorkspacesContextKeys } from '../../browser/sessionWorkspacesContextKeys.js';
@@ -45,13 +46,16 @@ suite('SessionWorkspacesService', () => {
 
 	/**
 	 * A file service whose moves wait for {@link moveBarrier}, to run other work in the middle of a rename, that runs
-	 * {@link beforeStat} before a stat, {@link afterRead} after a read, and whose deletes fail with {@link deleteError}.
+	 * {@link beforeStat} before a stat, {@link beforeRead} before and {@link afterRead} after a read, and
+	 * {@link beforeDelete} before a delete, and whose deletes fail with {@link deleteError}.
 	 */
 	class DelayedMoveFileService extends FileService {
 		moveBarrier: DeferredPromise<void> | undefined;
 		beforeStat: (() => Promise<void>) | undefined;
 		deleteError: Error | undefined;
+		beforeRead: (() => Promise<void>) | undefined;
 		afterRead: (() => Promise<void>) | undefined;
+		beforeDelete: (() => Promise<void>) | undefined;
 		override async move(...args: Parameters<FileService['move']>): ReturnType<FileService['move']> {
 			await this.moveBarrier?.p;
 			return super.move(...args);
@@ -61,11 +65,13 @@ suite('SessionWorkspacesService', () => {
 			return super.stat(...args);
 		}
 		override async readFile(...args: Parameters<FileService['readFile']>): ReturnType<FileService['readFile']> {
+			await this.beforeRead?.();
 			const content = await super.readFile(...args);
 			await this.afterRead?.();
 			return content;
 		}
 		override async del(...args: Parameters<FileService['del']>): ReturnType<FileService['del']> {
+			await this.beforeDelete?.();
 			if (this.deleteError) {
 				throw this.deleteError;
 			}
@@ -94,6 +100,8 @@ suite('SessionWorkspacesService', () => {
 		readonly fileService?: FileService;
 		/** The `.code-workspace` files VS Code opened recently, as the recent workspaces service reads them. */
 		readonly recentWorkspaceFiles?: ReturnType<typeof observableValue<readonly IVSCodeRecentWorkspaceFile[]>>;
+		/** The workspaces in VS Code's recently opened list. */
+		readonly recentlyOpened?: IRecentlyOpened['workspaces'];
 		readonly configuration?: TestConfigurationService;
 	}
 
@@ -110,6 +118,7 @@ suite('SessionWorkspacesService', () => {
 		instantiationService.stub(IConfigurationService, options.configuration ?? new TestConfigurationService({ [SESSIONS_WORKSPACES_ENABLED_SETTING]: true }));
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(ISessionsRecentWorkspacesService, upcastPartial<ISessionsRecentWorkspacesService>({ vsCodeRecentWorkspaceFiles: recentWorkspaceFiles }));
+		instantiationService.stub(IWorkspacesService, upcastPartial<IWorkspacesService>({ getRecentlyOpened: async () => ({ workspaces: options.recentlyOpened ?? [], files: [] }) }));
 		const warnings: string[] = [];
 		instantiationService.stub(INotificationService, upcastPartial<INotificationService>({ warn: message => { warnings.push(String(message)); } }));
 		const service = disposables.add(instantiationService.createInstance(SessionWorkspacesService));
@@ -593,20 +602,58 @@ suite('SessionWorkspacesService', () => {
 		assert.deepStrictEqual({ failed, exists: await fileService.exists(file) }, { failed: true, exists: false });
 	});
 
-	test('reads and edits a recent workspace file that VS Code opened in a remote, keeping its folder paths, which are paths on the remote', async () => {
+	test('reads and edits a workspace file that VS Code opened in a remote, whose folders are all paths on the remote, keeping them', async () => {
 		const file = URI.file('/work/wsl.code-workspace');
-		const recentWorkspaceFiles = observableValue<readonly IVSCodeRecentWorkspaceFile[]>('recentWorkspaceFiles', [{ uri: file, name: 'wsl', folders: [vscode, docs], remoteAuthority: 'wsl+Ubuntu' }]);
-		const { service, fileService } = await createService({ recentWorkspaceFiles });
-		await fileService.writeFile(file, VSBuffer.fromString('{ "folders": [{ "path": "/home/me/vscode" }, { "uri": "file:///work/vscode" }, { "uri": "file:///work/vscode-docs" }] }'));
+		const { service, fileService } = await createService({ recentlyOpened: [{ workspace: { id: 'wsl', configPath: file }, remoteAuthority: 'wsl+Ubuntu' }] });
+		await fileService.writeFile(file, VSBuffer.fromString('{ "folders": [{ "path": "/home/me/vscode" }, { "path": "/home/me/docs" }] }'));
 
 		const resolved = await service.resolveWorkspaceFile(file);
 		const updated = await service.updateWorkspace(file, { folders: [vscode, chat] });
 
 		assert.deepStrictEqual({ resolved: resolved.folders.map(folder => folder.path), updated: updated.folders.map(folder => folder.path), file: JSON.parse(await readFile(fileService, file)).folders }, {
-			resolved: ['/work/vscode', '/work/vscode-docs'],
+			resolved: [],
 			updated: ['/work/vscode', '/work/vscode-copilot-chat'],
-			file: [{ uri: 'file:///work/vscode' }, { uri: 'file:///work/vscode-copilot-chat' }, { path: '/home/me/vscode' }],
+			file: [{ uri: 'file:///work/vscode' }, { uri: 'file:///work/vscode-copilot-chat' }, { path: '/home/me/vscode' }, { path: '/home/me/docs' }],
 		});
+	});
+
+	test('a workspace file deleted after a change made elsewhere is found while it is written stays deleted', async () => {
+		const fileService = createFileService();
+		const { service } = await createService({ fileService });
+		const file = URI.file('/work/platform.code-workspace');
+		await fileService.writeFile(file, VSBuffer.fromString('{ "folders": [{ "path": "vscode" }, { "path": "vscode-docs" }] }'));
+		await service.openWorkspace(file);
+
+		fileService.beforeStat = async () => {
+			fileService.beforeStat = undefined;
+			await fileService.writeFile(file, VSBuffer.fromString('{ "folders": [{ "path": "vscode" }, { "path": "vscode-docs" }], "color": "tan" }'));
+			fileService.beforeRead = async () => {
+				fileService.beforeRead = undefined;
+				await fileService.del(file);
+			};
+		};
+		const failed = await service.updateWorkspace(file, { name: 'Platform' }).then(() => false, () => true);
+
+		assert.deepStrictEqual({ failed, exists: await fileService.exists(file) }, { failed: true, exists: false });
+	});
+
+	test('removing a workspace removes it also when a refresh replaces it while its file is deleted, and when its file is gone already', async () => {
+		const fileService = createFileService();
+		const { service } = await createService({ fileService });
+		const owned = await service.createWorkspace('Owned', [vscode, chat]);
+		const gone = await service.createWorkspace('Gone', [vscode, docs]);
+		await fileService.del(gone.uri);
+		await service.refresh();
+
+		fileService.beforeDelete = async () => {
+			fileService.beforeDelete = undefined;
+			await fileService.writeFile(owned.uri, VSBuffer.fromString(JSON.stringify({ folders: [{ path: vscode.fsPath }, { path: chat.fsPath }], name: 'Renamed elsewhere' })));
+			await service.refresh();
+		};
+		await service.removeWorkspace(owned.uri, { deleteFile: true });
+		await service.removeWorkspace(gone.uri, { deleteFile: true });
+
+		assert.deepStrictEqual({ workspaces: service.managedWorkspaces.get().map(workspace => workspace.name), ownedExists: await fileService.exists(owned.uri) }, { workspaces: [], ownedExists: false });
 	});
 
 	test('a refresh started while another one runs reads the workspace file after it, so an older read never wins', async () => {

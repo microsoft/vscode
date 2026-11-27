@@ -17,13 +17,14 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
-import { FileOperationError, FileOperationResult, FileSystemProviderCapabilities, IFileContent, IFileService } from '../../../../platform/files/common/files.js';
+import { FileOperationError, FileOperationResult, FileSystemProviderCapabilities, FileSystemProviderErrorCode, IFileContent, IFileService, toFileSystemProviderErrorCode } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { hasWorkspaceFileExtension, WORKSPACE_SUFFIX } from '../../../../platform/workspace/common/workspace.js';
+import { isRecentWorkspace, IWorkspacesService } from '../../../../platform/workspaces/common/workspaces.js';
 import { SESSIONS_WORKSPACES_ENABLED_SETTING } from '../common/sessionConfig.js';
 import { ISessionWorkspaceFileContent, ISessionWorkspaceFileEdit, parseSessionWorkspaceFile, stringifySessionWorkspaceFile } from '../common/sessionWorkspaceFile.js';
 import { IRecentSessionWorkspace, ISessionWorkspaceAppearance, ISessionWorkspaceRemoveOptions, ISessionWorkspacesService, ISessionWorkspaceUpdate } from '../common/sessionWorkspaces.js';
@@ -161,6 +162,7 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 		@ILogService private readonly logService: ILogService,
 		@ISessionsRecentWorkspacesService private readonly recentWorkspacesService: ISessionsRecentWorkspacesService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 	) {
 		super();
 
@@ -318,7 +320,9 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 		const removed = workspace ? [workspace.uri, ...workspace.previousUris ?? []] : [uri];
 		this._recordRemoval(removed);
 		if (workspace) {
-			this._persist(this._managedWorkspaces.get().filter(candidate => candidate !== workspace));
+			// By URI, since a refresh while the file was deleted may have replaced the workspace object
+			const extUri = this.uriIdentityService.extUri;
+			this._persist(this._managedWorkspaces.get().filter(candidate => !removed.some(removedUri => extUri.isEqual(candidate.uri, removedUri))));
 		}
 		// Its workspace files are not listed with the recent workspace files again, where VS Code may still have them
 		for (const removedUri of removed.filter(hasWorkspaceFileExtension)) {
@@ -393,12 +397,21 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 
 	private async _readWorkspaceFile(uri: URI): Promise<ISessionWorkspaceFileContent> {
 		const content = (await this.fileService.readFile(uri, { limits: { size: MAX_WORKSPACE_FILE_SIZE } })).value.toString();
-		return parseSessionWorkspaceFile(content, uri, this.uriIdentityService.extUri, { remoteAuthority: this._getRemoteAuthority(uri) });
+		return parseSessionWorkspaceFile(content, uri, this.uriIdentityService.extUri, { remoteAuthority: await this._getRemoteAuthority(uri) });
 	}
 
-	/** The remote that VS Code opened the workspace file in, as its recently opened list has it, for a file that does not say so itself. */
-	private _getRemoteAuthority(uri: URI): string | undefined {
-		return this.recentWorkspacesService.vsCodeRecentWorkspaceFiles.get().find(file => this.uriIdentityService.extUri.isEqual(file.uri, uri))?.remoteAuthority;
+	/**
+	 * The remote that VS Code opened the workspace file in, for a file that does not say so itself. Read from VS Code's
+	 * recently opened list itself, which has it also for a file whose folders are all on the remote.
+	 */
+	private async _getRemoteAuthority(uri: URI): Promise<string | undefined> {
+		try {
+			const { workspaces } = await this.workspacesService.getRecentlyOpened();
+			return workspaces.find(entry => isRecentWorkspace(entry) && this.uriIdentityService.extUri.isEqual(entry.workspace.configPath, uri))?.remoteAuthority;
+		} catch (error) {
+			this.logService.warn('[SessionWorkspaces] Could not read the recently opened workspaces', error);
+			return undefined;
+		}
 	}
 
 	/** Writes the icon and color into the workspace file, keeping them on this computer and warning when that fails. */
@@ -432,13 +445,14 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 	 */
 	private async _editWorkspaceFile(uri: URI, toEdit: (current: ISessionWorkspaceFileContent | undefined) => ISessionWorkspaceFileEdit, options?: { readonly forceAbsolute?: boolean }): Promise<ISessionWorkspaceFileContent> {
 		const extUri = this.uriIdentityService.extUri;
-		const remoteAuthority = this._getRemoteAuthority(uri);
+		const remoteAuthority = await this._getRemoteAuthority(uri);
 		for (let attempt = 0; ; attempt++) {
 			let file: IFileContent | undefined;
 			try {
 				file = await this.fileService.readFile(uri, { limits: { size: MAX_WORKSPACE_FILE_SIZE } });
 			} catch (error) {
-				if ((error as FileOperationError).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
+				// Only a file that is missing from the start is written new; one deleted meanwhile stays deleted
+				if (attempt > 0 || (error as FileOperationError).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
 					throw error;
 				}
 			}
@@ -495,11 +509,22 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 
 	/** Moves a workspace file to the trash, or deletes an owned one where there is no trash, and the folder of an owned workspace file when nothing else is in it. Never deletes a folder named like a workspace file. */
 	private async _deleteWorkspaceFile(uri: URI): Promise<void> {
-		if ((await this.fileService.stat(uri)).isDirectory) {
-			throw this._folderNotWorkspaceFileError(uri);
+		let exists = true;
+		try {
+			if ((await this.fileService.stat(uri)).isDirectory) {
+				throw this._folderNotWorkspaceFileError(uri);
+			}
+		} catch (error) {
+			// A workspace file that is gone already counts as deleted
+			if (toFileSystemProviderErrorCode(error as Error) !== FileSystemProviderErrorCode.FileNotFound && (error as FileOperationError).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
+				throw error;
+			}
+			exists = false;
 		}
-		const useTrash = this.fileService.hasCapability(uri, FileSystemProviderCapabilities.Trash);
-		await this.fileService.del(uri, { useTrash });
+		if (exists) {
+			const useTrash = this.fileService.hasCapability(uri, FileSystemProviderCapabilities.Trash);
+			await this.fileService.del(uri, { useTrash });
+		}
 		if (!this._isOwnedWorkspaceFile(uri)) {
 			return;
 		}
