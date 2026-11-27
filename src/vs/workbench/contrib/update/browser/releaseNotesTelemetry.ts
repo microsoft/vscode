@@ -622,7 +622,6 @@ export function initializeReleaseNotesTelemetry(
 	let presented = false;
 	let lastActivity = -Infinity;
 	const video = hasHighlightsVideo ? targetDocument.querySelector<HTMLVideoElement>('.release-highlights-video video') : null;
-	const videoDisclosure = video?.closest('details');
 	const intersecting = (top: number, bottom: number) => {
 		const height = Math.max(0, bottom - top);
 		return height > 0 && Math.min(bottom, targetWindow.innerHeight) - Math.max(top, 0) >= Math.min(height, targetWindow.innerHeight) / 2;
@@ -660,7 +659,7 @@ export function initializeReleaseNotesTelemetry(
 			type: 'releaseNotesTelemetrySample', documentId, contents, tryouts,
 			depth: distance > 0 ? Math.max(0, Math.min(100, 100 * scrolling!.scrollTop / distance)) : 100,
 			isScrollable: distance > 0,
-			...(video ? { highlightsVideoVisible: !!videoDisclosure?.open && !video.hidden && video.getClientRects().length > 0 && intersecting(video.getBoundingClientRect().top, video.getBoundingClientRect().bottom) } : {}),
+			...(video ? { highlightsVideoVisible: !video.hidden && video.getClientRects().length > 0 && intersecting(video.getBoundingClientRect().top, video.getBoundingClientRect().bottom) } : {}),
 		});
 	};
 	const schedule = () => {
@@ -703,7 +702,6 @@ export function initializeReleaseNotesTelemetry(
 			}
 		}, options);
 		video.addEventListener('error', event => report('error', event), options);
-		videoDisclosure?.addEventListener('toggle', schedule, options);
 	}
 	targetWindow.addEventListener('message', event => {
 		if (event.data?.type === 'releaseNotesTelemetryMeasure' && event.data.documentId === documentId) {

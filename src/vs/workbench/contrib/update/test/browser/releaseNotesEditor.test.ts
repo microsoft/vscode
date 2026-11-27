@@ -60,7 +60,8 @@ import { IOverlayWebview, WebviewMessageReceivedEvent } from '../../../webview/b
 import { WebviewInput } from '../../../webviewPanel/browser/webviewEditorInput.js';
 import { IWebviewWorkbenchService } from '../../../webviewPanel/browser/webviewWorkbenchService.js';
 import { ReleaseNotesAccessibilityHelp } from '../../browser/releaseNotesAccessibilityHelp.js';
-import { applyReleaseNotesTokenization, initializeReleaseNotesNavigation, ReleaseNotesManager } from '../../browser/releaseNotesEditor.js';
+import { applyReleaseNotesTokenization, initializeReleaseNotesHighlightsVideo, initializeReleaseNotesNavigation, ReleaseNotesManager, renderReleaseNotesMarkdown } from '../../browser/releaseNotesEditor.js';
+import { SimpleSettingRenderer } from '../../../markdown/browser/markdownSettingRenderer.js';
 import { releaseNotesWithHighlightsVideo } from './releaseNotesTestUtils.js';
 
 suite('Release notes editor Try This integration', () => {
@@ -81,6 +82,7 @@ suite('Release notes editor Try This integration', () => {
 	let activeEditor: WebviewInput | undefined;
 	let focused: boolean;
 	let focusCount: number;
+	let allowFullscreen: boolean | undefined;
 	let open: SinonStub<Parameters<IOpenerService['open']>, Promise<boolean>>;
 
 	setup(() => {
@@ -89,6 +91,7 @@ suite('Release notes editor Try This integration', () => {
 		messages = [];
 		focused = true;
 		focusCount = 0;
+		allowFullscreen = undefined;
 		availability = { kind: 'ready' };
 		run = async () => ({ kind: 'opened' });
 		whenExtensionsRegistered = async () => true;
@@ -118,7 +121,10 @@ suite('Release notes editor Try This integration', () => {
 		activeEditor = input;
 		instantiationService.stub(IWebviewWorkbenchService, {
 			onDidChangeActiveWebviewEditor: Event.None,
-			openWebview: () => input,
+			openWebview: info => {
+				allowFullscreen = info.options.allowFullscreen;
+				return input;
+			},
 			revealWebview: () => undefined,
 		});
 		instantiationService.stub(IEditorService, { get activeEditor() { return activeEditor; } });
@@ -237,6 +243,123 @@ suite('Release notes editor Try This integration', () => {
 		assert.deepStrictEqual({ triggers: telemetry.triggers, productionTelemetry: html.at(-1)!.includes('releaseNotesTelemetrySample') }, { triggers: [], productionTelemetry: false });
 	});
 
+	test('sizes the highlights player beside the bulleted list while keeping the introduction full-width', async () => {
+		await manager.show('1.100.0', true);
+		const content = releaseNotesWithHighlightsVideo
+			.replace('## Release highlights', '## Release highlights\n\nIntroduction.')
+			.replace(/<p><a class="release-highlights-video-transcript"[\s\S]*?<\/p>/, '');
+		const rendered = await renderReleaseNotesMarkdown(
+			content, instantiationService.get(IExtensionService), instantiationService.get(ILanguageService),
+			instantiationService.createInstance(SimpleSettingRenderer), 'stable', undefined, undefined, undefined, undefined, { enabled: true },
+		);
+		const parser = new mainWindow.DOMParser();
+		const shell = parser.parseFromString(html[0], 'text/html');
+		const document = parser.parseFromString(rendered.toString(), 'text/html');
+		const container = $('div');
+		store.add(toDisposable(() => container.remove()));
+		container.style.cssText = 'position:fixed;top:0;left:0;font:16px/1.5 sans-serif';
+		for (const [name, value] of Object.entries({
+			'--vscode-strokeThickness': '1px',
+			'--vscode-spacing-size240': '24px',
+			'--vscode-spacing-size100': '10px',
+			'--vscode-spacing-size160': '16px',
+			'--vscode-spacing-size200': '20px',
+			'--vscode-fontSize-heading2': '18px',
+			'--vscode-fontWeight-semiBold': '600',
+		})) {
+			container.style.setProperty(name, value);
+		}
+		const shadow = container.attachShadow({ mode: 'open' });
+		const styles = $('style');
+		styles.textContent = Array.from(shell.querySelectorAll('style'), style => style.textContent).join('\n');
+		shadow.append(styles, ...Array.from(document.body.childNodes));
+		mainWindow.document.body.append(container);
+		const card = shadow.querySelector<HTMLElement>('.release-notes-highlights')!;
+		const intro = card.querySelector<HTMLElement>('.release-highlights-intro')!;
+		const layout = card.querySelector<HTMLElement>('.release-highlights-layout')!;
+		const text = card.querySelector<HTMLElement>('.release-highlights-text')!;
+		const bullets = text.querySelector<HTMLUListElement>('ul')!;
+		const media = card.querySelector('figure')!;
+		const video = media.querySelector('video')!;
+		card.style.padding = '0';
+		card.style.border = '0';
+		bullets.style.lineHeight = '24px';
+		const widths = [320, 663, 664, 900];
+		const itemCounts = [1, 5, 12];
+		const results: { width: number; items: number; aligned: boolean; sized: boolean; aspectRatio: boolean; fullWidthIntro: boolean; belowIntro: boolean; fits: boolean }[] = [];
+		for (const width of widths) {
+			card.style.width = `${width}px`;
+			for (const items of itemCounts) {
+				bullets.replaceChildren(...Array.from({ length: items }, (_, index) => {
+					const li = mainWindow.document.createElement('li');
+					const p = mainWindow.document.createElement('p');
+					p.textContent = `Highlight item ${index + 1}.`;
+					li.append(p);
+					return li;
+				}));
+				await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+				const introBox = intro.getBoundingClientRect();
+				const rowBox = layout.getBoundingClientRect();
+				const textBox = text.getBoundingClientRect();
+				const videoBox = video.getBoundingClientRect();
+				const firstBulletBox = bullets.firstElementChild!.getBoundingClientRect();
+				const columns = width >= 664;
+				const expectedWidth = columns ? Math.min(media.getBoundingClientRect().width, Math.max(280, textBox.height * 16 / 9)) : width;
+				results.push({
+					width, items,
+					aligned: columns ? Math.abs(videoBox.top - firstBulletBox.top) < 1 : videoBox.top >= textBox.bottom + 23,
+					sized: Math.abs(videoBox.width - expectedWidth) < 1,
+					aspectRatio: Math.abs(videoBox.width / videoBox.height - 16 / 9) < 0.01,
+					fullWidthIntro: Math.abs(introBox.width - rowBox.width) < 1,
+					belowIntro: rowBox.top >= introBox.bottom + 15,
+					fits: videoBox.left >= rowBox.left && videoBox.right <= rowBox.right + 1,
+				});
+			}
+		}
+		assert.deepStrictEqual(results, widths.flatMap(width => itemCounts.map(items => ({
+			width, items, aligned: true, sized: true, aspectRatio: true, fullWidthIntro: true, belowIntro: true, fits: true,
+		}))));
+	});
+
+	test('toggles highlights video playback on primary surface clicks without affecting keyboard or secondary clicks', () => {
+		const container = $('div');
+		store.add(toDisposable(() => container.remove()));
+		const figure = $('figure.release-highlights-video');
+		const video = $<HTMLVideoElement>('video');
+		figure.append(video);
+		container.append(figure);
+		mainWindow.document.body.append(container);
+		let paused = true;
+		const calls: string[] = [];
+		Object.defineProperty(video, 'paused', { get: () => paused, configurable: true });
+		video.play = () => {
+			calls.push('play');
+			paused = false;
+			return Promise.resolve();
+		};
+		video.pause = () => {
+			calls.push('pause');
+			paused = true;
+		};
+		const dispose = initializeReleaseNotesHighlightsVideo(mainWindow.document, mainWindow);
+		store.add(toDisposable(dispose));
+		const primary1 = new mainWindow.MouseEvent('click', { button: 0, detail: 1, cancelable: true });
+		const primary2 = new mainWindow.MouseEvent('click', { button: 0, detail: 1, cancelable: true });
+		const keyboard = new mainWindow.MouseEvent('click', { button: 0, detail: 0, cancelable: true });
+		const secondary = new mainWindow.MouseEvent('click', { button: 2, detail: 1, cancelable: true });
+		video.dispatchEvent(primary1);
+		video.dispatchEvent(primary2);
+		video.dispatchEvent(keyboard);
+		video.dispatchEvent(secondary);
+		assert.deepStrictEqual({
+			calls,
+			prevented: [primary1.defaultPrevented, primary2.defaultPrevented, keyboard.defaultPrevented, secondary.defaultPrevented],
+		}, {
+			calls: ['play', 'pause'],
+			prevented: [true, true, false, false],
+		});
+	});
+
 	test('preserves the CSP and only extends the existing command allowlist with the dispatcher', async () => {
 		markdown += '\n<script>untrustedScript()</script>';
 		await manager.show('1.100.0', true);
@@ -246,11 +369,12 @@ suite('Release notes editor Try This integration', () => {
 		await timeout(0);
 		assert.deepStrictEqual({
 			csp: html[0].includes('default-src \'none\'; img-src https: data:; media-src https:; style-src \'nonce-'),
+			allowFullscreen,
 			scripts: (html[0].match(/<script /g) ?? []).length,
 			untrustedScript: html[0].includes('untrustedScript()'),
 			options: open.getCalls().map(call => call.args[1]),
 		}, {
-			csp: true, scripts: 2, untrustedScript: false,
+			csp: true, allowFullscreen: true, scripts: 2, untrustedScript: false,
 			options: Array(3).fill({ allowCommands: ['workbench.action.openSettings', 'summarize.release.notes', RUN_ONBOARDING_TRYOUT_COMMAND_ID] }),
 		});
 	});
@@ -472,12 +596,15 @@ suite('Release notes editor Try This integration', () => {
 			explicitSetup: provider.provideContent().includes('Setup does not automatically run the example'),
 			customLabels: provider.provideContent().includes('custom labels'),
 			currentSection: provider.provideContent().includes('does not move keyboard focus'),
+			videoControls: provider.provideContent().includes('Tab to the video player to reach its native controls, then use them to play or pause, seek, or change the volume'),
+			noDisclosureControl: !provider.provideContent().includes('Press Enter or Space on Watch release highlights'),
 			unfocused, focusCount,
 		}, {
 			releaseNotes: true, find: false, other: false,
 			id: AccessibleViewProviderId.ReleaseNotes, verbosity: AccessibilityVerbositySettingId.ReleaseNotes,
 			unsentChat: true, otherWindow: true, explicitSetup: true, customLabels: true,
 			currentSection: true,
+			videoControls: true, noDisclosureControl: true,
 			unfocused: undefined, focusCount: 1,
 		});
 	});
