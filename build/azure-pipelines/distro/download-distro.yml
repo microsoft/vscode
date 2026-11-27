@@ -11,6 +11,7 @@ steps:
     path: s/.build/distro
     fetchDepth: 1
     fetchTags: false
+    # Needed for the pinned-commit fetch and LFS pull below; removed immediately afterward.
     persistCredentials: true
     retryCountOnTaskFailure: 3
     displayName: Checkout microsoft/vscode-distro
@@ -32,6 +33,20 @@ steps:
 
   - script: git -C .build/distro lfs pull
     displayName: Pull Git LFS objects
+
+  - pwsh: |
+      $ErrorActionPreference = "Stop"
+      if (Test-Path -LiteralPath .build/distro/.git) {
+        $AuthHeaders = git -C .build/distro config --local --name-only --get-regexp '^http(\..*)?\.extraheader$'
+        if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 1) { throw "Failed to enumerate distro checkout credentials" }
+        foreach ($Key in ($AuthHeaders | Sort-Object -Unique)) {
+          git -C .build/distro config --local --unset-all $Key
+          if ($LASTEXITCODE -ne 0) { throw "Failed to remove distro checkout credentials" }
+        }
+      }
+      exit 0
+    condition: always()
+    displayName: Remove distro checkout credentials
 
   # Check out the private microsoft/vscode-encrypt, microsoft/vsda and
   # microsoft/vscode-regexp-languagedetection repositories using the agent's GitHub
