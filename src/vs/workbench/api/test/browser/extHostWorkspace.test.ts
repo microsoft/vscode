@@ -69,6 +69,42 @@ suite('ExtHostWorkspace', function () {
 		assert.deepStrictEqual({ initial, current: ws.workbenchMode, events }, { initial: WorkbenchMode.Agents, current: WorkbenchMode.Editor, events: [WorkbenchMode.Editor, WorkbenchMode.Agents, WorkbenchMode.Editor] });
 	});
 
+	test('publishes the mode before folder events and suppresses only mode-only workspace updates', () => {
+		const folder = aWorkspaceFolderData(URI.file('/Coding/One'), 0);
+		const data: IWorkspaceData = { id: 'foo', name: 'Test', folders: [folder], mode: WorkbenchMode.Editor };
+		const ws = createExtHostWorkspace(new TestRPCProtocol(), data, new NullLogService());
+		const events: { kind: string; mode: WorkbenchMode; added?: number; removed?: number }[] = [];
+		store.add(ws.onDidChangeWorkspace(event => events.push({ kind: 'folders', mode: ws.workbenchMode, added: event.added.length, removed: event.removed.length })));
+		store.add(ws.onDidChangeWorkbenchMode(mode => events.push({ kind: 'mode', mode })));
+		ws.$acceptWorkspaceData({ ...data, mode: WorkbenchMode.Agents });
+		ws.$acceptWorkspaceData({ ...data, mode: WorkbenchMode.Editor, folders: [{ ...folder, name: 'Renamed' }] });
+		ws.$acceptWorkspaceData({ ...data, folders: [aWorkspaceFolderData(URI.file('/Coding/Two'), 0)] });
+		ws.$acceptWorkspaceData(null);
+		assert.deepStrictEqual({ events, folders: ws.getWorkspaceFolders() }, {
+			events: [
+				{ kind: 'mode', mode: WorkbenchMode.Agents },
+				{ kind: 'folders', mode: WorkbenchMode.Editor, added: 0, removed: 0 },
+				{ kind: 'mode', mode: WorkbenchMode.Editor },
+				{ kind: 'folders', mode: WorkbenchMode.Editor, added: 1, removed: 1 },
+				{ kind: 'folders', mode: WorkbenchMode.Editor, added: 0, removed: 1 },
+			],
+			folders: undefined,
+		});
+	});
+
+	test('reports removed folders and the new mode when an Agents workspace becomes empty', () => {
+		const data: IWorkspaceData = { id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.file('/Coding/One'), 0)], mode: WorkbenchMode.Agents };
+		const ws = createExtHostWorkspace(new TestRPCProtocol(), data, new NullLogService());
+		const events: { removed: string[]; mode: WorkbenchMode }[] = [];
+		store.add(ws.onDidChangeWorkspace(event => events.push({ removed: event.removed.map(folder => folder.name), mode: ws.workbenchMode })));
+		ws.$acceptWorkspaceData(null);
+		ws.$acceptWorkspaceData(null);
+		assert.deepStrictEqual(events, [
+			{ removed: ['One'], mode: WorkbenchMode.Editor },
+			{ removed: [], mode: WorkbenchMode.Editor },
+		]);
+	});
+
 	test('asRelativePath', () => {
 
 		const ws = createExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', folders: [aWorkspaceFolderData(URI.file('/Coding/Applications/NewsWoWBot'), 0)], name: 'Test' }, new NullLogService());
