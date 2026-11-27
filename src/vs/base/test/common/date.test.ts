@@ -66,6 +66,17 @@ suite('Date', () => {
 			daysAgo.setHours(daysAgo.getHours() - 2); // 2 hours further to avoid DST issues
 			strictEqual(fromNowByDay(daysAgo, true), '5 days ago');
 		});
+		test('todayMidnight', () => {
+			const today = new Date();
+			today.setHours(0, 0, 0, 0);
+			strictEqual(fromNowByDay(today), 'Today');
+		});
+		test('yesterdayMidnight', () => {
+			const yesterday = new Date();
+			yesterday.setDate(yesterday.getDate() - 1);
+			yesterday.setHours(0, 0, 0, 0);
+			strictEqual(fromNowByDay(yesterday), 'Yesterday');
+		});
 	});
 
 	suite('getDurationString', () => {
