@@ -424,6 +424,7 @@ suite('Agent Host Edit ARC Reporter', () => {
 		let branchLookupCount = 0;
 		const gitService: IAgentHostGitService = {
 			...createNoopGitService(),
+			getRepositoryRoot: async () => URI.file('/workspace'),
 			getCurrentBranchName: async () => {
 				branchLookupCount++;
 				if (branchLookupCount === 3) {
@@ -464,6 +465,7 @@ suite('Agent Host Edit ARC Reporter', () => {
 		let branch = 'main';
 		const gitService: IAgentHostGitService = {
 			...createNoopGitService(),
+			getRepositoryRoot: async () => URI.file('/workspace'),
 			getCurrentBranchName: async () => branch,
 		};
 		const service = disposables.add(new EditArcReporterService([0, 30], fileService, new TestDiffComputeService(), gitService, config, new NullLogService(), telemetry));
@@ -491,6 +493,50 @@ suite('Agent Host Edit ARC Reporter', () => {
 			{ timeDelayMs: 0, didBranchChange: 0 },
 			{ timeDelayMs: 30, didBranchChange: 1 },
 		]);
+	});
+
+	test('does not run git for files outside a repository', async () => {
+		const resource = URI.file('/scratch/notes.md');
+		await fileService.writeFile(resource, VSBuffer.fromString('hello AI'));
+		const branchLookups: string[] = [];
+		const gitService: IAgentHostGitService = {
+			...createNoopGitService(),
+			getRepositoryRoot: async () => undefined,
+			getCurrentBranch: async workingDirectory => {
+				branchLookups.push(workingDirectory.path);
+				return undefined;
+			},
+			getCurrentBranchName: async workingDirectory => {
+				branchLookups.push(workingDirectory.path);
+				return undefined;
+			},
+		};
+		const service = disposables.add(new EditArcReporterService([0, 30], fileService, new TestDiffComputeService(), gitService, config, new NullLogService(), telemetry));
+
+		await service.reportEdit({
+			sessionUri: 'claude:/session-1',
+			ownerSessionUri: 'claude:/session-1',
+			isSubagent: false,
+			turnId: 'turn-1',
+			toolCallId: 'tool-1',
+			filePath: resource.fsPath,
+			beforeText: 'hello',
+			afterText: 'hello AI',
+			initialEdit: { replacements: [{ start: 5, endExclusive: 5, text: ' AI' }] },
+			completionTime: Date.now(),
+		});
+		await timeout(50);
+
+		assert.deepStrictEqual({
+			branchLookups,
+			events: telemetry.events.map(event => ({ timeDelayMs: event.data.timeDelayMs, didBranchChange: event.data.didBranchChange })),
+		}, {
+			branchLookups: [],
+			events: [
+				{ timeDelayMs: 0, didBranchChange: 0 },
+				{ timeDelayMs: 30, didBranchChange: 0 },
+			],
+		});
 	});
 
 	test('retains the repository root when the edited parent directory is deleted', async () => {
