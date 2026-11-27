@@ -37,6 +37,7 @@ import { MockContextKeyService } from '../../../../../../platform/keybinding/tes
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { InstantiationService } from '../../../../../../platform/instantiation/common/instantiationService.js';
+import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ILinkDescriptor, ILinkOptions, Link } from '../../../../../../platform/opener/browser/link.js';
@@ -1183,11 +1184,13 @@ suite('ChatWidget', () => {
 		assert.deepStrictEqual(resent, variables);
 	});
 
-	test('parses the input after its instantiation service is disposed', () => {
-		// A host tearing down disposes the widget's instantiation service first, then clears the input it still shows.
-		const instantiationService = new InstantiationService();
-		instantiationService.dispose();
-		const { part } = createFakeInputPart('main');
+	test('parses its cleared input while its editor group or window closes', () => {
+		// Closing a group or window disposes the group's instantiation service, and with it the widget's child service,
+		// before the editor panes; the New Session prompt options then clear the generated prompt the input shows.
+		const groupInstantiationService = new InstantiationService(undefined, true);
+		const instantiationService = groupInstantiationService.createChild(new ServiceCollection());
+		groupInstantiationService.dispose();
+		const { part } = createFakeInputPart('main', '');
 		const widget = Object.create(ChatWidget.prototype) as ChatWidget;
 		Object.defineProperties(widget, {
 			instantiationService: { value: instantiationService },
@@ -1206,10 +1209,10 @@ suite('ChatWidget', () => {
 			contribs: { value: [] },
 		});
 
-		assert.strictEqual(widget.parsedInput.text, 'original request');
+		assert.deepStrictEqual(widget.parsedInput, { text: '', parts: [] });
 	});
 
-	function createFakeInputPart(name: string) {
+	function createFakeInputPart(name: string, value = 'original request') {
 		const onDidFocus = store.add(new Emitter<void>());
 		const entriesMap = observableValue(`${name}.entriesMap`, ToolAndToolSetEnablementMap.fromMap(new Map()));
 		const counts = { updateContext: 0, dispose: 0 };
@@ -1217,10 +1220,10 @@ suite('ChatWidget', () => {
 			element: mainWindow.document.createElement('div'),
 			inputUri: URI.parse(`chat-input:/${name}`),
 			inputEditor: upcastPartial<ChatInputPart['inputEditor']>({
-				getValue: () => 'original request', getModel: () => null, focus: () => { },
+				getValue: () => value, getModel: () => null, focus: () => { },
 				onDidChangeModelContent: Event.None, onDidChangeCursorSelection: Event.None,
 			}),
-			getPromptText: () => 'original request',
+			getPromptText: () => value,
 			inlineAttachments: undefined,
 			attachmentModel: upcastPartial<ChatInputPart['attachmentModel']>({
 				attachments: [], getAttachmentIDs: () => new Set(), addContext: () => { },
