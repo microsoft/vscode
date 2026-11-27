@@ -171,6 +171,25 @@ suite('Workspace Trust', () => {
 			assert.strictEqual(false, testObject.isWorkspaceTrusted());
 		});
 
+		test('workspace without folders and workspace file - trusted like an empty window', async () => {
+			await configurationService.setUserConfiguration('security', getUserSettings(true, true));
+			workspaceService.setWorkspace(new Workspace('agents-mode-workspace'));
+			workspaceService.getWorkbenchState = () => WorkbenchState.WORKSPACE;
+			const testObject = await initializeTestObject();
+
+			assert.strictEqual(true, testObject.isWorkspaceTrusted());
+		});
+
+		test('workspace file without folders - not trusted like an empty window', async () => {
+			await configurationService.setUserConfiguration('security', getUserSettings(true, true));
+			environmentService.untitledWorkspacesHome = URI.file('/untitled-workspaces');
+			workspaceService.setWorkspace(new Workspace('saved-workspace', [], URI.file('/saved.code-workspace')));
+			workspaceService.getWorkbenchState = () => WorkbenchState.WORKSPACE;
+			const testObject = await initializeTestObject();
+
+			assert.strictEqual(false, testObject.isWorkspaceTrusted());
+		});
+
 		suite('virtual repository source trust', () => {
 			const base = URI.from({ scheme: 'vscode-vfs', authority: 'github', path: '/microsoft/project' });
 			const fork = base.with({ path: '/fork-owner/project' });
