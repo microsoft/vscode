@@ -33,6 +33,7 @@ extends:
   parameters:
     npmPackages:
       - name: vscode-copilot-chat
+        skipAPIScan: ${{ not(or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'))) }}
         buildSteps:
           - task: NodeTool@0
             inputs:

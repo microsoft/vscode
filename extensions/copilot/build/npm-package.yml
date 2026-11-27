@@ -38,6 +38,7 @@ extends:
     customNPMRegistry: ''
     npmPackages:
       - name: vscode-copilot-chat
+        skipAPIScan: ${{ not(or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'))) }}
         buildSteps:
           - template: extensions/copilot/build/steps/build-chat-lib.yml@self
             parameters:
