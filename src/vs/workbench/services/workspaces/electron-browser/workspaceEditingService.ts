@@ -179,10 +179,22 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 		return true; // OK
 	}
 
-	private async leaveAgenticMode(): Promise<void> {
-		if (this.agenticModeService.isActive) {
-			await this.agenticModeService.setActive(false);
+	/**
+	 * Leaves Agentic Mode, if the window is in it, and returns how to go back into it
+	 * when the window does not enter the new workspace after all.
+	 */
+	private async leaveAgenticMode(): Promise<() => Promise<void>> {
+		if (!this.agenticModeService.isActive) {
+			return async () => { };
 		}
+		await this.agenticModeService.setActive(false);
+		return async () => {
+			try {
+				await this.agenticModeService.setActive(true);
+			} catch (error) {
+				this.logService.error(error);
+			}
+		};
 	}
 
 	async enterWorkspace(workspaceUri: URI): Promise<void> {
@@ -191,9 +203,10 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 			return;
 		}
 
+		let restoreAgenticMode: (() => Promise<void>) | undefined;
 		try {
 			// The window serves the empty workspace again before it enters the new one
-			await this.leaveAgenticMode();
+			restoreAgenticMode = await this.leaveAgenticMode();
 
 			const oldWorkspace = toWorkspaceIdentifier(this.contextService.getWorkspace());
 			const enterWorkspace = async () => {
@@ -218,8 +231,11 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 			if (result) {
 				// Fire event to allow participants to join
 				await this.fireDidEnterWorkspace(oldWorkspace, result.workspace);
+			} else {
+				await restoreAgenticMode(); // the window stays in its workspace
 			}
 		} catch (error) {
+			await restoreAgenticMode?.();
 			try {
 				await this.extensionService.startExtensionHosts();
 			} catch (restartError) {
