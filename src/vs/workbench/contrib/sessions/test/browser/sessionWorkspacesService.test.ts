@@ -792,6 +792,21 @@ suite('SessionWorkspacesService', () => {
 		});
 	});
 
+	test('an owned workspace file with settings keeps them, rather than becoming a folder, when reduced to one folder', async () => {
+		const { service, fileService } = await createService();
+		const agents = await service.createWorkspace('Agents', [vscode, chat]);
+		const content = JSON.parse(await readFile(fileService, agents.uri));
+		await fileService.writeFile(agents.uri, VSBuffer.fromString(JSON.stringify({ ...content, settings: { 'editor.tabSize': 2 } })));
+
+		const updated = await service.updateWorkspace(agents.uri, { folders: [vscode] });
+
+		assert.deepStrictEqual({ sameFile: extUri.isEqual(updated.uri, agents.uri), workspace: snapshot([updated]), settings: JSON.parse(await readFile(fileService, agents.uri)).settings }, {
+			sameFile: true,
+			workspace: [{ name: 'Agents', folders: ['/work/vscode'], owned: true, missing: undefined }],
+			settings: { 'editor.tabSize': 2 },
+		});
+	});
+
 	test('a workspace file deleted after a change made elsewhere is found while it is written stays deleted', async () => {
 		const fileService = await createFileService();
 		const { service } = await createService({ fileService });

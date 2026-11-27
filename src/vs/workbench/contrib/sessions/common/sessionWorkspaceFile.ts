@@ -41,6 +41,8 @@ const NAME_PROPERTY = 'name';
 const ICON_PROPERTY = 'icon';
 const COLOR_PROPERTY = 'color';
 const FOLDERS_PROPERTY = 'folders';
+const REMOTE_AUTHORITY_PROPERTY = 'remoteAuthority';
+const SHOWN_PROPERTIES = new Set([NAME_PROPERTY, ICON_PROPERTY, COLOR_PROPERTY, FOLDERS_PROPERTY, REMOTE_AUTHORITY_PROPERTY]);
 
 const formattingOptions: FormattingOptions = { insertSpaces: false, tabSize: 4, eol: '\n' };
 
@@ -77,6 +79,14 @@ export function parseSessionWorkspaceFile(content: string, uri: URI, extUri: IEx
 export function hasAmbiguousFolderPaths(content: string, uri: URI): boolean {
 	const { folders, remotePaths } = readWorkspaceFile(content, uri, undefined);
 	return uri.scheme === Schemas.file && !remotePaths && folders.some(folder => hasKey(folder, { path: true }));
+}
+
+/**
+ * Whether a `.code-workspace` file has properties that the Agents window does not show, such as settings, launch
+ * configurations or tasks, which deleting the file would lose. Throws when it is not a valid workspace file.
+ */
+export function hasOtherWorkspaceFileProperties(content: string, uri: URI): boolean {
+	return Object.keys(readWorkspaceFile(content, uri, undefined).stored).some(key => !SHOWN_PROPERTIES.has(key));
 }
 
 interface IParsedWorkspaceFile {

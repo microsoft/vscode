@@ -27,7 +27,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { hasWorkspaceFileExtension, WORKSPACE_SUFFIX } from '../../../../platform/workspace/common/workspace.js';
 import { isRecentWorkspace, IWorkspacesService } from '../../../../platform/workspaces/common/workspaces.js';
 import { SESSIONS_WORKSPACES_ENABLED_SETTING } from '../common/sessionConfig.js';
-import { hasAmbiguousFolderPaths, ISessionWorkspaceFileContent, ISessionWorkspaceFileEdit, parseSessionWorkspaceFile, stringifySessionWorkspaceFile } from '../common/sessionWorkspaceFile.js';
+import { hasAmbiguousFolderPaths, hasOtherWorkspaceFileProperties, ISessionWorkspaceFileContent, ISessionWorkspaceFileEdit, parseSessionWorkspaceFile, stringifySessionWorkspaceFile } from '../common/sessionWorkspaceFile.js';
 import { IRecentSessionWorkspace, ISessionWorkspaceAppearance, ISessionWorkspaceRemoveOptions, ISessionWorkspacesService, ISessionWorkspaceUpdate, SessionWorkspaceError } from '../common/sessionWorkspaces.js';
 import { ISessionsRecentWorkspacesService } from './sessionsRecentWorkspacesService.js';
 
@@ -336,9 +336,9 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 			return workspace;
 		}
 
-		// An owned workspace file reduced to one folder becomes that standalone folder, unless it has folder entries that are
-		// not shown, which deleting it would lose; it then keeps them next to the one folder
-		if (existing?.owned && this._isOwnedWorkspaceFile(existing.uri) && update.folders?.length === 1 && !await this._hasHiddenFolders(existing.uri)) {
+		// An owned workspace file reduced to one folder becomes that standalone folder, unless it has content that is not
+		// shown, such as folder entries that are not read or settings, which deleting it would lose; it then keeps the file
+		if (existing?.owned && this._isOwnedWorkspaceFile(existing.uri) && update.folders?.length === 1 && !await this._hasHiddenContent(existing.uri)) {
 			const workspace = this._withHistory(existing, await this._create(update.name ?? existing.name, update.folders, appearance));
 			this._replace(existing.uri, workspace, removals);
 			await this._deleteOwnedWorkspaceFile(existing.uri);
@@ -487,17 +487,28 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 	 * {@link SessionWorkspaceError} when those are unknown and the file has folder paths that may be on a remote.
 	 */
 	private async _readWorkspaceFile(uri: URI, remoteAuthorities: ReadonlyMap<string, string> | undefined): Promise<ISessionWorkspaceFileContent> {
-		const content = (await this.fileService.readFile(uri, { limits: { size: MAX_WORKSPACE_FILE_SIZE } })).value.toString();
+		return this._parseWorkspaceFile(await this._readWorkspaceFileContent(uri), uri, remoteAuthorities);
+	}
+
+	private async _readWorkspaceFileContent(uri: URI): Promise<string> {
+		return (await this.fileService.readFile(uri, { limits: { size: MAX_WORKSPACE_FILE_SIZE } })).value.toString();
+	}
+
+	private _parseWorkspaceFile(content: string, uri: URI, remoteAuthorities: ReadonlyMap<string, string> | undefined): ISessionWorkspaceFileContent {
 		if (!remoteAuthorities && hasAmbiguousFolderPaths(content, uri)) {
 			throw foldersUnknownError(this.uriIdentityService.extUri.basename(uri));
 		}
 		return parseSessionWorkspaceFile(content, uri, this.uriIdentityService.extUri, { remoteAuthority: remoteAuthorities?.get(this.uriIdentityService.extUri.getComparisonKey(uri)) });
 	}
 
-	/** Whether a workspace file has folder entries that are not read, such as paths on a remote; throws when that is unknown. */
-	private async _hasHiddenFolders(uri: URI): Promise<boolean> {
+	/**
+	 * Whether a workspace file has content that is not shown, which deleting it would lose: folder entries that are not read,
+	 * such as paths on a remote, or other properties, such as settings; throws when that is unknown.
+	 */
+	private async _hasHiddenContent(uri: URI): Promise<boolean> {
 		try {
-			return (await this._readWorkspaceFile(uri, await this._getRemoteAuthorities())).hasErrors;
+			const content = await this._readWorkspaceFileContent(uri);
+			return hasOtherWorkspaceFileProperties(content, uri) || this._parseWorkspaceFile(content, uri, await this._getRemoteAuthorities()).hasErrors;
 		} catch (error) {
 			if (error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
 				return false;
