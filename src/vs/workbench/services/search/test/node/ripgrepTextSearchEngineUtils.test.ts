@@ -42,14 +42,13 @@ suite('RipgrepTextSearchEngine', () => {
 			['f[\\n-a]', 'f[\\n-a]'],
 			['(?<=\\n)\\w', '(?<=\\n)\\w'],
 			['fo\\n+o', 'fo(?:\\r?\\n)+o'],
-			['fo[^\\n]o', 'fo(?!\\r?\\n)o'],
-			['fo[^\\na-z]o', 'fo(?!\\r?\\n|[a-z])o'],
-			['foo[^\\n]+o', 'foo.+o'],
-			['foo[^\\nzq]+o', 'foo[^zq]+o'],
-			['foo[^\\nzq]+o', 'foo[^zq]+o'],
-			// preserves quantifies, #137899
-			['fo[^\\S\\n]*o', 'fo[^\\S]*o'],
-			['fo[^\\S\\n]{3,}o', 'fo[^\\S]{3,}o'],
+			['fo[^\\n]o', 'fo(?:(?!\\r?\\n)[\\s\\S])o'],
+			['fo[^\\na-z]o', 'fo(?:(?!\\r?\\n|[a-z])[\\s\\S])o'],
+			['foo[^\\n]+o', 'foo(?:(?!\\r?\\n)[\\s\\S])+o'],
+			['foo[^\\nzq]+o', 'foo(?:(?!\\r?\\n|[zq])[\\s\\S])+o'],
+			// preserves quantifiers, #137899
+			['fo[^\\S\\n]*o', 'fo(?:(?!\\r?\\n|[\\S])[\\s\\S])*o'],
+			['fo[^\\S\\n]{3,}o', 'fo(?:(?!\\r?\\n|[\\S])[\\s\\S]){3,}o'],
 		];
 
 		for (const [input, expected] of ttable) {
@@ -79,7 +78,24 @@ suite('RipgrepTextSearchEngine', () => {
 			['foo\\n+abc', 'foo\n\n\nabc', true],
 			['foo\\n+abc', 'foo\r\n\r\n\r\nabc', true],
 			['foo[\\n-9]+abc', 'foo1abc', true],
+
+			// negated classes containing \n must still consume one character, #234067
+			['fo[^\\n]o', 'foXo', true],
+			['fo[^\\n]o', 'foo', false],
+			['[^a\\n]', 'aaaaa', false],
+			['[^a\\n]', 'b', true],
+			['^[^\\S\\n]+$', ' \t ', true],
+			['^[^\\S\\n]+$', ' \n ', false],
+			['^[^\\n]+$', 'a\r\nb', false],
+			['^[^\\n]+$', 'a\rb', true],
 		] as const).forEach(testFixRegexNewline);
+	});
+
+	test('fixRegexNewline - negated class captures and consumes', () => {
+		// ([^= ])(?:=)([^\n= ]) used to turn the last group into a zero-width
+		// assertion, dropping the captured character. See #234067.
+		const match = new RegExp(fixRegexNewline('([^= ])(?:=)([^\\n= ])')).exec('abcde=fghijkl');
+		assert.deepStrictEqual(match?.slice(0, 3), ['e=f', 'e', 'f']);
 	});
 
 	test('fixNewline - matching', () => {
