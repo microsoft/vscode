@@ -55,23 +55,6 @@ export const agentsModeEnabledConfiguration: IConfigurationNode = {
 };
 
 /**
- * Whether a window's workspace and configuration service should be able to
- * switch into Agents mode: only local editor windows that have a backup folder,
- * and only when the user opted in with {@link AGENTS_MODE_ENABLED_SETTING}.
- */
-export function supportsAgentsMode(
-	environmentService: Pick<IWorkbenchEnvironmentService, 'remoteAuthority' | 'isExtensionDevelopment' | 'isSessionsWindow'>,
-	configurationService: Pick<IConfigurationService, 'getValue'>,
-	hasBackupPath: boolean,
-): boolean {
-	return !environmentService.remoteAuthority
-		&& !environmentService.isExtensionDevelopment
-		&& !environmentService.isSessionsWindow
-		&& hasBackupPath
-		&& configurationService.getValue(AGENTS_MODE_ENABLED_SETTING) === true;
-}
-
-/**
  * Services the {@link AgentsModeWorkspaceService} needs to create the
  * Agents workspace and configuration services when entering the mode.
  */
@@ -107,6 +90,23 @@ type ActiveWorkspace = IEditableWorkspaceContextService & IWorkbenchConfiguratio
 export class AgentsModeWorkspaceService extends Disposable implements IEditableWorkspaceContextService, IWorkbenchConfigurationService {
 
 	declare readonly _serviceBrand: undefined;
+
+	/**
+	 * Whether a window's workspace and configuration service should be able to
+	 * switch into Agents mode: only local editor windows that have a backup folder,
+	 * and only when the user opted in with {@link AGENTS_MODE_ENABLED_SETTING}.
+	 */
+	static supportsAgentsMode(
+		environmentService: Pick<IWorkbenchEnvironmentService, 'remoteAuthority' | 'isExtensionDevelopment' | 'isSessionsWindow'>,
+		configurationService: Pick<IConfigurationService, 'getValue'>,
+		hasBackupPath: boolean,
+	): boolean {
+		return !environmentService.remoteAuthority
+			&& !environmentService.isExtensionDevelopment
+			&& !environmentService.isSessionsWindow
+			&& hasBackupPath
+			&& configurationService.getValue(AGENTS_MODE_ENABLED_SETTING) === true;
+	}
 
 	private readonly _onDidChangeConfiguration = this._register(new Emitter<IConfigurationChangeEvent>());
 	readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
@@ -264,6 +264,24 @@ export class AgentsModeWorkspaceService extends Disposable implements IEditableW
 		return added.length || removed.length ? { added, removed, changed: [] } : undefined;
 	}
 
+	/** The keys each language identifier of `configuration` sets in a `[lang]` block, across all its configuration models. */
+	private getLanguageOverrideKeys(configuration: BaseConfiguration): Map<string, Set<string>> {
+		const result = new Map<string, Set<string>>();
+		const models = [configuration.defaults, configuration.applicationConfiguration, configuration.localUserConfiguration, configuration.remoteUserConfiguration, configuration.workspaceConfiguration, ...configuration.folderConfigurations.values()];
+		for (const model of models) {
+			for (const identifier of model.getAllOverrideIdentifiers()) {
+				let keys = result.get(identifier);
+				if (!keys) {
+					result.set(identifier, keys = new Set());
+				}
+				for (const key of model.getKeysForOverrideIdentifier(identifier)) {
+					keys.add(key);
+				}
+			}
+		}
+		return result;
+	}
+
 	private fireConfigurationSwitch(fromData: IConfigurationData, fromWorkspace: Workspace, toData: IConfigurationData, toWorkspace: Workspace): void {
 		const logService = this.services.logService;
 		const fromConfiguration = BaseConfiguration.parse(fromData, logService);
@@ -277,8 +295,8 @@ export class AgentsModeWorkspaceService extends Disposable implements IEditableW
 		}));
 		const changedKeys = changes(keys);
 		// Keys set only for a language (`[lang]` blocks) do not show in `allKeys`, so compare those per language too
-		const languageKeys = getLanguageOverrideKeys(fromConfiguration);
-		for (const [identifier, identifierKeys] of getLanguageOverrideKeys(toConfiguration)) {
+		const languageKeys = this.getLanguageOverrideKeys(fromConfiguration);
+		for (const [identifier, identifierKeys] of this.getLanguageOverrideKeys(toConfiguration)) {
 			languageKeys.set(identifier, new Set([...languageKeys.get(identifier) ?? [], ...identifierKeys]));
 		}
 		const changedOverrides: [string, string[]][] = [];
@@ -478,22 +496,4 @@ class ActiveAgentsWorkspace implements ActiveWorkspace {
 	whenRemoteConfigurationLoaded() { return this.configuration.whenRemoteConfigurationLoaded(); }
 	initialize() { return this.configuration.initialize(); }
 	isSettingAppliedForAllProfiles(setting: string) { return this.configuration.isSettingAppliedForAllProfiles(setting); }
-}
-
-/** The keys each language identifier of `configuration` sets in a `[lang]` block, across all its configuration models. */
-function getLanguageOverrideKeys(configuration: BaseConfiguration): Map<string, Set<string>> {
-	const result = new Map<string, Set<string>>();
-	const models = [configuration.defaults, configuration.applicationConfiguration, configuration.localUserConfiguration, configuration.remoteUserConfiguration, configuration.workspaceConfiguration, ...configuration.folderConfigurations.values()];
-	for (const model of models) {
-		for (const identifier of model.getAllOverrideIdentifiers()) {
-			let keys = result.get(identifier);
-			if (!keys) {
-				result.set(identifier, keys = new Set());
-			}
-			for (const key of model.getKeysForOverrideIdentifier(identifier)) {
-				keys.add(key);
-			}
-		}
-	}
-	return result;
 }

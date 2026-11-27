@@ -31,7 +31,7 @@ import { RemoteAgentService } from '../../../../remote/browser/remoteAgentServic
 import { IRemoteAgentService } from '../../../../remote/common/remoteAgentService.js';
 import { UserDataProfileService } from '../../../../userDataProfile/common/userDataProfileService.js';
 import { IUserDataProfileService } from '../../../../userDataProfile/common/userDataProfile.js';
-import { AGENTS_MODE_ENABLED_SETTING, agentsModeEnabledConfiguration, AgentsModeWorkspaceService, supportsAgentsMode } from '../../../browser/agents/agentsModeWorkspaceService.js';
+import { AGENTS_MODE_ENABLED_SETTING, agentsModeEnabledConfiguration, AgentsModeWorkspaceService } from '../../../browser/agents/agentsModeWorkspaceService.js';
 import { WorkspaceService } from '../../../browser/configurationService.js';
 import { IConfigurationCache } from '../../../common/configuration.js';
 import { ConfigurationEditingError, ConfigurationEditingErrorCode } from '../../../common/configurationEditing.js';
@@ -406,15 +406,15 @@ suite('AgentsModeWorkspaceService', () => {
 		const setting = (value: unknown) => settings({ [AGENTS_MODE_ENABLED_SETTING]: value });
 
 		assert.deepStrictEqual({
-			enabled: supportsAgentsMode(local, setting(true), true),
-			settingOff: supportsAgentsMode(local, setting(false), true),
-			settingUnset: supportsAgentsMode(local, setting(undefined), true),
-			settingTruthy: supportsAgentsMode(local, setting('true'), true),
-			noBackup: supportsAgentsMode(local, setting(true), false),
-			workspacesFilterOnly: supportsAgentsMode(local, settings({ 'sessions.list.workspacesFilter.enabled': true }), true),
-			remote: supportsAgentsMode({ ...local, remoteAuthority: 'ssh-remote+host' }, setting(true), true),
-			extensionDevelopment: supportsAgentsMode({ ...local, isExtensionDevelopment: true }, setting(true), true),
-			agentsWindow: supportsAgentsMode({ ...local, isSessionsWindow: true }, setting(true), true),
+			enabled: AgentsModeWorkspaceService.supportsAgentsMode(local, setting(true), true),
+			settingOff: AgentsModeWorkspaceService.supportsAgentsMode(local, setting(false), true),
+			settingUnset: AgentsModeWorkspaceService.supportsAgentsMode(local, setting(undefined), true),
+			settingTruthy: AgentsModeWorkspaceService.supportsAgentsMode(local, setting('true'), true),
+			noBackup: AgentsModeWorkspaceService.supportsAgentsMode(local, setting(true), false),
+			workspacesFilterOnly: AgentsModeWorkspaceService.supportsAgentsMode(local, settings({ 'sessions.list.workspacesFilter.enabled': true }), true),
+			remote: AgentsModeWorkspaceService.supportsAgentsMode({ ...local, remoteAuthority: 'ssh-remote+host' }, setting(true), true),
+			extensionDevelopment: AgentsModeWorkspaceService.supportsAgentsMode({ ...local, isExtensionDevelopment: true }, setting(true), true),
+			agentsWindow: AgentsModeWorkspaceService.supportsAgentsMode({ ...local, isSessionsWindow: true }, setting(true), true),
 		}, {
 			enabled: true, settingOff: false, settingUnset: false, settingTruthy: false, noBackup: false, workspacesFilterOnly: false, remote: false, extensionDevelopment: false, agentsWindow: false,
 		});
@@ -424,6 +424,6 @@ suite('AgentsModeWorkspaceService', () => {
 		await fileService.writeFile(applicationSettingsResource, VSBuffer.fromString(`{ "${AGENTS_MODE_ENABLED_SETTING}": true }`));
 		await testObject.reloadConfiguration();
 
-		assert.strictEqual(supportsAgentsMode({ remoteAuthority: undefined, isExtensionDevelopment: false, isSessionsWindow: false }, testObject, true), true);
+		assert.strictEqual(AgentsModeWorkspaceService.supportsAgentsMode({ remoteAuthority: undefined, isExtensionDevelopment: false, isSessionsWindow: false }, testObject, true), true);
 	}));
 });

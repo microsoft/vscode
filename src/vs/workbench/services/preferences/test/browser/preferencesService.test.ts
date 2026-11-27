@@ -25,6 +25,8 @@ import { TestRemoteAgentService, ITestInstantiationService, workbenchInstantiati
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
+import { IWorkspaceContextService, Workspace, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
+import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
 
 suite('PreferencesService', () => {
 	let lastOpenUntypedEditor: IUntypedEditorInput | undefined;
@@ -32,7 +34,7 @@ suite('PreferencesService', () => {
 	let lastOpenEditorGroup: PreferredGroup | undefined;
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createTestObject(editorGroupsService?: IEditorGroupsService, configurationService?: TestConfigurationService): PreferencesService {
+	function createTestObject(editorGroupsService?: IEditorGroupsService, configurationService?: TestConfigurationService, contextService?: IWorkspaceContextService): PreferencesService {
 		lastOpenUntypedEditor = undefined;
 		lastOpenEditorOptions = undefined;
 		lastOpenEditorGroup = undefined;
@@ -65,6 +67,9 @@ suite('PreferencesService', () => {
 		testInstantiationService.stub(IURLService, { registerHandler: () => { } });
 		if (editorGroupsService) {
 			testInstantiationService.stub(IEditorGroupsService, editorGroupsService);
+		}
+		if (contextService) {
+			testInstantiationService.stub(IWorkspaceContextService, contextService);
 		}
 
 		// PreferencesService creates a PreferencesEditorInput which depends on IPreferencesService, add the real one, not a stub
@@ -99,6 +104,13 @@ suite('PreferencesService', () => {
 			target: ConfigurationTarget.USER_LOCAL,
 			pinned: true
 		});
+	});
+
+	test('has no workspace settings for a workspace without a workspace file or folders, like the Agents mode workspace', () => {
+		const agentsWorkspace = new class extends TestContextService {
+			override getWorkbenchState(): WorkbenchState { return WorkbenchState.WORKSPACE; }
+		}(new Workspace('agents-mode', [], false, null, () => false));
+		assert.strictEqual(createTestObject(undefined, undefined, agentsWorkspace).workspaceSettingsResource, null);
 	});
 
 	test('opens the split settings JSON editor as an untyped editor resolved by its registration', async () => {

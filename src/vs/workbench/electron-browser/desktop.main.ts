@@ -13,7 +13,7 @@ import { domContentLoaded } from '../../base/browser/dom.js';
 import { onUnexpectedError } from '../../base/common/errors.js';
 import { URI } from '../../base/common/uri.js';
 import { WorkspaceService } from '../services/configuration/browser/configurationService.js';
-import { AgentsModeWorkspaceService, supportsAgentsMode } from '../services/configuration/browser/agents/agentsModeWorkspaceService.js';
+import { AgentsModeWorkspaceService } from '../services/configuration/browser/agents/agentsModeWorkspaceService.js';
 import { AgentsModeService } from '../services/agentsMode/browser/agentsModeService.js';
 import { IAgentsModeService, NullAgentsModeService } from '../services/agentsMode/common/agentsMode.js';
 import '../services/configuration/electron-browser/agentsModeConfiguration.js';
@@ -424,7 +424,7 @@ export class DesktopMain extends Disposable {
 		}
 
 		// Local editor windows can switch in place into Agents mode, when the user opted in
-		if (supportsAgentsMode(environmentService, workspaceService, !!this.configuration.backupPath)) {
+		if (AgentsModeWorkspaceService.supportsAgentsMode(environmentService, workspaceService, !!this.configuration.backupPath)) {
 			const agentsModeWorkspaceService = this._register(new AgentsModeWorkspaceService(workspaceService, { userDataProfileService, userDataProfilesService, uriIdentityService, fileService, policyService, logService, configurationCache, environmentService }));
 			return { configurationService: agentsModeWorkspaceService, agentsModeService: new AgentsModeService(agentsModeWorkspaceService) };
 		}
