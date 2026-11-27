@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
@@ -19,10 +19,10 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 import { IChatWidgetService } from '../../../contrib/chat/browser/chat.js';
-import { IChatProgress, IChatService } from '../../../contrib/chat/common/chatService/chatService.js';
+import { ChatRequestQueueKind, ChatSendResult, IChatModelReference, IChatProgress, IChatSendRequestOptions, IChatService } from '../../../contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../contrib/chat/common/chatSessionsService.js';
-import { ChatAgentLocation } from '../../../contrib/chat/common/constants.js';
-import { IChatModel } from '../../../contrib/chat/common/model/chatModel.js';
+import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../contrib/chat/common/constants.js';
+import { IChatModel, IChatRequestModeInfo } from '../../../contrib/chat/common/model/chatModel.js';
 import { IChatAgentImplementation, IChatAgentData, IChatAgentRequest, IChatAgentService } from '../../../contrib/chat/common/participants/chatAgents.js';
 import { IAgentPluginService } from '../../../contrib/chat/common/plugins/agentPluginService.js';
 import { IPromptsService } from '../../../contrib/chat/common/promptSyntax/service/promptsService.js';
@@ -236,6 +236,87 @@ suite('MainThreadChatAgents2', function () {
 				['MainThreadChatAgents2#$handleProgressChunk: Failed to begin tool invocation denied-begin', beginError],
 				['MainThreadChatAgents2#$handleProgressChunk: Failed to update tool invocation denied-update', updateError],
 			],
+		});
+	});
+
+	suite('$sendRequestToSession', function () {
+		const sessionResource = URI.parse('vscode-chat-session://local/background');
+		const modeInfo: IChatRequestModeInfo = { kind: ChatModeKind.Agent, isBuiltin: true, modeInstructions: undefined, telemetryModeId: 'agent', applyCodeBlockSuggestionId: undefined, permissionLevel: ChatPermissionLevel.AutoApprove };
+		let sent: { resource: string; message: string; options: Omit<IChatSendRequestOptions, 'userSelectedTools'> }[];
+		let releases: number;
+
+		function stubSession(result: (deferred: DeferredPromise<ChatSendResult>) => ChatSendResult, session: URI | undefined = sessionResource): DeferredPromise<ChatSendResult> {
+			sent = [];
+			releases = 0;
+			const deferred = new DeferredPromise<ChatSendResult>();
+			const model = {
+				sessionResource,
+				lastRequest: { modelId: 'test-model', modeInfo, response: { agent: { id: 'previous-agent' } } },
+			} as unknown as IChatModel;
+			sinon.stub(mockChatService, 'acquireOrLoadSession').callsFake(async resource => session && resource.toString() === session.toString()
+				? { object: model, dispose: () => releases++ } as IChatModelReference
+				: undefined);
+			const sendRequest: IChatService['sendRequest'] = async (resource, message, options) => {
+				const { userSelectedTools: _, ...rest } = options ?? {};
+				sent.push({ resource: resource.toString(), message, options: rest });
+				return result(deferred);
+			};
+			sinon.stub(mockChatService, 'sendRequest').callsFake(sendRequest);
+			return deferred;
+		}
+
+		test('queues the request in the session with the context of its last request and keeps the session alive until it completes', async function () {
+			const deferred = stubSession(deferred => ({ kind: 'queued', deferred: deferred.p }));
+
+			await mainThread.$sendRequestToSession(new ExtensionIdentifier('test.ext'), sessionResource, { prompt: 'Build output', label: 'Build finished' });
+			const releasesBeforeCompletion = releases;
+			deferred.complete({ kind: 'rejected', reason: 'Cleared' });
+			await timeout(0);
+
+			assert.deepStrictEqual({ sent, releasesBeforeCompletion, releases }, {
+				sent: [{
+					resource: sessionResource.toString(),
+					message: '[Notification from extension test.ext]\nBuild output',
+					options: {
+						userSelectedModelId: 'test-model',
+						modeInfo,
+						agentIdSilent: 'previous-agent',
+						instructionContext: { modeKind: ChatModeKind.Agent, enabledTools: undefined },
+						queue: ChatRequestQueueKind.Queued,
+						isSystemInitiated: true,
+						systemInitiatedLabel: 'Build finished (test.ext)',
+						requestSource: 'extension',
+					},
+				}],
+				releasesBeforeCompletion: 0,
+				releases: 1,
+			});
+		});
+
+		test('lets the extension\'s own participant handle a steering request', async function () {
+			stubSession(deferred => ({ kind: 'queued', deferred: deferred.p }));
+			const agentService = instantiationService.get(IChatAgentService);
+			sinon.stub(agentService, 'getAgent').callsFake(id => ({ id, extensionId: new ExtensionIdentifier(id === 'own.participant' ? 'test.ext' : 'other.ext') }) as IChatAgentData);
+
+			await mainThread.$sendRequestToSession(new ExtensionIdentifier('test.ext'), sessionResource, { prompt: 'Test output', label: 'Tests finished', participant: 'own.participant', delivery: 'steer' });
+			const error = await mainThread.$sendRequestToSession(new ExtensionIdentifier('test.ext'), sessionResource, { prompt: 'Test output', label: 'Tests finished', participant: 'other.participant' }).then(() => undefined, (e: Error) => e.message);
+
+			assert.deepStrictEqual({ sent: sent.map(({ resource, message, options }) => ({ resource, message, options: { agentIdSilent: options.agentIdSilent, queue: options.queue } })), error }, {
+				sent: [{ resource: sessionResource.toString(), message: 'Test output', options: { agentIdSilent: 'own.participant', queue: ChatRequestQueueKind.Steering } }],
+				error: `Chat participant 'other.participant' is not registered by extension 'test.ext'`,
+			});
+		});
+
+		test('rejects when the session is gone or does not accept the request', async function () {
+			stubSession(() => ({ kind: 'rejected', reason: 'Session is read-only' }));
+			const rejected = await mainThread.$sendRequestToSession(new ExtensionIdentifier('test.ext'), sessionResource, { prompt: 'Build output', label: 'Build finished' }).then(() => undefined, (e: Error) => e.message);
+			const missing = await mainThread.$sendRequestToSession(new ExtensionIdentifier('test.ext'), URI.parse('vscode-chat-session://local/deleted'), { prompt: 'Build output', label: 'Build finished' }).then(() => undefined, (e: Error) => e.message);
+
+			assert.deepStrictEqual({ rejected, missing, releases }, {
+				rejected: 'Session is read-only',
+				missing: 'Chat session not found: vscode-chat-session://local/deleted',
+				releases: 1,
+			});
 		});
 	});
 });

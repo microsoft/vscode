@@ -141,7 +141,7 @@ import { isModelRouterModelId, modelRouterNameFromModelId } from '../../../../..
 import { isByokLmAgentModelId, resolveByokLmReportedModelId } from '../../../../../../platform/agentHost/common/agentHostByokLm.js';
 import { AUTO_RAW_MODEL_ID, getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../common/languageModelSourcePresentation.js';
-import { ChatInputStateOrigin, reviveSerializableInputState, type IChatModel, type IChatModelInputState, type IChatRequestModeInstructions, type IChatRequestVariableData, type IInputModel, type ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
+import { ChatInputStateOrigin, isAgentSystemInitiated, reviveSerializableInputState, type IChatModel, type IChatModelInputState, type IChatRequestModeInstructions, type IChatRequestVariableData, type IInputModel, type ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { getChatSessionType, isUntitledChatSession } from '../../../common/model/chatUri.js';
@@ -2677,7 +2677,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const attachments = messageAttachments.length > 0 ? messageAttachments : undefined;
 			const model = this._createModelSelection(p.sendOptions.userSelectedModelId, p.sendOptions.userSelectedModelConfiguration);
 			const previousMessage = previousMessages.get(p.request.id);
-			const isSystemInitiated = p.request.isSystemInitiated ?? p.sendOptions.isSystemInitiated;
+			const isSystemInitiated = isAgentSystemInitiated({ isSystemInitiated: p.request.isSystemInitiated ?? p.sendOptions.isSystemInitiated, requestSource: p.request.requestSource ?? p.sendOptions.requestSource });
 			const metadata = p.sendOptions.metadata ?? previousMessage?._meta;
 			const roundTripMetadata = previousMessage && previousMessage.text !== p.request.message.text ? withoutAgentMessageDelegationMeta(metadata) : metadata;
 			// Requests projected from another client carry no mode, so they keep the agent the host already has.

@@ -95,6 +95,7 @@ export interface ISerializableSendOptions {
 	hideFromTranscript?: boolean;
 	systemInitiatedLabel?: string;
 	terminalExecutionId?: string;
+	requestSource?: ChatRequestSource;
 }
 
 /**
@@ -130,7 +131,17 @@ export namespace IChatRequestVariableData {
 }
 
 /** A feature that submits a chat request on the user's behalf. */
-export type ChatRequestSource = 'agentMerge' | 'artifactIntegration';
+export type ChatRequestSource = 'agentMerge' | 'artifactIntegration' | 'extension';
+
+/**
+ * Whether the agent that handles a request should treat it as system initiated. A request that an extension sends
+ * into a session renders as a system notification in the transcript, but the agent handles it like a user request:
+ * its content comes from the extension, so it must not be treated like a notification of the editor itself, for
+ * example when the agent decides whether the request is billed.
+ */
+export function isAgentSystemInitiated(request: { readonly isSystemInitiated?: boolean; readonly requestSource?: ChatRequestSource }): boolean | undefined {
+	return request.requestSource === 'extension' ? undefined : request.isSystemInitiated;
+}
 
 /** Backfills the source of legacy Agent Merge requests when restoring history. */
 export function getRestoredChatRequestSource(request: Pick<IChatRequestModel, 'requestSource' | 'isSystemInitiated' | 'systemInitiatedLabel'>, messageText: string): ChatRequestSource | undefined {
@@ -3013,8 +3024,9 @@ export class ChatModel extends Disposable implements IChatModel {
 	 */
 	dequeueSteeringBatch(): IChatPendingRequest[] {
 		const isSystemInitiated = !!this._pendingRequests.at(0)?.sendOptions.isSystemInitiated;
+		const requestSource = this._pendingRequests.at(0)?.sendOptions.requestSource;
 		const steeringRequests: IChatPendingRequest[] = [];
-		while (this._pendingRequests.at(0)?.kind === ChatRequestQueueKind.Steering && !!this._pendingRequests[0].sendOptions.isSystemInitiated === isSystemInitiated) {
+		while (this._pendingRequests.at(0)?.kind === ChatRequestQueueKind.Steering && !!this._pendingRequests[0].sendOptions.isSystemInitiated === isSystemInitiated && this._pendingRequests[0].sendOptions.requestSource === requestSource) {
 			steeringRequests.push(this._pendingRequests.shift()!);
 		}
 		if (steeringRequests.length > 0) {
@@ -4132,6 +4144,7 @@ export function serializeSendOptions(options: IChatSendRequestOptions): ISeriali
 		hideFromTranscript: options.hideFromTranscript,
 		systemInitiatedLabel: options.systemInitiatedLabel,
 		terminalExecutionId: options.terminalExecutionId,
+		requestSource: options.requestSource,
 	};
 }
 

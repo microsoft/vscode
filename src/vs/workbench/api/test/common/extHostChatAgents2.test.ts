@@ -8,9 +8,10 @@ import type * as vscode from 'vscode';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { URI } from '../../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { mock } from '../../../../base/test/common/mock.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
 import { ChatAgentLocation } from '../../../contrib/chat/common/constants.js';
 import { IChatAgentRequest } from '../../../contrib/chat/common/participants/chatAgents.js';
@@ -18,8 +19,8 @@ import { nullExtensionDescription } from '../../../services/extensions/common/ex
 import { ChatAgentResponseStream, ExtHostChatAgents2 } from '../../common/extHostChatAgents2.js';
 import { CommandsConverter, ExtHostCommands } from '../../common/extHostCommands.js';
 import { ExtHostLanguageModels } from '../../common/extHostLanguageModels.js';
-import { IChatAgentProgressShape, IChatProgressDto, MainThreadChatAgentsShape2, MainThreadCommandsShape } from '../../common/extHost.protocol.js';
-import { ChatRequestTurn, ChatResponseAnchorPart, ChatResponseTextEditPart, Range, TextEdit } from '../../common/extHostTypes.js';
+import { IChatAgentProgressShape, IChatProgressDto, IChatSessionRequestDto, MainThreadChatAgentsShape2, MainThreadCommandsShape } from '../../common/extHost.protocol.js';
+import { ChatRequestTurn, ChatResponseAnchorPart, ChatResponseTextEditPart, ChatSessionRequestDelivery, Range, TextEdit } from '../../common/extHostTypes.js';
 import { SingleProxyRPCProtocol } from './testRPCProtocol.js';
 
 suite('ExtHostChatAgents2', function () {
@@ -29,12 +30,16 @@ suite('ExtHostChatAgents2', function () {
 		let handle = -1;
 		let unregisterCount = 0;
 		const unregisteredCompletions: { handle: number; id: string }[] = [];
+		const sentRequests: { extension: string; sessionResource: string; request: IChatSessionRequestDto }[] = [];
 		const proxy = new class extends mock<MainThreadChatAgentsShape2>() {
 			override $registerAgent(value: number): void { handle = value; }
 			override $updateAgent(): void { }
 			override $unregisterAgent(): void { unregisterCount++; }
 			override $registerAgentCompletionsProvider(): void { }
 			override $unregisterAgentCompletionsProvider(handle: number, id: string): void { unregisteredCompletions.push({ handle, id }); }
+			override async $sendRequestToSession(extension: ExtensionIdentifier, sessionResource: UriComponents, request: IChatSessionRequestDto): Promise<void> {
+				sentRequests.push({ extension: extension.value, sessionResource: URI.revive(sessionResource).toString(), request });
+			}
 		};
 		const commands = new ExtHostCommands(SingleProxyRPCProtocol(new class extends mock<MainThreadCommandsShape>() {
 			override $registerCommand(): void { }
@@ -47,7 +52,7 @@ suite('ExtHostChatAgents2', function () {
 		const participant = disposables.add(dynamic
 			? agents.createDynamicChatAgent(extension, 'test.participant', { name: 'Test', publisherName: 'Test' }, handler)
 			: agents.createChatAgent(extension, 'test.participant', handler));
-		return { agents, participant, commands, handle, unregisteredCompletions, unregisterCount: () => unregisterCount };
+		return { agents, participant, commands, handle, unregisteredCompletions, sentRequests, unregisterCount: () => unregisterCount };
 	}
 
 	const completion: vscode.ChatCompletionItem = {
@@ -128,6 +133,33 @@ suite('ExtHostChatAgents2', function () {
 		participant.dispose();
 		result.complete([completion]);
 		assert.deepStrictEqual(await pending, []);
+	});
+
+	test('sends requests into the session of a tool invocation token', async () => {
+		const { agents, sentRequests } = createParticipant();
+		const token = Object.freeze({ sessionResource: URI.parse('chat-session:/test'), requestId: 'request' });
+		const otherExtension = { ...nullExtensionDescription, identifier: new ExtensionIdentifier('other.extension') };
+		await agents.sendRequestToSession(nullExtensionDescription, token, { prompt: 'Build output', label: 'Build finished' });
+		await agents.sendRequestToSession(nullExtensionDescription, token, { prompt: 'Test output', label: 'Tests finished', participant: 'test.participant', delivery: ChatSessionRequestDelivery.Steer });
+		const errors = await Promise.all([
+			agents.sendRequestToSession(nullExtensionDescription, CancellationToken.None, { prompt: 'Build output', label: 'Build finished' }),
+			agents.sendRequestToSession(otherExtension, token, { prompt: 'Build output', label: 'Build finished', participant: 'test.participant' }),
+			agents.sendRequestToSession(nullExtensionDescription, token, { prompt: ' ', label: 'Build finished' }),
+			agents.sendRequestToSession(nullExtensionDescription, token, { prompt: 'Build output', label: '' }),
+		].map(promise => promise.then(() => undefined, (error: Error) => error.message)));
+
+		assert.deepStrictEqual({ sentRequests, errors }, {
+			sentRequests: [
+				{ extension: nullExtensionDescription.identifier.value, sessionResource: 'chat-session:/test', request: { prompt: 'Build output', label: 'Build finished', participant: undefined, delivery: 'queue' } },
+				{ extension: nullExtensionDescription.identifier.value, sessionResource: 'chat-session:/test', request: { prompt: 'Test output', label: 'Tests finished', participant: 'test.participant', delivery: 'steer' } },
+			],
+			errors: [
+				'Invalid tool invocation token',
+				`Chat participant 'test.participant' is not registered by extension 'other.extension'`,
+				'A chat session request needs a prompt',
+				'A chat session request needs a label',
+			],
+		});
 	});
 
 	test('unregisters a disposed participant only once', () => {

@@ -1686,6 +1686,61 @@ suite('ChatService', () => {
 		});
 	}
 
+	test('extension requests render as system notifications but reach the agent as user requests', async () => {
+		const started = new DeferredPromise<void>();
+		const complete = new DeferredPromise<void>();
+		const invocations: { message: string; isSystemInitiated: boolean; history: { message: string; isSystemInitiated: boolean }[] }[] = [];
+		const agentId = 'notificationAgent';
+		testDisposables.add(chatAgentService.registerAgent(agentId, { ...getAgentData(agentId), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation(agentId, {
+			async invoke(request, _progress, history) {
+				invocations.push({
+					message: request.message,
+					isSystemInitiated: !!request.isSystemInitiated,
+					history: history.map(entry => ({ message: entry.request.message, isSystemInitiated: !!entry.request.isSystemInitiated })),
+				});
+				if (invocations.length === 1) {
+					started.complete();
+					await complete.p;
+				}
+				return {};
+			},
+		}));
+		const service = createChatService();
+		const model = testDisposables.add(startSessionModel(service)).object;
+		const first = await service.sendRequest(model.sessionResource, 'task', { agentIdSilent: agentId });
+		ChatSendResult.assertSent(first);
+		await started.p;
+
+		// Both arrive while the task runs; they must not be combined into one request.
+		const terminal = await service.sendRequest(model.sessionResource, 'terminal completed', { agentIdSilent: agentId, queue: ChatRequestQueueKind.Steering, isSystemInitiated: true });
+		const extension = await service.sendRequest(model.sessionResource, 'build finished', { agentIdSilent: agentId, queue: ChatRequestQueueKind.Steering, isSystemInitiated: true, systemInitiatedLabel: 'Build finished (Test)', requestSource: 'extension' });
+		assert.ok(ChatSendResult.isQueued(terminal) && ChatSendResult.isQueued(extension));
+		complete.complete();
+		await first.data.responseCompletePromise;
+		for (const pending of [terminal, extension]) {
+			const sent = await pending.deferred;
+			ChatSendResult.assertSent(sent);
+			await sent.data.responseCompletePromise;
+		}
+
+		assert.deepStrictEqual({
+			invocations,
+			requests: model.getRequests().map(request => ({ message: request.message.text, isSystemInitiated: !!request.isSystemInitiated, label: request.systemInitiatedLabel, requestSource: request.requestSource })),
+		}, {
+			invocations: [
+				{ message: 'task', isSystemInitiated: false, history: [] },
+				{ message: 'terminal completed', isSystemInitiated: true, history: [{ message: 'task', isSystemInitiated: false }] },
+				{ message: 'build finished', isSystemInitiated: false, history: [{ message: 'task', isSystemInitiated: false }, { message: 'terminal completed', isSystemInitiated: true }] },
+			],
+			requests: [
+				{ message: 'task', isSystemInitiated: false, label: undefined, requestSource: undefined },
+				{ message: 'terminal completed', isSystemInitiated: true, label: undefined, requestSource: undefined },
+				{ message: 'build finished', isSystemInitiated: true, label: 'Build finished (Test)', requestSource: 'extension' },
+			],
+		});
+	});
+
 	for (const { kind, sendOptions, expectedRequest, expectedInvocation } of [
 		{
 			kind: 'terminal system notification',
@@ -1698,6 +1753,12 @@ suite('ChatService', () => {
 			sendOptions: { hideFromTranscript: true },
 			expectedRequest: { isSystemInitiated: undefined, systemInitiatedLabel: undefined, terminalExecutionId: undefined, isHiddenFromTranscript: true },
 			expectedInvocation: { isSystemInitiated: undefined, hideFromTranscript: true },
+		},
+		{
+			kind: 'request sent by an extension',
+			sendOptions: { queue: ChatRequestQueueKind.Queued, isSystemInitiated: true, systemInitiatedLabel: 'Build finished (Test)', requestSource: 'extension' as const },
+			expectedRequest: { isSystemInitiated: true, systemInitiatedLabel: 'Build finished (Test)', terminalExecutionId: undefined, isHiddenFromTranscript: false, requestSource: 'extension' },
+			expectedInvocation: { isSystemInitiated: undefined, hideFromTranscript: undefined },
 		},
 	]) {
 		for (const preserveRequestId of [false, true]) {
@@ -1724,7 +1785,7 @@ suite('ChatService', () => {
 				const retried = model.getRequests()[0];
 				assert.deepStrictEqual({
 					requests: model.getRequests().length,
-					retried: { isSystemInitiated: retried.isSystemInitiated, systemInitiatedLabel: retried.systemInitiatedLabel, terminalExecutionId: retried.terminalExecutionId, isHiddenFromTranscript: retried.isHiddenFromTranscript },
+					retried: { isSystemInitiated: retried.isSystemInitiated, systemInitiatedLabel: retried.systemInitiatedLabel, terminalExecutionId: retried.terminalExecutionId, isHiddenFromTranscript: retried.isHiddenFromTranscript, ...(retried.requestSource ? { requestSource: retried.requestSource } : {}) },
 					invocations,
 				}, { requests: 1, retried: expectedRequest, invocations: [expectedInvocation, expectedInvocation] });
 			});

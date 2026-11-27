@@ -46,7 +46,7 @@ import { IChatOpenDiagnosticsService } from '../chatOpenDiagnosticsService.js';
 import { ChatPerfMark, clearChatMarks, markChat } from '../chatPerf.js';
 import { CloudSandboxSessionTrace } from '../cloudSandboxSessionTrace.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../participants/chatAgents.js';
-import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatModelInputState, IChatPendingRequest, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, ISerializedChatDataReference, normalizeSerializableChatData, toChatHistoryContent, updateRanges, ISerializableChatModelInputState, logChangesToStateModel } from '../model/chatModel.js';
+import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatModelInputState, IChatPendingRequest, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, ISerializedChatDataReference, normalizeSerializableChatData, toChatHistoryContent, updateRanges, ISerializableChatModelInputState, logChangesToStateModel, isAgentSystemInitiated } from '../model/chatModel.js';
 import { ChatModelStore, IStartSessionProps } from '../model/chatModelStore.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, chatSubcommandLeader, getPromptText, IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { ChatRequestParser } from '../requestParser/chatRequestParser.js';
@@ -1542,6 +1542,7 @@ export class ChatService extends Disposable implements IChatService {
 			isSystemInitiated: options?.isSystemInitiated ?? request.isSystemInitiated,
 			systemInitiatedLabel: options?.systemInitiatedLabel ?? request.systemInitiatedLabel,
 			terminalExecutionId: options?.terminalExecutionId ?? request.terminalExecutionId,
+			requestSource: options?.requestSource ?? request.requestSource,
 			hideFromTranscript: options?.hideFromTranscript ?? (request.isHiddenFromTranscript ? true : undefined),
 		};
 		await this._sendRequestAsync(model, model.sessionResource, request.message, attempt, enableCommandDetection, defaultAgent, location, resendOptions, preservedRequest, preserveRequestId ? request.id : undefined).responseCompletePromise;
@@ -1562,6 +1563,7 @@ export class ChatService extends Disposable implements IChatService {
 			modelConfiguration: options.userSelectedModelConfiguration,
 			userSelectedTools: options.userSelectedTools?.get(),
 			isSystemInitiated: options.isSystemInitiated,
+			requestSource: options.requestSource,
 			isHiddenFromTranscript: options.hideFromTranscript,
 			systemInitiatedLabel: options.systemInitiatedLabel,
 			terminalExecutionId: options.terminalExecutionId,
@@ -2110,7 +2112,7 @@ export class ChatService extends Disposable implements IChatService {
 					const initialCommand = agentSlashCommandPart?.command;
 					const initVariableData: IChatRequestVariableData = { variables: [] };
 					const modelConfiguration = options?.userSelectedModelConfiguration ?? (options?.userSelectedModelId ? this.languageModelsService.getModelConfiguration(options.userSelectedModelId) : undefined);
-					request = preservedRequest ?? model.addRequest(parsedRequest, initVariableData, attempt, options?.modeInfo, initialAgent, initialCommand, options?.confirmation, options?.locationData, options?.attachedContext, undefined, options?.userSelectedModelId, options?.userSelectedTools?.get(), requestId, options?.isSystemInitiated, options?.systemInitiatedLabel, options?.terminalExecutionId, isTerminalCommand, undefined, options?.hideFromTranscript, undefined, undefined, undefined, modelConfiguration, options?.metadata);
+					request = preservedRequest ?? model.addRequest(parsedRequest, initVariableData, attempt, options?.modeInfo, initialAgent, initialCommand, options?.confirmation, options?.locationData, options?.attachedContext, undefined, options?.userSelectedModelId, options?.userSelectedTools?.get(), requestId, options?.isSystemInitiated, options?.systemInitiatedLabel, options?.terminalExecutionId, isTerminalCommand, undefined, options?.hideFromTranscript, undefined, undefined, options?.requestSource, modelConfiguration, options?.metadata);
 					preservedRequest?.response?.reopen();
 					const thisRequest = request;
 					completeResponseCreated();
@@ -2178,7 +2180,7 @@ export class ChatService extends Disposable implements IChatService {
 							hooks: collectedHooks,
 							hasHooksEnabled: !!collectedHooks && Object.values(collectedHooks).some(arr => arr.length > 0),
 							isVoiceModeInput: options?.isVoiceModeInput,
-							isSystemInitiated: options?.isSystemInitiated,
+							isSystemInitiated: isAgentSystemInitiated({ isSystemInitiated: options?.isSystemInitiated, requestSource: options?.requestSource }),
 							hideFromTranscript: options?.hideFromTranscript,
 							workingDirectory: model.workingDirectory,
 						};
@@ -2642,7 +2644,7 @@ export class ChatService extends Disposable implements IChatService {
 				location: ChatAgentLocation.Chat,
 				editedFileEvents: request.editedFileEvents,
 				modeInstructions: request.modeInfo?.modeInstructions,
-				isSystemInitiated: request.isSystemInitiated,
+				isSystemInitiated: isAgentSystemInitiated(request),
 			};
 			history.push({ request: historyRequest, response: toChatHistoryContent(request.response.response.value), result: request.response.result ?? {} });
 		}

@@ -2134,6 +2134,9 @@ export interface IChatSendRequestOptions {
 	 */
 	terminalExecutionId?: string;
 
+	/** The feature that submits this request on the user's behalf. Stored with the request. */
+	requestSource?: IChatRequestModel['requestSource'];
+
 	/**
 	 * When set, the chat service will collect automatic instructions
 	 * (for example `.instructions.md` files and skills) asynchronously after showing
