@@ -43,32 +43,18 @@ const mermaidMarkdownBuildOptions: Partial<esbuild.BuildOptions> = {
 	splitting: true,
 };
 
-await Promise.all([
-	// Chat
-	run({
-		entryPoints: {
-			'index': path.join(chatSrcDir, 'index.ts'),
-			'index-editor': path.join(chatSrcDir, 'index-editor.ts'),
-			'codicon': path.join(resolvePackageDirectory(rootDir, '@vscode/codicons'), 'dist', 'codicon.css'),
-		},
-		srcDir: chatSrcDir,
-		outdir: path.join(rootDir, 'chat-webview-out'),
-		additionalOptions: {
-			loader: {
-				'.ttf': 'dataurl',
-			},
-		}
-	}, process.argv),
-	// Markdown preview, notebook and Markdown editor code blocks, built together so that they share their chunks.
+await run({
+	// All webviews, built together into one folder so that they share their chunks and the extension contains Mermaid once.
 	// The entry modules stay in the folder of the chunks: a notebook only loads a renderer's files from the folder of its entry module.
-	run({
-		entryPoints: {
-			'markdown-preview': path.join(previewSrcDir, 'markdown', 'index.ts'),
-			'notebook': path.join(previewSrcDir, 'notebook', 'index.ts'),
-			'markdown-editor': path.join(previewSrcDir, 'markdownEditor', 'index.ts'),
-		},
-		srcDir: previewSrcDir,
-		outdir: path.join(rootDir, 'webview-out'),
-		additionalOptions: mermaidMarkdownBuildOptions,
-	}, process.argv),
-]);
+	entryPoints: {
+		'markdown-preview': path.join(previewSrcDir, 'markdown', 'index.ts'),
+		'notebook': path.join(previewSrcDir, 'notebook', 'index.ts'),
+		'markdown-editor': path.join(previewSrcDir, 'markdownEditor', 'index.ts'),
+		'chat': path.join(chatSrcDir, 'index.ts'),
+		'diagram-editor': path.join(chatSrcDir, 'index-editor.ts'),
+		'codicon': path.join(resolvePackageDirectory(rootDir, '@vscode/codicons'), 'dist', 'codicon.css'),
+	},
+	srcDir: previewSrcDir,
+	outdir: path.join(rootDir, 'webview-out'),
+	additionalOptions: mermaidMarkdownBuildOptions,
+}, process.argv);

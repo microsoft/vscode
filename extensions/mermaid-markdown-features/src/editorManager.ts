@@ -169,7 +169,7 @@ class MermaidPreview extends Disposable {
 		this._webviewPanel.webview.options = {
 			enableScripts: true,
 			localResourceRoots: [
-				vscode.Uri.joinPath(this._extensionUri, 'chat-webview-out')
+				vscode.Uri.joinPath(this._extensionUri, 'webview-out')
 			],
 		};
 
@@ -205,9 +205,9 @@ class MermaidPreview extends Disposable {
 	private _getHtml(): string {
 		const nonce = generateUuid();
 
-		const mediaRoot = vscode.Uri.joinPath(this._extensionUri, 'chat-webview-out');
+		const mediaRoot = vscode.Uri.joinPath(this._extensionUri, 'webview-out');
 		const scriptUri = this._webviewPanel.webview.asWebviewUri(
-			vscode.Uri.joinPath(mediaRoot, 'index-editor.js')
+			vscode.Uri.joinPath(mediaRoot, 'diagram-editor.js')
 		);
 		const codiconsUri = this._webviewPanel.webview.asWebviewUri(
 			vscode.Uri.joinPath(mediaRoot, 'codicon.css')

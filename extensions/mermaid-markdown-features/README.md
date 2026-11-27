@@ -7,5 +7,5 @@ Adds [Mermaid.js](https://mermaid.js.org) diagram rendering to built-in chat, Ma
 ## Building the webviews
 
 Run `pnpm run build-webview` from this directory to build the webview bundles.
-The Markdown preview, notebook renderer, and Markdown editor are built together into `webview-out` as minified ES modules with code splitting, so they share chunks and Mermaid's diagram implementations and add-ons can load on demand.
+All webviews (chat, the diagram editor, the Markdown preview, the notebook renderer, and the Markdown editor) are built together into `webview-out` as minified ES modules with code splitting, so they share chunks and Mermaid's diagram implementations and add-ons can load on demand.
 When copying or packaging the extension, include all emitted files in `webview-out`: the entry modules load sibling chunks using relative URLs.
