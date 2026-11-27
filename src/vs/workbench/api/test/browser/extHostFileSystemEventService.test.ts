@@ -17,7 +17,7 @@ import { ExtHostConfigProvider } from '../../common/extHostConfiguration.js';
 
 suite('ExtHostFileSystemEventService', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const protocol: IMainContext = {
 		getProxy: () => { return undefined!; },
@@ -148,6 +148,34 @@ suite('ExtHostFileSystemEventService', () => {
 
 		sub.dispose();
 		watcher.dispose();
+	});
+
+	test('routes a batch to overlapping watcher bases in registration order', () => {
+		const service = new ExtHostFileSystemEventService(protocolWithProxy, new NullLogService(), undefined!);
+		const workspace: Pick<IExtHostWorkspace, 'getWorkspaceFolder'> = { getWorkspaceFolder: () => undefined };
+		const fileSystemInfo = new ExtHostFileSystemInfo();
+		const calls: string[] = [];
+		const watch = (base: string, label: string) => {
+			const watcher = disposables.add(service.createFileSystemWatcher(workspace as IExtHostWorkspace, undefined!, fileSystemInfo, nullExtensionDescription, new RelativePattern(base, '*'), {}));
+			disposables.add(watcher.onDidChange(uri => calls.push(`${label}: ${uri.path}`)));
+			return watcher;
+		};
+		const file = URI.file('/workspace/src/a.ts');
+		const sibling = URI.file('/workspace/src/b.ts');
+		watch(file.fsPath, 'file');
+		watch('/workspace/src/', 'folder');
+		watch('/workspace/src', 'disposed').dispose();
+		watch(file.fsPath, 'second file watcher');
+		watch('/workspace/s', 'non-parent');
+
+		service.$onFileEvent({ session: undefined, created: [], changed: [sibling, file], deleted: [] });
+
+		assert.deepStrictEqual(calls, [
+			'file: /workspace/src/a.ts',
+			'folder: /workspace/src/b.ts',
+			'folder: /workspace/src/a.ts',
+			'second file watcher: /workspace/src/a.ts',
+		]);
 	});
 
 });

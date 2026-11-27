@@ -5,7 +5,7 @@
 
 import { Emitter, Event, AsyncEmitter, IWaitUntil, IWaitUntilData } from '../../../base/common/event.js';
 import { GLOBSTAR, GLOB_SPLIT, IRelativePattern, parse } from '../../../base/common/glob.js';
-import { URI, UriComponents } from '../../../base/common/uri.js';
+import { URI } from '../../../base/common/uri.js';
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors.js';
 import type * as vscode from 'vscode';
 import { ExtHostFileSystemEventServiceShape, FileSystemEvents, IMainContext, SourceTargetPair, IWorkspaceEditDto, IWillRunFileOperationParticipation, MainContext, IRelativePatternDto } from './extHost.protocol.js';
@@ -16,7 +16,9 @@ import { FileChangeFilter, FileOperation, FileSystemProviderCapabilities, IGlobP
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { IExtHostWorkspace } from './extHostWorkspace.js';
-import { Lazy } from '../../../base/common/lazy.js';
+import { getOrSet } from '../../../base/common/map.js';
+import { sep } from '../../../base/common/path.js';
+import { onUnexpectedError } from '../../../base/common/errors.js';
 import { ExtHostConfigProvider } from './extHostConfiguration.js';
 import { rtrim } from '../../../base/common/strings.js';
 import { normalizeWatcherPattern } from '../../../platform/files/common/watcher.js';
@@ -52,7 +54,7 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 		return Boolean(this._config & 0b100);
 	}
 
-	constructor(mainContext: IMainContext, configuration: ExtHostConfigProvider, fileSystemInfo: ExtHostFileSystemInfo, workspace: IExtHostWorkspace, extension: IExtensionDescription, dispatcher: Event<LazyRevivedFileSystemEvents>, globPattern: string | IRelativePatternDto, options: FileSystemWatcherCreateOptions) {
+	constructor(mainContext: IMainContext, configuration: ExtHostConfigProvider, fileSystemInfo: ExtHostFileSystemInfo, workspace: IExtHostWorkspace, extension: IExtensionDescription, dispatcher: FileSystemEventDispatcher, globPattern: string | IRelativePatternDto, options: FileSystemWatcherCreateOptions) {
 		this._config = 0;
 		if (options.ignoreCreateEvents) {
 			this._config += 0b001;
@@ -88,42 +90,20 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 		// https://github.com/microsoft/vscode/issues/3025
 		const excludeOutOfWorkspaceEvents = typeof globPattern === 'string';
 
-		// 1.84.x introduces new proposed API for a watcher to set exclude
-		// rules. In these cases, we turn the file watcher into correlation
-		// mode and ignore any event that does not match the correlation ID.
-		//
-		// Update (Feb 2025): proposal is discontinued, so the previous
-		// `options.correlate` is always `false`.
-		const excludeUncorrelatedEvents = false;
-
-		const subscription = dispatcher(events => {
-			if (typeof events.session === 'number' && events.session !== this.session) {
+		const emitters = {
+			created: options.ignoreCreateEvents ? undefined : this._onDidCreate,
+			changed: options.ignoreChangeEvents ? undefined : this._onDidChange,
+			deleted: options.ignoreDeleteEvents ? undefined : this._onDidDelete,
+		};
+		const subscription = dispatcher.subscribe(globPattern, (session, events) => {
+			if (typeof session === 'number' && session !== this.session) {
 				return; // ignore events from other file watchers that are in correlation mode
 			}
 
-			if (excludeUncorrelatedEvents && typeof events.session === 'undefined') {
-				return; // ignore events from other non-correlating file watcher when we are in correlation mode
-			}
-
-			if (!options.ignoreCreateEvents) {
-				for (const { uri, lowerCaseFsPath } of events.created) {
-					if (parsedPattern(ignoreCase ? lowerCaseFsPath : uri.fsPath) && (!excludeOutOfWorkspaceEvents || workspace.getWorkspaceFolder(uri))) {
-						this._onDidCreate.fire(uri);
-					}
-				}
-			}
-			if (!options.ignoreChangeEvents) {
-				for (const { uri, lowerCaseFsPath } of events.changed) {
-					if (parsedPattern(ignoreCase ? lowerCaseFsPath : uri.fsPath) && (!excludeOutOfWorkspaceEvents || workspace.getWorkspaceFolder(uri))) {
-						this._onDidChange.fire(uri);
-					}
-				}
-			}
-			if (!options.ignoreDeleteEvents) {
-				for (const { uri, lowerCaseFsPath } of events.deleted) {
-					if (parsedPattern(ignoreCase ? lowerCaseFsPath : uri.fsPath) && (!excludeOutOfWorkspaceEvents || workspace.getWorkspaceFolder(uri))) {
-						this._onDidDelete.fire(uri);
-					}
+			for (const { kind, uri, lowerCaseFsPath } of events) {
+				const emitter = emitters[kind];
+				if (emitter && parsedPattern(ignoreCase ? lowerCaseFsPath : uri.fsPath) && (!excludeOutOfWorkspaceEvents || workspace.getWorkspaceFolder(uri))) {
+					emitter.fire(uri);
 				}
 			}
 		});
@@ -256,36 +236,87 @@ interface IExtensionListener<E> {
 }
 
 interface RevivedFileSystemEvent {
+	readonly kind: 'created' | 'changed' | 'deleted';
 	readonly uri: URI;
 	readonly lowerCaseFsPath: string;
 }
 
-class LazyRevivedFileSystemEvents {
+type FileSystemEventListener = (session: number | undefined, events: readonly RevivedFileSystemEvent[]) => void;
 
-	readonly session: number | undefined;
+class FileSystemEventDispatcher {
 
-	private _created = new Lazy(() => this._events.created.map(LazyRevivedFileSystemEvents._revive));
-	get created(): RevivedFileSystemEvent[] { return this._created.value; }
+	private readonly listenersByBase = new Map<string | undefined, Map<FileSystemEventListener, number>>();
+	private sequence = 0;
 
-	private _changed = new Lazy(() => this._events.changed.map(LazyRevivedFileSystemEvents._revive));
-	get changed(): RevivedFileSystemEvent[] { return this._changed.value; }
-
-	private _deleted = new Lazy(() => this._events.deleted.map(LazyRevivedFileSystemEvents._revive));
-	get deleted(): RevivedFileSystemEvent[] { return this._deleted.value; }
-
-	private static _revive(uriComponents: UriComponents): RevivedFileSystemEvent {
-		const uri = URI.revive(uriComponents);
-		return { uri, lowerCaseFsPath: uri.fsPath.toLowerCase() };
+	subscribe(pattern: string | IRelativePattern, listener: FileSystemEventListener): Disposable {
+		// isEqualOrParent can normalize both paths when either contains '..'; let the glob decide those cases.
+		const base = typeof pattern === 'string' || pattern.base.includes('..') ? undefined : rtrim(pattern.base.toLowerCase(), sep);
+		const listeners = getOrSet(this.listenersByBase, base, new Map<FileSystemEventListener, number>());
+		listeners.set(listener, this.sequence++);
+		return new Disposable(() => {
+			listeners.delete(listener);
+			if (listeners.size === 0) {
+				this.listenersByBase.delete(base);
+			}
+		});
 	}
 
-	constructor(private readonly _events: FileSystemEvents) {
-		this.session = this._events.session;
+	dispatch(events: FileSystemEvents): void {
+		if (!this.listenersByBase.size) {
+			return;
+		}
+
+		const batches = new Map<string | undefined, RevivedFileSystemEvent[]>();
+		const append = (base: string | undefined, event: RevivedFileSystemEvent) => {
+			if (this.listenersByBase.has(base)) {
+				const batch = batches.get(base);
+				if (batch) {
+					batch.push(event);
+				} else {
+					batches.set(base, [event]);
+				}
+			}
+		};
+		for (const kind of ['created', 'changed', 'deleted'] as const) {
+			for (const components of events[kind]) {
+				const uri = URI.revive(components);
+				const path = uri.fsPath.toLowerCase();
+				const event = { kind, uri, lowerCaseFsPath: path };
+				if (path.includes('..')) {
+					for (const base of this.listenersByBase.keys()) {
+						append(base, event);
+					}
+				} else {
+					append(undefined, event);
+					append(path, event);
+					for (let end = path.indexOf(sep); end >= 0; end = path.indexOf(sep, end + 1)) {
+						append(path.substring(0, end), event);
+					}
+				}
+			}
+		}
+
+		// Snapshot before firing: extensions may add or dispose watchers while receiving a batch.
+		const deliveries = Array.from(batches).flatMap(([base, batch]) => {
+			const listeners = this.listenersByBase.get(base)!;
+			return Array.from(listeners, ([listener, order]) => ({ listener, order, listeners, batch }));
+		});
+		deliveries.sort((a, b) => a.order - b.order);
+		for (const { listener, listeners, batch } of deliveries) {
+			if (listeners.has(listener)) {
+				try {
+					listener(events.session, batch);
+				} catch (error) {
+					onUnexpectedError(error);
+				}
+			}
+		}
 	}
 }
 
 export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServiceShape {
 
-	private readonly _onFileSystemEvent = new Emitter<LazyRevivedFileSystemEvents>();
+	private readonly _fileSystemEventDispatcher = new FileSystemEventDispatcher();
 
 	private readonly _onDidRenameFile = new Emitter<vscode.FileRenameEvent>();
 	private readonly _onDidCreateFile = new Emitter<vscode.FileCreateEvent>();
@@ -309,11 +340,11 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 	//--- file events
 
 	createFileSystemWatcher(workspace: IExtHostWorkspace, configProvider: ExtHostConfigProvider, fileSystemInfo: ExtHostFileSystemInfo, extension: IExtensionDescription, globPattern: vscode.GlobPattern, options: FileSystemWatcherCreateOptions): vscode.FileSystemWatcher {
-		return new FileSystemWatcher(this._mainContext, configProvider, fileSystemInfo, workspace, extension, this._onFileSystemEvent.event, typeConverter.GlobPattern.from(globPattern), options);
+		return new FileSystemWatcher(this._mainContext, configProvider, fileSystemInfo, workspace, extension, this._fileSystemEventDispatcher, typeConverter.GlobPattern.from(globPattern), options);
 	}
 
 	$onFileEvent(events: FileSystemEvents) {
-		this._onFileSystemEvent.fire(new LazyRevivedFileSystemEvents(events));
+		this._fileSystemEventDispatcher.dispatch(events);
 	}
 
 	//--- file operations
