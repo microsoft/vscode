@@ -1504,6 +1504,36 @@ suite('Workbench - Terminal Typeahead', () => {
 			});
 		});
 
+		test('waits for PSReadLine to repaint keys typed while output is unparsed', async () => {
+			const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
+			const control = ds.add(new TerminalCtor({ allowProposedApi: true, cols: 60, rows: 3 }));
+			const both = async (data: string) => {
+				await server(data);
+				await writeP(control, data);
+			};
+			terminal.resize(60, 3);
+			terminal.reset();
+			addon.reset();
+			addon.showPredictions(true);
+			await both(`${CSI}?1h\x1b=PS /private/tmp> `);
+			await input('e');
+			const e = psReadLineRender('e', 19);
+			queueServer(e);
+			terminal.input('c');
+			terminal.input('h');
+			await writeP(terminal, '');
+			await writeP(control, e);
+			await both(psReadLineRender('ec', 20));
+			await input('o');
+			const beforeRemainingRepaints = state().lines[0];
+			await both(psReadLineRender('ech', 21));
+			await both(psReadLineRender('echo', 22));
+			assert.deepStrictEqual({ beforeRemainingRepaints, terminal: snapshotTerminal(terminal) }, {
+				beforeRemainingRepaints: 'PS /private/tmp> ec',
+				terminal: snapshotTerminal(control)
+			});
+		});
+
 		test('matches a fish mid-line backspace followed by its repaint', async () => {
 			const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 			const control = ds.add(new TerminalCtor({ allowProposedApi: true, cols: 40, rows: 3 }));
