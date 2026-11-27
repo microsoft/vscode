@@ -316,26 +316,12 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
-		@ILogService logService: ILogService,
+		@ILogService private readonly logService: ILogService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
-		this.excluded = new Map();
-		const raw = storageService.get(SessionsListFilters.STORAGE_KEY, StorageScope.PROFILE);
-		if (raw !== undefined) {
-			try {
-				const entries: unknown = JSON.parse(raw);
-				if (!Array.isArray(entries) || !entries.every((entry): entry is [string, boolean] =>
-					Array.isArray(entry) && entry.length === 2 && typeof entry[0] === 'string' && typeof entry[1] === 'boolean')) {
-					throw new Error('Invalid session filter preferences.');
-				}
-				// Earlier builds stored hidden worktree folders here: those show all folders again
-				this.excluded = new Map(entries.filter(([key]) => !key.startsWith('["worktree",')));
-			} catch (error) {
-				logService.warn('Unable to restore session filter preferences.', error);
-			}
-		}
+		this.excluded = this.readExcluded(logService);
 		this._worktree = storageService.get(SessionsListFilters.WORKTREE_STORAGE_KEY, StorageScope.PROFILE) || undefined;
 		this._inboxScope = this.readInboxScope(logService);
 		// Earlier builds stored the pick for the whole profile: drop it rather than seed every window with one window's pick
@@ -350,6 +336,39 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 			}
 		}));
 		this.migrateShowAutomationRuns(configurationService, logService);
+	}
+
+	private readExcluded(logService: ILogService): Map<string, boolean> {
+		const raw = this.storageService.get(SessionsListFilters.STORAGE_KEY, StorageScope.PROFILE);
+		if (raw !== undefined) {
+			try {
+				const entries: unknown = JSON.parse(raw);
+				if (!Array.isArray(entries) || !entries.every((entry): entry is [string, boolean] =>
+					Array.isArray(entry) && entry.length === 2 && typeof entry[0] === 'string' && typeof entry[1] === 'boolean')) {
+					throw new Error('Invalid session filter preferences.');
+				}
+				// Earlier builds stored hidden worktree folders here: those show all folders again
+				return new Map(entries.filter(([key]) => !key.startsWith('["worktree",')));
+			} catch (error) {
+				logService.warn('Unable to restore session filter preferences.', error);
+			}
+		}
+		return new Map();
+	}
+
+	/**
+	 * Reads the remembered filters again, such as from the profile the window switches to, without storing anything: what the
+	 * list remembered in the previous profile stays there.
+	 */
+	reload(): void {
+		const excluded = this.readExcluded(this.logService);
+		this.excluded.clear();
+		for (const [key, value] of excluded) {
+			this.excluded.set(key, value);
+		}
+		this._worktree = this.storageService.get(SessionsListFilters.WORKTREE_STORAGE_KEY, StorageScope.PROFILE) || undefined;
+		this._inboxScope = this.readInboxScope(this.logService);
+		this._onDidChange.fire();
 	}
 
 	private readInboxScope(logService: ILogService): IInboxScope {

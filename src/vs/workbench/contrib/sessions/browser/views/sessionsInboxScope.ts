@@ -255,10 +255,19 @@ export class SessionsInboxScope extends Disposable {
 		}
 	}
 
-	setVisible(visible: boolean): void {
-		this.element.hidden = !visible;
-		if (!visible) {
-			this.hidePicker();
+	/**
+	 * Shows or hides the scope. Hiding closes an open picker first, and returns whether the focus was in the scope or its picker,
+	 * which the caller then moves to a control that stays, as the hidden scope cannot keep it.
+	 */
+	setVisible(visible: boolean): boolean {
+		if (visible || this.element.hidden) {
+			this.element.hidden = !visible;
+			return false;
 		}
+		const activeElement = dom.getActiveElement();
+		const hadFocus = !!this.activeTrigger || (dom.isHTMLElement(activeElement) && this.element.contains(activeElement));
+		this.hidePicker();
+		this.element.hidden = true;
+		return hadFocus;
 	}
 }

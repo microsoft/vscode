@@ -94,6 +94,7 @@ suite('Sessions - Sessions list tools', () => {
 			set currentGrouping(grouping: SessionsGrouping) { state.grouping = grouping; },
 			get grouping() { return state.grouping; },
 			get inboxAvailable(): boolean { return Reflect.get(SessionsView.prototype, 'inboxAvailable', this); },
+			get canEnterInbox(): boolean { return Reflect.get(SessionsView.prototype, 'canEnterInbox', this); },
 			offeredGroupings: DEFAULT_SESSIONS_GROUPINGS,
 			configurationService,
 			storageService,

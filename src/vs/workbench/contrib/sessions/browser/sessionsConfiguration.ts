@@ -45,7 +45,7 @@ export const sessionsListConfigurationProperties = {
 			localize('sessions.list.inboxAutoAdvance.off', "Stay in the current session after sending a reply or approving a request."),
 			localize('sessions.list.inboxAutoAdvance.newSession', "Open New Session and focus its chat input after sending a reply or approving a request."),
 		],
-		description: localize('sessions.list.inboxAutoAdvance', "Controls where focus moves after sending a reply or approving a request in an Inbox session: the next visible Inbox session (or the Inbox heading when none remain), the current session, or the New Session chat input."),
+		description: localize('sessions.list.inboxAutoAdvance', "Controls where focus moves after sending a reply or approving a request in an Inbox session of the Agents window: the next visible Inbox session (or the Inbox heading when none remain), the current session, or the New Session chat input. In the Chat view of an editor window, focus stays in the current session."),
 		default: 'auto',
 	},
 	[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING]: {
