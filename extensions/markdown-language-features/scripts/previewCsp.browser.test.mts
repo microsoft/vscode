@@ -106,3 +106,41 @@ it('takes the direction of the preview root from its content', async () => {
 		await browser.close();
 	}
 });
+
+it('keeps code block copy buttons across in-place updates', async () => {
+	const codeBlocks = (...texts: string[]) => `<div class="markdown-body">${texts.map(text => `<pre><code class="code-line" dir="auto">${text}</code></pre>`).join('')}</div>`;
+
+	const browser = await chromium.launch();
+	try {
+		const page = await browser.newPage();
+		const update = (content: string) => page.evaluate(([source, content]) => window.postMessage({ type: 'updateContent', source, content }, '*'), [source, content]);
+		const buttons = () => page.evaluate(() => {
+			const first = document.querySelector('pre .code-block-copy-button');
+			return {
+				buttonsPerBlock: [...document.querySelectorAll('pre')].map(pre => pre.querySelectorAll('.code-block-copy-button').length),
+				firstButtonKept: !!first && first === (window as unknown as { firstButton?: Element }).firstButton,
+			};
+		});
+
+		await page.setContent(await previewHtml(codeBlocks('one')));
+		await page.waitForFunction(() => !!document.querySelector('pre .code-block-copy-button'));
+		await page.evaluate(() => { (window as unknown as { firstButton?: Element }).firstButton = document.querySelector('pre .code-block-copy-button')!; });
+
+		// Change the first code block and add another one
+		await update(codeBlocks('one changed', 'two'));
+		await page.waitForFunction(() => document.body.textContent?.includes('two'));
+		const afterAdd = await buttons();
+
+		// Remove the second code block
+		await update(codeBlocks('one changed'));
+		await page.waitForFunction(() => !document.body.textContent?.includes('two'));
+		const afterRemove = await buttons();
+
+		assert.deepStrictEqual({ afterAdd, afterRemove }, {
+			afterAdd: { buttonsPerBlock: [1, 1], firstButtonKept: true },
+			afterRemove: { buttonsPerBlock: [1], firstButtonKept: true },
+		});
+	} finally {
+		await browser.close();
+	}
+});
