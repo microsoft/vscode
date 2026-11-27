@@ -12,6 +12,7 @@ import { isWeb } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { withGitHubCredentialDeadline } from '../../../../platform/github/common/githubCredentialService.js';
 import { deriveGitHubEndpoints } from '../../../../platform/github/common/githubEndpoints.js';
 import { createGitHubClientMetadata } from '../../../../platform/github/common/githubRequestMetadata.js';
@@ -63,16 +64,17 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 		}, logService, telemetryService);
 		this._credentialProvider = this._register(credentialProvider);
 		let defaultAccountKey = this._getDefaultAccountKey();
+		const hasDefaultAccountKeyChanged = () => {
+			const key = this._getDefaultAccountKey();
+			if (key === defaultAccountKey) {
+				return false;
+			}
+			defaultAccountKey = key;
+			this._defaultSessionAccountId = undefined;
+			return true;
+		};
 		this.onDidChangeDefaultClient = Event.any(
-			Event.signal(Event.filter(_defaultAccountService.onDidChangeDefaultAccount, () => {
-				const key = this._getDefaultAccountKey();
-				if (key === defaultAccountKey) {
-					return false;
-				}
-				defaultAccountKey = key;
-				this._defaultSessionAccountId = undefined;
-				return true;
-			}, this._store)),
+			Event.filter(Event.any(Event.signal(_defaultAccountService.onDidChangeDefaultAccount), Event.signal(configurationService.onDidChangeConfiguration)), hasDefaultAccountKeyChanged, this._store),
 			Event.signal(Event.filter(credentialProvider.onDidChangeSessions, event =>
 				event.providerId === _defaultAccountService.getDefaultAccountAuthenticationProvider().id
 				&& (this._usesSeparateGitHubAccount() || [...event.event.added ?? [], ...event.event.changed ?? [], ...event.event.removed ?? []].some(session =>
@@ -83,7 +85,7 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 			Event.signal(Event.filter(_authenticationExtensionsService.onDidChangeAccountPreference, event =>
 				this._usesSeparateGitHubAccount()
 				&& event.providerId === _defaultAccountService.getDefaultAccountAuthenticationProvider().id
-				&& event.extensionIds.some(extensionId => this._getPreferredExtensionIds().includes(extensionId)), this._store)),
+				&& event.extensionIds.some(extensionId => this._getPreferredExtensionIds().some(preferredId => ExtensionIdentifier.equals(preferredId, extensionId))), this._store)),
 		);
 		this._register(this.onDidChangeDefaultClient(() => {
 			this._defaultClientGeneration++;
@@ -215,7 +217,7 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 				},
 				apiBaseUri: endpoints.apiBaseUri,
 				graphQlUri: endpoints.graphQlUri,
-				missionControl: account ? getWorkbenchMissionControlOptions(provider.id, endpoints.enterpriseHost) : undefined,
+				missionControl: getWorkbenchMissionControlOptions(provider.id, endpoints.enterpriseHost),
 			},
 			accountId: selected.account.id,
 			generation,

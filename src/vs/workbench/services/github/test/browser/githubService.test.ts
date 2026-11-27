@@ -17,6 +17,7 @@ import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelSc
 import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { GitHubClientOptions } from '../../../../../platform/github/common/githubTypes.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -77,12 +78,12 @@ suite('Workbench GitHub service', () => {
 			new class extends mock<IProductService>() {
 				override readonly applicationName = 'code-insiders';
 				override readonly version = '1.141.0';
-				override readonly defaultChatAgent = { chatExtensionId: 'chat.extension', extensionId: 'copilot.extension' } as IProductService['defaultChatAgent'];
+				override readonly defaultChatAgent = { chatExtensionId: 'GitHub.copilot-chat', extensionId: 'GitHub.copilot' } as IProductService['defaultChatAgent'];
 			}(),
 			configuration,
 			new class extends mock<IAuthenticationExtensionsService>() {
 				override readonly onDidChangeAccountPreference = preferenceChanged.event;
-				override getAccountPreference(extensionId: string): string | undefined { return state.preferences[extensionId]; }
+				override getAccountPreference(extensionId: string): string | undefined { return state.preferences[ExtensionIdentifier.toKey(extensionId)]; }
 			}(),
 		));
 		return { service, sessions, state, changed, defaultChanged, preferenceChanged, calls, configuration };
@@ -291,14 +292,13 @@ suite('Workbench GitHub service', () => {
 
 	const githubDefaultAccount: IDefaultAccount = { authenticationProvider: provider, accountName: 'account', sessionId: 'session', enterprise: false };
 	const rows: { name: string; account: IDefaultAccount | null; sessions: AuthenticationSession[]; preferences?: { [extensionId: string]: string }; expected: object }[] = [
-		{ name: 'a GitHub default account (mission control kept)', account: githubDefaultAccount, sessions: [session()], expected: { sessionId: 'session', missionControl: true } },
 		{ name: 'no GitHub account', account: microsoftAccount, sessions: [], expected: authenticationRequired },
-		{ name: 'one GitHub account without a preference', account: microsoftAccount, sessions: [session('alice-session', 'alice')], expected: { sessionId: 'alice-session', missionControl: false } },
-		{ name: 'two GitHub accounts and a preference', account: microsoftAccount, sessions: [session('alice-session', 'alice'), session('bob-session', 'bob')], preferences: { 'copilot.extension': 'bob' }, expected: { sessionId: 'bob-session', missionControl: false } },
-		{ name: 'two GitHub accounts and the first extension preference winning', account: microsoftAccount, sessions: [session('alice-session', 'alice'), session('bob-session', 'bob')], preferences: { 'chat.extension': 'bob', 'copilot.extension': 'alice' }, expected: { sessionId: 'bob-session', missionControl: false } },
+		{ name: 'one GitHub account without a preference', account: microsoftAccount, sessions: [session('alice-session', 'alice')], expected: { sessionId: 'alice-session' } },
+		{ name: 'two GitHub accounts and a preference', account: microsoftAccount, sessions: [session('alice-session', 'alice'), session('bob-session', 'bob')], preferences: { 'github.copilot': 'bob' }, expected: { sessionId: 'bob-session' } },
+		{ name: 'two GitHub accounts and the first extension preference winning', account: microsoftAccount, sessions: [session('alice-session', 'alice'), session('bob-session', 'bob')], preferences: { 'github.copilot-chat': 'bob', 'github.copilot': 'alice' }, expected: { sessionId: 'bob-session' } },
 		{ name: 'two GitHub accounts and no preference', account: microsoftAccount, sessions: [session('alice-session', 'alice'), session('bob-session', 'bob')], expected: authenticationRequired },
-		{ name: 'one GitHub account and a preference for an account that is not signed in', account: microsoftAccount, sessions: [session('alice-session', 'alice')], preferences: { 'copilot.extension': 'carol' }, expected: { sessionId: 'alice-session', missionControl: false } },
-		{ name: 'two GitHub accounts and a preference for an account that is not signed in', account: microsoftAccount, sessions: [session('alice-session', 'alice'), session('bob-session', 'bob')], preferences: { 'copilot.extension': 'carol' }, expected: authenticationRequired },
+		{ name: 'one GitHub account and a preference for an account that is not signed in', account: microsoftAccount, sessions: [session('alice-session', 'alice')], preferences: { 'github.copilot': 'carol' }, expected: { sessionId: 'alice-session' } },
+		{ name: 'two GitHub accounts and a preference for an account that is not signed in', account: microsoftAccount, sessions: [session('alice-session', 'alice'), session('bob-session', 'bob')], preferences: { 'github.copilot': 'carol' }, expected: authenticationRequired },
 		{ name: 'no default account and a GitHub repository session', account: null, sessions: [session('alice-session', 'alice')], expected: authenticationRequired },
 	];
 	for (const row of rows) {
@@ -306,9 +306,8 @@ suite('Workbench GitHub service', () => {
 			const { service, state } = setup(row.sessions);
 			state.account = row.account;
 			state.preferences = row.preferences ?? {};
-			const acquire = sinon.spy(service, 'acquireClient');
 			const result = await service.acquireDefaultAccountClient(cancellationToken()).then(
-				client => ({ sessionId: store.add(client).object.authorization.sessionId, missionControl: !!acquire.firstCall.args[0].missionControl }),
+				client => ({ sessionId: store.add(client).object.authorization.sessionId }),
 				(error: Error & { kind?: string }) => ({ kind: error.kind, message: error.message }));
 			assert.deepStrictEqual(result, row.expected);
 		});
@@ -324,6 +323,40 @@ suite('Workbench GitHub service', () => {
 		});
 	});
 
+	test('a configuration change fires default client changes only when it changes the provider and the default account is not a GitHub account', () => {
+		const fires = (account: IDefaultAccount | null, configure: (state: ReturnType<typeof setup>['state']) => void) => {
+			const { state, service, configuration } = setup();
+			state.account = account;
+			let count = 0;
+			const announce = () => configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+				override affectsConfiguration(): boolean { return false; }
+			}());
+			// The first announcement only records the key for this account.
+			announce();
+			store.add(service.onDidChangeDefaultClient(() => count++));
+			announce();
+			const unchanged = count;
+			configure(state);
+			announce();
+			const changed = count - unchanged;
+			announce();
+			return { unchanged, changed, repeated: count - unchanged - changed };
+		};
+		const enterprise = (state: ReturnType<typeof setup>['state']) => {
+			state.configuredProvider = { id: 'github-enterprise', name: 'Enterprise', enterprise: true };
+			state.enterpriseUrl = 'https://example.ghe.com';
+		};
+		assert.deepStrictEqual({
+			microsoft: fires(microsoftAccount, enterprise),
+			github: fires(githubDefaultAccount, enterprise),
+			none: fires(null, enterprise),
+		}, {
+			microsoft: { unchanged: 0, changed: 1, repeated: 0 },
+			github: { unchanged: 0, changed: 0, repeated: 0 },
+			none: { unchanged: 0, changed: 1, repeated: 0 },
+		});
+	});
+
 	test('a Microsoft default account fires default client changes for GitHub sessions and the Copilot account preference only', () => {
 		const { state, changed, preferenceChanged, service } = setup();
 		const fired: string[] = [];
@@ -333,20 +366,20 @@ suite('Workbench GitHub service', () => {
 		const ignored = () => fired.splice(0);
 
 		state.account = null;
-		preferenceChange('github', 'copilot.extension');
+		preferenceChange('github', 'github.copilot');
 		const noDefaultAccount = ignored();
 		state.account = { authenticationProvider: provider, accountName: 'account', sessionId: 'session', enterprise: false };
-		preferenceChange('github', 'copilot.extension');
+		preferenceChange('github', 'github.copilot');
 		const githubDefaultAccount = ignored();
 
 		state.account = microsoftAccount;
 		sessionsChange('github', { added: [session('added', 'unrelated')], changed: [], removed: [] });
 		sessionsChange('github', { added: [], changed: [], removed: [session('removed', 'unrelated')] });
-		preferenceChange('github', 'copilot.extension');
-		preferenceChange('github', 'chat.extension');
+		preferenceChange('github', 'github.copilot');
+		preferenceChange('github', 'github.copilot-chat');
 		const fires = ignored();
 		sessionsChange('microsoft', { added: [session('added', 'unrelated')], changed: [], removed: [] });
-		preferenceChange('microsoft', 'copilot.extension');
+		preferenceChange('microsoft', 'github.copilot');
 		preferenceChange('github', 'another.extension');
 		const nonFires = ignored();
 
@@ -398,15 +431,15 @@ suite('Workbench GitHub service', () => {
 			client => store.add(client).object.authorization.sessionId,
 			(error: Error & { kind?: string }) => `${error.kind}: ${error.message}`);
 		const results = [await acquire()];
-		state.preferences = { 'copilot.extension': 'alice' };
-		preferenceChanged.fire({ providerId: 'github', extensionIds: ['copilot.extension'] });
+		state.preferences = { 'github.copilot': 'alice' };
+		preferenceChanged.fire({ providerId: 'github', extensionIds: ['github.copilot'] });
 		results.push(await acquire());
 		const releaseGate = new DeferredPromise<void>();
 		gate = releaseGate.p;
 		const inFlight = acquire();
 		await timeout(0);
-		state.preferences = { 'copilot.extension': 'bob' };
-		preferenceChanged.fire({ providerId: 'github', extensionIds: ['copilot.extension'] });
+		state.preferences = { 'github.copilot': 'bob' };
+		preferenceChanged.fire({ providerId: 'github', extensionIds: ['github.copilot'] });
 		await releaseGate.complete();
 		results.push(await inFlight);
 		gate = undefined;
