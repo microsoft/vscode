@@ -1688,7 +1688,7 @@ suite('Dev Container Agent Host Service', () => {
 			};
 			const service = store.add(new TestDevContainerAgentHostService(instantiationService, remoteService, providersService, store.add(new InMemoryStorageService()), configurationService, { trusted, requestTrust: async uri => trusted(uri) }));
 			const connections: { readonly workspaceUri: string; readonly requireRunning: boolean | undefined }[] = [];
-			const local = { containers, failListing: false };
+			const local: { containers: { folder: URI; running: boolean }[]; failListing: boolean; beforeConnect?: () => Promise<void> } = { containers, failListing: false };
 			store.add(service.registerConnector({
 				isAvailable: async () => true,
 				showLog: async () => { },
@@ -1700,6 +1700,7 @@ suite('Dev Container Agent Host Service', () => {
 				},
 				createConnection: async (workspaceUri, address, _token, options) => {
 					connections.push({ workspaceUri: workspaceUri.toString(), requireRunning: options?.requireRunning });
+					await local.beforeConnect?.();
 					return { address, name: 'Project Dev Container', workspaceUri: URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority(address), path: '/workspaces/project' }), transportFactory: () => undefined as never };
 				},
 				stopContainer: async () => true,
@@ -1753,6 +1754,33 @@ suite('Dev Container Agent Host Service', () => {
 			local.failListing = false;
 			await refresh();
 			assert.deepStrictEqual(connections, [{ workspaceUri: project.toString(), requireRunning: true }]);
+		});
+
+		test('keeps one disconnected that this window disconnected from after listing its host failed', async () => {
+			const { service, local, connections, refresh } = setupFolders([{ folder: project, running: true }]);
+			await refresh();
+			local.failListing = true;
+			await refresh();
+			await service.disconnect(project);
+			local.failListing = false;
+			await refresh();
+			assert.deepStrictEqual(connections, [{ workspaceUri: project.toString(), requireRunning: true }]);
+		});
+
+		test('retries a stopped connection without user action only once while the first attempt is pending', async () => {
+			const { service, local, connections, provider, refresh } = setupFolders([{ folder: project, running: true }]);
+			await refresh();
+			await (await service.connect(project, CancellationToken.None)).release();
+			provider(project)!.publishSession();
+			await provider(project)!.config.devContainerLifecycle!.stop();
+			const attempt = new DeferredPromise<void>();
+			local.beforeConnect = () => attempt.p;
+			await refresh();
+			await refresh();
+			attempt.error(new Error('The container stopped.'));
+			await timeout(0);
+			await refresh();
+			assert.deepStrictEqual(connections.length, 2);
 		});
 
 		test('removes the provider of one without sessions once this window stopped it while idle', async () => {

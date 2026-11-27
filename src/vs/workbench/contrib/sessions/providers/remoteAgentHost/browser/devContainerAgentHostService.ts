@@ -255,6 +255,8 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 	 * action failed.
 	 */
 	private readonly _skippedFolders = new Map<string, string>();
+	/** Folders whose running container this window is connecting to without user action. */
+	private readonly _autoConnectingFolders = new Set<string>();
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -371,31 +373,41 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 			|| !!active && (active.references > 0 || (active.state !== 'stopped' && active.state !== 'removed') || active.provider.getSessions().length > 0);
 	}
 
-	private _skipFolder(key: string): void {
-		const folder = this._runningFolders.get(key);
-		if (folder) {
-			this._skippedFolders.set(key, folder.sourceAddress);
+	private _skipFolder(key: string, workspaceUri: URI): void {
+		this._skippedFolders.set(key, this._runningFolders.get(key)?.sourceAddress ?? this._getSourceAddress(workspaceUri));
+	}
+
+	/** The address of the host that runs a folder's Dev Container, or {@link LocalDevContainerEnvironmentHost}. */
+	private _getSourceAddress(workspaceUri: URI): string {
+		if (workspaceUri.scheme === Schemas.file) {
+			return LocalDevContainerEnvironmentHost;
 		}
+		const sourceEntry = getDevContainerSourceEntry(workspaceUri, this._remoteAgentHostService);
+		return sourceEntry ? getEntryAddress(sourceEntry) : workspaceUri.authority;
 	}
 
 	private async _connectRunningFolder(key: string, workspaceUri: URI): Promise<void> {
+		// Reconnecting a stopped connection is queued as a lifecycle operation, not a pending connection, so this also tracks its own.
 		const shouldConnect = () => !this._store.isDisposed && isDevContainerDiscoveryEnabled(this._configurationService) && this._runningFolders.has(key) && !this._skippedFolders.has(key) && !this._pendingConnections.has(key)
 			&& !this._isConnectedOrReconnecting(this._activeConnections.get(key)?.address ?? devContainerAddress(workspaceUri));
-		if (!shouldConnect()) {
+		if (this._autoConnectingFolders.has(key) || !shouldConnect()) {
 			return;
 		}
-		// Unlike Connect, which asks for trust, connecting without user action requires the folder to be trusted already.
-		const { trusted } = await this._workspaceTrustManagementService.getUriTrustInfo(workspaceUri);
-		if (!trusted || !shouldConnect()) {
-			return;
-		}
+		this._autoConnectingFolders.add(key);
 		try {
+			// Unlike Connect, which asks for trust, connecting without user action requires the folder to be trusted already.
+			const { trusted } = await this._workspaceTrustManagementService.getUriTrustInfo(workspaceUri);
+			if (!trusted || !shouldConnect()) {
+				return;
+			}
 			await this._ensureConnection(workspaceUri, this._lifecycleTokenSource.token, undefined, true);
 		} catch (error) {
 			if (!isCancellationError(error) && this._runningFolders.has(key)) {
-				this._skipFolder(key);
+				this._skipFolder(key, workspaceUri);
 				this._logService.info(`[DevContainerAgentHost] Did not connect to the running Dev Container of ${basename(workspaceUri)}`, error);
 			}
+		} finally {
+			this._autoConnectingFolders.delete(key);
 		}
 	}
 
@@ -418,8 +430,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 				if (!provider || !this._runningFolders.has(key) && provider.getSessions().length === 0) {
 					continue;
 				}
-				const sourceEntry = getDevContainerSourceEntry(workspaceUri, this._remoteAgentHostService);
-				const sourceAddress = workspaceUri.scheme === Schemas.file ? LocalDevContainerEnvironmentHost : sourceEntry ? getEntryAddress(sourceEntry) : workspaceUri.authority;
+				const sourceAddress = this._getSourceAddress(workspaceUri);
 				containers.push({
 					address: devContainerAddress(workspaceUri),
 					providerId: provider.id,
@@ -753,7 +764,8 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 
 	async disconnect(workspaceUri: URI): Promise<void> {
 		const key = getComparisonKey(workspaceUri);
-		this._skipFolder(key);
+		// Even while the container's state is unknown, for example after a failed listing.
+		this._skipFolder(key, workspaceUri);
 		const pending = this._pendingConnections.get(key);
 		if (pending) {
 			pending.tokenSource.cancel();
