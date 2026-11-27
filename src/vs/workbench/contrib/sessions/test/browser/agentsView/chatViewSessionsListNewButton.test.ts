@@ -22,26 +22,34 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 import { ChatViewSessionsListControl } from '../../../browser/agentsView/chatViewSessionsList.js';
 import { SessionsView } from '../../../browser/views/sessionsView.js';
 import { CompactButtonActionViewItem } from '../../../browser/widgets/compactButtonActionViewItem.js';
+import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
+import { USLayoutResolvedKeybinding } from '../../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
+import { KeyCodeChord, ResolvedKeybinding } from '../../../../../../base/common/keybindings.js';
+import { KeyCode } from '../../../../../../base/common/keyCodes.js';
+import { OperatingSystem } from '../../../../../../base/common/platform.js';
+import { Event } from '../../../../../../base/common/event.js';
+import { ACTION_ID_NEW_CHAT } from '../../../../chat/browser/actions/chatActions.js';
 
 suite('Sessions - Chat view sessions list New button', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function render(newChatEnabled: boolean, menuAction?: IAction) {
+	function render(newChatEnabled: boolean, menuAction?: IAction, newChatId = 'newChat', keybindings: Record<string, ResolvedKeybinding> = {}) {
 		const commands: { id: string; args: unknown[] }[] = [];
 		const commandService = upcastPartial<ICommandService>({ executeCommand: async (id: string, ...args: unknown[]) => { commands.push({ id, args }); return undefined; } });
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(ICommandService, commandService);
+		instantiationService.stub(IKeybindingService, upcastPartial<IKeybindingService>({ lookupKeybinding: id => keybindings[id], lookupKeybindings: id => keybindings[id] ? [keybindings[id]] : [], onDidUpdateKeybindings: Event.None }));
 		const menus: IContextMenuDelegate[] = [];
 		instantiationService.stub(IContextMenuService, upcastPartial<IContextMenuService>({ showContextMenu: delegate => { menus.push(delegate as IContextMenuDelegate); } }));
 		const errors: unknown[] = [];
 		instantiationService.stub(INotificationService, upcastPartial<INotificationService>({ error: error => { errors.push(error); } }));
 		const contextKeyService = new MockContextKeyService();
-		const newChat = new MenuItemAction({ id: 'newChat', title: 'New Chat', icon: undefined, precondition: newChatEnabled ? undefined : ContextKeyExpr.false() }, undefined, { shouldForwardArgs: true }, undefined, undefined, contextKeyService, commandService);
+		const newChat = new MenuItemAction({ id: newChatId, title: 'New Chat', icon: undefined, precondition: newChatEnabled ? undefined : ContextKeyExpr.false() }, undefined, { shouldForwardArgs: true }, undefined, undefined, contextKeyService, commandService);
 		const actions = [newChat, new Separator(), menuAction ?? store.add(new Action('newChatWindow', 'New Chat Window'))];
 		const submenu = new SubmenuItemAction({ submenu: MenuId.ChatNewMenu, title: 'New Chat', isSplitButton: true }, undefined, actions);
 		const control = instantiationService.createInstance(ChatViewSessionsListControl, upcastPartial<SessionsView>({ dispose: () => { }, createActionViewItem: () => undefined }), undefined);
-		const item = store.add(control.createActionViewItem(submenu)!);
+		const item = store.add(control.createActionViewItem(submenu) as CompactButtonActionViewItem);
 		const container = DOM.$('div');
 		item.render(container);
 		item.setActionContext('titleContext');
@@ -97,6 +105,50 @@ suite('Sessions - Chat view sessions list New button', () => {
 		await Promise.all([failed, cancelledRun]);
 
 		assert.deepStrictEqual({ contexts, errors: errors.map(error => (error as Error).message) }, { contexts: ['titleContext', 'titleContext'], errors: ['failed'] });
+	});
+
+	test('shows the keybinding of the canonical New Chat for its icon variants, but runs the variant', () => {
+		const newChatKeybinding = new USLayoutResolvedKeybinding([new KeyCodeChord(true, false, false, false, KeyCode.KeyN)], OperatingSystem.Macintosh);
+		const { container, commands } = render(true, undefined, 'newChat.copilot', { [ACTION_ID_NEW_CHAT]: newChatKeybinding });
+		const primary = container.querySelector<HTMLElement>('.agent-sessions-compact-new-button')!;
+		primary.click();
+		assert.deepStrictEqual({ ariaLabel: primary.getAttribute('aria-label'), hasChip: !!primary.querySelector('.monaco-keybinding'), commands: commands.map(command => command.id) },
+			{ ariaLabel: `New Chat (${newChatKeybinding.getAriaLabel()})`, hasChip: true, commands: ['newChat.copilot'] });
+	});
+
+	test('is one tab stop whose parts the arrow keys move between, and whose menu opens from the keyboard when New Chat is disabled', () => {
+		const keyDown = (element: HTMLElement, key: string, keyCode: number) => element.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, bubbles: true }));
+		const enabled = render(true);
+		const disabled = render(false);
+		document.body.append(enabled.container, disabled.container);
+		try {
+			const parts = (container: HTMLElement) => [container.querySelector<HTMLElement>('.agent-sessions-compact-new-button')!, container.querySelector<HTMLElement>('.monaco-dropdown-button')!];
+			const [primary, dropdown] = parts(enabled.container);
+			const [, disabledDropdown] = parts(disabled.container);
+			const focused = () => document.activeElement === primary ? 'primary' : document.activeElement === dropdown ? 'dropdown' : document.activeElement === disabledDropdown ? 'disabledDropdown' : 'other';
+
+			enabled.item.setFocusable(true);
+			const tabStops = [primary.tabIndex, dropdown.tabIndex];
+			enabled.item.focus();
+			const initial = focused();
+			keyDown(primary, 'ArrowRight', 39);
+			const right = focused();
+			keyDown(dropdown, 'ArrowLeft', 37);
+			const left = focused();
+
+			disabled.item.focus();
+			const disabledInitial = focused();
+			keyDown(disabledDropdown, 'ArrowLeft', 37);
+			const disabledLeft = focused();
+			keyDown(disabledDropdown, 'Enter', 13);
+
+			assert.deepStrictEqual({ tabStops, initial, right, left, disabledInitial, disabledLeft, menus: disabled.menus.length, commands: disabled.commands }, {
+				tabStops: [0, -1], initial: 'primary', right: 'dropdown', left: 'primary', disabledInitial: 'disabledDropdown', disabledLeft: 'disabledDropdown', menus: 1, commands: [],
+			});
+		} finally {
+			enabled.container.remove();
+			disabled.container.remove();
+		}
 	});
 
 	test('moves into the overflow of a responsive title toolbar as a split button, and back', () => {
