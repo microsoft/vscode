@@ -3719,12 +3719,28 @@ export class NewChatWidget extends Disposable {
 		const session = this._session.get();
 		if (!folderUri || !session || isSessionCreated(session) || this._pendingWorkspaceCreation
 			|| !this.uriIdentityService.extUri.isEqual(session.workspace.get()?.folders[0]?.root, folderUri)
-			|| this._workspacePicker.selectedResolved?.providerId !== session.providerId) {
+			|| this._workspacePicker.selectedResolved?.providerId !== session.providerId
+			|| !this._isSelectedWorkspaceConfig(session.workspace.get(), folderUri)) {
 			return false;
 		}
 		const provider = this.sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		const devContainerEnabled = !!provider && isAgentHostProvider(provider) && provider.isDevContainerEnabled?.(session.sessionId) === true;
 		return devContainerEnabled === this.uriIdentityService.extUri.isEqual(this._preferredDevContainerFolderUri, folderUri);
+	}
+
+	/**
+	 * Whether a draft's workspace is the one the picker selects for `folderUri`: in the picked workspace configuration and
+	 * its folders, or in neither and only the folder.
+	 */
+	private _isSelectedWorkspaceConfig(workspace: ISessionWorkspace | undefined, folderUri: URI): boolean {
+		const extUri = this.uriIdentityService.extUri;
+		const selected = this._workspacePicker.selectedWorkspaceConfig;
+		const config = selected && extUri.isEqual(selected.folders[0], folderUri) ? selected : undefined;
+		const roots = workspace?.folders.map(folder => folder.root) ?? [];
+		const expectedRoots = config?.folders ?? [folderUri];
+		return extUri.isEqual(workspace?.workspaceConfig?.uri, config?.uri)
+			&& roots.length === expectedRoots.length
+			&& roots.every((root, index) => extUri.isEqual(root, expectedRoots[index]));
 	}
 
 	/**

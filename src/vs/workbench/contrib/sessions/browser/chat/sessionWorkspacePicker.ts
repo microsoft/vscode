@@ -325,8 +325,6 @@ export class WorkspacePicker extends Disposable {
 	private _selectedFolderUri: URI | undefined;
 	/** The workspace picked from the Workspaces group, while its default folder stays selected. */
 	private _selectedSessionWorkspaceUri: URI | undefined;
-	/** The workspace being picked, which the next folder selection records. */
-	private _pickingSessionWorkspaceUri: URI | undefined;
 	/** Whether No Workspace is selected, with {@link IWorkspacePickerOptions.ownNoWorkspaceSelection} or {@link _noWorkspaceUnpersisted}. */
 	private _noWorkspaceSelected = false;
 	/** Whether No Workspace is selected without remembering it in the recent workspaces, such as an environment's only choice. */
@@ -1196,10 +1194,10 @@ export class WorkspacePicker extends Disposable {
 			}
 			this._selectedDevContainerFolderUri = item.preferDevContainer ? item.folderUri : undefined;
 			this._onDidSelectWorkspaceMode.fire({ folderUri: item.folderUri, preferDevContainer: item.preferDevContainer === true });
-			this._pickingSessionWorkspaceUri = item.sessionWorkspaceUri;
-			this._selectFolder(item.folderUri, true, item.providerId);
-			if (item.sessionWorkspaceUri) {
-				this.sessionWorkspacesService.touchWorkspace(item.sessionWorkspaceUri);
+			this._selectFolder(item.folderUri, true, item.providerId, undefined, undefined, undefined, item.sessionWorkspaceUri);
+			const pickedWorkspace = item.sessionWorkspaceUri && this.selectedSessionWorkspace;
+			if (pickedWorkspace && this.uriIdentityService.extUri.isEqual(pickedWorkspace.uri, item.sessionWorkspaceUri)) {
+				this.sessionWorkspacesService.touchWorkspace(pickedWorkspace.uri);
 			}
 			const sample = findDevContainerSample(item.folderUri);
 			if (sample) {
@@ -1517,6 +1515,7 @@ export class WorkspacePicker extends Disposable {
 		persist = true,
 		source = NewSessionWorkspacePreselectionSource.User,
 		origin = WorkspaceSelectionOrigin.User,
+		sessionWorkspaceUri?: URI,
 	): void {
 		if (!this._isAllowedFolder(folderUri)) {
 			return;
@@ -1549,8 +1548,7 @@ export class WorkspacePicker extends Disposable {
 			this._onDidRemoveAttachedContext.fire(additionalRepository.attachmentId);
 		}
 		this._selectedFolderUri = folderUri;
-		this._selectedSessionWorkspaceUri = this._pickingSessionWorkspaceUri;
-		this._pickingSessionWorkspaceUri = undefined;
+		this._selectedSessionWorkspaceUri = sessionWorkspaceUri;
 		this._selectedResolved = resolved;
 		this._noWorkspaceSelected = false;
 		this._noWorkspaceUnpersisted = false;
@@ -3254,34 +3252,42 @@ export class WorkspacePicker extends Disposable {
 			return [];
 		}
 		const extUri = this.uriIdentityService.extUri;
+		const selectedWorkspaceUri = this.selectedSessionWorkspace?.uri;
+		const localProviderId = providers.find(provider => provider.supportsLocalWorkspaces)?.id;
 		const rows: IActionListItem<IWorkspacePickerItem>[] = [];
 		for (const workspace of this.sessionWorkspacesService.workspaces.get()) {
 			const folderUri = workspace.folders[0];
 			if (!folderUri || (this._workspaceFilter && !this._matchesSessionWorkspaceFilter(workspace))) {
 				continue;
 			}
-			const providerId = this._resolveFolder(folderUri)?.providerId ?? providers.find(provider => provider.supportsLocalWorkspaces)?.id;
+			const providerId = this._resolveFolder(folderUri)?.providerId ?? localProviderId;
 			if (!providerId) {
 				continue;
 			}
-			const selectedWorkspace = this.selectedSessionWorkspace;
 			const name = workspace.name;
+			const description = workspace.missing
+				? localize('workspacePicker.sessionWorkspace.missing', "Workspace file missing")
+				: this._getSessionWorkspaceFoldersDescription(workspace);
+			const id = `workspacePicker.sessionWorkspace.${getOrSet(this._workspaceItemIds, `workspace:${extUri.getComparisonKey(workspace.uri)}`, this._workspaceItemIds.size)}`;
+			const ariaLabel = localize('workspacePicker.sessionWorkspace.ariaLabel', "Workspace {0}, {1}", name, description);
 			rows.push({
 				kind: ActionListItemKind.Action,
 				label: name,
-				description: workspace.missing
-					? localize('workspacePicker.sessionWorkspace.missing', "Workspace file missing")
-					: this._getSessionWorkspaceFoldersDescription(workspace),
-				group: { title: '', icon: getSessionWorkspaceIcon(workspace.icon) },
-				disabled: !!workspace.missing || this._isProviderUnavailable(providerId),
-				hover: { content: this._getSessionWorkspaceFoldersHover(workspace) },
-				item: {
-					id: `workspacePicker.sessionWorkspace.${getOrSet(this._workspaceItemIds, `workspace:${extUri.getComparisonKey(workspace.uri)}`, this._workspaceItemIds.size)}`,
-					folderUri,
-					providerId,
-					sessionWorkspaceUri: workspace.uri,
-					checked: (selectedWorkspace && extUri.isEqual(selectedWorkspace.uri, workspace.uri)) || undefined,
-				},
+				description,
+				group: { title: '', icon: workspace.missing ? Codicon.warning : getSessionWorkspaceIcon(workspace.icon) },
+				disabled: !workspace.missing && this._isProviderUnavailable(providerId),
+				hover: { content: this._getSessionWorkspaceFoldersHover(workspace), tabThroughPanel: true },
+				// A missing workspace cannot be picked: it opens for editing, to repair or remove it
+				item: workspace.missing
+					? { id, ariaLabel, run: () => void this._runSessionWorkspaceCommand(EDIT_SESSION_WORKSPACE_COMMAND_ID, workspace.uri) }
+					: {
+						id,
+						folderUri,
+						providerId,
+						sessionWorkspaceUri: workspace.uri,
+						ariaLabel,
+						checked: (!!selectedWorkspaceUri && extUri.isEqual(selectedWorkspaceUri, workspace.uri)) || undefined,
+					},
 				toolbarActions: [
 					toAction({
 						id: 'workspacePicker.sessionWorkspace.edit',

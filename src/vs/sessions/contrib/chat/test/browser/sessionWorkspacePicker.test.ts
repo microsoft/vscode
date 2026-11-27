@@ -18,7 +18,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { CancellationError, errorHandler } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, ISettableObservable, observableValue, waitForState } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, ISettableObservable, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -54,7 +54,7 @@ import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../
 import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { IAgentHostSessionsProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SessionStatus, SessionTypeAuthRequirement, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../../workbench/services/sessions/common/session.js';
-import { type IResolvedFolderWorkspace, IWorkspacePickerItem, IWorkspacePickerOptions, WorkspacePicker } from '../../../../../workbench/contrib/sessions/browser/chat/sessionWorkspacePicker.js';
+import { type IResolvedFolderWorkspace, IWorkspacePickerItem, IWorkspacePickerOptions, WORKSPACE_PICKER_LIST_OPTIONS, WorkspacePicker } from '../../../../../workbench/contrib/sessions/browser/chat/sessionWorkspacePicker.js';
 import { WebWorkspacePicker } from '../../../../../workbench/contrib/sessions/browser/chat/webWorkspacePicker.js';
 import { NewSessionWorkspacePreselectionSource } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { ISelectNoWorkspaceOptions, WorkspaceSelectionOrigin } from '../../../../../workbench/services/sessions/common/workspaceSelection.js';
@@ -534,7 +534,7 @@ suite('WorkspacePicker - Workspaces group', () => {
 	const product: IRecentSessionWorkspace = { uri: URI.file('/ws/product.code-workspace'), name: 'Product', folders: [app, appLib, otherLib], owned: true, icon: 'rocket' };
 	const gone: IRecentSessionWorkspace = { uri: URI.file('/ws/gone.code-workspace'), name: 'Gone', folders: [docs], owned: true, missing: true };
 
-	function setupPicker(enabled = true) {
+	function setupPicker(enabled = true, allowedFolders?: IObservable<readonly URI[]>) {
 		const touched: URI[] = [];
 		const commands: [string, unknown][] = [];
 		const providersService = store.add(new MockSessionsProvidersService());
@@ -542,6 +542,7 @@ suite('WorkspacePicker - Workspaces group', () => {
 		const workspaces = [product, gone];
 		const picker = createTestPicker(store, providersService, undefined, undefined, DispatchingWorkspacePicker, undefined, undefined, undefined, {
 			restoreFromSessions: false,
+			allowedFolders,
 			configuration: { [SESSIONS_WORKSPACES_ENABLED_SETTING]: enabled },
 			commandService: { executeCommand: async (id: string, arg: unknown) => { commands.push([id, arg]); return undefined; } },
 			sessionWorkspacesService: {
@@ -563,12 +564,22 @@ suite('WorkspacePicker - Workspaces group', () => {
 		return { picker, touched, commands, workspaceRows };
 	}
 
-	test('lists workspaces with their folders, and a missing workspace file disabled', () => {
+	test('lists workspaces with their folders, and a missing workspace file that cannot be picked', () => {
 		const { workspaceRows } = setupPicker();
-		assert.deepStrictEqual(workspaceRows().map(row => ({ label: row.label, description: row.description, disabled: !!row.disabled, folder: row.item?.folderUri?.path, actions: row.toolbarActions?.map(action => action.id) })), [
-			{ label: 'Product', description: 'app, work/app-lib, other/app-lib', disabled: false, folder: '/work/app', actions: ['workspacePicker.sessionWorkspace.edit', 'workspacePicker.sessionWorkspace.remove'] },
-			{ label: 'Gone', description: 'Workspace file missing', disabled: true, folder: '/work/docs', actions: ['workspacePicker.sessionWorkspace.edit', 'workspacePicker.sessionWorkspace.remove'] },
+		assert.deepStrictEqual(workspaceRows().map(row => ({ label: row.label, description: row.description, disabled: !!row.disabled, aria: row.item?.ariaLabel, folder: row.item?.folderUri?.path, actions: row.toolbarActions?.map(action => action.id) })), [
+			{ label: 'Product', description: 'app, work/app-lib, other/app-lib', disabled: false, aria: 'Workspace Product, app, work/app-lib, other/app-lib', folder: '/work/app', actions: ['workspacePicker.sessionWorkspace.edit', 'workspacePicker.sessionWorkspace.remove'] },
+			{ label: 'Gone', description: 'Workspace file missing', disabled: false, aria: 'Workspace Gone, Workspace file missing', folder: undefined, actions: ['workspacePicker.sessionWorkspace.edit', 'workspacePicker.sessionWorkspace.remove'] },
 		]);
+	});
+
+	test('activating a missing workspace opens it for editing instead of selecting it', async () => {
+		const { picker, commands, touched, workspaceRows } = setupPicker();
+		const selected = picker.selectedFolderUri?.path;
+		await picker.dispatchItem(workspaceRows()[1].item!);
+		await timeout(0);
+		assert.deepStrictEqual({ folder: picker.selectedFolderUri?.path, workspace: picker.selectedSessionWorkspace, touched, commands: commands.map(([id, uri]) => [id, (uri as URI).path]) }, {
+			folder: selected, workspace: undefined, touched: [], commands: [['sessions.workspaces.edit', '/ws/gone.code-workspace']],
+		});
 	});
 
 	test('shows no Workspaces group while workspaces are off', () => {
@@ -585,6 +596,42 @@ suite('WorkspacePicker - Workspaces group', () => {
 			{ folder: '/work/app', workspace: 'Product', config: '/ws/product.code-workspace', touched: ['/ws/product.code-workspace'] },
 			{ folder: '/work/docs', workspace: undefined, config: undefined },
 		]);
+	});
+
+	test('a workspace pick that the picker refuses neither selects nor records the workspace for a later pick of its folder', async () => {
+		const allowedFolders = observableValue<readonly URI[]>('allowedFolders', [docs]);
+		const { picker, touched } = setupPicker(true, allowedFolders);
+		await picker.dispatchItem({ folderUri: app, providerId: 'local-agent-host', sessionWorkspaceUri: product.uri });
+		allowedFolders.set([app, docs], undefined);
+		await picker.dispatchFolder(app, 'local-agent-host');
+		assert.deepStrictEqual({ folder: picker.selectedFolderUri?.path, workspace: picker.selectedSessionWorkspace?.name, touched }, { folder: '/work/app', workspace: undefined, touched: [] });
+	});
+
+	test('a missing workspace is reachable by keyboard, and Tab reaches its edit action', async () => {
+		const { picker, commands } = setupPicker();
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.set(IKeybindingService, new MockKeybindingService());
+		instantiationService.set(IHoverService, NullHoverService);
+		instantiationService.set(IOpenerService, NullOpenerService);
+		const widget = store.add(instantiationService.createInstance(ActionListWidget<IWorkspacePickerItem>, 'workspacePicker', false, picker.getItems(), { onHide: () => { }, onSelect: () => { } }, undefined, WORKSPACE_PICKER_LIST_OPTIONS));
+		const wrapper = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+		wrapper.classList.add('action-widget');
+		wrapper.appendChild(widget.domNode);
+		store.add({ dispose: () => wrapper.remove() });
+		widget.layout(400, 400);
+		widget.focus();
+		widget.focusNext();
+		const focused = widget.getFocusedElement()?.label;
+		mainWindow.document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
+		const action = mainWindow.document.activeElement as HTMLElement | null;
+		const actionLabel = action?.getAttribute('aria-label');
+		action?.click();
+		await timeout(0);
+		assert.deepStrictEqual({ focused, actionLabel, commands: commands.map(([id, uri]) => [id, (uri as URI).path]) }, {
+			focused: 'Gone',
+			actionLabel: 'Edit Workspace',
+			commands: [['sessions.workspaces.edit', '/ws/gone.code-workspace']],
+		});
 	});
 
 	test('edits and removes a workspace through the workspace commands', async () => {

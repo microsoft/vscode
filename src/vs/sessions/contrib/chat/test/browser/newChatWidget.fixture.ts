@@ -14,6 +14,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { ISessionWorkspacesService } from '../../../../../workbench/contrib/sessions/common/sessionWorkspaces.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -698,6 +699,9 @@ export async function renderNewChatWidget(context: ComponentFixtureContext, opti
 				override getProvider<T extends ISessionsProvider>(providerId: string): T | undefined {
 					return (providerId === provider.id ? provider : undefined) as T | undefined;
 				}
+			}());
+			reg.defineInstance(ISessionWorkspacesService, new class extends mock<ISessionWorkspacesService>() {
+				override readonly workspaces = constObservable([]);
 			}());
 			reg.defineInstance(ISessionsRecentWorkspacesService, new class extends mock<ISessionsRecentWorkspacesService>() {
 				override readonly onDidChangeRecentWorkspaces = Event.None;

@@ -23,7 +23,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
-import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionAgentRef, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SessionStatus, SessionTypeAuthRequirement } from '../../../../../workbench/services/sessions/common/session.js';
+import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionAgentRef, ISessionFolder, ISessionGitRepository, ISessionWorkspace, ISessionWorkspaceConfig, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SessionStatus, SessionTypeAuthRequirement } from '../../../../../workbench/services/sessions/common/session.js';
 import { ICreateNewSessionOptions, INewSessionDraftSlot, INewSessionRequestDispatchedEvent, INewSessionRequestEndedEvent, ISendRequestOptions, ISendRequestSentEvent, ISessionChange, ISessionsManagementService, trackNewSessionRequestEnd, WorkspaceNotTrustedError } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { INewSessionBackgroundSend, INewSessionDraftHost, INewSessionTarget } from '../../../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import { ISessionModelsSnapshot, ISessionsProvider, ISessionsProviderCreateSessionOptions } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
@@ -150,7 +150,8 @@ interface ICreateSessionNowHarness {
 			getPreferredSessionType(folderUri: URI): IPreferredSessionType | undefined;
 		};
 	};
-	readonly _workspacePicker: { readonly selectedResolved: { readonly providerId: string } | undefined };
+	readonly _workspacePicker: { readonly selectedResolved: { readonly providerId: string } | undefined; readonly selectedWorkspaceConfig?: ISessionWorkspaceConfig };
+	readonly uriIdentityService?: { readonly extUri: typeof extUri };
 	readonly sessionsService: { openNewSession(options: IOpenNewSessionOptions, token: CancellationToken): Promise<IOpenNewSessionResult> };
 	readonly logService: { error(message: string, ...args: unknown[]): void };
 	_isPreferredServable(folderUri: URI, pick: IPreferredSessionType): boolean;
@@ -4023,6 +4024,33 @@ suite('NewChatWidget', () => {
 		assert.deepStrictEqual(calls, []);
 	});
 
+	test('creates a draft in the picked workspace only for its default folder', async () => {
+		const folder = URI.file('/project');
+		const workspaceConfig: ISessionWorkspaceConfig = { uri: URI.file('/product.code-workspace'), name: 'Product', folders: [folder, URI.file('/docs')] };
+		const requests: IOpenNewSessionOptions[] = [];
+		const harness: ICreateSessionNowHarness = {
+			_environment: constObservable(undefined),
+			_newChatInput: { sessionTypePicker: { getPreferredSessionType: () => undefined } },
+			_workspacePicker: { selectedResolved: { providerId: 'local' }, selectedWorkspaceConfig: workspaceConfig },
+			uriIdentityService: { extUri },
+			sessionsService: {
+				openNewSession: async options => {
+					requests.push(options);
+					return { session: undefined, trustDeclined: false };
+				},
+			},
+			_isPreferredServable: () => true,
+			_requestsDevContainer: () => false,
+			logService: { error: () => assert.fail('unexpected creation error') },
+		};
+		await createSessionNow.call(harness, folder, undefined, CancellationToken.None);
+		await createSessionNow.call(harness, URI.file('/other'), undefined, CancellationToken.None);
+		assert.deepStrictEqual(requests.map(request => ({ ...request, folderUri: request.folderUri?.path, workspaceConfig: request.workspaceConfig?.uri.path })), [
+			{ folderUri: '/project', preserveNavigation: true, workspaceConfig: '/product.code-workspace', providerId: 'local' },
+			{ folderUri: '/other', preserveNavigation: true, workspaceConfig: undefined, providerId: 'local' },
+		]);
+	});
+
 	test('a custom-view composer preserves its host when preparing workspace and quick-chat drafts', async () => {
 		const folder = URI.file('/project');
 		const requests: IOpenNewSessionOptions[] = [];
@@ -4146,15 +4174,21 @@ suite('NewChatWidget', () => {
 		const isCurrentWorkspaceSelection = Reflect.get(NewChatWidget.prototype, '_isCurrentWorkspaceSelection') as (
 			this: {
 				readonly _session: IObservable<ITestSessionWithChat | undefined>;
-				readonly _workspacePicker: { readonly selectedResolved: { readonly providerId: string } };
+				readonly _workspacePicker: { readonly selectedResolved: { readonly providerId: string }; readonly selectedWorkspaceConfig: ISessionWorkspaceConfig | undefined };
 				readonly _preferredDevContainerFolderUri: URI | undefined;
 				readonly _pendingWorkspaceCreation?: Promise<IOpenNewSessionResult>;
 				readonly uriIdentityService: { readonly extUri: typeof extUri };
 				readonly sessionsProvidersService: { getProvider(): { readonly id: string; isDevContainerEnabled(): boolean } };
+				_isSelectedWorkspaceConfig(workspace: ISessionWorkspace | undefined, folderUri: URI): boolean;
 			},
 			folderUri: URI | undefined,
 		) => boolean;
-		const cases = [
+		const isSelectedWorkspaceConfig = Reflect.get(NewChatWidget.prototype, '_isSelectedWorkspaceConfig') as (workspace: ISessionWorkspace | undefined, folderUri: URI) => boolean;
+		const b = URI.file('/b');
+		const c = URI.file('/c');
+		const configAB: ISessionWorkspaceConfig = { uri: URI.file('/ab.code-workspace'), name: 'AB', folders: [folder, b] };
+		const configAC: ISessionWorkspaceConfig = { uri: URI.file('/ac.code-workspace'), name: 'AC', folders: [folder, c] };
+		const cases: { name: string; folderUri: URI | undefined; reuse: boolean; providerId?: string; preferDevContainer?: boolean; devContainerEnabled?: boolean; pending?: boolean; isCreated?: boolean; noDraft?: boolean; draftConfig?: ISessionWorkspaceConfig; selectedConfig?: ISessionWorkspaceConfig }[] = [
 			{ name: 'same folder', folderUri: URI.file('/project'), reuse: true },
 			{ name: 'different folder', folderUri: URI.file('/other'), reuse: false },
 			{ name: 'cleared folder', folderUri: undefined, reuse: false },
@@ -4165,6 +4199,10 @@ suite('NewChatWidget', () => {
 			{ name: 'pending selection', folderUri: folder, pending: true, reuse: false },
 			{ name: 'created session', folderUri: folder, isCreated: true, reuse: false },
 			{ name: 'no draft', folderUri: folder, noDraft: true, reuse: false },
+			{ name: 'folder to workspace', folderUri: folder, selectedConfig: configAB, reuse: false },
+			{ name: 'workspace to another workspace', folderUri: folder, draftConfig: configAB, selectedConfig: configAC, reuse: false },
+			{ name: 'workspace to folder', folderUri: folder, draftConfig: configAB, reuse: false },
+			{ name: 'same workspace', folderUri: folder, draftConfig: configAB, selectedConfig: configAB, reuse: true },
 		];
 		const results = cases.map(options => ({
 			name: options.name,
@@ -4173,9 +4211,13 @@ suite('NewChatWidget', () => {
 					sessionId: 'draft',
 					providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 					...withCreatedStatus(constObservable(!!options.isCreated)),
-					workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [{ root: folder, workingDirectory: folder, name: 'project', description: undefined }] })),
+					workspace: constObservable(upcastPartial<ISessionWorkspace>({
+						workspaceConfig: options.draftConfig,
+						folders: (options.draftConfig?.folders ?? [folder]).map(root => ({ root, workingDirectory: root, name: 'project', description: undefined })),
+					})),
 				})),
-				_workspacePicker: { selectedResolved: { providerId: options.providerId ?? LOCAL_AGENT_HOST_PROVIDER_ID } },
+				_workspacePicker: { selectedResolved: { providerId: options.providerId ?? LOCAL_AGENT_HOST_PROVIDER_ID }, selectedWorkspaceConfig: options.selectedConfig },
+				_isSelectedWorkspaceConfig: isSelectedWorkspaceConfig,
 				_preferredDevContainerFolderUri: options.preferDevContainer ? folder : undefined,
 				_pendingWorkspaceCreation: options.pending ? Promise.resolve({ session: undefined, trustDeclined: false }) : undefined,
 				uriIdentityService: { extUri },
