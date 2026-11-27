@@ -46,7 +46,7 @@ export class CloudSandboxRepositoryPicker extends Disposable {
 		store.add(token.onCancellationRequested(() => store.dispose()));
 		try {
 			CancellationToken.throwIfCanceled(token);
-			const defaultAccount = this._defaultAccountService.currentDefaultAccount;
+			const defaultAccount = this._defaultAccountService.currentDefaultAccount ?? await raceCancellationError(this._defaultAccountService.getDefaultAccount(), pickToken);
 			if (defaultAccount && !asGitHubAccount(defaultAccount)) {
 				throw new Error(localize('cloudSandboxRepositoryPicker.githubAccountRequired', "Sign in to Copilot with a GitHub account to use Copilot cloud sessions."));
 			}

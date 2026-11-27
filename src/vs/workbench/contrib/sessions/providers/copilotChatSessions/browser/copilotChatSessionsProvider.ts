@@ -2644,7 +2644,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				}
 			};
 			try {
-				const defaultAccount = this.defaultAccountService.currentDefaultAccount;
+				const defaultAccount = this.defaultAccountService.currentDefaultAccount ?? await raceCancellationError(this.defaultAccountService.getDefaultAccount(), token);
 				if (defaultAccount && !asGitHubAccount(defaultAccount)) {
 					throw new Error(localize('repositoryPicker.githubAccountRequired', "Sign in to Copilot with a GitHub account to use Copilot cloud sessions."));
 				}

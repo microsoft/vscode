@@ -85,7 +85,7 @@ suite('CloudSandboxRepositoryPicker', () => {
 		return { items: [upcastPartial<RepositorySearchItem>({ full_name: fullName })], total_count: 1, incomplete_results: false };
 	}
 
-	function createPicker(options?: { readonly acquireClient?: (cancellationToken: CancellationToken) => Promise<IGitHubAccountClient>; readonly defaultAccount?: IDefaultAccount | null }) {
+	function createPicker(options?: { readonly acquireClient?: (cancellationToken: CancellationToken) => Promise<IGitHubAccountClient>; readonly defaultAccount?: IDefaultAccount | null; readonly resolvedDefaultAccount?: IDefaultAccount }) {
 		const quickPicks: TestQuickPick[] = [];
 		const requests: { readonly kind: string; readonly value: string; readonly options?: ApiRequestOptions; readonly cancellationToken: CancellationToken }[] = [];
 		const acquisitions: CancellationToken[] = [];
@@ -133,6 +133,7 @@ suite('CloudSandboxRepositoryPicker', () => {
 		}));
 		instantiationService.stub(IDefaultAccountService, upcastPartial<IDefaultAccountService>({
 			currentDefaultAccount: options?.defaultAccount === undefined ? githubDefaultAccount : options.defaultAccount,
+			getDefaultAccount: async () => options?.resolvedDefaultAccount ?? null,
 		}));
 		const picker = store.add(instantiationService.createInstance(CloudSandboxRepositoryPicker));
 		return { picker, quickPicks, requests, acquisitions, client, logService, disposed: () => disposeCount };
@@ -168,11 +169,14 @@ suite('CloudSandboxRepositoryPicker', () => {
 
 	test('rejects without calling the GitHub service when the default account is not a GitHub account', async () => {
 		const microsoft = upcastPartial<IDefaultAccount>({ sessionId: 'microsoft', authenticationProvider: { id: 'microsoft', name: 'Microsoft', enterprise: false } });
-		const { picker, quickPicks, acquisitions } = createPicker({ defaultAccount: microsoft });
-		const error = await picker.pick().then(() => undefined, (e: Error) => e);
-		assert.deepStrictEqual({ message: error?.message, quickPicks: quickPicks.length, acquisitions: acquisitions.length }, {
-			message: 'Sign in to Copilot with a GitHub account to use Copilot cloud sessions.', quickPicks: 0, acquisitions: 0,
-		});
+		const results: { message: string | undefined; quickPicks: number; acquisitions: number }[] = [];
+		for (const pickerOptions of [{ defaultAccount: microsoft }, { defaultAccount: null, resolvedDefaultAccount: microsoft }]) {
+			const { picker, quickPicks, acquisitions } = createPicker(pickerOptions);
+			const error = await picker.pick().then(() => undefined, (e: Error) => e);
+			results.push({ message: error?.message, quickPicks: quickPicks.length, acquisitions: acquisitions.length });
+		}
+		const expected = { message: 'Sign in to Copilot with a GitHub account to use Copilot cloud sessions.', quickPicks: 0, acquisitions: 0 };
+		assert.deepStrictEqual(results, [expected, expected]);
 	});
 
 	test('keeps the GitHub service lookup when there is no default account', async () => {
