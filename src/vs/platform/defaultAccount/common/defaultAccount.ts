@@ -14,7 +14,7 @@ import { IManagedSettingsFreshness, MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED } fr
 export const GitHubPaths = {
 	copilotSettings: 'settings/copilot/features',
 	billingBudgets: 'settings/copilot/features?utm_source=vscode',
-	copilotUpgrade: 'github-copilot/upgrade?utm_source=vscode',
+	copilotUpgrade: 'github-copilot/pro/signup?utm_source=vscode',
 } as const;
 
 /**
