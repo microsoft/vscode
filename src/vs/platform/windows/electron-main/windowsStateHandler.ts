@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import electron from 'electron';
+import { Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { isMacintosh } from '../../../base/common/platform.js';
-import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, isEqualAuthority } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';
@@ -23,6 +24,7 @@ export interface IWindowState {
 	folderUri?: URI;
 	backupPath?: string;
 	remoteAuthority?: string;
+	remoteConnectionTokenRequired?: boolean;
 	uiState: IWindowUIState;
 }
 
@@ -47,6 +49,7 @@ interface ISerializedWindowState {
 	readonly folder?: string;
 	readonly backupPath?: string;
 	readonly remoteAuthority?: string;
+	readonly remoteConnectionTokenRequired?: boolean;
 	readonly uiState: IWindowUIState;
 }
 
@@ -130,11 +133,11 @@ export class WindowsStateHandler extends Disposable {
 		// When a window looses focus, save all windows state. This allows to
 		// prevent loss of window-state data when OS is restarted without properly
 		// shutting down the application (https://github.com/microsoft/vscode/issues/87171)
-		electron.app.on('browser-window-blur', () => {
+		this._register(Event.fromNodeEventEmitter(electron.app, 'browser-window-blur')(() => {
 			if (!this.shuttingDown) {
 				this.saveWindowsState();
 			}
-		});
+		}));
 
 		// Handle various lifecycle events around windows
 		this._register(this.lifecycleMainService.onBeforeCloseWindow(window => this.onBeforeCloseWindow(window)));
@@ -319,8 +322,25 @@ export class WindowsStateHandler extends Disposable {
 			folderUri: isSingleFolderWorkspaceIdentifier(window.openedWorkspace) ? window.openedWorkspace.uri : undefined,
 			backupPath: window.backupPath,
 			remoteAuthority: window.remoteAuthority,
+			...(window.config?.remoteConnectionTokenRequired ? { remoteConnectionTokenRequired: true } : {}),
 			uiState: window.serializeWindowState({ exact })
 		};
+	}
+
+	requiresRemoteConnectionToken(configuration: INativeWindowConfiguration): boolean {
+		const states = [...this._state.openedWindows, this._state.lastActiveWindow, this.lastClosedState];
+		return states.some(state => {
+			if (!state?.remoteConnectionTokenRequired || !isEqualAuthority(state.remoteAuthority, configuration.remoteAuthority)) {
+				return false;
+			}
+			if (isWorkspaceIdentifier(configuration.workspace)) {
+				return state.workspace?.id === configuration.workspace.id;
+			}
+			if (isSingleFolderWorkspaceIdentifier(configuration.workspace)) {
+				return !!state.folderUri && extUriBiasedIgnorePathCase.isEqual(state.folderUri, configuration.workspace.uri);
+			}
+			return !!configuration.backupPath && state.backupPath === configuration.backupPath;
+		});
 	}
 
 	getNewWindowState(configuration: INativeWindowConfiguration): INewWindowState {
@@ -510,6 +530,10 @@ function restoreWindowState(windowState: ISerializedWindowState): IWindowState {
 		result.backupPath = windowState.backupPath;
 	}
 
+	if (windowState.remoteConnectionTokenRequired) {
+		result.remoteConnectionTokenRequired = true;
+	}
+
 	if (windowState.remoteAuthority) {
 		result.remoteAuthority = windowState.remoteAuthority;
 	}
@@ -539,6 +563,7 @@ function serializeWindowState(windowState: IWindowState): ISerializedWindowState
 		folder: windowState.folderUri?.toString(),
 		backupPath: windowState.backupPath,
 		remoteAuthority: windowState.remoteAuthority,
+		...(windowState.remoteConnectionTokenRequired ? { remoteConnectionTokenRequired: true } : {}),
 		uiState: windowState.uiState
 	};
 }

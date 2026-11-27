@@ -21,6 +21,7 @@ import { combineUriFlags } from './cliArgs.js';
 import { getStdinFilePath, hasStdinWithoutTty, readFromStdin, stdinDataListener } from '../../platform/environment/node/stdin.js';
 import { createWaitMarkerFileSync } from '../../platform/environment/node/wait.js';
 import product from '../../platform/product/common/product.js';
+import { RemoteConnectionTokenFile, RemoteConnectionTokenError } from '../../platform/remote/node/remoteConnectionToken.js';
 import { CancellationTokenSource } from '../../base/common/cancellation.js';
 import { isUNC, randomPath } from '../../base/common/extpath.js';
 import { Utils } from '../../platform/profiling/common/profiling.js';
@@ -46,7 +47,13 @@ export async function main(argv: string[]): Promise<void> {
 
 	try {
 		args = parseCLIProcessArgv(argv);
+		if (!args.help && !args.version) {
+			await RemoteConnectionTokenFile.read(args);
+		}
 	} catch (err) {
+		if (err instanceof RemoteConnectionTokenError) {
+			throw err;
+		}
 		console.error(err.message);
 		return;
 	}

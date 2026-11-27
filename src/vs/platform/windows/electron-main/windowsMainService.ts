@@ -60,6 +60,7 @@ import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryW
 import { ICSSDevelopmentService } from '../../cssDev/node/cssDevService.js';
 import { ResourceSet } from '../../../base/common/map.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
+import { RemoteConnectionTokenFile, WindowRemoteConnectionTokens } from '../../remote/node/remoteConnectionToken.js';
 import { resolveAgentsWindowFolder, sendAgentsWindowOpenIntent } from './agentsWindow.js';
 
 //#region Helper Interfaces
@@ -67,6 +68,7 @@ import { resolveAgentsWindowFolder, sendAgentsWindowOpenIntent } from './agentsW
 type RestoreWindowsSetting = 'preserve' | 'all' | 'folders' | 'one' | 'none';
 
 interface IOpenBrowserWindowOptions {
+	readonly remoteConnectionTokenFile?: RemoteConnectionTokenFile;
 	readonly userEnv?: IProcessEnvironment;
 	readonly cli?: NativeParsedArgs;
 
@@ -217,6 +219,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	private readonly _onDidTriggerSystemContextMenu = this._register(new Emitter<{ window: ICodeWindow; x: number; y: number }>());
 	readonly onDidTriggerSystemContextMenu = this._onDidTriggerSystemContextMenu.event;
 
+	private readonly windowConnectionTokens = new WindowRemoteConnectionTokens<ICodeWindow>();
+
 	private readonly windows = new Map<number, ICodeWindow>();
 
 	private readonly windowsStateHandler: WindowsStateHandler;
@@ -334,6 +338,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			urisToOpen: [{ workspaceUri: agentSessionsWorkspaceUri }],
 			userEnv: openConfig.userEnv,
 			cli: openConfig.cli,
+			remoteConnectionTokenFile: openConfig.remoteConnectionTokenFile,
 			noRecentEntry: true,
 			context: openConfig.context,
 			contextWindowId: openConfig.contextWindowId,
@@ -342,8 +347,25 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		};
 	}
 
+	async getRemoteConnectionToken(windowId: number, authority: string): Promise<string | undefined> {
+		const window = this.getWindowById(windowId);
+		if (!window) {
+			throw new Error(localize('remoteTokenUnknownWindow', "The window requesting a remote connection token no longer exists."));
+		}
+		return this.windowConnectionTokens.get(window, authority);
+	}
+
 	async open(openConfig: IOpenConfiguration): Promise<ICodeWindow[]> {
 		this.logService.trace('windowsManager#open');
+
+		// Consume this launch's option before inheriting environment arguments in other windows.
+		const launchArgs = { ...openConfig.cli };
+		delete openConfig.cli['remote-token-file'];
+		// File I/O belongs to authority resolution so a late failure affects only this window.
+		const connectionToken = RemoteConnectionTokenFile.fromArgs(launchArgs) ?? openConfig.remoteConnectionTokenFile;
+		if (connectionToken) {
+			openConfig = { ...openConfig, remoteConnectionTokenFile: connectionToken, forceEmpty: openConfig.forceEmpty || openConfig.cli._.length === 0 };
+		}
 
 		// Make sure addMode/removeMode is only enabled if we have an active window
 		if ((openConfig.addMode || openConfig.removeMode) && (openConfig.initialStartup || !this.getLastActiveWindow())) {
@@ -413,7 +435,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		}
 
 		// These are windows to restore because of hot-exit or from previous session (only performed once on startup!)
-		if (openConfig.initialStartup) {
+		if (openConfig.initialStartup && !connectionToken) {
 
 			// Untitled workspaces are always restored
 			untitledWorkspacesToRestore.push(...this.workspacesManagementMainService.getUntitledWorkspaces());
@@ -652,7 +674,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 				// Window is empty
 				else {
-					addUsedWindow(this.doOpenFilesInExistingWindow(openConfig, windowToUseForFiles, filesToOpen), true);
+					addUsedWindow(await this.doOpenFilesInExistingWindow(openConfig, windowToUseForFiles, filesToOpen), true);
 				}
 			}
 
@@ -661,6 +683,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				addUsedWindow(await this.openInBrowserWindow({
 					userEnv: openConfig.userEnv,
 					cli: openConfig.cli,
+					remoteConnectionTokenFile: openConfig.remoteConnectionTokenFile,
 					initialStartup: openConfig.initialStartup,
 					filesToOpen,
 					forceNewWindow: true,
@@ -683,7 +706,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				const filesToOpenInWindow = isEqualAuthority(filesToOpen?.remoteAuthority, windowOnWorkspace.remoteAuthority) ? filesToOpen : undefined;
 
 				// Do open files
-				addUsedWindow(this.doOpenFilesInExistingWindow(openConfig, windowOnWorkspace, filesToOpenInWindow), !!filesToOpenInWindow);
+				addUsedWindow(await this.doOpenFilesInExistingWindow(openConfig, windowOnWorkspace, filesToOpenInWindow), !!filesToOpenInWindow);
 
 				openFolderInNewWindow = true; // any other folders to open must open in new window then
 			}
@@ -715,7 +738,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				const filesToOpenInWindow = isEqualAuthority(filesToOpen?.remoteAuthority, windowOnFolderPath.remoteAuthority) ? filesToOpen : undefined;
 
 				// Do open files
-				addUsedWindow(this.doOpenFilesInExistingWindow(openConfig, windowOnFolderPath, filesToOpenInWindow), !!filesToOpenInWindow);
+				addUsedWindow(await this.doOpenFilesInExistingWindow(openConfig, windowOnFolderPath, filesToOpenInWindow), !!filesToOpenInWindow);
 
 				openFolderInNewWindow = true; // any other folders to open must open in new window then
 			}
@@ -762,8 +785,27 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return { windows: distinct(usedWindows), filesOpenedInWindow };
 	}
 
-	private doOpenFilesInExistingWindow(configuration: IOpenConfiguration, window: ICodeWindow, filesToOpen?: IFilesToOpen): ICodeWindow {
+	private async doOpenFilesInExistingWindow(configuration: IOpenConfiguration, window: ICodeWindow, filesToOpen?: IFilesToOpen): Promise<ICodeWindow> {
 		this.logService.trace('windowsManager#doOpenFilesInExistingWindow', { filesToOpen });
+
+		if (configuration.remoteConnectionTokenFile && !this.windowConnectionTokens.canReuse(window, window.remoteAuthority ?? '', configuration.remoteConnectionTokenFile)) {
+			return this.openInBrowserWindow({
+				cli: configuration.cli,
+				remoteConnectionTokenFile: configuration.remoteConnectionTokenFile,
+				windowToUse: window,
+				workspace: window.openedWorkspace,
+				remoteAuthority: window.remoteAuthority,
+				filesToOpen,
+				userEnv: configuration.userEnv,
+				forceProfile: configuration.forceProfile,
+				forceTempProfile: configuration.forceTempProfile,
+				// This is a reload of the same empty workspace, not a new workspace.
+				emptyWindowBackupInfo: !window.openedWorkspace && window.backupPath ? {
+					backupFolder: basename(window.backupPath),
+					remoteAuthority: window.remoteAuthority
+				} : undefined
+			});
+		}
 
 		this.focusMainOrChildWindow(window); // make sure window or any of the children has focus
 
@@ -823,6 +865,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return this.openInBrowserWindow({
 			userEnv: openConfig.userEnv,
 			cli: openConfig.cli,
+			remoteConnectionTokenFile: openConfig.remoteConnectionTokenFile,
 			initialStartup: openConfig.initialStartup,
 			remoteAuthority,
 			forceNewWindow: resolved.forceNewWindow,
@@ -878,6 +921,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			...folderLocation,
 			userEnv: openConfig.userEnv,
 			cli: openConfig.cli,
+			remoteConnectionTokenFile: openConfig.remoteConnectionTokenFile,
 			initialStartup: openConfig.initialStartup,
 			remoteAuthority: folderOrWorkspace.remoteAuthority,
 			forceNewWindow,
@@ -958,7 +1002,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// not restored windows already otherwise.
 		// Use `unshift` to ensure any new window to open comes last for proper
 		// focus treatment.
-		if (openConfig.initialStartup && !isRestoringPaths && this.configurationService.getValue<IWindowSettings | undefined>('window')?.restoreWindows === 'preserve') {
+		if (openConfig.initialStartup && !openConfig.remoteConnectionTokenFile && !isRestoringPaths && this.configurationService.getValue<IWindowSettings | undefined>('window')?.restoreWindows === 'preserve') {
 			const lastSessionPaths = await this.doGetPathsFromLastSession();
 			pathsToOpen.unshift(...lastSessionPaths.filter(path => isWorkspacePathToOpen(path) || isSingleFolderWorkspacePathToOpen(path) || path.backupPath));
 		}
@@ -1565,6 +1609,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		const openArgs: IOpenConfiguration = {
 			context: openConfig.context,
 			cli: openConfig.cli,
+			remoteConnectionTokenFile: openConfig.remoteConnectionTokenFile,
 			forceNewWindow: true,
 			forceEmpty: !cliArgs.length && !folderUris.length && !fileUris.length,
 			userEnv: openConfig.userEnv,
@@ -1579,6 +1624,10 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	}
 
 	private async openInBrowserWindow(options: IOpenBrowserWindowOptions): Promise<ICodeWindow> {
+		const connectionToken = options.remoteConnectionTokenFile;
+		if (connectionToken) {
+			connectionToken.validateAuthority(options.remoteAuthority ?? ''); // Validate before creating or unloading a window.
+		}
 		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
 
 		const lastActiveWindow = this.getLastActiveWindow();
@@ -1811,6 +1860,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				await this.userDataProfilesMainService.setProfileForWorkspace(workspace, profile);
 			}
 		}
+
+		// Keep credentials outside the serializable configuration. Reload retains this binding;
+		// loading a different destination drops it, even when reusing the BrowserWindow.
+		const connectionToken = options.remoteConnectionTokenFile;
+		configuration.remoteConnectionTokenRequired = this.windowConnectionTokens.bind(window, configuration.remoteAuthority, connectionToken, this.windowsStateHandler.requiresRemoteConnectionToken(configuration));
 
 		// Load it
 		window.load(configuration);

@@ -11,6 +11,7 @@ import { connectionTokenCookieName, connectionTokenQueryName } from '../../../ba
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { getRandomTestPath } from '../../../base/test/node/testUtils.js';
 import { MandatoryServerConnectionToken, parseServerConnectionToken, requestHasValidConnectionToken, ServerConnectionToken, ServerConnectionTokenParseError, ServerConnectionTokenType } from '../../node/serverConnectionToken.js';
+import { RemoteConnectionTokenFile } from '../../../platform/remote/node/remoteConnectionToken.js';
 import { getRedactedServerParsedArgs, ServerParsedArgs } from '../../node/serverEnvironmentService.js';
 
 suite('parseServerConnectionToken', () => {
@@ -48,6 +49,23 @@ suite('parseServerConnectionToken', () => {
 		assertIsError(await parseServerConnectionToken({ 'connection-token-file': '0', 'connection-token': '0' } as ServerParsedArgs, async () => 'defaultTokenValue'));
 	});
 
+	test('desktop token files authenticate with the server and wrong tokens are rejected', async () => {
+		const directory = await fs.promises.mkdtemp(join(os.tmpdir(), 'vscode-desktop-server-token-'));
+		try {
+			const file = join(directory, 'token');
+			const authority = '127.0.0.1:8000';
+			for (const ending of ['', '\n', '\r\n']) {
+				await fs.promises.writeFile(file, `shared_TOKEN-123${ending}`);
+				const server = await parseServerConnectionToken({ 'connection-token-file': file } as ServerParsedArgs, async () => 'unused');
+				assert.ok(server instanceof MandatoryServerConnectionToken);
+				const desktop = await RemoteConnectionTokenFile.read({ _: [], remote: authority, 'remote-token-file': file });
+				assert.deepStrictEqual([server.validate(await desktop!.getValue(authority)), server.validate('wrong-token'), server.validate(undefined)], [true, false, false]);
+			}
+		} finally {
+			await fs.promises.rm(directory, { recursive: true, force: true });
+		}
+	});
+
 	test('--connection-token-file', async function () {
 		this.timeout(10000);
 		const testDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'server-connection-token');
@@ -69,13 +87,15 @@ suite('parseServerConnectionToken', () => {
 		const filename = join(directory, 'token');
 		try {
 			const results: (ServerConnectionToken | ServerConnectionTokenParseError)[] = [];
-			for (const contents of ['valid-token\n', 'valid-token\r\n', 'invalid token\n']) {
+			for (const contents of ['valid-token\n', 'valid-token\r\n', 'invalid token\n', '', 'valid-token\n\n']) {
 				await fs.promises.writeFile(filename, contents);
 				results.push(await parseServerConnectionToken({ 'connection-token-file': filename } as ServerParsedArgs, async () => 'defaultTokenValue'));
 			}
 			assert.deepStrictEqual(results, [
 				new MandatoryServerConnectionToken('valid-token'),
 				new MandatoryServerConnectionToken('valid-token'),
+				new ServerConnectionTokenParseError(`The connection token defined in '${filename} does not adhere to the characters 0-9, a-z, A-Z, _, or -.`),
+				new ServerConnectionTokenParseError(`The connection token defined in '${filename} does not adhere to the characters 0-9, a-z, A-Z, _, or -.`),
 				new ServerConnectionTokenParseError(`The connection token defined in '${filename} does not adhere to the characters 0-9, a-z, A-Z, _, or -.`),
 			]);
 		} finally {

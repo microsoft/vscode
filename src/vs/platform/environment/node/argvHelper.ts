@@ -8,6 +8,7 @@ import { dirname, resolve } from '../../../base/common/path.js';
 import { IProcessEnvironment, isWindows } from '../../../base/common/platform.js';
 import { localize } from '../../../nls.js';
 import { NativeParsedArgs } from '../common/argv.js';
+import { validateRemoteConnectionTokenArguments } from '../../remote/node/remoteConnectionToken.js';
 import { ErrorReporter, NATIVE_CLI_COMMANDS, OPTIONS, parseArgs } from './argv.js';
 
 function parseAndValidate(cmdLineArgs: string[], reportWarnings: boolean): NativeParsedArgs {
@@ -46,6 +47,7 @@ function parseAndValidate(cmdLineArgs: string[], reportWarnings: boolean): Nativ
 		args._.forEach(arg => assert(/^(\w:)?[^:]+(:\d*){0,2}:?$/.test(arg), localize('gotoValidation', "Arguments in `--goto` mode should be in the format of `FILE(:LINE(:CHARACTER))`.")));
 	}
 
+	validateRemoteConnectionTokenArguments(args);
 	return args;
 }
 
@@ -115,4 +117,34 @@ export function addArg(argv: string[], ...args: string[]): string[] {
 
 export function isLaunchedFromCli(env: IProcessEnvironment): boolean {
 	return env['VSCODE_CLI'] === '1';
+}
+
+/** On relaunch, restore the session rather than replaying a launcher's transient remote target. */
+export function stripRemoteConnectionTokenLaunchArgs(argv: string[], isDevelopment: boolean): string[] {
+	const appIndex = isDevelopment ? argv.findIndex(arg => !arg.startsWith('-')) : -1;
+	const launchArgs = argv.filter((_arg, index) => index !== appIndex);
+	// Parse once with the same option definitions as the CLI. Never infer whether an
+	// unknown Chromium switch consumes the remote path that follows it.
+	const endOfOptions = launchArgs.indexOf('--');
+	const parsed = parseArgs(endOfOptions === -1 ? launchArgs : launchArgs.slice(0, endOfOptions), OPTIONS);
+	if (parsed['remote-token-file'] === undefined) {
+		return argv;
+	}
+
+	const result = appIndex === -1 ? [] : [argv[appIndex]];
+	const launchOptions = new Set(['_', 'remote', 'remote-token-file', 'new-window', 'reuse-window', 'wait', 'waitMarkerFilePath', 'diff', 'merge', 'goto', 'profile', 'profile-temp']);
+	for (const key of Object.keys(OPTIONS) as (keyof NativeParsedArgs)[]) {
+		if (launchOptions.has(key)) {
+			continue;
+		}
+		const value = parsed[key];
+		if (typeof value === 'string') {
+			result.push(`--${key}=${value}`);
+		} else if (value === true) {
+			result.push(`--${key}`);
+		} else if (Array.isArray(value)) {
+			result.push(...value.map(value => `--${key}=${value}`));
+		}
+	}
+	return result;
 }

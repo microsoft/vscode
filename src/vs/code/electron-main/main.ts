@@ -6,6 +6,7 @@
 import '../../platform/update/common/update.config.contribution.js';
 
 import { app, dialog } from 'electron';
+import { RemoteConnectionTokenError } from '../../platform/remote/node/remoteConnectionToken.js';
 import { unlinkSync, promises } from 'fs';
 import { URI } from '../../base/common/uri.js';
 import { coalesce, distinct } from '../../base/common/arrays.js';
@@ -92,12 +93,15 @@ import { LINUX_SYSTEM_POLICY_FILE_PATH } from '../../base/common/policy.js';
 class CodeMain {
 
 	main(): void {
-		try {
-			this.startup();
-		} catch (error) {
+		this.startup().catch(async error => {
+			if (!(error instanceof RemoteConnectionTokenError)) {
+				throw error;
+			}
 			console.error(error.message);
+			await app.whenReady();
+			dialog.showErrorBox(product.nameLong, error.message);
 			app.exit(1);
-		}
+		});
 	}
 
 	private async startup(): Promise<void> {

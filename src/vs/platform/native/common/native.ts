@@ -553,6 +553,8 @@ export interface ICommonNativeHostService {
 	startTracing(categories: string, options?: IStartTracingOptions): Promise<void>;
 
 	// Connectivity
+	/** Returns only the calling window's credential for its current remote address. */
+	getRemoteConnectionToken(authority: string): Promise<string | undefined>;
 	resolveProxy(url: string): Promise<string | undefined>;
 	resolveProxyWithPackage(url: string): Promise<IOSProxy[]>;
 	readProxyConfigWithPackage(): Promise<IOSProxyConfig>;

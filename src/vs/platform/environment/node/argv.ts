@@ -160,6 +160,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'telemetry': { type: 'boolean', cat: 't', description: localize('telemetry', "Shows all telemetry events which VS code collects.") },
 
 	'remote': { type: 'string', allowEmptyValue: true },
+	'remote-token-file': { type: 'string', allowEmptyValue: true, cat: 'o', args: 'path', description: localize('remoteConnectionTokenFile', "Read the authentication token for a direct --remote host:port connection from an absolute local file path.") },
 	'folder-uri': { type: 'string[]', cat: 'o', args: 'uri' },
 	'file-uri': { type: 'string[]', cat: 'o', args: 'uri' },
 

@@ -51,6 +51,7 @@ suite('Windows State Storing', () => {
 		assert.strictEqual(expected.backupPath, actual.backupPath, message);
 		assertEqualURI(expected.folderUri, actual.folderUri, message);
 		assert.strictEqual(expected.remoteAuthority, actual.remoteAuthority, message);
+		assert.strictEqual(expected.remoteConnectionTokenRequired, actual.remoteConnectionTokenRequired, message);
 		assertEqualWorkspace(expected.workspace, actual.workspace, message);
 		assert.deepStrictEqual(expected.uiState, actual.uiState, message);
 	}
@@ -77,6 +78,21 @@ suite('Windows State Storing', () => {
 	const testFolderURI = URI.file(join(tmpdir(), 'windowStateTest', 'testFolder'));
 
 	const testRemoteFolderURI = URI.parse('foo://bar/c/d');
+
+	test('stores only a non-secret authentication requirement for restoration', () => {
+		const state: IWindowsState = {
+			openedWindows: [{
+				folderUri: URI.parse('vscode-remote://127.0.0.1:8000/project'),
+				remoteAuthority: '127.0.0.1:8000',
+				remoteConnectionTokenRequired: true,
+				uiState: getUIState()
+			}]
+		};
+		assertRestoring(state);
+		assert.deepStrictEqual(Object.keys(getWindowsStateStoreData(state).openedWindows[0]).sort(), [
+			'backupPath', 'folder', 'remoteAuthority', 'remoteConnectionTokenRequired', 'uiState', 'workspaceIdentifier'
+		]);
+	});
 
 	test('storing and restoring', () => {
 		let windowState: IWindowsState;

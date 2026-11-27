@@ -1430,6 +1430,13 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#region Connectivity
 
+	async getRemoteConnectionToken(windowId: number | undefined, authority: string): Promise<string | undefined> {
+		if (windowId === undefined) {
+			throw new Error(localize('remoteTokenWindow', "A remote connection token requires a window."));
+		}
+		return this.windowsMainService.getRemoteConnectionToken(windowId, authority);
+	}
+
 	async resolveProxy(windowId: number | undefined, url: string): Promise<string | undefined> {
 		const window = this.codeWindowById(windowId);
 		const session = window?.win?.webContents?.session;

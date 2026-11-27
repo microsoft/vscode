@@ -11,6 +11,7 @@ import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { cwd } from '../../../base/common/process.js';
 import { assertReturnsDefined } from '../../../base/common/types.js';
+import { stripRemoteConnectionTokenLaunchArgs } from '../../environment/node/argvHelper.js';
 import { NativeParsedArgs } from '../../environment/common/argv.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
@@ -681,7 +682,8 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 	async relaunch(options?: IRelaunchOptions): Promise<void> {
 		this.trace('Lifecycle#relaunch()');
 
-		const args = process.argv.slice(1);
+		const originalArgs = process.argv.slice(1);
+		const args = stripRemoteConnectionTokenLaunchArgs(originalArgs, !this.environmentMainService.isBuilt);
 		if (options?.addArgs) {
 			args.push(...options.addArgs);
 		}
@@ -696,7 +698,8 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		}
 
 		const quitListener = () => {
-			if (!this.relaunchHandler?.handleRelaunch(options)) {
+			// Update handlers cannot honor rewritten launch arguments.
+			if (args !== originalArgs || !this.relaunchHandler?.handleRelaunch(options)) {
 				this.trace('Lifecycle#relaunch() - calling app.relaunch()');
 				electron.app.relaunch({ args });
 			}
