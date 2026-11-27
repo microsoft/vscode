@@ -48,7 +48,7 @@ export class CloudSandboxRepositoryPicker extends Disposable {
 			CancellationToken.throwIfCanceled(token);
 			const defaultAccount = this._defaultAccountService.currentDefaultAccount ?? await raceCancellationError(this._defaultAccountService.getDefaultAccount(), pickToken);
 			if (defaultAccount && !asGitHubAccount(defaultAccount)) {
-				throw new Error(localize('cloudSandboxRepositoryPicker.githubAccountRequired', "Sign in to Copilot with a GitHub account to use Copilot cloud sessions."));
+				throw new Error(localize('cloudSessions.githubAccountRequired', "Sign in to Copilot with a GitHub account to use Copilot cloud sessions."));
 			}
 			const client = store.add(await raceCancellationError(this._gitHubService.acquireDefaultAccountApiClient(pickToken), pickToken));
 			// The viewer and their organizations scope every search, so resolve them once per pick.

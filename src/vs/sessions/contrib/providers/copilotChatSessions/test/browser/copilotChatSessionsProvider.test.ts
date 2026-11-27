@@ -956,7 +956,7 @@ suite('CopilotChatSessionsProvider', () => {
 
 	(isWeb ? test : test.skip)('does not use a separate GitHub account for the repository picker when the default account is not a GitHub account', async () => {
 		const microsoft = upcastPartial<IDefaultAccount>({ sessionId: 'microsoft', authenticationProvider: { id: 'microsoft', name: 'Microsoft', enterprise: false } });
-		const results: { workspace: unknown; gitHubCalls: number; pickerCalls: number; errors: string[] }[] = [];
+		const results: { workspace: ISessionWorkspace | undefined; gitHubCalls: number; pickerCalls: number; errors: string[] }[] = [];
 		for (const resolvedLater of [false, true]) {
 			let gitHubCalls = 0;
 			const gitHubService = new class extends TestGitHubService {

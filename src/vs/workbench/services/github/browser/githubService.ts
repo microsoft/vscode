@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { coalesce } from '../../../../base/common/arrays.js';
 import { cancelOnDispose, CancellationToken } from '../../../../base/common/cancellation.js';
-import { asGitHubAccount, IDefaultAccountAuthenticationProvider } from '../../../../base/common/defaultAccount.js';
+import { asGitHubAccount } from '../../../../base/common/defaultAccount.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
@@ -26,7 +27,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ITelemetryService, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../../../platform/telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../../../platform/telemetry/common/telemetryUtils.js';
-import { AuthenticationSession, AuthenticationSessionAccount, IAuthenticationExtensionsService, IAuthenticationService } from '../../authentication/common/authentication.js';
+import { AuthenticationSession, IAuthenticationExtensionsService, IAuthenticationService } from '../../authentication/common/authentication.js';
 import { IWorkbenchGitHubService, toGitHubAuthorizationContext } from '../common/githubService.js';
 import { getWorkbenchMissionControlOptions, WorkbenchGitHubCredentialProvider } from './githubCredentialProvider.js';
 
@@ -41,7 +42,7 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 	private _defaultSessionAccountId: string | undefined;
 
 	constructor(
-		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
+		@IAuthenticationService authenticationService: IAuthenticationService,
 		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
 		@ILogService logService: ILogService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -49,7 +50,7 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 		@IConfigurationService configurationService: IConfigurationService,
 		@IAuthenticationExtensionsService private readonly _authenticationExtensionsService: IAuthenticationExtensionsService,
 	) {
-		const credentialProvider = new WorkbenchGitHubCredentialProvider(_authenticationService);
+		const credentialProvider = new WorkbenchGitHubCredentialProvider(authenticationService);
 		super({
 			credentialProvider,
 			useBrowserRedirects: true,
@@ -178,23 +179,19 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 		CancellationToken.throwIfCanceled(cancellationToken);
 		const defaultAccount = this._defaultAccountService.currentDefaultAccount ?? await this._defaultAccountService.getDefaultAccount();
 		CancellationToken.throwIfCanceled(cancellationToken);
+		if (!defaultAccount) {
+			throw signInRequired();
+		}
 		const account = asGitHubAccount(defaultAccount);
 		const generation = this._defaultClientGeneration;
-		if (account) {
-			const current = asGitHubAccount(this._defaultAccountService.currentDefaultAccount);
-			if (!current || account.sessionId !== current.sessionId || account.authenticationProvider.id !== current.authenticationProvider.id) {
-				throw new GitHubRequestError(localize('githubAccountChanged', "The selected GitHub account changed. Try again."), 'authentication');
-			}
+		const current = asGitHubAccount(this._defaultAccountService.currentDefaultAccount);
+		if (account && (!current || account.sessionId !== current.sessionId || account.authenticationProvider.id !== current.authenticationProvider.id)) {
+			throw new GitHubRequestError(localize('githubAccountChanged', "The selected GitHub account changed. Try again."), 'authentication');
 		}
 		const provider = account?.authenticationProvider ?? this._defaultAccountService.getDefaultAccountAuthenticationProvider();
-		const separateAccount = defaultAccount && !account ? await this._findSeparateGitHubAccount(provider) : undefined;
-		CancellationToken.throwIfCanceled(cancellationToken);
-		if (!account && !separateAccount) {
-			throw new GitHubRequestError(localize('githubAuthenticationRequired', "Sign in to GitHub to load GitHub data."), 'authentication');
-		}
 		const sessions = await this._credentialProvider.getSessions(provider.id, cancellationToken);
 		CancellationToken.throwIfCanceled(cancellationToken);
-		const selected = sessions.find(session => account ? session.id === account.sessionId : session.account.id === separateAccount?.id);
+		const selected = account ? sessions.find(session => session.id === account.sessionId) : this._getSeparateAccountSession(provider.id, sessions);
 		if (!selected) {
 			throw new GitHubRequestError(localize('githubSessionUnavailable', "The selected GitHub session is unavailable."), 'authentication');
 		}
@@ -206,7 +203,11 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 		if (!repositorySession) {
 			throw new GitHubRequestError(localize('githubRepositoryAccessRequired', "Sign in to GitHub with repository access to load GitHub data."), 'authentication');
 		}
-		const endpoints = deriveGitHubEndpoints(this._getEnterpriseUri(provider.enterprise));
+		const enterpriseUri = provider.enterprise ? this._defaultAccountService.resolveGitHubUrl('') : undefined;
+		if (provider.enterprise && !enterpriseUri) {
+			throw new GitHubRequestError(localize('githubUrlUnavailable', "The GitHub Enterprise URL is unavailable. Sign in and try again."), 'authentication');
+		}
+		const endpoints = deriveGitHubEndpoints(enterpriseUri);
 		return {
 			options: {
 				authorization: {
@@ -224,14 +225,6 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 		};
 	}
 
-	private _getEnterpriseUri(enterprise: boolean): string | undefined {
-		const enterpriseUri = enterprise ? this._defaultAccountService.resolveGitHubUrl('') : undefined;
-		if (enterprise && !enterpriseUri) {
-			throw new GitHubRequestError(localize('githubUrlUnavailable', "The GitHub Enterprise URL is unavailable. Sign in and try again."), 'authentication');
-		}
-		return enterpriseUri;
-	}
-
 	/** Whether a default account exists but is not a GitHub account, so repository data uses the person's separate GitHub account. */
 	private _usesSeparateGitHubAccount(): boolean {
 		const account = this._defaultAccountService.currentDefaultAccount;
@@ -239,20 +232,29 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 	}
 
 	private _getPreferredExtensionIds(): string[] {
-		const { chatExtensionId, extensionId } = this._productService.defaultChatAgent ?? {};
-		return [chatExtensionId, extensionId].filter((id): id is string => !!id);
+		return coalesce([this._productService.defaultChatAgent?.chatExtensionId, this._productService.defaultChatAgent?.extensionId]);
 	}
 
-	private async _findSeparateGitHubAccount(provider: IDefaultAccountAuthenticationProvider): Promise<AuthenticationSessionAccount | undefined> {
-		// Checked early: without a GitHub default account there is no enterprise URL, so a sign-in prompt could not help.
-		this._getEnterpriseUri(provider.enterprise);
+	/**
+	 * A session of the GitHub account that repository data uses while the default account is not a GitHub account:
+	 * the account the Copilot extensions prefer, else the only account that is signed in. Throws when there is none.
+	 */
+	private _getSeparateAccountSession(providerId: string, sessions: readonly AuthenticationSession[]): AuthenticationSession {
 		// Mirrors the default account service's preferred-account lookup.
 		const preferredName = this._getPreferredExtensionIds()
-			.map(extensionId => this._authenticationExtensionsService.getAccountPreference(extensionId, provider.id))
+			.map(extensionId => this._authenticationExtensionsService.getAccountPreference(extensionId, providerId))
 			.find(name => name);
-		const accounts = await this._authenticationService.getAccounts(provider.id);
-		return accounts.find(account => account.label === preferredName) ?? (accounts.length === 1 ? accounts[0] : undefined);
+		const selected = sessions.find(session => session.account.label === preferredName)
+			?? (new Set(sessions.map(session => session.account.id)).size === 1 ? sessions[0] : undefined);
+		if (!selected) {
+			throw signInRequired();
+		}
+		return selected;
 	}
+}
+
+function signInRequired(): GitHubRequestError {
+	return new GitHubRequestError(localize('githubAuthenticationRequired', "Sign in to GitHub to load GitHub data."), 'authentication');
 }
 
 registerSingleton(IWorkbenchGitHubService, WorkbenchGitHubService, InstantiationType.Delayed);

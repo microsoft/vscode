@@ -23,7 +23,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ITelemetryService, TELEMETRY_SETTING_ID, TelemetryLevel } from '../../../../../platform/telemetry/common/telemetry.js';
-import { AuthenticationSession, AuthenticationSessionAccount, AuthenticationSessionsChangeEvent, IAuthenticationExtensionsService, IAuthenticationGetSessionsOptions, IAuthenticationService } from '../../../authentication/common/authentication.js';
+import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationExtensionsService, IAuthenticationGetSessionsOptions, IAuthenticationService } from '../../../authentication/common/authentication.js';
 import { WorkbenchGitHubService } from '../../browser/githubService.js';
 import { getGitHubClientInternals } from '../../../../../platform/github/test/common/githubClientTestUtils.js';
 
@@ -62,9 +62,6 @@ suite('Workbench GitHub service', () => {
 				override async getSessions(providerId: string, _scopes: readonly string[], options?: IAuthenticationGetSessionsOptions): Promise<readonly AuthenticationSession[]> {
 					calls.push({ providerId, options });
 					return getSessions ? getSessions() : sessions;
-				}
-				override async getAccounts(): Promise<readonly AuthenticationSessionAccount[]> {
-					return [...new Map(sessions.map(({ account }) => [account.id, account])).values()];
 				}
 			}(),
 			new class extends mock<IDefaultAccountService>() {
@@ -313,13 +310,16 @@ suite('Workbench GitHub service', () => {
 		});
 	}
 
-	test('a Microsoft default account with an enterprise provider keeps the unavailable URL error', async () => {
-		const { service, state, calls } = setup();
-		state.account = microsoftAccount;
-		state.configuredProvider = { id: 'github-enterprise', name: 'Enterprise', enterprise: true };
-		const error = await service.acquireDefaultAccountClient(cancellationToken()).then(() => undefined, (e: Error & { kind?: string }) => e);
-		assert.deepStrictEqual({ kind: error?.kind, message: error?.message, calls }, {
-			kind: 'authentication', message: 'The GitHub Enterprise URL is unavailable. Sign in and try again.', calls: [],
+	test('a Microsoft default account with an enterprise provider does not load GitHub Enterprise data', async () => {
+		const messageFor = async (sessions: AuthenticationSession[]) => {
+			const { service, state } = setup(sessions);
+			state.account = microsoftAccount;
+			state.configuredProvider = { id: 'github-enterprise', name: 'Enterprise', enterprise: true };
+			return service.acquireDefaultAccountClient(cancellationToken()).then(() => undefined, (error: Error) => error.message);
+		};
+		assert.deepStrictEqual({ signedOut: await messageFor([]), signedIn: await messageFor([session()]) }, {
+			signedOut: 'Sign in to GitHub to load GitHub data.',
+			signedIn: 'The GitHub Enterprise URL is unavailable. Sign in and try again.',
 		});
 	});
 
@@ -450,6 +450,14 @@ suite('Workbench GitHub service', () => {
 			'authentication: The selected GitHub account changed. Try again.',
 			'bob-session',
 		]);
+	});
+
+	test('rejects a GitHub default account that is not the current one once its lookup ends', async () => {
+		const { service, state } = setup();
+		state.pendingDefaultAccount = Promise.resolve(state.account);
+		state.account = null;
+		const message = await service.acquireDefaultAccountClient(cancellationToken()).then(() => undefined, (error: Error) => error.message);
+		assert.strictEqual(message, 'The selected GitHub account changed. Try again.');
 	});
 
 	test('acquires a client when the default account is first restored during startup', async () => {

@@ -2962,12 +2962,12 @@ suite('DefaultAccountProvider Microsoft account', () => {
 			created: world.createdSessions,
 			preferences: [...world.preferenceLabels.values()],
 			account: { provider: provider.defaultAccount?.authenticationProvider.id, name: provider.defaultAccount?.accountName, service: provider.defaultAccount?.copilotService },
-			policyUnchanged: JSON.stringify(describePolicyState(provider)) === JSON.stringify(before),
+			policy: describePolicyState(provider),
 		}, {
 			created: [{ providerId: 'github', scopes: ['user:email', 'repo'] }],
 			preferences: ['octocat'],
 			account: { provider: 'microsoft', name: 'alice', service: 'm365' },
-			policyUnchanged: true,
+			policy: before,
 		});
 	});
 
