@@ -45,7 +45,7 @@ stays that of the filled split buttons of actionbar.css. */
 
 /* Focus inside the border, as the New button of the Agents window, also in a part title that puts it outside for filled split buttons (paneCompositePart.css) */
 .monaco-action-bar .actions-container .action-item.action-dropdown-item.new-split-button .action-label.filled-label:focus,
-.monaco-workbench .pane-composite-part > .title > .title-actions .monaco-action-bar .action-item.filled-split-button.new-split-button .action-label.filled-label:focus {
+.monaco-workbench .pane-composite-part > .title.has-composite-bar > .title-actions .monaco-action-bar .action-item.filled-split-button.new-split-button .action-label.filled-label:focus {
 	outline-offset: -1px;
 }
 
