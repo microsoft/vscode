@@ -13,9 +13,11 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../../platform/storage/common/storage.js';
+import { IUserDataProfile } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { EditorGroupLayout, GroupOrientation, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IPartsLayoutState, IWorkbenchLayoutService, Position } from '../../../../services/layout/browser/layoutService.js';
+import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { NAMED_LAYOUTS_ENABLED_SETTING } from '../../browser/namedLayouts.js';
 import { NamedLayoutsService } from '../../browser/namedLayoutsService.js';
@@ -69,6 +71,8 @@ suite('NamedLayoutsService', () => {
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IExtensionService, { whenInstalledExtensionsRegistered: () => Promise.resolve(true) });
+		const userDataProfileService = { currentProfile: upcastPartial<IUserDataProfile>({ id: 'default', isDefault: true }) };
+		instantiationService.stub(IUserDataProfileService, userDataProfileService);
 		const toggleZenMode = () => {
 			if (window.zenMode) {
 				window.parts = window.partsBeforeZenMode!;
@@ -128,9 +132,22 @@ suite('NamedLayoutsService', () => {
 		};
 		/** Stores a part as another window does. A string is stored as it is, so that it can be JSON that does not parse into what it says. */
 		const storeFromOtherWindow = (id: string, part: string, value: unknown) => storageService.store(`${LAYOUT_STORAGE_KEY_PREFIX}${id}.${part}`, typeof value === 'string' ? value : JSON.stringify(value), StorageScope.PROFILE, StorageTarget.MACHINE, true);
-		const removeFromOtherWindow = (id: string) => {
-			for (const key of storageService.keys(StorageScope.PROFILE).filter(key => key.startsWith(`${LAYOUT_STORAGE_KEY_PREFIX}${id}.`))) {
+		/** Removes what is stored under keys that start with the prefix, as other windows and profile switches do, which remove the names first. */
+		const removeExternally = (prefix: string) => {
+			const keys = storageService.keys(StorageScope.PROFILE).filter(key => key.startsWith(prefix));
+			for (const key of keys.sort((a, b) => Number(b.endsWith('.name')) - Number(a.endsWith('.name')))) {
 				storageService.remove(key, StorageScope.PROFILE, true);
+			}
+		};
+		const removeFromOtherWindow = (id: string) => removeExternally(`${LAYOUT_STORAGE_KEY_PREFIX}${id}.`);
+		/**
+		 * Switches the profile of the window from the default profile. A profile with its own storage has none of the layouts. The window
+		 * learns of the switch once the storage of the other profile is in place, so the first change it learns of already removes the names.
+		 */
+		const switchProfile = (profile: Partial<IUserDataProfile>) => {
+			userDataProfileService.currentProfile = upcastPartial<IUserDataProfile>(profile);
+			if (!profile.useDefaultFlags?.globalState) {
+				removeExternally(LAYOUT_STORAGE_KEY_PREFIX);
 			}
 		};
 
@@ -149,7 +166,7 @@ suite('NamedLayoutsService', () => {
 
 		const service = store.add(instantiationService.createInstance(NamedLayoutsService));
 
-		return { service, window, storageService, configurationService, toggleZenMode, toggleMaximizeGroup, storedLayouts, storeFromOtherWindow, removeFromOtherWindow };
+		return { service, window, storageService, configurationService, toggleZenMode, toggleMaximizeGroup, storedLayouts, storeFromOtherWindow, removeFromOtherWindow, switchProfile };
 	}
 
 	/** Collects the keys of the layouts that this window writes. */
@@ -469,6 +486,40 @@ suite('NamedLayoutsService', () => {
 		assert.deepStrictEqual({ deleted, deletedElsewhere }, {
 			deleted: { active: 'Default', layouts: ['Default'], parts: partsState(true, Position.BOTTOM), stored: [] },
 			deletedElsewhere: { active: 'Default', layouts: ['Default'], parts: partsState(false, Position.LEFT), activeLayouts: ['Default'], defaultLayout: undefined, switched: false, renamed: false, stored: [] },
+		});
+	});
+
+	test('switching to a profile with its own storage, which does not have the active layout, applies the default layout without saving the active one, also when the profile disables named layouts, but not after switching to a profile that shares the storage', async () => {
+		const { service, window, storageService, configurationService, toggleZenMode, removeFromOtherWindow, switchProfile, storedLayouts } = createWindow();
+		const debug = (await service.createLayout('Debug'))!;
+		switchProfile({ id: 'shared', useDefaultFlags: { globalState: true } });
+		window.parts = partsState(false, Position.LEFT);
+		removeFromOtherWindow(debug.id);
+		const sharedStorage = { active: service.activeLayout.name, parts: window.parts };
+
+		await service.createLayout('Scratch');
+		window.parts = partsState(false, Position.RIGHT);
+		window.editorGroups = twoGroups;
+		toggleZenMode();
+		const activeLayouts: string[] = [];
+		store.add(service.onDidChangeActiveLayout(layout => activeLayouts.push(layout.name)));
+		await configurationService.setUserConfiguration(NAMED_LAYOUTS_ENABLED_SETTING, false);
+		switchProfile({ id: 'work' });
+
+		const ownStorage = {
+			active: service.activeLayout.name,
+			layouts: service.layouts.map(layout => layout.name),
+			activeLayouts,
+			zenMode: window.zenMode,
+			parts: window.parts,
+			editorGroups: window.editorGroups,
+			activeLayoutStored: storageService.get('workbench.namedLayouts.activeLayout', StorageScope.WORKSPACE),
+			defaultLayout: defaultLayoutState(storageService),
+			stored: storedLayouts(),
+		};
+		assert.deepStrictEqual({ sharedStorage, ownStorage }, {
+			sharedStorage: { active: 'Default', parts: partsState(false, Position.LEFT) },
+			ownStorage: { active: 'Default', layouts: ['Default'], activeLayouts: ['Default'], zenMode: false, parts: partsState(false, Position.LEFT), editorGroups: singleGroup, activeLayoutStored: undefined, defaultLayout: null, stored: [] },
 		});
 	});
 

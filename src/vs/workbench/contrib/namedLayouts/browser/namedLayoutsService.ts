@@ -10,10 +10,12 @@ import { equals } from '../../../../base/common/objects.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../platform/storage/common/storage.js';
+import { IStorageService, isProfileUsingDefaultStorage, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../platform/storage/common/storage.js';
+import { IUserDataProfile } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { EditorGroupLayout, GroupLayoutArgument, GroupOrientation, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IPartsLayoutState, IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
+import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { DEFAULT_NAMED_LAYOUT_ID, INamedLayout, INamedLayoutsService, NAMED_LAYOUTS_ENABLED_SETTING } from './namedLayouts.js';
 
 /**
@@ -67,6 +69,9 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	private storedLayouts: readonly INamedLayout[];
 	private activeLayoutId: string;
 
+	/** The profile whose storage has the {@link storedLayouts}. */
+	private profile: IUserDataProfile;
+
 	/**
 	 * The state of the active layout as this window started with it, applied or saved it last. Saving writes only what differs from it,
 	 * so that what another window saved into the same layout meanwhile is kept. Undefined until the window restored its layout.
@@ -84,10 +89,12 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IExtensionService extensionService: IExtensionService,
 	) {
 		super();
 
+		this.profile = this.userDataProfileService.currentProfile;
 		this.storedLayouts = this.readStoredLayouts();
 		const activeLayoutId = this.storageService.get(ACTIVE_LAYOUT_STORAGE_KEY, StorageScope.WORKSPACE);
 		this.activeLayoutId = activeLayoutId && this.storedLayouts.some(layout => layout.id === activeLayoutId) ? activeLayoutId : DEFAULT_NAMED_LAYOUT_ID;
@@ -248,10 +255,22 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 
 	private onDidChangeStoredLayouts(): void {
 		const layouts = this.layouts;
+		// Switching the profile of the window replaces the layouts with those of the other profile, unless both profiles use the default storage
+		const profile = this.userDataProfileService.currentProfile;
+		const profileSwitched = profile.id !== this.profile.id && !(isProfileUsingDefaultStorage(profile) && isProfileUsingDefaultStorage(this.profile));
+		this.profile = profile;
 		this.storedLayouts = this.readStoredLayouts();
 		if (!this.storedLayouts.some(layout => layout.id === this.activeLayoutId) && this.activeLayoutId !== DEFAULT_NAMED_LAYOUT_ID) {
-			// The active layout was deleted in another window: the window keeps its arrangement as its default layout
-			this.setActiveLayout(DEFAULT_NAMED_LAYOUT_ID);
+			if (profileSwitched) {
+				// The other profile does not have the active layout, so the window switches to its default layout. Its settings, which can
+				// disable named layouts, apply before or after its layouts, so they are not checked. The storage of the profile that has
+				// the active layout closed before the switch, so what changed since the layout was saved last is not saved.
+				this.showFullArrangement();
+				this.applyDefaultLayout();
+			} else {
+				// The active layout was deleted in another window: the window keeps its arrangement as its default layout
+				this.setActiveLayout(DEFAULT_NAMED_LAYOUT_ID);
+			}
 		}
 		if (!equals(layouts, this.layouts)) {
 			this._onDidChangeLayouts.fire();
