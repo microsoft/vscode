@@ -10738,6 +10738,53 @@ suite('SessionsManagementService', () => {
 			assert.deepStrictEqual(closedTitles(view), ['b']);
 		});
 
+		test('closing the shown chat with showNewSession shows the new-session view instead of another chat, and keeps the chat closed', async () => {
+			const folderUri = URI.file('/workspace');
+			const workspace: ISessionWorkspace = {
+				uri: folderUri, label: 'workspace', icon: Codicon.folder,
+				folders: [{ root: folderUri, workingDirectory: folderUri, name: 'workspace', description: undefined }],
+				requiresWorkspaceTrust: true, isVirtualWorkspace: false,
+			};
+			const sessionA = stubSession({
+				sessionId: 'A', providerId: 'test',
+				workspace: constObservable(workspace),
+				chats: constObservable([chat('mainA'), chat('b'), chat('c')]),
+				mainChat: constObservable(chat('mainA')),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			});
+			const draft = stubSession({ sessionId: 'draft', providerId: 'test', status: constObservable(SessionStatus.Untitled), workspace: constObservable(workspace) });
+			const provider = new class extends TestSessionsProvider {
+				override getSessions(): ISession[] { return [sessionA]; }
+				override resolveWorkspace(): ISessionWorkspace { return workspace; }
+				override createNewSession(): ISession { return draft; }
+			}(sessionA);
+			// Trust resolves later, as it does for a folder the user trusted before.
+			const trust = new class extends mock<IWorkspaceTrustRequestService>() {
+				override async requestResourcesTrust(): Promise<boolean> { await timeout(0); return true; }
+			};
+			const { view } = createSessionsManagementService(sessionA, disposables, provider, undefined, trust);
+			const [, chatB, chatC] = sessionA.chats.get();
+			const closeAsDone = async (shown: IChat, closed: IChat) => {
+				await view.openSession(sessionA.resource);
+				await view.openChat(sessionA, shown.resource);
+				const seen: string[] = [];
+				const observer = autorun(reader => { seen.push(`${activeSessionOf(view, reader)?.sessionId}/${activeChatOf(view, reader)?.title.read(reader)}`); });
+				await view.closeChat(activeSessionOf(view)!, closed, { showNewSession: true });
+				observer.dispose();
+				return seen;
+			};
+
+			const notShown = await closeAsDone(chatB, chatC);
+			const shown = await closeAsDone(chatB, chatB);
+			await view.openSession(sessionA.resource);
+
+			assert.deepStrictEqual({ notShown, shown, reopened: { activeChat: activeChatOf(view)?.title.get(), closed: closedTitles(view) } }, {
+				notShown: ['A/b'],
+				shown: ['A/b', 'draft/Chat'],
+				reopened: { activeChat: 'mainA', closed: ['b', 'c'] },
+			});
+		});
+
 		test('reopening a closed chat is also persisted across a switch', async () => {
 			const sessionA = multiChatSession('A', [chat('mainA'), chat('b')]);
 			const sessionB = multiChatSession('B', [chat('mainB')]);
