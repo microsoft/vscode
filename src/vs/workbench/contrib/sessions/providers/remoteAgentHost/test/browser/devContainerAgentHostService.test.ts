@@ -1767,6 +1767,21 @@ suite('Dev Container Agent Host Service', () => {
 			assert.deepStrictEqual(connections, [{ workspaceUri: project.toString(), requireRunning: true }]);
 		});
 
+		test('does not retry one without user action whose connection failed while listing its host failed', async () => {
+			const attempt = new DeferredPromise<void>();
+			const { local, connections, refresh } = setupFolders([{ folder: project, running: true }]);
+			local.beforeConnect = () => attempt.p;
+			await refresh();
+			local.failListing = true;
+			await refresh();
+			attempt.error(new Error('The container stopped.'));
+			await timeout(0);
+			local.failListing = false;
+			local.beforeConnect = undefined;
+			await refresh();
+			assert.deepStrictEqual(connections.length, 1);
+		});
+
 		test('retries a stopped connection without user action only once while the first attempt is pending', async () => {
 			const { service, local, connections, provider, refresh } = setupFolders([{ folder: project, running: true }]);
 			await refresh();

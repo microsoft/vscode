@@ -402,7 +402,8 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 			}
 			await this._ensureConnection(workspaceUri, this._lifecycleTokenSource.token, undefined, true);
 		} catch (error) {
-			if (!isCancellationError(error) && this._runningFolders.has(key)) {
+			// Even if a failed listing meanwhile left its running state unknown.
+			if (!isCancellationError(error)) {
 				this._skipFolder(key, workspaceUri);
 				this._logService.info(`[DevContainerAgentHost] Did not connect to the running Dev Container of ${basename(workspaceUri)}`, error);
 			}
