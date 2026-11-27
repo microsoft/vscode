@@ -58,7 +58,7 @@ import { TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { CapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { AgentPolicyError, type IAgent, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentExtensionInventory, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentCreateChatInitialMessageContext, type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
-import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, ListAgentExtensionsExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, StopBackgroundWorkExtensionMethod, AnswerShellAuthenticationExtensionMethod, RegisterGitHubEnvironmentExtensionMethod, UnregisterGitHubEnvironmentExtensionMethod, GitHubEnvironmentChangedNotification, supportsAgentHostArtifactRemoval, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, ListAgentExtensionsExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, StopBackgroundWorkExtensionMethod, AnswerShellAuthenticationExtensionMethod, RegisterGitHubEnvironmentExtensionMethod, UnregisterGitHubEnvironmentExtensionMethod, GitHubEnvironmentChangedNotification, supportsAgentHostArtifactRemoval, supportsAgentHostChatStateFile, supportsAgentHostDevContainerEnvironments, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
 import { SessionArtifactType, type ISessionArtifact } from '../../common/sessionArtifacts.js';
 import { supportsAgentHostCopilotExtensions } from '../../common/meta/agentHostCopilotExtensionsMeta.js';
 import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../../common/meta/agentHostSavedChatMeta.js';
@@ -3491,6 +3491,42 @@ suite('ProtocolServerHandler', () => {
 			removeResponse: { jsonrpc: '2.0', id: 4, result: null },
 			removeSessionArtifactCalls: [{ session: 'copilotcli:/session-1', artifactId: 'artifact-1' }],
 			managedSettingsPermissions: { disableBypassPermissionsMode: 'disable', ask: ['Shell'] },
+		});
+	});
+
+	test('Dev Containers can be served without other extension methods', async () => {
+		const localDisposables = disposables.add(new DisposableStore());
+		const localServer = localDisposables.add(new MockProtocolServer());
+		localDisposables.add(new ProtocolServerHandler(
+			agentService, stateManager, localServer, { allowExtensionMethods: false, allowDevContainers: true },
+			localDisposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+			managedSettingsService, clientConnections, localDisposables.add(new MockDevContainerService()), NullAgentHostOTelService,
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+		));
+		const transport = new MockProtocolTransport();
+		localServer.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'client-dev-containers' }));
+		const initializeResponse = findResponse(transport.sent, 1);
+		assert.ok(initializeResponse && hasKey(initializeResponse, { result: true }));
+		const result = initializeResponse.result as InitializeResult;
+		const dockerResponse = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, DevContainerIsDockerAvailableExtensionMethod, undefined));
+		transport.simulateMessage(request(3, 'shutdown', {}));
+
+		assert.deepStrictEqual({
+			devContainers: supportsAgentHostDevContainers(result),
+			environments: supportsAgentHostDevContainerEnvironments(result),
+			copilotExtensions: supportsAgentHostCopilotExtensions(result),
+			docker: await dockerResponse,
+			shutdown: findResponse(transport.sent, 3),
+			shutdownCalls: agentService.shutdownCalls,
+		}, {
+			devContainers: true,
+			environments: true,
+			copilotExtensions: false,
+			docker: { jsonrpc: '2.0', id: 2, result: true },
+			shutdown: { jsonrpc: '2.0', id: 3, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: shutdown' } },
+			shutdownCalls: 0,
 		});
 	});
 

@@ -555,7 +555,9 @@ async function startAgentHost(): Promise<void> {
 					agentService,
 					stateManager,
 					localEndpoint.server,
-					localProtocolHandlerConfig,
+					// Dev Tunnel and SSH clients that use this window's agent host connect here and can run Dev Containers
+					// as on a standalone host. The window itself runs its own through the shared process.
+					{ ...localProtocolHandlerConfig, allowDevContainers: true },
 					clientFileSystemProvider,
 				));
 				protocolHandlers.push(localEndpointProtocolHandler);
