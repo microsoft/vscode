@@ -278,6 +278,7 @@
 
 .extension-list-item .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .monaco-dropdown .extension-action.label {
 	border-left-width: 0;
+	padding: 0;
 }
 
 /* single install */

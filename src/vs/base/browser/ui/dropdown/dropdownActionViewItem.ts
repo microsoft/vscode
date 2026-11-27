@@ -193,6 +193,8 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 export interface IActionWithDropdownActionViewItemOptions extends IActionViewItemOptions {
 	readonly menuActionsOrProvider: readonly IAction[] | IActionProvider;
 	readonly menuActionClassNames?: string[];
+	/** Runs the actions of the menu, instead of a runner of the menu's own. */
+	readonly menuActionRunner?: IActionRunner;
 	readonly keybindingProvider?: IKeybindingProvider;
 }
 
@@ -229,6 +231,7 @@ export class ActionWithDropdownActionViewItem extends ActionViewItem {
 				classNames: ['dropdown', ...ThemeIcon.asClassNameArray(Codicon.dropDownButton), ...menuActionClassNames],
 				hoverDelegate: this.options.hoverDelegate,
 				keybindingProvider: (<IActionWithDropdownActionViewItemOptions>this.options).keybindingProvider,
+				actionRunner: (<IActionWithDropdownActionViewItemOptions>this.options).menuActionRunner,
 			}));
 			this.dropdownMenuActionViewItem.render(this.element);
 

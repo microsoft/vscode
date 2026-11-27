@@ -92,7 +92,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	private configuration: IAuxiliaryBarPartConfiguration;
 	/** The widths split buttons last reported, which the title toolbar uses while a button is in the overflow. */
 	private splitButtonMinWidths = new WeakMap<SubmenuItemAction, number>();
-	/** The split buttons that reported their own width, which the title toolbar moves into the overflow last. */
+	/** The split buttons whose live view item last reported its own width, which the title toolbar moves into the overflow last. */
 	private readonly selfSizingSplitButtonIds = new Set<string>();
 	private readonly splitButtonRefit = this._register(new Delayer<void>(MicrotaskDelay));
 	private readonly visibleViewContainersTracker: VisibleViewContainersTracker;
@@ -203,6 +203,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 				const viewItem = toolBar.getItemViewItem(index);
 				if (!this.hasMinimumWidth(viewItem)) {
 					this.splitButtonMinWidths.delete(action);
+					this.selfSizingSplitButtonIds.delete(action.id);
 					return 36;
 				}
 				this.selfSizingSplitButtonIds.add(action.id);

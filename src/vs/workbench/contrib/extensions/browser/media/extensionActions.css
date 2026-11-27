@@ -35,6 +35,31 @@
 	border-color: var(--vscode-foreground);
 }
 
+/* Every split button in the workbench has always had these separator colors. Filled-label split buttons get them,
+and their geometry, from actionbar.css. */
+.monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator {
+	background-color: var(--vscode-extensionButton-background);
+	border: 1px solid var(--vscode-extensionButton-border, transparent);
+	border-left-width: 0;
+	border-right-width: 0;
+}
+
+.monaco-action-bar .action-item.action-dropdown-item.empty > .action-dropdown-item-separator {
+	display: none;
+}
+
+.monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator > div {
+	background-color: var(--vscode-extensionButton-separator, var(--vscode-extensionButton-border));
+}
+
+.vscode-high-contrast .monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator > div {
+	background-color: var(--vscode-button-border);
+}
+
+.monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator.prominent {
+	background-color: var(--vscode-extensionButton-prominentBackground);
+}
+
 .monaco-list-row.focused .extension-list-item .monaco-action-bar .action-item .action-label.extension-action.label,
 .monaco-list-row.selected .extension-list-item .monaco-action-bar .action-item .action-label.extension-action.label {
 	color: var(--vscode-extensionButton-foreground);

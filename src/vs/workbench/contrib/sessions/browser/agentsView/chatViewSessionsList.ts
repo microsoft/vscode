@@ -6,7 +6,8 @@
 import { IActionViewItem } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ActionWithDropdownActionViewItem, IDropdownMenuActionViewItemOptions } from '../../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
-import { IAction } from '../../../../../base/common/actions.js';
+import { ActionRunner, IAction } from '../../../../../base/common/actions.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -26,9 +27,31 @@ import { ChatViewSessionsListHelpHint } from '../chatView/chatViewSessionsListAc
 import { MenuId, MenuItemAction, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 
 /** The class of the filled label buttons of action bars, such as the split buttons of the Extensions editor. */
 const FILLED_LABEL_CLASS = 'filled-label';
+
+/**
+ * Runs the actions of the New menu, and reports a failure itself: the menu closes as the action starts and no longer listens
+ * to its end, and the button may be gone by then too.
+ */
+class ChatViewNewMenuActionRunner extends ActionRunner {
+
+	constructor(@INotificationService private readonly _notificationService: INotificationService) {
+		super();
+	}
+
+	protected override async runAction(action: IAction, context?: unknown): Promise<void> {
+		try {
+			await action.run(context);
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				this._notificationService.error(error);
+			}
+		}
+	}
+}
 
 /**
  * The "New" split button of the Chat view title for the New menu, the split button of the Extensions editor: "New" runs New Chat
@@ -41,6 +64,7 @@ class ChatViewNewButtonActionViewItem extends ActionWithDropdownActionViewItem {
 		newMenu: SubmenuItemAction,
 		private readonly _newChat: MenuItemAction,
 		options: IActionViewItemOptions | undefined,
+		menuActionRunner: ChatViewNewMenuActionRunner,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
@@ -50,7 +74,10 @@ class ChatViewNewButtonActionViewItem extends ActionWithDropdownActionViewItem {
 			label: true,
 			menuActionsOrProvider: { getActions: () => newMenu.actions },
 			menuActionClassNames: [FILLED_LABEL_CLASS],
+			menuActionRunner,
 		}, contextMenuService);
+		this._register(menuActionRunner);
+		this._register(_keybindingService.onDidUpdateKeybindings(() => this.updateTooltip()));
 	}
 
 	override render(container: HTMLElement): void {
@@ -66,10 +93,25 @@ class ChatViewNewButtonActionViewItem extends ActionWithDropdownActionViewItem {
 		this.dropdownMenuActionViewItem?.setActionContext(context);
 	}
 
-	/** The width the button needs, for the title to fit it. */
+	/**
+	 * The width the button needs, for the title to fit it. It is measured unshrunk and without the minimum width the title
+	 * gave it from an earlier measure, as the title toolbar measures its items, so that it can need less than before.
+	 */
 	getMinimumWidth(): number | undefined {
-		const width = this.element?.getBoundingClientRect().width;
-		return width ? Math.ceil(width) : undefined;
+		const element = this.element;
+		if (!element) {
+			return undefined;
+		}
+		const { minWidth, flexShrink } = element.style;
+		try {
+			element.style.minWidth = '0';
+			element.style.flexShrink = '0';
+			const width = element.getBoundingClientRect().width;
+			return width ? Math.ceil(width) : undefined;
+		} finally {
+			element.style.minWidth = minWidth;
+			element.style.flexShrink = flexShrink;
+		}
 	}
 
 	/** "New" runs New Chat. */
@@ -155,7 +197,7 @@ export class ChatViewSessionsListControl implements IChatViewSessionsListControl
 		if (titleFitsWidths && action instanceof SubmenuItemAction && action.item.submenu === MenuId.ChatNewMenu) {
 			const newChat = action.actions.find(action => action instanceof MenuItemAction && (action.id === ACTION_ID_NEW_CHAT || NEW_CHAT_ICON_VARIANTS.some(variant => action.id === ACTION_ID_NEW_CHAT + variant.idSuffix)));
 			if (newChat instanceof MenuItemAction) {
-				return this._instantiationService.createInstance(ChatViewNewButtonActionViewItem, action, newChat, options);
+				return this._instantiationService.createInstance(ChatViewNewButtonActionViewItem, action, newChat, options, this._instantiationService.createInstance(ChatViewNewMenuActionRunner));
 			}
 		}
 		return this._view.createActionViewItem(action, options);
