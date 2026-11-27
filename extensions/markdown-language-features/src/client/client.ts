@@ -19,6 +19,29 @@ function toLspRange(range: vscode.Range): lsp.Range {
 	return lsp.Range.create(range.start.line, range.start.character, range.end.line, range.end.character);
 }
 
+function getExternalLinkUri(linkText: string): vscode.Uri | undefined {
+	if (!/^https?:/i.test(linkText)) {
+		return undefined;
+	}
+
+	try {
+		const url = new URL(linkText);
+		const authority = url.username || url.password
+			? `${url.username}${url.password ? `:${url.password}` : ''}@${url.host}`
+			: url.host;
+
+		return vscode.Uri.from({
+			scheme: url.protocol.slice(0, -1),
+			authority,
+			path: url.pathname,
+			query: url.search.slice(1),
+			fragment: url.hash.slice(1),
+		});
+	} catch {
+		return undefined;
+	}
+}
+
 export class MdLanguageClient implements IDisposable {
 
 	readonly #client: lsp.BaseLanguageClient;
@@ -88,6 +111,29 @@ export async function startClient(factory: LanguageClientConstructor, parser: IM
 		},
 		markdown: {
 			supportHtml: true,
+		},
+		middleware: {
+			provideDocumentLinks: async (document, token, next) => {
+				const links = await next(document, token);
+				if (!links) {
+					return links;
+				}
+
+				for (const link of links) {
+					const target = link.target;
+					if (!target || (target.scheme !== 'http' && target.scheme !== 'https')) {
+						continue;
+					}
+
+					const linkText = document.getText(link.range);
+					const uri = getExternalLinkUri(linkText);
+					if (uri) {
+						link.target = uri;
+					}
+				}
+
+				return links;
+			},
 		}
 	};
 
