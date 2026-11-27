@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, strictEqual } from 'assert';
+import { timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import Severity from '../../../../../base/common/severity.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -175,5 +176,25 @@ suite('Workbench - TerminalStatusList', () => {
 		]);
 		list.toggle(status, false);
 		statusesEqual(list, []);
+	});
+
+	test('remove should cancel duration timeout', async () => {
+		const eventCalls: string[] = [];
+		store.add(list.onDidRemoveStatus(() => eventCalls.push('remove')));
+		list.add({ id: 'test', severity: Severity.Info }, 10);
+		list.remove('test');
+		strictEqual(eventCalls.length, 1);
+		await timeout(20);
+		strictEqual(eventCalls.length, 1, 'timeout should have been cancelled and not fire remove again');
+	});
+
+	test('dispose should clear all pending duration timeouts', async () => {
+		const eventCalls: string[] = [];
+		store.add(list.onDidRemoveStatus(() => eventCalls.push('remove')));
+		list.add({ id: 'test1', severity: Severity.Info }, 10);
+		list.add({ id: 'test2', severity: Severity.Info }, 10);
+		list.dispose();
+		await timeout(20);
+		strictEqual(eventCalls.length, 0, 'no remove events should fire after disposal');
 	});
 });
