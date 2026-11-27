@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { spy } from 'sinon';
 import { SnippetCompletion, SnippetCompletionProvider } from '../../browser/snippetCompletionProvider.js';
 import { IPosition, Position } from '../../../../../editor/common/core/position.js';
 import { createModelServices, instantiateTextModel } from '../../../../../editor/test/common/testTextModel.js';
@@ -12,6 +13,7 @@ import { Snippet, SnippetSource } from '../../browser/snippetsFile.js';
 import { CompletionContext, CompletionItemLabel, CompletionItemRanges, CompletionTriggerKind } from '../../../../../editor/common/languages.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { TestLanguageConfigurationService } from '../../../../../editor/test/common/modes/testLanguageConfigurationService.js';
+import { ILanguageConfigurationService } from '../../../../../editor/common/languages/languageConfigurationRegistry.js';
 import { EditOperation } from '../../../../../editor/common/core/editOperation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
@@ -566,6 +568,62 @@ suite('SnippetsService', function () {
 
 		const completions = await asCompletionModel(model, new Position(1, 158), provider);
 		assert.strictEqual(completions.items.length, 1);
+	});
+
+	test('Typing on a very long line does not look up the word at every column #350738', async function () {
+		snippetService = new SimpleSnippetService(['bar', '<<'].map(prefix => new Snippet(false, ['fooLang'], prefix, prefix, '', prefix, '', SnippetSource.User, generateUuid())));
+		const provider = new SnippetCompletionProvider(languageService, snippetService, disposables.add(new TestLanguageConfigurationService()));
+
+		const line = '{"a":1},'.repeat(10_000) + 'ba <';
+		const model = disposables.add(instantiateTextModel(instantiationService, line, 'fooLang'));
+		const getWordAtPosition = spy(model, 'getWordAtPosition');
+
+		const startColumns = async (column: number) => (await provider.provideCompletionItems(model, new Position(1, column), defaultCompletionContext))
+			.suggestions.map(s => [(s.label as CompletionItemLabel).label, (s.range as CompletionItemRanges).insert.startColumn]);
+
+		assert.deepStrictEqual({
+			afterWord: await startColumns(line.length - 1),
+			afterNonWord: await startColumns(line.length + 1),
+		}, {
+			afterWord: [['bar', line.length - 3]],
+			afterNonWord: [['<<', line.length]],
+		});
+		assert.ok(getWordAtPosition.callCount < 10, `getWordAtPosition was called ${getWordAtPosition.callCount} times`);
+	});
+
+	test('Skipping anchors beyond the longest snippet prefix does not change suggestions #350738', async function () {
+		disposables.add(languageService.registerLanguage({ id: 'cssLikeLang' }));
+		disposables.add(instantiationService.get(ILanguageConfigurationService).register('cssLikeLang', {
+			wordPattern: /(#?-?\d*\.\d\w*%?)|(::?[\w-]*(?=[^,{;]*[,{]))|(([@#.!])?[\w\-?]+%?|[@#!.])/g
+		}));
+
+		const prefixes = ['bar', 'oo.b', '<<', 'p-a', '-a-bug', '#region', ' leading', '{}'];
+		const lines = ['xzoo.b yy', 'foo.bar ba', 'x<< a <', 'zp-a p-', 'x-a-b .-a-bu', '##region #reg', 'a  leading lea', 'x{} {'];
+		// longer than every line, so that the provider computes the anchors from the start of the line
+		const longPrefix = '~'.repeat(100);
+		const createSnippet = (prefix: string) => new Snippet(false, ['fooLang'], prefix, prefix, '', prefix, '', SnippetSource.User, generateUuid());
+		const languageConfigurationService = disposables.add(new TestLanguageConfigurationService());
+
+		const mismatches: string[] = [];
+		for (const languageId of ['fooLang', 'cssLikeLang']) {
+			for (const line of lines) {
+				const model = disposables.add(instantiateTextModel(instantiationService, line, languageId));
+				for (const prefix of prefixes) {
+					const provider = new SnippetCompletionProvider(languageService, new SimpleSnippetService([createSnippet(prefix)]), languageConfigurationService);
+					const fullLineProvider = new SnippetCompletionProvider(languageService, new SimpleSnippetService([createSnippet(prefix), createSnippet(longPrefix)]), languageConfigurationService);
+					for (let column = 1; column <= line.length + 1; column++) {
+						const ranges = async (provider: SnippetCompletionProvider) => JSON.stringify((await provider.provideCompletionItems(model, new Position(1, column), defaultCompletionContext))
+							.suggestions.filter(s => (s.label as CompletionItemLabel).label === prefix).map(s => s.range));
+						const actual = await ranges(provider);
+						const expected = await ranges(fullLineProvider);
+						if (actual !== expected) {
+							mismatches.push(`${languageId} '${line}' column ${column} prefix '${prefix}': ${actual} !== ${expected}`);
+						}
+					}
+				}
+			}
+		}
+		assert.deepStrictEqual(mismatches, []);
 	});
 
 	test('issue #61296: VS code freezes when editing CSS fi`le with emoji', async function () {

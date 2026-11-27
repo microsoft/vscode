@@ -92,20 +92,29 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 
 		const sw = new StopWatch();
 
-		// compute all snippet anchors: word starts and every non word character
 		const line = position.lineNumber;
 		const word = model.getWordAtPosition(position) ?? { startColumn: position.column, endColumn: position.column, word: '' };
 
 		const lineContentLow = model.getLineContent(position.lineNumber).toLowerCase();
 		const lineContentWithWordLow = lineContentLow.substring(0, word.startColumn + word.word.length - 1);
-		const anchors = this._computeSnippetPositions(model, line, word, lineContentWithWordLow);
 
-		// loop over possible snippets and match them against the anchors
 		const columnOffset = position.column - 1;
 		const triggerCharacterLow = context.triggerCharacter?.toLowerCase() ?? '';
 		const languageId = this._getLanguageIdAtPosition(model, position);
 		const languageConfig = this._languageConfigurationService.getLanguageConfiguration(languageId);
 		const snippets = new Set(await this._snippets.getSnippets(languageId, model.uri));
+		if (model.isDisposed()) {
+			return { suggestions: [] };
+		}
+
+		// compute all snippet anchors: word starts and every non word character
+		let maxPrefixLength = 0;
+		for (const snippet of snippets) {
+			maxPrefixLength = Math.max(maxPrefixLength, snippet.prefixLow.length);
+		}
+		const anchors = this._computeSnippetPositions(model, line, word, lineContentWithWordLow, maxPrefixLength);
+
+		// loop over possible snippets and match them against the anchors
 		const suggestions: SnippetCompletion[] = [];
 
 		for (const snippet of snippets) {
@@ -203,16 +212,25 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 		return (item instanceof SnippetCompletion) ? item.resolve() : item;
 	}
 
-	private _computeSnippetPositions(model: ITextModel, line: number, word: IWordAtPosition, lineContentWithWordLow: string): ISnippetPosition[] {
+	private _computeSnippetPositions(model: ITextModel, line: number, word: IWordAtPosition, lineContentWithWordLow: string, maxPrefixLength: number): ISnippetPosition[] {
 		const result: ISnippetPosition[] = [];
 
-		for (let column = 1; column < word.startColumn; column++) {
+		// An anchor only matches a snippet when the text from the anchor to the end of the
+		// current word fits into the snippet prefix (`isPatternInWord`). Anchors farther away
+		// than the longest prefix can never match, so don't compute them. This keeps typing
+		// on very long lines fast.
+		const firstColumn = Math.max(1, lineContentWithWordLow.length + 1 - maxPrefixLength);
+
+		for (let column = firstColumn; column < word.startColumn; column++) {
 			const wordInfo = model.getWordAtPosition(new Position(line, column));
-			result.push({
-				startColumn: column,
-				prefixLow: lineContentWithWordLow.substring(column - 1),
-				isWord: Boolean(wordInfo)
-			});
+			if (column > firstColumn || !wordInfo || wordInfo.startColumn === column) {
+				// the first column can be inside a word, which is not an anchor
+				result.push({
+					startColumn: column,
+					prefixLow: lineContentWithWordLow.substring(column - 1),
+					isWord: Boolean(wordInfo)
+				});
+			}
 			if (wordInfo) {
 				column = wordInfo.endColumn;
 
