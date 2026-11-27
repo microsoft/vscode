@@ -275,9 +275,10 @@ export class StructuralDiffModel<T extends object> extends Disposable {
 	/**
 	 * Files whose expansion was reported. Each expansion is reported once, by the first request that completes after
 	 * it. Reloads of an expanded file are not new expansions, so they are not reported, whether an edit, hiding and
-	 * showing the view, or a provider or language change causes them. Collapsing a file or turning structural diffs off
-	 * ends its expansion. Resources that their view removes or replaces, for example because their status changed, are
-	 * not used again, so they need no cleanup, and the first request of a new resource object is reported.
+	 * showing the view, or a provider or language change causes them. Releasing a file, which its view does when it
+	 * collapses the file or no longer shows it expanded, and turning structural diffs off end its expansion. Resources
+	 * that their view replaces, for example because their status changed, are new objects, so the first request of a
+	 * new resource object is reported.
 	 */
 	private reportedResources = new WeakSet<T>();
 	private readonly pendingChanges = new Set<T>();
@@ -393,10 +394,14 @@ export class StructuralDiffModel<T extends object> extends Disposable {
 		this._onDidChange.fire(resource);
 	}
 
-	/** Releases the cached results of the resources that the predicate selects, for example because the view removed them. */
+	/**
+	 * Releases the cached results of the resources that the predicate selects, for example because the view removed
+	 * them or no longer shows them expanded. Like {@link release}, this ends their expansion.
+	 */
 	releaseWhere(predicate: (resource: T) => boolean): void {
 		for (const [resource] of this.entries) {
 			if (predicate(resource)) {
+				this.reportedResources.delete(resource);
 				this.entries.deleteAndDispose(resource);
 			}
 		}

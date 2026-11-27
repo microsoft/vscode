@@ -1019,7 +1019,10 @@ suite('SCM structural diff model', () => {
 		await provider.pending.complete(provider.result);
 		provider.pending = undefined;
 		await model.getChildren(resource);
-		// The provider ran for each of the seven requests, so the reloads completed without being reported.
-		assert.deepStrictEqual({ outcomes: telemetryEvents.map(event => event.outcome), calls: provider.calls }, { outcomes: ['success', 'success'], calls: 7 });
+		// A view that releases a file along with others, for example because switching between list and tree shows it collapsed, ends its expansion too.
+		model.releaseWhere(candidate => candidate === resource);
+		await model.getChildren(resource);
+		// The provider ran for each of the eight requests, so the reloads completed without being reported.
+		assert.deepStrictEqual({ outcomes: telemetryEvents.map(event => event.outcome), calls: provider.calls }, { outcomes: ['success', 'success', 'success'], calls: 8 });
 	});
 });
