@@ -18,6 +18,7 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { NullPolicyService } from '../../../../../../platform/policy/common/policy.js';
+import product from '../../../../../../platform/product/common/product.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { UriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentityService.js';
 import { FileUserDataProvider } from '../../../../../../platform/userData/common/fileUserDataProvider.js';
@@ -426,6 +427,17 @@ suite('AgentsModeWorkspaceService', () => {
 			supported: { enabled: true, dev: true, settingOff: false, settingUnset: false, settingTruthy: false, noBackup: false, workspacesFilterOnly: false, remote: false, extensionDevelopment: false, agentsWindow: false },
 			stable: false,
 			stableReads: [],
+		});
+	});
+
+	test('the setting is registered only in builds that offer Agents mode, by the same rule that supports the mode', () => {
+		const property = agentsModeEnabledConfiguration.properties![AGENTS_MODE_ENABLED_SETTING];
+		assert.deepStrictEqual({
+			included: property.included,
+			registered: !!configurationRegistry.getConfigurationProperties()[AGENTS_MODE_ENABLED_SETTING],
+		}, {
+			included: AgentsModeWorkspaceService.isAvailableInQuality(product.quality),
+			registered: AgentsModeWorkspaceService.isAvailableInQuality(product.quality),
 		});
 	});
 

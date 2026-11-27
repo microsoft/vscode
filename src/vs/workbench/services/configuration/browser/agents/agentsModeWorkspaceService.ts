@@ -18,6 +18,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IPolicyService } from '../../../../../platform/policy/common/policy.js';
+import product from '../../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IAnyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspace, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, IWorkspaceIdentifier, WorkbenchMode, WorkbenchState, Workspace } from '../../../../../platform/workspace/common/workspace.js';
@@ -51,6 +52,8 @@ export const agentsModeEnabledConfiguration: IConfigurationNode = {
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
+			// Not in Stable, where Agents mode is not offered: see AgentsModeWorkspaceService.isAvailableInQuality
+			included: product.quality !== 'stable',
 			description: localize('agentsMode.enabled', "Enable toggling Agents mode in a local editor window. A window with a folder or workspace gets its folders back when it leaves the mode. Takes effect in a window after it is reloaded."),
 		}
 	}
