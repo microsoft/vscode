@@ -19,12 +19,12 @@ import { IEnvironmentService } from '../../../../platform/environment/common/env
 import { FileOperationError, FileOperationResult, FileSystemProviderCapabilities, FileSystemProviderErrorCode, IFileContent, IFileService, toFileSystemProviderErrorCode } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { hasWorkspaceFileExtension } from '../../../../platform/workspace/common/workspace.js';
 import { isRecentWorkspace, IWorkspacesService } from '../../../../platform/workspaces/common/workspaces.js';
-import { SESSIONS_WORKSPACES_ENABLED_SETTING } from '../common/sessionConfig.js';
+import { observableSessionWorkspacesEnabled } from '../common/sessionConfig.js';
 import { ISessionWorkspaceFileContent, ISessionWorkspaceFileEdit, SessionWorkspaceFile } from '../common/sessionWorkspaceFile.js';
 import { IRecentSessionWorkspace, ISessionWorkspaceAppearance, ISessionWorkspaceRemoveOptions, ISessionWorkspacesService, ISessionWorkspaceUpdate, SessionWorkspaceError } from '../common/sessionWorkspaces.js';
 import { ISessionsRecentWorkspacesService } from './sessionsRecentWorkspacesService.js';
@@ -129,13 +129,14 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 		@ISessionsRecentWorkspacesService private readonly recentWorkspacesService: ISessionsRecentWorkspacesService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
+		@IProductService productService: IProductService,
 	) {
 		super();
 
 		this._workspaceFile = new SessionWorkspaceFile(uriIdentityService.extUri);
 		this.untitledWorkspacesHome = environmentService.untitledWorkspacesHome;
 		this.ownedWorkspacesHome = joinPath(dirname(environmentService.untitledWorkspacesHome), OWNED_WORKSPACES_FOLDER);
-		this.enabled = observableConfigValue(SESSIONS_WORKSPACES_ENABLED_SETTING, false, configurationService);
+		this.enabled = observableSessionWorkspacesEnabled(configurationService, productService);
 
 		this._managedWorkspaces.set(this._readStorage(), undefined);
 		// Other windows of the profile share the catalogue
