@@ -230,8 +230,16 @@ suite('Sessions - Chat view sessions list New button', () => {
 			const pillWidth = pill()!.getBoundingClientRect().width;
 			const protrusions: { width: number; overTitle: boolean; overNextIcon: boolean; outOfToolbar: boolean; shrunk: boolean; dropdownMissed: boolean }[] = [];
 			let overflowAt: number | undefined;
+			let lastFit: { width: number; spareWidth: number } | undefined;
+			const nextIconOutside: number[] = [];
 			for (let width = 300; width >= 60; width--) {
 				layout(width);
+				const nextIndex = indexOf(next);
+				const nextRect = nextIndex === undefined ? undefined : part.toolbar.getItemElement(nextIndex)!.getBoundingClientRect();
+				const partRect = container.getBoundingClientRect();
+				if (nextRect && (nextRect.left < partRect.left - 0.5 || nextRect.right > partRect.right + 0.5)) {
+					nextIconOutside.push(width);
+				}
 				const shown = pill();
 				if (!shown) {
 					overflowAt ??= width;
@@ -240,8 +248,7 @@ suite('Sessions - Chat view sessions list New button', () => {
 				const pillRect = shown.getBoundingClientRect();
 				const titleRect = container.querySelector('h2')!.getBoundingClientRect();
 				const toolbarRect = part.toolbar.getElement().getBoundingClientRect();
-				const nextIndex = indexOf(next);
-				const nextRect = nextIndex === undefined ? undefined : part.toolbar.getItemElement(nextIndex)!.getBoundingClientRect();
+				lastFit = { width, spareWidth: pillRect.left - titleRect.right };
 				const dropdown = shown.querySelector<HTMLElement>('.monaco-dropdown-button')!;
 				const dropdownRect = dropdown.getBoundingClientRect();
 				const hit = document.elementFromPoint(dropdownRect.left + dropdownRect.width / 2, dropdownRect.top + dropdownRect.height / 2);
@@ -259,8 +266,9 @@ suite('Sessions - Chat view sessions list New button', () => {
 			}
 			layout(400);
 
-			assert.ok(pillWidth > 36 && overflowAt !== undefined, `pill ${pillWidth}px, overflow at ${overflowAt}px`);
-			assert.deepStrictEqual({ protrusions, restored: pill()?.getBoundingClientRect().width === pillWidth }, { protrusions: [], restored: true });
+			// New moves into the overflow only once it no longer fits: just before that, the title leaves it no more spare room than the toolbar padding.
+			assert.ok(pillWidth > 36 && overflowAt !== undefined && lastFit?.width === overflowAt + 1 && lastFit.spareWidth < 12, `pill ${pillWidth}px, overflow at ${overflowAt}px, last fit ${JSON.stringify(lastFit)}`);
+			assert.deepStrictEqual({ protrusions, nextIconOutside, restored: pill()?.getBoundingClientRect().width === pillWidth }, { protrusions: [], nextIconOutside: [], restored: true });
 		} finally {
 			root.remove();
 		}
