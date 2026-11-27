@@ -569,6 +569,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private readonly _clientForwarding: IAgentHostProtocolClientOptions['clientForwarding'];
 	/** Connections the host opened to the client's agents, which end with the transport they were opened on. */
 	private readonly _forwardedConnections = new Map<number, { readonly connection: IClientForwardingConnection; readonly store: DisposableStore }>();
+	/** Changes when the forwarded connections close with their transport, so ones still opening are dropped. */
+	private _forwardingGeneration = 0;
 	private readonly _onDispose: (() => void) | undefined;
 	private _didDispose = false;
 
@@ -2412,6 +2414,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	/** Lets a host serving this client's proxy support refresh the proxy it applies after this client's settings change. */
 	private _closeForwardedConnections(): void {
+		this._forwardingGeneration++;
 		for (const { store } of this._forwardedConnections.values()) {
 			store.dispose();
 		}
@@ -3746,11 +3749,12 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 						if (this._forwardedConnections.has(id)) {
 							throw new Error('The connection is already open');
 						}
+						const generation = this._forwardingGeneration;
 						const connection = await this._clientForwarding.open(socket);
-						// The host's side of the connection ends with this transport.
-						if (transport !== this._transport || this._store.isDisposed) {
+						// The host's side of the connection ends with the transport, which may close before it is replaced.
+						if (generation !== this._forwardingGeneration || transport !== this._transport || this._store.isDisposed) {
 							connection.dispose();
-							throw new Error('The connection to the agent host was replaced');
+							throw new Error('The connection to the agent host was closed');
 						}
 						const store = new DisposableStore();
 						store.add(connection);
@@ -3771,7 +3775,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 							throw new Error('This client does not forward its Git credentials to this agent host');
 						}
 						const { operation, input } = clientGitCredentialParamsValidator.validateOrThrow(params);
-						sendResult({ output: await this._clientForwarding.gitCredential(operation, input) } satisfies IAgentHostExtensionServerCommandMap[typeof ClientGitCredentialExtensionMethod]['result']);
+						sendResult({ gitCredential: await this._clientForwarding.gitCredential(operation, input) } satisfies IAgentHostExtensionServerCommandMap[typeof ClientGitCredentialExtensionMethod]['result']);
 						return;
 					}
 					case ClientGpgKeysExtensionMethod: {

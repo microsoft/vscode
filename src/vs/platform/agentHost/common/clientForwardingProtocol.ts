@@ -47,7 +47,8 @@ export const ClientGitCredentialExtensionMethod = 'vscode/forwarding/gitCredenti
 export const clientGitCredentialOperationValidator = vEnum('get', 'store', 'erase');
 export type ClientGitCredentialOperation = ValidatorType<typeof clientGitCredentialOperationValidator>;
 export const clientGitCredentialParamsValidator = vObj({ operation: clientGitCredentialOperationValidator, input: vString() });
-export const clientGitCredentialResultValidator = vObj({ output: vString() });
+/** A distinctive name, so debug logs can redact it. */
+export const clientGitCredentialResultValidator = vObj({ gitCredential: vString() });
 
 /**
  * Host → client: the client's GPG public keys, certificates and owner trust, base64-encoded, which the host imports where
@@ -60,15 +61,18 @@ export type ClientGpgKeys = ValidatorType<typeof clientGpgKeysResultValidator>;
 /**
  * Host → client: the Git identity the client uses for the workspace, and, from clients offering their Git configuration,
  * their global configuration, base64-encoded, and the files it names in their home folder, e.g., allowed signers, which
- * the host copies where it has no configuration of its own, like Dev Containers.
+ * the host copies where it has no configuration of its own, like Dev Containers. `gitGlobalConfig` is named distinctively,
+ * so debug logs can redact it.
  */
 export const ClientGitConfigExtensionMethod = 'vscode/forwarding/gitConfig';
 export const clientGitConfigResultValidator = vObj({
 	user: vObj({ name: vOptionalProp(vString()), email: vOptionalProp(vString()) }),
-	config: vOptionalProp(vString()),
-	xdgConfig: vOptionalProp(vString()),
-	/** Files a setting names, with their path relative to the home folder. */
-	files: vOptionalProp(vArray(vObj({ key: vString(), path: vString(), content: vString() }))),
+	gitGlobalConfig: vOptionalProp(vObj({
+		config: vOptionalProp(vString()),
+		xdgConfig: vOptionalProp(vString()),
+		/** Files a setting names, with their path relative to the home folder. */
+		files: vOptionalProp(vArray(vObj({ key: vString(), path: vString(), content: vString() }))),
+	})),
 });
 export type ClientGitConfig = ValidatorType<typeof clientGitConfigResultValidator>;
 

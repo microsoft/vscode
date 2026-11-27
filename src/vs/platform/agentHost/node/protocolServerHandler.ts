@@ -1185,9 +1185,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			this._registerClientCertificates(client, params);
 			const servesClientProxy = this._registerClientProxy(client, params);
 			const servesClientForwarding = this._registerClientForwarding(client, params);
-			// Processes a client starts once initialized, like the Copilot runtime, get the forwarding environment, Git
-			// configuration and identity. Bounded, so a slow client delays connecting only so long.
-			const clientForwardingReady = this._clientForwarding.enabled ? raceTimeout(this._clientForwarding.settled(), 10_000) : undefined;
+			// Processes a client starts once initialized, like the Copilot runtime, get the forwarding environment. The rest
+			// follows in the background. Bounded, though it needs no client, so a stuck startup cannot block connecting.
+			const clientForwardingReady = this._clientForwarding.enabled ? raceTimeout(this._clientForwarding.whenEnvironmentReady(), 10_000) : undefined;
 			this._registerClientFileSystemAuthority(params.clientId, initializationDisposables);
 
 			const snapshots: IStateSnapshot[] = [];
@@ -1708,7 +1708,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			sendData: (connection, data) => client.channels.send({ jsonrpc: '2.0', method: ClientForwardingDataNotification, params: { connection, data: encodeBase64(data) } }),
 			sendClose: connection => client.channels.send({ jsonrpc: '2.0', method: ClientForwardingCloseNotification, params: { connection } }),
 			// Long enough for the user to sign in on the client.
-			gitCredential: async (operation, input) => clientGitCredentialResultValidator.validateOrThrow(await this._sendReverseRequestToConnection<unknown>(client, ClientGitCredentialExtensionMethod, { operation, input }, 5 * 60_000)).output,
+			gitCredential: async (operation, input) => clientGitCredentialResultValidator.validateOrThrow(await this._sendReverseRequestToConnection<unknown>(client, ClientGitCredentialExtensionMethod, { operation, input }, 5 * 60_000)).gitCredential,
 			gpgKeys: async () => clientGpgKeysResultValidator.validateOrThrow(await this._sendReverseRequestToConnection<unknown>(client, ClientGpgKeysExtensionMethod, {}, 60_000)),
 			gitConfig: async () => clientGitConfigResultValidator.validateOrThrow(await this._sendReverseRequestToConnection<unknown>(client, ClientGitConfigExtensionMethod, {}, 60_000)),
 		}));

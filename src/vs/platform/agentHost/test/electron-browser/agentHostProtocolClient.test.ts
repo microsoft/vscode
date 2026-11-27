@@ -4950,7 +4950,7 @@ suite('AgentHostProtocolClient', () => {
 		});
 	});
 	suite('client forwarding', () => {
-		function createForwardingClient(enabled: boolean) {
+		function createForwardingClient(enabled: boolean, opened?: Promise<void>) {
 			const transport = disposables.add(new TestProtocolTransport());
 			const trust = createWorkspaceTrustServices();
 			const onDidReceiveData = disposables.add(new Emitter<VSBuffer>());
@@ -4958,12 +4958,15 @@ suite('AgentHostProtocolClient', () => {
 			const clientForwarding: IAgentHostClientForwardingProvider = {
 				isEnabled: () => enabled,
 				describe: async () => ({ gitConfig: true, gitCredentials: true, sshAgent: true, gpgAgent: false, keyboxd: false }),
-				open: async socket => ({
-					onDidReceiveData: onDidReceiveData.event,
-					onDidClose: Event.None,
-					write: data => events.push(`write ${socket}: ${data.toString()}`),
-					dispose: () => events.push(`dispose ${socket}`),
-				}),
+				open: async socket => {
+					await opened;
+					return {
+						onDidReceiveData: onDidReceiveData.event,
+						onDidClose: Event.None,
+						write: data => events.push(`write ${socket}: ${data.toString()}`),
+						dispose: () => events.push(`dispose ${socket}`),
+					};
+				},
 				gitCredential: async (operation, input) => `${operation} ${input}`,
 				gpgKeys: async () => ({ ownertrust: 'dHJ1c3Q=' }),
 				gitConfig: async () => ({ user: { name: 'Client User' } }),
@@ -4991,10 +4994,25 @@ suite('AgentHostProtocolClient', () => {
 
 			assert.deepStrictEqual({ advertised: advertised(transport), results, sent, events }, {
 				advertised: true,
-				results: [{ gitConfig: true, gitCredentials: true, sshAgent: true, gpgAgent: false, keyboxd: false }, {}, { output: 'get host=example.com\n' }, { ownertrust: 'dHJ1c3Q=' }, { user: { name: 'Client User' } }],
+				results: [{ gitConfig: true, gitCredentials: true, sshAgent: true, gpgAgent: false, keyboxd: false }, {}, { gitCredential: 'get host=example.com\n' }, { ownertrust: 'dHJ1c3Q=' }, { user: { name: 'Client User' } }],
 				sent: [{ connection: 3, data: encodeBase64(VSBuffer.fromString('reply')) }],
 				events: ['write ssh-agent: request', 'dispose ssh-agent'],
 			});
+		});
+
+		test('closes a connection that opens only after the transport closed', async () => {
+			const opened = new DeferredPromise<void>();
+			const { client, transport, onDidReceiveData, events } = createForwardingClient(true, opened.p);
+			await connectClient(client, transport);
+			transport.fireExtensionRequest(51, OpenClientForwardingExtensionMethod, { connection: 3, socket: 'ssh-agent' });
+			await timeout(0);
+			transport.fireClose();
+			opened.complete();
+			await timeout(0);
+			onDidReceiveData.fire(VSBuffer.fromString('reply'));
+			const sent = transport.sentMessages.filter(message => (message as JsonRpcNotification).method === ClientForwardingDataNotification);
+
+			assert.deepStrictEqual({ sent, events }, { sent: [], events: ['dispose ssh-agent'] });
 		});
 
 		test('neither advertises nor serves client forwarding when disabled', async () => {

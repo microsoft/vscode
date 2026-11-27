@@ -809,6 +809,7 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 				clientForwarding: connectionStore.add(new AgentHostClientForwarding(this._clientForwardingService, {
 					// Sandboxed containers get only the Git identity, as before.
 					forwardCredentials: () => !options?.sandboxEnabled && this._configurationService.getValue<boolean>(DevContainerCredentialForwardingEnabledSettingId) !== false,
+					onDidChangeForwardCredentials: Event.signal(Event.filter(this._configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(DevContainerCredentialForwardingEnabledSettingId))),
 					folder: workspaceUri.scheme === Schemas.file ? workspaceUri.fsPath : undefined,
 				})),
 				transportFactory,

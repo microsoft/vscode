@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { appendFile, mkdir, readFile, stat, writeFile } from 'fs/promises';
+import { constants } from 'fs';
+import { access, appendFile, mkdir, readdir, readFile, stat, writeFile } from 'fs/promises';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
-import { dirname, isAbsolute, join, posix, relative, resolve } from '../../../base/common/path.js';
+import { delimiter, dirname, isAbsolute, join, relative, resolve } from '../../../base/common/path.js';
+import { isWindows } from '../../../base/common/platform.js';
 import type { ClientGitConfig } from '../common/clientForwardingProtocol.js';
 import { IClientForwardingHost, parseGpgDirs } from './clientForwardingHost.js';
-import { ISshExec, shellEscape } from './sshRemoteAgentHostHelpers.js';
 
 function isLiteralSshKey(key: string): boolean {
 	return key.startsWith('key::') || /^(ssh|ecdsa|sk)-/.test(key);
@@ -64,9 +65,11 @@ export async function readClientGitConfig(host: IClientForwardingHost, full: boo
 	}
 	return {
 		user,
-		...(config ? { config: encodeBase64(VSBuffer.wrap(config)) } : {}),
-		...(xdgConfig ? { xdgConfig: encodeBase64(VSBuffer.wrap(xdgConfig)) } : {}),
-		...(files.length ? { files } : {}),
+		gitGlobalConfig: {
+			...(config ? { config: encodeBase64(VSBuffer.wrap(config)) } : {}),
+			...(xdgConfig ? { xdgConfig: encodeBase64(VSBuffer.wrap(xdgConfig)) } : {}),
+			...(files.length ? { files } : {}),
+		},
 	};
 }
 
@@ -76,10 +79,10 @@ export async function readClientGitConfig(host: IClientForwardingHost, full: boo
 export interface IClientGitConfigTarget {
 	readonly home: string;
 	readonly xdgConfigHome: string;
-	/** Runs Git in the home folder; `undefined` when Git is not installed. */
-	git(args: readonly string[]): Promise<{ readonly stdout: string; readonly code: number } | undefined>;
-	/** Runs a POSIX shell command in the home folder; `undefined` without one, e.g., on Windows. */
-	readonly exec: ISshExec | undefined;
+	/** The environment whose `PATH` commands run from. */
+	readonly environment: NodeJS.ProcessEnv;
+	/** Runs a command in the home folder, without a shell; `undefined` when it is not installed. */
+	run(command: string, args: readonly string[]): Promise<{ readonly stdout: string; readonly code: number } | undefined>;
 }
 
 /** The client's agents this agent host forwards. */
@@ -96,7 +99,7 @@ const copiedGitConfigMarker = '# Copied from the client by VS Code.';
  * and also into one with only an identity, e.g., one set for an earlier client that did not supply its configuration.
  */
 export function canCopyGitConfig(existing: string | undefined): boolean {
-	return existing === undefined || !existing.includes(copiedGitConfigMarker) && existing.split(/\r?\n/).filter(line => line.startsWith('[')).every(line => /^\[(filter|safe|user)([ \t]+|\])/.test(line));
+	return existing === undefined || !existing.includes(copiedGitConfigMarker) && existing.split(/\r?\n/).map(line => line.trimStart()).filter(line => line.startsWith('[')).every(line => /^\[(filter|safe|user)([ \t]+|\])/.test(line));
 }
 
 async function exists(path: string): Promise<boolean> {
@@ -117,6 +120,67 @@ async function writeNewFile(path: string, content: Uint8Array): Promise<boolean>
 	}
 }
 
+/** A Git setting's value; empty when it is not set. */
+async function getGitConfig(target: IClientGitConfigTarget, args: readonly string[]): Promise<string> {
+	const result = await target.run('git', ['config', ...args]);
+	return result?.code === 0 ? result.stdout.replace(/\r?\n$/, '') : '';
+}
+
+/**
+ * The program a configured command runs: its first word, which quotes or backslash-escaped whitespace can extend, as the
+ * shell Git runs it with reads it.
+ */
+export function getCommandName(command: string): string {
+	let name = '';
+	let quote: string | undefined;
+	const value = command.trim();
+	for (let i = 0; i < value.length; i++) {
+		const char = value[i];
+		if (quote) {
+			if (char === quote) {
+				quote = undefined;
+			} else {
+				name += char;
+			}
+		} else if (char === '"' || char === '\'') {
+			quote = char;
+		} else if (char === '\\' && /\s/.test(value[i + 1] ?? '')) {
+			name += value[++i];
+		} else if (/\s/.test(char)) {
+			break;
+		} else {
+			name += char;
+		}
+	}
+	return name;
+}
+
+/** Whether `command`, a name on `PATH` or in `extraFolders`, or a path, names an executable. */
+async function hasCommand(target: IClientGitConfigTarget, command: string, extraFolders: readonly string[] = []): Promise<boolean> {
+	if (!command) {
+		return false;
+	}
+	const variable = (name: string) => target.environment[Object.keys(target.environment).find(key => key.toUpperCase() === name) ?? name];
+	const extensions = isWindows ? ['', ...(variable('PATHEXT') || '.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean)] : [''];
+	const candidates = /[\\/]/.test(command) ? [resolve(target.home, command)] : [...extraFolders, ...(variable('PATH') ?? '').split(delimiter).filter(Boolean)].map(folder => join(folder, command));
+	for (const candidate of candidates) {
+		for (const extension of extensions) {
+			try {
+				const path = `${candidate}${extension}`;
+				if ((await stat(path)).isFile()) {
+					if (!isWindows) {
+						await access(path, constants.X_OK);
+					}
+					return true;
+				}
+			} catch {
+				// Not this one.
+			}
+		}
+	}
+	return false;
+}
+
 /**
  * Copies the client's Git configuration where the agent host has none of its own, like Dev Containers, removes settings
  * that cannot work there, and sets the client's identity where the agent host has none or the copy lacks the client
@@ -130,29 +194,25 @@ export async function applyClientGitConfig(
 	requestGitConfig: () => Promise<ClientGitConfig>,
 	log: (message: string) => void,
 ): Promise<void> {
-	const getValue = async (key: string) => {
-		const result = await target.git(['config', '--get', key]);
-		return result && (result.code === 0 ? result.stdout.trim() : '');
-	};
-	const currentName = await getValue('user.name');
-	if (currentName === undefined) {
+	if (!await target.run('git', ['--version'])) {
 		log('Git: Not installed, not configuring it.');
 		return;
 	}
+	const getValue = (key: string) => getGitConfig(target, ['--get', key]);
 	const configPath = join(target.home, '.gitconfig');
 	const xdgConfigPath = join(target.xdgConfigHome, 'git', 'config');
 	const existing = await readFile(configPath, 'utf8').catch(() => undefined);
-	const copy = offersConfig && !!target.exec;
-	const copyConfig = copy && canCopyGitConfig(existing);
-	const copyXdgConfig = copy && !await exists(xdgConfigPath);
-	if (!copyConfig && !copyXdgConfig && currentName && await getValue('user.email')) {
+	const copyConfig = offersConfig && canCopyGitConfig(existing);
+	const copyXdgConfig = offersConfig && !await exists(xdgConfigPath);
+	if (!copyConfig && !copyXdgConfig && await getValue('user.name') && await getValue('user.email')) {
 		return;
 	}
 
 	const gitConfig = await requestGitConfig();
+	const global = gitConfig.gitGlobalConfig;
 	const copiedFiles: string[] = [];
-	if (copyConfig && gitConfig.config) {
-		const content = Buffer.concat([Buffer.from(`${copiedGitConfigMarker}\n`), decodeBase64(gitConfig.config).buffer]);
+	if (copyConfig && global?.config) {
+		const content = Buffer.concat([Buffer.from(`${copiedGitConfigMarker}\n`), decodeBase64(global.config).buffer]);
 		if (existing === undefined) {
 			if (await writeNewFile(configPath, content)) {
 				copiedFiles.push(configPath);
@@ -163,23 +223,23 @@ export async function applyClientGitConfig(
 			copiedFiles.push(configPath);
 		}
 	}
-	if (copyXdgConfig && gitConfig.xdgConfig && await writeNewFile(xdgConfigPath, decodeBase64(gitConfig.xdgConfig).buffer)) {
+	if (copyXdgConfig && global?.xdgConfig && await writeNewFile(xdgConfigPath, decodeBase64(global.xdgConfig).buffer)) {
 		copiedFiles.push(xdgConfigPath);
 	}
 	const copied = copiedFiles.length > 0;
-	if (copied && target.exec) {
+	if (copied) {
 		log('Git: Copied the client\'s Git configuration.');
 		// Only the copied files, as `--global` writes only to one of them.
-		await removeUnavailableGitConfig(target.exec, copiedFiles, log);
-		for (const file of gitConfig.files ?? []) {
+		await removeUnavailableGitConfig(target, copiedFiles, log);
+		for (const file of global?.files ?? []) {
 			const path = getHomeRelativePath(target.home, file.path);
 			if (path) {
 				const absolute = join(target.home, path);
 				await writeNewFile(absolute, decodeBase64(file.content).buffer);
-				await target.git(['config', '--global', file.key, absolute]);
+				await target.run('git', ['config', '--global', file.key, absolute]);
 			}
 		}
-		await removeUnavailableSigning(target.exec, copiedFiles, await getSigningSupport(target.exec, agents), log);
+		await removeUnavailableSigning(target, copiedFiles, await getSigningSupport(target, agents), log);
 	}
 
 	for (const [key, value] of [['user.name', gitConfig.user.name], ['user.email', gitConfig.user.email]] as const) {
@@ -187,7 +247,7 @@ export async function applyClientGitConfig(
 		// A copied configuration lacks the client folder's conditional includes, e.g., for a work email, and may add a
 		// second value to an earlier identity, which replacing all leaves as one.
 		if (value && (!current || copied)) {
-			await target.git(['config', '--global', '--replace-all', key, value]);
+			await target.run('git', ['config', '--global', '--replace-all', key, value]);
 			if (current !== value) {
 				log(`Git: Set ${key} to the client's.`);
 			}
@@ -196,76 +256,64 @@ export async function applyClientGitConfig(
 }
 
 /** Signing the client's agents support, and GPG signing with keys of the agent host's own, which it then uses. */
-async function getSigningSupport(exec: ISshExec, agents: IClientGitSigningAgents): Promise<IDevContainerGitSigningSupport> {
-	const { stdout } = await exec('gpgconf --list-dirs 2>/dev/null', { ignoreExitCode: true });
-	const homedir = parseGpgDirs(stdout, false).homedir;
-	const ownKeys = !!homedir && !!(await exec(`ls ${shellEscape(posix.join(homedir, 'private-keys-v1.d'))} 2>/dev/null`, { ignoreExitCode: true })).stdout.trim();
+async function getSigningSupport(target: IClientGitConfigTarget, agents: IClientGitSigningAgents): Promise<IGitSigningSupport> {
+	const homedir = parseGpgDirs((await target.run('gpgconf', ['--list-dirs']))?.stdout ?? '', isWindows).homedir;
+	const ownKeys = !!homedir && (await readdir(join(homedir, 'private-keys-v1.d')).catch(() => [])).length > 0;
 	return { sshAgent: agents.sshAgent, gpgSigning: !!homedir && (ownKeys || agents.gpgAgent) };
 }
 
-interface IDevContainerGitSigningSupport {
+interface IGitSigningSupport {
 	/** Whether the client's SSH agent is forwarded. */
 	readonly sshAgent: boolean;
 	/** Whether GPG signing can work, with the client's agent or the agent host's own keys. */
 	readonly gpgSigning: boolean;
 }
 
-async function removeUnavailableGitConfig(exec: ISshExec, files: readonly string[], log: (message: string) => void): Promise<void> {
-	const { stdout } = await exec(`helper_available() {
-	h="$1"
-	case "$h" in
-		'!'*) h="\${h#!}" ;;
-		/*) ;;
-		*) h="git-credential-$h" ;;
-	esac
-	set -- $h
-	case "$1" in
-		'') return 1 ;;
-		# Shell functions cannot be checked.
-		*'('*|*'{'*) return 0 ;;
-	esac
-	command -v "$1" >/dev/null 2>&1 || [ -x "$(git --exec-path)/$1" ]
-}
-for f in ${files.map(file => shellEscape(file)).join(' ')}
-do
-	for key in core.editor core.sshCommand gpg.program gpg.openpgp.program gpg.x509.program gpg.ssh.program
-	do
-		value="$(git config --file "$f" --get "$key")"
-		executable="\${value%% *}"
-		[ -z "$executable" ] && continue
-		command -v "$executable" >/dev/null 2>&1 || { echo "Git: Removing Git config key: $key = $value"; git config --file "$f" --unset "$key"; }
-	done
-	git config --file "$f" --unset http.sslBackend
-	# Helpers of the client, e.g., a keychain, fail here. An empty value resets the helpers, so a URL's helpers are removed
-	# together with its reset, which lets the remaining helpers serve that URL again.
-	git config --file "$f" --name-only --get-regexp '^credential\\..*helper$' 2>/dev/null | sort -u | while IFS= read -r key
-	do
-		status="$(git config --file "$f" --get-all "$key" | while IFS= read -r value
-		do
-			[ -z "$value" ] && continue
-			helper_available "$value" && echo available || echo missing
-		done)"
-		case "$status" in
-			*available*) ;;
-			*missing*) echo "Git: Removing Git config key: $key"; git config --file "$f" --unset-all "$key" ;;
-		esac
-	done
-done
-true`, { ignoreExitCode: true });
-	for (const line of stdout.split('\n')) {
-		if (line.trim()) {
-			log(line.trim());
+/** Settings that run a program, which cannot work without it. */
+const programKeys = ['core.editor', 'core.sshCommand', 'gpg.program', 'gpg.openpgp.program', 'gpg.x509.program', 'gpg.ssh.program'];
+
+/** Removes settings of the copied files that cannot work here, e.g., ones running programs only the client has. */
+async function removeUnavailableGitConfig(target: IClientGitConfigTarget, files: readonly string[], log: (message: string) => void): Promise<void> {
+	const execPath = (await target.run('git', ['--exec-path']))?.stdout.trim();
+	const isHelperAvailable = (helper: string) => {
+		const command = getCommandName(helper.startsWith('!') ? helper.substring(1) : isAbsolute(helper) || helper.startsWith('/') ? helper : `git-credential-${helper}`);
+		// Shell functions cannot be checked.
+		return /[({]/.test(command) || hasCommand(target, command, execPath ? [execPath] : []);
+	};
+	for (const file of files) {
+		const config = (...args: string[]) => getGitConfig(target, ['--file', file, ...args]);
+		const unset = (...args: string[]) => target.run('git', ['config', '--file', file, ...args]);
+		for (const key of programKeys) {
+			const value = await config('--get', key);
+			if (value && !await hasCommand(target, getCommandName(value))) {
+				await unset('--unset', key);
+				log(`Git: Removing Git config key: ${key} = ${value}`);
+			}
+		}
+		// Except Git for Windows, Git is built for a single TLS backend and fails when another one is configured.
+		if (!isWindows && await config('--get', 'http.sslBackend')) {
+			await unset('--unset', 'http.sslBackend');
+			log('Git: Removing Git config key: http.sslBackend');
+		}
+		// Helpers of the client, e.g., a keychain, fail here. An empty value resets the helpers, so a URL's helpers are
+		// removed together with its reset, which lets the remaining helpers serve that URL again.
+		const helperKeys = new Set((await config('--name-only', '--get-regexp', '^credential\\..*helper$')).split(/\r?\n/).filter(Boolean));
+		for (const key of helperKeys) {
+			const helpers = (await config('--get-all', key)).split(/\r?\n/).filter(Boolean);
+			if (helpers.length && !(await Promise.all(helpers.map(isHelperAvailable))).some(available => available)) {
+				await unset('--unset-all', key);
+				log(`Git: Removing Git config key: ${key}`);
+			}
 		}
 	}
 }
 
 /** Removes commit and tag signing of the copied files that cannot work here, where Git cannot ask for a passphrase. */
-async function removeUnavailableSigning(exec: ISshExec, files: readonly string[], signing: IDevContainerGitSigningSupport, log: (message: string) => void): Promise<void> {
+async function removeUnavailableSigning(target: IClientGitConfigTarget, files: readonly string[], signing: IGitSigningSupport, log: (message: string) => void): Promise<void> {
 	const enabled: { readonly key: string; readonly file: string }[] = [];
 	for (const file of files) {
 		for (const key of ['commit.gpgsign', 'tag.gpgsign']) {
-			const { stdout } = await exec(`git config --file ${shellEscape(file)} --get ${key}`, { ignoreExitCode: true });
-			if (/^(true|yes|on|1)$/i.test(stdout.trim())) {
+			if (/^(true|yes|on|1)$/i.test(await getGitConfig(target, ['--file', file, '--get', key]))) {
 				enabled.push({ key, file });
 			}
 		}
@@ -275,38 +323,29 @@ async function removeUnavailableSigning(exec: ISshExec, files: readonly string[]
 	}
 	// The signing settings Git uses, which may also come from configuration of the agent host's own. Not `--global`,
 	// which reads only one of the global files.
-	const keys = ['gpg.format', 'user.signingkey', 'gpg.program', 'gpg.openpgp.program', 'gpg.x509.program', 'gpg.ssh.program', 'gpg.ssh.defaultKeyCommand'];
-	const result = await exec(`for k in ${keys.join(' ')}; do printf '%s=%s\\n' "$k" "$(git config --get "$k")"; done`, { ignoreExitCode: true });
-	const values = new Map<string, string>();
-	for (const line of result.stdout.split('\n')) {
-		const separator = line.indexOf('=');
-		if (separator !== -1) {
-			values.set(line.substring(0, separator), line.substring(separator + 1));
-		}
-	}
-	const format = (values.get('gpg.format') || 'openpgp').toLowerCase();
-	const program = format === 'ssh' ? values.get('gpg.ssh.program') || 'ssh-keygen'
-		: format === 'x509' ? values.get('gpg.x509.program') || 'gpgsm'
-			: values.get('gpg.openpgp.program') || values.get('gpg.program') || 'gpg';
-	const commandExists = async (command: string) => (await exec(`command -v ${shellEscape(command)} >/dev/null 2>&1`, { ignoreExitCode: true })).code === 0;
-	let available = await commandExists(program.split(' ')[0]);
+	const value = (key: string) => getGitConfig(target, ['--get', key]);
+	const format = (await value('gpg.format') || 'openpgp').toLowerCase();
+	const program = format === 'ssh' ? await value('gpg.ssh.program') || 'ssh-keygen'
+		: format === 'x509' ? await value('gpg.x509.program') || 'gpgsm'
+			: await value('gpg.openpgp.program') || await value('gpg.program') || 'gpg';
+	let available = await hasCommand(target, getCommandName(program));
 	if (available && format === 'ssh') {
-		const key = values.get('user.signingkey') ?? '';
+		const key = await value('user.signingkey');
 		if (!key) {
-			available = signing.sshAgent && !!values.get('gpg.ssh.defaultKeyCommand');
+			available = signing.sshAgent && !!await value('gpg.ssh.defaultKeyCommand');
 		} else if (isLiteralSshKey(key)) {
 			available = signing.sshAgent;
 		} else {
-			const path = key.startsWith('~/') ? `"$HOME"/${shellEscape(key.substring(2))}` : shellEscape(key);
+			const path = /^~[/\\]/.test(key) ? join(target.home, key.substring(2)) : resolve(target.home, key);
 			// A private key file signs without an agent.
-			available = (await exec(`test -f ${path}`, { ignoreExitCode: true })).code === 0 && (signing.sshAgent || !key.endsWith('.pub'));
+			available = await stat(path).then(stats => stats.isFile(), () => false) && (signing.sshAgent || !key.endsWith('.pub'));
 		}
 	} else if (available) {
 		available = signing.gpgSigning;
 	}
 	if (!available) {
 		for (const { key, file } of enabled) {
-			await exec(`git config --file ${shellEscape(file)} --unset ${key}`, { ignoreExitCode: true });
+			await target.run('git', ['config', '--file', file, '--unset', key]);
 			log(`Git: Removing Git config key: ${key} (${format} signing does not work here)`);
 		}
 	}

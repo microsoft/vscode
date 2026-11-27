@@ -20,6 +20,8 @@ interface IConnectionEmitters {
 export interface IAgentHostClientForwardingOptions {
 	/** Whether to forward Git credentials and agents and supply the full Git configuration, e.g., not to a sandboxed container. */
 	readonly forwardCredentials: () => boolean;
+	/** Fires when {@link forwardCredentials} may have changed, so open agent connections close when it turns off. */
+	readonly onDidChangeForwardCredentials?: Event<void>;
 	/** The workspace folder on this machine, whose conditional includes the Git identity follows. */
 	readonly folder?: string;
 }
@@ -37,6 +39,17 @@ export class AgentHostClientForwarding extends Disposable implements IAgentHostC
 		private readonly _options: IAgentHostClientForwardingOptions,
 	) {
 		super();
+		if (_options.onDidChangeForwardCredentials) {
+			this._register(_options.onDidChangeForwardCredentials(() => {
+				if (!_options.forwardCredentials()) {
+					for (const [id, connection] of [...this._connections]) {
+						this._connections.delete(id);
+						void this._service.close(id).catch(() => { });
+						connection.close.fire();
+					}
+				}
+			}));
+		}
 		this._register(toDisposable(() => {
 			for (const [id, connection] of this._connections) {
 				connection.store.dispose();
@@ -97,10 +110,14 @@ export class AgentHostClientForwarding extends Disposable implements IAgentHostC
 			store.dispose();
 			throw error;
 		}
-		if (this._store.isDisposed) {
-			// Closing again, as the service may have still been opening when this was disposed.
+		if (this._store.isDisposed || !this._options.forwardCredentials()) {
+			// Closing again, as the service may have still been opening when this was disposed or forwarding turned off.
+			if (this._connections.get(id) === connection) {
+				this._connections.delete(id);
+			}
+			store.dispose();
 			void this._service.close(id).catch(() => { });
-			throw new Error('Client forwarding was disposed');
+			throw new Error('This client does not forward its agents');
 		}
 		return {
 			onDidReceiveData,

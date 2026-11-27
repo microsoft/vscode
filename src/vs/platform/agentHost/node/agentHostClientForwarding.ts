@@ -21,7 +21,11 @@ import { ILogService } from '../../log/common/log.js';
 import { clientGitCredentialOperationValidator, type ClientForwardingDescription, type ClientForwardingSocket, type ClientGitConfig, type ClientGitCredentialOperation, type ClientGpgKeys } from '../common/clientForwardingProtocol.js';
 import { parseGpgDirs, useKeyboxdPattern } from './clientForwardingHost.js';
 import { applyClientGitConfig, IClientGitConfigTarget } from './clientGitConfig.js';
-import { ISshExec, shellEscape } from './sshRemoteAgentHostHelpers.js';
+import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
+import { readChatSandboxStates, readSessionSandboxState } from '../common/meta/agentSandboxStateMeta.js';
+import { SessionConfigKey } from '../common/sessionConfigKeys.js';
+import { shellEscape } from './sshRemoteAgentHostHelpers.js';
 
 /** Set to `1` by a launcher, e.g., for Dev Containers, to have the agent host forward what its clients offer. */
 export const AGENT_HOST_CLIENT_FORWARDING_ENV = 'VSCODE_AGENT_HOST_CLIENT_FORWARDING';
@@ -39,7 +43,9 @@ export interface IAgentHostClientForwardingService {
 	readonly enabled: boolean;
 	/** Serves the client's forwarding until disposed; the newest client offering something serves it. */
 	registerClient(client: IAgentHostForwardingClient): IDisposable;
-	/** Resolves once the environment, the Git configuration and the identity reflect the clients registered so far. */
+	/** Resolves once the environment the processes this agent host starts inherit is in place, which needs no client. */
+	whenEnvironmentReady(): Promise<void>;
+	/** Resolves once forwarding, the Git configuration and the identity reflect the clients registered so far. */
 	settled(): Promise<void>;
 }
 
@@ -48,6 +54,7 @@ export const NullAgentHostClientForwardingService: IAgentHostClientForwardingSer
 	_serviceBrand: undefined,
 	enabled: false,
 	registerClient: () => Disposable.None,
+	whenEnvironmentReady: () => Promise.resolve(),
 	settled: () => Promise.resolve(),
 };
 
@@ -138,10 +145,12 @@ export class AgentHostClientForwardingService extends Disposable implements IAge
 	private readonly _failedSockets = new Set<string>();
 	private readonly _pipePrefix = `\\\\.\\pipe\\vscode-ah-fwd-${generateUuid()}`;
 	private readonly _originalSshAgentSocket: string | undefined;
+	private readonly _environmentReady: Promise<void>;
 	private _nextConnection = 0;
 	private _folder: Promise<string> | undefined;
 	private _gpgPlan: Promise<IGpgPlan | undefined> | undefined;
-	private _gpgImported = false;
+	/** Until it fails, so the next client can retry. */
+	private _gpgImport: Promise<void> | undefined;
 
 	/**
 	 * @param _environment The environment processes inherit, this process's in production.
@@ -151,6 +160,8 @@ export class AgentHostClientForwardingService extends Disposable implements IAge
 		private readonly _environment: NodeJS.ProcessEnv = process.env,
 		private readonly _execPath: string = process.execPath,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 	) {
 		super();
 		this.enabled = _environment[AGENT_HOST_CLIENT_FORWARDING_ENV] === '1';
@@ -169,9 +180,18 @@ export class AgentHostClientForwardingService extends Disposable implements IAge
 			const folder = this._folder;
 			void folder?.then(path => rm(path, { recursive: true, force: true })).catch(() => { });
 		}));
+		// Before any client connects, so every process this agent host starts uses what clients forward.
+		this._environmentReady = this.enabled ? this._updates.queue(() => this._startEnvironment()).catch(error => this._logService.error('[AgentHostClientForwarding] Failed to start forwarding', error)) : Promise.resolve();
 		if (this.enabled) {
-			// Before any client connects, so every process this agent host starts uses what clients forward.
-			void this._updates.queue(() => this._startEnvironment()).catch(error => this._logService.error('[AgentHostClientForwarding] Failed to start forwarding', error));
+			const closeIfSandboxed = () => {
+				if (this._hasSandboxedSession()) {
+					for (const connection of this._connections.values()) {
+						connection.socket.destroy();
+					}
+				}
+			};
+			this._register(_configurationService.onDidSessionConfigChange(closeIfSandboxed));
+			this._register(_configurationService.onDidChatConfigChange(closeIfSandboxed));
 		}
 	}
 
@@ -209,8 +229,8 @@ export class AgentHostClientForwardingService extends Disposable implements IAge
 			if (!isRegistered()) {
 				return;
 			}
-			await this._applyGitConfig(registered, registered.description);
-			// GnuPG on Windows uses its own socket emulation, which forwarding would have to emulate as well.
+			// GnuPG on Windows uses its own socket emulation, which forwarding would have to emulate as well. Before the Git
+			// configuration, so signing it enables finds the agent.
 			if (registered.description.gpgAgent && !isWindows) {
 				try {
 					await this._startGpgAgent(registered.description.keyboxd);
@@ -218,6 +238,7 @@ export class AgentHostClientForwardingService extends Disposable implements IAge
 					this._logService.warn('[AgentHostClientForwarding] Failed to forward the GPG agent', error);
 				}
 			}
+			await this._applyGitConfig(registered, registered.description);
 		}).catch(error => this._logService.error('[AgentHostClientForwarding] Failed to start forwarding', error));
 		return toDisposable(() => {
 			store.dispose();
@@ -243,8 +264,34 @@ export class AgentHostClientForwardingService extends Disposable implements IAge
 		});
 	}
 
+	whenEnvironmentReady(): Promise<void> {
+		return this._environmentReady;
+	}
+
 	settled(): Promise<void> {
 		return this._updates.queue(async () => { });
+	}
+
+	/**
+	 * Whether a session of this agent host is sandboxed. Its processes share the environment of the others, so nothing
+	 * clients offer is forwarded then.
+	 */
+	private _hasSandboxedSession(): boolean {
+		for (const session of this._stateManager.getSessionUris()) {
+			const state = this._stateManager.getSessionState(session);
+			if (this._configurationService.getSessionSandboxEnabled(session)
+				|| this._configurationService.getSessionConfigValues(session)?.[SessionConfigKey.SandboxEnabled] === 'on'
+				|| readSessionSandboxState(state)?.enabled
+				|| [...readChatSandboxStates(state).values()].some(chat => chat.enabled)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/** The newest client offering something to forward, unless a session is sandboxed. */
+	private _findForwardingClient(offers: (description: ClientForwardingDescription) => boolean): IRegisteredClient | undefined {
+		return this._hasSandboxedSession() ? undefined : this._findClient(offers);
 	}
 
 	private async _startEnvironment(): Promise<void> {
@@ -294,7 +341,7 @@ export class AgentHostClientForwardingService extends Disposable implements IAge
 			response.writeHead(400).end();
 			return;
 		}
-		const client = this._findClient(description => description.gitCredentials);
+		const client = this._findForwardingClient(description => description.gitCredentials);
 		try {
 			// Without a client, Git asks its other helpers or the user.
 			const output = client ? await client.client.gitCredential(content.operation, content.input) : '';
@@ -315,7 +362,7 @@ export class AgentHostClientForwardingService extends Disposable implements IAge
 	/** Forwards to the newest client's SSH agent, else to the agent this agent host had, else answers without keys. */
 	private _forwardSshAgent(socket: Socket): void {
 		socket.on('error', () => { });
-		const client = this._findClient(description => description.sshAgent);
+		const client = this._findForwardingClient(description => description.sshAgent);
 		if (client) {
 			this._forward(socket, 'ssh-agent', client);
 			return;
@@ -333,7 +380,10 @@ export class AgentHostClientForwardingService extends Disposable implements IAge
 
 	private async _applyGitConfig(registered: IRegisteredClient, description: ClientForwardingDescription): Promise<void> {
 		try {
-			await applyClientGitConfig(this._getGitConfigTarget(), description.gitConfig, description, () => registered.client.gitConfig(), message => this._logService.info(`[AgentHostClientForwarding] ${message}`));
+			// A sandboxed session gets only the identity, also where it shares the agent host with others.
+			const offersConfig = description.gitConfig && !this._hasSandboxedSession();
+			const agents = { sshAgent: description.sshAgent, gpgAgent: description.gpgAgent && !isWindows };
+			await applyClientGitConfig(this._getGitConfigTarget(), offersConfig, agents, () => registered.client.gitConfig(), message => this._logService.info(`[AgentHostClientForwarding] ${message}`));
 		} catch (error) {
 			this._logService.warn('[AgentHostClientForwarding] Failed to apply the client\'s Git configuration', error);
 		}
@@ -342,25 +392,14 @@ export class AgentHostClientForwardingService extends Disposable implements IAge
 	private _getGitConfigTarget(): IClientGitConfigTarget {
 		// Git prefers HOME, also on Windows.
 		const home = this._environment.HOME || homedir();
-		const exec: ISshExec = async (command, options) => {
-			const result = await this._run('sh', ['-c', command], { cwd: home });
-			if (!result) {
-				throw new Error('No shell to run Git configuration commands');
-			}
-			const output = { stdout: result.stdout.toString(), stderr: result.stderr.toString(), code: result.code };
-			if (output.code !== 0 && !options?.ignoreExitCode) {
-				throw new Error(`Command failed (exit ${output.code}): ${command}\n${output.stderr}`);
-			}
-			return output;
-		};
 		return {
 			home,
 			xdgConfigHome: this._environment.XDG_CONFIG_HOME || join(home, '.config'),
-			git: async args => {
-				const result = await this._run('git', args, { cwd: home });
+			environment: this._environment,
+			run: async (command, args) => {
+				const result = await this._run(command, args, { cwd: home });
 				return result && { stdout: result.stdout.toString(), code: result.code };
 			},
-			exec: isWindows ? undefined : exec,
 		};
 	}
 
@@ -375,10 +414,15 @@ export class AgentHostClientForwardingService extends Disposable implements IAge
 		if (plan.keyboxdSocket) {
 			await this._listen('keyboxd', plan.keyboxdSocket, createServer(socket => this._forwardAgent(socket, 'keyboxd')));
 		}
-		// Only now, as importing would otherwise start an agent of its own. Waiting for the client is not needed for the sockets.
-		if ((plan.importKeys || plan.importOwnertrust) && !this._gpgImported) {
-			this._gpgImported = true;
-			void this._importGpgKeys(plan).catch(error => this._logService.warn('[AgentHostClientForwarding] Failed to import GPG keys', error));
+		// Only now, as importing would otherwise start an agent of its own. Not awaited, as only signing needs the keys.
+		if ((plan.importKeys || plan.importOwnertrust) && !this._gpgImport) {
+			const gpgImport = this._gpgImport = this._importGpgKeys(plan).catch(error => {
+				this._logService.warn('[AgentHostClientForwarding] Failed to import GPG keys', error);
+				// The next client tries again.
+				if (this._gpgImport === gpgImport) {
+					this._gpgImport = undefined;
+				}
+			});
 		}
 	}
 
@@ -417,10 +461,11 @@ export class AgentHostClientForwardingService extends Disposable implements IAge
 		};
 	}
 
+	/** Throws when the keys could not be imported, so another client can try again. */
 	private async _importGpgKeys(plan: IGpgPlan): Promise<void> {
 		const client = this._findClient(description => description.gpgAgent);
 		if (!client) {
-			return;
+			throw new Error('No client offers its GPG agent');
 		}
 		const keys = await client.client.gpgKeys();
 		const imports: [string, string[], string | undefined][] = [
@@ -428,13 +473,19 @@ export class AgentHostClientForwardingService extends Disposable implements IAge
 			['gpgsm', ['--import'], plan.importKeys ? keys.certificates : undefined],
 			['gpg', ['--import-ownertrust'], plan.importOwnertrust ? keys.ownertrust : undefined],
 		];
+		const failures: string[] = [];
 		for (const [command, args, content] of imports) {
 			if (content) {
 				const result = await this._run(command, args, { stdin: decodeBase64(content).buffer });
-				if (result?.code !== 0) {
-					this._logService.warn(`[AgentHostClientForwarding] ${command} ${args[0]} failed: ${result?.stderr.toString().trim() ?? 'not installed'}`);
+				if (!result) {
+					this._logService.info(`[AgentHostClientForwarding] ${command} is not installed, not running ${command} ${args[0]}`);
+				} else if (result.code !== 0) {
+					failures.push(`${command} ${args[0]}: ${result.stderr.toString().trim()}`);
 				}
 			}
+		}
+		if (failures.length) {
+			throw new Error(failures.join('\n'));
 		}
 	}
 
@@ -475,7 +526,7 @@ export class AgentHostClientForwardingService extends Disposable implements IAge
 
 	private _forwardAgent(socket: Socket, name: 'gpg-agent' | 'keyboxd'): void {
 		socket.on('error', () => { });
-		const client = this._findClient(description => name === 'gpg-agent' ? description.gpgAgent : description.keyboxd);
+		const client = this._findForwardingClient(description => name === 'gpg-agent' ? description.gpgAgent : description.keyboxd);
 		if (client) {
 			this._forward(socket, name, client);
 		} else {

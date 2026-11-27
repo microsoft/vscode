@@ -16,6 +16,7 @@ import { FileOperationResult, IFileService, IFileStatWithMetadata, toFileOperati
 import { ILogService } from '../../log/common/log.js';
 import { AnswerShellAuthenticationExtensionMethod, RegisterGitHubEnvironmentExtensionMethod } from './agentHostExtensionProtocol.js';
 import { AHP_CANVAS_SCHEME } from './canvasUri.js';
+import { ClientForwardingDataNotification, ClientGitCredentialExtensionMethod } from './clientForwardingProtocol.js';
 import { redactAgentPermissionFeedback } from './meta/agentPermissionResponseMeta.js';
 
 export type AhpLogDirection = 'c2s' | 's2c';
@@ -459,8 +460,18 @@ function _ahpReplacer(this: unknown, _key: string, value: unknown): unknown {
 		if (redactedMeta) {
 			return { ...value, _meta: redactedMeta };
 		}
-		if ((value.method === 'channel/frame' || value.method === 'tcp/data') && isRecord(value.params)) {
+		if ((value.method === 'channel/frame' || value.method === 'tcp/data' || value.method === ClientForwardingDataNotification) && isRecord(value.params)) {
 			return { ...value, params: { ...value.params, data: '<redacted channel payload>' } };
+		}
+		// Git credentials and configuration forwarded to an agent host, which can hold tokens.
+		if (value.method === ClientGitCredentialExtensionMethod && isRecord(value.params) && value.params.input !== undefined && value.params.input !== '<redacted>') {
+			return { ...value, params: { ...value.params, input: '<redacted>' } };
+		}
+		if (isRecord(value.result) && value.result.gitCredential !== undefined && value.result.gitCredential !== '<redacted>') {
+			return { ...value, result: { ...value.result, gitCredential: '<redacted>' } };
+		}
+		if (isRecord(value.result) && value.result.gitGlobalConfig !== undefined && value.result.gitGlobalConfig !== '<redacted>') {
+			return { ...value, result: { ...value.result, gitGlobalConfig: '<redacted>' } };
 		}
 		if (isRecord(value.result) && Array.isArray(value.result.certificates)) {
 			return { ...value, result: { ...value.result, certificates: '<redacted>' } };

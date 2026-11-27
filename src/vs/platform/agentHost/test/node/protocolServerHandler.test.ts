@@ -1083,7 +1083,7 @@ suite('ProtocolServerHandler', () => {
 	test('registers only clients advertising client forwarding and routes their agent connections', async () => {
 		const forwardingServer = disposables.add(new MockProtocolServer());
 		const registered: IAgentHostForwardingClient[] = [];
-		const settled = new DeferredPromise<void>();
+		const environmentReady = new DeferredPromise<void>();
 		const forwarding: IAgentHostClientForwardingService = {
 			_serviceBrand: undefined,
 			enabled: true,
@@ -1091,7 +1091,8 @@ suite('ProtocolServerHandler', () => {
 				registered.push(client);
 				return toDisposable(() => registered.splice(registered.indexOf(client), 1));
 			},
-			settled: () => settled.p,
+			whenEnvironmentReady: () => environmentReady.p,
+			settled: () => Promise.resolve(),
 		};
 		disposables.add(new ProtocolServerHandler(
 			agentService, stateManager, forwardingServer, { hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess, environment: { pathStyle: PathStyle.Posix } },
@@ -1109,9 +1110,9 @@ suite('ProtocolServerHandler', () => {
 		const unadvertised = connect('other-client', {});
 		const advertised = connect('dev-container-client', { [AgentHostClientForwardingCapabilityMetaKey]: true });
 		await timeout(0);
-		// The forwarding environment, Git configuration and identity are in place before a client can start the Copilot runtime.
-		const respondedBeforeSettled = [!!findResponse(unadvertised.transport.sent, 1), !!findResponse(advertised.transport.sent, 1)];
-		settled.complete();
+		// The forwarding environment is in place before a client can start the Copilot runtime.
+		const respondedBeforeReady = [!!findResponse(unadvertised.transport.sent, 1), !!findResponse(advertised.transport.sent, 1)];
+		environmentReady.complete();
 		const confirmations = [await unadvertised.confirmation, await advertised.confirmation];
 		const [client] = registered;
 		const received: unknown[] = [];
@@ -1132,7 +1133,7 @@ suite('ProtocolServerHandler', () => {
 
 		assert.deepStrictEqual({
 			confirmations,
-			respondedBeforeSettled,
+			respondedBeforeReady,
 			registeredBeforeClose,
 			openParams: openRequest.params,
 			sent: findNotifications(advertised.transport.sent, ClientForwardingDataNotification).map(message => message.params),
@@ -1140,7 +1141,7 @@ suite('ProtocolServerHandler', () => {
 			registeredAfterClose: registered.length,
 		}, {
 			confirmations: [undefined, true],
-			respondedBeforeSettled: [false, false],
+			respondedBeforeReady: [false, false],
 			registeredBeforeClose: 1,
 			openParams: { connection: 7, socket: 'ssh-agent' },
 			sent: [{ connection: 7, data: encodeBase64(VSBuffer.fromString('request')) }],

@@ -16,8 +16,11 @@ import { join } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AGENT_HOST_CLIENT_FORWARDING_ENV, AgentHostClientForwardingService, IAgentHostForwardingClient } from '../../node/agentHostClientForwarding.js';
+import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
 import { parseWindowsSocketFile } from '../../node/clientForwardingHost.js';
-import { canCopyGitConfig } from '../../node/clientGitConfig.js';
+import { canCopyGitConfig, getCommandName } from '../../node/clientGitConfig.js';
 
 suite('AgentHostClientForwarding', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -43,7 +46,22 @@ suite('AgentHostClientForwarding', () => {
 			toolsAndIdentity: canCopyGitConfig('[safe]\n\tdirectory = /workspace\n[filter "lfs"]\n\tclean = git-lfs clean -- %f\n[user]\n\temail = a@example.com\n'),
 			copied: canCopyGitConfig('[safe]\n\tdirectory = /workspace\n# Copied from the client by VS Code.\n[user]\n\temail = a@example.com\n'),
 			own: canCopyGitConfig('[core]\n\tautocrlf = input\n'),
-		}, { missing: true, toolsAndIdentity: true, copied: false, own: false });
+			indentedOwn: canCopyGitConfig('[safe]\n\tdirectory = /workspace\n  [core]\n\tautocrlf = input\n'),
+		}, { missing: true, toolsAndIdentity: true, copied: false, own: false, indentedOwn: false });
+	});
+
+	test('finds the program of a configured command as the shell Git runs it with', () => {
+		assert.deepStrictEqual([
+			'code --wait',
+			'"C:/Program Files/Microsoft VS Code/bin/code" --wait',
+			'C:/Program\\ Files/Git/mingw64/bin/git-credential-manager.exe get',
+			'  /usr/bin/vim  ',
+		].map(command => getCommandName(command)), [
+			'code',
+			'C:/Program Files/Microsoft VS Code/bin/code',
+			'C:/Program Files/Git/mingw64/bin/git-credential-manager.exe',
+			'/usr/bin/vim',
+		]);
 	});
 
 	test('forwards what clients offer to the processes the agent host starts, which get the environment before a client connects', async () => {
@@ -62,7 +80,9 @@ suite('AgentHostClientForwarding', () => {
 		};
 		delete environment.SSH_AUTH_SOCK;
 		delete environment.GIT_CONFIG_GLOBAL;
-		const service = store.add(new AgentHostClientForwardingService(environment, process.execPath, new NullLogService()));
+		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
+		const configuration = store.add(new AgentConfigurationService(stateManager, new NullLogService()));
+		const service = store.add(new AgentHostClientForwardingService(environment, process.execPath, new NullLogService(), stateManager, configuration));
 		const onDidReceiveData = store.add(new Emitter<{ readonly connection: number; readonly data: VSBuffer }>());
 		const onDidReceiveClose = store.add(new Emitter<number>());
 		const requests: unknown[] = [];
@@ -109,7 +129,7 @@ suite('AgentHostClientForwarding', () => {
 		const requestIdentities = Buffer.from([0, 0, 0, 1, 11]);
 		let registration: IDisposable | undefined;
 		try {
-			await service.settled();
+			await service.whenEnvironmentReady();
 			const sshAuthSock = environment.SSH_AUTH_SOCK;
 			const withoutClient = [...await request(requestIdentities)];
 
@@ -121,6 +141,19 @@ suite('AgentHostClientForwarding', () => {
 			const gitOutput = await run('git', ['credential', 'fill'], 'protocol=https\nhost=example.com\n\n');
 			const identity = await run('git', ['config', '--global', '--get-regexp', '^user\\.']);
 
+			// The processes of a sandboxed session share the environment, so nothing is forwarded while it exists.
+			const session = 'copilot:/sandboxed';
+			stateManager.createSession({
+				resource: session, provider: 'copilot', title: 'Sandboxed', status: SessionStatus.Idle,
+				createdAt: '2026-01-01T00:00:00Z', modifiedAt: '2026-01-01T00:00:00Z',
+				defaultChat: buildDefaultChatUri(session),
+			});
+			configuration.setChatSandboxEnabled({ session, chat: buildDefaultChatUri(session) }, true);
+			const sandboxed = {
+				reply: [...await request(requestIdentities)],
+				gitOutput: await run('git', ['credential', 'fill'], 'protocol=https\nhost=example.com\n\n'),
+			};
+
 			registration.dispose();
 			await service.settled();
 			assert.deepStrictEqual({
@@ -130,6 +163,7 @@ suite('AgentHostClientForwarding', () => {
 				agentReply,
 				gitOutput,
 				identity,
+				sandboxed,
 				requests,
 				afterClient: { sshAuthSock: environment.SSH_AUTH_SOCK === sshAuthSock, reply: [...await request(requestIdentities)] },
 			}, {
@@ -140,6 +174,7 @@ suite('AgentHostClientForwarding', () => {
 				agentReply: 'agent:request',
 				gitOutput: 'protocol=https\nhost=example.com\nusername=user\npassword=secret\n',
 				identity: 'user.name Client User\nuser.email client@example.com\n',
+				sandboxed: { reply: [0, 0, 0, 5, 12, 0, 0, 0, 0], gitOutput: '' },
 				requests: [['gitConfig'], ['open', 'ssh-agent'], ['gitCredential', 'get', true]],
 				afterClient: { sshAuthSock: true, reply: [0, 0, 0, 5, 12, 0, 0, 0, 0] },
 			});
