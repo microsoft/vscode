@@ -10,7 +10,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { TerminalShellExecutionCommandLineConfidence } from '../../common/extHostTypes.js';
 import { deepStrictEqual, notStrictEqual, strictEqual } from 'assert';
 import type { URI } from '../../../../base/common/uri.js';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 
 function cmdLine(value: string): TerminalShellExecutionCommandLine {
 	return Object.freeze({
@@ -344,6 +344,24 @@ suite('InternalTerminalShellIntegration', () => {
 			execution.read();
 			await end(withoutReader, testCommandLine);
 			deepStrictEqual({ hasReader, dataRequests }, { hasReader: false, dataRequests: [7] });
+		});
+
+		test('executions kept after their terminal closed do not retain its shell integration', async function () {
+			if (typeof globalThis.gc !== 'function') {
+				this.skip(); // Run the Electron suite with --js-flags=--expose-gc.
+			}
+			const kept: TerminalShellExecution[] = [];
+			const closed = (() => {
+				const integration = new InternalTerminalShellIntegration(terminal, true, store.add(new Emitter()));
+				kept.push(integration.requestNewShellExecution(cmdLine(testCommandLine2), undefined).value);
+				integration.startShellExecution(cmdLine(testCommandLine), undefined);
+				kept.push(integration.currentExecution!.value);
+				integration.dispose();
+				return new WeakRef(integration);
+			})();
+			await timeout(0);
+			await globalThis.gc!({ type: 'major', execution: 'async' });
+			deepStrictEqual({ kept: kept.length, isRetained: closed.deref() !== undefined }, { kept: 2, isRetained: false });
 		});
 	});
 });

@@ -404,6 +404,15 @@ export class InternalTerminalShellIntegration extends Disposable {
 	private _fireChangeEvent() {
 		this._onDidRequestChangeShellIntegration.fire({ terminal: this._terminal, shellIntegration: this.value });
 	}
+
+	override dispose(): void {
+		// The terminal can close while executions are running or pending
+		this._currentExecution?.releaseShellIntegration();
+		for (const execution of this._pendingExecutions) {
+			execution.releaseShellIntegration();
+		}
+		super.dispose();
+	}
 }
 
 class InternalTerminalShellExecution {
@@ -459,7 +468,14 @@ class InternalTerminalShellExecution {
 		}
 		this._dataStream?.endExecution();
 		this._isEnded = true;
-		// Executions can outlive the shell integration, don't retain it
+		this.releaseShellIntegration();
+	}
+
+	/**
+	 * Stops reporting readers to the shell integration. Executions can outlive the shell
+	 * integration when an extension keeps them, so they must not retain it.
+	 */
+	releaseShellIntegration(): void {
 		this._onDidCreateDataStream = undefined;
 	}
 
