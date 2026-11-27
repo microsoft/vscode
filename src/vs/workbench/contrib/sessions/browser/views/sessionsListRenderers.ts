@@ -29,6 +29,7 @@ import { fromNow } from '../../../../../base/common/date.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { getComparisonKey, isEqual } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { MenuId, IMenuService, MenuItemAction, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
@@ -528,9 +529,10 @@ export function withSessionsListHoverPresentation(hover: Pick<IDelayedHoverOptio
 
 export function getActiveAutomationsHoverContent(
 	automations: readonly Pick<IAutomationDescriptor, 'id' | 'name' | 'purpose' | 'ownership' | 'isCreatedByCurrentUser'>[],
-	runs: readonly Pick<IAutomationRun, 'automationId' | 'status' | 'statusDescription' | 'needsInput' | 'purpose'>[],
+	runs: readonly Pick<IAutomationRun, 'automationId' | 'status' | 'statusDescription' | 'needsInput' | 'purpose' | 'sessionResource'>[],
 	showSharedByOthers: boolean,
 	sendLaterEnabled: boolean,
+	getSession?: (resource: URI) => ISession | undefined,
 ): MarkdownString {
 	const visibleAutomations = new Map<string, typeof automations[number]>();
 	for (const automation of automations) {
@@ -539,7 +541,7 @@ export function getActiveAutomationsHoverContent(
 			visibleAutomations.set(automation.id, automation);
 		}
 	}
-	const activeRuns = new Map<string, { status: string; icon: ThemeIcon; count: number }>();
+	const activeRuns = new Map<string, { status: string; icon: ThemeIcon; count: number; needsInput: boolean }>();
 	for (const run of runs) {
 		if ((run.status !== 'pending' && run.status !== 'running')
 			|| sendLaterEnabled && run.purpose === 'scheduledChat'
@@ -547,19 +549,28 @@ export function getActiveAutomationsHoverContent(
 			continue;
 		}
 
+		const session = run.sessionResource && getSession?.(run.sessionResource);
+		const sessionStatus = session?.status.get();
+		const hasActiveSession = sessionStatus === SessionStatus.InProgress || sessionStatus === SessionStatus.NeedsInput;
+		const needsInput = hasActiveSession ? sessionStatus === SessionStatus.NeedsInput : run.needsInput === true;
+		const description = session && hasActiveSession
+			? session.description.get()
+			: undefined;
+		const status = (description && renderAsPlaintext(description, { omitMarkdownSyntax: true })) || (run.statusDescription ?? (needsInput
+			? localize('automationRunNeedsInput', "Needs input")
+			: run.status === 'pending'
+				? localize('automationRunPending', "Pending")
+				: localize('automationRunRunning', "Running")));
 		const existing = activeRuns.get(run.automationId);
-		if (existing) {
-			existing.count++;
-		} else {
+		if (!existing || needsInput && !existing.needsInput) {
 			activeRuns.set(run.automationId, {
-				status: run.statusDescription ?? (run.needsInput
-					? localize('automationRunNeedsInput', "Needs input")
-					: run.status === 'pending'
-						? localize('automationRunPending', "Pending")
-						: localize('automationRunRunning', "Running")),
-				icon: run.needsInput ? Codicon.reportQuestion : run.status === 'pending' ? Codicon.clock : Codicon.sessionInProgress,
-				count: 1,
+				status,
+				icon: needsInput ? Codicon.reportQuestion : run.status === 'pending' ? Codicon.clock : Codicon.sessionInProgress,
+				count: (existing?.count ?? 0) + 1,
+				needsInput,
 			});
+		} else {
+			existing.count++;
 		}
 	}
 
@@ -2788,6 +2799,15 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 				this.updateChevron(template, collapsible, collapsed);
 			}
 		}
+	}
+
+	getFocusedSectionElement(sectionId: string, listElement: HTMLElement): HTMLElement | undefined {
+		for (const [template, element] of this.renderedSections) {
+			if (element.id === sectionId && listElement.contains(template.container) && template.container.closest('.monaco-list-row')?.classList.contains('focused')) {
+				return template.container;
+			}
+		}
+		return undefined;
 	}
 
 	setDropTarget(sectionId: string, active: boolean): void {

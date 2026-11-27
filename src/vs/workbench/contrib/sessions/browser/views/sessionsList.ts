@@ -1031,6 +1031,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const customizationsCount = this.options.customizationsCount ?? constObservable(0);
 		const customizationMigrationsAvailable = this.options.customizationMigrationsAvailable ?? constObservable(false);
 		const customizationsBadge = this.options.customizationsBadge ?? constObservable(undefined);
+		const getAutomationHoverContent = () => getActiveAutomationsHoverContent(
+			this.automationService.automations.get(),
+			this.automationService.runs.get(),
+			getShowSharedAutomationsByOthers(this.storageService),
+			this.configurationService.getValue<boolean>(SESSIONS_SEND_LATER_ENABLED_SETTING) === true,
+			resource => this._sessionsManagementService.getSession(resource),
+		);
 		const createSectionRenderer = (templateId?: string, rowClassName?: string) => new SessionSectionRenderer(
 			true /* hideSectionCount */,
 			selectHeader,
@@ -1064,12 +1071,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			(session, reader) => this.isSessionInScope(session, reader),
 			(entry, reader) => this.customViewService.activeCustomView.read(reader)?.id === PINNED_CANVAS_PAGE_ID
 				&& this.options.pinnedCanvases?.selected.read(reader) === entry,
-			() => getActiveAutomationsHoverContent(
-				this.automationService.automations.get(),
-				this.automationService.runs.get(),
-				getShowSharedAutomationsByOthers(this.storageService),
-				this.configurationService.getValue<boolean>(SESSIONS_SEND_LATER_ENABLED_SETTING) === true,
-			),
+			getAutomationHoverContent,
 		);
 		const sectionRenderer = createSectionRenderer(undefined, 'session-list-section-row');
 		const shortcutSectionRenderer = createSectionRenderer(SESSION_SHORTCUT_SECTION_TEMPLATE_ID, 'session-list-shortcut-row');
@@ -1311,6 +1313,27 @@ export class SessionsList extends Disposable implements ISessionsList {
 				},
 			}
 		));
+		const keyboardAutomationHover = this._register(new MutableDisposable());
+		this._register(this.commandService.onDidExecuteCommand(event => {
+			if (event.commandId !== 'workbench.action.showHover' || !this.isAutomationsFocused()) {
+				return;
+			}
+			const activeElement = DOM.getActiveElement();
+			if (activeElement !== this.tree.getHTMLElement() && activeElement !== this.navigationList?.getHTMLElement()) {
+				return;
+			}
+			const listElement = activeElement === this.navigationList?.getHTMLElement() ? this.navigationList.getHTMLElement() : this.tree.getHTMLElement();
+			const target = shortcutSectionRenderer.getFocusedSectionElement(AUTOMATIONS_SECTION_ID, listElement);
+			if (target) {
+				hoverService.hideHover();
+				keyboardAutomationHover.value = hoverService.showInstantHover({
+					...withSessionsListHoverPresentation({ content: getAutomationHoverContent() }),
+					target,
+					trapFocus: true,
+				}, true);
+			}
+		}));
+
 		// Collapsing a row, or diffing children, changes the row below a row without rendering it again.
 		treeDisposables.add(this.tree.onDidChangeModel(() => indentGuides.refresh()));
 		treeDisposables.add(this.tree.onDidChangeCollapseState(() => indentGuides.refresh()));

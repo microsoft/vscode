@@ -46,6 +46,7 @@ const ITestAgentSessionsService = createDecorator<object>('agentSessions');
 
 export class TestCommandService extends mock<ICommandService>() {
 	readonly calls: { readonly commandId: string; readonly args: readonly unknown[] }[] = [];
+	override readonly onDidExecuteCommand = Event.None;
 
 	override async executeCommand<T = unknown>(commandId: string, ...args: unknown[]): Promise<T | undefined> {
 		this.calls.push({ commandId, args });

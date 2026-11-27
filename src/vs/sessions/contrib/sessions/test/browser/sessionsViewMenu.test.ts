@@ -1043,6 +1043,7 @@ suite('Sessions - View Menu', () => {
 				model.setInboxState([session], 'hold');
 			}
 			harness.instantiationService.stub(ICommandService, upcastPartial<ICommandService>({
+				onDidExecuteCommand: Event.None,
 				executeCommand: async (id, ...args) => {
 					await CommandsRegistry.getCommand(id)!.handler(harness.instantiationService, ...args);
 					return undefined;
