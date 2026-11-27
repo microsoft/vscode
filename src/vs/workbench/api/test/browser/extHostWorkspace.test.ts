@@ -107,17 +107,35 @@ suite('ExtHostWorkspace', function () {
 		assert.deepStrictEqual({ updated, events }, { updated: true, events: [{ kind: 'folders', names: ['Renamed'] }, { kind: 'mode' }] });
 	});
 
-	test('reports removed folders and the new mode when an Agents workspace becomes empty', () => {
+	test('refuses extension folder updates in Agents mode', () => {
+		const data: IWorkspaceData = { id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar'), 0, 'One')], mode: WorkbenchMode.Agents };
+		const rpc = new TestRPCProtocol();
+		let requests = 0;
+		rpc.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspaceShape>() {
+			override async $updateWorkspaceFolders(): Promise<void> { requests++; }
+		});
+		const ws = createExtHostWorkspace(rpc, data, new NullLogService());
+		const updated = ws.updateWorkspaceFolders(extensionDescriptor, 0, 1, asUpdateWorkspaceFolderData(URI.parse('foo:bar'), 'Renamed'));
+		assert.deepStrictEqual({ updated, requests, names: ws.getWorkspaceFolders()!.map(folder => folder.name) }, { updated: false, requests: 0, names: ['One'] });
+	});
+
+	test('fires the workspace event when an untitled workspace is saved together with a mode change', () => {
+		const data: IWorkspaceData = { id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.file('/Coding/One'), 0)], isUntitled: true, mode: WorkbenchMode.Editor };
+		const ws = createExtHostWorkspace(new TestRPCProtocol(), data, new NullLogService());
+		let events = 0;
+		store.add(ws.onDidChangeWorkspace(() => events++));
+		ws.$acceptWorkspaceData({ ...data, isUntitled: false, mode: WorkbenchMode.Agents });
+		assert.strictEqual(events, 1);
+	});
+
+	test('reports removed folders when an Agents workspace becomes empty', () => {
 		const data: IWorkspaceData = { id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.file('/Coding/One'), 0)], mode: WorkbenchMode.Agents };
 		const ws = createExtHostWorkspace(new TestRPCProtocol(), data, new NullLogService());
-		const events: { removed: string[]; mode: WorkbenchMode }[] = [];
-		store.add(ws.onDidChangeWorkspace(event => events.push({ removed: event.removed.map(folder => folder.name), mode: ws.workbenchMode })));
+		const removed: string[][] = [];
+		store.add(ws.onDidChangeWorkspace(event => removed.push(event.removed.map(folder => folder.name))));
 		ws.$acceptWorkspaceData(null);
 		ws.$acceptWorkspaceData(null);
-		assert.deepStrictEqual(events, [
-			{ removed: ['One'], mode: WorkbenchMode.Editor },
-			{ removed: [], mode: WorkbenchMode.Editor },
-		]);
+		assert.deepStrictEqual(removed, [['One'], []]);
 	});
 
 	test('asRelativePath', () => {

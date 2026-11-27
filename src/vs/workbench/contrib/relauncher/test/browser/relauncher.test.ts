@@ -7,6 +7,7 @@ import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -195,7 +196,7 @@ suite('WorkspaceChangeExtHostRelauncher', () => {
 		return { state, changeFolder, foldersChanged };
 	}
 
-	test('preserves the editor folder through Agents mode and restarts only for a real editor folder change', async () => {
+	test('preserves the editor folder through Agents mode and restarts only for a real editor folder change', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const { changeFolder } = await createRelauncher();
 		const entering = await changeFolder('/session-one', WorkbenchMode.Agents);
 		const switching = await changeFolder('/session-two', WorkbenchMode.Agents);
@@ -203,14 +204,14 @@ suite('WorkspaceChangeExtHostRelauncher', () => {
 		const editorChange = await changeFolder('/second', WorkbenchMode.Editor);
 		const leavingEmpty = await changeFolder(undefined, WorkbenchMode.Editor, WorkbenchState.EMPTY);
 		assert.deepStrictEqual({ entering, switching, leaving, editorChange, leavingEmpty }, { entering: 0, switching: 0, leaving: 0, editorChange: 1, leavingEmpty: 1 });
-	});
+	}));
 
-	test('does not run an already scheduled restart after entering Agents mode', async () => {
+	test('does not run an already scheduled restart after entering Agents mode', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const { state, foldersChanged } = await createRelauncher();
 		state.workspace = testWorkspace(URI.file('/second'));
 		foldersChanged.fire({ added: [], removed: [], changed: [] });
 		state.mode = WorkbenchMode.Agents;
 		await timeout(20);
 		assert.strictEqual(state.restarts, 0);
-	});
+	}));
 });
