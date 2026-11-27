@@ -101,6 +101,42 @@ function getAutomationDropData(event: DragEvent): AutomationDropData {
 		: { kind: 'invalid', reason: 'unsupported', name: file.name };
 }
 
+/** The box an element shows its content in, in viewport coordinates: its padding box less its scrollbars. */
+function getClientBox(element: HTMLElement) {
+	const rect = element.getBoundingClientRect();
+	const top = rect.top + element.clientTop;
+	const left = rect.left + element.clientLeft;
+	return { top, left, right: left + element.clientWidth, bottom: top + element.clientHeight };
+}
+
+/**
+ * Sizes `overlay`, absolutely positioned in `root`, to cover the part of `root` on screen: its client box clipped by
+ * the window and by every ancestor that clips overflow. Either `root` or an ancestor may be what scrolls.
+ */
+function layoutOverVisibleArea(overlay: HTMLElement, root: HTMLElement): void {
+	const rootBox = getClientBox(root);
+	const targetWindow = DOM.getWindow(root);
+	let top = Math.max(rootBox.top, 0);
+	let left = Math.max(rootBox.left, 0);
+	let right = Math.min(rootBox.right, targetWindow.innerWidth);
+	let bottom = Math.min(rootBox.bottom, targetWindow.innerHeight);
+	// Overflow set on the body or the document element clips the viewport, which the window bounds already stand for.
+	for (let ancestor = root.parentElement; ancestor && ancestor !== root.ownerDocument.body; ancestor = ancestor.parentElement) {
+		const style = DOM.getComputedStyle(ancestor);
+		if (style.overflowX !== 'visible' || style.overflowY !== 'visible') {
+			const clip = getClientBox(ancestor);
+			top = Math.max(top, clip.top);
+			left = Math.max(left, clip.left);
+			right = Math.min(right, clip.right);
+			bottom = Math.min(bottom, clip.bottom);
+		}
+	}
+	overlay.style.top = `${top - rootBox.top + root.scrollTop}px`;
+	overlay.style.left = `${left - rootBox.left + root.scrollLeft}px`;
+	overlay.style.width = `${Math.max(0, right - left)}px`;
+	overlay.style.height = `${Math.max(0, bottom - top)}px`;
+}
+
 /**
  * Makes `root` accept a dropped automation file. While a drag hovers, an overlay says whether a drop would import it;
  * a drop opens the same review flow as Import Automation.
@@ -142,11 +178,12 @@ export class AutomationImportDropTarget extends Disposable {
 
 	private onDragOver(event: DragEvent): void {
 		const feedback = getAutomationDragFeedback(event);
-		if (feedback.kind !== 'ignore' && event.dataTransfer) {
-			event.dataTransfer.dropEffect = feedback.kind === 'accept' ? 'copy' : 'none';
+		if (feedback.kind !== 'ignore') {
+			if (event.dataTransfer) {
+				event.dataTransfer.dropEffect = feedback.kind === 'accept' ? 'copy' : 'none';
+			}
+			layoutOverVisibleArea(this.overlay, this.root);
 		}
-		// The overlay covers the root's visible box, which moves when the root itself scrolls (the narrow modal does).
-		this.overlay.style.transform = this.root.scrollTop || this.root.scrollLeft ? `translate(${this.root.scrollLeft}px, ${this.root.scrollTop}px)` : '';
 		this.render(feedback);
 	}
 

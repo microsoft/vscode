@@ -7,9 +7,9 @@
 	position: relative;
 }
 
+/* Its top, left, width and height are set while a drag hovers, to cover the part of the drop target on screen. */
 .automation-import-drop-overlay {
 	position: absolute;
-	inset: 0;
 	z-index: 10;
 	display: none;
 	align-items: center;

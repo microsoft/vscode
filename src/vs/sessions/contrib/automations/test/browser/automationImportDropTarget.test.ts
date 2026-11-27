@@ -30,7 +30,7 @@ import { createDragEvent, fileDataTransfer, ProtectedModeDataTransfer } from './
 suite('AutomationImportDropTarget', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup() {
+	function setup(parent: HTMLElement = document.body) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const notifications: { severity: Severity; message: string; choices: IPromptChoice[] }[] = [];
 		const dialogErrors: string[] = [];
@@ -56,7 +56,7 @@ suite('AutomationImportDropTarget', () => {
 		instantiationService.stub(IFileService, new class extends mock<IFileService>() { }());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
-		const root = document.body.appendChild($('div'));
+		const root = parent.appendChild($('div'));
 		store.add(toDisposable(() => root.remove()));
 		store.add(instantiationService.createInstance(AutomationImportDropTarget, root));
 		return { root, notifications, dialogErrors, commands };
@@ -156,5 +156,51 @@ suite('AutomationImportDropTarget', () => {
 			dialogErrors: [],
 			commands: [AutomationCommands.import.id],
 		});
+	});
+
+	test('covers the part of the target on screen, whether an ancestor or the target scrolls', () => {
+		const rect = (element: Element) => {
+			const { top, left, width, height } = element.getBoundingClientRect();
+			return { top: Math.round(top), left: Math.round(left), width: Math.round(width), height: Math.round(height) };
+		};
+		/**
+		 * Hovers an accepted drag over a 1000px tall target, scrolled 600px down inside a fixed 300x200 frame. Returns
+		 * where the overlay and the center of its label land, and where they belong: on the box the scroller shows its
+		 * content in, its padding box less any classic scrollbar, without making the scroller overflow.
+		 */
+		const hoverScrolled = (scrolls: 'ancestor' | 'target') => {
+			const frame = document.body.appendChild($('div', { style: `position: fixed; top: 0; left: 0; width: 300px; height: 200px; overflow: ${scrolls === 'ancestor' ? 'hidden' : 'visible'};` }));
+			store.add(toDisposable(() => frame.remove()));
+			const { root } = setup(frame);
+			if (scrolls === 'ancestor') {
+				root.style.height = '1000px';
+			} else {
+				root.style.height = '200px';
+				root.style.overflow = 'auto';
+				root.appendChild($('div', { style: 'height: 1000px;' }));
+			}
+			const scroller = scrolls === 'ancestor' ? frame : root;
+			scroller.scrollTop = 600;
+			root.dispatchEvent(createDragEvent(EventType.DRAG_ENTER, new ProtectedModeDataTransfer(fileDataTransfer(markdown('review.automation.md')))));
+			const overlay = root.querySelector('.automation-import-drop-overlay')!;
+			const label = overlay.querySelector('.drop-overlay-label')!.getBoundingClientRect();
+			const { clientWidth: width, clientHeight: height } = scroller;
+			return {
+				actual: {
+					overlay: rect(overlay),
+					labelCenter: { x: Math.round(label.left + label.width / 2), y: Math.round(label.top + label.height / 2) },
+					scrollSize: { width: scroller.scrollWidth, height: scroller.scrollHeight },
+				},
+				expected: {
+					overlay: { top: 0, left: 0, width, height },
+					labelCenter: { x: Math.round(width / 2), y: Math.round(height / 2) },
+					scrollSize: { width, height: 1000 },
+				},
+			};
+		};
+		const ancestor = hoverScrolled('ancestor');
+		const target = hoverScrolled('target');
+
+		assert.deepStrictEqual({ ancestor: ancestor.actual, target: target.actual }, { ancestor: ancestor.expected, target: target.expected });
 	});
 });
