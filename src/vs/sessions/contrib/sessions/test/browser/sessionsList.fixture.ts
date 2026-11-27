@@ -12,6 +12,7 @@ import { ISessionEnvironment, SessionStatus } from '../../../../../workbench/ser
 import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { getTestSessionResource, getTestWorkspaceFile } from '../../../../../workbench/contrib/sessions/test/common/testSessionBuilder.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { ExtUri } from '../../../../../base/common/resources.js';
 import { createSessionArchiveTour } from '../../../../../workbench/contrib/sessions/browser/tours/sessionArchiveTour.js';
 import { SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsGrouping } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { defineSessionsListFixture, ISessionsListFixture, ISessionsListFixtureGroup, ISessionsListFixtureSession, ISessionsListFixtureState } from './sessionsListFixtureUtils.js';
@@ -315,7 +316,8 @@ const WORKSPACES_AND_GROUPS_STATE: ISessionsListFixtureState = {
 		{ uri: getTestWorkspaceFile('Docs site'), name: 'Docs site', folders: [URI.file('/home/user/projects/vscode-docs')], owned: true, icon: 'book', color: '#ff8800' },
 		{ uri: getTestWorkspaceFile('Empty'), name: 'Empty', folders: [URI.file('/home/user/projects/notes')], owned: true },
 	],
-	view: { grouping: SessionsGrouping.WorkspacesAndGroups, height: 560 },
+	// Tall enough for every row, down to the Empty workspace's placeholder and the folder's row
+	view: { grouping: SessionsGrouping.WorkspacesAndGroups, height: 820 },
 };
 
 //#endregion
@@ -331,6 +333,13 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		...WORKSPACES_AND_GROUPS_STATE,
 		header: { navigationShortcuts: false },
 	}),
+	// The keyboard on a workspace row
+	SessionsList_WorkspacesAndGroups_FocusedWorkspace: defineSessionsListFixture({
+		...WORKSPACES_AND_GROUPS_STATE,
+		header: { navigationShortcuts: true },
+		// The fixtures compare paths without case, as the row ids do
+		interaction: { focused: { workspace: new ExtUri(() => true).getComparisonKey(getTestWorkspaceFile('Agents')) } },
+	}, { additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
 
 	SessionsList_Inbox: defineSessionsListFixture({
 		header: { navigationShortcuts: true },

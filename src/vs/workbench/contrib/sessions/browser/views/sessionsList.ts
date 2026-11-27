@@ -2061,11 +2061,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 					? comparisonSessions.map(sessionWorkspaceLabel).find(label => label !== localize('unknown', "Unknown"))
 					?? this.labelService.getWorkspaceLabel(comparison.workspace)
 					: localize('chatsSection', "Chats");
-				const unknownWorkspaceRowId = `workspace:${localize('unknown', "Unknown")}`;
 				// Under Group by Workspaces & Groups, a comparison lists in the row of its sessions' workspace, as they would
-				const workspaceRowId = workspaces && comparison.workspace
-					? comparisonSessions.map(session => getSessionWorkspaceRowId(session, workspaces)).find(id => id !== unknownWorkspaceRowId) ?? getWorkspaceRowIdOfUri(comparison.workspace, workspaces)
+				const workspaceRowUri = workspaces && comparison.workspace
+					? comparisonSessions.map(getSessionWorkspaceUri).find(isDefined) ?? comparison.workspace
 					: undefined;
+				const workspaceRow = workspaces && workspaceRowUri ? createWorkspaceRow(workspaceRowUri, workspaces) : undefined;
+				const workspaceRowId = workspaceRow?.id;
 				const groupingSectionId = inbox
 					? sessionInboxSections.find(id => comparisonSessions.some(session => this.getInboxSection(session) === id)) ?? (comparisonSessions.length === 0 ? SessionInboxSection.Working : undefined)
 					: grouping === SessionsGrouping.Date && !(this.quickChatsInTimeGrouping && !comparison.workspace)
@@ -2087,7 +2088,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				workspaceGroups.push(group);
 				let workspaceSection = sections.find(section => section.id === sectionId);
 				if (!workspaceSection) {
-					workspaceSection = grouping === SessionsGrouping.Date && sectionId !== QUICK_CHATS_SECTION_ID
+					workspaceSection = workspaceRow ?? (grouping === SessionsGrouping.Date && sectionId !== QUICK_CHATS_SECTION_ID
 						? { id: sectionId, label: sectionId === 'recent' ? localize('recent', "Recent") : localize('older', "Older"), sessions: [] }
 						: environment
 							? { id: sectionId, label: environment.label, environment, sessions: [] }
@@ -2098,7 +2099,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 									collapseStateId: comparison.workspace ? `workspace:${comparison.workspace.toString()}` : QUICK_CHATS_SECTION_ID,
 									label: workspaceLabel,
 									sessions: [],
-								};
+								});
 					sections.push(workspaceSection);
 					addedRepositorySection ||= !!repository;
 				}
@@ -2642,7 +2643,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 			if (groupItems.length > 0) {
 				children.push(renderParentSection(GROUPS_SECTION_ID, localize('groupsSection', "Groups"), groupItems.flatMap(item => item.subtreeSessions), groupItems.map(renderGroup)));
 			}
-			const workspaceSections = sections.filter(s => isSessionGroupingSection(s.id) && this.getSectionParentId(s.id) === undefined);
+			// Rows that only a comparison added join the others in their order
+			const workspaceSections = sections.filter(s => isSessionGroupingSection(s.id) && this.getSectionParentId(s.id) === undefined).sort(compareWorkspaceRows);
 			children.push(renderParentSection(WORKSPACES_SECTION_ID, localize('workspacesSection', "Workspaces"), workspaceSections.flatMap(section => section.sessions), workspaceSections.length > 0
 				? workspaceSections.map(renderWorkspaceSection)
 				: [{ element: { placeholder: true as const, sectionId: WORKSPACES_SECTION_ID, label: localize('noWorkspaces', "No workspaces") } }]));

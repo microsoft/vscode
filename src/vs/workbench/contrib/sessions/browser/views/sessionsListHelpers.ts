@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SessionsGrouping, SessionsSorting, ISessionSection, ISessionRepository, ISessionSectionWorkspace, ISessionShowMore } from './sessionsListCommon.js';
+import { SessionsGrouping, SessionsSorting, ISessionSection, ISessionRepository, ISessionShowMore } from './sessionsListCommon.js';
 import { IReader } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
@@ -619,45 +619,59 @@ export interface ISessionListWorkspaces {
  * from the workspaces service, never from the session; a folder that the service does not know shows its name.
  */
 export function groupByWorkspaces(sessions: readonly ISession[], workspaces: ISessionListWorkspaces): ISessionSection[] {
-	const sections = new Map<string, { label: string; workspace: ISessionSectionWorkspace; sessions: ISession[] }>();
-	const add = (uri: URI, label: string, workspace: IRecentSessionWorkspace | undefined): ISession[] => {
-		const id = getWorkspaceRowId(uri, workspaces);
-		let section = sections.get(id);
-		if (!section) {
-			section = { label, workspace: { uri, icon: workspace?.icon, color: workspace?.color }, sessions: [] };
-			sections.set(id, section);
+	const rows = new Map<string, ISessionSection & { readonly sessions: ISession[] }>();
+	const add = (uri: URI): ISession[] => {
+		const row = createWorkspaceRow(uri, workspaces);
+		const existing = rows.get(row.id);
+		if (existing) {
+			return existing.sessions;
 		}
-		return section.sessions;
+		rows.set(row.id, row);
+		return row.sessions;
 	};
 	for (const workspace of workspaces.listed) {
-		add(workspace.uri, workspace.name, workspace);
+		add(workspace.uri);
 	}
 	const unknown: ISession[] = [];
 	for (const session of sessions) {
 		const uri = getSessionWorkspaceUri(session);
-		if (!uri) {
+		if (uri) {
+			add(uri).push(session);
+		} else {
 			unknown.push(session);
-			continue;
 		}
-		const workspace = workspaces.getWorkspace(uri);
-		add(workspace?.uri ?? uri, workspace?.name ?? basename(uri), workspace).push(session);
 	}
-	const result: ISessionSection[] = [...sections].sort(([, a], [, b]) => a.label.localeCompare(b.label)).map(([id, section]) => ({
-		id,
-		collapseStateId: id,
-		label: section.label,
-		sessions: section.sessions,
-		workspace: section.workspace,
-	}));
+	const result: ISessionSection[] = [...rows.values()];
 	if (unknown.length > 0) {
 		const label = localize('unknown', "Unknown");
 		result.push({ id: `workspace:${label}`, label, sessions: unknown });
 	}
-	return result;
+	return result.sort(compareWorkspaceRows);
+}
+
+/**
+ * A workspace row of {@link groupByWorkspaces}, without sessions: the workspace of a `.code-workspace` file or folder, as
+ * the workspaces service knows it, else the folder by its name.
+ */
+export function createWorkspaceRow(uri: URI, workspaces: ISessionListWorkspaces): ISessionSection & { readonly sessions: ISession[] } {
+	const workspace = workspaces.getWorkspace(uri);
+	const id = getWorkspaceRowId(uri, workspaces);
+	return {
+		id,
+		collapseStateId: id,
+		label: workspace?.name ?? basename(uri),
+		sessions: [],
+		workspace: { uri: workspace?.uri ?? uri, icon: workspace?.icon, color: workspace?.color },
+	};
+}
+
+/** The order of the workspace rows of {@link groupByWorkspaces}: by name, Unknown last. */
+export function compareWorkspaceRows(a: ISessionSection, b: ISessionSection): number {
+	return Number(!a.workspace) - Number(!b.workspace) || a.label.localeCompare(b.label);
 }
 
 /** The workspace file a session was created in, else its default folder. */
-function getSessionWorkspaceUri(session: ISession): URI | undefined {
+export function getSessionWorkspaceUri(session: ISession): URI | undefined {
 	const workspace = session.workspace.get();
 	return workspace?.workspaceConfig?.uri ?? workspace?.folders[0]?.root;
 }
@@ -668,14 +682,9 @@ function getWorkspaceRowId(uri: URI, workspaces: ISessionListWorkspaces): string
 }
 
 /** The id of the workspace row of {@link groupByWorkspaces} that a session lists under. */
-export function getSessionWorkspaceRowId(session: ISession, workspaces: ISessionListWorkspaces): string {
+function getSessionWorkspaceRowId(session: ISession, workspaces: ISessionListWorkspaces): string {
 	const uri = getSessionWorkspaceUri(session);
 	return uri ? getWorkspaceRowId(uri, workspaces) : `workspace:${localize('unknown', "Unknown")}`;
-}
-
-/** The id of the workspace row of {@link groupByWorkspaces} for a workspace file or folder, such as a comparison's. */
-export function getWorkspaceRowIdOfUri(uri: URI, workspaces: ISessionListWorkspaces): string {
-	return getWorkspaceRowId(uri, workspaces);
 }
 
 /** Whether a persisted collapse state id belongs to a grouping-specific section. */

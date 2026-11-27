@@ -118,7 +118,7 @@ import { ChatAgentService, IChatAgentService } from '../../../../../workbench/co
 import { ToolDataSource } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { MockChatService } from '../../../../../workbench/contrib/chat/test/common/chatService/mockChatService.js';
 import { getChatSummaryHoverData, getDistinctChatHarnessLabel, getSessionDiffStats, getSessionSummaryHoverData } from '../../../../../workbench/contrib/sessions/browser/sessionHoverContent.js';
-import { IRecentSessionWorkspace } from '../../../../../workbench/contrib/sessions/common/sessionWorkspaces.js';
+import { IRecentSessionWorkspace, ISessionWorkspacesService } from '../../../../../workbench/contrib/sessions/common/sessionWorkspaces.js';
 import { TestSessionWorkspacesService } from '../../../../../workbench/contrib/sessions/test/browser/testSessionWorkspacesService.js';
 import { createListHarness, createTestSession, IListHarnessOptions, ISortChangeRecord, ITestSessionOptions, TestSessionsManagementService } from './sessionsListTestUtils.js';
 import { MobileSessionsListPresentation } from '../../../mobile/browser/mobileSessionsListPresentation.js';
@@ -4388,6 +4388,36 @@ suite('Sessions - SessionsList', () => {
 						{ 'tools': ['in a folder'] },
 					]
 				},
+			]);
+		});
+
+		test('a comparison alone in its workspace gets the workspace\'s row, by the workspace\'s name, in order before Unknown', () => {
+			const experimentsFile = URI.file('/work/experiments.code-workspace');
+			// A recent workspace file of the user's, which lists only once it has sessions
+			const experiments: IRecentSessionWorkspace = { uri: experimentsFile, name: 'Experiments', folders: [docs], owned: false, icon: 'beaker' };
+			const comparisonGroup: ISessionGroup = { id: 'comparison-group', name: 'Compare: Try', createdAt: 1 };
+			const attempts = ['attempt-1', 'attempt-2'].map(id => createTestSession(id, { folders: [docs], workspaceFile: experimentsFile }).session);
+			const withoutFolder = createTestSession('without folder', { workspaceLabel: 'none' }).session;
+			const harness = createListHarness(disposables, [...attempts, withoutFolder], {
+				groups: [comparisonGroup],
+				memberships: new Map(attempts.map(session => [session.sessionId, comparisonGroup.id])),
+				comparisons: [{
+					id: 'comparison-1', groupId: comparisonGroup.id, title: 'Try', createdAt: 1, workspace: experimentsFile, prompt: 'Try',
+					participants: attempts.map((session, index) => ({ id: `participant-${index}`, role: SessionComparisonParticipantRole.Attempt, harness: { providerId: 'test', sessionTypeId: 'copilot', label: 'Copilot' }, sessionResource: session.resource })),
+				}],
+			});
+			(harness.instantiationService.get(ISessionWorkspacesService) as TestSessionWorkspacesService).recentWorkspaceFiles.set([experiments], undefined);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, harness.createContainer(400, 1400), {
+				grouping: () => SessionsGrouping.WorkspacesAndGroups,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(1400, 400);
+			const workspaces = list.getTreeSnapshot().find(node => node.type !== 'session' && node.id === 'workspaces');
+
+			assert.deepStrictEqual(workspaces?.type !== 'session' ? workspaces?.children.map(node => node.type === 'session' ? node.session.sessionId : `${node.label} (${node.id})`) : undefined, [
+				`Experiments (workspace:${experimentsFile.toString()})`,
+				'Unknown (workspace:Unknown)',
 			]);
 		});
 

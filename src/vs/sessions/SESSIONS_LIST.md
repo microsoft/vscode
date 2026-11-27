@@ -54,7 +54,7 @@ Archived
 - A valid custom-group membership places an unpinned, unarchived session in that group, including a quick chat. A session belongs to at most one group at any nesting depth.
 - When dedicated external sectioning is enabled, remaining external sessions appear together before the archived section. Pinning and custom-group membership retain their precedence; disabling sectioning returns external sessions to the ordinary grouping rules without changing that presentation state.
 - Under workspace, workspaces and groups, or repository grouping, remaining unpinned quick chats appear in the dedicated chats section. Under date or environment grouping there is no chats section; quick chats follow that grouping like other sessions, and so do comparison groups without a workspace.
-- Remaining sessions follow the selected workspace, repository, environment, or date grouping.
+- Remaining sessions follow the selected workspace, workspaces and groups, repository, environment, or date grouping.
 - A regular session created by another regular session is initially placed
   immediately after its creator. While it has neither custom-group membership
   nor an explicit ungrouped preference, it inherits the creator's custom group
