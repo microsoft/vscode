@@ -11,7 +11,7 @@ import { IMarkerData, MarkerSeverity, MarkerTag } from '../../../../../../platfo
 import { ChatMode, IChatMode, IChatModeService } from '../../chatModes.js';
 import { ChatModeKind } from '../../constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
-import { ILanguageModelToolsService, isToolSet, SpecedToolAliases } from '../../tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, isToolSet, SpecedToolAliases, VSCodeToolReference } from '../../tools/languageModelToolsService.js';
 import { PromptsType, Target } from '../promptTypes.js';
 import { IMapValue, ISequenceValue, IHeaderAttribute, IScalarValue, isPromptFileTildePath, parseCommaSeparatedList, ParsedPromptFile, PromptHeader, IValue, PromptHeaderAttributes } from '../promptFileParser.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
@@ -1445,10 +1445,19 @@ export class PromptValidator {
 		// If not wildcard and not empty, check that 'agent' tool is available
 		if (agentNames.length > 0) {
 			const tools = header.tools;
-			if (tools && !tools.includes(SpecedToolAliases.agent)) {
+			if (tools && !this.isRunSubagentToolEnabled(tools)) {
 				report(toMarker(localize('promptValidator.agentsRequiresAgentTool', "When 'agents' and 'tools' are specified, the 'agent' tool must be included in the 'tools' attribute."), attribute.value.range, MarkerSeverity.Warning));
 			}
 		}
+	}
+
+	private isRunSubagentToolEnabled(tools: readonly string[]): boolean {
+		if (tools.includes(SpecedToolAliases.agent)) {
+			return true;
+		}
+		// The tool can also be listed by its full name (`agent/runSubagent`) or a legacy name
+		const runSubagentTool = this.languageModelToolsService.getToolByName(VSCodeToolReference.runSubagent);
+		return !!runSubagentTool && this.languageModelToolsService.toToolAndToolSetEnablementMap(tools, undefined).get(runSubagentTool) === true;
 	}
 
 	private validateGithubPermissions(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void, validateAttributeType = true): void {
