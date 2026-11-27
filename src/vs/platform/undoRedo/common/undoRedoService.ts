@@ -928,6 +928,8 @@ export class UndoRedoService implements IUndoRedoService {
 					// there is another element with the same group id in the same stack!
 					return true;
 				}
+				// the element must not be compared with itself
+				continue;
 			}
 			if (pastElement.groupId === element.groupId) {
 				// there is another element with the same group id in another stack!
