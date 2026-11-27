@@ -30,10 +30,9 @@ import { AgentsWorkspaceContextService } from './agentsWorkspaceContextService.j
 
 /**
  * WORKSPACE-scoped storage key that remembers that a window is in
- * Agents mode, so that the mode is restored after a reload or restart. It keeps
- * the value from before the rename to Agents mode, so windows already in the mode stay in it.
+ * Agents mode, so that the mode is restored after a reload or restart.
  */
-export const AGENTS_MODE_STORAGE_KEY = 'workbench.agentsSettingsMode.active';
+export const AGENTS_MODE_STORAGE_KEY = 'workbench.agentsMode.active';
 
 /**
  * Setting that opts local editor windows into Agents mode. It is
@@ -42,38 +41,20 @@ export const AGENTS_MODE_STORAGE_KEY = 'workbench.agentsSettingsMode.active';
 export const AGENTS_MODE_ENABLED_SETTING = 'chat.agentsMode.enabled';
 
 /**
- * The setting's name before the rename. A configuration migration moves it to
- * {@link AGENTS_MODE_ENABLED_SETTING}, but only after the window started.
- */
-export const LEGACY_AGENTS_MODE_ENABLED_SETTING = 'chat.agentsSettingsMode.enabled';
-
-/**
  * Whether a window's workspace and configuration service should be able to
  * switch into Agents mode: only local editor windows that have a backup folder,
  * and only when the user opted in with {@link AGENTS_MODE_ENABLED_SETTING}.
  */
 export function supportsAgentsMode(
 	environmentService: Pick<IWorkbenchEnvironmentService, 'remoteAuthority' | 'isExtensionDevelopment' | 'isSessionsWindow'>,
-	configurationService: Pick<IConfigurationService, 'getValue' | 'inspect'>,
+	configurationService: Pick<IConfigurationService, 'getValue'>,
 	hasBackupPath: boolean,
 ): boolean {
 	return !environmentService.remoteAuthority
 		&& !environmentService.isExtensionDevelopment
 		&& !environmentService.isSessionsWindow
 		&& hasBackupPath
-		&& isAgentsModeEnabled(configurationService);
-}
-
-/**
- * Reads the legacy setting too, as the migration would, so that a window left in
- * the mode restores in it on the first start after the rename.
- */
-function isAgentsModeEnabled(configurationService: Pick<IConfigurationService, 'getValue' | 'inspect'>): boolean {
-	if (configurationService.getValue(AGENTS_MODE_ENABLED_SETTING) === true) {
-		return true;
-	}
-	return configurationService.inspect(AGENTS_MODE_ENABLED_SETTING).userValue === undefined
-		&& configurationService.getValue(LEGACY_AGENTS_MODE_ENABLED_SETTING) === true;
+		&& configurationService.getValue(AGENTS_MODE_ENABLED_SETTING) === true;
 }
 
 /**
