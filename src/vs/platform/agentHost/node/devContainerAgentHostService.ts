@@ -46,7 +46,7 @@ import { AGENT_HOST_CLIENT_FORWARDING_ENV } from './agentHostClientForwarding.js
 import { IDevContainerSandboxConfiguration, isDevContainerSandboxSupported, parseDevContainerSandboxConfiguration, prepareDevContainerSandboxConfiguration } from './devContainerSandbox.js';
 import { buildCreateDevContainerCacheCommand, buildLinkDevContainerServerCacheCommand, canAddDevContainerServerCacheMount, devContainerServerCacheMount, getDevContainerCliCachePath, getDevContainerServerCachePath } from './devContainerServerCache.js';
 import { DevContainerShell, IDevContainerShellResult } from './devContainerShell.js';
-import { IDevContainerSecurityOptions, IDevContainerStateErrorValues, IDevContainerStateLinkProgress, buildLinkDevContainerStateCommand, findDevContainerStateMount, getDefaultDevContainerIdLabels, getDevContainerLocalFolderLabel, getDevContainerSecurityOptions, getDevContainerStateLinkSkippedMessage, getDevContainerStateMount, getDevContainerStateMountTarget, getDevContainerStateTargetKind, getDevContainerStateVolumeLabels, getDevContainerStateVolumeName, getDevContainerUpErrorCause, isDevContainerRunning, isDevContainerStateVolumeFor, parseLinkDevContainerStateOutput, sanitizeDevContainerStateErrorMessage } from './devContainerState.js';
+import { IDevContainerSecurityOptions, IDevContainerStateErrorValues, IDevContainerStateLinkProgress, buildLinkDevContainerStateCommand, devContainerStateLabelPrefix, findDevContainerStateMount, getDefaultDevContainerIdLabels, getDevContainerLocalFolderLabel, getDevContainerSecurityOptions, getDevContainerStateLinkSkippedMessage, getDevContainerStateMount, getDevContainerStateMountTarget, getDevContainerStateTargetKind, getDevContainerStateVolumeLabels, getDevContainerStateVolumeName, getDevContainerUpErrorCause, isDevContainerRunning, isDevContainerStateVolumeFor, parseLinkDevContainerStateOutput, sanitizeDevContainerStateErrorMessage } from './devContainerState.js';
 import { prepareOwnerOnlyDirectory } from './localAgentHostMetadata.js';
 import { ensureRemoteAgentHostCliInstalled } from './remoteAgentHostCliInstaller.js';
 import {
@@ -1374,42 +1374,53 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	}
 
 	async getEngines(source?: DevContainerAgentHostSource): Promise<IDevContainerEngines> {
-		const resolved = await Promise.all(devContainerEngines.map(async engine => await this._resolveEngineExecutable(engine) ? engine : undefined));
-		const available = resolved.filter((engine): engine is DevContainerEngine => engine !== undefined);
+		const available = await this._getAvailableEngines();
 		// With one engine, there is no other engine to keep using.
-		const existing = source !== undefined && available.length > 1 ? await this._findExistingEngine(source, available) : undefined;
+		const existing = source !== undefined && available.length > 1 ? (await this._findExistingEngine(source, available)).existing : undefined;
 		return { available, ...(existing ? { existing } : {}) };
 	}
 
-	/** The first engine with a container or volume of the source; an engine that fails or stalls counts as not having one. */
-	private async _findExistingEngine(source: DevContainerAgentHostSource, engines: readonly DevContainerEngine[]): Promise<DevContainerEngine | undefined> {
+	private async _getAvailableEngines(): Promise<DevContainerEngine[]> {
+		const resolved = await Promise.all(devContainerEngines.map(async engine => await this._resolveEngineExecutable(engine) ? engine : undefined));
+		return resolved.filter((engine): engine is DevContainerEngine => engine !== undefined);
+	}
+
+	/**
+	 * The first engine with a container or volume of the source. Without one, `error` is the first lookup that failed or stalled,
+	 * which leaves open whether that engine has one.
+	 */
+	private async _findExistingEngine(source: DevContainerAgentHostSource, engines: readonly DevContainerEngine[]): Promise<{ readonly existing?: DevContainerEngine; readonly error?: unknown }> {
 		const known = this._containers.get(getSourceKey(source))?.engine;
 		if (known && engines.includes(known)) {
-			return known;
+			return { existing: known };
 		}
+		let firstError: { readonly error: unknown } | undefined;
 		for (const engine of engines) {
 			const tokenSource = new CancellationTokenSource();
 			const timer = setTimeout(() => tokenSource.cancel(), DEV_CONTAINER_ENGINE_LOOKUP_TIMEOUT_MS);
 			try {
 				if (await this._hasSourceContainer(source, engine, tokenSource.token)) {
-					return engine;
+					return { existing: engine };
 				}
 			} catch (error) {
 				// For example, the Docker engine is not running or did not answer in time.
 				this._logService.trace(`${LOG_PREFIX} Could not look for an existing container in ${engine}`, error);
+				firstError ??= { error };
 			} finally {
 				clearTimeout(timer);
 				tokenSource.dispose();
 			}
 		}
-		return undefined;
+		return firstError ?? {};
 	}
 
-	/** Whether the engine has a workspace's container, or an environment's or a sample's volume, which outlive their containers. */
+	/** Whether the engine has a workspace's container or state volume, or an environment's or a sample's volume, which outlive their containers. */
 	private async _hasSourceContainer(source: DevContainerAgentHostSource, engine: DevContainerEngine, token: CancellationToken): Promise<boolean> {
 		const docker = (args: readonly string[]) => this._runDocker(args, token, engine);
 		if (typeof source === 'string') {
-			return !!checked(await docker(['ps', '--all', '--quiet', '--filter', `label=${getDevContainerLocalFolderLabel(process.platform, source)}`]), 'docker ps').trim();
+			const localFolderLabel = getDevContainerLocalFolderLabel(process.platform, source);
+			return !!checked(await docker(['ps', '--all', '--quiet', '--filter', `label=${localFolderLabel}`]), 'docker ps').trim()
+				|| !!checked(await docker(['volume', 'ls', '--quiet', '--filter', `label=${devContainerStateLabelPrefix}${localFolderLabel}`]), 'docker volume ls').trim();
 		}
 		if (hasKey(source, { environmentId: true })) {
 			return hasDevContainerEnvironmentVolume(source.environmentId, docker);
@@ -1475,10 +1486,24 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		return true;
 	}
 
-	/** The engine with the environment's volume, or the preferred available engine, which only removes its cached configuration. */
+	/**
+	 * The engine with the environment's volume, or the preferred available engine, which only removes its cached configuration.
+	 * Throws when an engine could not be checked, rather than reporting the environment removed while its volume may remain.
+	 */
 	private async _getEnvironmentEngine(environmentId: string): Promise<DevContainerEngine> {
-		const { available, existing } = await this.getEngines({ environmentId });
-		return existing ?? available[0] ?? 'docker';
+		const available = await this._getAvailableEngines();
+		if (available.length <= 1) {
+			// Removing the environment with the only engine reports that engine's errors.
+			return available[0] ?? 'docker';
+		}
+		const { existing, error } = await this._findExistingEngine({ environmentId }, available);
+		if (existing) {
+			return existing;
+		}
+		if (error !== undefined) {
+			throw new Error(localize('devContainerAgentHost.environmentEngineUnknown', "Could not check the container engines for the environment's volume: {0}", getErrorMessage(error)));
+		}
+		return available[0];
 	}
 
 	private async _changeContainerState(source: DevContainerAgentHostSource, operation: 'stop' | 'rm'): Promise<boolean> {

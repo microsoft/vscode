@@ -1823,17 +1823,22 @@ suite('Dev Container Agent Host Main Service', () => {
 					// A Docker engine that is not running does not keep the other engine from being found.
 					return Promise.resolve({ stdout: '', stderr: 'Cannot connect to the Docker daemon', code: 1 });
 				}
-				const found = args.some(arg => arg === 'label=vscode.agents.environment=environment' || arg.startsWith('label=devcontainer.local_folder='));
+				const found = args.some(arg => arg === 'label=vscode.agents.environment=environment'
+					|| arg.startsWith('label=devcontainer.local_folder=') && arg.includes('container-workspace')
+					// A workspace's state volume outlives its removed container.
+					|| arg.startsWith('label=vscode.dev-container-state.label.devcontainer.local_folder=') && arg.includes('state-workspace'));
 				return Promise.resolve({ stdout: found ? 'found\n' : '', stderr: '', code: 0 });
 			}
 		}());
 		service.engineExecutables = { docker: 'docker' };
-		const before = await service.getEngines('/workspace');
+		const before = await service.getEngines('/container-workspace');
 		service.engineExecutables = { docker: 'docker', wslc: 'C:\\WSL\\wslc.exe' };
 		assert.deepStrictEqual({
 			dockerOnly: before,
 			available: await service.getEngines(),
-			workspace: await service.getEngines('/workspace'),
+			workspace: await service.getEngines('/container-workspace'),
+			stateOnlyWorkspace: await service.getEngines('/state-workspace'),
+			otherWorkspace: await service.getEngines('/other-workspace'),
 			environment: await service.getEngines({ environmentId: 'environment' }),
 			otherEnvironment: await service.getEngines({ environmentId: 'other' }),
 			sample: await service.getEngines({ sampleId: 'node' }),
@@ -1841,9 +1846,36 @@ suite('Dev Container Agent Host Main Service', () => {
 			dockerOnly: { available: ['docker'] },
 			available: { available: ['docker', 'wslc'] },
 			workspace: { available: ['docker', 'wslc'], existing: 'wslc' },
+			stateOnlyWorkspace: { available: ['docker', 'wslc'], existing: 'wslc' },
+			otherWorkspace: { available: ['docker', 'wslc'] },
 			environment: { available: ['docker', 'wslc'], existing: 'wslc' },
 			otherEnvironment: { available: ['docker', 'wslc'] },
 			sample: { available: ['docker', 'wslc'] },
+		});
+	});
+
+	test('removes an environment with the engine that has its volume, but not while another engine could not be checked', async () => {
+		const service = store.add(new class extends TestDevContainerAgentHostMainService {
+			protected override _runDocker(args: readonly string[], token?: CancellationToken, engine: DevContainerEngine = 'docker') {
+				if (args[0] === 'volume' && args[1] === 'ls') {
+					if (engine === 'docker') {
+						// A Docker engine that is not running cannot tell whether it has the environment's volume.
+						return Promise.resolve({ stdout: '', stderr: 'Cannot connect to the Docker daemon', code: 1 });
+					}
+					return Promise.resolve({ stdout: args.includes('label=vscode.agents.environment=environment') ? 'ubuntu\n' : '', stderr: '', code: 0 });
+				}
+				return super._runDocker(args, token, engine);
+			}
+		}());
+		service.engineExecutables = { docker: 'docker', wslc: 'C:\\WSL\\wslc.exe' };
+		await service.removeContainer({ environmentId: 'environment' });
+		const unchecked = await service.removeContainer({ environmentId: 'other' }).then(() => 'removed', (error: Error) => error.message);
+		assert.deepStrictEqual({
+			removals: service.dockerCommands.flatMap((args, i) => args.includes('rm') ? [`${service.dockerEngines[i]} ${args.join(' ')}`] : []),
+			unchecked,
+		}, {
+			removals: ['wslc volume rm ubuntu'],
+			unchecked: 'Could not check the container engines for the environment\'s volume: docker volume ls failed (exit 1): Cannot connect to the Docker daemon',
 		});
 	});
 
