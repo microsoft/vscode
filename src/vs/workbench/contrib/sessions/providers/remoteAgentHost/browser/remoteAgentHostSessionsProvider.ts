@@ -1447,6 +1447,10 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		return this._isOnThisHost(repositoryUri) ? this._buildWorkspaceFromUri(repositoryUri) : undefined;
 	}
 
+	protected override _isResourceOfThisHost(resource: URI): boolean {
+		return this._isOnThisHost(resource);
+	}
+
 	/**
 	 * Whether a URI is a resource of this connection. Every agent-host provider shares the
 	 * agent-host scheme, so without the authority check the workspace picker's first-match-wins

@@ -95,10 +95,15 @@ export function agentHostSessionWorkspaceKey(workspace: ISessionWorkspace | unde
 			String(repo?.incomingChanges ?? ''),
 			String(repo?.outgoingChanges ?? ''),
 			String(repo?.uncommittedChanges ?? ''),
+			// Unknown, a repository, or found not to be one
+			repo ? String(repo.isRepository?.get() ?? '') : '-',
 		].join('\u0001');
 	});
+	const repositoryKeys = workspace.repositories?.map(repository => [extUri.getComparisonKey(repository.root), extUri.getComparisonKey(repository.folder), repository.kind, repository.gitRepository?.branchName ?? ''].join('\u0001'));
+	const config = workspace.workspaceConfig;
+	const configKey = config ? [extUri.getComparisonKey(config.uri), config.name, ...config.folders.map(folder => extUri.getComparisonKey(folder))].join('\u0001') : '';
 	// Working directories can arrive equal to a project the session had without them, which changes only whether it requires trust.
-	return [workspace.label, String(workspace.requiresWorkspaceTrust), ...folderKeys].join('\n');
+	return [workspace.label, String(workspace.requiresWorkspaceTrust), configKey, repositoryKeys ? `repositories:${repositoryKeys.join('\u0002')}` : '', ...folderKeys].join('\n');
 }
 
 /** Resolves the GitHub info a session folder reports, by working directory. */
@@ -203,7 +208,7 @@ function createAdditionalFolder(workingDirectory: URI, description: string | und
 	};
 }
 
-function withFolderGitState(folder: ISessionFolder, gitState: ISessionGitState): ISessionFolder {
+export function withFolderGitState(folder: ISessionFolder, gitState: ISessionGitState): ISessionFolder {
 	const repository = folder.gitRepository ?? {
 		uri: folder.root,
 		workTreeUri: undefined,
