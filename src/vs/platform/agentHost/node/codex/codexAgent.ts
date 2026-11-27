@@ -4740,8 +4740,10 @@ export class CodexAgent extends Disposable implements IAgent {
 		return this._setWorkingDirectory(chat, context, workingDirectory, true, options?.additionalDirectories);
 	}
 
-	private async _setWorkingDirectory(chat: URI, context: URI | IAgentChatContext, workingDirectory: URI, chatOnly: boolean, additionalDirectories: readonly URI[] = []): Promise<void> {
-		const session = this._resolveWorkingDirectoryChangeSession(chat, context, chatOnly);
+	private async _setWorkingDirectory(chat: URI, context: URI | IAgentChatContext, workingDirectory: URI, chatOnly: boolean, additionalDirectories?: readonly URI[]): Promise<void> {
+		// A chat that keeps its other folders moves only its primary one, so it may have several
+		const keepsOtherFolders = chatOnly && additionalDirectories !== undefined;
+		const session = this._resolveWorkingDirectoryChangeSession(chat, context, chatOnly, keepsOtherFolders);
 		if (this._workingDirectoryMutations.has(session)) {
 			throw new Error(`Cannot change the working directory for chat '${chat.toString()}' while another working-directory change is active`);
 		}
@@ -4765,7 +4767,7 @@ export class CodexAgent extends Disposable implements IAgent {
 					throw new Error(`Cannot change the working directory because '${workingDirectory.fsPath}' is not an existing directory`);
 				}
 				const { threadId, connection } = await this._ensureThreadConnection(session);
-				if (change.updated.isSettled || this._resolveWorkingDirectoryChangeSession(chat, context, chatOnly) !== session || threadId !== change.threadId) {
+				if (change.updated.isSettled || this._resolveWorkingDirectoryChangeSession(chat, context, chatOnly, keepsOtherFolders) !== session || threadId !== change.threadId) {
 					throw new CancellationError();
 				}
 				change.requested = true;
@@ -4786,7 +4788,7 @@ export class CodexAgent extends Disposable implements IAgent {
 
 			appliedDirectory = updatedDirectory;
 			session.workingDirectory = appliedDirectory;
-			session.workingDirectories = [appliedDirectory, ...additionalDirectories];
+			session.workingDirectories = [appliedDirectory, ...additionalDirectories ?? []];
 			await this._abandonManagedWorkingDirectory(session);
 			session.materializedMcpSig = undefined;
 			session.materializedCustomizationsSig = undefined;
@@ -4824,7 +4826,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private _resolveWorkingDirectoryChangeSession(chat: URI, context: URI | IAgentChatContext, chatOnly = false): ICodexSession {
+	private _resolveWorkingDirectoryChangeSession(chat: URI, context: URI | IAgentChatContext, chatOnly = false, keepsOtherFolders = false): ICodexSession {
 		const runtime = this._resolveConversationSession(chat, resolveAgentChatContext(context, chat));
 		const session = runtime ? this._sessions.get(AgentSession.id(runtime)) : undefined;
 		if (!session || session.disposed || !session.threadId || !session.workingDirectory || !session.firstTurnSent
@@ -4834,7 +4836,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (session.currentTurnId || session.currentAppTurnId || session.materializePromise || session.resumePromise) {
 			throw new Error(`Cannot change the working directory while Codex chat '${chat.toString()}' is active`);
 		}
-		if (this._workingDirectories(session).length !== 1 || (!chatOnly && this._sharesOwnerWithOtherChats(session.owner.get(), chat))) {
+		if ((this._workingDirectories(session).length !== 1 && !keepsOtherFolders) || (!chatOnly && this._sharesOwnerWithOtherChats(session.owner.get(), chat))) {
 			throw new Error(`Cannot change the working directory for a multi-root or shared Codex configuration '${session.owner.get().toString()}'`);
 		}
 		return session;
