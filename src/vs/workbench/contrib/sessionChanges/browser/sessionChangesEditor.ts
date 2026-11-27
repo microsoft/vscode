@@ -449,6 +449,9 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			const model = this.widget?.viewModel.read(reader);
 			const empty = !!model && !model.isLoading.read(reader) && model.items.read(reader).length === 0 && !this._changesPendingObs.read(reader);
 			emptyState.hidden = !empty;
+			if (empty && !this._showsEmptyState.read(undefined) && fileListWidget.hasFileListFocus()) {
+				this.emptyState?.focus();
+			}
 			this._showsEmptyState.set(empty, undefined);
 			this.bodyContainer?.classList.toggle('has-empty-state', empty);
 			if (empty) {
