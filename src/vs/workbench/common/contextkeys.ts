@@ -39,6 +39,8 @@ export const TemporaryWorkspaceContext = new RawContextKey<boolean>('temporaryWo
 
 export const IsSessionsWindowContext = new RawContextKey<boolean>('isSessionsWindow', false, localize('isSessionsWindow', "Whether the current window is a agent sessions window."));
 export const IsPhoneLayoutContext = new RawContextKey<boolean>('sessionsIsPhoneLayout', false, localize('sessionsIsPhoneLayout', "Whether the current layout is the phone layout"));
+export const SessionIsCreatedContext = new RawContextKey<boolean>('sessionIsCreated', false, localize('sessionIsCreated', "Whether the session view's session has been created (chat view shown, not new-session view)"));
+export const ChatInputCanScheduleContext = new RawContextKey<boolean>('sessionsChatInputCanSchedule', false, localize('sessionsChatInputCanSchedule', "Whether the chat input supports sending later"));
 
 export const HasWebFileSystemAccess = new RawContextKey<boolean>('hasWebFileSystemAccess', false, true); // Support for FileSystemAccess web APIs (https://wicg.github.io/file-system-access)
 
