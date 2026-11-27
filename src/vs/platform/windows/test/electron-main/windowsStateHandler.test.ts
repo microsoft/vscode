@@ -7,12 +7,21 @@ import assert from 'assert';
 import { tmpdir } from 'os';
 import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
+import { Event } from '../../../../base/common/event.js';
+import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
+import { NullLogService } from '../../../log/common/log.js';
+import { IStateService } from '../../../state/node/state.js';
+import { TestLifecycleMainService } from '../../../test/electron-main/workbenchTestServices.js';
 import { IWindowState as IWindowUIState, WindowMode } from '../../../window/electron-main/window.js';
+import { IWindowsMainService } from '../../electron-main/windows.js';
 import { getWindowsStateStoreData, IWindowsState, IWindowState, restoreWindowsState, WindowsStateHandler } from '../../electron-main/windowsStateHandler.js';
 import { IWorkspaceIdentifier } from '../../../workspace/common/workspace.js';
 
 suite('Windows State Storing', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function getUIState(): IWindowUIState {
 		return {
@@ -166,9 +175,9 @@ suite('Windows State Storing', () => {
 			]
 		};
 
-		// Only the state matters here; the constructor needs the main process's electron app
-		const handler: WindowsStateHandler = Object.create(WindowsStateHandler.prototype);
-		Object.defineProperty(handler, '_state', { value: state });
+		const storedState = getWindowsStateStoreData(state);
+		const stateService = upcastPartial<IStateService>({ getItem: <T>(key: string) => (key === 'windowsState' ? storedState : undefined) as T | undefined });
+		const handler = store.add(new WindowsStateHandler(upcastPartial<IWindowsMainService>({ onDidChangeWindowsCount: Event.None, onDidDestroyWindow: Event.None }), stateService, new TestLifecycleMainService(), new NullLogService(), new TestConfigurationService(), { on: () => undefined }));
 
 		assert.deepStrictEqual(['backupFolder1', 'backupFolder2', 'backupFolder3', 'unknown'].map(backupFolder => handler.wasEmptyWindowInAgentsMode(backupFolder)), [true, false, false, false]);
 	});
@@ -255,6 +264,4 @@ suite('Windows State Storing', () => {
 		};
 		assertEqualWindowsState(expected, windowsState, 'v1_32_empty_window');
 	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 });

@@ -328,7 +328,7 @@ suite('Sessions presentation entry isolation', () => {
 		const settingsEditor = 'src/vs/workbench/contrib/preferences/browser/settingsEditor2.ts';
 		const agentsModeRegistrations = [
 			'src/vs/workbench/services/agentsMode/browser/browserAgentsModeService.ts',
-			'src/vs/workbench/services/agentsMode/electron-browser/agentsModeService.ts',
+			'src/vs/workbench/services/agentsMode/electron-browser/agentsMode.contribution.ts',
 		];
 		const entries = [
 			'src/vs/sessions/sessions.desktop.main.ts',
