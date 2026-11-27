@@ -9,7 +9,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../../platform/native/common/native.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { testWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
 import { IAgentsModeService } from '../../../agentsMode/common/agentsMode.js';
 import { INativeWorkbenchEnvironmentService } from '../../../environment/electron-browser/environmentService.js';
 import { IExtensionService } from '../../../extensions/common/extensions.js';
@@ -31,9 +34,11 @@ class TestBackupService extends WorkingCopyBackupService {
 class TestWorkspaceEditingService extends NativeWorkspaceEditingService {
 	entered = false;
 	failure: Error | undefined;
+	onEnter: (() => void) | undefined;
 
 	protected override async doEnterWorkspace() {
 		this.entered = true;
+		this.onEnter?.();
 		if (this.failure) {
 			throw this.failure;
 		}
@@ -70,10 +75,12 @@ suite('NativeWorkspaceEditingService - extension host recovery', () => {
 		instantiationService.stub(IHostService, { reload: async () => { calls.push('reload'); } });
 		instantiationService.stub(IAgentsModeService, {
 			get isActive() { return inAgentsMode; },
-			setActive: async (active: boolean) => { calls.push(`agentsMode:${active}`); inAgentsMode = active; },
+			setActive: async (active: boolean, workspaceId?: string) => { calls.push(workspaceId ? `agentsMode:${active}:${workspaceId}` : `agentsMode:${active}`); inAgentsMode = active; },
 		});
+		const contextService = instantiationService.get(IWorkspaceContextService) as TestContextService;
+		contextService.setWorkspace(testWorkspace(URI.file('/old')));
 		const service = store.add(instantiationService.createInstance(TestWorkspaceEditingService));
-		return { service, backups, calls, errors };
+		return { service, backups, calls, errors, contextService };
 	}
 
 	for (const remoteAuthority of [undefined, 'test-remote']) {
@@ -117,13 +124,21 @@ suite('NativeWorkspaceEditingService - extension host recovery', () => {
 	test('leaves Agents mode after stopping hosts and before entering the workspace, and goes back into it when the workspace is not entered', async () => {
 		const { service, calls } = setupServices(undefined, true, undefined, true);
 		await service.enterWorkspace(URI.file('/new.code-workspace'));
-		assert.deepStrictEqual({ calls, entered: service.entered }, { calls: ['stop', 'agentsMode:false', 'agentsMode:true', 'start'], entered: true });
+		assert.deepStrictEqual({ calls, entered: service.entered }, { calls: ['stop', 'agentsMode:false', `agentsMode:true:${testWorkspace(URI.file('/old')).id}`, 'start'], entered: true });
+	});
+
+	test('goes back into Agents mode with the left workspace\'s id when the configuration was already initialized with the new workspace', async () => {
+		const { service, calls, contextService } = setupServices(undefined, true, undefined, true);
+		const oldId = contextService.getWorkspace().id;
+		service.onEnter = () => contextService.setWorkspace(testWorkspace(URI.file('/new')));
+		await service.enterWorkspace(URI.file('/new.code-workspace'));
+		assert.deepStrictEqual(calls, ['stop', 'agentsMode:false', `agentsMode:true:${oldId}`, 'start']);
 	});
 
 	test('goes back into Agents mode when entering the workspace fails', async () => {
 		const { service, calls } = setupServices(undefined, true, undefined, true);
 		const failure = service.failure = new Error('entry failed');
 		await assert.rejects(service.enterWorkspace(URI.file('/new.code-workspace')), error => error === failure);
-		assert.deepStrictEqual(calls, ['stop', 'agentsMode:false', 'agentsMode:true', 'start']);
+		assert.deepStrictEqual(calls, ['stop', 'agentsMode:false', `agentsMode:true:${testWorkspace(URI.file('/old')).id}`, 'start']);
 	});
 });

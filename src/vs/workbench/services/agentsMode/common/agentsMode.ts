@@ -41,6 +41,8 @@ export interface IAgentsModeService {
 	/**
 	 * Enters or leaves Agents mode in place, and remembers it so that the window
 	 * restores in the mode. Does nothing when the window doesn't support the mode.
+	 * When entering, `workspaceId` is the id the mode's workspace takes; it defaults
+	 * to the id of the window's current workspace.
 	 */
-	setActive(active: boolean): Promise<void>;
+	setActive(active: boolean, workspaceId?: string): Promise<void>;
 }

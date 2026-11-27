@@ -267,7 +267,8 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 
 	/**
 	 * Moves a folder that Agents mode mounted to `location`, which must be its primary location or one of its alternates.
-	 * The mode never mounts untrusted folders, so the move is refused unless the destination is trusted.
+	 * In a trusted window the move is refused unless the destination is trusted, so declining the trust prompt never
+	 * restricts the window. A window that is already restricted moves the folder without asking, as it stays restricted.
 	 */
 	private async doSetMountedFolderLocation(location: URI, folder: URI, primary: URI): Promise<void> {
 		// Only the most recent invocation takes effect, regardless of the order in which resolutions complete
@@ -289,12 +290,13 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		}
 
 		if (!this.uriIdentityService.extUri.isEqual(location, folder)) {
+			const wasTrusted = this.workspaceTrustManagementService.isWorkspaceTrusted();
 			const trust = await this.settleFolderLocationTrust(location, primary, resolved, isFresh,
 				localize('trustMountedFolderLocationDetail', "You are moving a trusted folder to a location whose files are not currently trusted. If you do not trust them, the folder is not moved."));
 			if (!trust) {
 				return;
 			}
-			if (trust.trusted === false) {
+			if (trust.trusted === false && wasTrusted) {
 				throw new Error(localize('folderLocationNotTrusted', "The folder was not moved to '{0}' because its files are not trusted.", location.toString()));
 			}
 		}
