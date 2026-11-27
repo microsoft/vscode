@@ -164,28 +164,28 @@ export class ViewEditorPane extends EditorPane {
 		}
 
 		const disposables = new DisposableStore();
-		// The view goes before its instantiation service, as it can still create instances while it is disposed,
-		// such as a chat input reacting to its text being reset
-		const viewDisposables = disposables.add(new DisposableStore());
+		// When the editor closes, the view goes before its instantiation service, as it can still create instances while it
+		// is disposed. When its group closes, the group disposes the service, a child of its own, before its editor panes
+		const viewOwnDisposables = disposables.add(new DisposableStore());
 		const viewInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection(
 			[IEditorService, this.getMainPartEditorService()]
 		)));
 
 		try {
-			const view = viewDisposables.add(descriptor.createView(viewInstantiationService, input));
-			viewDisposables.add(toDisposable(() => {
+			const view = viewOwnDisposables.add(descriptor.createView(viewInstantiationService, input));
+			viewOwnDisposables.add(toDisposable(() => {
 				view.element.remove();
 				if (this.view === view) {
 					this.view = undefined;
 				}
 			}));
-			viewDisposables.add(view.onDidChange(e => {
+			viewOwnDisposables.add(view.onDidChange(e => {
 				if (this.view === view) {
 					this._onDidChangeSizeConstraints.fire(e);
 				}
 			}));
 			if (view.dragHandle) {
-				viewDisposables.add(this.registerDragHandle(view.dragHandle, input));
+				viewOwnDisposables.add(this.registerDragHandle(view.dragHandle, input));
 			}
 
 			return { view, disposables, dispose: () => disposables.dispose() };
