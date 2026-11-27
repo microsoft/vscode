@@ -7,12 +7,14 @@ import assert from 'assert';
 import type { BrowserWindow, WebContents, WebFrameMain } from 'electron';
 import sinon from 'sinon';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { isMacintosh } from '../../../../base/common/platform.js';
 import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ICodeWindow } from '../../../window/electron-main/window.js';
 import { IWindowsMainService } from '../../../windows/electron-main/windows.js';
+import { isFocusInFrameNestedInWebview } from '../../electron-main/webviewFrames.js';
 import { WebviewMainService } from '../../electron-main/webviewMainService.js';
 
 suite('WebviewMainService', () => {
@@ -51,8 +53,28 @@ suite('WebviewMainService', () => {
 	}
 
 	function createContents(mainFrame: WebFrameMain | undefined): WebContents {
-		return upcastPartial<WebContents>({ isDestroyed: () => false, mainFrame });
+		return upcastPartial<WebContents>({
+			isDestroyed: () => false,
+			mainFrame,
+			on: sinon.stub().returnsThis(),
+			once: sinon.stub().returnsThis(),
+			off: sinon.stub().returnsThis(),
+		});
 	}
+
+	/** Creates the frames for the given URLs and returns the innermost one. */
+	function createFrames(mainFrameUrl: string, ...childFrameUrls: string[]): WebFrameMain {
+		let frame = upcastPartial<WebFrameMain>({ url: mainFrameUrl, parent: null });
+		for (const url of childFrameUrls) {
+			frame = upcastPartial<WebFrameMain>({ url, parent: frame });
+		}
+		return frame;
+	}
+
+	const workbench = 'vscode-file://vscode-app/out/vs/code/electron-browser/workbench/workbench.html';
+	const webview = 'vscode-webview://id/index.html?id=1';
+	const webviewContent = 'vscode-webview://id/fake.html?id=1';
+	const nested = 'http://127.0.0.1:3000/';
 
 	async function findAndStop(service: WebviewMainService): Promise<void> {
 		await service.findInFrame({ windowId: 1 }, 'target', 'text', {});
@@ -172,5 +194,61 @@ suite('WebviewMainService', () => {
 		await service.setIgnoreMenuShortcuts({ windowId: 1 }, true);
 		await service.setIgnoreMenuShortcuts({ windowId: 1 }, false);
 		assert.deepStrictEqual(setIgnoreMenuShortcuts.args, [[true], [false]]);
+	});
+
+	test('detects focus in frames nested in a webview', () => {
+		const isNested = (focusedFrame: WebFrameMain | null) => isFocusInFrameNestedInWebview(upcastPartial<WebContents>({ focusedFrame }));
+		assert.deepStrictEqual([
+			isNested(null),
+			isNested(createFrames(workbench)),
+			isNested(createFrames(workbench, webview)),
+			isNested(createFrames(workbench, webview, webviewContent)),
+			isNested(createFrames(workbench, webview, webviewContent, nested)),
+			isNested(createFrames(workbench, webview, webviewContent, nested, 'about:srcdoc')),
+			isNested(upcastPartial<WebFrameMain>({ get url(): string { throw new Error('Render frame was disposed'); } })),
+		], [false, false, false, false, true, true, false]);
+	});
+
+	(isMacintosh ? test : test.skip)('lets edit shortcuts reach the menu while a frame nested in a webview has focus', async () => {
+		let focusedFrame = createFrames(workbench, webview, webviewContent, nested);
+		const setIgnoreMenuShortcuts = sinon.spy();
+		const on = sinon.stub().returnsThis();
+		const { service } = createService(upcastPartial<WebContents>({
+			id: 1,
+			isDestroyed: () => false,
+			get focusedFrame() { return focusedFrame; },
+			setIgnoreMenuShortcuts,
+			on,
+			once: sinon.stub().returnsThis(),
+			off: sinon.stub().returnsThis(),
+		}));
+		const press = (key: string, code: string, modifiers: Partial<Electron.Input> = {}) => {
+			const onBeforeInput = on.args.find(([event]) => event === 'before-input-event')?.[1];
+			onBeforeInput({}, { type: 'keyDown', key, code, meta: true, shift: false, control: false, alt: false, ...modifiers });
+			return setIgnoreMenuShortcuts.lastCall.args[0];
+		};
+
+		await service.setIgnoreMenuShortcuts({ windowId: 1 }, true);
+		const ignored = [
+			press('c', 'KeyC'),
+			press('z', 'KeyZ', { shift: true }),
+			press('a', 'KeyQ'), // Select All on AZERTY
+			press('\u0441', 'KeyC'), // Copy on Russian
+			press('w', 'KeyW'),
+			press('x', 'KeyX', { shift: true }),
+			press('c', 'KeyC', { control: true }),
+			press('q', 'KeyA'), // Quit on AZERTY
+		];
+		focusedFrame = createFrames(workbench, webview, webviewContent);
+		ignored.push(press('c', 'KeyC'));
+		await service.setIgnoreMenuShortcuts({ windowId: 1 }, false);
+		focusedFrame = createFrames(workbench, webview, webviewContent, nested);
+		const calls = setIgnoreMenuShortcuts.callCount;
+		press('w', 'KeyW');
+
+		assert.deepStrictEqual({ ignored, callsWhileNotIgnoring: setIgnoreMenuShortcuts.callCount - calls }, {
+			ignored: [false, false, false, false, true, true, true, true, true],
+			callsWhileNotIgnoring: 0,
+		});
 	});
 });
