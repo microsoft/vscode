@@ -7,7 +7,7 @@ import { raceTimeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { IExtensionRecommendations } from '../../../../base/common/product.js';
-import { localize } from '../../../../nls.js';
+import { localize, localize2 } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IExtensionGalleryService, IGalleryExtension } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -64,8 +64,10 @@ export const SETTINGS_EDITOR_COMMAND_TOGGLE_AI_SEARCH = 'settings.action.toggleA
 export const SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU = 'settings.action.showContextMenu';
 export const SETTINGS_EDITOR_COMMAND_SUGGEST_FILTERS = 'settings.action.suggestFilters';
 
+export const OPEN_USER_SETTINGS_UI_TITLE = localize2('openSettings2', "Open Settings (UI)");
+
 export const CONTEXT_SETTINGS_EDITOR = new RawContextKey<boolean>('inSettingsEditor', false);
-export const CONTEXT_HAS_WORKSPACE_SETTINGS = new RawContextKey<boolean>('hasWorkspaceSettings', false, localize('hasWorkspaceSettings', "Whether the window has a workspace settings file"));
+export const CONTEXT_HAS_WORKSPACE_SETTINGS = new RawContextKey<boolean>('hasWorkspaceSettings', false, localize('hasWorkspaceSettings', "Whether the window has workspace settings to open"));
 export const CONTEXT_SETTINGS_JSON_EDITOR = new RawContextKey<boolean>('inSettingsJSONEditor', false);
 export const CONTEXT_SETTINGS_SEARCH_FOCUS = new RawContextKey<boolean>('inSettingsSearch', false);
 export const CONTEXT_TOC_ROW_FOCUS = new RawContextKey<boolean>('settingsTocRowFocus', false);

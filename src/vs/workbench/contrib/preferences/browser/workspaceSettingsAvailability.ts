@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import * as nls from '../../../../nls.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -13,15 +12,13 @@ import { ResourceContextKey, WorkbenchStateContext } from '../../../common/conte
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IAgentsModeService } from '../../../services/agentsMode/common/agentsMode.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
-import { CONTEXT_HAS_WORKSPACE_SETTINGS } from '../common/preferences.js';
+import { CONTEXT_HAS_WORKSPACE_SETTINGS, OPEN_USER_SETTINGS_UI_TITLE } from '../common/preferences.js';
 import { preferencesOpenSettingsIcon } from './preferencesIcons.js';
 
-export const OPEN_USER_SETTINGS_UI_TITLE = nls.localize2('openSettings2', "Open Settings (UI)");
-
 /**
- * Follows whether the window has workspace settings to open: a workspace has
- * none in Agents mode. Tells it to the commands opening them, and shows the
- * "Open Settings (UI)" button in the title of the workspace settings file
+ * Follows whether the window has workspace settings to open, which a workspace in
+ * Agents mode has only from the folders mounted in it. Tells it to the Command Palette,
+ * and shows the "Open Settings (UI)" button in the title of the workspace file
  * while the workspace has one.
  */
 export class WorkspaceSettingsAvailabilityContribution extends Disposable implements IWorkbenchContribution {
@@ -29,8 +26,8 @@ export class WorkspaceSettingsAvailabilityContribution extends Disposable implem
 	static readonly ID = 'workbench.contrib.workspaceSettingsAvailability';
 	static readonly COMMAND_ID = '_workbench.openWorkspaceSettingsEditor';
 
-	private readonly registration = this._register(new MutableDisposable<DisposableStore>());
-	private registeredResource: string | undefined;
+	/** The title button and its command, for the workspace file they were registered for. */
+	private readonly registration = this._register(new MutableDisposable<IDisposable & { readonly resource: string }>());
 	private readonly hasWorkspaceSettings: IContextKey<boolean>;
 
 	constructor(
@@ -42,6 +39,7 @@ export class WorkspaceSettingsAvailabilityContribution extends Disposable implem
 		super();
 
 		this.hasWorkspaceSettings = CONTEXT_HAS_WORKSPACE_SETTINGS.bindTo(contextKeyService);
+		this._register(toDisposable(() => this.hasWorkspaceSettings.reset()));
 		this.update();
 		this._register(workspaceContextService.onDidChangeWorkbenchState(() => this.update()));
 		// Save Workspace As moves the workspace settings to another file in the same workbench state
@@ -53,18 +51,18 @@ export class WorkspaceSettingsAvailabilityContribution extends Disposable implem
 	}
 
 	private updateHasWorkspaceSettings(): void {
-		this.hasWorkspaceSettings.set(this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY && !!this.preferencesService.workspaceSettingsResource);
+		this.hasWorkspaceSettings.set(!!this.preferencesService.workspaceSettingsResource);
 	}
 
 	private update(): void {
 		this.updateHasWorkspaceSettings();
 
-		const resource = this.workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? this.preferencesService.workspaceSettingsResource?.toString() : undefined;
-		if (resource === this.registeredResource) {
+		// The workspace file itself: in Agents mode the workspace settings can be a mounted folder's file, which has its own button
+		const resource = this.workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? this.workspaceContextService.getWorkspace().configuration?.toString() : undefined;
+		if (resource === this.registration.value?.resource) {
 			return;
 		}
 
-		this.registeredResource = resource;
 		this.registration.clear();
 		if (!resource) {
 			return;
@@ -85,6 +83,6 @@ export class WorkspaceSettingsAvailabilityContribution extends Disposable implem
 				order: 1
 			}));
 		}
-		this.registration.value = store;
+		this.registration.value = { resource, dispose: () => store.dispose() };
 	}
 }

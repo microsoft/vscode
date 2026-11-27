@@ -22,14 +22,15 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { CanEnterAgentsMode } from '../../browser/agentSessions/agentsModeActions.js';
-import { AgentsModeContribution } from '../../electron-browser/agentSessions/agentsMode.contribution.js';
+import { AgentsModeActive, CanEnterAgentsMode } from '../../browser/agentSessions/agentsModeActions.js';
+import { AgentsModeContribution } from '../../electron-browser/agentSessions/agentsModeContribution.js';
 
 suite('Agents mode contribution', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('a window that supports the mode can enter it while the setting is on, and follows the setting as it changes', async () => {
+	/** Records whether the window can enter the mode as the setting is turned off and on again, in a window that supports the mode. */
+	async function canEnterAsSettingChanges(isActive: boolean): Promise<{ canEnter: boolean[]; active: boolean }> {
 		const configuration = new TestConfigurationService({ [AGENTS_MODE_ENABLED_SETTING]: true });
 		disposables.add(configuration.onDidChangeConfigurationEmitter);
 		const context = disposables.add(new ContextKeyService(configuration));
@@ -37,21 +38,31 @@ suite('Agents mode contribution', () => {
 		instantiation.stub(IConfigurationService, configuration);
 		instantiation.stub(IContextKeyService, context);
 		instantiation.stub(IStorageService, disposables.add(new InMemoryStorageService()));
-		instantiation.stub(IAgentsModeService, { isSupported: true, isActive: false, onWillChange: Event.None, onDidChange: Event.None });
+		instantiation.stub(IAgentsModeService, { isSupported: true, isActive, onWillChange: Event.None, onDidChange: Event.None });
 		instantiation.stub(IActionViewItemService, { register: () => Disposable.None });
 		instantiation.stub(IWorkbenchLayoutService, { onDidChangePartVisibility: Event.None });
 		instantiation.stub(IEditorService, { onDidVisibleEditorsChange: Event.None });
 		instantiation.stub(IEditorGroupsService, {});
-		instantiation.stub(ILifecycleService, {});
+		// A window restored in the mode lays itself out once restored, which this test does not need
+		instantiation.stub(ILifecycleService, { when: () => new Promise<void>(() => { }) });
 		instantiation.stub(IViewsService, {});
 		instantiation.stub(IViewDescriptorService, {});
 
 		disposables.add(instantiation.createInstance(AgentsModeContribution));
-		const canEnter = [context.getContextKeyValue(CanEnterAgentsMode.key)];
-		await configuration.setUserConfiguration(AGENTS_MODE_ENABLED_SETTING, false);
-		configuration.onDidChangeConfigurationEmitter.fire({ affectedKeys: new Set([AGENTS_MODE_ENABLED_SETTING]), affectsConfiguration: (key: string): boolean => key === AGENTS_MODE_ENABLED_SETTING } as Partial<IConfigurationChangeEvent> as IConfigurationChangeEvent);
-		canEnter.push(context.getContextKeyValue(CanEnterAgentsMode.key));
+		const canEnter = [context.getContextKeyValue<boolean>(CanEnterAgentsMode.key) ?? false];
+		for (const value of [false, true]) {
+			await configuration.setUserConfiguration(AGENTS_MODE_ENABLED_SETTING, value);
+			configuration.onDidChangeConfigurationEmitter.fire({ affectedKeys: new Set([AGENTS_MODE_ENABLED_SETTING]), affectsConfiguration: (key: string): boolean => key === AGENTS_MODE_ENABLED_SETTING } as Partial<IConfigurationChangeEvent> as IConfigurationChangeEvent);
+			canEnter.push(context.getContextKeyValue<boolean>(CanEnterAgentsMode.key) ?? false);
+		}
+		return { canEnter, active: context.getContextKeyValue<boolean>(AgentsModeActive.key) ?? false };
+	}
 
-		assert.deepStrictEqual(canEnter, [true, false]);
+	test('a window that supports the mode can enter it while the setting is on, and follows the setting as it is turned off and on', async () => {
+		assert.deepStrictEqual(await canEnterAsSettingChanges(false), { canEnter: [true, false, true], active: false });
+	});
+
+	test('a window in the mode cannot enter it again, whatever the setting', async () => {
+		assert.deepStrictEqual(await canEnterAsSettingChanges(true), { canEnter: [false, false, false], active: true });
 	});
 });

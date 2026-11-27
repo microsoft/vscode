@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { structuralEquals } from '../../../../../base/common/equals.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedOpts, IObservable, observableFromEvent, observableSignalFromEvent, runOnChange, waitForState } from '../../../../../base/common/observable.js';
@@ -269,7 +270,7 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 		// One state of both, so that a change of the mode is handled after the change of the setting it comes with, however late
 		// the setting turned on: the window can also enter or leave the mode with the setting as the user configured it, which then
 		// does not change, so the chats stay where they are, and what the window did in or for the mode no longer applies
-		const state = derivedOpts<{ configured: boolean; agentsMode: boolean }>({ owner: this, equalsFn: (a, b) => a.configured === b.configured && a.agentsMode === b.agentsMode }, reader => ({ configured: configured.read(reader), agentsMode: agentsMode.read(reader) }));
+		const state = derivedOpts<{ configured: boolean; agentsMode: boolean }>({ owner: this, equalsFn: structuralEquals }, reader => ({ configured: configured.read(reader), agentsMode: agentsMode.read(reader) }));
 		this._register(runOnChange(state, (value, previous) => {
 			if (value.configured !== previous.configured) {
 				moveChat(value.configured);

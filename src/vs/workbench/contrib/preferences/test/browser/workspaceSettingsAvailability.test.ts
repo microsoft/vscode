@@ -32,7 +32,7 @@ suite('WorkspaceSettingsAvailabilityContribution', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('registers the title button, and shows the commands opening workspace settings, only while the workspace has a settings file, as in and out of Agents mode', async () => {
+	test('registers the title button, and shows the commands opening workspace settings, only while the workspace has settings to open, as in and out of Agents mode', async () => {
 		const onDidChangeWorkbenchState = disposables.add(new Emitter<WorkbenchState>());
 		const onDidChangeAgentsMode = disposables.add(new Emitter<boolean>());
 		const onDidChangeWorkspaceFolders = disposables.add(new Emitter<IWorkspaceFoldersChangeEvent>());
@@ -79,8 +79,8 @@ suite('WorkspaceSettingsAvailabilityContribution', () => {
 		onDidChangeWorkbenchState.fire(WorkbenchState.WORKSPACE);
 		states.push(registered());
 
-		// The commands opening workspace settings are disabled in the mode; opened another way, such as from the Settings
-		// editor, the user is told there are no workspace settings to open, rather than it failing or doing nothing
+		// The commands opening workspace settings are hidden from the Command Palette in the mode; run another way, such as
+		// from a keybinding, the user is told there are no workspace settings to open, rather than it failing or doing nothing
 		const openInMode = await preferencesService.openWorkspaceSettings({ jsonEditor: false }).then(() => 'opened', error => ({ rejectedWith: error }));
 
 		// Leaving the mode brings the workspace file back
@@ -102,6 +102,9 @@ suite('WorkspaceSettingsAvailabilityContribution', () => {
 		workspace = createWorkspace(null, [URI.file('/repo')]);
 		onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [] });
 		states.push(registered());
+		// Nor when the title button is updated then, as the folder's settings file has a button of its own
+		onDidChangeWorkspaceName.fire();
+		states.push(registered());
 
 		workspace = createWorkspace(URI.file('/workspace/test.code-workspace'));
 		onDidChangeAgentsMode.fire(false);
@@ -117,6 +120,7 @@ suite('WorkspaceSettingsAvailabilityContribution', () => {
 				{ command: false, titleButtons: [], hasWorkspaceSettings: false },
 				{ command: false, titleButtons: [], hasWorkspaceSettings: true },
 				{ command: false, titleButtons: [], hasWorkspaceSettings: true },
+				{ command: false, titleButtons: [], hasWorkspaceSettings: false },
 			],
 			openInMode: { rejectedWith: null },
 			messages: ['Open a folder or workspace first to create workspace or folder settings.'],

@@ -32,9 +32,10 @@ import { AgentsConfigurationService } from './agentsConfigurationService.js';
 import { AgentsWorkspaceContextService } from './agentsWorkspaceContextService.js';
 
 /**
- * Setting that opts local editor windows into Agents mode. Turning it on takes
- * effect in a window after it is reloaded; a window that already supports the mode
- * shows or hides its toggle as the setting changes.
+ * Setting that opts local editor windows into Agents mode. Turning it on or off
+ * fully takes effect in a window after it is reloaded. Until then, a window that
+ * started with it on shows or hides the toggle entering the mode as it changes,
+ * and a window in the mode keeps the toggle leaving it whatever the setting.
  */
 export const AGENTS_MODE_ENABLED_SETTING = 'chat.agentsMode.enabled';
 
@@ -52,7 +53,7 @@ export const agentsModeEnabledConfiguration: IConfigurationNode = {
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
-			description: localize('agentsMode.enabled', "Enable toggling Agents mode in a local editor window. A window with a folder or workspace gets its folders back when it leaves the mode. Turning it on takes effect in a window after it is reloaded."),
+			description: localize('agentsMode.enabled', "Enable toggling Agents mode in a local editor window. A window with a folder or workspace gets its folders back when it leaves the mode. A change fully takes effect in a window after it is reloaded; until then, a window in Agents mode can still leave it."),
 		}
 	}
 };
