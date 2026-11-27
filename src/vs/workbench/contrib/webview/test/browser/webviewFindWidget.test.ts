@@ -19,17 +19,19 @@ suite('WebviewFindWidget', () => {
 	let nextButton: HTMLElement;
 	let hasFindResult: Emitter<boolean>;
 	let searches: string[];
+	let navigation: boolean[];
 	let inputFocusSpy: sinon.SinonSpy;
 	let nextButtonFocusSpy: sinon.SinonSpy;
 
 	setup(async () => {
 		searches = [];
+		navigation = [];
 		hasFindResult = store.add(new Emitter<boolean>());
 		const delegate: WebviewFindDelegate = {
 			hasFindResult: hasFindResult.event,
 			onDidStopFind: Event.None,
 			checkImeCompletionState: true,
-			find: () => { },
+			find: (_value, previous) => { navigation.push(previous); },
 			updateFind: value => { searches.push(value); },
 			stopFind: () => { },
 			focus: () => { },
@@ -136,5 +138,43 @@ suite('WebviewFindWidget', () => {
 			inputFocusedAfterNextButton: true,
 			inputHasFocus: true,
 		});
+	});
+
+	for (const direction of ['previous', 'next']) {
+		test(`find results preserve focus on the ${direction} match button`, () => {
+			input.value = 'hello';
+			input.dispatchEvent(new InputEvent('input', { data: 'hello' }));
+			hasFindResult.fire(true);
+
+			const button = input.closest('.simple-find-part')?.querySelector<HTMLElement>(`.codicon-find-${direction}-match`);
+			assert.ok(button);
+			button.focus();
+			assert.strictEqual(document.activeElement, button);
+			inputFocusSpy.resetHistory();
+
+			button.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+			hasFindResult.fire(true);
+
+			assert.strictEqual(document.activeElement, button);
+			assert.strictEqual(inputFocusSpy.callCount, 0);
+			assert.deepStrictEqual(navigation, [direction === 'previous']);
+		});
+	}
+
+	test('late find results do not take focus from another control', () => {
+		input.value = 'hello';
+		input.dispatchEvent(new InputEvent('input', { data: 'hello' }));
+
+		const otherInput = document.createElement('input');
+		document.body.appendChild(otherInput);
+		store.add(toDisposable(() => otherInput.remove()));
+		otherInput.focus();
+		assert.strictEqual(document.activeElement, otherInput);
+		inputFocusSpy.resetHistory();
+
+		hasFindResult.fire(true);
+
+		assert.strictEqual(document.activeElement, otherInput);
+		assert.strictEqual(inputFocusSpy.callCount, 0);
 	});
 });
