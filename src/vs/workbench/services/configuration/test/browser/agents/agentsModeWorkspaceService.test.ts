@@ -11,7 +11,7 @@ import { joinPath } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
-import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
@@ -31,7 +31,7 @@ import { RemoteAgentService } from '../../../../remote/browser/remoteAgentServic
 import { IRemoteAgentService } from '../../../../remote/common/remoteAgentService.js';
 import { UserDataProfileService } from '../../../../userDataProfile/common/userDataProfileService.js';
 import { IUserDataProfileService } from '../../../../userDataProfile/common/userDataProfile.js';
-import { AGENTS_MODE_ENABLED_SETTING, AgentsModeWorkspaceService, LEGACY_AGENTS_MODE_ENABLED_SETTING, supportsAgentsMode } from '../../../browser/agents/agentsModeWorkspaceService.js';
+import { AGENTS_MODE_ENABLED_SETTING, AgentsModeWorkspaceService, supportsAgentsMode } from '../../../browser/agents/agentsModeWorkspaceService.js';
 import { WorkspaceService } from '../../../browser/configurationService.js';
 import { IConfigurationCache } from '../../../common/configuration.js';
 import { ConfigurationEditingError, ConfigurationEditingErrorCode } from '../../../common/configurationEditing.js';
@@ -398,7 +398,6 @@ suite('AgentsModeWorkspaceService', () => {
 		const local = { remoteAuthority: undefined, isExtensionDevelopment: false, isSessionsWindow: false };
 		const settings = (values: Record<string, unknown>) => ({
 			getValue: <T>(key?: unknown, _overrides?: unknown) => values[key as string] as T,
-			inspect: <T>(key: string) => ({ userValue: values[key] as T }) as IConfigurationValue<Readonly<T>>,
 		});
 		const setting = (value: unknown) => settings({ [AGENTS_MODE_ENABLED_SETTING]: value });
 
@@ -412,10 +411,8 @@ suite('AgentsModeWorkspaceService', () => {
 			remote: supportsAgentsMode({ ...local, remoteAuthority: 'ssh-remote+host' }, setting(true), true),
 			extensionDevelopment: supportsAgentsMode({ ...local, isExtensionDevelopment: true }, setting(true), true),
 			agentsWindow: supportsAgentsMode({ ...local, isSessionsWindow: true }, setting(true), true),
-			legacyOn: supportsAgentsMode(local, settings({ [LEGACY_AGENTS_MODE_ENABLED_SETTING]: true }), true),
-			legacyOnNewOff: supportsAgentsMode(local, settings({ [LEGACY_AGENTS_MODE_ENABLED_SETTING]: true, [AGENTS_MODE_ENABLED_SETTING]: false }), true),
 		}, {
-			enabled: true, settingOff: false, settingUnset: false, settingTruthy: false, noBackup: false, workspacesFilterOnly: false, remote: false, extensionDevelopment: false, agentsWindow: false, legacyOn: true, legacyOnNewOff: false,
+			enabled: true, settingOff: false, settingUnset: false, settingTruthy: false, noBackup: false, workspacesFilterOnly: false, remote: false, extensionDevelopment: false, agentsWindow: false,
 		});
 	});
 });
