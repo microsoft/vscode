@@ -409,11 +409,7 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	getWorkspaceLaunch(): ILaunch | undefined {
-		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
-			return this.launches[this.launches.length - 1];
-		}
-
-		return undefined;
+		return this.launches.find(launch => launch instanceof WorkspaceLaunch);
 	}
 
 	async selectConfiguration(launch: ILaunch | undefined, name?: string, config?: IConfig, dynamicConfig?: { type?: string }): Promise<void> {
