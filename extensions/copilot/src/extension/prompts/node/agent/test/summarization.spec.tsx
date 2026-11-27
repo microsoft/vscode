@@ -31,6 +31,7 @@ import { Conversation, ICopilotChatResultIn, normalizeSummariesOnRounds, Turn, T
 import { IBuildPromptContext, IToolCall } from '../../../../prompt/common/intents';
 import { ToolCallRound } from '../../../../prompt/common/toolCallRound';
 import { createExtensionUnitTestingServices } from '../../../../test/node/services';
+import { TestChatRequest } from '../../../../test/node/testHelpers';
 import { ToolName } from '../../../../tools/common/toolNames';
 import { IToolsService } from '../../../../tools/common/toolsService';
 import { PromptRenderer } from '../../base/promptRenderer';
@@ -440,7 +441,7 @@ suite('Agent Summarization', () => {
 	test('FullSummarization - summary for previous turn, no tool call rounds', async () => testSummarizeWithNoRoundsInCurrentTurn(TestPromptType.FullSummarization));
 	test('SimpleSummarization - summary for previous turn, no tool call rounds', async () => testSummarizeWithNoRoundsInCurrentTurn(TestPromptType.SimpleSummarization));
 
-	function createSummarizationTestContext() {
+	function createSummarizationTestContext(modelConfiguration?: Readonly<Record<string, unknown>>) {
 		const instaService = accessor.get(IInstantiationService);
 		const endpoint = instaService.createInstance(MockEndpoint, undefined);
 
@@ -453,6 +454,8 @@ suite('Agent Summarization', () => {
 		const turn = new Turn('turnId', { type: 'user', message: 'hello' });
 		const testConversation = new Conversation('sessionId', [turn]);
 
+		const request = new TestChatRequest('edit this file');
+		(request as TestChatRequest & { modelConfiguration?: Readonly<Record<string, unknown>> }).modelConfiguration = modelConfiguration;
 		const promptContext: IBuildPromptContext = {
 			chatVariables: new ChatVariablesCollection([{ id: 'vscode.file', name: 'file', value: fileTsUri }]),
 			history: [],
@@ -461,6 +464,7 @@ suite('Agent Summarization', () => {
 			toolCallResults: createEditFileToolResult(1, 2, 3),
 			tools,
 			conversation: testConversation,
+			...(modelConfiguration === undefined ? {} : { request }),
 		};
 
 		const historyProps = {
@@ -565,6 +569,29 @@ suite('Agent Summarization', () => {
 		for (const request of capturedRequests) {
 			expect(request.ignoreStatefulMarker).toBe(true);
 		}
+	});
+
+	test('foreground compaction forwards the selected request configuration and preserves absence', async () => {
+		const captureConfiguration = async (modelConfiguration: Readonly<Record<string, unknown>> | undefined) => {
+			chatResponse[0] = '<summary>summarized successfully!</summary>';
+			const { instaService, endpoint, historyProps } = createSummarizationTestContext(modelConfiguration);
+			const capturedRequests: IMakeChatRequestOptions[] = [];
+			const originalMakeChatRequest2 = endpoint.makeChatRequest2.bind(endpoint);
+			endpoint.makeChatRequest2 = (options, token) => {
+				capturedRequests.push(options);
+				return originalMakeChatRequest2(options, token);
+			};
+
+			const renderer = PromptRenderer.create(instaService, endpoint, SummarizedConversationHistory, historyProps);
+			await renderer.render();
+
+			expect(capturedRequests).toHaveLength(1);
+			return capturedRequests[0].modelConfiguration;
+		};
+
+		const selected = { reasoningEffort: 'high', contextSize: 500_000 } as const;
+		expect(await captureConfiguration(selected)).toEqual(selected);
+		expect(await captureConfiguration(undefined)).toBeUndefined();
 	});
 
 	test('large <analysis> block does not push an in-budget summary over the token limit #321200', async () => {
