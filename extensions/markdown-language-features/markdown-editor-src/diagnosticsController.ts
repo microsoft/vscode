@@ -76,14 +76,15 @@ export class DiagnosticsController extends Disposable {
 		}));
 		const mousemove = (event: MouseEvent): void => {
 			if (event.target instanceof Node && hover.element.contains(event.target)) { return; }
+			const scale = view.overlayContainer.currentCSSZoom;
 			const hits = [...markedItems].filter(([child]) => {
 				const rect = child.getBoundingClientRect();
 				return event.clientX >= rect.left && event.clientX <= rect.right
-					&& event.clientY >= rect.bottom - Number(child.dataset.lineHeight) && event.clientY <= rect.bottom + 3;
+					&& event.clientY >= rect.bottom - Number(child.dataset.lineHeight) * scale && event.clientY <= rect.bottom + 3 * scale;
 			});
 			if (hits.length) {
 				const rect = hits[0][0].getBoundingClientRect();
-				const height = Number(hits[0][0].dataset.lineHeight);
+				const height = Number(hits[0][0].dataset.lineHeight) * scale;
 				hover.show([...new Set(hits.map(([, item]) => item))], new DOMRect(rect.x, rect.bottom - height, rect.width, height));
 			} else { hover.scheduleHide(); }
 		};

@@ -157,12 +157,12 @@ suite('Markdown editor RPC', () => {
 			configurationChanged: configuration => { seen.push(configuration); },
 		});
 		const renderer = host.get(markdownEditorRenderer);
-		renderer.configurationChanged({ highlightActiveBlock: false, renderWhitespace: true, lineBreak: '\n', documentReadonly: false });
-		renderer.configurationChanged({ highlightActiveBlock: true, renderWhitespace: false, lineBreak: '\r\n', documentReadonly: true });
-		await host.channel.sendNotification('markdown.editor.renderer::configurationChanged', { highlightActiveBlock: true, renderWhitespace: false, lineBreak: '\r', documentReadonly: false });
+		renderer.configurationChanged({ highlightActiveBlock: false, renderWhitespace: true, lineBreak: '\n', zoomPercent: 120, documentReadonly: false });
+		renderer.configurationChanged({ highlightActiveBlock: true, renderWhitespace: false, lineBreak: '\r\n', zoomPercent: 100, documentReadonly: true });
+		await host.channel.sendNotification('markdown.editor.renderer::configurationChanged', { highlightActiveBlock: true, renderWhitespace: false, lineBreak: '\r', zoomPercent: 100, documentReadonly: false });
 		assert.deepStrictEqual(seen, [
-			{ highlightActiveBlock: false, renderWhitespace: true, lineBreak: '\n', documentReadonly: false },
-			{ highlightActiveBlock: true, renderWhitespace: false, lineBreak: '\r\n', documentReadonly: true },
+			{ highlightActiveBlock: false, renderWhitespace: true, lineBreak: '\n', zoomPercent: 120, documentReadonly: false },
+			{ highlightActiveBlock: true, renderWhitespace: false, lineBreak: '\r\n', zoomPercent: 100, documentReadonly: true },
 		]);
 		assert.strictEqual(rendererInbox.messages.length, 3);
 		assert.deepStrictEqual(hostInbox.messages, []);
