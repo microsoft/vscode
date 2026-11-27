@@ -158,10 +158,46 @@ interface IRange {
 	readonly endOffset: number;
 }
 
-const topLevelKeys = new Set(['version', 'name', 'display-name', 'description', 'effort', 'context-size', 'switching', 'guidance', 'routes']);
+/** A key of a router file or of one of its routes, as an editor offers it. */
+export interface IModelRouterKey {
+	readonly name: string;
+	/** The values the key takes, when it takes one of a fixed set. */
+	readonly values?: readonly string[];
+	/** Whether the value is a list, written on the lines below the key. */
+	readonly isList?: boolean;
+}
+
+const routerEfforts: readonly ModelRouterEffort[] = ['auto', 'off', ...reasoningEffortLevels];
+const contextSizes: readonly ModelRouterContextSize[] = ['default', 'long'];
+const switchingModes: readonly ModelRouterSwitching[] = ['first-turn', 'auto'];
+
+/** The keys at the top of a router file. */
+export const modelRouterKeys: readonly IModelRouterKey[] = [
+	{ name: 'version', values: [String(MODEL_ROUTER_VERSION)] },
+	{ name: 'name' },
+	{ name: 'display-name' },
+	{ name: 'description' },
+	{ name: 'effort', values: routerEfforts },
+	{ name: 'context-size', values: contextSizes },
+	{ name: 'switching', values: switchingModes },
+	{ name: 'guidance' },
+	{ name: 'routes', isList: true },
+];
+/** The keys of a route. */
+export const modelRouterRouteKeys: readonly IModelRouterKey[] = [
+	{ name: 'name' },
+	{ name: 'model' },
+	{ name: 'when' },
+	{ name: 'examples', isList: true },
+	{ name: 'effort', values: reasoningEffortLevels },
+	{ name: 'context-size', values: contextSizes },
+	{ name: 'guidance' },
+];
+
+const topLevelKeys = new Set(modelRouterKeys.map(key => key.name));
 /** Keys the format reserves for later versions; a router using them still loads. */
 const reservedTopLevelKeys = new Set(['subagents', 'phases', 'mid-turn']);
-const routeKeys = new Set(['name', 'model', 'when', 'examples', 'effort', 'context-size', 'guidance']);
+const routeKeys = new Set(modelRouterRouteKeys.map(key => key.name));
 /** Keys of the preview format, which wrote named routes as `playbooks` with `roles`. */
 const removedTopLevelKeys = new Map([
 	['playbooks', 'Write `playbooks` as `routes`: a list where each route has `model` and `when`, and can have a `name` and `guidance`.'],
@@ -169,7 +205,6 @@ const removedTopLevelKeys = new Map([
 ]);
 /** The most guidance a route gives its main agent: it is part of every request of the chat. */
 const MAX_ROUTE_GUIDANCE_CHARS = 4000;
-const effortLevels: ReadonlySet<string> = new Set(reasoningEffortLevels);
 
 /** The router name a file name implies: `daily-driver.model-router.yaml` → `daily-driver`. */
 export function modelRouterNameFromFileName(fileName: string): string | undefined {
@@ -429,15 +464,16 @@ export function parseModelRouter(content: string, fileName: string): IModelRoute
 		report.error(`The display name is longer than ${MAX_DISPLAY_NAME_CHARS} characters.`, displayNameProperty?.value);
 	}
 
-	const effort = parseEffort(values.get('effort')?.value, ['auto', 'off'], 'auto', '`effort`', report) as ModelRouterEffort;
+	const effort = parseEffort(values.get('effort')?.value, routerEfforts, 'auto', '`effort`', report) as ModelRouterEffort;
 	const contextSize = parseContextSize(values.get('context-size')?.value, '`context-size`', report);
 
 	const switchingProperty = values.get('switching');
 	let switching: ModelRouterSwitching = 'first-turn';
 	if (switchingProperty) {
 		const value = scalar(switchingProperty.value);
-		if (value === 'auto' || value === 'first-turn') {
-			switching = value;
+		const mode = switchingModes.find(candidate => candidate === value);
+		if (mode) {
+			switching = mode;
 		} else if (value === 'mid-turn') {
 			report.warning('`switching: mid-turn` is reserved for a later version; this router routes on the first turn only.', switchingProperty.value);
 		} else {
@@ -587,7 +623,7 @@ function parseRoute(item: YamlNode, index: number, isOnlyRoute: boolean, report:
 		examples = list.slice(0, MAX_EXAMPLES).filter(Boolean);
 	}
 
-	const effort = parseEffort(values.get('effort')?.value, [], undefined, `${label}'s \`effort\``, report) as ModelRouterEffortLevel | undefined;
+	const effort = parseEffort(values.get('effort')?.value, reasoningEffortLevels, undefined, `${label}'s \`effort\``, report) as ModelRouterEffortLevel | undefined;
 	const contextSize = parseContextSize(values.get('context-size')?.value, `${label}'s \`context-size\``, report);
 
 	const guidanceProperty = values.get('guidance');
@@ -602,15 +638,15 @@ function parseRoute(item: YamlNode, index: number, isOnlyRoute: boolean, report:
 	return { models, when, examples, ...(effort ? { effort } : {}), ...(contextSize ? { contextSize } : {}), ...(name ? { name } : {}), ...(mainAgentGuidance ? { mainAgentGuidance } : {}) };
 }
 
-function parseEffort(node: YamlNode | undefined, keywords: readonly string[], fallback: string | undefined, label: string, report: IReporter): string | undefined {
+function parseEffort(node: YamlNode | undefined, allowed: readonly string[], fallback: string | undefined, label: string, report: IReporter): string | undefined {
 	if (!node) {
 		return fallback;
 	}
 	const value = scalar(node);
-	if (value !== undefined && (keywords.includes(value) || effortLevels.has(value))) {
+	if (value !== undefined && allowed.includes(value)) {
 		return value;
 	}
-	report.error(`${label} is ${[...keywords, ...effortLevels].map(level => `\`${level}\``).join(', ')}.`, node);
+	report.error(`${label} is ${allowed.map(level => `\`${level}\``).join(', ')}.`, node);
 	return fallback;
 }
 
@@ -619,8 +655,9 @@ function parseContextSize(node: YamlNode | undefined, label: string, report: IRe
 		return undefined;
 	}
 	const value = scalar(node);
-	if (value === 'default' || value === 'long') {
-		return value;
+	const size = contextSizes.find(candidate => candidate === value);
+	if (size) {
+		return size;
 	}
 	report.error(`${label} is \`default\` or \`long\`.`, node);
 	return undefined;
@@ -743,16 +780,24 @@ function checkQuotedScalar(content: string, node: YamlScalarNode, report: IRepor
 
 /** The shared parser stops at the first thing it doesn't understand; anything left over is an error. */
 function checkNoTrailingContent(content: string, root: YamlNode, report: IReporter): void {
+	const unread = findUnreadModelRouterLine(content, root);
+	if (unread) {
+		report.error('This line is not part of the router; check its indentation.', unread);
+	}
+}
+
+/** The first line after `root` that is not empty or a comment: where the shared parser stopped reading `content`, when that is before its end. */
+export function findUnreadModelRouterLine(content: string, root: YamlNode): { readonly startOffset: number; readonly endOffset: number } | undefined {
 	const rest = content.slice(root.endOffset);
 	let offset = root.endOffset;
 	for (const line of rest.split('\n')) {
 		if (!/^\s*(#.*)?$/.test(line)) {
 			const start = offset + line.length - line.trimStart().length;
-			report.error('This line is not part of the router; check its indentation.', { startOffset: start, endOffset: offset + line.length });
-			return;
+			return { startOffset: start, endOffset: offset + line.length };
 		}
 		offset += line.length + 1;
 	}
+	return undefined;
 }
 
 // ---- Model references ------------------------------------------------------
