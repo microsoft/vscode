@@ -23,7 +23,7 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
 import { resolveRemoteAgentHostEntryAuthority } from '../../../browser/openInVSCodeUtils.js';
-import { areDevContainerEnvironmentsEnabled, canUseDevContainerEnvironments, DevContainerAgentHostEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, ICreatedDevContainerEnvironment, IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerEnvironment, LocalDevContainerEnvironmentHost } from '../../../common/devContainerAgentHostService.js';
+import { areDevContainerEnvironmentsEnabled, canUseDevContainerEnvironments, DevContainerAgentHostEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, ICreatedDevContainerEnvironment, IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerEngineOptions, IDevContainerEnvironment, LocalDevContainerEnvironmentHost } from '../../../common/devContainerAgentHostService.js';
 import { getDevContainerSourceEntry, resolveDevContainerSourceConnection } from './devContainerSource.js';
 import type { IRemoteAgentHostSessionsProviderConfig, RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
 
@@ -125,7 +125,7 @@ export class DevContainerEnvironments extends Disposable {
 		this._reconcile();
 	}
 
-	async create(sourceAddress: string, onWillConnect?: (environment: IDevContainerEnvironment) => void): Promise<ICreatedDevContainerEnvironment> {
+	async create(sourceAddress: string, options?: IDevContainerEngineOptions & { readonly onWillConnect?: (environment: IDevContainerEnvironment) => void }): Promise<ICreatedDevContainerEnvironment> {
 		if (!areDevContainerEnvironmentsEnabled(this._configurationService)) {
 			throw new Error(localize('devContainerEnvironment.disabled', "Dev Container environments are not enabled."));
 		}
@@ -138,8 +138,12 @@ export class DevContainerEnvironments extends Disposable {
 		this._writeStored([...this._readStored(), stored]);
 		this._publish();
 		try {
-			onWillConnect?.(this._toEnvironment(state));
-			await this._connect(state.address, true);
+			options?.onWillConnect?.(this._toEnvironment(state));
+			// Only creating the container chooses its engine; it keeps that engine when it connects again.
+			await this._connect(state.address, true, {
+				...(options?.engine !== undefined ? { engine: options.engine } : {}),
+				...(options?.promptForEngine !== undefined ? { promptForEngine: options.promptForEngine } : {}),
+			});
 		} catch (error) {
 			// Removing the container would connect a host that was disconnected meanwhile, and with it its other environments.
 			// The environment is kept instead, so it starts with its host or can be deleted.
@@ -258,7 +262,7 @@ export class DevContainerEnvironments extends Disposable {
 		return this._states.get(state.address) === state;
 	}
 
-	private _connect(address: string, userInitiated: boolean): Promise<void> {
+	private _connect(address: string, userInitiated: boolean, engineOptions?: IDevContainerEngineOptions): Promise<void> {
 		const state = this._states.get(address);
 		if (!state || state.deleting) {
 			return Promise.reject(new Error(localize('devContainerEnvironment.unavailable', "This Dev Container is no longer available.")));
@@ -271,7 +275,7 @@ export class DevContainerEnvironments extends Disposable {
 		}
 		const tokenSource = new CancellationTokenSource();
 		state.provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connecting);
-		const promise = state.operations.queue(() => this._doConnect(state, userInitiated, tokenSource.token)).finally(() => {
+		const promise = state.operations.queue(() => this._doConnect(state, userInitiated, tokenSource.token, engineOptions)).finally(() => {
 			if (state.pending?.promise === promise) {
 				state.pending = undefined;
 			}
@@ -284,7 +288,7 @@ export class DevContainerEnvironments extends Disposable {
 		return promise;
 	}
 
-	private async _doConnect(state: IEnvironmentState, userInitiated: boolean, token: CancellationToken): Promise<void> {
+	private async _doConnect(state: IEnvironmentState, userInitiated: boolean, token: CancellationToken, engineOptions?: IDevContainerEngineOptions): Promise<void> {
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
@@ -298,7 +302,7 @@ export class DevContainerEnvironments extends Disposable {
 		}
 		await this._removeConnection(state);
 		// Named after the environment rather than its host; a rename applies on top as the address's display name.
-		const connection = await connector.createConnection(state.uri, state.address, token, { resume: true, name: state.stored.name });
+		const connection = await connector.createConnection(state.uri, state.address, token, { resume: true, name: state.stored.name, ...engineOptions });
 		if (token.isCancellationRequested || !this._isCurrent(state)) {
 			connection.transportDisposable?.dispose();
 			throw new CancellationError();

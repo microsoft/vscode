@@ -324,6 +324,7 @@ suite('Dev Container Agent Host Service', () => {
 		const createdUris: URI[] = [];
 		const removedUris: URI[] = [];
 		const requestedNames: (string | undefined)[] = [];
+		const requestedEngines: { readonly engine?: string; readonly promptForEngine?: boolean }[] = [];
 		store.add(service.registerConnector({
 			isAvailable: async () => true,
 			isLocalContainerEngineAvailable: async () => !!options.localDocker,
@@ -331,6 +332,7 @@ suite('Dev Container Agent Host Service', () => {
 			createConnection: async (workspaceUri, address, _token, requested) => {
 				createdUris.push(workspaceUri);
 				requestedNames.push(requested?.name);
+				requestedEngines.push({ engine: requested?.engine, promptForEngine: requested?.promptForEngine });
 				await options.beforeConnect?.();
 				// The host names the connection as requested, as the real connector does.
 				return { address, name: requested?.name ?? 'Dev Container on Build', workspaceUri: URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority(address), path: '/workspaces/ubuntu-2' }), transportFactory: () => undefined as never, defaultDirectory: '/workspaces/ubuntu-2' };
@@ -347,8 +349,19 @@ suite('Dev Container Agent Host Service', () => {
 				override async isDockerAvailable() { dockerChecks.push('checked'); return true; }
 			}();
 		}();
-		return { service, remoteService, storage, createdUris, removedUris, requestedNames, createHostConnection, providersService, dockerChecks, configurationService };
+		return { service, remoteService, storage, createdUris, removedUris, requestedNames, requestedEngines, createHostConnection, providersService, dockerChecks, configurationService };
 	}
+
+	test('passes the engine choice only to the connection that creates an environment, which then keeps its engine', async () => {
+		const { service, requestedEngines } = setupEnvironments(undefined, { localDocker: true });
+		await waitForState(service.environmentHosts, hosts => hosts.has(LocalDevContainerEnvironmentHost));
+		const created = await service.createEnvironment(LocalDevContainerEnvironmentHost, { engine: 'wslc', promptForEngine: false });
+		const provider = service.provider!;
+		await provider.config.disconnectOnDemand!();
+		await provider.config.connectOnDemand!();
+		await service.deleteEnvironment(created.address);
+		assert.deepStrictEqual(requestedEngines, [{ engine: 'wslc', promptForEngine: false }, { engine: undefined, promptForEngine: undefined }]);
+	});
 
 	test('checks Docker again on a host that was removed and configured again', async () => {
 		const { service, remoteService, createHostConnection, dockerChecks } = setupEnvironments();

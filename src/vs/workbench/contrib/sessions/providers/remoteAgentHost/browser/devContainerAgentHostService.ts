@@ -25,7 +25,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
-import { DevContainerAgentHostEnabledSettingId, DevContainerDiscoveryEnabledSettingId, ICreatedDevContainerEnvironment, IDevContainerAgentHostConnection, IDevContainerAgentHostConnectionOptions, IDevContainerAgentHostConnector, IDevContainerAgentHostService, IDevContainerAgentHostTarget, IDevContainerEnvironment, IDevContainerFolderContainer, isDevContainerDiscoveryEnabled, LocalDevContainerEnvironmentHost } from '../../../common/devContainerAgentHostService.js';
+import { DevContainerAgentHostEnabledSettingId, DevContainerDiscoveryEnabledSettingId, ICreatedDevContainerEnvironment, IDevContainerAgentHostConnection, IDevContainerAgentHostConnectionOptions, IDevContainerAgentHostConnector, IDevContainerAgentHostService, IDevContainerAgentHostTarget, IDevContainerEngineOptions, IDevContainerEnvironment, IDevContainerFolderContainer, isDevContainerDiscoveryEnabled, LocalDevContainerEnvironmentHost } from '../../../common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
 import { resolveRemoteAgentHostEntryAuthority } from '../../../browser/openInVSCodeUtils.js';
 import { devContainerSourcePath, getDevContainerSourceEntry, resolveDevContainerSourceConnection } from './devContainerSource.js';
@@ -323,8 +323,8 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		}));
 	}
 
-	createEnvironment(sourceAddress: string, options?: { readonly onWillConnect?: (environment: IDevContainerEnvironment) => void }): Promise<ICreatedDevContainerEnvironment> {
-		return this._environments.create(sourceAddress, options?.onWillConnect);
+	createEnvironment(sourceAddress: string, options?: IDevContainerEngineOptions & { readonly onWillConnect?: (environment: IDevContainerEnvironment) => void }): Promise<ICreatedDevContainerEnvironment> {
+		return this._environments.create(sourceAddress, options);
 	}
 
 	deleteEnvironment(address: string): Promise<void> {

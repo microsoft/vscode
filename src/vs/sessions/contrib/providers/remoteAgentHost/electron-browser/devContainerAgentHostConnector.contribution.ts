@@ -29,7 +29,7 @@ import { AGENT_HOST_CLIENT_FORWARDING_CHANNEL, IAgentHostClientForwardingMainSer
 import { DEV_CONTAINER_AGENT_HOST_CHANNEL, DevContainerAgentHostSource, DevContainerConnectStage, DevContainerEngine, DevContainerEnvironmentVolumeLookupTimeoutMs, getDevContainerEngines, IDevContainerAgentHostConfig, IDevContainerAgentHostConnectFailure, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport, IDevContainerEngines, IDevContainerHostFolderContainer, isDevContainerEngineAvailable, isValidDevContainerConnectionName } from '../../../../../platform/agentHost/common/devContainerAgentHost.js';
 import { findDevContainerSample } from '../../../../../platform/agentHost/common/devContainerSamples.js';
 import { devContainerEnvironmentImage, findDevContainerEnvironment, isLocalDevContainerEnvironment } from '../../../../../platform/agentHost/common/devContainerEnvironments.js';
-import { areDevContainerEnvironmentsEnabled, areDevContainerSamplesEnabled, DevContainerAgentHostEnabledSettingId, DevContainerCredentialForwardingEnabledSettingId, DevContainerDiscoveryEnabledSettingId, DevContainerEngineSettingId, DevContainerEnvironmentsEnabledSettingId, DevContainerHandoffEnabledSettingId, DevContainerIdleTimeoutSettingId, DevContainerSamplesEnabledSettingId, DevContainerStateVolumeEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostConnection, IDevContainerAgentHostConnectionOptions, IDevContainerAgentHostConnector, IDevContainerAgentHostService } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
+import { areDevContainerEnvironmentsEnabled, areDevContainerSamplesEnabled, DevContainerAgentHostEnabledSettingId, DevContainerCredentialForwardingEnabledSettingId, DevContainerDiscoveryEnabledSettingId, DevContainerEngineSettingId, DevContainerEnvironmentsEnabledSettingId, DevContainerHandoffEnabledSettingId, DevContainerIdleTimeoutSettingId, DevContainerSamplesEnabledSettingId, DevContainerStateVolumeEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostConnection, IDevContainerAgentHostConnectionOptions, IDevContainerAgentHostConnector, IDevContainerAgentHostService, IDevContainerEngineOptions } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { ReconnectingRelayTransport, type IRelayConnectionHandle, type IRelayMessage } from '../../../../../platform/agentHost/common/relayTransport.js';
 import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { NonReconnectableTransportError } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
@@ -294,20 +294,29 @@ export async function isDevContainerWorkspaceAvailable(
 }
 
 /**
- * Selects the container engine of a Dev Container. Its existing container keeps its engine. A new one gets the engine of
- * {@link DevContainerEngineSettingId}, or the other engine when that is not available. With `ask`, the user picks one
- * when more than one is available, and dismissing the pick cancels.
+ * Selects the container engine of a Dev Container. Its existing container keeps its engine. A new one gets the
+ * `requested` engine, which must be available, or else the engine of {@link DevContainerEngineSettingId}, or the other
+ * engine when that is not available. With `ask`, `pick` lets the user choose when more than one engine is available,
+ * and dismissing it cancels; without `pick`, `ask` prefers Docker.
  */
-export async function resolveDevContainerEngine(engines: IDevContainerEngines, setting: unknown, pick: (engines: readonly DevContainerEngine[]) => Promise<DevContainerEngine | undefined>): Promise<DevContainerEngine> {
+export async function resolveDevContainerEngine(engines: IDevContainerEngines, setting: unknown, pick: ((engines: readonly DevContainerEngine[]) => Promise<DevContainerEngine | undefined>) | undefined, requested?: DevContainerEngine): Promise<DevContainerEngine> {
 	if (engines.existing) {
 		return engines.existing;
+	}
+	if (requested) {
+		if (!engines.available.includes(requested)) {
+			throw new Error(requested === 'wslc'
+				? localize('devContainerEngine.wslcUnavailable', "WSL containers (wslc) are not available on the machine that runs this Dev Container.")
+				: localize('devContainerEngine.dockerUnavailable', "Docker is not available on the machine that runs this Dev Container."));
+		}
+		return requested;
 	}
 	const [first] = engines.available;
 	if (!first) {
 		// Connecting reports that Docker is not available.
 		return 'docker';
 	}
-	if (setting === 'ask' && engines.available.length > 1) {
+	if (setting === 'ask' && pick && engines.available.length > 1) {
 		const picked = await pick(engines.available);
 		if (!picked) {
 			throw new CancellationError();
@@ -649,9 +658,9 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 		}
 	}
 
-	private async _resolveEngine(service: IDevContainerAgentHostMainService, source: DevContainerAgentHostSource, name: string, token: CancellationToken): Promise<DevContainerEngine> {
+	private async _resolveEngine(service: IDevContainerAgentHostMainService, source: DevContainerAgentHostSource, name: string, token: CancellationToken, options: IDevContainerEngineOptions | undefined): Promise<DevContainerEngine> {
 		const engines = await raceCancellationError(getDevContainerEngines(service, source), token);
-		return resolveDevContainerEngine(engines, this._configurationService.getValue(DevContainerEngineSettingId), async available => {
+		const pick = options?.promptForEngine === false ? undefined : async (available: readonly DevContainerEngine[]) => {
 			const items = available.map((engine): IQuickPickItem & { readonly engine: DevContainerEngine } => engine === 'wslc'
 				? { engine, label: 'WSLc', description: localize('devContainerEngine.wslcDescription', "WSL containers") }
 				: { engine, label: 'Docker' });
@@ -660,7 +669,8 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 				ignoreFocusLost: true,
 			}, token);
 			return picked?.engine;
-		});
+		};
+		return resolveDevContainerEngine(engines, this._configurationService.getValue(DevContainerEngineSettingId), pick, options?.engine);
 	}
 
 	async createConnection(workspaceUri: URI, address: string, token: CancellationToken, options?: IDevContainerAgentHostConnectionOptions): Promise<IDevContainerAgentHostConnection> {
@@ -764,7 +774,7 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 				}));
 			}
 			// Connections without user action are to folder containers that the Docker engine listed as running, see `_isFolderContainerRunning`.
-			engine = requireRunning ? 'docker' : await this._resolveEngine(mainService, this._getSource(workspaceUri), hostName(), token);
+			engine = requireRunning ? 'docker' : await this._resolveEngine(mainService, this._getSource(workspaceUri), hostName(), token, options);
 			let result = await connect({
 				connectionId,
 				...source,

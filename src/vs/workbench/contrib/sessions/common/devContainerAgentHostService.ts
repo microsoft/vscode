@@ -14,7 +14,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IProtocolTransport } from '../../../../platform/agentHost/common/state/sessionTransport.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { findDevContainerSample, IDevContainerRepository } from '../../../../platform/agentHost/common/devContainerSamples.js';
-import type { IDevContainerHostFolderContainer } from '../../../../platform/agentHost/common/devContainerAgentHost.js';
+import type { DevContainerEngine, IDevContainerHostFolderContainer } from '../../../../platform/agentHost/common/devContainerAgentHost.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
@@ -112,7 +112,7 @@ export interface IDevContainerAgentHostConnection {
 }
 
 /** Options for {@link IDevContainerAgentHostConnector.createConnection}. */
-export interface IDevContainerAgentHostConnectionOptions {
+export interface IDevContainerAgentHostConnectionOptions extends IDevContainerEngineOptions {
 	readonly resume: boolean;
 	readonly sandboxEnabled?: boolean;
 	/** Names the connection of a Dev Container environment, which otherwise gets a name for its host. */
@@ -122,6 +122,17 @@ export interface IDevContainerAgentHostConnectionOptions {
 	 * without user action. Failing that check neither reveals the log nor counts as a failed connection.
 	 */
 	readonly requireRunning?: boolean;
+}
+
+/** How the container engine of a new Dev Container is chosen. An existing container keeps its engine. */
+export interface IDevContainerEngineOptions {
+	/** The engine, e.g., one that the user asked an agent for, which must be available on the container's host. */
+	readonly engine?: DevContainerEngine;
+	/**
+	 * Whether `ask` in {@link DevContainerEngineSettingId} may show a pick, true by default. Agents' containers prefer
+	 * Docker instead, so a pick does not interrupt the user.
+	 */
+	readonly promptForEngine?: boolean;
 }
 
 /** Creates a Dev Container and connects to its Agent Host. */
@@ -215,7 +226,7 @@ export interface IDevContainerAgentHostService {
 	 * Creates a Dev Container environment on a host from {@link environmentHosts} and connects to it.
 	 * `onWillConnect` receives the environment once it is listed, before its container starts, e.g. to show its log.
 	 */
-	createEnvironment(sourceAddress: string, options?: { readonly onWillConnect?: (environment: IDevContainerEnvironment) => void }): Promise<ICreatedDevContainerEnvironment>;
+	createEnvironment(sourceAddress: string, options?: IDevContainerEngineOptions & { readonly onWillConnect?: (environment: IDevContainerEnvironment) => void }): Promise<ICreatedDevContainerEnvironment>;
 	/** Removes an environment's container and workspace volume, or only forgets it when its host is no longer configured. */
 	deleteEnvironment(address: string): Promise<void>;
 

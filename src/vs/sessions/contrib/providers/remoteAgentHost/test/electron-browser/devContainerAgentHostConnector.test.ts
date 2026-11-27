@@ -143,12 +143,12 @@ suite('Dev Container Agent Host Connector', () => {
 		});
 	}
 
-	test('selects the engine of an existing container, else the setting\'s available engine, or asks', async () => {
+	test('selects the engine of an existing container, else the requested or the setting\'s available engine, or asks', async () => {
 		const picks: (readonly DevContainerEngine[])[] = [];
-		const resolve = (engines: IDevContainerEngines, setting: unknown, picked: DevContainerEngine | 'dismiss' = 'wslc') => resolveDevContainerEngine(engines, setting, async available => {
+		const resolve = (engines: IDevContainerEngines, setting: unknown, picked: DevContainerEngine | 'dismiss' | 'noPrompt' = 'wslc', requested?: DevContainerEngine) => resolveDevContainerEngine(engines, setting, picked === 'noPrompt' ? undefined : async available => {
 			picks.push(available);
 			return picked === 'dismiss' ? undefined : picked;
-		}).then(engine => engine, error => isCancellationError(error) ? 'cancelled' : String(error));
+		}, requested).then(engine => engine, error => isCancellationError(error) ? 'cancelled' : String(error));
 		const both: DevContainerEngine[] = ['docker', 'wslc'];
 		assert.deepStrictEqual({
 			docker: await resolve({ available: both }, 'docker'),
@@ -161,6 +161,12 @@ suite('Dev Container Agent Host Connector', () => {
 			askExisting: await resolve({ available: both, existing: 'wslc' }, 'ask', 'docker'),
 			asked: await resolve({ available: both }, 'ask', 'docker'),
 			dismissed: await resolve({ available: both }, 'ask', 'dismiss'),
+			// Agents' containers do not show the pick.
+			askWithoutPrompt: await resolve({ available: both }, 'ask', 'noPrompt'),
+			askWithoutPromptOrDocker: await resolve({ available: ['wslc'] }, 'ask', 'noPrompt'),
+			requested: await resolve({ available: both }, 'ask', 'docker', 'wslc'),
+			requestedExisting: await resolve({ available: both, existing: 'docker' }, 'wslc', 'docker', 'wslc'),
+			requestedUnavailable: await resolve({ available: ['docker'] }, 'docker', 'noPrompt', 'wslc'),
 			// Connecting then reports that Docker is not available.
 			none: await resolve({ available: [] }, 'wslc'),
 			picks,
@@ -175,6 +181,11 @@ suite('Dev Container Agent Host Connector', () => {
 			askExisting: 'wslc',
 			asked: 'docker',
 			dismissed: 'cancelled',
+			askWithoutPrompt: 'docker',
+			askWithoutPromptOrDocker: 'wslc',
+			requested: 'wslc',
+			requestedExisting: 'docker',
+			requestedUnavailable: 'Error: WSL containers (wslc) are not available on the machine that runs this Dev Container.',
 			none: 'docker',
 			picks: [both, both],
 		});

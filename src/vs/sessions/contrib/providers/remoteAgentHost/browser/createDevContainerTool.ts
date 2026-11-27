@@ -13,6 +13,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { DevContainerEngine, isDevContainerEngine } from '../../../../../platform/agentHost/common/devContainerAgentHost.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -70,8 +71,8 @@ interface IDevContainerHost {
  */
 export class CreateDevContainerTool implements IToolImpl {
 
-	/** The host that the user approved for each tool call, so a changed default cannot move the container elsewhere. */
-	private readonly approvedHosts = new LRUCache<string, string>(100);
+	/** The host and engine that the user approved for each tool call, so a changed default cannot move the container elsewhere. */
+	private readonly approvedCalls = new LRUCache<string, { readonly hostId: string; readonly engine: DevContainerEngine | undefined }>(100);
 
 	constructor(
 		@IDevContainerAgentHostService private readonly devContainerService: IDevContainerAgentHostService,
@@ -108,6 +109,7 @@ export class CreateDevContainerTool implements IToolImpl {
 				additionalProperties: false,
 				properties: {
 					host: { type: 'string', description: '`local` for this computer, or the exact ID of an SSH, Tunnel, or WSL host from list_agent_hosts. Omit to use the host this session runs on.' },
+					engine: { type: 'string', enum: ['docker', 'wslc'], description: 'The container engine, `docker` or `wslc` (WSL containers), only when the user asked for one. Omit to use the user\'s configured engine.' },
 				},
 			},
 		};
@@ -116,23 +118,29 @@ export class CreateDevContainerTool implements IToolImpl {
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation> {
 		const chatResource = context.originatingChatResource ?? context.chatSessionResource;
 		const host = this.resolveHost(context.parameters, chatResource);
-		this.approvedHosts.set(approvalKey(chatResource, context.toolCallId), host.id);
+		const engine = this.resolveEngine(context.parameters);
+		this.approvedCalls.set(approvalKey(chatResource, context.toolCallId), { hostId: host.id, engine });
 		return {
 			invocationMessage: creatingMessage(host.label),
 			pastTenseMessage: localize('createDevContainer.past', "Created Dev Container on {0}", host.label),
 			confirmationMessages: {
 				title: localize('createDevContainer.confirmationTitle', "Create Dev Container?"),
-				message: new MarkdownString().appendText(localize('createDevContainer.confirmation', "Create a Dev Container from the Ubuntu base image on {0}? It keeps its files in a container volume until you delete it in Remote Environments.", host.label)),
+				message: new MarkdownString().appendText(engine
+					? localize('createDevContainer.confirmationWithEngine', "Create a Dev Container from the Ubuntu base image on {0} with {1}? It keeps its files in a container volume until you delete it in Remote Environments.", host.label, engine === 'wslc' ? localize('createDevContainer.wslc', "WSL containers") : 'Docker')
+					: localize('createDevContainer.confirmation', "Create a Dev Container from the Ubuntu base image on {0}? It keeps its files in a container volume until you delete it in Remote Environments.", host.label)),
 			},
 		};
 	}
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
-		const host = this.getApprovedHost(approvalKey(invocation.originatingChatResource ?? invocation.context?.sessionResource, invocation.callId));
+		const { host, engine } = this.getApprovedCall(approvalKey(invocation.originatingChatResource ?? invocation.context?.sessionResource, invocation.callId));
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
 		const environment = await this.devContainerService.createEnvironment(host.address, {
+			// The user is not asked for the engine: the call might run in a background chat, and they confirmed it already.
+			promptForEngine: false,
+			...(engine ? { engine } : {}),
 			// Building the container can take minutes; like the Dev Container session preparation, its message opens the log.
 			onWillConnect: created => progress.report({ message: logLink(created.providerId, creatingMessage(host.label)) }),
 		});
@@ -177,30 +185,39 @@ export class CreateDevContainerTool implements IToolImpl {
 		return rejections;
 	}
 
-	/** The host that the user approved in the confirmation of the call, if it can still run Dev Containers. */
-	private getApprovedHost(key: string): IDevContainerHost {
-		const approvedHostId = this.approvedHosts.get(key);
-		this.approvedHosts.delete(key);
+	/** The host and engine that the user approved in the confirmation of the call, if the host can still run Dev Containers. */
+	private getApprovedCall(key: string): { readonly host: IDevContainerHost; readonly engine: DevContainerEngine | undefined } {
+		const approvedCall = this.approvedCalls.get(key);
+		this.approvedCalls.delete(key);
 		if (!isDevContainerHandoffEnabled(this.configurationService)) {
 			throw new Error(localize('createDevContainer.disabled', "Creating Dev Containers is disabled."));
 		}
-		if (approvedHostId === undefined) {
+		if (approvedCall === undefined) {
 			throw new Error(localize('createDevContainer.notPrepared', "The Dev Container was not created because the host of its confirmation is no longer known. Call the tool again."));
 		}
 		const hosts = this.getHosts();
-		const approved = hosts.find(host => host.id === approvedHostId);
+		const approved = hosts.find(host => host.id === approvedCall.hostId);
 		if (!approved) {
-			throw new Error(localize('createDevContainer.approvedHostUnavailable', "The Dev Container was not created: the approved host {0} can no longer run Dev Containers. Available hosts: {1}", approvedHostId, JSON.stringify(hosts.map(({ id, label }) => ({ id, label })))));
+			throw new Error(localize('createDevContainer.approvedHostUnavailable', "The Dev Container was not created: the approved host {0} can no longer run Dev Containers. Available hosts: {1}", approvedCall.hostId, JSON.stringify(hosts.map(({ id, label }) => ({ id, label })))));
 		}
-		return approved;
+		return { host: approved, engine: approvedCall.engine };
+	}
+
+	/** The container engine that the agent passes when the user asked for one. */
+	private resolveEngine(parameters: unknown): DevContainerEngine | undefined {
+		const engine: unknown = typeof parameters === 'object' && parameters !== null ? Reflect.get(parameters, 'engine') : undefined;
+		if (engine !== undefined && !isDevContainerEngine(engine)) {
+			throw new Error(localize('createDevContainer.invalidEngine', "{0} must be {1} or {2}.", 'engine', 'docker', 'wslc'));
+		}
+		return engine;
 	}
 
 	private resolveHost(parameters: unknown, chatResource: URI | undefined): IDevContainerHost {
 		if (!isDevContainerHandoffEnabled(this.configurationService)) {
 			throw new Error(localize('createDevContainer.disabled', "Creating Dev Containers is disabled."));
 		}
-		if (typeof parameters !== 'object' || parameters === null || Array.isArray(parameters) || Object.keys(parameters).some(key => key !== 'host')) {
-			throw new Error(localize('createDevContainer.invalidInput', "The input must be an object with an optional {0} string.", 'host'));
+		if (typeof parameters !== 'object' || parameters === null || Array.isArray(parameters) || Object.keys(parameters).some(key => key !== 'host' && key !== 'engine')) {
+			throw new Error(localize('createDevContainer.invalidInput', "The input must be an object with optional {0} and {1} strings.", 'host', 'engine'));
 		}
 		const requested: unknown = Reflect.get(parameters, 'host');
 		if (requested !== undefined && (typeof requested !== 'string' || !requested)) {
