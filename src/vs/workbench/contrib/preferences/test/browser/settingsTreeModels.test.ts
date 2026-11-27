@@ -196,8 +196,9 @@ suite('SettingsTree Agentic Mode presentation', () => {
 	const configurationNode: IConfigurationNode = {
 		id: 'agenticModePresentationTest',
 		properties: {
-			'test.agentic': { type: 'boolean', default: true, agenticMode: { default: false }, agentsWindow: { readOnly: true } },
+			'test.agentic': { type: 'boolean', default: true, agentsMode: { default: false }, agentsWindow: { readOnly: true } },
 			'test.agentsOnly': { type: 'boolean', default: true, agentsWindow: { default: false, readOnly: true } },
+			'test.agentsModeReadOnly': { type: 'boolean', default: true, agentsMode: { readOnly: true } },
 		},
 	};
 	suiteSetup(() => registry.registerConfiguration(configurationNode));
@@ -206,7 +207,7 @@ suite('SettingsTree Agentic Mode presentation', () => {
 	function createModel(isSessionsWindow = false) {
 		const configuration = new class extends TestConfigurationService {
 			isSettingAppliedForAllProfiles(): boolean { return false; }
-		}({ 'test.agentic': true, 'test.agentsOnly': true });
+		}({ 'test.agentic': true, 'test.agentsOnly': true, 'test.agentsModeReadOnly': true });
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IWorkbenchConfigurationService, configuration);
@@ -232,7 +233,7 @@ suite('SettingsTree Agentic Mode presentation', () => {
 			model.updateElementsByName(key);
 			const element = model.getElementsByName(key)![0];
 			return {
-				value: element.value, configured: element.isConfigured, readOnly: element.isAgentsWindowReadOnly,
+				value: element.value, configured: element.isConfigured, readOnly: element.isAgentsReadOnly,
 				tagged: element.matchesAllTags(new Set([AGENTS_WINDOW_SETTING_TAG])),
 			};
 		});
@@ -247,9 +248,9 @@ suite('SettingsTree Agentic Mode presentation', () => {
 		viewState.isAgenticMode = false;
 		const editable = { value: true, configured: true, readOnly: false, tagged: false };
 		assert.deepStrictEqual({ initial, active, restored: read() }, {
-			initial: [editable, editable],
-			active: [{ ...editable, tagged: true }, editable],
-			restored: [editable, editable],
+			initial: [editable, editable, editable],
+			active: [{ ...editable, tagged: true }, editable, { value: true, configured: false, readOnly: true, tagged: true }],
+			restored: [editable, editable, editable],
 		});
 	});
 
@@ -259,6 +260,7 @@ suite('SettingsTree Agentic Mode presentation', () => {
 		assert.deepStrictEqual(read(), [
 			{ value: true, configured: false, readOnly: true, tagged: true },
 			{ value: true, configured: false, readOnly: true, tagged: true },
+			{ value: true, configured: true, readOnly: false, tagged: false },
 		]);
 	});
 });

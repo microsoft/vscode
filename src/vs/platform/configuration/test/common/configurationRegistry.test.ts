@@ -24,13 +24,13 @@ suite('ConfigurationRegistry', () => {
 		configurationRegistry.registerConfiguration({
 			id: 'agenticModeMetadataTest',
 			properties: {
-				'test.agenticDefault': { type: 'boolean', default: true, agenticMode: { default: false } },
+				'test.agenticDefault': { type: 'string', default: 'ordinary', agentsMode: { default: 'agentic' } },
 			},
 		});
 		const ordinary = configurationRegistry.getConfigurationProperties()['test.agenticDefault'].default;
-		configurationRegistry.registerDefaultConfigurations([{ overrides: { 'test.agenticDefault': true } }]);
+		configurationRegistry.registerDefaultConfigurations([{ overrides: { 'test.agenticDefault': 'overridden' } }]);
 		const property = configurationRegistry.getConfigurationProperties()['test.agenticDefault'];
-		assert.deepStrictEqual({ ordinary, overridden: property.default, agentic: property.agenticMode?.default }, { ordinary: true, overridden: true, agentic: false });
+		assert.deepStrictEqual({ ordinary, overridden: property.default, agentic: property.agentsMode?.default }, { ordinary: 'ordinary', overridden: 'overridden', agentic: 'agentic' });
 	});
 
 	test('configuration override', async () => {

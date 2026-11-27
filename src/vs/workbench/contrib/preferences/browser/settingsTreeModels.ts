@@ -33,7 +33,7 @@ export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 export interface ISettingsEditorViewState {
 	settingsTarget: SettingsTarget;
 	/**
-	 * Whether the settings are presented for Agentic Mode, using its `agenticMode` defaults.
+	 * Whether the settings are presented for Agentic Mode, using its `agentsMode` defaults.
 	 */
 	isAgenticMode?: boolean;
 	query?: string; // used to keep track of loading from setInput vs loading from cache
@@ -165,9 +165,9 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	policyValueDescription: string | undefined;
 
 	/**
-	 * Whether the setting is read-only in the Agents window.
+	 * Whether the setting is read-only in the Agents window or in Agentic Mode.
 	 */
-	isAgentsWindowReadOnly = false;
+	isAgentsReadOnly = false;
 	/**
 	 * Whether the setting is presented for Agentic Mode.
 	 */
@@ -401,12 +401,12 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		}
 
 		let hasAgentsWindowOverride = false;
-		this.isAgentsWindowReadOnly = false;
+		this.isAgentsReadOnly = false;
 		if (this.isSessionsWindow || this.isAgenticMode) {
 			const property = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()[this.setting.key];
-			hasAgentsWindowOverride = this.isSessionsWindow ? !!property?.agentsWindow : property?.agenticMode?.default !== undefined;
-			this.isAgentsWindowReadOnly = this.isSessionsWindow && !!property?.agentsWindow?.readOnly;
-			if (this.isAgentsWindowReadOnly) {
+			hasAgentsWindowOverride = this.isSessionsWindow ? !!property?.agentsWindow : !!property?.agentsMode;
+			this.isAgentsReadOnly = this.isSessionsWindow ? !!property?.agentsWindow?.readOnly : !!property?.agentsMode?.readOnly;
+			if (this.isAgentsReadOnly) {
 				isConfigured = false;
 			}
 		}

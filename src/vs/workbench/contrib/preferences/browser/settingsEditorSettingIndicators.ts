@@ -371,12 +371,16 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 					}
 				}],
 			}), { setupKeyboardEvents: true }));
-		} else if (element.isAgentsWindowReadOnly) {
+		} else if (element.isAgentsReadOnly) {
 			this.scopeOverridesIndicator.element.style.display = 'inline';
 			this.scopeOverridesIndicator.element.classList.add('setting-indicator');
 
-			this.scopeOverridesIndicator.label.text = '$(lock) ' + localize('agentsWindowReadOnlyLabelText', "Cannot be changed in Agents window");
-			const content = localize('agentsWindowReadOnlyDescription', "This setting cannot be changed in the Agents window.");
+			this.scopeOverridesIndicator.label.text = '$(lock) ' + (element.isAgenticMode
+				? localize('agentsModeReadOnlyLabelText', "Cannot be changed in Agents mode")
+				: localize('agentsWindowReadOnlyLabelText', "Cannot be changed in Agents window"));
+			const content = element.isAgenticMode
+				? localize('agentsModeReadOnlyDescription', "This setting cannot be changed in Agents mode.")
+				: localize('agentsWindowReadOnlyDescription', "This setting cannot be changed in the Agents window.");
 			this.scopeOverridesIndicator.disposables.add(this.hoverService.setupDelayedHover(this.scopeOverridesIndicator.element, {
 				...this.defaultHoverOptions,
 				content,
@@ -576,8 +580,10 @@ export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement,
 
 	if (element.hasPolicyValue) {
 		ariaLabelSections.push(element.policyValueDescription ?? localize('policyDescriptionAccessible', "Managed by your organization; setting value not applied"));
-	} else if (element.isAgentsWindowReadOnly) {
-		ariaLabelSections.push(localize('agentsWindowReadOnlyAccessible', "Cannot be changed in Agents window"));
+	} else if (element.isAgentsReadOnly) {
+		ariaLabelSections.push(element.isAgenticMode
+			? localize('agentsModeReadOnlyAccessible', "Cannot be changed in Agents mode")
+			: localize('agentsWindowReadOnlyAccessible', "Cannot be changed in Agents window"));
 	} else if (element.settingsTarget === ConfigurationTarget.USER_LOCAL && configurationService.isSettingAppliedForAllProfiles(element.setting.key)) {
 		ariaLabelSections.push(localize('applicationSettingDescriptionAccessible', "Setting value retained when switching profiles"));
 	} else {

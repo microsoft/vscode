@@ -55,7 +55,7 @@ suite('Configuration extension point', () => {
 		ExtensionsRegistry.getExtensionPoints().find(point => point.name === 'configuration')!.acceptUsers([]);
 	});
 
-	test('strips the internal agenticMode property from extension settings', () => {
+	test('strips the internal agentsMode property from extension settings', () => {
 		const description: IExtensionDescription = {
 			identifier: new ExtensionIdentifier('test.agenticmode'),
 			name: 'agenticmode',
@@ -72,14 +72,14 @@ suite('Configuration extension point', () => {
 		const errors: string[] = [];
 		ExtensionsRegistry.getExtensionPoints().find(point => point.name === 'configuration')!.acceptUsers([{
 			description,
-			value: { properties: { 'test.agenticMode.setting': { type: 'boolean', default: false, agenticMode: { default: true } } } },
+			value: { properties: { 'test.agentsMode.setting': { type: 'boolean', default: false, agentsMode: { default: true } } } },
 			collector: new ExtensionMessageCollector(message => errors.push(message.message), description, 'configuration'),
 		}]);
 
-		const property = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()['test.agenticMode.setting'];
-		assert.deepStrictEqual({ agenticMode: property.agenticMode, errors }, {
-			agenticMode: undefined,
-			errors: [`Extension 'test.agenticmode' CANNOT use the 'agenticMode' property on configuration 'test.agenticMode.setting'.`],
+		const property = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()['test.agentsMode.setting'];
+		assert.deepStrictEqual({ agentsMode: property.agentsMode, errors }, {
+			agentsMode: undefined,
+			errors: [`Extension 'test.agenticmode' CANNOT use the 'agentsMode' property on configuration 'test.agentsMode.setting'.`],
 		});
 	});
 });
