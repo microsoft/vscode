@@ -263,7 +263,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 		});
 
 		// Flaky: #313601
-		test.skip('non-zero exit code is reported', async function () {
+		test('non-zero exit code is reported', async function () {
 			this.timeout(60000);
 
 			// Use a subshell so we don't kill the shared terminal
