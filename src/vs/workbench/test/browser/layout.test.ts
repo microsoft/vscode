@@ -769,6 +769,16 @@ suite('Workbench layout chat part', () => {
 			});
 		}
 
+		test('the chat part shown again over a maximized secondary side bar while the editor area is hidden for it takes no room from the side bars for the editor', () => {
+			const { layout, grid, views } = createGridLayout({ ...configuration, widths: { window: 1200, auxiliaryBar: 296 } });
+			const widths = () => ({ chat: grid.getViewSize(views.get(Parts.CHAT_PART)!).width, auxiliaryBar: grid.getViewSize(views.get(Parts.AUXILIARYBAR_PART)!).width, sideBar: grid.getViewSize(views.get(Parts.SIDEBAR_PART)!).width });
+			layout.setEditorHiddenByChat(true);
+			const before = { ...state(layout), ...widths() };
+			layout.toggleMaximizedAuxiliaryBar();
+			layout.setPartHidden(false, Parts.CHAT_PART);
+			assert.deepStrictEqual({ ...state(layout), ...widths() }, before);
+		});
+
 		test('focus goes to the chat part, not the hidden editor area', () => {
 			const { layout } = createGridLayout(configuration);
 			const focused: Parts[] = [];
