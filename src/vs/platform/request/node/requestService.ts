@@ -5,6 +5,7 @@
 
 import type * as http from 'http';
 import type * as https from 'https';
+import type { Readable } from 'stream';
 import { parse as parseUrl } from 'url';
 import { Promises, timeout } from '../../../base/common/async.js';
 import { streamToBufferReadableStream } from '../../../base/common/buffer.js';
@@ -297,11 +298,15 @@ async function nodeRequestAttempt(options: NodeRequestOptions, token: Cancellati
 			return false;
 		};
 
+		let body: Readable | undefined;
 		const req = rawRequest(opts, (res: http.IncomingMessage) => {
+			// Cancellation aborts the request until its response has been read, not just until the headers arrive.
+			res.on('end', () => cancellationListener.dispose());
+			res.on('close', () => cancellationListener.dispose());
 			if (!options.isChromiumNetwork && followRedirect(res.statusCode, res.headers['location'])) {
 				res.resume();
 			} else {
-				let stream: streams.ReadableStreamEvents<Uint8Array> = res;
+				let stream: Readable = res;
 
 				// Responses from Electron net module should be treated as response
 				// from browser, which will apply gzip filter and decompress the response
@@ -312,6 +317,7 @@ async function nodeRequestAttempt(options: NodeRequestOptions, token: Cancellati
 					stream = res.pipe(createGunzip());
 				}
 
+				body = stream;
 				resolve({ res, stream: streamToBufferReadableStream(stream) } satisfies IRequestContext);
 			}
 		});
@@ -364,12 +370,13 @@ async function nodeRequestAttempt(options: NodeRequestOptions, token: Cancellati
 
 		const cancellationListener = token.onCancellationRequested(() => {
 			cancellationListener.dispose();
+			// Fail the body before aborting: Electron ends an aborted response without an error, which would leave its readers waiting.
+			body?.destroy(new CancellationError());
 			req.abort();
 
 			reject(new CancellationError());
 		});
 
-		req.on('response', () => cancellationListener.dispose());
 		req.on('error', () => cancellationListener.dispose());
 		req.on('abort', () => cancellationListener.dispose());
 	});

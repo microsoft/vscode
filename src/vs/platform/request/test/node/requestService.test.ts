@@ -6,6 +6,7 @@
 import assert from 'assert';
 import type * as http from 'http';
 import { streamToBuffer } from '../../../../base/common/buffer.js';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IRawRequestFunction, lookupKerberosAuthorization, NodeRequestOptions, nodeRequest } from '../../node/requestService.js';
@@ -485,4 +486,44 @@ suite('Request Service', () => {
 			}
 		});
 	});
+
+	for (const gzip of [false, true]) {
+		test(`aborts the transfer when cancelled while reading a ${gzip ? 'gzip ' : ''}body`, async () => {
+			const [http, zlib] = await Promise.all([import('http'), import('zlib')]);
+			const source = store.add(new CancellationTokenSource());
+			const serverClosed = new DeferredPromise<void>();
+			const server = http.createServer((_req, res) => {
+				res.on('close', () => serverClosed.complete());
+				res.writeHead(200, gzip ? { 'content-encoding': 'gzip' } : {});
+				// The rest of the body never arrives.
+				if (gzip) {
+					const compressor = zlib.createGzip();
+					compressor.pipe(res);
+					compressor.write('first');
+					compressor.flush();
+				} else {
+					res.write('first');
+				}
+			});
+			await new Promise<void>((resolve, reject) => server.once('error', reject).listen(0, '127.0.0.1', resolve));
+			const address = server.address();
+			assert.ok(address && typeof address !== 'string');
+			try {
+				const context = await nodeRequest({ url: `http://127.0.0.1:${address.port}/stall`, callSite: 'requestService.test.cancelBody' }, source.token);
+				const received: string[] = [];
+				const failed = new DeferredPromise<unknown>();
+				context.stream.on('error', error => failed.complete(error));
+				context.stream.on('data', chunk => {
+					received.push(chunk.toString());
+					source.cancel();
+				});
+				const error = await failed.p;
+				await serverClosed.p;
+				assert.deepStrictEqual({ received, cancelled: error instanceof CancellationError }, { received: ['first'], cancelled: true });
+			} finally {
+				server.closeAllConnections();
+				await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+			}
+		});
+	}
 });
