@@ -206,7 +206,7 @@ describe('CodeSearchChunkSearch authentication identity', () => {
 			override initialize = vi.fn(async () => { });
 			override updateCodeSearchRoots() { }
 			override getState() { return { status: CodeSearchRepoStatus.Ready, progressMessage: undefined }; }
-			override dispose() { }
+			override readonly dispose = vi.fn();
 		}();
 		vi.mocked(instantiation.createInstance).mockReturnValueOnce({}).mockReturnValueOnce(index);
 		await search.enableExternalIngest();
