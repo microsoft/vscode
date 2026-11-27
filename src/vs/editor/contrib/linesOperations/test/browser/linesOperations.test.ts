@@ -1363,6 +1363,23 @@ suite('Editor Contrib - Line Operations', () => {
 		);
 	});
 
+	test('transform to title case keeps combining marks attached to their base letter (#336900)', () => {
+		// Line 1 is a decomposed e-acute (U+0065 + U+0301 COMBINING ACUTE ACCENT), line 2 the precomposed U+00E9.
+		withTestCodeEditor(
+			[
+				'e\u0301lan',
+				'\u00e9lan'
+			], {}, (editor) => {
+				const model = editor.getModel()!;
+				const titlecaseAction = new TitleCaseAction();
+
+				editor.setSelection(new Selection(1, 1, 2, 5));
+				executeAction(titlecaseAction, editor);
+				assert.strictEqual(model.getLineContent(1), 'E\u0301lan');
+				assert.strictEqual(model.getLineContent(2), '\u00c9lan');
+			});
+	});
+
 	suite('DeleteAllRightAction', () => {
 		test('should be noop on empty', () => {
 			withTestCodeEditor([''], {}, (editor) => {
