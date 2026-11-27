@@ -6,6 +6,7 @@
 import { IAction } from '../../../../../../base/common/actions.js';
 import { IActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { IDropdownMenuActionViewItemOptions } from '../../../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -29,6 +30,8 @@ export interface IChatViewSessionsListControl extends IDisposable {
 	getFocus(): IAgentSession[];
 	/** Opens the list's find, as Find of the Chat view's sessions toolbar does, which a list without a header of its own keeps. */
 	openFind(): void;
+	readonly searchOpen?: boolean;
+	readonly onDidChangeSearchMode?: Event<boolean>;
 	/**
 	 * The widget of an action that the list contributes to the Chat view's title, where the list needs one of its own.
 	 * `titleFitsWidths` tells whether the title fits its actions to its width by the widths they need, moving one that does

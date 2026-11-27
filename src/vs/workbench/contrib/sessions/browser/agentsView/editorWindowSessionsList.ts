@@ -59,7 +59,7 @@ export class ChatViewSessionsGroupingState extends SessionsViewGroupingState {
 type SessionsViewServices = ConstructorParameters<typeof SessionsView> extends [ISessionsViewOptions, ...infer Services] ? Services : never;
 
 /**
- * Where the Sessions view shows its header, with Refresh, Find, Filter and the other actions: in the title of the view
+ * Where the Sessions view shows its header, with Find, Grouping and the other actions: in the title of the view
  * (`title`, as the Agents view does), or as a "Sessions" section header inside the view (`section`, as the Chat view does).
  */
 export type EditorWindowSessionsHeader = 'title' | 'section';

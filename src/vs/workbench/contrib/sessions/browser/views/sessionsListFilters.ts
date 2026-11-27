@@ -432,11 +432,20 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 	}
 
 	isExcluded(filter: SessionFilter): boolean {
-		return this.excluded.get(sessionFilterKey(filter))
-			?? (filter.kind === 'application' && (
-				(filter.environment !== 'cloud' && filter.id !== 'vscode') ||
-				(filter.environment === 'cloud' && (filter.id === 'slack' || filter.id === 'teams'))
-			));
+		return this.excluded.get(sessionFilterKey(filter)) ?? this.isExcludedByDefault(filter);
+	}
+
+	isExcludedByDefault(filter: SessionFilter): boolean {
+		return filter.kind === 'application' && (
+			(filter.environment !== 'cloud' && filter.id !== 'vscode') ||
+			(filter.environment === 'cloud' && (filter.id === 'slack' || filter.id === 'teams'))
+		);
+	}
+
+	clearExclusion(filter: SessionFilter): void {
+		if (this.excluded.delete(sessionFilterKey(filter))) {
+			this.save();
+		}
 	}
 
 	setExcluded(filter: SessionFilter, excluded: boolean): void {

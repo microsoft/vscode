@@ -173,7 +173,7 @@ export function registerNewChatActions() {
 		submenu: MenuId.ChatNewMenu,
 		title: localize2('chat.newEdits.label', "New Chat"),
 		icon: Codicon.plus,
-		when: ContextKeyExpr.equals('view', ChatViewId),
+		when: ContextKeyExpr.and(ContextKeyExpr.equals('view', ChatViewId), ChatContextKeys.sessionsListSearchOpen.negate()),
 		group: 'navigation',
 		order: -1,
 		isSplitButton: true

@@ -254,6 +254,7 @@ export interface ISessionsListFindControllerDelegate {
 
 export interface ISessionsListFindControllerOptions<T> {
 	readonly findWidgetContainer?: HTMLElement;
+	readonly ariaDescribedBy?: string;
 	readonly styles?: IFindWidgetStyles;
 	readonly additionalTrees?: readonly AbstractTree<T, FuzzyScore, unknown>[];
 }
@@ -299,15 +300,6 @@ export class SessionsListFindController<T> extends AbstractFindController<T, Fuz
 
 	private get focusedTree(): AbstractTree<T, FuzzyScore, unknown> {
 		return this.trees.find(tree => tree.getFocus().length > 0) ?? this.tree;
-	}
-
-	override close(): void {
-		if (!this.isOpened()) {
-			return;
-		}
-		const focusedTree = this.focusedTree;
-		super.close();
-		focusedTree.domFocus();
 	}
 
 	protected applyPattern(): void {

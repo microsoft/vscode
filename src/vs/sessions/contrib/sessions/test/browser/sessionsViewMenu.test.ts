@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { SubmenuAction } from '../../../../../base/common/actions.js';
+import { IAction, SubmenuAction } from '../../../../../base/common/actions.js';
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { $, getActiveElement } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
@@ -14,7 +14,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, derived, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
@@ -54,7 +54,7 @@ import { IAgentHostSessionsProvider, LocalAgentHostRegistration } from '../../..
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { IsPhoneLayoutContext, SessionIsArchivedContext, SessionIsReadContext, SessionItemIsMultiSelectionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
-import { AutomationSessionsListMode, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { AutomationSessionsListMode, SESSIONS_LIST_FILTER_CHIPS_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ISession, ISessionChangeset, ISessionChangesetOperation, ISessionEnvironment, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionAttentionService, IInboxSessionAttention, InboxNotificationPriority, InboxTab } from '../../../../../workbench/contrib/sessions/common/sessionAttentionService.js';
 import { buildTestSession } from '../../../../../workbench/contrib/sessions/test/common/testSessionBuilder.js';
@@ -65,19 +65,134 @@ import { SessionItemCanAcknowledgeContext, SessionItemCanMergePullRequestContext
 import { getInboxPullRequestMergeOperation, SessionInboxSection } from '../../../../../workbench/contrib/sessions/common/sessionInbox.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { getInboxWorkspaceFilter, getSessionFilterEnvironments, getSessionFilterOptions, SessionsListFilters } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
+import { getInboxWorkspaceFilter, getSessionFilterEnvironments, getSessionFilterOptions, ISessionFilterOption, SessionsListFilters } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
 import { SessionsInboxScope } from '../../../../../workbench/contrib/sessions/browser/views/sessionsInboxScope.js';
 import { ISessionsListChange, ISessionsListUndoService } from '../../../../../workbench/contrib/sessions/browser/sessionsListUndoService.js';
 import { IsWorkspaceGroupCappedContext, ISessionsViewLocator, SessionsView, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSortingContext, DEFAULT_SESSIONS_GROUPINGS, bindSessionsViewGroupings, renderSessionsHeader, SessionsViewGroupingState } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { MobileSessionFilterChips } from '../../../../../workbench/contrib/sessions/browser/mobile/mobileSessionFilterChips.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { EDITOR_WINDOW_SESSIONS_GROUPINGS } from '../../../../../workbench/contrib/sessions/browser/agentsView/editorWindowSessionsList.js';
+import { ISessionsFilterChip, SessionsFilterChips } from '../../../../../workbench/contrib/sessions/browser/views/sessionsFilterChips.js';
 import { createListHarness, TestCommandService } from './sessionsListTestUtils.js';
 import { SessionsArchiveActionsContribution } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
 import '../../browser/views/sessionsViewActions.js';
 
 suite('Sessions - View Menu', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('active filter chips follow the view state across search and clear independently', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const store = new DisposableStore();
+		try {
+			const container = mainWindow.document.body.appendChild($('div'));
+			store.add(toDisposable(() => container.remove()));
+			container.style.width = '900px';
+			container.classList.add('sessions-filter-test');
+			container.appendChild($('style', undefined, `
+				.sessions-filter-test .sessions-filter-chips:not([hidden]),
+				.sessions-filter-test .sessions-filter-chips-items:not([hidden]),
+				.sessions-filter-test .sessions-filter-chip:not([hidden]) { display: flex; }
+				.sessions-filter-test .sessions-filter-chip-button { width: auto; }
+			`));
+			const findRow = container.appendChild($('div'));
+			findRow.style.display = 'none';
+			const find = findRow.appendChild($('div'));
+			const hint = findRow.appendChild($('div', { id: 'sessions-test-filter-hint' }));
+			const harnessState = createListHarness(store, [buildTestSession({ id: 'matching', title: 'Needle' }).session]);
+			const list = store.add(harnessState.instantiationService.createInstance(TestSessionsList, container, {
+				grouping: () => SessionsGrouping.Workspace, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
+				findWidgetContainer: find, findAriaDescribedBy: hint.id,
+			}));
+			list.layout(400, 900);
+			const filters = list.filters;
+			const harness = { kind: 'harness', id: 'claude' } as const;
+			const worktree = 'feature';
+			const availableWorktrees = new Set([worktree]);
+			const configurationService = new TestConfigurationService({
+				[SESSIONS_SEND_LATER_ENABLED_SETTING]: true,
+				[ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone,
+			});
+			const scopedContextKeyService = store.add(new ContextKeyService(configurationService));
+			const menuService = store.add(harnessState.instantiationService.createInstance(MenuService));
+			let shown: IContextMenuDelegate | undefined;
+			harnessState.instantiationService.stub(IContextMenuService, { showContextMenu: (delegate: IContextMenuDelegate) => { shown = delegate; } });
+			let pickerAnchor: HTMLElement | undefined;
+			const scopeChips: readonly ISessionsFilterChip[] = [
+				{ id: 'workspace', label: 'All Workspaces', hasListbox: true, edit: anchor => { pickerAnchor = anchor; } },
+				{ id: 'scopeEnvironment', label: 'All Environments', hasListbox: true, edit: () => { } },
+			];
+			const getFilterMenu = Reflect.get(SessionsView.prototype, 'getFilterMenuActions') as (this: SessionsView, anchor: HTMLElement, scopeChips: readonly ISessionsFilterChip[]) => IAction[];
+			const chips = store.add(harnessState.instantiationService.createInstance(SessionsFilterChips, container,
+				anchor => getFilterMenu.call(view, anchor, scopeChips), () => view.openFind()));
+			const view: SessionsView = Object.assign(Object.create(SessionsView.prototype), {
+				sessionsControl: list, configurationService, findWidgetContainer: find, findRow, filterChipsEnabled: true, menuService, scopedContextKeyService,
+				_register: <T extends IDisposable>(disposable: T) => store.add(disposable),
+				updateHeaderLayout: () => { }, layoutSidebarSplitView: () => { }, _onDidChangeSearchMode: store.add(new Emitter<boolean>()),
+			});
+			type FilterOptions = { readonly options: readonly (ISessionFilterOption & { readonly checked: boolean })[] };
+			const options = constObservable<FilterOptions>({
+				get options(): FilterOptions['options'] {
+					return [
+						{ filter: harness, label: 'Claude', group: 'harness', checked: !filters.isExcluded(harness) },
+						{ filter: { kind: 'worktree', id: worktree }, label: 'feature', group: 'worktrees', checked: filters.getSelectedWorktree(availableWorktrees) === worktree },
+					];
+				},
+			});
+			const bindFilterRow = Reflect.get(SessionsView.prototype, 'bindFilterRow') as (this: SessionsView, list: SessionsList, find: HTMLElement, hint: HTMLElement, row: SessionsFilterChips, scope: IObservable<readonly ISessionsFilterChip[]>, options: IObservable<FilterOptions>) => void;
+			list.setExcludeArchived(true);
+			bindFilterRow.call(view, list, find, hint, chips, constObservable(scopeChips), options);
+			const row = chips.element;
+			const labels = () => [...row.querySelectorAll('.sessions-filter-chip-clear')].map(button => button.getAttribute('aria-label'));
+			const button = (label: string) => row.querySelector<HTMLElement>(`[aria-label="${label}"]`)!;
+			const before = [...row.querySelectorAll('.sessions-filter-chip')].map(chip => chip.textContent);
+			const funnel = button('Filter Sessions');
+			funnel.click();
+			assert.ok(shown, 'Expected the funnel to open its menu');
+			const scopeActions = shown.getActions().slice(0, 2);
+			await scopeActions[0].run();
+			shown.onHide?.(false);
+			const scopeMenu = { labels: scopeActions.map(action => action.label), opensFromFunnel: pickerAnchor === funnel };
+			filters.setExcluded(harness, true);
+			const excluded = labels();
+			button('Clear Hide Claude').click();
+			const cleared = { labels: labels(), excluded: filters.isExcluded(harness) };
+			filters.setSelectedWorktree(worktree);
+			filters.setScheduledOnly(true);
+			list.setExcludeArchived(false);
+			button('Find Session').focus();
+			button('Find Session').click();
+			const findInput = () => find.querySelector<HTMLInputElement>('.monaco-tree-type-filter:not(.disabled) input')!;
+			const input = findInput();
+			input.value = 'needle';
+			input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+			list.focus();
+			const searching = {
+				rowHidden: row.hidden, searchHidden: findRow.style.display === 'none', hint: hint.hidden ? undefined : hint.textContent,
+				describedByHint: input.getAttribute('aria-describedby') === hint.id, queryAfterBlur: findInput().value,
+			};
+			input.focus();
+			input.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+			const closed = { rowHidden: row.hidden, searchHidden: findRow.style.display === 'none', hintHidden: hint.hidden, labels: labels(), focused: getActiveElement()?.getAttribute('aria-label') };
+			button('Find Session').click();
+			find.querySelector<HTMLElement>('.monaco-tree-type-filter:not(.disabled) .codicon-close')!.click();
+			const after = { rowHidden: row.hidden, searchHidden: findRow.style.display === 'none', labels: labels(), scheduled: filters.isScheduledOnly(), worktree: filters.getSelectedWorktree(availableWorktrees), done: !list.isExcludeArchived() };
+			await timeout(300);
+			Object.assign(view, { filterChipsEnabled: false });
+			container.appendChild(find);
+			view.openFind();
+			const descriptionId = findInput().getAttribute('aria-describedby');
+			const legacySearchHint = descriptionId ? mainWindow.document.getElementById(descriptionId)?.textContent : '';
+			assert.deepStrictEqual({ before, scopeMenu, excluded, cleared, searching, closed, after, legacySearchHint }, {
+				scopeMenu: { labels: ['All Workspaces', 'All Environments'], opensFromFunnel: true },
+				before: ['All Workspaces', 'All Environments'], excluded: ['Clear Hide Claude'], cleared: { labels: [], excluded: false },
+				searching: { rowHidden: true, searchHidden: false, hint: '3 filters applied', describedByHint: true, queryAfterBlur: 'needle' },
+				closed: { rowHidden: false, searchHidden: true, hintHidden: true, labels: ['Clear feature', 'Clear Scheduled Only', 'Clear Done'], focused: 'Find Session' },
+				after: { rowHidden: false, searchHidden: true, labels: ['Clear feature', 'Clear Scheduled Only', 'Clear Done'], scheduled: true, worktree, done: true },
+				legacySearchHint: '',
+			});
+		} finally {
+			store.dispose();
+		}
+	}));
 
 	function createMenu(
 		sessions: readonly ISession[] = [],
@@ -708,6 +823,32 @@ suite('Sessions - View Menu', () => {
 			editorWindow: ['Time', 'Environment'],
 			sessionsWindowOffering: ['Time', 'Environment'],
 		});
+	});
+
+	test('Agents title switches between legacy filter actions and Grouping when filter chips change', async () => {
+		const { configurationService, contextKeyService } = createMenu();
+		IsSessionsWindowContext.bindTo(contextKeyService).set(true);
+		bindSessionsViewGroupings(contextKeyService, DEFAULT_SESSIONS_GROUPINGS);
+		const instantiationService = workbenchInstantiationService({
+			configurationService: () => configurationService,
+			contextKeyService: () => contextKeyService,
+		}, store);
+		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+		const container = mainWindow.document.body.appendChild($('div'));
+		store.add(toDisposable(() => container.remove()));
+		const { actions } = renderSessionsHeader(container, false, instantiationService, contextKeyService, store.add(new DisposableStore()));
+		const snapshot = () => [...actions.querySelectorAll('.codicon-filter, .codicon-search, .codicon-group-by-ref-type')]
+			.map(element => element.getAttribute('aria-label'));
+
+		const before = snapshot();
+		await configurationService.updateValue(SESSIONS_LIST_FILTER_CHIPS_SETTING, true);
+		const enabled = snapshot();
+		await configurationService.updateValue(SESSIONS_LIST_FILTER_CHIPS_SETTING, false);
+		assert.deepStrictEqual([before, enabled, snapshot()], [
+			['Filter Sessions', 'Find Session'],
+			['Grouping'],
+			['Filter Sessions', 'Find Session'],
+		]);
 	});
 
 	for (const phone of [false, true]) {
@@ -1556,14 +1697,6 @@ suite('Sessions - View Menu', () => {
 			],
 			phone: [{ title: 'Collapse All Groups', group: '1_view' }],
 			disabled: [],
-		});
-	});
-
-	test('uses the filter icon for the Filter Sessions action', () => {
-		const item = MenuRegistry.getMenuItems(Menus.SidebarSessionsHeader).filter(isISubmenuItem).find(item => item.submenu === Menus.SessionsViewFilter);
-		assert.deepStrictEqual(item && { title: item.title, icon: item.icon }, {
-			title: { value: 'Filter Sessions', original: 'Filter Sessions' },
-			icon: Codicon.filter,
 		});
 	});
 

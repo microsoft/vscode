@@ -349,6 +349,9 @@ interface ISessionsListControlOptions {
 	readonly pinnedCanvases?: IPinnedCanvasService;
 	readonly focusNewSessionInput?: () => void;
 	readonly findWidgetContainer?: HTMLElement;
+	readonly keepFindOpenOnNavigation?: () => boolean;
+	readonly openSearchOnType?: (text: string) => void;
+	readonly findAriaDescribedBy?: string;
 	readonly onDidScroll?: () => void;
 	/**
 	 * Whether the sessions providers list only the sessions of a scope, such as of the folders of the window's workspace:
@@ -360,6 +363,7 @@ interface ISessionsListControlOptions {
 	readonly sessionScope?: IObservable<ReadonlySet<string> | undefined>;
 	readonly pendingSessionScope?: IObservable<((item: IPendingSessionItem) => boolean) | undefined>;
 	readonly scopeBar?: IObservable<boolean>;
+	readonly scopeChips?: IObservable<boolean>;
 	/**
 	 * Whether grouping by time lists the sessions without a workspace in the "Chats" section, flat, as the other groupings
 	 * do, rather than among the time sections; it does not by default. A {@link scoped} list has no Chats section at all.
@@ -1165,6 +1169,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (this.options.scopeBar) {
 			this._register(runOnChange(this.options.scopeBar, () => this.update()));
 		}
+		if (this.options.scopeChips) {
+			this._register(runOnChange(this.options.scopeChips, () => this.update()));
+		}
 
 		const indentGuides = new SessionsListIndentGuides<SessionListItem>(element => this.getRowIndent(element), () => this.tree);
 		this.tree = treeDisposables.add(treeInstantiationService.createInstance(
@@ -1336,6 +1343,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			},
 		}, {
 			findWidgetContainer: this.options.findWidgetContainer,
+			ariaDescribedBy: this.options.findAriaDescribedBy,
 			styles: defaultFindWidgetStyles,
 		}));
 		const focusedChatItemContext = SessionsListFocusedChatItemContext.bindTo(listContextKeyService);
@@ -1578,6 +1586,17 @@ export class SessionsList extends Disposable implements ISessionsList {
 		};
 
 		const searchOpenContext = SessionsListSearchOpenContext.bindTo(listContextKeyService);
+		const openSearchOnType = this.options.openSearchOnType;
+		if (openSearchOnType) {
+			const treeElement = this.tree.getHTMLElement();
+			this._register(DOM.addDisposableListener(treeElement, DOM.EventType.KEY_DOWN, (event: KeyboardEvent) => {
+				if (!this.options.keepFindOpenOnNavigation?.() || event.target !== treeElement || event.isComposing || event.ctrlKey || event.metaKey || event.altKey || event.key === ' ' || Array.from(event.key).length !== 1) {
+					return;
+				}
+				DOM.EventHelper.stop(event, true);
+				openSearchOnType(event.key);
+			}, true));
+		}
 		this._register(this.findController.onDidChangeOpenState(open => {
 			searchOpenContext.set(open);
 			this.findOpen.set(open, undefined);
@@ -1587,8 +1606,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// Only treat the find as "active" for layout purposes (bypassing workspace
 		// capping and per-group limits, expanding the rows with results) once the
 		// user has actually typed a word. Opening the empty find widget should not
-		// reorder the list, and closing find, which clears its pattern, should
-		// restore the capped layout. Reopening it restores its last pattern.
+		// reorder the list. Clearing its pattern restores the capped layout.
 		this._register(this.findController.onDidChangePattern(pattern => {
 			this.searchFilter.pattern = pattern;
 			const wasSearching = this.hasFindPattern;
@@ -1892,7 +1910,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (this.pendingSessionMoves.size > 0) {
 			filtered = filtered.filter(session => !this.pendingSessionMoves.has(session.sessionId));
 		}
-		if (inbox || this.options.scopeBar?.get()) {
+		if (inbox || this.appliesScopeFilters()) {
 			filtered = filtered.filter(session => this.filters.matchesInboxScope(session));
 		}
 		// The same sessions also stay visible past the "+N more" caps of sections and folders.
@@ -2516,7 +2534,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const pendingItems = [
 			...(this.options.scheduledSessions?.get() ?? []),
 			...(scheduledOnly ? [] : draftsSection?.items ?? []),
-		].filter(item => matchesPendingSession(item, this.filters, inbox || !!this.options.scopeBar?.get(), scopedProviderIds)
+		].filter(item => matchesPendingSession(item, this.filters, inbox || this.appliesScopeFilters(), scopedProviderIds)
 			&& (this.options.pendingSessionScope?.get()?.(item) ?? true));
 		if (pendingItems.length > 0) {
 			const element: ISessionSection = { id: 'drafts', label: draftsSection?.label ?? localize('drafts', "Drafts"), sessions: [], pendingItems };
@@ -3366,13 +3384,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private revealOnboardingTarget(session: ISession, archiveAction: boolean): IDisposable & { readonly targetId: string } {
-		if ((this.isInboxLayout() || this.options.scopeBar?.get()) && !this.filters.matchesInboxScope(session)) {
+		if ((this.isInboxLayout() || this.appliesScopeFilters()) && !this.filters.matchesInboxScope(session)) {
 			throw new Error(this.isInboxLayout()
 				? localize('sessionsList.outsideInboxScope', "This session is outside the current Inbox scope. Reset the scope to reveal it.")
 				: localize('sessionsList.outsideSessionsScope', "This session is outside the current Sessions scope. Reset the scope to reveal it."));
 		}
 		this.customViewService.hideCustomView();
-		this.closeFind();
+		this.closeFindOnNavigation();
 		const target = { session, archiveAction };
 		this.onboardingTarget.set(target, undefined);
 		const release = toDisposable(() => {
@@ -3528,7 +3546,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (this.navigationSections.some(section => section.id === AUTOMATIONS_SECTION_ID)) {
 			this.focusNavigationSection(AUTOMATIONS_SECTION_ID);
 		} else {
-			this.closeFind();
+			this.closeFindOnNavigation();
 			const section = this.tree.getNode().children.find(node => node.element && isSessionSection(node.element) && node.element.id === AUTOMATIONS_SECTION_ID)?.element;
 			if (section) {
 				this.tree.setFocus([section]);
@@ -3554,7 +3572,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private focusNavigationSection(sectionId: string): void {
-		this.closeFind();
+		this.closeFindOnNavigation();
 		const index = this.navigationSections.findIndex(section => section.id === sectionId);
 		if (!this.navigationList || index < 0) {
 			return;
@@ -3568,12 +3586,18 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.update();
 	}
 
-	openFind(): void {
-		this.findController.open();
+	openFind(initialPattern?: string): void {
+		this.findController.open(initialPattern);
 	}
 
 	closeFind(): void {
 		this.findController.close();
+	}
+
+	private closeFindOnNavigation(): void {
+		if (!this.options.keepFindOpenOnNavigation?.()) {
+			this.closeFind();
+		}
 	}
 
 	// -- Drag and drop --
@@ -3856,12 +3880,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 			element = chatRow.chatItem;
 		}
 		if (!this.tree.getNode(element).visible) {
-			if (!this.hasFindPattern) {
+			if (!this.hasFindPattern || this.options.keepFindOpenOnNavigation?.()) {
 				return false;
 			}
 			const activeElement = DOM.getActiveElement();
 			const hadFocus = DOM.isAncestorOfActiveElement(this.listContainer);
-			this.findController.close();
+			this.closeFind();
 			if (!hadFocus && DOM.isHTMLElement(activeElement)) {
 				activeElement.focus();
 			}
@@ -5708,7 +5732,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 	/** Whether the session is in the list's scope (the model, the window scope and the workspaces filter bar), before its source filters apply. */
 	isSessionInScope(session: ISession, reader?: IReader): boolean {
 		return this.isSessionInInventory(session, reader)
-			&& (!this.options.scopeBar?.read(reader) || this.filters.matchesInboxScope(session, reader));
+			&& (!this.appliesScopeFilters(reader) || this.filters.matchesInboxScope(session, reader));
+	}
+
+	private appliesScopeFilters(reader?: IReader): boolean {
+		return !!(this.options.scopeBar?.read(reader) || this.options.scopeChips?.read(reader));
 	}
 
 	/** Whether the list includes the session before its workspaces filter bar and its source filters apply. */
