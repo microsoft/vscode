@@ -3510,6 +3510,20 @@ suite('AgentHostGitStateService', () => {
 		});
 	}));
 
+	test('an explicit pull request lookup of a folder-only scope reports why it failed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		const api = 'file:///api';
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState: { branchName: 'main' } });
+		h.stateManager.dispatchServerAction(SESSION, { type: ActionType.SessionWorkingDirectorySet, directory: api });
+		h.setGitResult({ branchName: 'main' });
+		h.setGitResultForFolder(api, { branchName: 'api-feature', baseBranchName: 'main', hasGitHubRemote: true, githubOwner: 'contoso', githubRepo: 'api' });
+		h.setOnPullRequestLookup(async () => { throw new Error('lookup failed'); });
+
+		const failure = await h.service.attachSessionGitHubPullRequest(buildFolderChangesetOwnerUri(SESSION, getWorkingDirectoryScopeId([api])));
+
+		assert.deepStrictEqual(failure, { kind: 'unknown', message: 'lookup failed' });
+	}));
+
 	test('a pull request found for another folder of the session is recorded for that folder only, never as the session\'s latest outcome', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const h = createHarness();
 		const api = 'file:///api';

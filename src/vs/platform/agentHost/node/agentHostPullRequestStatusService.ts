@@ -21,7 +21,7 @@ import { buildFolderChangesetOwnerUri, parseFolderChangesetOwnerUri } from '../c
 import { ActionType } from '../common/state/sessionActions.js';
 import { getSessionRelatedPullRequestUrls, hasSessionPullRequestForBranch, isAhpChatChannel, isSessionStatusArchived, readFolderGitHubState, readSessionGitState, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
-import { getFolderOnlyAgentMergeRoots, getGitHubStateFolderKey, resolveGitHubStateFolder, type IGitHubStateFolder } from './agentHostBranchChangesetScope.js';
+import { getFolderOnlyAgentMergeRoots, resolveGitHubStateFolder, type IGitHubStateFolder } from './agentHostBranchChangesetScope.js';
 import { getWorkingDirectoryScopeId } from '../common/agentHostWorkingDirectories.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 import { IAgentHostGitHubService } from './agentHostGitHubService.js';
@@ -104,9 +104,18 @@ export interface IAgentHostPullRequestStatusService extends IDisposable {
 	resolveForLifecycle(sessionKey: string, pullRequestUrl: string, source?: IAgentHostCredentialSource): Promise<IAgentHostPullRequestStatus | undefined>;
 }
 
+/**
+ * A folder whose pull request is watched, with the key its Git and GitHub state are read and written under, fixed when
+ * the folder is resolved: the session for its first folder, the changeset owner of a folder-only scope, else the chat
+ * working in it. A folder that later leaves the session keeps its key, so its state is never written for another.
+ */
+interface IWatchedFolder extends IGitHubStateFolder {
+	readonly stateKey: ProtocolURI;
+}
+
 interface IWatch extends IDisposable {
 	readonly sessionUri: ProtocolURI;
-	folder: IGitHubStateFolder;
+	folder: IWatchedFolder;
 	readonly ref: PullRequestRef;
 	readonly subscription: PullRequestSubscription;
 	awaitingAuthoritativeRefresh: boolean;
@@ -282,9 +291,13 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 	}
 
 	/** The folder whose pull request `key` refers to, or `undefined` when it has none. */
-	private _resolveFolder(key: string): IGitHubStateFolder | undefined {
+	private _resolveFolder(key: string): IWatchedFolder | undefined {
 		const folder = resolveGitHubStateFolder(this._stateManager, key);
-		return folder.folderKey !== undefined ? folder : undefined;
+		if (folder.folderKey === undefined) {
+			return undefined;
+		}
+		const stateKey = folder.isSessionFolder ? folder.sessionUri : parseFolderChangesetOwnerUri(key) ? key : folder.sourceUri;
+		return { ...folder, stateKey };
 	}
 
 	/**
@@ -354,14 +367,15 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 
 	/**
 	 * The folders of a session that have their own pull request: the session folder, each chat's first folder, and each
-	 * folder-only scope with an Agent Merge of its own (see `getFolderOnlyAgentMergeRoots`).
+	 * folder-only scope with an Agent Merge of its own (see `getFolderOnlyAgentMergeRoots`) that something consumes: a
+	 * client showing its changes, or its Agent Merge.
 	 */
-	private _getFolders(sessionKey: string): readonly IGitHubStateFolder[] {
+	private _getFolders(sessionKey: string): readonly IWatchedFolder[] {
 		const state = this._stateManager.getSessionState(sessionKey);
 		if (!state) {
 			return [];
 		}
-		const folders = new Map<string, IGitHubStateFolder>();
+		const folders = new Map<string, IWatchedFolder>();
 		const defaultChat = this._chatOwnership.getDefaultChat(sessionKey);
 		for (const source of [sessionKey, ...state.chats.map(chat => chat.resource).filter(chat => chat !== defaultChat)]) {
 			const folder = this._resolveFolder(source);
@@ -369,8 +383,12 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 				folders.set(watchKey(folder), folder);
 			}
 		}
-		for (const root of getFolderOnlyAgentMergeRoots(this._stateManager, sessionKey).values()) {
-			const folder = this._resolveFolder(buildFolderChangesetOwnerUri(sessionKey, getWorkingDirectoryScopeId([root])));
+		const sessionFolderKey = resolveGitHubStateFolder(this._stateManager, sessionKey).folderKey;
+		for (const [folderKey, root] of getFolderOnlyAgentMergeRoots(this._stateManager, sessionKey)) {
+			const owner = buildFolderChangesetOwnerUri(sessionKey, getWorkingDirectoryScopeId([root]));
+			const consumed = this._changesetSubscriptions.getSessionSubscriptions(owner).size > 0
+				|| readAgentMergeFolderState(state.config?.values, folderKey, sessionFolderKey)?.enabled === true;
+			const folder = consumed ? this._resolveFolder(owner) : undefined;
 			if (folder && !folders.has(watchKey(folder))) {
 				folders.set(watchKey(folder), folder);
 			}
@@ -378,7 +396,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		return [...folders.values()];
 	}
 
-	private async _syncFolder(folder: IGitHubStateFolder, source: IAgentHostCredentialSource | undefined): Promise<void> {
+	private async _syncFolder(folder: IWatchedFolder, source: IAgentHostCredentialSource | undefined): Promise<void> {
 		const key = watchKey(folder);
 		const target = this._getWatchTarget(folder);
 		if (target.kind === 'skip') {
@@ -462,7 +480,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		}
 	}
 
-	private _getSubscriptionOptions(folder: IGitHubStateFolder): PullRequestSubscriptionOptions {
+	private _getSubscriptionOptions(folder: IWatchedFolder): PullRequestSubscriptionOptions {
 		const visible = this._changesetSubscriptions.getSessionSubscriptions(folder.sessionUri).size > 0;
 		const sessionFolderKey = resolveGitHubStateFolder(this._stateManager, folder.sessionUri).folderKey;
 		const agentMergeEnabled = readAgentMergeFolderState(this._stateManager.getSessionState(folder.sessionUri)?.config?.values, folder.folderKey, sessionFolderKey)?.enabled === true;
@@ -482,7 +500,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		};
 	}
 
-	private _hasPersistedMergedState(folder: IGitHubStateFolder, ref: PullRequestRef): boolean {
+	private _hasPersistedMergedState(folder: IWatchedFolder, ref: PullRequestRef): boolean {
 		const gitHubState = readFolderGitHubState(this._stateManager.getSessionState(folder.sessionUri)?._meta, folder.folderKey);
 		const persistedPullRequest = gitHubState?.pullRequestStateUrl ? parsePullRequestUrl(gitHubState.pullRequestStateUrl) : undefined;
 		return gitHubState?.pullRequestState === 'merged'
@@ -509,7 +527,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 	 * eligible. The reason is carried rather than collapsed into `undefined` so
 	 * a missing button bar can be explained from the logs alone.
 	 */
-	private _getWatchTarget(folder: IGitHubStateFolder): IWatchTarget {
+	private _getWatchTarget(folder: IWatchedFolder): IWatchTarget {
 		const state = this._stateManager.getSessionState(folder.sessionUri);
 		if (!state) {
 			return { kind: 'skip', reason: 'session is unknown' };
@@ -522,7 +540,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		}
 		const gitHubState = readFolderGitHubState(state._meta, folder.folderKey);
 		// The session's Git state describes the session folder; another folder's comes from its chat, or is its own.
-		const gitState = folder.isSessionFolder ? readSessionGitState(state._meta) : this._gitStateService.getSessionGitState?.(getGitHubStateFolderKey(this._stateManager, folder));
+		const gitState = folder.isSessionFolder ? readSessionGitState(state._meta) : this._gitStateService.getSessionGitState?.(folder.stateKey);
 		if (!hasSessionPullRequestForBranch(gitHubState, gitState?.branchName)) {
 			return { kind: 'skip', reason: `no pull request is known for branch '${gitState?.branchName ?? 'unknown'}'` };
 		}
@@ -566,13 +584,12 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		this._onDidChangePullRequestStatus.fire(watch.sessionUri);
 	}
 
-	private _publishPullRequestState(folder: IGitHubStateFolder, pullRequestUrl: string, state: IAgentHostPullRequestStatus['state']): void {
+	private _publishPullRequestState(folder: IWatchedFolder, pullRequestUrl: string, state: IAgentHostPullRequestStatus['state']): void {
 		const gitHubState = readFolderGitHubState(this._stateManager.getSessionState(folder.sessionUri)?._meta, folder.folderKey);
 		if (gitHubState?.pullRequestState === state && gitHubState.pullRequestStateUrl === pullRequestUrl) {
 			return;
 		}
-		const key = getGitHubStateFolderKey(this._stateManager, folder);
-		void this._gitStateService.setSessionGitHubState(key, {
+		void this._gitStateService.setSessionGitHubState(folder.stateKey, {
 			pullRequestState: state,
 			pullRequestStateUrl: pullRequestUrl,
 		}).catch(error => this._logService.warn(`[AgentHostPullRequestStatusService] Failed to publish pull request state: session=${folder.sessionUri}, pr=${pullRequestUrl}, state=${state}, error=${error}`));

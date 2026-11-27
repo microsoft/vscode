@@ -243,8 +243,10 @@ export const MAX_FOLDER_ONLY_AGENT_MERGE_ROOTS = 16;
 /**
  * The roots of a session's folder-only scopes (see {@link isFolderOnlyScope}) that have an Agent Merge and a pull
  * request of their own, by working-directory key: the session's folders other than its first when it has several, then
- * the repositories found in its folders, at most {@link MAX_FOLDER_ONLY_AGENT_MERGE_ROOTS}. A folder that a chat of the
- * session works in first is that chat's folder, and is not one of them.
+ * the repositories found in its folders, at most {@link MAX_FOLDER_ONLY_AGENT_MERGE_ROOTS}. Only those whose Git state
+ * the session's refresh reads and records (see {@link readSessionFolderScopeGitState}), which are bounded on their own,
+ * so each has the Git state its Agent Merge reads. A folder that a chat of the session works in first is that chat's
+ * folder, and is not one of them.
  */
 export function getFolderOnlyAgentMergeRoots(stateManager: AgentHostStateManager, session: ProtocolURI): ReadonlyMap<string, ProtocolURI> {
 	const state = stateManager.getSessionState(session);
@@ -257,10 +259,11 @@ export function getFolderOnlyAgentMergeRoots(stateManager: AgentHostStateManager
 		...(sessionFolders.length > 1 ? sessionFolders.slice(1) : []),
 		...Object.values(readSessionRepositories(state?._meta) ?? {}).flat().filter(repository => repository.kind !== 'folder').map(repository => repository.root),
 	];
+	const meta = state?._meta;
 	const roots = new Map<string, ProtocolURI>();
 	for (const root of candidates) {
 		const key = getWorkingDirectoryKey(root);
-		if (!chatFolderKeys.has(key) && !roots.has(key)) {
+		if (!chatFolderKeys.has(key) && !roots.has(key) && readFolderScopeGitState(meta, getWorkingDirectoryScopeId([root])) !== undefined) {
 			roots.set(key, root);
 			if (roots.size === MAX_FOLDER_ONLY_AGENT_MERGE_ROOTS) {
 				break;
@@ -279,19 +282,6 @@ export function getFolderOnlyAgentMergeRoot(stateManager: AgentHostStateManager,
 export function chatCoversFolder(stateManager: AgentHostStateManager, chat: ProtocolURI, root: ProtocolURI): boolean {
 	const rootUri = URI.parse(root);
 	return getEffectiveWorkingDirectories(stateManager, chat)?.some(directory => extUriBiasedIgnorePathCase.isEqualOrParent(rootUri, URI.parse(directory))) === true;
-}
-
-/**
- * The key under which the Git and GitHub state of `folder` is read and written: the session for its first folder, the
- * folder's changeset owner for a folder-only scope (see {@link getFolderOnlyAgentMergeRoots}), and otherwise the chat
- * working in the folder.
- */
-export function getGitHubStateFolderKey(stateManager: AgentHostStateManager, folder: IGitHubStateFolder): ProtocolURI {
-	if (folder.isSessionFolder) {
-		return folder.sessionUri;
-	}
-	const root = getFolderOnlyAgentMergeRoot(stateManager, folder.sessionUri, folder.folderKey);
-	return root !== undefined ? buildFolderChangesetOwnerUri(folder.sessionUri, getWorkingDirectoryScopeId([root])) : folder.sourceUri;
 }
 
 /**

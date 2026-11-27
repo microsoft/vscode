@@ -32,7 +32,7 @@ import { isCancellationError } from '../../../base/common/errors.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { AgentHostPullRequestAssociationResolver } from './agentHostPullRequestAssociationResolver.js';
-import { getFolderOnlyAgentMergeRoot, isSessionChatInFolder, resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource, resolveGitHubStateFolder, type IGitHubStateFolder } from './agentHostBranchChangesetScope.js';
+import { isFolderOnlyScope, isSessionChatInFolder, resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource, resolveGitHubStateFolder, type IGitHubStateFolder } from './agentHostBranchChangesetScope.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../common/agentHostWorkingDirectories.js';
 import { parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
 import { readSessionNonRepositoryFolders, withSessionNonRepositoryFolders } from '../common/meta/agentSessionNonRepositoryFoldersMeta.js';
@@ -339,20 +339,25 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	}
 
 	/**
-	 * The session and root of the folder-only scope (see `getFolderOnlyAgentMergeRoots`) that a folder changeset owner
-	 * URI names, or `undefined` for any other key. Its session's refresh records the folder's Git state, GitHub
-	 * repository and pull request, under the scope of the root alone.
+	 * The session and root of the folder-only scope (see `isFolderOnlyScope`) that a folder changeset owner URI names,
+	 * other than the session's first folder, or `undefined` for any other key. Its session's refresh records the
+	 * folder's Git state, GitHub repository and pull request, under the scope of the root alone.
 	 */
 	private _resolveFolderOnlyOwner(key: string): { readonly sessionUri: string; readonly root: string } | undefined {
 		const owner = parseFolderChangesetOwnerUri(key);
-		const root = owner ? resolveBranchChangesetScopeForOwner(this._stateManager, key)?.workingDirectories : undefined;
-		return owner && root?.length === 1 && getFolderOnlyAgentMergeRoot(this._stateManager, owner.sessionUri, getWorkingDirectoryKey(root[0])) !== undefined
-			? { sessionUri: owner.sessionUri, root: root[0] }
+		const scope = owner ? resolveBranchChangesetScopeForOwner(this._stateManager, key) : undefined;
+		const root = scope?.workingDirectories.length === 1 ? scope.workingDirectories[0] : undefined;
+		return owner && scope && root !== undefined && isFolderOnlyScope(this._stateManager, scope)
+			&& root !== this._stateManager.getSessionSummary(owner.sessionUri)?.workingDirectories?.[0]
+			? { sessionUri: owner.sessionUri, root }
 			: undefined;
 	}
 
-	/** Refreshes a folder-only scope through its session, then looks up the pull request of the folder's branch. */
-	private async _attachFolderOnlyGitHubPullRequest(folderOnly: { readonly sessionUri: string; readonly root: string }, credentials: IRepositoryCredentialContext): Promise<void> {
+	/**
+	 * Refreshes a folder-only scope through its session, then looks up the pull request of the folder's branch.
+	 * @returns Why looking up the pull request failed, if it did, as for a chat's folder.
+	 */
+	private async _attachFolderOnlyGitHubPullRequest(folderOnly: { readonly sessionUri: string; readonly root: string }, credentials: IRepositoryCredentialContext): Promise<IPullRequestLookupFailure | void> {
 		await this._refreshSessionGitState(folderOnly.sessionUri, credentials);
 		const gitState = readFolderScopeGitState(this._stateManager.getSessionState(folderOnly.sessionUri)?._meta, getWorkingDirectoryScopeId([folderOnly.root]));
 		if (credentials.sponsorUnavailable || !gitState) {
@@ -1123,7 +1128,8 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	 * Associates the pull request of the current branch of a session folder other than its first, as for a chat's
 	 * folder. The result applies only while the folder is still on that branch of that GitHub repository.
 	 */
-	private async _attachAdditionalFolderPullRequest(folder: IGitHubStateFolder & { readonly folderKey: string; readonly workingDirectory: string }, gitState: ISessionGitState, credentials: IRepositoryCredentialContext): Promise<void> {
+	/** @returns Why looking up the pull request failed, if it did; a refresh in the background only logs it. */
+	private async _attachAdditionalFolderPullRequest(folder: IGitHubStateFolder & { readonly folderKey: string; readonly workingDirectory: string }, gitState: ISessionGitState, credentials: IRepositoryCredentialContext): Promise<IPullRequestLookupFailure | void> {
 		const state = this._stateManager.getSessionState(folder.sessionUri);
 		const branchName = gitState.branchName;
 		const currentGitHubState = readFolderGitHubState(state?._meta, folder.folderKey);
@@ -1153,6 +1159,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			this._persistInBackground(this._applySessionGitHubState(folder, latestMeta, latestGitHubState, nextGitHubState, true));
 		} catch (error) {
 			this._logService.warn(`[AgentHostGitStateService] Failed to find the pull request of folder ${folder.workingDirectory} of ${folder.sessionUri}`, error);
+			return toPullRequestLookupFailure(error);
 		}
 	}
 

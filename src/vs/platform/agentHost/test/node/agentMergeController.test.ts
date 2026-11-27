@@ -34,7 +34,7 @@ import { AgentSystemNotificationKind } from '../../common/meta/agentSystemNotifi
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { AhpErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { ChatOriginKind, MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, createErrorResponsePart, withFolderGitHubState, withSessionGitHubState, withSessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
+import { ChatOriginKind, MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, createErrorResponsePart, withFolderGitHubState, withSessionGitHubState, withSessionGitState, type SessionSummary, withFolderScopeGitState } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
@@ -740,7 +740,9 @@ suite('AgentMergeController', () => {
 		));
 		stateManager.createSession({ ...summary(session), workingDirectories: [REPOSITORY, OTHER_REPOSITORY] });
 		stateManager.setSessionConfig(session, { schema: platformSessionSchema.toProtocol(), values: {} });
-		stateManager.setSessionMeta(session, withFolderGitHubState(undefined, otherKey, { pullRequestUrls: ['https://github.com/octo/repo/pull/1'], pullRequestBranchName: 'feature-tools' }));
+		// The session's refresh recorded the folder's own Git state
+		const meta = withFolderScopeGitState(undefined, getWorkingDirectoryScopeId([OTHER_REPOSITORY]), { branchName: 'feature-tools', baseBranchName: 'main' }, [OTHER_REPOSITORY]);
+		stateManager.setSessionMeta(session, withFolderGitHubState(meta, otherKey, { pullRequestUrls: ['https://github.com/octo/repo/pull/1'], pullRequestBranchName: 'feature-tools' }));
 
 		configurationService.updateSessionConfig(session, {
 			[SessionConfigKey.AgentMergeFolders]: {
@@ -751,7 +753,7 @@ suite('AgentMergeController', () => {
 		await started.p;
 
 		assert.deepStrictEqual({
-			startTurns: startTurns.map(turn => ({ chat: turn.chat, namesRepository: turn.prompt.includes(`repository at \`${URI.parse(OTHER_REPOSITORY).fsPath}\``) })),
+			startTurns: startTurns.map(turn => ({ chat: turn.chat, namesRepository: turn.prompt.includes(`repository at the path ${JSON.stringify(URI.parse(OTHER_REPOSITORY).fsPath)}`) })),
 			gitStateKeys: [...new Set(gitStateKeys)],
 			target: readAgentMergeFolderState(stateManager.getSessionState(session)?.config?.values, otherKey, getWorkingDirectoryKey(REPOSITORY))?.target?.pullRequestUrl,
 		}, {
