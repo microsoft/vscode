@@ -1990,8 +1990,16 @@ export class AgentService extends Disposable implements IAgentService {
 		if (creationError) {
 			throw creationError;
 		}
-		// A send after the first one was cancelled while moving the other folders into worktrees launches in those worktrees
-		await this._sessionFolderIsolations.get(params.session)?.catch(() => undefined);
+		// A send while another one moves the other folders into worktrees (such as after cancelling it) launches in those
+		// worktrees. Checked again after each wait, and not awaited when none runs, so that from the last check to
+		// publishing its own pass below nothing yields and no second pass can start.
+		for (let isolation = this._sessionFolderIsolations.get(params.session); isolation; isolation = this._sessionFolderIsolations.get(params.session)) {
+			try {
+				await isolation;
+			} catch (error) {
+				this._logService.warn(`[AgentService] Moving the folders of session ${params.session} into worktrees failed; this send uses its folders as they are: ${toErrorMessage(error)}`);
+			}
+		}
 		const pickedFolders = this._configurationService.getEffectiveWorkingDirectories(params.chat);
 		const pickedFolderUri = pickedFolders?.[0] ? URI.parse(pickedFolders[0]) : undefined;
 		const tail = (pickedFolders ?? []).slice(1).map(d => URI.parse(d));

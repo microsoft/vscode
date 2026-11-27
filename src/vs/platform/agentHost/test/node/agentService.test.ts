@@ -5383,6 +5383,73 @@ suite('AgentService (node dispatcher)', () => {
 		assert.deepStrictEqual(sends.filter(send => send.turnId === 'turn-2').map(send => send.workingDirectories?.slice(1)), [[worktreeOf(protocol).toString()]]);
 	});
 
+	test('a worktree session for all folders moves its other folders into worktrees once when two chats send before the first send publishes the move', async () => {
+		const app = URI.file('/work/app');
+		const protocol = URI.file('/work/protocol');
+		const worktreeOf = (checkout: URI) => URI.file(`${checkout.fsPath}.worktrees/task`);
+		let primaryWorktree: URI | undefined;
+		const primaryCreated = new Barrier();
+		const created: string[] = [];
+		const service = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, {
+			...createNoopGitService(),
+			// A worktree is a checkout of its own
+			getRepositoryRoot: async directory => [worktreeOf(app), worktreeOf(protocol), app, protocol].find(checkout => isEqualOrParent(directory, checkout)),
+			getCurrentBranch: async () => 'feature',
+		}));
+		setTestAgentHostWorktreeIsolation(service, createTestAgentHostWorktreeIsolation({
+			isWorkingDirectoryPending: () => !primaryWorktree,
+			resolveOnFirstSend: async () => {
+				await primaryCreated.wait();
+				return primaryWorktree ??= worktreeOf(app);
+			},
+			getResolvedWorktree: () => primaryWorktree,
+			createDetachedWorktree: async request => {
+				created.push(request.workingDirectory!.toString());
+				return { handle: generateUuid(), worktree: worktreeOf(request.workingDirectory!) };
+			},
+			claimDetachedWorktree: async () => { },
+		}));
+		const sends: { chat: string; workingDirectories: string[] | undefined }[] = [];
+		const bothSent = new DeferredPromise<void>();
+		class ProvisionalAgent extends MockAgent {
+			override async createChat(_session: URI, chat: URI): Promise<IAgentCreateChatResult> {
+				return { providerData: `backing:${chat.path}` };
+			}
+			override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
+				sendMessage: async (chat, prompt, workingDirectories, attachments, turnId, ...rest) => {
+					sends.push({ chat: chat.toString(), workingDirectories: Array.isArray(workingDirectories) ? workingDirectories.map(uri => uri.toString()) : undefined });
+					await base.sendMessage(chat, prompt, workingDirectories, attachments, turnId, ...rest);
+					if (sends.length === 2) {
+						bothSent.complete();
+					}
+				},
+			}));
+		}
+		const agent = new ProvisionalAgent('copilot', { multipleChats: { fork: true }, multipleWorkingDirectories: { immutablePrimary: true } });
+		disposables.add(toDisposable(() => agent.dispose()));
+		registerTestAgentProvider(service, agent);
+		const session = await service.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: [app, protocol] });
+		getStateManager(service).setSessionConfig(session.toString(), { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.WorktreeFolders]: 'all' } });
+		const main = buildDefaultChatUri(session.toString());
+		const peer = buildChatUri(session, 'peer');
+		await service.createChat(session, URI.parse(peer));
+
+		service.dispatchAction(main, { type: ActionType.ChatTurnStarted, turnId: 'turn-main', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'main', origin: { kind: MessageKind.User } } }, 'client-1', 1);
+		service.dispatchAction(peer, { type: ActionType.ChatTurnStarted, turnId: 'turn-peer', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'peer', origin: { kind: MessageKind.User } } }, 'client-1', 2);
+		await timeout(0);
+		primaryCreated.open();
+		await bothSent.p;
+
+		assert.deepStrictEqual({
+			created,
+			// The session's own worktree replacing its first folder is faked here
+			tails: sends.map(send => send.workingDirectories?.slice(1)),
+		}, {
+			created: [protocol.toString()],
+			tails: [[worktreeOf(protocol).toString()], [worktreeOf(protocol).toString()]],
+		});
+	});
+
 	test('a worktree session for all folders replaces the folders of a chat that has folders of its own, so its next turns stay in the worktrees', async () => {
 		const app = URI.file('/work/app');
 		const protocol = URI.file('/work/protocol');
