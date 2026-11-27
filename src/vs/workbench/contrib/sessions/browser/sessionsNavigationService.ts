@@ -45,7 +45,10 @@ export interface ISessionsNavigationService {
 	/** Moves focus into what the window shows of its active session. */
 	focusActiveSession(): void;
 
-	/** Stops showing `chat` of `session`, which was archived, where the window shows it as an open chat. */
+	/**
+	 * Stops showing `chat` of `session`, which was archived, where the window shows it as an open chat. Where it is the
+	 * chat the window shows, the window shows the new-session view instead, as it does for an archived session.
+	 */
 	closeArchivedChat(session: ISession, chat: IChat): Promise<void>;
 
 	/**
