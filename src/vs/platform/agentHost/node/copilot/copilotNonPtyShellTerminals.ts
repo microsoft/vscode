@@ -25,7 +25,7 @@ interface INonPtyShellStream {
 	readonly uri: string;
 	readonly title: string;
 	created: boolean;
-	/** The last cumulative snapshot, or the streamed transcript once the call streams chunks. */
+	/** The last cumulative snapshot, or the streamed transcript until the call goes to the background. */
 	lastSnapshot: string;
 	sourceTruncated: boolean;
 	finalized: boolean;
@@ -224,8 +224,8 @@ export class NonPtyShellTerminalStreams extends Disposable {
 	private readonly _streams = new Map<string, INonPtyShellStream>();
 	/** Tool call that started each shell still running in the background, keyed by shell ID. */
 	private readonly _backgroundShells = new Map<string, string>();
-	/** Tool call of each detached shell that exited while its log was still being read, keyed by shell ID. */
-	private readonly _drainingDetachedShells = new Map<string, string>();
+	/** Tool call and reported exit code of each exited detached shell whose log is still being read, keyed by shell ID. */
+	private readonly _drainingDetachedShells = new Map<string, { readonly toolCallId: string; readonly exitCode: number | undefined }>();
 	private _shellTaskReads = 0;
 
 	constructor(
@@ -357,7 +357,9 @@ export class NonPtyShellTerminalStreams extends Disposable {
 		// Only a line feed ends the line: after a bare carriage return, another stream's output would overwrite it.
 		chunks.openLineStream = text.endsWith('\n') ? undefined : source;
 		this._terminalManager.appendOutputTerminalData(stream.uri, text);
-		stream.lastSnapshot += text;
+		if (stream.backgroundShellId === undefined) {
+			stream.lastSnapshot += text;
+		}
 		return { uri: stream.uri, created };
 	}
 
@@ -469,8 +471,8 @@ export class NonPtyShellTerminalStreams extends Disposable {
 		if (!stream?.readingDetachedOutput) {
 			return;
 		}
-		this._forgetDetachedShell(toolCallId, stream);
-		this._finalize(stream, exitCode);
+		const reportedExitCode = this._forgetDetachedShell(toolCallId, stream);
+		this._finalize(stream, exitCode ?? reportedExitCode);
 	}
 
 	/**
@@ -487,8 +489,7 @@ export class NonPtyShellTerminalStreams extends Disposable {
 		if (stream.backgroundShellId !== undefined && this._backgroundShells.get(stream.backgroundShellId) === toolCallId) {
 			return;
 		}
-		this._forgetDetachedShell(toolCallId, stream);
-		this._finalize(stream, undefined);
+		this._finalize(stream, this._forgetDetachedShell(toolCallId, stream));
 	}
 
 	/**
@@ -571,12 +572,12 @@ export class NonPtyShellTerminalStreams extends Disposable {
 	}
 
 	private _completeBackgroundShell(shellId: string, exitCode: number | undefined, settleDetachedRead: boolean): void {
-		if (settleDetachedRead) {
-			const draining = this._drainingDetachedShells.get(shellId);
-			const drainingStream = draining === undefined ? undefined : this._streams.get(draining);
+		const draining = settleDetachedRead ? this._drainingDetachedShells.get(shellId) : undefined;
+		if (draining) {
 			this._drainingDetachedShells.delete(shellId);
+			const drainingStream = this._streams.get(draining.toolCallId);
 			if (drainingStream) {
-				this._finalize(drainingStream, undefined);
+				this._finalize(drainingStream, draining.exitCode);
 			}
 		}
 		const toolCallId = this._backgroundShells.get(shellId);
@@ -591,24 +592,27 @@ export class NonPtyShellTerminalStreams extends Disposable {
 		if (stream.readingDetachedOutput && !settleDetachedRead) {
 			// The read settles the channel once it has drained the log. Remember the
 			// shell meanwhile, so a new command that reuses its ID can still settle it.
-			this._drainingDetachedShells.set(shellId, toolCallId);
+			this._drainingDetachedShells.set(shellId, { toolCallId, exitCode });
 			return;
 		}
 		this._finalize(stream, exitCode);
 	}
 
 	/** Removes a detached shell the tool call started from the shells still running or draining. */
-	private _forgetDetachedShell(toolCallId: string, stream: INonPtyShellStream): void {
+	private _forgetDetachedShell(toolCallId: string, stream: INonPtyShellStream): number | undefined {
 		const shellId = stream.backgroundShellId;
 		if (shellId === undefined) {
-			return;
+			return undefined;
 		}
 		if (this._backgroundShells.get(shellId) === toolCallId) {
 			this._backgroundShells.delete(shellId);
 		}
-		if (this._drainingDetachedShells.get(shellId) === toolCallId) {
-			this._drainingDetachedShells.delete(shellId);
+		const draining = this._drainingDetachedShells.get(shellId);
+		if (draining?.toolCallId !== toolCallId) {
+			return undefined;
 		}
+		this._drainingDetachedShells.delete(shellId);
+		return draining.exitCode;
 	}
 
 	private _replaceOutput(stream: INonPtyShellStream, output: string): void {
