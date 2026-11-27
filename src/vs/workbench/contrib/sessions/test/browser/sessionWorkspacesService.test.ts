@@ -100,8 +100,8 @@ suite('SessionWorkspacesService', () => {
 		readonly fileService?: FileService;
 		/** The `.code-workspace` files VS Code opened recently, as the recent workspaces service reads them. */
 		readonly recentWorkspaceFiles?: ReturnType<typeof observableValue<readonly IVSCodeRecentWorkspaceFile[]>>;
-		/** The workspaces in VS Code's recently opened list. */
-		readonly recentlyOpened?: IRecentlyOpened['workspaces'];
+		/** The workspaces in VS Code's recently opened list, or the error reading it fails with. */
+		readonly recentlyOpened?: IRecentlyOpened['workspaces'] | Error;
 		readonly configuration?: TestConfigurationService;
 	}
 
@@ -118,12 +118,21 @@ suite('SessionWorkspacesService', () => {
 		instantiationService.stub(IConfigurationService, options.configuration ?? new TestConfigurationService({ [SESSIONS_WORKSPACES_ENABLED_SETTING]: true }));
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(ISessionsRecentWorkspacesService, upcastPartial<ISessionsRecentWorkspacesService>({ vsCodeRecentWorkspaceFiles: recentWorkspaceFiles }));
-		instantiationService.stub(IWorkspacesService, upcastPartial<IWorkspacesService>({ getRecentlyOpened: async () => ({ workspaces: options.recentlyOpened ?? [], files: [] }) }));
+		const recentlyOpened = { reads: 0 };
+		instantiationService.stub(IWorkspacesService, upcastPartial<IWorkspacesService>({
+			getRecentlyOpened: async () => {
+				recentlyOpened.reads++;
+				if (options.recentlyOpened instanceof Error) {
+					throw options.recentlyOpened;
+				}
+				return { workspaces: options.recentlyOpened ?? [], files: [] };
+			}
+		}));
 		const warnings: string[] = [];
 		instantiationService.stub(INotificationService, upcastPartial<INotificationService>({ warn: message => { warnings.push(String(message)); } }));
 		const service = disposables.add(instantiationService.createInstance(SessionWorkspacesService));
 		await service.refresh();
-		return { service, fileService, storage, warnings };
+		return { service, fileService, storage, warnings, recentlyOpened };
 	}
 
 	function snapshot(workspaces: readonly IRecentSessionWorkspace[]) {
@@ -614,6 +623,44 @@ suite('SessionWorkspacesService', () => {
 			resolved: [],
 			updated: ['/work/vscode', '/work/vscode-copilot-chat'],
 			file: [{ uri: 'file:///work/vscode' }, { uri: 'file:///work/vscode-copilot-chat' }, { path: '/home/me/vscode' }, { path: '/home/me/docs' }],
+		});
+	});
+
+	test('when VS Code\'s recently opened list cannot be read, the folder paths of a workspace file are never rewritten, and the list is read once per refresh', async () => {
+		const file = URI.file('/work/wsl.code-workspace');
+		const content = '{ "folders": [{ "path": "/home/me/vscode" }, { "path": "/home/me/docs" }] }';
+		const { service, fileService } = await createService({ recentlyOpened: new Error('unavailable') });
+		await fileService.writeFile(file, VSBuffer.fromString(content));
+
+		const foldersFailed = await service.updateWorkspace(file, { folders: [vscode, chat] }).then(() => false, () => true);
+		const foldersUnchanged = await readFile(fileService, file) === content;
+		const renamed = await service.updateWorkspace(file, { name: 'WSL' });
+
+		const { service: other, fileService: otherFiles, recentlyOpened } = await createService();
+		await other.createWorkspace('One', [vscode, chat]);
+		await other.createWorkspace('Two', [vscode, docs]);
+		await otherFiles.writeFile(file, VSBuffer.fromString('{ "folders": [{ "path": "vscode" }, { "path": "vscode-docs" }] }'));
+		await other.openWorkspace(file);
+		const before = recentlyOpened.reads;
+		await other.refresh();
+
+		assert.deepStrictEqual({ foldersFailed, foldersUnchanged, renamed: renamed.name, readsPerRefresh: recentlyOpened.reads - before }, { foldersFailed: true, foldersUnchanged: true, renamed: 'WSL', readsPerRefresh: 1 });
+	});
+
+	test('removing a renamed workspace keeps the workspace that now has its former file', async () => {
+		const { service, fileService } = await createService();
+		const agents = await service.createWorkspace('Agents', [vscode, chat]);
+		const platform = await service.updateWorkspace(agents.uri, { name: 'Platform' });
+		await fileService.writeFile(agents.uri, VSBuffer.fromString(JSON.stringify({ folders: [{ path: vscode.fsPath }, { path: docs.fsPath }], name: 'Agents again' })));
+		await service.openWorkspace(agents.uri);
+
+		await service.removeWorkspace(platform.uri, { deleteFile: true });
+		const updated = await service.updateWorkspace(agents.uri, { folders: [vscode, chat] });
+
+		assert.deepStrictEqual({ updated: updated.name, workspaces: snapshot(service.managedWorkspaces.get()), agentsExists: await fileService.exists(agents.uri) }, {
+			updated: 'Agents again',
+			workspaces: [{ name: 'Agents again', folders: ['/work/vscode', '/work/vscode-copilot-chat'], owned: true, missing: undefined }],
+			agentsExists: true,
 		});
 	});
 

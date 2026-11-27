@@ -26,7 +26,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { hasWorkspaceFileExtension, WORKSPACE_SUFFIX } from '../../../../platform/workspace/common/workspace.js';
 import { isRecentWorkspace, IWorkspacesService } from '../../../../platform/workspaces/common/workspaces.js';
 import { SESSIONS_WORKSPACES_ENABLED_SETTING } from '../common/sessionConfig.js';
-import { ISessionWorkspaceFileContent, ISessionWorkspaceFileEdit, parseSessionWorkspaceFile, stringifySessionWorkspaceFile } from '../common/sessionWorkspaceFile.js';
+import { hasAmbiguousFolderPaths, ISessionWorkspaceFileContent, ISessionWorkspaceFileEdit, parseSessionWorkspaceFile, stringifySessionWorkspaceFile } from '../common/sessionWorkspaceFile.js';
 import { IRecentSessionWorkspace, ISessionWorkspaceAppearance, ISessionWorkspaceRemoveOptions, ISessionWorkspacesService, ISessionWorkspaceUpdate } from '../common/sessionWorkspaces.js';
 import { ISessionsRecentWorkspacesService } from './sessionsRecentWorkspacesService.js';
 
@@ -317,12 +317,15 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 		if (deleteFile) {
 			await this._deleteWorkspaceFile(file);
 		}
-		const removed = workspace ? [workspace.uri, ...workspace.previousUris ?? []] : [uri];
+		const extUri = this.uriIdentityService.extUri;
+		// By URI, since a refresh while the file was deleted may have replaced the workspace object
+		const remaining = workspace ? this._managedWorkspaces.get().filter(candidate => !extUri.isEqual(candidate.uri, workspace.uri)) : this._managedWorkspaces.get();
+		// A former file of the workspace that another workspace has now stays with that one
+		const removed = (workspace ? [workspace.uri, ...workspace.previousUris ?? []] : [uri]).filter(removedUri =>
+			!remaining.some(other => extUri.isEqual(other.uri, removedUri) || other.previousUris?.some(previous => extUri.isEqual(previous, removedUri))));
 		this._recordRemoval(removed);
 		if (workspace) {
-			// By URI, since a refresh while the file was deleted may have replaced the workspace object
-			const extUri = this.uriIdentityService.extUri;
-			this._persist(this._managedWorkspaces.get().filter(candidate => !removed.some(removedUri => extUri.isEqual(candidate.uri, removedUri))));
+			this._persist(remaining);
 		}
 		// Its workspace files are not listed with the recent workspace files again, where VS Code may still have them
 		for (const removedUri of removed.filter(hasWorkspaceFileExtension)) {
@@ -356,12 +359,16 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 		const extUri = this.uriIdentityService.extUri;
 		const reads = new Limiter<readonly [IRecentSessionWorkspace, IRecentSessionWorkspace]>(MAX_CONCURRENT_READS);
 		try {
-			const read = await Promise.all(this._managedWorkspaces.get()
-				.filter(workspace => !this._isFolderWorkspace(workspace) && (!keys || keys.has(extUri.getComparisonKey(workspace.uri))))
+			const toRead = this._managedWorkspaces.get().filter(workspace => !this._isFolderWorkspace(workspace) && (!keys || keys.has(extUri.getComparisonKey(workspace.uri))));
+			if (!toRead.length) {
+				return;
+			}
+			const remoteAuthorities = await this._getRemoteAuthorities();
+			const read = await Promise.all(toRead
 				.map(workspace => reads.queue(async (): Promise<readonly [IRecentSessionWorkspace, IRecentSessionWorkspace]> => {
 					try {
 						const { missing: _missing, ...rest } = workspace;
-						const parsed = await this._readWorkspaceFile(workspace.uri);
+						const parsed = await this._readWorkspaceFile(workspace.uri, remoteAuthorities);
 						const local = this._localAppearance.get(extUri.getComparisonKey(workspace.uri));
 						return [workspace, withAppearance({ ...rest, name: parsed.name, folders: parsed.folders }, displayAppearance(parsed, local))];
 					} catch (error) {
@@ -395,19 +402,27 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 		return this.uriIdentityService.extUri.isEqual(dirname(dirname(uri)), this.ownedWorkspacesHome);
 	}
 
-	private async _readWorkspaceFile(uri: URI): Promise<ISessionWorkspaceFileContent> {
+	private async _readWorkspaceFile(uri: URI, remoteAuthorities?: ReadonlyMap<string, string>): Promise<ISessionWorkspaceFileContent> {
 		const content = (await this.fileService.readFile(uri, { limits: { size: MAX_WORKSPACE_FILE_SIZE } })).value.toString();
-		return parseSessionWorkspaceFile(content, uri, this.uriIdentityService.extUri, { remoteAuthority: await this._getRemoteAuthority(uri) });
+		const authorities = remoteAuthorities ?? await this._getRemoteAuthorities();
+		return parseSessionWorkspaceFile(content, uri, this.uriIdentityService.extUri, { remoteAuthority: authorities?.get(this.uriIdentityService.extUri.getComparisonKey(uri)) });
 	}
 
 	/**
-	 * The remote that VS Code opened the workspace file in, for a file that does not say so itself. Read from VS Code's
-	 * recently opened list itself, which has it also for a file whose folders are all on the remote.
+	 * The remotes that VS Code opened workspace files in, by the comparison keys of the files, for files that do not say so
+	 * themselves; `undefined` when VS Code's recently opened list cannot be read. Read from that list itself, which has them
+	 * also for files whose folders are all on a remote.
 	 */
-	private async _getRemoteAuthority(uri: URI): Promise<string | undefined> {
+	private async _getRemoteAuthorities(): Promise<ReadonlyMap<string, string> | undefined> {
 		try {
 			const { workspaces } = await this.workspacesService.getRecentlyOpened();
-			return workspaces.find(entry => isRecentWorkspace(entry) && this.uriIdentityService.extUri.isEqual(entry.workspace.configPath, uri))?.remoteAuthority;
+			const authorities = new Map<string, string>();
+			for (const entry of workspaces) {
+				if (isRecentWorkspace(entry) && entry.remoteAuthority) {
+					authorities.set(this.uriIdentityService.extUri.getComparisonKey(entry.workspace.configPath), entry.remoteAuthority);
+				}
+			}
+			return authorities;
 		} catch (error) {
 			this.logService.warn('[SessionWorkspaces] Could not read the recently opened workspaces', error);
 			return undefined;
@@ -445,7 +460,8 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 	 */
 	private async _editWorkspaceFile(uri: URI, toEdit: (current: ISessionWorkspaceFileContent | undefined) => ISessionWorkspaceFileEdit, options?: { readonly forceAbsolute?: boolean }): Promise<ISessionWorkspaceFileContent> {
 		const extUri = this.uriIdentityService.extUri;
-		const remoteAuthority = await this._getRemoteAuthority(uri);
+		const authorities = await this._getRemoteAuthorities();
+		const remoteAuthority = authorities?.get(extUri.getComparisonKey(uri));
 		for (let attempt = 0; ; attempt++) {
 			let file: IFileContent | undefined;
 			try {
@@ -458,7 +474,12 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 			}
 			const existing = file?.value.toString();
 			const current = existing === undefined ? undefined : parseSessionWorkspaceFile(existing, uri, extUri, { remoteAuthority });
-			const updated = stringifySessionWorkspaceFile(uri, toEdit(current), extUri, { existing, forceAbsolute: options?.forceAbsolute, remoteAuthority });
+			const edit = toEdit(current);
+			// Not knowing where VS Code opened the file, its folder paths may be paths on a remote that rewriting would lose
+			if (!authorities && edit.folders && existing !== undefined && hasAmbiguousFolderPaths(existing, uri)) {
+				throw new Error(localize('workspaceFileFoldersUnknown', "The folders of the workspace file '{0}' were not changed, since it is unknown whether they are on this computer or on a remote.", extUri.basename(uri)));
+			}
+			const updated = stringifySessionWorkspaceFile(uri, edit, extUri, { existing, forceAbsolute: options?.forceAbsolute, remoteAuthority });
 			try {
 				if (!file) {
 					await this.fileService.createFile(uri, VSBuffer.fromString(updated), { overwrite: false });

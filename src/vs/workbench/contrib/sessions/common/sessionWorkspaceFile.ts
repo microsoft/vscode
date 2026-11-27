@@ -70,6 +70,15 @@ export function parseSessionWorkspaceFile(content: string, uri: URI, extUri: IEx
 	return { ...readWorkspaceFileMetadata(stored, uri), folders: toWorkspaceFolders(folders, uri, extUri).map(folder => folder.uri), hasErrors: skipped.length > 0 };
 }
 
+/**
+ * Whether a local `.code-workspace` file has folder paths without saying which computer they are on: they are paths on a
+ * remote when VS Code opened the file in one, so only VS Code's recently opened list tells.
+ */
+export function hasAmbiguousFolderPaths(content: string, uri: URI): boolean {
+	const { folders, remotePaths } = readWorkspaceFile(content, uri, undefined);
+	return uri.scheme === Schemas.file && !remotePaths && folders.some(folder => hasKey(folder, { path: true }));
+}
+
 interface IParsedWorkspaceFile {
 	readonly stored: { readonly name?: unknown; readonly icon?: unknown; readonly color?: unknown };
 	readonly folders: IStoredWorkspaceFolder[];
