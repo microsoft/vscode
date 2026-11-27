@@ -8,6 +8,7 @@ import { IAgentFeedbackService } from '../../../../../workbench/contrib/sessions
 import assert from 'assert';
 import sinon from 'sinon';
 import { $, append, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
+import { renderMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { DeferredPromise, retry, timeout } from '../../../../../base/common/async.js';
 import { IDelayedHoverOptions, isManagedHoverTooltipMarkdownString } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
@@ -105,7 +106,7 @@ import { ISessionComparison, ISessionComparisonService, SessionComparisonPartici
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { SessionsList, SessionsListSnapshotNode } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { SessionsFlatList } from '../../../../../workbench/contrib/sessions/browser/views/sessionsFlatList.js';
-import { SessionSectionRenderer } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListRenderers.js';
+import { getActiveAutomationsHoverContent, SessionSectionRenderer } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListRenderers.js';
 import { computeReorderSortChanges, groupByDate, groupByEnvironment, groupByRepository, groupByWorkspace, groupSessionsForList, limitSessionsForList, QUICK_CHATS_SECTION_ID, sortSessions } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListHelpers.js';
 import { ISessionChatItem, ISessionSection, NEW_CANVAS_SESSION_COMMAND_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemContextMenuId, SessionItemHasPinnedCanvasContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionSectionHasGitHubRepositoryContext, SessionSectionToolbarMenuId, SessionSectionTypeContext, SESSIONS_LIST_CANVASES_SECTION_SETTING, SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsListFocusedChatItemContext, SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { ISideChatPlacementService } from '../../../../../workbench/contrib/sessions/browser/sideChatPlacement.js';
@@ -938,6 +939,79 @@ suite('Sessions - SessionsList', () => {
 	});
 
 	suite('SessionSectionRenderer', () => {
+
+		test('summarizes visible active automation runs for the hover', () => {
+			const automations: Pick<IAutomationDescriptor, 'id' | 'name' | 'purpose' | 'ownership' | 'isCreatedByCurrentUser'>[] = [
+				{ id: 'personal', name: 'Code review', ownership: 'user' },
+				{ id: 'shared', name: 'Shared automation', ownership: 'repository', isCreatedByCurrentUser: false },
+				{ id: 'scheduled', name: 'Scheduled request', purpose: 'scheduledChat', ownership: 'user' },
+			];
+			const runs: Pick<IAutomationRun, 'automationId' | 'status' | 'statusDescription' | 'needsInput' | 'purpose'>[] = [
+				{ automationId: 'personal', status: 'running', statusDescription: 'Reviewing changes' },
+				{ automationId: 'personal', status: 'pending' },
+				{ automationId: 'shared', status: 'running' },
+				{ automationId: 'scheduled', status: 'running', purpose: 'scheduledChat' },
+				{ automationId: 'personal', status: 'completed' },
+			];
+			const content = getActiveAutomationsHoverContent(automations, runs, false, true);
+			const sharedContent = getActiveAutomationsHoverContent(automations, runs, true, true);
+			const emptyContent = getActiveAutomationsHoverContent([], [], false, false);
+
+			assert.deepStrictEqual({ content: content.value, sharedContent: sharedContent.value, emptyContent: emptyContent.value }, {
+				content: '**Active**\n\n$(session-in-progress) Code&nbsp;review<span style="color:var(--vscode-descriptionForeground);"> · Reviewing&nbsp;changes (2&nbsp;runs)</span>',
+				sharedContent: '**Active**\n\n$(session-in-progress) Code&nbsp;review<span style="color:var(--vscode-descriptionForeground);"> · Reviewing&nbsp;changes (2&nbsp;runs)</span>  \n$(session-in-progress) Shared&nbsp;automation<span style="color:var(--vscode-descriptionForeground);"> · Running</span>',
+				emptyContent: '**Active**\n\nNo&nbsp;runs&nbsp;in&nbsp;progress',
+			});
+		});
+
+		test('renders automation details in the description foreground and keeps names and statuses as text', () => {
+			const content = getActiveAutomationsHoverContent(
+				[{ id: 'personal', name: 'Review <b>code</b> & tests', ownership: 'user' }],
+				[{ automationId: 'personal', status: 'running', statusDescription: 'Checking </span><b>changes</b>' }, { automationId: 'personal', status: 'pending' }],
+				false,
+				false,
+			);
+			const rendered = disposables.add(renderMarkdown(content));
+			const container = append(mainWindow.document.body, $('div'));
+			disposables.add(toDisposable(() => container.remove()));
+			container.style.color = 'rgb(1, 2, 3)';
+			container.style.setProperty('--vscode-descriptionForeground', 'rgb(4, 5, 6)');
+			container.appendChild(rendered.element);
+			const paragraph = rendered.element.querySelectorAll('p')[1];
+			const details = paragraph.querySelector('span:not(.codicon)');
+			assert.ok(details);
+
+			assert.deepStrictEqual({
+				text: paragraph.textContent?.replace(/\u00a0/g, ' '),
+				details: details.textContent?.replace(/\u00a0/g, ' '),
+				nameColor: mainWindow.getComputedStyle(paragraph).color,
+				detailsColor: mainWindow.getComputedStyle(details).color,
+				injectedBold: paragraph.querySelector('b'),
+			}, {
+				text: ' Review <b>code</b> & tests · Checking </span><b>changes</b> (2 runs)',
+				details: ' · Checking </span><b>changes</b> (2 runs)',
+				nameColor: 'rgb(1, 2, 3)',
+				detailsColor: 'rgb(4, 5, 6)',
+				injectedBold: null,
+			});
+			container.style.setProperty('--vscode-descriptionForeground', 'rgb(7, 8, 9)');
+			assert.strictEqual(mainWindow.getComputedStyle(details).color, 'rgb(7, 8, 9)');
+		});
+
+		test('keeps multiline automation details in the description foreground', () => {
+			const content = getActiveAutomationsHoverContent(
+				[{ id: 'personal', name: 'Code review', ownership: 'user' }],
+				[{ automationId: 'personal', status: 'running', statusDescription: 'Reviewing\nchanges' }],
+				false,
+				false,
+			);
+			const rendered = disposables.add(renderMarkdown(content));
+			const details = rendered.element.querySelector('span[style]');
+			assert.deepStrictEqual({
+				text: details?.textContent,
+				lineBreaks: details?.querySelectorAll('br').length,
+			}, { text: ' · Reviewingchanges', lineBreaks: 1 });
+		});
 
 		test('selects the rendered section before the toolbar handles its context menu', () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
