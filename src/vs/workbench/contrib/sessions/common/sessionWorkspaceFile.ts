@@ -57,6 +57,7 @@ interface IParsedWorkspaceFile {
 	readonly remotePaths: boolean;
 }
 
+/** Reads and edits the workspace-file format shared by the Agents window's workspace services. */
 export class SessionWorkspaceFile {
 
 	constructor(private readonly extUri: IExtUri) { }
@@ -85,8 +86,10 @@ export class SessionWorkspaceFile {
 	}
 
 	/**
-	 * Applies `edit` to a valid `.code-workspace` file, preserving comments, other properties and unread folder entries.
-	 * Folder paths are relative by default; local files for remote workspaces use URIs instead.
+	 * Applies `edit`, preserving comments and other properties, and keeping unread folder entries after the written ones.
+	 * Folder paths are relative unless `forceAbsolute` is set. Throws for invalid existing content or results.
+	 * Local files use URIs for remote folders. `remoteAuthority`, when set, is the remote VS Code opened the file in
+	 * and takes precedence over the file's own `remoteAuthority`.
 	 */
 	stringify(uri: URI, edit: ISessionWorkspaceFileEdit, options?: { readonly existing?: string; readonly forceAbsolute?: boolean; readonly remoteAuthority?: string }): string {
 		const existing = options?.existing !== undefined ? this._readWorkspaceFile(options.existing, uri, options.remoteAuthority) : undefined;
@@ -134,12 +137,12 @@ export class SessionWorkspaceFile {
 		return uri.scheme === Schemas.file && !remotePaths && folders.some(folder => hasKey(folder, { path: true }));
 	}
 
-	/** Whether the file has properties the Agents window does not show, such as settings, launch configurations or tasks. */
+	/** Whether the file has properties the Agents window does not show, such as settings, launch configurations or tasks. Throws for an invalid workspace file. */
 	hasOtherProperties(content: string, uri: URI): boolean {
 		return Object.keys(this._readWorkspaceFile(content, uri, undefined).stored).some(key => !SHOWN_PROPERTIES.has(key));
 	}
 
-	/** Whether the file gives `folder` a custom name, which `${workspaceFolder:name}` variables can refer to. */
+	/** Whether the file gives `folder` a custom name, which `${workspaceFolder:name}` variables can refer to. Throws for an invalid workspace file. */
 	hasFolderName(content: string, uri: URI, folder: URI): boolean {
 		return toWorkspaceFolders(this._readWorkspaceFile(content, uri, undefined).folders, uri, this.extUri).some(candidate => !!candidate.raw?.name && this.extUri.isEqual(candidate.uri, folder));
 	}
@@ -172,6 +175,7 @@ export class SessionWorkspaceFile {
 		return { stored, folders, skipped, remotePaths };
 	}
 
+	/** Reads the name, icon and color of a parsed `.code-workspace` file. */
 	private _readWorkspaceFileMetadata(stored: IParsedWorkspaceFile['stored'], uri: URI): ISessionWorkspaceFileMetadata {
 		const icon = this._readStringProperty(stored.icon);
 		const color = this._readStringProperty(stored.color);
