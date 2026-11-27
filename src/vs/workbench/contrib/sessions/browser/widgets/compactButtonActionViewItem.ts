@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, EventHelper, EventLike, EventType, isMouseEvent, reset } from '../../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, DisposableResizeObserver, EventHelper, EventLike, EventType, getWindow, isMouseEvent, reset } from '../../../../../base/browser/dom.js';
 import { IContextMenuProvider } from '../../../../../base/browser/contextmenu.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -40,6 +40,7 @@ export interface ICompactButtonDropdown {
 export abstract class CompactButtonActionViewItem extends BaseActionViewItem {
 
 	private dropdownButton: ButtonWithDropdown | undefined;
+	private minimumWidthListener: (() => void) | undefined;
 
 	constructor(
 		action: IAction,
@@ -125,6 +126,12 @@ export abstract class CompactButtonActionViewItem extends BaseActionViewItem {
 			dropdownButton.element.classList.add('agent-sessions-compact-new-button-dropdown');
 			button = dropdownButton.primaryButton;
 			this.registerDropdownKeyboardNavigation(dropdownButton);
+			const resizeObserver = this._register(new DisposableResizeObserver('CompactButtonActionViewItem.minimumWidth', () => {
+				if (this.getMinimumWidth() !== undefined) {
+					this.minimumWidthListener?.();
+				}
+			}, getWindow(this.element)));
+			this._register(resizeObserver.observe(dropdownButton.element));
 		} else {
 			button = this._register(new Button(this.element, buttonOptions));
 		}
@@ -217,6 +224,11 @@ export abstract class CompactButtonActionViewItem extends BaseActionViewItem {
 	getMinimumWidth(): number | undefined {
 		const width = this.dropdownButton?.element.getBoundingClientRect().width;
 		return width ? Math.ceil(width) : undefined;
+	}
+
+	/** Sets the listener called when the width of the pill with its dropdown part changes, such as when its label grows. */
+	setMinimumWidthListener(listener: () => void): void {
+		this.minimumWidthListener = listener;
 	}
 
 	/** The pill and its dropdown part are one tab stop of the toolbar; the arrow keys move between them. */

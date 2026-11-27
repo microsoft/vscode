@@ -384,6 +384,28 @@ suite('Sessions - Chat view sessions list New button', () => {
 		}
 	});
 
+	test('moves into the overflow when its label grows at the same width, without a relayout or keybinding change', async () => {
+		const root = attachRoot();
+		try {
+			const { layout, pill, state, narrowestShownWidth } = renderInSecondarySideBarTitle(root);
+			const nextFrame = () => new Promise<void>(resolve => DOM.getWindow(root).requestAnimationFrame(() => setTimeout(resolve, 0)));
+			layout(narrowestShownWidth());
+			// Lets the toolbar observe its own final width first, so only the label can change what it reports afterwards.
+			await nextFrame();
+			const before = state();
+
+			pill()!.querySelector<HTMLElement>('.new-session-button-label')!.textContent = 'New Chat Session';
+			await nextFrame();
+
+			assert.deepStrictEqual({ before, grown: state() }, {
+				before: { newButton: 'shown', nextIconInTitle: true },
+				grown: { newButton: 'overflow', nextIconInTitle: true },
+			});
+		} finally {
+			root.remove();
+		}
+	});
+
 	test('does not lend its width to the stock split button that replaces it', () => {
 		const root = attachRoot();
 		try {

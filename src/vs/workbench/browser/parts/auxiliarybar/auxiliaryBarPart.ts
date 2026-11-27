@@ -45,6 +45,8 @@ import { MicrotaskDelay } from '../../../../base/common/symbols.js';
  */
 interface IActionViewItemWithMinimumWidth extends IActionViewItem {
 	getMinimumWidth(): number | undefined;
+	/** Sets the listener the item calls when its width changes while it is shown, such as when its label grows. */
+	setMinimumWidthListener(listener: () => void): void;
 }
 
 interface IAuxiliaryBarPartConfiguration {
@@ -150,10 +152,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 
 		this.configuration = this.resolveConfiguration();
 
-		this._register(keybindingService.onDidUpdateKeybindings(() => {
-			this.splitButtonMinWidths = new WeakMap();
-			this.refitSplitButtons();
-		}));
+		this._register(keybindingService.onDidUpdateKeybindings(() => this.remeasureSplitButtons()));
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION)) {
@@ -194,14 +193,20 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	/**
 	 * The width a split button reports for itself, so that it moves into the overflow whole before it covers its neighbors,
 	 * or 36px. While the button is in the overflow it has no view item to ask, so its last reported width is used. When the
-	 * button comes back and reports another width, such as after its keybinding changed, the toolbar is fitted again.
+	 * button comes back or is shown and reports another width, such as after its keybinding or label changed, the toolbar is
+	 * fitted again.
 	 */
 	private getSplitButtonMinWidth(action: SubmenuItemAction): number {
 		const toolBar = this.toolBar;
 		for (let index = 0; toolBar && index < toolBar.getItemsLength(); index++) {
 			if (toolBar.getItemAction(index) === action) {
 				const viewItem = toolBar.getItemViewItem(index);
-				const width = this.hasMinimumWidth(viewItem) ? viewItem.getMinimumWidth() : undefined;
+				if (!this.hasMinimumWidth(viewItem)) {
+					this.splitButtonMinWidths.delete(action);
+					return 36;
+				}
+				viewItem.setMinimumWidthListener(() => this.getSplitButtonMinWidth(action));
+				const width = viewItem.getMinimumWidth();
 				if (width === undefined) {
 					this.splitButtonMinWidths.delete(action);
 					return 36;
@@ -217,7 +222,18 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	}
 
 	private hasMinimumWidth(item: IActionViewItem | undefined): item is IActionViewItemWithMinimumWidth {
-		return typeof (item as Partial<IActionViewItemWithMinimumWidth> | undefined)?.getMinimumWidth === 'function';
+		const candidate = item as Partial<IActionViewItemWithMinimumWidth> | undefined;
+		return typeof candidate?.getMinimumWidth === 'function' && typeof candidate.setMinimumWidthListener === 'function';
+	}
+
+	/**
+	 * Forgets the widths split buttons last reported, as their keybindings, theme or sizes changed while they may be in the
+	 * overflow, and fits the toolbar again: a button then comes back to report its width, and moves into the overflow again
+	 * before it is painted if it does not fit.
+	 */
+	private remeasureSplitButtons(): void {
+		this.splitButtonMinWidths = new WeakMap();
+		this.refitSplitButtons();
 	}
 
 	/** Fits the toolbar again once the current fit and the split buttons' own updates, such as of their keybindings, are done. */
@@ -245,6 +261,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 
 	override updateStyles(): void {
 		super.updateStyles();
+		this.remeasureSplitButtons();
 
 		const container = assertReturnsDefined(this.getContainer());
 		container.style.backgroundColor = this.getColor(SIDE_BAR_BACKGROUND) || '';
