@@ -1,0 +1,140 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { DeferredPromise } from '../../../../../base/common/async.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { IExtUri } from '../../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { localize } from '../../../../../nls.js';
+import { IModalEditorOptions, IModalEditorOptionsProvider } from '../../../../../platform/editor/common/editor.js';
+import { hasWorkspaceFileExtension } from '../../../../../platform/workspace/common/workspace.js';
+import { EditorInputCapabilities, IUntypedEditorInput } from '../../../../common/editor.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { IRecentSessionWorkspace } from '../../common/sessionWorkspaces.js';
+
+/** What the Workspace editor edits: an existing workspace, or a new one that it creates. */
+export type SessionWorkspaceEditorTarget =
+	| { readonly kind: 'edit'; readonly workspace: IRecentSessionWorkspace }
+	| { readonly kind: 'new' };
+
+/**
+ * The input of the Workspace editor, which always opens in a modal that fits its content. Its name is the workspace's
+ * name, which the editor updates as the user types it. A new workspace becomes the workspace that the editor created.
+ */
+export class SessionWorkspaceEditorInput extends EditorInput implements IModalEditorOptionsProvider {
+
+	static readonly ID = 'sessions.input.workspace';
+
+	readonly resource = undefined;
+
+	private _target: SessionWorkspaceEditorTarget;
+	private _name: string;
+	private readonly _closed = new DeferredPromise<IRecentSessionWorkspace | undefined>();
+	private _pendingApply: Promise<unknown> = Promise.resolve();
+
+	/**
+	 * @param extUri compares workspace files as the workspaces service does, such as without case where paths ignore it
+	 */
+	constructor(target: SessionWorkspaceEditorTarget, private readonly extUri: IExtUri) {
+		super();
+		this._target = target;
+		this._name = target.kind === 'edit' ? target.workspace.name : '';
+	}
+
+	get target(): SessionWorkspaceEditorTarget { return this._target; }
+
+	/** The workspace that the editor edits: the one it was opened on, or the one it created. */
+	get workspace(): IRecentSessionWorkspace | undefined { return this._target.kind === 'edit' ? this._target.workspace : undefined; }
+
+	override get typeId(): string {
+		return SessionWorkspaceEditorInput.ID;
+	}
+
+	override get capabilities(): EditorInputCapabilities {
+		return super.capabilities | EditorInputCapabilities.RequiresModal;
+	}
+
+	override getName(): string {
+		return this._name || localize('workspaceEditor.newTitle', "New Workspace");
+	}
+
+	override getIcon(): ThemeIcon {
+		return Codicon.folderLibrary;
+	}
+
+	/** Sets the name that titles the editor, as the user types it. */
+	setName(name: string): void {
+		if (name !== this._name) {
+			this._name = name;
+			this._onDidChangeLabel.fire();
+		}
+	}
+
+	/** Records the workspace as the editor saved it, which a new workspace becomes. */
+	didApply(workspace: IRecentSessionWorkspace): void {
+		this._target = { kind: 'edit', workspace };
+		this.setName(workspace.name);
+	}
+
+	/** Resolves once the editor closed and saved pending changes, with the workspace, or `undefined` if none was created. */
+	whenClosed(): Promise<IRecentSessionWorkspace | undefined> {
+		return this._closed.p;
+	}
+
+	/** Tracks a save that the editor still makes after it let go of this input, which {@link whenClosed} waits for. */
+	trackApply(apply: Promise<unknown>): void {
+		this._pendingApply = Promise.all([this._pendingApply, apply.catch(() => undefined)]);
+	}
+
+	override dispose(): void {
+		if (!this._closed.isSettled) {
+			// The editor can let go of this input, and track its last save, after the input is disposed in the same close
+			void Promise.resolve().then(() => this._pendingApply).finally(() => this._closed.complete(this.workspace));
+		}
+		super.dispose();
+	}
+
+	/** Whether the workspace is saved in a workspace file, rather than being a folder of its own, even one named like a file. */
+	static hasWorkspaceFile(extUri: IExtUri, workspace: IRecentSessionWorkspace): boolean {
+		return hasWorkspaceFileExtension(workspace.uri) && !workspace.folders.some(folder => extUri.isEqual(folder, workspace.uri));
+	}
+
+	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
+		if (super.matches(otherInput)) {
+			return true;
+		}
+		if (!(otherInput instanceof SessionWorkspaceEditorInput)) {
+			return false;
+		}
+		// A new workspace is only edited by the editor that creates it
+		const other = otherInput.workspace;
+		return !!other && this.isFor(other);
+	}
+
+	/**
+	 * Whether this editor edits the workspace: its file, now or before a rename, is the workspace's, now or before. A
+	 * record taken before a rename and one taken after match either way.
+	 */
+	isFor(workspace: IRecentSessionWorkspace): boolean {
+		const uris = (record: IRecentSessionWorkspace): readonly URI[] => [record.uri, ...record.previousUris ?? []];
+		const current = this.workspace;
+		return !!current && uris(current).some(uri => uris(workspace).some(other => this.extUri.isEqual(uri, other)));
+	}
+
+	/**
+	 * A modal that fits its content, as a dialog does, and stays a modal: it cannot be maximized, moved into the editor
+	 * area or dragged out. Its compact header shows the workspace's name and Close.
+	 */
+	getModalEditorOptions(): IModalEditorOptions {
+		return {
+			alwaysModal: true,
+			canMoveToEditorArea: false,
+			canMaximize: false,
+			compactHeader: true,
+			fitToContent: true,
+		};
+	}
+}
