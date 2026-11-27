@@ -65,7 +65,7 @@ export class ChatModelStore extends Disposable {
 	private readonly _refCollection: ReferenceCollection<ChatModel>;
 
 	private readonly _models = new ObservableMap<string, ChatModel>();
-	private readonly _modelsToDispose = new Set<string>();
+	private readonly _modelsToDispose = new Map<string, symbol>();
 	private readonly _pendingDisposals = new Set<Promise<void>>();
 	private readonly _modelCreateOwners = new Map<string, string>();
 	private readonly _referenceOwners = new Map<string, Map<number, string>>();
@@ -111,6 +111,10 @@ export class ChatModelStore extends Disposable {
 
 	public has(uri: URI): boolean {
 		return this._models.has(this.toKey(uri));
+	}
+
+	public isPendingDisposal(uri: URI): boolean {
+		return this._modelsToDispose.has(this.toKey(uri));
 	}
 
 	public acquireExisting(uri: URI, debugOwner?: string): IReference<ChatModel> | undefined {
@@ -186,29 +190,31 @@ export class ChatModelStore extends Disposable {
 	}
 
 	private destroyReferencedObject(key: string, object: ChatModel): void {
-		this._modelsToDispose.add(key);
-		const promise = this.doDestroyReferencedObject(key, object);
+		const disposal = Symbol();
+		this._modelsToDispose.set(key, disposal);
+		const promise = this.doDestroyReferencedObject(key, object, disposal);
 		this._pendingDisposals.add(promise);
 		promise.finally(() => {
 			this._pendingDisposals.delete(promise);
 		});
 	}
 
-	private async doDestroyReferencedObject(key: string, object: ChatModel): Promise<void> {
+	private async doDestroyReferencedObject(key: string, object: ChatModel, disposal: symbol): Promise<void> {
 		try {
 			await this.delegate.willDisposeModel(object);
 		} catch (error) {
 			this.logService.error(error);
 		} finally {
-			if (this._modelsToDispose.has(key)) {
+			// Reacquiring and releasing the model may have started a newer disposal.
+			if (this._modelsToDispose.get(key) === disposal) {
 				this.logService.trace(`Disposing chat session ${key}`);
+				this._modelsToDispose.delete(key);
 				this._models.delete(key);
 				this._modelCreateOwners.delete(key);
 				this._referenceOwners.delete(key);
 				this._onDidDisposeModel.fire(object);
 				object.dispose();
 			}
-			this._modelsToDispose.delete(key);
 		}
 	}
 
