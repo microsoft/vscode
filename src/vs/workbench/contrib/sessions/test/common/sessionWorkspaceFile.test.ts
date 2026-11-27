@@ -8,15 +8,16 @@ import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { parseSessionWorkspaceFile, stringifySessionWorkspaceFile } from '../../common/sessionWorkspaceFile.js';
+import { localDrive, localFile, pathOf } from './sessionWorkspaceTestPaths.js';
 
 suite('SessionWorkspaceFile', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	const file = URI.file('/work/platform.code-workspace');
+	const file = localFile('/work/platform.code-workspace');
 
 	function parse(content: string, remoteAuthority?: string) {
 		const parsed = parseSessionWorkspaceFile(content, file, extUri, { remoteAuthority });
-		return { ...parsed, folders: parsed.folders.map(folder => folder.path) };
+		return { ...parsed, folders: parsed.folders.map(pathOf) };
 	}
 
 	test('reads the name, icon and color, naming a file without a name after its file and skipping invalid folders', () => {
@@ -63,14 +64,14 @@ suite('SessionWorkspaceFile', () => {
 	});
 
 	test('writes a new workspace file with folders relative to it, or absolute when asked', () => {
-		const folders = [URI.file('/work/vscode'), URI.file('/other/docs')];
+		const folders = [localFile('/work/vscode'), localFile('/other/docs')];
 
 		assert.deepStrictEqual({
 			relative: JSON.parse(stringifySessionWorkspaceFile(file, { name: 'Platform', folders }, extUri)),
 			absolute: JSON.parse(stringifySessionWorkspaceFile(file, { folders }, extUri, { forceAbsolute: true })),
 		}, {
 			relative: { folders: [{ path: 'vscode' }, { path: '../other/docs' }], name: 'Platform' },
-			absolute: { folders: [{ path: '/work/vscode' }, { path: '/other/docs' }] },
+			absolute: { folders: [{ path: `${localDrive}/work/vscode` }, { path: `${localDrive}/other/docs` }] },
 		});
 	});
 
