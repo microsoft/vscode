@@ -35,6 +35,8 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { VisibleViewContainersTracker } from '../visibleViewContainersTracker.js';
 import { Extensions } from '../../panecomposite.js';
 import { IToolBarResponsiveBehaviorOptions } from '../../../../base/browser/ui/toolbar/toolbar.js';
+import { Delayer } from '../../../../base/common/async.js';
+import { MicrotaskDelay } from '../../../../base/common/symbols.js';
 
 /**
  * A title action view item that knows the width it needs because it does not shrink, such as a split button showing its
@@ -92,7 +94,10 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	readonly priority = LayoutPriority.Low;
 
 	private configuration: IAuxiliaryBarPartConfiguration;
-	private readonly splitButtonMinWidths = new Map<string, number>();
+	/** The widths split buttons reported, and those the title toolbar was given for them while they had no view item to ask. */
+	private splitButtonMinWidths = new WeakMap<SubmenuItemAction, number>();
+	private readonly splitButtonAssumedWidths = new WeakMap<SubmenuItemAction, number>();
+	private readonly splitButtonRefit = this._register(new Delayer<void>(MicrotaskDelay));
 	private readonly visibleViewContainersTracker: VisibleViewContainersTracker;
 
 	constructor(
@@ -149,6 +154,12 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 
 		this.configuration = this.resolveConfiguration();
 
+		// A split button's keybinding hint can change its width, also while it is in the overflow and cannot report it
+		this._register(keybindingService.onDidUpdateKeybindings(() => {
+			this.splitButtonMinWidths = new WeakMap();
+			this.refitSplitButtons();
+		}));
+
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION)) {
 				this.configuration = this.resolveConfiguration();
@@ -187,7 +198,8 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 
 	/**
 	 * The width a split button reports for itself, so that it moves into the overflow whole before it covers its neighbors,
-	 * or 36px. The width is remembered for while the button is in the overflow, when it has no view item to ask.
+	 * or 36px. While the button is in the overflow it has no view item to ask, so its last reported width is used. When the
+	 * button comes back and reports another width, such as after its keybinding changed, the toolbar is fitted again.
 	 */
 	private getSplitButtonMinWidth(action: SubmenuItemAction): number {
 		const toolBar = this.toolBar;
@@ -195,13 +207,27 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			if (toolBar.getItemAction(index) === action) {
 				const viewItem = toolBar.getItemViewItem(index);
 				const width = hasMinimumWidth(viewItem) ? viewItem.getMinimumWidth() : undefined;
-				if (width !== undefined) {
-					this.splitButtonMinWidths.set(action.item.submenu.id, width);
+				const assumedWidth = this.splitButtonAssumedWidths.get(action);
+				this.splitButtonAssumedWidths.delete(action);
+				if (width === undefined) {
+					this.splitButtonMinWidths.delete(action);
+					return 36;
 				}
-				break;
+				this.splitButtonMinWidths.set(action, width);
+				if (assumedWidth !== undefined && assumedWidth !== width) {
+					this.refitSplitButtons();
+				}
+				return width;
 			}
 		}
-		return this.splitButtonMinWidths.get(action.item.submenu.id) ?? 36;
+		const width = this.splitButtonMinWidths.get(action) ?? 36;
+		this.splitButtonAssumedWidths.set(action, width);
+		return width;
+	}
+
+	/** Fits the toolbar again once the current fit and the split buttons' own updates, such as of their keybindings, are done. */
+	private refitSplitButtons(): void {
+		this.splitButtonRefit.trigger(() => this.toolBar?.relayout()).catch(() => { /* superseded or disposed */ });
 	}
 
 	private resolveConfiguration(): IAuxiliaryBarPartConfiguration {

@@ -15,7 +15,7 @@ import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/con
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IContextMenuDelegate } from '../../../../../../base/browser/contextmenu.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
-import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
@@ -27,7 +27,7 @@ import { USLayoutResolvedKeybinding } from '../../../../../../platform/keybindin
 import { KeyCodeChord, ResolvedKeybinding } from '../../../../../../base/common/keybindings.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter } from '../../../../../../base/common/event.js';
 import { ACTION_ID_NEW_CHAT } from '../../../../chat/browser/actions/chatActions.js';
 import { NEW_CHAT_ICON_VARIANTS } from '../../../../chat/browser/actions/chatNewActions.js';
 import { createTestAuxiliaryBarPart } from '../../../../../test/browser/parts/auxiliaryBarTestUtils.js';
@@ -42,7 +42,9 @@ suite('Sessions - Chat view sessions list New button', () => {
 		const commandService = upcastPartial<ICommandService>({ executeCommand: async (id: string, ...args: unknown[]) => { commands.push({ id, args }); return undefined; } });
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(ICommandService, commandService);
-		instantiationService.stub(IKeybindingService, upcastPartial<IKeybindingService>({ lookupKeybinding: id => keybindings[id], lookupKeybindings: id => keybindings[id] ? [keybindings[id]] : [], onDidUpdateKeybindings: Event.None }));
+		const onDidUpdateKeybindings = store.add(new Emitter<void>());
+		const keybindingService = upcastPartial<IKeybindingService>({ lookupKeybinding: id => keybindings[id], lookupKeybindings: id => keybindings[id] ? [keybindings[id]] : [], onDidUpdateKeybindings: onDidUpdateKeybindings.event });
+		instantiationService.stub(IKeybindingService, keybindingService);
 		const menus: IContextMenuDelegate[] = [];
 		instantiationService.stub(IContextMenuService, upcastPartial<IContextMenuService>({ showContextMenu: delegate => { menus.push(delegate as IContextMenuDelegate); } }));
 		const errors: unknown[] = [];
@@ -56,7 +58,11 @@ suite('Sessions - Chat view sessions list New button', () => {
 		const container = DOM.$('div');
 		item.render(container);
 		item.setActionContext('titleContext');
-		return { item, control, submenu, container, actions, commands, menus, errors };
+		const updateKeybinding = (id: string, keybinding: ResolvedKeybinding) => {
+			keybindings[id] = keybinding;
+			onDidUpdateKeybindings.fire();
+		};
+		return { item, control, submenu, container, actions, commands, menus, errors, keybindingService, updateKeybinding };
 	}
 
 	test('shows New Chat as the compact "New" button whose joined ▾ part is the New menu', async () => {
@@ -199,32 +205,72 @@ suite('Sessions - Chat view sessions list New button', () => {
 		}
 	});
 
+	const cmdN = new USLayoutResolvedKeybinding([new KeyCodeChord(true, false, false, false, KeyCode.KeyN)], OperatingSystem.Macintosh);
+	const cmdShiftAltN = new USLayoutResolvedKeybinding([new KeyCodeChord(true, true, true, false, KeyCode.KeyN)], OperatingSystem.Macintosh);
+
+	/** Renders the Chat view's title actions, New and a next icon, in a real secondary side bar title attached to the document. */
+	function renderInSecondarySideBarTitle(root: HTMLElement) {
+		const rendered = render(true, undefined, ACTION_ID_NEW_CHAT, { [ACTION_ID_NEW_CHAT]: cmdN });
+		const { control, submenu } = rendered;
+		const container = DOM.append(root, DOM.$('.part.auxiliarybar'));
+		const part = createTestAuxiliaryBarPart(container, store, { onDidUpdateKeybindings: rendered.keybindingService.onDidUpdateKeybindings });
+		part.viewActionViewItemProvider = (action, options) => control.createActionViewItem(action, options);
+		const next = store.add(new Action('next', 'Next', 'codicon codicon-gear'));
+		part.setTitleActions('Chat', [submenu, next], []);
+		const layout = (width: number) => {
+			container.style.width = `${width}px`;
+			part.layout(width, 200, 0, 0);
+			part.toolbar.relayout();
+		};
+		const indexOf = (action: IAction) => [...Array(part.toolbar.getItemsLength()).keys()].find(index => part.toolbar.getItemAction(index) === action);
+		const pill = () => {
+			const index = indexOf(submenu);
+			return index === undefined ? undefined : part.toolbar.getItemElement(index)!.querySelector<HTMLElement>('.agent-sessions-compact-new-button-dropdown')!;
+		};
+		const nextRect = () => {
+			const index = indexOf(next);
+			return index === undefined ? undefined : part.toolbar.getItemElement(index)!.getBoundingClientRect();
+		};
+		/** Where New is: shown whole and clear of the next icon, which stays in the title, or in the overflow. */
+		const state = () => {
+			const shown = pill();
+			const nextIcon = nextRect();
+			const partRect = container.getBoundingClientRect();
+			const nextIconInTitle = !!nextIcon && nextIcon.left >= partRect.left - 0.5 && nextIcon.right <= partRect.right + 0.5;
+			if (!shown) {
+				return { newButton: 'overflow', nextIconInTitle };
+			}
+			return { newButton: nextIcon && shown.getBoundingClientRect().right > nextIcon.left + 0.5 ? 'overNextIcon' : 'shown', nextIconInTitle };
+		};
+		/** The narrowest width New is shown at, narrowing one pixel at a time. */
+		const narrowestShownWidth = () => {
+			let width = 300;
+			for (; width >= 60; width--) {
+				layout(width);
+				if (!pill()) {
+					break;
+				}
+			}
+			return width + 1;
+		};
+		return { ...rendered, part, container, next, layout, indexOf, pill, nextRect, state, narrowestShownWidth };
+	}
+
+	function attachRoot(): HTMLElement {
+		const root = DOM.append(document.body, DOM.$('.monaco-workbench'));
+		root.style.cssText = 'position: fixed; top: 0; left: 0; z-index: 100000; background: white;';
+		return root;
+	}
+
 	/**
 	 * Narrows the secondary side bar showing the Chat view one pixel at a time, and records every width at which the shown
 	 * "New" button protrudes: over the title or the next icon, out of the toolbar, shrunk from its full width, or with its
 	 * dropdown part not hit at its centre.
 	 */
 	test('keeps its full width in the secondary side bar title until it moves into the overflow, and comes back', () => {
-		const newChatKeybinding = new USLayoutResolvedKeybinding([new KeyCodeChord(true, false, false, false, KeyCode.KeyN)], OperatingSystem.Macintosh);
-		const { control, submenu } = render(true, undefined, ACTION_ID_NEW_CHAT, { [ACTION_ID_NEW_CHAT]: newChatKeybinding });
-		const root = DOM.append(document.body, DOM.$('.monaco-workbench'));
-		root.style.cssText = 'position: fixed; top: 0; left: 0; z-index: 100000; background: white;';
+		const root = attachRoot();
 		try {
-			const container = DOM.append(root, DOM.$('.part.auxiliarybar'));
-			const part = createTestAuxiliaryBarPart(container, store);
-			part.viewActionViewItemProvider = (action, options) => control.createActionViewItem(action, options);
-			const next = store.add(new Action('next', 'Next', 'codicon codicon-gear'));
-			part.setTitleActions('Chat', [submenu, next], []);
-			const layout = (width: number) => {
-				container.style.width = `${width}px`;
-				part.layout(width, 200, 0, 0);
-				part.toolbar.relayout();
-			};
-			const indexOf = (action: IAction) => [...Array(part.toolbar.getItemsLength()).keys()].find(index => part.toolbar.getItemAction(index) === action);
-			const pill = () => {
-				const index = indexOf(submenu);
-				return index === undefined ? undefined : part.toolbar.getItemElement(index)!.querySelector<HTMLElement>('.agent-sessions-compact-new-button-dropdown')!;
-			};
+			const { part, container, next, layout, indexOf, pill } = renderInSecondarySideBarTitle(root);
 
 			layout(400);
 			const pillWidth = pill()!.getBoundingClientRect().width;
@@ -269,6 +315,76 @@ suite('Sessions - Chat view sessions list New button', () => {
 			// New moves into the overflow only once it no longer fits: just before that, the title leaves it no more spare room than the toolbar padding.
 			assert.ok(pillWidth > 36 && overflowAt !== undefined && lastFit?.width === overflowAt + 1 && lastFit.spareWidth < 12, `pill ${pillWidth}px, overflow at ${overflowAt}px, last fit ${JSON.stringify(lastFit)}`);
 			assert.deepStrictEqual({ protrusions, nextIconOutside, restored: pill()?.getBoundingClientRect().width === pillWidth }, { protrusions: [], nextIconOutside: [], restored: true });
+		} finally {
+			root.remove();
+		}
+	});
+
+	test('moves into the overflow when a longer keybinding no longer fits at the same width, and back when it fits again', async () => {
+		const root = attachRoot();
+		try {
+			const { part, submenu, layout, state, narrowestShownWidth, updateKeybinding } = renderInSecondarySideBarTitle(root);
+			const width = narrowestShownWidth();
+			layout(width);
+			const before = { state: state(), minWidth: part.getActionMinWidth(submenu) };
+
+			updateKeybinding(ACTION_ID_NEW_CHAT, cmdShiftAltN);
+			await timeout(0);
+			const longer = { state: state(), minWidth: part.getActionMinWidth(submenu) };
+
+			updateKeybinding(ACTION_ID_NEW_CHAT, cmdN);
+			await timeout(0);
+
+			assert.ok(longer.minWidth! > before.minWidth!, `${before.minWidth}px, then ${longer.minWidth}px`);
+			assert.deepStrictEqual({ before: before.state, longer: longer.state, after: state() }, {
+				before: { newButton: 'shown', nextIconInTitle: true },
+				longer: { newButton: 'overflow', nextIconInTitle: true },
+				after: { newButton: 'shown', nextIconInTitle: true },
+			});
+		} finally {
+			root.remove();
+		}
+	});
+
+	test('fits again when it comes back from the overflow with a longer keybinding', async () => {
+		const root = attachRoot();
+		try {
+			const { layout, state, narrowestShownWidth, updateKeybinding } = renderInSecondarySideBarTitle(root);
+			const width = narrowestShownWidth();
+			layout(width - 1);
+			const hidden = state();
+
+			updateKeybinding(ACTION_ID_NEW_CHAT, cmdShiftAltN);
+			await timeout(0);
+			layout(width);
+			await timeout(0);
+			const atOldWidth = state();
+			layout(300);
+			await timeout(0);
+
+			assert.deepStrictEqual({ hidden, atOldWidth, wide: state() }, {
+				hidden: { newButton: 'overflow', nextIconInTitle: true },
+				atOldWidth: { newButton: 'overflow', nextIconInTitle: true },
+				wide: { newButton: 'shown', nextIconInTitle: true },
+			});
+		} finally {
+			root.remove();
+		}
+	});
+
+	test('does not lend its width to the stock split button that replaces it', () => {
+		const root = attachRoot();
+		try {
+			const { part, submenu, next, layout } = renderInSecondarySideBarTitle(root);
+			layout(300);
+			const joined = part.getActionMinWidth(submenu);
+
+			part.viewActionViewItemProvider = undefined;
+			part.setTitleActions('Chat', [submenu, next], []);
+			layout(300);
+
+			assert.ok(joined! > 36, `${joined}px`);
+			assert.strictEqual(part.getActionMinWidth(submenu), 36);
 		} finally {
 			root.remove();
 		}
