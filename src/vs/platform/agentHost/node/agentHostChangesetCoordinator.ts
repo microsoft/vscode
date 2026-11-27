@@ -6,7 +6,7 @@
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { IAgentSessionMetadata } from '../common/agent.js';
-import { buildBranchChangesetUri, buildSessionChangesetUri, buildUncommittedChangesetUri, changesetSession, ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
+import { buildBranchChangesetUri, buildFolderChangesetOwnerUri, buildSessionChangesetUri, buildUncommittedChangesetUri, changesetSession, ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
 import { ChangesetFileMonitorCoordinator } from './agentHostChangesetFileMonitorCoordinator.js';
 import { AgentHostStateManager, ChatRemovalReason, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
@@ -15,7 +15,8 @@ import { IAgentHostChangesetOperationService } from '../common/agentHostChangese
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { isAnyAgentMergeEnabled } from '../common/agentMerge.js';
-import { getWorkingDirectoryKey } from '../common/agentHostWorkingDirectories.js';
+import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../common/agentHostWorkingDirectories.js';
+import { readNestedRepositoryRoots } from './agentHostSessionRepositories.js';
 import { ChatOriginKind, isAhpChatChannel, isSessionChatArchived, parseSubagentSessionUri, type SessionConfigState } from '../common/state/sessionState.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { getSummaryChangesetKind } from './agentHostChangesetSummary.js';
@@ -688,13 +689,21 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			this._reconcileBranchSummaryResources(session);
 		}
 		const summaryOwners = session !== undefined ? this._branchSummaryOwners(session) : new Set<string>();
-		for (const owner of branchOwners) {
+		// The folders of the session on their own, and the repositories found in them, whose changesets a client observes
+		const folderOwners = !isChat && session !== undefined ? this._getFolderOwners(session) : [];
+		for (const owner of new Set([...branchOwners, ...folderOwners])) {
 			if (summaryOwners.has(owner) || this._changesetSubscriptions.getSessionSubscriptions(owner).size > 0) {
 				this._changesets.refreshBranchChangeset(owner);
 			}
 		}
-		if (this._changesetSubscriptions.getSessionSubscriptions(key).has(buildUncommittedChangesetUri(key))) {
-			void this._changesets.computeUncommittedChangeset(key);
+		for (const owner of new Set([key, ...folderOwners])) {
+			if (this._changesetSubscriptions.getSessionSubscriptions(owner).has(buildUncommittedChangesetUri(owner))) {
+				void this._changesets.computeUncommittedChangeset(owner);
+			}
+		}
+		if (!isChat && session !== undefined) {
+			// A refresh of the session's Git state also finds the repositories in its folders
+			this._changesetFileMonitor.onSessionRepositoriesChanged(session);
 		}
 		// Operations such as Sync follow Git state that no diff covers, like the commits ahead of or behind the upstream.
 		this._changesetOperationService.scheduleRelatedOperationsUpdate(key);
@@ -775,6 +784,13 @@ export class AgentHostChangesetCoordinator extends Disposable {
 				this._changesetFileMonitor.onSessionWorkingDirectoriesChanged(candidate);
 			}
 		}
+	}
+
+	/** The changeset owners of each folder of `session` on its own and of each repository found in its folders. */
+	private _getFolderOwners(session: string): string[] {
+		const folders = this._stateManager.getSessionSummary(session)?.workingDirectories ?? [];
+		const nested = readNestedRepositoryRoots(this._stateManager.getSessionState(session)?._meta, folders).map(root => root.toString());
+		return [...folders, ...nested].map(folder => buildFolderChangesetOwnerUri(session, getWorkingDirectoryScopeId([folder])));
 	}
 
 	private _getChatsAffectedBySessionWorkingDirectoryChange(session: string) {

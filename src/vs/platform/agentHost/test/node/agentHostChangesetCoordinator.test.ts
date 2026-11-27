@@ -11,8 +11,9 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agent.js';
+import { withSessionRepositories } from '../../common/meta/agentSessionRepositoriesMeta.js';
 import { buildBranchChangesetUri, buildCompareTurnsChangesetUri, buildDefaultChangesetCatalog, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, buildFolderChangesetOwnerUri, buildWorkingSetChangesetUri, ChangesetKind, parseChangesetUri } from '../../common/changesetUri.js';
-import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
+import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, ChangesetOperationScope, ChangesetStatus, ChatOriginKind, ChangesetOperationStatus, SessionStatus, withSessionGitState, type ChangesetOperation, type ISessionFileDiff, type ISessionGitHubState, type ISessionGitState } from '../../common/state/sessionState.js';
@@ -550,6 +551,32 @@ suite('ChangesetSessionCoordinator', () => {
 			}
 		}
 	}
+
+	test('a refresh of a session\'s Git state refreshes the observed changesets of its folders on their own and of the repositories found in them, which are watched', async () => {
+		const environment = createEnvironment(undefined, createRoutingGitService(new Map([['file:///app', URI.parse('file:///app')], ['file:///work', undefined]])));
+		const session = AgentSession.uri('mock', 'folders').toString();
+		createMultiRootSession(environment.stateManager, session, ['file:///app', 'file:///work']);
+		environment.stateManager.setSessionMeta(session, withSessionRepositories(environment.stateManager.getSessionState(session)?._meta, {
+			[getWorkingDirectoryKey('file:///work')]: [{ root: 'file:///work/docs', kind: 'nested' }],
+		}));
+		const workOwner = buildFolderChangesetOwnerUri(session, getWorkingDirectoryScopeId(['file:///work']));
+		const docsOwner = buildFolderChangesetOwnerUri(session, getWorkingDirectoryScopeId(['file:///work/docs']));
+		for (const changeset of [buildBranchChangesetUri(workOwner), buildUncommittedChangesetUri(docsOwner)]) {
+			environment.subscriptions.addSubscription(parseChangesetUri(changeset)!.ownerUri, changeset);
+			environment.coordinator.onFirstSubscriber(URI.parse(changeset));
+		}
+		await environment.monitor.waitForAcquisitions(1);
+		const branchBefore = environment.changesets.branchRefreshes.length;
+		const uncommittedBefore = environment.changesets.uncommittedRefreshes.length;
+
+		await environment.gitStateService.refreshSessionGitState(session);
+
+		assert.deepStrictEqual({
+			branch: environment.changesets.branchRefreshes.slice(branchBefore).filter(owner => owner === workOwner),
+			uncommitted: environment.changesets.uncommittedRefreshes.slice(uncommittedBefore).filter(owner => owner === docsOwner),
+			watched: environment.monitor.acquisitions.includes('file:///work/docs'),
+		}, { branch: [workOwner], uncommitted: [docsOwner], watched: true });
+	});
 
 	test('refreshes changeset operations when a session gains or loses a working directory', () => {
 		const session = AgentSession.uri('mock', 'session-wd').toString();

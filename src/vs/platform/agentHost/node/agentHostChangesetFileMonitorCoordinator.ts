@@ -6,11 +6,12 @@
 import { SequencerByKey } from '../../../base/common/async.js';
 import { Disposable, DisposableMap, IReference, ReferenceCollection } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
-import { buildUncommittedChangesetUri, changesetSession, parseChangesetUri } from '../common/changesetUri.js';
+import { buildUncommittedChangesetUri, changesetSession, parseChangesetUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
 import { isAhpChatChannel } from '../common/state/sessionState.js';
 import { DEFAULT_AGENT_HOST_WATCH_EXCLUDES, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
-import { resolveSessionRepositories } from './agentHostSessionRepositories.js';
+import { readNestedRepositoryRoots, resolveSessionRepositories } from './agentHostSessionRepositories.js';
+import { resolveChangesetOwnerScope } from './agentHostBranchChangesetScope.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { getEffectiveWorkingDirectories } from './agentConfigurationService.js';
 import { ILogService } from '../../log/common/log.js';
@@ -149,6 +150,19 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 		this._retryWatchAttachment(sessionStr);
 	}
 
+	/**
+	 * Re-attaches the watches of a session, of its chats and of its folders on their own once the repositories found in
+	 * its folders may have changed (as after a refresh of its Git state). Unchanged repositories keep their watchers.
+	 */
+	onSessionRepositoriesChanged(sessionStr: string): void {
+		for (const owner of new Set(this._watchOwners.values())) {
+			const source = this._watchSources.get(owner) ?? owner;
+			if (owner === sessionStr || resolveChangesetOwnerScope(this._stateManager, source).sessionUri === sessionStr) {
+				this._retryWatchAttachment(owner);
+			}
+		}
+	}
+
 	/** Retries the watches still waiting for a root watcher, such as one whose acquisition failed. Roots that are already watched keep their watcher. */
 	retryPendingWatches(): void {
 		for (const sessionStr of [...this._pendingWatchInterest]) {
@@ -188,7 +202,9 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 				return;
 			}
 			const source = this._watchSources.get(sessionStr) ?? sessionStr;
-			const workingDirectories = getEffectiveWorkingDirectories(this._stateManager, source);
+			// A folder of a session on its own (a folder changeset owner) watches that folder
+			const scope = resolveChangesetOwnerScope(this._stateManager, source);
+			const workingDirectories = parseFolderChangesetOwnerUri(source) ? scope.workingDirectories : getEffectiveWorkingDirectories(this._stateManager, source);
 			if (!workingDirectories || workingDirectories.length === 0) {
 				this._pendingWatchInterest.add(sessionStr);
 				this._releaseSessionRoots(sessionStr);
@@ -207,7 +223,9 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 				this._releaseSessionRoots(sessionStr);
 				return;
 			}
-			const signature = this._workingDirectoriesSignature(workingDirectories);
+			// Repositories found in the folders' immediate subfolders are listed by the changesets, so they are watched too
+			const nestedRepositories = readNestedRepositoryRoots(this._stateManager.getSessionState(scope.sessionUri)?._meta, workingDirectories);
+			const signature = this._workingDirectoriesSignature([...workingDirectories, ...nestedRepositories.map(root => root.toString())]);
 			if (this._sessionRoots.has(sessionStr) && this._sessionWorkingDirectories.get(sessionStr) === signature) {
 				this._pendingWatchInterest.delete(sessionStr);
 				return;
@@ -216,13 +234,14 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 			if (!this._hasWatchInterest(sessionStr)) {
 				return;
 			}
-			if (gitRepositories.length === 0) {
+			const repositories = [...gitRepositories, ...nestedRepositories];
+			if (repositories.length === 0) {
 				this._pendingWatchInterest.delete(sessionStr);
 				this._releaseSessionRoots(sessionStr);
 				return;
 			}
 			this._pendingWatchInterest.delete(sessionStr);
-			this._attachSessionToRoots(sessionStr, gitRepositories, signature);
+			this._attachSessionToRoots(sessionStr, repositories, signature);
 		});
 	}
 
