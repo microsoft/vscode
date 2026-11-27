@@ -49,7 +49,11 @@ export class AgentHostAutomationCustomizations {
 		const captured: PluginCustomization[] = [];
 		for (const ref of next) {
 			const priorRef = previous?.definition.session.customizations?.find(candidate => candidate.id === ref.id);
-			let copy = priorRef?.uri === ref.uri && priorRef.nonce === ref.nonce
+			// Unversioned refs (`nonce === undefined`) cannot prove content is unchanged when a client pushes
+			// an update; metadata-only edits without a client (`!clientId`) still preserve an existing copy.
+			const canReusePrior = priorRef?.uri === ref.uri
+				&& (ref.nonce !== undefined ? priorRef.nonce === ref.nonce : (!clientId && priorRef.nonce === undefined));
+			let copy = canReusePrior
 				? previous?.customizations?.find(candidate => candidate.id === ref.id)
 				: undefined;
 			if (!copy) {

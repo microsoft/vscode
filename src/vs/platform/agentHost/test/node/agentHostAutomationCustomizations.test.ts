@@ -154,8 +154,23 @@ suite('AgentHostAutomationCustomizations', () => {
 		const noNonce = { ...ref, nonce: undefined };
 		const second = (await customizations.capture('author', [noNonce], undefined))!;
 		const third = (await customizations.capture('author', [noNonce], undefined))!;
-		assert.deepStrictEqual({ shared: shared[0].uri, id: shared[0].id, unique: second[0].uri !== third[0].uri }, {
-			shared: first[0].uri, id: 'other', unique: true,
+		await seed('Updated again');
+		const recaptured = (await customizations.capture('author', [noNonce], entry([noNonce], third)))!;
+		const metadataOnly = (await customizations.capture(undefined, [{ ...noNonce, name: 'Renamed' }], entry([noNonce], recaptured)))!;
+		assert.deepStrictEqual({
+			shared: shared[0].uri,
+			id: shared[0].id,
+			unique: second[0].uri !== third[0].uri,
+			recapturedDistinct: recaptured[0].uri !== third[0].uri,
+			recapturedContent: (await fileService.readFile(URI.joinPath(URI.parse(recaptured[0].uri), 'agents/reviewer.md'))).value.toString(),
+			metadataOnlyReused: metadataOnly[0].uri === recaptured[0].uri && metadataOnly[0].name === 'Renamed',
+		}, {
+			shared: first[0].uri,
+			id: 'other',
+			unique: true,
+			recapturedDistinct: true,
+			recapturedContent: 'Updated again',
+			metadataOnlyReused: true,
 		});
 	});
 

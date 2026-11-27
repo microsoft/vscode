@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
+import { Emitter } from '../../../../../../base/common/event.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { waitForState } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -18,7 +20,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
-import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent } from '../../../../../../platform/workspace/common/workspace.js';
 import { testWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { TestContextService } from '../../../../../test/common/workbenchTestServices.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
@@ -33,7 +35,7 @@ import { PluginFormat } from '../../../../../../platform/agentPlugins/common/plu
  */
 class TestPluginDiscovery extends AbstractAgentPluginDiscovery {
 	protected readonly _discoveryKind = 'configured';
-	private _sources: URI[] = [];
+	private _sources: { readonly uri: URI; readonly repositoryUri?: URI }[] = [];
 	private _remove: (() => Promise<boolean>) | undefined = async () => true;
 	private _nextDiscoveryBarrier: Promise<void> | undefined;
 
@@ -52,26 +54,32 @@ class TestPluginDiscovery extends AbstractAgentPluginDiscovery {
 
 	/** Set plugin sources and trigger a refresh. */
 	async setSourcesAndRefresh(uris: URI[]): Promise<void> {
-		this._sources = uris;
+		this._sources = uris.map(uri => ({ uri }));
+		await this._refreshPlugins();
+	}
+
+	async setSourcesWithRepositoryAndRefresh(sources: readonly { readonly uri: URI; readonly repositoryUri?: URI }[]): Promise<void> {
+		this._sources = [...sources];
 		await this._refreshPlugins();
 	}
 
 	async setRemoveAndRefresh(uri: URI, remove: (() => Promise<boolean>) | undefined): Promise<void> {
-		this._sources = [uri];
+		this._sources = [{ uri }];
 		this._remove = remove;
 		await this._refreshPlugins();
 	}
 
 	async setRemoveAndRefreshAfter(uri: URI, remove: (() => Promise<boolean>) | undefined, barrier: Promise<void>): Promise<void> {
-		this._sources = [uri];
+		this._sources = [{ uri }];
 		this._remove = remove;
 		this._nextDiscoveryBarrier = barrier;
 		await this._refreshPlugins();
 	}
 
 	protected override async _discoverPluginSources() {
-		const sources = this._sources.map(uri => ({
+		const sources = this._sources.map(({ uri, repositoryUri }) => ({
 			uri,
+			repositoryUri,
 			fromMarketplace: undefined,
 			remove: this._remove,
 		}));
@@ -104,6 +112,10 @@ suite('AgentPlugin format detection', () => {
 			userHome: async () => URI.file('/home/testuser'),
 		} as Partial<IPathService> as IPathService);
 		instantiationService.stub(IInstantiationService, instantiationService);
+	});
+
+	teardown(() => {
+		sinon.restore();
 	});
 
 	const mockEnablementModel: IEnablementModel = {
@@ -1451,6 +1463,142 @@ suite('AgentPlugin format detection', () => {
 				command: 'node',
 				cwd: '/custom/cwd',
 			},
+		});
+	}));
+
+	test('watches nested plugin files recursively for live component updates', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = pluginUri('/plugins/live-nested');
+		await writeFile('/plugins/live-nested/plugin.json', JSON.stringify({
+			$schema: AGENT_PLUGIN_SCHEMA,
+			name: 'live-nested',
+			version: '1.0.0',
+		}));
+		await writeFile('/plugins/live-nested/skills/alpha/SKILL.md', '---\nname: alpha\ndescription: Initial\n---');
+		await writeFile('/plugins/live-nested/.git/HEAD', 'ref: refs/heads/main\n');
+		await writeFile('/plugins/live-nested/dev/node_modules/pkg/package.json', '{}');
+
+		const discovery = createDiscovery();
+		discovery.start(mockEnablementModel);
+		await discovery.setSourcesAndRefresh([uri]);
+
+		const plugin = getDiscoveredPlugins(discovery)[0];
+		await waitForState(plugin.skills, skills => skills.length === 1);
+
+		// Add a nested agent under com.github.copilot/agents/ (directory did not exist initially)
+		// and add a second nested skill under skills/beta/SKILL.md.
+		await writeFile('/plugins/live-nested/com.github.copilot/agents/poteto.agent.md', '---\nname: Poteto\n---\n');
+		await writeFile('/plugins/live-nested/skills/beta/SKILL.md', '---\nname: beta\ndescription: Added\n---');
+
+		await waitForState(plugin.agents, agents => agents.some(agent => agent.name === 'poteto.agent'));
+		await waitForState(plugin.skills, skills => skills.length === 2);
+
+		const versionBeforeAssetEdit = plugin.contentVersion!.get();
+		await writeFile('/plugins/live-nested/com.github.copilot/extensions/canvas/index.js', 'export default 1;');
+		await waitForState(plugin.contentVersion!, version => version > versionBeforeAssetEdit);
+		const versionAfterAssetEdit = plugin.contentVersion!.get();
+
+		// Ignored directories (.git and node_modules) must not bump contentVersion.
+		await writeFile('/plugins/live-nested/.git/index', 'lock');
+		await writeFile('/plugins/live-nested/dev/node_modules/pkg/index.js', 'module.exports = {};');
+		await new Promise(resolve => setTimeout(resolve, 25));
+
+		assert.deepStrictEqual({
+			agents: plugin.agents.get().map(agent => agent.name),
+			skills: plugin.skills.get().map(skill => skill.name),
+			assetEditBumpedVersion: versionAfterAssetEdit > versionBeforeAssetEdit,
+			ignoredDirsBumpedVersion: plugin.contentVersion!.get() !== versionAfterAssetEdit,
+		}, {
+			agents: ['poteto.agent'],
+			skills: ['alpha', 'beta'],
+			assetEditBumpedVersion: true,
+			ignoredDirsBumpedVersion: false,
+		});
+	}));
+
+	test('skips uncorrelated recursive watch when plugin root is an opened workspace folder', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		await writeFile('/workspace/plugin.json', JSON.stringify({
+			$schema: AGENT_PLUGIN_SCHEMA,
+			name: 'workspace-plugin',
+			version: '1.0.0',
+		}));
+		const onDidChangeFolders = store.add(new Emitter<IWorkspaceFoldersChangeEvent>());
+		const mutableContextService = new class extends TestContextService {
+			override get onDidChangeWorkspaceFolders() { return onDidChangeFolders.event; }
+		}(testWorkspace(workspaceRoot));
+		const watchSpy = sinon.spy(fileService, 'watch');
+
+		const discovery = store.add(new TestPluginDiscovery(
+			fileService,
+			instantiationService.get(IPathService),
+			logService,
+			mutableContextService,
+		));
+		discovery.start(mockEnablementModel);
+		await discovery.setSourcesAndRefresh([workspaceRoot]);
+
+		const watchedWhileOpen = watchSpy.getCalls().map(call => call.args[0].toString());
+		const plugin = getDiscoveredPlugins(discovery)[0];
+		const versionBefore = plugin.contentVersion!.get();
+
+		await writeFile('/workspace/com.github.copilot/agents/live.agent.md', '---\nname: Live\n---\n');
+		await waitForState(plugin.agents, agents => agents.some(agent => agent.name === 'live.agent'));
+		const versionAfterEdit = plugin.contentVersion!.get();
+
+		// Removing the folder from the workspace should start watching it directly.
+		const previousFolders = mutableContextService.getWorkspace().folders;
+		const nextWorkspace = testWorkspace(URI.from({ scheme: Schemas.inMemory, path: '/other-workspace' }));
+		mutableContextService.setWorkspace(nextWorkspace);
+		onDidChangeFolders.fire({ added: nextWorkspace.folders, removed: previousFolders, changed: [] });
+		const watchedAfterClose = watchSpy.getCalls().map(call => call.args[0].toString());
+
+		assert.deepStrictEqual({
+			watchedWhileOpen,
+			bumpedWhileOpen: versionAfterEdit > versionBefore,
+			watchedAfterClose,
+		}, {
+			watchedWhileOpen: [],
+			bumpedWhileOpen: true,
+			watchedAfterClose: [workspaceRoot.toString()],
+		});
+	}));
+
+	test('uses non-recursive watcher for external component files resolved via repositoryUri', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const repoUri = pluginUri('/repo');
+		const uri = pluginUri('/repo/plugins/sub');
+		const externalHooksUri = pluginUri('/repo/shared/hooks.json');
+		await writeFile('/repo/plugins/sub/.plugin/plugin.json', JSON.stringify({
+			name: 'sub-plugin',
+			hooks: '../../shared/hooks.json',
+		}));
+		await writeFile('/repo/shared/hooks.json', JSON.stringify({
+			hooks: {
+				SessionStart: [{ hooks: [{ type: 'command', command: 'echo v1' }] }],
+			},
+		}));
+		const watchSpy = sinon.spy(fileService, 'watch');
+		const createWatcherSpy = sinon.spy(fileService, 'createWatcher');
+
+		const discovery = createDiscovery();
+		discovery.start(mockEnablementModel);
+		await discovery.setSourcesWithRepositoryAndRefresh([{ uri, repositoryUri: repoUri }]);
+
+		const plugin = getDiscoveredPlugins(discovery)[0];
+		await waitForState(plugin.hooks, hooks => hooks.length === 1);
+		await new Promise(resolve => setTimeout(resolve, 25));
+
+		const recursiveFileWatches = watchSpy.getCalls()
+			.filter(call => call.args[0].toString() === externalHooksUri.toString() && call.args[1]?.recursive === true)
+			.map(call => call.args[0].toString());
+		const nonRecursiveFileWatches = createWatcherSpy.getCalls()
+			.filter(call => call.args[0].toString() === externalHooksUri.toString())
+			.map(call => call.args[0].toString());
+
+		assert.deepStrictEqual({
+			recursiveFileWatches,
+			nonRecursiveFileWatches,
+		}, {
+			recursiveFileWatches: [],
+			nonRecursiveFileWatches: [externalHooksUri.toString()],
 		});
 	}));
 });

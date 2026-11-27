@@ -3,16 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { basename } from '../../../../../../base/common/resources.js';
+import { StringSHA1 } from '../../../../../../base/common/hash.js';
+import { basename, extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { isDefined } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { isRemoteAgentHostSessionType, parseAgentHostHarness } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { toAgentCustomizationMeta } from '../../../../../../platform/agentHost/common/meta/agentCustomizationMeta.js';
 import { CustomizationEnablementKind, type AgentCustomization, CustomizationType, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { customizationId, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { FileOperationResult, IFileService, IFileStat, toFileOperationResult } from '../../../../../../platform/files/common/files.js';
 import { AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
+import { type IAgentPlugin, IGNORED_PLUGIN_DIR_NAMES } from '../../../common/plugins/agentPluginService.js';
 import { PromptFileParser } from '../../../common/promptSyntax/promptFileParser.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { type IClientCustomizationSnapshot, type IClientPlugin } from './agentHostClientCustomizationsService.js';
@@ -141,11 +144,200 @@ export async function resolveCustomizationRefs(
 	return await Promise.all(refs).then(r => r.filter(isDefined));
 }
 
+const MAX_PLUGIN_NONCE_ENTRIES = 2000;
+const PLUGIN_NONCE_STAT_CONCURRENCY = 16;
+
+const pluginOverflowTokens = new WeakMap<IAgentPlugin, string>();
+
+/**
+ * Fallback revision token when a plugin tree exceeds {@link MAX_PLUGIN_NONCE_ENTRIES}.
+ * Stable across unrelated customization refreshes for the same plugin instance and
+ * `contentVersion`, advances whenever the plugin's watcher sees a content change,
+ * and rotates on restart so stale persisted host cache entries are never reused.
+ */
+function getOverflowPluginNonce(plugin: IAgentPlugin): string {
+	let instanceToken = pluginOverflowTokens.get(plugin);
+	if (!instanceToken) {
+		instanceToken = generateUuid();
+		pluginOverflowTokens.set(plugin, instanceToken);
+	}
+	const sha1 = new StringSHA1();
+	sha1.update(`${instanceToken}\0${plugin.contentVersion?.get() ?? 0}`);
+	return sha1.digest();
+}
+
+async function resolveRealDir(fileService: IFileService, resource: URI): Promise<URI | undefined> {
+	if (typeof fileService.realpath !== 'function') {
+		return undefined;
+	}
+	try {
+		return await fileService.realpath(resource);
+	} catch {
+		return undefined;
+	}
+}
+
+function toRealDirKey(resource: URI): string {
+	return extUriBiasedIgnorePathCase.getComparisonKey(resource);
+}
+
+/**
+ * Computes a deterministic content-metadata SHA-1 hex digest across a plugin
+ * directory tree so additions, edits, or deletions at any depth invalidate the
+ * Agent Host plugin copy even when the root folder's own `mtime` is unchanged.
+ *
+ * Skips {@link IGNORED_PLUGIN_DIR_NAMES} (`.git`, `node_modules`) and returns
+ * `undefined` if the scanned tree exceeds `maxEntries` so callers can switch
+ * to a watcher-backed revision instead of reusing a truncated scan.
+ */
+export async function computePluginNonce(fileService: IFileService, root: URI, maxEntries = MAX_PLUGIN_NONCE_ENTRIES): Promise<string | undefined> {
+	if (typeof fileService.resolve !== 'function') {
+		return (await fileService.stat(root)).mtime.toString(16);
+	}
+
+	const rootStat = await fileService.resolve(root);
+	const rootMeta = typeof rootStat.mtime === 'number' && typeof rootStat.size === 'number'
+		? { mtime: rootStat.mtime, size: rootStat.size }
+		: await fileService.stat(root);
+
+	if (!rootStat.isDirectory) {
+		const sha1 = new StringSHA1();
+		sha1.update(`f\0\0${rootMeta.mtime}\0${rootMeta.size}\n`);
+		return sha1.digest();
+	}
+
+	const parts: string[] = [`d\0\0${rootMeta.mtime}\0${rootMeta.size}`];
+
+	interface IPendingEntry {
+		readonly stat: IFileStat;
+		readonly relPath: string;
+		/** Resolved real URI of the parent directory once symlink tracking is active. */
+		readonly parentRealUri?: URI;
+	}
+
+	const queue: IPendingEntry[] = [];
+	let discovered = 0;
+	const enqueueChildren = (children: readonly IFileStat[] | undefined, parentRelPath: string, parentRealUri?: URI): boolean => {
+		if (!children || children.length === 0) {
+			return true;
+		}
+		// Sort deterministically so symlink deduplication does not depend on async readdir order.
+		const sorted = [...children].sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+		for (const child of sorted) {
+			if (IGNORED_PLUGIN_DIR_NAMES.has(child.name)) {
+				continue;
+			}
+			if (++discovered > maxEntries) {
+				return false;
+			}
+			queue.push({
+				stat: child,
+				relPath: parentRelPath ? `${parentRelPath}/${child.name}` : child.name,
+				parentRealUri,
+			});
+		}
+		return true;
+	};
+
+	if (!enqueueChildren(rootStat.children, '')) {
+		return undefined;
+	}
+
+	let rootRealUri: URI | undefined;
+	let visitedRealDirs: Set<string> | undefined;
+	const visitedRegularRelPaths: string[] = [];
+	let queueIndex = 0;
+	while (queueIndex < queue.length) {
+		const batch = queue.slice(queueIndex, queueIndex + PLUGIN_NONCE_STAT_CONCURRENCY);
+		queueIndex += batch.length;
+
+		if (!visitedRealDirs && batch.some(entry => entry.stat.isSymbolicLink && entry.stat.isDirectory)) {
+			rootRealUri = await resolveRealDir(fileService, root) ?? root;
+			visitedRealDirs = new Set([toRealDirKey(rootRealUri)]);
+			for (const relPath of visitedRegularRelPaths) {
+				visitedRealDirs.add(toRealDirKey(URI.joinPath(rootRealUri, ...relPath.split('/'))));
+			}
+		}
+
+		const results = await Promise.all(batch.map(async entry => {
+			try {
+				if (entry.stat.isDirectory) {
+					if (entry.stat.isSymbolicLink) {
+						const realUri = await resolveRealDir(fileService, entry.stat.resource);
+						const realKey = realUri ? toRealDirKey(realUri) : undefined;
+						if (!realUri || !realKey || visitedRealDirs!.has(realKey)) {
+							const meta = await fileService.stat(entry.stat.resource);
+							return { entry, part: `s\0${entry.relPath}\0${meta.mtime}\0${meta.size}` };
+						}
+						const resolved = await fileService.resolve(entry.stat.resource);
+						const meta = typeof resolved.mtime === 'number' && typeof resolved.size === 'number'
+							? { mtime: resolved.mtime, size: resolved.size }
+							: await fileService.stat(entry.stat.resource);
+						return { entry, part: `s\0${entry.relPath}\0${meta.mtime}\0${meta.size}`, children: resolved.children, realUri, realKey };
+					}
+					const realUri = visitedRealDirs
+						? (entry.parentRealUri ? URI.joinPath(entry.parentRealUri, entry.stat.name) : URI.joinPath(rootRealUri!, ...entry.relPath.split('/')))
+						: undefined;
+					const realKey = realUri ? toRealDirKey(realUri) : undefined;
+					if (realKey && visitedRealDirs!.has(realKey)) {
+						const meta = await fileService.stat(entry.stat.resource);
+						return { entry, part: `d\0${entry.relPath}\0${meta.mtime}\0${meta.size}` };
+					}
+					const resolved = await fileService.resolve(entry.stat.resource);
+					const meta = typeof resolved.mtime === 'number' && typeof resolved.size === 'number'
+						? { mtime: resolved.mtime, size: resolved.size }
+						: await fileService.stat(entry.stat.resource);
+					return { entry, part: `d\0${entry.relPath}\0${meta.mtime}\0${meta.size}`, children: resolved.children, realUri, realKey };
+				}
+				if (entry.stat.isFile) {
+					const meta = await fileService.stat(entry.stat.resource);
+					const kind = entry.stat.isSymbolicLink ? 'l' : 'f';
+					return { entry, part: `${kind}\0${entry.relPath}\0${meta.mtime}\0${meta.size}` };
+				}
+				return { entry, part: `u\0${entry.relPath}` };
+			} catch (err) {
+				if (toFileOperationResult(err) === FileOperationResult.FILE_NOT_FOUND) {
+					return undefined;
+				}
+				return { entry, part: `e\0${entry.relPath}` };
+			}
+		}));
+
+		for (const result of results) {
+			if (!result) {
+				continue;
+			}
+			parts.push(result.part);
+			if (result.children) {
+				if (visitedRealDirs && result.realKey) {
+					if (visitedRealDirs.has(result.realKey)) {
+						continue;
+					}
+					visitedRealDirs.add(result.realKey);
+				} else if (!result.entry.stat.isSymbolicLink) {
+					visitedRegularRelPaths.push(result.entry.relPath);
+				}
+				if (!enqueueChildren(result.children, result.entry.relPath, result.realUri)) {
+					return undefined;
+				}
+			}
+		}
+	}
+
+	parts.sort();
+	const sha1 = new StringSHA1();
+	for (const part of parts) {
+		sha1.update(part);
+		sha1.update('\n');
+	}
+	return sha1.digest();
+}
+
 async function toPluginRef(fileService: IFileService, { plugin, enabled }: IClientPlugin): Promise<ClientPluginCustomization> {
 	const key = plugin.uri.toString();
-	let nonce: number | undefined;
+	let nonce: string | undefined;
 	try {
-		nonce = (await fileService.stat(plugin.uri)).mtime;
+		nonce = await computePluginNonce(fileService, plugin.uri) ?? getOverflowPluginNonce(plugin);
 	} catch {
 		// ignored, sync will probably fail later though...
 	}
@@ -160,7 +352,7 @@ async function toPluginRef(fileService: IFileService, { plugin, enabled }: IClie
 		}),
 	};
 	if (nonce !== undefined) {
-		ref.nonce = nonce.toString(16);
+		ref.nonce = nonce;
 	}
 	return ref;
 }

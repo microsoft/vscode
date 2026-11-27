@@ -889,7 +889,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 	 */
 	private async _expandPluginContents(plugin: PluginMeta, token: CancellationToken): Promise<readonly ICustomizationItem[]> {
 		const cached = this._expansionCache.get(plugin.item.uri);
-		if (cached && cached.nonce === plugin.nonce && cached.pluginLabel === plugin.pluginLabel) {
+		if (cached && cached.nonce !== undefined && cached.nonce === plugin.nonce && cached.pluginLabel === plugin.pluginLabel) {
 			return cached.children;
 		}
 		const children = await this._contentExpander.expandPluginContents(plugin.item.uri, plugin.delivery, plugin.isBundleItem, plugin.item.source, plugin.pluginLabel, token);
