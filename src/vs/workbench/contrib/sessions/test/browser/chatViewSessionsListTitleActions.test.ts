@@ -239,8 +239,10 @@ suite('Chat view sessions list focus', () => {
 
 			(mainWindow.document.activeElement as HTMLElement | null)?.blur();
 			handOverLostFocus.call(view);
-			await timeout(0);
+			// The hand-over focuses the replacement in a microtask, then checks again at the next animation frame
+			await Promise.resolve();
 			const first = focused();
+			// The host's relayout hides the replacement before that frame, as it lays out synchronously
 			replacement.style.display = 'none';
 			await new Promise<void>(resolve => scheduleAtNextAnimationFrame(mainWindow, () => setTimeout(resolve, 0)));
 			assert.deepStrictEqual({ renderedActions, first, afterRelayout: focused() }, { renderedActions: ['more actions'], first: 'replacement', afterRelayout: 'title overflow' });
