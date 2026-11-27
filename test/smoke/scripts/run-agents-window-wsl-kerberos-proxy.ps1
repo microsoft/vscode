@@ -28,7 +28,16 @@
 	new one when the proxy rejects the remembered credentials. Another local Agent Host suite sets the proxy with a stale
 	password in the http.proxy setting, and types the credentials when the proxy rejects it.
 
-	Every change is reverted afterwards, and logs are kept in .build/logs/agents-window-wsl-<auth>-proxy.
+	With -Sandbox, the Agents Window suites run with the Copilot runtime's sandbox on instead, with -ProxyAuth BasicPac
+	for a local Agent Host and one in WSL, and with -ProxyAuth Kerberos for one in WSL. A sandboxed shell command fetches
+	a URL of the mock server, which only Squid can reach, through the network proxy of the sandbox, which forwards it to
+	the proxy the client resolves, with the credentials or Kerberos ticket of the client. The distribution additionally
+	needs bubblewrap, slirp4netns and iptables. With the legacy iptables backend, which the Dev Container smoke tests
+	select for Docker, the sandbox installs its network rules without privilege only when /run/xtables.lock is writable,
+	so the default user owns that lock during the run.
+
+	Every change is reverted afterwards, and logs are kept in .build/logs/agents-window-wsl-<auth>-proxy, with a -sandbox
+	suffix for -Sandbox.
 
 	The distribution needs squid-openssl, openssl and curl, krb5-kdc and krb5-admin-server for Kerberos, and NAT
 	networking.
@@ -41,6 +50,9 @@
 
 .EXAMPLE
 	.\test\smoke\scripts\run-agents-window-wsl-kerberos-proxy.ps1 -ProxyAuth BasicPac -WslServerPath ~/devel/vscode -WslNodePath ~/.local/node/bin/node
+
+.EXAMPLE
+	.\test\smoke\scripts\run-agents-window-wsl-kerberos-proxy.ps1 -ProxyAuth BasicPac -Sandbox -WslServerPath ~/devel/vscode -WslNodePath ~/.local/node/bin/node
 #>
 [CmdletBinding(PositionalBinding = $false)]
 param(
@@ -51,6 +63,9 @@ param(
 	[string]$WslNodePath,
 	# A Linux `copilot-runtime`, next to its `runtime.node`, for the Agent Host to use instead of its bundled one.
 	[string]$WslCopilotRuntimePath,
+	# A Windows `copilot-runtime.exe`, next to its `runtime.node`, for the local Agent Host to use instead of its bundled
+	# one.
+	[string]$CopilotRuntimePath,
 	# How the proxy authenticates clients: Kerberos, with the system proxy settings, Basic, with the http.proxy setting, or
 	# BasicPac, with the system proxy settings and the proxy login dialog.
 	[ValidateSet('Kerberos', 'Basic', 'BasicPac')][string]$ProxyAuth = 'Kerberos',
@@ -59,6 +74,8 @@ param(
 	# The editor window suite connects to the server in WSL. A packaged server only accepts a packaged client of its commit.
 	# With Basic authentication, only the editor window suite runs, and with BasicPac only the Agents Window suites.
 	[ValidateSet('All', 'AgentsWindow', 'EditorWindow')][string]$Suites = 'All',
+	# Runs the Agents Window suites whose sandboxed shell command fetches a URL through the proxy instead.
+	[switch]$Sandbox,
 	# Further smoke test arguments, such as `--build <path>`.
 	[Parameter(ValueFromRemainingArguments)][string[]]$SmokeTestArguments = @()
 )
@@ -84,7 +101,15 @@ if ($ProxyAuth -eq 'Basic' -and $Suites -eq 'AgentsWindow') {
 if ($BasicPac -and $Suites -eq 'EditorWindow') {
 	throw 'With BasicPac authentication, only the Agents Window suites run.'
 }
-$SmokeTestGrep = if ($BasicPac) {
+if ($Sandbox -and ($ProxyAuth -eq 'Basic' -or $Suites -eq 'EditorWindow')) {
+	throw 'With -Sandbox, only the Agents Window suites run, with BasicPac or Kerberos authentication.'
+}
+if ($CopilotRuntimePath) {
+	$CopilotRuntimePath = (Resolve-Path $CopilotRuntimePath).Path
+}
+$SmokeTestGrep = if ($Sandbox) {
+	if ($BasicPac) { 'AgentHost, Basic PAC proxy, sandbox' } else { 'WSL AgentHost, Kerberos proxy, sandbox' }
+} elseif ($BasicPac) {
 	'AgentHost, Basic PAC proxy'
 } else {
 	switch ($Suites) {
@@ -93,7 +118,7 @@ $SmokeTestGrep = if ($BasicPac) {
 		default { if ($Kerberos) { 'AgentHost, Kerberos proxy' } else { 'WSL remote AgentHost, Basic proxy' } }
 	}
 }
-$RunName = "wsl-$($ProxyAuth.ToLowerInvariant())-proxy"
+$RunName = "wsl-$($ProxyAuth.ToLowerInvariant())-proxy$(if ($Sandbox) { '-sandbox' })"
 $ProxyUrl = "$($ProxyScheme.ToLowerInvariant())://localhost:$ProxyPort"
 $SquidPort = if ($ProxyScheme -eq 'Https') {
 	'https_port 127.0.0.1:{0} tls-cert=$WSL_ROOT/server.pem tls-key=$WSL_ROOT/server.key' -f $ProxyPort
@@ -558,6 +583,8 @@ $savedProxySettings = $null
 $script:WindowsConfigured = $false
 $kdcProcess = $null
 $squidProcess = $null
+# The owner and mode of /run/xtables.lock, or 'absent', before the default user took it over.
+$xtablesLock = $null
 $pacProcess = $null
 $smokeProcess = $null
 $smokeStarted = $false
@@ -568,6 +595,10 @@ $succeeded = $false
 try {
 	$wslTools = if ($Kerberos) { 'krb5kdc kdb5_util kadmin.local squid openssl curl ip ss' } else { 'squid openssl curl ip ss' }
 	$wslPackages = if ($Kerberos) { 'krb5-kdc krb5-admin-server squid-openssl openssl curl iproute2' } else { 'squid-openssl openssl curl iproute2' }
+	if ($Sandbox) {
+		$wslTools += ' bwrap slirp4netns iptables'
+		$wslPackages += ' bubblewrap slirp4netns iptables'
+	}
 	$authHelper = if ($Kerberos) { '/usr/lib/squid/negotiate_kerberos_auth' } else { '/usr/lib/squid/basic_ncsa_auth' }
 	$wslPorts = if ($Kerberos) { "88 $ProxyPort" } else { "$ProxyPort" }
 	$network = Invoke-WslScript @"
@@ -726,6 +757,26 @@ chown "`$WSL_USER" "`$WSL_ROOT" "`$WSL_ROOT"/*.* "`$WSL_ROOT/hosts"
 	if (-not (Test-TcpPort '127.0.0.1' $ProxyPort)) {
 		throw "Windows cannot reach Squid at localhost:$ProxyPort; WSL localhost forwarding must be enabled"
 	}
+	if ($Sandbox) {
+		# The Copilot runtime checks the lock when it starts. /run is reset when the distribution stops, which Squid
+		# prevents until the cleanup.
+		$state = (Invoke-WslScript -AsRoot @"
+WSL_USER=$(ConvertTo-ShellLiteral $wslUser)
+legacy=
+for tool in iptables ip6tables; do
+	case "`$("`$tool" -V)" in *nf_tables*) ;; *) legacy=1 ;; esac
+done
+if [ -n "`$legacy" ]; then
+	if [ -e /run/xtables.lock ]; then stat -c '%u:%g %a' /run/xtables.lock; else echo absent; fi
+	touch /run/xtables.lock
+	chown "`$WSL_USER" /run/xtables.lock
+fi
+"@) -join ''
+		if ($state -and $state -notmatch '^(absent|\d+:\d+ [0-7]+)$') {
+			throw "Unexpected /run/xtables.lock state in WSL: $state"
+		}
+		$xtablesLock = $state
+	}
 
 	Invoke-ElevatedConfiguration 'Setup'
 
@@ -782,6 +833,12 @@ chown "`$WSL_USER" "`$WSL_ROOT" "`$WSL_ROOT"/*.* "`$WSL_ROOT/hosts"
 	}
 	if ($WslCopilotRuntimePath) {
 		$environment['VSCODE_SMOKE_TEST_WSL_COPILOT_RUNTIME_PATH'] = $WslCopilotRuntimePath
+	}
+	if ($CopilotRuntimePath) {
+		$environment['VSCODE_SMOKE_TEST_COPILOT_RUNTIME_PATH'] = $CopilotRuntimePath
+	}
+	if ($Sandbox) {
+		$environment['VSCODE_SMOKE_TEST_SANDBOX_PROXY'] = '1'
 	}
 	$environment['VSCODE_SMOKE_TEST_MOCK_HOST'] = $MockHost
 	$environment['VSCODE_SMOKE_TEST_PROXY_HEADER'] = $proxyHeader
@@ -912,6 +969,18 @@ exit `$LASTEXITCODE
 	}
 	if ($pacProcess -and -not $pacProcess.HasExited) {
 		$pacProcess.Kill()
+	}
+	if ($xtablesLock) {
+		try {
+			# Before Squid stops, while /run still has the lock.
+			$restore = if ($xtablesLock -eq 'absent') { 'rm -f /run/xtables.lock' } else {
+				$owner, $mode = $xtablesLock -split ' '
+				"if [ -e /run/xtables.lock ]; then chown $owner /run/xtables.lock; chmod $mode /run/xtables.lock; fi"
+			}
+			Invoke-WslScript -AsRoot $restore | Out-Null
+		} catch {
+			Write-Warning "Could not restore /run/xtables.lock in WSL: $_"
+		}
 	}
 	Stop-WslProcess $squidProcess "$WslRoot/wrapper.pid"
 	Stop-WslProcess -AsRoot $kdcProcess "$WslRoot/kdc/wrapper.pid"

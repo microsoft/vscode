@@ -41,7 +41,7 @@ $rootfsSha256 = '1483cc5c1dce13064f774834cbffdff226559fd522a67a381a8ea77d63fb410
 # tests need a server with the agent host's client proxy, Kerberos and certificate support, and the WSL Basic PAC proxy
 # smoke tests one with its Basic proxy authentication through the client.
 $serverCommit = '54ab79431a5858c9546c7161e5afe5fd9e8570d6'
-$aptPackages = 'ca-certificates curl git iproute2 procps docker.io libatomic1 libkrb5-3 krb5-kdc krb5-admin-server squid-openssl openssl'
+$aptPackages = 'ca-certificates curl git iproute2 procps docker.io libatomic1 libkrb5-3 krb5-kdc krb5-admin-server squid-openssl openssl bubblewrap slirp4netns iptables'
 $devContainerImage = 'mcr.microsoft.com/devcontainers/base:ubuntu-24.04'
 $serverPath = '/opt/vscode-smoke-server'
 
