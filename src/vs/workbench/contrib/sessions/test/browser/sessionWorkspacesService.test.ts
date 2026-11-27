@@ -33,10 +33,10 @@ import { IRecentlyOpened, IWorkspacesService } from '../../../../../platform/wor
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { ISessionsRecentWorkspacesService, IVSCodeRecentWorkspaceFile } from '../../browser/sessionsRecentWorkspacesService.js';
 import { SessionWorkspacesContextKeys } from '../../browser/sessionWorkspacesContextKeys.js';
-import { SessionWorkspacesService, toWorkspaceFileName } from '../../browser/sessionWorkspacesService.js';
+import { SessionWorkspacesService } from '../../browser/sessionWorkspacesService.js';
 import { SessionWorkspacesEnabledContext } from '../../common/contextkeys.js';
 import { SESSIONS_WORKSPACES_ENABLED_SETTING } from '../../common/sessionConfig.js';
-import { parseSessionWorkspaceFile } from '../../common/sessionWorkspaceFile.js';
+import { SessionWorkspaceFile } from '../../common/sessionWorkspaceFile.js';
 import { IRecentSessionWorkspace, SessionWorkspaceError } from '../../common/sessionWorkspaces.js';
 import { localDrive, localFile, pathOf } from '../common/sessionWorkspaceTestPaths.js';
 
@@ -366,10 +366,11 @@ suite('SessionWorkspacesService', () => {
 		const folderWorkspace = await service.createWorkspace('Agents', [vscode], { icon: 'rocket', color: 'charts.green' });
 		const multi = await service.createWorkspace('Docs', [docs, chat]);
 		await service.updateWorkspace(multi.uri, { icon: 'beaker', color: '#ff8800' });
-		const multiFile = parseSessionWorkspaceFile(await readFile(fileService, multi.uri), multi.uri, extUri);
+		const workspaceFile = new SessionWorkspaceFile(extUri);
+		const multiFile = workspaceFile.parse(await readFile(fileService, multi.uri), multi.uri);
 		const restarted = (await createService({ storage, fileService })).service.managedWorkspaces.get().map(workspace => [workspace.name, workspace.icon, workspace.color]);
 		const grown = await service.updateWorkspace(folderWorkspace.uri, { folders: [vscode, chat] });
-		const grownFile = parseSessionWorkspaceFile(await readFile(fileService, grown.uri), grown.uri, extUri);
+		const grownFile = workspaceFile.parse(await readFile(fileService, grown.uri), grown.uri);
 		const reset = await service.updateWorkspace(grown.uri, { name: 'Renamed', icon: null, color: null });
 
 		assert.deepStrictEqual({
@@ -983,8 +984,9 @@ suite('SessionWorkspacesService', () => {
 	});
 
 	test('names an owned workspace file after the workspace, falling back for names the file system reserves', () => {
+		const workspaceFile = new SessionWorkspaceFile(extUri);
 		assert.deepStrictEqual(
-			['Platform', 'a/b', 'CON', 'nul', 'Lpt1', '...', ''].map(name => toWorkspaceFileName(name, true)),
+			['Platform', 'a/b', 'CON', 'nul', 'Lpt1', '...', ''].map(name => workspaceFile.toFileName(name, true)),
 			['Platform.code-workspace', 'a-b.code-workspace', 'workspace.code-workspace', 'workspace.code-workspace', 'workspace.code-workspace', 'workspace.code-workspace', 'workspace.code-workspace']);
 	});
 

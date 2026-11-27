@@ -3,10 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isValidBasename } from '../../../../base/common/extpath.js';
 import { parse, ParseError } from '../../../../base/common/json.js';
 import { applyEdits, setProperty } from '../../../../base/common/jsonEdit.js';
 import { FormattingOptions } from '../../../../base/common/jsonFormatter.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { isWindows } from '../../../../base/common/platform.js';
 import { basename, dirname, IExtUri } from '../../../../base/common/resources.js';
 import { hasKey, isObject } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -46,57 +48,6 @@ const SHOWN_PROPERTIES = new Set([NAME_PROPERTY, ICON_PROPERTY, COLOR_PROPERTY, 
 
 const formattingOptions: FormattingOptions = { insertSpaces: false, tabSize: 4, eol: '\n' };
 
-function readStringProperty(value: unknown): string | undefined {
-	return typeof value === 'string' && value.trim() ? value.trim() : undefined;
-}
-
-/** The file name of a `.code-workspace` file without its suffix. */
-export function getWorkspaceFileBasename(uri: URI): string {
-	const name = basename(uri);
-	return name.endsWith(WORKSPACE_SUFFIX) ? name.slice(0, -WORKSPACE_SUFFIX.length) : name;
-}
-
-/** Reads the name, icon and color of a parsed `.code-workspace` file. */
-export function readWorkspaceFileMetadata(stored: { readonly name?: unknown; readonly icon?: unknown; readonly color?: unknown }, uri: URI): ISessionWorkspaceFileMetadata {
-	const icon = readStringProperty(stored.icon);
-	const color = readStringProperty(stored.color);
-	return { name: readStringProperty(stored.name) ?? getWorkspaceFileBasename(uri), ...(icon ? { icon } : {}), ...(color ? { color } : {}) };
-}
-
-/**
- * Parses a `.code-workspace` file, throwing when it is not a valid workspace file. Invalid folder entries are skipped, and
- * so are folder paths in a local file of a remote workspace, which are paths on the remote and not on this computer.
- */
-export function parseSessionWorkspaceFile(content: string, uri: URI, extUri: IExtUri, options?: { readonly remoteAuthority?: string }): ISessionWorkspaceFileContent {
-	const { stored, folders, skipped } = readWorkspaceFile(content, uri, options?.remoteAuthority);
-	return { ...readWorkspaceFileMetadata(stored, uri), folders: toWorkspaceFolders(folders, uri, extUri).map(folder => folder.uri), hasErrors: skipped.length > 0 };
-}
-
-/**
- * Whether a local `.code-workspace` file has folder paths without saying which computer they are on: they are paths on a
- * remote when VS Code opened the file in one, so only VS Code's recently opened list tells.
- */
-export function hasAmbiguousFolderPaths(content: string, uri: URI): boolean {
-	const { folders, remotePaths } = readWorkspaceFile(content, uri, undefined);
-	return uri.scheme === Schemas.file && !remotePaths && folders.some(folder => hasKey(folder, { path: true }));
-}
-
-/**
- * Whether a `.code-workspace` file has properties that the Agents window does not show, such as settings, launch
- * configurations or tasks, which deleting the file would lose. Throws when it is not a valid workspace file.
- */
-export function hasOtherWorkspaceFileProperties(content: string, uri: URI): boolean {
-	return Object.keys(readWorkspaceFile(content, uri, undefined).stored).some(key => !SHOWN_PROPERTIES.has(key));
-}
-
-/**
- * Whether a `.code-workspace` file gives `folder` a name of its own, which `${workspaceFolder:name}` variables refer to
- * and which a standalone folder cannot keep. Throws when it is not a valid workspace file.
- */
-export function hasWorkspaceFolderName(content: string, uri: URI, folder: URI, extUri: IExtUri): boolean {
-	return toWorkspaceFolders(readWorkspaceFile(content, uri, undefined).folders, uri, extUri).some(candidate => !!candidate.raw?.name && extUri.isEqual(candidate.uri, folder));
-}
-
 interface IParsedWorkspaceFile {
 	readonly stored: { readonly name?: unknown; readonly icon?: unknown; readonly color?: unknown };
 	readonly folders: IStoredWorkspaceFolder[];
@@ -106,74 +57,128 @@ interface IParsedWorkspaceFile {
 	readonly remotePaths: boolean;
 }
 
-function readWorkspaceFile(content: string, uri: URI, remoteAuthorityOverride: string | undefined): IParsedWorkspaceFile {
-	const invalid = () => new Error(localize('invalidWorkspaceFile', "'{0}' is not a valid workspace file.", basename(uri)));
-	const errors: ParseError[] = [];
-	const stored: { folders?: unknown; remoteAuthority?: unknown; name?: unknown; icon?: unknown; color?: unknown } | undefined = parse(content, errors);
-	if (errors.length || !isObject(stored) || !Array.isArray(stored.folders)) {
-		throw invalid();
-	}
-	const remoteAuthority = remoteAuthorityOverride || (typeof stored.remoteAuthority === 'string' ? stored.remoteAuthority : undefined);
-	const remotePaths = uri.scheme === Schemas.file && !!remoteAuthority;
-	const folders: IStoredWorkspaceFolder[] = [];
-	const skipped: unknown[] = [];
-	for (const folder of stored.folders) {
-		if (!isStoredWorkspaceFolder(folder) || (remotePaths && hasKey(folder, { path: true }))) {
-			skipped.push(folder);
-			continue;
-		}
-		if (hasKey(folder, { uri: true })) {
-			try {
-				URI.parse(folder.uri, true);
-			} catch {
-				throw invalid();
-			}
-		}
-		folders.push(folder);
-	}
-	return { stored, folders, skipped, remotePaths };
-}
+export class SessionWorkspaceFile {
 
-/**
- * Applies `edit` to the content of a `.code-workspace` file, keeping its comments, settings and other properties. Folders
- * are written relative to the file unless `forceAbsolute` is set, and the folder entries that are not read are kept after
- * them. In a local file of a remote workspace, where a folder path is a path on the remote, folders are written as URIs.
- * Throws when the existing content or the result is not a valid workspace file, so that an invalid file is never written.
- * `remoteAuthority` is the remote that VS Code opened the file in, when it is not in the file itself.
- */
-export function stringifySessionWorkspaceFile(uri: URI, edit: ISessionWorkspaceFileEdit, extUri: IExtUri, options?: { readonly existing?: string; readonly forceAbsolute?: boolean; readonly remoteAuthority?: string }): string {
-	const existing = options?.existing !== undefined ? readWorkspaceFile(options.existing, uri, options.remoteAuthority) : undefined;
-	let content = options?.existing ?? '{}';
-	if (edit.folders) {
-		const configFolder = dirname(uri);
-		// Folders keep the names given to them in the file, which `${workspaceFolder:name}` variables refer to
-		const names = new Map<string, string>();
-		for (const folder of existing ? toWorkspaceFolders(existing.folders, uri, extUri) : []) {
-			if (folder.raw?.name) {
-				names.set(extUri.getComparisonKey(folder.uri), folder.raw.name);
+	constructor(private readonly extUri: IExtUri) { }
+
+	/** A file name for an owned workspace file, so that VS Code names its window after the workspace. */
+	toFileName(name: string, isWindowsOS: boolean = isWindows): string {
+		const sanitized = name.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '-').replace(/^\.+/, '').trim();
+		const fileName = `${sanitized}${WORKSPACE_SUFFIX}`;
+		// Names that the file system reserves, such as `CON` on Windows
+		return sanitized && isValidBasename(fileName, isWindowsOS) ? fileName : `workspace${WORKSPACE_SUFFIX}`;
+	}
+
+	/** The file name of a `.code-workspace` file without its suffix. */
+	getBasename(uri: URI): string {
+		const name = basename(uri);
+		return name.endsWith(WORKSPACE_SUFFIX) ? name.slice(0, -WORKSPACE_SUFFIX.length) : name;
+	}
+
+	/**
+	 * Parses a `.code-workspace` file, throwing when it is not a valid workspace file. Invalid folder entries are skipped, and
+	 * so are folder paths in a local file of a remote workspace, which are paths on the remote and not on this computer.
+	 */
+	parse(content: string, uri: URI, options?: { readonly remoteAuthority?: string }): ISessionWorkspaceFileContent {
+		const { stored, folders, skipped } = this._readWorkspaceFile(content, uri, options?.remoteAuthority);
+		return { ...this._readWorkspaceFileMetadata(stored, uri), folders: toWorkspaceFolders(folders, uri, this.extUri).map(folder => folder.uri), hasErrors: skipped.length > 0 };
+	}
+
+	/**
+	 * Applies `edit` to a valid `.code-workspace` file, preserving comments, other properties and unread folder entries.
+	 * Folder paths are relative by default; local files for remote workspaces use URIs instead.
+	 */
+	stringify(uri: URI, edit: ISessionWorkspaceFileEdit, options?: { readonly existing?: string; readonly forceAbsolute?: boolean; readonly remoteAuthority?: string }): string {
+		const existing = options?.existing !== undefined ? this._readWorkspaceFile(options.existing, uri, options.remoteAuthority) : undefined;
+		let content = options?.existing ?? '{}';
+		if (edit.folders) {
+			const configFolder = dirname(uri);
+			// Folders keep the names given to them in the file, which `${workspaceFolder:name}` variables refer to
+			const names = new Map<string, string>();
+			for (const folder of existing ? toWorkspaceFolders(existing.folders, uri, this.extUri) : []) {
+				if (folder.raw?.name) {
+					names.set(this.extUri.getComparisonKey(folder.uri), folder.raw.name);
+				}
 			}
+			const folders: unknown[] = [
+				...edit.folders.map(folder => {
+					const name = names.get(this.extUri.getComparisonKey(folder));
+					return existing?.remotePaths || (!existing && uri.scheme === Schemas.file && options?.remoteAuthority)
+						? { ...(name ? { name } : {}), uri: folder.toString(true) }
+						: getStoredWorkspaceFolder(folder, !!options?.forceAbsolute, name, configFolder, this.extUri);
+				}),
+				...existing?.skipped ?? [],
+			];
+			content = applyEdits(content, setProperty(content, [FOLDERS_PROPERTY], folders, formattingOptions));
 		}
-		const folders: unknown[] = [
-			...edit.folders.map(folder => {
-				const name = names.get(extUri.getComparisonKey(folder));
-				return existing?.remotePaths || (!existing && uri.scheme === Schemas.file && options?.remoteAuthority)
-					? { ...(name ? { name } : {}), uri: folder.toString(true) }
-					: getStoredWorkspaceFolder(folder, !!options?.forceAbsolute, name, configFolder, extUri);
-			}),
-			...existing?.skipped ?? [],
-		];
-		content = applyEdits(content, setProperty(content, [FOLDERS_PROPERTY], folders, formattingOptions));
+		if (edit.name !== undefined) {
+			content = applyEdits(content, setProperty(content, [NAME_PROPERTY], edit.name, formattingOptions));
+		}
+		if (edit.icon !== undefined) {
+			content = applyEdits(content, setProperty(content, [ICON_PROPERTY], edit.icon ?? undefined, formattingOptions));
+		}
+		if (edit.color !== undefined) {
+			content = applyEdits(content, setProperty(content, [COLOR_PROPERTY], edit.color ?? undefined, formattingOptions));
+		}
+		content = content.endsWith('\n') ? content : `${content}\n`;
+		this.parse(content, uri);
+		return content;
 	}
-	if (edit.name !== undefined) {
-		content = applyEdits(content, setProperty(content, [NAME_PROPERTY], edit.name, formattingOptions));
+
+	/**
+	 * Whether a local `.code-workspace` file has folder paths without saying which computer they are on: they are paths on a
+	 * remote when VS Code opened the file in one, so only VS Code's recently opened list tells.
+	 */
+	hasAmbiguousFolderPaths(content: string, uri: URI): boolean {
+		const { folders, remotePaths } = this._readWorkspaceFile(content, uri, undefined);
+		return uri.scheme === Schemas.file && !remotePaths && folders.some(folder => hasKey(folder, { path: true }));
 	}
-	if (edit.icon !== undefined) {
-		content = applyEdits(content, setProperty(content, [ICON_PROPERTY], edit.icon ?? undefined, formattingOptions));
+
+	/** Whether the file has properties the Agents window does not show, such as settings, launch configurations or tasks. */
+	hasOtherProperties(content: string, uri: URI): boolean {
+		return Object.keys(this._readWorkspaceFile(content, uri, undefined).stored).some(key => !SHOWN_PROPERTIES.has(key));
 	}
-	if (edit.color !== undefined) {
-		content = applyEdits(content, setProperty(content, [COLOR_PROPERTY], edit.color ?? undefined, formattingOptions));
+
+	/** Whether the file gives `folder` a custom name, which `${workspaceFolder:name}` variables can refer to. */
+	hasFolderName(content: string, uri: URI, folder: URI): boolean {
+		return toWorkspaceFolders(this._readWorkspaceFile(content, uri, undefined).folders, uri, this.extUri).some(candidate => !!candidate.raw?.name && this.extUri.isEqual(candidate.uri, folder));
 	}
-	content = content.endsWith('\n') ? content : `${content}\n`;
-	parseSessionWorkspaceFile(content, uri, extUri);
-	return content;
+
+	private _readWorkspaceFile(content: string, uri: URI, remoteAuthorityOverride: string | undefined): IParsedWorkspaceFile {
+		const invalid = () => new Error(localize('invalidWorkspaceFile', "'{0}' is not a valid workspace file.", basename(uri)));
+		const errors: ParseError[] = [];
+		const stored: { folders?: unknown; remoteAuthority?: unknown; name?: unknown; icon?: unknown; color?: unknown } | undefined = parse(content, errors);
+		if (errors.length || !isObject(stored) || !Array.isArray(stored.folders)) {
+			throw invalid();
+		}
+		const remoteAuthority = remoteAuthorityOverride || (typeof stored.remoteAuthority === 'string' ? stored.remoteAuthority : undefined);
+		const remotePaths = uri.scheme === Schemas.file && !!remoteAuthority;
+		const folders: IStoredWorkspaceFolder[] = [];
+		const skipped: unknown[] = [];
+		for (const folder of stored.folders) {
+			if (!isStoredWorkspaceFolder(folder) || (remotePaths && hasKey(folder, { path: true }))) {
+				skipped.push(folder);
+				continue;
+			}
+			if (hasKey(folder, { uri: true })) {
+				try {
+					URI.parse(folder.uri, true);
+				} catch {
+					throw invalid();
+				}
+			}
+			folders.push(folder);
+		}
+		return { stored, folders, skipped, remotePaths };
+	}
+
+	private _readWorkspaceFileMetadata(stored: IParsedWorkspaceFile['stored'], uri: URI): ISessionWorkspaceFileMetadata {
+		const icon = this._readStringProperty(stored.icon);
+		const color = this._readStringProperty(stored.color);
+		return { name: this._readStringProperty(stored.name) ?? this.getBasename(uri), ...(icon ? { icon } : {}), ...(color ? { color } : {}) };
+	}
+
+	private _readStringProperty(value: unknown): string | undefined {
+		return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+	}
 }

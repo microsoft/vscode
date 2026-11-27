@@ -20,7 +20,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { isRecentFolder, IRecentWorkspace as IRecentWorkspaceFile, IWorkspacesService } from '../../../../platform/workspaces/common/workspaces.js';
 import { ISessionWorkspace } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
-import { getWorkspaceFileBasename, ISessionWorkspaceFileContent, ISessionWorkspaceFileMetadata, parseSessionWorkspaceFile } from '../common/sessionWorkspaceFile.js';
+import { ISessionWorkspaceFileContent, ISessionWorkspaceFileMetadata, SessionWorkspaceFile } from '../common/sessionWorkspaceFile.js';
 import { WorkspaceHistoryLoadState } from '../../../services/sessions/common/workspaceSelection.js';
 
 const STORAGE_KEY_RECENT_WORKSPACES = 'sessions.recentlyPickedWorkspaces';
@@ -135,6 +135,7 @@ export class SessionsRecentWorkspacesService extends Disposable implements ISess
 	private readonly _historyRefresh = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _historyLoadState = observableValue<WorkspaceHistoryLoadState>(this, 'loading');
 	readonly historyLoadState: IObservable<WorkspaceHistoryLoadState> = this._historyLoadState;
+	private readonly _workspaceFile: SessionWorkspaceFile;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -146,6 +147,7 @@ export class SessionsRecentWorkspacesService extends Disposable implements ISess
 	) {
 		super();
 
+		this._workspaceFile = new SessionWorkspaceFile(uriIdentityService.extUri);
 		this._refreshVSCodeRecentWorkspaces();
 		this._register(this.workspacesService.onDidChangeRecentlyOpened(() => this._refreshVSCodeRecentWorkspaces()));
 		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(() => this._refreshVSCodeRecentWorkspaces()));
@@ -445,7 +447,7 @@ export class SessionsRecentWorkspacesService extends Disposable implements ISess
 		} catch (error) {
 			if (timedOut && !token.isCancellationRequested) {
 				this.logService.warn('[SessionsRecentWorkspaces] Timed out reading a recent workspace file');
-				return { name: getWorkspaceFileBasename(recent.workspace.configPath), folders: [], hasErrors: true };
+				return { name: this._workspaceFile.getBasename(recent.workspace.configPath), folders: [], hasErrors: true };
 			}
 			throw error;
 		} finally {
@@ -459,7 +461,7 @@ export class SessionsRecentWorkspacesService extends Disposable implements ISess
 			throw new Error('No file system provider for the recent workspace file');
 		}
 		const content = await raceCancellationError(this.fileService.readFile(configPath, { limits: { size: MAX_WORKSPACE_FILE_SIZE } }, token), token);
-		const parsed = parseSessionWorkspaceFile(content.value.toString(), configPath, this.uriIdentityService.extUri, { remoteAuthority: recent.remoteAuthority });
+		const parsed = this._workspaceFile.parse(content.value.toString(), configPath, { remoteAuthority: recent.remoteAuthority });
 		if (parsed.hasErrors) {
 			this.logService.warn('[SessionsRecentWorkspaces] Skipped invalid folders or ambiguous remote paths in a recent workspace file');
 		}

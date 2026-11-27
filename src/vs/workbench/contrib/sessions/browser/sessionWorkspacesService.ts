@@ -7,11 +7,9 @@ import { Limiter, RunOnceScheduler, Sequencer } from '../../../../base/common/as
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { CancellationError } from '../../../../base/common/errors.js';
-import { isValidBasename } from '../../../../base/common/extpath.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
-import { dirname, IExtUri, joinPath } from '../../../../base/common/resources.js';
-import { isWindows } from '../../../../base/common/platform.js';
+import { dirname, joinPath } from '../../../../base/common/resources.js';
 import { isObject } from '../../../../base/common/types.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -24,10 +22,10 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { hasWorkspaceFileExtension, WORKSPACE_SUFFIX } from '../../../../platform/workspace/common/workspace.js';
+import { hasWorkspaceFileExtension } from '../../../../platform/workspace/common/workspace.js';
 import { isRecentWorkspace, IWorkspacesService } from '../../../../platform/workspaces/common/workspaces.js';
 import { SESSIONS_WORKSPACES_ENABLED_SETTING } from '../common/sessionConfig.js';
-import { hasAmbiguousFolderPaths, hasOtherWorkspaceFileProperties, hasWorkspaceFolderName, ISessionWorkspaceFileContent, ISessionWorkspaceFileEdit, parseSessionWorkspaceFile, stringifySessionWorkspaceFile } from '../common/sessionWorkspaceFile.js';
+import { ISessionWorkspaceFileContent, ISessionWorkspaceFileEdit, SessionWorkspaceFile } from '../common/sessionWorkspaceFile.js';
 import { IRecentSessionWorkspace, ISessionWorkspaceAppearance, ISessionWorkspaceRemoveOptions, ISessionWorkspacesService, ISessionWorkspaceUpdate, SessionWorkspaceError } from '../common/sessionWorkspaces.js';
 import { ISessionsRecentWorkspacesService } from './sessionsRecentWorkspacesService.js';
 
@@ -50,63 +48,6 @@ interface IStoredWorkspace {
 	/** The icon and color kept on this computer: for a standalone folder, or when they could not be written to the file. */
 	readonly local?: ISessionWorkspaceAppearance;
 	readonly previousUris?: readonly UriComponents[];
-}
-
-/** A file name for an owned workspace file, so that VS Code names its window after the workspace. */
-export function toWorkspaceFileName(name: string, isWindowsOS: boolean = isWindows): string {
-	const sanitized = name.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '-').replace(/^\.+/, '').trim();
-	const fileName = `${sanitized}${WORKSPACE_SUFFIX}`;
-	// Names that the file system reserves, such as `CON` on Windows
-	return sanitized && isValidBasename(fileName, isWindowsOS) ? fileName : `workspace${WORKSPACE_SUFFIX}`;
-}
-
-function withAppearance(workspace: IRecentSessionWorkspace, appearance: ISessionWorkspaceAppearance | undefined): IRecentSessionWorkspace {
-	const { icon: _icon, color: _color, ...rest } = workspace;
-	return {
-		...rest,
-		...(appearance?.icon ? { icon: appearance.icon } : {}),
-		...(appearance?.color ? { color: appearance.color } : {}),
-	};
-}
-
-/** The icon and color to write into a workspace file: only those the update sets, so an omitted one is left as it is in the file. */
-function toFileAppearanceEdit(update: ISessionWorkspaceUpdate): Pick<ISessionWorkspaceFileEdit, 'icon' | 'color'> {
-	return { icon: update.icon, color: update.color };
-}
-
-/** The icon and color still kept on this computer after an update was written to the file: those the update omitted. */
-function remainingLocalAppearance(update: ISessionWorkspaceUpdate, local: ISessionWorkspaceAppearance | undefined): ISessionWorkspaceAppearance | undefined {
-	return local && {
-		icon: update.icon === undefined ? local.icon : undefined,
-		color: update.color === undefined ? local.color : undefined,
-	};
-}
-
-/** What is shown: the workspace file's icon and color, falling back to those kept on this computer. */
-function displayAppearance(file: ISessionWorkspaceAppearance, local: ISessionWorkspaceAppearance | undefined): ISessionWorkspaceAppearance {
-	return { icon: file.icon ?? local?.icon, color: file.color ?? local?.color };
-}
-
-function isSameWorkspace(a: IRecentSessionWorkspace, b: IRecentSessionWorkspace, extUri: IExtUri): boolean {
-	return a.name === b.name && a.icon === b.icon && a.color === b.color && !!a.missing === !!b.missing
-		&& a.folders.length === b.folders.length && a.folders.every((folder, index) => extUri.isEqual(folder, b.folders[index]));
-}
-
-function readAppearance(value: unknown): ISessionWorkspaceAppearance | undefined {
-	if (!isObject(value)) {
-		return undefined;
-	}
-	const { icon, color } = value as { icon?: unknown; color?: unknown };
-	return { icon: typeof icon === 'string' ? icon : undefined, color: typeof color === 'string' ? color : undefined };
-}
-
-/** A workspace file has folder paths that may be paths on a remote, while VS Code's recently opened list, which tells, cannot be read. */
-function foldersUnknownError(fileName: string): SessionWorkspaceError {
-	return new SessionWorkspaceError(localize('workspaceFileFoldersUnknown', "The folders of the workspace file '{0}' were not read or changed, since it is unknown whether they are on this computer or on a remote.", fileName), 'foldersUnknown');
-}
-
-function isFoldersUnknownError(error: unknown): boolean {
-	return error instanceof SessionWorkspaceError && error.code === 'foldersUnknown';
 }
 
 export class SessionWorkspacesService extends Disposable implements ISessionWorkspacesService {
@@ -139,13 +80,14 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 				// The folders of a remote VS Code window, which no session can work in here
 				&& file.folders.every(folder => this.fileService.hasProvider(folder)))
 			.slice(0, MAX_RECENT_WORKSPACE_FILES)
-			.map(file => withAppearance({ uri: file.uri, name: file.name, folders: [...file.folders], owned: false }, file));
+			.map(file => this._withAppearance({ uri: file.uri, name: file.name, folders: [...file.folders], owned: false }, file));
 	});
 
 	readonly workspaces: IObservable<readonly IRecentSessionWorkspace[]> = derived(this, reader => [...this._managedWorkspaces.read(reader), ...this.recentWorkspaceFiles.read(reader)]);
 
 	private readonly ownedWorkspacesHome: URI;
 	private readonly untitledWorkspacesHome: URI;
+	private readonly _workspaceFile: SessionWorkspaceFile;
 
 	/** The icon and color kept on this computer, by comparison key; the workspace file's own icon and color win over them. */
 	private _localAppearance = new Map<string, ISessionWorkspaceAppearance>();
@@ -190,6 +132,7 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 	) {
 		super();
 
+		this._workspaceFile = new SessionWorkspaceFile(uriIdentityService.extUri);
 		this.untitledWorkspacesHome = environmentService.untitledWorkspacesHome;
 		this.ownedWorkspacesHome = joinPath(dirname(environmentService.untitledWorkspacesHome), OWNED_WORKSPACES_FOLDER);
 		this.enabled = observableConfigValue(SESSIONS_WORKSPACES_ENABLED_SETTING, false, configurationService);
@@ -228,19 +171,19 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 			parsed = await this._readWorkspaceFile(workspaceFile, await this._getRemoteAuthorities());
 		} catch (error) {
 			// What is known about a managed workspace file stays, rather than folders that may be on another computer
-			if (isFoldersUnknownError(error) && managed && this.uriIdentityService.extUri.isEqual(managed.uri, workspaceFile)) {
+			if (this._isFoldersUnknownError(error) && managed && this.uriIdentityService.extUri.isEqual(managed.uri, workspaceFile)) {
 				return managed;
 			}
 			throw error;
 		}
 		const local = this._localAppearance.get(this.uriIdentityService.extUri.getComparisonKey(workspaceFile));
-		return withAppearance({
+		return this._withAppearance({
 			uri: workspaceFile,
 			name: parsed.name,
 			folders: parsed.folders,
 			owned: managed?.owned ?? this._isOwnedWorkspaceFile(workspaceFile),
 			...(managed?.previousUris ? { previousUris: managed.previousUris } : {}),
-		}, displayAppearance(parsed, local));
+		}, this._displayAppearance(parsed, local));
 	}
 
 	createWorkspace(name: string, folders: readonly URI[], appearance?: ISessionWorkspaceAppearance): Promise<IRecentSessionWorkspace> {
@@ -282,13 +225,13 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 		}
 		if (folders.length === 1) {
 			this._setLocalAppearance(folders[0], appearance);
-			return withAppearance({ uri: folders[0], name, folders: [folders[0]], owned: true }, appearance);
+			return this._withAppearance({ uri: folders[0], name, folders: [folders[0]], owned: true }, appearance);
 		}
-		const uri = joinPath(this.ownedWorkspacesHome, generateUuid(), toWorkspaceFileName(name));
-		const content = stringifySessionWorkspaceFile(uri, { name, folders, icon: appearance?.icon ?? null, color: appearance?.color ?? null }, this.uriIdentityService.extUri, { forceAbsolute: true });
+		const uri = joinPath(this.ownedWorkspacesHome, generateUuid(), this._workspaceFile.toFileName(name));
+		const content = this._workspaceFile.stringify(uri, { name, folders, icon: appearance?.icon ?? null, color: appearance?.color ?? null }, { forceAbsolute: true });
 		await this.fileService.writeFile(uri, VSBuffer.fromString(content));
 		this._setLocalAppearance(uri, undefined);
-		return withAppearance({ uri, name, folders: [...folders], owned: true }, appearance);
+		return this._withAppearance({ uri, name, folders: [...folders], owned: true }, appearance);
 	}
 
 	updateWorkspace(uri: URI, update: ISessionWorkspaceUpdate): Promise<IRecentSessionWorkspace> {
@@ -321,7 +264,7 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 			let workspace: IRecentSessionWorkspace;
 			if (this._isFolderWorkspace(existing)) {
 				this._setLocalAppearance(existing.uri, appearance);
-				workspace = withAppearance(existing, appearance);
+				workspace = this._withAppearance(existing, appearance);
 			} else {
 				workspace = await this._writeFileAppearance(existing, update);
 			}
@@ -354,25 +297,25 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 		const fileUri = existing?.uri ?? uri;
 		const local = this._localAppearance.get(extUri.getComparisonKey(fileUri));
 		const { parsed, remoteFromRecents } = await this._editWorkspaceFile(fileUri, current => current
-			? { name: update.name, folders: update.folders, ...toFileAppearanceEdit(update) }
+			? { name: update.name, folders: update.folders, ...this._toFileAppearanceEdit(update) }
 			// A missing file is written again from what is known about the workspace
 			: { name: update.name ?? existing?.name, folders: update.folders ?? existing?.folders, icon: update.icon === undefined ? existing?.icon : update.icon, color: update.color === undefined ? existing?.color : update.color },
 			{ forceAbsolute: existing?.owned, knownFolders: existing?.folders });
-		const remainingLocal = remainingLocalAppearance(update, local);
+		const remainingLocal = this._remainingLocalAppearance(update, local);
 		this._setLocalAppearance(fileUri, undefined);
 
 		// An owned workspace file is named after the workspace, which VS Code names its window after; a user's file keeps its name.
 		// So does one that only VS Code's recently opened list tells is on a remote, which knows it by this name only.
 		let newUri = fileUri;
 		if (existing?.owned && this._isOwnedWorkspaceFile(fileUri) && update.name !== undefined && !remoteFromRecents) {
-			const renamed = joinPath(dirname(fileUri), toWorkspaceFileName(parsed.name));
+			const renamed = joinPath(dirname(fileUri), this._workspaceFile.toFileName(parsed.name));
 			if (!extUri.isEqual(renamed, fileUri)) {
 				await this.fileService.move(fileUri, renamed);
 				newUri = renamed;
 			}
 		}
 		this._setLocalAppearance(newUri, remainingLocal);
-		const workspace = withAppearance({ uri: newUri, name: parsed.name, folders: parsed.folders, owned: existing?.owned ?? this._isOwnedWorkspaceFile(newUri) }, displayAppearance(parsed, remainingLocal));
+		const workspace = this._withAppearance({ uri: newUri, name: parsed.name, folders: parsed.folders, owned: existing?.owned ?? this._isOwnedWorkspaceFile(newUri) }, this._displayAppearance(parsed, remainingLocal));
 		const result = existing ? this._withHistory(existing, workspace) : workspace;
 		this._replace(fileUri, result, removals);
 		return result;
@@ -447,10 +390,10 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 						const { missing: _missing, ...rest } = workspace;
 						const parsed = await this._readWorkspaceFile(workspace.uri, remoteAuthorities);
 						const local = this._localAppearance.get(extUri.getComparisonKey(workspace.uri));
-						return [workspace, withAppearance({ ...rest, name: parsed.name, folders: parsed.folders }, displayAppearance(parsed, local))];
+						return [workspace, this._withAppearance({ ...rest, name: parsed.name, folders: parsed.folders }, this._displayAppearance(parsed, local))];
 					} catch (error) {
 						// What is known about the workspace stays, rather than folders that may be on another computer
-						if (isFoldersUnknownError(error)) {
+						if (this._isFoldersUnknownError(error)) {
 							return [workspace, workspace];
 						}
 						this.logService.trace('[SessionWorkspaces] Could not read a workspace file', error);
@@ -458,13 +401,19 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 					}
 				})));
 			// Only workspaces that are unchanged since they were read take what was read, and unchanged ones keep their object
-			const refreshed = new Map(read.filter(([before, after]) => !isSameWorkspace(before, after, extUri)));
+			const refreshed = new Map(read.filter(([before, after]) => !this._isSameWorkspace(before, after)));
 			if (refreshed.size) {
 				this._persist(this._managedWorkspaces.get().map(workspace => refreshed.get(workspace) ?? workspace));
 			}
 		} finally {
 			reads.dispose();
 		}
+	}
+
+	private _isSameWorkspace(a: IRecentSessionWorkspace, b: IRecentSessionWorkspace): boolean {
+		const extUri = this.uriIdentityService.extUri;
+		return a.name === b.name && a.icon === b.icon && a.color === b.color && !!a.missing === !!b.missing
+			&& a.folders.length === b.folders.length && a.folders.every((folder, index) => extUri.isEqual(folder, b.folders[index]));
 	}
 
 	private _getManagedWorkspace(uri: URI): IRecentSessionWorkspace | undefined {
@@ -496,10 +445,19 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 	}
 
 	private _parseWorkspaceFile(content: string, uri: URI, remoteAuthorities: ReadonlyMap<string, string> | undefined): ISessionWorkspaceFileContent {
-		if (!remoteAuthorities && hasAmbiguousFolderPaths(content, uri)) {
-			throw foldersUnknownError(this.uriIdentityService.extUri.basename(uri));
+		if (!remoteAuthorities && this._workspaceFile.hasAmbiguousFolderPaths(content, uri)) {
+			throw this._foldersUnknownError(this.uriIdentityService.extUri.basename(uri));
 		}
-		return parseSessionWorkspaceFile(content, uri, this.uriIdentityService.extUri, { remoteAuthority: remoteAuthorities?.get(this.uriIdentityService.extUri.getComparisonKey(uri)) });
+		return this._workspaceFile.parse(content, uri, { remoteAuthority: remoteAuthorities?.get(this.uriIdentityService.extUri.getComparisonKey(uri)) });
+	}
+
+	/** A workspace file has potentially remote paths, but VS Code's recently opened list cannot be read. */
+	private _foldersUnknownError(fileName: string): SessionWorkspaceError {
+		return new SessionWorkspaceError(localize('workspaceFileFoldersUnknown', "The folders of the workspace file '{0}' were not read or changed, since it is unknown whether they are on this computer or on a remote.", fileName), 'foldersUnknown');
+	}
+
+	private _isFoldersUnknownError(error: unknown): boolean {
+		return error instanceof SessionWorkspaceError && error.code === 'foldersUnknown';
 	}
 
 	/**
@@ -510,7 +468,7 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 	private async _hasHiddenContent(uri: URI, keptFolder: URI): Promise<boolean> {
 		try {
 			const content = await this._readWorkspaceFileContent(uri);
-			return hasOtherWorkspaceFileProperties(content, uri) || hasWorkspaceFolderName(content, uri, keptFolder, this.uriIdentityService.extUri) || this._parseWorkspaceFile(content, uri, await this._getRemoteAuthorities()).hasErrors;
+			return this._workspaceFile.hasOtherProperties(content, uri) || this._workspaceFile.hasFolderName(content, uri, keptFolder) || this._parseWorkspaceFile(content, uri, await this._getRemoteAuthorities()).hasErrors;
 		} catch (error) {
 			if (error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
 				return false;
@@ -551,12 +509,12 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 				if (!current) {
 					throw new FileOperationError(localize('workspaceFileNotFound', "The workspace file does not exist."), FileOperationResult.FILE_NOT_FOUND);
 				}
-				return toFileAppearanceEdit(update);
+				return this._toFileAppearanceEdit(update);
 			}, { knownFolders: workspace.folders });
-			const remainingLocal = remainingLocalAppearance(update, local);
+			const remainingLocal = this._remainingLocalAppearance(update, local);
 			this._setLocalAppearance(workspace.uri, remainingLocal);
 			const { missing: _missing, ...rest } = workspace;
-			return withAppearance({ ...rest, name: parsed.name, folders: parsed.folders }, displayAppearance(parsed, remainingLocal));
+			return this._withAppearance({ ...rest, name: parsed.name, folders: parsed.folders }, this._displayAppearance(parsed, remainingLocal));
 		} catch (error) {
 			const missing = error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND;
 			const appearance: ISessionWorkspaceAppearance = {
@@ -565,7 +523,7 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 			};
 			this._setLocalAppearance(workspace.uri, appearance);
 			this.notificationService.warn(localize('workspaceAppearanceNotSaved', "Could not save the icon and color of '{0}' in its workspace file. They are kept on this computer only. {1}", workspace.name, toErrorMessage(error)));
-			return withAppearance(missing ? { ...workspace, missing: true } : workspace, appearance);
+			return this._withAppearance(missing ? { ...workspace, missing: true } : workspace, appearance);
 		}
 	}
 
@@ -593,15 +551,15 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 				}
 			}
 			const existing = file?.value.toString();
-			const current = existing === undefined ? undefined : parseSessionWorkspaceFile(existing, uri, extUri, { remoteAuthority });
+			const current = existing === undefined ? undefined : this._workspaceFile.parse(existing, uri, { remoteAuthority });
 			const edit = toEdit(current);
 			// Not knowing where VS Code opened the file, its folder paths may be paths on a remote that rewriting would lose,
 			// and that are not this computer's folders
-			const foldersUnknown = !authorities && existing !== undefined && hasAmbiguousFolderPaths(existing, uri);
+			const foldersUnknown = !authorities && existing !== undefined && this._workspaceFile.hasAmbiguousFolderPaths(existing, uri);
 			if (foldersUnknown && (edit.folders || !options?.knownFolders)) {
-				throw foldersUnknownError(extUri.basename(uri));
+				throw this._foldersUnknownError(extUri.basename(uri));
 			}
-			const updated = stringifySessionWorkspaceFile(uri, edit, extUri, { existing, forceAbsolute: options?.forceAbsolute, remoteAuthority });
+			const updated = this._workspaceFile.stringify(uri, edit, { existing, forceAbsolute: options?.forceAbsolute, remoteAuthority });
 			try {
 				if (!file) {
 					await this.fileService.createFile(uri, VSBuffer.fromString(updated), { overwrite: false });
@@ -613,8 +571,8 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 					}
 					await this.fileService.writeFile(uri, VSBuffer.fromString(updated), { etag: file.etag, mtime: file.mtime });
 				}
-				const parsed = parseSessionWorkspaceFile(updated, uri, extUri, { remoteAuthority });
-				const remoteFromRecents = hasAmbiguousFolderPaths(updated, uri) && (!authorities || authorities.has(extUri.getComparisonKey(uri)));
+				const parsed = this._workspaceFile.parse(updated, uri, { remoteAuthority });
+				const remoteFromRecents = this._workspaceFile.hasAmbiguousFolderPaths(updated, uri) && (!authorities || authorities.has(extUri.getComparisonKey(uri)));
 				return { parsed: foldersUnknown && options?.knownFolders ? { ...parsed, folders: [...options.knownFolders] } : parsed, remoteFromRecents };
 			} catch (error) {
 				if (attempt === 0 && (error as FileOperationError).fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
@@ -623,6 +581,32 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 				throw error;
 			}
 		}
+	}
+
+	private _withAppearance(workspace: IRecentSessionWorkspace, appearance: ISessionWorkspaceAppearance | undefined): IRecentSessionWorkspace {
+		const { icon: _icon, color: _color, ...rest } = workspace;
+		return {
+			...rest,
+			...(appearance?.icon ? { icon: appearance.icon } : {}),
+			...(appearance?.color ? { color: appearance.color } : {}),
+		};
+	}
+
+	/** Only the icon and color that the update sets are written to the workspace file. */
+	private _toFileAppearanceEdit(update: ISessionWorkspaceUpdate): Pick<ISessionWorkspaceFileEdit, 'icon' | 'color'> {
+		return { icon: update.icon, color: update.color };
+	}
+
+	/** The icon and color omitted by an update are still kept on this computer. */
+	private _remainingLocalAppearance(update: ISessionWorkspaceUpdate, local: ISessionWorkspaceAppearance | undefined): ISessionWorkspaceAppearance | undefined {
+		return local && {
+			icon: update.icon === undefined ? local.icon : undefined,
+			color: update.color === undefined ? local.color : undefined,
+		};
+	}
+
+	private _displayAppearance(file: ISessionWorkspaceAppearance, local: ISessionWorkspaceAppearance | undefined): ISessionWorkspaceAppearance {
+		return { icon: file.icon ?? local?.icon, color: file.color ?? local?.color };
 	}
 
 	private _setLocalAppearance(uri: URI, appearance: ISessionWorkspaceAppearance | undefined): void {
@@ -825,12 +809,12 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 				}
 				const uri = URI.revive(storedUri);
 				const key = extUri.getComparisonKey(uri);
-				const localValue = readAppearance(local);
+				const localValue = this._readAppearance(local);
 				if (localValue) {
 					localAppearance.set(key, localValue);
 				}
 				const revivedPrevious = Array.isArray(previousUris) ? previousUris.map(previous => URI.revive(previous)) : [];
-				return [withAppearance({
+				return [this._withAppearance({
 					uri,
 					name,
 					folders: folders.map(folder => URI.revive(folder)),
@@ -844,5 +828,13 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 		});
 		this._localAppearance = localAppearance;
 		return workspaces;
+	}
+
+	private _readAppearance(value: unknown): ISessionWorkspaceAppearance | undefined {
+		if (!isObject(value)) {
+			return undefined;
+		}
+		const { icon, color } = value as { icon?: unknown; color?: unknown };
+		return { icon: typeof icon === 'string' ? icon : undefined, color: typeof color === 'string' ? color : undefined };
 	}
 }

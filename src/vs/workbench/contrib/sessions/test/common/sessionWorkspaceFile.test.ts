@@ -7,16 +7,17 @@ import assert from 'assert';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { parseSessionWorkspaceFile, stringifySessionWorkspaceFile } from '../../common/sessionWorkspaceFile.js';
+import { SessionWorkspaceFile } from '../../common/sessionWorkspaceFile.js';
 import { localDrive, localFile, pathOf } from './sessionWorkspaceTestPaths.js';
 
 suite('SessionWorkspaceFile', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const file = localFile('/work/platform.code-workspace');
+	const workspaceFile = new SessionWorkspaceFile(extUri);
 
 	function parse(content: string, remoteAuthority?: string) {
-		const parsed = parseSessionWorkspaceFile(content, file, extUri, { remoteAuthority });
+		const parsed = workspaceFile.parse(content, file, { remoteAuthority });
 		return { ...parsed, folders: parsed.folders.map(pathOf) };
 	}
 
@@ -31,9 +32,9 @@ suite('SessionWorkspaceFile', () => {
 	});
 
 	test('rejects content that is not a workspace file', () => {
-		assert.throws(() => parseSessionWorkspaceFile('{ "folders": ', file, extUri), /is not a valid workspace file/);
-		assert.throws(() => parseSessionWorkspaceFile('{ "name": "x" }', file, extUri), /is not a valid workspace file/);
-		assert.throws(() => parseSessionWorkspaceFile('{ "folders": [{ "uri": "no scheme" }] }', file, extUri), /is not a valid workspace file/);
+		assert.throws(() => workspaceFile.parse('{ "folders": ', file), /is not a valid workspace file/);
+		assert.throws(() => workspaceFile.parse('{ "name": "x" }', file), /is not a valid workspace file/);
+		assert.throws(() => workspaceFile.parse('{ "folders": [{ "uri": "no scheme" }] }', file), /is not a valid workspace file/);
 	});
 
 	test('skips folder paths in a local file of a remote workspace, which are paths on the remote and not on this computer', () => {
@@ -47,15 +48,15 @@ suite('SessionWorkspaceFile', () => {
 	});
 
 	test('never writes content that is not a workspace file', () => {
-		assert.throws(() => stringifySessionWorkspaceFile(file, { icon: 'rocket' }, extUri, { existing: '{ "folders": ' }), /is not a valid workspace file/);
-		assert.throws(() => stringifySessionWorkspaceFile(file, { name: 'Platform' }, extUri), /is not a valid workspace file/);
+		assert.throws(() => workspaceFile.stringify(file, { icon: 'rocket' }, { existing: '{ "folders": ' }), /is not a valid workspace file/);
+		assert.throws(() => workspaceFile.stringify(file, { name: 'Platform' }), /is not a valid workspace file/);
 	});
 
 	test('writes the icon and color as properties of a workspace file, keeping its comments and the rest of it, and removes them again', () => {
 		const content = '{\n\t// my workspace\n\t"folders": [{ "path": "vscode" }],\n\t"settings": {\n\t\t"a": 1 // one\n\t}\n}\n';
 
-		const written = stringifySessionWorkspaceFile(file, { icon: 'rocket', color: 'charts.blue' }, extUri, { existing: content });
-		const removed = stringifySessionWorkspaceFile(file, { icon: null, color: null }, extUri, { existing: written });
+		const written = workspaceFile.stringify(file, { icon: 'rocket', color: 'charts.blue' }, { existing: content });
+		const removed = workspaceFile.stringify(file, { icon: null, color: null }, { existing: written });
 
 		assert.deepStrictEqual({ written, removed }, {
 			written: '{\n\t// my workspace\n\t"folders": [{ "path": "vscode" }],\n\t"settings": {\n\t\t"a": 1 // one\n\t},\n\t"icon": "rocket",\n\t"color": "charts.blue"\n}\n',
@@ -67,8 +68,8 @@ suite('SessionWorkspaceFile', () => {
 		const folders = [localFile('/work/vscode'), localFile('/other/docs')];
 
 		assert.deepStrictEqual({
-			relative: JSON.parse(stringifySessionWorkspaceFile(file, { name: 'Platform', folders }, extUri)),
-			absolute: JSON.parse(stringifySessionWorkspaceFile(file, { folders }, extUri, { forceAbsolute: true })),
+			relative: JSON.parse(workspaceFile.stringify(file, { name: 'Platform', folders })),
+			absolute: JSON.parse(workspaceFile.stringify(file, { folders }, { forceAbsolute: true })),
 		}, {
 			relative: { folders: [{ path: 'vscode' }, { path: '../other/docs' }], name: 'Platform' },
 			absolute: { folders: [{ path: `${localDrive}/work/vscode` }, { path: `${localDrive}/other/docs` }] },
@@ -78,8 +79,8 @@ suite('SessionWorkspaceFile', () => {
 	test('changing the folders keeps the folder entries that are not read, and writes folders as URIs in a local file of a remote workspace', () => {
 		const content = '{ "remoteAuthority": "ssh-remote+box", "folders": [{ "path": "/home/me/vscode" }, { "uri": "vscode-remote://ssh-remote+box/home/me/docs" }, { "nope": true }] }';
 
-		const written = stringifySessionWorkspaceFile(file, { folders: [URI.parse('vscode-remote://ssh-remote+box/home/me/chat'), URI.file('/work/vscode')] }, extUri, { existing: content });
-		const recent = stringifySessionWorkspaceFile(file, { folders: [URI.file('/work/docs')] }, extUri, { existing: '{ "folders": [{ "path": "/home/me/vscode" }] }', remoteAuthority: 'wsl+Ubuntu' });
+		const written = workspaceFile.stringify(file, { folders: [URI.parse('vscode-remote://ssh-remote+box/home/me/chat'), URI.file('/work/vscode')] }, { existing: content });
+		const recent = workspaceFile.stringify(file, { folders: [URI.file('/work/docs')] }, { existing: '{ "folders": [{ "path": "/home/me/vscode" }] }', remoteAuthority: 'wsl+Ubuntu' });
 
 		assert.deepStrictEqual({ written: JSON.parse(written).folders, recent: JSON.parse(recent).folders }, {
 			written: [{ uri: 'vscode-remote://ssh-remote+box/home/me/chat' }, { uri: 'file:///work/vscode' }, { path: '/home/me/vscode' }, { nope: true }],
@@ -88,10 +89,10 @@ suite('SessionWorkspaceFile', () => {
 	});
 
 	test('changing the folders keeps the names given to them, which workspace folder variables refer to', () => {
-		const local = stringifySessionWorkspaceFile(file, { folders: [localFile('/work/vscode-docs'), localFile('/work/vscode'), localFile('/work/chat')] }, extUri, {
+		const local = workspaceFile.stringify(file, { folders: [localFile('/work/vscode-docs'), localFile('/work/vscode'), localFile('/work/chat')] }, {
 			existing: '{ "folders": [{ "path": "vscode", "name": "Code" }, { "path": "vscode-docs", "name": "Docs" }] }',
 		});
-		const remote = stringifySessionWorkspaceFile(file, { folders: [URI.parse('vscode-remote://ssh-remote+box/home/me/chat'), URI.parse('vscode-remote://ssh-remote+box/home/me/docs')] }, extUri, {
+		const remote = workspaceFile.stringify(file, { folders: [URI.parse('vscode-remote://ssh-remote+box/home/me/chat'), URI.parse('vscode-remote://ssh-remote+box/home/me/docs')] }, {
 			existing: '{ "remoteAuthority": "ssh-remote+box", "folders": [{ "uri": "vscode-remote://ssh-remote+box/home/me/docs", "name": "Docs" }] }',
 		});
 
