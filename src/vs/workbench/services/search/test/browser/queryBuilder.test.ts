@@ -934,6 +934,18 @@ suite('QueryBuilder', () => {
 					}
 				],
 				[
+					'.',
+					{
+						searchPaths: undefined
+					}
+				],
+				[
+					'.\\',
+					{
+						searchPaths: undefined
+					}
+				],
+				[
 					'./root1',
 					{
 						searchPaths: [{
