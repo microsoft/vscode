@@ -16,7 +16,7 @@ import { mock, upcastPartial } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { Layout } from '../../browser/layout.js';
 import { Part, updateSashEndpoints } from '../../browser/part.js';
-import { IPartsLayoutState, PanelAlignment, Parts, Position } from '../../services/layout/browser/layoutService.js';
+import { IPartsLayoutState, PanelAlignment, Parts, Position, positionToString } from '../../services/layout/browser/layoutService.js';
 import { NullExtensionService } from '../../services/extensions/common/extensions.js';
 import { NullTelemetryService } from '../../../platform/telemetry/common/telemetryUtils.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
@@ -575,6 +575,10 @@ suite('Workbench layout chat part', () => {
 			return { editorAreaHidden: layout.mainContainer.classList.contains('nomaineditorarea'), hiddenByChat: layout.mainContainer.classList.contains('editor-hidden-by-chat') };
 		}
 
+		function widths({ layout, grid, views }: ReturnType<typeof createGridLayout>) {
+			return Object.fromEntries([Parts.CHAT_PART, Parts.AUXILIARYBAR_PART, Parts.SIDEBAR_PART, Parts.PANEL_PART].map(part => [part, layout.isVisible(part) ? grid.getViewSize(views.get(part)!).width : 0]));
+		}
+
 		test('hides and shows the editor area, and the chat part takes its width', () => {
 			const { layout, grid, views } = createGridLayout(configuration);
 			const chat = views.get(Parts.CHAT_PART)!;
@@ -766,6 +770,54 @@ suite('Workbench layout chat part', () => {
 					chatHidden: true,
 					saved: { version: 1, visible: true, size: chat, hiddenByLayout: true },
 				});
+			});
+		}
+
+		test('the chat part shown again over a maximized secondary side bar while the editor area is hidden for it takes no room from the side bars for the editor', () => {
+			const created = createGridLayout({ ...configuration, widths: { window: 1200, auxiliaryBar: 296 } });
+			const { layout } = created;
+			layout.setEditorHiddenByChat(true);
+			const before = { ...state(layout), ...widths(created) };
+			layout.toggleMaximizedAuxiliaryBar();
+			layout.setPartHidden(false, Parts.CHAT_PART);
+			assert.deepStrictEqual({ ...state(layout), ...widths(created) }, before);
+		});
+
+		for (const maximize of ['auxiliaryBar', 'panel'] as const) {
+			test(`the chat part shown again beside a visible editor area over a maximized part comes back at its own width, and the parts beside it at theirs, maximized=${maximize}`, () => {
+				const created = createGridLayout({ ...configuration, widths: { window: 1200, auxiliaryBar: 296 } });
+				const { layout } = created;
+				const before = { ...state(layout), ...widths(created) };
+				if (maximize === 'auxiliaryBar') {
+					layout.toggleMaximizedAuxiliaryBar();
+				} else {
+					layout.toggleMaximizedPanel();
+				}
+				const hidden = !layout.isVisible(Parts.CHAT_PART);
+				layout.setPartHidden(false, Parts.CHAT_PART);
+				assert.deepStrictEqual({ hidden, ...state(layout), ...widths(created) }, { hidden: true, ...before });
+			});
+		}
+
+		for (const panel of [Position.BOTTOM, Position.LEFT, Position.RIGHT]) {
+			test(`the chat part filling the editor area gets its width back, and the parts beside it theirs, when a maximized secondary side bar is restored, panel=${positionToString(panel)}`, () => {
+				const created = createGridLayout({ ...configuration, panel, widths: { window: 1200, auxiliaryBar: 296 } });
+				const { layout } = created;
+				layout.setEditorHiddenByChat(true);
+				const before = { ...state(layout), ...widths(created) };
+				layout.toggleMaximizedAuxiliaryBar();
+				layout.toggleMaximizedAuxiliaryBar();
+				assert.deepStrictEqual({ ...state(layout), ...widths(created) }, before);
+			});
+
+			test(`the chat part filling the editor area keeps its width, and the parts beside it theirs, when it follows its anchor view to the other side, panel=${positionToString(panel)}`, () => {
+				const created = createGridLayout({ ...configuration, panel, anchor: ViewContainerLocation.Sidebar, widths: { window: 1200, auxiliaryBar: 296 } });
+				const { layout, anchor } = created;
+				layout.setEditorHiddenByChat(true);
+				const before = { ...state(layout), ...widths(created) };
+				anchor.location = ViewContainerLocation.AuxiliaryBar;
+				(layout as unknown as { updateChatPartPosition(): void }).updateChatPartPosition();
+				assert.deepStrictEqual({ position: layout.getChatPartPosition(), ...state(layout), ...widths(created) }, { position: Position.RIGHT, ...before });
 			});
 		}
 
