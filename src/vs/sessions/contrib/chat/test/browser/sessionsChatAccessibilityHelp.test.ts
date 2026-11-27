@@ -39,7 +39,7 @@ import { TestExperimentTriggerTelemetryService } from '../../../../../platform/t
 import { SessionComparisonAccessibleView, SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessibilityHelp.js';
 import { SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT, SessionsListPromoteNewChatActionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING, SessionsChatTabsMode } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
-import { EVEN_SESSION_SIZES_COMMAND_ID, SESSION_GRID_DOCK_COMMANDS, SESSION_GRID_MOVE_COMMANDS } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { EVEN_SESSION_SIZES_COMMAND_ID, SESSION_GRID_DOCK_COMMANDS, SESSION_GRID_MOVE_COMMANDS, TOGGLE_MAXIMIZE_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../../chatWindow/common/chatWindows.js';
@@ -651,6 +651,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 				...Object.values(SESSION_GRID_MOVE_COMMANDS),
 				...Object.values(SESSION_GRID_DOCK_COMMANDS),
 				EVEN_SESSION_SIZES_COMMAND_ID,
+				TOGGLE_MAXIMIZE_SESSION_COMMAND_ID,
 			].filter(commandId => !sessionGridHelp?.includes(`<keybinding:${commandId}>`)),
 			openInGrid: content.includes('Open in Grid'),
 			splitView: content.includes('choose Split View from the Open in submenu of the session row\'s context menu'),

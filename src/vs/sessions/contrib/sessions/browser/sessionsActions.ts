@@ -27,7 +27,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { IChatWindow, IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { openChatInWindow } from '../../chatWindow/browser/openChatInWindow.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IKeybindings, KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { WorkbenchListFocusContextKey } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
@@ -43,7 +43,7 @@ import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { SessionsCategories } from '../../../../workbench/contrib/sessions/common/categories.js';
 import { CanGoBackContext, CanGoForwardContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionHasSplitChatsContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionFocusedChatIsRenameTargetContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsNewChatSessionContext, SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT, SessionsListPromoteNewChatActionContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionHeaderTargetsChatContext, SessionInChatEditorContext, SessionItemIsMultiSelectionContext, IsPhoneLayoutContext, SessionToolbarShowsSessionContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { SessionsTitleBarNewSessionEnabledContext } from '../../../common/agentsWindowContextKeys.js';
-import { ARRANGE_SESSIONS_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, DETACH_CHAT_COMMAND_ID, EVEN_SESSION_SIZES_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SESSION_GRID_DOCK_COMMANDS, SESSION_GRID_FOCUS_COMMANDS, SESSION_GRID_MOVE_COMMANDS, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { ARRANGE_SESSIONS_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, DETACH_CHAT_COMMAND_ID, EVEN_SESSION_SIZES_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SESSION_GRID_DOCK_COMMANDS, SESSION_GRID_FOCUS_COMMANDS, SESSION_GRID_MOVE_COMMANDS, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, TOGGLE_MAXIMIZE_SESSION_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISideChatPlacementService } from '../../../../workbench/contrib/sessions/browser/sideChatPlacement.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
@@ -609,6 +609,7 @@ registerAction2(class DetachChatAction extends Action2 {
 // -- Focus Nth Session in the Grid (Cmd/Ctrl+1..9) --
 // Mirrors VS Code's "Focus Editor Group N": Ctrl/Cmd+1..8 focus that grid slot
 // and Ctrl/Cmd+9 focuses the LAST slot. Does nothing when the slot doesn't exist.
+// While an editor part has focus, the keys stay with its own editor group commands.
 
 for (let index = 0; index < 9; index++) {
 	const position = index + 1;
@@ -626,7 +627,7 @@ for (let index = 0; index < 9; index++) {
 				keybinding: {
 					weight: KeybindingWeight.SessionsContrib,
 					primary: KeyMod.CtrlCmd | (KeyCode.Digit1 + index),
-					when: IsSessionsWindowContext,
+					when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.negate()),
 				},
 			});
 		}
@@ -2400,8 +2401,9 @@ registerAction2(class EvenSessionSizesAction extends Action2 {
 			keybinding: {
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.Equal),
 				weight: KeybindingWeight.SessionsContrib,
-				// Anywhere in the Agents window, as the precondition allows, not only in a focused session pane.
-				when: notInPlainTextFieldWhen,
+				// Anywhere in the Agents window, as the precondition allows, not only in a focused session pane, but an editor part,
+				// whose Reset Editor Group Sizes has the same key.
+				when: ContextKeyExpr.and(EditorAreaFocusContext.negate(), notInPlainTextFieldWhen),
 			},
 		});
 	}
@@ -2474,11 +2476,17 @@ for (const item of sessionGridActions) {
 registerAction2(class ToggleMaximizeSessionViewAction extends Action2 {
 	constructor() {
 		super({
-			id: 'sessions.chatCompositeBar.toggleMaximize',
+			id: TOGGLE_MAXIMIZE_SESSION_COMMAND_ID,
 			title: localize2('chatCompositeBar.maximize', "Maximize"),
 			category: SessionsCategories.Sessions,
 			precondition: sessionGridWhen,
 			f1: true,
+			keybinding: {
+				// The key of Toggle Maximize Editor Group, which keeps it while an editor part has focus.
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyM),
+				weight: KeybindingWeight.SessionsContrib,
+				when: ContextKeyExpr.and(SessionsFocusContext, notInPlainTextFieldWhen),
+			},
 			icon: Codicon.screenFull,
 			toggled: {
 				condition: SessionIsMaximizedContext,
@@ -2509,6 +2517,31 @@ registerAction2(class ToggleMaximizeSessionViewAction extends Action2 {
 		accessor.get(ISessionsPartService).toggleMaximizePane(target.pane);
 	}
 });
+
+// While a session pane has focus, the layout keys of editor groups never arrange the editor part's groups: the grid's own
+// command takes the key, and where none applies, such as with one session visible or in a plain text field, nothing does.
+// Ranked below the grid's commands and above the editor's, whose keys these are.
+const editorGroupLayoutKeys: readonly IKeybindings[] = [
+	...sessionGridActions.flatMap(item => [
+		{ primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | item.key) }, // Focus Left/Right/Above/Below Editor Group
+		{ primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, item.key) }, // Move Editor Group Left/Right/Up/Down
+	]),
+	{ primary: KeyMod.CtrlCmd | KeyCode.Backslash }, // Split Editor
+	{ primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.Backslash) }, // Split Editor Orthogonal, Left, Right, Up, Down
+	{ primary: KeyMod.Shift | KeyMod.Alt | KeyCode.Digit0, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Digit0 } }, // Toggle Vertical/Horizontal Editor Layout
+	{ primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.LeftArrow, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.LeftArrow } }, // Move Editor into Previous Group
+	{ primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.RightArrow, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.RightArrow } }, // Move Editor into Next Group
+	{ primary: KeyMod.Shift | KeyMod.Alt | KeyCode.Digit1, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.Digit1 } }, // Move Editor into First Group
+	{ primary: KeyMod.Shift | KeyMod.Alt | KeyCode.Digit9, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.Digit9 } }, // Move Editor into Last Group
+];
+for (const keybinding of editorGroupLayoutKeys) {
+	KeybindingsRegistry.registerKeybindingRule({
+		...keybinding,
+		id: '',
+		weight: KeybindingWeight.SessionsContrib - 1,
+		when: ContextKeyExpr.and(IsSessionsWindowContext, sessionGridWindowWhen, SessionsFocusContext),
+	});
+}
 
 // -- Close Editor Area (Watermark Toolbar) --
 

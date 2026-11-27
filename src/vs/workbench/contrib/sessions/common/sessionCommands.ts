@@ -82,6 +82,8 @@ export const FOCUS_ACTIVE_SESSION_COMMAND_ID = 'sessions.focusActiveSession';
 export const ARRANGE_SESSIONS_COMMAND_ID = 'sessions.arrangeSessions';
 /** Gives the session panes, and the chat groups of each, equal sizes without changing their arrangement. */
 export const EVEN_SESSION_SIZES_COMMAND_ID = 'sessions.evenSessionSizes';
+/** Maximizes the focused session pane in the grid, or restores its size. */
+export const TOGGLE_MAXIMIZE_SESSION_COMMAND_ID = 'sessions.chatCompositeBar.toggleMaximize';
 export const SESSION_GRID_FOCUS_COMMANDS = {
 	left: 'sessions.focusSessionLeft',
 	right: 'sessions.focusSessionRight',
