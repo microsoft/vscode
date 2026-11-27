@@ -148,6 +148,7 @@ import { GitHubPullRequestReviewThreadsModel } from '../../../../../workbench/co
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import '../../browser/views/sessionsViewActions.js';
+import '../../../../../workbench/contrib/sessions/browser/workspaceEditor/sessionWorkspaceEditor.contribution.js';
 import '../../../../browser/mobile/media/mobileDrawer.css';
 import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 import { SessionWorkspaceEditorAvailableContext } from '../../../../../workbench/contrib/sessions/browser/workspaceEditor/sessionWorkspaceEditorCommands.js';
@@ -1461,6 +1462,85 @@ suite('Sessions - SessionsList', () => {
 				});
 			});
 		}
+
+		test('the New navigation row starts a session and, while workspaces are on, its chevron opens the New menu below it, announced as a popup', async () => {
+			const menus: (readonly string[])[] = [];
+			let contextKeyService!: ContextKeyService;
+			const harness = createListHarness(disposables, [], instantiationService => {
+				// The production New menu, which a real context key service evaluates
+				contextKeyService = disposables.add(new ContextKeyService(instantiationService.get(IConfigurationService)));
+				instantiationService.stub(IContextKeyService, contextKeyService);
+				instantiationService.stub(IMenuService, disposables.add(instantiationService.createInstance(MenuService)));
+				instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
+					override showContextMenu(delegate: IContextMenuMenuDelegate): void {
+						menus.push(delegate.getActions!().map(action => action.label));
+					}
+				});
+			});
+			ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+			const workspaces = SessionWorkspacesEnabledContext.bindTo(contextKeyService);
+			// A window with the Workspace editor, as the desktop Agents window is
+			SessionWorkspaceEditorAvailableContext.bindTo(contextKeyService).set(true);
+			const container = harness.createContainer();
+			const navigationContainer = mainWindow.document.createElement('div');
+			const listContainer = mainWindow.document.createElement('div');
+			container.append(navigationContainer, listContainer);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, listContainer, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				showNavigationShortcuts: () => true,
+				navigationContainer,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			const newRow = () => Array.from(navigationContainer.querySelectorAll<HTMLElement>('.monaco-list-row'))
+				.find(row => row.querySelector('.session-section-label')?.textContent === 'New Session')!;
+			const chevronWhileOff = !!newRow().querySelector('.session-section-new-split');
+			workspaces.set(true);
+			const row = newRow();
+			const chevron = row.querySelector<HTMLElement>('.session-section-new-split .action-label')!;
+			row.click();
+			await timeout(0);
+			const commandsOnRowClick = [...harness.commandService.calls];
+			const menusOnRowClick = menus.length;
+			// Right Arrow moves from the row, which the click focused, to its chevron, and Left Arrow back
+			const navigationListElement = navigationContainer.querySelector<HTMLElement>('.monaco-list')!;
+			const press = (target: HTMLElement, key: string, keyCode: number) => {
+				const event = new KeyboardEvent('keydown', { key, code: key, bubbles: true, cancelable: true });
+				Object.defineProperty(event, 'keyCode', { get: () => keyCode });
+				target.dispatchEvent(event);
+			};
+			navigationListElement.focus();
+			press(navigationListElement, 'ArrowRight', 39);
+			const focusAfterRight = mainWindow.document.activeElement === chevron;
+			press(chevron, 'ArrowLeft', 37);
+			const focusAfterLeft = mainWindow.document.activeElement === navigationListElement;
+			chevron.click();
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				chevronWhileOff,
+				chevron: { label: chevron.getAttribute('aria-label'), icon: chevron.classList.contains('codicon-chevron-down'), hasPopup: chevron.getAttribute('aria-haspopup'), expanded: chevron.getAttribute('aria-expanded') },
+				keybindingVisible: row.querySelector('.session-section-keybinding')?.classList.contains('visible'),
+				commandsOnRowClick,
+				menusOnRowClick,
+				keyboard: { focusAfterRight, focusAfterLeft },
+				menus,
+				commands: harness.commandService.calls.slice(commandsOnRowClick.length),
+			}, {
+				chevronWhileOff: false,
+				// The menu, which the test leaves open
+				chevron: { label: 'More New Actions', icon: true, hasPopup: 'menu', expanded: 'true' },
+				keybindingVisible: true,
+				// In this window, not to the side
+				commandsOnRowClick: [{ commandId: NEW_SESSION_ACTION_ID, args: [undefined] }],
+				menusOnRowClick: 0,
+				keyboard: { focusAfterRight: true, focusAfterLeft: true },
+				// New Chat needs the agent host
+				menus: [['New Session', 'New Workspace...']],
+				commands: [],
+			});
+		});
 
 		test('keeps New Session inactive when Automations opens', () => {
 			const activeCustomView = observableValue<ICustomViewDescriptor | undefined>(disposables, undefined);

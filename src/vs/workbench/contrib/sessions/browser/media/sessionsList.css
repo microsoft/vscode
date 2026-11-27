@@ -1675,6 +1675,19 @@
 		}
 	}
 
+	/*
+	 * The New row's split part, as the New split button's: after a thin divider at the row's end, a chevron that opens
+	 * the New menu, with its own hover on the row's.
+	 */
+	.session-section-new-split {
+		display: flex;
+		flex-shrink: 0;
+		align-items: center;
+		margin-inline-start: var(--vscode-spacing-size40);
+		padding-inline-start: var(--vscode-spacing-size20);
+		border-inline-start: var(--vscode-strokeThickness) solid var(--vscode-menu-separatorBackground, transparent);
+	}
+
 	&.session-section-new-session {
 		color: var(--vscode-foreground);
 	}

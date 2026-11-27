@@ -12,7 +12,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { decodeKeybinding, KeyCodeChord } from '../../../../../base/common/keybindings.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
-import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { extUri, isEqual } from '../../../../../base/common/resources.js';
@@ -20,7 +20,10 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import '../../../../../editor/contrib/wordOperations/browser/wordOperations.js';
 import { isICommandActionToggleInfo } from '../../../../../platform/action/common/action.js';
-import { isIMenuItem, isISubmenuItem, MenuId, MenuItemAction, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { IMenuService, isIMenuItem, isISubmenuItem, MenuId, MenuItemAction, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { MenuService } from '../../../../../platform/actions/common/menuService.js';
+import { IActionViewItemFactory, IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -60,17 +63,19 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 
 import { Action } from '../../../../../base/common/actions.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
-import { getSessionsPickerChatWindow, MOVE_CHAT_TO_SESSION_ACTION_ID, MOVE_SESSION_INTO_SESSION_ACTION_ID, NewSessionActionViewItem, openPickedNewSession, openPickedSessionInChatWindow, type NewSessionButtonStyle, PROMOTE_CHAT_TO_SESSION_ACTION_ID, SessionConversationActionsContribution, SessionListActionsExperimentContribution } from '../../browser/sessionsActions.js';
+import { getSessionsPickerChatWindow, MOVE_CHAT_TO_SESSION_ACTION_ID, MOVE_SESSION_INTO_SESSION_ACTION_ID, NewSessionActionViewItem, NewSessionActionViewItemContribution, openPickedNewSession, openPickedSessionInChatWindow, type NewSessionButtonStyle, PROMOTE_CHAT_TO_SESSION_ACTION_ID, SessionConversationActionsContribution, SessionListActionsExperimentContribution } from '../../browser/sessionsActions.js';
 import '../../../chat/browser/chat.contribution.js';
 import { NEW_SESSION_ACTION_ID, NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { ArchiveChatAction, ArchiveSessionAction } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
 import { createTestSession, TestCommandService } from './sessionsListTestUtils.js';
 import { INewSessionComposerService, NewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { ISessionDraftsService } from '../../../../../workbench/contrib/sessions/browser/sessionDraftsService.js';
-import { ISessionSection, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SessionItemIsCloudContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
+import { ISessionSection, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SessionItemIsCloudContext, SessionsGrouping } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
+import { SessionsViewGroupingContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { WorkspaceSelectionOrigin, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../../workbench/services/sessions/common/workspaceSelection.js';
 import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARRANGE_SESSIONS_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, DETACH_CHAT_COMMAND_ID, EVEN_SESSION_SIZES_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SESSION_GRID_DOCK_COMMANDS, SESSION_GRID_FOCUS_COMMANDS, SESSION_GRID_MOVE_COMMANDS, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, TOGGLE_MAXIMIZE_SESSION_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
-import { SessionInChatEditorContext, IsPhoneLayoutContext, MultipleSessionsVisibleContext, SessionHasSplitChatsContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatResourceContext, SessionIdContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionsFocusContext, SessionsListPromoteNewChatActionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { SessionInChatEditorContext, IsPhoneLayoutContext, MultipleSessionsVisibleContext, SessionHasSplitChatsContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatResourceContext, SessionIdContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionsFocusContext, SessionsListPromoteNewChatActionContext, SessionWorkspacesEnabledContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
@@ -89,6 +94,7 @@ import { WindowCanvasInput, IWindowCanvasService } from '../../../../../workbenc
 import { ITestSessionsService, ITestSessionWithChat, ITestShownChat, stubMissingSessionHostsFromSessionsService, stubPaneHost, testGridPane, testGridPanes, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionGridPane, SessionGridPaneKind } from '../../../../../workbench/services/sessions/browser/sessionGridPane.js';
 import '../../browser/views/sessionsViewActions.js';
+import { SessionWorkspaceEditorAvailableContext } from '../../../../../workbench/contrib/sessions/browser/workspaceEditor/sessionWorkspaceEditorCommands.js';
 
 suite('Sessions - Actions', () => {
 
@@ -2007,6 +2013,91 @@ suite('Sessions - Actions', () => {
 		});
 	});
 
+	test('the New split button\'s chevron opens the New menu without starting a session', () => {
+		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+		const commandService = new TestCommandService();
+		instantiationService.stub(ICommandService, commandService);
+		instantiationService.stub(IContextKeyService, disposables.add(new ContextKeyService(instantiationService.get(IConfigurationService))));
+		instantiationService.stub(IMenuService, disposables.add(instantiationService.createInstance(MenuService)));
+		const menus: string[][] = [];
+		instantiationService.stub(IContextMenuService, upcastPartial<IContextMenuService>({ showContextMenu: delegate => menus.push(delegate.getActions!().map(action => action.label)) }));
+		let primaryRuns = 0;
+		const action = disposables.add(new Action(NEW_SESSION_ACTION_ID, 'New', undefined, true, async () => { primaryRuns++; }));
+		const item = disposables.add(instantiationService.createInstance(NewSessionActionViewItem, action, 'sidebar', constObservable<NewSessionButtonStyle>('default'), true));
+		const container = document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		item.render(container);
+
+		const chevron = container.querySelector<HTMLElement>('.agent-sessions-new-split-button > .monaco-dropdown-button')!;
+		const before = { label: chevron.getAttribute('aria-label'), popup: chevron.getAttribute('aria-haspopup'), expanded: chevron.getAttribute('aria-expanded') };
+		chevron.click();
+
+		assert.deepStrictEqual({ before, menus, expanded: chevron.getAttribute('aria-expanded'), primaryRuns, commands: commandService.calls }, {
+			before: { label: 'More New Actions', popup: 'true', expanded: 'false' },
+			// New Chat needs the agent host, and New Workspace... the Workspace editor
+			menus: [['New Session']],
+			expanded: 'true',
+			primaryRuns: 0,
+			commands: [],
+		});
+	});
+
+	test('New is a split button only while workspaces and AI features are on, also in the Inbox, and a chat window\'s New never is', () => {
+		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+		const commandService = new TestCommandService();
+		instantiationService.stub(ICommandService, commandService);
+		const contextKeyService = disposables.add(new ContextKeyService(instantiationService.get(IConfigurationService)));
+		instantiationService.stub(IContextKeyService, contextKeyService);
+		instantiationService.stub(IMenuService, disposables.add(instantiationService.createInstance(MenuService)));
+		const providers = new Map<string, IActionViewItemFactory>();
+		let refreshEvent: Event<unknown> | undefined;
+		instantiationService.stub(IActionViewItemService, upcastPartial<IActionViewItemService>({
+			register: (menu: MenuId, commandId: string | MenuId, provider: IActionViewItemFactory, event?: Event<unknown>) => {
+				providers.set(`${menu.id} ${commandId}`, provider);
+				refreshEvent = event;
+				return Disposable.None;
+			},
+		}));
+		instantiationService.stub(IWorkbenchAssignmentService, upcastPartial<IWorkbenchAssignmentService>({ onDidRefetchAssignments: Event.None, getTreatment: async () => undefined }));
+		const workspaces = SessionWorkspacesEnabledContext.bindTo(contextKeyService);
+		// A window with the Workspace editor, as the desktop Agents window is
+		SessionWorkspaceEditorAvailableContext.bindTo(contextKeyService).set(true);
+		const aiFeatures = ChatContextKeys.enabled.bindTo(contextKeyService);
+		aiFeatures.set(true);
+		const grouping = SessionsViewGroupingContext.bindTo(contextKeyService);
+		disposables.add(instantiationService.createInstance(NewSessionActionViewItemContribution));
+		let refreshes = 0;
+		disposables.add(refreshEvent!(() => refreshes++));
+		const render = (menu: MenuId, commandId: string) => {
+			const action = new MenuItemAction({ id: commandId, title: 'New' }, undefined, undefined, undefined, undefined, contextKeyService, commandService);
+			const item = disposables.add(providers.get(`${menu.id} ${commandId}`)!(action, {}, instantiationService, mainWindow.vscodeWindowId)!);
+			const container = document.createElement('div');
+			item.render(container);
+			return container.querySelector('.agent-sessions-new-split-button') ? 'split' : item instanceof NewSessionActionViewItem ? 'pill' : 'menu entry';
+		};
+		const buttons = () => {
+			grouping.set(SessionsGrouping.Workspace);
+			const sidebar = render(Menus.SidebarSessionsHeader, NEW_SESSION_ACTION_ID);
+			grouping.set(SessionsGrouping.Inbox);
+			return { sidebar, inbox: render(Menus.SidebarSessionsHeader, NEW_SESSION_ACTION_ID), titleBar: render(AgentsWindowMenus.TitleBarLeftLayout, NEW_SESSION_ACTION_ID), chatWindow: render(AgentsWindowMenus.TitleBarLeftLayout, NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID) };
+		};
+
+		const off = buttons();
+		workspaces.set(true);
+		const on = buttons();
+		aiFeatures.set(false);
+		const aiOff = buttons();
+
+		assert.deepStrictEqual({ off, on, aiOff, refreshes }, {
+			off: { sidebar: 'pill', inbox: 'menu entry', titleBar: 'pill', chatWindow: 'pill' },
+			on: { sidebar: 'split', inbox: 'split', titleBar: 'split', chatWindow: 'pill' },
+			aiOff: { sidebar: 'pill', inbox: 'menu entry', titleBar: 'pill', chatWindow: 'pill' },
+			// The toolbars render New again as workspaces and AI features are turned on or off
+			refreshes: 2,
+		});
+	});
+
 	test('New button hover only includes the existing keyboard shortcut', () => {
 		class TestNewSessionActionViewItem extends NewSessionActionViewItem {
 			override getHoverContent(keybindingLabel: string | undefined): string {
@@ -2018,7 +2109,7 @@ suite('Sessions - Actions', () => {
 		instantiationService.stub(ICommandService, new TestCommandService());
 		const action = disposables.add(new Action(NEW_SESSION_ACTION_ID, 'New'));
 		const item = disposables.add(instantiationService.createInstance(
-			TestNewSessionActionViewItem, action, 'sidebar', constObservable<NewSessionButtonStyle>('default')
+			TestNewSessionActionViewItem, action, 'sidebar', constObservable<NewSessionButtonStyle>('default'), false
 		));
 
 		assert.deepStrictEqual({
@@ -2040,7 +2131,7 @@ suite('Sessions - Actions', () => {
 				primaryRuns++;
 			}));
 			const style = observableValue<NewSessionButtonStyle>('newButtonStyle', 'default');
-			const item = disposables.add(instantiationService.createInstance(NewSessionActionViewItem, action, source, style));
+			const item = disposables.add(instantiationService.createInstance(NewSessionActionViewItem, action, source, style, false));
 			const container = document.createElement('div');
 			mainWindow.document.body.appendChild(container);
 			disposables.add(toDisposable(() => container.remove()));
@@ -2101,7 +2192,7 @@ suite('Sessions - Actions', () => {
 		disposables.add(toDisposable(() => container.remove()));
 		// As the title bar's toolbar shows it
 		const actionBar = disposables.add(new ActionBar(container, {
-			actionViewItemProvider: candidate => candidate === action ? instantiationService.createInstance(NewSessionActionViewItem, candidate, 'titleBar', constObservable<NewSessionButtonStyle>('default')) : undefined,
+			actionViewItemProvider: candidate => candidate === action ? instantiationService.createInstance(NewSessionActionViewItem, candidate, 'titleBar', constObservable<NewSessionButtonStyle>('default'), false) : undefined,
 		}));
 		actionBar.push(action);
 		actionBar.focus(0);
@@ -2136,7 +2227,7 @@ suite('Sessions - Actions', () => {
 		}());
 		// As the title bar's menu creates it: without forwarding the arguments it runs with
 		const action = new MenuItemAction({ id: NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID, title: 'New Session' }, undefined, undefined, undefined, undefined, instantiationService.get(IContextKeyService), commandService);
-		const item = disposables.add(instantiationService.createInstance(NewSessionActionViewItem, action, 'titleBar', constObservable<NewSessionButtonStyle>('default')));
+		const item = disposables.add(instantiationService.createInstance(NewSessionActionViewItem, action, 'titleBar', constObservable<NewSessionButtonStyle>('default'), false));
 		const container = document.createElement('div');
 		mainWindow.document.body.appendChild(container);
 		disposables.add(toDisposable(() => container.remove()));
@@ -2151,7 +2242,7 @@ suite('Sessions - Actions', () => {
 		item.onClick(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, ctrlKey: true, button: 0 }));
 		// Not while disabled
 		const disabled = new MenuItemAction({ id: NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID, title: 'New Session', precondition: ContextKeyExpr.false() }, undefined, undefined, undefined, undefined, instantiationService.get(IContextKeyService), commandService);
-		const disabledItem = disposables.add(instantiationService.createInstance(NewSessionActionViewItem, disabled, 'titleBar', constObservable<NewSessionButtonStyle>('default')));
+		const disabledItem = disposables.add(instantiationService.createInstance(NewSessionActionViewItem, disabled, 'titleBar', constObservable<NewSessionButtonStyle>('default'), false));
 		disabledItem.render(container);
 		disabledItem.onClick(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, ctrlKey: true, button: 0 }));
 

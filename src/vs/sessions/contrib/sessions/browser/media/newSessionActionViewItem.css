@@ -110,3 +110,35 @@ unscoped so the widget renders identically wherever it is mounted. */
 .agent-sessions-compact-new-button .new-session-keybinding-hint .monaco-keybinding > .monaco-keybinding-key:last-child {
 	margin-right: 0;
 }
+
+/*
+ * New Session as a split button: one border and radius around both parts, which clips their hover backgrounds, the
+ * parts as tall as each other, and a divider the full height between them. The parts draw no border of their own.
+ */
+.agent-sessions-new-split-button.monaco-button-dropdown {
+	align-items: stretch;
+	border: var(--vscode-strokeThickness) solid var(--vscode-agentsNewSessionButton-border, var(--vscode-button-border, transparent));
+	border-radius: var(--vscode-cornerRadius-small);
+	overflow: hidden;
+
+	> .monaco-button.agent-sessions-compact-new-button,
+	> .monaco-button.monaco-dropdown-button {
+		border: none;
+		border-radius: 0;
+	}
+
+	/*
+	 * The chevron part carries its codicon's classes, so in an action bar it gets the bar's 16px icon box
+	 * (actionbar.css), which keeps it from stretching: it takes the pill's height instead, and the widget's own
+	 * flex centering (button.css) centers its glyph.
+	 */
+	> .monaco-button.monaco-dropdown-button {
+		width: auto;
+		height: auto;
+		padding: 0 var(--vscode-spacing-size40);
+	}
+
+	> .monaco-button-dropdown-separator {
+		padding: 0;
+	}
+}

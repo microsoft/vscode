@@ -284,7 +284,7 @@ function renderChatWindow(context: ComponentFixtureContext, options: IFixtureOpt
 					const id = typeof commandOrSubmenu === 'string' ? commandOrSubmenu : commandOrSubmenu.id;
 					// The window's New Session, as the New button of the main window's title bar
 					if (menu.id === AgentsWindowMenus.TitleBarLeftLayout.id && id === NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID) {
-						return (action, _actionOptions, scopedInstantiationService) => scopedInstantiationService.createInstance(NewSessionActionViewItem, action, 'titleBar', constObservable<NewSessionButtonStyle>('default'));
+						return (action, _actionOptions, scopedInstantiationService) => scopedInstantiationService.createInstance(NewSessionActionViewItem, action, 'titleBar', constObservable<NewSessionButtonStyle>('default'), false);
 					}
 					if (menu.id !== AgentsWindowMenus.CommandCenter.id || id !== AgentsWindowMenus.TitleBarSessionTitle.id) {
 						return undefined;

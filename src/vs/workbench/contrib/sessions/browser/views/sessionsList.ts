@@ -69,6 +69,9 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import * as aria from '../../../../../base/browser/ui/aria/aria.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IAction, Separator, SubmenuAction, toAction } from '../../../../../base/common/actions.js';
+import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
@@ -1082,6 +1085,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 					element: this.navigationList.getHTMLElement(),
 					focus: () => this.focusNavigationSection(NEW_SESSION_SECTION_ID),
 				} : undefined,
+				// The New row is a split button, as the New split button is, while the Workspace editor is available
+				hasNewMenu: () => this.contextKeyService.contextMatchesRules(SESSION_WORKSPACE_EDITOR_WHEN),
+				showNewMenu: anchor => this.showNewMenu(anchor),
 			},
 			section => this.getNewSessionEnvironmentActions(section),
 			customizationsBadge,
@@ -1156,6 +1162,35 @@ export class SessionsList extends Disposable implements ISessionsList {
 			: undefined;
 		if (this.navigationList) {
 			this._register(this.navigationList.onDidOpen(e => this.openNavigationSection(e.element, e.sideBySide)));
+			// Right Arrow moves from the New row to its chevron, as to a row's actions, and Left Arrow or Escape back
+			const navigationList = this.navigationList;
+			this._register(navigationList.onKeyDown(e => {
+				const event = new StandardKeyboardEvent(e);
+				const inChevron = DOM.isHTMLElement(e.target) && !!e.target.closest('.session-section-new-split');
+				if (inChevron && (event.equals(KeyCode.LeftArrow) || event.equals(KeyCode.Escape))) {
+					DOM.EventHelper.stop(event, true);
+					navigationList.domFocus();
+					return;
+				}
+				const focused = navigationList.getFocusedElements()[0];
+				if (!inChevron && focused?.id === NEW_SESSION_SECTION_ID && event.equals(KeyCode.RightArrow)) {
+					const index = this.navigationSections.indexOf(focused);
+					// eslint-disable-next-line eslint-js/no-restricted-syntax -- the New row's chevron, which the row renders
+					const chevron = navigationList.getHTMLElement().querySelector<HTMLElement>(`.monaco-list-row[data-index="${index}"] .session-section-new-split .action-label`);
+					if (chevron) {
+						DOM.EventHelper.stop(event, true);
+						chevron.focus();
+					}
+				}
+			}));
+			// The New row gets its chevron, or loses it, as workspaces are turned on or off
+			const newMenuKeys = new Set(SESSION_WORKSPACE_EDITOR_WHEN?.keys());
+			this._register(this.contextKeyService.onDidChangeContext(e => {
+				const index = this.navigationSections.findIndex(section => section.id === NEW_SESSION_SECTION_ID);
+				if (index >= 0 && e.affectsSome(newMenuKeys)) {
+					navigationList.splice(index, 1, [this.navigationSections[index]]);
+				}
+			}));
 			this._register(this.navigationList.onContextMenu(e => {
 				if (e.element?.id === AUTOMATIONS_SECTION_ID) {
 					this.showAutomationsContextMenu(e.anchor);
@@ -3013,6 +3048,30 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.navigationList?.layout(this.navigationSections.length * SESSION_SHORTCUT_ROW_HEIGHT, width);
 	}
 
+	/** Starts a session from the New row, or its menu's New Session, focusing the new session's input as the row does. */
+	private async startNewSessionFromNavigation(sideBySide: boolean): Promise<void> {
+		this._onDidActivateNewSession.fire();
+		logSessionsInteraction(this.telemetryService, 'newSession', 'sidebar');
+		await this.commandService.executeCommand(NEW_SESSION_ACTION_ID, sideBySide ? { toSide: true } : undefined);
+		if (this.options.navigationContainer && DOM.isAncestorOfActiveElement(this.options.navigationContainer)) {
+			this.options.focusNewSessionInput?.();
+		}
+	}
+
+	/** Shows the New menu ({@link Menus.NewDropdown}), the New split button's, below the New row's chevron. */
+	private showNewMenu(anchor: HTMLElement): void {
+		const actions = getFlatContextMenuActions(this.menuService.getMenuActions(Menus.NewDropdown, this.contextKeyService)).map(action => action.id === NEW_SESSION_ACTION_ID
+			? toAction({ id: action.id, label: action.label, enabled: action.enabled, run: () => this.startNewSessionFromNavigation(false) })
+			: action);
+		anchor.setAttribute('aria-expanded', 'true');
+		this.contextMenuService.showContextMenu({
+			getActions: () => actions,
+			getAnchor: () => anchor,
+			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id) ?? undefined,
+			onHide: () => anchor.setAttribute('aria-expanded', 'false'),
+		});
+	}
+
 	private async openNavigationSection(section: ISessionSection | undefined, sideBySide: boolean): Promise<void> {
 		if (!section || !this.navigationList) {
 			return;
@@ -3024,12 +3083,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 		switch (section.id) {
 			case NEW_SESSION_SECTION_ID:
-				this._onDidActivateNewSession.fire();
-				logSessionsInteraction(this.telemetryService, 'newSession', 'sidebar');
-				await this.commandService.executeCommand(NEW_SESSION_ACTION_ID, sideBySide ? { toSide: true } : undefined);
-				if (this.options.navigationContainer && DOM.isAncestorOfActiveElement(this.options.navigationContainer)) {
-					this.options.focusNewSessionInput?.();
-				}
+				await this.startNewSessionFromNavigation(sideBySide);
 				break;
 			case AUTOMATIONS_SECTION_ID:
 				await this.commandService.executeCommand('sessionsView.manageAutomations');

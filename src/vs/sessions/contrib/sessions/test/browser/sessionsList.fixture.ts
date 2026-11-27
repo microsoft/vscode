@@ -1462,6 +1462,122 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['The Customizations navigation row has no total-count badge and shows a small activity badge dot, not a warning dot, beside its label.'],
 	}),
+	// With workspaces on, New is a split button: its main part starts a session, its chevron opens the New menu
+	SessionsList_NewSplitButton: defineSessionsListFixture({
+		sessions: [{ id: 'one', title: 'Fix the flaky terminal test', workspace: 'vscode', minutesAgo: 5 }],
+		// Workspaces on, which New's split part needs
+		workspaces: [],
+		header: { newButton: 'rest' },
+		view: { height: 200 },
+	}, {
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The New split button rests: one border and radius around "New ⌘N" and the chevron, both parts the same height, with a full-height divider between them, vertically aligned with the header\'s other actions.'],
+	}),
+	SessionsList_NewSplitButton_HoverNew: defineSessionsListFixture({
+		sessions: [{ id: 'one', title: 'Fix the flaky terminal test', workspace: 'vscode', minutesAgo: 5 }],
+		// Workspaces on, which New's split part needs
+		workspaces: [],
+		header: { newButton: 'hoverNew' },
+		view: { height: 200 },
+	}, {
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['Only the "New ⌘N" part shows the hover background, inside the shared border.'],
+	}),
+	SessionsList_NewSplitButton_HoverChevron: defineSessionsListFixture({
+		sessions: [{ id: 'one', title: 'Fix the flaky terminal test', workspace: 'vscode', minutesAgo: 5 }],
+		// Workspaces on, which New's split part needs
+		workspaces: [],
+		header: { newButton: 'hoverChevron' },
+		view: { height: 200 },
+	}, {
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['Only the chevron part shows the hover background, inside the shared border.'],
+	}),
+	SessionsList_NewSplitButton_FocusChevron: defineSessionsListFixture({
+		sessions: [{ id: 'one', title: 'Fix the flaky terminal test', workspace: 'vscode', minutesAgo: 5 }],
+		// Workspaces on, which New's split part needs
+		workspaces: [],
+		header: { newButton: 'focusChevron' },
+		view: { height: 200 },
+	}, {
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The chevron part shows its focus ring inside the shared border.'],
+	}),
+	SessionsList_NewSplitButton_MenuOpen: defineSessionsListFixture({
+		sessions: [{ id: 'one', title: 'Fix the flaky terminal test', workspace: 'vscode', minutesAgo: 5 }],
+		// Workspaces on, which New's split part needs
+		workspaces: [],
+		header: { newButton: 'menuOpen' },
+		view: { height: 300 },
+		// Room for the menu, which opens to the right of the chevron at the sidebar's edge
+		frame: { width: 520, height: 300 },
+	}, {
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The New split button\'s menu opens under its chevron with New Session, New Chat and New Workspace....'],
+	}),
+	SessionsList_NewSplitButton_Inbox: defineSessionsListFixture({
+		sessions: [{ id: 'one', title: 'Fix the flaky terminal test', workspace: 'vscode', minutesAgo: 5 }],
+		// Workspaces on, which New's split part needs
+		workspaces: [],
+		header: { newButton: 'rest' },
+		view: { grouping: SessionsGrouping.Inbox, height: 200 },
+	}, {
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['In the Inbox, the Sessions header shows the same New split button as other groupings.'],
+	}),
+	// The New navigation row, as the New split button: the row starts a session, with its keybinding, and its chevron opens the New menu
+	SessionsList_NewRowSplit: defineSessionsListFixture({
+		sessions: [{ id: 'one', title: 'Fix the flaky terminal test', workspace: 'vscode', minutesAgo: 5 }],
+		// Workspaces on, which New's split part needs
+		workspaces: [],
+		header: { navigationShortcuts: true },
+		view: { height: 300 },
+	}, {
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The New Session navigation row shows its keybinding, then a thin divider and a chevron-down at its end.'],
+	}),
+	SessionsList_NewRowSplit_Hovered: defineSessionsListFixture({
+		sessions: [{ id: 'one', title: 'Fix the flaky terminal test', workspace: 'vscode', minutesAgo: 5 }],
+		// Workspaces on, which New's split part needs
+		workspaces: [],
+		header: { navigationShortcuts: true, newRowHover: 'row' },
+		view: { height: 300 },
+	}, {
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The pointer is over the New Session navigation row, which shows its hover background behind its keybinding and chevron.'],
+	}),
+	SessionsList_NewRowSplit_ChevronHovered: defineSessionsListFixture({
+		sessions: [{ id: 'one', title: 'Fix the flaky terminal test', workspace: 'vscode', minutesAgo: 5 }],
+		// Workspaces on, which New's split part needs
+		workspaces: [],
+		header: { navigationShortcuts: true, newRowHover: 'chevron' },
+		view: { height: 300 },
+	}, {
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The pointer is over the New Session navigation row\'s chevron, whose own hover background shows on the row\'s.'],
+	}),
+	SessionsList_NewRowSplit_Menu: defineSessionsListFixture({
+		sessions: [{ id: 'one', title: 'Fix the flaky terminal test', workspace: 'vscode', minutesAgo: 5 }],
+		// Workspaces on, which New's split part needs
+		workspaces: [],
+		header: { navigationShortcuts: true, newRowMenu: true },
+		view: { height: 300 },
+		// Room for the menu, which opens to the right of the chevron at the sidebar's edge
+		frame: { width: 520, height: 300 },
+	}, {
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The New Session navigation row\'s menu opens below its chevron with New Session, New Chat and New Workspace....'],
+	}),
 	SessionsList_LightweightNewButton: defineSessionsListFixture({
 		sessions: [],
 		header: { newSessionButtonStyle: 'lightweight' },

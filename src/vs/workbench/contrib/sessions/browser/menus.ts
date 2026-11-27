@@ -27,6 +27,8 @@ export const Menus = {
 	BlockedSessionsItem: new MenuId('SessionsBlockedSessionsItem'),
 	SidebarSessionsHeader: new MenuId('SessionsSidebarSessionsHeader'),
 	SessionSectionNewSession: new MenuId('SessionsSessionSectionNewSession'),
+	/** What the New split button's chevron and the New navigation row's chevron offer, while workspaces are on: New Session, New Chat and New Workspace. */
+	NewDropdown: new MenuId('SessionsNewDropdown'),
 	SessionsViewFilter: new MenuId('SessionsViewPaneFilterSubMenu'),
 	SessionsViewOrdering: new MenuId('SessionsViewOrdering'),
 	SessionsViewGrouping: new MenuId('SessionsViewGrouping'),

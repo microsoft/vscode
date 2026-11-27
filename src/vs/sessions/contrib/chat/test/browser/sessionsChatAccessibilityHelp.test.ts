@@ -38,7 +38,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { SessionComparisonAccessibleView, SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessibilityHelp.js';
 import { SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT, SessionsListPromoteNewChatActionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING, SessionsChatTabsMode } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING, SessionsChatTabsMode, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, SESSIONS_WORKSPACES_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { EVEN_SESSION_SIZES_COMMAND_ID, SESSION_GRID_DOCK_COMMANDS, SESSION_GRID_MOVE_COMMANDS, TOGGLE_MAXIMIZE_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
@@ -94,6 +94,13 @@ suite('SessionsChatAccessibilityHelp', () => {
 			newSession: help.includes('newSession to open New Session and focus its input'),
 			triageAlgorithms: /aggregate status|last 7 days|first automatic move spotlights/.test(help),
 		}, { toggle: true, tree: true, autoAdvance: true, approvalNavigation: true, choices: true, newSession: true, triageAlgorithms: false });
+	});
+
+	test('documents reaching More New Actions from the New row only with the separate navigation list and workspaces on', () => {
+		const documented = (separateNavigation: boolean, workspaces: boolean) => getHelp(new TestConfigurationService({ [SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING]: separateNavigation, [SESSIONS_WORKSPACES_ENABLED_SETTING]: workspaces }))
+			.includes('Focus New and press Right Arrow to reach More New Actions');
+
+		assert.deepStrictEqual({ both: documented(true, true), tree: documented(false, true), workspacesOff: documented(true, false) }, { both: true, tree: false, workspacesOff: false });
 	});
 
 	test('only includes scheduled-message navigation when Send Later is enabled', () => {

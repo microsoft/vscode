@@ -86,8 +86,11 @@ registerAction2(class NewSessionWorkspaceAction extends Action2 {
 			icon: Codicon.add,
 			f1: true,
 			precondition: SESSION_WORKSPACE_EDITOR_WHEN,
-			// The separate Workspaces header of Group by Workspace, inline and in its context menu
-			menu: [SessionSectionToolbarMenuId, Menus.SessionSectionContext].map(id => ({ id, group: 'navigation', order: 0, when: ContextKeyExpr.and(SESSION_WORKSPACE_EDITOR_WHEN, SessionSectionTypeContext.isEqualTo(WORKSPACES_SECTION_ID)) })),
+			menu: [
+				{ id: Menus.NewDropdown, group: 'navigation', order: 3, when: SESSION_WORKSPACE_EDITOR_WHEN },
+				// The separate Workspaces header of Group by Workspace, inline and in its context menu
+				...[SessionSectionToolbarMenuId, Menus.SessionSectionContext].map(id => ({ id, group: 'navigation', order: 0, when: ContextKeyExpr.and(SESSION_WORKSPACE_EDITOR_WHEN, SessionSectionTypeContext.isEqualTo(WORKSPACES_SECTION_ID)) })),
+			],
 		});
 	}
 

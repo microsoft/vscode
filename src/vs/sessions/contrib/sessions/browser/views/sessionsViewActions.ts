@@ -12,7 +12,7 @@ import { AUTOMATIONS_MODAL_SETTING, AutomationsEditorInput } from '../../../auto
 import { KeyChord, KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { isMobile, isWeb } from '../../../../../base/common/platform.js';
 import { localize, localize2 } from '../../../../../nls.js';
-import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -29,6 +29,7 @@ import { ISessionGroupsService } from '../../../../../workbench/contrib/sessions
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { SessionsViewId, SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { inheritableSessionTarget, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -345,6 +346,19 @@ const QuickChatEnabledContext = ContextKeyExpr.and(
 	ChatContextKeys.enabled,
 	AGENT_HOST_ENABLED_CONTEXT_KEY,
 );
+
+// What the New split button's chevron and the New navigation row's chevron offer, with New Workspace... from the Workspace editor
+MenuRegistry.appendMenuItem(Menus.NewDropdown, {
+	command: { id: NEW_SESSION_ACTION_ID, title: localize2('sessions.newDropdown.newSession', "New Session") },
+	group: 'navigation',
+	order: 1,
+});
+MenuRegistry.appendMenuItem(Menus.NewDropdown, {
+	command: { id: NEW_QUICK_CHAT_COMMAND_ID, title: localize2('sessions.newDropdown.newChat', "New Chat") },
+	group: 'navigation',
+	order: 2,
+	when: QuickChatEnabledContext,
+});
 
 registerAction2(class NewQuickChatAction extends Action2 {
 	constructor() {

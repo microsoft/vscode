@@ -67,6 +67,7 @@ import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { Action, ActionRunner, IAction, Separator } from '../../../../../base/common/actions.js';
+import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { createSessionActionViewItemProvider, getSessionArchiveActionViewItemOptions, SessionArchiveActionViewItem } from '../sessionActionViewItem.js';
 import { HoverStyle, IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
@@ -119,6 +120,8 @@ const SESSION_HEADER_DROP_TARGET_CLASS = 'session-header-drop-target';
 /** Shared empty set used when no session hierarchy is selected or focused. */
 export const EMPTY_GUIDE_SESSION_IDS: ReadonlySet<string> = new Set();
 const SESSION_GROUP_DEPTH_PROPERTY = '--session-group-depth';
+/** The New row's split part, which opens the New menu. */
+export const NEW_ROW_MORE_ACTIONS_ID = 'sessions.newRow.moreActions';
 
 /** Steps a row in by one nesting step per level that its custom group is nested in (see `sessionsList.css`). */
 function setSessionGroupDepth(container: HTMLElement, depth: number): void {
@@ -2439,6 +2442,10 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		private readonly onboardingOptions: {
 			readonly onDidActivateNewSession: Event<void>;
 			readonly getNewSessionFocusTarget?: () => IOnboardingFocusTarget | undefined;
+			/** Whether the New row is a split button, whose chevron opens the New menu with {@link showNewMenu}. */
+			readonly hasNewMenu?: () => boolean;
+			/** Opens the New menu below the New row's chevron. */
+			readonly showNewMenu?: (anchor: HTMLElement) => void;
 		} = { onDidActivateNewSession: Event.None },
 		/** The New Session dropdown's entries for starting a session in each environment a section spans. */
 		private readonly getNewSessionEnvironmentActions?: (section: ISessionSection) => readonly IAction[],
@@ -2617,6 +2624,10 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			const updateKeybinding = () => template.keybindingLabel.set(this.keybindingService.lookupKeybinding(NEW_SESSION_ACTION_ID, this.contextKeyService));
 			updateKeybinding();
 			template.elementDisposables.add(this.keybindingService.onDidUpdateKeybindings(updateKeybinding));
+			const showNewMenu = this.onboardingOptions.showNewMenu;
+			if (showNewMenu && this.onboardingOptions.hasNewMenu?.()) {
+				this.renderNewRowSplit(template, showNewMenu);
+			}
 		}
 		if (element.id === CUSTOMIZATIONS_SECTION_ID) {
 			template.container.classList.add('session-section-customizations');
@@ -2806,6 +2817,28 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 				: collapsed ? Codicon.chevronRight : Codicon.chevronDown;
 			template.chevron.classList.add(...ThemeIcon.asClassNameArray(icon));
 		}
+	}
+
+	/**
+	 * The New row's split part, as the New split button's: after a thin divider at the row's end, a chevron, More New
+	 * Actions, that opens the New menu below it. The row itself still starts a session.
+	 */
+	private renderNewRowSplit(template: ISessionSectionTemplate, showNewMenu: (anchor: HTMLElement) => void): void {
+		const split = DOM.append(template.container, $('.session-section-new-split'));
+		template.elementDisposables.add(toDisposable(() => split.remove()));
+		// Enter and Space run the chevron as they go down, so that the list does not also start a session; Left Arrow,
+		// with no action before it, goes back to the row
+		const actionBar = template.elementDisposables.add(new ActionBar(split, { triggerKeys: { keyDown: true, keys: [KeyCode.Enter, KeyCode.Space] }, preventLoopNavigation: true }));
+		const chevronHolder: { element?: HTMLElement } = {};
+		actionBar.push(template.elementDisposables.add(new Action(NEW_ROW_MORE_ACTIONS_ID, localize('moreNewActions', "More New Actions"), ThemeIcon.asClassName(Codicon.chevronDown), true, async () => {
+			if (chevronHolder.element) {
+				showNewMenu(chevronHolder.element);
+			}
+		})), { icon: true, label: false });
+		// eslint-disable-next-line eslint-js/no-restricted-syntax -- the label the action bar just rendered
+		const chevron = chevronHolder.element = split.querySelector<HTMLElement>('.action-label') ?? undefined;
+		chevron?.setAttribute('aria-haspopup', 'menu');
+		chevron?.setAttribute('aria-expanded', 'false');
 	}
 
 	disposeElement(_node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionSectionTemplate): void {

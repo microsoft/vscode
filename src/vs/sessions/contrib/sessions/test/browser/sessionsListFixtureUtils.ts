@@ -112,6 +112,8 @@ import '../../browser/views/sessionsViewActions.js';
 import '../../../../../workbench/contrib/sessions/browser/media/sessionsList.css';
 import '../../../../../workbench/contrib/sessions/browser/media/sessionsViewPane.css';
 import '../../browser/media/newSessionActionViewItem.css';
+import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import '../../../../../workbench/contrib/sessions/browser/workspaceEditor/sessionWorkspaceEditor.contribution.js';
 import { IViewContainerModel, IViewDescriptor, IViewDescriptorService, IViewPaneContainer, ViewContainer, ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
@@ -235,6 +237,18 @@ export interface ISessionsListFixtureHeader {
 	readonly customizationMigrationsAvailable?: boolean;
 	/** Describes the Customizations navigation row's badge, which shows none unless given. */
 	readonly customizationsBadge?: string;
+	/**
+	 * The New split button, which needs workspaces on, with its keybinding: at rest, a part under the pointer through the
+	 * button's own hover styles, its chevron focused, or its menu open.
+	 */
+	readonly newButton?: 'rest' | 'hoverNew' | 'hoverChevron' | 'focusChevron' | 'menuOpen';
+	/** Opens the New menu of the New navigation row, as clicking its chevron does; needs {@link navigationShortcuts} and workspaces on. */
+	readonly newRowMenu?: boolean;
+	/**
+	 * The pointer over the New navigation row, or over its chevron as well, whose hover is the action bar's `:hover`, which
+	 * a rendering cannot show, so it is drawn as that rule does; needs {@link navigationShortcuts} and workspaces on.
+	 */
+	readonly newRowHover?: 'row' | 'chevron';
 }
 
 /** Everything a sessions list fixture renders. */
@@ -675,7 +689,7 @@ async function createSessionsListFixtureServices(context: ComponentFixtureContex
 		override readonly sticky: IObservable<boolean> = constObservable(true);
 	}());
 	const newSessionButtonStyle = header?.newSessionButtonStyle ?? header?.newSessionButtonTreatment;
-	const newSessionKeybinding = newSessionButtonStyle || header?.navigationShortcuts ? createUSLayoutResolvedKeybinding(KeyMod.CtrlCmd | KeyCode.KeyN, OS) : undefined;
+	const newSessionKeybinding = newSessionButtonStyle || header?.navigationShortcuts || header?.newButton ? createUSLayoutResolvedKeybinding(KeyMod.CtrlCmd | KeyCode.KeyN, OS) : undefined;
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: context.theme,
@@ -826,6 +840,8 @@ async function createSessionsListFixtureServices(context: ComponentFixtureContex
 	ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 	SessionWorkspacesEnabledContext.bindTo(contextKeyService).set(!!state.workspaces);
 	SessionWorkspaceEditorAvailableContext.bindTo(contextKeyService).set(!!state.workspaces);
+	// The New menu's New Chat, which needs the agent host, for the fixtures that open the menu
+	AGENT_HOST_ENABLED_CONTEXT_KEY.bindTo(contextKeyService).set(header?.newButton === 'menuOpen' || !!header?.newRowMenu);
 	SessionsViewGroupingContext.bindTo(contextKeyService).set(view.grouping ?? SessionsGrouping.Workspace);
 	SessionsListRearrangeContext.bindTo(contextKeyService).set(header?.navigationShortcuts ?? false);
 	// Phone layout drives both the visual CSS class and the tree delegate's row heights.
@@ -907,6 +923,10 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 	if (header) {
 		container.classList.add('agent-sessions-section');
 		const content = DOM.append(container, DOM.$('.agent-sessions-content'));
+		if (state.frame) {
+			// The header as wide as the list, with the frame's room beside it, as the sidebar's
+			content.style.width = `${width}px`;
+		}
 		navigationContainer = DOM.append(content, DOM.$('.agent-sessions-navigation-container'));
 		const sessionsHeaderContainer = DOM.append(content, DOM.$('.agent-sessions-header-container'));
 		disposableStore.add(instantiationService.createInstance(NewSessionActionViewItemContribution));
@@ -968,7 +988,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 	}
 
 	if (header) {
-		await renderHeaderState(container, instantiationService, header);
+		await renderHeaderState(context, instantiationService, header);
 	}
 
 	await timeout(SETTLE_DELAY);
@@ -1029,7 +1049,8 @@ function setCollapsed(list: TestSessionsList, item: SessionsListItemReference, c
 	}
 }
 
-async function renderHeaderState(container: HTMLElement, instantiationService: TestInstantiationService, header: ISessionsListFixtureHeader): Promise<void> {
+async function renderHeaderState(context: ComponentFixtureContext, instantiationService: TestInstantiationService, header: ISessionsListFixtureHeader): Promise<void> {
+	const container = context.container;
 	await Promise.resolve();
 	if (header.newSessionButtonStyle) {
 		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
@@ -1054,6 +1075,43 @@ async function renderHeaderState(container: HTMLElement, instantiationService: T
 	}
 	if (style === 'lightweightWithKeybindingBackground' && !container.querySelector('.agent-sessions-compact-new-button.lightweight.lightweight-keybinding-background')) {
 		throw new Error('Expected the New Session action to render the lightweight keybinding-background style.');
+	}
+	if (header.newButton) {
+		const part = header.newButton === 'hoverNew' ? '.agent-sessions-compact-new-button' : '.monaco-dropdown-button';
+		const element = container.querySelector<HTMLElement>(`.agent-sessions-new-split-button > ${part}`);
+		if (!element) {
+			throw new Error('Expected the New split button in the Sessions header.');
+		}
+		if (header.newButton === 'hoverNew' || header.newButton === 'hoverChevron') {
+			element.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		} else if (header.newButton === 'focusChevron') {
+			context.focus(element);
+		} else if (header.newButton === 'menuOpen') {
+			element.click();
+			if (!container.querySelector('.context-view .monaco-menu')) {
+				throw new Error('Expected the New split button\'s menu to open.');
+			}
+		}
+	}
+	if (header.newRowMenu || header.newRowHover) {
+		const row = container.querySelector<HTMLElement>('.session-section-new-session')?.closest<HTMLElement>('.monaco-list-row');
+		const chevron = row?.querySelector<HTMLElement>('.session-section-new-split .action-label');
+		if (!row || !chevron) {
+			throw new Error('Expected the New navigation row and its chevron.');
+		}
+		if (header.newRowHover) {
+			row.classList.add('hovered');
+			if (header.newRowHover === 'chevron') {
+				chevron.style.backgroundColor = 'var(--vscode-toolbar-hoverBackground)';
+				chevron.style.outline = '1px dashed var(--vscode-toolbar-hoverOutline)';
+			}
+		}
+		if (header.newRowMenu) {
+			chevron.click();
+			if (!container.querySelector('.context-view .monaco-menu')) {
+				throw new Error('Expected the New navigation row\'s menu to open.');
+			}
+		}
 	}
 }
 
