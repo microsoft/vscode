@@ -19,7 +19,6 @@ import { InEditorZenModeContext } from '../../../../common/contextkeys.js';
 import { EditorGroupLayout, GroupOrientation, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IPartsLayoutState, IWorkbenchLayoutService, Position } from '../../../../services/layout/browser/layoutService.js';
-import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { NAMED_LAYOUTS_ENABLED_SETTING } from '../../browser/namedLayouts.js';
 import { NamedLayoutsService } from '../../browser/namedLayoutsService.js';
@@ -43,7 +42,8 @@ suite('NamedLayoutsService', () => {
 	/**
 	 * A window whose parts and editor groups show what was applied last, and whose Zen mode hides the parts until it ends.
 	 * Applying editor groups restores a maximized panel, as it activates an editor group. With `restore`, the window
-	 * starts with that layout active, as stored, and with the arrangement that it restores itself, once `whenRestored` resolves.
+	 * starts with that layout active, as stored, and with the arrangement that it restores itself. The layout service
+	 * reports the window restored, including its editors, once `whenRestored` resolves.
 	 */
 	function createWindow(restore?: { layout: Record<string, unknown>; zenMode?: boolean; parts?: IPartsLayoutState; editorGroups?: EditorGroupLayout; whenRestored?: Promise<void> }) {
 		const storageService = store.add(new TestStorageService());
@@ -64,7 +64,6 @@ suite('NamedLayoutsService', () => {
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IContextKeyService, contextKeyService);
-		instantiationService.stub(ILifecycleService, { when: () => restore?.whenRestored ?? Promise.resolve() });
 		instantiationService.stub(IExtensionService, { whenInstalledExtensionsRegistered: () => Promise.resolve(true) });
 		const toggleZenMode = () => {
 			if (zenMode.get()) {
@@ -77,6 +76,7 @@ suite('NamedLayoutsService', () => {
 			onDidChangeZenMode.fire(!!zenMode.get());
 		};
 		instantiationService.stub(IWorkbenchLayoutService, {
+			whenRestored: restore?.whenRestored ?? Promise.resolve(),
 			getPartsLayoutState: () => window.parts,
 			applyPartsLayoutState: (state: IPartsLayoutState) => { window.parts = state; },
 			toggleZenMode,
@@ -267,6 +267,24 @@ suite('NamedLayoutsService', () => {
 			parts: restoredParts,
 			editorGroups: restoredEditorGroups,
 			editorGroupsApplied: 0,
+		});
+	});
+
+	test('a window that starts with a named layout active applies it only once its editors restored, as editors still open into the editor groups that applying it can merge', async () => {
+		const whenRestored = new DeferredPromise<void>();
+		const twoGroups = { orientation: GroupOrientation.HORIZONTAL, groups: [{ size: 0.5 }, { size: 0.5 }] };
+		const restoredParts = partsState(false, Position.RIGHT, 'workbench.view.debug');
+		const { service, window } = createWindow({ layout: { name: 'Debug', ...restoredParts, editorGroups: singleGroup }, editorGroups: twoGroups, whenRestored: whenRestored.p });
+		await timeout(0);
+		const beforeRestored = { parts: window.parts, editorGroups: window.editorGroups };
+
+		whenRestored.complete();
+		await service.saveLayout();
+
+		assert.deepStrictEqual({ beforeRestored, parts: window.parts, editorGroups: window.editorGroups }, {
+			beforeRestored: { parts: partsState(true, Position.BOTTOM), editorGroups: twoGroups },
+			parts: restoredParts,
+			editorGroups: singleGroup,
 		});
 	});
 

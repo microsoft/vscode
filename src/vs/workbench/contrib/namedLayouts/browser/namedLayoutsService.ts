@@ -16,7 +16,6 @@ import { InEditorZenModeContext } from '../../../common/contextkeys.js';
 import { EditorGroupLayout, GroupLayoutArgument, GroupOrientation, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IPartsLayoutState, IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
-import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { DEFAULT_NAMED_LAYOUT_ID, INamedLayout, INamedLayoutsService, NAMED_LAYOUTS_ENABLED_SETTING } from './namedLayouts.js';
 
 /**
@@ -85,7 +84,6 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		@IStorageService private readonly storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@ILifecycleService lifecycleService: ILifecycleService,
 		@IExtensionService extensionService: IExtensionService,
 	) {
 		super();
@@ -98,7 +96,8 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			this.storeActiveLayoutId();
 		}
 
-		this.whenRestored = Promise.all([lifecycleService.when(LifecyclePhase.Restored), extensionService.whenInstalledExtensionsRegistered()]).then(() => {
+		// The `Restored` phase can start before slow editors restored, while editors still open into groups that applying a layout could merge
+		this.whenRestored = Promise.all([this.layoutService.whenRestored, extensionService.whenInstalledExtensionsRegistered()]).then(() => {
 			// Part sizes are stored per profile, and other windows can have changed the active layout, so the window applies what differs from it
 			if (this.isEnabled() && this.activeLayoutId !== DEFAULT_NAMED_LAYOUT_ID) {
 				this.applyChanges(this.readLayoutState(this.activeLayoutId));
