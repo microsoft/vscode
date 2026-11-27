@@ -37,6 +37,7 @@ import '../browser/aiCustomization/copilotCanvases.contribution.js';
 import '../browser/chatManagement/modelRouters.contribution.js';
 import './codexCustomizationSettings.contribution.js';
 import './agentSessions/computerUseHelperApp.contribution.js';
+import './agentSessions/agenticMode.contribution.js';
 import './actions/chatAppWindowScreenshotActions.js';
 import { AgentSessionProviders, getAgentSessionProviderName } from '../browser/agentSessions/agentSessions.js';
 import { IAgentSessionsService } from '../browser/agentSessions/agentSessionsService.js';

@@ -16,6 +16,7 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IEditableWorkspaceContextService } from '../../configuration/common/configuration.js';
 import { FolderLocationChangeReason, IFolderLocation, IFolderLocationChangeEvent, IFolderLocationGroup, IResolvedFolderLocation, IWorkspaceFolderLocationProvider, IWorkspaceFolderLocationService, withoutTrailingSeparator } from '../../../../platform/workspace/common/folderLocations.js';
 
 interface IRegisteredProvider {
@@ -44,7 +45,7 @@ export class WorkspaceFolderLocationService extends Disposable implements IWorks
 
 	constructor(
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService & Partial<Pick<IEditableWorkspaceContextService, 'getFolderPrimaryLocation'>>,
 		@ILabelService labelService: ILabelService
 	) {
 		super();
@@ -70,19 +71,35 @@ export class WorkspaceFolderLocationService extends Disposable implements IWorks
 	}
 
 	isAtAlternateLocation(folder: IWorkspaceFolder): boolean {
-		const workspace = this.contextService.getWorkspace();
 		const extUri = this.uriIdentityService.extUri;
+		const primary = this.getMovedFolderPrimaryLocation(folder);
+		if (primary) {
+			return !extUri.isEqual(primary, folder.uri);
+		}
+		const workspace = this.contextService.getWorkspace();
 		return !workspace.configuration && !!workspace.uri && workspace.folders.length === 1 && extUri.isEqual(workspace.folders[0].uri, folder.uri) && !extUri.isEqual(folder.uri, workspace.uri);
 	}
 
 	private getPrimaryLocation(folder: IWorkspaceFolder): URI {
+		const primary = this.getMovedFolderPrimaryLocation(folder);
+		if (primary) {
+			return primary;
+		}
 		return this.isAtAlternateLocation(folder) ? this.contextService.getWorkspace().uri! : folder.uri;
+	}
+
+	/**
+	 * In Agentic Mode the workspace moves each mounted folder in place and remembers where it was mounted.
+	 */
+	private getMovedFolderPrimaryLocation(folder: IWorkspaceFolder): URI | undefined {
+		return this.contextService.getFolderPrimaryLocation?.(folder.uri);
 	}
 
 	async getFolderLocations(folder: IWorkspaceFolder, token: CancellationToken): Promise<IFolderLocation[]> {
 		const primary = this.getPrimaryLocation(folder);
 		const result: IFolderLocation[] = [{ uri: primary, label: basenameOrAuthority(primary), icon: Codicon.folder }];
-		if (this.isAtAlternateLocation(folder) || this.canSetLocation(folder)) {
+		// A folder that the workspace moves in place lists the locations it can move to, also before its first move
+		if (this.isAtAlternateLocation(folder) || this.canSetLocation(folder) || this.getMovedFolderPrimaryLocation(folder)) {
 			const extUri = this.uriIdentityService.extUri;
 			const primaryWithoutSeparator = withoutTrailingSeparator(primary);
 			for (const location of await this.getLocations(primary, token)) {

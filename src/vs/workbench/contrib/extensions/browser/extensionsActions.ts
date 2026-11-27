@@ -2637,15 +2637,21 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends AbstractConfi
 	}
 
 	private update(): void {
-		this.enabled = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY;
+		const state = this.contextService.getWorkbenchState();
+		// A workspace without a workspace file (Agentic Mode) has nowhere to store recommendations
+		this.enabled = state === WorkbenchState.FOLDER || (state === WorkbenchState.WORKSPACE && !!this.contextService.getWorkspace().configuration);
 	}
 
 	public override run(): Promise<void> {
+		const workspace = this.contextService.getWorkspace();
 		switch (this.contextService.getWorkbenchState()) {
 			case WorkbenchState.FOLDER:
-				return this.openExtensionsFile(this.contextService.getWorkspace().folders[0].toResource(EXTENSIONS_CONFIG));
+				return this.openExtensionsFile(workspace.folders[0].toResource(EXTENSIONS_CONFIG));
 			case WorkbenchState.WORKSPACE:
-				return this.openWorkspaceConfigurationFile(this.contextService.getWorkspace().configuration!);
+				if (workspace.configuration) {
+					return this.openWorkspaceConfigurationFile(workspace.configuration);
+				}
+				break;
 		}
 		return Promise.resolve();
 	}

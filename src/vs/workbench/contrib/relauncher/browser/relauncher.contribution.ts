@@ -17,6 +17,7 @@ import { IUserDataSyncEnablementService, IUserDataSyncService, SyncStatus } from
 import { IWindowsConfiguration, IWindowSettings, MenuSettings, MenuStyleConfiguration, TitleBarSetting, TitlebarStyle } from '../../../../platform/window/common/window.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
+import { IAgenticModeService } from '../../../services/agenticMode/common/agenticMode.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IHostService } from '../../../services/host/browser/host.js';
@@ -277,6 +278,7 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 		@IExtensionService extensionService: IExtensionService,
 		@IHostService hostService: IHostService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IAgenticModeService private readonly agenticModeService: IAgenticModeService,
 	) {
 		super();
 
@@ -287,6 +289,10 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 
 			if (environmentService.isSessionsWindow) {
 				return; // no restart for sessions window
+			}
+
+			if (this.agenticModeService.isActive) {
+				return; // no restart while the folders follow the focused session in Agentic Mode
 			}
 
 			if (environmentService.remoteAuthority) {
@@ -316,9 +322,12 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 		// React to folder changes when we are in workspace state
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 
-			// Update our known first folder path if we entered workspace
-			const workspace = this.contextService.getWorkspace();
-			this.firstFolderResource = workspace.folders.length > 0 ? workspace.folders[0].uri : undefined;
+			// Update our known first folder path if we entered workspace, but keep the window's own while
+			// it is in Agentic Mode, whose folders follow the focused session until it gets its own back
+			if (!this.agenticModeService.isActive) {
+				const workspace = this.contextService.getWorkspace();
+				this.firstFolderResource = workspace.folders.length > 0 ? workspace.folders[0].uri : undefined;
+			}
 
 			// Install workspace folder listener
 			if (!this.onDidChangeWorkspaceFoldersUnbind) {
@@ -338,8 +347,20 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 
 		// Restart extension host if first root folder changed (impact on deprecated workspace.rootPath API)
 		const newFirstFolderResource = workspace.folders.length > 0 ? workspace.folders[0].uri : undefined;
+
+		// Agentic Mode mounts the focused session's folders, and leaving it gives the window its own folders back:
+		// remember the window's first folder through the mode, so that neither restarts the extension host
+		if (this.agenticModeService.isActive) {
+			return;
+		}
+
 		if (!isEqual(this.firstFolderResource, newFirstFolderResource)) {
 			this.firstFolderResource = newFirstFolderResource;
+
+			// Leaving Agentic Mode in an empty window drops the session's folders (the window is EMPTY again by then)
+			if (this.contextService.getWorkbenchState() !== WorkbenchState.WORKSPACE) {
+				return;
+			}
 
 			this.extensionHostRestarter.schedule(); // buffer calls to extension host restart
 		}

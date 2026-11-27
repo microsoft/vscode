@@ -13,13 +13,14 @@ import { domContentLoaded } from '../../base/browser/dom.js';
 import { onUnexpectedError } from '../../base/common/errors.js';
 import { URI } from '../../base/common/uri.js';
 import { WorkspaceService } from '../services/configuration/browser/configurationService.js';
+import { AGENTIC_MODE_STORAGE_KEY, AgenticModeWorkspaceService, supportsAgenticMode } from '../services/configuration/browser/agents/agenticModeWorkspaceService.js';
 import { INativeWorkbenchEnvironmentService, NativeWorkbenchEnvironmentService } from '../services/environment/electron-browser/environmentService.js';
 import { ServiceCollection } from '../../platform/instantiation/common/serviceCollection.js';
 import { ILoggerService, ILogService, LogLevel } from '../../platform/log/common/log.js';
 import { NativeWorkbenchStorageService } from '../services/storage/electron-browser/storageService.js';
 import { IWorkspaceContextService, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IAnyWorkspaceIdentifier, reviveIdentifier, toWorkspaceIdentifier } from '../../platform/workspace/common/workspace.js';
 import { IWorkbenchConfigurationService } from '../services/configuration/common/configuration.js';
-import { IStorageService } from '../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope } from '../../platform/storage/common/storage.js';
 import { Disposable } from '../../base/common/lifecycle.js';
 import { ISharedProcessService } from '../../platform/ipc/electron-browser/services.js';
 import { IMainProcessService } from '../../platform/ipc/common/mainProcessService.js';
@@ -336,6 +337,11 @@ export class DesktopMain extends Disposable {
 			})
 		]);
 
+		// Agentic Mode: restore the mode of an empty window before trust is evaluated
+		if (configurationService instanceof AgenticModeWorkspaceService && storageService.getBoolean(AGENTIC_MODE_STORAGE_KEY, StorageScope.WORKSPACE, false)) {
+			await configurationService.setAgenticMode(true);
+		}
+
 		// Workspace Trust Service
 		const canonicalUriService = this._register(new CanonicalUriService());
 		serviceCollection.set(ICanonicalUriService, canonicalUriService);
@@ -401,19 +407,22 @@ export class DesktopMain extends Disposable {
 		uriIdentityService: IUriIdentityService,
 		logService: ILogService,
 		policyService: IPolicyService
-	): Promise<WorkspaceService> {
+	): Promise<WorkspaceService | AgenticModeWorkspaceService> {
 		const configurationCache = new ConfigurationCache([Schemas.file, Schemas.vscodeUserData] /* Cache all non native resources */, environmentService, fileService);
 		const workspaceService = new WorkspaceService({ remoteAuthority: environmentService.remoteAuthority, configurationCache }, environmentService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, logService, policyService);
 
 		try {
 			await workspaceService.initialize(workspace, this.resolveFolderLocation(workspace, environmentService));
-
-			return workspaceService;
 		} catch (error) {
 			onUnexpectedError(error);
-
-			return workspaceService;
 		}
+
+		// Local editor windows can switch in place into Agentic Mode, when the user opted in
+		if (supportsAgenticMode(environmentService, workspaceService, !!this.configuration.backupPath)) {
+			return this._register(new AgenticModeWorkspaceService(workspaceService, workspace, { userDataProfileService, userDataProfilesService, uriIdentityService, fileService, policyService, logService, configurationCache, environmentService }));
+		}
+
+		return workspaceService;
 	}
 
 	private async createStorageService(workspace: IAnyWorkspaceIdentifier, environmentService: INativeWorkbenchEnvironmentService, userDataProfileService: IUserDataProfileService, userDataProfilesService: IUserDataProfilesService, mainProcessService: IMainProcessService): Promise<NativeWorkbenchStorageService> {

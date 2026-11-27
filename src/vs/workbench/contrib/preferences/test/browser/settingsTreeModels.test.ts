@@ -22,6 +22,7 @@ import { AgentNetworkDomainSettingId } from '../../../../../platform/networkFilt
 import { COPILOT_SANDBOX_ALLOWED_HOSTS_KEY, COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_DENIED_PATHS_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_SANDBOX_LSP_SERVERS_KEY, COPILOT_SANDBOX_MCP_SERVERS_KEY, COPILOT_SANDBOX_READONLY_PATHS_KEY, IManagedSettingsService, NullManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
 import { IWorkbenchConfigurationService } from '../../../../services/configuration/common/configuration.js';
+import { IAgenticModeService } from '../../../../services/agenticMode/common/agenticMode.js';
 import { ExperimentalSettingsService, IExperimentalSettingsService } from '../../../../services/configuration/common/experimentalSettings.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { ISetting, SettingMatchType } from '../../../../services/preferences/common/preferences.js';
@@ -67,6 +68,7 @@ suite('SettingsTree managed default descriptions', () => {
 			}
 			const instantiationService = store.add(new TestInstantiationService());
 			instantiationService.stub(IWorkbenchConfigurationService, configuration);
+			instantiationService.stub(IAgenticModeService, { _serviceBrand: undefined, isSupported: false, isActive: false, onDidChange: Event.None, setActive: async () => { } });
 			instantiationService.stub(ILanguageService, { isRegisteredLanguageId: () => true });
 			instantiationService.stub(IUserDataProfileService, new TestUserDataProfileService());
 			instantiationService.stub(IProductService, TestProductService);
@@ -135,6 +137,7 @@ suite('SettingsTree Agents Window density', () => {
 		}
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IWorkbenchConfigurationService, configuration);
+		instantiationService.stub(IAgenticModeService, { _serviceBrand: undefined, isSupported: false, isActive: false, onDidChange: Event.None, setActive: async () => { } });
 		instantiationService.stub(ILanguageService, { isRegisteredLanguageId: () => true });
 		instantiationService.stub(IUserDataProfileService, new TestUserDataProfileService());
 		instantiationService.stub(IProductService, TestProductService);
@@ -220,6 +223,7 @@ suite('SettingsTree managed sandbox', () => {
 		}());
 		instantiationService.stub(IManagedSettingsPresentationService, store.add(instantiationService.createInstance(ManagedSettingsPresentationService)));
 		instantiationService.stub(IWorkbenchConfigurationService, configuration);
+		instantiationService.stub(IAgenticModeService, { _serviceBrand: undefined, isSupported: false, isActive: false, onDidChange: Event.None, setActive: async () => { } });
 		instantiationService.stub(ILanguageService, { isRegisteredLanguageId: () => true });
 		instantiationService.stub(IUserDataProfileService, new TestUserDataProfileService());
 		instantiationService.stub(IProductService, TestProductService);
@@ -462,6 +466,7 @@ suite('SettingsTree ExP assignments', () => {
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const assignments = store.add(new ExperimentalSettingsService());
 		instantiationService.stub(IWorkbenchConfigurationService, configuration);
+		instantiationService.stub(IAgenticModeService, { _serviceBrand: undefined, isSupported: false, isActive: false, onDidChange: Event.None, setActive: async () => { } });
 		instantiationService.stub(ILanguageService, { isRegisteredLanguageId: () => true });
 		instantiationService.stub(IUserDataProfileService, new TestUserDataProfileService());
 		instantiationService.stub(IProductService, TestProductService);
@@ -586,6 +591,7 @@ suite('SettingsTree deprecation warnings', () => {
 			}({ 'test.configured': true });
 			store.add(configuration.onDidChangeConfigurationEmitter);
 			instantiationService.stub(IWorkbenchConfigurationService, configuration);
+			instantiationService.stub(IAgenticModeService, { _serviceBrand: undefined, isSupported: false, isActive: false, onDidChange: Event.None, setActive: async () => { } });
 			instantiationService.stub(ILanguageService, { isRegisteredLanguageId: () => true });
 			instantiationService.stub(IUserDataProfileService, new TestUserDataProfileService());
 			instantiationService.stub(IProductService, TestProductService);
@@ -647,6 +653,7 @@ suite('SettingsTree sandbox network search ordering', () => {
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IWorkbenchConfigurationService, configuration);
+		instantiationService.stub(IAgenticModeService, { _serviceBrand: undefined, isSupported: false, isActive: false, onDidChange: Event.None, setActive: async () => { } });
 		instantiationService.stub(ILanguageService, { isRegisteredLanguageId: () => true });
 		instantiationService.stub(IUserDataProfileService, new TestUserDataProfileService());
 		instantiationService.stub(IProductService, TestProductService);
@@ -694,6 +701,7 @@ suite('SettingsTree search results', () => {
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IWorkbenchConfigurationService, configuration);
+		instantiationService.stub(IAgenticModeService, { _serviceBrand: undefined, isSupported: false, isActive: false, onDidChange: Event.None, setActive: async () => { } });
 		instantiationService.stub(ILanguageService, { isRegisteredLanguageId: () => true });
 		instantiationService.stub(IUserDataProfileService, new TestUserDataProfileService());
 		instantiationService.stub(IProductService, TestProductService);

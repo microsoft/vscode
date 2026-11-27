@@ -26,6 +26,7 @@ import { ILanguageService } from '../../../../editor/common/languages/language.j
 import { IModelDeltaDecoration, TrackedRangeStickiness } from '../../../../editor/common/model.js';
 import { localize } from '../../../../nls.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
+import { IAgenticModeService } from '../../../services/agenticMode/common/agenticMode.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { ContextScopedHistoryInputBox } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
@@ -238,7 +239,8 @@ export class SettingsTargetsWidget extends Widget {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ILabelService private readonly labelService: ILabelService,
-		@ILanguageService private readonly languageService: ILanguageService
+		@ILanguageService private readonly languageService: ILanguageService,
+		@IAgenticModeService private readonly agenticModeService: IAgenticModeService,
 	) {
 		super();
 		this.options = options ?? {};
@@ -341,7 +343,7 @@ export class SettingsTargetsWidget extends Widget {
 	private onWorkbenchStateChanged(): void {
 		this.folderSettings.folder = null;
 		this.update();
-		if (this.settingsTarget === ConfigurationTarget.WORKSPACE && this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
+		if (this.settingsTarget === ConfigurationTarget.WORKSPACE && (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE || !this.hasWorkspaceSettings())) {
 			this.updateTarget(ConfigurationTarget.USER_LOCAL);
 		}
 	}
@@ -360,10 +362,18 @@ export class SettingsTargetsWidget extends Widget {
 		return Promise.resolve(undefined);
 	}
 
+	/**
+	 * Agentic Mode has no workspace file, so there is no workspace to
+	 * write settings to.
+	 */
+	private hasWorkspaceSettings(): boolean {
+		return this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && !this.agenticModeService.isActive;
+	}
+
 	private async update(): Promise<void> {
-		this.settingsSwitcherBar.domNode.classList.toggle('empty-workbench', this.contextService.getWorkbenchState() === WorkbenchState.EMPTY);
+		this.settingsSwitcherBar.domNode.classList.toggle('empty-workbench', !this.hasWorkspaceSettings());
 		this.userRemoteSettings.enabled = !!(this.options.enableRemoteSettings && this.environmentService.remoteAuthority);
-		this.workspaceSettings.enabled = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY;
+		this.workspaceSettings.enabled = this.hasWorkspaceSettings();
 		this.folderSettings.action.enabled = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && this.contextService.getWorkspace().folders.length > 0;
 
 		this.workspaceSettings.tooltip = localize('workspaceSettings', "Workspace");

@@ -27,7 +27,8 @@ import { SessionItemContextMenuId } from '../views/sessionsListCommon.js';
 import { registerSessionsListActions } from '../views/sessionsListActions.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { EditorAreaFocusContext, EditorsVisibleContext, WorkbenchModeContext, WorkbenchScopeContext } from '../../../../common/contextkeys.js';
 import { AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
 
@@ -40,6 +41,38 @@ export const AGENTS_CHAT_PART_CLOSE_ALL_CHATS_COMMAND_ID = 'workbench.action.age
 /** Whether the chat part of the editor window shows. */
 export const AgentsChatPartVisibleContext = new RawContextKey<boolean>('agentsChatPartVisible', false, localize('agentsChatPartVisible', "Whether the chat area beside the editor area shows."));
 
+/** Whether chats open in the chat part of the editor window, which then has its actions (see `registerAgentsChatPartActions`). */
+export const AgentsChatPartEnabledContext = new RawContextKey<boolean>('agentsChatPartEnabled', false, localize('agentsChatPartEnabled', "Whether chats open in the chat area beside the editor area."));
+
+const AGENTS_VIEW_NEW_SESSION_COMMAND_ID = 'workbench.action.agentsView.newSession';
+const inChatPart = ContextKeyExpr.and(ChatContextKeys.enabled, InAgentsChatPartContext);
+
+// The keybindings of the chat part's actions are registered as the window starts, as the keybinding service does not
+// pick up rules registered later; they apply only while its actions are registered, as chats open in it.
+
+// In Agentic Mode (also when scoped to a workspace), as in the Agents window, outside a chat (where New Chat has it) and unless an editor has the focus
+KeybindingsRegistry.registerKeybindingRule({
+	id: AGENTS_VIEW_NEW_SESSION_COMMAND_ID,
+	weight: KeybindingWeight.WorkbenchContrib + 1,
+	when: ContextKeyExpr.and(
+		AgentsChatPartEnabledContext,
+		ChatContextKeys.enabled,
+		ContextKeyExpr.or(WorkbenchScopeContext.isEqualTo('all'), WorkbenchModeContext.isEqualTo('agents')),
+		ChatContextKeys.inChatSession.negate(),
+		ContextKeyExpr.or(EditorAreaFocusContext.negate(), EditorsVisibleContext.negate()),
+	),
+	primary: KeyMod.CtrlCmd | KeyCode.KeyN,
+});
+
+// Closes the active tab of the chat part, as closing an editor does
+KeybindingsRegistry.registerKeybindingRule({
+	id: AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID,
+	weight: KeybindingWeight.WorkbenchContrib + 1,
+	when: ContextKeyExpr.and(AgentsChatPartEnabledContext, inChatPart),
+	primary: KeyMod.CtrlCmd | KeyCode.KeyW,
+	win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KeyW] },
+});
+
 /**
  * Registers the actions of the chat part of an editor window with the Sessions view, until the returned disposable is
  * disposed: a new session or a new chat without a workspace in a tab of its own, and focusing, toggling and closing the
@@ -51,7 +84,7 @@ export function registerAgentsChatPartActions(): IDisposable {
 	store.add(registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.agentsView.newSession',
+				id: AGENTS_VIEW_NEW_SESSION_COMMAND_ID,
 				title: localize2('agentsView.newSession', "New Session"),
 				icon: Codicon.add,
 				category: CHAT_CATEGORY,
@@ -84,7 +117,6 @@ export function registerAgentsChatPartActions(): IDisposable {
 
 	// Closes the chat of a header of the chat part, first in its More Actions, as the Agents window closes the chat of a
 	// session header: the tab of that chat. Its keybinding closes the active tab of the chat part, as closing an editor does.
-	const inChatPart = ContextKeyExpr.and(ChatContextKeys.enabled, InAgentsChatPartContext);
 	store.add(registerAction2(class extends Action2 {
 		constructor() {
 			super({
@@ -92,12 +124,6 @@ export function registerAgentsChatPartActions(): IDisposable {
 				title: localize2('agentsView.closeChat', "Close"),
 				icon: Codicon.close,
 				precondition: ChatContextKeys.enabled,
-				keybinding: {
-					weight: KeybindingWeight.WorkbenchContrib + 1,
-					when: inChatPart,
-					primary: KeyMod.CtrlCmd | KeyCode.KeyW,
-					win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KeyW] },
-				},
 				menu: [
 					{ id: Menus.SessionHeaderContext, group: 'secondary/0_pane', order: 10, when: inChatPart },
 					// Last in its header's toolbar, after More Actions, as a session header closes its chat; where it shows tabs, each

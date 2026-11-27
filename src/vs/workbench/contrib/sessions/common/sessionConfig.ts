@@ -41,6 +41,12 @@ export const SESSIONS_LIST_INBOX_ENABLED_SETTING = 'sessions.list.inboxEnabled';
 
 export const SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING = 'sessions.list.inboxAutoAdvance';
 
+/**
+ * Whether, in the Agents window and in Agentic Mode, the Sessions list shows its workspaces filter in every grouping,
+ * and the workspace picked there scopes the window.
+ */
+export const SESSIONS_LIST_WORKSPACES_FILTER_SETTING = 'sessions.list.workspacesFilter.enabled';
+
 /** When automation sessions automatically also appear in the Sessions list. */
 export const SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING = 'sessions.list.showAutomationSessions';
 

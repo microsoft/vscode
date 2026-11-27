@@ -54,9 +54,12 @@ import { IStorageService } from '../../../../../../platform/storage/common/stora
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IManagedSettingsService, NullManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { EditorWindowChatPartService, IEditorWindowChatPartOptions, IEditorWindowChatPartService } from '../../../browser/agentsView/agentsChatPartContribution.js';
-import { isIMenuItem, MenuRegistry, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
+import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
-import { agentSessionsOrientationSubmenu, SetAgentSessionsOrientationSideBySideAction, SetAgentSessionsOrientationStackedAction } from '../../../../chat/browser/agentSessions/agentSessionsActions.js';
+import { IAgenticModeService } from '../../../../../services/agenticMode/common/agenticMode.js';
+import { agentSessionsOrientationSubmenu, HideAgentSessionsSidebar, SetAgentSessionsOrientationSideBySideAction, SetAgentSessionsOrientationStackedAction, ShowAgentSessionsSidebar, ToggleAgentSessionsSidebar } from '../../../../chat/browser/agentSessions/agentSessionsActions.js';
+import { AgenticModeActive } from '../../../../chat/browser/agentSessions/agenticModeActions.js';
+import { AgentSessionsViewerOrientation } from '../../../../chat/browser/agentSessions/agentSessions.js';
 import { ChatViewOpenInChatPartContribution } from '../../../browser/chatView/chatViewOpenInChatPart.contribution.js';
 import { IEditorWindowSessionsRuntime, IEditorWindowSessionsRuntimeOptions } from '../../../browser/editorWindow/editorWindowSessionsRuntime.js';
 
@@ -90,7 +93,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(options: { remote?: boolean; sessionsWindow?: boolean; setting?: boolean; orientation?: string; chatEnabled?: boolean; agentEnabled?: boolean; chatViewShows?: URI; lateHost?: boolean; partDeclinesNewChat?: boolean; localChatsShown?: boolean; partComposerInput?: string; viewOpenShows?: URI | null; duringNewChat?: () => void; duringReveal?: () => void; partParks?: boolean; chatOpenIn?: string; chatPartEnabledByOther?: boolean } = {}) {
+	function setup(options: { remote?: boolean; sessionsWindow?: boolean; setting?: boolean; orientation?: string; chatEnabled?: boolean; agentEnabled?: boolean; chatViewShows?: URI; lateHost?: boolean; partDeclinesNewChat?: boolean; localChatsShown?: boolean; partComposerInput?: string; viewOpenShows?: URI | null; duringNewChat?: () => void; duringReveal?: () => void; partParks?: boolean; chatOpenIn?: string; chatPartEnabledByOther?: boolean; agenticMode?: boolean } = {}) {
 		const configurationService = new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsOpenChatIn]: options.chatOpenIn ?? openChatIn(options.setting ?? false), [ChatConfiguration.ChatViewSessionsOrientation]: options.orientation ?? 'sideBySide', [ChatConfiguration.AgentEnabled]: options.agentEnabled ?? true });
 		const contextKeyService = store.add(new ContextKeyService(configurationService));
 		ChatContextKeys.enabled.bindTo(contextKeyService).set(options.chatEnabled ?? true);
@@ -233,6 +236,11 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			hideAuxiliaryBarMaximize: () => { maximizeClaims++; return toDisposable(() => maximizeClaims--); },
 		}));
 
+		const agenticModeChanged = store.add(new Emitter<boolean>());
+		let agenticModeActive = !!options.agenticMode;
+		instantiationService.stub(IAgenticModeService, upcastPartial<IAgenticModeService>({ get isActive() { return agenticModeActive; }, onDidChange: agenticModeChanged.event }));
+		const setAgenticMode = (active: boolean) => { agenticModeActive = active; agenticModeChanged.fire(active); };
+
 		store.add(instantiationService.createInstance(ChatViewOpenInChatPartContribution));
 		const state = () => ({
 			anchors: chatPartOptions.map(o => ({ anchorViewId: o.anchorViewId, anchorPriority: o.anchorPriority, enabled: o.enabled.get() })),
@@ -253,7 +261,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			}
 			activeEditorChanged.fire();
 		};
-		return { state, configurationService, contextKeyService, chatPartOptions, sessionsOnly, viewHostsNewChat, viewReason, registered, localChatAvailability, moveChatView, maximizeClaims: () => maximizeClaims, shown, handovers, widgets, setSetting, hostReady, request, partComposer, presenters, editorOpens, bindings, closedEditors, activateChatEditor };
+		return { state, configurationService, contextKeyService, chatPartOptions, sessionsOnly, viewHostsNewChat, viewReason, registered, localChatAvailability, moveChatView, maximizeClaims: () => maximizeClaims, shown, handovers, widgets, setSetting, hostReady, request, partComposer, presenters, editorOpens, bindings, closedEditors, activateChatEditor, setAgenticMode };
 	}
 
 	test('editorArea opens the chats of sessions as editors, revealing one that is open, and does not use the chat part', async () => {
@@ -377,6 +385,21 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			steps.push(chatPartOptions[0].enabled.get());
 		}
 		assert.deepStrictEqual(steps, [true, false, true]);
+	});
+
+	test('in Agentic Mode it is on, with the Chat view showing only its sessions, also while the configured orientation is stacked', () => {
+		const { chatPartOptions, sessionsOnly, setAgenticMode } = setup({ setting: true, orientation: 'stacked' });
+		const state = () => ({ enabled: chatPartOptions[0].enabled.get(), sessionsOnly: sessionsOnly.get() });
+		const steps = [state()];
+		setAgenticMode(true);
+		steps.push(state());
+		setAgenticMode(false);
+		steps.push(state());
+		assert.deepStrictEqual(steps, [
+			{ enabled: false, sessionsOnly: false },
+			{ enabled: true, sessionsOnly: true },
+			{ enabled: false, sessionsOnly: false },
+		]);
 	});
 
 	test('registers nothing in remote and Agents windows', () => {
@@ -504,6 +527,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			stub(IContextKeyService, contextKeyService);
 			stub(IConfigurationService, configurationService);
 			stub(IWorkbenchEnvironmentService, { remoteAuthority: undefined, isSessionsWindow: false });
+			stub(IAgenticModeService, { isActive: false, onDidChange: Event.None });
 			stub(ILifecycleService, { when: () => new Promise<void>(() => { }) });
 			stub(IEditorWindowSessionsRuntime, { enable: () => toDisposable(() => { }) });
 			stub(IEditorWindowSessionsPresenterService, { registerPresenter: () => toDisposable(() => { }), registerComposerHolder: () => toDisposable(() => { }) });
@@ -852,6 +876,40 @@ suite('Sessions orientation submenu', () => {
 			stacked: [['Side by Side', false], ['Stacked', true]],
 			sideBySide: [['Side by Side', true], ['Stacked', false]],
 			legacy: [['Side by Side', false], ['Stacked', false]]
+		});
+	});
+
+	test('hides the orientation submenu and disables the commands that change the sessions layout in Agentic Mode, which ignores it', () => {
+		const actions = [SetAgentSessionsOrientationStackedAction, SetAgentSessionsOrientationSideBySideAction, ShowAgentSessionsSidebar, HideAgentSessionsSidebar, ToggleAgentSessionsSidebar];
+		const registrations = actions.map(action => registerAction2(action));
+		const ids = ['workbench.action.chat.setAgentSessionsOrientationStacked', 'workbench.action.chat.setAgentSessionsOrientationSideBySide', ShowAgentSessionsSidebar.ID, HideAgentSessionsSidebar.ID, ToggleAgentSessionsSidebar.ID];
+		// The orientation commands are only in their submenu, the sidebar commands in the Command Palette
+		const orientationItems = MenuRegistry.getMenuItems(agentSessionsOrientationSubmenu).filter(isIMenuItem);
+		const preconditions = ids.map(id => [id, (orientationItems.find(item => item.command.id === id)?.command ?? MenuRegistry.getCommand(id))?.precondition] as const);
+		registrations.forEach(registration => registration.dispose());
+		const submenu = MenuRegistry.getMenuItems(MenuId.ChatWelcomeContext).find(item => isISubmenuItem(item) && item.submenu === agentSessionsOrientationSubmenu);
+		const available = (agenticMode: boolean) => {
+			// Each command where it otherwise applies: the sidebar shows from stacked and hides from side by side
+			const enabled = Object.fromEntries(preconditions.map(([id, precondition]) => [id, [AgentSessionsViewerOrientation.Stacked, AgentSessionsViewerOrientation.SideBySide].some(orientation => {
+				const service = new ContextKeyService(new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsEnabled]: true }));
+				ChatContextKeys.enabled.bindTo(service).set(true);
+				ChatContextKeys.agentSessionsViewerOrientation.bindTo(service).set(orientation);
+				AgenticModeActive.bindTo(service).set(agenticMode);
+				const result = service.contextMatchesRules(precondition);
+				service.dispose();
+				return result;
+			})]));
+			const service = new ContextKeyService(new TestConfigurationService());
+			AgenticModeActive.bindTo(service).set(agenticMode);
+			const submenuShown = service.contextMatchesRules(submenu?.when);
+			service.dispose();
+			return { submenuShown, enabled };
+		};
+
+		const all = (value: boolean) => Object.fromEntries(ids.map(id => [id, value]));
+		assert.deepStrictEqual({ outside: available(false), agenticMode: available(true) }, {
+			outside: { submenuShown: true, enabled: all(true) },
+			agenticMode: { submenuShown: false, enabled: all(false) },
 		});
 	});
 

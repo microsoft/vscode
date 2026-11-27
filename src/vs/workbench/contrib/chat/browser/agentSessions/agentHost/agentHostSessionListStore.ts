@@ -14,7 +14,7 @@ import type { IAgentHostResourceUriMapper } from '../../../../../../platform/age
 import { ActionType, type IIsArchivedChangedAction, type IIsReadChangedAction, type INotification, type SessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { readSessionMatchesByProjectRoot, readSessionMultiRootMetadata, readSessionWorkspaceless, SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceContextService, type IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
-import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { ILogService, LogLevel } from '../../../../../../platform/log/common/log.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { IObservable, runOnChange } from '../../../../../../base/common/observable.js';
 import { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -125,6 +125,11 @@ export class AgentHostSessionListStore extends Disposable {
 			 * Sessions list shows those.
 			 */
 			readonly matchProjectRoot?: IObservable<boolean>;
+			/**
+			 * Lists every session, as `filterToWorkspace: false` does, while true, such as in Agentic Mode, whose
+			 * folders are only those of the shown session.
+			 */
+			readonly listAllSessions?: IObservable<boolean>;
 		} = {},
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@ILogService private readonly _logService: ILogService,
@@ -134,15 +139,23 @@ export class AgentHostSessionListStore extends Disposable {
 
 		this._register(this._connection.onDidNotification(n => this._onNotification(n)));
 
-		// Matching by project narrows the list as it turns off, and widens it as it turns on, which only the host's list supplies
+		// Matching by project, or listing every session, narrows the list as it turns off, and widens it as it turns on,
+		// which only the host's list supplies
+		const onDidChangeFilter = () => {
+			if (this._options.filterToWorkspace === false) {
+				return;
+			}
+			this._cacheValid = false;
+			this._filterEntriesToWorkspace();
+			void this.refresh(CancellationToken.None);
+		};
 		if (this._options.matchProjectRoot) {
-			this._register(runOnChange(this._options.matchProjectRoot, () => {
-				if (this._options.filterToWorkspace === false) {
-					return;
-				}
-				this._cacheValid = false;
-				this._filterEntriesToWorkspace();
-				void this.refresh(CancellationToken.None);
+			this._register(runOnChange(this._options.matchProjectRoot, onDidChangeFilter));
+		}
+		if (this._options.listAllSessions) {
+			this._register(runOnChange(this._options.listAllSessions, listAllSessions => {
+				this._logService.trace(`[AgentHostSessionList] listAllSessions: ${listAllSessions}`);
+				onDidChangeFilter();
 			}));
 		}
 
@@ -373,13 +386,19 @@ export class AgentHostSessionListStore extends Disposable {
 		}
 
 		const nextEntries: IAgentHostSessionListEntry[] = [];
+		let outsideWorkspace = 0;
 		for (const session of sessions) {
 			const entry = this._makeEntryFromMetadata(session);
 			if (entry) {
 				if (this._isSessionInWorkspace(entry)) {
 					nextEntries.push(entry);
+				} else {
+					outsideWorkspace++;
 				}
 			}
+		}
+		if (this._logService.getLevel() <= LogLevel.Trace) {
+			this._logService.trace(`[AgentHostSessionList] refreshed ${sessions.length} sessions, ${outsideWorkspace} outside the workspace (listAllSessions: ${!!this._options.listAllSessions?.get()})`);
 		}
 
 		this._entries.clear();
@@ -542,7 +561,7 @@ export class AgentHostSessionListStore extends Disposable {
 
 	/** Uses workspace-file provenance for multi-root workspaces and path containment otherwise. */
 	private _isSessionInWorkspace(entry: IAgentHostSessionListEntry): boolean {
-		if (this._options.filterToWorkspace === false) {
+		if (this._options.filterToWorkspace === false || this._options.listAllSessions?.get()) {
 			return true;
 		}
 		const inWorkspace = this._computeSessionInWorkspace(entry) || this._matchesProjectRoot(entry.summary);

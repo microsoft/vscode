@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, WorkbenchMode } from '../../../../../platform/workspace/common/workspace.js';
 import { IChatWindowComposerInit } from '../chatEditor/chatWindowComposer.js';
 
 /** The folders new-session composers create sessions in, besides the folder each aims at, and how they show them. */
@@ -34,7 +35,8 @@ export const IEditorWindowComposerFoldersService = createDecorator<IEditorWindow
 
 /**
  * The folders that the new-session composers of an editor window offer, such as those of the chat part and of the Chat
- * view's sessions: the window's folders, unless a feature offers others, such as the worktrees of the window's folder.
+ * view's sessions: the window's folders, unless a feature offers others, such as the worktrees of the window's folder. While
+ * the window is about all sessions (Agentic Mode), none: its composers create sessions anywhere, as the Agents window's do.
  * Reading them shows nothing, unlike the chat part, whose creation shows its chat as the window's.
  */
 export interface IEditorWindowComposerFoldersService {
@@ -82,10 +84,22 @@ export class EditorWindowComposerFoldersService implements IEditorWindowComposer
 
 	constructor(@IWorkspaceContextService workspaceContextService: IWorkspaceContextService) {
 		const windowFolders = observableFromEvent(this, workspaceContextService.onDidChangeWorkspaceFolders, () => workspaceContextService.getWorkspace().folders.map(folder => folder.uri));
+		const scope = observableFromEvent(this, workspaceContextService.onDidChangeWorkbenchScope, () => workspaceContextService.getWorkbenchScope());
+		const agentsMode = observableFromEvent(this, workspaceContextService.onDidChangeWorkbenchMode, () => workspaceContextService.getWorkbenchMode() === WorkbenchMode.Agents);
 		this._providedOptions = derived(this, reader => this._providers.read(reader).at(-1)?.provider());
 		this._options = {
 			// A provider without folders lets its composers create sessions anywhere, as a window without folders does
 			allowedFolders: derived(this, reader => {
+				const scopeUri = scope.read(reader);
+				// In the Agents mode the window's folders follow the focused session: new sessions start in the workspace the
+				// window is scoped to, if it is a local folder; a remote or cloud workspace is not one this window can start in
+				if (agentsMode.read(reader)) {
+					return scopeUri?.scheme === Schemas.file ? [scopeUri] : [];
+				}
+				// The window's folder follows the focused session then, which is no folder to keep new sessions in
+				if (!scopeUri) {
+					return [];
+				}
 				const provided = this._providedOptions.read(reader);
 				return provided ? provided.allowedFolders?.read(reader) ?? [] : windowFolders.read(reader);
 			}),

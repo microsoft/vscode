@@ -5,20 +5,22 @@
 
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, IReader, observableSignalFromEvent } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, IReader, observableFromEvent, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { getComparisonKey, IExtUri } from '../../../../../base/common/resources.js';
 import { isObject } from '../../../../../base/common/types.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { getSessionWorktreeFolder, getWorktreeFilterKey, getWorktreeFilterOptions, getWorktreeSessionToOpen, ISessionWorktreeFolder, IWorktreeFilterSession, WorktreeLastSessions } from '../../../chat/common/sessionWorktreeFolders.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
+import { IWorkspaceContextService, WorkbenchMode } from '../../../../../platform/workspace/common/workspace.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { getKnownSessionApplicationIdOrOther, getSessionApplication, UNKNOWN_SESSION_APPLICATION_ID } from '../../../../services/sessions/common/sessionApplication.js';
 import { ISession, ISessionEnvironment } from '../../../../services/sessions/common/session.js';
 import { isAgentHostProvider } from '../../common/agentHostSessionsProvider.js';
-import { AutomationSessionsListMode, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../../common/sessionConfig.js';
+import { AutomationSessionsListMode, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SESSIONS_LIST_WORKSPACES_FILTER_SETTING } from '../../common/sessionConfig.js';
 import { ISessionsProvider } from '../../common/sessionsProvider.js';
 import { getSessionsTelemetryEnvironmentId } from '../../common/sessionsTelemetry.js';
 
@@ -57,15 +59,23 @@ export function getInboxWorkspaceFilter(session: ISession, reader?: IReader): II
 	};
 }
 
-export function getInboxWorkspaceOptions(sessions: readonly ISession[], environment?: string, reader?: IReader): IInboxWorkspaceFilter[] {
+function compareInboxWorkspaces(a: IInboxWorkspaceFilter, b: IInboxWorkspaceFilter): number {
+	return a.label.localeCompare(b.label) || a.resource.localeCompare(b.resource) || a.environment.localeCompare(b.environment);
+}
+
+/**
+ * The workspaces of `sessions` (in `environment`, when given), one per workspace as `extUri` compares them,
+ * so the same folder spelled with different casing on a case-insensitive file system is listed once.
+ */
+export function getInboxWorkspaceOptions(sessions: readonly ISession[], extUri: IExtUri, environment?: string, reader?: IReader): IInboxWorkspaceFilter[] {
 	const options = new Map<string, IInboxWorkspaceFilter>();
 	for (const session of sessions) {
 		const workspace = getInboxWorkspaceFilter(session, reader);
 		if (workspace && (environment === undefined || workspace.environment === environment)) {
-			options.set(JSON.stringify([workspace.environment, workspace.resource]), workspace);
+			options.set(JSON.stringify([workspace.environment, extUri.getComparisonKey(URI.parse(workspace.resource))]), workspace);
 		}
 	}
-	return [...options.values()].sort((a, b) => a.label.localeCompare(b.label) || a.resource.localeCompare(b.resource) || a.environment.localeCompare(b.environment));
+	return [...options.values()].sort(compareInboxWorkspaces);
 }
 
 function isInboxScope(value: unknown): value is IInboxScope {
@@ -116,17 +126,36 @@ export function getSessionWorktreeFilterFolder(session: Pick<ISession, 'workspac
 
 /**
  * Whether a window's Sessions list lists quick chats, which have no workspace: always while the window is about all sessions
- * (it has no {@link IWorkspaceContextService.getWorkbenchScope scope}), as the Agents window is, and otherwise only while it has no folder, following its folders and
- * scope as they change.
+ * (it has no {@link IWorkspaceContextService.getWorkbenchScope scope}) or in the Agents mode, as the Agents window is, whose
+ * folders follow the focused session, and otherwise only while it has no folder, following its folders, scope and mode as
+ * they change.
  */
 export function listsQuickChatsIn(workspaceContextService: IWorkspaceContextService): IObservable<boolean> {
 	const foldersChanged = observableSignalFromEvent('workspaceFolders', workspaceContextService.onDidChangeWorkspaceFolders);
 	const scopeChanged = observableSignalFromEvent('workbenchScope', workspaceContextService.onDidChangeWorkbenchScope);
+	const modeChanged = observableSignalFromEvent('workbenchMode', workspaceContextService.onDidChangeWorkbenchMode);
 	return derived(reader => {
 		foldersChanged.read(reader);
 		scopeChanged.read(reader);
-		return !workspaceContextService.getWorkbenchScope() || workspaceContextService.getWorkspace().folders.length === 0;
+		modeChanged.read(reader);
+		return !workspaceContextService.getWorkbenchScope()
+			|| workspaceContextService.getWorkbenchMode() === WorkbenchMode.Agents
+			|| workspaceContextService.getWorkspace().folders.length === 0;
 	});
+}
+
+/** The environment of the sessions of this computer, whose workspaces are its local folders. */
+export const LOCAL_SESSIONS_ENVIRONMENT = 'local';
+
+/**
+ * Whether the Sessions list shows its workspaces filter in every grouping, whose workspace scopes the window
+ * (see `ISessionsWorkbenchScopeService`): with {@link SESSIONS_LIST_WORKSPACES_FILTER_SETTING} on, and only while the window is in the
+ * Agents mode, as the Agents window and an editor window in Agentic Mode are, whose folders follow the focused session.
+ */
+export function createWorkspaceScopeBarEnabled(owner: object, workspaceContextService: IWorkspaceContextService, configurationService: IConfigurationService): IObservable<boolean> {
+	const enabled = observableConfigValue<boolean>(SESSIONS_LIST_WORKSPACES_FILTER_SETTING, false, configurationService);
+	const agentsMode = observableFromEvent(owner, workspaceContextService.onDidChangeWorkbenchMode, () => workspaceContextService.getWorkbenchMode() === WorkbenchMode.Agents);
+	return derived(owner, reader => enabled.read(reader) && agentsMode.read(reader));
 }
 
 /** Orders environments as the Environment filter lists them: this computer, the cloud, then remote hosts by name. */
@@ -332,19 +361,54 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 			}
 		}
 		this._worktree = storageService.get(SessionsListFilters.WORKTREE_STORAGE_KEY, StorageScope.PROFILE) || undefined;
-		const scope = storageService.get(SessionsListFilters.INBOX_SCOPE_STORAGE_KEY, StorageScope.PROFILE);
+		this._inboxScope = this.readInboxScope(logService);
+		// Lists of this window show the same scope, which scopes the window with its scope bar; each window keeps its own pick
+		this._register(storageService.onDidChangeValue(StorageScope.WORKSPACE, SessionsListFilters.INBOX_SCOPE_STORAGE_KEY, this._store)(e => {
+			if (e.external) {
+				return;
+			}
+			const inboxScope = this.readInboxScope(logService);
+			if (JSON.stringify(inboxScope) !== JSON.stringify(this._inboxScope)) {
+				this._inboxScope = inboxScope;
+				this._onDidChange.fire();
+			}
+		}));
+		this.migrateShowAutomationRuns(configurationService, logService);
+	}
+
+	private readInboxScope(logService: ILogService): IInboxScope {
+		return SessionsListFilters.readStoredInboxScope(this.storageService, logService);
+	}
+
+	/**
+	 * Picks `workspace` in the workspace scope bar of every Sessions list of this window, as if the user picked it in one of
+	 * them, keeping the picked environment unless the workspace is in another. `undefined` picks All Workspaces.
+	 */
+	static storeInboxWorkspace(storageService: IStorageService, logService: ILogService, workspace: IInboxWorkspaceFilter | undefined): void {
+		const stored = SessionsListFilters.readStoredInboxScope(storageService, logService);
+		const environment = workspace && stored.environment?.id !== workspace.environment ? undefined : stored.environment;
+		const scope: IInboxScope = { environment, workspace };
+		if (scope.workspace !== undefined || scope.environment !== undefined) {
+			storageService.store(SessionsListFilters.INBOX_SCOPE_STORAGE_KEY, JSON.stringify(scope), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		} else {
+			storageService.remove(SessionsListFilters.INBOX_SCOPE_STORAGE_KEY, StorageScope.WORKSPACE);
+		}
+	}
+
+	private static readStoredInboxScope(storageService: IStorageService, logService: ILogService): IInboxScope {
+		const scope = storageService.get(SessionsListFilters.INBOX_SCOPE_STORAGE_KEY, StorageScope.WORKSPACE);
 		if (scope !== undefined) {
 			try {
 				const value: unknown = JSON.parse(scope);
 				if (!isInboxScope(value)) {
 					throw new Error('Invalid Inbox scope.');
 				}
-				this._inboxScope = value;
+				return value;
 			} catch (error) {
 				logService.warn('Unable to restore Inbox scope.', error);
 			}
 		}
-		this.migrateShowAutomationRuns(configurationService, logService);
+		return {};
 	}
 
 	/** Moves the retired filter's choice to the setting it duplicated. It is kept for a later retry until the setting lists every run or the user changes it, so a retry never overwrites their choice. */
@@ -433,6 +497,11 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 		this.save();
 	}
 
+	setInboxScope(scope: IInboxScope): void {
+		this._inboxScope = scope;
+		this.save();
+	}
+
 	setInboxEnvironment(environment: IInboxScope['environment']): boolean {
 		const workspace = this._inboxScope.workspace;
 		const resetWorkspace = !!environment && !!workspace && workspace !== 'none' && workspace.environment !== environment.id;
@@ -451,9 +520,41 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 		}
 		if (workspace) {
 			const candidate = getInboxWorkspaceFilter(session);
-			return candidate?.environment === workspace.environment && candidate.resource === workspace.resource;
+			return !!candidate && this.isSameInboxWorkspace(candidate, workspace);
 		}
 		return true;
+	}
+
+	/**
+	 * Whether two workspace picks are the same workspace: the same environment, and resources that are equal the way
+	 * their file system compares paths, so a window opened as `…/REPO` matches the sessions of `…/repo` where paths
+	 * ignore case. The stored keys stay as they are.
+	 */
+	isSameInboxWorkspace(a: Pick<IInboxWorkspaceFilter, 'environment' | 'resource'>, b: Pick<IInboxWorkspaceFilter, 'environment' | 'resource'>): boolean {
+		return a.environment === b.environment
+			&& (a.resource === b.resource || this.uriIdentityService.extUri.isEqual(URI.parse(a.resource), URI.parse(b.resource)));
+	}
+
+	/**
+	 * The scope bar's label for the picked `workspace`: that of the offered option, else the label stored with the pick,
+	 * so a workspace that has no sessions yet shows its own name. `undefined` when it is not offered and its environment
+	 * is missing or disconnected, which the bar shows as unavailable.
+	 */
+	getInboxWorkspaceLabel(workspace: IInboxWorkspaceFilter, options: readonly IInboxWorkspaceFilter[], environmentAvailable: boolean): string | undefined {
+		return options.find(option => this.isSameInboxWorkspace(option, workspace))?.label
+			?? (environmentAvailable ? workspace.label : undefined);
+	}
+
+	/**
+	 * The workspaces the scope bar offers: the `options` of the listed sessions ({@link getInboxWorkspaceOptions}), and the
+	 * `windowWorkspaces` in `environment` that have no sessions yet, sorted by label.
+	 */
+	withWindowWorkspaces(options: readonly IInboxWorkspaceFilter[], windowWorkspaces: readonly IInboxWorkspaceFilter[], environment: string | undefined): IInboxWorkspaceFilter[] {
+		const added = windowWorkspaces.filter(workspace => (environment === undefined || workspace.environment === environment)
+			&& !options.some(option => this.isSameInboxWorkspace(option, workspace)));
+		return added.length
+			? [...options, ...added].sort(compareInboxWorkspaces)
+			: [...options];
 	}
 
 	/**
@@ -495,9 +596,9 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 
 	private save(): void {
 		if (this.hasInboxScope) {
-			this.storageService.store(SessionsListFilters.INBOX_SCOPE_STORAGE_KEY, JSON.stringify(this._inboxScope), StorageScope.PROFILE, StorageTarget.MACHINE);
+			this.storageService.store(SessionsListFilters.INBOX_SCOPE_STORAGE_KEY, JSON.stringify(this._inboxScope), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		} else {
-			this.storageService.remove(SessionsListFilters.INBOX_SCOPE_STORAGE_KEY, StorageScope.PROFILE);
+			this.storageService.remove(SessionsListFilters.INBOX_SCOPE_STORAGE_KEY, StorageScope.WORKSPACE);
 		}
 		if (this._worktree === undefined) {
 			this.storageService.remove(SessionsListFilters.WORKTREE_STORAGE_KEY, StorageScope.PROFILE);

@@ -29,6 +29,7 @@ import { INotificationService } from '../../../../../../platform/notification/co
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IAgenticModeService } from '../../../../../services/agenticMode/common/agenticMode.js';
 import { logSettingExperimentTrigger } from '../../../../../../platform/telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IResolvedFolderLocation, IWorkspaceFolderLocationService } from '../../../../../../platform/workspace/common/folderLocations.js';
@@ -160,6 +161,7 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 		@ILogService private readonly _logService: ILogService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IAgenticModeService private readonly _agenticModeService: IAgenticModeService,
 	) {
 		super();
 		this._readLastSessions();
@@ -471,6 +473,11 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 
 	/** Moves the folder to where the shown chat works: on the user's behalf, or on its own (`automatic`). */
 	private _follow(shown: IShownChat, automatic: boolean): void {
+		// In Agentic Mode the window mounts the folder of the chat shown itself
+		if (this._agenticModeService.isActive) {
+			this._trace(`not followed: the window is in Agentic Mode`);
+			return;
+		}
 		const folder = this._workspaceContextService.getWorkspace().folders[0];
 		const primary = this._workspaceContextService.getWorkspace().uri;
 		if (!folder || !primary || !this._folderLocationService.canSetLocation(folder)) {
@@ -526,6 +533,10 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 	 * Location picker, which offer the worktrees.
 	 */
 	private _logTrigger(): void {
+		if (this._agenticModeService.isActive) {
+			// Agentic Mode changes the setting's default, so the window is not in the experiment's population
+			return;
+		}
 		const folder = this._workspaceContextService.getWorkspace().folders[0];
 		if (folder && this._folderLocationService.canSetLocation(folder) && this._contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key)) {
 			logSettingExperimentTrigger(this._telemetryService, ChatConfiguration.EditorWindowEnableWorktree);
@@ -834,6 +845,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: false,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
+			agenticMode: { default: true },
 			markdownDescription: localize('chat.editorWindow.enableWorktree', "Controls whether a window with a single local folder moves that folder to the worktree that the chat you open works in, such as a worktree its agent created, and back to the folder's own location for a local chat."),
 		},
 	},

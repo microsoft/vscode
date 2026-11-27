@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { InstantiationType } from '../../../../../platform/instantiation/common/extensions.js';
-import { registerWorkbenchContribution2 } from '../../../../common/contributions.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { EditorWindowWorktreeCleanup } from './editorWindowWorktreeCleanup.js';
+import { AgenticModeSessionsScopeContribution } from '../views/sessionsWorkbenchScope.js';
 import { registerEditorWindowSessionsSingleton } from './editorWindowSessionsServices.js';
 import { ChatHostOpenerService, IChatHostOpenerService } from '../../../../services/sessions/browser/chatHostOpener.js';
 import { ISessionsHostLayoutService } from '../../../../services/sessions/browser/sessionsHostLayoutService.js';
@@ -80,10 +81,16 @@ import { AgentsChatPartFrame, IAgentsChatPartFrame } from '../agentsView/agentsC
 import { AgentsChatPartService, IAgentsChatPartService } from '../agentsView/agentsChatPart.js';
 import { EditorWindowChatPartService, IEditorWindowChatPartService } from '../agentsView/agentsChatPartContribution.js';
 import { EditorWindowComposerFoldersService, IEditorWindowComposerFoldersService } from './editorWindowComposerFolders.js';
+import { WorkspaceFolderManagementContribution } from '../workspaceFolderManagement.js';
+import { SessionsWorkspaceFolderLabelService } from '../sessionsWorkspaceFolderLabelService.js';
+import { IWorkspaceFolderLabelService } from '../../../../services/workspaces/common/workspaceFolderLabelService.js';
 
 // The sessions services of an editor window, for the sessions features it can host. Every one is created only as it is
 // first used, and nothing in the window uses them until such a feature does.
 registerWorkbenchContribution2(EditorWindowWorktreeCleanup.ID, EditorWindowWorktreeCleanup, { editorTypeId: SessionWorktreeCleanupEditor.ID });
+// Mounts the focused chat's folders while the window is in Agentic Mode; does nothing in other editor windows
+registerWorkbenchContribution2(WorkspaceFolderManagementContribution.ID, WorkspaceFolderManagementContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AgenticModeSessionsScopeContribution.ID, AgenticModeSessionsScopeContribution, WorkbenchPhase.BlockRestore);
 registerEditorWindowSessionsSingleton(ISessionsHostLayoutService, EditorWindowSessionsHostLayout, InstantiationType.Delayed);
 registerEditorWindowSessionsSingleton(ISessionsProvidersService, EditorWindowSessionsProvidersService, InstantiationType.Delayed);
 registerEditorWindowSessionsSingleton(ISessionsManagementService, SessionsManagementService, InstantiationType.Delayed);
@@ -112,6 +119,8 @@ registerEditorWindowSessionsSingleton(ISessionsChatBackgroundService, SessionsCh
 registerEditorWindowSessionsSingleton(INewSessionComposerService, NewSessionComposerService, InstantiationType.Delayed);
 registerEditorWindowSessionsSingleton(ISessionActivityBarActivityService, SessionActivityBarActivityService, InstantiationType.Delayed);
 registerEditorWindowSessionsSingleton(IDiffEditorOptionsService, DiffEditorOptionsService, InstantiationType.Delayed);
+// Labels the folders that Agentic Mode mounts as the Agents window does; other editor windows keep the default labels
+registerEditorWindowSessionsSingleton(IWorkspaceFolderLabelService, SessionsWorkspaceFolderLabelService, InstantiationType.Delayed);
 
 // The sessions UI that a feature hosts in an editor window, such as a sessions list or the chat part: its hosts, its
 // composers' drafts and scheduled requests, and the changes of its sessions, as the Agents window has them

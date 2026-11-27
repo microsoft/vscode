@@ -10,8 +10,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { hasWorkspaceFileExtension, isUntitledWorkspace, isWorkspaceIdentifier, IWorkspaceContextService, toWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 import { IJSONEditingService } from '../../configuration/common/jsonEditing.js';
 import { IWorkspacesService } from '../../../../platform/workspaces/common/workspaces.js';
-import { WorkspaceService } from '../../configuration/browser/configurationService.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IAgenticModeService } from '../../agenticMode/common/agenticMode.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
 import { IWorkingCopyBackupService } from '../../workingCopy/common/workingCopyBackup.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -31,7 +31,7 @@ import { isMacintosh } from '../../../../base/common/platform.js';
 import { WorkingCopyBackupService } from '../../workingCopy/common/workingCopyBackupService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
-import { IWorkbenchConfigurationService } from '../../configuration/common/configuration.js';
+import { IEditableWorkspaceContextService, IWorkbenchConfigurationService } from '../../configuration/common/configuration.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
@@ -41,7 +41,7 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 
 	constructor(
 		@IJSONEditingService jsonEditingService: IJSONEditingService,
-		@IWorkspaceContextService contextService: WorkspaceService,
+		@IWorkspaceContextService contextService: IEditableWorkspaceContextService,
 		@INativeHostService private nativeHostService: INativeHostService,
 		@IWorkbenchConfigurationService configurationService: IWorkbenchConfigurationService,
 		@IStorageService private storageService: IStorageService,
@@ -65,6 +65,7 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 		@ILogService logService: ILogService,
 		@IWorkspaceFolderLocationService workspaceFolderLocationService: IWorkspaceFolderLocationService,
 		@IWorkspaceTrustEnablementService workspaceTrustEnablementService: IWorkspaceTrustEnablementService,
+		@IAgenticModeService private readonly agenticModeService: IAgenticModeService,
 	) {
 		super(jsonEditingService, contextService, configurationService, notificationService, commandService, fileService, textFileService, workspacesService, environmentService, fileDialogService, dialogService, hostService, uriIdentityService, workspaceTrustManagementService, userDataProfilesService, userDataProfileService, logService, workspaceFolderLocationService, workspaceTrustEnablementService);
 
@@ -178,6 +179,12 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 		return true; // OK
 	}
 
+	private async leaveAgenticMode(): Promise<void> {
+		if (this.agenticModeService.isActive) {
+			await this.agenticModeService.setActive(false);
+		}
+	}
+
 	async enterWorkspace(workspaceUri: URI): Promise<void> {
 		const stopped = await this.extensionService.stopExtensionHosts(localize('restartExtensionHost.reason', "Opening a multi-root workspace"));
 		if (!stopped) {
@@ -185,6 +192,9 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 		}
 
 		try {
+			// The window serves the empty workspace again before it enters the new one
+			await this.leaveAgenticMode();
+
 			const oldWorkspace = toWorkspaceIdentifier(this.contextService.getWorkspace());
 			const enterWorkspace = async () => {
 				const result = await this.doEnterWorkspace(workspaceUri);

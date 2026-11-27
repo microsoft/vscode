@@ -24,6 +24,7 @@ import { SettingsTarget } from '../../browser/preferencesWidgets.js';
 import { AbstractSettingRenderer, ISettingChangeEvent, SettingTreeRenderers } from '../../browser/settingsTree.js';
 import { SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from '../../browser/settingsTreeModels.js';
 import { ExperimentalSettingsService, IExperimentalSettingsService } from '../../../../services/configuration/common/experimentalSettings.js';
+import { IAgenticModeService } from '../../../../services/agenticMode/common/agenticMode.js';
 import { APPLY_ALL_PROFILES_SETTING } from '../../../../services/configuration/common/configuration.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -105,6 +106,7 @@ function createSettingElement(deprecationMessageSeverity: 'warning' | 'info'): S
 		{ currentProfile: { isDefault: true } } as never,
 		new TestConfigurationService() as unknown as never,
 		false,
+		{ isActive: false } as IAgenticModeService,
 		new class extends mock<IExperimentalSettingsService>() { override hasAssignment() { return false; } }(),
 		new class extends mock<IManagedSettingsPresentationService>() { override getValue() { return undefined; } }(),
 	);

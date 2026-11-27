@@ -22,6 +22,7 @@ import { IWorkspaceFolderLocationService } from '../../../../../platform/workspa
 import { IWorkspaceContextService, Workspace, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { EditorExtensions, EditorsOrder, IEditorFactoryRegistry } from '../../../../common/editor.js';
 import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
+import { IAgenticModeService } from '../../../../services/agenticMode/common/agenticMode.js';
 import { IAuxiliaryWindowService } from '../../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { EditorService } from '../../../../services/editor/browser/editorService.js';
 import { IEditorGroupsService, IEditorWorkingSet } from '../../../../services/editor/common/editorGroupsService.js';
@@ -65,15 +66,19 @@ suite('FolderLocationWorkingSetsContribution', () => {
 		}
 	}
 
-	function createFixture(options?: { area?: EditorArea; storage?: InMemoryStorageService; folder?: URI; otherFolders?: URI[]; whenRestored?: Promise<void> }) {
+	function createFixture(options?: { area?: EditorArea; storage?: InMemoryStorageService; folder?: URI; otherFolders?: URI[]; whenRestored?: Promise<void>; agenticMode?: boolean }) {
 		const errors: string[] = [];
 		const infos: string[] = [];
 		const onDidChangeCurrentLocation = ds.add(new Emitter<{ readonly reason: 'user' | 'programmatic' }>());
 		const onDidChangeDirty = ds.add(new Emitter<{ resource: URI }>());
 		const storage = options?.storage ?? ds.add(new InMemoryStorageService());
 		const area = options?.area ?? new EditorArea();
-		let folderUri = options?.folder ?? primary;
+		let folderUri: URI | undefined = options?.folder ?? primary;
+		let mountedAt: URI | undefined = folderUri;
 		const otherFolders = options?.otherFolders ?? [];
+		const onDidChangeWorkspaceFolders = ds.add(new Emitter<void>());
+		const onDidChangeAgenticMode = ds.add(new Emitter<boolean>());
+		const agenticMode: { isActive: boolean; onDidChange: Event<boolean> } = { isActive: !!options?.agenticMode, onDidChange: onDidChangeAgenticMode.event };
 
 		const editorGroupsService = {
 			whenRestored: options?.whenRestored ?? Promise.resolve(),
@@ -103,20 +108,32 @@ suite('FolderLocationWorkingSetsContribution', () => {
 		} as unknown as IEditorGroupsService;
 
 		const contribution = ds.add(new FolderLocationWorkingSetsContribution(
-			{ onDidChangeLocation: onDidChangeCurrentLocation.event, onDidChangeCanSetLocation: Event.None, canSetLocation: () => otherFolders.length === 0 } as unknown as IWorkspaceFolderLocationService,
-			{ getWorkspace: () => new Workspace('id', [folderUri, ...otherFolders].map((uri, index) => new WorkspaceFolder({ uri, name: `folder-${index}`, index })), false, null, () => false) } as unknown as IWorkspaceContextService,
+			{ onDidChangeLocation: onDidChangeCurrentLocation.event, onDidChangeCanSetLocation: Event.None, canSetLocation: () => !agenticMode.isActive && otherFolders.length === 0 } as unknown as IWorkspaceFolderLocationService,
+			{
+				getWorkspace: () => new Workspace('id', [...(folderUri ? [folderUri] : []), ...otherFolders].map((uri, index) => new WorkspaceFolder({ uri, name: `folder-${index}`, index })), false, null, () => false),
+				onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
+				// Like the Agents workspace: only in Agentic Mode does a mounted folder remember the location it was mounted at
+				getFolderPrimaryLocation: (uri: URI) => agenticMode.isActive && extUriIgnorePathCase.isEqual(uri, folderUri) ? mountedAt : undefined
+			} as unknown as IWorkspaceContextService,
 			editorGroupsService,
 			storage as unknown as IStorageService,
 			{ asCanonicalUri: (uri: URI) => uri, extUri: extUriIgnorePathCase } as unknown as IUriIdentityService,
 			{ error: (message: string) => errors.push(message), info: (message: string) => infos.push(message), trace: () => { } } as unknown as ILogService,
 			{ getBackups: async () => { await area.backupsGate; return area.backups; } } as unknown as IWorkingCopyBackupService,
 			{ onDidChangeDirty: onDidChangeDirty.event, onDidUnregister: Event.None } as unknown as IWorkingCopyService,
-			{ onDidEditorsChange: Event.None } as unknown as IEditorService
+			{ onDidEditorsChange: Event.None } as unknown as IEditorService,
+			agenticMode as IAgenticModeService
 		));
 
 		return {
 			area, errors, infos, storage, contribution,
 			switchTo(uri: URI, reason: 'user' | 'programmatic' = 'programmatic') { folderUri = uri; onDidChangeCurrentLocation.fire({ reason }); },
+			/** Agentic Mode: enters or leaves the mode, which mounts `folder` (or the window's own folder when leaving); `null` mounts none. */
+			setAgenticMode(active: boolean, folder: URI | null = folderUri ?? null) { agenticMode.isActive = active; folderUri = folder ?? undefined; mountedAt = folder ?? undefined; onDidChangeWorkspaceFolders.fire(); onDidChangeAgenticMode.fire(active); },
+			/** Agentic Mode: moves the mounted folder in place to another location of it, as the mode does for a worktree session. */
+			moveTo(uri: URI) { folderUri = uri; onDidChangeWorkspaceFolders.fire(); },
+			/** Agentic Mode: replaces the mounted folder with a folder of another repository. */
+			mount(uri: URI) { folderUri = uri; mountedAt = uri; onDidChangeWorkspaceFolders.fire(); },
 			restoreBackup(resource: URI) { area.editors = area.editors.map(editor => editor.resource.toString() === resource.toString() ? { ...editor, dirty: true } : editor); onDidChangeDirty.fire({ resource }); },
 			holdApply() { let release!: () => void; area.gate = new Promise<void>(resolve => release = resolve); return () => { area.gate = undefined; release(); }; },
 			stored() { return JSON.parse(storage.get(FOLDER_LOCATION_WORKING_SETS_STORAGE_KEY, StorageScope.WORKSPACE)!); }
@@ -562,6 +579,170 @@ suite('FolderLocationWorkingSetsContribution', () => {
 			partial: undefined
 		});
 	});
+
+	suite('in Agentic Mode', () => {
+
+		const worktree = URI.file('/work/project.worktrees/session');
+		const w = worktree.toString();
+
+		test('moving the mounted folder to a worktree and back swaps the editors of each location, and a first visit starts empty', async () => {
+			const fixture = createFixture({ folder: URI.file('/work/editor-window') });
+			fixture.area.content = 'E';
+			fixture.setAgenticMode(true, primary);
+			await settle();
+			const afterEnter = fixture.area.content;
+			fixture.area.content = 'P1';
+
+			fixture.moveTo(worktree);
+			await settle();
+			const firstVisit = fixture.area.content;
+			fixture.area.content = 'W1';
+			fixture.moveTo(primary);
+			await settle();
+			const backAtPrimary = fixture.area.content;
+			fixture.moveTo(worktree);
+			await settle();
+
+			assert.deepStrictEqual({ afterEnter, firstVisit, backAtPrimary, backAtWorktree: fixture.area.content, owner: fixture.stored().owner, saved: fixture.area.saved() }, {
+				afterEnter: 'E',
+				firstVisit: '',
+				backAtPrimary: 'P1',
+				backAtWorktree: 'W1',
+				owner: w,
+				saved: { [prefix + 'window']: 'E', [prefix + w]: 'W1', [prefix + p]: 'P1' }
+			});
+		});
+
+		test('entering the mode and mounting a folder of another repository keep the open editors, and leaving the mode restores the editors from before the mode', async () => {
+			const fixture = createFixture({ folder: URI.file('/work/editor-window') });
+			fixture.area.content = 'E';
+			fixture.setAgenticMode(true, primary);
+			await settle();
+			fixture.mount(URI.file('/work/other-repository'));
+			await settle();
+			const afterReplace = fixture.area.content;
+			fixture.moveTo(URI.file('/work/other-repository.worktrees/session'));
+			await settle();
+			const afterMove = fixture.area.content;
+			fixture.area.content = 'O';
+			fixture.setAgenticMode(false, URI.file('/work/editor-window'));
+			await settle();
+
+			assert.deepStrictEqual({ afterReplace, afterMove, afterLeave: fixture.area.content, owner: fixture.stored().owner, window: fixture.stored().window, saved: fixture.area.saved() }, {
+				afterReplace: 'E',
+				afterMove: '',
+				afterLeave: 'E',
+				owner: URI.file('/work/editor-window').toString(),
+				window: undefined,
+				saved: { [prefix + URI.file('/work/other-repository').toString()]: 'E', [prefix + URI.file('/work/other-repository.worktrees/session').toString()]: 'O' }
+			});
+		});
+
+		test('the editors of the mode without a mounted folder are saved when it is left and come back when it is entered without a folder again', async () => {
+			const window = URI.file('/work/editor-window');
+			const fixture = createFixture({ folder: window });
+			fixture.area.content = 'E1';
+			fixture.setAgenticMode(true, null);
+			await settle();
+			const afterFirstEnter = fixture.area.content;
+			fixture.area.content = 'N1';
+			fixture.setAgenticMode(false, window);
+			await settle();
+			const afterFirstLeave = fixture.area.content;
+			fixture.area.content = 'E2';
+			fixture.setAgenticMode(true, null);
+			await settle();
+			const afterSecondEnter = fixture.area.content;
+			fixture.setAgenticMode(false, window);
+			await settle();
+
+			assert.deepStrictEqual({ afterFirstEnter, afterFirstLeave, afterSecondEnter, afterSecondLeave: fixture.area.content, saved: fixture.area.saved() }, {
+				afterFirstEnter: 'E1',
+				afterFirstLeave: 'E1',
+				afterSecondEnter: 'N1',
+				afterSecondLeave: 'E2',
+				saved: { [prefix + 'vscode-agentic-mode:/no-folder']: 'N1' }
+			});
+		});
+
+		test('a window that had no editors before the mode leaves it with none, and the editors of the mode are saved for their location', async () => {
+			const fixture = createFixture({ folder: URI.file('/work/editor-window') });
+			fixture.setAgenticMode(true, primary);
+			await settle();
+			fixture.area.content = 'P1';
+			fixture.setAgenticMode(false, URI.file('/work/editor-window'));
+			await settle();
+
+			assert.deepStrictEqual({ content: fixture.area.content, saved: fixture.area.saved() }, { content: '', saved: { [prefix + p]: 'P1' } });
+		});
+
+		test('a window that restarts in the mode restores the editors from before the mode when it leaves it', async () => {
+			const first = createFixture({ folder: URI.file('/work/editor-window') });
+			first.area.content = 'E';
+			first.setAgenticMode(true, primary);
+			await settle();
+			first.moveTo(worktree);
+			await settle();
+			first.area.content = 'W1';
+
+			const restarted = createFixture({ area: first.area, storage: first.storage, folder: worktree, agenticMode: true });
+			await settle();
+			restarted.area.content = 'W2';
+			restarted.setAgenticMode(false, URI.file('/work/editor-window'));
+			await settle();
+
+			assert.deepStrictEqual({ content: restarted.area.content, saved: restarted.area.saved() }, { content: 'E', saved: { [prefix + p]: 'E', [prefix + w]: 'W2' } });
+		});
+
+		test('restoring the editors from before the mode waits for the backups of the editors of the mode it would close', async () => {
+			const untitled = URI.from({ scheme: 'untitled', path: 'Untitled-1' });
+			const fixture = createFixture({ folder: URI.file('/work/editor-window') });
+			fixture.area.content = 'E';
+			fixture.setAgenticMode(true, primary);
+			await settle();
+			fixture.area.content = 'P1';
+			fixture.area.editors = [{ resource: untitled }];
+			fixture.area.backups = [{ resource: untitled, typeId: '' }];
+			fixture.setAgenticMode(false, URI.file('/work/editor-window'));
+			await settle();
+			const whileRestoring = fixture.area.content;
+
+			fixture.restoreBackup(untitled);
+			await settle();
+
+			assert.deepStrictEqual({ whileRestoring, content: fixture.area.content, saved: fixture.area.saved() }, { whileRestoring: 'P1', content: 'E', saved: { [prefix + p]: 'P1' } });
+		});
+
+		test('a window that was in the mode before its editors were kept leaves the mode with its open editors', async () => {
+			const fixture = createFixture({ folder: worktree, agenticMode: true });
+			await settle();
+			fixture.area.content = 'W1';
+			fixture.setAgenticMode(false, URI.file('/work/editor-window'));
+			await settle();
+
+			assert.deepStrictEqual({ content: fixture.area.content, saved: fixture.area.saved() }, { content: 'W1', saved: {} });
+		});
+
+		test('a window that starts in the mode takes over its editors at the location it mounts first', async () => {
+			const first = createFixture();
+			first.area.content = 'P1';
+			first.switchTo(alternate);
+			await settle();
+			first.area.content = 'A1';
+
+			const restarted = createFixture({ area: first.area, storage: first.storage, folder: worktree, agenticMode: true });
+			await settle();
+			const afterStartup = restarted.area.content;
+			restarted.moveTo(primary);
+			await settle();
+
+			assert.deepStrictEqual({ afterStartup, content: restarted.area.content, saved: restarted.area.saved() }, {
+				afterStartup: 'A1',
+				content: 'P1',
+				saved: { [prefix + w]: 'A1', [prefix + p]: 'P1' }
+			});
+		});
+	});
 });
 
 suite('FolderLocationWorkingSetsContribution with the editor parts', () => {
@@ -624,14 +805,15 @@ suite('FolderLocationWorkingSetsContribution with the editor parts', () => {
 			const onDidChangeLocation = disposables.add(new Emitter<{ readonly reason: 'user' | 'programmatic' }>());
 			disposables.add(instantiationService.invokeFunction(accessor => new FolderLocationWorkingSetsContribution(
 				{ onDidChangeLocation: onDidChangeLocation.event, onDidChangeCanSetLocation: Event.None, canSetLocation: () => true } as unknown as IWorkspaceFolderLocationService,
-				{ getWorkspace: () => new Workspace('id', [new WorkspaceFolder({ uri: folder, name: 'project', index: 0 })], false, null, () => false) } as unknown as IWorkspaceContextService,
+				{ getWorkspace: () => new Workspace('id', [new WorkspaceFolder({ uri: folder, name: 'project', index: 0 })], false, null, () => false), onDidChangeWorkspaceFolders: Event.None } as unknown as IWorkspaceContextService,
 				parts,
 				storage,
 				accessor.get(IUriIdentityService),
 				accessor.get(ILogService),
 				backupService,
 				accessor.get(IWorkingCopyService),
-				editorService
+				editorService,
+				{ isActive: false, onDidChange: Event.None } as Partial<IAgenticModeService> as IAgenticModeService
 			)));
 			return () => {
 				folder = URI.file('/work/project-alt');

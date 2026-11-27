@@ -13,7 +13,7 @@ import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/commo
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IFolderToOpen, IOpenWindowOptions, IWindowOpenable } from '../../../../../platform/window/common/window.js';
-import { WorkbenchScopeContext } from '../../../../common/contextkeys.js';
+import { WorkbenchModeContext, WorkbenchScopeContext } from '../../../../common/contextkeys.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
@@ -80,6 +80,8 @@ suite('Sessions list actions', () => {
 				shown: Object.fromEntries(['workspace', 'repository', 'environment', 'archived', 'quickchats', 'automations', 'canvases', 'external'].map(type => [type, shown(type)])),
 				customGroup: MenuRegistry.getMenuItems(Menus.SessionGroupContext).filter(isIMenuItem).some(item => item.command.id === commandId),
 				workspaceScope: shown('workspace', { [WorkbenchScopeContext.key]: 'workspace' }),
+				agentsModeWorkspaceScope: shown('workspace', { [WorkbenchScopeContext.key]: 'workspace', [WorkbenchModeContext.key]: 'agents' }),
+				editorModeWorkspaceScope: shown('workspace', { [WorkbenchScopeContext.key]: 'workspace', [WorkbenchModeContext.key]: 'editor' }),
 				aiDisabled: shown('workspace', { [ChatContextKeys.enabled.key]: false }),
 				noRootFolder: shown('workspace', { [SessionSectionHasRootFolderContext.key]: false }),
 				folders: {
@@ -98,6 +100,9 @@ suite('Sessions list actions', () => {
 				shown: { workspace: true, repository: true, environment: false, archived: false, quickchats: false, automations: false, canvases: false, external: false },
 				customGroup: false,
 				workspaceScope: false,
+				// In the Agents mode, a workspace scope set by the workspaces filter keeps it
+				agentsModeWorkspaceScope: true,
+				editorModeWorkspaceScope: false,
 				aiDisabled: false,
 				noRootFolder: false,
 				folders: {

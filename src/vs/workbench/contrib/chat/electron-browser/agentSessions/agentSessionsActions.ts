@@ -39,6 +39,7 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
 import { ChatViewId, IChatWidget, IChatWidgetService, isIChatResourceViewContext } from '../../browser/chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { AgenticModeToggleAvailable } from '../../browser/agentSessions/agenticModeActions.js';
 import { getChatSessionTelemetryContext } from '../../common/chatService/chatServiceTelemetry.js';
 import { IChatSessionsService, isAgentHostTarget, isLocalAgentHostTarget, SessionType } from '../../common/chatSessionsService.js';
 import { IChatViewTitleActionContext } from '../../common/actions/chatActions.js';
@@ -238,6 +239,8 @@ export class OpenWorkspaceInAgentsWindowTitleBarAction extends Action2 {
 				when: ContextKeyExpr.and(
 					OPEN_AGENTS_WINDOW_PRECONDITION,
 					ContextKeyExpr.notEquals(`config.${ChatConfiguration.TitleBarOpenInAgentsWindowEnabled}`, false),
+					// The Agentic Mode toggle takes this place in the title bar
+					AgenticModeToggleAvailable.negate(),
 				),
 			},
 		});

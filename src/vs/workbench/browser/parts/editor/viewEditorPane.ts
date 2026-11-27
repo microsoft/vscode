@@ -164,11 +164,18 @@ export class ViewEditorPane extends EditorPane {
 		}
 
 		const disposables = new DisposableStore();
-		const viewInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection(
+		const viewInstantiationService = this.instantiationService.createChild(new ServiceCollection(
 			[IEditorService, this.getMainPartEditorService()]
-		)));
+		));
 
-		const view = disposables.add(descriptor.createView(viewInstantiationService, input));
+		let view: IViewEditorView;
+		try {
+			view = disposables.add(descriptor.createView(viewInstantiationService, input));
+		} catch (error) {
+			disposables.dispose();
+			viewInstantiationService.dispose();
+			throw error;
+		}
 		disposables.add(toDisposable(() => {
 			view.element.remove();
 			if (this.view === view) {
@@ -183,6 +190,8 @@ export class ViewEditorPane extends EditorPane {
 		if (view.dragHandle) {
 			disposables.add(this.registerDragHandle(view.dragHandle, input));
 		}
+		// Last: the view can still create instances while it is disposed, such as a chat input reacting to its text being reset.
+		disposables.add(viewInstantiationService);
 
 		return { view, disposables, dispose: () => disposables.dispose() };
 	}

@@ -611,6 +611,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': 'left',
 				'description': localize('sideBarLocation', "Controls the location of the primary side bar and activity bar. They can either show on the left or right of the workbench. The secondary side bar will show on the opposite side of the workbench."),
 				agentsWindow: { default: 'left', readOnly: true },
+				agenticMode: { default: 'right' },
 			},
 			'workbench.panel.showLabels': {
 				'type': 'boolean',
@@ -712,12 +713,14 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': false,
 				'markdownDescription': localize({ comment: ['This is the description for a setting'], key: 'activityBarAutoHide' }, "Controls whether the Activity Bar is automatically hidden when there is only one view container to show. This applies to the Primary Side Bar when {0} is set to {1} or {2}, and to the Secondary Side Bar regardless of {0}.", '`#workbench.activityBar.location#`', '`top`', '`bottom`'),
 				agentsWindow: { default: false, readOnly: true },
+				agenticMode: { default: true },
 			},
 			[LayoutSettings.ACTIVITY_BAR_COMPACT]: {
 				'type': 'boolean',
 				'default': false,
 				'markdownDescription': localize({ comment: ['This is the description for a setting'], key: 'activityBarCompact' }, "Controls whether the Activity Bar uses a compact layout with smaller icons and reduced width. This setting only applies when {0} is set to {1}.", '`#workbench.activityBar.location#`', '`default`'),
 				agentsWindow: { default: false, readOnly: true },
+				agenticMode: { default: true },
 			},
 			'workbench.activityBar.iconClickBehavior': {
 				'type': 'string',

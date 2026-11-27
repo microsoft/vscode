@@ -34,6 +34,7 @@ import { ITelemetryService } from '../../../../../../../platform/telemetry/commo
 import { TestExperimentTriggerTelemetryService } from '../../../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { IFolderLocationChangeEvent, IResolvedFolderLocation, IWorkspaceFolderLocationService } from '../../../../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from '../../../../../../../platform/workspace/common/workspace.js';
+import { IAgenticModeService } from '../../../../../../services/agenticMode/common/agenticMode.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../services/environment/common/environmentService.js';
 import { IWorkspaceEditingService } from '../../../../../../services/workspaces/common/workspaceEditing.js';
 import { TestStorageService } from '../../../../../../test/common/workbenchTestServices.js';
@@ -57,7 +58,7 @@ suite('AgentHostWorktree', () => {
 	const created = URI.file('/work/vscode.worktrees/created');
 
 	/** The feature in a window whose folder is at `at`, recording the moves it asks for, the chats it opens and its experiment triggers. */
-	function createWorktree(options: { readonly enabled: boolean; readonly at?: URI; readonly canSetLocation?: boolean; readonly worktrees?: readonly URI[]; readonly resolving?: Promise<void>; readonly terminalCwd?: URI; readonly setting?: Promise<void>; readonly resolvingFor?: Record<string, Promise<void>>; readonly realPaths?: Record<string, string>; readonly realPathError?: Error; readonly folderForms?: Record<string, string>; readonly root?: URI; readonly listedAtStart?: boolean }) {
+	function createWorktree(options: { readonly enabled: boolean; readonly at?: URI; readonly canSetLocation?: boolean; readonly worktrees?: readonly URI[]; readonly resolving?: Promise<void>; readonly terminalCwd?: URI; readonly setting?: Promise<void>; readonly resolvingFor?: Record<string, Promise<void>>; readonly realPaths?: Record<string, string>; readonly realPathError?: Error; readonly folderForms?: Record<string, string>; readonly root?: URI; readonly listedAtStart?: boolean; readonly allSessions?: boolean; readonly agenticMode?: boolean }) {
 		/** The worktrees the folder's location provider knows, to which a test may add one it comes to know. */
 		const worktrees = [...options.worktrees ?? [worktree, created]];
 		const marks: string[] = [];
@@ -188,6 +189,7 @@ suite('AgentHostWorktree', () => {
 			getWorkspace: () => upcastPartial<IWorkspace>({ uri: root, folders: [folder()] }),
 			onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
 			onDidChangeWorkbenchState: Event.None,
+			getWorkbenchScope: () => options.allSessions ? undefined : URI.file('/work/vscode'),
 		}));
 		instantiationService.stub(IWorkspaceFolderLocationService, upcastPartial<IWorkspaceFolderLocationService>({
 			canSetLocation: () => options.canSetLocation ?? true,
@@ -250,6 +252,7 @@ suite('AgentHostWorktree', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri: extUriBiasedIgnorePathCase }));
 		instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false }));
+		instantiationService.stub(IAgenticModeService, upcastPartial<IAgenticModeService>({ isActive: options.agenticMode ?? false }));
 		// The provider the contribution registers while worktree support is on, which knows the real paths of the window's folders
 		instantiationService.stub(IAgentHostWorktreeLocations, upcastPartial<IAgentHostWorktreeLocations>({
 			id: 'agentHost.sessionWorktrees',
@@ -293,6 +296,24 @@ suite('AgentHostWorktree', () => {
 			moves: ['/work/vscode.worktrees/feature', '/work/vscode'],
 			providers: ['registered'],
 			triggers: [`config.${ChatConfiguration.EditorWindowEnableWorktree}`],
+		});
+	});
+
+	test('follows in a window showing all sessions, but not in Agentic Mode, which mounts the folder of the chat shown itself', async () => {
+		const moves = async (options: { allSessions: boolean; agenticMode: boolean }) => {
+			const feature = createWorktree({ enabled: true, ...options });
+			feature.workingDirectories.set(agentSession('a').toString(), worktree.fsPath);
+			feature.show(agentSession('a'));
+			await settle();
+			return feature.moves;
+		};
+
+		assert.deepStrictEqual({
+			allSessions: await moves({ allSessions: true, agenticMode: false }),
+			agenticMode: await moves({ allSessions: true, agenticMode: true }),
+		}, {
+			allSessions: ['/work/vscode.worktrees/feature'],
+			agenticMode: [],
 		});
 	});
 

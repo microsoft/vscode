@@ -9,7 +9,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { SESSIONS_LIST_CANVASES_SECTION_SETTING, SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING } from './views/sessionsListCommon.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../platform/chat/common/sessionArchiveActions.js';
-import { AutomationSessionsListMode, ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, USE_WORKTREE_SETTING } from '../common/sessionConfig.js';
+import { AutomationSessionsListMode, ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SESSIONS_LIST_WORKSPACES_FILTER_SETTING, USE_WORKTREE_SETTING } from '../common/sessionConfig.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import product from '../../../../platform/product/common/product.js';
 import { NEW_SESSION_WELCOME_GRAPHIC_SETTING, NEW_SESSION_WELCOME_GRAPHICS, WORKSPACE_OPT_OUT_SETTING } from '../common/chatConstants.js';
@@ -27,6 +27,12 @@ export const sessionsListConfigurationProperties = {
 		type: 'boolean',
 		tags: ['experimental'],
 		description: localize('sessions.list.inboxEnabled', "Shows a toggle on the Sessions list to open Inbox Mode and keeps session attention up to date even outside Inbox Mode. Turning the toggle off restores the previous grouping. Disabling this setting also leaves Inbox Mode."),
+		default: false,
+	},
+	[SESSIONS_LIST_WORKSPACES_FILTER_SETTING]: {
+		type: 'boolean',
+		tags: ['experimental'],
+		description: localize('sessions.list.workspacesFilter.enabled', "Controls whether, in the Agents window and in Agentic Mode, the Sessions list shows its workspaces filter in every grouping, and the workspace picked there scopes the window while the list shows. The list then shows only that workspace's sessions, and in Agentic Mode new sessions start in it when it is a local folder. The pick is remembered for each window and is the same one as in the Inbox. Picking All Workspaces lists all sessions again. A window with a folder or workspace in Agentic Mode is always scoped to that workspace and lists only its sessions: with this setting on, the filter starts on that workspace and you can pick another one; with it off, the filter is hidden and the window stays on that workspace until it leaves Agentic Mode."),
 		default: false,
 	},
 	[SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING]: {

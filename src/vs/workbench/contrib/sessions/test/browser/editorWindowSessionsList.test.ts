@@ -5,12 +5,12 @@
 
 import assert from 'assert';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { autorun, observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IViewletViewOptions } from '../../../../browser/parts/views/viewsViewlet.js';
-import { createEditorWindowSessionsScope, createEditorWindowSessionsViewOptions, EDITOR_WINDOW_SESSIONS_GROUPINGS, EditorWindowSessionsList } from '../../browser/agentsView/editorWindowSessionsList.js';
+import { ALL_SESSIONS_GROUPINGS, createEditorWindowSessionsGroupings, createEditorWindowSessionsScope, createEditorWindowSessionsViewOptions, EDITOR_WINDOW_SESSIONS_GROUPINGS, EditorWindowSessionsList } from '../../browser/agentsView/editorWindowSessionsList.js';
 import { EditorWindowSessionsContext, SessionsView, SessionsViewId } from '../../browser/views/sessionsView.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { SessionsGrouping } from '../../browser/views/sessionsListCommon.js';
@@ -19,7 +19,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchMode } from '../../../../../platform/workspace/common/workspace.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -35,12 +35,29 @@ suite('EditorWindowSessionsList', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	function createWindow() {
+		const onDidChangeWorkbenchScope = store.add(new Emitter<URI | undefined>());
+		const onDidChangeWorkbenchMode = store.add(new Emitter<WorkbenchMode>());
+		let scope: URI | undefined = URI.file('/work/vscode');
+		let mode = WorkbenchMode.Editor;
+		return {
+			onDidChangeWorkbenchScope: onDidChangeWorkbenchScope.event,
+			getWorkbenchScope: () => scope,
+			setScope: (value: URI | undefined) => { scope = value; onDidChangeWorkbenchScope.fire(value); },
+			onDidChangeWorkbenchMode: onDidChangeWorkbenchMode.event,
+			getWorkbenchMode: () => mode,
+			setMode: (value: WorkbenchMode) => { mode = value; onDidChangeWorkbenchMode.fire(value); },
+		};
+	}
+
 	test('the providers list only the sessions of the window\'s folders in a folder window, and every session in a plain empty window and in the Agents window', () => {
 		const scoped = (folders: readonly URI[], scope: URI | undefined) => {
 			const owner = {};
 			return createEditorWindowSessionsScope(owner, upcastPartial<IWorkspaceContextService>({
 				onDidChangeWorkspaceFolders: Event.None,
 				onDidChangeWorkbenchScope: Event.None,
+				onDidChangeWorkbenchMode: Event.None,
+				getWorkbenchMode: () => WorkbenchMode.Editor,
 				getWorkbenchScope: () => scope,
 				getWorkspace: () => upcastPartial<IWorkspace>({ folders: folders.map(uri => upcastPartial<IWorkspaceFolder>({ uri })) }),
 			})).get();
@@ -55,26 +72,72 @@ suite('EditorWindowSessionsList', () => {
 
 	test('every editor window view gets the same options', () => {
 		const scoped = observableValue('scoped', true);
-		const options = createEditorWindowSessionsViewOptions({ id: SessionsViewId } as IViewletViewOptions, scoped);
+		const groupings = observableValue('groupings', EDITOR_WINDOW_SESSIONS_GROUPINGS);
+		const options = createEditorWindowSessionsViewOptions({ id: SessionsViewId } as IViewletViewOptions, scoped, groupings);
 		assert.deepStrictEqual({
 			headerInTitle: options.headerInTitle,
 			showCustomizations: options.showCustomizations,
 			scoped: options.scoped === scoped,
-			groupings: options.groupings,
+			groupings: options.groupings === groupings,
 			quickChatsInTimeGrouping: options.quickChatsInTimeGrouping,
 		}, {
 			headerInTitle: true,
 			showCustomizations: false,
 			scoped: true,
-			groupings: EDITOR_WINDOW_SESSIONS_GROUPINGS,
+			groupings: true,
 			quickChatsInTimeGrouping: true,
 		});
 	});
 
+	test('the editor window groups by time or environment, and in the Agents mode (Agentic Mode) also by workspace, following the mode', () => {
+		const window = createWindow();
+		const groupings = createEditorWindowSessionsGroupings({}, upcastPartial<IWorkspaceContextService>(window));
+		const seen: string[][] = [];
+		store.add(autorun(reader => { seen.push([...groupings.read(reader).offered]); }));
+		// Without a scope, as a plain empty window, it still groups as an editor window
+		window.setScope(undefined);
+		window.setMode(WorkbenchMode.Agents);
+		window.setMode(WorkbenchMode.Editor);
+
+		assert.deepStrictEqual({ seen, all: ALL_SESSIONS_GROUPINGS }, {
+			seen: [
+				[SessionsGrouping.Date, SessionsGrouping.Environment],
+				[SessionsGrouping.Date, SessionsGrouping.Environment, SessionsGrouping.Workspace],
+				[SessionsGrouping.Date, SessionsGrouping.Environment],
+			],
+			all: { offered: [SessionsGrouping.Date, SessionsGrouping.Environment, SessionsGrouping.Workspace], default: SessionsGrouping.Workspace },
+		});
+	});
+
+	test('the editor window list is scoped to its folders, but not while it is about all sessions or in the Agents mode, following folders, scope and mode', () => {
+		const folders: URI[] = [];
+		const onDidChangeWorkspaceFolders = store.add(new Emitter<IWorkspaceFoldersChangeEvent>());
+		const window = createWindow();
+		const workspace = upcastPartial<IWorkspaceContextService>({
+			...window,
+			onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
+			getWorkspace: () => upcastPartial<IWorkspace>({ folders: folders.map(uri => upcastPartial<IWorkspaceFolder>({ uri })) }),
+		});
+		const scoped = createEditorWindowSessionsScope({}, workspace);
+		const seen: boolean[] = [];
+		store.add(autorun(reader => { seen.push(scoped.read(reader)); }));
+
+		folders.push(URI.file('/work/vscode'));
+		onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [] });
+		window.setScope(undefined);
+		window.setScope(URI.file('/work/vscode'));
+		window.setMode(WorkbenchMode.Agents);
+		window.setMode(WorkbenchMode.Editor);
+
+		// Empty, a folder added, about all sessions, back to its folders, the Agents mode (whose scope bar filters the list instead), the editor mode
+		assert.deepStrictEqual(seen, [false, true, false, true, false, true]);
+	});
+
 	test('only the header presentation differs between title and section', () => {
 		const scoped = observableValue('scoped', true);
-		const title = createEditorWindowSessionsViewOptions({ id: SessionsViewId } as IViewletViewOptions, scoped, 'title');
-		const section = createEditorWindowSessionsViewOptions({ id: SessionsViewId } as IViewletViewOptions, scoped, 'section');
+		const groupings = observableValue('groupings', EDITOR_WINDOW_SESSIONS_GROUPINGS);
+		const title = createEditorWindowSessionsViewOptions({ id: SessionsViewId } as IViewletViewOptions, scoped, groupings, 'title');
+		const section = createEditorWindowSessionsViewOptions({ id: SessionsViewId } as IViewletViewOptions, scoped, groupings, 'section');
 		assert.deepStrictEqual({ ...section, headerInTitle: true }, title);
 		assert.deepStrictEqual([title.headerInTitle, section.headerInTitle], [true, false]);
 	});

@@ -1357,6 +1357,8 @@ export class AgentHostSessionWorkingSet extends Disposable {
 		@ISessionChangesService sessionChangesService: ISessionChangesService,
 	) {
 		super();
+		// The widget clears its input part as it is disposed, before this, so the input part is the one it rendered
+		const inputPart = this._widget.inputPart;
 		const sessionResource = this.sessionResource = observableFromEvent(this, this._widget.onDidChangeViewModel, () => this._widget.viewModel?.sessionResource);
 		const workingSetConfigured = observableConfigValue(ChatConfiguration.EditorWorkingSetEnabled, false, this._configurationService);
 		const sessionResolutionChanged = observableSignalFromEvent(this, connectionsService.onDidChangeSessionResolution);
@@ -1429,7 +1431,7 @@ export class AgentHostSessionWorkingSet extends Disposable {
 		const sessionWorkingSetChangeset = derived(this, reader => sessionState.read(reader)?.changesets
 			?.find(changeset => changeset.changeKind === ChangesetKind.WorkingSet && !changeset.uriTemplate.includes('{')));
 		// Only inputs that can show the working set swap the Changes pill for it, so the Agents window keeps its pill.
-		const workingSetAvailable = derived(this, reader => this._widget.inputPart.supportsSessionWorkingSet
+		const workingSetAvailable = derived(this, reader => inputPart.supportsSessionWorkingSet
 			&& isCopilotAgentHostProvider(sessionState.read(reader)?.provider)
 			&& !subagentChat.read(reader));
 		const workingSetSupported = derived(this, reader => workingSetAvailable.read(reader) && workingSetConfigured.read(reader));
@@ -1584,7 +1586,7 @@ export class AgentHostSessionWorkingSet extends Disposable {
 		// shows no files, such as after Keep, also files the input kept itself, so the session's other changes stay reachable.
 		// The working set shows in the input: while the input hides, such as in a read-only chat, the pill shows the changes.
 		this.changesPillHidden = derived(this, reader => workingSetPending.read(reader)
-			|| (this._widget.inputVisible.read(reader) && workingSetEnabled.read(reader) && (!this._options.workingSetOnly || this._widget.inputPart.sessionWorkingSetDiffs.read(reader).length > 0)));
+			|| (this._widget.inputVisible.read(reader) && workingSetEnabled.read(reader) && (!this._options.workingSetOnly || inputPart.sessionWorkingSetDiffs.read(reader).length > 0)));
 		// Undo reverts a file's changes with the host's file-level Discard Changes operation, when the host offers it.
 		const workingSetDiscard = derived<ChangesetOperation | undefined>(this, reader => {
 			const kind = changesetTarget.read(reader)?.changeset.changeKind;
@@ -1636,7 +1638,7 @@ export class AgentHostSessionWorkingSet extends Disposable {
 		this._register(autorun(reader => {
 			if (workingSetEnabled.read(reader)) {
 				const undo = !!this._options.undoEnabled || isSessionWorkingSet.read(reader) ? workingSetUndo : undefined;
-				reader.store.add(this._widget.inputPart.registerSessionFileChanges(workingSetChanges, undo, workingSetKeep, async () => {
+				reader.store.add(inputPart.registerSessionFileChanges(workingSetChanges, undo, workingSetKeep, async () => {
 					const chatResource = this._widget.viewModel?.sessionResource;
 					const changesetId = getSessionChangesetId(changesetTarget.read(undefined)?.changeset);
 					return !!chatResource && !!changesetId && sessionChangesService.openChatChangesEditor(chatResource, changesetId);

@@ -20,7 +20,8 @@ import { getNoWorkspaceChoicePresentation } from '../chat/noWorkspaceChoice.js';
 import { ENVIRONMENT_PICKER_LIST_OPTIONS } from '../chat/sessionEnvironmentPicker.js';
 import { createSessionPickerToolbar } from '../chat/sessionPickerToolbar.js';
 import { WORKSPACE_PICKER_LIST_OPTIONS } from '../chat/sessionWorkspacePicker.js';
-import { getInboxWorkspaceOptions, getSessionEnvironments, SessionsListFilters } from './sessionsListFilters.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { getInboxWorkspaceOptions, getSessionEnvironments, IInboxWorkspaceFilter, LOCAL_SESSIONS_ENVIRONMENT, SessionsListFilters } from './sessionsListFilters.js';
 
 interface IInboxScopePickerItem {
 	readonly checked: boolean;
@@ -31,6 +32,10 @@ function getEnvironmentIcon(environment: string): ThemeIcon {
 	return environment === 'local' ? Codicon.deviceDesktop : environment === 'cloud' ? Codicon.cloud : Codicon.remote;
 }
 
+/**
+ * The workspace and environment pickers of the Sessions list, which show only the sessions of the picks: of Inbox Mode,
+ * and, where the bar shows in every grouping, of the list, whose picked workspace also scopes the window.
+ */
 export class SessionsInboxScope extends Disposable {
 	readonly element: HTMLElement;
 	private activeTrigger: HTMLElement | undefined;
@@ -41,8 +46,18 @@ export class SessionsInboxScope extends Disposable {
 		sessions: IObservable<readonly ISession[]>,
 		environments: IObservable<readonly ISessionEnvironment[]>,
 		localEnvironmentIds: IObservable<ReadonlySet<string>>,
+		/** Whether the bar scopes Inbox Mode, rather than the list in another grouping; only its labels differ. */
+		inbox: IObservable<boolean>,
+		/** The window's own folders, which the bar offers also before they have sessions. */
+		windowWorkspaces: IObservable<readonly IInboxWorkspaceFilter[]>,
+		/**
+		 * Whether the picks are fixed, such as while a window with a folder is in Agentic Mode without the bar in its other
+		 * groupings: the bar then shows them without letting the user change them.
+		 */
+		private readonly fixed: IObservable<boolean>,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
 		super();
 		this.element = dom.append(container, dom.$('.sessions-inbox-scope'));
@@ -82,12 +97,12 @@ export class SessionsInboxScope extends Disposable {
 					isConnected: environment.isConnected?.read(reader),
 					unavailable: !availableEnvironments.has(environment.id),
 				})),
-				workspaces: getInboxWorkspaceOptions(catalog, scope.environment?.id, reader),
+				workspaces: filters.withWindowWorkspaces(getInboxWorkspaceOptions(catalog, uriIdentityService.extUri, scope.environment?.id, reader), windowWorkspaces.read(reader), scope.environment?.id),
 				hasQuickChats: catalog.some(session => (!scope.environment || scope.environment.id === session.environment) && session.isQuickChat?.read(reader)),
 			};
 		});
 		const workspaceLabel = derived(this, reader => {
-			const { scope, workspaces } = options.read(reader);
+			const { scope, workspaces, environments } = options.read(reader);
 			if (scope.workspace === undefined) {
 				return localize('allWorkspaces', "All Workspaces");
 			}
@@ -95,7 +110,10 @@ export class SessionsInboxScope extends Disposable {
 				return localize('noWorkspace', "No Workspace");
 			}
 			const selected = scope.workspace;
-			return workspaces.find(workspace => workspace.resource === selected.resource && workspace.environment === selected.environment)?.label
+			const environment = environments.find(environment => environment.id === selected.environment);
+			const environmentAvailable = selected.environment === LOCAL_SESSIONS_ENVIRONMENT || localEnvironmentIds.read(reader).has(selected.environment)
+				|| (!!environment && !environment.unavailable && environment.isConnected !== false);
+			return filters.getInboxWorkspaceLabel(selected, workspaces, environmentAvailable)
 				?? localize('unavailableWorkspace', "Unavailable: {0}", selected.label);
 		});
 		const environmentLabel = derived(this, reader => {
@@ -110,13 +128,17 @@ export class SessionsInboxScope extends Disposable {
 					? localize('disconnectedEnvironment', "Disconnected: {0}", selected.label)
 					: selected?.label ?? scope.environment.label;
 		});
-		const announce = () => status(localize('scopeChanged', "Inbox scope: {0}, {1}.", workspaceLabel.get(), environmentLabel.get()));
+		const workspacePickerLabel = (inInbox = inbox.get()) => inInbox ? localize('workspaceFilter', "Filter Inbox by Workspace") : localize('workspaceScope', "Scope Sessions to Workspace");
+		const environmentPickerLabel = (inInbox = inbox.get()) => inInbox ? localize('environmentFilter', "Filter Inbox by Environment") : localize('sessionsEnvironmentFilter', "Filter Sessions by Environment");
+		const announce = () => status(inbox.get()
+			? localize('scopeChanged', "Inbox scope: {0}, {1}.", workspaceLabel.get(), environmentLabel.get())
+			: localize('sessionsScopeChanged', "Sessions scope: {0}, {1}.", workspaceLabel.get(), environmentLabel.get()));
 		const workspaceContainer = dom.append(this.element, dom.$('.scope-picker.workspace-picker'));
 		const workspace = createSessionPickerToolbar(this._store, workspaceContainer, instantiationService, 'sessions.inboxWorkspace',
-			localize('workspaceFilter', "Filter Inbox by Workspace"), () => pickWorkspace(), hoverDelegate);
+			workspacePickerLabel(), () => pickWorkspace(), hoverDelegate);
 		const environmentContainer = dom.append(this.element, dom.$('.scope-picker.environment-picker'));
 		const environment = createSessionPickerToolbar(this._store, environmentContainer, instantiationService, 'sessions.inboxEnvironment',
-			localize('environmentFilter', "Filter Inbox by Environment"), () => pickEnvironment(), hoverDelegate);
+			environmentPickerLabel(), () => pickEnvironment(), hoverDelegate);
 		const workspaceIcon = dom.append(workspace.trigger, dom.$('span', { 'aria-hidden': 'true' }));
 		const workspaceLabelElement = dom.append(workspace.trigger, dom.$('span.scope-label'));
 		const environmentIcon = dom.append(environment.trigger, dom.$('span', { 'aria-hidden': 'true' }));
@@ -136,15 +158,36 @@ export class SessionsInboxScope extends Disposable {
 			const environmentText = environmentLabel.read(reader);
 			workspaceLabelElement.textContent = workspaceText;
 			environmentLabelElement.textContent = environmentText;
-			workspace.trigger.setAttribute('aria-label', localize('workspaceScopeLabel', "Filter Inbox by Workspace: {0}", workspaceText));
-			environment.trigger.setAttribute('aria-label', localize('environmentScopeLabel', "Filter Inbox by Environment: {0}", environmentText));
+			const inInbox = inbox.read(reader);
+			workspace.action.label = workspacePickerLabel(inInbox);
+			environment.action.label = environmentPickerLabel(inInbox);
+			workspace.trigger.setAttribute('aria-label', inInbox
+				? localize('workspaceScopeLabel', "Filter Inbox by Workspace: {0}", workspaceText)
+				: localize('sessionsWorkspaceScopeLabel', "Scope Sessions to Workspace: {0}", workspaceText));
+			environment.trigger.setAttribute('aria-label', inInbox
+				? localize('environmentScopeLabel', "Filter Inbox by Environment: {0}", environmentText)
+				: localize('sessionsEnvironmentScopeLabel', "Filter Sessions by Environment: {0}", environmentText));
 			const scope = options.read(reader).scope;
 			workspaceIcon.className = ThemeIcon.asClassName(getCompactCodicon(scope.workspace === 'none' ? getNoWorkspaceChoicePresentation(undefined).icon : Codicon.folder));
 			environmentIcon.className = ThemeIcon.asClassName(getCompactCodicon(scope.environment ? getEnvironmentIcon(scope.environment.id) : Codicon.globe));
-			workspace.action.tooltip = scope.workspace && scope.workspace !== 'none'
+			const workspaceTooltip = scope.workspace && scope.workspace !== 'none'
 				? localize('workspaceScopeDescription', "{0}: {1}", workspaceText, scope.workspace.description ?? scope.workspace.resource)
 				: workspaceText;
-			environment.action.tooltip = environmentText;
+			const isFixed = fixed.read(reader);
+			for (const [picker, tooltip] of [[workspace, workspaceTooltip], [environment, environmentText]] as const) {
+				picker.action.enabled = !isFixed;
+				picker.action.tooltip = isFixed ? localize('fixedScope', "{0} (fixed while this window is in Agentic Mode)", tooltip) : tooltip;
+				if (isFixed) {
+					picker.trigger.removeAttribute('aria-haspopup');
+					picker.trigger.removeAttribute('aria-expanded');
+				} else {
+					picker.trigger.setAttribute('aria-haspopup', 'listbox');
+					picker.trigger.setAttribute('aria-expanded', String(this.activeTrigger === picker.trigger));
+				}
+			}
+			if (isFixed) {
+				this.hidePicker();
+			}
 		}));
 
 		const pickWorkspace = () => {
@@ -170,12 +213,12 @@ export class SessionsInboxScope extends Disposable {
 					description: localize('workspaceLocation', "{0} - {1}", workspace.description ?? workspace.resource, environments.find(environment => environment.id === workspace.environment)?.label ?? workspace.environment),
 					group: { title: '', icon: Codicon.folder },
 					item: {
-						checked: !!scope.workspace && scope.workspace !== 'none' && scope.workspace.resource === workspace.resource && scope.workspace.environment === workspace.environment,
+						checked: !!scope.workspace && scope.workspace !== 'none' && filters.isSameInboxWorkspace(scope.workspace, workspace),
 						run: () => filters.setInboxWorkspace(workspace),
 					},
 				});
 			}
-			this.showPicker(workspace.trigger, items, localize('workspaceFilter', "Filter Inbox by Workspace"), {
+			this.showPicker(workspace.trigger, items, workspacePickerLabel(), {
 				...WORKSPACE_PICKER_LIST_OPTIONS,
 				showFilter: true,
 				focusFilterOnOpen: true,
@@ -186,7 +229,9 @@ export class SessionsInboxScope extends Disposable {
 			const { scope, environments } = options.get();
 			const selectEnvironment = (environment: { id: string; label: string } | undefined) => {
 				if (filters.setInboxEnvironment(environment)) {
-					status(localize('workspaceScopeReset', "Inbox environment: {0}. Workspace reset to All Workspaces.", environmentLabel.get()));
+					status(inbox.get()
+						? localize('workspaceScopeReset', "Inbox environment: {0}. Workspace reset to All Workspaces.", environmentLabel.get())
+						: localize('sessionsWorkspaceScopeReset', "Sessions environment: {0}. Workspace reset to All Workspaces.", environmentLabel.get()));
 				} else {
 					announce();
 				}
@@ -208,12 +253,12 @@ export class SessionsInboxScope extends Disposable {
 					run: () => selectEnvironment({ id: environment.id, label: environment.label }),
 				},
 			}))];
-			this.showPicker(environment.trigger, items, localize('environmentFilter', "Filter Inbox by Environment"), ENVIRONMENT_PICKER_LIST_OPTIONS);
+			this.showPicker(environment.trigger, items, environmentPickerLabel(), ENVIRONMENT_PICKER_LIST_OPTIONS);
 		};
 	}
 
 	private showPicker(trigger: HTMLElement, items: IActionListItem<IInboxScopePickerItem>[], label: string, options: IActionListOptions, onSelect?: () => void): void {
-		if (this._store.isDisposed || this.element.hidden || this.actionWidgetService.isVisible) {
+		if (this._store.isDisposed || this.element.hidden || this.fixed.get() || this.actionWidgetService.isVisible) {
 			return;
 		}
 		this.activeTrigger = trigger;

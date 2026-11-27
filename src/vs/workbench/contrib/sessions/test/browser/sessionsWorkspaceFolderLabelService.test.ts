@@ -11,12 +11,16 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
-import { IChat, ISession } from '../../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../common/sessionsManagement.js';
-import { ISessionsService } from '../../browser/sessionsService.js';
+import { IWorkspaceContextService, WorkbenchMode, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { IChat, ISession } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { SessionsWorkspaceFolderLabelService } from '../../browser/sessionsWorkspaceFolderLabelService.js';
 import { focusedSessionHostServiceOf, TestShown } from './sessionHostTestUtils.js';
+
+function windowOf(mode: WorkbenchMode): IWorkspaceContextService {
+	return new class extends mock<IWorkspaceContextService>() { override getWorkbenchMode() { return mode; } };
+}
 
 suite('Sessions - Workspace Folder Label Service', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -69,7 +73,7 @@ suite('Sessions - Workspace Folder Label Service', () => {
 				return [session];
 			}
 		};
-		const service = new SessionsWorkspaceFolderLabelService(focusedSessionHostServiceOf(sessionsService.activeSession), sessionsManagementService, uriIdentityService, labelService);
+		const service = new SessionsWorkspaceFolderLabelService(focusedSessionHostServiceOf(sessionsService.activeSession), sessionsManagementService, uriIdentityService, labelService, windowOf(WorkbenchMode.Agents));
 		const workspaceFolder = new WorkspaceFolder({ uri: workingDirectory, name: 'vscode-tools (add-sandeep-to-readme-26eb9789)', index: 0 });
 
 		assert.deepStrictEqual({
@@ -110,8 +114,41 @@ suite('Sessions - Workspace Folder Label Service', () => {
 				return basename(resource);
 			}
 		};
-		const service = new SessionsWorkspaceFolderLabelService(focusedSessionHostServiceOf(sessionsService.activeSession), sessionsManagementService, uriIdentityService, labelService);
+		const service = new SessionsWorkspaceFolderLabelService(focusedSessionHostServiceOf(sessionsService.activeSession), sessionsManagementService, uriIdentityService, labelService, windowOf(WorkbenchMode.Agents));
 
 		assert.strictEqual(service.getWorkspaceFolderLabel(new WorkspaceFolder({ uri: workingDirectory, name: 'feature', index: 0 })), 'vscode-tools');
+	});
+
+	test('labels folders only in the Agents mode', () => {
+		const repository = URI.file('/repos/vscode-tools');
+		const workingDirectory = URI.file('/worktrees/feature');
+		const session = new class extends mock<ISession>() {
+			override readonly workspace = observableValue(this, {
+				uri: repository,
+				label: 'vscode-tools',
+				icon: { id: 'folder' },
+				folders: [{ root: repository, workingDirectory, name: 'vscode-tools', description: undefined }],
+				requiresWorkspaceTrust: false,
+				isVirtualWorkspace: false,
+			});
+		};
+		const activeSession = observableValue<TestShown | undefined>('activeSession', undefined);
+		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
+			override getSessions(): ISession[] {
+				return [session];
+			}
+		};
+		const uriIdentityService = new class extends mock<IUriIdentityService>() {
+			override readonly extUri = extUri;
+		};
+		const labelService = new class extends mock<ILabelService>() {
+			override getUriBasenameLabel(resource: URI): string {
+				return basename(resource);
+			}
+		};
+		const labelIn = (mode: WorkbenchMode) => new SessionsWorkspaceFolderLabelService(focusedSessionHostServiceOf(activeSession), sessionsManagementService, uriIdentityService, labelService, windowOf(mode))
+			.getWorkspaceFolderLabel(new WorkspaceFolder({ uri: workingDirectory, name: 'feature', index: 0 }));
+
+		assert.deepStrictEqual({ editor: labelIn(WorkbenchMode.Editor), agents: labelIn(WorkbenchMode.Agents) }, { editor: undefined, agents: 'vscode-tools' });
 	});
 });

@@ -54,6 +54,7 @@ import { INotificationHandle, INotificationService, IPromptChoice, NotificationM
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { IResourceEditorInput } from '../../../../../../platform/editor/common/editor.js';
 import { IEditorService } from '../../../../editor/common/editorService.js';
+import { IAgenticModeService } from '../../../../agenticMode/common/agenticMode.js';
 import { ConfigurationEditingError, ConfigurationEditingErrorCode } from '../../../common/configurationEditing.js';
 import '../../../../../browser/workbench.contribution.js';
 import '../../../../../browser/actions/layoutDensityActions.js';
@@ -162,6 +163,13 @@ suite('AgentsConfigurationService', () => {
 					'default': 'originalDefault',
 					scope: ConfigurationScope.RESOURCE,
 					agentsWindow: { default: 'readOnlyDefault', readOnly: true }
+				},
+				'sessionsConfigurationService.agenticModeDefault': {
+					'type': 'string',
+					'default': 'originalDefault',
+					scope: ConfigurationScope.RESOURCE,
+					agentsWindow: { default: 'agentsDefault' },
+					agenticMode: { default: 'agenticDefault' }
 				},
 				'sessionsConfigurationService.agentsWindowDefaultOnly': {
 					'type': 'boolean',
@@ -489,6 +497,65 @@ suite('AgentsConfigurationService', () => {
 		assert.strictEqual(testObject.getValue('sessionsConfigurationService.testSetting', { resource: folder }), 'defaultValue');
 	}));
 
+	test('moving a folder keeps its name, reads the settings of its new location and remembers where it was mounted', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const folder = joinPath(ROOT, 'repo');
+		const worktree = joinPath(ROOT, 'repo.worktrees', 'first');
+		await fileService.writeFile(joinPath(folder, '.vscode', 'settings.json'), VSBuffer.fromString('{ "sessionsConfigurationService.testSetting": "folderValue" }'));
+		await fileService.writeFile(joinPath(worktree, '.vscode', 'settings.json'), VSBuffer.fromString('{ "sessionsConfigurationService.testSetting": "worktreeValue" }'));
+		await workspaceService.addFolders([{ uri: folder, name: 'repo' }]);
+		const events: { added: string[]; removed: string[]; isFolderLocationChange: boolean | undefined }[] = [];
+		disposables.add(workspaceService.onWillChangeWorkspaceFolders(e => events.push({ added: e.changes.added.map(f => f.uri.path), removed: e.changes.removed.map(f => f.uri.path), isFolderLocationChange: e.isFolderLocationChange })));
+
+		const moved = await workspaceService.moveFolder(worktree, { folder });
+		const afterMove = {
+			moved,
+			folders: workspaceService.getWorkspace().folders.map(f => [f.uri.path, f.name]),
+			primary: workspaceService.getPrimaryLocation(worktree)?.path,
+			value: testObject.getValue('sessionsConfigurationService.testSetting', { resource: worktree }),
+		};
+		await workspaceService.moveFolder(folder, { folder: worktree });
+
+		assert.deepStrictEqual({
+			afterMove,
+			afterRestore: {
+				folders: workspaceService.getWorkspace().folders.map(f => [f.uri.path, f.name]),
+				primary: workspaceService.getPrimaryLocation(folder)?.path,
+				value: testObject.getValue('sessionsConfigurationService.testSetting', { resource: folder }),
+			},
+			events,
+		}, {
+			afterMove: { moved: true, folders: [[worktree.path, 'repo']], primary: folder.path, value: 'worktreeValue' },
+			afterRestore: { folders: [[folder.path, 'repo']], primary: folder.path, value: 'folderValue' },
+			events: [
+				{ added: [worktree.path], removed: [folder.path], isFolderLocationChange: true },
+				{ added: [folder.path], removed: [worktree.path], isFolderLocationChange: true },
+			],
+		});
+	}));
+
+	test('a folder mounted with a recorded primary location belongs to it until moved there', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const folder = joinPath(ROOT, 'repo');
+		const worktree = joinPath(ROOT, 'repo.worktrees', 'handMade');
+		const primaryOf = (uri: URI) => workspaceService.getPrimaryLocation(uri)?.path;
+
+		workspaceService.setPrimaryLocation(worktree, folder);
+		await workspaceService.addFolders([{ uri: worktree, name: 'repo' }]);
+		const mounted = primaryOf(worktree);
+		// Has no effect on a mounted folder
+		workspaceService.setPrimaryLocation(worktree, undefined);
+		const unchanged = primaryOf(worktree);
+		await workspaceService.moveFolder(folder, { folder: worktree });
+		const movedToPrimary = primaryOf(folder);
+		await workspaceService.moveFolder(worktree, { folder });
+
+		assert.deepStrictEqual({ mounted, unchanged, movedToPrimary, movedBack: primaryOf(worktree) }, {
+			mounted: folder.path,
+			unchanged: folder.path,
+			movedToPrimary: folder.path,
+			movedBack: folder.path,
+		});
+	}));
+
 	test('configuration change event is fired when folders with settings are removed', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const folder = joinPath(ROOT, 'removedFolder2');
 		await fileService.createFolder(folder);
@@ -635,7 +702,7 @@ suite('AgentsConfigurationService', () => {
 				override scope = schema.scope;
 				override description = [];
 			}();
-			return disposables.add(new SettingsTreeSettingElement(setting, parent, ConfigurationTarget.USER_LOCAL, true, undefined, languageService, TestProductService, userDataProfileService, testObject, true, assignments, managedSettingsService));
+			return disposables.add(new SettingsTreeSettingElement(setting, parent, ConfigurationTarget.USER_LOCAL, true, undefined, languageService, TestProductService, userDataProfileService, testObject, true, { isActive: false } as IAgenticModeService, assignments, managedSettingsService));
 		});
 		const readSettings = () => elements.map(element => {
 			element.inspectSelf();
@@ -968,6 +1035,10 @@ suite('AgentsConfigurationService', () => {
 
 	test('agentsWindow.default overrides the default value', () => {
 		assert.strictEqual(testObject.getValue('sessionsConfigurationService.agentsWindowDefault'), 'agentsDefault');
+	});
+
+	test('agenticMode.default is ignored in the Agents window', () => {
+		assert.strictEqual(testObject.getValue('sessionsConfigurationService.agenticModeDefault'), 'agentsDefault');
 	});
 
 	test('agentsWindow.default is reflected in inspect', () => {

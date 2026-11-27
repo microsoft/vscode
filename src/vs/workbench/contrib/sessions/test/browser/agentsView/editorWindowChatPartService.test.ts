@@ -104,7 +104,7 @@ suite('EditorWindowChatPartService', () => {
 		}
 		const services = disposables.add(new TestInstantiationService(undefined, true));
 		services.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({ setChatPartAnchor: () => { }, onDidChangePartVisibility: Event.None, isVisible: () => false, setPartHidden: () => { } }));
-		services.stub(IContextKeyService, upcastPartial<IContextKeyService>({ contextMatchesRules: () => true }));
+		services.stub(IContextKeyService, upcastPartial<IContextKeyService>({ createKey: <T extends ContextKeyValue>() => upcastPartial<IContextKey<T>>({ set: () => { }, reset: () => { } }), contextMatchesRules: () => true }));
 		services.stub(ILifecycleService, upcastPartial<ILifecycleService>({ when: () => Promise.resolve() }));
 		services.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({}));
 		services.stub(IEditorWindowSessionsPresenterService, upcastPartial<IEditorWindowSessionsPresenterService>({}));

@@ -14,8 +14,10 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { SESSIONS_LIST_CANVASES_SECTION_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { ExternalSessionApplicationBadgeMode, SESSIONS_CHAT_TABS_SETTING, SESSIONS_DRAFTS_ENABLED_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { NEW_SESSION_WELCOME_GRAPHIC_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
+import { sessionsListConfigurationProperties } from '../../../../../workbench/contrib/sessions/browser/sessionsConfiguration.js';
 
-import '../../browser/sessions.contribution.js';
+import { sessionsConfiguration } from '../../browser/sessions.contribution.js';
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 // Capture the registered schema before configuration tests reset the shared registry.
@@ -29,6 +31,10 @@ const showArchivedByDefaultProperty = configurationRegistry.getConfigurationProp
 const canvasesSectionProperty = configurationRegistry.getConfigurationProperties()[SESSIONS_LIST_CANVASES_SECTION_SETTING];
 const sessionsSettingKeys = Object.keys(configurationRegistry.getConfigurationProperties()).filter(key => key.startsWith('sessions.'));
 const pendingSessionProperties = [SESSIONS_DRAFTS_ENABLED_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING].map(key => configurationRegistry.getConfigurationProperties()[key]);
+// The Agents window's chat contribution registers the new chat settings
+const registeredByAgentsWindowChat = [WORKSPACE_OPT_OUT_SETTING, NEW_SESSION_WELCOME_GRAPHIC_SETTING];
+// Check the Agents window's own node: the shared registry may also hold the editor windows' registration
+const sessionsListKeysMissingInAgentsWindow = Object.keys(sessionsListConfigurationProperties).filter(key => !registeredByAgentsWindowChat.includes(key) && !Object.hasOwn(sessionsConfiguration.properties, key));
 
 suite('Sessions Contribution', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -85,6 +91,10 @@ suite('Sessions Contribution', () => {
 			tags: ['experimental', 'advanced', 'onExP'],
 			experiment: { mode: 'auto' },
 		});
+	});
+
+	test('registers every sessions list setting of the editor windows in the Agents window too', () => {
+		assert.deepStrictEqual(sessionsListKeysMissingInAgentsWindow, []);
 	});
 
 	test('does not nest any sessions setting under another setting, which the configuration model would ignore', () => {

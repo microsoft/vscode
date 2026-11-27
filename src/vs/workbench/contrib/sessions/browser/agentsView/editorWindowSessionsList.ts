@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Event } from '../../../../../base/common/event.js';
 import { derived, IObservable, observableFromEvent } from '../../../../../base/common/observable.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, WorkbenchMode } from '../../../../../platform/workspace/common/workspace.js';
 import { IViewletViewOptions } from '../../../../browser/parts/views/viewsViewlet.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
@@ -15,10 +16,26 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { registerSessionsListConfiguration } from '../sessionsConfiguration.js';
 import { SessionsGrouping } from '../views/sessionsListCommon.js';
 import { registerSessionsListActions, registerSessionsListReadStateMenus, SessionsArchiveActionsContribution } from '../views/sessionsListActions.js';
-import { EditorWindowSessionsContext, ISessionsViewOptions, SessionsView } from '../views/sessionsView.js';
+import { EditorWindowSessionsContext, ISessionsViewGroupings, ISessionsViewOptions, SessionsView } from '../views/sessionsView.js';
 
 /** The editor window's Sessions view groups only by time or environment, by time until one is chosen. */
-export const EDITOR_WINDOW_SESSIONS_GROUPINGS = { offered: [SessionsGrouping.Date, SessionsGrouping.Environment], default: SessionsGrouping.Date };
+export const EDITOR_WINDOW_SESSIONS_GROUPINGS: ISessionsViewGroupings = { offered: [SessionsGrouping.Date, SessionsGrouping.Environment], default: SessionsGrouping.Date };
+
+/**
+ * While the editor window is in the Agents mode ({@link WorkbenchMode.Agents}), as in Agentic Mode, its Sessions view also groups by workspace, as its
+ * sessions open their folders in the window: by time, environment or workspace, by workspace until one is chosen, as the
+ * Agents window does.
+ */
+export const ALL_SESSIONS_GROUPINGS: ISessionsViewGroupings = {
+	offered: [SessionsGrouping.Date, SessionsGrouping.Environment, SessionsGrouping.Workspace],
+	default: SessionsGrouping.Workspace,
+};
+
+/** The groupings of the editor window's Sessions view, as the window is in the Agents mode or not. */
+export function createEditorWindowSessionsGroupings(owner: object, workspaceContextService: IWorkspaceContextService): IObservable<ISessionsViewGroupings> {
+	return observableFromEvent(owner, workspaceContextService.onDidChangeWorkbenchMode,
+		() => workspaceContextService.getWorkbenchMode() === WorkbenchMode.Agents ? ALL_SESSIONS_GROUPINGS : EDITOR_WINDOW_SESSIONS_GROUPINGS);
+}
 
 /** The services of the Sessions view, which its constructor takes after its options. */
 type SessionsViewServices = ConstructorParameters<typeof SessionsView> extends [ISessionsViewOptions, ...infer Services] ? Services : never;
@@ -32,28 +49,30 @@ export type EditorWindowSessionsHeader = 'title' | 'section';
 /**
  * The options of the Sessions view in an editor window, wherever it shows: the actions of its header in its title or in its
  * section header (`header`), without the customizations, listing the sessions of the window's folders only while it has some (`scoped`), and grouped as
- * {@link EDITOR_WINDOW_SESSIONS_GROUPINGS} says, with the "Chats" section also under time grouping.
+ * `groupings` says ({@link createEditorWindowSessionsGroupings}), with the "Chats" section also under time grouping.
  */
-export function createEditorWindowSessionsViewOptions(options: IViewletViewOptions, scoped: IObservable<boolean>, header: EditorWindowSessionsHeader = 'title'): IViewletViewOptions & ISessionsViewOptions {
-	return { ...options, headerInTitle: header === 'title', showCustomizations: false, scoped, groupings: EDITOR_WINDOW_SESSIONS_GROUPINGS, quickChatsInTimeGrouping: true };
+export function createEditorWindowSessionsViewOptions(options: IViewletViewOptions, scoped: IObservable<boolean>, groupings: IObservable<ISessionsViewGroupings>, header: EditorWindowSessionsHeader = 'title'): IViewletViewOptions & ISessionsViewOptions {
+	return { ...options, headerInTitle: header === 'title', showCustomizations: false, scoped, groupings, quickChatsInTimeGrouping: true };
 }
 
 /** The Sessions view of an editor window, with {@link createEditorWindowSessionsViewOptions}. */
-export function createEditorWindowSessionsView(scoped: IObservable<boolean>, header: EditorWindowSessionsHeader = 'title'): typeof SessionsView {
+export function createEditorWindowSessionsView(scoped: IObservable<boolean>, groupings: IObservable<ISessionsViewGroupings>, header: EditorWindowSessionsHeader = 'title'): typeof SessionsView {
 	return class EditorWindowSessionsView extends SessionsView {
 		constructor(options: IViewletViewOptions, ...services: SessionsViewServices) {
-			super(createEditorWindowSessionsViewOptions(options, scoped, header), ...services);
+			super(createEditorWindowSessionsViewOptions(options, scoped, groupings, header), ...services);
 		}
 	};
 }
 
 /**
  * Whether the window has folders, whose sessions the providers then list only; not in an empty window, and not while the
- * window is about all sessions (it has no {@link IWorkspaceContextService.getWorkbenchScope scope}), which lists every session.
+ * window is about all sessions (it has no {@link IWorkspaceContextService.getWorkbenchScope scope}, or it is in the Agents mode,
+ * whose folders follow the focused session), which lists every session.
  */
 export function createEditorWindowSessionsScope(owner: object, workspaceContextService: IWorkspaceContextService): IObservable<boolean> {
 	const hasFolders = observableFromEvent(owner, workspaceContextService.onDidChangeWorkspaceFolders, () => workspaceContextService.getWorkspace().folders.length > 0);
-	const allSessions = observableFromEvent(owner, workspaceContextService.onDidChangeWorkbenchScope, () => !workspaceContextService.getWorkbenchScope());
+	const allSessions = observableFromEvent(owner, Event.any<unknown>(workspaceContextService.onDidChangeWorkbenchScope, workspaceContextService.onDidChangeWorkbenchMode),
+		() => !workspaceContextService.getWorkbenchScope() || workspaceContextService.getWorkbenchMode() === WorkbenchMode.Agents);
 	return derived(owner, reader => hasFolders.read(reader) && !allSessions.read(reader));
 }
 

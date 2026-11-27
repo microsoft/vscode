@@ -146,6 +146,32 @@ suite('WorkspaceFolderLocationService', () => {
 		assert.deepStrictEqual(atPrimary.map(l => [l.uri.path, l.label]), [['/work/repo', 'repo'], ['/work/wt1', 'wt1']]);
 	});
 
+	test('a folder that the workspace moves in place lists the locations it can move to before and after a move', async () => {
+		const worktree = URI.file('/work/wt1');
+		const repo = URI.file('/work/repo');
+		const other = URI.file('/work/other');
+		const configuration = URI.file('/agent-sessions/w.code-workspace');
+		const primaries = new Map<string, URI>();
+		const context = new class extends TestContextService {
+			getFolderPrimaryLocation(uri: URI): URI | undefined {
+				return this.getWorkspace().folders.some(f => f.uri.toString() === uri.toString()) ? primaries.get(uri.toString()) ?? uri : undefined;
+			}
+		}(new Workspace('id', [folder(repo), new WorkspaceFolder({ uri: other, name: '', index: 1 })], false, configuration, () => false));
+		const labelService = new class extends mock<ILabelService>() {
+			override registerWorkspaceLabelDecorator() { return toDisposable(() => { }); }
+		}();
+		const service = disposables.add(new WorkspaceFolderLocationService(disposables.add(new UriIdentityService(disposables.add(new FileService(new NullLogService())))), context, labelService));
+		disposables.add(service.registerProvider(provider('x', [{ uri: worktree, label: 'wt1', icon: Codicon.folder }])));
+		const read = async () => (await service.getFolderLocations(context.getWorkspace().folders[0], CancellationToken.None)).map(l => l.uri.path);
+
+		const atRepo = await read();
+		primaries.set(worktree.toString(), repo);
+		context.setWorkspace(new Workspace('id', [folder(worktree), new WorkspaceFolder({ uri: other, name: '', index: 1 })], false, configuration, () => false));
+		const atWorktree = await read();
+
+		assert.deepStrictEqual({ atRepo, atWorktree }, { atRepo: ['/work/repo', '/work/wt1'], atWorktree: ['/work/repo', '/work/wt1'] });
+	});
+
 	test('the primary is labelled and deduplicated for Windows drive and UNC locations', async () => {
 		const file = (authority: string, path: string) => URI.from({ scheme: 'file', authority, path });
 		const worktree = file('', '/C:/work/wt1');

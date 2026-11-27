@@ -140,7 +140,7 @@ import { ICopilotHomeService } from '../../../../../../platform/environment/comm
 import { TestCopilotHomeService } from '../../../../../../platform/environment/test/common/testCopilotHomeService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
-import { IWorkspaceContextService, WorkbenchState, type IWorkspace } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, WorkbenchMode, WorkbenchState, type IWorkspace } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { AgentHostContribution, AgentHostSessionHandler } from '../../../browser/agentSessions/agentHost/agentHostChatContribution.js';
 import { IAgentHostFirstResponseEvent } from '../../../browser/agentSessions/agentHost/agentHostFirstResponseTelemetry.js';
@@ -1132,7 +1132,11 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 			return uri ? { uri, name: uri.path, index, toResource: () => uri } : null;
 		},
 		onDidChangeWorkspaceFolders: Event.None,
-		onDidChangeWorkbenchState: Event.None
+		onDidChangeWorkbenchState: Event.None,
+		onDidChangeWorkbenchScope: Event.None,
+		onDidChangeWorkbenchMode: Event.None,
+		getWorkbenchMode: () => WorkbenchMode.Editor,
+		getWorkbenchScope: () => URI.file('/workspace')
 	});
 	const trustController: { result: boolean | undefined; workspaceTrusted: boolean; workspaceTrustCalls: number; resourcesTrustCalls: number; resourcesTrustUris: URI[]; trustedUris: Set<string>; setUrisTrustCalls: string[][] } = { result: true, workspaceTrusted: false, workspaceTrustCalls: 0, resourcesTrustCalls: 0, resourcesTrustUris: [], trustedUris: new Set<string>(), setUrisTrustCalls: [] };
 	// The marketplace install provider of each registered agent listens for the MCP registry being replaced.
@@ -6801,6 +6805,10 @@ suite('AgentHostChatContribution', () => {
 				getWorkspaceFolder: () => null,
 				onDidChangeWorkspaceFolders: Event.None,
 				onDidChangeWorkbenchState: Event.None,
+				onDidChangeWorkbenchScope: Event.None,
+				onDidChangeWorkbenchMode: Event.None,
+				getWorkbenchMode: () => WorkbenchMode.Editor,
+				getWorkbenchScope: () => URI.file('/workspace'),
 			});
 
 			const backendSession = AgentSession.uri('copilot', 'adopted-midflight');
@@ -7622,6 +7630,10 @@ suite('AgentHostChatContribution', () => {
 				getWorkspaceFolder: () => null,
 				onDidChangeWorkspaceFolders: Event.None,
 				onDidChangeWorkbenchState: Event.None,
+				onDidChangeWorkbenchScope: Event.None,
+				onDidChangeWorkbenchMode: Event.None,
+				getWorkbenchMode: () => WorkbenchMode.Editor,
+				getWorkbenchScope: () => URI.file('/workspace'),
 			});
 
 			agentHostService.addSession({ session: AgentSession.uri('copilot', 'in-ws'), startTime: 1000, modifiedTime: 2000, summary: 'In workspace', workingDirectories: [URI.file('/workspace/root/sub')] });
@@ -7659,6 +7671,10 @@ suite('AgentHostChatContribution', () => {
 				getWorkspaceFolder: () => null,
 				onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
 				onDidChangeWorkbenchState: Event.None,
+				onDidChangeWorkbenchScope: Event.None,
+				onDidChangeWorkbenchMode: Event.None,
+				getWorkbenchMode: () => WorkbenchMode.Editor,
+				getWorkbenchScope: () => URI.file('/workspace'),
 			});
 
 			agentHostService.addSession({ session: AgentSession.uri('copilot', 'in-ws'), startTime: 1000, modifiedTime: 2000, summary: 'In workspace', workingDirectories: [URI.file('/workspace/root/sub')] });
@@ -7701,6 +7717,10 @@ suite('AgentHostChatContribution', () => {
 				getWorkspaceFolder: () => null,
 				onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
 				onDidChangeWorkbenchState: Event.None,
+				onDidChangeWorkbenchScope: Event.None,
+				onDidChangeWorkbenchMode: Event.None,
+				getWorkbenchMode: () => WorkbenchMode.Editor,
+				getWorkbenchScope: () => URI.file('/workspace'),
 			});
 
 			agentHostService.addSession({ session: AgentSession.uri('copilot', 'primary'), startTime: 1000, modifiedTime: 2000, summary: 'In the folder', workingDirectories: [URI.file('/workspace/root/sub')], project: { uri: primary, displayName: 'root' } });
@@ -7745,6 +7765,10 @@ suite('AgentHostChatContribution', () => {
 				getWorkspaceFolder: () => null,
 				onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
 				onDidChangeWorkbenchState: Event.None,
+				onDidChangeWorkbenchScope: Event.None,
+				onDidChangeWorkbenchMode: Event.None,
+				getWorkbenchMode: () => WorkbenchMode.Editor,
+				getWorkbenchScope: () => URI.file('/workspace'),
 			});
 
 			// A session without a project, and one of a window opened on a linked checkout, whose project is the main worktree
@@ -7786,6 +7810,10 @@ suite('AgentHostChatContribution', () => {
 				getWorkspaceFolder: () => null,
 				onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
 				onDidChangeWorkbenchState: onDidChangeWorkbenchState.event,
+				onDidChangeWorkbenchScope: Event.None,
+				onDidChangeWorkbenchMode: Event.None,
+				getWorkbenchMode: () => WorkbenchMode.Editor,
+				getWorkbenchScope: () => URI.file('/workspace'),
 			});
 
 			agentHostService.addSession({ session: AgentSession.uri('copilot', 'primary'), startTime: 1000, modifiedTime: 2000, summary: 'In the folder', workingDirectories: [URI.file('/workspace/root/sub')], project: { uri: primary, displayName: 'root' } });
@@ -7826,6 +7854,10 @@ suite('AgentHostChatContribution', () => {
 				getWorkspaceFolder: () => null,
 				onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
 				onDidChangeWorkbenchState: Event.None,
+				onDidChangeWorkbenchScope: Event.None,
+				onDidChangeWorkbenchMode: Event.None,
+				getWorkbenchMode: () => WorkbenchMode.Editor,
+				getWorkbenchScope: () => URI.file('/workspace'),
 			});
 			agentHostService.addSession({ session: AgentSession.uri('copilot', 'in-ws'), startTime: 1000, modifiedTime: 2000, summary: 'In workspace', workingDirectories: [URI.file('/workspace/root/sub')] });
 			agentHostService.addSession({ session: AgentSession.uri('copilot', 'out-ws'), startTime: 1000, modifiedTime: 2000, summary: 'Outside workspace', workingDirectories: [URI.file('/other/place')] });
@@ -7868,6 +7900,10 @@ suite('AgentHostChatContribution', () => {
 				getWorkspaceFolder: () => null,
 				onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
 				onDidChangeWorkbenchState: Event.None,
+				onDidChangeWorkbenchScope: Event.None,
+				onDidChangeWorkbenchMode: Event.None,
+				getWorkbenchMode: () => WorkbenchMode.Editor,
+				getWorkbenchScope: () => URI.file('/workspace'),
 			});
 
 			agentHostService.addSession({
@@ -7937,6 +7973,10 @@ suite('AgentHostChatContribution', () => {
 				getWorkspaceFolder: () => null,
 				onDidChangeWorkspaceFolders: Event.None,
 				onDidChangeWorkbenchState: Event.None,
+				onDidChangeWorkbenchScope: Event.None,
+				onDidChangeWorkbenchMode: Event.None,
+				getWorkbenchMode: () => WorkbenchMode.Editor,
+				getWorkbenchScope: () => URI.file('/workspace'),
 			});
 
 			agentHostService.addSession({
@@ -7971,6 +8011,10 @@ suite('AgentHostChatContribution', () => {
 				getWorkspaceFolder: () => null,
 				onDidChangeWorkspaceFolders: Event.None,
 				onDidChangeWorkbenchState: Event.None,
+				onDidChangeWorkbenchScope: Event.None,
+				onDidChangeWorkbenchMode: Event.None,
+				getWorkbenchMode: () => WorkbenchMode.Editor,
+				getWorkbenchScope: () => URI.file('/workspace'),
 			});
 
 			agentHostService.addSession({
@@ -8006,6 +8050,10 @@ suite('AgentHostChatContribution', () => {
 				getWorkspaceFolder: () => null,
 				onDidChangeWorkspaceFolders: Event.None,
 				onDidChangeWorkbenchState: Event.None,
+				onDidChangeWorkbenchScope: Event.None,
+				onDidChangeWorkbenchMode: Event.None,
+				getWorkbenchMode: () => WorkbenchMode.Editor,
+				getWorkbenchScope: () => URI.file('/workspace'),
 			});
 
 			agentHostService.addSession({
@@ -8052,6 +8100,10 @@ suite('AgentHostChatContribution', () => {
 				getWorkspaceFolder: () => null,
 				onDidChangeWorkspaceFolders: Event.None,
 				onDidChangeWorkbenchState: Event.None,
+				onDidChangeWorkbenchScope: Event.None,
+				onDidChangeWorkbenchMode: Event.None,
+				getWorkbenchMode: () => WorkbenchMode.Editor,
+				getWorkbenchScope: () => URI.file('/workspace'),
 			});
 
 			// Adoption drops `ehcliAdoptable` and leaves the durable adopted marker
@@ -8082,6 +8134,10 @@ suite('AgentHostChatContribution', () => {
 				getWorkspaceFolder: () => null,
 				onDidChangeWorkspaceFolders: Event.None,
 				onDidChangeWorkbenchState: Event.None,
+				onDidChangeWorkbenchScope: Event.None,
+				onDidChangeWorkbenchMode: Event.None,
+				getWorkbenchMode: () => WorkbenchMode.Editor,
+				getWorkbenchScope: () => URI.file('/workspace'),
 			});
 
 			const listController = createSessionListController(disposables, instantiationService, agentHostService);
@@ -8257,6 +8313,10 @@ suite('AgentHostChatContribution', () => {
 				getWorkspaceFolder: () => null,
 				onDidChangeWorkspaceFolders: Event.None,
 				onDidChangeWorkbenchState: Event.None,
+				onDidChangeWorkbenchScope: Event.None,
+				onDidChangeWorkbenchMode: Event.None,
+				getWorkbenchMode: () => WorkbenchMode.Editor,
+				getWorkbenchScope: () => URI.file('/workspace'),
 			});
 
 			const rebindCalls: { oldResource: URI; newResource: URI; provider: string }[] = [];
@@ -8434,6 +8494,10 @@ suite('AgentHostChatContribution', () => {
 				getWorkspaceFolder: () => null,
 				onDidChangeWorkspaceFolders: Event.None,
 				onDidChangeWorkbenchState: Event.None,
+				onDidChangeWorkbenchScope: Event.None,
+				onDidChangeWorkbenchMode: Event.None,
+				getWorkbenchMode: () => WorkbenchMode.Editor,
+				getWorkbenchScope: () => URI.file('/workspace'),
 			});
 
 			const rebindCalls: { oldResource: URI; newResource: URI }[] = [];

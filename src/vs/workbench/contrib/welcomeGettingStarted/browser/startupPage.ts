@@ -12,6 +12,8 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { IWorkspaceContextService, UNKNOWN_EMPTY_WINDOW_WORKSPACE, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IAgenticModeService } from '../../../services/agenticMode/common/agenticMode.js';
+import { EditorsOrder } from '../../../common/editor.js';
 import { ILifecycleService, LifecyclePhase, StartupKind } from '../../../services/lifecycle/common/lifecycle.js';
 import { Disposable, } from '../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -97,6 +99,7 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IOnboardingService private readonly onboardingService: IOnboardingService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@IAgenticModeService private readonly agenticModeService: IAgenticModeService,
 	) {
 		super();
 
@@ -108,12 +111,33 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 				e.editor.selectedStep = undefined;
 			}
 		}));
+		this._register(this.agenticModeService.onDidChange(active => {
+			if (active) {
+				this.closeWelcomeEditors().then(undefined, onUnexpectedError);
+			}
+		}));
+	}
+
+	/**
+	 * Agentic Mode never shows the Welcome page, so close any that is open
+	 * (for example restored from a previous session or open before entering the mode).
+	 */
+	private async closeWelcomeEditors(): Promise<void> {
+		const welcomeEditors = this.editorService.getEditors(EditorsOrder.SEQUENTIAL).filter(({ editor }) => editor instanceof GettingStartedInput);
+		if (welcomeEditors.length) {
+			await this.editorService.closeEditors(welcomeEditors);
+		}
 	}
 
 	private async run() {
 
 		// Wait for resolving startup editor until we are restored to reduce startup pressure
 		await this.lifecycleService.when(LifecyclePhase.Restored);
+
+		if (this.agenticModeService.isActive) {
+			await this.closeWelcomeEditors();
+			return;
+		}
 
 		if (AuxiliaryBarMaximizedContext.getValue(this.contextKeyService)) {
 			// If the auxiliary bar is maximized, we do not show the welcome page.

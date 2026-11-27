@@ -120,7 +120,14 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			return null;
 		}
 		const workspace = this.contextService.getWorkspace();
-		return workspace.configuration || workspace.folders[0].toResource(FOLDER_SETTINGS_PATH);
+		if (workspace.configuration) {
+			return workspace.configuration;
+		}
+		// A workspace without a workspace file (Agentic Mode) has no workspace settings
+		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
+			return null;
+		}
+		return workspace.folders[0].toResource(FOLDER_SETTINGS_PATH);
 	}
 
 	private createOrGetCachedSettingsEditor2Input(): SettingsEditor2Input {

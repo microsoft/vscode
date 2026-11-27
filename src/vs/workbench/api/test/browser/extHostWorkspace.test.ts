@@ -30,7 +30,7 @@ import { IURITransformerService } from '../../common/extHostUriTransformerServic
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ExcludeSettingOptions } from '../../../services/search/common/searchExtTypes.js';
 
-function createExtHostWorkspace(mainContext: IMainContext, data: IWorkspaceData, logService: ILogService): ExtHostWorkspace {
+function createExtHostWorkspace(mainContext: IMainContext, data: IWorkspaceData | null, logService: ILogService): ExtHostWorkspace {
 	mainContext.set(MainContext.MainThreadTelemetry, new class extends mock<MainThreadTelemetryShape>() {
 		override $publicLog2(): void { }
 	});
@@ -57,16 +57,32 @@ suite('ExtHostWorkspace', function () {
 	test('knows the workbench mode from its workspace data and follows its changes', () => {
 		const data: IWorkspaceData = { id: 'foo', folders: [], name: 'Test', mode: WorkbenchMode.Agents };
 		const ws = createExtHostWorkspace(new TestRPCProtocol(), data, new NullLogService());
-		const events: WorkbenchMode[] = [];
-		store.add(ws.onDidChangeWorkbenchMode(mode => events.push(mode)));
+		const modeName = (mode: WorkbenchMode) => mode === WorkbenchMode.Agents ? 'agents' : 'editor';
+		const events: string[] = [];
+		store.add(ws.onDidChangeWorkbenchMode(mode => events.push(`mode:${modeName(mode)}`)));
+		store.add(ws.onDidChangeWorkspace(e => events.push(`folders:+${e.added.length}-${e.removed.length} in mode:${modeName(ws.workbenchMode)}`)));
 		const initial = ws.workbenchMode;
 
 		ws.$acceptWorkspaceData(data);
 		ws.$acceptWorkspaceData({ ...data, mode: WorkbenchMode.Editor });
-		ws.$acceptWorkspaceData(data);
+		ws.$acceptWorkspaceData({ ...data, name: 'Other', mode: WorkbenchMode.Agents });
 		ws.$acceptWorkspaceData(null);
 
-		assert.deepStrictEqual({ initial, current: ws.workbenchMode, events }, { initial: WorkbenchMode.Agents, current: WorkbenchMode.Editor, events: [WorkbenchMode.Editor, WorkbenchMode.Agents, WorkbenchMode.Editor] });
+		assert.deepStrictEqual({ initial, current: ws.workbenchMode, events }, {
+			initial: WorkbenchMode.Agents,
+			current: WorkbenchMode.Editor,
+			events: [
+				// Same workspace and mode: the folders event fires as before
+				'folders:+0-0 in mode:agents',
+				// Only the mode changed: no folders event
+				'mode:editor',
+				// Workspace and mode changed: listeners of both events see the new mode
+				'folders:+0-0 in mode:agents',
+				'mode:agents',
+				'folders:+0-0 in mode:editor',
+				'mode:editor',
+			]
+		});
 	});
 
 	test('asRelativePath', () => {
@@ -638,6 +654,30 @@ suite('ExtHostWorkspace', function () {
 		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [] });
 		sub.dispose();
 		finish();
+	});
+
+	test('Leaving the workspace without a reload removes its folders', function () {
+		const ws = createExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [] }, new NullLogService());
+		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar'), 0), aWorkspaceFolderData(URI.parse('foo:bar2'), 1)] });
+
+		const events: { added: string[]; removed: string[] }[] = [];
+		const sub = ws.onDidChangeWorkspace(e => events.push({ added: e.added.map(f => f.uri.toString()), removed: e.removed.map(f => f.uri.toString()) }));
+		ws.$acceptWorkspaceData(null);
+		sub.dispose();
+
+		assert.deepStrictEqual({ events, folders: ws.workspace?.folders }, { events: [{ added: [], removed: ['foo:bar', 'foo:bar2'] }], folders: undefined });
+	});
+
+	test('An extension host that starts in an empty window reports no removed folders', function () {
+		const ws = createExtHostWorkspace(new TestRPCProtocol(), null, new NullLogService());
+
+		const events: { added: number; removed: number }[] = [];
+		const sub = ws.onDidChangeWorkspace(e => events.push({ added: e.added.length, removed: e.removed.length }));
+		ws.$initializeWorkspace(null, true);
+		ws.$acceptWorkspaceData(null);
+		sub.dispose();
+
+		assert.deepStrictEqual(events, [{ added: 0, removed: 0 }, { added: 0, removed: 0 }]);
 	});
 
 	test('`vscode.workspace.getWorkspaceFolder(file)` don\'t return workspace folder when file open from command line. #36221', function () {

@@ -43,8 +43,15 @@ import { ChatSessionArchiveActionWording, getChatSessionArchiveActionPresentatio
 import { WorkbenchListFocusContextKey } from '../../../../../platform/list/browser/listService.js';
 import { AGENT_SESSION_MARK_READ_ACTION_ID, AGENT_SESSION_MARK_UNREAD_ACTION_ID } from '../../../../common/chatSessionCommands.js';
 import { AICustomizationManagementCommands } from '../../common/aiCustomizationWorkspaceService.js';
+import { AgenticModeActive } from './agenticModeActions.js';
 
 const AGENT_SESSIONS_CATEGORY = localize2('chatSessions', "Chat Agent Sessions");
+
+/**
+ * Whether the Chat view lays out its sessions itself: not while the Agents view replaces it, nor in Agentic Mode, which
+ * always shows the sessions beside the chat part and would otherwise silently write an orientation it ignores.
+ */
+const ChatViewSessionsLayoutConfigurable = ContextKeyExpr.and(ChatContextKeys.agentsViewActive.negate(), AgenticModeActive.negate());
 
 //#region Chat View
 
@@ -79,7 +86,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatWelcomeContext, {
 	title: localize2('chat.sessionsOrientation', "Sessions Orientation"),
 	group: '0_sessions',
 	order: 1,
-	when: ChatContextKeys.inChatEditor.negate()
+	when: ContextKeyExpr.and(ChatContextKeys.inChatEditor.negate(), AgenticModeActive.negate())
 });
 
 export class SetAgentSessionsOrientationStackedAction extends Action2 {
@@ -89,7 +96,7 @@ export class SetAgentSessionsOrientationStackedAction extends Action2 {
 			id: 'workbench.action.chat.setAgentSessionsOrientationStacked',
 			title: localize2('chat.sessionsOrientation.stacked', "Stacked"),
 			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsOrientation}`, 'stacked'),
-			precondition: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true), ChatContextKeys.agentsViewActive.negate()),
+			precondition: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true), ChatViewSessionsLayoutConfigurable),
 			menu: {
 				id: agentSessionsOrientationSubmenu,
 				group: 'navigation',
@@ -112,7 +119,7 @@ export class SetAgentSessionsOrientationSideBySideAction extends Action2 {
 			id: 'workbench.action.chat.setAgentSessionsOrientationSideBySide',
 			title: localize2('chat.sessionsOrientation.sideBySide', "Side by Side"),
 			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsOrientation}`, 'sideBySide'),
-			precondition: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true), ChatContextKeys.agentsViewActive.negate()),
+			precondition: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true), ChatViewSessionsLayoutConfigurable),
 			menu: {
 				id: agentSessionsOrientationSubmenu,
 				group: 'navigation',
@@ -1352,7 +1359,7 @@ export class ShowAgentSessionsSidebar extends UpdateChatViewWidthAction {
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.enabled,
 				ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
-				ChatContextKeys.agentsViewActive.negate(),
+				ChatViewSessionsLayoutConfigurable,
 			),
 			f1: true,
 			category: AGENT_SESSIONS_CATEGORY,
@@ -1376,7 +1383,7 @@ export class HideAgentSessionsSidebar extends UpdateChatViewWidthAction {
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.enabled,
 				ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.SideBySide),
-				ChatContextKeys.agentsViewActive.negate(),
+				ChatViewSessionsLayoutConfigurable,
 			),
 			f1: true,
 			category: AGENT_SESSIONS_CATEGORY,
@@ -1397,7 +1404,7 @@ export class ToggleAgentSessionsSidebar extends Action2 {
 		super({
 			id: ToggleAgentSessionsSidebar.ID,
 			title: ToggleAgentSessionsSidebar.TITLE,
-			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.agentsViewActive.negate()),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatViewSessionsLayoutConfigurable),
 			f1: true,
 			category: AGENT_SESSIONS_CATEGORY,
 		});

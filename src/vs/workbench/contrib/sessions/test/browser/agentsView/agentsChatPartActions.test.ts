@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, WorkbenchMode } from '../../../../../../platform/workspace/common/workspace.js';
 import { SESSIONS_LIST_MARK_READ_COMMAND_ID, SESSIONS_LIST_MARK_UNREAD_COMMAND_ID } from '../../../../../common/chatSessionCommands.js';
 import { EditorInput } from '../../../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
@@ -22,10 +22,13 @@ import { IChatViewHostService, IChatViewHostNewChatOptions, IChatViewNewChatTarg
 import { IAgentsViewProvidersService } from '../../../browser/agentsView/agentsViewProviders.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPart.js';
-import { AGENTS_CHAT_PART_CLOSE_ALL_CHATS_COMMAND_ID, AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID, AgentsChatPartVisibleContext, registerAgentsChatPartActions, registerAgentsViewNewSessionActions } from '../../../browser/agentsView/agentsChatPartActions.js';
+import { AGENTS_CHAT_PART_CLOSE_ALL_CHATS_COMMAND_ID, AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID, AgentsChatPartEnabledContext, AgentsChatPartVisibleContext, registerAgentsChatPartActions, registerAgentsViewNewSessionActions } from '../../../browser/agentsView/agentsChatPartActions.js';
 import { InAgentsChatPartContext } from '../../../browser/agentsView/agentsChatPartContext.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingsRegistry } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { decodeKeybinding } from '../../../../../../base/common/keybindings.js';
+import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
+import { OS } from '../../../../../../base/common/platform.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionIsCreatedContext, SessionSupportsRenameContext } from '../../../common/contextkeys.js';
 import { INewSessionTarget } from '../../../browser/parts/chatView.js';
@@ -54,7 +57,7 @@ suite('Agents chat part actions', () => {
 	function run(commandId: string, arg: unknown, folderOptions?: IEditorWindowComposerFolderOptions, chatPart = true) {
 		const opened: { readonly target: INewSessionTarget | undefined; readonly newComposer: boolean | undefined }[] = [];
 		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, getWorkspace: () => upcastPartial<IWorkspace>({ folders: [] }) }));
+		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, onDidChangeWorkbenchScope: Event.None, onDidChangeWorkbenchMode: Event.None, getWorkbenchMode: () => WorkbenchMode.Editor, getWorkbenchScope: () => URI.file('/workspace'), getWorkspace: () => upcastPartial<IWorkspace>({ folders: [] }) }));
 		const composerFolders = instantiationService.createInstance(EditorWindowComposerFoldersService);
 		if (folderOptions) {
 			store.add(composerFolders.setComposerFolderOptions(() => folderOptions));
@@ -140,6 +143,30 @@ suite('Agents chat part actions', () => {
 		assert.deepStrictEqual({ agentsView: shows('workbench.view.agents.sessions'), chatView: shows(ChatViewId) }, { agentsView: true, chatView: false });
 	});
 
+	test('Ctrl+N starts a new session in Agentic Mode outside a chat, unless an editor has the focus; a normal editor window keeps New Untitled File; its rule exists from the start, as the keybinding service does not pick up later ones', () => {
+		// Not registering the chat part's actions: the mode may be entered after the window started
+		const keybinding = KeybindingsRegistry.getDefaultKeybindings().find(item => item.command === 'workbench.action.agentsView.newSession');
+		const matches = (keys: Record<string, unknown>) => !!keybinding?.when?.evaluate({ getValue: <T>(key: string) => ({ [ChatContextKeys.enabled.key]: true, [AgentsChatPartEnabledContext.key]: true, workbenchScope: 'all', ...keys })[key] as T });
+
+		assert.deepStrictEqual({
+			keybinding: keybinding?.keybinding?.getHashCode(),
+			chatClosedEmptyEditorArea: matches({ editorAreaFocus: true, editorIsOpen: false }),
+			sessionsListFocused: matches({ editorIsOpen: true }),
+			editorFocused: matches({ editorAreaFocus: true, editorIsOpen: true }),
+			inChat: matches({ [ChatContextKeys.inChatSession.key]: true }),
+			editorWindow: matches({ workbenchScope: 'workspace' }),
+			chatPartDisabled: matches({ [AgentsChatPartEnabledContext.key]: false }),
+		}, {
+			keybinding: decodeKeybinding(KeyMod.CtrlCmd | KeyCode.KeyN, OS)?.getHashCode(),
+			chatClosedEmptyEditorArea: true,
+			sessionsListFocused: true,
+			editorFocused: false,
+			inChat: false,
+			editorWindow: false,
+			chatPartDisabled: false,
+		});
+	});
+
 	test('a new session of the chat part aims at the window\'s folder of the active editor, else at its first', () => {
 		const folders = [URI.file('/work/vscode'), URI.file('/work/tools')].map(uri => upcastPartial<IWorkspaceFolder>({ uri }));
 		const workspaceContextService = upcastPartial<IWorkspaceContextService>({
@@ -197,7 +224,7 @@ suite('Agents chat part actions', () => {
 				`secondary/4_manage 10 ${MenuId.ChatViewMode.id}`,
 			],
 			agentsWindow: [],
-			keybindingWhen: ContextKeyExpr.and(ChatContextKeys.enabled, InAgentsChatPartContext)?.serialize(),
+			keybindingWhen: ContextKeyExpr.and(AgentsChatPartEnabledContext, ChatContextKeys.enabled, InAgentsChatPartContext)?.serialize(),
 		});
 	});
 

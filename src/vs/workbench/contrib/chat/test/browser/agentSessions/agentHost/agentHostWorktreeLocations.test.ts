@@ -115,6 +115,7 @@ suite('AgentHostWorktreeLocations', () => {
 			getWorkspace: () => upcastPartial<IWorkspace>({ uri: workspaceFolders[0], folders: workspaceFolders.map(uri => upcastPartial<IWorkspaceFolder>({ uri })) }),
 			onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
 			onDidChangeWorkbenchState: Event.None,
+			getWorkbenchScope: () => URI.file('/workspace'),
 		}));
 		// A folder reached through a symbolic link, such as `/tmp/x` of `/private/tmp/x` on macOS, has another real path
 		const realpathsRead: string[] = [];
@@ -585,6 +586,7 @@ suite('AgentHostWorktreeLocations', () => {
 			undefined,
 			{
 				getWorkbenchState: () => WorkbenchState.FOLDER,
+				getWorkbenchScope: () => URI.file('/workspace'),
 				getWorkspace: () => ({ folders: [{ uri: current }], uri: primary }),
 				setFolderLocation: async (location: URI, o?: { onApplied?: () => void }) => { current = location; o?.onApplied?.(); return true; },
 			},

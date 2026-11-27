@@ -5,14 +5,16 @@
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../../../base/common/errors.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { autorun, IObservable, runOnChange } from '../../../../../../base/common/observable.js';
+import { autorun, IObservable, observableFromEvent, runOnChange } from '../../../../../../base/common/observable.js';
 import { affectsAgentHostProviderPreference, getPolicyUnavailableLocalAgentHostProviders, isLocalAgentHostProviderDisabledByPolicy, IAgentHostService, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
+import { IWorkspaceContextService, WorkbenchMode } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkbenchConfigurationService } from '../../../../../services/configuration/common/configuration.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
@@ -43,9 +45,10 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 	constructor(
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IWorkbenchConfigurationService private readonly _configurationService: IWorkbenchConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IAgentHostSessionWorkingDirectoryResolver private readonly _workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
 		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
 		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
@@ -83,7 +86,11 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 		this._initialized = true;
 		// With worktree support, also the sessions whose project is a folder of the window, such as those in its worktrees
 		const matchProjectRoot = observableConfigValue<boolean>(ChatConfiguration.EditorWindowEnableWorktree, false, this._configurationService);
-		const sessionListStore = this._register(this._instantiationService.createInstance(AgentHostSessionListStore, this._agentHostService, { retainUnlistedProvider: provider => isLocalAgentHostProviderDisabledByPolicy(provider, this._configurationService), matchProjectRoot }));
+		// Every session while the window is about all sessions: it has no scope, or it is in the Agents mode, as the Agents window
+		// is, whose folders follow the focused session and whose Sessions list shows only the sessions of the scope it picked
+		const listAllSessions = observableFromEvent(this, Event.any<unknown>(this._workspaceContextService.onDidChangeWorkbenchScope, this._workspaceContextService.onDidChangeWorkbenchMode),
+			() => !this._workspaceContextService.getWorkbenchScope() || this._workspaceContextService.getWorkbenchMode() === WorkbenchMode.Agents);
+		const sessionListStore = this._register(this._instantiationService.createInstance(AgentHostSessionListStore, this._agentHostService, { retainUnlistedProvider: provider => isLocalAgentHostProviderDisabledByPolicy(provider, this._configurationService), matchProjectRoot, listAllSessions }));
 		this._sessionListStore = sessionListStore;
 
 		this._register(this._agentHostService.rootState.onDidChange(rootState => {

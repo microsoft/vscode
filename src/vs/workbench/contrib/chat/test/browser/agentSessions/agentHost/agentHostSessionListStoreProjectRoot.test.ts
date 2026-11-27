@@ -33,9 +33,10 @@ suite('AgentHostSessionListStore - project root', () => {
 		...(workspaceFile ? { _meta: withSessionMultiRootMetadata(undefined, { workspaceFile: URI.file(workspaceFile).toString() }) } : {}),
 	});
 
-	/** The sessions list of a window on `folders`, of the workspace file `configuration` if any, while matching by project root as `matchProjectRoot` says. */
+	/** The sessions list of a window on `folders`, of the workspace file `configuration` if any, while matching by project root as `matchProjectRoot` says and listing every session as `listAllSessions` says. */
 	function createList(sessions: readonly IAgentSessionMetadata[], options?: { readonly folders?: readonly string[]; readonly configuration?: string }) {
 		const matchProjectRoot = observableValue('matchProjectRoot', false);
+		const listAllSessions = observableValue('listAllSessions', false);
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({ registerSessionResource: (backendSession: URI) => backendSession }));
@@ -54,9 +55,10 @@ suite('AgentHostSessionListStore - project root', () => {
 			disposeSession: async () => { },
 			dispatch: () => { },
 		};
-		const list = store.add(instantiationService.createInstance(AgentHostSessionListStore, connection, { matchProjectRoot }));
+		const list = store.add(instantiationService.createInstance(AgentHostSessionListStore, connection, { matchProjectRoot, listAllSessions }));
 		return {
 			matchProjectRoot,
+			listAllSessions,
 			notify: (notification: INotification) => onDidNotification.fire(notification),
 			shown: () => list.getSessions('copilot').map(entry => entry.rawId).sort(),
 			settle: async () => {
@@ -87,6 +89,27 @@ suite('AgentHostSessionListStore - project root', () => {
 		assert.deepStrictEqual({ off, on, offAgain: shown() }, {
 			off: ['in-folder'],
 			on: ['in-folder', 'worktree'],
+			offAgain: ['in-folder'],
+		});
+	});
+
+	test('while listing every session, such as in Agentic Mode, lists the sessions of other folders too, and narrows to the window\'s folders again as it turns off', async () => {
+		const { listAllSessions, shown, settle } = createList([
+			session('in-folder', '/work/vscode/src', '/work/vscode'),
+			session('other-folder', '/work/other/src', '/work/other'),
+		]);
+
+		await settle();
+		const off = shown();
+		listAllSessions.set(true, undefined);
+		await settle();
+		const on = shown();
+		listAllSessions.set(false, undefined);
+		await settle();
+
+		assert.deepStrictEqual({ off, on, offAgain: shown() }, {
+			off: ['in-folder'],
+			on: ['in-folder', 'other-folder'],
 			offAgain: ['in-folder'],
 		});
 	});

@@ -20,6 +20,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { USER_LOCAL_AND_REMOTE_SETTINGS } from '../../../../platform/request/common/request.js';
 import { AgentSandboxSettingId } from '../../../../platform/sandbox/common/settings.js';
 import { APPLICATION_SCOPES, FOLDER_SCOPES, IWorkbenchConfigurationService, LOCAL_MACHINE_SCOPES, REMOTE_MACHINE_SCOPES, WORKSPACE_SCOPES } from '../../../services/configuration/common/configuration.js';
+import { IAgenticModeService } from '../../../services/agenticMode/common/agenticMode.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IExtensionSetting, ISearchResult, ISetting, ISettingMatch, SettingMatchType, SettingValueType } from '../../../services/preferences/common/preferences.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
@@ -188,6 +189,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		private readonly userDataProfileService: IUserDataProfileService,
 		private readonly configurationService: IWorkbenchConfigurationService,
 		private readonly isSessionsWindow: boolean,
+		private readonly agenticModeService: IAgenticModeService,
 		private readonly experimentalSettingsService: IExperimentalSettingsService,
 		private readonly managedSettingsPresentationService: IManagedSettingsPresentationService,
 	) {
@@ -393,12 +395,14 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		}
 
 		let hasAgentsWindowOverride = false;
-		if (this.isSessionsWindow) {
+		this.isAgentsWindowReadOnly = false;
+		if (this.isSessionsWindow || this.agenticModeService.isActive) {
 			const property = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()[this.setting.key];
-			hasAgentsWindowOverride = !!property?.agentsWindow;
-			this.isAgentsWindowReadOnly = !!property?.agentsWindow?.readOnly;
+			hasAgentsWindowOverride = this.isSessionsWindow ? !!property?.agentsWindow : property?.agenticMode?.default !== undefined;
+			this.isAgentsWindowReadOnly = this.isSessionsWindow && !!property?.agentsWindow?.readOnly;
 			if (this.isAgentsWindowReadOnly) {
 				isConfigured = false;
+				displayValue = policyValue ?? inspected.value;
 			}
 		}
 
@@ -616,6 +620,7 @@ export class SettingsTreeModel implements IDisposable {
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IExperimentalSettingsService private readonly _experimentalSettingsService: IExperimentalSettingsService,
 		@IManagedSettingsPresentationService private readonly _managedSettingsPresentationService: IManagedSettingsPresentationService,
+		@IAgenticModeService private readonly _agenticModeService: IAgenticModeService,
 	) {
 	}
 
@@ -733,6 +738,7 @@ export class SettingsTreeModel implements IDisposable {
 			this._userDataProfileService,
 			this._configurationService,
 			this._environmentService.isSessionsWindow,
+			this._agenticModeService,
 			this._experimentalSettingsService,
 			this._managedSettingsPresentationService);
 
@@ -1062,8 +1068,9 @@ export class SearchResultModel extends SettingsTreeModel {
 		@IProductService productService: IProductService,
 		@IExperimentalSettingsService experimentalSettingsService: IExperimentalSettingsService,
 		@IManagedSettingsPresentationService managedSettingsPresentationService: IManagedSettingsPresentationService,
+		@IAgenticModeService agenticModeService: IAgenticModeService,
 	) {
-		super(viewState, isWorkspaceTrusted, configurationService, languageService, userDataProfileService, productService, environmentService, experimentalSettingsService, managedSettingsPresentationService);
+		super(viewState, isWorkspaceTrusted, configurationService, languageService, userDataProfileService, productService, environmentService, experimentalSettingsService, managedSettingsPresentationService, agenticModeService);
 		this.settingsOrderByTocIndex = settingsOrderByTocIndex;
 		this.cachedUniqueSearchResults = new Map();
 		this.update({ id: 'searchResultModel', label: '' });

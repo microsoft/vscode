@@ -31,6 +31,7 @@ import { ChatEditorContent } from '../../../../browser/chatEditor/chatEditorCont
 import { ChatGroupView } from '../../../../browser/parts/chatGroupView.js';
 import { SessionsList } from '../../../../browser/views/sessionsList.js';
 import { ISessionsViewLocator, SessionsView } from '../../../../browser/views/sessionsView.js';
+import { ISessionsWorkbenchScopeService } from '../../../../browser/views/sessionsWorkbenchScope.js';
 import { SessionArchiveNudge } from '../../../../browser/chat/sessionArchiveNudge.js';
 import { SessionChatInputToolbar } from '../../../../browser/chat/sessionChatInputToolbar.js';
 import { SessionInputBanners } from '../../../../browser/sessionInputBanners/sessionInputBanners.js';
@@ -60,7 +61,7 @@ import '../../browser/agentsViewProviders.contribution.js';
  */
 const CORE_SERVICES = new Set([
 	'accessibilityService', 'accessibilitySignalService', 'accountPolicyGateService', 'actionWidgetService', 'actionViewItemService', 'agentHostConnectionsService',
-	'agentHostEnablementService', 'agentHostService', 'agentPluginService', 'agentSessions', 'assignmentService', 'chatAgentNameService', 'chatAgentService', 'chatAttachmentResolveService',
+	'agentHostEnablementService', 'agentHostService', 'agentPluginService', 'agentSessions', 'agenticModeService', 'assignmentService', 'chatAgentNameService', 'chatAgentService', 'chatAttachmentResolveService',
 	'chatEditingService', 'chatEntitlementService', 'chatModeService', 'chatOpenDiagnosticsService', 'chatPetService', 'chatService', 'chatSessionsService', 'chatSideChatService',
 	'chatSlashCommandService', 'chatSubmitRequestHandlerService', 'chatTipService', 'chatViewHostService', 'chatWidgetHistoryService',
 	'chatWidgetService', 'clipboardService', 'commandService', 'configurationService', 'contextKeyService', 'contextMenuService', 'contextService',
@@ -95,6 +96,7 @@ function editorWindowSessionsSingletons(): readonly IEditorWindowSessionsSinglet
 		{ id: IDevContainerAgentHostService, ctor: descriptorOf(IDevContainerAgentHostService)!.ctor },
 		{ id: INewSessionWorktreeSendChoiceService, ctor: descriptorOf(INewSessionWorktreeSendChoiceService)!.ctor },
 		{ id: ISessionsViewLocator, ctor: descriptorOf(ISessionsViewLocator)!.ctor },
+		{ id: ISessionsWorkbenchScopeService, ctor: descriptorOf(ISessionsWorkbenchScopeService)!.ctor },
 	];
 }
 

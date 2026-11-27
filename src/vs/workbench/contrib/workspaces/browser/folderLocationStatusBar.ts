@@ -35,6 +35,7 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
 import { IWorkspaceEditingService } from '../../../services/workspaces/common/workspaceEditing.js';
+import { IAgenticModeService } from '../../../services/agenticMode/common/agenticMode.js';
 
 const FOLDER_LOCATION_INTRODUCTION_ID = 'workbench.folderLocation.introduction';
 const FOLDER_LOCATION_INTRODUCTION_TARGET_ID = 'workbench.folderLocation.statusEntry';
@@ -101,7 +102,8 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IOnboardingScenarioService private readonly onboardingService: IOnboardingScenarioService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IAgenticModeService private readonly agenticModeService: IAgenticModeService,
 	) {
 		super();
 
@@ -115,6 +117,7 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 		this._register(this.folderLocationService.onDidChangeLocations(() => this.lookUpAlternates()));
 		this._register(this.folderLocationService.onDidChangeProviders(() => this.lookUpAlternates()));
 		this._register(this.folderLocationService.onDidChangeCanSetLocation(() => this.lookUpAlternates()));
+		this._register(this.agenticModeService.onDidChange(() => this.update()));
 		this.update();
 		// Looking up the alternate locations can run Git: not while the window starts
 		this.alternatesLookup.value = runWhenWindowIdle(mainWindow, () => this.lookUpAlternates());
@@ -195,7 +198,8 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 		const identity = workspace.uri;
 		// As the file system tells folders apart, such as by case on Windows
 		const atPrimaryWithAlternates = !location && !!identity && !!this.alternates?.any && this.uriIdentityService.extUri.isEqual(this.alternates.primary, identity);
-		if (!folder || !identity || (!location && !atPrimaryWithAlternates)) {
+		// In Agentic Mode the folders move with the session shown, not from the status bar
+		if (!folder || !identity || this.agenticModeService.isActive || (!location && !atPrimaryWithAlternates)) {
 			this.entry.clear();
 			this.introductionReady.set(false, undefined);
 			this.introductionObservation.clear();

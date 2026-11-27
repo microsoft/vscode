@@ -24,6 +24,7 @@ import { IWorkspaceContextService, Workspace, WorkspaceFolder } from '../../../.
 import { resolveOnboardingTarget } from '../../../onboarding/browser/spotlight/onboardingTarget.js';
 import { ISpotlightPayload } from '../../../onboarding/browser/spotlight/spotlightTypes.js';
 import { onboardingScenarioRegistry } from '../../../onboarding/common/onboardingRegistry.js';
+import { IAgenticModeService } from '../../../../services/agenticMode/common/agenticMode.js';
 import { IOnboardingScenarioService } from '../../../onboarding/common/onboardingScenarioService.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IStatusbarEntry, IStatusbarService, StatusbarAlignment } from '../../../../services/statusbar/browser/statusbar.js';
@@ -62,6 +63,10 @@ suite('FolderLocationStatusBarContribution', () => {
 		const onDidChangeWorkspaceFolders = ds.add(new Emitter<void>());
 		const onDidChangeEntryVisibility = ds.add(new Emitter<{ id: string; visible: boolean }>());
 		const onDidChangePartVisibility = ds.add(new Emitter<{ partId: string; visible: boolean }>());
+		const onDidChangeWorkbenchScope = ds.add(new Emitter<URI | undefined>());
+		let scope: URI | undefined = URI.file('/workspace');
+		const onDidChangeAgenticMode = ds.add(new Emitter<void>());
+		let agenticMode = false;
 		const statusbarContainer = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
 		ds.add({ dispose: () => statusbarContainer.remove() });
 
@@ -75,7 +80,7 @@ suite('FolderLocationStatusBarContribution', () => {
 				...identityFake(() => workspace), getLocation: () => identityFake(() => workspace).isAtAlternateLocation() ? currentLocation : undefined, onDidChangeLocation: onDidChangeCurrentLocation.event,
 				canSetLocation: () => true, getLocations: async () => [...alternates], onDidChangeLocations: onDidChangeLocations.event, onDidChangeProviders: Event.None, onDidChangeCanSetLocation: Event.None
 			} as unknown as IWorkspaceFolderLocationService,
-			{ getWorkspace: () => workspace, onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event } as unknown as IWorkspaceContextService,
+			{ getWorkspace: () => workspace, onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event, getWorkbenchScope: () => scope, onDidChangeWorkbenchScope: onDidChangeWorkbenchScope.event } as unknown as IWorkspaceContextService,
 			{ getFolderLocationLabel: () => currentLocation?.label } as unknown as ILabelService,
 			{
 				onDidChangeEntryVisibility: onDidChangeEntryVisibility.event,
@@ -88,7 +93,8 @@ suite('FolderLocationStatusBarContribution', () => {
 			} as unknown as IStatusbarService,
 			{ getContainer: () => statusbarContainer, onDidChangePartVisibility: onDidChangePartVisibility.event } as unknown as IWorkbenchLayoutService,
 			{ hasBeenShown: () => shown.value } as unknown as IOnboardingScenarioService,
-			{ extUri: options.extUri ?? extUri } as unknown as IUriIdentityService
+			{ extUri: options.extUri ?? extUri } as unknown as IUriIdentityService,
+			{ get isActive() { return agenticMode; }, onDidChange: onDidChangeAgenticMode.event } as unknown as IAgenticModeService
 		));
 
 		return {
@@ -96,6 +102,14 @@ suite('FolderLocationStatusBarContribution', () => {
 			entryVisibilityChanged: () => onDidChangeEntryVisibility.fire({ id: 'status.workspace.folderLocation', visible: true }),
 			partVisibilityChanged: () => onDidChangePartVisibility.fire({ partId: Parts.STATUSBAR_PART, visible: true }),
 			isVisible: () => visible,
+			setScope(value: URI | undefined) {
+				scope = value;
+				onDidChangeWorkbenchScope.fire(value);
+			},
+			setAgenticMode(value: boolean) {
+				agenticMode = value;
+				onDidChangeAgenticMode.fire();
+			},
 			setAlternates(value: IFolderLocation[]) {
 				alternates.splice(0, alternates.length, ...value);
 				onDidChangeLocations.fire();
@@ -131,6 +145,19 @@ suite('FolderLocationStatusBarContribution', () => {
 
 		fixture.returnToPrimary();
 		assert.strictEqual(fixture.isVisible(), false);
+	});
+
+	test('entry is hidden in Agentic Mode, but not in other windows showing all sessions', () => {
+		const fixture = createFixture();
+		fixture.switchTo();
+		const before = fixture.isVisible();
+		fixture.setScope(undefined);
+		const allSessions = fixture.isVisible();
+		fixture.setAgenticMode(true);
+		const agenticMode = fixture.isVisible();
+		fixture.setAgenticMode(false);
+		fixture.setScope(URI.file('/workspace'));
+		assert.deepStrictEqual([before, allSessions, agenticMode, fixture.isVisible()], [true, true, false, true]);
 	});
 
 	test('at its own location, the folder shows while it has worktrees, looked up once the window is idle and again as they change; it does not introduce itself there', async () => {

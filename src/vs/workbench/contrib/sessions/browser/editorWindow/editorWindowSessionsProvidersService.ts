@@ -13,8 +13,9 @@ import { WorkspaceFolderRepositories } from '../workspaceFolderRepositories.js';
 /**
  * The sessions providers of an editor window: every provider and session backend that registers lists only the sessions
  * of the window's folders and of their repositories (see {@link WorkspaceFolderRepositories}), whoever registers it, such
- * as the local agent host's or Copilot Cloud's. Lookups still find every session. A provider without a listing scope
- * lists every session.
+ * as the local agent host's or Copilot Cloud's, while the window is about its own folders; every session while it is about
+ * all sessions (it has no scope). Lookups still find every session. A provider without a listing scope lists every
+ * session.
  */
 export class EditorWindowSessionsProvidersService extends SessionsProvidersService {
 

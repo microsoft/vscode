@@ -1314,9 +1314,11 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 
 	private updatePreferencesEditorMenuItem() {
 		const commandId = '_workbench.openWorkspaceSettingsEditor';
-		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE && !CommandsRegistry.getCommand(commandId)) {
+		// A workspace without settings of its own, such as the Agents workspace, has no settings resource to show the item for
+		const workspaceSettingsResource = this.preferencesService.workspaceSettingsResource;
+		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE && workspaceSettingsResource && !CommandsRegistry.getCommand(commandId)) {
 			CommandsRegistry.registerCommand(commandId, () => this.preferencesService.openWorkspaceSettings({ jsonEditor: false }));
-			const when = ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.workspaceSettingsResource!.toString()), WorkbenchStateContext.isEqualTo('workspace'), ContextKeyExpr.not('isInDiffEditor'));
+			const when = ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(workspaceSettingsResource.toString()), WorkbenchStateContext.isEqualTo('workspace'), ContextKeyExpr.not('isInDiffEditor'));
 			MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 				command: {
 					id: commandId,
@@ -1344,7 +1346,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 	private updatePreferencesEditorMenuItemForWorkspaceFolders() {
 		for (const folder of this.workspaceContextService.getWorkspace().folders) {
 			const commandId = `_workbench.openFolderSettings.${folder.uri.toString()}`;
-			if (!CommandsRegistry.getCommand(commandId)) {
+			const folderSettingsResource = this.preferencesService.getFolderSettingsResource(folder.uri);
+			if (folderSettingsResource && !CommandsRegistry.getCommand(commandId)) {
 				CommandsRegistry.registerCommand(commandId, (accessor: ServicesAccessor, ...args: unknown[]) => {
 					const groupId = getEditorGroupFromArguments(accessor, args)?.id;
 					if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.FOLDER) {
@@ -1353,7 +1356,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 						return this.preferencesService.openFolderSettings({ folderUri: folder.uri, jsonEditor: false, groupId });
 					}
 				});
-				const when = ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.getFolderSettingsResource(folder.uri)!.toString()), ContextKeyExpr.not('isInDiffEditor'));
+				const when = ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(folderSettingsResource.toString()), ContextKeyExpr.not('isInDiffEditor'));
 				MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 					command: {
 						id: commandId,

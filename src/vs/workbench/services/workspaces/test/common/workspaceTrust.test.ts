@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -20,7 +20,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IRemoteAuthorityResolverService, WebSocketRemoteConnection } from '../../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { IWorkspaceContextService, toWorkspaceFolder, Workspace as BaseWorkspace } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, toWorkspaceFolder, WorkbenchState, Workspace as BaseWorkspace } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustInfo, IWorkspaceTrustManagementService, WorkspaceTrustUriResponse } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { Workspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 import { Memento } from '../../../../common/memento.js';
@@ -33,6 +33,7 @@ import { TestContextService, TestStorageService, TestWorkspaceTrustEnablementSer
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Mutable } from '../../../../../base/common/types.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ICanonicalUriService } from '../../../../../platform/workspace/common/canonicalUri.js';
 import { CanonicalUriService } from '../../common/canonicalUriService.js';
 import { encodeHex, VSBuffer } from '../../../../../base/common/buffer.js';
@@ -40,6 +41,30 @@ import { INotificationService, NotificationMessage } from '../../../../../platfo
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
+
+/**
+ * A workspace that changes from empty to a workspace without folders or a workspace file, like Agentic Mode does.
+ */
+class AgenticModeTestContextService extends TestContextService implements IDisposable {
+
+	private readonly workbenchStateEmitter = new Emitter<WorkbenchState>();
+	override get onDidChangeWorkbenchState(): Event<WorkbenchState> { return this.workbenchStateEmitter.event; }
+
+	private inMode = false;
+
+	override getWorkbenchState(): WorkbenchState {
+		return this.inMode ? WorkbenchState.WORKSPACE : super.getWorkbenchState();
+	}
+
+	enterAgenticMode(): void {
+		this.inMode = true;
+		this.workbenchStateEmitter.fire(WorkbenchState.WORKSPACE);
+	}
+
+	dispose(): void {
+		this.workbenchStateEmitter.dispose();
+	}
+}
 
 suite('Workspace Trust', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -160,6 +185,18 @@ suite('Workspace Trust', () => {
 			const testObject = await initializeTestObject();
 
 			assert.strictEqual(false, testObject.isWorkspaceTrusted());
+		});
+
+		test('workspace without folders or a workspace file (Agentic Mode) - trusted', async () => {
+			await configurationService.setUserConfiguration('security', getUserSettings(true, false));
+			const modeWorkspaceService = store.add(new AgenticModeTestContextService(new Workspace('empty-workspace')));
+			instantiationService.stub(IWorkspaceContextService, modeWorkspaceService);
+			const testObject = await initializeTestObject();
+			const trusted = Event.toPromise(testObject.onDidChangeTrust);
+
+			modeWorkspaceService.enterAgenticMode();
+
+			assert.deepStrictEqual({ trusted: await trusted, isTrusted: testObject.isWorkspaceTrusted() }, { trusted: true, isTrusted: true });
 		});
 
 		suite('virtual repository source trust', () => {

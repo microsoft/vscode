@@ -26,7 +26,7 @@ import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/k
 import { WorkbenchListFocusContextKey } from '../../../../../platform/list/browser/listService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatEntitlementContextKeys } from '../../../../services/chat/common/chatEntitlementService.js';
-import { IsSessionsWindowContext, WorkbenchScopeContext } from '../../../../common/contextkeys.js';
+import { IsSessionsWindowContext, WorkbenchModeContext, WorkbenchScopeContext } from '../../../../common/contextkeys.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { SessionsCategories } from '../../common/categories.js';
 import { AutomationSessionsListMode, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../../common/sessionConfig.js';
@@ -1088,7 +1088,8 @@ function createSessionsListActions(): DisposableStore {
 		when: ContextKeyExpr.equals(SessionSectionTypeContext.key, 'external'),
 	}));
 
-	// Opens the root folder of a workspace or repository section in a new editor window; offered in windows that list all sessions
+	// Opens the root folder of a workspace or repository section in a new editor window; offered in windows that list all
+	// sessions and in the Agents mode, also while the workspaces filter scopes it to one workspace
 	store.add(registerAction2(class extends Action2 {
 		constructor() {
 			super({
@@ -1101,7 +1102,7 @@ function createSessionsListActions(): DisposableStore {
 					order: 1,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.enabled,
-						WorkbenchScopeContext.isEqualTo('all'),
+						ContextKeyExpr.or(WorkbenchScopeContext.isEqualTo('all'), WorkbenchModeContext.isEqualTo('agents')),
 						ContextKeyExpr.or(...['workspace', 'repository'].map(type => ContextKeyExpr.equals(SessionSectionTypeContext.key, type))),
 						SessionSectionHasRootFolderContext,
 					),

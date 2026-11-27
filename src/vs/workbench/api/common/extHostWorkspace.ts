@@ -105,7 +105,8 @@ class ExtHostWorkspaceImpl extends Workspace {
 
 	static toExtHostWorkspace(data: IWorkspaceData | null, previousConfirmedWorkspace: ExtHostWorkspaceImpl | undefined, previousUnconfirmedWorkspace: ExtHostWorkspaceImpl | undefined, extHostFileSystemInfo: IExtHostFileSystemInfo): { workspace: ExtHostWorkspaceImpl | null; added: vscode.WorkspaceFolder[]; removed: vscode.WorkspaceFolder[] } {
 		if (!data) {
-			return { workspace: null, added: [], removed: [] };
+			// A window that leaves its workspace without a reload, such as Agentic Mode, removes the folders it had
+			return { workspace: null, added: [], removed: previousConfirmedWorkspace ? [...previousConfirmedWorkspace.workspaceFolders] : [] };
 		}
 
 		const { id, name, folders, configuration, transient, isUntitled } = data;
@@ -490,6 +491,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 	$acceptWorkspaceData(data: IWorkspaceData | null): void {
 
+		const previousKey = ExtHostWorkspace._workspaceKey(this._confirmedWorkspace);
 		const { workspace, added, removed } = ExtHostWorkspaceImpl.toExtHostWorkspace(data, this._confirmedWorkspace, this._unconfirmedWorkspace, this._extHostFileSystemInfo);
 
 		// Update our workspace object. We have a confirmed workspace, so we drop our
@@ -497,17 +499,34 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		this._confirmedWorkspace = workspace || undefined;
 		this._unconfirmedWorkspace = undefined;
 
-		// Events
-		this._onDidChangeWorkspace.fire(Object.freeze({
-			added,
-			removed,
-		}));
-
+		// Update the mode before any event, so listeners of either event read the new mode
 		const mode = data?.mode ?? WorkbenchMode.Editor;
-		if (this._workbenchMode !== mode) {
-			this._workbenchMode = mode;
+		const modeChanged = this._workbenchMode !== mode;
+		this._workbenchMode = mode;
+
+		// Events
+		const onlyModeChanged = modeChanged && previousKey === ExtHostWorkspace._workspaceKey(workspace ?? undefined);
+		if (!onlyModeChanged) {
+			this._onDidChangeWorkspace.fire(Object.freeze({
+				added,
+				removed,
+			}));
+		}
+
+		if (modeChanged) {
 			this._onDidChangeWorkbenchMode.fire(mode);
 		}
+	}
+
+	/**
+	 * Identifies what `onDidChangeWorkspaceFolders` listeners can observe of a workspace, so a
+	 * change of only the workbench mode doesn't fire that event.
+	 */
+	private static _workspaceKey(workspace: ExtHostWorkspaceImpl | undefined): string {
+		if (!workspace) {
+			return '';
+		}
+		return JSON.stringify([workspace.id, workspace.name, workspace.configuration?.toString(), workspace.workspaceFolders.map(f => [f.uri.toString(), f.name, f.index])]);
 	}
 
 	$acceptWorkspaceFolderLocations(data: IWorkspaceFolderLocationsDto[]): void {

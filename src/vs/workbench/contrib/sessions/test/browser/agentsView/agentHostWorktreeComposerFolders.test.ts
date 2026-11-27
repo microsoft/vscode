@@ -13,7 +13,7 @@ import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IFolderLocation, IWorkspaceFolderLocationService } from '../../../../../../platform/workspace/common/folderLocations.js';
-import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchState, WorkbenchMode } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -49,6 +49,10 @@ suite('AgentHostWorktreeComposerFolders', () => {
 		// The workspace's own location is the folder's primary location; it does not change as the folder moves
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
 			onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
+			onDidChangeWorkbenchScope: Event.None,
+			onDidChangeWorkbenchMode: Event.None,
+			getWorkbenchMode: () => WorkbenchMode.Editor,
+			getWorkbenchScope: () => URI.file('/workspace'),
 			getWorkspace: () => upcastPartial<IWorkspace>({
 				uri: folders.length === 1 ? URI.file(folders[0].primaryUri ?? folders[0].uri) : undefined,
 				folders: folders.map(folder => upcastPartial<IWorkspaceFolder>({ uri: URI.file(folder.uri) })),
@@ -171,6 +175,10 @@ suite('AgentHostWorktreeComposerFolders', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
 			onDidChangeWorkspaceFolders: Event.None,
+			onDidChangeWorkbenchScope: Event.None,
+			onDidChangeWorkbenchMode: Event.None,
+			getWorkbenchMode: () => WorkbenchMode.Editor,
+			getWorkbenchScope: () => URI.file('/workspace'),
 			getWorkspace: () => upcastPartial<IWorkspace>({ uri: URI.file('/work/vscode'), folders: [upcastPartial<IWorkspaceFolder>({ uri: URI.file('/work/vscode') })] }),
 		}));
 		instantiationService.stub(IWorkspaceFolderLocationService, upcastPartial<IWorkspaceFolderLocationService>({
@@ -220,6 +228,10 @@ suite('AgentHostWorktreeComposerFolders', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
 			onDidChangeWorkspaceFolders: Event.None,
+			onDidChangeWorkbenchScope: Event.None,
+			onDidChangeWorkbenchMode: Event.None,
+			getWorkbenchMode: () => WorkbenchMode.Editor,
+			getWorkbenchScope: () => URI.file('/workspace'),
 			getWorkspace: () => upcastPartial<IWorkspace>({ uri: URI.file('/tmp/wt'), folders: [upcastPartial<IWorkspaceFolder>({ uri: URI.file('/tmp/wt') })] }),
 		}));
 		instantiationService.stub(IWorkspaceFolderLocationService, upcastPartial<IWorkspaceFolderLocationService>({
@@ -277,6 +289,10 @@ suite('AgentHostWorktreeComposerFolders', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
 			onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
+			onDidChangeWorkbenchScope: Event.None,
+			onDidChangeWorkbenchMode: Event.None,
+			getWorkbenchMode: () => WorkbenchMode.Editor,
+			getWorkbenchScope: () => URI.file('/workspace'),
 			getWorkspace: () => upcastPartial<IWorkspace>({ uri: URI.file('/work/vscode'), folders: [upcastPartial<IWorkspaceFolder>({ uri: URI.file(at) })] }),
 		}));
 		instantiationService.stub(IWorkspaceFolderLocationService, upcastPartial<IWorkspaceFolderLocationService>({
@@ -320,6 +336,10 @@ suite('AgentHostWorktreeComposerFolders', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
 			onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
+			onDidChangeWorkbenchScope: Event.None,
+			onDidChangeWorkbenchMode: Event.None,
+			getWorkbenchMode: () => WorkbenchMode.Editor,
+			getWorkbenchScope: () => URI.file('/workspace'),
 			getWorkspace: () => upcastPartial<IWorkspace>({ uri: URI.file('/work/vscode'), folders: [upcastPartial<IWorkspaceFolder>({ uri: URI.file(at) })] }),
 		}));
 		instantiationService.stub(IWorkspaceFolderLocationService, upcastPartial<IWorkspaceFolderLocationService>({

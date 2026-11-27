@@ -26,7 +26,7 @@ import { INewSessionTarget } from '../parts/chatView.js';
 import { IEditorWindowPresentedChat, IEditorWindowPresenterOpenOptions, IEditorWindowSessionsPresenter, IEditorWindowSessionsPresenterService } from '../editorWindow/editorWindowSessionsPresenter.js';
 import { IEditorWindowSessionsRuntime } from '../editorWindow/editorWindowSessionsRuntime.js';
 import { IAgentsChatPartService, restoreAgentsChatPart } from './agentsChatPart.js';
-import { AgentsChatPartVisibleContext, registerAgentsChatPartActions } from './agentsChatPartActions.js';
+import { AgentsChatPartEnabledContext, AgentsChatPartVisibleContext, registerAgentsChatPartActions } from './agentsChatPartActions.js';
 import { IAgentsChatPartFrame } from './agentsChatPartFrame.js';
 import { AgentsChatViewHost } from './agentsChatViewHost.js';
 
@@ -168,12 +168,15 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 		// While chats open in it, it replaces the Chat view, and shows the chats of the window's sessions. The host and the
 		// chat part's content are created as the first request comes, not as the window starts.
 		let presenter: AgentsChatPartPresenter | undefined;
+		const actionsEnabled = AgentsChatPartEnabledContext.bindTo(this._contextKeyService);
 		store.add(autorun(reader => {
 			if (!this.enabled.read(reader)) {
 				return;
 			}
 			// Its actions, such as to close it, only while chats open in it
 			reader.store.add(registerAgentsChatPartActions());
+			actionsEnabled.set(true);
+			reader.store.add(toDisposable(() => actionsEnabled.reset()));
 			const host = this._instantiationService.createInstance(AgentsChatViewHost, this._ownsNewChat);
 			reader.store.add(this._chatViewHostService.register({ host }));
 			// Unregistered, what the host is still doing does not open the chat part

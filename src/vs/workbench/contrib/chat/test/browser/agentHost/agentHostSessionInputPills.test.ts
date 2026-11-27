@@ -394,33 +394,36 @@ suite('AgentHostSessionInputPills', () => {
 		let backgroundActivityPillSections: IChatBackgroundActivityPillSections | undefined;
 		// Whether the input shows: not while the chat is read-only without its input
 		const inputVisible = observableValue('inputVisible', true);
+		// The widget clears its input part as it is disposed
+		let inputPartDisposed = false;
+		const inputPart = upcastPartial<ChatInputPart>({
+			persistentContentContainerElement: persistentContent,
+			registerChatPetHorizontalPlatformProvider: () => Disposable.None,
+			supportsSessionWorkingSet: options?.supportsSessionWorkingSet ?? true,
+			sessionWorkingSetDiffs,
+			registerSessionFileChanges: (changes, undo, keep, openAll) => {
+				workingSetRegistrations++;
+				workingSetOpenAll = openAll;
+				registeredChanges.set(changes, undefined);
+				return combinedDisposable(
+					toDisposable(() => registeredChanges.set(undefined, undefined)),
+					autorun(reader => {
+						workingSetChanges = changes.read(reader);
+						workingSetUndo = undo?.read(reader);
+						workingSetKeep = keep?.read(reader);
+					}),
+					toDisposable(() => {
+						workingSetChanges = undefined;
+						workingSetUndo = undefined;
+						workingSetKeep = undefined;
+					}),
+				);
+			},
+		});
 		const widget = upcastPartial<ChatWidget>({
 			domNode: persistentContent,
 			inputVisible,
-			inputPart: upcastPartial<ChatInputPart>({
-				persistentContentContainerElement: persistentContent,
-				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
-				supportsSessionWorkingSet: options?.supportsSessionWorkingSet ?? true,
-				sessionWorkingSetDiffs,
-				registerSessionFileChanges: (changes, undo, keep, openAll) => {
-					workingSetRegistrations++;
-					workingSetOpenAll = openAll;
-					registeredChanges.set(changes, undefined);
-					return combinedDisposable(
-						toDisposable(() => registeredChanges.set(undefined, undefined)),
-						autorun(reader => {
-							workingSetChanges = changes.read(reader);
-							workingSetUndo = undo?.read(reader);
-							workingSetKeep = keep?.read(reader);
-						}),
-						toDisposable(() => {
-							workingSetChanges = undefined;
-							workingSetUndo = undefined;
-							workingSetKeep = undefined;
-						}),
-					);
-				},
-			}),
+			get inputPart() { return inputPartDisposed ? undefined! : inputPart; },
 			onDidChangeViewModel: viewModelChanged.event,
 			get viewModel() { return viewModel; },
 			setPersistentContentHeight: () => { },
@@ -523,6 +526,7 @@ suite('AgentHostSessionInputPills', () => {
 			/** The classes created through the instantiation service, by name. */
 			created: () => created,
 			setInputVisible: (visible: boolean) => inputVisible.set(visible, undefined),
+			disposeInputPart: () => { inputPartDisposed = true; },
 			workingSetChanges: () => workingSetChanges,
 			workingSetUndo: () => workingSetUndo,
 			workingSetKeep: () => workingSetKeep,
@@ -3547,6 +3551,20 @@ suite('AgentHostSessionInputPills', () => {
 		harness.setInputVisible(true);
 
 		assert.deepStrictEqual({ withInput, readOnly, inputAgain: harness.pills.changesPillHidden.get() }, { withInput: true, readOnly: false, inputAgain: true });
+	});
+
+	test('an input that shows only the working set still tells whether the Changes pill hides after its widget cleared the input part, as when the widget is disposed first', async () => {
+		const { harness, setOperations } = createSessionWorkingSetPills({ workingSetOnly: true });
+		setOperations([acceptChanges(ChangesetOperationStatus.Idle), discardWorkingSetChanges(ChangesetOperationStatus.Idle)]);
+		await harness.setWorkingSetEnabled(true);
+		const hidden: boolean[] = [];
+		const observer = autorun(reader => { hidden.push(harness.pills.changesPillHidden.read(reader)); });
+		harness.disposeInputPart();
+		harness.setInputVisible(false);
+		harness.setInputVisible(true);
+		observer.dispose();
+
+		assert.deepStrictEqual(hidden, [true, false, true]);
 	});
 
 	test('an input that shows only the working set of a host without a Working Set shows the Changes pill again once it kept every file itself', async () => {

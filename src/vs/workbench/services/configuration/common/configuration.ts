@@ -9,7 +9,8 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { refineServiceDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { Event } from '../../../../base/common/event.js';
 import { ResourceMap } from '../../../../base/common/map.js';
-import { IAnyWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
+import { IAnyWorkspaceIdentifier, IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceFolderCreationData } from '../../../../platform/workspaces/common/workspaces.js';
 
 export const FOLDER_CONFIG_FOLDER_NAME = '.vscode';
 export const FOLDER_SETTINGS_NAME = 'settings';
@@ -94,6 +95,38 @@ export interface IWorkbenchConfigurationService extends IConfigurationService {
 	 * @param setting
 	 */
 	isSettingAppliedForAllProfiles(setting: string): boolean;
+}
+
+/**
+ * The workspace context service of a window, with the folder edits the
+ * workspace editing service applies to it.
+ */
+export interface IEditableWorkspaceContextService extends IWorkspaceContextService {
+	addFolders(foldersToAdd: IWorkspaceFolderCreationData[], index?: number): Promise<void>;
+	removeFolders(foldersToRemove: URI[]): Promise<void>;
+	updateFolders(foldersToAdd: IWorkspaceFolderCreationData[], foldersToRemove: URI[], index?: number): Promise<void>;
+	/**
+	 * Moves a folder to another of its locations. `folder` names the folder to move, the first one by default.
+	 */
+	setFolderLocation(location: URI, options?: { readonly trusted?: boolean; readonly isCurrent?: () => boolean; readonly onApplied?: () => void; readonly folder?: URI }): Promise<boolean>;
+	/**
+	 * The location the mounted folder at `folder` was mounted at before it was moved, when the workspace moves its
+	 * folders in place and remembers where each was mounted (only in Agentic Mode). `undefined` if it doesn't, or
+	 * `folder` is not mounted.
+	 */
+	getFolderPrimaryLocation?(folder: URI): URI | undefined;
+	/**
+	 * Records `primary` as the location a folder at `folder` belongs to, such as the repository of a worktree, for when
+	 * it is mounted next, so that it is known by the locations of `primary`; `undefined` forgets it. Only a workspace
+	 * that moves its folders in place does (only in Agentic Mode). Has no effect on a mounted folder.
+	 */
+	setFolderPrimaryLocation?(folder: URI, primary: URI | undefined): void;
+	/**
+	 * Scopes the window to the workspace at `scope`, which its sessions then follow, such as the sessions it lists and where
+	 * new sessions start; `undefined` makes it about all sessions again. Only a workspace whose folders follow the focused
+	 * session can be scoped so (the Agents window, and an editor window in Agentic Mode): the scope of any other is its own.
+	 */
+	setWorkbenchScope?(scope: URI | undefined): void;
 }
 
 export const TASKS_DEFAULT = '{\n\t\"version\": \"2.0.0\",\n\t\"tasks\": []\n}';

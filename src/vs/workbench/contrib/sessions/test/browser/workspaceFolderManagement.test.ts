@@ -5,26 +5,29 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
+import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchMode, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceFolderCreationData } from '../../../../../platform/workspaces/common/workspaces.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustUriInfo } from '../../../../../platform/workspace/common/workspaceTrust.js';
-import { IWorkspaceEditingService } from '../../../../services/workspaces/common/workspaceEditing.js';
-import { IWorkspaceFolderLabelService } from '../../../../services/workspaces/common/workspaceFolderLabelService.js';
 import { IHistoryService } from '../../../../services/history/common/history.js';
-import { ChatInteractivity, IChat, ISessionFolder, ISessionGitRepository, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { ISessionsService } from '../../browser/sessionsService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHostContent } from '../../../../services/sessions/browser/sessionHost.js';
+import { ChatInteractivity, IChat, ISessionFolder, ISessionGitRepository, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { IWorkspaceEditingService } from '../../../../services/workspaces/common/workspaceEditing.js';
+import { IWorkspaceFolderLabelService } from '../../../../services/workspaces/common/workspaceFolderLabelService.js';
 import { FocusedSessionHostService } from '../../browser/sessionHostService.js';
 import { WorkspaceFolderManagementContribution } from '../../browser/workspaceFolderManagement.js';
 import { focusedSessionHostServiceOf, ITestSessionWithChat } from './sessionHostTestUtils.js';
@@ -142,6 +145,19 @@ class TestWorkspaceEditing extends mock<IWorkspaceEditingService>() {
 		this.updateFoldersCalls.push(folders ? [...folders] : []);
 		this.folders = [...(folders ?? [])];
 	}
+
+	readonly setFolderLocationCalls: { location: string; folder: string | undefined }[] = [];
+	/** Called with the folder before and after a move, like the folders change event of the context service. */
+	onDidMoveFolder: ((from: IWorkspaceFolderCreationData, to: IWorkspaceFolderCreationData) => void) | undefined;
+
+	override async setFolderLocation(location: URI, options?: { readonly folder?: URI }): Promise<void> {
+		this.setFolderLocationCalls.push({ location: location.toString(), folder: options?.folder?.toString() });
+		const index = this.folders.findIndex(folder => !options?.folder || extUri.isEqual(folder.uri, options.folder));
+		const from = this.folders[index];
+		const to = { uri: location, name: from.name };
+		this.folders = this.folders.map((folder, i) => i === index ? to : folder);
+		this.onDidMoveFolder?.(from, to);
+	}
 }
 
 class TestWorkspaceTrust extends mock<IWorkspaceTrustManagementService>() {
@@ -170,27 +186,60 @@ suite('WorkspaceFolderManagementContribution', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createContribution(createFocusedSessionHostService?: () => IFocusedSessionHostService) {
+	function createContribution(options: {
+		mode?: WorkbenchMode;
+		/** Whether the workspace moves its mounted folders in place, as only Agentic Mode does. */
+		movesFoldersInPlace?: boolean;
+		createFocusedSessionHostService?: () => IFocusedSessionHostService;
+		canHandleResource?: IFileService['canHandleResource'];
+		/** The locations of each repository, keyed by its path, such as the worktrees its sessions work in. */
+		folderLocations?: Readonly<Record<string, readonly string[]>>;
+		/** The contents of the files git keeps for worktrees, keyed by path, such as a worktree's `.git` file. */
+		gitFiles?: Readonly<Record<string, string>>;
+		/** Paths that are not regular files, such as a FIFO, and whose read never completes. */
+		gitSpecialFiles?: readonly string[];
+	} = {}) {
 		const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', undefined);
 		const workspaceEditing = new TestWorkspaceEditing();
 		const workspaceTrust = new TestWorkspaceTrust();
 		const workspaceFoldersChanged = disposables.add(new Emitter<IWorkspaceFoldersChangeEvent>());
+		const modeChanged = disposables.add(new Emitter<WorkbenchMode>());
+		let mode = options.mode ?? WorkbenchMode.Agents;
 		const historyService = new class extends mock<IHistoryService>() {
 			clearRecentlyOpenedCalls = 0;
 			override clearRecentlyOpened(): void { this.clearRecentlyOpenedCalls++; }
 		};
 
-		const sessionsService = new class extends mock<ISessionsService>() {
-			readonly activeSession = activeSession;
-		};
+		const primaryLocations = new Map<string, URI>();
+		const isMounted = (folder: URI) => workspaceEditing.folders.some(mounted => extUri.isEqual(mounted.uri, folder));
 		const workspaceContextService = new class extends mock<IWorkspaceContextService>() {
 			override readonly onDidChangeWorkspaceFolders = workspaceFoldersChanged.event;
+			override readonly onDidChangeWorkbenchMode = modeChanged.event;
+			override getWorkbenchMode(): WorkbenchMode { return mode; }
 			override getWorkspace(): IWorkspace {
 				return {
+					id: 'test',
+					uri: undefined,
 					folders: workspaceEditing.folders.map((folder, index) =>
 						new WorkspaceFolder({ uri: folder.uri, name: folder.name ?? folder.uri.path, index }))
-				} as unknown as IWorkspace;
+				};
 			}
+			readonly getFolderPrimaryLocation = options.movesFoldersInPlace
+				? (folder: URI) => isMounted(folder) ? primaryLocations.get(folder.path) ?? folder : undefined
+				: undefined;
+			// Mirrors the Agents workspace: records the location of a folder that is not mounted
+			readonly setFolderPrimaryLocation = options.movesFoldersInPlace
+				? (folder: URI, primary: URI | undefined) => {
+					if (isMounted(folder)) {
+						return;
+					}
+					if (primary && !extUri.isEqual(primary, folder)) {
+						primaryLocations.set(folder.path, primary);
+					} else {
+						primaryLocations.delete(folder.path);
+					}
+				}
+				: undefined;
 		};
 		const uriIdentityService = new class extends mock<IUriIdentityService>() {
 			override readonly extUri = extUri;
@@ -203,18 +252,50 @@ suite('WorkspaceFolderManagementContribution', () => {
 			}
 		};
 
-		const contribution = disposables.add(new WorkspaceFolderManagementContribution(
-			createFocusedSessionHostService?.() ?? focusedSessionHostServiceOf(sessionsService.activeSession),
-			uriIdentityService,
-			workspaceContextService,
-			workspaceEditing,
-			workspaceTrust,
-			folderLabel,
-			historyService,
-			upcastPartial<IFileService>({ canHandleResource: async resource => resource.scheme === Schemas.file }),
-		));
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IFocusedSessionHostService, options.createFocusedSessionHostService?.() ?? focusedSessionHostServiceOf(activeSession));
+		instantiationService.stub(IUriIdentityService, uriIdentityService);
+		instantiationService.stub(IWorkspaceContextService, workspaceContextService);
+		instantiationService.stub(IWorkspaceEditingService, workspaceEditing);
+		instantiationService.stub(IWorkspaceTrustManagementService, workspaceTrust);
+		instantiationService.stub(IWorkspaceFolderLabelService, folderLabel);
+		instantiationService.stub(IHistoryService, historyService);
+		instantiationService.stub(IFileService, upcastPartial<IFileService>({
+			canHandleResource: options.canHandleResource ?? (async resource => resource.scheme === Schemas.file),
+			stat: async resource => {
+				const special = options.gitSpecialFiles?.includes(resource.path);
+				const content = options.gitFiles?.[resource.path];
+				if (!special && content === undefined) {
+					throw new Error(`ENOENT: ${resource.path}`);
+				}
+				return { resource, name: resource.path, mtime: 0, ctime: 0, etag: '', size: content?.length ?? 0, readonly: false, locked: false, executable: false, isFile: !special, isDirectory: false, isSymbolicLink: false, children: undefined };
+			},
+			readFile: async (resource, readOptions) => {
+				if (options.gitSpecialFiles?.includes(resource.path)) {
+					return new Promise<never>(() => { });
+				}
+				const content = options.gitFiles?.[resource.path];
+				if (content === undefined) {
+					throw new Error(`ENOENT: ${resource.path}`);
+				}
+				if (readOptions?.limits?.size !== undefined && content.length > readOptions.limits.size) {
+					throw new Error(`EFBIG: ${resource.path}`);
+				}
+				return { resource, name: resource.path, mtime: 0, ctime: 0, etag: '', size: content.length, readonly: false, locked: false, executable: false, value: VSBuffer.fromString(content) };
+			},
+		}));
+		instantiationService.stub(IWorkspaceFolderLocationService, upcastPartial<IWorkspaceFolderLocationService>({
+			getLocations: async (primary: URI) => (options.folderLocations?.[primary.path] ?? []).map(path => ({ uri: URI.file(path), label: path, icon: Codicon.folder })),
+		}));
+		const contribution = disposables.add(instantiationService.createInstance(WorkspaceFolderManagementContribution));
 
-		return { contribution, activeSession, workspaceEditing, workspaceTrust, folderLabel, historyService, workspaceFoldersChanged };
+		// Mirrors the facade: the workspace switches, then the mode change is announced
+		const setMode = (newMode: WorkbenchMode, switchWorkspace?: () => void) => {
+			mode = newMode;
+			switchWorkspace?.();
+			modeChanged.fire(newMode);
+		};
+		return { contribution, activeSession, workspaceEditing, workspaceTrust, folderLabel, historyService, workspaceFoldersChanged, setMode, workspaceContextService };
 	}
 
 	// Lets the reactive autorun's queued folder-management work run to completion.
@@ -236,6 +317,75 @@ suite('WorkspaceFolderManagementContribution', () => {
 		workspaceFoldersChanged.fire({ added: [current], removed: [previous], changed: [] });
 
 		assert.deepStrictEqual([afterAdd, afterChange, historyService.clearRecentlyOpenedCalls], [0, 0, 1]);
+	});
+
+	test('mounts the focused chat only in the Agents mode and drops an update that outlives the mode', async () => {
+		const slowFolder = localFolder('/slow');
+		const probeStarted = new DeferredPromise<void>();
+		const probeResult = new DeferredPromise<boolean>();
+		const { activeSession, workspaceEditing, workspaceFoldersChanged, historyService, setMode } = createContribution({
+			mode: WorkbenchMode.Editor,
+			canHandleResource: async uri => {
+				if (extUri.isEqual(uri, slowFolder.workingDirectory)) {
+					await probeStarted.complete();
+					return probeResult.p;
+				}
+				return true;
+			},
+		});
+		const first = localFolder('/first');
+		activeSession.set(makeActiveSession('first', makeWorkspace(first, false)), undefined);
+		await settle();
+		const beforeEntry = workspaceEditing.folders.map(folder => folder.uri.path);
+		setMode(WorkbenchMode.Agents);
+		await settle();
+		const inMode = workspaceEditing.folders.map(folder => folder.uri.path);
+		workspaceFoldersChanged.fire({ added: [], removed: [new WorkspaceFolder({ uri: URI.file('/previous'), name: 'previous', index: 0 })], changed: [] });
+		const clearedHistoryInMode = historyService.clearRecentlyOpenedCalls;
+
+		activeSession.set(makeActiveSession('slow', makeWorkspace(slowFolder, false)), undefined);
+		await probeStarted.p;
+		setMode(WorkbenchMode.Editor, () => {
+			workspaceEditing.folders = [];
+			workspaceFoldersChanged.fire({ added: [], removed: [new WorkspaceFolder({ uri: first.workingDirectory, name: 'first', index: 0 })], changed: [] });
+		});
+		await probeResult.complete(true);
+		await settle();
+
+		assert.deepStrictEqual({
+			beforeEntry,
+			inMode,
+			afterExit: workspaceEditing.folders.map(folder => folder.uri.path),
+			clearedHistoryInMode,
+			clearedHistoryAfterExit: historyService.clearRecentlyOpenedCalls - clearedHistoryInMode,
+		}, { beforeEntry: [], inMode: ['/first'], afterExit: [], clearedHistoryInMode: 1, clearedHistoryAfterExit: 0 });
+	});
+
+	test('does not mount a previous focus while its folders are still being checked', async () => {
+		const previous = localFolder('/previous');
+		const current = localFolder('/current');
+		const probeStarted = new DeferredPromise<void>();
+		const probeResult = new DeferredPromise<boolean>();
+		const { activeSession, workspaceEditing } = createContribution({
+			canHandleResource: async uri => {
+				if (extUri.isEqual(uri, previous.workingDirectory)) {
+					await probeStarted.complete();
+					return probeResult.p;
+				}
+				return true;
+			},
+		});
+
+		activeSession.set(makeActiveSession('previous', makeWorkspace(previous, false)), undefined);
+		await probeStarted.p;
+		activeSession.set(makeActiveSession('current', makeWorkspace(current, false)), undefined);
+		await probeResult.complete(true);
+		await settle();
+
+		assert.deepStrictEqual({
+			added: workspaceEditing.addFoldersCalls.map(folders => folders.map(folder => folder.uri.path)),
+			updated: workspaceEditing.updateFoldersCalls,
+		}, { added: [['/current']], updated: [] });
 	});
 
 	test('mounts a session that does not require workspace trust without granting trust', async () => {
@@ -305,6 +455,198 @@ suite('WorkspaceFolderManagementContribution', () => {
 		}, {
 			added: [[primary.workingDirectory.toString()]],
 			updated: [[secondary.workingDirectory.toString()]],
+		});
+	});
+
+	test('in Agentic Mode, moves the mounted folder to a session in the same repository and replaces it for another repository', async () => {
+		const { activeSession, workspaceEditing, historyService, workspaceFoldersChanged } = createContribution({ movesFoldersInPlace: true });
+		workspaceEditing.onDidMoveFolder = (from, to) => workspaceFoldersChanged.fire({
+			added: [new WorkspaceFolder({ uri: to.uri, name: to.name ?? '', index: 0 })],
+			removed: [new WorkspaceFolder({ uri: from.uri, name: from.name ?? '', index: 0 })],
+			changed: []
+		});
+		const first = worktreeFolder('/repo', '/repo.worktrees/first');
+		const second = worktreeFolder('/repo', '/repo.worktrees/second');
+		const repo = localFolder('/repo');
+		const other = localFolder('/other');
+
+		activeSession.set(makeActiveSession('first', makeWorkspace(first, false)), undefined);
+		await settle();
+		activeSession.set(makeActiveSession('second', makeWorkspace(second, false)), undefined);
+		await settle();
+		activeSession.set(makeActiveSession('repo', makeWorkspace(repo, false)), undefined);
+		await settle();
+		const clearedHistoryOnMoves = historyService.clearRecentlyOpenedCalls;
+		activeSession.set(makeActiveSession('other', makeWorkspace(other, false)), undefined);
+		await settle();
+		workspaceFoldersChanged.fire({ added: [], removed: [new WorkspaceFolder({ uri: repo.workingDirectory, name: 'repo', index: 0 })], changed: [] });
+
+		assert.deepStrictEqual({
+			added: workspaceEditing.addFoldersCalls.map(call => call.map(entry => entry.uri.path)),
+			moved: workspaceEditing.setFolderLocationCalls,
+			updated: workspaceEditing.updateFoldersCalls.map(call => call.map(entry => entry.uri.path)),
+			clearedHistoryOnMoves,
+			clearedHistoryOnReplace: historyService.clearRecentlyOpenedCalls - clearedHistoryOnMoves,
+		}, {
+			added: [['/repo.worktrees/first']],
+			moved: [
+				{ location: second.workingDirectory.toString(), folder: first.workingDirectory.toString() },
+				{ location: repo.workingDirectory.toString(), folder: second.workingDirectory.toString() },
+			],
+			updated: [['/other']],
+			clearedHistoryOnMoves: 0,
+			clearedHistoryOnReplace: 1,
+		});
+	});
+
+	test('in Agentic Mode, moves the mounted folder both ways to a session that picked one of its worktrees directly, whose root is the worktree', async () => {
+		const { activeSession, workspaceEditing } = createContribution({ movesFoldersInPlace: true, folderLocations: { '/repo': ['/repo', '/repo.worktrees/wt1'] } });
+		const repo = localFolder('/repo');
+		const pickedWorktree = localFolder('/repo.worktrees/wt1');
+
+		for (const [id, folder] of [['repo', repo], ['wt1', pickedWorktree], ['repo', repo], ['wt1', pickedWorktree]] as const) {
+			activeSession.set(makeActiveSession(id, makeWorkspace(folder, false)), undefined);
+			await settle();
+		}
+		activeSession.set(makeActiveSession('other', makeWorkspace(localFolder('/other'), false)), undefined);
+		await settle();
+
+		assert.deepStrictEqual({
+			added: workspaceEditing.addFoldersCalls.map(call => call.map(entry => entry.uri.path)),
+			moved: workspaceEditing.setFolderLocationCalls.map(call => `${URI.parse(call.folder!).path} -> ${URI.parse(call.location).path}`),
+			updated: workspaceEditing.updateFoldersCalls.map(call => call.map(entry => entry.uri.path)),
+		}, {
+			added: [['/repo']],
+			moved: ['/repo -> /repo.worktrees/wt1', '/repo.worktrees/wt1 -> /repo', '/repo -> /repo.worktrees/wt1'],
+			updated: [['/other']],
+		});
+	});
+
+	test('in Agentic Mode, moves the mounted folder both ways when the session that picked a worktree directly, whose root is the worktree, was mounted first', async () => {
+		const { activeSession, workspaceEditing } = createContribution({ movesFoldersInPlace: true, folderLocations: { '/repo': ['/repo', '/repo.worktrees/wt1'] } });
+		const repo = localFolder('/repo');
+		const pickedWorktree = localFolder('/repo.worktrees/wt1');
+
+		for (const [id, folder] of [['wt1', pickedWorktree], ['repo', repo], ['wt1', pickedWorktree], ['repo', repo]] as const) {
+			activeSession.set(makeActiveSession(id, makeWorkspace(folder, false)), undefined);
+			await settle();
+		}
+		activeSession.set(makeActiveSession('other', makeWorkspace(localFolder('/other'), false)), undefined);
+		await settle();
+
+		assert.deepStrictEqual({
+			added: workspaceEditing.addFoldersCalls.map(call => call.map(entry => entry.uri.path)),
+			moved: workspaceEditing.setFolderLocationCalls.map(call => `${URI.parse(call.folder!).path} -> ${URI.parse(call.location).path}`),
+			updated: workspaceEditing.updateFoldersCalls.map(call => call.map(entry => entry.uri.path)),
+		}, {
+			added: [['/repo.worktrees/wt1']],
+			moved: ['/repo.worktrees/wt1 -> /repo', '/repo -> /repo.worktrees/wt1', '/repo.worktrees/wt1 -> /repo'],
+			updated: [['/other']],
+		});
+	});
+
+	test('in Agentic Mode, moves the mounted folder both ways to a worktree of its repository that git records but no session works in, such as one made by hand, and replaces it for a folder whose .git file git does not confirm', async () => {
+		const gitFiles = {
+			'/repo.worktrees/wt1/.git': 'gitdir: /repo/.git/worktrees/wt1\n',
+			'/repo/.git/worktrees/wt1/gitdir': '/repo.worktrees/wt1/.git\n',
+			// Names a worktree of the repository that names another folder back
+			'/forged/.git': 'gitdir: /repo/.git/worktrees/wt1\n',
+			// Names a worktree folder of the repository that git has no back-pointer in
+			'/noBackPointer/.git': 'gitdir: /repo/.git/worktrees/noBackPointer\n',
+			// More than one line
+			'/malformed/.git': 'gitdir: /repo/.git/worktrees/malformed\nextra\n',
+			'/repo/.git/worktrees/malformed/gitdir': '/malformed/.git\n',
+			// Larger than git ever writes
+			'/large/.git': `gitdir: /repo/.git/worktrees/large${' '.repeat(5000)}\n`,
+			'/repo/.git/worktrees/large/gitdir': '/large/.git\n',
+			// Not under a repository's .git/worktrees
+			'/outside/.git': 'gitdir: /repo/outside\n',
+			'/repo/outside/gitdir': '/outside/.git\n',
+			// Relative paths, as git writes with worktree.useRelativePaths, whose `..` segments resolve into this repository's .git/worktrees
+			'/relative/.git': 'gitdir: ../other/.git/worktrees/x/../../../../repo/.git/worktrees/relative\n',
+			'/repo/.git/worktrees/relative/gitdir': '../../../../relative/.git\n',
+			'/fifoBackPointer/.git': 'gitdir: /repo/.git/worktrees/fifoBackPointer\n',
+		};
+		const run = async (sequence: readonly string[]) => {
+			// A .git that is a FIFO, and a FIFO in place of a worktree's back-pointer
+			const { activeSession, workspaceEditing } = createContribution({ movesFoldersInPlace: true, gitFiles, gitSpecialFiles: ['/fifo/.git', '/repo/.git/worktrees/fifoBackPointer/gitdir'] });
+			for (const path of sequence) {
+				activeSession.set(makeActiveSession(path.slice(1), makeWorkspace(localFolder(path), false)), undefined);
+				await settle();
+			}
+			return {
+				added: workspaceEditing.addFoldersCalls.map(call => call.map(entry => entry.uri.path)),
+				moved: workspaceEditing.setFolderLocationCalls.map(call => `${URI.parse(call.folder!).path} -> ${URI.parse(call.location).path}`),
+				updated: workspaceEditing.updateFoldersCalls.map(call => call.map(entry => entry.uri.path)),
+			};
+		};
+		const replaced = (path: string) => ({ added: [['/repo']], moved: [], updated: [[path]] });
+
+		assert.deepStrictEqual({
+			repoFirst: await run(['/repo', '/repo.worktrees/wt1', '/repo', '/repo.worktrees/wt1']),
+			worktreeFirst: await run(['/repo.worktrees/wt1', '/repo', '/repo.worktrees/wt1']),
+			forged: await run(['/repo', '/forged']),
+			noBackPointer: await run(['/repo', '/noBackPointer']),
+			malformed: await run(['/repo', '/malformed']),
+			large: await run(['/repo', '/large']),
+			outside: await run(['/repo', '/outside']),
+			relative: await run(['/repo', '/relative']),
+			noGitFile: await run(['/repo', '/plain']),
+			fifo: await run(['/repo', '/fifo']),
+			fifoBackPointer: await run(['/repo', '/fifoBackPointer']),
+		}, {
+			repoFirst: { added: [['/repo']], moved: ['/repo -> /repo.worktrees/wt1', '/repo.worktrees/wt1 -> /repo', '/repo -> /repo.worktrees/wt1'], updated: [] },
+			worktreeFirst: { added: [['/repo.worktrees/wt1']], moved: ['/repo.worktrees/wt1 -> /repo', '/repo -> /repo.worktrees/wt1'], updated: [] },
+			forged: replaced('/forged'),
+			noBackPointer: replaced('/noBackPointer'),
+			malformed: replaced('/malformed'),
+			large: replaced('/large'),
+			outside: replaced('/outside'),
+			relative: { added: [['/repo']], moved: ['/repo -> /relative'], updated: [] },
+			noGitFile: replaced('/plain'),
+			fifo: replaced('/fifo'),
+			fifoBackPointer: replaced('/fifoBackPointer'),
+		});
+	});
+
+	test('in Agentic Mode, a worktree of a repository that is mounted first, or replaces another folder, belongs to the locations of its repository', async () => {
+		const gitFiles = {
+			'/repo.worktrees/wt1/.git': 'gitdir: /repo/.git/worktrees/wt1\n',
+			'/repo/.git/worktrees/wt1/gitdir': '/repo.worktrees/wt1/.git\n',
+		};
+		const { activeSession, workspaceContextService } = createContribution({ movesFoldersInPlace: true, gitFiles });
+		const primaries: Record<string, string | undefined> = {};
+		for (const path of ['/repo.worktrees/wt1', '/plain', '/repo.worktrees/wt1']) {
+			activeSession.set(makeActiveSession(path.slice(1), makeWorkspace(localFolder(path), false)), undefined);
+			await settle();
+			primaries[`${Object.keys(primaries).length}: ${path}`] = workspaceContextService.getFolderPrimaryLocation?.(URI.file(path))?.path;
+		}
+
+		assert.deepStrictEqual(primaries, {
+			'0: /repo.worktrees/wt1': '/repo',
+			'1: /plain': '/plain',
+			'2: /repo.worktrees/wt1': '/repo',
+		});
+	});
+
+	test('a window showing all sessions outside Agentic Mode replaces the mounted folder for a session in the same repository', async () => {
+		const { activeSession, workspaceEditing } = createContribution({ mode: WorkbenchMode.Agents });
+		const first = worktreeFolder('/repo', '/repo.worktrees/first');
+		const second = worktreeFolder('/repo', '/repo.worktrees/second');
+
+		activeSession.set(makeActiveSession('first', makeWorkspace(first, false)), undefined);
+		await settle();
+		activeSession.set(makeActiveSession('second', makeWorkspace(second, false)), undefined);
+		await settle();
+
+		assert.deepStrictEqual({
+			added: workspaceEditing.addFoldersCalls.map(call => call.map(entry => entry.uri.path)),
+			moved: workspaceEditing.setFolderLocationCalls,
+			updated: workspaceEditing.updateFoldersCalls.map(call => call.map(entry => entry.uri.path)),
+		}, {
+			added: [['/repo.worktrees/first']],
+			moved: [],
+			updated: [['/repo.worktrees/second']],
 		});
 	});
 
@@ -521,6 +863,30 @@ suite('WorkspaceFolderManagementContribution', () => {
 		});
 	});
 
+	test('in Agentic Mode, keeps the mounted folder while no chat is focused or its workspace is still loading, as when the last chat closes and a new session follows; outside the mode it unmounts', async () => {
+		const run = async (movesFoldersInPlace: boolean) => {
+			const { activeSession, workspaceEditing } = createContribution({ movesFoldersInPlace });
+			const repo = localFolder('/repo');
+			activeSession.set(makeActiveSession('a', makeWorkspace(repo, false)), undefined);
+			await settle();
+			activeSession.set(undefined, undefined);
+			await settle();
+			activeSession.set(makeActiveSession('loading', undefined), undefined);
+			await settle();
+			activeSession.set(makeActiveSession('new', makeWorkspace(repo, false)), undefined);
+			await settle();
+			return {
+				added: workspaceEditing.addFoldersCalls.map(call => call.map(entry => entry.uri.path)),
+				removed: workspaceEditing.removeFoldersCalls.map(call => call.map(uri => uri.path)),
+			};
+		};
+
+		assert.deepStrictEqual({ agenticMode: await run(true), outside: await run(false) }, {
+			agenticMode: { added: [['/repo']], removed: [] },
+			outside: { added: [['/repo'], ['/repo']], removed: [['/repo']] },
+		});
+	});
+
 	test('mounts only the folders the window can read, not a repository\'s web address', async () => {
 		const { activeSession, workspaceEditing } = createContribution();
 		const repository = URI.parse('https://github.com/microsoft/vscode');
@@ -578,7 +944,7 @@ suite('WorkspaceFolderManagementContribution', () => {
 			getHostOfWindow: (windowId: number) => windowId === chatWindowId ? chatWindowHost : mainHost,
 		});
 		const hostService = upcastPartial<IHostService>({ onDidChangeActiveWindow: onDidChangeActiveWindow.event });
-		const { workspaceEditing } = createContribution(() => disposables.add(new FocusedSessionHostService(sessionHostService, hostService)));
+		const { workspaceEditing } = createContribution({ createFocusedSessionHostService: () => disposables.add(new FocusedSessionHostService(sessionHostService, hostService)) });
 		const chatOf = (path: string): IChat => ({ ...stubChat, workspace: constObservable(makeWorkspace(localFolder(path), false)) });
 
 		windowChat.set(chatOf('/alpha'), undefined);

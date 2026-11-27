@@ -88,9 +88,17 @@ class TestView implements IViewEditorView {
 	focus(): void { }
 
 	disposed = false;
+	/** Whether its instantiation service could still create instances as it was disposed. */
+	instantiationServiceUsableOnDispose: boolean | undefined;
 
 	dispose(): void {
 		this.disposed = true;
+		try {
+			this.instantiationService.createInstance(DisposableStore).dispose();
+			this.instantiationServiceUsableOnDispose = true;
+		} catch {
+			this.instantiationServiceUsableOnDispose = false;
+		}
 		this._onDidChange.dispose();
 	}
 }
@@ -426,20 +434,30 @@ suite('View Editors', () => {
 		await part.activeGroup.openEditor(file);
 		await part.activeGroup.closeEditor(titled);
 		const closedWhileHidden = views[0].disposed;
+		const usableOnDisposeWhileHidden = views[0].instantiationServiceUsableOnDispose;
 
 		const moved = createViewInput('test.titled', '/chat/b');
 		await part.activeGroup.openEditor(moved, { pinned: true });
 		await part.activeGroup.openEditor(file);
 		part.activeGroup.moveEditor(moved, parts.mainPart.activeGroup);
 		await timeout(0);
+		const createdForMove = views.length;
 
-		assert.deepStrictEqual({ whileTabShows, shownAgain, closedWhileHidden, movedWhileHidden: views[1].disposed, createdForMove: views.length }, {
+		const active = createViewInput('test.titled', '/chat/c');
+		await part.activeGroup.openEditor(active, { pinned: true });
+		await part.activeGroup.closeEditor(active);
+		const activeView = views[views.length - 1];
+
+		assert.deepStrictEqual({ whileTabShows, shownAgain, closedWhileHidden, movedWhileHidden: views[1].disposed, createdForMove, closedWhileActive: { disposed: activeView.disposed, usableOnDispose: activeView.instantiationServiceUsableOnDispose }, usableOnDisposeWhileHidden }, {
 			whileTabShows: { views: 1, disposed: false, inDom: false },
 			// It is told it hides and shows, so that it does not render or act as seen meanwhile
 			shownAgain: { views: 1, disposed: false, inDom: true, log: ['save view1', 'hide view1', 'show view1'] },
 			closedWhileHidden: true,
 			movedWhileHidden: true,
 			createdForMove: 3,
+			// Its instantiation service goes after it, as what it disposes may still create instances
+			closedWhileActive: { disposed: true, usableOnDispose: true },
+			usableOnDisposeWhileHidden: true,
 		});
 	});
 
