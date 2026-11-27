@@ -678,6 +678,8 @@ export class NewChatWidget extends Disposable {
 			canApplyWorkspaceDefault: () => this._canApplyWorkspaceDefault(),
 			sendRequest: async ({ query, attachments, background, userInteraction }) => this._send(query, attachments, background, userInteraction),
 			inputSnapshot: this._draftHost?.input,
+			// The composer of its pane's draft is gone once the draft is sent; a send that didn't start goes to the composer that shows now.
+			restoreUnsentInput: this._detached ? undefined : input => !!this.newSessionComposerService.activeComposer.get()?.restoreUnsentInput?.(input),
 			getSavedDraftId: () => this._savedDraftComposer && this.sessionDraftsService.getDraftRevision(this._savedDraftComposer) ? this._savedDraftComposer.id : undefined,
 			onDidChangeDraft: this._savedDraftComposer ? input => this._savedDraftComposer!.updateInput(input) : undefined,
 			onWillSendDraft: this._savedDraftComposer ? input => {
