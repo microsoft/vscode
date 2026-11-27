@@ -588,6 +588,22 @@ suite('SessionsListFilters', () => {
 		assert.deepStrictEqual(filters.inboxScope, { workspace: folder });
 	});
 
+	test('undoing a reset captured while the pick was fixed brings back the user\'s pick, also once no longer fixed', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const filters = createFilters(storage);
+		const other = SessionsListFilters.toLocalInboxWorkspace(URI.file('/work/other'));
+		const folder = SessionsListFilters.toLocalInboxWorkspace(URI.file('/work/app'));
+		filters.pickInboxWorkspace(other);
+		filters.setInboxScopeFixed(true);
+		filters.pickInboxWorkspace(folder);
+		const undo = filters.capture();
+		filters.reset();
+		filters.setInboxScopeFixed(false);
+		undo();
+		const restarted = createFilters(storage);
+		assert.deepStrictEqual({ undone: filters.inboxScope, stored: restarted.inboxScope }, { undone: { workspace: other }, stored: { workspace: other } });
+	});
+
 	test('No Workspace excludes hydrating sessions and workspace options react to metadata', () => {
 		const filters = createFilters();
 		const workspace = observableValue<ISessionWorkspace | undefined>('workspace', undefined);

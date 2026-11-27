@@ -58,17 +58,24 @@ export class ToggleAgentsModeAction extends Action2 {
 		// Switching sessions in the mode clears the history of recently opened editors: the window gets its own history back
 		// when the user leaves the mode, or when it enters another workspace from the mode.
 		const historyService = accessor.get(IHistoryService);
+		// Saved before entering, as the mode can switch sessions as soon as it is entered. Whenever the window ends up
+		// outside the mode, also when switching fails after the switch, the saved history comes back, or is dropped
+		// when nothing cleared it.
 		if (agentsModeService.isActive) {
-			await agentsModeService.setActive(false);
-			historyService.restoreRecentlyOpened();
+			try {
+				await agentsModeService.setActive(false);
+			} finally {
+				if (!agentsModeService.isActive) {
+					historyService.restoreRecentlyOpened();
+				}
+			}
 		} else {
-			// Saved only once the window is in the mode, also when entering fails after the switch: an entry that
-			// did not switch, or a leave that followed it, leaves no saved history behind.
+			historyService.saveRecentlyOpened();
 			try {
 				await agentsModeService.setActive(true);
 			} finally {
-				if (agentsModeService.isActive) {
-					historyService.saveRecentlyOpened();
+				if (!agentsModeService.isActive) {
+					historyService.restoreRecentlyOpened();
 				}
 			}
 		}

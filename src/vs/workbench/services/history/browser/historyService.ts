@@ -1380,9 +1380,13 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.putAwayHistory = new Map();
 
 		if (!options?.keepSaved) {
-			// The user cleared the history: the saved list must not bring it back
-			this.storageService.remove(HistoryService.SAVED_HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
-			this.storageService.remove(HistoryService.SAVED_HISTORY_CLEARED_STORAGE_KEY, StorageScope.WORKSPACE);
+			// The user cleared the history: the saved list must not bring it back, and restoring must still replace
+			// whatever is opened until then with the cleared list
+			if (this.storageService.get(HistoryService.SAVED_HISTORY_STORAGE_KEY, StorageScope.WORKSPACE) !== undefined) {
+				const saved: ISerializedSavedHistory = { version: 1, entries: [], putAway: [] };
+				this.storageService.store(HistoryService.SAVED_HISTORY_STORAGE_KEY, JSON.stringify(saved), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+				this.storageService.store(HistoryService.SAVED_HISTORY_CLEARED_STORAGE_KEY, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			}
 		} else if (
 			this.storageService.get(HistoryService.SAVED_HISTORY_STORAGE_KEY, StorageScope.WORKSPACE) !== undefined &&
 			!this.storageService.getBoolean(HistoryService.SAVED_HISTORY_CLEARED_STORAGE_KEY, StorageScope.WORKSPACE, false)

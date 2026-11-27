@@ -28,6 +28,7 @@ import { IHostService } from '../../host/browser/host.js';
 import { AbstractWorkspaceEditingService } from '../browser/abstractWorkspaceEditingService.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { WorkingCopyBackupService } from '../../workingCopy/common/workingCopyBackupService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -226,7 +227,12 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 					// The saved history is in the storage of the workspace the window leaves, so restore it before
 					// the storage switches: the history then saves into the new workspace like any other history.
 					if (leftAgentsMode) {
-						this.historyService.restoreRecentlyOpened();
+						try {
+							this.historyService.restoreRecentlyOpened();
+						} catch (error) {
+							// The storage must still switch to the entered workspace
+							onUnexpectedError(error);
+						}
 					}
 
 					// Migrate storage to new workspace

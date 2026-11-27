@@ -82,7 +82,7 @@ suite('Agents mode actions', () => {
 		instantiation.stub(IContextKeyService, context);
 		instantiation.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 		const calls: string[] = [];
-		const agentsMode = { isSupported: true, isActive: true, setActive: async (active: boolean) => { calls.push(active ? 'enter' : 'leave'); agentsMode.isActive = active; } };
+		const agentsMode: { isSupported: boolean; isActive: boolean; setActive: (active: boolean) => Promise<void> } = { isSupported: true, isActive: true, setActive: async (active: boolean) => { calls.push(active ? 'enter' : 'leave'); agentsMode.isActive = active; } };
 		instantiation.stub(IAgentsModeService, agentsMode);
 		// Switching sessions in the mode clears the history, which the toggle saves on entering and restores on leaving
 		instantiation.stub(IHistoryService, { saveRecentlyOpened: () => calls.push('save'), restoreRecentlyOpened: () => calls.push('restore') });
@@ -94,18 +94,21 @@ suite('Agents mode actions', () => {
 		modeActive.set(false);
 		await command.handler(instantiation);
 
-		// A failed entry saves no history, which would otherwise be restored over the history of a later session
-		agentsMode.isActive = false;
-		agentsMode.setActive = async () => { calls.push('failed enter'); throw new Error('failed'); };
-		await assert.rejects(Promise.resolve(command.handler(instantiation)), /failed/);
+		// The history is saved before entering, as sessions can switch as soon as the mode is entered. Whenever the
+		// window ends up outside the mode, the saved history is restored, which also drops it when nothing cleared it.
+		const runFailing = async (setActive: (active: boolean) => Promise<void>, isActive: boolean) => {
+			agentsMode.isActive = isActive;
+			agentsMode.setActive = setActive;
+			await assert.rejects(Promise.resolve(command.handler(instantiation)), /failed/);
+		};
+		await runFailing(async () => { calls.push('failed enter'); throw new Error('failed'); }, false);
+		await runFailing(async () => { calls.push('switched, then failed'); agentsMode.isActive = true; throw new Error('failed late'); }, false);
+		await runFailing(async () => { calls.push('failed leave'); throw new Error('failed'); }, true);
+		await runFailing(async () => { calls.push('left, then failed'); agentsMode.isActive = false; throw new Error('failed late'); }, true);
 
-		// An entry that fails after the switch saves the history, which the next session switch would otherwise lose
-		agentsMode.setActive = async () => { calls.push('switched, then failed'); agentsMode.isActive = true; throw new Error('failed late'); };
-		await assert.rejects(Promise.resolve(command.handler(instantiation)), /failed late/);
-
-		// An entry that a leave followed before it finished saves nothing
+		// An entry that a leave followed before it finished
 		agentsMode.isActive = false;
-		agentsMode.setActive = async () => { calls.push('entered, then left'); };
+		agentsMode.setActive = async () => { calls.push('entered, then left'); agentsMode.isActive = true; agentsMode.isActive = false; };
 		await command.handler(instantiation);
 
 		assert.deepStrictEqual({
@@ -114,7 +117,21 @@ suite('Agents mode actions', () => {
 			entryDisabledBySetting,
 			exit,
 			calls,
-		}, { enter: true, entryDisabledByAI: true, entryDisabledBySetting: true, exit: true, calls: ['leave', 'restore', 'enter', 'save', 'failed enter', 'switched, then failed', 'save', 'entered, then left'] });
+		}, {
+			enter: true,
+			entryDisabledByAI: true,
+			entryDisabledBySetting: true,
+			exit: true,
+			calls: [
+				'leave', 'restore',
+				'save', 'enter',
+				'save', 'failed enter', 'restore',
+				'save', 'switched, then failed',
+				'failed leave',
+				'left, then failed', 'restore',
+				'save', 'entered, then left', 'restore',
+			],
+		});
 	});
 
 	test('switching stores the secondary side bar width before the switch, which the mode gives it back once switched', async () => {

@@ -106,16 +106,17 @@ export class SessionsWindowScopeController extends Disposable {
 
 		// A fixed pick stays on the window's own folder: also after a restore in the mode or the setting turning off, as the pick
 		// may have been widened while the bar showed. Runs before the scope below, so the window is not scoped to a stale pick first.
-		// Not unfixed on dispose: the filters' list goes away with the view, and unfixing would update its disposed tree
-		let fixedFilters: SessionsListFilters | undefined;
+		// Not unfixed on dispose: the filters' list goes away with the view, and unfixing would update a list whose context key
+		// service is already disposed. Replacing the filters unfixes the old ones, which then read their stored pick again
+		let previousFilters: SessionsListFilters | undefined;
 		let wasFixed = false;
 		this._register(autorun(reader => {
 			const filters = this.scopeBarFilters.read(reader);
-			const sameFilters = fixedFilters === filters;
-			if (fixedFilters && !sameFilters) {
-				fixedFilters.setInboxScopeFixed(false);
+			const sameFilters = previousFilters === filters;
+			if (previousFilters && !sameFilters) {
+				previousFilters.setInboxScopeFixed(false);
 			}
-			fixedFilters = filters;
+			previousFilters = filters;
 			if (!filters) {
 				wasFixed = false;
 				return;

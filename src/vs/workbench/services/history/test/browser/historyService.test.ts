@@ -1571,7 +1571,7 @@ suite('HistoryService', function () {
 			return workbenchTeardown(instantiationService);
 		});
 
-		test('clearing the history as the user does forgets the saved history, also across a restart', async () => {
+		test('clearing the history as the user does in the mode leaves an empty history on leaving, also after more session switches and across a restart', async () => {
 			const clearAndRestore = async (restart: boolean) => {
 				const { historyService, instantiationService, open, closeAll, reload } = await createFolderServices(folder);
 				const storageService = instantiationService.invokeFunction(accessor => accessor.get(IStorageService));
@@ -1583,6 +1583,10 @@ suite('HistoryService', function () {
 				await open('/repo/session.txt');
 				historyService.clearRecentlyOpened();
 				await open('/repo/b.txt');
+
+				// Switching sessions again clears the history the session opened
+				historyService.clearRecentlyOpened({ keepSaved: true });
+				await open('/repo/other-session.txt');
 
 				let restored = historyService;
 				if (restart) {
@@ -1599,9 +1603,10 @@ suite('HistoryService', function () {
 				return result;
 			};
 
+			// Neither the history from before the mode nor the files of the sessions come back
 			assert.deepStrictEqual({ onLeave: await clearAndRestore(false), afterRestart: await clearAndRestore(true) }, {
-				onLeave: { paths: ['/repo/b.txt'], savedKeys: [] },
-				afterRestart: { paths: ['/repo/b.txt'], savedKeys: [] },
+				onLeave: { paths: [], savedKeys: [] },
+				afterRestart: { paths: [], savedKeys: [] },
 			});
 		});
 

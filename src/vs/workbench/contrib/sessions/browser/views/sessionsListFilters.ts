@@ -378,7 +378,10 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 		this._onDidChange.fire();
 	}
 
-	/** The order in which the scope bar lists workspaces: by label. */
+	/**
+	 * The order in which the scope bar lists workspaces: by label.
+	 * @internal Used only within this file, by the workspace options and the pick the list adds to them.
+	 */
 	static compareInboxWorkspaces(a: IInboxWorkspaceFilter, b: IInboxWorkspaceFilter): number {
 		return a.label.localeCompare(b.label) || a.resource.localeCompare(b.resource) || a.environment.localeCompare(b.environment);
 	}
@@ -565,13 +568,18 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 	capture(): () => void {
 		const excluded = [...this.excluded];
 		const inboxScope = this._inboxScope;
+		const inboxScopeFixed = this.inboxScopeFixed;
 		const storedInboxScope = this.storageService.get(SessionsListFilters.INBOX_SCOPE_STORAGE_KEY, StorageScope.WORKSPACE);
 		const worktree = this._worktree;
 		return () => {
-			if (!this.inboxScopeFixed) {
-				this._inboxScope = inboxScope;
-			} else {
+			if (this.inboxScopeFixed) {
 				this.storeInboxScope(storedInboxScope);
+			} else if (inboxScopeFixed) {
+				// Captured while fixed: the user's pick was the stored one, not the fixed pick
+				this.storeInboxScope(storedInboxScope);
+				this._inboxScope = this.readInboxScope(this.logService);
+			} else {
+				this._inboxScope = inboxScope;
 			}
 			this._worktree = worktree;
 			this.excluded.clear();

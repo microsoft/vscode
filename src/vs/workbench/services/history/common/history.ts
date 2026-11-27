@@ -136,8 +136,8 @@ export interface IHistoryService {
 	clear(): void;
 
 	/**
-	 * Clear list of recently opened editors. Also forgets the list that {@link saveRecentlyOpened} saved,
-	 * unless `keepSaved` is set, so that {@link restoreRecentlyOpened} can bring it back.
+	 * Clear list of recently opened editors. Unless `keepSaved` is set, so that {@link restoreRecentlyOpened} can bring
+	 * back the list that {@link saveRecentlyOpened} saved, the saved list is emptied too: restoring then clears the list again.
 	 */
 	clearRecentlyOpened(options?: { readonly keepSaved?: boolean }): void;
 

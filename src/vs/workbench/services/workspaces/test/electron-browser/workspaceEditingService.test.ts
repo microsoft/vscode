@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
@@ -26,6 +28,12 @@ import { NativeWorkspaceEditingService } from '../../electron-browser/workspaceE
 
 class TestBackupService extends WorkingCopyBackupService {
 	failure: Error | undefined;
+	reinitialized: URI | undefined;
+
+	override reinitialize(backupWorkspaceHome: URI | undefined): void {
+		this.reinitialized = backupWorkspaceHome;
+		super.reinitialize(backupWorkspaceHome);
+	}
 
 	override async withBackupPathTransition<T>(transition: () => Promise<T>): Promise<T> {
 		if (this.failure) {
@@ -86,6 +94,7 @@ suite('NativeWorkspaceEditingService - extension host recovery', () => {
 		contextService.setWorkspace(testWorkspace(URI.file('/old')));
 		const storageService = instantiationService.get(IStorageService) as TestStorageService;
 		const leftWorkspaceStorage = new Map<string, string>();
+		const restoreHistory: { failure?: Error } = {};
 		let historyService: HistoryService | undefined;
 		if (withHistory) {
 			// A real history on the window's storage, with the given history from before
@@ -93,7 +102,12 @@ suite('NativeWorkspaceEditingService - extension host recovery', () => {
 			historyService = store.add(instantiationService.createInstance(HistoryService));
 			instantiationService.stub(IHistoryService, historyService);
 		} else {
-			instantiationService.stub(IHistoryService, 'restoreRecentlyOpened', () => { calls.push('restoreHistory'); });
+			instantiationService.stub(IHistoryService, 'restoreRecentlyOpened', () => {
+				calls.push('restoreHistory');
+				if (restoreHistory.failure) {
+					throw restoreHistory.failure;
+				}
+			});
 		}
 		if (storageFailure) {
 			instantiationService.stub(IStorageService, 'switch', async () => { throw storageFailure; });
@@ -115,7 +129,7 @@ suite('NativeWorkspaceEditingService - extension host recovery', () => {
 			});
 		}
 		const service = store.add(instantiationService.createInstance(TestWorkspaceEditingService));
-		return { service, backups, calls, errors, contextService, storageService, leftWorkspaceStorage, historyService };
+		return { service, backups, calls, errors, contextService, storageService, leftWorkspaceStorage, historyService, restoreHistory };
 	}
 
 	for (const remoteAuthority of [undefined, 'test-remote']) {
@@ -199,6 +213,22 @@ suite('NativeWorkspaceEditingService - extension host recovery', () => {
 			// The saved history is in the storage of the left workspace, so it is restored before the storage switches
 			enteredFromMode: ['stop', 'agentsMode:false', 'restoreHistory', 'switchStorage:true', 'start'],
 			enteredOutsideMode: ['stop', 'switchStorage:true', 'start'],
+		});
+	});
+
+	test('still switches the storage and the backups to the entered workspace when bringing back the history fails', async () => {
+		const { service, calls, backups, restoreHistory } = setupServices(undefined, true, undefined, true);
+		const failure = restoreHistory.failure = new Error('restore failed');
+		const unexpectedErrors: unknown[] = [];
+		const previousHandler = errorHandler.getUnexpectedErrorHandler();
+		setUnexpectedErrorHandler(error => unexpectedErrors.push(error));
+		store.add(toDisposable(() => setUnexpectedErrorHandler(previousHandler)));
+		service.result = { workspace: { id: 'new', configPath: URI.file('/new.code-workspace') }, backupPath: '/backups/new' };
+		await service.enterWorkspace(URI.file('/new.code-workspace'));
+		assert.deepStrictEqual({ calls, unexpectedErrors, backupHome: backups.reinitialized?.path }, {
+			calls: ['stop', 'agentsMode:false', 'restoreHistory', 'switchStorage:true', 'start'],
+			unexpectedErrors: [failure],
+			backupHome: '/backups/new',
 		});
 	});
 
