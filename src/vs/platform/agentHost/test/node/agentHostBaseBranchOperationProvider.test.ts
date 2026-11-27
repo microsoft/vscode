@@ -15,7 +15,8 @@ import { Branch, GitRefType, IAgentHostGitService, IRefQuery } from '../../commo
 import { IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 import { IAgentHostGitStateService, IRefreshSessionGitStateOptions } from '../../common/agentHostGitStateService.js';
 import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
-import { buildBranchChangesetUri, buildUncommittedChangesetUri, ChangesetKind } from '../../common/changesetUri.js';
+import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
+import { buildBranchChangesetUri, buildFolderChangesetOwnerUri, buildUncommittedChangesetUri, ChangesetKind } from '../../common/changesetUri.js';
 import { createSetBaseBranchMeta, LIST_BASE_BRANCHES_OPERATION_ID, readBaseBranchCandidatesResult, SET_BASE_BRANCH_OPERATION_ID } from '../../common/meta/agentBaseBranchOperationMeta.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -156,6 +157,16 @@ suite('AgentHostBaseBranchOperationContribution', () => {
 			changesGitState: { list: false, set: true },
 			chatRefreshes: [{ sessionKey: sameFolderChat, immediate: true }],
 		});
+	});
+
+	test('does not advertise the operations on a folder of a session of several folders on its own, whose selection would be recorded for its conversation\'s folder', () => {
+		const h = createHarness();
+		// A folder no chat works in on its own
+		const docs = URI.file('/docs').toString();
+		h.stateManager.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectorySet, directory: docs });
+		const ownerKey = buildFolderChangesetOwnerUri(session, getWorkingDirectoryScopeId([docs]));
+
+		assert.strictEqual(h.contribution.getOperations({ sessionKey: session, ownerKey, changesetUri: buildBranchChangesetUri(ownerKey), changesetKind: ChangesetKind.Branch }), undefined);
 	});
 
 	test('advertises the operations on single-folder Branch Changes only where the diff reads the recorded base', () => {
