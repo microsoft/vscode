@@ -128,6 +128,7 @@ import { TestAgentHostCatalogDatabase, seedSessionAdditionalWorktrees, createTes
 import { readSessionInitiator, SESSION_INITIATOR_METADATA_KEY, withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
+import { withSessionRepositories } from '../../common/meta/agentSessionRepositoriesMeta.js';
 import { AGENT_MERGE_CHANGESET_ID, buildBranchChangesetUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 import { getWorktreesRoot, type IWorktreeMetadata, SessionWorkingDirectoryMissingError, WorktreeIsolation, WORKTREE_META_PATH, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
@@ -5776,6 +5777,21 @@ suite('AgentService (node dispatcher)', () => {
 
 			assert.deepStrictEqual(showBlobCalls, [{ workingDirectory: repoA.toString(), ref: 'baseSha', repoRelativePath: 'src/app.ts' }]);
 			assert.strictEqual(result.data, 'blob:src/app.ts');
+		});
+
+		test('git-blob of a file in a repository found inside a single folder that is not one resolves against that repository', async () => {
+			const workspace = URI.file('/workspace');
+			const docs = URI.file('/workspace/docs');
+			const showBlobCalls: Array<{ workingDirectory: string; ref: string; repoRelativePath: string }> = [];
+			const gitService = createBlobGitService(new Map(), showBlobCalls);
+			const { service: localService, session } = await createBlobSession(gitService, [workspace]);
+			getStateManager(localService).setSessionMeta(session.toString(), withSessionRepositories(getStateManager(localService).getSessionState(session.toString())?._meta, {
+				[getWorkingDirectoryKey(workspace.toString())]: [{ root: docs.toString(), kind: 'nested' }],
+			}));
+
+			await localService.resourceRead(URI.parse(buildGitBlobUri(session.toString(), 'baseSha', 'guide.md', '/workspace/docs/guide.md')));
+
+			assert.deepStrictEqual(showBlobCalls, [{ workingDirectory: docs.toString(), ref: 'baseSha', repoRelativePath: 'guide.md' }]);
 		});
 
 		test('git-blob of a file inside a submodule resolves against the submodule', async () => {

@@ -68,11 +68,10 @@ import { IAgentHostChangesetOperationService } from '../common/agentHostChangese
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { extUriBiasedIgnorePathCase, relativePath } from '../../../base/common/resources.js';
-import { getWorkingDirectoryKey, getWorkingDirectoryScopeId, isMultiRootSession } from '../common/agentHostWorkingDirectories.js';
+import { getWorkingDirectoryScopeId, isMultiRootSession } from '../common/agentHostWorkingDirectories.js';
 import { readChangesetFolderFailures, withChangesetFolderFailures, type IChangesetFolderFailure } from '../common/meta/agentChangesetFolderFailuresMeta.js';
-import { readSessionRepositories } from '../common/meta/agentSessionRepositoriesMeta.js';
 import { equals as objectEquals } from '../../../base/common/objects.js';
-import { resolveSessionRepositories } from './agentHostSessionRepositories.js';
+import { readNestedRepositoryRoots, resolveSessionRepositories } from './agentHostSessionRepositories.js';
 import { dedupeSessionFileDiffs } from './agentHostMultiRootDiff.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { reportAgentHostStaticChangesetComputed, reportAgentHostTurnChangesetComputed, type IMultiRootTurnDiffMetrics, type StaticChangesetOutcome, type TurnChangesetOutcome } from './agentHostChangesetTelemetry.js';
@@ -1094,13 +1093,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * `vscode.sessionRepositories`). Empty when no folder has repositories in its immediate subfolders.
 	 */
 	private _getDiscoveredRepositoryRoots(owner: ProtocolURI, workingDirectories: readonly string[] | undefined): URI[] {
-		const repositories = readSessionRepositories(this._stateManager.getSessionState(this._containingSessionUri(owner))?._meta);
-		if (!repositories || !workingDirectories?.length) {
-			return [];
-		}
-		return workingDirectories.flatMap(directory => repositories[getWorkingDirectoryKey(directory)] ?? [])
-			.filter(repository => repository.kind !== 'folder')
-			.map(repository => URI.parse(repository.root));
+		return readNestedRepositoryRoots(this._stateManager.getSessionState(this._containingSessionUri(owner))?._meta, workingDirectories);
 	}
 
 	/**
