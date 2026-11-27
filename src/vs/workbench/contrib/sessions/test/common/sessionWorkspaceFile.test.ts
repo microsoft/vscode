@@ -73,4 +73,16 @@ suite('SessionWorkspaceFile', () => {
 			absolute: { folders: [{ path: '/work/vscode' }, { path: '/other/docs' }] },
 		});
 	});
+
+	test('changing the folders keeps the folder entries that are not read, and writes folders as URIs in a local file of a remote workspace', () => {
+		const content = '{ "remoteAuthority": "ssh-remote+box", "folders": [{ "path": "/home/me/vscode" }, { "uri": "vscode-remote://ssh-remote+box/home/me/docs" }, { "nope": true }] }';
+
+		const written = stringifySessionWorkspaceFile(file, { folders: [URI.parse('vscode-remote://ssh-remote+box/home/me/chat'), URI.file('/work/vscode')] }, extUri, { existing: content });
+		const recent = stringifySessionWorkspaceFile(file, { folders: [URI.file('/work/docs')] }, extUri, { existing: '{ "folders": [{ "path": "/home/me/vscode" }] }', remoteAuthority: 'wsl+Ubuntu' });
+
+		assert.deepStrictEqual({ written: JSON.parse(written).folders, recent: JSON.parse(recent).folders }, {
+			written: [{ uri: 'vscode-remote://ssh-remote+box/home/me/chat' }, { uri: 'file:///work/vscode' }, { path: '/home/me/vscode' }, { nope: true }],
+			recent: [{ uri: 'file:///work/docs' }, { path: '/home/me/vscode' }],
+		});
+	});
 });

@@ -66,19 +66,34 @@ export function readWorkspaceFileMetadata(stored: { readonly name?: unknown; rea
  * so are folder paths in a local file of a remote workspace, which are paths on the remote and not on this computer.
  */
 export function parseSessionWorkspaceFile(content: string, uri: URI, extUri: IExtUri, options?: { readonly remoteAuthority?: string }): ISessionWorkspaceFileContent {
+	const { stored, folders, skipped } = readWorkspaceFile(content, uri, options?.remoteAuthority);
+	return { ...readWorkspaceFileMetadata(stored, uri), folders: toWorkspaceFolders(folders, uri, extUri).map(folder => folder.uri), hasErrors: skipped.length > 0 };
+}
+
+interface IParsedWorkspaceFile {
+	readonly stored: { readonly name?: unknown; readonly icon?: unknown; readonly color?: unknown };
+	readonly folders: IStoredWorkspaceFolder[];
+	/** The folder entries that are not read: invalid ones, and paths in a local file of a remote workspace. */
+	readonly skipped: unknown[];
+	/** Whether folder paths in the file are paths on a remote and not on this computer. */
+	readonly remotePaths: boolean;
+}
+
+function readWorkspaceFile(content: string, uri: URI, remoteAuthorityOverride: string | undefined): IParsedWorkspaceFile {
 	const invalid = () => new Error(localize('invalidWorkspaceFile', "'{0}' is not a valid workspace file.", basename(uri)));
 	const errors: ParseError[] = [];
 	const stored: { folders?: unknown; remoteAuthority?: unknown; name?: unknown; icon?: unknown; color?: unknown } | undefined = parse(content, errors);
 	if (errors.length || !isObject(stored) || !Array.isArray(stored.folders)) {
 		throw invalid();
 	}
-	const configuredFolders = stored.folders.filter(isStoredWorkspaceFolder);
-	let hasErrors = configuredFolders.length !== stored.folders.length;
-	const remoteAuthority = options?.remoteAuthority || (typeof stored.remoteAuthority === 'string' ? stored.remoteAuthority : undefined);
-	const folders = configuredFolders.filter(folder => {
-		if (uri.scheme === Schemas.file && remoteAuthority && hasKey(folder, { path: true })) {
-			hasErrors = true;
-			return false;
+	const remoteAuthority = remoteAuthorityOverride || (typeof stored.remoteAuthority === 'string' ? stored.remoteAuthority : undefined);
+	const remotePaths = uri.scheme === Schemas.file && !!remoteAuthority;
+	const folders: IStoredWorkspaceFolder[] = [];
+	const skipped: unknown[] = [];
+	for (const folder of stored.folders) {
+		if (!isStoredWorkspaceFolder(folder) || (remotePaths && hasKey(folder, { path: true }))) {
+			skipped.push(folder);
+			continue;
 		}
 		if (hasKey(folder, { uri: true })) {
 			try {
@@ -87,24 +102,29 @@ export function parseSessionWorkspaceFile(content: string, uri: URI, extUri: IEx
 				throw invalid();
 			}
 		}
-		return true;
-	});
-	return { ...readWorkspaceFileMetadata(stored, uri), folders: toWorkspaceFolders(folders, uri, extUri).map(folder => folder.uri), hasErrors };
+		folders.push(folder);
+	}
+	return { stored, folders, skipped, remotePaths };
 }
 
 /**
  * Applies `edit` to the content of a `.code-workspace` file, keeping its comments, settings and other properties. Folders
- * are written relative to the file unless `forceAbsolute` is set. Throws when the existing content or the result is not a
- * valid workspace file, so that an invalid file is never written.
+ * are written relative to the file unless `forceAbsolute` is set, and the folder entries that are not read are kept after
+ * them. In a local file of a remote workspace, where a folder path is a path on the remote, folders are written as URIs.
+ * Throws when the existing content or the result is not a valid workspace file, so that an invalid file is never written.
+ * `remoteAuthority` is the remote that VS Code opened the file in, when it is not in the file itself.
  */
-export function stringifySessionWorkspaceFile(uri: URI, edit: ISessionWorkspaceFileEdit, extUri: IExtUri, options?: { readonly existing?: string; readonly forceAbsolute?: boolean }): string {
-	if (options?.existing !== undefined) {
-		parseSessionWorkspaceFile(options.existing, uri, extUri);
-	}
+export function stringifySessionWorkspaceFile(uri: URI, edit: ISessionWorkspaceFileEdit, extUri: IExtUri, options?: { readonly existing?: string; readonly forceAbsolute?: boolean; readonly remoteAuthority?: string }): string {
+	const existing = options?.existing !== undefined ? readWorkspaceFile(options.existing, uri, options.remoteAuthority) : undefined;
 	let content = options?.existing ?? '{}';
 	if (edit.folders) {
 		const configFolder = dirname(uri);
-		const folders: IStoredWorkspaceFolder[] = edit.folders.map(folder => getStoredWorkspaceFolder(folder, !!options?.forceAbsolute, undefined, configFolder, extUri));
+		const folders: unknown[] = [
+			...edit.folders.map(folder => existing?.remotePaths || (!existing && uri.scheme === Schemas.file && options?.remoteAuthority)
+				? { uri: folder.toString(true) }
+				: getStoredWorkspaceFolder(folder, !!options?.forceAbsolute, undefined, configFolder, extUri)),
+			...existing?.skipped ?? [],
+		];
 		content = applyEdits(content, setProperty(content, [FOLDERS_PROPERTY], folders, formattingOptions));
 	}
 	if (edit.name !== undefined) {

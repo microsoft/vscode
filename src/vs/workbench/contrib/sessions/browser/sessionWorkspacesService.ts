@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Limiter, RunOnceScheduler } from '../../../../base/common/async.js';
+import { Limiter, RunOnceScheduler, Sequencer } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { isValidBasename } from '../../../../base/common/extpath.js';
@@ -141,12 +141,15 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 	private readonly _fileWatchers = this._register(new DisposableMap<string>());
 	/** The comparison keys of the workspace files that changed on disk since they were last read. */
 	private readonly _changedFiles = new Set<string>();
+	/** Refreshes run one after another, so that an older read never wins over a newer one. */
+	private readonly _refreshes = new Sequencer();
 	private readonly _refreshScheduler = this._register(new RunOnceScheduler(() => {
 		const changed = new Set(this._changedFiles);
 		this._changedFiles.clear();
-		void this._refresh(changed);
+		void this._refreshes.queue(() => this._refresh(changed));
 	}, 300));
-	/** Counts the removals, so that an update finishing after its workspace was removed does not add it again. */
+	/** When each workspace was last removed, by the comparison keys of its URIs, so that an update finishing after its workspace was removed does not add it again. */
+	private readonly _removedAt = new Map<string, number>();
 	private _removals = 0;
 
 	constructor(
@@ -300,18 +303,26 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 		const workspace = this._getManagedWorkspace(uri);
 		const file = workspace?.uri ?? uri;
 		const deleteFile = !!options?.deleteFile && hasWorkspaceFileExtension(file);
+		// A workspace of one folder has no file, whatever the folder's name
+		if (deleteFile && workspace && this._isFolderWorkspace(workspace)) {
+			throw this._folderNotWorkspaceFileError(file);
+		}
 		// A user's own workspace file is only ever moved to the trash, never deleted permanently
 		if (deleteFile && !this._isOwnedWorkspaceFile(file) && !this.fileService.hasCapability(file, FileSystemProviderCapabilities.Trash)) {
 			throw new Error(localize('workspaceFileNoTrash', "The workspace file '{0}' cannot be moved to the trash.", this.uriIdentityService.extUri.basename(file)));
 		}
-		if (workspace) {
-			this._removals++;
-			this._persist(this._managedWorkspaces.get().filter(candidate => candidate !== workspace));
-		} else if (hasWorkspaceFileExtension(uri)) {
-			this._setForgotten(uri, true);
-		}
+		// The workspace stays when its file cannot be deleted
 		if (deleteFile) {
 			await this._deleteWorkspaceFile(file);
+		}
+		const removed = workspace ? [workspace.uri, ...workspace.previousUris ?? []] : [uri];
+		this._recordRemoval(removed);
+		if (workspace) {
+			this._persist(this._managedWorkspaces.get().filter(candidate => candidate !== workspace));
+		}
+		// Its workspace files are not listed with the recent workspace files again, where VS Code may still have them
+		for (const removedUri of removed.filter(hasWorkspaceFileExtension)) {
+			this._setForgotten(removedUri, true);
 		}
 	}
 
@@ -333,7 +344,7 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 	}
 
 	refresh(): Promise<void> {
-		return this._refresh(undefined);
+		return this._refreshes.queue(() => this._refresh(undefined));
 	}
 
 	/** Rereads the managed workspace files, or only those with the given comparison keys. */
@@ -382,7 +393,12 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 
 	private async _readWorkspaceFile(uri: URI): Promise<ISessionWorkspaceFileContent> {
 		const content = (await this.fileService.readFile(uri, { limits: { size: MAX_WORKSPACE_FILE_SIZE } })).value.toString();
-		return parseSessionWorkspaceFile(content, uri, this.uriIdentityService.extUri);
+		return parseSessionWorkspaceFile(content, uri, this.uriIdentityService.extUri, { remoteAuthority: this._getRemoteAuthority(uri) });
+	}
+
+	/** The remote that VS Code opened the workspace file in, as its recently opened list has it, for a file that does not say so itself. */
+	private _getRemoteAuthority(uri: URI): string | undefined {
+		return this.recentWorkspacesService.vsCodeRecentWorkspaceFiles.get().find(file => this.uriIdentityService.extUri.isEqual(file.uri, uri))?.remoteAuthority;
 	}
 
 	/** Writes the icon and color into the workspace file, keeping them on this computer and warning when that fails. */
@@ -416,6 +432,7 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 	 */
 	private async _editWorkspaceFile(uri: URI, toEdit: (current: ISessionWorkspaceFileContent | undefined) => ISessionWorkspaceFileEdit, options?: { readonly forceAbsolute?: boolean }): Promise<ISessionWorkspaceFileContent> {
 		const extUri = this.uriIdentityService.extUri;
+		const remoteAuthority = this._getRemoteAuthority(uri);
 		for (let attempt = 0; ; attempt++) {
 			let file: IFileContent | undefined;
 			try {
@@ -426,15 +443,20 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 				}
 			}
 			const existing = file?.value.toString();
-			const current = existing === undefined ? undefined : parseSessionWorkspaceFile(existing, uri, extUri);
-			const updated = stringifySessionWorkspaceFile(uri, toEdit(current), extUri, { existing, forceAbsolute: options?.forceAbsolute });
+			const current = existing === undefined ? undefined : parseSessionWorkspaceFile(existing, uri, extUri, { remoteAuthority });
+			const updated = stringifySessionWorkspaceFile(uri, toEdit(current), extUri, { existing, forceAbsolute: options?.forceAbsolute, remoteAuthority });
 			try {
 				if (!file) {
 					await this.fileService.createFile(uri, VSBuffer.fromString(updated), { overwrite: false });
 				} else if (updated !== existing) {
+					// The file service lets an edit that keeps the size of the file through, so any newer modification counts
+					const stat = await this.fileService.stat(uri);
+					if (stat.mtime !== file.mtime || stat.etag !== file.etag) {
+						throw new FileOperationError(localize('workspaceFileModified', "The workspace file '{0}' was changed meanwhile.", extUri.basename(uri)), FileOperationResult.FILE_MODIFIED_SINCE);
+					}
 					await this.fileService.writeFile(uri, VSBuffer.fromString(updated), { etag: file.etag, mtime: file.mtime });
 				}
-				return parseSessionWorkspaceFile(updated, uri, extUri);
+				return parseSessionWorkspaceFile(updated, uri, extUri, { remoteAuthority });
 			} catch (error) {
 				if (attempt === 0 && (error as FileOperationError).fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
 					continue;
@@ -471,8 +493,11 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 		}
 	}
 
-	/** Moves a workspace file to the trash, or deletes an owned one where there is no trash, and the folder of an owned workspace file when nothing else is in it. */
+	/** Moves a workspace file to the trash, or deletes an owned one where there is no trash, and the folder of an owned workspace file when nothing else is in it. Never deletes a folder named like a workspace file. */
 	private async _deleteWorkspaceFile(uri: URI): Promise<void> {
+		if ((await this.fileService.stat(uri)).isDirectory) {
+			throw this._folderNotWorkspaceFileError(uri);
+		}
 		const useTrash = this.fileService.hasCapability(uri, FileSystemProviderCapabilities.Trash);
 		await this.fileService.del(uri, { useTrash });
 		if (!this._isOwnedWorkspaceFile(uri)) {
@@ -487,6 +512,10 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 		} catch (error) {
 			this.logService.trace('[SessionWorkspaces] Did not delete the folder of the workspace file', error);
 		}
+	}
+
+	private _folderNotWorkspaceFileError(uri: URI): Error {
+		return new Error(localize('workspaceFileIsFolder', "'{0}' is a folder, not a workspace file.", this.uriIdentityService.extUri.basename(uri)));
 	}
 
 	/** Watches each managed workspace file, rereading the files when one changes. */
@@ -539,7 +568,7 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 
 	/**
 	 * Puts `workspace` where the workspace at `previousUri` is now, dropping any other entry with its URI. When that
-	 * workspace is gone, `workspace` is added unless a workspace was removed since `removals` was read.
+	 * workspace is gone, `workspace` is added unless it was removed after `removals` was read.
 	 */
 	private _replace(previousUri: URI, workspace: IRecentSessionWorkspace, removals: number): void {
 		const extUri = this.uriIdentityService.extUri;
@@ -547,12 +576,19 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 		const index = workspaces.findIndex(candidate => extUri.isEqual(candidate.uri, previousUri));
 		if (index >= 0) {
 			workspaces[index] = workspace;
-		} else if (removals === this._removals) {
+		} else if (![previousUri, workspace.uri].some(candidate => (this._removedAt.get(extUri.getComparisonKey(candidate)) ?? 0) > removals)) {
 			workspaces.unshift(workspace);
 		} else {
 			return;
 		}
 		this._persist(workspaces.slice(0, MAX_MANAGED_WORKSPACES));
+	}
+
+	private _recordRemoval(uris: readonly URI[]): void {
+		this._removals++;
+		for (const uri of uris) {
+			this._removedAt.set(this.uriIdentityService.extUri.getComparisonKey(uri), this._removals);
+		}
 	}
 
 	/** Puts `workspace` first, dropping the entry with its URI. */

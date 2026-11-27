@@ -69,6 +69,8 @@ interface IStoredRecentWorkspace {
 export interface IVSCodeRecentWorkspaceFile extends ISessionWorkspaceFileMetadata {
 	readonly uri: URI;
 	readonly folders: readonly URI[];
+	/** The remote that VS Code opened the file in, whose folder paths are paths on that remote. */
+	readonly remoteAuthority?: string;
 }
 
 interface IVSCodeRecentFolder {
@@ -386,7 +388,7 @@ export class SessionsRecentWorkspacesService extends Disposable implements ISess
 						loaded[index] = {
 							folders: result.folders.map(folderUri => ({ folderUri, source: 'vscodeWorkspace' })),
 							hasErrors,
-							...(result.folders.length ? { workspaceFile: { ...workspaceFile, uri: entry.workspace.configPath } } : {}),
+							...(result.folders.length ? { workspaceFile: { ...workspaceFile, uri: entry.workspace.configPath, ...(entry.remoteAuthority ? { remoteAuthority: entry.remoteAuthority } : {}) } } : {}),
 						};
 					} catch (error) {
 						if (!cancellation.token.isCancellationRequested) {
