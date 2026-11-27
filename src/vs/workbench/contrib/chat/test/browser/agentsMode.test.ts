@@ -271,9 +271,11 @@ suite('Agents mode actions', () => {
 				editorArea.dispose();
 				editorArea = instantiation.createInstance(AgentsModeEditorArea);
 			} else if (scenario.inMode === 'restartWithWelcome') {
-				// The window restores in the mode with a Welcome page, which closes once the window restored
-				editorArea.dispose();
+				// The Welcome page opens in the mode, which shows the editor area, and the window restores in the mode with it: it
+				// closes once the window restored, and the editor area hides again
 				welcome = true;
+				visibleEditorsChange.fire({ isExplicit: true });
+				editorArea.dispose();
 				restored = new DeferredPromise<void>();
 				editorArea = instantiation.createInstance(AgentsModeEditorArea);
 				calls.push(`restored after ${calls.length} calls`);
@@ -323,7 +325,7 @@ suite('Agents mode actions', () => {
 				// Hidden as the chat part shows, so the layout doesn't squeeze the side bars to keep room for the editor area
 				emptyChatPartShownInMode: { afterEnter: untouched, inMode: hiddenByChat, afterLeave: shownOnLeave },
 				emptyRestartedInMode: { afterEnter: hiddenByChat, afterLeave: shownOnLeave },
-				welcomeRestoredInMode: { afterEnter: hiddenByChat, inMode: { editorVisible: false, panelVisible: false, calls: ['restored after 0 calls', `close ${gettingStartedInputTypeId}`] }, afterLeave: shownOnLeave },
+				welcomeRestoredInMode: { afterEnter: hiddenByChat, inMode: { editorVisible: false, panelVisible: false, calls: [`show ${Parts.EDITOR_PART}`, 'restored after 1 calls', `close ${gettingStartedInputTypeId}`, 'hiddenByChat true'] }, afterLeave: shownOnLeave },
 				emptyRestartedWithoutMode: { afterEnter: hiddenByChat, inMode: shownOnLeave, afterLeave: untouched },
 				emptyChatPartReopenedInMode: { afterEnter: hiddenByChat, inMode: hiddenByChat, afterLeave: shownOnLeave },
 				withEditors: { afterEnter: untouched, afterLeave: untouched },

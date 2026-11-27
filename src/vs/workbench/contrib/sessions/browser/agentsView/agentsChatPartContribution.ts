@@ -75,7 +75,7 @@ export interface IEditorWindowChatPartService {
 	/** Keeps what was typed in the chat part's one unsent composer for its next one; see `IAgentsChatPartService.parkComposerInput`. */
 	parkComposerInput(): boolean;
 
-	/** Whether the chat part shows a chat in its active tab, or has a new-session composer that has not sent yet; creates nothing where it has no chats yet. */
+	/** Whether the chat part shows a chat in its active tab, or has a new-session composer with a draft; creates nothing where it has no chats yet. */
 	hasChat(): boolean;
 }
 
@@ -134,8 +134,9 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 			return false;
 		}
 		const content = this._frame.content.get();
-		// A new-session composer that has not sent yet is a chat too, whose draft the user returns to
-		return !!content && (!!content.activeChat.get() || content.hasComposer());
+		// A new-session composer with a draft is a chat too, which the user returns to; an empty one, as the chat part shows by
+		// default, is not
+		return !!content && (!!content.activeChat.get() || content.hasDraftComposer());
 	}
 
 	private _updateAnchor(): void {

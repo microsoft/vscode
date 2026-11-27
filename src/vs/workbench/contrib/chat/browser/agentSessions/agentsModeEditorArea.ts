@@ -54,8 +54,22 @@ export class AgentsModeEditorArea extends Disposable {
 				}
 			}));
 			if (agentsModeService.isActive) {
-				lifecycleService.when(LifecyclePhase.Restored).then(() => this.agentsModeService.isActive ? this.closeWelcomePages() : undefined).catch(onUnexpectedError);
+				this.restoreInMode(lifecycleService).catch(onUnexpectedError);
 			}
+		}
+	}
+
+	/**
+	 * Closes the Welcome page the window restored in the mode with, as entering does, and then hides the editor area if
+	 * that left it empty.
+	 */
+	private async restoreInMode(lifecycleService: ILifecycleService): Promise<void> {
+		await lifecycleService.when(LifecyclePhase.Restored);
+		if (this._store.isDisposed || !this.agentsModeService.isActive) {
+			return;
+		}
+		if (await this.closeWelcomePages() && !this._store.isDisposed) {
+			this.hideIfEmpty();
 		}
 	}
 
@@ -67,11 +81,14 @@ export class AgentsModeEditorArea extends Disposable {
 		this.hideIfEmpty();
 	}
 
-	private async closeWelcomePages(): Promise<void> {
+	/** Closes the Welcome pages, and returns whether there were any. */
+	private async closeWelcomePages(): Promise<boolean> {
 		const welcomePages = this.editorService.getEditors(EditorsOrder.SEQUENTIAL).filter(({ editor }) => editor.typeId === gettingStartedInputTypeId);
-		if (welcomePages.length) {
-			await this.editorService.closeEditors(welcomePages);
+		if (!welcomePages.length) {
+			return false;
 		}
+		await this.editorService.closeEditors(welcomePages);
+		return true;
 	}
 
 	private hideIfEmpty(): void {

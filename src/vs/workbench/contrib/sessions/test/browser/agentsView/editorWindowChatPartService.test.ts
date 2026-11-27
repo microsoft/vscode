@@ -258,12 +258,13 @@ suite('EditorWindowChatPartService', () => {
 		assert.deepStrictEqual({ onlyPlain, withViewlet, viewletOff }, { onlyPlain: false, withViewlet: true, viewletOff: false });
 	});
 
-	test('has a chat while its active tab shows one or it has a new-session composer that has not sent yet, and none before its content exists', () => {
-		const hasChat = (content: { readonly chat?: boolean; readonly composer?: boolean } | undefined) => createService({ visible: true }, upcastPartial<IAgentsChatPartFrame>({
+	test('has a chat while its active tab shows one or it has a new-session composer with a draft, but not for an empty composer, as it shows by default, and none before its content exists', () => {
+		const hasChat = (content: { readonly chat?: boolean; readonly composer?: 'empty' | 'draft' } | undefined) => createService({ visible: true }, upcastPartial<IAgentsChatPartFrame>({
 			contentCreated: constObservable(!!content),
 			content: constObservable(content && upcastPartial<IAgentsChatPartService>({
 				activeChat: constObservable(content.chat ? upcastPartial<IAgentsChatPartChat>({}) : undefined),
 				hasComposer: () => !!content.composer,
+				hasDraftComposer: () => content.composer === 'draft',
 			})),
 		})).service.hasChat();
 
@@ -271,8 +272,9 @@ suite('EditorWindowChatPartService', () => {
 			noContent: hasChat(undefined),
 			empty: hasChat({}),
 			chat: hasChat({ chat: true }),
-			unsentComposer: hasChat({ composer: true }),
-		}, { noContent: false, empty: false, chat: true, unsentComposer: true });
+			emptyComposer: hasChat({ composer: 'empty' }),
+			draftComposer: hasChat({ composer: 'draft' }),
+		}, { noContent: false, empty: false, chat: true, emptyComposer: false, draftComposer: true });
 	});
 
 	test('restores the chats it showed as the window last closed, while chats open in it', async () => {
