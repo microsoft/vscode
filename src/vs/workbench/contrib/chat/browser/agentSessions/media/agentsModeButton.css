@@ -9,7 +9,7 @@
 	align-items: center;
 	gap: var(--vscode-spacing-size40);
 	padding: 0 var(--vscode-spacing-size40);
-	border-radius: var(--vscode-cornerRadius-medium);
+	border-radius: var(--vscode-cornerRadius-small);
 	cursor: pointer;
 	color: var(--vscode-titleBar-activeForeground);
 	-webkit-app-region: no-drag;
@@ -29,9 +29,16 @@
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-.monaco-workbench .agents-mode-titlebar-button.checked,
+.monaco-workbench .agents-mode-titlebar-button.checked:not(:focus-visible),
 .monaco-workbench .agents-mode-titlebar-button.checked:hover {
 	background-color: var(--vscode-actionBar-toggledBackground);
+}
+
+/* High contrast has no toggled background: outline the checked state, unless keyboard focus outlines it */
+.monaco-workbench.hc-black .agents-mode-titlebar-button.checked:not(:focus-visible),
+.monaco-workbench.hc-light .agents-mode-titlebar-button.checked:not(:focus-visible) {
+	outline: 1px solid var(--vscode-contrastActiveBorder);
+	outline-offset: -1px;
 }
 
 .monaco-workbench .agents-mode-titlebar-button:focus-visible {

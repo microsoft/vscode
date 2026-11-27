@@ -193,6 +193,8 @@ suite('Agents mode actions', () => {
 		interface IScenario {
 			readonly editors?: number;
 			readonly welcome?: boolean;
+			/** A Welcome page in an auxiliary editor window */
+			readonly auxiliaryWelcome?: boolean;
 			readonly chatPartVisible?: boolean;
 			readonly panelVisible?: boolean;
 			/** What happens in the mode before leaving it */
@@ -219,13 +221,16 @@ suite('Agents mode actions', () => {
 			].map(typeId => ({ typeId }) as EditorInput);
 			instantiation.stub(IEditorService, {
 				onDidVisibleEditorsChange: visibleEditorsChange.event,
-				getEditors: () => editorInputs().map(editor => ({ editor, groupId: 1 })),
+				getEditors: () => [
+					...editorInputs().map(editor => ({ editor, groupId: 1 })),
+					...(scenario.auxiliaryWelcome ? [{ editor: { typeId: gettingStartedInputTypeId } as EditorInput, groupId: 2 }] : []),
+				],
 				closeEditors: async (toClose: readonly IEditorIdentifier[]) => {
 					calls.push(`close ${toClose.map(({ editor }) => editor.typeId).join()}`);
 					welcome = welcome && !toClose.some(({ editor }) => editor.typeId === gettingStartedInputTypeId);
 				},
 			});
-			const mainPart: Partial<IEditorPart> = { get groups() { return [{ get isEmpty() { return editorInputs().length === 0; } } as Partial<IEditorGroup> as IEditorGroup]; } };
+			const mainPart: Partial<IEditorPart> = { get groups() { return [{ id: 1, get isEmpty() { return editorInputs().length === 0; } } as Partial<IEditorGroup> as IEditorGroup]; } };
 			instantiation.stub(IEditorGroupsService, { mainPart: mainPart as IEditorPart });
 			instantiation.stub(IWorkbenchLayoutService, {
 				onDidChangePartVisibility: partVisibilityChange.event,
@@ -305,6 +310,7 @@ suite('Agents mode actions', () => {
 			assert.deepStrictEqual({
 				emptyWithChatPart: await run({ chatPartVisible: true }),
 				onlyWelcomeWithChatPart: await run({ welcome: true, chatPartVisible: true }),
+				welcomeInAuxiliaryWindowWithChatPart: await run({ auxiliaryWelcome: true, chatPartVisible: true }),
 				welcomeAndEditorWithChatPart: await run({ welcome: true, editors: 1, chatPartVisible: true }),
 				emptyWithPanel: await run({ panelVisible: true }),
 				emptyNothingElseVisible: await run({}),
@@ -319,6 +325,8 @@ suite('Agents mode actions', () => {
 				emptyWithChatPart: { afterEnter: hiddenByChat, afterLeave: shownOnLeave },
 				// The Welcome page closes before the editor area is looked at
 				onlyWelcomeWithChatPart: { afterEnter: { ...hiddenByChat, calls: [`close ${gettingStartedInputTypeId}`, 'hiddenByChat true'] }, afterLeave: shownOnLeave },
+				// The Welcome page of an auxiliary editor window stays: only the main editor area is the mode's
+				welcomeInAuxiliaryWindowWithChatPart: { afterEnter: hiddenByChat, afterLeave: shownOnLeave },
 				welcomeAndEditorWithChatPart: { afterEnter: { ...untouched, calls: [`close ${gettingStartedInputTypeId}`] }, afterLeave: untouched },
 				emptyWithPanel: { afterEnter: { editorVisible: false, panelVisible: true, calls: [`hide ${Parts.EDITOR_PART}`] }, afterLeave: { ...shownOnLeave, panelVisible: true } },
 				emptyNothingElseVisible: { afterEnter: untouched, afterLeave: untouched },

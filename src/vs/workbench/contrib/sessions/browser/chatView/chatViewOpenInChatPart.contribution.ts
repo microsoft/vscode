@@ -266,6 +266,15 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 				}
 			});
 		}));
+		// The window can also enter or leave the mode with the setting as the user configured it, which then does not change:
+		// the chats stay where they are, and what the window did in or for the mode no longer applies. Registered after the
+		// setting's listener, so this runs after it as the mode changes
+		this._register(agentsModeService.onDidChange(active => {
+			chatPartForAgentsMode = active && configured.get();
+			if (active) {
+				chatStayedForAgentsMode = false;
+			}
+		}));
 		this._hideMaximizeWhileSessionsOnly();
 	}
 

@@ -843,6 +843,34 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			});
 		});
 
+		test('entering or leaving Agents mode with the setting as the user configured it: leaving with the chat part keeps the chat in it, and a later change outside the mode moves it', async () => {
+			const setOrientation = async (fixture: ReturnType<typeof setup>, value: string) => {
+				await fixture.configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsOrientation, value);
+				fixture.configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([ChatConfiguration.ChatViewSessionsOrientation]), affectsConfiguration: key => key === ChatConfiguration.ChatViewSessionsOrientation }));
+				await timeout(0);
+			};
+
+			// Configured to the chat part before the mode; stacked in the mode, which ignores it until the window leaves
+			const stackedInMode = setup({ setting: true, chatViewShows: session });
+			await stackedInMode.setAgentsMode(true);
+			stackedInMode.shown.part.set(URI.parse('agent-host-copilotcli:/session-b'), undefined);
+			await setOrientation(stackedInMode, 'stacked');
+			await stackedInMode.setAgentsMode(false);
+			await timeout(0);
+
+			// Configured to the chat part in the mode, so leaving does not change it: turning it off later moves the chat
+			const configuredInMode = setup({ chatViewShows: session });
+			await configuredInMode.setAgentsMode(true, { setting: true });
+			await configuredInMode.setAgentsMode(false);
+			configuredInMode.shown.part.set(URI.parse('agent-host-copilotcli:/session-b'), undefined);
+			await configuredInMode.setSetting(false);
+
+			assert.deepStrictEqual({ stackedInMode: stackedInMode.handovers, configuredInMode: configuredInMode.handovers }, {
+				stackedInMode: [],
+				configuredInMode: ['part opens /session-a', 'view opens /session-b', 'part closes /session-b'],
+			});
+		});
+
 		test('leaving Agents mode right after entering it, the move into the chat part that is still on its way stops; returning to the mode, the chat part keeps the chat that stayed in it', async () => {
 			// The window leaves the mode while the chat part starts the new chat the move takes the draft to: revealing the host in
 			// use then would open the Chat view, and with it the secondary side bar that leaving hides

@@ -81,9 +81,10 @@ export class AgentsModeEditorArea extends Disposable {
 		this.hideIfEmpty();
 	}
 
-	/** Closes the Welcome pages, and returns whether there were any. */
+	/** Closes the Welcome pages of the main editor area, and returns whether there were any. */
 	private async closeWelcomePages(): Promise<boolean> {
-		const welcomePages = this.editorService.getEditors(EditorsOrder.SEQUENTIAL).filter(({ editor }) => editor.typeId === gettingStartedInputTypeId);
+		const mainGroups = new Set(this.editorGroupsService.mainPart.groups.map(group => group.id));
+		const welcomePages = this.editorService.getEditors(EditorsOrder.SEQUENTIAL).filter(({ editor, groupId }) => editor.typeId === gettingStartedInputTypeId && mainGroups.has(groupId));
 		if (!welcomePages.length) {
 			return false;
 		}
