@@ -923,11 +923,18 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			} else {
 				// 2. Resolve the remote CLI first — every registry command
 				// (`agent endpoints`/`agent host`/`agent relay`) needs it.
-				const { stdout: unameS } = await sshExec(sshClient, 'uname -s');
-				const { stdout: unameM } = await sshExec(sshClient, 'uname -m');
+				// `uname` does not exist on Windows remotes, so probe without
+				// failing on the exit code and fall back to a Windows check to
+				// report an actionable error instead of a bare exit-1 (#316712).
+				const { stdout: unameS } = await sshExec(sshClient, 'uname -s', { ignoreExitCode: true });
+				const { stdout: unameM } = await sshExec(sshClient, 'uname -m', { ignoreExitCode: true });
 				const platform = resolveRemotePlatform(unameS, unameM);
 				if (!platform) {
-					throw new Error(`${LOG_PREFIX} Unsupported remote platform: ${unameS.trim()} ${unameM.trim()}`);
+					const { stdout: windowsVer } = await sshExec(sshClient, 'cmd /c ver', { ignoreExitCode: true });
+					if (/\bwindows\b/i.test(windowsVer)) {
+						throw new Error(localize('sshRemoteWindowsUnsupported', "Windows remote machines are not supported for agent host connections over SSH. Connect to a Linux or macOS remote instead."));
+					}
+					throw new Error(localize('sshRemoteUnsupportedPlatform', "Unsupported remote platform: {0} {1}", unameS.trim(), unameM.trim()));
 				}
 				this._logService.info(`${LOG_PREFIX} Remote platform: ${platform.os}-${platform.arch}`);
 				reportProgress(localize('sshProgressInstallingCLI', "Checking remote CLI installation..."));

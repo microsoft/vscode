@@ -739,6 +739,35 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		assert.deepStrictEqual(service.mockClients[0].execCalls, []);
 	});
 
+	// --- Remote platform detection ---
+
+	test('rejects a Windows SSH remote with a clear unsupported-platform error', async () => {
+		service.execResponses = [
+			{ stdout: '', code: 1 },                                        // uname -s (absent on Windows)
+			{ stdout: '', code: 1 },                                        // uname -m
+			{ stdout: 'Microsoft Windows [Version 10.0.22631]', code: 0 },  // cmd /c ver
+		];
+
+		await assert.rejects(
+			() => service.connect(makeConfig({ sshConfigHost: 'myhost' })),
+			/Windows remote machines are not supported for agent host connections over SSH/,
+		);
+		assert.deepStrictEqual(service.mockClients[0].execCalls, ['uname -s', 'uname -m', 'cmd /c ver']);
+	});
+
+	test('reports the uname output for unsupported non-Windows remotes', async () => {
+		service.execResponses = [
+			{ stdout: 'SunOS\n', code: 0 },  // uname -s
+			{ stdout: 'i86pc\n', code: 0 },  // uname -m
+			{ stdout: '', code: 1 },         // cmd /c ver
+		];
+
+		await assert.rejects(
+			() => service.connect(makeConfig({ sshConfigHost: 'myhost' })),
+			/Unsupported remote platform: SunOS i86pc/,
+		);
+	});
+
 	// --- Selection policy (requirement 2) ---
 
 	test('spawns a dedicated standalone when no live endpoints exist', async () => {
