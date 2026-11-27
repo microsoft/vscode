@@ -134,11 +134,6 @@ export class HoverService extends Disposable implements IHoverService {
 		options: IHoverOptions,
 		lifecycleOptions: Pick<IHoverLifecycleOptions, 'groupId' | 'reducedDelay'>,
 	): IHoverWidget | undefined {
-		// Set `id` to default if it's undefined
-		if (options.id === undefined) {
-			options.id = getHoverIdFromContent(options.content);
-		}
-
 		if (!this._currentDelayedHover || this._currentDelayedHoverWasShown) {
 			// Current hover is locked, reject — unless this is a nesting scenario
 			if (this._currentHover?.isLocked && this._getContainingHoverIndex(options.target) < 0) {
@@ -257,11 +252,6 @@ export class HoverService extends Disposable implements IHoverService {
 
 		if (options.content === '') {
 			return undefined;
-		}
-
-		// Set `id` to default if it's undefined
-		if (options.id === undefined) {
-			options.id = getHoverIdFromContent(options.content);
 		}
 
 		// Check if the target is inside an existing hover (nesting scenario)
@@ -759,7 +749,8 @@ function getHoverOptionsIdentity(options: IHoverOptions | undefined): IHoverOpti
 	if (options === undefined) {
 		return undefined;
 	}
-	return options?.id ?? options;
+	// Derive the default identity from the current content, including in-place updates.
+	return options.id ?? getHoverIdFromContent(options.content) ?? options;
 }
 
 function getHoverIdFromContent(content: string | HTMLElement | IMarkdownString): string | undefined {
