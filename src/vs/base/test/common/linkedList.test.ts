@@ -136,4 +136,47 @@ suite('LinkedList', function () {
 		assert.strictEqual(b, 'b');
 		assertElements(list, 'a');
 	});
+
+	test('stale remove callback after clear does not corrupt active list', () => {
+		const list = new LinkedList<string>();
+		const removeOld = list.push('old');
+		list.clear();
+		assert.strictEqual(list.size, 0);
+
+		const removeNew = list.push('new');
+		assertElements(list, 'new');
+
+		// Invoking stale remove callback from cleared node must be a safe no-op
+		removeOld();
+		assertElements(list, 'new');
+		assert.strictEqual(list.size, 1);
+
+		removeNew();
+		assert.strictEqual(list.size, 0);
+		assertElements(list);
+	});
+
+	test('stale remove callback does not reduce size below zero', () => {
+		const list = new LinkedList<number>();
+		const remove = list.push(1);
+		list.clear();
+		assert.strictEqual(list.size, 0);
+
+		remove();
+		assert.strictEqual(list.size, 0);
+		assert.strictEqual(list.isEmpty(), true);
+	});
+
+	test('calling remove multiple times is safe and idempotent', () => {
+		const list = new LinkedList<number>();
+		const remove = list.push(42);
+		assert.strictEqual(list.size, 1);
+
+		remove();
+		assert.strictEqual(list.size, 0);
+
+		remove();
+		assert.strictEqual(list.size, 0);
+		assert.strictEqual(list.isEmpty(), true);
+	});
 });

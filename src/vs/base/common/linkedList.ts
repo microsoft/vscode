@@ -115,6 +115,10 @@ export class LinkedList<E> {
 	}
 
 	private _remove(node: Node<E> | typeof Node.Undefined): void {
+		if (node === Node.Undefined) {
+			return;
+		}
+
 		if (node.prev !== Node.Undefined && node.next !== Node.Undefined) {
 			// middle
 			const anchor = node.prev;
@@ -123,21 +127,32 @@ export class LinkedList<E> {
 
 		} else if (node.prev === Node.Undefined && node.next === Node.Undefined) {
 			// only node
+			if (this._first !== node) {
+				return;
+			}
 			this._first = Node.Undefined;
 			this._last = Node.Undefined;
 
 		} else if (node.next === Node.Undefined) {
 			// last
+			if (this._last !== node) {
+				return;
+			}
 			this._last = this._last.prev!;
 			this._last.next = Node.Undefined;
 
 		} else if (node.prev === Node.Undefined) {
 			// first
+			if (this._first !== node) {
+				return;
+			}
 			this._first = this._first.next!;
 			this._first.prev = Node.Undefined;
 		}
 
 		// done
+		node.prev = Node.Undefined;
+		node.next = Node.Undefined;
 		this._size -= 1;
 	}
 
