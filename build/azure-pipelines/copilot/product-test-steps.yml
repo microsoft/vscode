@@ -114,6 +114,9 @@ steps:
           workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
           displayName: 🧪 Run Copilot sanity tests
           timeoutInMinutes: 15
+          # The sanity tests call the production model endpoint, which can briefly
+          # rate-limit (`rateLimited`). They take seconds, so retry the step once.
+          retryCountOnTaskFailure: 1
           env:
             VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
 
@@ -177,5 +180,8 @@ steps:
           workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
           displayName: 🧪 Run Copilot sanity tests
           timeoutInMinutes: 15
+          # The sanity tests call the production model endpoint, which can briefly
+          # rate-limit (`rateLimited`). They take seconds, so retry the step once.
+          retryCountOnTaskFailure: 1
           env:
             VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
