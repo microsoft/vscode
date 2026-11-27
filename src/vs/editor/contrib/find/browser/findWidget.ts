@@ -74,6 +74,8 @@ const NLS_REPLACE_BTN_LABEL = nls.localize('label.replaceButton', "Replace");
 const NLS_REPLACE_ALL_BTN_LABEL = nls.localize('label.replaceAllButton', "Replace All");
 const NLS_TOGGLE_REPLACE_MODE_BTN_LABEL = nls.localize('label.toggleReplaceButton', "Toggle Replace");
 const NLS_MATCHES_COUNT_LIMIT_TITLE = nls.localize('title.matchesCountLimit', "Only the first {0} results are highlighted, but all find operations work on the entire text.", MATCHES_LIMIT);
+const NLS_GO_TO_MATCH_TITLE = nls.localize('title.goToMatch', "Go to Match");
+const NLS_GO_TO_MATCH_LABEL = nls.localize('label.goToMatch', "{0}. Go to Match");
 export const NLS_MATCHES_LOCATION = nls.localize('label.matchesLocation', "{0} of {1}");
 export const NLS_NO_RESULTS = nls.localize('label.noResults', "No results");
 
@@ -134,7 +136,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 	private _replaceInput!: ReplaceInput;
 
 	private _toggleReplaceBtn!: SimpleButton;
-	private _matchesCount!: HTMLElement;
+	private _matchesCount!: HTMLButtonElement;
 	private _prevBtn!: SimpleButton;
 	private _nextBtn!: SimpleButton;
 	private _toggleSelectionFind!: Toggle;
@@ -459,7 +461,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		if (this._state.matchesCount >= MATCHES_LIMIT) {
 			this._matchesCount.title = NLS_MATCHES_COUNT_LIMIT_TITLE;
 		} else {
-			this._matchesCount.title = '';
+			this._matchesCount.title = this._state.matchesCount > 0 ? NLS_GO_TO_MATCH_TITLE : '';
 		}
 
 		// remove previous content
@@ -481,6 +483,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		}
 
 		this._matchesCount.appendChild(document.createTextNode(label));
+		this._matchesCount.ariaLabel = this._state.matchesCount > 0 ? strings.format(NLS_GO_TO_MATCH_LABEL, label) : label;
 
 		alertFn(this._getAriaLabel(label, this._state.currentMatch, this._state.searchString));
 		MAX_MATCHES_COUNT_WIDTH = Math.max(MAX_MATCHES_COUNT_WIDTH, this._matchesCount.clientWidth);
@@ -534,6 +537,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 
 		const findInputIsNonEmpty = (this._state.searchString.length > 0);
 		const matchesCount = this._state.matchesCount ? true : false;
+		this._matchesCount.disabled = !this._isVisible || !matchesCount;
 		this._prevBtn.setEnabled(this._isVisible && findInputIsNonEmpty && matchesCount && this._state.canNavigateBack());
 		this._nextBtn.setEnabled(this._isVisible && findInputIsNonEmpty && matchesCount && this._state.canNavigateForward());
 		this._replaceBtn.setEnabled(this._isVisible && this._isReplaceVisible && findInputIsNonEmpty);
@@ -1062,9 +1066,14 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			this._register(this._findInput.onMouseDown((e) => this._onFindInputMouseDown(e)));
 		}
 
-		this._matchesCount = document.createElement('div');
+		this._matchesCount = document.createElement('button');
+		this._matchesCount.type = 'button';
 		this._matchesCount.className = 'matchesCount';
+		this._matchesCount.disabled = true;
 		this._updateMatchesCount();
+		this._register(dom.addDisposableListener(this._matchesCount, dom.EventType.CLICK, () => {
+			assertReturnsDefined(this._codeEditor.getAction(FIND_IDS.GoToMatchFindAction)).run().then(undefined, onUnexpectedError);
+		}));
 
 		const hoverLifecycleOptions: IHoverLifecycleOptions = { groupId: 'find-widget' };
 
@@ -1187,7 +1196,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		}));
 		this._register(this._replaceInput.onPreserveCaseKeyDown((e) => {
 			if (e.equals(KeyCode.Tab)) {
-				if (this._prevBtn.isEnabled()) {
+				if (!this._matchesCount.disabled) {
+					this._matchesCount.focus();
+				} else if (this._prevBtn.isEnabled()) {
 					this._prevBtn.focus();
 				} else if (this._nextBtn.isEnabled()) {
 					this._nextBtn.focus();
