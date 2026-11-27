@@ -37,7 +37,7 @@ import { IRecentSessionWorkspace, ISessionWorkspacesService, ISessionWorkspaceUp
 import { SessionWorkspaceDraftModel } from '../../../browser/workspaceEditor/sessionWorkspaceDraft.js';
 import { SessionWorkspaceEditorWidget } from '../../../browser/workspaceEditor/sessionWorkspaceEditor.js';
 import '../../../browser/workspaceEditor/sessionWorkspaceEditor.contribution.js';
-import { REMOVE_SESSION_WORKSPACE_COMMAND_ID, SessionWorkspaceEditorAvailableContext } from '../../../browser/workspaceEditor/sessionWorkspaceEditorCommands.js';
+import { OPEN_SESSION_WORKSPACE_IN_EDITOR_COMMAND_ID, REMOVE_SESSION_WORKSPACE_COMMAND_ID, SessionWorkspaceEditorAvailableContext } from '../../../browser/workspaceEditor/sessionWorkspaceEditorCommands.js';
 import { SessionWorkspaceEditorInput, SessionWorkspaceEditorTarget } from '../../../browser/workspaceEditor/sessionWorkspaceEditorInput.js';
 import { isWindows } from '../../../../../../base/common/platform.js';
 
@@ -499,5 +499,33 @@ suite('SessionWorkspaceEditor', () => {
 			{ toOpen: [{ workspace: 'file:///c:/Users/me/Agents.code-workspace' }], forceNewWindow: true },
 			{ toOpen: [{ folder: 'file://server/share/project' }], forceNewWindow: true },
 		]);
+	});
+	test('Open in Editor opens a new editor window on the workspace file, or on its folders without a file to read', async () => {
+		const open = async (workspace: IRecentSessionWorkspace) => {
+			const instantiationService = workbenchInstantiationService(undefined, disposables);
+			const opened: { toOpen: string[]; forceNewWindow: boolean | undefined }[] = [];
+			instantiationService.stub(ISessionWorkspacesService, upcastPartial<ISessionWorkspacesService>({ getWorkspace: () => workspace }));
+			instantiationService.stub(IHostService, upcastPartial<IHostService>({
+				openWindow: (async (toOpen?: IWindowOpenable[] | IOpenEmptyWindowOptions, options?: IOpenWindowOptions) => {
+					const openables = Array.isArray(toOpen) ? toOpen : [];
+					opened.push({
+						toOpen: openables.map(openable => isWorkspaceToOpen(openable) ? `workspace ${openable.workspaceUri.path}` : isFolderToOpen(openable) ? `folder ${openable.folderUri.path}` : 'other'),
+						forceNewWindow: options?.forceNewWindow,
+					});
+				}) as IHostService['openWindow'],
+			}));
+			await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(OPEN_SESSION_WORKSPACE_IN_EDITOR_COMMAND_ID)!.handler(accessor, workspace.uri));
+			return opened;
+		};
+
+		assert.deepStrictEqual({
+			file: await open(agents),
+			folder: await open({ ...agents, uri: vscode, folders: [vscode], owned: false }),
+			missingFile: await open({ ...agents, missing: true }),
+		}, {
+			file: [{ toOpen: ['workspace /user/AgentsWorkspaces/Agents.code-workspace'], forceNewWindow: true }],
+			folder: [{ toOpen: ['folder /work/vscode'], forceNewWindow: true }],
+			missingFile: [{ toOpen: ['folder /work/vscode', 'folder /work/vscode-docs'], forceNewWindow: true }],
+		});
 	});
 });

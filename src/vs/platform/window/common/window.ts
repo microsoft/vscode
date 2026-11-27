@@ -107,6 +107,14 @@ export function isOpenedAuxiliaryWindow(candidate: IOpenedMainWindow | IOpenedAu
 
 export interface IOpenEmptyWindowOptions extends IBaseOpenWindowsOptions { }
 
+/** A multi-root workspace of an editor window. */
+export interface IAgentsWindowWorkspace {
+	/** The workspace's `.code-workspace` file; absent for an untitled workspace, whose folders are selected without a workspace. */
+	readonly file?: UriComponents;
+	/** The workspace's folders, in their order. Never empty. */
+	readonly folders: readonly UriComponents[];
+}
+
 export interface IAgentsWindowDraft {
 	readonly inputText: string;
 	/** URI-aware serialized chat attachments, including exported image data. */

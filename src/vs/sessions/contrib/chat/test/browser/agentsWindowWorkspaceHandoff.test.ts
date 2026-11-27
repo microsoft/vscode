@@ -27,7 +27,8 @@ import { ISessionsManagementService } from '../../../../../workbench/contrib/ses
 import { ISessionNavigationRequest, ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { WorkspaceHandoffState } from '../../../sessions/browser/sessionsWindowOpenTelemetry.js';
-import { AgentsWindowWorkspaceHandoff, WORKSPACE_HANDOFF_TIMEOUT_MS } from '../../browser/agentsWindowWorkspaceHandoff.js';
+import { AgentsWindowWorkspaceHandoff, IAgentsWindowWorkspaceFolders, WORKSPACE_HANDOFF_TIMEOUT_MS } from '../../browser/agentsWindowWorkspaceHandoff.js';
+import { IRecentSessionWorkspace, ISessionWorkspacesService } from '../../../../../workbench/contrib/sessions/common/sessionWorkspaces.js';
 import { INewSessionComposerService, NewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IChatDraft, reviveChatDraft, serializeChatDraft } from '../../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
@@ -73,6 +74,18 @@ suite('Agents Window workspace handoff', () => {
 		let input: IChatDraft = { inputText: '', attachments: [] };
 		let inputReady = true;
 		let draftReady = Promise.resolve();
+		const workspacesEnabled = observableValue('workspacesEnabled', true);
+		const knownWorkspaces: IRecentSessionWorkspace[] = [];
+		const openedWorkspaceFiles: URI[] = [];
+		let openWorkspace = async (file: URI): Promise<IRecentSessionWorkspace> => { throw new Error(`Cannot read ${file.path}`); };
+		instantiationService.stub(ISessionWorkspacesService, upcastPartial<ISessionWorkspacesService>({
+			enabled: workspacesEnabled,
+			getWorkspace: uri => knownWorkspaces.find(workspace => workspace.uri.toString() === uri.toString()),
+			openWorkspace: file => {
+				openedWorkspaceFiles.push(file);
+				return openWorkspace(file);
+			},
+		}));
 		const sessionsService = upcastPartial<ITestSessionsService>({
 			activeSession,
 			initialRestoreComplete,
@@ -162,7 +175,8 @@ suite('Agents Window workspace handoff', () => {
 		const handoff = disposables.add(instantiationService.createInstance(AgentsWindowWorkspaceHandoff, whenStartupProvidersRegistered));
 		return {
 			handoff, composerService, sessionsService, sessionsPartService, activeSession, initialRestoreComplete, onWillSend, states, selections, notifications, openingOptions, storage, drafts,
-			draftOptions, noWorkspaceSelections, notificationMessages, remoteRequests,
+			draftOptions, noWorkspaceSelections, notificationMessages, remoteRequests, workspacesEnabled, knownWorkspaces, openedWorkspaceFiles,
+			set openWorkspaceResult(value: (file: URI) => Promise<IRecentSessionWorkspace>) { openWorkspace = value; },
 			set providerReady(value: boolean) { providerReady = value; },
 			set providerId(value: string) { providerId = value; },
 			set acceptsWorkspace(value: (folder: URI) => boolean) { acceptsWorkspace = value; },
@@ -180,6 +194,7 @@ suite('Agents Window workspace handoff', () => {
 			notifyInputChanged: () => inputChanged.fire(),
 			openDraft: (draft: IChatDraft, folder: URI | undefined = folderUri) => handoff.selectWorkspace({ folderUri: folder, preferDevContainer: true, isDefault: false, draft: serializeChatDraft(draft) }, state => states.push(state)),
 			open: (isDefault = false, folder = folderUri) => handoff.selectWorkspace({ folderUri: folder, preferDevContainer: true, isDefault }, state => states.push(state)),
+			openWorkspace: (workspace: IAgentsWindowWorkspaceFolders, draft?: IChatDraft) => handoff.selectWorkspace({ folderUri, workspace, preferDevContainer: false, isDefault: false, ...(draft ? { draft: serializeChatDraft(draft) } : undefined) }, state => states.push(state)),
 		};
 	}
 
@@ -764,4 +779,48 @@ suite('Agents Window workspace handoff', () => {
 			});
 		});
 	}
+
+	test('selects the editor window\'s multi-root workspace where workspaces are enabled', async () => {
+		const file = URI.file('/work/app.code-workspace');
+		const folders = [URI.file('/work/client'), URI.file('/work/server')];
+		const workspace = { uri: file, name: 'App', folders, owned: false };
+		const run = async (name: string, setUp: (harness: ReturnType<typeof createHarness>) => void, handedOff: IAgentsWindowWorkspaceFolders, draft?: IChatDraft) => {
+			const harness = createHarness();
+			setUp(harness);
+			await harness.openWorkspace(handedOff, draft);
+			const selection = harness.selections[0];
+			return {
+				name,
+				state: harness.states.at(-1),
+				opened: harness.openedWorkspaceFiles.map(uri => uri.path),
+				folder: selection?.folder.path,
+				workspaceConfig: selection?.options?.workspaceConfig && { uri: selection.options.workspaceConfig.uri.path, name: selection.options.workspaceConfig.name, folders: selection.options.workspaceConfig.folders.map(uri => uri.path) },
+				folders: selection?.options?.folders?.map(uri => uri.path),
+			};
+		};
+		const appConfig = { uri: '/work/app.code-workspace', name: 'App', folders: ['/work/client', '/work/server'] };
+		const results = [
+			await run('known file', harness => harness.knownWorkspaces.push(workspace), { file, folders }),
+			await run('unknown file is added', harness => harness.openWorkspaceResult = async () => workspace, { file, folders }),
+			await run('missing file is read again', harness => {
+				harness.knownWorkspaces.push({ ...workspace, missing: true });
+				harness.openWorkspaceResult = async () => workspace;
+			}, { file, folders }),
+			await run('unreadable file selects its folders', () => { }, { file, folders }),
+			await run('untitled workspace selects its folders', () => { }, { folders }),
+			await run('workspace file of one folder selects the folder', () => { }, { file, folders: [folders[1]] }),
+			await run('workspaces disabled', harness => harness.workspacesEnabled.set(false, undefined), { file, folders }),
+			await run('draft keeps its folder', harness => harness.knownWorkspaces.push(workspace), { file, folders }, { inputText: 'Continue here', attachments: [] }),
+		];
+		assert.deepStrictEqual(results, [
+			{ name: 'known file', state: 'applied', opened: [], folder: '/work/client', workspaceConfig: appConfig, folders: undefined },
+			{ name: 'unknown file is added', state: 'applied', opened: ['/work/app.code-workspace'], folder: '/work/client', workspaceConfig: appConfig, folders: undefined },
+			{ name: 'missing file is read again', state: 'applied', opened: ['/work/app.code-workspace'], folder: '/work/client', workspaceConfig: appConfig, folders: undefined },
+			{ name: 'unreadable file selects its folders', state: 'applied', opened: ['/work/app.code-workspace'], folder: '/work/client', workspaceConfig: undefined, folders: ['/work/client', '/work/server'] },
+			{ name: 'untitled workspace selects its folders', state: 'applied', opened: [], folder: '/work/client', workspaceConfig: undefined, folders: ['/work/client', '/work/server'] },
+			{ name: 'workspace file of one folder selects the folder', state: 'applied', opened: [], folder: '/private/from-editor', workspaceConfig: undefined, folders: undefined },
+			{ name: 'workspaces disabled', state: 'applied', opened: [], folder: '/private/from-editor', workspaceConfig: undefined, folders: undefined },
+			{ name: 'draft keeps its folder', state: 'applied', opened: [], folder: '/private/from-editor', workspaceConfig: undefined, folders: undefined },
+		]);
+	});
 });

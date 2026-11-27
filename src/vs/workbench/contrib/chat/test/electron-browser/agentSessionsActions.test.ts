@@ -397,3 +397,53 @@ suite('OpenWorkspaceInAgentsWindowTitleBarAction', () => {
 		});
 	});
 });
+
+suite('Agents window multi-root workspace handoff', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const untitledWorkspacesHome = URI.file('/user-data/Workspaces');
+
+	async function open(action: 'openWorkspace' | 'openAgentsWindow', configuration: URI | undefined, folders: readonly URI[], remoteAuthority?: string) {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ lastFocusedWidget: undefined }));
+		instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ remoteAuthority, untitledWorkspacesHome }));
+		const workspaceFolders = folders.map((uri, index) => new WorkspaceFolder({ uri, name: uri.path, index }));
+		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
+			getWorkspace: () => testIWorkspace({ id: 'workspace', folders: workspaceFolders, configuration }),
+			getWorkspaceFolder: () => null,
+		}));
+		instantiationService.stub(IEditorService, upcastPartial<IEditorService>({ activeEditor: undefined }));
+		const calls: IOpenAgentsWindowOptions[] = [];
+		instantiationService.stub(INativeHostService, upcastPartial<INativeHostService>({ openAgentsWindow: async options => { calls.push(options ?? {}); } }));
+		await instantiationService.invokeFunction(accessor => action === 'openWorkspace'
+			? new OpenWorkspaceInAgentsWindowAction().run(accessor)
+			: new OpenAgentsWindowAction().run(accessor, { source: AgentsWindowOpenSource.KeyboardShortcut }));
+		return calls.map(call => ({
+			folder: URI.revive(call.folderUri)?.path,
+			file: URI.revive(call.workspace?.file)?.path,
+			folders: call.workspace?.folders.map(folder => URI.revive(folder).path),
+		}));
+	}
+
+	test('sends a local multi-root workspace with its file, or its folders alone when untitled', async () => {
+		const file = URI.file('/work/app.code-workspace');
+		const folders = [URI.file('/work/client'), URI.file('/work/server')];
+		const remoteFolders = folders.map(folder => folder.with({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+box' }));
+		const results = {
+			saved: await open('openWorkspace', file, folders),
+			keyboardShortcut: await open('openAgentsWindow', file, folders),
+			untitled: await open('openWorkspace', URI.joinPath(untitledWorkspacesHome, '1234/workspace.json'), folders),
+			remoteWindow: await open('openWorkspace', file, folders, 'ssh-remote+box'),
+			remoteFolders: await open('openWorkspace', file, remoteFolders),
+			singleFolder: await open('openWorkspace', undefined, [folders[0]]),
+		};
+		assert.deepStrictEqual(results, {
+			saved: [{ folder: '/work/client', file: '/work/app.code-workspace', folders: ['/work/client', '/work/server'] }],
+			keyboardShortcut: [{ folder: '/work/client', file: '/work/app.code-workspace', folders: ['/work/client', '/work/server'] }],
+			untitled: [{ folder: '/work/client', file: undefined, folders: ['/work/client', '/work/server'] }],
+			remoteWindow: [{ folder: '/work/client', file: undefined, folders: undefined }],
+			remoteFolders: [{ folder: '/work/client', file: undefined, folders: undefined }],
+			singleFolder: [{ folder: '/work/client', file: undefined, folders: undefined }],
+		});
+	});
+});

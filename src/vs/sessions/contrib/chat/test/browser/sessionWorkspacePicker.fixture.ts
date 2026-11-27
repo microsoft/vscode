@@ -66,7 +66,7 @@ function createFolderWorkspace(folder: URI): ISessionWorkspace {
 	};
 }
 
-async function renderPicker(context: ComponentFixtureContext, pick: boolean, open: boolean, focus?: 'missingRow' | 'missingRowAction'): Promise<void> {
+async function renderPicker(context: ComponentFixtureContext, pick: boolean, open: boolean, focus?: 'workspaceRow' | 'missingRow' | 'missingRowAction'): Promise<void> {
 	const { container, disposableStore, theme } = context;
 	container.classList.add('monaco-workbench', 'agent-sessions-workbench');
 	container.style.position = 'relative';
@@ -150,6 +150,10 @@ async function renderPicker(context: ComponentFixtureContext, pick: boolean, ope
 		await new Promise<void>(resolve => setTimeout(resolve, 300));
 		// As Up Arrow moves from the selected recent folder to the missing workspace above it
 		actionWidgetService.focusPrevious();
+		if (focus === 'workspaceRow') {
+			// And once more to the Product workspace above it
+			actionWidgetService.focusPrevious();
+		}
 		if (focus === 'missingRowAction') {
 			await new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => resolve()));
 			const list = targetWindow.document.querySelector<HTMLElement>('.action-widget .monaco-list');
@@ -173,6 +177,12 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/' }, {
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['After picking the Product workspace, the workspace pill shows a rocket icon and the name Product.'],
 		render: context => renderPicker(context, true, false),
+	}),
+	WorkspaceFocused: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['With the keyboard, the Product workspace row is focused, showing its Open in Editor (window icon), Edit Workspace (gear) and Remove Workspace buttons.'],
+		virtualTime: { enabled: false },
+		render: context => renderPicker(context, false, true, 'workspaceRow'),
 	}),
 	MissingWorkspaceFocused: defineComponentFixture({
 		labels: { kind: 'screenshot' },

@@ -32,7 +32,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { registerIcon } from '../../../../../platform/theme/common/iconRegistry.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
+import { isUntitledWorkspace, IWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { EditorAreaFocusContext, IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
@@ -49,7 +49,7 @@ import { CommandsRegistry, ICommandService } from '../../../../../platform/comma
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { logExperimentTrigger, logSettingExperimentTrigger } from '../../../../../platform/telemetry/common/experimentTrigger.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { AgentsWindowOpenSource, IAgentsLauncherOptions, isAgentsWindowOpenSource } from '../../../../../platform/window/common/window.js';
+import { AgentsWindowOpenSource, IAgentsLauncherOptions, IAgentsWindowWorkspace, isAgentsWindowOpenSource } from '../../../../../platform/window/common/window.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
@@ -188,11 +188,31 @@ export class OpenWorkspaceInAgentsWindowAction extends Action2 {
 		});
 	}
 
+	/**
+	 * The window's multi-root workspace, for the Agents window to select with all its folders. Only a local one: the
+	 * Agents window can't read the file of a remote window's workspace.
+	 * @param remoteAuthority The window's remote authority, if it is a remote window.
+	 * @param untitled Whether the workspace's configuration file is an untitled workspace's, which has no file to send.
+	 */
+	static getMultiRootWorkspace(workspace: IWorkspace, remoteAuthority: string | undefined, untitled: boolean): IAgentsWindowWorkspace | undefined {
+		// Only a multi-root workspace has a configuration file
+		if (!workspace.configuration || !workspace.folders.length || remoteAuthority || workspace.folders.some(folder => folder.uri.scheme !== Schemas.file)) {
+			return undefined;
+		}
+		const file = workspace.configuration.scheme === Schemas.file && !untitled ? workspace.configuration : undefined;
+		return { ...(file ? { file: file.toJSON() } : {}), folders: workspace.folders.map(folder => folder.uri.toJSON()) };
+	}
+
 	async run(accessor: ServicesAccessor, options?: { readonly source?: AgentsWindowOpenSource; readonly sessionResource?: URI; readonly inputUri?: URI; readonly reveal?: IOpenAgentsWindowOptions['reveal'] }): Promise<void> {
 		ensureAgentModeEnabled(accessor.get(IConfigurationService));
 		const draftOptions = options?.reveal === 'new' ? getDraftHandoffOptions(accessor, options.sessionResource, false, options.inputUri) : {};
+		const windowWorkspace = accessor.get(IWorkspaceContextService).getWorkspace();
+		// Only a workspace with a configuration file is sent, which needs the environment
+		const environmentService = windowWorkspace.configuration ? accessor.get(IWorkbenchEnvironmentService) : undefined;
+		const workspace = environmentService && windowWorkspace.configuration ? OpenWorkspaceInAgentsWindowAction.getMultiRootWorkspace(windowWorkspace, environmentService.remoteAuthority, isUntitledWorkspace(windowWorkspace.configuration, environmentService)) : undefined;
 		await accessor.get(INativeHostService).openAgentsWindow({
 			folderUri: getInvokingWorkspaceFolder(accessor) ?? accessor.get(IWorkspaceContextService).getWorkspace().folders[0]?.uri,
+			...(workspace ? { workspace } : undefined),
 			reveal: options?.reveal,
 			source: options?.source ?? AgentsWindowOpenSource.CommandPalette,
 			...draftOptions,
@@ -325,12 +345,19 @@ export class OpenAgentsWindowAction extends Action2 {
 		ensureAgentModeEnabled(accessor.get(IConfigurationService));
 		const nativeHostService = accessor.get(INativeHostService);
 		const draftOptions: Pick<IOpenAgentsWindowOptions, 'draft' | 'folderUriIsDefault'> = args?.reveal === 'new' && !args.folderUri && !args.draft ? getDraftHandoffOptions(accessor) : {};
-		const folderUri = !args?.folderUri && (!args?.reveal || args.reveal === 'new')
-			? getInvokingWorkspaceFolder(accessor) ?? (draftOptions.draft ? accessor.get(IWorkspaceContextService).getWorkspace().folders[0]?.uri : undefined)
+		const invokedFromWindow = !args?.folderUri && (!args?.reveal || args.reveal === 'new');
+		const windowWorkspace = invokedFromWindow ? accessor.get(IWorkspaceContextService).getWorkspace() : undefined;
+		// Only a workspace with a configuration file is sent, which needs the environment
+		const environmentService = windowWorkspace?.configuration ? accessor.get(IWorkbenchEnvironmentService) : undefined;
+		const workspace = environmentService && windowWorkspace?.configuration ? OpenWorkspaceInAgentsWindowAction.getMultiRootWorkspace(windowWorkspace, environmentService.remoteAuthority, isUntitledWorkspace(windowWorkspace.configuration, environmentService)) : undefined;
+		// Where workspaces are off, the Agents window selects this folder: the active editor's, else the workspace's first.
+		const folderUri = invokedFromWindow
+			? getInvokingWorkspaceFolder(accessor) ?? (draftOptions.draft || workspace ? accessor.get(IWorkspaceContextService).getWorkspace().folders[0]?.uri : undefined)
 			: undefined;
 		await nativeHostService.openAgentsWindow({
 			...args,
 			...(folderUri ? { folderUri, folderUriIsDefault: !draftOptions.draft } : undefined),
+			...(workspace ? { workspace } : undefined),
 			...draftOptions,
 			source: args?.source ?? AgentsWindowOpenSource.CommandPalette,
 		});
@@ -405,8 +432,13 @@ export class OpenChatSessionInAgentsWindowAction extends Action2 {
 		const hasRealSession = sessionResource && !isUntitledChatSession(sessionResource) && commandOptions?.reveal !== 'new';
 		const folderUri = getInvokingWorkspaceFolder(accessor) ?? workspaceContextService.getWorkspace().folders[0]?.uri;
 		const remote = sessionResource && hasRealSession ? getRemoteSessionHandoff(sessionResource, accessor.get(IWorkbenchEnvironmentService).remoteAuthority, folderUri) : undefined;
+		const windowWorkspace = !hasRealSession ? workspaceContextService.getWorkspace() : undefined;
+		// Only a workspace with a configuration file is sent, which needs the environment
+		const environmentService = windowWorkspace?.configuration ? accessor.get(IWorkbenchEnvironmentService) : undefined;
+		const workspace = environmentService && windowWorkspace?.configuration ? OpenWorkspaceInAgentsWindowAction.getMultiRootWorkspace(windowWorkspace, environmentService.remoteAuthority, isUntitledWorkspace(windowWorkspace.configuration, environmentService)) : undefined;
 		await nativeHostService.openAgentsWindow({
 			folderUri: remote ? remote.folderUri : !hasRealSession && (draftOptions.draft || folderUri?.scheme === Schemas.file) ? folderUri?.toJSON() : undefined,
+			...(workspace ? { workspace } : undefined),
 			reveal: hasRealSession ? sessionResource?.toJSON() : commandOptions?.reveal,
 			revealRemoteAuthority: remote?.revealRemoteAuthority,
 			source,

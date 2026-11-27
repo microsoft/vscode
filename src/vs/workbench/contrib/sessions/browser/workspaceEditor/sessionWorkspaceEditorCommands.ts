@@ -13,6 +13,8 @@ export const NEW_SESSION_WORKSPACE_COMMAND_ID = 'sessions.workspaces.new';
 export const EDIT_SESSION_WORKSPACE_COMMAND_ID = 'sessions.workspaces.edit';
 /** Opens the Workspace editor on the custom group of the given id, to edit its name, icon and color. */
 export const EDIT_SESSION_GROUP_COMMAND_ID = 'sessions.groups.edit';
+/** Opens an editor window on the workspace of the given `.code-workspace` file, or one that the user picks. */
+export const OPEN_SESSION_WORKSPACE_IN_EDITOR_COMMAND_ID = 'sessions.workspaces.openInEditor';
 /** Removes the workspace of the given `.code-workspace` file, or one that the user picks, after asking. */
 export const REMOVE_SESSION_WORKSPACE_COMMAND_ID = 'sessions.workspaces.remove';
 

@@ -36,7 +36,7 @@ import { IRecentSessionWorkspace, ISessionWorkspacesService, SessionWorkspaceErr
 import { getSessionWorkspaceIcon } from './sessionWorkspaceAppearance.js';
 import { SessionWorkspaceEditor } from './sessionWorkspaceEditor.js';
 import { SessionGroupEditorAccessibilityHelp, SessionWorkspaceEditorAccessibilityHelp } from './sessionWorkspaceEditorAccessibilityHelp.js';
-import { EDIT_SESSION_GROUP_COMMAND_ID, EDIT_SESSION_WORKSPACE_COMMAND_ID, NEW_SESSION_WORKSPACE_COMMAND_ID, REMOVE_SESSION_WORKSPACE_COMMAND_ID, SESSION_WORKSPACE_EDITOR_WHEN, SessionWorkspaceEditorAvailableContext } from './sessionWorkspaceEditorCommands.js';
+import { EDIT_SESSION_GROUP_COMMAND_ID, EDIT_SESSION_WORKSPACE_COMMAND_ID, NEW_SESSION_WORKSPACE_COMMAND_ID, OPEN_SESSION_WORKSPACE_IN_EDITOR_COMMAND_ID, REMOVE_SESSION_WORKSPACE_COMMAND_ID, SESSION_WORKSPACE_EDITOR_WHEN, SessionWorkspaceEditorAvailableContext } from './sessionWorkspaceEditorCommands.js';
 import { SessionWorkspaceEditorInput } from './sessionWorkspaceEditorInput.js';
 import { SessionWorkspaceRenamePlacementContribution } from './sessionWorkspaceRenamePlacement.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -118,6 +118,33 @@ registerAction2(class EditSessionWorkspaceAction extends SessionWorkspacePickAct
 		const workspace = await this.resolveWorkspace(uri, localize('editWorkspace.pick', "Select a workspace to edit"), accessor.get(ISessionWorkspacesService), accessor.get(ILabelService), accessor.get(IQuickInputService));
 		if (workspace) {
 			await editorService.openEditor(new SessionWorkspaceEditorInput({ kind: 'edit', workspace }, extUri), { pinned: true });
+		}
+	}
+});
+
+registerAction2(class OpenSessionWorkspaceInEditorAction extends SessionWorkspacePickAction {
+	constructor() {
+		super({
+			id: OPEN_SESSION_WORKSPACE_IN_EDITOR_COMMAND_ID,
+			title: localize2('openWorkspaceInEditor', "Open Workspace in Editor..."),
+			category: CHAT_CATEGORY,
+			f1: true,
+			precondition: SESSION_WORKSPACE_EDITOR_WHEN,
+		});
+	}
+
+	/** Opens a new editor window on the workspace's `.code-workspace` file, else, without a file to read, on its folders. */
+	override async run(accessor: ServicesAccessor, uri?: URI): Promise<void> {
+		const hostService = accessor.get(IHostService);
+		const extUri = accessor.get(IUriIdentityService).extUri;
+		const workspace = await this.resolveWorkspace(uri, localize('openWorkspaceInEditor.pick', "Select a workspace to open in an editor window"), accessor.get(ISessionWorkspacesService), accessor.get(ILabelService), accessor.get(IQuickInputService));
+		if (!workspace) {
+			return;
+		}
+		if (SessionWorkspaceEditorInput.hasWorkspaceFile(extUri, workspace) && !workspace.missing) {
+			await hostService.openWindow([{ workspaceUri: workspace.uri }], { forceNewWindow: true });
+		} else if (workspace.folders.length) {
+			await hostService.openWindow(workspace.folders.map(folderUri => ({ folderUri })), { forceNewWindow: true });
 		}
 	}
 });

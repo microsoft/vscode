@@ -583,7 +583,7 @@ suite('WorkspacePicker - Workspaces group', () => {
 	test('lists workspaces with their folders, and a missing workspace file that cannot be picked', () => {
 		const { workspaceRows } = setupPicker();
 		assert.deepStrictEqual(workspaceRows().map(row => ({ label: row.label, description: row.description, disabled: !!row.disabled, aria: row.item?.ariaLabel, folder: row.item?.folderUri?.path, actions: row.toolbarActions?.map(action => action.id) })), [
-			{ label: 'Product', description: 'app, work/app-lib, other/app-lib', disabled: false, aria: 'Workspace Product, app, work/app-lib, other/app-lib', folder: '/work/app', actions: ['workspacePicker.sessionWorkspace.edit', 'workspacePicker.sessionWorkspace.remove'] },
+			{ label: 'Product', description: 'app, work/app-lib, other/app-lib', disabled: false, aria: 'Workspace Product, app, work/app-lib, other/app-lib', folder: '/work/app', actions: ['workspacePicker.sessionWorkspace.openInEditor', 'workspacePicker.sessionWorkspace.edit', 'workspacePicker.sessionWorkspace.remove'] },
 			{ label: 'Gone', description: 'Workspace file missing', disabled: false, aria: 'Workspace Gone, Workspace file missing, activate to open Edit Workspace', folder: undefined, actions: ['workspacePicker.sessionWorkspace.edit', 'workspacePicker.sessionWorkspace.remove'] },
 		]);
 	});
@@ -693,12 +693,14 @@ suite('WorkspacePicker - Workspaces group', () => {
 		});
 	});
 
-	test('edits and removes a workspace through the workspace commands', async () => {
+	test('opens, edits and removes a workspace through the workspace commands', async () => {
 		const { commands, workspaceRows } = setupPicker();
-		const [edit, remove] = workspaceRows()[0].toolbarActions!;
+		const [openInEditor, edit, remove] = workspaceRows()[0].toolbarActions!;
+		await openInEditor.run();
 		await edit.run();
 		await remove.run();
 		assert.deepStrictEqual(commands.map(([id, uri]) => [id, (uri as URI).path]), [
+			['sessions.workspaces.openInEditor', '/ws/product.code-workspace'],
 			['sessions.workspaces.edit', '/ws/product.code-workspace'],
 			['sessions.workspaces.remove', '/ws/product.code-workspace'],
 		]);
