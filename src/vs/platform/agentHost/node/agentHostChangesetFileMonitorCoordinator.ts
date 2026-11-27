@@ -11,7 +11,7 @@ import { isAhpChatChannel } from '../common/state/sessionState.js';
 import { DEFAULT_AGENT_HOST_WATCH_EXCLUDES, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { readNestedRepositoryRoots, resolveSessionRepositories } from './agentHostSessionRepositories.js';
-import { resolveChangesetOwnerScope } from './agentHostBranchChangesetScope.js';
+import { isFolderOnlyScope, resolveChangesetOwnerScope } from './agentHostBranchChangesetScope.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { getEffectiveWorkingDirectories } from './agentConfigurationService.js';
 import { ILogService } from '../../log/common/log.js';
@@ -155,12 +155,33 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 	 * its folders may have changed (as after a refresh of its Git state). Unchanged repositories keep their watchers.
 	 */
 	onSessionRepositoriesChanged(sessionStr: string): void {
-		for (const owner of new Set(this._watchOwners.values())) {
-			const source = this._watchSources.get(owner) ?? owner;
-			if (owner === sessionStr || resolveChangesetOwnerScope(this._stateManager, source).sessionUri === sessionStr) {
-				this._retryWatchAttachment(owner);
+		const owners = new Set<string>();
+		for (const [subscription, owner] of this._watchOwners) {
+			if (owner === sessionStr || this._watchSessions.get(subscription) === sessionStr) {
+				owners.add(owner);
 			}
 		}
+		for (const owner of owners) {
+			this._retryWatchAttachment(owner);
+		}
+	}
+
+	/**
+	 * What a watch of `owner` watches and refreshes. A folder of a session on its own (a folder-only changeset owner)
+	 * watches its folder and refreshes the session's Git state, whose refresh refreshes that folder's changesets; any
+	 * other owner watches and refreshes the source its changes come from.
+	 */
+	private _resolveWatch(owner: string): { readonly workingDirectories: readonly string[] | undefined; readonly refreshKey: string; readonly sessionUri: string } {
+		const ownerScope = parseFolderChangesetOwnerUri(owner) ? resolveChangesetOwnerScope(this._stateManager, owner) : undefined;
+		if (ownerScope && isFolderOnlyScope(this._stateManager, ownerScope)) {
+			return { workingDirectories: ownerScope.workingDirectories, refreshKey: ownerScope.sessionUri, sessionUri: ownerScope.sessionUri };
+		}
+		const source = this._watchSources.get(owner) ?? owner;
+		return {
+			workingDirectories: getEffectiveWorkingDirectories(this._stateManager, source),
+			refreshKey: source,
+			sessionUri: resolveChangesetOwnerScope(this._stateManager, source).sessionUri,
+		};
 	}
 
 	/** Retries the watches still waiting for a root watcher, such as one whose acquisition failed. Roots that are already watched keep their watcher. */
@@ -201,10 +222,7 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 			if (!this._hasWatchInterest(sessionStr)) {
 				return;
 			}
-			const source = this._watchSources.get(sessionStr) ?? sessionStr;
-			// A folder of a session on its own (a folder changeset owner) watches that folder
-			const scope = resolveChangesetOwnerScope(this._stateManager, source);
-			const workingDirectories = parseFolderChangesetOwnerUri(source) ? scope.workingDirectories : getEffectiveWorkingDirectories(this._stateManager, source);
+			const { workingDirectories, sessionUri } = this._resolveWatch(sessionStr);
 			if (!workingDirectories || workingDirectories.length === 0) {
 				this._pendingWatchInterest.add(sessionStr);
 				this._releaseSessionRoots(sessionStr);
@@ -224,7 +242,7 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 				return;
 			}
 			// Repositories found in the folders' immediate subfolders are listed by the changesets, so they are watched too
-			const nestedRepositories = readNestedRepositoryRoots(this._stateManager.getSessionState(scope.sessionUri)?._meta, workingDirectories);
+			const nestedRepositories = readNestedRepositoryRoots(this._stateManager.getSessionState(sessionUri)?._meta, workingDirectories);
 			const signature = this._workingDirectoriesSignature([...workingDirectories, ...nestedRepositories.map(root => root.toString())]);
 			if (this._sessionRoots.has(sessionStr) && this._sessionWorkingDirectories.get(sessionStr) === signature) {
 				this._pendingWatchInterest.delete(sessionStr);
@@ -342,25 +360,24 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 	}
 
 	private _onRootsChanged(rootStrs: Iterable<string>): void {
-		const sessionsToRefresh = new Set<string>();
+		const keysToRefresh = new Set<string>();
 		for (const rootStr of rootStrs) {
 			for (const session of this._rootSessions.get(rootStr) ?? []) {
-				const source = this._watchSources.get(session) ?? session;
-				if (this._hasWatchInterest(session)
-					&& this._sessionRoots.get(session)?.has(rootStr)
-					&& this._stateManager.getSessionState(source)) {
-					sessionsToRefresh.add(session);
+				if (this._hasWatchInterest(session) && this._sessionRoots.get(session)?.has(rootStr)) {
+					const { refreshKey } = this._resolveWatch(session);
+					if (this._stateManager.getSessionState(refreshKey)) {
+						keysToRefresh.add(refreshKey);
+					}
 				}
 			}
 		}
 
-		for (const session of sessionsToRefresh) {
+		for (const refreshKey of keysToRefresh) {
 			// The service refreshes from the key's PRIMARY working directory, never the changed root: branch/PR is a
 			// primary-repo concept, while the downstream summary recompute re-diffs EVERY repo — so a
 			// secondary change still reflects without mis-attributing its branch/PR. Throttled downstream.
-			const source = this._watchSources.get(session) ?? session;
 			// Edits to files that were already modified leave the Git state as it was.
-			void this._gitStateService.refreshSessionGitState(source, undefined, { force: true });
+			void this._gitStateService.refreshSessionGitState(refreshKey, undefined, { force: true });
 		}
 	}
 

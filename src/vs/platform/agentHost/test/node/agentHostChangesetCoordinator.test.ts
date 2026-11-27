@@ -552,30 +552,42 @@ suite('ChangesetSessionCoordinator', () => {
 		}
 	}
 
-	test('a refresh of a session\'s Git state refreshes the observed changesets of its folders on their own and of the repositories found in them, which are watched', async () => {
-		const environment = createEnvironment(undefined, createRoutingGitService(new Map([['file:///app', URI.parse('file:///app')], ['file:///work', undefined]])));
+	test('a file change in a folder of a session on its own, or in a repository found in a folder, refreshes that folder\'s observed changesets through the session\'s Git state', async () => {
+		const environment = createEnvironment(undefined, createRoutingGitService(new Map([['file:///app', URI.parse('file:///app')], ['file:///work', undefined], ['file:///work/docs', URI.parse('file:///work/docs')]])));
 		const session = AgentSession.uri('mock', 'folders').toString();
 		createMultiRootSession(environment.stateManager, session, ['file:///app', 'file:///work']);
 		environment.stateManager.setSessionMeta(session, withSessionRepositories(environment.stateManager.getSessionState(session)?._meta, {
 			[getWorkingDirectoryKey('file:///work')]: [{ root: 'file:///work/docs', kind: 'nested' }],
 		}));
-		const workOwner = buildFolderChangesetOwnerUri(session, getWorkingDirectoryScopeId(['file:///work']));
+		const appOwner = buildFolderChangesetOwnerUri(session, getWorkingDirectoryScopeId(['file:///app']));
 		const docsOwner = buildFolderChangesetOwnerUri(session, getWorkingDirectoryScopeId(['file:///work/docs']));
-		for (const changeset of [buildBranchChangesetUri(workOwner), buildUncommittedChangesetUri(docsOwner)]) {
+		for (const changeset of [buildBranchChangesetUri(appOwner), buildUncommittedChangesetUri(docsOwner)]) {
 			environment.subscriptions.addSubscription(parseChangesetUri(changeset)!.ownerUri, changeset);
 			environment.coordinator.onFirstSubscriber(URI.parse(changeset));
 		}
-		await environment.monitor.waitForAcquisitions(1);
-		const branchBefore = environment.changesets.branchRefreshes.length;
-		const uncommittedBefore = environment.changesets.uncommittedRefreshes.length;
-
-		await environment.gitStateService.refreshSessionGitState(session);
+		await environment.monitor.waitForAcquisitions(2);
+		await tick();
+		const fire = async (root: string) => {
+			environment.changesets.clearRefreshes();
+			environment.gitStateService.clearRefreshes();
+			environment.monitor.fire(URI.parse(root));
+			await tick();
+			return {
+				gitState: environment.gitStateService.refreshed,
+				branch: environment.changesets.branchRefreshes.filter(owner => owner === appOwner),
+				uncommitted: environment.changesets.uncommittedRefreshes.filter(owner => owner === docsOwner),
+			};
+		};
 
 		assert.deepStrictEqual({
-			branch: environment.changesets.branchRefreshes.slice(branchBefore).filter(owner => owner === workOwner),
-			uncommitted: environment.changesets.uncommittedRefreshes.slice(uncommittedBefore).filter(owner => owner === docsOwner),
-			watched: environment.monitor.acquisitions.includes('file:///work/docs'),
-		}, { branch: [workOwner], uncommitted: [docsOwner], watched: true });
+			watched: [...new Set(environment.monitor.acquisitions)].sort(),
+			app: await fire('file:///app'),
+			docs: await fire('file:///work/docs'),
+		}, {
+			watched: ['file:///app', 'file:///work/docs'],
+			app: { gitState: [session], branch: [appOwner], uncommitted: [docsOwner] },
+			docs: { gitState: [session], branch: [appOwner], uncommitted: [docsOwner] },
+		});
 	});
 
 	test('refreshes changeset operations when a session gains or loses a working directory', () => {
