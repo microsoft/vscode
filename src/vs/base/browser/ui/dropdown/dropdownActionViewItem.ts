@@ -196,6 +196,8 @@ export interface IActionWithDropdownActionViewItemOptions extends IActionViewIte
 	/** Runs the actions of the menu, instead of a runner of the menu's own. */
 	readonly menuActionRunner?: IActionRunner;
 	readonly keybindingProvider?: IKeybindingProvider;
+	/** Gives a split button with filled labels the geometry of the split buttons of the Extensions editor header. */
+	readonly filledSplitButton?: boolean;
 }
 
 export class ActionWithDropdownActionViewItem extends ActionViewItem {
@@ -215,6 +217,7 @@ export class ActionWithDropdownActionViewItem extends ActionViewItem {
 		super.render(container);
 		if (this.element) {
 			this.element.classList.add('action-dropdown-item');
+			this.element.classList.toggle('filled-split-button', !!(<IActionWithDropdownActionViewItemOptions>this.options).filledSplitButton);
 			const menuActionsProvider = {
 				getActions: () => {
 					const actionsProvider = (<IActionWithDropdownActionViewItemOptions>this.options).menuActionsOrProvider;

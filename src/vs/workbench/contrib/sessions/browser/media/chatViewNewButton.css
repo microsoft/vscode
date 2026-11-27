@@ -1,0 +1,44 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The keybinding of the New button of the Chat view title, as the New button of the Agents window shows it
+(newSessionActionViewItem.css), in the colour of the filled button. */
+
+.monaco-action-bar .action-item .action-label > .chat-view-new-button-keybinding {
+	display: inline-block;
+	align-self: center;
+	flex-shrink: 0;
+	margin-left: var(--vscode-spacing-size60);
+	font-family: var(--monaco-monospace-font);
+	font-size: var(--vscode-fontSize-label3, 10px);
+	line-height: 1;
+	padding: 2px 4px;
+	border-radius: var(--vscode-cornerRadius-xSmall);
+	background-color: var(--vscode-keybindingLabel-background);
+	color: inherit;
+}
+
+.monaco-action-bar .action-item .action-label > .chat-view-new-button-keybinding .monaco-keybinding {
+	line-height: 1;
+}
+
+.monaco-action-bar .action-item .action-label > .chat-view-new-button-keybinding .monaco-keybinding > .monaco-keybinding-key {
+	margin: 0 1px;
+	padding: 0;
+	min-width: auto;
+	border: 0;
+	background-color: transparent;
+	box-shadow: none;
+	font-size: inherit;
+	color: inherit;
+}
+
+.monaco-action-bar .action-item .action-label > .chat-view-new-button-keybinding .monaco-keybinding > .monaco-keybinding-key:first-child {
+	margin-left: 0;
+}
+
+.monaco-action-bar .action-item .action-label > .chat-view-new-button-keybinding .monaco-keybinding > .monaco-keybinding-key:last-child {
+	margin-right: 0;
+}

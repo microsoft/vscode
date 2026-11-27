@@ -60,15 +60,20 @@ suite('Sessions - Chat view sessions list New button', () => {
 		const primary = container.querySelector<HTMLElement>('.action-dropdown-item > .action-label')!;
 		const dropdown = container.querySelector<HTMLElement>('.action-dropdown-item .monaco-dropdown .action-label')!;
 		const openMenu = () => dropdown.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
-		const updateKeybinding = (id: string, keybinding: ResolvedKeybinding) => {
-			keybindings[id] = keybinding;
+		const updateKeybinding = (id: string, keybinding: ResolvedKeybinding | undefined) => {
+			if (keybinding) {
+				keybindings[id] = keybinding;
+			} else {
+				delete keybindings[id];
+			}
 			onDidUpdateKeybindings.fire();
 		};
-		return { item, control, submenu, container, primary, dropdown, openMenu, actions, commands, menus, errors, updateKeybinding };
+		const shownKeybinding = () => primary.querySelector('.chat-view-new-button-keybinding')?.textContent ?? null;
+		return { item, control, submenu, container, primary, dropdown, openMenu, actions, commands, menus, errors, updateKeybinding, shownKeybinding };
 	}
 
 	test('shows the New menu as the Extensions editor\'s split button: "New" runs New Chat and the ▾ opens the New menu', () => {
-		const { item, submenu, primary, dropdown, openMenu, actions, commands, menus } = render(true, ACTION_ID_NEW_CHAT, { [ACTION_ID_NEW_CHAT]: cmdN });
+		const { item, submenu, primary, dropdown, openMenu, actions, commands, menus, shownKeybinding } = render(true, ACTION_ID_NEW_CHAT, { [ACTION_ID_NEW_CHAT]: cmdN });
 
 		primary.click();
 		openMenu();
@@ -76,7 +81,8 @@ suite('Sessions - Chat view sessions list New button', () => {
 		assert.deepStrictEqual({
 			isSplitButton: item instanceof ActionWithDropdownActionViewItem,
 			isNewMenu: item.action === submenu,
-			label: primary.textContent,
+			label: primary.firstChild?.textContent,
+			keybinding: shownKeybinding(),
 			filled: [primary.classList.contains('filled-label'), dropdown.classList.contains('filled-label')],
 			ariaLabel: primary.getAttribute('aria-label'),
 			disabled: primary.classList.contains('disabled'),
@@ -86,6 +92,7 @@ suite('Sessions - Chat view sessions list New button', () => {
 			isSplitButton: true,
 			isNewMenu: true,
 			label: 'New',
+			keybinding: cmdN.getLabel(),
 			filled: [true, true],
 			ariaLabel: `New Chat (${cmdN.getLabel()})`,
 			disabled: false,
@@ -108,11 +115,17 @@ suite('Sessions - Chat view sessions list New button', () => {
 		assert.deepStrictEqual({ ariaLabel: primary.getAttribute('aria-label'), commands: commands.map(command => command.id) }, { ariaLabel: `New Chat (${cmdN.getLabel()})`, commands: [variantId] });
 	});
 
-	test('shows the new keybinding of New Chat when it is rebound while shown', () => {
-		const { primary, updateKeybinding } = render(true, ACTION_ID_NEW_CHAT, { [ACTION_ID_NEW_CHAT]: cmdN });
+	test('shows the new keybinding of New Chat when it is rebound while shown, and none when it is unbound', () => {
+		const { primary, updateKeybinding, shownKeybinding } = render(true, ACTION_ID_NEW_CHAT, { [ACTION_ID_NEW_CHAT]: cmdN });
 		const cmdShiftN = new USLayoutResolvedKeybinding([new KeyCodeChord(true, true, false, false, KeyCode.KeyN)], OperatingSystem.Macintosh);
+		const shown = () => ({ label: primary.textContent, keybinding: shownKeybinding(), ariaLabel: primary.getAttribute('aria-label') });
 		updateKeybinding(ACTION_ID_NEW_CHAT, cmdShiftN);
-		assert.strictEqual(primary.getAttribute('aria-label'), `New Chat (${cmdShiftN.getLabel()})`);
+		const rebound = shown();
+		updateKeybinding(ACTION_ID_NEW_CHAT, undefined);
+		assert.deepStrictEqual([rebound, shown()], [
+			{ label: `New${cmdShiftN.getLabel()}`, keybinding: cmdShiftN.getLabel(), ariaLabel: `New Chat (${cmdShiftN.getLabel()})` },
+			{ label: 'New', keybinding: null, ariaLabel: 'New Chat' },
+		]);
 	});
 
 	test('runs the New menu with the context of the title and reports a failure once, even after the menu and the button are gone', async () => {

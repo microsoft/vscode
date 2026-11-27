@@ -28,12 +28,14 @@ import { MenuId, MenuItemAction, SubmenuItemAction } from '../../../../../platfo
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { $, reset } from '../../../../../base/browser/dom.js';
+import { KeybindingLabel } from '../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
+import { ResolvedKeybinding } from '../../../../../base/common/keybindings.js';
+import { OS } from '../../../../../base/common/platform.js';
+import '../media/chatViewNewButton.css';
 
 /** The class of the filled label buttons of action bars, such as the split buttons of the Extensions editor. */
 const FILLED_LABEL_CLASS = 'filled-label';
-
-/** The class of a filled label split button that is sized as those of the Extensions editor header. */
-const FILLED_SPLIT_BUTTON_CLASS = 'filled-split-button';
 
 /**
  * Runs the actions of the New menu, and reports a failure itself: the menu closes as the action starts and no longer listens
@@ -57,11 +59,22 @@ class ChatViewNewMenuActionRunner extends ActionRunner {
 }
 
 /**
- * The "New" split button of the Chat view title for the New menu, the split button of the Extensions editor: "New" runs New Chat
- * and the dropdown opens the New menu. The title's toolbar knows it as the New menu itself, so that it can move it into its overflow
- * menu, and asks it for the width it needs.
+ * The "New" split button of the Chat view title for the New menu, the split button of the Extensions editor: "New", with the
+ * keybinding of New Chat as the New button of the Agents window shows it, runs New Chat and the dropdown opens the New menu.
+ * The title's toolbar knows it as the New menu itself, so that it can move it into its overflow menu, and asks it for the
+ * width it needs.
  */
 class ChatViewNewButtonActionViewItem extends ActionWithDropdownActionViewItem {
+
+	private readonly _keybindingHint = $('span.chat-view-new-button-keybinding');
+	private readonly _keybindingLabel = this._register(new KeybindingLabel(this._keybindingHint, OS, {
+		disableTitle: true,
+		keybindingLabelBackground: 'transparent',
+		keybindingLabelForeground: 'inherit',
+		keybindingLabelBorder: 'transparent',
+		keybindingLabelBottomBorder: undefined,
+		keybindingLabelShadow: undefined,
+	}));
 
 	constructor(
 		newMenu: SubmenuItemAction,
@@ -78,15 +91,18 @@ class ChatViewNewButtonActionViewItem extends ActionWithDropdownActionViewItem {
 			menuActionsOrProvider: { getActions: () => newMenu.actions },
 			menuActionClassNames: [FILLED_LABEL_CLASS],
 			menuActionRunner,
+			filledSplitButton: true,
 		}, contextMenuService);
 		this._register(menuActionRunner);
-		this._register(_keybindingService.onDidUpdateKeybindings(() => this.updateTooltip()));
+		this._register(_keybindingService.onDidUpdateKeybindings(() => {
+			this.updateLabel();
+			this.updateTooltip();
+		}));
 	}
 
 	/** The dropdown, created here after the first update, takes the title's context and New Chat's enablement. */
 	override render(container: HTMLElement): void {
 		super.render(container);
-		this.element?.classList.add(FILLED_SPLIT_BUTTON_CLASS);
 		this.dropdownMenuActionViewItem?.setActionContext(this._context);
 		this.updateEnabled();
 	}
@@ -124,7 +140,9 @@ class ChatViewNewButtonActionViewItem extends ActionWithDropdownActionViewItem {
 
 	protected override updateLabel(): void {
 		if (this.label) {
-			this.label.textContent = localize('chatViewNewButton', "New");
+			const keybinding = this.getKeybinding();
+			this._keybindingLabel.set(keybinding);
+			reset(this.label, localize('chatViewNewButton', "New"), ...(keybinding ? [this._keybindingHint] : []));
 		}
 	}
 
@@ -148,15 +166,19 @@ class ChatViewNewButtonActionViewItem extends ActionWithDropdownActionViewItem {
 		this.label?.classList.add(FILLED_LABEL_CLASS);
 	}
 
-	/** New Chat with its keybinding, or that of the canonical New Chat for its icon variants, which have none. */
+	/** New Chat with its keybinding. */
 	protected override getTooltip(): string {
-		const id = this._newChat.id;
-		const isIconVariant = NEW_CHAT_ICON_VARIANTS.some(variant => id === ACTION_ID_NEW_CHAT + variant.idSuffix);
-		const keybinding = this._keybindingService.lookupKeybinding(id) ?? (isIconVariant ? this._keybindingService.lookupKeybinding(ACTION_ID_NEW_CHAT) : undefined);
-		const keybindingLabel = keybinding?.getLabel();
+		const keybindingLabel = this.getKeybinding()?.getLabel();
 		return keybindingLabel
 			? localize('chatViewNewButtonTitle', "{0} ({1})", this._newChat.label, keybindingLabel)
 			: this._newChat.label;
+	}
+
+	/** The keybinding of New Chat, or that of the canonical New Chat for its icon variants, which have none. */
+	private getKeybinding(): ResolvedKeybinding | undefined {
+		const id = this._newChat.id;
+		const isIconVariant = NEW_CHAT_ICON_VARIANTS.some(variant => id === ACTION_ID_NEW_CHAT + variant.idSuffix);
+		return this._keybindingService.lookupKeybinding(id) ?? (isIconVariant ? this._keybindingService.lookupKeybinding(ACTION_ID_NEW_CHAT) : undefined);
 	}
 }
 

@@ -126,8 +126,8 @@
 	width: 1px;
 }
 
-/* A filled label split button that opts in with the `filled-split-button` class gets the geometry of the split buttons of the
-Extensions editor header, so that it looks exactly like them: the same values as extensionEditor.css and extensionActions.css. */
+/* The geometry of filled label split buttons that opt in with the `filledSplitButton` option, such as those of the Extensions
+editor header and the New button of the Chat view title, so that they all look the same. */
 
 .monaco-action-bar .actions-container .action-item.action-dropdown-item.filled-split-button > .action-label.filled-label {
 	height: auto;
@@ -168,7 +168,7 @@ Extensions editor header, so that it looks exactly like them: the same values as
 
 /* Filled label buttons and split buttons, such as those of the Extensions editor. A split button opts in with a filled
 primary label: its divider fills the split's full height and its dropdown is a compact chevron. Hosts with their own
-geometry, such as the Extensions editor and list, override it with more specific rules. */
+geometry, such as the Extensions list, override it with more specific rules. */
 
 .monaco-action-bar .actions-container .action-item .action-label.filled-label,
 .monaco-action-bar .action-item.action-dropdown-item:where(:has(> .action-label.filled-label)) > .action-dropdown-item-separator {
