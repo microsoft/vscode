@@ -754,17 +754,20 @@ suite('Workbench layout chat part', () => {
 			});
 		});
 
-		test('the chat part filling the editor area is saved at its own width while a maximized secondary side bar hides it', () => {
-			const { layout, grid, views, save } = createGridLayout(configuration);
-			const chat = grid.getViewSize(views.get(Parts.CHAT_PART)!).width;
-			layout.setEditorHiddenByChat(true);
-			layout.toggleMaximizedAuxiliaryBar();
-			const saved = JSON.parse(save().stored!) as { visible: boolean; size: number; hiddenByLayout: boolean };
-			assert.deepStrictEqual({ chatHidden: !layout.isVisible(Parts.CHAT_PART), saved }, {
-				chatHidden: true,
-				saved: { version: 1, visible: true, size: chat, hiddenByLayout: true },
+		for (const auxiliaryBarHidden of [false, true]) {
+			test(`the chat part filling the editor area is saved at its own width while a maximized secondary side bar hides it, auxiliaryBarHidden=${auxiliaryBarHidden}`, () => {
+				const { layout, grid, views, save } = createGridLayout(configuration);
+				layout.setPartHidden(auxiliaryBarHidden, Parts.AUXILIARYBAR_PART);
+				const chat = grid.getViewSize(views.get(Parts.CHAT_PART)!).width;
+				layout.setEditorHiddenByChat(true);
+				layout.toggleMaximizedAuxiliaryBar();
+				const saved = JSON.parse(save().stored!) as { visible: boolean; size: number; hiddenByLayout: boolean };
+				assert.deepStrictEqual({ chatHidden: !layout.isVisible(Parts.CHAT_PART), saved }, {
+					chatHidden: true,
+					saved: { version: 1, visible: true, size: chat, hiddenByLayout: true },
+				});
 			});
-		});
+		}
 
 		test('focus goes to the chat part, not the hidden editor area', () => {
 			const { layout } = createGridLayout(configuration);

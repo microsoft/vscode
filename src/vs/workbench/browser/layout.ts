@@ -2727,6 +2727,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			};
 			this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED, true);
 
+			// Taken before a hidden secondary side bar shows, as it takes its room from a chat part that fills the editor area
+			const chatPartOwnWidth = this.getChatPartOwnWidth();
+
 			this.inMaximizedAuxiliaryBarTransition = true;
 			try {
 				if (!state.auxiliaryBarVisible) {
@@ -2740,9 +2743,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				// keeps its own width while hidden rather than taking theirs (see `setViewVisibleKeepingEditorWidth`). With the editor
 				// area hidden for it, it fills the room that they leave and give back, in the order as before, so its own width is
 				// taken before they leave it
-				const chatPartOwnWidth = this.getChatPartOwnWidth();
 				if (state.editorVisible) {
-					this.hideChatPartForLayout();
+					this.hideChatPartForLayout(chatPartOwnWidth);
 				}
 				if (state.sideBarVisible) {
 					this.setSideBarHidden(true);
@@ -2750,7 +2752,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				if (state.panelVisible) {
 					this.setPanelHidden(true);
 				}
-				this.hideChatPartForLayout(chatPartOwnWidth);
+				if (!state.editorVisible) {
+					this.hideChatPartForLayout(chatPartOwnWidth);
+				}
 				if (state.editorVisible) {
 					this.setEditorHidden(true);
 				}
@@ -2828,7 +2832,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				}
 			}
 
-			this.hideChatPartForLayout();
+			this.hideChatPartForLayout(this.getChatPartOwnWidth());
 			this.setEditorHidden(true);
 		} else {
 			this.setEditorHidden(false);
@@ -2914,7 +2918,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
-	/** Follows the parts of the grid as they show and hide. */
+	/** Follows the parts of the grid as they show and hide. Called once, when the layout is created; protected for tests. */
 	protected listenToGridPartVisibility(): void {
 		for (const partId of [Parts.TITLEBAR_PART, Parts.EDITOR_PART, Parts.ACTIVITYBAR_PART, Parts.PANEL_PART, Parts.SIDEBAR_PART, Parts.STATUSBAR_PART, Parts.AUXILIARYBAR_PART, Parts.BANNER_PART]) {
 			const part = this.getPart(partId);
@@ -2943,8 +2947,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return;
 		}
 
-		// Only a change: the grid hides a hidden part again with its branch, as the editor area when the chat part beside it hides
-		if (this.isVisible(part) === visible) {
+		// Only a change for the editor area and the panel: the grid hides a hidden editor area again with its branch, as when the chat part beside it hides
+		if ((part === Parts.EDITOR_PART || part === Parts.PANEL_PART) && this.isVisible(part) === visible) {
 			return;
 		}
 
@@ -2985,7 +2989,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// Focus inside the chat part that hides moves to the panel or the editor, not to the body of the window
 			const hadFocus = hidden && this.hasFocus(Parts.CHAT_PART);
 			// The grid keeps the width the chat part had, which includes the editor area's where it filled it: it shows again at its own
-			const shownWidth = hidden ? undefined : this.chatPartOwnWidth ?? this.workbenchGrid.getViewCachedVisibleSize(this.chatPartView);
+			const shownWidth = hidden ? undefined : (!this.isEditorHiddenByChat() && this.chatPartOwnWidth) || this.workbenchGrid.getViewCachedVisibleSize(this.chatPartView);
 			this.chatPartOwnWidth = hidden ? this.getChatPartOwnWidth() : undefined;
 			this.chatPartHidden = hidden;
 			this.workbenchGrid.setViewVisible(this.chatPartView, !hidden);
@@ -3062,7 +3066,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	/** Hides a visible chat part with the editor, such as for a maximized panel, to show it again with the editor. */
-	private hideChatPartForLayout(ownWidth = this.getChatPartOwnWidth()): void {
+	private hideChatPartForLayout(ownWidth: number | undefined): void {
 		if (this.chatPartView && !this.chatPartHidden) {
 			// Saved, and shown again by the user, at its own width: the layout shows it again filling the editor area it still has
 			this.chatPartOwnWidth = ownWidth;
