@@ -85,7 +85,7 @@ export function getReindentEditOperations(model: ITextModel, languageConfigurati
 		}
 
 		if (oldIndentation !== idealIndentForNextLine) {
-			indentEdits.push(EditOperation.replaceMove(new Selection(lineNumber, 1, lineNumber, oldIndentation.length + 1), normalizeIndentation(idealIndentForNextLine, indentSize, insertSpaces)));
+			indentEdits.push(EditOperation.replaceMove(new Selection(lineNumber, 1, lineNumber, oldIndentation.length + 1), normalizeIndentation(idealIndentForNextLine, indentSize, insertSpaces, tabSize)));
 		}
 
 		// calculate idealIndentForNextLine
