@@ -61,7 +61,9 @@ export interface IAgentHostPrewarmCandidate {
  *    its own credentials, whose models the provider does not list. Until
  *    then, as while signed out without a BYOK model, nothing could send, so
  *    the draft does not launch a session or start its MCP servers. The draft
- *    warms once a model arrives, such as after signing in;
+ *    warms once a model arrives, such as after signing in. This gate is
+ *    checked again after gates 3 and 4 have waited: a draft whose last model
+ *    went away meanwhile waits for a model and passes those gates again;
  * 3. a client has published its active client (tools and client
  *    customizations), which are fixed in the launch: warming earlier would
  *    only be discarded by the first send;
@@ -184,18 +186,25 @@ export class AgentHostSessionPrewarmer extends Disposable {
 		const { candidate, token } = draft;
 		const sessionKey = candidate.session.toString();
 		const noteSkipped = (reason: AgentHostPrewarmSkipReason) => candidate.provider.chats.noteWarmSkipped?.(candidate.defaultChat, this._host.getDefaultChatContext(candidate.session, candidate.defaultChat), reason);
-		noteSkipped('awaitingModels');
-		if (!await this._whenModelAvailable(candidate, token)) {
-			return;
-		}
-		noteSkipped('awaitingActiveClient');
-		if (!await this._whenActiveClientArrived(sessionKey, token)) {
-			return;
-		}
-		noteSkipped('customizationsPending');
-		await this._enablementService.initializeSession(sessionKey);
-		if (token.isCancellationRequested) {
-			return;
+		// The last model can go away while the later gates wait, so the model gate is checked again after them.
+		while (true) {
+			noteSkipped('awaitingModels');
+			if (!await this._whenModelAvailable(candidate, token)) {
+				return;
+			}
+			noteSkipped('awaitingActiveClient');
+			if (!await this._whenActiveClientArrived(sessionKey, token)) {
+				return;
+			}
+			noteSkipped('customizationsPending');
+			await this._enablementService.initializeSession(sessionKey);
+			if (token.isCancellationRequested) {
+				return;
+			}
+			// From here to the warm launch nothing awaits, so the models cannot change before it.
+			if (this._hasModelToSendWith(candidate)) {
+				break;
+			}
 		}
 		if (this._enablementService.getWorkingDirectoryState(sessionKey).kind === 'pending') {
 			this._logService.trace(`[AgentHostSessionPrewarmer] Not pre-warming ${sessionKey}: customization enablement is pending`);

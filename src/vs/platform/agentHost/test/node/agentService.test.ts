@@ -10782,6 +10782,29 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('checks for a model again after waiting for the active client, and warms only once a model returns', async () => {
+			const telemetry = new TestExperimentTriggerTelemetryService();
+			const { svc, agent, warmed, onDidWarm } = createPrewarmService(telemetry);
+			getConfigurationService(svc).updateRootConfig({ ...trustedRootConfig, [AgentHostPrewarmSessionsConfigKey]: true, [CopilotCliVSCodeAssignmentContextKey]: 'assignment-context' });
+			const session = await svc.createSession({ legacyChatUris: true, provider: 'copilotcli', workingDirectories: [workingDirectory] });
+			await timeout(0);
+			// The draft passed the model gate and waits for its active client when the last model goes away, as on signing out.
+			agent.setModels([]);
+			svc.dispatchAction(session.toString(), { type: ActionType.SessionActiveClientSet, activeClient }, 'client-1', 1);
+			await timeout(10);
+			const withoutModels = { warmed: warmed.length, triggers: [...telemetry.triggers] };
+
+			const warm = Event.toPromise(onDidWarm);
+			agent.setModels([{ provider: 'copilotcli', id: 'model-a', name: 'Model A', supportsVision: false }]);
+			await warm;
+
+			assert.deepStrictEqual({ withoutModels, warmed, triggers: telemetry.triggers }, {
+				withoutModels: { warmed: 0, triggers: [] },
+				warmed: [getStateManager(svc).getDefaultChat(session.toString())],
+				triggers: [trigger],
+			});
+		});
+
 		test('warms a draft whose client sends with its own credentials, whose models the provider does not list', async () => {
 			const telemetry = new TestExperimentTriggerTelemetryService();
 			const { svc, warmed, onDidWarm } = createPrewarmService(telemetry, undefined, { withoutModels: true, scopedCredentials: true });
