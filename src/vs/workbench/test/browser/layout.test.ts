@@ -1199,7 +1199,7 @@ suite('Workbench layout chat part', () => {
 		});
 	});
 
-	test('the chat part shown beside a wide secondary side bar while the editor area is hidden, not for the chat part, still makes room for the editor\'s minimum as before', () => {
+	test('the chat part shown beside a wide secondary side bar while the editor area is hidden, not for the chat part, takes no room for the hidden editor area', () => {
 		// A justified panel does not maximize over the hidden editor area, so showing the chat part leaves the editor area hidden
 		const { layout, grid, views } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'justify', chat: { visible: false, size: 400 }, anchor: ViewContainerLocation.AuxiliaryBar, widths: { window: 1200, auxiliaryBar: 590 } });
 		layout.setPartHidden(true, Parts.EDITOR_PART);
@@ -1208,7 +1208,7 @@ suite('Workbench layout chat part', () => {
 		layout.setPartHidden(false, Parts.CHAT_PART);
 
 		assert.deepStrictEqual({ hiddenByChat: layout.isEditorHiddenByChat(), editor: layout.isVisible(Parts.EDITOR_PART, mainWindow), auxiliaryBarBefore, auxiliaryBar: width(Parts.AUXILIARYBAR_PART), chat: width(Parts.CHAT_PART), editorMinimum: views.get(Parts.EDITOR_PART)!.minimumWidth }, {
-			hiddenByChat: false, editor: false, auxiliaryBarBefore: 902, auxiliaryBar: 902 - 400 - 220, chat: 400, editorMinimum: 220,
+			hiddenByChat: false, editor: false, auxiliaryBarBefore: 902, auxiliaryBar: 902 - 400, chat: 400, editorMinimum: 220,
 		});
 	});
 
