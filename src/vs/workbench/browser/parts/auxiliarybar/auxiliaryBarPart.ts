@@ -36,6 +36,7 @@ import { VisibleViewContainersTracker } from '../visibleViewContainersTracker.js
 import { Extensions } from '../../panecomposite.js';
 import { IToolBarResponsiveBehaviorOptions } from '../../../../base/browser/ui/toolbar/toolbar.js';
 import { Delayer } from '../../../../base/common/async.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { MicrotaskDelay } from '../../../../base/common/symbols.js';
 
 /**
@@ -227,7 +228,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 
 	/** Fits the toolbar again once the current fit and the split buttons' own updates, such as of their keybindings, are done. */
 	private refitSplitButtons(): void {
-		this.splitButtonRefit.trigger(() => this.toolBar?.relayout()).catch(() => { /* superseded or disposed */ });
+		this.splitButtonRefit.trigger(() => this.toolBar?.relayout()).catch(onUnexpectedError);
 	}
 
 	private resolveConfiguration(): IAuxiliaryBarPartConfiguration {
