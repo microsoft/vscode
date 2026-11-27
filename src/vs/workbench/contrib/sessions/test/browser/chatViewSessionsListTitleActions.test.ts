@@ -23,6 +23,11 @@ import { CHAT_VIEW_SESSIONS_GROUPINGS, EDITOR_WINDOW_SESSIONS_GROUPINGS } from '
 import { SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../../common/sessionConfig.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
+import { ToolBar } from '../../../../../base/browser/ui/toolbar/toolbar.js';
+import { ActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { Action, IAction } from '../../../../../base/common/actions.js';
+import { IContextMenuProvider } from '../../../../../base/browser/contextmenu.js';
+import { scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 
 suite('Chat view sessions list title actions', () => {
 
@@ -182,6 +187,54 @@ suite('Chat view sessions list focus', () => {
 				keepsFocusMovedElsewhere: 'elsewhere',
 			});
 		} finally {
+			container.remove();
+		}
+	});
+
+	test('focus the view loses as it goes falls back to the title, which it knows with Toggle Inbox overflowed, as the list that replaces it hides on relayout', async () => {
+		const container = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+		const find = new Action('sessionsViewPane.find', 'Find');
+		const toggleInbox = new Action('sessionsViewPane.inboxMode', 'Toggle Inbox');
+		const host = {
+			headerInTitle: true,
+			titleActionBar: undefined as HTMLElement | undefined,
+			element: undefined as HTMLElement | undefined,
+			doCreateActionViewItem: (action: IAction) => new ActionViewItem(undefined, action, {}),
+		};
+		const createActionViewItem = Reflect.get(SessionsView.prototype, 'createActionViewItem') as (this: typeof host, action: IAction) => ActionViewItem;
+		const handOverLostFocus = Reflect.get(SessionsView.prototype, 'handOverLostFocus') as (this: typeof host) => void;
+		const toolbar = new ToolBar(container.appendChild(mainWindow.document.createElement('div')), upcastPartial<IContextMenuProvider>({ showContextMenu: () => { } }), {
+			actionViewItemProvider: action => createActionViewItem.call(host, action),
+		});
+		try {
+			// The narrow title shows Find and has Toggle Inbox in its overflow, so no toggle item renders
+			toolbar.setActions([find], [toggleInbox]);
+			const paneBody = container.appendChild(mainWindow.document.createElement('div'));
+			host.element = paneBody.appendChild(mainWindow.document.createElement('div'));
+			const ownList = host.element.appendChild(mainWindow.document.createElement('div'));
+			ownList.className = 'monaco-list';
+			ownList.tabIndex = 0;
+			const replacement = paneBody.appendChild(mainWindow.document.createElement('div'));
+			replacement.className = 'monaco-list';
+			replacement.tabIndex = 0;
+			replacement.textContent = 'replacement';
+			await timeout(0);
+			const focused = () => {
+				const active = mainWindow.document.activeElement as HTMLElement | null;
+				return active === replacement ? 'replacement' : active?.classList.contains('codicon-toolbar-more') ? 'title overflow' : active?.tagName;
+			};
+
+			(mainWindow.document.activeElement as HTMLElement | null)?.blur();
+			handOverLostFocus.call(host);
+			await timeout(0);
+			const first = focused();
+			replacement.style.display = 'none';
+			await new Promise<void>(resolve => scheduleAtNextAnimationFrame(mainWindow, () => setTimeout(resolve, 0)));
+			assert.deepStrictEqual({ first, afterRelayout: focused() }, { first: 'replacement', afterRelayout: 'title overflow' });
+		} finally {
+			toolbar.dispose();
+			find.dispose();
+			toggleInbox.dispose();
 			container.remove();
 		}
 	});

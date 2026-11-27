@@ -6,6 +6,7 @@
 import '../media/sessionsViewPane.css';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
+import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
@@ -136,22 +137,40 @@ const INBOX_MODE_ACTION_ID = 'sessionsViewPane.inboxMode';
 
 /**
  * Gives the focus, lost as what had it went, such as Toggle Inbox or an open scope picker as the Chat view's list turns off,
- * to the first of `candidates` that shows, once what replaces them rendered; not where the focus went elsewhere since.
+ * to the first of `candidates` that shows, once what replaces them rendered; not where the focus went elsewhere since. As the
+ * host lays out after that, `afterLayout`, by default the next animation frame, the focus moves on to the next candidate that
+ * shows if the one it got went or hid.
  */
-export function restoreLostFocus(candidates: readonly (() => HTMLElement | null | undefined)[]): void {
-	queueMicrotask(() => {
+export function restoreLostFocus(candidates: readonly (() => HTMLElement | null | undefined)[], afterLayout: (callback: () => void) => void = callback => DOM.scheduleAtNextAnimationFrame(DOM.getActiveWindow(), callback)): void {
+	const lost = (element?: HTMLElement) => {
 		const activeElement = DOM.getActiveElement();
-		if (DOM.isHTMLElement(activeElement) && activeElement.isConnected && activeElement !== activeElement.ownerDocument.body) {
-			return;
-		}
-		for (const candidate of candidates) {
-			const element = candidate();
+		return !DOM.isHTMLElement(activeElement) || !activeElement.isConnected || activeElement === activeElement.ownerDocument.body || (activeElement === element && element.getClientRects().length === 0);
+	};
+	const focusFrom = (index: number): void => {
+		for (let i = index; i < candidates.length; i++) {
+			const element = candidates[i]();
 			if (element?.isConnected && element.getClientRects().length > 0) {
 				element.focus();
+				afterLayout(() => {
+					if (lost(element)) {
+						focusFrom(i + 1);
+					}
+				});
 				return;
 			}
 		}
+	};
+	queueMicrotask(() => {
+		if (lost()) {
+			focusFrom(0);
+		}
 	});
+}
+
+/** The list that replaces the view in the host's container, such as the Chat view's other list, not the view's own one that goes. */
+export function getReplacementList(container: Element | null | undefined, ownElement: Element | null | undefined): HTMLElement | undefined {
+	// eslint-disable-next-line eslint-js/no-restricted-syntax -- the list that replaces this view is the host's, which renders it into the same container
+	return Array.from(container?.querySelectorAll<HTMLElement>('.monaco-list') ?? []).find(list => !ownElement?.contains(list));
 }
 
 /** The action of a host's title toolbar that takes the focus Toggle Inbox loses: its overflow, where Toggle Inbox moves when the title has no room for it, or else its first action. */
@@ -469,6 +488,8 @@ export class SessionsView extends ViewPane {
 
 	private readonly headerInTitle: boolean;
 	private readonly inboxToggles = new Set<InboxToggleActionViewItem>();
+	/** The action bar of the host's title, where the view's header is in it, which takes the focus as the view goes. */
+	private titleActionBar: HTMLElement | undefined;
 	private readonly inboxToggleFocusHandOver = { pending: false };
 	private readonly hideCustomizations: boolean;
 	private readonly groupings: ISessionsViewOptions['groupings'];
@@ -750,10 +771,7 @@ export class SessionsView extends ViewPane {
 		let scopeHadFocus: () => boolean = () => false;
 		this._register(toDisposable(() => {
 			if (this.headerInTitle && scopeHadFocus()) {
-				const host = this.element?.parentElement;
-				const toolbar = Iterable.first(this.inboxToggles)?.element?.closest('.monaco-action-bar');
-				// eslint-disable-next-line eslint-js/no-restricted-syntax -- the list that replaces this view is the host's, which renders it into the same container
-				restoreLostFocus([() => host?.querySelector<HTMLElement>('.monaco-list'), () => getTitleToolbarFocusTarget(toolbar)]);
+				this.handOverLostFocus();
 			}
 		}));
 		const inboxScope = this._register(this.instantiationService.createInstance(SessionsInboxScope, inboxScopeContainer, sessionsControl.filters, scopeSessions,
@@ -942,7 +960,29 @@ export class SessionsView extends ViewPane {
 		this._register(DOM.scheduleAtNextAnimationFrame(DOM.getWindow(parent), () => this.layoutSidebarSplitView()));
 	}
 
+	/** Gives the focus the view loses as it goes to the list that replaces it, or else to the host's title, whose actions may all be in its overflow. */
+	private handOverLostFocus(): void {
+		const ownElement = this.element;
+		const host = ownElement?.parentElement;
+		const titleActionBar = this.titleActionBar;
+		restoreLostFocus([() => getReplacementList(host, ownElement), () => getTitleToolbarFocusTarget(titleActionBar)], callback => DOM.scheduleAtNextAnimationFrame(DOM.getWindow(host), callback));
+	}
+
 	override createActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {
+		const item = this.doCreateActionViewItem(action, options);
+		if (this.headerInTitle && item instanceof BaseActionViewItem) {
+			// The host's title renders it right away, into the action bar it keeps as it lays out its actions
+			queueMicrotask(() => {
+				const actionBar = item.element?.closest<HTMLElement>('.monaco-action-bar');
+				if (actionBar) {
+					this.titleActionBar = actionBar;
+				}
+			});
+		}
+		return item;
+	}
+
+	private doCreateActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {
 		if (this.headerInTitle && action instanceof SubmenuItemAction && action.item.submenu === Menus.SessionsViewFilter) {
 			return this.instantiationService.createInstance(SessionsFilterActionViewItem, action, options, () => this.sessionsControl?.reportFilterMenuShown());
 		}
@@ -1693,12 +1733,9 @@ export class SessionsView extends ViewPane {
 		if (this.currentGrouping === grouping) {
 			return;
 		}
-		const preserveCollapseState = this.grouping === SessionsGrouping.Inbox || grouping === SessionsGrouping.Inbox;
+		// Read only: the sections show the collapse state the profile stores, which a reset would change, in either profile
 		this.currentGrouping = grouping;
 		this.groupingContextKey?.set(this.grouping);
-		if (!preserveCollapseState) {
-			this.sessionsControl?.resetSectionCollapseState();
-		}
 		this.sessionsControl?.update(true);
 		this.updateHeaderLayout();
 	}

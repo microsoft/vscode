@@ -555,6 +555,46 @@ suite('Sessions - SessionsViewPane', () => {
 		assert.deepStrictEqual({ settingsFirst: await switchToB(false), storageFirst: await switchToB(true), renamed: renamed() }, { settingsFirst: shown, storageFirst: shown, renamed: SessionsGrouping.Inbox });
 	});
 
+	test('as the window switches to a profile that groups the Chat view otherwise, outside Inbox, the view shows that grouping without resetting either profile\'s collapsed sections, whichever of its settings and its storage arrives first', async () => {
+		const switchToB = async (storageFirst: boolean) => {
+			const configurationService = new TestConfigurationService({ [SESSIONS_LIST_INBOX_ENABLED_SETTING]: true });
+			disposables.add(configurationService.onDidChangeConfigurationEmitter);
+			const storageService = disposables.add(new class extends InMemoryStorageService {
+				profile = 'a';
+				override hasScope(scope: IAnyWorkspaceIdentifier | IUserDataProfile): boolean { return (scope as IUserDataProfile).id === this.profile; }
+			});
+			const keys = CHAT_VIEW_SESSIONS_GROUPING_STORAGE_KEYS;
+			const chatView = createGroupingHost(configurationService, storageService, CHAT_VIEW_SESSIONS_GROUPINGS, false, keys, true);
+			chatView.followProfileSwitches();
+			chatView.setGrouping(SessionsGrouping.Environment);
+			let resets = 0;
+			chatView.sessionsControl = { filters: { reload: () => { } }, resetSectionCollapseState: () => resets++, update: () => { } };
+			chatView.chatEnabled.set(false);
+			const previous = chatView.userDataProfileService.currentProfile;
+			chatView.userDataProfileService.currentProfile = toUserDataProfile('b', 'B', URI.file('/profiles/b'), URI.file('/cache'));
+			chatView.profileChange.fire({ previous, profile: chatView.userDataProfileService.currentProfile, join: () => { } });
+			const storage = () => {
+				storageService.profile = 'b';
+				storageService.store(keys.grouping, SessionsGrouping.Date, StorageScope.PROFILE, StorageTarget.MACHINE, true);
+			};
+			const settings = async () => {
+				await configurationService.setUserConfiguration(SESSIONS_LIST_INBOX_ENABLED_SETTING, false);
+				chatView.updateInboxAvailability();
+			};
+			if (storageFirst) {
+				storage();
+				await settings();
+			} else {
+				await settings();
+				storage();
+			}
+			chatView.chatEnabled.set(true);
+			return { grouping: chatView.grouping, resets };
+		};
+		const shown = { grouping: SessionsGrouping.Date, resets: 0 };
+		assert.deepStrictEqual({ settingsFirst: await switchToB(false), storageFirst: await switchToB(true) }, { settingsFirst: shown, storageFirst: shown });
+	});
+
 	test('where the user turning the list off left the Chat view\'s Inbox, a window whose workspace keeps the list on opens in Inbox, others open at the grouping Inbox returns to, and choosing a grouping forgets it', () => {
 		const keys = CHAT_VIEW_SESSIONS_GROUPING_STORAGE_KEYS;
 		const storageService = disposables.add(new InMemoryStorageService());
