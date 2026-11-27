@@ -320,6 +320,21 @@ function detectLinksViaSuffix(line: string): IParsedLink[] {
 				suffix
 			});
 
+			// If the path starts with a `key=` assignment, such as Go's log/slog `source=/foo/bar.go:12`
+			// or a flag like `--file=./foo.ts:12`, provide the path after the assignment as an
+			// additional result
+			const assignmentMatch = path.match(/^[\w.-]+=['"]?/);
+			if (assignmentMatch && assignmentMatch[0].length < path.length) {
+				results.push({
+					path: {
+						index: linkStartIndex + (prefix?.text.length || 0) + assignmentMatch[0].length,
+						text: path.substring(assignmentMatch[0].length)
+					},
+					prefix: undefined,
+					suffix
+				});
+			}
+
 			// If the path contains an opening bracket, provide the path starting immediately after
 			// the opening bracket as an additional result
 			const openingBracketMatch = path.matchAll(/(?<bracket>[\[\(])(?![\]\)])/g);
