@@ -16,7 +16,7 @@ import { ILabelService } from '../../../platform/label/common/label.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { AuthInfo, Credentials, IRequestService } from '../../../platform/request/common/request.js';
 import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../platform/workspace/common/workspaceTrust.js';
-import { IWorkspace, IWorkspaceContextService, isUntitledWorkspace, WorkspaceFolder } from '../../../platform/workspace/common/workspace.js';
+import { IWorkspace, IWorkspaceContextService, isUntitledWorkspace, WorkbenchMode, WorkspaceFolder } from '../../../platform/workspace/common/workspace.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { checkGlobFileExists } from '../../services/extensions/common/workspaceContains.js';
 import { IFileQueryBuilderOptions, ITextQueryBuilderOptions, QueryBuilder } from '../../services/search/common/queryBuilder.js';
@@ -67,14 +67,14 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 		// The workspace file is provided be a unknown file system provider. It might come
 		// from the extension host. So initialize now knowing that `rootPath` is undefined.
 		if (workspace.configuration && !isNative && !fileService.hasProvider(workspace.configuration)) {
-			this._proxy.$initializeWorkspace(this.getWorkspaceData(workspace), this.isWorkspaceTrusted());
+			this._proxy.$initializeWorkspace(this.getWorkspaceData(workspace), this._contextService.getWorkbenchMode(), this.isWorkspaceTrusted());
 			this._updateFolderLocations();
 		} else {
 			this._contextService.getCompleteWorkspace().then(workspace => {
 				if (this._store.isDisposed) {
 					return;
 				}
-				this._proxy.$initializeWorkspace(this.getWorkspaceData(workspace), this.isWorkspaceTrusted());
+				this._proxy.$initializeWorkspace(this.getWorkspaceData(workspace), this._contextService.getWorkbenchMode(), this.isWorkspaceTrusted());
 				this._updateFolderLocations();
 			});
 		}
@@ -105,6 +105,11 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 	// --- workspace ---
 
 	$updateWorkspaceFolders(extensionName: string, index: number, deleteCount: number, foldersToAdd: { uri: UriComponents; name?: string }[]): Promise<void> {
+		// The extension host also refuses, but its copy of the mode can be stale or missing (no workspace data)
+		if (this._contextService.getWorkbenchMode() === WorkbenchMode.Agents) {
+			return Promise.reject(new Error(localize('folderUpdateRefusedInAgentsMode', "Workspace folders can't be changed while the active session owns them")));
+		}
+
 		const workspaceFoldersToAdd = foldersToAdd.map(f => ({ uri: URI.revive(f.uri), name: f.name }));
 
 		// Indicate in status message
@@ -146,7 +151,7 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 	}
 
 	private _onDidChangeWorkspace(): void {
-		this._proxy.$acceptWorkspaceData(this.getWorkspaceData(this._contextService.getWorkspace()));
+		this._proxy.$acceptWorkspaceData(this.getWorkspaceData(this._contextService.getWorkspace()), this._contextService.getWorkbenchMode());
 		this._updateFolderLocations();
 	}
 
@@ -204,7 +209,6 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 			id: workspace.id,
 			name: this._labelService.getWorkspaceLabel(workspace),
 			transient: workspace.transient,
-			mode: this._contextService.getWorkbenchMode(),
 		};
 	}
 

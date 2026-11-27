@@ -168,15 +168,6 @@ export enum ChatImageMimeType {
 	BMP = 'image/bmp',
 }
 
-/**
- * Specifies the detail level of the image.
- */
-export enum ImageDetailLevel {
-	Low = 'low',
-	High = 'high'
-}
-
-
 export interface IChatMessageToolResultPart {
 	type: 'tool_result';
 	toolCallId: string;
@@ -226,18 +217,7 @@ export interface IChatResponseThinkingPart {
 	metadata?: { readonly [key: string]: any };
 }
 
-export interface IChatResponsePullRequestPart {
-	type: 'pullRequest';
-	uri: URI;
-	title: string;
-	description: string;
-	author: string;
-	linkTag: string;
-}
-
 export type IChatResponsePart = IChatResponseTextPart | IChatResponseToolUsePart | IChatResponseDataPart | IChatResponseThinkingPart;
-
-export type IExtendedChatResponsePart = IChatResponsePullRequestPart;
 
 export interface ILanguageModelConfigurationSchema extends IJSONSchema {
 	properties?: {
@@ -585,12 +565,6 @@ export interface ILanguageModelChatProvider {
 	provideLanguageModelChatInfo(options: ILanguageModelChatInfoOptions, token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]>;
 	sendChatRequest(modelId: string, messages: IChatMessage[], from: ExtensionIdentifier | undefined, options: ILanguageModelChatRequestOptions, token: CancellationToken): Promise<ILanguageModelChatResponse>;
 	provideTokenCount(modelId: string, message: string | IChatMessage, token: CancellationToken): Promise<number>;
-}
-
-export interface ILanguageModelChat {
-	metadata: ILanguageModelChatMetadata;
-	sendChatRequest(messages: IChatMessage[], from: ExtensionIdentifier | undefined, options: ILanguageModelChatRequestOptions, token: CancellationToken): Promise<ILanguageModelChatResponse>;
-	provideTokenCount(message: string | IChatMessage, token: CancellationToken): Promise<number>;
 }
 
 export interface ILanguageModelChatSelector {

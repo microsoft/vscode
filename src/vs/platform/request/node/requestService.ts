@@ -5,6 +5,7 @@
 
 import type * as http from 'http';
 import type * as https from 'https';
+import { pipeline, type Readable } from 'stream';
 import { parse as parseUrl } from 'url';
 import { Promises, timeout } from '../../../base/common/async.js';
 import { streamToBufferReadableStream } from '../../../base/common/buffer.js';
@@ -297,23 +298,28 @@ async function nodeRequestAttempt(options: NodeRequestOptions, token: Cancellati
 			return false;
 		};
 
+		let body: Readable | undefined;
 		const req = rawRequest(opts, (res: http.IncomingMessage) => {
+			let stream: Readable = res;
 			if (!options.isChromiumNetwork && followRedirect(res.statusCode, res.headers['location'])) {
 				res.resume();
 			} else {
-				let stream: streams.ReadableStreamEvents<Uint8Array> = res;
-
 				// Responses from Electron net module should be treated as response
 				// from browser, which will apply gzip filter and decompress the response
 				// using zlib before passing the result to us. Following step can be bypassed
 				// in this case and proceed further.
 				// Refs https://source.chromium.org/chromium/chromium/src/+/main:net/url_request/url_request_http_job.cc;l=1266-1318
 				if (!options.isChromiumNetwork && res.headers['content-encoding'] === 'gzip') {
-					stream = res.pipe(createGunzip());
+					// Unlike pipe(), pipeline() fails the decompressed stream when the response is cut short. Errors reach readers through that stream.
+					stream = pipeline(res, createGunzip(), () => { });
 				}
 
+				body = stream;
 				resolve({ res, stream: streamToBufferReadableStream(stream) } satisfies IRequestContext);
 			}
+			// Cancellation aborts the request until its body has been read, not just until the headers arrive.
+			stream.on('end', () => cancellationListener.dispose());
+			stream.on('close', () => cancellationListener.dispose());
 		});
 
 		req.on('error', reject);
@@ -364,12 +370,13 @@ async function nodeRequestAttempt(options: NodeRequestOptions, token: Cancellati
 
 		const cancellationListener = token.onCancellationRequested(() => {
 			cancellationListener.dispose();
+			// Fail the body before aborting: Electron ends an aborted response without an error, which would leave its readers waiting.
+			body?.destroy(new CancellationError());
 			req.abort();
 
 			reject(new CancellationError());
 		});
 
-		req.on('response', () => cancellationListener.dispose());
 		req.on('error', () => cancellationListener.dispose());
 		req.on('abort', () => cancellationListener.dispose());
 	});

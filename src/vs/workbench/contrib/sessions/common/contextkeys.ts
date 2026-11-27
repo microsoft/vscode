@@ -41,6 +41,7 @@ export const SessionItemIsMultiSelectionContext = new RawContextKey<boolean>('se
 export const SessionIsCreatedContext = new RawContextKey<boolean>('sessionIsCreated', false, localize('sessionIsCreated', "Whether the session view's session has been created (chat view shown, not new-session view)"));
 export const SessionIsStickyContext = new RawContextKey<boolean>('sessionIsSticky', false, localize('sessionIsSticky', "Whether the session view's session is sticky in the grid"));
 export const SessionIsMaximizedContext = new RawContextKey<boolean>('sessionIsMaximized', false, localize('sessionIsMaximized', "Whether the session view is currently maximized in the sessions part's grid"));
+export const SessionHasSplitChatsContext = new RawContextKey<boolean>('sessionHasSplitChats', false, localize('sessionHasSplitChats', "Whether the session view shows its chats split into more than one group"));
 export const SessionSupportsMultipleChatsContext = new RawContextKey<boolean>('sessionSupportsMultipleChats', false, localize('sessionSupportsMultipleChats', "Whether the session view's session supports multiple chats"));
 export const SessionSupportsForkContext = new RawContextKey<boolean>('sessionSupportsFork', false, localize('sessionSupportsFork', "Whether the session view's session supports forking a chat from a turn into a new peer chat"));
 export const SessionSupportsSideChatContext = new RawContextKey<boolean>('sessionSupportsSideChat', false, localize('sessionSupportsSideChat', "Whether the session view's session supports creating a side chat from a turn (via /btw)"));
@@ -69,10 +70,12 @@ export const SessionHasPullRequestContext = new RawContextKey<boolean>('sessionH
 export const SessionHasIssuesContext = new RawContextKey<boolean>('sessionHasIssues', false, localize('sessionHasIssues', "Whether the session view's session references at least one GitHub issue"));
 export const SessionHasWorkspaceContext = new RawContextKey<boolean>('sessionHasWorkspace', false, localize('sessionHasWorkspace', "Whether the session view's session has an associated workspace folder"));
 export const SessionsChatBackgroundAvailableContext = new RawContextKey<boolean>('sessionsChatBackgroundAvailable', false, localize('sessionsChatBackgroundAvailable', "Whether chat background customization is available for the current color theme"));
+export const SessionWorkspaceEditorFocusedContext = new RawContextKey<boolean>('sessionWorkspaceEditorFocused', false, localize('sessionWorkspaceEditorFocused', "Whether the Workspace editor is focused"));
 export const SessionWorktreeCleanupEditorFocusedContext = new RawContextKey<boolean>('sessionWorktreeCleanupEditorFocused', false, localize('sessionWorktreeCleanupEditorFocused', "Whether the Open worktree cleanup editor is focused"));
 export const SessionsChatBackgroundConfiguredContext = new RawContextKey<boolean>('sessionsChatBackgroundConfigured', false, localize('sessionsChatBackgroundConfigured', "Whether a chat background is configured for the current color theme"));
 export const SessionsChatBackgroundImageConfiguredContext = new RawContextKey<boolean>('sessionsChatBackgroundImageConfigured', false, localize('sessionsChatBackgroundImageConfigured', "Whether a chat background image is configured for the current color theme"));
 export const IsQuickChatSessionContext = new RawContextKey<boolean>('isQuickChatSession', false, localize('isQuickChatSession', "Whether the session in scope is a workspace-less quick chat, or, where a chat of the session is shown, whether that chat is one; a chat of a quick chat that works in a folder of its own is not"));
+export const SessionWorkspacesEnabledContext = new RawContextKey<boolean>('sessionsWorkspacesEnabled', false, localize('sessionsWorkspacesEnabled', "Whether the Agents window offers workspaces: named sets of folders saved as workspace files"));
 
 /** Whether the chat in scope has a workspace, as the Changes and Files tabs of a chat window need. */
 export const SessionWithWorkspaceContext = ContextKeyExpr.and(SessionHasWorkspaceContext, IsQuickChatSessionContext.negate())!;

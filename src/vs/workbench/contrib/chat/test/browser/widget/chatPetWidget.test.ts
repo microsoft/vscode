@@ -32,7 +32,7 @@ import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chat
 import { ChatPetJumpGameModel, IChatPetJumpPlatform, IChatPetJumpWall } from '../../../common/chatPetJumpGame.js';
 import { IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
-import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID, chatPetAchievements, ChatPetAccessoryIds, ChatPetAchievementIds, didExplicitlyEnableChatPetAutopilot, disabledChatPetAchievements, getChatPetAchievement, getChatPetAchievementForAccessory, getChatPetAchievementPresentation, getChatPetCustomizationAchievementIds, getUnlockedChatPetAccessories, isUserAuthoredChatPetCustomization, shouldUnlockChatPetIntegratedBrowserShare } from '../../../browser/chatPetAchievements.js';
+import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID, chatPetAchievements, ChatPetAccessoryIds, ChatPetAchievementIds, didExplicitlyEnableChatPetAutopilot, disabledChatPetAchievements, getChatPetAchievement, getChatPetAchievementForAccessory, getChatPetAchievementPresentation, isUserAuthoredChatPetCustomization, shouldUnlockChatPetIntegratedBrowserShare } from '../../../browser/chatPetAchievements.js';
 import { ChatPetService, getChatPetVariant } from '../../../browser/chatPetService.js';
 import { CHAT_PET_CHANGE_COLOR_COMMAND_ID, ChatPetColor, getChatPetColoredSprite } from '../../../browser/chatPetColors.js';
 import '../../../browser/widget/media/chat.css';
@@ -4584,22 +4584,6 @@ suite('ChatPetWidget', () => {
 		], [false, false, true, false]);
 	});
 
-	test('finds customization achievements from user-authored items and MCP servers', () => {
-		assert.deepStrictEqual([
-			getChatPetCustomizationAchievementIds([], [], 0),
-			getChatPetCustomizationAchievementIds([{ source: 'extension' }, { source: 'builtin', isBuiltin: true }], [{ source: 'plugin' }], 0),
-			getChatPetCustomizationAchievementIds([{ source: 'local' }], [{ source: 'user' }], 1),
-		], [
-			[],
-			[],
-			[
-				ChatPetAchievementIds.CustomSkillPresent,
-				ChatPetAchievementIds.InstructionPresent,
-				ChatPetAchievementIds.McpServerPresent,
-			],
-		]);
-	});
-
 	test('defines unique hats and a color customization reward', () => {
 		const accessoryIds = chatPetAchievements.flatMap(achievement => achievement.accessories.map(accessory => accessory.id));
 		assert.deepStrictEqual({
@@ -4806,8 +4790,6 @@ suite('ChatPetWidget', () => {
 
 	test('reveals locked hints and rewards without exposing achievement identity or exact requirements', () => {
 		const lockedPresentation = getChatPetAchievementPresentation(chatPetAchievements[0], false);
-		const unlockedAccessories = getUnlockedChatPetAccessories([ChatPetAchievementIds.RequestRevision]);
-		const allUnlockedAccessories = getUnlockedChatPetAccessories(chatPetAchievements.map(achievement => achievement.id));
 
 		assert.deepStrictEqual({
 			lockedPresentation,
@@ -4815,8 +4797,6 @@ suite('ChatPetWidget', () => {
 			lockedSerializationContainsDescription: JSON.stringify(lockedPresentation).includes(chatPetAchievements[0].description),
 			lockedSerializationContainsExactRequirement: JSON.stringify(lockedPresentation).includes('Edit and resend an earlier chat request.'),
 			lockedSerializationContainsReward: chatPetAchievements[0].accessories.some(accessory => JSON.stringify(lockedPresentation).includes(accessory.label)),
-			unlockedAccessoryIds: unlockedAccessories.map(accessory => accessory.id),
-			allUnlockedAccessoryIds: allUnlockedAccessories.map(accessory => accessory.id),
 		}, {
 			lockedPresentation: {
 				locked: true,
@@ -4828,24 +4808,6 @@ suite('ChatPetWidget', () => {
 			lockedSerializationContainsDescription: false,
 			lockedSerializationContainsExactRequirement: false,
 			lockedSerializationContainsReward: true,
-			unlockedAccessoryIds: [
-				ChatPetAccessoryIds.TopHatMonocle,
-			],
-			allUnlockedAccessoryIds: [
-				ChatPetAccessoryIds.TopHatMonocle,
-				ChatPetAccessoryIds.CowboyHat,
-				ChatPetAccessoryIds.BaseballCap,
-				ChatPetAccessoryIds.ConstructionHardHat,
-				ChatPetAccessoryIds.FirefighterHelmet,
-				ChatPetAccessoryIds.Crown,
-				ChatPetAccessoryIds.PropellerHat,
-				ChatPetAccessoryIds.DarkSailorHat,
-				ChatPetAccessoryIds.WhiteChefHat,
-				ChatPetAccessoryIds.BambooHat,
-				ChatPetAccessoryIds.StrawHat,
-				ChatPetAccessoryIds.PinkPartyHat,
-				ChatPetAccessoryIds.WizardHat,
-			],
 		});
 	});
 

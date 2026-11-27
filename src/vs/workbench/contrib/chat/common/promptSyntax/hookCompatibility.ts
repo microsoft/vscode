@@ -11,23 +11,6 @@ import { resolveCopilotCliHookType } from './hookCopilotCliCompat.js';
 import { HookType, isLocalFormatHookEventName } from './hookTypes.js';
 
 /**
- * Represents a hook source with its original and normalized properties.
- * Used to display hooks from different formats in a unified view.
- */
-export interface IResolvedHookEntry {
-	/** The normalized hook type (our canonical HookType enum) */
-	readonly hookType: HookType;
-	/** The original hook type ID as it appears in the source file */
-	readonly originalHookTypeId: string;
-	/** The source format this hook came from */
-	readonly sourceFormat: HookSourceFormat;
-	/** The resolved hook command */
-	readonly command: IHookCommand;
-	/** The index of this hook in its array (for editing) */
-	readonly index: number;
-}
-
-/**
  * Supported hook file formats.
  */
 export enum HookSourceFormat {
@@ -51,14 +34,6 @@ export function getHookSourceFormat(fileUri: URI): HookSourceFormat {
 
 	// Default to Copilot format
 	return HookSourceFormat.Copilot;
-}
-
-/**
- * Checks if a file is read-only based on its source format.
- * Claude settings files should be read-only from our perspective since they have a different format.
- */
-export function isReadOnlyHookSource(format: HookSourceFormat): boolean {
-	return format === HookSourceFormat.Claude;
 }
 
 /**
@@ -176,18 +151,6 @@ export function parseHooksFromFile(
 	}
 
 	return { format, hooks, disabledAllHooks };
-}
-
-/**
- * Gets a human-readable label for a hook source format.
- */
-export function getHookSourceFormatLabel(format: HookSourceFormat): string {
-	switch (format) {
-		case HookSourceFormat.Claude:
-			return 'Claude';
-		case HookSourceFormat.Copilot:
-			return 'GitHub Copilot';
-	}
 }
 
 /**

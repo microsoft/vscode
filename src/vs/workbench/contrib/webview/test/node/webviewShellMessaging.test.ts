@@ -293,6 +293,42 @@ suite('Webview shell messaging', () => {
 		]);
 	});
 
+	test('leaves edit commands to a frame nested in the content while it has focus', () => {
+		const compiledDir = FileAccess.asFileUri('vs/workbench/contrib/webview/test/node').fsPath;
+		const sourceDir = resolve(compiledDir).replaceAll('\\', '/').replace('/out/vs/workbench/', '/src/vs/workbench/');
+		const html = readFileSync(join(sourceDir, '../../browser/pre/index.html'), 'utf8');
+		const commandHandler = html.match(/hostMessaging\.onMessage\('execCommand',[\s\S]*?\r?\n\t{3}\}\);/)?.[0];
+		assert.ok(commandHandler);
+		// The frame keeps focus within the content after the window loses focus to a host menu.
+		const results = [true, false].map(hasFocus => {
+			const calls: string[] = [];
+			const iframe = upcastPartial<HTMLElement>({ tagName: 'IFRAME' });
+			const contentDocument = upcastPartial<Document>({
+				body: upcastPartial<HTMLElement>({}),
+				activeElement: iframe,
+				hasFocus: () => hasFocus,
+				getSelection: () => upcastPartial<Selection>({ rangeCount: 0, isCollapsed: true }),
+				execCommand: command => {
+					calls.push(command);
+					return true;
+				},
+			});
+			const contentWindow = upcastPartial<Window>({ focus: () => { calls.push('focus window'); } });
+			let execute: ((_event: undefined, command: string) => void) | undefined;
+			new Function('hostMessaging', 'getActiveFrame', 'assertIsDefined', 'lastFocusedElements', commandHandler)(
+				{ onMessage: (_channel: string, handler: typeof execute) => { execute = handler; } },
+				() => ({ contentDocument, contentWindow }),
+				<T>(value: T): T => value,
+				new WeakMap<Document, HTMLElement>(),
+			);
+			assert.ok(execute);
+			execute(undefined, 'selectAll');
+			return calls;
+		});
+
+		assert.deepStrictEqual(results, [[], ['focus window', 'selectAll']]);
+	});
+
 	test('matches the preload script CSP hash', () => {
 		const compiledDir = FileAccess.asFileUri('vs/workbench/contrib/webview/test/node').fsPath;
 		const sourceDir = resolve(compiledDir).replaceAll('\\', '/').replace('/out/vs/workbench/', '/src/vs/workbench/');

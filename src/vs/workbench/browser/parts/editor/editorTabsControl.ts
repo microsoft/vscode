@@ -234,7 +234,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		this.updateEditorActionsPendingState();
 	}
 
-	protected createAddTabControl(parent: HTMLElement, menuId: MenuId, before?: HTMLElement, onDidChangeVisibility?: () => void): HTMLElement {
+	protected createAddTabControl(parent: HTMLElement, menuId: MenuId, before?: HTMLElement, onDidChangeVisibility?: () => void): EditorAddTabControl {
 		const context: IEditorCommandsContext = { groupId: this.groupView.id };
 		const recentFirst = this.menuIds?.tabsBarAddTabRecentFirst === true;
 		const control = this._register(this.instantiationService.createInstance(EditorAddTabControl, parent, menuId, this.contextKeyService, {
@@ -248,7 +248,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 			this._register(control.onDidChangeVisibility(onDidChangeVisibility));
 		}
 
-		return control.element;
+		return control;
 	}
 
 	private updateEditorLayoutActionsSeparator(): void {

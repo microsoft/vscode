@@ -62,7 +62,7 @@ const CORE_SERVICES = new Set([
 	'accessibilityService', 'accessibilitySignalService', 'accountPolicyGateService', 'actionWidgetService', 'actionViewItemService', 'agentHostConnectionsService',
 	'agentHostEnablementService', 'agentHostService', 'agentPluginService', 'agentSessions', 'assignmentService', 'chatAgentNameService', 'chatAgentService', 'chatAttachmentResolveService',
 	'chatEditingService', 'chatEntitlementService', 'chatModeService', 'chatOpenDiagnosticsService', 'chatPetService', 'chatService', 'chatSessionsService', 'chatSideChatService',
-	'chatSlashCommandService', 'chatSubmitRequestHandlerService', 'chatTipService', 'chatViewHostService', 'chatWidgetHistoryService',
+	'chatSlashCommandService', 'chatSubmitRequestHandlerService', 'chatTipService', 'chatViewHostService', 'chatViewSessionsListService', 'chatWidgetHistoryService',
 	'chatWidgetService', 'clipboardService', 'commandService', 'configurationService', 'contextKeyService', 'contextMenuService', 'contextService',
 	'contextViewService', 'defaultAccountService', 'dialogService', 'editorGroupsService', 'editorService', 'environmentService', 'extensionService', 'externalUriOpenerService',
 	'fileDialogService', 'fileService', 'IFileDecorationsService', 'hostService', 'hoverService', 'IAuthenticationService', 'IChatService', 'IChatWidgetHistoryService',

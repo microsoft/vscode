@@ -50,3 +50,39 @@ body[data-vscode-theme-kind="vscode-high-contrast-light"] {
 		linear-gradient(var(--vscode-list-hoverBackground), var(--vscode-list-hoverBackground)),
 		var(--vscode-editor-background);
 }
+
+.md-document-readonly-toast {
+	position: fixed;
+	top: 12px;
+	left: 50%;
+	transform: translateX(-50%) translateY(-8px);
+	padding: 6px 12px;
+	border-radius: 4px;
+	font-family: var(--vscode-font-family);
+	font-size: var(--vscode-font-size, 13px);
+	color: var(--vscode-inputValidation-infoForeground, var(--vscode-editorHoverWidget-foreground));
+	background: var(--vscode-inputValidation-infoBackground, var(--vscode-editorHoverWidget-background));
+	border: 1px solid var(--vscode-inputValidation-infoBorder, var(--vscode-editorHoverWidget-border));
+	box-shadow: 0 2px 8px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.25));
+	pointer-events: none;
+	opacity: 0;
+	transition: opacity 150ms ease, transform 150ms ease;
+	z-index: 1000;
+}
+
+.md-document-readonly-toast.visible {
+	opacity: 1;
+	transform: translateX(-50%) translateY(0);
+}
+
+.md-sr-only {
+	position: fixed;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}

@@ -21,12 +21,15 @@ import { ISessionSectionOrderService, SessionSectionOrderService } from '../../.
 import { ISessionOpenTelemetryService, SessionOpenTelemetryService } from '../../../../workbench/contrib/sessions/browser/sessionOpenTelemetryService.js';
 import { ISessionsProvidersService, SessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsRecentWorkspacesService, SessionsRecentWorkspacesService } from '../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
+import { ISessionWorkspacesService } from '../../../../workbench/contrib/sessions/common/sessionWorkspaces.js';
+import { SessionWorkspacesService } from '../../../../workbench/contrib/sessions/browser/sessionWorkspacesService.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SessionsManagementService } from '../../../../workbench/contrib/sessions/browser/sessionsManagementService.js';
 import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../../../workbench/services/sessions/common/sessionChangesStatsCache.js';
 import { ISessionDraftsService, SessionDraftsService } from '../../../../workbench/contrib/sessions/browser/sessionDraftsService.js';
 import { IScheduledChatsService, ScheduledChatsService } from '../../../../workbench/contrib/sessions/browser/scheduledChatsService.js';
 import { ISideChatPlacementService, SideChatPlacementService } from '../../../../workbench/contrib/sessions/browser/sideChatPlacement.js';
+import { IWorkspaceFolderRepositories, WorkspaceFolderRepositories } from '../../../../workbench/contrib/sessions/browser/workspaceFolderRepositories.js';
 
 // The session services are implemented in modules that do not register themselves, so that a window loads them only
 // when its entry point imports this module.
@@ -45,7 +48,9 @@ registerSingleton(IFocusedSessionHostService, FocusedSessionHostService, Instant
 registerSingleton(ISessionSectionOrderService, SessionSectionOrderService, InstantiationType.Delayed);
 registerSingleton(ISessionGroupsService, SessionGroupsService, InstantiationType.Delayed);
 registerSingleton(ISessionsRecentWorkspacesService, SessionsRecentWorkspacesService, InstantiationType.Delayed);
+registerSingleton(ISessionWorkspacesService, SessionWorkspacesService, InstantiationType.Delayed);
 registerSingleton(ISessionComparisonService, SessionComparisonService, InstantiationType.Delayed);
 registerSingleton(ISessionsManagementService, SessionsManagementService, InstantiationType.Eager);
 registerSingleton(ISessionDraftsService, SessionDraftsService, InstantiationType.Delayed);
+registerSingleton(IWorkspaceFolderRepositories, WorkspaceFolderRepositories, InstantiationType.Delayed);
 registerSingleton(IScheduledChatsService, ScheduledChatsService, InstantiationType.Delayed);

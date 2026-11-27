@@ -92,29 +92,59 @@ Navigation End -->
 		assert.strictEqual(result.toString(), '<h2 id="editor">Editor</h2>\n<p>Details.</p>\n');
 	});
 
-	test('preserves the accessible initially open video through both sanitization passes', async () => {
+	test('preserves the accessible non-collapsible video through both sanitization passes', async () => {
 		for (const mediaBaseUrl of [undefined, 'https://code.visualstudio.com/assets/updates/']) {
 			const availability: boolean[] = [];
 			const result = await renderReleaseNotesMarkdown(releaseNotesWithHighlightsVideo, extensionService, languageService, instantiationService.createInstance(SimpleSettingRenderer), 'stable', undefined, undefined, undefined, mediaBaseUrl, {
 				enabled: true, onDidResolve: available => availability.push(available),
 			});
 			const document = new mainWindow.DOMParser().parseFromString(result.toString(), 'text/html');
-			const disclosure = document.querySelector('details');
-			const video = disclosure?.querySelector('video');
+			const media = document.querySelector('figure.release-highlights-video');
+			const video = media?.querySelector('.release-highlights-player video');
 			const captions = video?.querySelector('track');
 			const base = mediaBaseUrl ?? 'images/';
 			assert.deepStrictEqual({
 				availability,
-				inHighlights: !!disclosure?.closest('.release-notes-highlights'),
-				open: disclosure?.open,
+				inHighlights: !!media?.closest('.release-notes-highlights'),
+				disclosure: document.querySelector('details, summary'),
+				caption: media?.querySelector('.release-highlights-video-caption')?.textContent,
 				video: video ? ['src', 'poster', 'preload', 'controls', 'playsinline', 'autoplay', 'loop'].map(name => video.getAttribute(name)) : [],
 				captions: captions ? ['src', 'kind', 'srclang', 'label', 'default'].map(name => captions.getAttribute(name)) : [],
-				transcript: disclosure?.querySelector('.release-highlights-video-transcript')?.getAttribute('href'),
+				transcript: media?.querySelector('.release-highlights-video-transcript')?.getAttribute('href'),
 			}, {
-				availability: [true], inHighlights: true, open: true,
+				availability: [true], inHighlights: true, disclosure: null, caption: 'Watch release highlights (1 minute)',
 				video: [`${base}1_147/highlights.mp4`, `${base}1_147/highlights.webp`, 'none', '', '', null, null],
 				captions: [`${base}1_147/highlights.en.vtt`, 'captions', 'en', 'English', ''],
 				transcript: 'https://code.visualstudio.com/transcript',
+			});
+		}
+	});
+
+	test('keeps the heading and introductory paragraphs full-width above the side-by-side highlights list and video', async () => {
+		const content = releaseNotesWithHighlightsVideo
+			.replace('## Release highlights', '## Release highlights\n\nIntroduction.\n\nMore context.')
+			.replace('<!-- RELEASE_HIGHLIGHTS_END -->', 'Closing text.\n\n<!-- RELEASE_HIGHLIGHTS_END -->');
+		for (const enabled of [false, true]) {
+			const html = await renderReleaseNotesMarkdown(content, extensionService, languageService, instantiationService.createInstance(SimpleSettingRenderer), 'stable', undefined, undefined, undefined, undefined, { enabled });
+			const document = new mainWindow.DOMParser().parseFromString(html.toString(), 'text/html');
+			const intro = document.querySelector('.release-highlights-intro');
+			const layout = document.querySelector('.release-highlights-layout');
+			assert.deepStrictEqual({
+				layout: !!layout,
+				heading: intro?.querySelector(':scope > h2')?.textContent,
+				introduction: Array.from(intro?.querySelectorAll(':scope > p') ?? [], p => p.textContent),
+				video: !!layout?.querySelector(':scope > figure video'),
+				bullet: layout?.querySelector('.release-highlights-text > ul > li')?.textContent,
+				closing: document.querySelector('.release-highlights-body > p')?.textContent,
+				followingSection: document.querySelector('.release-notes-highlights + h2')?.textContent,
+			}, {
+				layout: enabled,
+				heading: enabled ? 'Release highlights' : undefined,
+				introduction: enabled ? ['Introduction.', 'More context.'] : [],
+				video: enabled,
+				bullet: enabled ? 'Editor improvements' : undefined,
+				closing: enabled ? 'Closing text.' : undefined,
+				followingSection: 'Editor',
 			});
 		}
 	});
@@ -134,7 +164,7 @@ Navigation End -->
 		}, { availability: [true], video: null, videoLinks: 0, highlights: 'Editor improvements', remainingLink: 'https://code.visualstudio.com/docs/editor' });
 	});
 
-	test('a video source alone is sufficient and gets an accessible disclosure in treatment', async () => {
+	test('a video source alone is sufficient and gets an accessible player in treatment', async () => {
 		for (const enabled of [false, true]) {
 			for (const videoMarkup of ['<video src="images/1_146/demo.mp4"></video>', '<video><source src="images/1_146/demo.mp4"></video>']) {
 				const availability: boolean[] = [];
@@ -144,19 +174,19 @@ Navigation End -->
 					enabled, onDidResolve: available => availability.push(available), onInvalid: () => invalid++,
 				});
 				const document = new mainWindow.DOMParser().parseFromString(html.toString(), 'text/html');
-				const disclosure = document.querySelector<HTMLDetailsElement>('details.release-highlights-video');
-				const video = disclosure?.querySelector('video');
+				const media = document.querySelector('.release-highlights-video');
+				const video = media?.querySelector('video');
 				assert.deepStrictEqual({
 					availability, invalid,
-					open: disclosure?.open,
-					summary: disclosure?.querySelector('summary')?.textContent,
+					disclosure: document.querySelector('details, summary'),
+					caption: media?.querySelector('.release-highlights-video-caption')?.textContent,
 					label: video?.getAttribute('aria-label'),
 					source: video?.getAttribute('src') ?? video?.querySelector('source')?.getAttribute('src'),
 					optionalContent: document.querySelector('track, a, [poster]'),
 				}, {
 					availability: [true], invalid: 0,
-					open: enabled ? true : undefined,
-					summary: enabled ? 'Watch release highlights' : undefined,
+					disclosure: null,
+					caption: enabled ? 'Watch release highlights' : undefined,
 					label: enabled ? 'Release highlights video' : undefined,
 					source: enabled ? 'https://code.visualstudio.com/assets/updates/1_146/demo.mp4' : undefined,
 					optionalContent: null,

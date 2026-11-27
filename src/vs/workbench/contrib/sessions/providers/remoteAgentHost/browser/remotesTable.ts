@@ -419,7 +419,7 @@ export function getRemoteRowMenuActions(entry: RemoteTableEntry, onAction: (entr
 	const ready = !entry.busy;
 	const connected = RemoteAgentHostConnectionStatus.isConnected(remote.connectionStatus);
 	const changingConnection = RemoteAgentHostConnectionStatus.isConnecting(remote.connectionStatus) || RemoteAgentHostConnectionStatus.isReconnecting(remote.connectionStatus);
-	const showNewSession = connected && !remote.pickerUnavailableReason;
+	const showNewSession = connected && (!remote.pickerUnavailableReason || !!remote.devContainerFolder);
 	const showConnect = remote.requiresTunnelSignIn || !remote.connectsWithHost && canConnectToRemote(remote);
 	// Any installed WSL distribution can be restarted; a stopped one offers Start Distribution, which connects and so starts it.
 	const showDistribution = remote.kind === 'wsl' && canConnectToRemote(remote);
@@ -428,6 +428,8 @@ export function getRemoteRowMenuActions(entry: RemoteTableEntry, onAction: (entr
 	const showGitHubEnvironment = (remote.kind === 'ssh' || remote.kind === 'wsl' || remote.kind === 'tunnel') && (!!remote.canShareAsGitHubEnvironment || !!share);
 	const showDelete = remote.kind === 'environment' && remote.canRemove || (remote.kind === 'tunnel' || remote.kind === 'ssh' || remote.kind === 'devContainer') && !!remote.canDelete;
 	const offerShowInPicker = !!remote.pickerUnavailableReason || !!remote.hidden;
+	// A folder's Dev Container is an option of its folder rather than an entry of its own in the environment picker.
+	const showVisibility = !remote.devContainerFolder;
 	return Separator.join(
 		[
 			...(showNewSession ? [item({ id: 'remotes.newSession', kind: 'newSession', label: localize('remotes.newSession', "New Session"), enabled: ready })] : []),
@@ -452,7 +454,7 @@ export function getRemoteRowMenuActions(entry: RemoteTableEntry, onAction: (entr
 			icon: share?.state === 'connecting' ? connectionProgressIcon : Codicon.github,
 			enabled: ready && share?.state !== 'connecting' && share?.state !== 'unavailable',
 		})] : [],
-		[item({
+		showVisibility ? [item({
 			id: 'remotes.visibility', kind: 'toggleVisibility',
 			label: offerShowInPicker ? localize('remotes.showInPicker', "Show in Environment Picker") : localize('remotes.hideFromPicker', "Hide from Environment Picker"),
 			tooltip: remote.pickerUnavailableReason ?? (remote.hidden
@@ -460,10 +462,10 @@ export function getRemoteRowMenuActions(entry: RemoteTableEntry, onAction: (entr
 				: localize('remotes.hideFromPickerDetail', "Hide this environment from the environment picker. It stays in Remote Environments.")),
 			icon: offerShowInPicker ? Codicon.eyeClosed : Codicon.eye,
 			enabled: !remote.pickerUnavailableReason,
-		})],
+		})] : [],
 		remote.copyableAddress ? [item({ id: 'remotes.copyAddress', kind: 'copyAddress', label: localize('remotes.copyAddress', "Copy Address"), icon: Codicon.copy, enabled: true })] : [],
 		[
-			item({ id: 'remotes.rename', kind: 'rename', label: localize('remotes.rename', "Rename..."), icon: Codicon.edit, enabled: ready }),
+			...(!remote.devContainerFolder ? [item({ id: 'remotes.rename', kind: 'rename', label: localize('remotes.rename', "Rename..."), icon: Codicon.edit, enabled: ready })] : []),
 			...(remote.kind === 'tunnel' || remote.kind === 'ssh' ? [item({
 				id: 'remotes.locationPreference', kind: 'locationPreference', label: localize('remotes.locationPreference', "Configure Agent Run Behavior..."),
 				tooltip: remoteAgentRunBehaviorDescription, icon: Codicon.serverProcess, enabled: ready && !changingConnection,
@@ -887,7 +889,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				const showConnect = showConnection && !entry.remote.connectsWithHost;
 				// Remotes that connect with their host have no Connect action, but can still start sessions once connected.
 				// Those the environment picker can't select, such as GitHub Environments, can't start sessions from here.
-				const showNewSession = showConnection && RemoteAgentHostConnectionStatus.isConnected(entry.remote.connectionStatus) && !entry.remote.pickerUnavailableReason;
+				const showNewSession = showConnection && RemoteAgentHostConnectionStatus.isConnected(entry.remote.connectionStatus) && (!entry.remote.pickerUnavailableReason || !!entry.remote.devContainerFolder);
 				const pending = isConnectionPending(entry);
 				const problem = showConnection && !pending ? getConnectionProblem(entry.remote) : undefined;
 				const canConnect = showConnect && canConnectToRemote(entry.remote);

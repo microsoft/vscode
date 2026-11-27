@@ -6,16 +6,13 @@
 import { IntervalTimer } from '../../../../../base/common/async.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { autorun, type IObservable } from '../../../../../base/common/observable.js';
-import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { type IRemoteAgentHostEntry, IRemoteAgentHostService, type IRemoteAgentHostSSHConnection, getEntryAddress, getEntryTypeConfig, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { computeSSHConnectionKey, isSSHAuthenticationFailedError, isSSHHostKeyDeniedError, ISSHRemoteAgentHostService, SSHAuthMethod } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
-import { categorizeSSHConnectError, logSSHConnectAttempt } from '../../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ManagedReconnectAgentHostContribution } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/managedReconnectAgentHostContribution.js';
 import { disconnectSSHEntry, sshConnectionKey } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteHostOptions.js';
@@ -43,7 +40,6 @@ export class SSHAgentHostContribution extends ManagedReconnectAgentHostContribut
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@INotificationService notificationService: INotificationService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super(remoteAgentHostService, configurationService, logService, instantiationService, sessionsProvidersService, notificationService);
 
@@ -116,36 +112,14 @@ export class SSHAgentHostContribution extends ManagedReconnectAgentHostContribut
 	private async _connectSSHOnDemand(connection: IRemoteAgentHostSSHConnection, name: string, address: string): Promise<void> {
 		const sshConfigHost = connection.sshConfigHost;
 		if (!sshConfigHost) {
-			const stopwatch = StopWatch.create(false);
-			try {
-				await this._sshService.connect({
-					host: connection.hostName,
-					port: connection.port,
-					username: connection.user ?? connection.hostName,
-					authMethod: SSHAuthMethod.Agent,
-					name,
-					userInitiated: true,
-				});
-				logSSHConnectAttempt(this._telemetryService, {
-					operation: 'connect',
-					userInitiated: true,
-					attempt: 1,
-					durationMs: stopwatch.elapsed(),
-					success: true,
-					willRetry: false,
-				});
-			} catch (err) {
-				logSSHConnectAttempt(this._telemetryService, {
-					operation: 'connect',
-					userInitiated: true,
-					attempt: 1,
-					durationMs: stopwatch.elapsed(),
-					success: false,
-					willRetry: false,
-					errorCategory: categorizeSSHConnectError(err),
-				});
-				throw err;
-			}
+			await this._sshService.connect({
+				host: connection.hostName,
+				port: connection.port,
+				username: connection.user ?? connection.hostName,
+				authMethod: SSHAuthMethod.Agent,
+				name,
+				userInitiated: true,
+			});
 			return;
 		}
 		const pending = this._pendingReconnects.get(sshConfigHost);
@@ -155,7 +129,6 @@ export class SSHAgentHostContribution extends ManagedReconnectAgentHostContribut
 			return;
 		}
 		this._reconnectStates.get(sshConfigHost)?.resetForResume();
-		const stopwatch = StopWatch.create(false);
 		await this._attemptManagedReconnect({
 			kind: 'SSH',
 			key: sshConfigHost,
@@ -166,30 +139,9 @@ export class SSHAgentHostContribution extends ManagedReconnectAgentHostContribut
 			requiresUserInitiatedResume: shouldPauseSSHReconnectAfterFailure,
 			getPauseReason: err => isSSHHostKeyDeniedError(err) ? 'host key denial' : isSSHAuthenticationFailedError(err) ? 'authentication failure' : 'user cancellation',
 			doConnect: async () => {
-				try {
-					this._sshService.clearDisconnected(address);
-					this._remoteAgentHostService.reconnect(address, true);
-					await this._remoteAgentHostService.waitForConnection(address);
-					logSSHConnectAttempt(this._telemetryService, {
-						operation: 'reconnect',
-						userInitiated: true,
-						attempt: 1,
-						durationMs: stopwatch.elapsed(),
-						success: true,
-						willRetry: false,
-					});
-				} catch (err) {
-					logSSHConnectAttempt(this._telemetryService, {
-						operation: 'reconnect',
-						userInitiated: true,
-						attempt: 1,
-						durationMs: stopwatch.elapsed(),
-						success: false,
-						willRetry: false,
-						errorCategory: categorizeSSHConnectError(err),
-					});
-					throw err;
-				}
+				this._sshService.clearDisconnected(address);
+				this._remoteAgentHostService.reconnect(address, true);
+				await this._remoteAgentHostService.waitForConnection(address);
 			},
 		});
 	}

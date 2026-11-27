@@ -114,6 +114,7 @@ export class AgentHostSessionListStore extends Disposable {
 		private readonly _connection: IAgentHostSessionListConnection,
 		private readonly _options: {
 			readonly filterToWorkspace?: boolean;
+			readonly listAllSessions?: IObservable<boolean>;
 			readonly sessionSchemeAlias?: IAgentHostSessionSchemeAlias;
 			readonly connectionAuthority?: string;
 			readonly retainUnlistedProvider?: (provider: string) => boolean;
@@ -137,7 +138,7 @@ export class AgentHostSessionListStore extends Disposable {
 		// Matching by project narrows the list as it turns off, and widens it as it turns on, which only the host's list supplies
 		if (this._options.matchProjectRoot) {
 			this._register(runOnChange(this._options.matchProjectRoot, () => {
-				if (this._options.filterToWorkspace === false) {
+				if (this._listsAllSessions()) {
 					return;
 				}
 				this._cacheValid = false;
@@ -158,7 +159,7 @@ export class AgentHostSessionListStore extends Disposable {
 		// folders changes, since filtering depends on it. The agent host itself
 		// doesn't know which workspace this VS Code window has open.
 		const onDidChangeWorkspace = () => {
-			if (this._options.filterToWorkspace === false) {
+			if (this._listsAllSessions()) {
 				return;
 			}
 			this._cacheValid = false;
@@ -169,6 +170,13 @@ export class AgentHostSessionListStore extends Disposable {
 		// Also as the window's workspace changes without its folders, such as as Save Workspace As turns a folder into a
 		// workspace file
 		this._register(this._workspaceContextService.onDidChangeWorkbenchState(onDidChangeWorkspace));
+		if (this._options.listAllSessions) {
+			this._register(runOnChange(this._options.listAllSessions, () => {
+				this._cacheValid = false;
+				this._filterEntriesToWorkspace();
+				void this.refresh(CancellationToken.None);
+			}));
+		}
 	}
 
 	getSessions(provider: string): readonly IAgentHostSessionListEntry[] {
@@ -542,7 +550,7 @@ export class AgentHostSessionListStore extends Disposable {
 
 	/** Uses workspace-file provenance for multi-root workspaces and path containment otherwise. */
 	private _isSessionInWorkspace(entry: IAgentHostSessionListEntry): boolean {
-		if (this._options.filterToWorkspace === false) {
+		if (this._listsAllSessions()) {
 			return true;
 		}
 		const inWorkspace = this._computeSessionInWorkspace(entry) || this._matchesProjectRoot(entry.summary);
@@ -555,6 +563,10 @@ export class AgentHostSessionListStore extends Disposable {
 			this._logService.warn(`[AgentHost] legacy session ${entry.summary.resource} has a non-local project '${entry.summary.project.uri}' and cannot be matched to a workspace folder`);
 		}
 		return inWorkspace;
+	}
+
+	private _listsAllSessions(): boolean {
+		return this._options.filterToWorkspace === false || this._options.listAllSessions?.get() === true;
 	}
 
 	/**

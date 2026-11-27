@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { CanvasesEnabledSettingId } from '../../../../platform/agentHost/common/agentService.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IListService } from '../../../../platform/list/browser/listService.js';
@@ -23,7 +25,11 @@ import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { SessionsCategories } from '../../../../workbench/contrib/sessions/common/categories.js';
 import { ICustomViewService } from '../../../../workbench/contrib/sessions/browser/customView.js';
-import { CanvasesPinnedToSidebarContext, IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasConnectedContext } from '../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
+import { CanvasesPinnedToSidebarContext, getPinnedCanvasListingSession, IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasConnectedContext, PinnedCanvasSessionCanToggleListingContext, PinnedCanvasSessionInSessionsListContext } from '../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
+import { ISessionsListModelService } from '../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
+import { HIDE_CANVAS_SESSION_FROM_LIST_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISession } from '../../../../workbench/services/sessions/common/session.js';
 import { ICanvasReference } from '../../../../workbench/common/canvasReference.js';
 
 export const TOGGLE_CANVAS_PINNED_TO_SIDEBAR_COMMAND_ID = 'workbench.action.agentSessions.toggleCanvasPinnedToSidebar';
@@ -33,6 +39,8 @@ export const REMOVE_CANVAS_FROM_SIDEBAR_COMMAND_ID = 'workbench.action.agentSess
 export const GO_TO_PINNED_CANVAS_CHAT_COMMAND_ID = 'workbench.action.agentSessions.goToPinnedCanvasChat';
 export const CLOSE_PINNED_CANVAS_COMMAND_ID = 'workbench.action.agentSessions.closePinnedCanvas';
 export const CLOSE_SIDEBAR_PINNED_CANVAS_COMMAND_ID = 'workbench.action.agentSessions.closeSidebarPinnedCanvas';
+export const SHOW_PINNED_CANVAS_SESSION_IN_LIST_COMMAND_ID = 'workbench.action.agentSessions.showPinnedCanvasSessionInList';
+export const HIDE_PINNED_CANVAS_SESSION_FROM_LIST_COMMAND_ID = 'workbench.action.agentSessions.hidePinnedCanvasSessionFromList';
 
 /** Canvases can be pinned in the Agents window while chat and canvases are enabled. */
 export const pinnedCanvasesAvailable = ContextKeyExpr.and(
@@ -260,6 +268,63 @@ class CloseSidebarPinnedCanvasAction extends BaseClosePinnedCanvasAction {
 	}
 }
 
+/** Resolves the session of the pin a pin action targets when the user can show or hide it in the Sessions list. */
+function getPinnedCanvasSession(accessor: ServicesAccessor, arg: unknown): ISession | undefined {
+	const entry = getPinnedCanvas(accessor, arg);
+	return entry && getPinnedCanvasListingSession(accessor.get(ISessionsManagementService), entry);
+}
+
+/** Lists the session of a pin in the Sessions list, which leaves out a session started from the Canvases section. */
+class ShowPinnedCanvasSessionInListAction extends Action2 {
+	constructor() {
+		super({
+			id: SHOW_PINNED_CANVAS_SESSION_IN_LIST_COMMAND_ID,
+			title: localize2('showPinnedCanvasSessionInList', "Show in Sessions List"),
+			icon: Codicon.eye,
+			precondition: pinnedCanvasesAvailable,
+			menu: [Menus.SidebarCanvasContext, AgentsWindowMenus.CustomViewCanvas].map(id => ({
+				id,
+				group: '2_organize',
+				order: 20,
+				when: ContextKeyExpr.and(pinnedCanvasesAvailable, PinnedCanvasSessionCanToggleListingContext, PinnedCanvasSessionInSessionsListContext.negate()),
+			})),
+		});
+	}
+
+	run(accessor: ServicesAccessor, arg?: unknown): void {
+		const session = getPinnedCanvasSession(accessor, arg);
+		if (session) {
+			accessor.get(ISessionsListModelService).showCanvasSessions([session]);
+			status(localize('pinnedCanvasSessionShownInList', "{0} is now shown in the Sessions list.", session.title.get()));
+		}
+	}
+}
+
+/** Leaves the session of a pin out of the Sessions list while its canvas is in the sidebar. */
+class HidePinnedCanvasSessionFromListAction extends Action2 {
+	constructor() {
+		super({
+			id: HIDE_PINNED_CANVAS_SESSION_FROM_LIST_COMMAND_ID,
+			title: localize2('hidePinnedCanvasSessionFromList', "Hide from Sessions List"),
+			icon: Codicon.eyeClosed,
+			precondition: pinnedCanvasesAvailable,
+			menu: [Menus.SidebarCanvasContext, AgentsWindowMenus.CustomViewCanvas].map(id => ({
+				id,
+				group: '2_organize',
+				order: 21,
+				when: ContextKeyExpr.and(pinnedCanvasesAvailable, PinnedCanvasSessionCanToggleListingContext, PinnedCanvasSessionInSessionsListContext),
+			})),
+		});
+	}
+
+	async run(accessor: ServicesAccessor, arg?: unknown): Promise<void> {
+		const session = getPinnedCanvasSession(accessor, arg);
+		if (session) {
+			await accessor.get(ICommandService).executeCommand(HIDE_CANVAS_SESSION_FROM_LIST_COMMAND_ID, session);
+		}
+	}
+}
+
 interface ICanvasPickItem extends IQuickPickItem {
 	readonly reference: ICanvasReference;
 }
@@ -309,4 +374,6 @@ registerAction2(RemoveCanvasFromSidebarAction);
 registerAction2(GoToPinnedCanvasChatAction);
 registerAction2(ClosePinnedCanvasAction);
 registerAction2(CloseSidebarPinnedCanvasAction);
+registerAction2(ShowPinnedCanvasSessionInListAction);
+registerAction2(HidePinnedCanvasSessionFromListAction);
 registerAction2(PickCanvasToAddToSidebarAction);

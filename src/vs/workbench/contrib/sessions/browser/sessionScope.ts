@@ -3,10 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { equalSets } from '../../../../base/common/collections.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, IReader, observableSignal } from '../../../../base/common/observable.js';
-import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
+import { ResourceSet } from '../../../../base/common/map.js';
+import { equalsIfDefinedC } from '../../../../base/common/equals.js';
+import { autorun, derived, derivedOpts, IObservable, IReader, observableSignal, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { extUriBiasedIgnorePathCase, IExtUri } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionFolder } from '../../../services/sessions/common/session.js';
 import { ISessionChangeEvent, ISessionsListingScope } from '../common/sessionsProvider.js';
@@ -18,6 +21,145 @@ function isGitHubRepositoryOf(uri: URI, repositories: ReadonlySet<string>): bool
 	}
 	const [owner, repo] = uri.path.split('/').filter(segment => segment.length > 0);
 	return !!owner && !!repo && repositories.has(`${owner}/${repo}`.toLowerCase());
+}
+
+/**
+ * Where work is in a scope, such as a draft: in its folders, including the working directories of the sessions in it, or on
+ * GitHub in its repositories. See {@link SessionScopeMatcher.withWorkingDirectoriesOf}.
+ */
+export class SessionWorkScope {
+
+	private readonly folderKeys: ReadonlySet<string>;
+
+	constructor(
+		private readonly folders: readonly URI[],
+		private readonly gitHubRepositories: ReadonlySet<string>,
+		private readonly extUri: IExtUri,
+	) {
+		this.folderKeys = new Set(folders.map(folder => extUri.getComparisonKey(folder)));
+	}
+
+	/** Whether work in `uri` is in the scope. */
+	worksInScope(uri: URI): boolean {
+		return this.folders.some(folder => this.extUri.isEqualOrParent(uri, folder)) || isGitHubRepositoryOf(uri, this.gitHubRepositories);
+	}
+
+	equals(other: SessionWorkScope): boolean {
+		return this.extUri === other.extUri && equalSets(this.folderKeys, other.folderKeys) && equalSets(this.gitHubRepositories, other.gitHubRepositories);
+	}
+}
+
+/**
+ * Matches sessions to the scope of `scopeFolders`, such as the folders of an editor window: a session is in it when its main
+ * chat's folder works in a scope folder, or when its root or git repository, its project, is a scope folder, such as a session
+ * in a worktree of a scope folder's repository; not when its project is only inside a scope folder. A session belongs where
+ * its main chat works: the folders its other chats add count only while the main chat has none. `scopeGitHubRepositories`,
+ * as `owner/repo`, are the GitHub repositories of the scope folders' `origin`: a session working in one of them on GitHub, on
+ * any branch, such as a Copilot Cloud session, is in the scope too. Only the metadata the providers report is read, comparing
+ * whole URIs, so a session of another host never matches a local folder. A session without a workspace, such as a quick chat,
+ * is in no scope. A session whose workspace is not known yet joins the scope once it hydrates into a scope folder; the results
+ * follow the sessions' workspaces through the `reader` they are given.
+ */
+export class SessionScopeMatcher {
+
+	private readonly gitHubRepositories: ReadonlySet<string>;
+	private readonly work: SessionWorkScope;
+
+	constructor(
+		private readonly scopeFolders: readonly URI[],
+		scopeGitHubRepositories: readonly string[],
+		private readonly extUri: IExtUri = extUriBiasedIgnorePathCase,
+	) {
+		this.gitHubRepositories = new Set(scopeGitHubRepositories.map(repository => repository.toLowerCase()));
+		this.work = new SessionWorkScope(scopeFolders, this.gitHubRepositories, extUri);
+	}
+
+	/** The `sessions` in the scope. */
+	getSessionsInScope(sessions: readonly ISession[], reader: IReader | undefined): ReadonlySet<ISession> {
+		return new Set(sessions.filter(session => this.getScopingFolders(session, reader).some(folder => this.isFolderInScope(folder))));
+	}
+
+	/**
+	 * The work in the scope widened by the working directories by which {@link getSessionsInScope} places `sessions` in it, such
+	 * as worktrees of its folders: those of the folders that match it, not the other folders of a session it places. Work that
+	 * is not a session yet, such as a draft, is in the scope when it {@link SessionWorkScope.worksInScope works in} it.
+	 */
+	withWorkingDirectoriesOf(sessions: readonly ISession[], reader: IReader | undefined): SessionWorkScope {
+		const folders = new ResourceSet(this.scopeFolders, uri => this.extUri.getComparisonKey(uri));
+		for (const session of sessions) {
+			for (const folder of this.getScopingFolders(session, reader)) {
+				if (this.isFolderInScope(folder)) {
+					folders.add(folder.workingDirectory);
+				}
+			}
+		}
+		return new SessionWorkScope([...folders], this.gitHubRepositories, this.extUri);
+	}
+
+	private isFolderInScope(folder: ISessionFolder): boolean {
+		return this.worksInScope(folder.workingDirectory) || this.isScopeFolder(folder.root) || this.isScopeFolder(folder.gitRepository?.uri);
+	}
+
+	/** Whether work in `uri` is in the scope: `uri` is in a scope folder, or on GitHub in one of the scope's repositories. */
+	worksInScope(uri: URI): boolean {
+		return this.work.worksInScope(uri);
+	}
+
+	private isScopeFolder(uri: URI | undefined): boolean {
+		return !!uri && (this.scopeFolders.some(folder => this.extUri.isEqual(uri, folder)) || isGitHubRepositoryOf(uri, this.gitHubRepositories));
+	}
+
+	/**
+	 * The folders by which `session` is in a scope: every folder of its main chat's workspace while the main chat sets
+	 * folders of its own (see {@link IChat.ownWorkingDirectories}). Otherwise the first folder of the main chat's workspace,
+	 * the session's primary: the main chat then has the session's folders, in their order, with those its other chats added
+	 * after it, which do not place the session. Every folder of the session counts while the main chat has none.
+	 */
+	private getScopingFolders(session: ISession, reader: IReader | undefined): readonly ISessionFolder[] {
+		const mainChat = session.mainChat.read(reader);
+		const mainChatWorkspace = mainChat.workspace.read(reader);
+		if (mainChatWorkspace && mainChat.ownWorkingDirectories?.read(reader)?.length) {
+			return mainChatWorkspace.folders;
+		}
+		const mainFolder = mainChatWorkspace?.folders[0];
+		return mainFolder ? [mainFolder] : session.workspace.read(reader)?.folders ?? [];
+	}
+}
+
+/**
+ * The sessions in a scope, such as an editor window's, out of every session, and where work that is not a session yet, such as
+ * a draft, is in it. `folders` is undefined while nothing is scoped. Follows the sessions' objects, not only their IDs: a
+ * provider can replace a session under its ID, such as a draft that graduates into another worktree, which moves the work in
+ * the scope.
+ */
+export class SessionsInScope {
+
+	/** The IDs of the sessions in the scope, or undefined while nothing is scoped. */
+	readonly sessionIds: IObservable<ReadonlySet<string> | undefined>;
+	/** Where work is in the scope, or undefined while nothing is scoped. */
+	readonly work: IObservable<SessionWorkScope | undefined>;
+
+	constructor(
+		folders: IObservable<readonly URI[] | undefined>,
+		gitHubRepositories: IObservable<readonly string[]>,
+		getSessions: () => readonly ISession[],
+		onDidChangeSessions: Event<unknown>,
+		extUri: IExtUri,
+	) {
+		const sessionsChanged = observableSignalFromEvent(this, onDidChangeSessions);
+		const scope = derived(this, reader => {
+			const scopeFolders = folders.read(reader);
+			if (!scopeFolders) {
+				return undefined;
+			}
+			sessionsChanged.read(reader);
+			const matcher = new SessionScopeMatcher(scopeFolders, gitHubRepositories.read(reader), extUri);
+			const sessions = [...matcher.getSessionsInScope(getSessions(), reader)];
+			return { sessionIds: new Set(sessions.map(session => session.sessionId)), work: matcher.withWorkingDirectoriesOf(sessions, reader) };
+		});
+		this.sessionIds = derivedOpts<ReadonlySet<string> | undefined>({ owner: this, equalsFn: equalsIfDefinedC(equalSets) }, reader => scope.read(reader)?.sessionIds);
+		this.work = derivedOpts<SessionWorkScope | undefined>({ owner: this, equalsFn: equalsIfDefinedC((a, b) => a.equals(b)) }, reader => scope.read(reader)?.work);
+	}
 }
 
 /**
@@ -66,7 +208,7 @@ export class SessionsListingScopeFilter extends Disposable {
 			const gitHubRepositories = scope.gitHubRepositories?.read(reader) ?? [];
 			const sessions = getAllSessions();
 			this._known = new Map(sessions.map(session => [session.sessionId, session]));
-			const inScope = folders.length ? this._getSessionsInScope(sessions, folders, reader, gitHubRepositories) : undefined;
+			const inScope = folders.length ? new SessionScopeMatcher(folders, gitHubRepositories).getSessionsInScope(sessions, reader) : undefined;
 			const listed = new Map<string, ISession>();
 			for (const session of sessions) {
 				if (!inScope || inScope.has(session)) {
@@ -85,47 +227,6 @@ export class SessionsListingScopeFilter extends Disposable {
 	rematch(): void {
 		this._pendingChanges.push({ added: [], removed: [], changed: [] });
 		this._allSessionsChanged.trigger(undefined);
-	}
-
-	/**
-	 * The `sessions` in the scope of `scopeFolders`, such as the folders of an editor window: the sessions whose main chat's
-	 * folder works in a scope folder, or whose root or git repository, its project, is a scope folder, such as a session in a
-	 * worktree of a scope folder's repository; not one whose project is only inside a scope folder. A session belongs where
-	 * its main chat works (see `_getScopingFolders`): the folders its other chats add count only while the main chat has none. `scopeGitHubRepositories`, as lowercase `owner/repo`, are the GitHub repositories of the scope folders'
-	 * `origin`: a session working in one of them on GitHub, on any branch, such as a Copilot Cloud session, is in the scope
-	 * too. Only the metadata the providers report is read, comparing whole URIs, so a session of another host never matches a
-	 * local folder. A session without a workspace, such as a quick chat, is in no scope: only an empty window, which has no
-	 * scope, lists it. A session whose workspace is not known yet joins the scope once it hydrates into a scope folder. The
-	 * result follows the sessions' workspaces through `reader`.
-	 */
-	private _getSessionsInScope(sessions: readonly ISession[], scopeFolders: readonly URI[], reader: IReader, scopeGitHubRepositories: readonly string[]): ReadonlySet<ISession> {
-		const extUri = extUriBiasedIgnorePathCase;
-		const gitHubRepositories = new Set(scopeGitHubRepositories.map(repository => repository.toLowerCase()));
-		const worksInScope = (uri: URI) => scopeFolders.some(folder => extUri.isEqualOrParent(uri, folder)) || isGitHubRepositoryOf(uri, gitHubRepositories);
-		const isScopeFolder = (uri: URI | undefined) => !!uri && (scopeFolders.some(folder => extUri.isEqual(uri, folder)) || isGitHubRepositoryOf(uri, gitHubRepositories));
-		const included = new Set<ISession>();
-		for (const session of sessions) {
-			if (this._getScopingFolders(session, reader).some(folder => worksInScope(folder.workingDirectory) || isScopeFolder(folder.root) || isScopeFolder(folder.gitRepository?.uri))) {
-				included.add(session);
-			}
-		}
-		return included;
-	}
-
-	/**
-	 * The folders by which `session` is in a scope: every folder of its main chat's workspace while the main chat sets
-	 * folders of its own (see {@link IChat.ownWorkingDirectories}). Otherwise the first folder of the main chat's workspace,
-	 * the session's primary: the main chat then has the session's folders, in their order, with those its other chats added
-	 * after it, which do not place the session. Every folder of the session counts while the main chat has none.
-	 */
-	private _getScopingFolders(session: ISession, reader: IReader): readonly ISessionFolder[] {
-		const mainChat = session.mainChat.read(reader);
-		const mainChatWorkspace = mainChat.workspace.read(reader);
-		if (mainChatWorkspace && mainChat.ownWorkingDirectories?.read(reader)?.length) {
-			return mainChatWorkspace.folders;
-		}
-		const mainFolder = mainChatWorkspace?.folders[0];
-		return mainFolder ? [mainFolder] : session.workspace.read(reader)?.folders ?? [];
 	}
 
 	/** The sessions the scope lists. */

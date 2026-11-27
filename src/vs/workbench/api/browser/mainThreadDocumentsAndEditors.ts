@@ -23,6 +23,7 @@ import { EditorGroupColumn, editorGroupToColumn } from '../../services/editor/co
 import { IEditorService } from '../../services/editor/common/editorService.js';
 import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
 import { ITextFileService } from '../../services/textfile/common/textfiles.js';
+import { IFilesConfigurationService } from '../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
 import { IWorkingCopyFileService } from '../../services/workingCopy/common/workingCopyFileService.js';
 import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
@@ -330,12 +331,13 @@ export class MainThreadDocumentsAndEditors extends Disposable implements IMainTh
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IPathService pathService: IPathService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IQuickDiffModelService quickDiffModelService: IQuickDiffModelService
+		@IQuickDiffModelService quickDiffModelService: IQuickDiffModelService,
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocumentsAndEditors);
 
-		this._mainThreadDocuments = this._register(new MainThreadDocuments(extHostContext, this._modelService, this._textFileService, fileService, textModelResolverService, environmentService, uriIdentityService, workingCopyFileService, pathService));
+		this._mainThreadDocuments = this._register(new MainThreadDocuments(extHostContext, this._modelService, this._textFileService, fileService, filesConfigurationService, textModelResolverService, environmentService, uriIdentityService, workingCopyFileService, pathService));
 		extHostContext.set(MainContext.MainThreadDocuments, this._mainThreadDocuments);
 
 		this._mainThreadEditors = this._register(new MainThreadTextEditors(this, extHostContext, codeEditorService, this._editorService, this._editorGroupService, configurationService, quickDiffModelService, uriIdentityService));
@@ -400,7 +402,9 @@ export class MainThreadDocumentsAndEditors extends Disposable implements IMainTh
 
 			// second update dependent document/editor states
 			removedDocuments.forEach(this._mainThreadDocuments.handleModelRemoved, this._mainThreadDocuments);
-			delta.addedDocuments.forEach(this._mainThreadDocuments.handleModelAdded, this._mainThreadDocuments);
+			delta.addedDocuments.forEach((model, index) => {
+				this._mainThreadDocuments.handleModelAdded(model, extHostDelta.addedDocuments?.[index]?.isReadonly);
+			});
 
 			removedEditors.forEach(this._mainThreadEditors.handleTextEditorRemoved, this._mainThreadEditors);
 			addedEditors.forEach(this._mainThreadEditors.handleTextEditorAdded, this._mainThreadEditors);
@@ -415,6 +419,7 @@ export class MainThreadDocumentsAndEditors extends Disposable implements IMainTh
 			EOL: model.getEOL(),
 			languageId: model.getLanguageId(),
 			isDirty: this._textFileService.isDirty(model.uri),
+			isReadonly: this._mainThreadDocuments.isDocumentReadonly(model.uri),
 			encoding: this._textFileService.getEncoding(model.uri)
 		};
 	}

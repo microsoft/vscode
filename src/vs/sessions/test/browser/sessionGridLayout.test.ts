@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { $, addDisposableListener, append } from '../../../base/browser/dom.js';
-import { Direction, ISerializedGrid, IView } from '../../../base/browser/ui/grid/grid.js';
+import { Direction, ISerializedGrid, IView, Sizing } from '../../../base/browser/ui/grid/grid.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { Event } from '../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -632,6 +632,87 @@ suite('Sessions - Grid Layout', () => {
 		grid.reconcile([{ id: c.id, view: c.view }, a, b], 'a');
 		grid.arrange();
 		assert.deepStrictEqual({ order: grid.order, focused: document.activeElement === outside }, { order: ['c', 'a', 'b'], focused: true });
+	});
+
+	test('even sizes keep the arrangement, live content and focus, and leave maximization', () => {
+		const { grid, a, b, c } = harness();
+		grid.reconcile([a, b, c], 'c');
+		grid.resize('c', 800, 200);
+		c.view.element.value = 'unsent input';
+		c.view.element.focus();
+		grid.toggleMaximized('c');
+		grid.evenSizes();
+		assert.deepStrictEqual({
+			geometry: sizes(grid), maximized: grid.maximized,
+			focused: document.activeElement === c.view.element, input: c.view.element.value,
+		}, {
+			geometry: [{ id: 'a', width: 600, height: 600 }, { id: 'b', width: 600, height: 300 }, { id: 'c', width: 600, height: 300 }],
+			maximized: undefined, focused: true, input: 'unsent input',
+		});
+	});
+
+	test('distributed sizing evens the row or column a pane opens in, moves within or into, or leaves', () => {
+		const { grid, a, b } = harness();
+		grid.resize('a', 300, 600);
+		const c = { id: 'c', view: new View() };
+		grid.reconcile([a, b, c], 'c', Sizing.Distribute);
+		const opened = sizes(grid);
+		grid.resize('a', 300, 600);
+		grid.reconcile([a, b, { ...c, placement: { reference: a.id, direction: Direction.Left } }], 'c', Sizing.Distribute);
+		const reordered = sizes(grid);
+		grid.reconcile([a, b, { ...c, placement: { reference: b.id, direction: Direction.Down } }], 'c', Sizing.Distribute);
+		const moved = sizes(grid);
+		grid.reconcile([a, b], 'b', Sizing.Distribute);
+		assert.deepStrictEqual({ opened, reordered, moved, closed: sizes(grid) }, {
+			opened: [{ id: 'a', width: 400, height: 600 }, { id: 'b', width: 400, height: 600 }, { id: 'c', width: 400, height: 600 }],
+			reordered: [{ id: 'c', width: 400, height: 600 }, { id: 'a', width: 400, height: 600 }, { id: 'b', width: 400, height: 600 }],
+			moved: [{ id: 'a', width: 600, height: 600 }, { id: 'b', width: 600, height: 300 }, { id: 'c', width: 600, height: 300 }],
+			closed: [{ id: 'a', width: 600, height: 600 }, { id: 'b', width: 600, height: 600 }],
+		});
+	});
+
+	test('swapping two panes keeps the size of each place, and moves no other pane, a detached one included', () => {
+		const { grid, a, b } = harness();
+		const child = { id: 'child', view: new View(), placement: { reference: b.id, direction: Direction.Left } };
+		grid.reconcile([a, b, child], 'b');
+		grid.resize('a', 300, 600);
+		b.view.element.value = 'unsent input';
+		b.view.element.focus();
+		const before = sizes(grid);
+		const removals = new MutationObserver(() => { });
+		removals.observe(grid.element, { childList: true, subtree: true });
+		const moved = () => removals.takeRecords().flatMap(record => [...record.removedNodes]).map(node => [a, b, child].find(entry => entry.view.element === node)?.id ?? 'other');
+		grid.swap('a', 'b', true);
+		// The panes then give the swapped slots in their new order, the detached pane still after them.
+		grid.reconcile([b, a, child], 'b');
+		const slots = { geometry: sizes(grid), moved: moved(), laidOut: [a, b].map(entry => entry.view.size.width) };
+		// A detached pane keeps its place in the order of the panes.
+		grid.swap('child', 'b', false);
+		grid.reconcile([b, a, child], 'b');
+		const detached = { geometry: sizes(grid), moved: moved() };
+		removals.disconnect();
+		assert.deepStrictEqual({
+			before, slots, detached,
+			focused: document.activeElement === b.view.element, input: b.view.element.value,
+		}, {
+			before: [{ id: 'a', width: 300, height: 600 }, { id: 'child', width: 400, height: 600 }, { id: 'b', width: 500, height: 600 }],
+			slots: { geometry: [{ id: 'b', width: 300, height: 600 }, { id: 'child', width: 400, height: 600 }, { id: 'a', width: 500, height: 600 }], moved: ['b', 'a'], laidOut: [500, 300] },
+			detached: { geometry: [{ id: 'child', width: 300, height: 600 }, { id: 'b', width: 400, height: 600 }, { id: 'a', width: 500, height: 600 }], moved: ['b', 'child'] },
+			focused: true, input: 'unsent input',
+		});
+	});
+
+	test('swapping a pane of a row with a pane of a column gives each the width and height of its new place', () => {
+		const { grid, a, b, c } = harness();
+		grid.reconcile([a, b, c], 'a');
+		const before = sizes(grid);
+		grid.swap('a', 'c', true);
+		grid.reconcile([c, b, a], 'a');
+		assert.deepStrictEqual({ before, after: sizes(grid), below: grid.neighbor('b', Direction.Down), left: grid.neighbor('b', Direction.Left) }, {
+			before: [{ id: 'a', width: 400, height: 600 }, { id: 'b', width: 800, height: 300 }, { id: 'c', width: 800, height: 300 }],
+			after: [{ id: 'c', width: 400, height: 600 }, { id: 'b', width: 800, height: 300 }, { id: 'a', width: 800, height: 300 }],
+			below: 'a', left: 'c',
+		});
 	});
 
 	test('a new leaf can reference another leaf later in the same update', () => {

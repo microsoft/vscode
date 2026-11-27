@@ -20,6 +20,8 @@ import { NullLogService } from '../../../log/common/log.js';
 import type { ITrackedEditSource, ITrackedTurnDatabase } from '../../common/agentHostChangesetService.js';
 import { EMPTY_TREE_OBJECT } from '../../common/agentHostGitService.js';
 import { TestAgentHostGitService } from '../common/testAgentHostGitService.js';
+import { getWorkingDirectoryKey } from '../../common/agentHostWorkingDirectories.js';
+import { withSessionRepositories } from '../../common/meta/agentSessionRepositoriesMeta.js';
 import { buildBranchChangesetUri, buildCompareTurnsChangesetUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, buildWorkingSetChangesetUri, ChangesetKind } from '../../common/changesetUri.js';
 import { ChangesetOperationTargetKind, type InvokeChangesetOperationParams } from '../../common/state/protocol/channels-changeset/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
@@ -391,6 +393,29 @@ suite('AgentHostDiscardChangesOperationHandler', () => {
 			{ workingDirectory: secondRepository.toString(), paths: ['src/file.ts'], options: { staged: true, ref: 'second-baseline' } },
 			{ workingDirectory: secondRepository.toString(), paths: ['src/file.ts'], options: { ref: 'second-baseline' } },
 		]);
+	});
+
+	test('uses a repository found inside a session folder for its files, also beside a folder that is a repository', async () => {
+		const app = URI.file('/repos/app');
+		const work = URI.file('/work');
+		const nested = URI.file('/work/docs');
+		const { handler, gitService, stateManager, session } = setup(disposables, { workingDirectories: [app, work] });
+		gitService.repositoryRoot = undefined;
+		gitService.repositoryRoots.set(app.toString(), app);
+		stateManager.setSessionMeta(session.toString(), withSessionRepositories(stateManager.getSessionState(session.toString())?._meta, {
+			[getWorkingDirectoryKey(work.toString())]: [{ root: nested.toString(), kind: 'nested' }],
+		}));
+		const owner = buildDefaultChatUri(session.toString());
+		const channel = buildBranchChangesetUri(owner);
+		const target = URI.file('/work/docs/guide.md');
+		addChangesetFile(stateManager, channel, {
+			before: { uri: target.toString(), content: { uri: buildGitBlobUri(owner, 'docs-baseline', 'guide.md', target.path) } },
+			after: { uri: target.toString(), content: { uri: target.toString() } },
+		});
+
+		await handler.invoke({ channel, operationId: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES, target: makeResourceTarget(target) }, CancellationToken.None);
+
+		assert.deepStrictEqual(gitService.restoreCalls.map(call => call.workingDirectory), [nested.toString(), nested.toString()]);
 	});
 
 	test('restores a Branch or Uncommitted Changes file inside a submodule from its baseline in the submodule', async () => {

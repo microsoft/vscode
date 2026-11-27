@@ -678,6 +678,8 @@ export class NewChatWidget extends Disposable {
 			canApplyWorkspaceDefault: () => this._canApplyWorkspaceDefault(),
 			sendRequest: async ({ query, attachments, background, userInteraction }) => this._send(query, attachments, background, userInteraction),
 			inputSnapshot: this._draftHost?.input,
+			// The composer of its pane's draft is gone once the draft is sent; a send that didn't start goes to the composer that shows now.
+			restoreUnsentInput: this._detached ? undefined : input => !!this.newSessionComposerService.activeComposer.get()?.restoreUnsentInput?.(input),
 			getSavedDraftId: () => this._savedDraftComposer && this.sessionDraftsService.getDraftRevision(this._savedDraftComposer) ? this._savedDraftComposer.id : undefined,
 			onDidChangeDraft: this._savedDraftComposer ? input => this._savedDraftComposer!.updateInput(input) : undefined,
 			onWillSendDraft: this._savedDraftComposer ? input => {
@@ -1138,7 +1140,8 @@ export class NewChatWidget extends Disposable {
 		this._renderFeedbackBanner(chatWidgetContent);
 		this._trackScheduledDraftLabel(chatWidgetContent);
 		const belowInputSurfaces = dom.$(`.new-session-below-input-surfaces.${chatInputSurfaceStackClass}`);
-		this._newChatInput.render(chatWidgetContent, parent, belowInputSurfaces);
+		// Files and other attachments can be dropped anywhere on the view, not only on the input.
+		this._newChatInput.render(chatWidgetContent, parent, { notices: belowInputSurfaces, dropTarget: element });
 		this._register(autorun(reader => {
 			const isQuickChat = this._isQuickChatComposer.read(reader);
 			const isWorkspacePickerQuickChat = this._isWorkspacePickerQuickChat.read(reader);

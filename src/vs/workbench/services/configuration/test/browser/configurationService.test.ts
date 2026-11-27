@@ -1728,6 +1728,22 @@ suite('WorkspaceService - Initialization', () => {
 		});
 	}));
 
+	test('a scope override can select All Workspaces and reset to the editor workspace', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const folder = joinPath(ROOT, 'a');
+		await testObject.initialize(convertToWorkspacePayload(folder));
+		const scopes: (string | undefined)[] = [];
+		disposables.add(testObject.onDidChangeWorkbenchScope(scope => scopes.push(scope?.toString())));
+		testObject.setWorkbenchScope(undefined);
+		testObject.setWorkbenchScope(undefined);
+		testObject.setWorkbenchScope(joinPath(ROOT, 'b'));
+		testObject.resetWorkbenchScope();
+		testObject.resetWorkbenchScope();
+		assert.deepStrictEqual({ scopes, current: testObject.getWorkbenchScope()?.toString() }, {
+			scopes: [undefined, joinPath(ROOT, 'b').toString(), folder.toString()],
+			current: folder.toString(),
+		});
+	}));
+
 	(isMacintosh ? test.skip : test)('initialize a folder workspace from an empty workspace with no configuration changes', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 
 		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "initialization.testSetting1": "userValue" }'));

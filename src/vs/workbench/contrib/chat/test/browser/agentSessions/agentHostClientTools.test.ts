@@ -1250,7 +1250,7 @@ suite('AgentHostClientTools', () => {
 				createTerminalForEntry: async () => undefined,
 				profiles: observableValue('test', []),
 				getProfileForConnection: () => undefined,
-				registerEntry: () => ({ dispose() { } }),
+				registerEntry: () => ({ setName() { }, dispose() { } }),
 			});
 			instantiationService.stub(IAgentHostSessionWorkingDirectoryResolver, {
 				registerResolver: () => toDisposable(() => { }),

@@ -1034,11 +1034,15 @@ suite('Dev Container Agent Host Connector', () => {
 		assert.throws(() => ensureDevContainerAgentHostsEnabled(configurationService(true, false)), /Remote Agent Host connections are not enabled/);
 	});
 
-	async function connectWithFailure(error: Error, token: CancellationToken, onConnect?: () => void): Promise<string[]> {
+	async function connectWithFailure(error: Error | RegExp, token: CancellationToken, onConnect?: () => void, runningFolderContainer?: boolean): Promise<string[]> {
 		const calls: string[] = [];
 		const channel = new class extends mock<IChannel>() {
-			override call<T>(command: string): Promise<T> {
-				calls.push(command);
+			override call<T>(command: string, args?: unknown): Promise<T> {
+				const config = command === 'connect' && Array.isArray(args) ? args[0] as { readonly requireRunning?: boolean } : undefined;
+				calls.push(config?.requireRunning ? `${command} if running` : command);
+				if (command === 'listFolderContainers') {
+					return Promise.resolve([{ folder: URI.file('/workspace').toString(), running: runningFolderContainer }] as T);
+				}
 				if (command === 'connect') {
 					onConnect?.();
 					return Promise.reject(error);
@@ -1085,7 +1089,7 @@ suite('Dev Container Agent Host Connector', () => {
 		));
 
 		await assert.rejects(
-			connector.createConnection(URI.file('/workspace'), 'devcontainer:test', token),
+			connector.createConnection(URI.file('/workspace'), 'devcontainer:test', token, runningFolderContainer === undefined ? undefined : { resume: true, requireRunning: true }),
 			error,
 		);
 		return calls.map(call => call.replace(/devContainer\.[^:]+/, 'devContainer.<workspace>'));
@@ -1112,6 +1116,17 @@ suite('Dev Container Agent Host Connector', () => {
 		}, {
 			serializedCancellation: ['get:devContainer.<workspace>', 'connect', 'disconnect'],
 			canceledToken: ['get:devContainer.<workspace>', 'connect', 'disconnect', 'disconnect'],
+		});
+	});
+
+	test('connects to a folder container that must run only while it runs, revealing the log in neither case', async () => {
+		const setupError = new Error('Dev Container setup failed');
+		assert.deepStrictEqual({
+			stopped: await connectWithFailure(/The Dev Container of 'workspace' is not running/, CancellationToken.None, undefined, false),
+			running: await connectWithFailure(setupError, CancellationToken.None, undefined, true),
+		}, {
+			stopped: ['listFolderContainers'],
+			running: ['listFolderContainers', 'get:devContainer.<workspace>', 'connect if running', 'disconnect'],
 		});
 	});
 });

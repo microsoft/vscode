@@ -438,12 +438,17 @@ suite('EditorGroupsService', () => {
 		});
 		const [part] = await createPart(instantiationService);
 		part.addGroup(part.activeGroup, GroupDirection.RIGHT);
+		const requested = requestedMenus.filter(id => id === MenuId.EditorTabsBarAddTab).length;
+		// Not in the DOM while its menu has no entries, as while the setting is off.
+		const shown = part.element.querySelectorAll('.tabs-bar-add-tab').length;
+		disposables.add(part.enforcePartOptions({ showTabs: 'single' }));
 
 		assert.deepStrictEqual({
-			requested: requestedMenus.filter(id => id === MenuId.EditorTabsBarAddTab).length,
-			// Hidden while its menu has no entries, as while the setting is off.
-			hidden: [...part.element.querySelectorAll('.tabs-bar-add-tab')].map(element => element.classList.contains('hidden')),
-		}, { requested: 2, hidden: [true, true] });
+			requested,
+			shown,
+			requestedInSingleTabMode: requestedMenus.filter(id => id === MenuId.EditorTabsBarAddTab).length - requested,
+			shownInSingleTabMode: part.element.querySelectorAll('.tabs-bar-add-tab').length,
+		}, { requested: 2, shown: 0, requestedInSingleTabMode: 2, shownInSingleTabMode: 0 });
 	});
 
 	test('save & restore state', async function () {

@@ -100,4 +100,19 @@ suite('ModelProviderIcons', () => {
 			Codicon.info.id,
 		]);
 	});
+
+	test('a model router uses the router icon, whatever its name, unless it has a status icon', () => {
+		const router = createModel('model-router:claude', 'Claude Router', 'agent-host-copilot', { modelRouterRoutes: [{ model: 'opus' }] });
+		const routerWithWarning = createModel('model-router:broken', 'Broken', 'agent-host-copilot', { modelRouterRoutes: [], statusIcon: Codicon.warning });
+
+		assert.deepStrictEqual([
+			getModelProviderIcon(router).id,
+			getCompactModelPickerIcon(router).id,
+			getCompactModelPickerIcon(routerWithWarning).id,
+		], [
+			'chat-model-router',
+			'chat-model-router',
+			Codicon.warningCompact.id,
+		]);
+	});
 });

@@ -6,13 +6,13 @@
 import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { hasKey } from '../../../../../base/common/types.js';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { CanvasesEnabledSettingId } from '../../../../../platform/agentHost/common/agentService.js';
-import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpression, IContext } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IListService } from '../../../../../platform/list/browser/listService.js';
@@ -26,10 +26,14 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
-import { CanvasesPinnedToSidebarContext, IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID } from '../../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
+import { CanvasesPinnedToSidebarContext, IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasSessionCanToggleListingContext, PinnedCanvasSessionInSessionsListContext } from '../../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
 import { ICustomViewDescriptor, ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
-import { ADD_CANVAS_TO_SIDEBAR_COMMAND_ID, CLOSE_PINNED_CANVAS_COMMAND_ID, CLOSE_SIDEBAR_PINNED_CANVAS_COMMAND_ID, REMOVE_CANVAS_FROM_SIDEBAR_COMMAND_ID, TOGGLE_CANVAS_PINNED_TO_SIDEBAR_COMMAND_ID } from '../../electron-browser/pinnedCanvasActions.js';
+import { ADD_CANVAS_TO_SIDEBAR_COMMAND_ID, CLOSE_PINNED_CANVAS_COMMAND_ID, CLOSE_SIDEBAR_PINNED_CANVAS_COMMAND_ID, HIDE_PINNED_CANVAS_SESSION_FROM_LIST_COMMAND_ID, REMOVE_CANVAS_FROM_SIDEBAR_COMMAND_ID, SHOW_PINNED_CANVAS_SESSION_IN_LIST_COMMAND_ID, TOGGLE_CANVAS_PINNED_TO_SIDEBAR_COMMAND_ID } from '../../electron-browser/pinnedCanvasActions.js';
 import { ICanvasReference } from '../../../../../workbench/common/canvasReference.js';
+import { ISessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
+import { HIDE_CANVAS_SESSION_FROM_LIST_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
 
 suite('PinnedCanvasActions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -109,6 +113,56 @@ suite('PinnedCanvasActions', () => {
 			contextMenu: { group: '2_organize', icon: Codicon.unpin, available: true, canvasesDisabled: false },
 			page: { group: '2_organize', icon: Codicon.unpin, available: true, canvasesDisabled: false },
 		});
+	});
+
+	test('offers Show in Sessions List or Hide from Sessions List after Remove from Sidebar, on a sidebar pin and on the canvas page, as its session is listed', () => {
+		const available = {
+			[ChatContextKeys.enabled.key]: true,
+			[IsSessionsWindowContext.key]: true,
+			[`config.${CanvasesEnabledSettingId}`]: true,
+			[PinnedCanvasSessionCanToggleListingContext.key]: true,
+		};
+		const describe = (menu: MenuId) => Object.fromEntries([SHOW_PINNED_CANVAS_SESSION_IN_LIST_COMMAND_ID, HIDE_PINNED_CANVAS_SESSION_FROM_LIST_COMMAND_ID].map(commandId => {
+			const item = getMenuItem(menu, commandId);
+			return [commandId, {
+				title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
+				group: item.group,
+				order: item.order,
+				listed: evaluate(item.when, { ...available, [PinnedCanvasSessionInSessionsListContext.key]: true }),
+				hidden: evaluate(item.when, { ...available, [PinnedCanvasSessionInSessionsListContext.key]: false }),
+				cannotToggle: evaluate(item.when, { ...available, [PinnedCanvasSessionCanToggleListingContext.key]: false }),
+				canvasesDisabled: evaluate(item.when, { ...available, [`config.${CanvasesEnabledSettingId}`]: false }),
+			}];
+		}));
+		const expected = {
+			[SHOW_PINNED_CANVAS_SESSION_IN_LIST_COMMAND_ID]: { title: 'Show in Sessions List', group: '2_organize', order: 20, listed: false, hidden: true, cannotToggle: false, canvasesDisabled: false },
+			[HIDE_PINNED_CANVAS_SESSION_FROM_LIST_COMMAND_ID]: { title: 'Hide from Sessions List', group: '2_organize', order: 21, listed: true, hidden: false, cannotToggle: false, canvasesDisabled: false },
+		};
+
+		assert.deepStrictEqual({ contextMenu: describe(Menus.SidebarCanvasContext), page: describe(AgentsWindowMenus.CustomViewCanvas) }, { contextMenu: expected, page: expected });
+	});
+
+	test('shows or hides the session of a sidebar pin or of the canvas page in the Sessions list, unless it is done', async () => {
+		const entry = upcastPartial<IPinnedCanvas>({ id: 'pin', identity: { providerId: 'local-agent-host', session: URI.parse('session:/a'), chat: URI.parse('chat:/a'), extensionId: 'user:canvases', canvasId: 'plan', instanceId: 'plan' } });
+		const isArchived = observableValue('isArchived', false);
+		const session = upcastPartial<ISession>({ sessionId: 'a', resource: entry.identity.session, title: constObservable('Plan'), isArchived, isAutomation: constObservable(false) });
+		const calls: string[] = [];
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ICustomViewService, upcastPartial<ICustomViewService>({ activeCustomView: constObservable(upcastPartial<ICustomViewDescriptor>({ id: PINNED_CANVAS_PAGE_ID })) }));
+		instantiationService.stub(IPinnedCanvasService, upcastPartial<IPinnedCanvasService>({ entries: constObservable([entry]), selected: constObservable(entry) }));
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({ getSession: resource => resource.toString() === session.resource.toString() ? session : undefined }));
+		instantiationService.stub(ISessionsListModelService, upcastPartial<ISessionsListModelService>({ showCanvasSessions: sessions => { calls.push(`show ${sessions.map(session => session.sessionId)}`); } }));
+		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({ executeCommand: async (id: string, ...args: unknown[]) => { calls.push(`${id} ${(args[0] as ISession).sessionId}`); return undefined; } }));
+		const run = (commandId: string, arg?: string) => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(commandId)!.handler(accessor, arg));
+
+		// A sidebar row passes its pin ID, and the canvas page passes nothing.
+		await run(SHOW_PINNED_CANVAS_SESSION_IN_LIST_COMMAND_ID, entry.id);
+		await run(HIDE_PINNED_CANVAS_SESSION_FROM_LIST_COMMAND_ID);
+		isArchived.set(true, undefined);
+		await run(SHOW_PINNED_CANVAS_SESSION_IN_LIST_COMMAND_ID, entry.id);
+		await run(HIDE_PINNED_CANVAS_SESSION_FROM_LIST_COMMAND_ID);
+
+		assert.deepStrictEqual(calls, ['show a', `${HIDE_CANVAS_SESSION_FROM_LIST_COMMAND_ID} a`]);
 	});
 
 	test('marks the chat done only when Close Canvas is chosen on a sidebar pin, not on the canvas page', async () => {

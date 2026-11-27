@@ -162,6 +162,19 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		}
 
 		const toolIcon = !context.inToolConfirmationCarousel ? dom.$('span.chat-tool-call-icon', { 'aria-hidden': 'true' }) : undefined;
+		const updateToolIcon = () => {
+			if (!toolIcon) {
+				return;
+			}
+			const message = IChatToolInvocation.isComplete(toolInvocation) ? toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage : undefined;
+			const icon = hasToolInvocationError(toolInvocation) ? Codicon.error : getToolInvocationIcon(toolInvocation.toolId, {
+				icon: toolInvocation.icon ?? (isImageGenerationToolInvocation(toolInvocation) ? Codicon.fileMedia : undefined),
+				source: toolInvocation.source,
+				toolSpecificData: toolInvocation.toolSpecificData,
+			}, typeof message === 'string' ? message : message?.value);
+			toolIcon.className = 'chat-tool-call-icon';
+			toolIcon.classList.add(...ThemeIcon.asClassNameArray(getCompactCodicon(icon)));
+		};
 
 		// Update the todo list service if this tool invocation contains todo data
 		if (toolInvocation.toolSpecificData?.kind === 'todoList') {
@@ -183,6 +196,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			let previousState = toolInvocation.state.get();
 			let previousDataKind = toolInvocation.toolSpecificDataKind.get();
 			let previousToolSpecificData = toolInvocation.toolSpecificData;
+			let previousIcon = toolInvocation.icon;
 			this._register(autorun(reader => {
 				const state = toolInvocation.state.read(reader);
 				const dataKind = toolInvocation.toolSpecificDataKind.read(reader);
@@ -191,14 +205,18 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				const stateChanged = state.type !== previousState.type;
 				const dataKindChanged = dataKind !== previousDataKind;
 				const dataChanged = state !== previousState && toolSpecificData !== previousToolSpecificData;
+				const iconChanged = toolInvocation.icon !== previousIcon && (!toolInvocation.icon || !previousIcon || !ThemeIcon.isEqual(toolInvocation.icon, previousIcon));
 				const confirmationMessagesChanged = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
 					&& previousState.type === IChatToolInvocation.StateKind.WaitingForConfirmation
 					&& state.confirmationMessages !== previousState.confirmationMessages;
 				previousState = state;
 				previousDataKind = dataKind;
 				previousToolSpecificData = toolSpecificData;
+				previousIcon = toolInvocation.icon;
 				if (stateChanged || dataKindChanged || dataChanged || confirmationMessagesChanged || imageGenerationProgressSuppressed !== this.imageGenerationProgressSuppressed) {
 					render();
+				} else if (iconChanged) {
+					updateToolIcon();
 				}
 			}));
 
@@ -306,14 +324,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			this.domNode.classList.toggle('generated-image-tool-invocation', this.renderedGeneratedImageResult);
 			this.domNode.classList.toggle('chat-tool-call-with-icon', !!toolIcon);
 			if (toolIcon) {
-				const message = IChatToolInvocation.isComplete(toolInvocation) ? toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage : undefined;
-				const icon = error ? Codicon.error : getToolInvocationIcon(toolInvocation.toolId, {
-					icon: toolInvocation.icon ?? (isImageGenerationToolInvocation(toolInvocation) ? Codicon.fileMedia : undefined),
-					source: toolInvocation.source,
-					toolSpecificData: toolInvocation.toolSpecificData,
-				}, typeof message === 'string' ? message : message?.value);
-				toolIcon.className = 'chat-tool-call-icon';
-				toolIcon.classList.add(...ThemeIcon.asClassNameArray(getCompactCodicon(icon)));
+				updateToolIcon();
 				if (!toolIcon.parentElement) {
 					this.domNode.prepend(toolIcon);
 				}

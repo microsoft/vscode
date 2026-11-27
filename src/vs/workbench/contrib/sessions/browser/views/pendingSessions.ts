@@ -71,8 +71,8 @@ export function matchesPendingSession(item: IPendingSessionItem, filters: Sessio
 			return item.isQuickChat === true;
 		}
 		if (workspace) {
-			return item.isQuickChat !== true && item.environmentId === workspace.environment
-				&& !!item.folderUri && getComparisonKey(item.folderUri) === workspace.resource;
+			return item.isQuickChat !== true && !!item.folderUri && !!item.environmentId
+				&& filters.isSameInboxWorkspace({ environment: item.environmentId, resource: getComparisonKey(item.folderUri) }, workspace);
 		}
 	}
 	return true;

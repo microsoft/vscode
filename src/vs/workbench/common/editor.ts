@@ -1217,7 +1217,14 @@ export enum EditorCloseContext {
 	 * The editor closed because another editor turned into preview
 	 * and this used to be the preview editor before.
 	 */
-	UNPIN
+	UNPIN,
+
+	/**
+	 * The editor closed because a working set that switches the editors of one
+	 * context for the ones of another was applied, for example on a folder location
+	 * switch. It was switched out and not closed by the user.
+	 */
+	SWITCH
 }
 
 export interface IEditorCloseEvent extends IEditorIdentifier {

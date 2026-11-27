@@ -630,6 +630,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	// Request-owned keys keep original tool sources alive only while their requests are retained.
 	private _requestToolsSources = new WeakMap<object, IObservable<UserSelectedTools>>();
 
+	/**
+	 * Created once: the input is parsed as it changes, also while the widget's
+	 * host tears down, when its instantiation service can already be disposed.
+	 */
+	private readonly requestParser: ChatRequestParser;
+
 	private parsedChatRequest: IParsedChatRequest | undefined;
 	get parsedInput() {
 		if (this.parsedChatRequest === undefined) {
@@ -655,8 +661,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 * that an inline attachment pill stands for get the pill's range in the input.
 	 */
 	private parseInputForEditor(context: IChatParserContext): IParsedChatRequest {
-		const parsed = this.instantiationService.createInstance(ChatRequestParser)
-			.parseChatRequestWithReferences(getDynamicVariablesForWidget(this), getSelectedToolAndToolSetsForWidget(this), this.getInput(), this.location, context);
+		const parsed = this.requestParser.parseChatRequestWithReferences(getDynamicVariablesForWidget(this), getSelectedToolAndToolSetsForWidget(this), this.getInput(), this.location, context);
 		return this.input.inlineAttachments?.rebaseParsedRequest(parsed) ?? parsed;
 	}
 
@@ -727,6 +732,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatOpenDiagnosticsService private readonly chatOpenDiagnosticsService: IChatOpenDiagnosticsService,
 	) {
 		super();
+		this.requestParser = instantiationService.createInstance(ChatRequestParser);
 		this._persistentContentHeight = viewOptions.persistentContentHeight ?? 0;
 		this.policyRequiresAgentHost = observableFromEvent(this, Event.any(
 			managedSettingsService.onDidChangeManagedSettings,
@@ -3110,6 +3116,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			renderWorkingSet: this.viewOptions.enableWorkingSet === 'explicit',
 			supportsChangingModes: this.viewOptions.supportsChangingModes,
 			dndContainer: this.viewOptions.dndContainer,
+			dndChat: this.viewOptions.dndChat,
 			inputEditorMinLines: this.viewOptions.inputEditorMinLines,
 			inputEditorOptions: this.viewOptions.inputEditorOptions,
 			inputEditorPadding: this.viewOptions.inputEditorPadding,
@@ -3871,7 +3878,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (!inputValue.trimStart().startsWith(chatAgentLeader) || IsSessionsWindowContext.getValue(this.contextKeyService) || this.viewOptions.isSessionsWindow) {
 			return undefined;
 		}
-		const parsed = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(sessionResource, inputValue, this.location, { selectedAgent: this._lastSelectedAgent });
+		const parsed = this.requestParser.parseChatRequest(sessionResource, inputValue, this.location, { selectedAgent: this._lastSelectedAgent });
 		const participantPart = parsed.parts.find((part): part is ChatRequestAgentPart => part instanceof ChatRequestAgentPart);
 		if (!participantPart || participantPart.agent.isCore || this.chatSessionsService.getChatSessionContribution(participantPart.agent.id)) {
 			return undefined;
@@ -4632,7 +4639,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (!viewModel?.model.hasActiveRequest.get()) {
 			return false;
 		}
-		const parsedRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(
+		const parsedRequest = this.requestParser.parseChatRequest(
 			viewModel.sessionResource,
 			input,
 			this.location,
@@ -4706,14 +4713,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (!viewModel) {
 			return { executed: false, preserveInput: false };
 		}
-		const parsedRequest = parsedInput ?? this.instantiationService.createInstance(ChatRequestParser)
-			.parseChatRequestWithReferences(getDynamicVariablesForWidget(this), getSelectedToolAndToolSetsForWidget(this), input, this.location, {
-				selectedAgent: this._lastSelectedAgent,
-				mode: this.input.currentModeKind,
-				attachmentCapabilities: this.attachmentCapabilities,
-				forcedAgent: this._lockedAgent?.id ? this.chatAgentService.getAgent(this._lockedAgent.id) : undefined,
-				sessionType: getChatSessionType(viewModel.model.sessionResource)
-			});
+		const parsedRequest = parsedInput ?? this.requestParser.parseChatRequestWithReferences(getDynamicVariablesForWidget(this), getSelectedToolAndToolSetsForWidget(this), input, this.location, {
+			selectedAgent: this._lastSelectedAgent,
+			mode: this.input.currentModeKind,
+			attachmentCapabilities: this.attachmentCapabilities,
+			forcedAgent: this._lockedAgent?.id ? this.chatAgentService.getAgent(this._lockedAgent.id) : undefined,
+			sessionType: getChatSessionType(viewModel.model.sessionResource)
+		});
 		const commandPart = getImmediateSilentSlashCommandPart(parsedRequest);
 		if (!commandPart) {
 			return { executed: false, preserveInput: false };

@@ -2545,12 +2545,20 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 	}
 
 	renderShortcut(element: ISessionSection, template: ISessionSectionTemplate): void {
-		template.container.closest('.monaco-list-row')?.classList.add('session-list-shortcut-row');
-		this.renderSection(element, false, false, template);
+		const row = template.container.closest('.monaco-list-row');
+		row?.classList.add('session-list-shortcut-row');
+		this.renderSection(element, element.navigationCollapsed !== undefined, element.navigationCollapsed ?? false, template);
+		if (element.navigationCollapsed !== undefined) {
+			row?.setAttribute('role', 'button');
+			row?.setAttribute('aria-expanded', String(!element.navigationCollapsed));
+		} else {
+			row?.removeAttribute('aria-expanded');
+		}
 	}
 
 	private renderSection(element: ISessionSection, collapsible: boolean, collapsed: boolean, template: ISessionSectionTemplate): void {
 		template.elementDisposables.clear();
+		template.icon.style.color = '';
 		this.renderedSections.set(template, element);
 		template.container.closest('.monaco-list-row')?.classList.toggle('sessions-disclosure-row', collapsible);
 		const groupDepth = this.getGroupDepth(element);
@@ -2656,7 +2664,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			} : defaultIcon;
 			renderSessionHeaderIcon(
 				template,
-				element.sessions,
+				element.summarySessions ?? element.sessions,
 				icon,
 				this.showUnreadInCollapsedSections,
 				this.sessionsWithFailingCI,
@@ -2672,7 +2680,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			template.countLabel.textContent = '';
 			template.count.style.display = 'none';
 		} else {
-			template.countLabel.textContent = String(element.pendingItems?.length ?? element.sessions.length);
+			template.countLabel.textContent = String(element.pendingItems?.length ?? (element.summarySessions ?? element.sessions).length);
 			template.count.style.display = '';
 		}
 		if (element.pinnedCanvas) {
@@ -3281,7 +3289,7 @@ export class SessionsAccessibilityProvider {
 			if (isShortcutSection(element.id) || element.id === CANVASES_SECTION_ID) {
 				return element.label;
 			}
-			return this.getSectionAriaLabel(element.label, element.sessions);
+			return this.getSectionAriaLabel(element.label, element.summarySessions ?? element.sessions);
 		}
 		if (isSessionShowMore(element)) {
 			if (element.mode === 'less') {

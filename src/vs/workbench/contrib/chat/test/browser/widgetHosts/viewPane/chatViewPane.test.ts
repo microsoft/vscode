@@ -27,7 +27,7 @@ import { TestContextService, TestStorageService } from '../../../../../../test/c
 import { ChatViewPane } from '../../../../browser/widgetHosts/viewPane/chatViewPane.js';
 import { IChatViewSessionsList, IChatViewSessionsListProvider } from '../../../../browser/widgetHosts/viewPane/chatViewSessionsList.js';
 import { IChatWidgetViewModelChangeEvent } from '../../../../browser/chat.js';
-import { IChatViewHostNewChatOptions, IChatViewHostShownSession, IChatViewNewChatTarget } from '../../../../browser/chatViewHost.js';
+import { IChatViewDropTargetProvider, IChatViewHostNewChatOptions, IChatViewHostService, IChatViewHostShownSession, IChatViewNewChatTarget } from '../../../../browser/chatViewHost.js';
 import { ChatWidget } from '../../../../browser/widget/chatWidget.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { ChatOpenDiagnosticsService } from '../../../../common/chatOpenDiagnosticsService.js';
@@ -1341,9 +1341,8 @@ suite('ChatViewPane widget readiness', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('whenWidget resolves to the widget the body creates, once it is rendered, as the body creates its controls', async () => {
-		const steps: string[] = [];
-		const store = disposables.add(new DisposableStore());
+	/** The Chat view, with what its body reads to create its controls; `steps` says what the widget did. */
+	function createPane(store: DisposableStore, chatViewHostService: Partial<IChatViewHostService>, steps: string[] = []) {
 		const widget = upcastPartial<ChatWidget>({
 			render: () => { steps.push('render'); },
 			setVisible: () => { },
@@ -1353,7 +1352,6 @@ suite('ChatViewPane widget readiness', () => {
 			createInstance: () => ({ onDidChangeHeight: Event.None, dispose: () => { } }),
 			createChild: () => ({ createInstance: (ctor: unknown) => ctor === ChatWidget ? widget : { dispose: () => { } }, dispose: () => { } }),
 		};
-		// The order of the real Chat view: its title control, then its widget, which it renders
 		const pane = Object.assign(Object.create(ChatViewPane.prototype), {
 			_store: store,
 			_widgetCreated: new DeferredPromise<ChatWidget>(),
@@ -1367,14 +1365,48 @@ suite('ChatViewPane widget readiness', () => {
 			onDidChangeBodyVisibility: Event.None,
 			isBodyVisible: () => true,
 			welcomeController: undefined,
-			chatViewHostService: { sessionsOnly: constObservable(false) },
+			chatViewHostService: { sessionsOnly: constObservable(false), dropTarget: constObservable(undefined), ...chatViewHostService },
 			relayout: () => { },
 		}) as ChatViewPane;
+		const createChatControl = () => (Reflect.get(ChatViewPane.prototype, 'createChatControl') as (this: ChatViewPane, parent: HTMLElement) => ChatWidget).call(pane, mainWindow.document.createElement('div'));
+		return { pane, widget, createChatControl };
+	}
+
+	test('whenWidget resolves to the widget the body creates, once it is rendered, as the body creates its controls', async () => {
+		const steps: string[] = [];
+		const store = disposables.add(new DisposableStore());
+		// The order of the real Chat view: its title control, then its widget, which it renders
+		const { pane, widget, createChatControl } = createPane(store, {}, steps);
 		pane.whenWidget.then(created => steps.push(created === widget ? 'resolved to the widget' : `resolved to ${created}`));
 
-		(Reflect.get(ChatViewPane.prototype, 'createChatControl') as (this: ChatViewPane, parent: HTMLElement) => ChatWidget).call(pane, mainWindow.document.createElement('div'));
+		createChatControl();
 		await timeout(0);
 
 		assert.deepStrictEqual(steps, ['render', 'resolved to the widget']);
+	});
+
+	test('the chat opens what a feature drops on it only while no host replaces the Chat view, such as the chat area, where the sessions open then', () => {
+		const store = disposables.add(new DisposableStore());
+		const replaced = observableValue('replaced', true);
+		const targets: string[] = [];
+		const dropTarget: IChatViewDropTargetProvider = {
+			create: () => {
+				targets.push('created');
+				return toDisposable(() => targets.push('disposed'));
+			},
+		};
+		const { createChatControl } = createPane(store, { dropTarget: constObservable(dropTarget), replaced });
+
+		createChatControl();
+		const whileReplaced = [...targets];
+		replaced.set(false, undefined);
+		const hostingItsChats = [...targets];
+		replaced.set(true, undefined);
+
+		assert.deepStrictEqual({ whileReplaced, hostingItsChats, replacedAgain: targets }, {
+			whileReplaced: [],
+			hostingItsChats: ['created'],
+			replacedAgain: ['created', 'disposed'],
+		});
 	});
 });

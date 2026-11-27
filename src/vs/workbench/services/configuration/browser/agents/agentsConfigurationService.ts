@@ -62,6 +62,7 @@ export class AgentsConfigurationService extends Disposable implements IWorkbench
 	private readonly userConfiguration: UserConfiguration;
 	private readonly workspaceConfiguration: WorkspaceConfiguration;
 	private readonly cachedFolderConfigs = this._register(new DisposableMap<URI, FolderConfiguration>(new ResourceMap()));
+	private readonly pendingFolderChanges = new WeakMap<IWorkspaceFoldersChangeEvent, { readonly previousData: IConfigurationData; readonly previousWorkspace: Workspace; readonly change: IConfigurationChange }>();
 	private readonly agentsWindowReadOnlyKeys = new Set<string>();
 
 	private readonly _onDidChangeConfiguration = this._register(new Emitter<IConfigurationChangeEvent>());
@@ -113,7 +114,7 @@ export class AgentsConfigurationService extends Disposable implements IWorkbench
 		this._register(this.policyConfiguration.onDidChangeConfiguration(configurationModel => this.onPolicyConfigurationChanged(configurationModel)));
 		this._register(this.userConfiguration.onDidChangeConfiguration(userConfiguration => this.onUserConfigurationChanged(userConfiguration)));
 		this._register(this.workspaceConfiguration.onDidUpdateConfiguration(() => this.onWorkspaceConfigurationChanged()));
-		this._register(this.workspaceService.onWillChangeWorkspaceFolders(e => e.join(this.loadFolderConfigurations(e.changes.added))));
+		this._register(this.workspaceService.onWillChangeWorkspaceFolders(e => e.join(this.loadAddedFolderConfigurations(e.changes))));
 		this._register(this.workspaceService.onDidChangeWorkspaceFolders(e => this.onWorkspaceFoldersChanged(e)));
 	}
 
@@ -415,11 +416,28 @@ export class AgentsConfigurationService extends Disposable implements IWorkbench
 		return this._configuration.compareAndUpdateWorkspaceConfiguration(this.workspaceConfiguration.getConfiguration());
 	}
 
-	private onWorkspaceFoldersChanged(e: IWorkspaceFoldersChangeEvent): void {
-		// Remove configurations for removed folders
+	/**
+	 * Loads the settings of folders about to be added and remembers them with
+	 * the configuration and folders from before this folders change, so that
+	 * the change is fired once the workspace has its new folders. A change that
+	 * never completes leaves nothing behind for the next one.
+	 */
+	private async loadAddedFolderConfigurations(changes: IWorkspaceFoldersChangeEvent): Promise<void> {
 		const previousData = this._configuration.toData();
-		const keys: string[] = [];
-		const overrides: [string, string[]][] = [];
+		// The workspace is updated in place, so keep its folders from before the change.
+		const workspace = this.workspaceService.getWorkspace() as Workspace;
+		const previousWorkspace = new Workspace(workspace.id, [...workspace.folders], workspace.transient, workspace.configuration ?? null, uri => this.uriIdentityService.extUri.ignorePathCasing(uri), workspace.name);
+		const change = await this.loadFolderConfigurations(changes.added);
+		this.pendingFolderChanges.set(changes, { previousData, previousWorkspace, change });
+	}
+
+	private onWorkspaceFoldersChanged(e: IWorkspaceFoldersChangeEvent): void {
+		const pending = this.pendingFolderChanges.get(e);
+		this.pendingFolderChanges.delete(e);
+		const previousData = pending?.previousData ?? this._configuration.toData();
+		const keys: string[] = [...pending?.change.keys ?? []];
+		const overrides: [string, string[]][] = [...pending?.change.overrides ?? []];
+		// Remove configurations for removed folders
 		for (const folder of e.removed) {
 			const change = this._configuration.compareAndDeleteFolderConfiguration(folder.uri);
 			keys.push(...change.keys);
@@ -427,7 +445,7 @@ export class AgentsConfigurationService extends Disposable implements IWorkbench
 			this.cachedFolderConfigs.deleteAndDispose(folder.uri);
 		}
 		if (keys.length || overrides.length) {
-			this.triggerConfigurationChange({ keys, overrides }, previousData, ConfigurationTarget.WORKSPACE_FOLDER);
+			this.triggerConfigurationChange({ keys, overrides }, previousData, ConfigurationTarget.WORKSPACE_FOLDER, pending?.previousWorkspace);
 		}
 	}
 
@@ -442,7 +460,9 @@ export class AgentsConfigurationService extends Disposable implements IWorkbench
 		}
 	}
 
-	private async loadFolderConfigurations(folders: readonly IWorkspaceFolder[]): Promise<void> {
+	private async loadFolderConfigurations(folders: readonly IWorkspaceFolder[]): Promise<IConfigurationChange> {
+		const keys: string[] = [];
+		const overrides: [string, string[]][] = [];
 		for (const folder of folders) {
 			let folderConfiguration = this.cachedFolderConfigs.get(folder.uri);
 			if (!folderConfiguration) {
@@ -451,14 +471,17 @@ export class AgentsConfigurationService extends Disposable implements IWorkbench
 				this.cachedFolderConfigs.set(folder.uri, folderConfiguration);
 			}
 			const configurationModel = await folderConfiguration.loadConfiguration();
-			this._configuration.updateFolderConfiguration(folder.uri, configurationModel);
+			const change = this._configuration.compareAndUpdateFolderConfiguration(folder.uri, configurationModel);
+			keys.push(...change.keys);
+			overrides.push(...change.overrides);
 		}
+		return { keys, overrides };
 	}
 
-	private triggerConfigurationChange(change: IConfigurationChange, previousData: IConfigurationData, target: ConfigurationTarget): void {
+	private triggerConfigurationChange(change: IConfigurationChange, previousData: IConfigurationData, target: ConfigurationTarget, previousWorkspace?: Workspace): void {
 		if (change.keys.length) {
 			const workspace = this.workspaceService.getWorkspace() as Workspace;
-			const event = new ConfigurationChangeEvent(change, { data: previousData, workspace }, this._configuration, workspace, this.logService);
+			const event = new ConfigurationChangeEvent(change, { data: previousData, workspace: previousWorkspace ?? workspace }, this._configuration, workspace, this.logService);
 			event.source = target;
 			this._onDidChangeConfiguration.fire(event);
 		}

@@ -23,7 +23,7 @@ import { ISessionsManagementService } from '../../../../../workbench/contrib/ses
 import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { OrganizeSessionsListTool, ReadSessionsListTool } from '../../browser/sessionsListTools.js';
 import { SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
-import { DEFAULT_SESSIONS_GROUPINGS, SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { DEFAULT_SESSIONS_GROUPINGS, SessionsView, SessionsViewGroupingState } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { createListHarness, createTestSession } from './sessionsListTestUtils.js';
 import { TestSessionsList } from '../../../../../workbench/contrib/sessions/test/browser/views/testSessionsList.js';
 
@@ -94,9 +94,10 @@ suite('Sessions - Sessions list tools', () => {
 			set currentGrouping(grouping: SessionsGrouping) { state.grouping = grouping; },
 			get grouping() { return state.grouping; },
 			get inboxAvailable(): boolean { return Reflect.get(SessionsView.prototype, 'inboxAvailable', this); },
+			get canEnterInbox(): boolean { return Reflect.get(SessionsView.prototype, 'canEnterInbox', this); },
 			offeredGroupings: DEFAULT_SESSIONS_GROUPINGS,
 			configurationService,
-			storageService,
+			groupingState: new SessionsViewGroupingState(undefined, storageService, configurationService),
 			chatEntitlementService: { sentiment: { hidden: false } },
 			sessionsControl: list,
 			updateHeaderLayout: () => { },

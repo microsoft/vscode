@@ -84,7 +84,7 @@ suite('SessionsServiceNavigationService', () => {
 			otherSession: await closed({ session: other, openChats: [chat] }),
 			noPane: await closed(undefined),
 		}, {
-			shown: [['closeChat', session, { resource: chat.resource }]],
+			shown: [['closeChat', session, { resource: chat.resource }, { showNewSession: true }]],
 			notOpen: [],
 			otherSession: [],
 			noPane: [],

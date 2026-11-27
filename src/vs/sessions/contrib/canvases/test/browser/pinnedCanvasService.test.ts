@@ -30,6 +30,7 @@ import { IChatEntitlementService } from '../../../../../workbench/services/chat/
 import { AbstractCustomView, ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { CustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionsNavigationService } from '../../../../../workbench/contrib/sessions/browser/sessionsNavigationService.js';
 import { IChat, ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { IChatDeletedEvent, ISessionCanvasClosedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
@@ -69,6 +70,7 @@ suite('PinnedCanvasService', () => {
 
 	function createSession(resource: string, chats: readonly IChat[]) {
 		return upcastPartial<ISession>({
+			sessionId: resource,
 			providerId: 'local-agent-host',
 			resource: URI.parse(resource),
 			chats: observableValue('chats', chats),
@@ -82,11 +84,12 @@ suite('PinnedCanvasService', () => {
 		return { providerId: session.providerId, session: session.resource, chat: chat.resource, canvas: canvas.resource };
 	}
 
-	function createHarness(options: { readonly sessions: readonly ISession[]; readonly storage?: InMemoryStorageService; readonly activeSession?: ITestSessionWithChat; readonly observesChatCanvases?: boolean; readonly closeCompleted?: Promise<void>; readonly closeCanvas?: (canvas: ICanvas) => Promise<void>; readonly openCanvas?: () => Promise<void> }) {
+	function createHarness(options: { readonly sessions: readonly ISession[]; readonly storage?: InMemoryStorageService; readonly activeSession?: ITestSessionWithChat; readonly observesChatCanvases?: boolean; readonly closeCompleted?: Promise<void>; readonly closeCanvas?: (canvas: ICanvas) => Promise<void>; readonly openCanvas?: () => Promise<void>; readonly hiddenSessionIds?: readonly string[] }) {
 		const disposables = store.add(new DisposableStore());
 		const sessionsChanged = disposables.add(new Emitter<ISessionsChangeEvent>());
 		const chatDeleted = disposables.add(new Emitter<IChatDeletedEvent>());
 		const sessionArchived = disposables.add(new Emitter<ISession>());
+		const sessionUnarchived = disposables.add(new Emitter<ISession>());
 		const canvasClosed = disposables.add(new Emitter<ISessionCanvasClosedEvent>());
 		const observed: string[] = [];
 		const released: string[] = [];
@@ -100,13 +103,30 @@ suite('PinnedCanvasService', () => {
 		const openedCanvases: string[] = [];
 		/** Canvas closes, archives and grid navigation, in order. */
 		const lifecycle: string[] = [];
+		/** The sessions listed in the Sessions list again because none of their canvases is pinned. */
+		const listedSessions: string[] = [];
+		const hiddenSessionIds = observableValue<ReadonlySet<string>>('hiddenSessionIds', new Set(options.hiddenSessionIds));
 
 		const storage = options.storage ?? disposables.add(new InMemoryStorageService());
 		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(ISessionsListModelService, upcastPartial<ISessionsListModelService>({
+			isSessionListed: (session, reader) => !hiddenSessionIds.read(reader).has(session.sessionId),
+			showCanvasSessions: sessions => {
+				listedSessions.push(...sessions.map(session => session.resource.toString()));
+				const next = new Set(hiddenSessionIds.get());
+				for (const session of sessions) {
+					next.delete(session.sessionId);
+				}
+				hiddenSessionIds.set(next, undefined);
+			},
+		}));
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+			getSessions: () => [...options.sessions],
 			getSession: resource => options.sessions.find(session => session.resource.toString() === resource.toString()),
 			onDidChangeSessions: sessionsChanged.event,
 			onDidArchiveSession: sessionArchived.event,
+			onDidUnarchiveSession: sessionUnarchived.event,
+			onDidReplaceSession: Event.None,
 			onDidDeleteSession: Event.None,
 			onDidDeleteChat: chatDeleted.event,
 			onDidCloseCanvas: canvasClosed.event,
@@ -138,7 +158,10 @@ suite('PinnedCanvasService', () => {
 				lifecycle.push(`close ${canvas.resource}`);
 				canvasClosed.fire({ session, chatResource: chat.resource, canvasResource: canvas.resource });
 			},
-			archiveSession: async session => { lifecycle.push(`archive session ${session.resource}`); },
+			archiveSession: async session => {
+				lifecycle.push(`archive session ${session.resource}`);
+				(session.isArchived as ISettableObservable<boolean>).set(true, undefined);
+			},
 			archiveChat: async (_session, chat) => { lifecycle.push(`archive chat ${chat.resource}`); },
 		}));
 		instantiationService.stub(ISessionsNavigationService, upcastPartial<ISessionsNavigationService>({
@@ -180,8 +203,8 @@ suite('PinnedCanvasService', () => {
 			canvas: entry.reference.get()?.canvas.toString(),
 		}));
 		return {
-			service, storage, customViewService, observed, released, openedChats, openedCanvases, notifications, notificationActions, contextKeyService, chatObservations, lifecycle,
-			sessionsChanged, chatDeleted, sessionArchived, canvasClosed, setLive, setChatCanvases, setCanvasesEnabled, snapshot,
+			service, storage, customViewService, observed, released, openedChats, openedCanvases, notifications, notificationActions, contextKeyService, chatObservations, lifecycle, listedSessions,
+			sessionsChanged, chatDeleted, sessionArchived, sessionUnarchived, canvasClosed, setLive, setChatCanvases, setCanvasesEnabled, snapshot,
 			dispose: () => disposables.dispose(),
 		};
 	}
@@ -338,6 +361,72 @@ suite('PinnedCanvasService', () => {
 		await harness.service.closeCanvas(reference(session, chat, canvas), { markChatDone: true });
 
 		assert.deepStrictEqual(harness.lifecycle, ['close ahp-canvas:/chat/plan']);
+	});
+
+	test('lists the session of a pin removed from the sidebar once none of its canvases is pinned, unless the session is done', () => {
+		const [first, second, nested, other, archived] = ['first', 'second', 'nested', 'other', 'archived'].map(id => createCanvas(id));
+		const mainChat = createChat('chat:/a', [first, second]);
+		const sideChat = createChat('chat:/a-side', [nested]);
+		const session = createSession('session:/a', [mainChat.chat, sideChat.chat]);
+		const otherChat = createChat('chat:/b', [other]);
+		const otherSession = createSession('session:/b', [otherChat.chat]);
+		const archivedChat = createChat('chat:/c', [archived]);
+		const archivedSession = createSession('session:/c', [archivedChat.chat]);
+		const harness = createHarness({ sessions: [session, otherSession, archivedSession] });
+		for (const [owner, chat, canvas] of [[session, mainChat.chat, first], [session, mainChat.chat, second], [session, sideChat.chat, nested], [otherSession, otherChat.chat, other], [archivedSession, archivedChat.chat, archived]] as const) {
+			harness.service.pin(reference(owner, chat, canvas));
+		}
+
+		harness.service.unpin(reference(session, mainChat.chat, first));
+		harness.service.unpin(reference(session, mainChat.chat, second));
+		const whilePinned = [...harness.listedSessions];
+		harness.chatDeleted.fire({ session, sessionResource: session.resource, chatResource: sideChat.chat.resource });
+		harness.service.unpin(reference(otherSession, otherChat.chat, other));
+		(archivedSession.isArchived as ISettableObservable<boolean>).set(true, undefined);
+		harness.sessionArchived.fire(archivedSession);
+
+		assert.deepStrictEqual({ whilePinned, listed: harness.listedSessions, entries: harness.service.entries.get().length }, {
+			whilePinned: [],
+			listed: ['session:/a', 'session:/b'],
+			entries: 0,
+		});
+	});
+
+	test('lists the session of a canvas closed from the sidebar only when its chat could not be marked done, or when its session is not', async () => {
+		const [done, running, page, side] = ['done', 'running', 'page', 'side'].map(id => createCanvas(id));
+		const doneChat = createChat('chat:/a', [done]);
+		const doneSession = createSession('session:/a', [doneChat.chat]);
+		const runningChat = createChat('chat:/b', [running]);
+		const runningSession = createSession('session:/b', [runningChat.chat]);
+		const pageChat = createChat('chat:/c', [page]);
+		const pageSession = createSession('session:/c', [pageChat.chat]);
+		const mainChat = createChat('chat:/d', []);
+		const sideChat = createChat('chat:/d-side', [side]);
+		const nestedSession = createSession('session:/d', [mainChat.chat, sideChat.chat]);
+		const harness = createHarness({ sessions: [doneSession, runningSession, pageSession, nestedSession] });
+		for (const [owner, chat, canvas] of [[doneSession, doneChat.chat, done], [runningSession, runningChat.chat, running], [pageSession, pageChat.chat, page], [nestedSession, sideChat.chat, side]] as const) {
+			harness.service.pin(reference(owner, chat, canvas));
+			harness.setLive(canvas, canvas.resource);
+		}
+		(runningSession.status as ISettableObservable<SessionStatus>).set(SessionStatus.InProgress, undefined);
+
+		await harness.service.closeCanvas(reference(doneSession, doneChat.chat, done), { markChatDone: true });
+		await harness.service.closeCanvas(reference(runningSession, runningChat.chat, running), { markChatDone: true });
+		await harness.service.closeCanvas(reference(pageSession, pageChat.chat, page));
+		await harness.service.closeCanvas(reference(nestedSession, sideChat.chat, side), { markChatDone: true });
+
+		assert.deepStrictEqual({ lifecycle: harness.lifecycle, listed: harness.listedSessions }, {
+			lifecycle: [
+				'close ahp-canvas:/chat/done',
+				'archive session session:/a',
+				'close ahp-canvas:/chat/running',
+				'close ahp-canvas:/chat/page',
+				'close ahp-canvas:/chat/side',
+				'archive chat chat:/d-side',
+				'close archived chat chat:/d-side',
+			],
+			listed: ['session:/b', 'session:/c', 'session:/d'],
+		});
 	});
 
 	test('removes pins of a session reported removed, but not of a session replaced under the same resource', () => {
@@ -1064,6 +1153,51 @@ suite('PinnedCanvasService', () => {
 			state: PinnedCanvasState.Pending,
 			reconnecting: false,
 			openedChats: [],
+		});
+	});
+
+	test('lists an unpinned hidden session when its pending archive is rejected or its confirmed archive is undone, while keeping confirmed archives hidden', () => {
+		const [rejectedCanvas, confirmedCanvas] = [createCanvas('rejected'), createCanvas('confirmed')];
+		const { chat: rejectedChat } = createChat('chat:/rejected', [rejectedCanvas]);
+		const { chat: confirmedChat } = createChat('chat:/confirmed', [confirmedCanvas]);
+		const rejectedPending = observableValue('rejectedPending', false);
+		const rejectedSession = upcastPartial<ISession>({ ...createSession('session:/rejected', [rejectedChat]), archivePending: rejectedPending });
+		const confirmedPending = observableValue('confirmedPending', false);
+		const confirmedSession = upcastPartial<ISession>({ ...createSession('session:/confirmed', [confirmedChat]), archivePending: confirmedPending });
+		const harness = createHarness({
+			sessions: [rejectedSession, confirmedSession],
+			hiddenSessionIds: [rejectedSession.sessionId, confirmedSession.sessionId],
+		});
+		harness.service.pin(reference(rejectedSession, rejectedChat, rejectedCanvas));
+		harness.service.pin(reference(confirmedSession, confirmedChat, confirmedCanvas));
+
+		// Both start a pending archive, and both lose their last pin while it is pending.
+		transaction(tx => {
+			(rejectedSession.isArchived as ISettableObservable<boolean>).set(true, tx);
+			rejectedPending.set(true, tx);
+			(confirmedSession.isArchived as ISettableObservable<boolean>).set(true, tx);
+			confirmedPending.set(true, tx);
+		});
+		harness.service.unpin(reference(rejectedSession, rejectedChat, rejectedCanvas));
+		harness.service.unpin(reference(confirmedSession, confirmedChat, confirmedCanvas));
+		const whilePending = [...harness.listedSessions];
+
+		// Reject the first archive and confirm the second.
+		transaction(tx => {
+			(rejectedSession.isArchived as ISettableObservable<boolean>).set(false, tx);
+			rejectedPending.set(false, tx);
+			confirmedPending.set(false, tx);
+		});
+		const afterSettle = [...harness.listedSessions];
+
+		// Later undo / unarchive the confirmed session.
+		(confirmedSession.isArchived as ISettableObservable<boolean>).set(false, undefined);
+		harness.sessionUnarchived.fire(confirmedSession);
+
+		assert.deepStrictEqual({ whilePending, afterSettle, afterUndo: harness.listedSessions }, {
+			whilePending: [],
+			afterSettle: ['session:/rejected'],
+			afterUndo: ['session:/rejected', 'session:/confirmed'],
 		});
 	});
 });

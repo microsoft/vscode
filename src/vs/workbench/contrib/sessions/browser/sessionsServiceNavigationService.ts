@@ -62,7 +62,7 @@ export class SessionsServiceNavigationService implements ISessionsNavigationServ
 		if (activePane && activeSession?.sessionId === session.sessionId) {
 			const openChat = activePane.tabs.openChats.get().find(candidate => isEqual(candidate.resource, chat.resource));
 			if (openChat) {
-				await this.sessionsService.closeChat(activeSession, openChat);
+				await this.sessionsService.closeChat(activeSession, openChat, { showNewSession: true });
 			}
 		}
 	}

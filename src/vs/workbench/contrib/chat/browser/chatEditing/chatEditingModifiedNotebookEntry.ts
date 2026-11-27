@@ -148,27 +148,6 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		});
 	}
 
-	public static canHandleSnapshotContent(initialContent: string | undefined): boolean {
-		if (!initialContent) {
-			return false;
-		}
-
-		try {
-			deserializeSnapshot(initialContent);
-			return true;
-		} catch (ex) {
-			// not a valid snapshot
-			return false;
-		}
-	}
-
-	public static canHandleSnapshot(snapshot: ISnapshotEntry): boolean {
-		if (snapshot.languageId === SnapshotLanguageId && ChatEditingModifiedNotebookEntry.canHandleSnapshotContent(snapshot.current)) {
-			return true;
-		}
-		return false;
-	}
-
 	private readonly initialContentComparer: SnapshotComparer;
 
 	constructor(

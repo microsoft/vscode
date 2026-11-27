@@ -36,6 +36,8 @@ suite('AgentHostSessionListStore - project root', () => {
 	/** The sessions list of a window on `folders`, of the workspace file `configuration` if any, while matching by project root as `matchProjectRoot` says. */
 	function createList(sessions: readonly IAgentSessionMetadata[], options?: { readonly folders?: readonly string[]; readonly configuration?: string }) {
 		const matchProjectRoot = observableValue('matchProjectRoot', false);
+		const listAllSessions = observableValue('listAllSessions', false);
+		let calls = 0;
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({ registerSessionResource: (backendSession: URI) => backendSession }));
@@ -49,14 +51,16 @@ suite('AgentHostSessionListStore - project root', () => {
 		const connection: IAgentHostSessionListConnection = {
 			onDidNotification: onDidNotification.event,
 			resourceUris: identityAgentHostResourceUriMapper,
-			listSessions: async () => [...sessions],
+			listSessions: async () => { calls++; return [...sessions]; },
 			disposeChat: async () => { },
 			disposeSession: async () => { },
 			dispatch: () => { },
 		};
-		const list = store.add(instantiationService.createInstance(AgentHostSessionListStore, connection, { matchProjectRoot }));
+		const list = store.add(instantiationService.createInstance(AgentHostSessionListStore, connection, { matchProjectRoot, listAllSessions }));
 		return {
 			matchProjectRoot,
+			listAllSessions,
+			calls: () => calls,
 			notify: (notification: INotification) => onDidNotification.fire(notification),
 			shown: () => list.getSessions('copilot').map(entry => entry.rawId).sort(),
 			settle: async () => {
@@ -65,6 +69,28 @@ suite('AgentHostSessionListStore - project root', () => {
 			},
 		};
 	}
+
+	test('the new list owns scope over the complete inventory and restoring the legacy list narrows it again', async () => {
+		const { listAllSessions, matchProjectRoot, shown, settle, calls } = createList([
+			session('here', '/work/vscode/src', '/work/vscode'),
+			session('other', '/work/other', '/work/other'),
+			{ ...session('quick', '/scratch/quick', '/scratch'), _meta: withSessionWorkspaceless(undefined, true) },
+		]);
+		await settle();
+		const legacy = shown();
+		listAllSessions.set(true, undefined);
+		await settle();
+		const full = shown();
+		const before = calls();
+		matchProjectRoot.set(true, undefined);
+		await settle();
+		const unchanged = calls() === before;
+		listAllSessions.set(false, undefined);
+		await settle();
+		assert.deepStrictEqual({ legacy, full, unchanged, restored: shown() }, {
+			legacy: ['here'], full: ['here', 'other', 'quick'], unchanged: true, restored: ['here'],
+		});
+	});
 
 	test('while matching by project root, also lists the sessions whose project is a folder of the window, such as in its worktrees, and lists them again as it turns on and off', async () => {
 		const { matchProjectRoot, shown, settle } = createList([

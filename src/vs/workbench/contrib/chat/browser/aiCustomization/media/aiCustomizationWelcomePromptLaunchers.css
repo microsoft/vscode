@@ -275,27 +275,3 @@
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	color: var(--vscode-inputValidation-warningForeground, var(--vscode-foreground));
 }
-
-.ai-customization-management-editor .welcome-prompts-card-footer {
-	display: flex;
-	align-items: center;
-	gap: 4px;
-	margin-top: 10px;
-}
-
-.ai-customization-management-editor .welcome-prompts-card-action {
-	font-size: 11px;
-	color: var(--vscode-button-secondaryForeground);
-	cursor: pointer;
-	display: flex;
-	align-items: center;
-	gap: 4px;
-	padding: 4px 6px;
-	border-radius: 4px;
-	background: var(--vscode-button-secondaryBackground);
-	border: 1px solid var(--vscode-button-secondaryBorder, var(--vscode-button-border, var(--vscode-contrastBorder, transparent)));
-}
-
-.ai-customization-management-editor .welcome-prompts-card-action:hover {
-	background: var(--vscode-button-secondaryHoverBackground);
-}

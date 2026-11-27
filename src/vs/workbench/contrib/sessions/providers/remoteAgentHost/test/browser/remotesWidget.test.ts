@@ -275,8 +275,8 @@ suite('RemotesWidget', () => {
 		}));
 		instantiationService.stub(INewSessionComposerService, { activeComposer });
 		instantiationService.stub(ISessionsService, {
-			openNewSession: async () => {
-				sessionActions.push('open');
+			openNewSession: async options => {
+				sessionActions.push(options?.folderUri ? `open ${options.folderUri.toString()}${options.requireDevContainer ? ' in a Dev Container' : ''}` : 'open');
 				return { session: undefined, trustDeclined: false };
 			},
 			focusActiveSession: () => { sessionActions.push('focus'); },
@@ -284,6 +284,7 @@ suite('RemotesWidget', () => {
 		instantiationService.stub(ISessionsProvidersService, {
 			getProviders: () => [
 				upcastPartial<IAgentHostSessionsProvider>({ id: 'agenthost-remote-build', remoteAddress: 'ssh:build' }),
+				upcastPartial<IAgentHostSessionsProvider>({ id: 'agenthost-devcontainer-project', remoteAddress: 'devcontainer:project' }),
 			]
 		});
 		const documentation: string[] = [];
@@ -1067,16 +1068,33 @@ suite('RemotesWidget', () => {
 		});
 	});
 
-	test('header refreshes discovered environments without offering duplicate add routes', async () => {
-		const { parent, model } = createWidget();
+	test('header refreshes discovery and offers only the add actions that are available', async () => {
+		const { parent, model, commands } = createWidget(OperatingSystem.Windows, 'default');
 		parent.querySelector<HTMLElement>('.remotes-header-actions .monaco-button')!.click();
+		await timeout(0);
+		const openMenu = () => {
+			parent.querySelector<HTMLElement>('.remotes-header-actions .codicon-toolbar-more')!.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true, cancelable: true }));
+			return menus.get(parent)!();
+		};
+		const labels = () => openMenu().map(action => action instanceof Separator ? '---' : action.label);
+		const initial = labels();
+		model.canCreateDevContainer.set(true, undefined);
+		model.tunnelAuthenticationRequired.set('github', undefined);
+		const available = labels();
+		for (const action of openMenu()) {
+			await action.run();
+		}
 		await timeout(0);
 		assert.deepStrictEqual({
 			headerButtons: parent.querySelectorAll('.remotes-search-controls .monaco-button').length,
-			refreshes: model.refreshCalls,
-			connections: model.connectionChanges,
+			initial, available, afterSignIn: labels(),
+			commands, devContainerCreations: model.devContainerCreations, signIns: model.signInCalls, refreshes: model.refreshCalls, connections: model.connectionChanges,
 		}, {
-			headerButtons: 1, refreshes: 1, connections: [],
+			headerButtons: 1,
+			initial: ['Add SSH Host...'],
+			available: ['Add SSH Host...', 'Create Dev Container...', '---', 'Sign In to Dev Tunnels...'],
+			afterSignIn: ['Add SSH Host...', 'Create Dev Container...'],
+			commands: ['workbench.action.sessions.addSSHHost'], devContainerCreations: [undefined], signIns: 1, refreshes: 1, connections: [],
 		});
 	});
 
@@ -4129,6 +4147,21 @@ suite('RemotesWidget', () => {
 		});
 	});
 
+	test('a folder\'s Dev Container starts new sessions in its folder, and offers neither Rename, Delete nor picker visibility', async () => {
+		const { parent, model, sessionActions } = createWidget();
+		const workspaceUri = URI.file('/project');
+		model.remotes.set([
+			{ id: 'devcontainer:project', kind: 'devContainer', name: 'project [Dev Container]', detail: workspaceUri.fsPath, canRemove: false, availability: 'online', devContainerFolder: { workspaceUri }, connectionStatus: RemoteAgentHostConnectionStatus.connected },
+		], undefined);
+		const menu = getMenuActions(parent, 'devcontainer:project').filter(action => action.id !== Separator.ID).map(action => action.label);
+		runMenuAction(parent, 'devcontainer:project', 'newSession');
+		await timeout(0);
+		assert.deepStrictEqual({ menu, sessionActions }, {
+			menu: ['New Session', 'Disconnect', 'Troubleshoot Connection...'],
+			sessionActions: [`open ${workspaceUri.toString()} in a Dev Container`],
+		});
+	});
+
 	test('Dev Container creation stays in More Actions alongside connection and management actions', async () => {
 		const { parent, model } = createWidget();
 		const tunnel: ICustomizationRemote = { id: 'tunnel:laptop', kind: 'tunnel', name: 'Laptop', detail: 'work-laptop', copyableAddress: 'work-laptop', canRemove: true, canDelete: true, availability: 'online', canShareAsGitHubEnvironment: true, connectionStatus: RemoteAgentHostConnectionStatus.connected };
@@ -4383,7 +4416,7 @@ suite('RemotesWidget', () => {
 		}
 	});
 
-	test('narrow environment controls keep the funnel and Refresh reachable without method chips', () => {
+	test('narrow environment controls keep the funnel, Refresh and More Actions reachable without method chips', () => {
 		const { widget, parent, model } = createWidget(OperatingSystem.Windows, 'status');
 		model.environmentsEnabled.set(true, undefined);
 		parent.style.width = '360px';
@@ -4408,8 +4441,8 @@ suite('RemotesWidget', () => {
 			};
 		});
 		assert.deepStrictEqual(results, [
-			{ controls: ['Filter', 'Refresh the list of remote environments without connecting'], filtersVisible: true, searchSeparate: true },
-			{ controls: ['Filter', 'Refresh the list of remote environments without connecting'], filtersVisible: true, searchSeparate: true },
+			{ controls: ['Filter', 'Refresh the list of remote environments without connecting', 'More Actions...'], filtersVisible: true, searchSeparate: true },
+			{ controls: ['Filter', 'Refresh the list of remote environments without connecting', 'More Actions...'], filtersVisible: true, searchSeparate: true },
 		]);
 	});
 

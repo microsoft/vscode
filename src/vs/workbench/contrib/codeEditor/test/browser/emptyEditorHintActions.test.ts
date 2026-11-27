@@ -27,9 +27,9 @@ import { IUntitledDocumentTelemetryService } from '../../../../services/untitled
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { IChatAgentService } from '../../../chat/common/participants/chatAgents.js';
+import { IInlineChatSessionService } from '../../../inlineChat/browser/inlineChatSessionService.js';
 import { EmptyEditorHintActionsWidget } from '../../browser/emptyTextEditorHint/emptyEditorHintActions.js';
 import { emptyEditorHintOpenInMarkdownEditorSetting, EmptyTextEditorHintContentWidget, EmptyTextEditorHintContribution } from '../../browser/emptyTextEditorHint/emptyTextEditorHintController.js';
-import { IInlineChatSessionService } from '../../../inlineChat/browser/inlineChatSessionService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 
 suite('EmptyEditorHintActionsWidget', () => {
@@ -97,14 +97,12 @@ suite('EmptyEditorHintActionsWidget', () => {
 			await timeout(0);
 		};
 		await click('Open in Hex Editor');
-		const visibleBeforeClose = contextKeyService.getContextKeyValue('emptyEditorHintActionsVisible');
 		domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
 		await timeout(0);
 
-		assert.deepStrictEqual({ rowLabels, hasDropdown: !!domNode.querySelector('.empty-editor-hint-actions-dropdown'), visibleBeforeClose, commands, selectedEditors: selectedEditors.map(input => input === thisInput ? 'this' : 'other'), callbacks, events }, {
+		assert.deepStrictEqual({ rowLabels, hasDropdown: !!domNode.querySelector('.empty-editor-hint-actions-dropdown'), commands, selectedEditors: selectedEditors.map(input => input === thisInput ? 'this' : 'other'), callbacks, events }, {
 			rowLabels: ['New Chat Editor', 'Select a Language', '---', 'Open in Hex Editor'],
 			hasDropdown: true,
-			visibleBeforeClose: true,
 			commands: [['reopenActiveEditorWith', 'hexEditor.hexedit', { groupId: 1, editorIndex: 0 }]],
 			selectedEditors: ['this'],
 			callbacks: ['close'],
@@ -187,7 +185,7 @@ suite('EmptyTextEditorHint', () => {
 			activeEditor: undefined,
 		}));
 
-		const widget = store.add(instantiationService.createInstance(EmptyTextEditorHintContentWidget, editor, true));
+		const widget = store.add(instantiationService.createInstance(EmptyTextEditorHintContentWidget, editor, true, { close: () => { } }));
 		const domNode = widget.getDomNode();
 		[...domNode.querySelectorAll('a')].find(a => a.textContent === 'open in Markdown Editor')!.click();
 		await timeout(0);
@@ -199,6 +197,47 @@ suite('EmptyTextEditorHint', () => {
 				{ eventName: 'emptyEditorHint', data: { kind: 'shown', action: undefined, variant: 'classicMarkdownEditor', scheme: 'untitled', untitledDocumentId: 'doc-1' } },
 				{ eventName: 'emptyEditorHint', data: { kind: 'action', action: 'openMarkdownEditor', variant: 'classicMarkdownEditor', scheme: 'untitled', untitledDocumentId: 'doc-1' } },
 			],
+		});
+	});
+
+	test('Escape hides either classic hint for this document only and logs closeEscape', () => {
+		const closeWithEscape = (configuration: Record<string, unknown>) => {
+			const { instantiationService, editor, events } = createServices(configuration, [markdownEditor]);
+			instantiationService.stub(IUntitledDocumentTelemetryService, upcastPartial<IUntitledDocumentTelemetryService>({ getUntitledDocumentId: resource => resource?.path }));
+			const model1 = editor.getModel()!;
+			const model2 = store.add(createTextModel('', undefined, undefined, URI.from({ scheme: 'untitled', path: 'Untitled-2' })));
+			editor.setModel(null);
+			const contribution = store.add(instantiationService.createInstance(EmptyTextEditorHintContribution, editor));
+			editor.setModel(model1);
+			const isVisible = () => editor.contextKeyService.getContextKeyValue('emptyEditorHintVisible');
+
+			const visibleInitially = isVisible();
+			contribution.closeHint();
+			const visibleAfterEscape = isVisible();
+			model1.setValue('a');
+			model1.setValue('');
+			const visibleAfterClearingTheDocument = isVisible();
+			editor.setModel(model2);
+			const visibleForAnotherDocument = isVisible();
+			return {
+				visible: { visibleInitially, visibleAfterEscape, visibleAfterClearingTheDocument, visibleForAnotherDocument },
+				events,
+			};
+		};
+		const event = (kind: string, action: string | undefined, variant: string, untitledDocumentId: string) => ({ eventName: 'emptyEditorHint', data: { kind, action, variant, scheme: 'untitled', untitledDocumentId } });
+		const visible = { visibleInitially: true, visibleAfterEscape: false, visibleAfterClearingTheDocument: false, visibleForAnotherDocument: true };
+		assert.deepStrictEqual({
+			classic: closeWithEscape({}),
+			classicMarkdownEditor: closeWithEscape({ [emptyEditorHintOpenInMarkdownEditorSetting]: true }),
+		}, {
+			classic: {
+				visible,
+				events: [event('shown', undefined, 'classic', 'Untitled-1'), event('action', 'closeEscape', 'classic', 'Untitled-1'), event('shown', undefined, 'classic', 'Untitled-2')],
+			},
+			classicMarkdownEditor: {
+				visible,
+				events: [event('shown', undefined, 'classicMarkdownEditor', 'Untitled-1'), event('action', 'closeEscape', 'classicMarkdownEditor', 'Untitled-1'), event('shown', undefined, 'classicMarkdownEditor', 'Untitled-2')],
+			},
 		});
 	});
 });
