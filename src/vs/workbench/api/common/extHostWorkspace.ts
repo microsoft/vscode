@@ -275,9 +275,9 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		return this._configProvider?.getConfiguration('search').get<boolean>('useIgnoreFiles') ?? true;
 	}
 
-	$initializeWorkspace(data: IWorkspaceData | null, trusted: boolean): void {
+	$initializeWorkspace(data: IWorkspaceData | null, mode: WorkbenchMode, trusted: boolean): void {
 		this._trusted = trusted;
-		this.$acceptWorkspaceData(data);
+		this.$acceptWorkspaceData(data, mode);
 		this._barrier.open();
 	}
 
@@ -492,9 +492,8 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		return this._workbenchMode;
 	}
 
-	$acceptWorkspaceData(data: IWorkspaceData | null): void {
+	$acceptWorkspaceData(data: IWorkspaceData | null, mode: WorkbenchMode): void {
 
-		const mode = data?.mode ?? WorkbenchMode.Editor;
 		const modeChanged = this._workbenchMode !== mode;
 		// An optimistic `updateWorkspaceFolders` made in Editor mode already updated the shared folder objects, so its acknowledgement always fires, even when it arrives with Agents mode
 		const previousWorkspaceKey = modeChanged && !this._unconfirmedWorkspace ? ExtHostWorkspace.workspaceEventKey(this._confirmedWorkspace) : undefined;
