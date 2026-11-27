@@ -34,8 +34,8 @@ export interface IAgentHostSessionWorkingDirectoryResolver {
 	resolveRequested(sessionResource: URI): RequestedWorkingDirectory;
 	isNewSession(sessionResource: URI): boolean;
 	/**
-	 * How a new session of several folders is created, when it is not created ahead of its first request; `undefined`
-	 * for a session of one folder.
+	 * How a new session of several folders, or of a workspace, is created, when it is not created ahead of its first
+	 * request; `undefined` for a session of one folder outside a workspace.
 	 */
 	resolveCreation(sessionResource: URI): IAgentHostSessionCreation | undefined;
 }
