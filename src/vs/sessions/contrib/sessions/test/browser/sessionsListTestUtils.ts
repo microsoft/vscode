@@ -215,6 +215,8 @@ export function createTestSession(title: string, options: ITestSessionOptions = 
 		override readonly description = constObservable(undefined);
 		override readonly changes = constObservable([]);
 		override readonly changesets = constObservable([]);
+		// The main chat works in the session's folders
+		override readonly workspace = constObservable(undefined);
 	}();
 	const isArchived = observableValue(`archived-${resourceId}`, options.isArchived ?? false);
 	const isExternal = observableValue(`external-${resourceId}`, options.isExternal ?? false);

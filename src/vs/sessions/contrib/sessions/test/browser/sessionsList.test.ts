@@ -106,7 +106,7 @@ import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../
 import { SessionsList, SessionsListSnapshotNode } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { SessionsFlatList } from '../../../../../workbench/contrib/sessions/browser/views/sessionsFlatList.js';
 import { SessionSectionRenderer } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListRenderers.js';
-import { computeReorderSortChanges, groupByDate, groupByEnvironment, groupByRepository, groupByWorkspace, groupSessionsForList, limitSessionsForList, QUICK_CHATS_SECTION_ID, sortSessions, groupByWorkspaces } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListHelpers.js';
+import { computeReorderSortChanges, groupByDate, groupByEnvironment, groupByRepository, groupByWorkspace, groupSessionsForList, limitSessionsForList, QUICK_CHATS_SECTION_ID, sortSessions, groupByWorkspaces, getSessionGroupingSectionId } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListHelpers.js';
 import { ISessionChatItem, ISessionSection, NEW_CANVAS_SESSION_COMMAND_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemContextMenuId, SessionItemHasPinnedCanvasContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionSectionHasGitHubRepositoryContext, SessionSectionToolbarMenuId, SessionSectionTypeContext, SESSIONS_LIST_CANVASES_SECTION_SETTING, SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsListFocusedChatItemContext, SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { ISideChatPlacementService } from '../../../../../workbench/contrib/sessions/browser/sideChatPlacement.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
@@ -4308,7 +4308,13 @@ suite('Sessions - SessionsList', () => {
 				createTestSession('without folder', { workspaceLabel: 'none' }).session,
 			];
 
-			const sections = groupByWorkspaces(sessions, { getWorkspace: uri => workspaces.getWorkspace(uri), getKey: uri => uri.toString(), listed: workspaces.managedWorkspaces.get() });
+			const listWorkspaces = { getWorkspace: (uri: URI) => workspaces.getWorkspace(uri), getKey: (uri: URI) => uri.toString(), listed: workspaces.managedWorkspaces.get() };
+			const sections = groupByWorkspaces(sessions, listWorkspaces);
+			// Moving and Mark All Read find a session's row by the same id
+			assert.deepStrictEqual(
+				sessions.map(session => getSessionGroupingSectionId(session, SessionsGrouping.WorkspacesAndGroups, listWorkspaces)),
+				sessions.map(session => sections.find(section => section.sessions.includes(session))!.id),
+			);
 
 			assert.deepStrictEqual(sections.map(section => ({ id: section.id, label: section.label, sessions: section.sessions.map(session => session.title.get()), workspace: section.workspace && { uri: section.workspace.uri.path, icon: section.workspace.icon, color: section.workspace.color } })), [
 				{ id: 'workspace:file:///user/AgentsWorkspaces/Agents.code-workspace', label: 'Agents', sessions: ['in agents', 'in agents before rename'], workspace: { uri: '/user/AgentsWorkspaces/Agents.code-workspace', icon: 'rocket', color: '#ff8800' } },
@@ -4318,6 +4324,94 @@ suite('Sessions - SessionsList', () => {
 				{ id: 'workspace:file:///work/vscode-docs', label: 'vscode-docs', sessions: ['in docs'], workspace: { uri: '/work/vscode-docs', icon: 'book', color: undefined } },
 				{ id: 'workspace:Unknown', label: 'Unknown', sessions: ['without folder'], workspace: undefined },
 			]);
+		});
+	});
+
+	suite('Group by Workspaces & Groups', () => {
+		const vscode = URI.file('/work/vscode');
+		const docs = URI.file('/work/vscode-docs');
+		const oldAgentsFile = URI.file('/user/AgentsWorkspaces/Old.code-workspace');
+		const agents: IRecentSessionWorkspace = { uri: URI.file('/user/AgentsWorkspaces/Agents.code-workspace'), name: 'Agents', folders: [vscode, docs], owned: true, previousUris: [oldAgentsFile] };
+		// A workspace file of the user's with the same name as one of the Agents window
+		const usersAgents: IRecentSessionWorkspace = { uri: URI.file('/work/agents.code-workspace'), name: 'Agents', folders: [docs], owned: false };
+		const release: ISessionGroup = { id: 'release', name: 'Release', createdAt: 1 };
+		const comparisonGroup: ISessionGroup = { id: 'comparison-group', name: 'Compare: Fix', createdAt: 2 };
+
+		function render(grouping: () => SessionsGrouping) {
+			const sessions = [
+				createTestSession('in agents', { folders: [vscode, docs], workspaceFile: agents.uri }).session,
+				createTestSession('in agents before rename', { folders: [vscode], workspaceFile: oldAgentsFile }).session,
+				createTestSession('in the user\'s agents', { folders: [docs], workspaceFile: usersAgents.uri }).session,
+				createTestSession('in a folder', { folders: [URI.file('/work/tools')] }).session,
+				createTestSession('in release', { folders: [vscode], workspaceFile: agents.uri }).session,
+			];
+			const attempts = ['attempt-1', 'attempt-2'].map(id => createTestSession(id, { folders: [vscode, docs], workspaceFile: agents.uri }).session);
+			const comparison: ISessionComparison = {
+				id: 'comparison-1',
+				groupId: comparisonGroup.id,
+				title: 'Fix',
+				createdAt: 1,
+				workspace: agents.uri,
+				prompt: 'Fix',
+				participants: attempts.map((session, index) => ({
+					id: `participant-${index}`,
+					role: SessionComparisonParticipantRole.Attempt,
+					harness: { providerId: 'test', sessionTypeId: 'copilot', label: 'Copilot' },
+					sessionResource: session.resource,
+				})),
+			};
+			const harness = createListHarness(disposables, [...sessions, ...attempts], {
+				groups: [release, comparisonGroup],
+				memberships: new Map([[sessions[4].sessionId, release.id], ...attempts.map(session => [session.sessionId, comparisonGroup.id] as const)]),
+				comparisons: [comparison],
+				workspaces: [agents, usersAgents],
+			});
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, harness.createContainer(400, 1400), {
+				grouping,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(1400, 400);
+			const describe = (node: SessionsListSnapshotNode): unknown => node.type === 'session'
+				? node.session.title.get()
+				: { [`${node.label}${node.collapsed ? ' (collapsed)' : ''}`]: node.children.map(describe) };
+			return { list, snapshot: () => list.getTreeSnapshot().filter(node => node.type !== 'session' && (node.id === 'groups' || node.id === 'workspaces' || node.id.startsWith('workspace:'))).map(describe) };
+		}
+
+		test('lists custom groups, then workspaces by their file, with a renamed file and a comparison in their workspace\'s row, and two workspaces of one name apart', () => {
+			assert.deepStrictEqual(render(() => SessionsGrouping.WorkspacesAndGroups).snapshot(), [
+				{ 'Groups': [{ 'Release': ['in release'] }] },
+				{
+					'Workspaces': [
+						{ 'Agents': ['in agents', 'in agents before rename', { 'Compare: Fix': ['attempt-1', 'attempt-2'] }] },
+						{ 'Agents': ['in the user\'s agents'] },
+						{ 'tools': ['in a folder'] },
+					]
+				},
+			]);
+		});
+
+		test('keeps the collapse state of its sections and rows, and lists by workspace again once switched back', () => {
+			let grouping = SessionsGrouping.WorkspacesAndGroups;
+			const { list, snapshot } = render(() => grouping);
+			list.setHeaderCollapsed('groups', true);
+			list.setHeaderCollapsed(`workspace:${URI.file('/work/tools').toString()}`, true);
+			const collapsed = snapshot();
+			grouping = SessionsGrouping.Workspace;
+			list.update();
+			const byWorkspace = list.getTreeSnapshot().filter(node => node.type !== 'session').map(node => node.label);
+			grouping = SessionsGrouping.WorkspacesAndGroups;
+			list.update();
+
+			assert.deepStrictEqual({ collapsed, byWorkspace, back: snapshot() }, {
+				collapsed: [
+					{ 'Groups (collapsed)': [{ 'Release': ['in release'] }] },
+					{ 'Workspaces': [{ 'Agents': ['in agents', 'in agents before rename', { 'Compare: Fix': ['attempt-1', 'attempt-2'] }] }, { 'Agents': ['in the user\'s agents'] }, { 'tools (collapsed)': ['in a folder'] }] },
+				],
+				// Group by Workspace lists by the sessions' workspace label, with the custom group among the sections
+				byWorkspace: ['Release', 'Workspace'],
+				back: collapsed,
+			});
 		});
 	});
 

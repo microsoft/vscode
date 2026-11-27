@@ -581,7 +581,7 @@ export class SessionsView extends ViewPane {
 		this.groupingContextKey.set(this.grouping);
 		// Group by Workspaces & Groups lists as Group by Workspace while workspaces are off, and again as itself once on
 		this._register(contextKeyService.onDidChangeContext(e => {
-			if (e.affectsSome(new Set([SessionWorkspacesEnabledContext.key])) && this.currentGrouping === SessionsGrouping.WorkspacesAndGroups) {
+			if (e.affectsSome(new Set([SessionWorkspacesEnabledContext.key, ChatContextKeys.enabled.key])) && this.currentGrouping === SessionsGrouping.WorkspacesAndGroups) {
 				this.groupingContextKey?.set(this.grouping);
 				this.sessionsControl?.update(true);
 			}
@@ -1609,9 +1609,10 @@ export class SessionsView extends ViewPane {
 		}).catch(onUnexpectedError);
 	}
 
-	/** Whether workspaces are on, which Group by Workspaces & Groups needs. */
+	/** Whether workspaces and chat are on, which Group by Workspaces & Groups needs. */
 	private get workspacesEnabled(): boolean {
-		return !!this.scopedContextKeyService.getContextKeyValue<boolean>(SessionWorkspacesEnabledContext.key);
+		return !!this.scopedContextKeyService.getContextKeyValue<boolean>(SessionWorkspacesEnabledContext.key)
+			&& !!this.scopedContextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key);
 	}
 
 	get grouping(): SessionsGrouping {

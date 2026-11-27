@@ -1252,8 +1252,8 @@ function createSessionsListActions(): DisposableStore {
 				title: localize2('workspacesAndGroups', "Workspaces & Groups"),
 				category: SessionsCategories.Sessions,
 				toggled: SessionsViewGroupingContext.isEqualTo(SessionsGrouping.WorkspacesAndGroups),
-				precondition: SessionWorkspacesEnabledContext,
-				menu: [{ id: Menus.SessionsViewGrouping, group: '1_group', order: 1.5, when: ContextKeyExpr.and(sessionsViewOffersGrouping(SessionsGrouping.WorkspacesAndGroups), SessionWorkspacesEnabledContext) }],
+				precondition: ContextKeyExpr.and(SessionWorkspacesEnabledContext, ChatContextKeys.enabled),
+				menu: [{ id: Menus.SessionsViewGrouping, group: '1_group', order: 1.5, when: ContextKeyExpr.and(sessionsViewOffersGrouping(SessionsGrouping.WorkspacesAndGroups), SessionWorkspacesEnabledContext, ChatContextKeys.enabled) }],
 			});
 		}
 		override run(accessor: ServicesAccessor) {

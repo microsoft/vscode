@@ -621,7 +621,7 @@ export interface ISessionListWorkspaces {
 export function groupByWorkspaces(sessions: readonly ISession[], workspaces: ISessionListWorkspaces): ISessionSection[] {
 	const sections = new Map<string, { label: string; workspace: ISessionSectionWorkspace; sessions: ISession[] }>();
 	const add = (uri: URI, label: string, workspace: IRecentSessionWorkspace | undefined): ISession[] => {
-		const id = `workspace:${workspaces.getKey(uri)}`;
+		const id = getWorkspaceRowId(uri, workspaces);
 		let section = sections.get(id);
 		if (!section) {
 			section = { label, workspace: { uri, icon: workspace?.icon, color: workspace?.color }, sessions: [] };
@@ -634,8 +634,7 @@ export function groupByWorkspaces(sessions: readonly ISession[], workspaces: ISe
 	}
 	const unknown: ISession[] = [];
 	for (const session of sessions) {
-		const sessionWorkspace = session.workspace.get();
-		const uri = sessionWorkspace?.workspaceConfig?.uri ?? sessionWorkspace?.folders[0]?.root;
+		const uri = getSessionWorkspaceUri(session);
 		if (!uri) {
 			unknown.push(session);
 			continue;
@@ -655,6 +654,28 @@ export function groupByWorkspaces(sessions: readonly ISession[], workspaces: ISe
 		result.push({ id: `workspace:${label}`, label, sessions: unknown });
 	}
 	return result;
+}
+
+/** The workspace file a session was created in, else its default folder. */
+function getSessionWorkspaceUri(session: ISession): URI | undefined {
+	const workspace = session.workspace.get();
+	return workspace?.workspaceConfig?.uri ?? workspace?.folders[0]?.root;
+}
+
+/** The id of the workspace row of {@link groupByWorkspaces} for a workspace file or folder, also under a former file. */
+function getWorkspaceRowId(uri: URI, workspaces: ISessionListWorkspaces): string {
+	return `workspace:${workspaces.getKey(workspaces.getWorkspace(uri)?.uri ?? uri)}`;
+}
+
+/** The id of the workspace row of {@link groupByWorkspaces} that a session lists under. */
+export function getSessionWorkspaceRowId(session: ISession, workspaces: ISessionListWorkspaces): string {
+	const uri = getSessionWorkspaceUri(session);
+	return uri ? getWorkspaceRowId(uri, workspaces) : `workspace:${localize('unknown', "Unknown")}`;
+}
+
+/** The id of the workspace row of {@link groupByWorkspaces} for a workspace file or folder, such as a comparison's. */
+export function getWorkspaceRowIdOfUri(uri: URI, workspaces: ISessionListWorkspaces): string {
+	return getWorkspaceRowId(uri, workspaces);
 }
 
 /** Whether a persisted collapse state id belongs to a grouping-specific section. */
@@ -681,7 +702,10 @@ export function getRepositorySectionId(repository: ISessionRepository): string {
 }
 
 /** The grouping section a session renders in when nothing with higher precedence places it. */
-export function getSessionGroupingSectionId(session: ISession, grouping: SessionsGrouping): string {
+export function getSessionGroupingSectionId(session: ISession, grouping: SessionsGrouping, workspaces?: ISessionListWorkspaces): string {
+	if (grouping === SessionsGrouping.WorkspacesAndGroups && workspaces) {
+		return getSessionWorkspaceRowId(session, workspaces);
+	}
 	if (grouping === SessionsGrouping.Environment) {
 		return `${ENVIRONMENT_SECTION_PREFIX}${session.environment}`;
 	}

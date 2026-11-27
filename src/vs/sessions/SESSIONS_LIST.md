@@ -45,7 +45,7 @@ Archived
     > Pinned
     > Custom group
     > External (when dedicated sectioning is enabled)
-    > Quick chat (workspace and repository grouping only)
+    > Quick chat (workspace, workspaces and groups, and repository grouping only)
     > Workspace, repository, environment, or date group
 ```
 
@@ -53,7 +53,7 @@ Archived
 - Pinned sessions appear in the pinned section.
 - A valid custom-group membership places an unpinned, unarchived session in that group, including a quick chat. A session belongs to at most one group at any nesting depth.
 - When dedicated external sectioning is enabled, remaining external sessions appear together before the archived section. Pinning and custom-group membership retain their precedence; disabling sectioning returns external sessions to the ordinary grouping rules without changing that presentation state.
-- Under workspace or repository grouping, remaining unpinned quick chats appear in the dedicated chats section. Under date or environment grouping there is no chats section; quick chats follow that grouping like other sessions, and so do comparison groups without a workspace.
+- Under workspace, workspaces and groups, or repository grouping, remaining unpinned quick chats appear in the dedicated chats section. Under date or environment grouping there is no chats section; quick chats follow that grouping like other sessions, and so do comparison groups without a workspace.
 - Remaining sessions follow the selected workspace, repository, environment, or date grouping.
 - A regular session created by another regular session is initially placed
   immediately after its creator. While it has neither custom-group membership
@@ -77,6 +77,10 @@ While the editor window's new Sessions list is on, core providers retain their c
 Window scope matches the main chat's working folders, or the session's folders while the main chat has none. A session matches when its working directory is in a window folder, or its root or git repository is exactly a window folder, including worktrees. GitHub sessions match the GitHub repositories of the window folders' `origin`. Matching uses only provider metadata and whole resource URIs, so another host's paths do not match local folders. Quick chats have no workspace and are excluded from ordinary folder scope. Scoped lists retain saved ordering for other workspaces and omit comparisons without an in-scope participant.
 
 The optional workspace/environment bar offers the workspaces of the sessions the list includes before the bar's own pick narrows them, not the window-filtered rows. Its workspace pick is an exact URI and environment identity, and No Workspace means an explicitly identified quick chat. Only the Agents window and empty editor windows show the bar, per `SessionsWindowScopeController.isScopeBarWindow` (the one check for the setting's bar and Inbox's bar alike); folder and multi-root editor windows show none and keep their folders as their scope. With the workspaces filter setting on, the bar shows there in every grouping; without it, only in Inbox. The window's Sessions view creates a `SessionsWindowScopeController`, gives it the filters of its bar (`setScopeBarFilters`), and the controller applies the selected workspace to `WorkbenchScope`; All Workspaces sets an explicit undefined scope, so the window is about all workspaces. It scopes the window only while the bar is shown: AI features enabled and not hidden. Hiding the bar or disposing the view restores ordinary window scope, unless another component has subsequently changed the scope. The workspace and environment pick is stored per window (workspace storage), so each window reopens on its own pick; lists in the same window share it live. The profile-wide pick that earlier builds stored is removed, not migrated, so no window starts on another window's pick. The other list filters stay in profile storage. The editor window's providers and its Sessions lists share one reading of the window's folders and repositories (`IWorkspaceFolderRepositories`).
+
+### Workspaces and groups grouping
+
+Offered only while workspaces are enabled (`sessions.workspaces.enabled`); a stored choice lists as workspace grouping while they are off. Below Pinned and Chats, a Groups section holds the top-level custom groups, in their user-managed order, and a Workspaces section holds the workspaces, by name; External and archived follow as in other groupings. A session lists under the workspace of its `.code-workspace` file, else under its default folder, also when the file was renamed since. The workspaces service provides a row's name, icon and color; a folder it does not know shows the folder's name, and sessions without a folder list under Unknown, last. The Agents window's own workspaces list even without sessions, unless a search or scope narrows the list. Both parent sections and every row keep their collapse state.
 
 ### Repository grouping
 
