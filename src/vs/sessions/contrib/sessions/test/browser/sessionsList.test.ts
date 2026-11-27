@@ -9197,6 +9197,131 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		function outline(nodes: readonly SessionsListSnapshotNode[]): unknown[] {
+			return nodes.flatMap(node => node.type === 'session' ? [] : [node.children.some(child => child.type !== 'session') ? { [node.id]: outline(node.children) } : node.id]);
+		}
+
+		test('pinned groups and sections render in Pinned, stepped in, and return to their place when unpinned', () => {
+			const { harness, list } = render(SessionsGrouping.Workspace, new Map([['workspace:vscode', docs.id]]));
+			const depth = (row: HTMLElement | undefined) => row?.querySelector<HTMLElement>('.session-section, .session-group, .session-item')?.style.getPropertyValue('--session-group-depth');
+			list.setHeaderPinned(`group:${hotfixes.id}`, true);
+			list.setHeaderPinned('workspace:vscode', true);
+			const pinned = {
+				outline: outline(list.getTreeSnapshot()),
+				depths: {
+					hotfixes: depth(list.getItemRow({ group: hotfixes.id })),
+					urgent: depth(list.getItemRow({ group: urgent.id })),
+					section: depth(list.getItemRow({ section: 'workspace:vscode' })),
+					sessionInSection: depth(list.getItemRow({ session: harness.managementService.sessions[4].resource })),
+				},
+			};
+			list.setHeaderPinned(`group:${hotfixes.id}`, false);
+			list.setHeaderPinned('workspace:vscode', false);
+
+			assert.deepStrictEqual({ pinned, unpinned: outline(list.getTreeSnapshot()) }, {
+				pinned: {
+					outline: [
+						{ pinned: [{ [`group:${hotfixes.id}`]: [`group:${urgent.id}`] }, 'workspace:vscode'] },
+						{ [`group:${release.id}`]: [`group:${docs.id}`] },
+						`group:${triage.id}`,
+					],
+					depths: { hotfixes: '1', urgent: '2', section: '1', sessionInSection: '1' },
+				},
+				unpinned: [
+					{ [`group:${release.id}`]: [{ [`group:${hotfixes.id}`]: [`group:${urgent.id}`] }, { [`group:${docs.id}`]: ['workspace:vscode'] }] },
+					`group:${triage.id}`,
+				],
+			});
+		});
+
+		test('moving a pinned header to the top level without a sibling unpins it', () => {
+			const { harness, list } = render(SessionsGrouping.Workspace, new Map([['workspace:vscode', docs.id]]), true);
+			list.setHeaderPinned('workspace:vscode', true);
+			list.setHeaderPinned(`group:${hotfixes.id}`, true);
+			list.moveHeaderTo('workspace:vscode', undefined, undefined);
+			list.moveHeaderTo(`group:${hotfixes.id}`, undefined, undefined);
+
+			assert.deepStrictEqual({
+				pinned: harness.instantiationService.get(ISessionsListModelService).pinnedSectionIds.get(),
+				outline: outline(list.getTreeSnapshot()),
+			}, {
+				pinned: [],
+				outline: [{ [`group:${hotfixes.id}`]: [`group:${urgent.id}`] }, { [`group:${release.id}`]: [`group:${docs.id}`] }, `group:${triage.id}`, 'workspace:vscode'],
+			});
+		});
+
+		test('group Mark All as Read leaves out the subgroups and sections pinned separately', async () => {
+			const { harness, list, container, contextMenus } = render(SessionsGrouping.Workspace, new Map([['workspace:vscode', docs.id]]), true);
+			const own = createTestSession('Release unread', { workspaceLabel: 'vscode', isRead: false }).session;
+			const inPinnedSubgroup = createTestSession('Hotfix unread', { workspaceLabel: 'vscode', isRead: false }).session;
+			const inPinnedSection = createTestSession('Automatic unread', { workspaceLabel: 'vscode', isRead: false }).session;
+			harness.managementService.sessions.push(own, inPinnedSubgroup, inPinnedSection);
+			const groupsService = harness.instantiationService.get(ISessionGroupsService);
+			groupsService.addToGroup(own.sessionId, release.id);
+			groupsService.addToGroup(inPinnedSubgroup.sessionId, urgent.id);
+			list.setHeaderPinned(`group:${hotfixes.id}`, true);
+			list.setHeaderPinned('workspace:vscode', true);
+			list.refresh();
+			rowOf(container, 'Release work').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+			await contextMenus.at(-1)!.find(action => action.id === 'sessionsViewPane.markAllInSectionRead')!.run();
+
+			assert.deepStrictEqual(harness.managementService.readSessions.map(session => session.title.get()), ['Release unread']);
+		});
+
+		test('unpinning a folder that returns behind "+N more" reveals and focuses it', async () => {
+			const { harness, list, container, contextMenus } = render(SessionsGrouping.Workspace);
+			const old = (label: string) => createTestSession(`${label} session`, { workspaceLabel: label, createdAt: new Date(Date.now() - 10 * 24 * 60 * 60_000), updatedAt: new Date(Date.now() - 10 * 24 * 60 * 60_000) }).session;
+			harness.managementService.sessions.push(old('Old1'), old('Old2'), old('Old3'));
+			list.setHeaderPinned('workspace:Old1', true);
+			list.refresh();
+			rowOf(container, 'Old1').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+			await contextMenus.at(-1)!.find(action => action.id === 'sessions.unpinHeader')!.run();
+
+			assert.deepStrictEqual({
+				pinned: harness.instantiationService.get(ISessionsListModelService).pinnedSectionIds.get(),
+				level: list.getItemRow({ section: 'workspace:Old1' })?.getAttribute('aria-level'),
+				focused: list.getItemRow({ section: 'workspace:Old1' })?.classList.contains('focused'),
+			}, { pinned: [], level: '1', focused: true });
+		});
+
+		test('a group whose only subgroup is pinned is not offered as empty', () => {
+			const { harness, list, container } = render(SessionsGrouping.Workspace, new Map(), true);
+			harness.instantiationService.get(ISessionGroupsService).removeFromGroup(harness.managementService.sessions[1].sessionId);
+			list.setHeaderPinned(`group:${urgent.id}`, true);
+			const createMenu = sinon.spy(harness.instantiationService.get(IMenuService), 'createMenu');
+			disposables.add(toDisposable(() => createMenu.restore()));
+			rowOf(container, 'Hotfixes').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+
+			assert.deepStrictEqual({
+				outline: outline(list.getTreeSnapshot())[0],
+				isEmpty: createMenu.lastCall.args[1].getContextKeyValue('sessionGroup.isEmpty'),
+			}, {
+				outline: { pinned: [`group:${urgent.id}`] },
+				isEmpty: false,
+			});
+		});
+
+		test('pins and unpins headers from their context menus and by dragging them in and out of Pinned', async () => {
+			const { harness, container, contextMenus } = render(SessionsGrouping.Workspace, new Map(), true);
+			const pinnedIds = harness.instantiationService.get(ISessionsListModelService).pinnedSectionIds;
+			const menu = (label: string) => {
+				rowOf(container, label).dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+				return contextMenus.at(-1)!;
+			};
+			await menu('Triage').find(action => action.id === 'sessions.pinHeader')!.run();
+			const menuPinned = pinnedIds.get();
+			dragRow(rowOf(container, 'vscode'), rowOf(container, 'Pinned'), 0.5);
+			const dragPinned = pinnedIds.get();
+			await menu('Triage').find(action => action.id === 'sessions.unpinHeader')!.run();
+			dragRow(rowOf(container, 'vscode'), rowOf(container, 'Release work'), 0.1);
+
+			assert.deepStrictEqual({ menuPinned, dragPinned, unpinned: pinnedIds.get() }, {
+				menuPinned: [`group:${triage.id}`],
+				dragPinned: [`group:${triage.id}`, 'workspace:vscode'],
+				unpinned: [],
+			});
+		});
+
 		test('a stale section-removal action does not reorder when no top-level headers remain', async () => {
 			const { harness, list, container, contextMenus } = render(SessionsGrouping.Workspace, new Map([['workspace:vscode', docs.id]]), true);
 			rowOf(container, 'vscode').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
@@ -11069,6 +11194,19 @@ suite('Sessions - SessionsList', () => {
 				});
 			});
 		}
+
+		test('steps a comparison in with its folder when the folder\'s group is pinned', () => {
+			const parent: ISessionGroup = { id: 'parent', name: 'Work', createdAt: 0 };
+			const { container, list } = renderComparison(undefined, 'all', new Set(), false, SessionsGrouping.Workspace, parent);
+			list.setHeaderPinned(`group:${parent.id}`, true);
+			const comparison = container.querySelector<HTMLElement>('.session-comparison-group');
+
+			assert.deepStrictEqual({
+				level: comparison?.closest('.monaco-list-row')?.getAttribute('aria-level'),
+				depth: comparison?.style.getPropertyValue('--session-group-depth'),
+				sectionDepth: list.getItemRow({ section: 'workspace:Workspace' })?.querySelector<HTMLElement>('.session-section')?.style.getPropertyValue('--session-group-depth'),
+			}, { level: '4', depth: '2', sectionDepth: '2' });
+		});
 
 		test('keeps comparison groups visible under their environment without any ungrouped sessions', () => {
 			const { container, list } = renderComparison(undefined, 'all', new Set(), false, SessionsGrouping.Environment);

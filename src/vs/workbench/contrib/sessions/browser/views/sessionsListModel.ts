@@ -162,6 +162,8 @@ export interface ISessionsListRenderSnapshot {
 	readonly moreFolderSectionIds: ReadonlySet<string>;
 	/** Grouping sections currently hidden behind the collapsed "+N more" row. */
 	readonly hiddenGroupingSections: readonly ISessionSection[];
+	/** Pinned group and grouping-section headers rendered in Pinned, by their pin key. */
+	readonly renderedPinnedHeaderIds: ReadonlySet<string>;
 	/** Resource strings of sessions with nested rows (chats or attached comparisons). */
 	readonly nestedSessionResources: ReadonlySet<string>;
 	/** Whether the Inbox "Ready for you" section had at least one session in this render. */
@@ -182,6 +184,7 @@ export const EMPTY_SESSIONS_LIST_RENDER_SNAPSHOT: ISessionsListRenderSnapshot = 
 	topLevelOrder: [],
 	moreFolderSectionIds: new Set(),
 	hiddenGroupingSections: [],
+	renderedPinnedHeaderIds: new Set(),
 	nestedSessionResources: new Set(),
 	hadInboxSessions: false,
 	inboxPlacements: undefined,
@@ -239,6 +242,7 @@ export interface ISessionsListModelInput {
 	readonly pinnedCanvasSections: readonly ISessionSection[];
 	readonly isSessionInScope: (session: ISession) => boolean;
 	readonly isSessionPinned: (session: ISession) => boolean;
+	readonly pinnedSectionIds: readonly string[];
 	readonly getSortKey: (entry: SessionSortEntry, sorting: SessionsSorting) => number;
 	readonly groups: ISessionsListModelGroups;
 	readonly sectionOrder: Pick<ISessionSectionOrderService, 'resolveOrder' | 'isPromoted'>;
@@ -400,6 +404,7 @@ export function buildSessionsListModel(input: ISessionsListModelInput, precomput
 		pinnedCanvasSections,
 		isSessionInScope,
 		isSessionPinned,
+		pinnedSectionIds,
 		getSortKey,
 		groups: groupsModel,
 		sectionOrder,
@@ -644,10 +649,21 @@ export function buildSessionsListModel(input: ISessionsListModelInput, precomput
 	}
 
 	const sectionByGroupKey = new Map(sections.map(section => [getSectionGroupKey(section.id), section]));
+	// Pinned groups and grouping sections render at the top of the Pinned section instead of where they would otherwise.
+	const pinnedHeaderIds = inbox ? [] : pinnedSectionIds.filter(id => {
+		const groupId = getSessionGroupIdOfSection(id);
+		if (groupId !== undefined) {
+			return groupTree.getPath(groupId).length > 0 && !comparisonsByGroupId.has(groupId);
+		}
+		const section = sectionByGroupKey.get(id);
+		return !!section && isSessionGroupingSection(section.id);
+	});
+	const pinnedHeaders = new Set(pinnedHeaderIds);
+	const isPinnedHeader = (id: string) => pinnedHeaders.has(getSectionGroupKey(id));
 	const nestedSectionsByGroup = new Map<string, ISessionSection[]>();
 	for (const section of sections) {
 		const parentId = getSectionParentId(section.id);
-		if (parentId !== undefined) {
+		if (parentId !== undefined && !isPinnedHeader(section.id)) {
 			const siblings = nestedSectionsByGroup.get(parentId) ?? [];
 			siblings.push(section);
 			nestedSectionsByGroup.set(parentId, siblings);
@@ -655,13 +671,17 @@ export function buildSessionsListModel(input: ISessionsListModelInput, precomput
 	}
 
 	const groupItemsById = new Map<string, ISessionGroupItem>();
-	const buildGroupItem = (group: ISessionGroup, depth: number): ISessionGroupItem => {
+	const buildGroupItem = (group: ISessionGroup, depth: number, inPinned = false): ISessionGroupItem => {
 		const comparisonSectionId = comparisonSectionIds.get(group.id);
-		const comparisonParentId = inbox ? undefined : group.parentId ?? (comparisonSectionId ? getSectionParentId(comparisonSectionId) : undefined);
+		const comparisonParentId = inbox || inPinned ? undefined : group.parentId ?? (comparisonSectionId ? getSectionParentId(comparisonSectionId) : undefined);
 		if (comparisonParentId !== undefined) {
-			depth = groupTree.getPath(comparisonParentId).length;
+			// Under a pinned ancestor, which steps in under Pinned, the comparison counts its depth from there.
+			const path = groupTree.getPath(comparisonParentId);
+			const pinnedIndex = path.findLastIndex(ancestor => pinnedHeaders.has(getSessionGroupSectionId(ancestor.id)));
+			depth = pinnedIndex === -1 ? path.length : path.length - pinnedIndex + 1;
 		}
-		const subgroups = inbox ? [] : groupTree.getSubgroups(group.id).map(subgroup => buildGroupItem(subgroup, depth + 1));
+		// A separately pinned subgroup is a branch of its own under Pinned.
+		const subgroups = inbox ? [] : groupTree.getSubgroups(group.id).filter(subgroup => !pinnedHeaders.has(getSessionGroupSectionId(subgroup.id))).map(subgroup => buildGroupItem(subgroup, depth + 1, inPinned));
 		const members = sortedMembersByGroupId.get(group.id)!;
 		const comparison = comparisonsByGroupId.get(group.id);
 		if (comparison) {
@@ -690,7 +710,7 @@ export function buildSessionsListModel(input: ISessionsListModelInput, precomput
 				...subgroups.flatMap(subgroup => subgroup.subtreeSessions),
 				...(nestedSectionsByGroup.get(group.id) ?? []).flatMap(section => section.sessions),
 			],
-			isEmpty: subgroups.length === 0
+			isEmpty: groupTree.getSubgroups(group.id).length === 0
 				&& groupsModel.getSessionIdsInGroup(group.id).length === 0
 				&& groupsModel.getSectionIdsInGroup(group.id).length === 0,
 			editing: group.id === editingGroupId,
@@ -706,8 +726,17 @@ export function buildSessionsListModel(input: ISessionsListModelInput, precomput
 		groupItemsById.set(group.id, item);
 		return item;
 	};
+	// Each displayed branch is built once: pinned headers and the comparisons of pinned sections step in under the Pinned section.
 	for (const group of topLevelGroups) {
-		buildGroupItem(group, 0);
+		const comparisonSectionId = comparisonSectionIds.get(group.id);
+		const inPinned = pinnedHeaders.has(getSessionGroupSectionId(group.id)) || comparisonSectionId !== undefined && isPinnedHeader(comparisonSectionId);
+		buildGroupItem(group, inPinned ? 1 : 0, inPinned);
+	}
+	for (const groupId of pinnedHeaderIds.map(getSessionGroupIdOfSection).filter(isDefined)) {
+		const path = groupTree.getPath(groupId);
+		if (path.length > 1) {
+			buildGroupItem(path.at(-1)!, 1, true);
+		}
 	}
 
 	const hasRecentSessions = sections.some(s => s.id === 'recent' && s.sessions.length > 0);
@@ -724,6 +753,7 @@ export function buildSessionsListModel(input: ISessionsListModelInput, precomput
 		partitionFolders,
 		sections,
 		getSectionParentId,
+		isPinnedHeader,
 		comparisonGroupsBySectionId,
 		openWindowSourceFolder,
 		sectionOrder,
@@ -897,6 +927,9 @@ export function buildSessionsListModel(input: ISessionsListModelInput, precomput
 		const subgroupChildren = groupsModel.getChildIds(groupItem.group.id).flatMap(id => {
 			const subgroup = groupItemsById.get(id);
 			if (subgroup) {
+				if (pinnedHeaders.has(getSessionGroupSectionId(id))) {
+					return [];
+				}
 				if (subgroup.comparison) {
 					const comparison = comparisonsByGroupId.get(id);
 					if (comparison && !isComparisonInScope(comparison)) {
@@ -908,7 +941,7 @@ export function buildSessionsListModel(input: ISessionsListModelInput, precomput
 				return [renderGroup(subgroup)];
 			}
 			const section = sectionByGroupKey.get(id);
-			return section && getSectionParentId(section.id) === groupItem.group.id ? [renderWorkspaceSection(section)] : [];
+			return section && getSectionParentId(section.id) === groupItem.group.id && !isPinnedHeader(section.id) ? [renderWorkspaceSection(section)] : [];
 		});
 		const sessionChildren: IObjectTreeElement<SessionListItem>[] = groupItem.sessions.length === 0
 			? subgroupChildren.length === 0 && comparisonChildren.length === 0
@@ -999,9 +1032,26 @@ export function buildSessionsListModel(input: ISessionsListModelInput, precomput
 		}
 	}
 
-	const pinnedSection = sections.find(s => s.id === 'pinned');
-	if (pinnedSection) {
-		children.push(renderSection(pinnedSection));
+	const pinnedHeaderChildren = pinnedHeaderIds.flatMap(id => {
+		const groupId = getSessionGroupIdOfSection(id);
+		const groupItem = groupId === undefined ? undefined : groupItemsById.get(groupId);
+		const section = groupId === undefined ? sectionByGroupKey.get(id) : undefined;
+		return groupItem ? [renderGroup(groupItem)] : section ? [renderWorkspaceSection(section)] : [];
+	});
+	const pinnedSessionsSection = sections.find(s => s.id === 'pinned');
+	if (pinnedSessionsSection || pinnedHeaderChildren.length > 0) {
+		// The header counts and summarizes the sessions of the pinned headers too, as a group's header does its subgroups'.
+		const pinnedHeaderSessions = pinnedHeaderChildren.flatMap(child => isSessionGroupItem(child.element) ? child.element.subtreeSessions : isSessionSection(child.element) ? child.element.sessions : []);
+		const pinnedSessions = pinnedSessionsSection?.sessions ?? [];
+		const pinnedSection: ISessionSection = {
+			...pinnedSessionsSection,
+			id: 'pinned',
+			label: pinnedSessionsSection?.label ?? localize('pinned', "Pinned"),
+			sessions: pinnedSessions,
+			summarySessions: pinnedHeaderSessions.length > 0 ? [...pinnedSessions, ...pinnedHeaderSessions] : undefined,
+		};
+		const rendered = renderSection(pinnedSection);
+		children.push({ ...rendered, children: [...pinnedHeaderChildren, ...rendered.children ?? []] });
 	}
 
 	if (pendingDraftItems.length > 0) {
@@ -1061,6 +1111,10 @@ export function buildSessionsListModel(input: ISessionsListModelInput, precomput
 		const resolvedIds = keepDateSectionOrder(sectionOrder.resolveOrder([...topLevelGroupIds, ...DATE_SECTION_IDS]));
 		topLevelOrder = resolvedIds;
 		for (const id of resolvedIds) {
+			// A pinned header keeps its place in the order, to return to it when unpinned, but renders in Pinned.
+			if (isPinnedHeader(id)) {
+				continue;
+			}
 			const groupId = getSessionGroupIdOfSection(id);
 			if (groupId !== undefined) {
 				renderGroupById(groupId);
@@ -1091,6 +1145,10 @@ export function buildSessionsListModel(input: ISessionsListModelInput, precomput
 		const resolvedIds = sectionOrder.resolveOrder(defaultOrder);
 		topLevelOrder = resolvedIds;
 		for (const id of resolvedIds) {
+			// A pinned header keeps its place in the order, to return to it when unpinned, but renders in Pinned.
+			if (isPinnedHeader(id)) {
+				continue;
+			}
 			const groupId = getSessionGroupIdOfSection(id);
 			if (groupId !== undefined) {
 				renderGroupById(groupId);
@@ -1173,6 +1231,7 @@ export function buildSessionsListModel(input: ISessionsListModelInput, precomput
 			topLevelOrder,
 			moreFolderSectionIds: renderedMoreFolderSectionIds,
 			hiddenGroupingSections,
+			renderedPinnedHeaderIds: pinnedHeaders,
 			nestedSessionResources: nextNestedSessionResources,
 			hadInboxSessions: hasInboxSessions,
 			inboxPlacements,
@@ -1190,6 +1249,7 @@ function partitionMoreFolders(
 	enabled: boolean,
 	sections: readonly ISessionSection[],
 	getSectionParentId: (sectionId: string) => string | undefined,
+	isPinnedHeader: (sectionId: string) => boolean,
 	comparisonGroupsBySectionId: ReadonlyMap<string, readonly ISessionGroup[]>,
 	openWindowSourceFolder: URI | undefined,
 	sectionOrder: Pick<ISessionSectionOrderService, 'isPromoted'>,
@@ -1200,7 +1260,7 @@ function partitionMoreFolders(
 	if (!enabled) {
 		return moreFolderSectionIds;
 	}
-	const workspaceSections = sections.filter(s => isSessionGroupingSection(s.id) && getSectionParentId(s.id) === undefined);
+	const workspaceSections = sections.filter(s => isSessionGroupingSection(s.id) && getSectionParentId(s.id) === undefined && !isPinnedHeader(s.id));
 	// With only two workspaces, hiding one behind a "+1 more" row saves no space.
 	if (workspaceSections.length <= 2) {
 		return moreFolderSectionIds;

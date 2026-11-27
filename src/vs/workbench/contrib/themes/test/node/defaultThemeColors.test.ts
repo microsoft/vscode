@@ -13,7 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { editorRuler, ghostTextForeground } from '../../../../../editor/common/core/editorColorRegistry.js';
 import { IExtensionResourceLoaderService } from '../../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
 import { editorFindMatchHighlightBorder, listHoverBackground, minimapFindMatch, overviewRulerFindMatchForeground, quickInputBackground, quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusHighlightForeground, quickInputListFocusIconForeground } from '../../../../../platform/theme/common/colorRegistry.js';
-import { BANNER_BACKGROUND, BANNER_FOREGROUND, BANNER_ICON_FOREGROUND, EDITOR_GROUP_HEADER_CONNECTED_TABS_BACKGROUND, STATUS_BAR_ERROR_ITEM_BACKGROUND, STATUS_BAR_ERROR_ITEM_FOREGROUND, STATUS_BAR_ERROR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ERROR_ITEM_HOVER_FOREGROUND, STATUS_BAR_ITEM_COMPACT_HOVER_BACKGROUND, TAB_BORDER, TAB_DIVIDER, TAB_INACTIVE_FOREGROUND } from '../../../../common/theme.js';
+import { ACTIVITY_BAR_BADGE_BACKGROUND, BANNER_BACKGROUND, BANNER_FOREGROUND, BANNER_ICON_FOREGROUND, EDITOR_GROUP_HEADER_CONNECTED_TABS_BACKGROUND, STATUS_BAR_ERROR_ITEM_BACKGROUND, STATUS_BAR_ERROR_ITEM_FOREGROUND, STATUS_BAR_ERROR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ERROR_ITEM_HOVER_FOREGROUND, STATUS_BAR_ITEM_COMPACT_HOVER_BACKGROUND, STATUS_BAR_REMOTE_ITEM_BACKGROUND, STATUS_BAR_REMOTE_ITEM_FOREGROUND, STATUS_BAR_REMOTE_ITEM_HOVER_BACKGROUND, STATUS_BAR_REMOTE_ITEM_HOVER_FOREGROUND, TAB_BORDER, TAB_DIVIDER, TAB_INACTIVE_FOREGROUND } from '../../../../common/theme.js';
 import { ColorThemeData } from '../../../../services/themes/common/colorThemeData.js';
 import { resolveTabDividerBorderCustomization } from '../../../../services/themes/common/tabDividerColor.js';
 
@@ -61,6 +61,28 @@ suite('Default theme colors', () => {
 		{ name: 'Dark 2026', file: '2026-dark.json', selector: 'vs-dark', keywordForeground: '#569cd6', invalidForeground: '#ffa198' },
 		{ name: 'Light 2026', file: '2026-light.json', selector: 'vs', keywordForeground: '#0550ae', invalidForeground: '#82071e' },
 	] as const) {
+		test(`${name} remote indicator matches the theme accent with a darker hover and remains readable`, async () => {
+			const theme = await loadDefaultTheme(file, selector);
+			const background = theme.getColor(STATUS_BAR_REMOTE_ITEM_BACKGROUND)!;
+			const foreground = theme.getColor(STATUS_BAR_REMOTE_ITEM_FOREGROUND)!;
+			const hoverBackground = theme.getColor(STATUS_BAR_REMOTE_ITEM_HOVER_BACKGROUND)!.makeOpaque(background);
+			const hoverForeground = theme.getColor(STATUS_BAR_REMOTE_ITEM_HOVER_FOREGROUND)!;
+
+			assert.deepStrictEqual({
+				matchesBadge: background.toString() === theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND)!.toString(),
+				hoverPreservesAccent: Math.abs(hoverBackground.hsla.h - background.hsla.h) <= 1 && Math.abs(hoverBackground.hsla.s - background.hsla.s) <= 0.02,
+				darkerHover: hoverBackground.getRelativeLuminance() < background.getRelativeLuminance(),
+				readable: foreground.makeOpaque(background).getContrastRatio(background) >= 4.5,
+				readableHover: hoverForeground.makeOpaque(hoverBackground).getContrastRatio(hoverBackground) >= 4.5,
+			}, {
+				matchesBadge: true,
+				hoverPreservesAccent: true,
+				darkerHover: true,
+				readable: true,
+				readableHover: true,
+			});
+		});
+
 		test(`${name} keywords and storage types are blue while illegal syntax stays red`, async () => {
 			const theme = await loadDefaultTheme(file, selector);
 			const scopes = ['keyword', 'keyword.control', 'storage', 'storage.type'];

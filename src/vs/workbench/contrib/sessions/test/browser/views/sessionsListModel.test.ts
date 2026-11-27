@@ -144,6 +144,7 @@ suite('Sessions - SessionsListModel', () => {
 			pinnedCanvasSections: [],
 			isSessionInScope: () => true,
 			isSessionPinned: () => false,
+			pinnedSectionIds: [],
 			getSortKey: (entry, sorting) => sorting === SessionsSorting.Updated ? entry.updatedAt.get().getTime() : entry.createdAt.getTime(),
 			groups: createGroups(),
 			sectionOrder: { resolveOrder: ids => [...ids], isPromoted: () => false },
@@ -414,6 +415,42 @@ suite('Sessions - SessionsListModel', () => {
 			barTree: [{ section: QUICK_CHATS_SECTION_ID, children: [{ session: 'quick' }] }],
 			scopedByBar: [true],
 			emptyTree: [{ placeholder: SCOPE_EMPTY_PLACEHOLDER_ID }],
+		});
+	});
+
+	test('renders pinned groups and workspace sections at the top of Pinned while preserving topLevelOrder', () => {
+		const grouped = createSession('g1', { workspaceLabel: 'Alpha', updatedAt: NOW - 2_000 });
+		const folderSession = createSession('f1', { workspaceLabel: 'Beta', updatedAt: NOW - 1_000 });
+		const group: ISessionGroup = { id: 'grp1', name: 'Focus', createdAt: NOW };
+
+		const result = buildSessionsListModel(createInput({
+			grouping: SessionsGrouping.Workspace,
+			sessions: [grouped, folderSession],
+			groups: createGroups([group], new Map([['g1', 'grp1']])),
+			pinnedSectionIds: ['group:grp1', 'workspace:Beta'],
+		}));
+
+		const pinnedNode = result.children.find(child => isSessionSection(child.element) && child.element.id === 'pinned');
+		const pinnedSection = pinnedNode && isSessionSection(pinnedNode.element) ? pinnedNode.element : undefined;
+
+		assert.deepStrictEqual({
+			tree: describeNodes(result.children),
+			topLevelOrder: result.snapshot.topLevelOrder,
+			renderedPinned: [...result.snapshot.renderedPinnedHeaderIds],
+			summaryIds: pinnedSection?.summarySessions?.map(s => s.sessionId),
+		}, {
+			tree: [
+				{
+					section: 'pinned',
+					children: [
+						{ group: 'grp1', depth: 1, children: [{ session: 'g1' }] },
+						{ section: 'workspace:Beta', children: [{ session: 'f1' }] },
+					],
+				},
+			],
+			topLevelOrder: ['group:grp1', 'workspace:Beta'],
+			renderedPinned: ['group:grp1', 'workspace:Beta'],
+			summaryIds: ['g1', 'f1'],
 		});
 	});
 });

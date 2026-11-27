@@ -202,7 +202,9 @@ export type SessionHeaderDrop =
 	| { readonly kind: 'topLevel'; readonly targetId: string; readonly position: 'before' | 'after'; readonly aboveMore?: boolean }
 	| { readonly kind: 'subgroup'; readonly parentId: string; readonly depth: number; readonly placement: ISessionGroupPlacement }
 	| { readonly kind: 'comparison'; readonly parent: ISessionSection | ISessionGroupItem | ISession; readonly anchor?: ISession | ISessionGroupItem; readonly position: 'before' | 'after'; readonly depth: number }
-	| { readonly kind: 'into'; readonly groupId: string };
+	| { readonly kind: 'into'; readonly groupId: string }
+	/** Pins the header to the Pinned section. */
+	| { readonly kind: 'pinned' };
 
 /** A resolved drop: its hover feedback and what dropping does. */
 interface ISessionsListDropOperation {
@@ -409,6 +411,9 @@ export class SessionsListDragAndDrop extends Disposable implements ITreeDragAndD
 		}
 		if (drop.kind === 'comparison') {
 			return { reaction: toDropReaction(insertionFeedback(drop.position)), insertionDepth: drop.depth, run };
+		}
+		if (drop.kind === 'pinned') {
+			return { reaction: toDropReaction(undefined), header: { kind: 'section', id: 'pinned' }, run };
 		}
 		const isHeaderRow = isSessionGroupItem(target) && target.group.id === drop.groupId;
 		return {

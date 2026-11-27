@@ -21,6 +21,7 @@ import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, WorkbenchMode, 
 import { testWorkspace } from '../../../../platform/workspace/test/common/testWorkspace.js';
 import { IFolderLocation, IFolderLocationChangeEvent, IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceFolderLocationsDto } from '../../common/extHost.protocol.js';
+import { IWorkspaceEditingService } from '../../../services/workspaces/common/workspaceEditing.js';
 
 suite('MainThreadWorkspace', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -168,6 +169,58 @@ suite('MainThreadWorkspace', () => {
 		await new Promise<void>(resolve => setTimeout(resolve, 0));
 
 		assert.ok(pushed.length > 0);
+	});
+
+	test('refuses extension folder updates in Agents mode and applies them in Editor mode', async () => {
+		let mode = WorkbenchMode.Agents;
+		instantiationService.stub(IWorkspaceContextService, new class {
+			getWorkspace() { return testWorkspace(URI.file('/work/repo')); }
+			hasWorkspaceData() { return true; }
+			getCompleteWorkspace() { return Promise.resolve(testWorkspace(URI.file('/work/repo'))); }
+			getWorkbenchState() { return WorkbenchState.FOLDER; }
+			onDidChangeWorkspaceFolders = Event.None;
+			onDidChangeWorkbenchState = Event.None;
+			getWorkbenchMode() { return mode; }
+			onDidChangeWorkbenchMode = Event.None;
+		} as unknown as IWorkspaceContextService);
+		const updates: string[][] = [];
+		instantiationService.stub(IWorkspaceEditingService, {
+			updateFolders: async (_index: number, _deleteCount: number, foldersToAdd?: { uri: URI }[]) => { updates.push((foldersToAdd ?? []).map(f => f.uri.path)); }
+		});
+		const mtw = disposables.add(instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { }, $acceptWorkspaceData: () => { }, $acceptWorkspaceFolderLocations: () => { } })));
+		const update = () => mtw.$updateWorkspaceFolders('ext', 1, 0, [{ uri: URI.file('/work/other') }]).then(() => 'applied', () => 'refused');
+
+		const inAgentsMode = await update();
+		mode = WorkbenchMode.Editor;
+		const inEditorMode = await update();
+
+		assert.deepStrictEqual({ inAgentsMode, inEditorMode, updates }, { inAgentsMode: 'refused', inEditorMode: 'applied', updates: [['/work/other']] });
+	});
+
+	test('sends the workbench mode even when there is no workspace data', async () => {
+		const modeChanged = disposables.add(new Emitter<WorkbenchMode>());
+		let mode = WorkbenchMode.Agents;
+		instantiationService.stub(IWorkspaceContextService, new class {
+			getWorkspace() { return testWorkspace(); }
+			hasWorkspaceData() { return false; }
+			getCompleteWorkspace() { return Promise.resolve(testWorkspace()); }
+			getWorkbenchState() { return WorkbenchState.EMPTY; }
+			onDidChangeWorkspaceFolders = Event.None;
+			onDidChangeWorkbenchState = Event.None;
+			getWorkbenchMode() { return mode; }
+			onDidChangeWorkbenchMode = modeChanged.event;
+		} as unknown as IWorkspaceContextService);
+		const received: { data: unknown; mode: WorkbenchMode }[] = [];
+		disposables.add(instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({
+			$initializeWorkspace: (data: unknown, mode: WorkbenchMode) => { received.push({ data, mode }); },
+			$acceptWorkspaceData: (data: unknown, mode: WorkbenchMode) => { received.push({ data, mode }); },
+			$acceptWorkspaceFolderLocations: () => { }
+		})));
+		await new Promise<void>(resolve => setTimeout(resolve, 0));
+		mode = WorkbenchMode.Editor;
+		modeChanged.fire(mode);
+
+		assert.deepStrictEqual(received, [{ data: null, mode: WorkbenchMode.Agents }, { data: null, mode: WorkbenchMode.Editor }]);
 	});
 	suite('location resolution lifetime', () => {
 

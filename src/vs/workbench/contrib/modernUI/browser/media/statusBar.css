@@ -100,11 +100,11 @@
 }
 
 /*
- * Floating status-bar items sit inside the native window's rounded bottom
- * corners. Keep their window-facing corner concentric with the frame, offset by
- * the status bar and label insets (provided by floatingPanels.css).
+ * With a horizontal activity bar, floating status-bar edge items sit inside the
+ * native window's rounded bottom corners. Keep their window-facing corners
+ * concentric with the frame, offset by the status bar and label insets.
  */
-.monaco-workbench.mac.modern-ui.floating-panels:not(.web):not(.fullscreen) .part.statusbar {
+.monaco-workbench.mac.modern-ui.floating-panels:not(.web):not(.fullscreen) .part.statusbar.activitybar-horizontal {
 	--modern-ui-statusbar-window-corner-radius:
 		max(var(--vscode-cornerRadius-small), calc(var(--window-corner-radius) - var(--window-border-width, 0px) - var(--modern-ui-statusbar-inline-inset, 0px)))
 		max(var(--vscode-cornerRadius-small), calc(var(--window-corner-radius) - var(--window-border-width, 0px) - var(--modern-ui-statusbar-block-end-inset, 0px)));
@@ -130,12 +130,11 @@
 }
 
 /*
- * The workbench frame clips docked status-bar backgrounds to the native window
- * curve. Leave the touching corners square so the short status-bar items cannot
- * normalize that larger radius against their 22px height; keep the other control
- * corners on the small-radius tier.
+ * The workbench frame clips docked edge items to the native window curve when
+ * the activity bar is horizontal. Leave the touching corners square so the short
+ * items cannot normalize that larger radius against their height.
  */
-.monaco-workbench.mac.modern-ui:not(.web):not(.fullscreen):not(.floating-panels) .part.statusbar {
+.monaco-workbench.mac.modern-ui:not(.web):not(.fullscreen):not(.floating-panels) .part.statusbar.activitybar-horizontal {
 	> .items-container > .statusbar-item.left.first-visible-item,
 	> .items-container > .statusbar-item.left.first-visible-item > .statusbar-item-label {
 		border-bottom-left-radius: 0;
