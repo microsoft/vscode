@@ -134,17 +134,20 @@ suite('DictationSession', () => {
 		assert.deepStrictEqual([interimValue, editor.getValue()], ['', transcript]);
 	});
 
-	test('stopping does not pull focus back from another editor the user moved into', async () => {
+	test('stopping does not pull focus back from another editor or chat input the user moved into', async () => {
 		const { service } = createService('hello', true);
 		const editor = store.add(createTestCodeEditor(store.add(createTextModel(''))));
 		const focus = sinon.spy(editor, 'focus');
-		const otherEditor = mainWindow.document.body.appendChild(dom.$('.monaco-editor', undefined, dom.$('textarea')));
-		store.add(toDisposable(() => otherEditor.remove()));
+		// Another chat input: its editor, and a toolbar button activated from the keyboard.
+		const otherInput = mainWindow.document.body.appendChild(dom.$('.interactive-input-part', undefined, dom.$('.monaco-editor', undefined, dom.$('textarea')), dom.$('button')));
+		store.add(toDisposable(() => otherInput.remove()));
 
-		await startDictation(service, editor, mainWindow, new NullLogService());
-		otherEditor.querySelector('textarea')!.focus();
-		await stopDictation();
-		otherEditor.remove();
+		for (const target of [otherInput.querySelector('textarea')!, otherInput.querySelector('button')!]) {
+			await startDictation(service, editor, mainWindow, new NullLogService());
+			target.focus();
+			await stopDictation();
+		}
+		otherInput.remove();
 		await startDictation(service, editor, mainWindow, new NullLogService());
 		await stopDictation();
 

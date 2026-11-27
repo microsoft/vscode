@@ -521,10 +521,11 @@ async function finalizeDictation(active: IActiveDictation): Promise<void> {
 		active.disposables.dispose();
 		// Return focus to the dictation editor so the caret (just un-hidden by
 		// disposing the hide-cursor class) reappears immediately at the end of the
-		// inserted transcript, unless the user has moved into another editor, such
-		// as the chat input whose microphone or Voice Mode button stopped dictation.
-		const focusedEditor = getActiveElement()?.closest('.monaco-editor');
-		if (!focusedEditor || focusedEditor === active.editor.getDomNode()) {
+		// inserted transcript, unless the user has moved into another editor or chat
+		// input, such as one whose microphone or Voice Mode button stopped dictation
+		// (a keyboard-activated toolbar button sits outside the input's editor).
+		const focusedSurface = getActiveElement()?.closest('.monaco-editor, .interactive-input-part');
+		if (!focusedSurface || focusedSurface.contains(active.editor.getDomNode())) {
 			active.editor.focus();
 		}
 	}
