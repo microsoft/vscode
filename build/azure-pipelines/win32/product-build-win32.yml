@@ -211,7 +211,7 @@ jobs:
 
         - template: ./steps/product-build-win32-download-compilation.yml@self
 
-        - template: ./steps/product-build-win32-sign.yml@self
+        - template: ./steps/product-build-win32-package.yml@self
           parameters:
             VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
 
