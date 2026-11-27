@@ -261,6 +261,8 @@ export class SessionWorkspaceEditorWidget extends Disposable {
 	readonly onDidApply = this._onDidApply.event;
 
 	private readonly model: SessionWorkspaceDraftModel;
+	/** The custom color that the system's color panel previews until the user picks it. */
+	private previewColor: string | undefined;
 	/** The workspace as last applied, `undefined` until a new workspace is created. */
 	private workspace: IRecentSessionWorkspace | undefined;
 	private applied: ISessionWorkspaceDraft | undefined;
@@ -578,12 +580,17 @@ export class SessionWorkspaceEditorWidget extends Disposable {
 		this._onDidChangeName.fire(this.model.name.trim());
 	}
 
+	/** The color the editor shows: the one the system's color panel previews, else the workspace's. */
+	private get shownColor(): string | undefined {
+		return this.previewColor ?? this.model.color;
+	}
+
 	private renderIconButton(): void {
 		const icon = getSessionWorkspaceIcon(this.model.icon);
 		DOM.clearNode(this.iconButton);
 		const element = DOM.append(this.iconButton, renderIcon(icon));
 		element.setAttribute('aria-hidden', 'true');
-		element.style.color = getSessionWorkspaceCssColor(this.model.color, this.themeService.getColorTheme()) ?? '';
+		element.style.color = getSessionWorkspaceCssColor(this.shownColor, this.themeService.getColorTheme()) ?? '';
 		this.iconButton.setAttribute('aria-label', localize('workspaceEditor.iconAria', "Workspace Icon: {0}", icon.id));
 	}
 
@@ -627,17 +634,20 @@ export class SessionWorkspaceEditorWidget extends Disposable {
 		const palette = DOM.append(split, DOM.$('.session-workspace-editor-custom-palette', { role: 'button', tabindex: '0', 'aria-haspopup': 'dialog', 'aria-label': chooseLabel }));
 		this._register(this.hoverService.setupDelayedHover(palette, { content: chooseLabel }));
 		DOM.append(palette, renderIcon(Codicon.symbolColor)).setAttribute('aria-hidden', 'true');
-		const custom = { id: (): string | undefined => customColor, element: customElement };
+		// The custom swatch shows the color the panel previews, else the last one picked
+		const shownCustomColor = () => this.previewColor ?? customColor;
+		const custom = { id: (): string | undefined => shownCustomColor(), element: customElement };
 		const all = [...fixed, custom];
-		const radios = () => customColor ? all : fixed;
+		const radios = () => shownCustomColor() ? all : fixed;
 
 		const update = () => {
 			const choices = radios();
 			// Without a custom color, only the palette shows
-			customElement.hidden = !customColor;
-			customElement.setAttribute('aria-label', customColor ? localize('workspaceEditor.customColorSet', "Custom Color, {0}", customColor) : '');
-			customDot.style.backgroundColor = customColor ?? '';
-			const checkedIndex = choices.findIndex(choice => choice.id() === this.model.color);
+			const shown = shownCustomColor();
+			customElement.hidden = !shown;
+			customElement.setAttribute('aria-label', shown ? localize('workspaceEditor.customColorSet', "Custom Color, {0}", shown) : '');
+			customDot.style.backgroundColor = shown ?? '';
+			const checkedIndex = choices.findIndex(choice => choice.id() === this.shownColor);
 			for (const choice of all) {
 				const index = choices.indexOf(choice);
 				if (index < 0) {
@@ -650,9 +660,19 @@ export class SessionWorkspaceEditorWidget extends Disposable {
 			}
 			this.renderIconButton();
 		};
+		const pickCustomColor = (color: string) => {
+			customColor = color;
+			this.storageService.store(LAST_CUSTOM_COLOR_STORAGE_KEY, color, StorageScope.PROFILE, StorageTarget.USER);
+		};
 		const select = (index: number) => {
 			const choice = radios()[index];
-			this.model.setColor(choice.id());
+			const color = choice.id();
+			// Selecting a swatch ends a preview: the custom swatch picks the previewed color, any other leaves it
+			if (choice === custom && color) {
+				pickCustomColor(color);
+			}
+			this.previewColor = undefined;
+			this.model.setColor(color);
 			update();
 			choice.element.focus();
 			void this.apply();
@@ -661,30 +681,30 @@ export class SessionWorkspaceEditorWidget extends Disposable {
 		// The system's color panel, through a native color input
 		const inputContainer = DOM.append(line, DOM.$('.session-workspace-editor-color-input-container'));
 		const input = DOM.append(inputContainer, DOM.$<HTMLInputElement>('input.session-workspace-editor-color-input', { type: 'color', tabindex: '-1', 'aria-hidden': 'true' }));
-		const pickCustomColor = () => {
+		const openColorPanel = () => {
 			input.value = customColor ?? '#3794ff';
 			input.click();
 		};
-		// The color previews as the user moves through the panel, and applies once they pick it
+		// The color previews as the user moves through the panel, and the workspace takes it only once they pick it, so that
+		// a save meanwhile keeps the workspace's color
 		this._register(DOM.addDisposableListener(input, 'input', () => {
-			customColor = input.value.toLowerCase();
-			this.model.setColor(customColor);
+			this.previewColor = input.value.toLowerCase();
 			update();
 		}));
 		this._register(DOM.addDisposableListener(input, 'change', () => {
-			customColor = input.value.toLowerCase();
-			this.storageService.store(LAST_CUSTOM_COLOR_STORAGE_KEY, customColor, StorageScope.PROFILE, StorageTarget.USER);
+			pickCustomColor(input.value.toLowerCase());
+			this.previewColor = undefined;
 			this.model.setColor(customColor);
 			update();
 			void this.apply();
 		}));
 		// The palette picks a color; Left Arrow goes back to the colors
-		this._register(DOM.addDisposableListener(palette, DOM.EventType.CLICK, () => pickCustomColor()));
+		this._register(DOM.addDisposableListener(palette, DOM.EventType.CLICK, () => openColorPanel()));
 		this._register(DOM.addDisposableListener(palette, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Space) || event.equals(KeyCode.Enter)) {
 				DOM.EventHelper.stop(event, true);
-				pickCustomColor();
+				openColorPanel();
 			} else if (event.equals(KeyCode.LeftArrow)) {
 				DOM.EventHelper.stop(event, true);
 				radios().find(choice => choice.element.tabIndex === 0)?.element.focus();
@@ -773,6 +793,8 @@ export class SessionWorkspaceEditorWidget extends Disposable {
 		if (hadFocus) {
 			this.focusFolderRow(0); // the default folder is first
 		}
+		// A name the user has not typed follows the default folder
+		this.syncName();
 		status(localize('workspaceEditor.defaultSet', "{0} is the default folder", basename(folder)));
 		void this.apply();
 	}

@@ -27,8 +27,20 @@ import { IRecentSessionWorkspace, ISessionWorkspacesService, SessionWorkspaceErr
 import { getSessionWorkspaceIcon } from './sessionWorkspaceAppearance.js';
 import { SessionWorkspaceEditor } from './sessionWorkspaceEditor.js';
 import { SessionWorkspaceEditorAccessibilityHelp } from './sessionWorkspaceEditorAccessibilityHelp.js';
-import { EDIT_SESSION_WORKSPACE_COMMAND_ID, NEW_SESSION_WORKSPACE_COMMAND_ID, REMOVE_SESSION_WORKSPACE_COMMAND_ID, SESSION_WORKSPACE_EDITOR_WHEN } from './sessionWorkspaceEditorCommands.js';
+import { EDIT_SESSION_WORKSPACE_COMMAND_ID, NEW_SESSION_WORKSPACE_COMMAND_ID, REMOVE_SESSION_WORKSPACE_COMMAND_ID, SESSION_WORKSPACE_EDITOR_WHEN, SessionWorkspaceEditorAvailableContext } from './sessionWorkspaceEditorCommands.js';
 import { SessionWorkspaceEditorInput } from './sessionWorkspaceEditorInput.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
+
+/** Tells the window's UI that it has the Workspace editor, which only the windows that load this contribution have. */
+class SessionWorkspaceEditorAvailableContribution implements IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.sessionWorkspaceEditorAvailable';
+
+	constructor(@IContextKeyService contextKeyService: IContextKeyService) {
+		SessionWorkspaceEditorAvailableContext.bindTo(contextKeyService).set(true);
+	}
+}
+registerWorkbenchContribution2(SessionWorkspaceEditorAvailableContribution.ID, SessionWorkspaceEditorAvailableContribution, WorkbenchPhase.BlockStartup);
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(SessionWorkspaceEditor, SessionWorkspaceEditor.ID, localize('workspaceEditor.label', "Workspace Editor")),

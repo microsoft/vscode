@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { SessionWorkspacesEnabledContext } from '../../common/contextkeys.js';
 
@@ -14,5 +14,8 @@ export const EDIT_SESSION_WORKSPACE_COMMAND_ID = 'sessions.workspaces.edit';
 /** Removes the workspace of the given `.code-workspace` file, or one that the user picks, after asking. */
 export const REMOVE_SESSION_WORKSPACE_COMMAND_ID = 'sessions.workspaces.remove';
 
-/** When the Workspace editor's commands show: chat is on, and so are workspaces. */
-export const SESSION_WORKSPACE_EDITOR_WHEN = ContextKeyExpr.and(ChatContextKeys.enabled, SessionWorkspacesEnabledContext);
+/** Whether the window has the Workspace editor, as the desktop and web Agents window and the editor window do, but not the phone. */
+export const SessionWorkspaceEditorAvailableContext = new RawContextKey<boolean>('sessionWorkspaceEditorAvailable', false);
+
+/** When the Workspace editor's commands show: the window has the editor, and chat and workspaces are on. */
+export const SESSION_WORKSPACE_EDITOR_WHEN = ContextKeyExpr.and(SessionWorkspaceEditorAvailableContext, ChatContextKeys.enabled, SessionWorkspacesEnabledContext);

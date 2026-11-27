@@ -29,11 +29,14 @@ import { SessionWorkspaceEditorWidget } from '../../../browser/workspaceEditor/s
 import '../../../browser/workspaceEditor/sessionWorkspaceEditor.contribution.js';
 import { REMOVE_SESSION_WORKSPACE_COMMAND_ID } from '../../../browser/workspaceEditor/sessionWorkspaceEditorCommands.js';
 import { SessionWorkspaceEditorInput, SessionWorkspaceEditorTarget } from '../../../browser/workspaceEditor/sessionWorkspaceEditorInput.js';
+import { isWindows } from '../../../../../../base/common/platform.js';
 
 suite('SessionWorkspaceEditor', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	/** A path label with `/` separators, which the label service shows with `\` on Windows. */
 	const posixLabel = (label: string | null | undefined) => label?.replace(/\\/g, '/');
+	/** The label service shows a path in the user's home with `~`, except on Windows. */
+	const home = isWindows ? '' : '~';
 	const vscode = URI.file('/work/vscode');
 	const docs = URI.file('/work/vscode-docs');
 	const agents: IRecentSessionWorkspace = { uri: URI.file('/user/AgentsWorkspaces/Agents.code-workspace'), name: 'Agents', folders: [vscode, docs], owned: true, color: 'terminal.ansiGreen' };
@@ -161,9 +164,9 @@ suite('SessionWorkspaceEditor', () => {
 		await widget.flush();
 
 		assert.deepStrictEqual({ initial, defaultSet, lastFolder, footer: !!container.querySelector('.session-workspace-editor-footer'), calls }, {
-			initial: { title: 'Agents', folders: ['~/work/vscode (default)', '~/work/vscode-docs'], message: '' },
-			defaultSet: { title: 'Agents', folders: ['~/work/vscode-docs (default)', '~/work/vscode'], message: '' },
-			lastFolder: { title: 'Agents', folders: ['~/work/vscode'], message: '', remove: 'Remove Folder (a workspace needs at least one folder) (disabled)' },
+			initial: { title: 'Agents', folders: [`${home}/work/vscode (default)`, `${home}/work/vscode-docs`], message: '' },
+			defaultSet: { title: 'Agents', folders: [`${home}/work/vscode-docs (default)`, `${home}/work/vscode`], message: '' },
+			lastFolder: { title: 'Agents', folders: [`${home}/work/vscode`], message: '', remove: 'Remove Folder (a workspace needs at least one folder) (disabled)' },
 			footer: false,
 			calls: [
 				'update /user/AgentsWorkspaces/Agents.code-workspace {"folders":["/work/vscode-docs","/work/vscode"]}',
@@ -171,6 +174,52 @@ suite('SessionWorkspaceEditor', () => {
 				'update /user/AgentsWorkspaces/Agents.code-workspace {"color":"#ff8800"}',
 				'update /user/AgentsWorkspaces/Agents.code-workspace {"folders":["/work/vscode"]}',
 			],
+		});
+	});
+
+	test('a new workspace\'s name follows its default folder until the user names it, and a previewed custom color is saved only once picked, and a preset picked meanwhile ends the preview', async () => {
+		const created = createWidget({ kind: 'new' }, [vscode, docs]);
+		created.button('Add Folder...').click();
+		await created.widget.flush();
+		const action = (container: HTMLElement, label: string) => Array.from(container.querySelectorAll<HTMLElement>('.session-workspace-editor-folder-actions .action-label')).find(candidate => candidate.textContent === label)!;
+		action(created.container, 'Set as Default').click();
+		await created.widget.flush();
+		const nameInput = created.container.querySelector<HTMLInputElement>('.monaco-inputbox input')!;
+		const named = { title: created.state().title, name: nameInput.value };
+		created.button('Create').click();
+		await created.widget.flush();
+
+		// A change saved while the system's color panel previews a color keeps the workspace's color
+		const edited = createWidget({ kind: 'edit', workspace: agents });
+		const colorInput = edited.container.querySelector<HTMLInputElement>('.session-workspace-editor-color-input')!;
+		colorInput.value = '#ff0000';
+		colorInput.dispatchEvent(new Event('input'));
+		action(edited.container, 'Set as Default').click();
+		await edited.widget.flush();
+		colorInput.dispatchEvent(new Event('change'));
+		await edited.widget.flush();
+
+		// A preset picked while the panel previews a color, which the user never picked, ends the preview
+		const preset = createWidget({ kind: 'edit', workspace: agents });
+		const presetInput = preset.container.querySelector<HTMLInputElement>('.session-workspace-editor-color-input')!;
+		presetInput.value = '#00ff00';
+		presetInput.dispatchEvent(new Event('input'));
+		Array.from(preset.container.querySelectorAll<HTMLElement>('.session-workspace-editor-swatch')).find(swatch => swatch.getAttribute('aria-label') === 'Blue')!.click();
+		await preset.widget.flush();
+		const presetShown = {
+			checked: preset.container.querySelector('.session-workspace-editor-swatch[aria-checked="true"]')?.getAttribute('aria-label'),
+			custom: preset.container.querySelector<HTMLElement>('.session-workspace-editor-swatch.custom')?.hidden ? 'hidden' : 'shown',
+		};
+
+		assert.deepStrictEqual({ named, created: created.calls, edited: edited.calls, preset: preset.calls, presetShown }, {
+			named: { title: 'vscode-docs', name: 'vscode-docs' },
+			created: ['create {"name":"vscode-docs","folders":["/work/vscode-docs","/work/vscode"]}'],
+			edited: [
+				'update /user/AgentsWorkspaces/Agents.code-workspace {"folders":["/work/vscode-docs","/work/vscode"]}',
+				'update /user/AgentsWorkspaces/Agents.code-workspace {"color":"#ff0000"}',
+			],
+			preset: ['update /user/AgentsWorkspaces/Agents.code-workspace {"color":"terminal.ansiBlue"}'],
+			presetShown: { checked: 'Blue', custom: 'hidden' },
 		});
 	});
 
@@ -361,7 +410,7 @@ suite('SessionWorkspaceEditor', () => {
 			missingFile: await prompt({ ...agents, missing: true }),
 		}, {
 			owned: { buttons: ['&&Remove Workspace', '&&Delete Workspace and File'], detail: 'Its sessions are kept and listed by their folders. Delete Workspace and File also moves its workspace file to the trash.' },
-			usersFile: { buttons: ['&&Remove Workspace', '&&Delete Workspace and Its File'], detail: 'Its sessions are kept and listed by their folders. Delete Workspace and Its File also moves your workspace file ~/work/agents.code-workspace to the trash.' },
+			usersFile: { buttons: ['&&Remove Workspace', '&&Delete Workspace and Its File'], detail: `Its sessions are kept and listed by their folders. Delete Workspace and Its File also moves your workspace file ${home}/work/agents.code-workspace to the trash.` },
 			folder: { buttons: ['&&Remove Workspace'], detail: 'Its sessions are kept and listed by their folders.' },
 			folderNamedLikeFile: { buttons: ['&&Remove Workspace'], detail: 'Its sessions are kept and listed by their folders.' },
 			missingFile: { buttons: ['&&Remove Workspace'], detail: 'Its sessions are kept and listed by their folders.' },
