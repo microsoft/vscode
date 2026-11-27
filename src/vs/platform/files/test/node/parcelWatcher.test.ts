@@ -4,15 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import parcelWatcher from '@parcel/watcher';
 import { realpathSync, promises } from 'fs';
 import { tmpdir } from 'os';
 import { timeout } from '../../../../base/common/async.js';
-import { dirname, join } from '../../../../base/common/path.js';
+import { basename, dirname, join } from '../../../../base/common/path.js';
 import { isLinux, isMacintosh, isWindows } from '../../../../base/common/platform.js';
 import { Promises, RimRafMode } from '../../../../base/node/pfs.js';
 import { getRandomTestPath } from '../../../../base/test/node/testUtils.js';
 import { FileChangeFilter, FileChangeType, IFileChange } from '../../common/files.js';
-import { ParcelWatcher } from '../../node/watcher/parcel/parcelWatcher.js';
+import { getPruningExcludes, ParcelWatcher } from '../../node/watcher/parcel/parcelWatcher.js';
 import { IRecursiveWatchRequest } from '../../common/watcher.js';
 import { getDriveLetter } from '../../../../base/common/extpath.js';
 import { ltrim } from '../../../../base/common/strings.js';
@@ -22,6 +23,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { addUNCHostToAllowlist } from '../../../../base/node/unc.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IRelativePattern } from '../../../../base/common/glob.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 export class TestParcelWatcher extends ParcelWatcher {
@@ -121,6 +123,93 @@ suite('File Watcher (parcel) request deduplication', () => {
 		const second: IRecursiveWatchRequest = { path: '/workspace', excludes: [], includes: ['mcp/*.mjs'], recursive: true, correlationId: 2 };
 
 		assert.deepStrictEqual(await watcher.deduplicateRequests([first, second]), [first, second]);
+	});
+});
+
+suite('File Watcher (parcel) include pruning', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	let root: string;
+
+	setup(async function () {
+		if (!isLinux) {
+			this.skip();
+		}
+
+		root = await promises.mkdtemp(join(realpathSync(tmpdir()), 'vscode-parcel-watcher-prune'));
+	});
+
+	teardown(async () => {
+		if (root) {
+			await promises.rm(root, { recursive: true, force: true });
+		}
+	});
+
+	function pruningExcludes(...includes: Array<string | IRelativePattern>): string[] {
+		return getPruningExcludes({ path: root, excludes: [], includes, recursive: true }).sort();
+	}
+
+	async function mkdirs(...paths: string[]): Promise<void> {
+		for (const path of paths) {
+			await promises.mkdir(join(root, path), { recursive: true });
+		}
+	}
+
+	test('negates simple components', () => {
+		assert.deepStrictEqual(pruningExcludes('python*/site-packages/{*.dist-info,*.dist-info/**}'), [
+			'!(python*)',
+			'*/!(site-packages)'
+		]);
+		assert.deepStrictEqual(pruningExcludes('*/x'), ['*/!(x)']);
+		assert.deepStrictEqual(pruningExcludes('.#~$%&;<=>`^:,@-*/x'), ['!(.#~$%&;<=>`^:,@-*)', '*/!(x)']);
+	});
+
+	test('stops at the first complex component', () => {
+		assert.deepStrictEqual(pruningExcludes('**/site-packages/**'), []);
+		assert.deepStrictEqual(pruningExcludes('{a,b}/x'), []);
+		assert.deepStrictEqual(pruningExcludes('foo[!x]*/target/**'), []);
+		assert.deepStrictEqual(pruningExcludes('foo[^x]*/target/**'), []);
+		assert.deepStrictEqual(pruningExcludes('python3[.-0]*/x'), []);
+		assert.deepStrictEqual(pruningExcludes('[a/b]/x'), []);
+		assert.deepStrictEqual(pruningExcludes('a+*/x'), []);
+		assert.deepStrictEqual(pruningExcludes('python3.*/x'), []);
+		assert.deepStrictEqual(pruningExcludes('lib/python3.*/x'), ['!(lib)']);
+		assert.deepStrictEqual(pruningExcludes('a**/x'), []);
+		assert.deepStrictEqual(pruningExcludes('python*/[!x]y/z'), ['!(python*)']);
+		assert.deepStrictEqual(pruningExcludes('python*/a?/z'), ['!(python*)']);
+	});
+
+	test('does not prune includes relative to another path', () => {
+		assert.deepStrictEqual(pruningExcludes('./python*/x'), []);
+		assert.deepStrictEqual(pruningExcludes('/abs/python*/x'), []);
+		assert.deepStrictEqual(pruningExcludes({ base: join(root, 'sub'), pattern: 'python*/x' }), []);
+		assert.deepStrictEqual(pruningExcludes({ base: root, pattern: 'python*/x' }), ['!(python*)', '*/!(x)']);
+	});
+
+	test('negates the components of all includes together', () => {
+		assert.deepStrictEqual(pruningExcludes('mcp/*.mjs', '.custom/agents/*.md'), ['!(mcp|.custom)', '*/!(*.mjs|agents)']);
+		assert.deepStrictEqual(pruningExcludes('python*/site-packages/a', 'python*/lib-dynload/b'), ['!(python*)', '*/!(site-packages|lib-dynload)', '*/*/!(a|b)']);
+		assert.deepStrictEqual(pruningExcludes('a*/x/q', 'b*/x/r'), ['!(a*|b*)', '*/!(x)', '*/*/!(q|r)']);
+		assert.deepStrictEqual(pruningExcludes('*/x', 'y/z'), ['*/!(x|z)']);
+		assert.deepStrictEqual(pruningExcludes('a', 'b/x'), ['!(a|b)']);
+		assert.deepStrictEqual(pruningExcludes('python*/x', 'python*/[!y]/z'), ['!(python*)']);
+		assert.deepStrictEqual(pruningExcludes('python*/x', '**/y'), []);
+	});
+
+	test('Parcel skips pruned paths, including ones created later', async () => {
+		await mkdirs('python3.12/site-packages', 'python3.12/lib-dynload', 'ruby');
+		const ignore = pruningExcludes('python*/site-packages/{*.dist-info,*.dist-info/**}');
+		const snapshot = join(root, '..', `${basename(root)}.snapshot`);
+		try {
+			await parcelWatcher.writeSnapshot(root, snapshot, { ignore, backend: 'inotify' });
+			await mkdirs('python3.12/site-packages/x.dist-info', 'python3.12/lib-dynload/y', 'ruby/z', 'perl5/w');
+
+			const events = await parcelWatcher.getEventsSince(root, snapshot, { ignore, backend: 'inotify' });
+
+			assert.deepStrictEqual(events.map(event => event.path), [join(root, 'python3.12', 'site-packages', 'x.dist-info')]);
+		} finally {
+			await promises.rm(snapshot, { force: true });
+		}
 	});
 });
 

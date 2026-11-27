@@ -23,6 +23,68 @@ import { FileChangeType, IFileChange } from '../../../common/files.js';
 import { coalesceEvents, IRecursiveWatchRequest, parseWatcherPatterns, IRecursiveWatcherWithSubscribe, isFiltered, IWatcherErrorEvent } from '../../../common/watcher.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 
+/**
+ * Characters that translate identically from picomatch to `std::regex`: printable ASCII
+ * without a glob meaning of its own (`! " ( ) ? [ \ ] { } | +`), and without space, which
+ * VS Code trims from patterns but picomatch does not.
+ */
+const SIMPLE_CHARACTERS = /^[\w.~#$%&';<=>`^:,@*-]+$/;
+
+/**
+ * Whether a path component can safely be negated as `!(a|b)`,
+ * interpreted by Parcel/picomatch
+ */
+function isSimpleComponent(component: string): boolean {
+	return SIMPLE_CHARACTERS.test(component)
+		&& component !== '.' && component !== '..'
+		&& !component.includes(GLOBSTAR)
+		&& !component.includes('.*'); // picomatch requires `*` after `.` to match at least one character, VS Code does not
+}
+
+/**
+ * Linux-specific. Derives Parcel ignore patterns for paths that cannot lead
+ * to an include match, so that inotify does not watch unrelated parts of
+ * the tree. Emitted events are unaffected: ignored paths would have been
+ * dropped by the include filter anyway.
+ *
+ * - Only the leading simple components (`*` and glob-inert characters) of
+ *   each include are considered. Others, e.g. `**`, `{a,b}` or `[!x]`, may
+ *   span levels or are not expressible to Parcel. An include with another
+ *   base than the watched path disables pruning.
+ * - At each level where all includes have a simple component, these are
+ *   negated together as `!(a|b)`, prefixed by `*` for each parent level, so
+ *   this also covers paths created later.
+ * - Linux only: inotify watches each directory individually, whereas
+ *   Windows and macOS watch a subtree with a single OS handle and deliver
+ *   notifications for all of it, so ignore patterns would not prune any OS
+ *   notifications there.
+ */
+export function getPruningExcludes(request: IRecursiveWatchRequest): string[] {
+	if (!isLinux || !request.includes?.length) {
+		return [];
+	}
+
+	const includes = request.includes.map(include => {
+		const pattern = typeof include === 'string' ? include : isEqual(include.base, request.path, false) ? include.pattern : '';
+		const components = pattern.split('/');
+		const depth = components.findIndex(component => !isSimpleComponent(component));
+
+		return depth === -1 ? components : components.slice(0, depth);
+	});
+
+	const excludes: string[] = [];
+	for (let level = 0; level < Math.min(...includes.map(include => include.length)); level++) {
+		const components = new Set(includes.map(include => include[level]));
+		if (!components.has('*')) {
+
+			// Parent levels are always `*`: a mismatch at this level excludes all descendants
+			excludes.push(`${'*/'.repeat(level)}!(${Array.from(components).join('|')})`);
+		}
+	}
+
+	return excludes;
+}
+
 export class ParcelWatcherInstance extends Disposable {
 
 	private readonly _onDidStop = this._register(new Emitter<{ joinRestart?: Promise<void> }>());
@@ -285,6 +347,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 
 		// Path checks for symbolic links / wrong casing
 		const { realPath, realPathDiffers, realPathLength } = await this.normalizePath(request);
+		const ignore = this.addPredefinedExcludes([...request.excludes, ...getPruningExcludes(request)]);
 
 		this.trace(`Started watching: '${realPath}' with polling interval '${pollingInterval}'`);
 
@@ -301,7 +364,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 			const parcelWatcherLib = parcelWatcher;
 			try {
 				if (counter > 1) {
-					const parcelEvents = await parcelWatcherLib.getEventsSince(realPath, snapshotFile, { ignore: this.addPredefinedExcludes(request.excludes), backend: ParcelWatcher.PARCEL_WATCHER_BACKEND });
+					const parcelEvents = await parcelWatcherLib.getEventsSince(realPath, snapshotFile, { ignore, backend: ParcelWatcher.PARCEL_WATCHER_BACKEND });
 
 					if (cts.token.isCancellationRequested) {
 						return;
@@ -312,7 +375,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 				}
 
 				// Store a snapshot of files to the snapshot file
-				await parcelWatcherLib.writeSnapshot(realPath, snapshotFile, { ignore: this.addPredefinedExcludes(request.excludes), backend: ParcelWatcher.PARCEL_WATCHER_BACKEND });
+				await parcelWatcherLib.writeSnapshot(realPath, snapshotFile, { ignore, backend: ParcelWatcher.PARCEL_WATCHER_BACKEND });
 			} catch (error) {
 				this.onUnexpectedError(error, request);
 			}
@@ -358,6 +421,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 
 		// Path checks for symbolic links / wrong casing
 		const { realPath, realPathDiffers, realPathLength } = await this.normalizePath(request);
+		const ignore = this.addPredefinedExcludes([...request.excludes, ...getPruningExcludes(request)]);
 
 		try {
 			const parcelWatcherLib = parcelWatcher;
@@ -378,7 +442,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 				this.onParcelEvents(parcelEvents, watcher, realPathDiffers, realPathLength);
 			}, {
 				backend: ParcelWatcher.PARCEL_WATCHER_BACKEND,
-				ignore: this.addPredefinedExcludes(watcher.request.excludes)
+				ignore
 			});
 
 			this.trace(`Started watching: '${realPath}' with backend '${ParcelWatcher.PARCEL_WATCHER_BACKEND}'`);
