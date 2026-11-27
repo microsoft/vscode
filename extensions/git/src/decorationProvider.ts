@@ -161,7 +161,9 @@ class GitDecorationProvider implements FileDecorationProvider {
 				// not deleted and has a decoration
 				bucket.set(r.original.toString(), decoration);
 
-				if (r.type === Status.DELETED && r.rightUri) {
+				// Deleted files open as their last committed version, so decorate
+				// that resource too to mark the editor as showing a deleted file.
+				if ((r.type === Status.DELETED || r.type === Status.INDEX_DELETED) && r.rightUri) {
 					bucket.set(r.rightUri.toString(), decoration);
 				}
 
