@@ -299,6 +299,8 @@ wait_for_async_execs
 declare -a launch_args=()
 if [[ -n "${DISABLE_WAYLAND:-}" ]]; then
     launch_args+=(--ozone-platform=x11)
+elif [[ -n "${WAYLAND_DISPLAY:-}" && -z "${DISPLAY:-}" ]]; then
+    launch_args+=(--ozone-platform=wayland)
 fi
 
 binary="$1"
