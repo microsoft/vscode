@@ -4661,6 +4661,8 @@ export class CopilotAgentSession extends Disposable {
 		return this._controlPlaneDesynchronized;
 	}
 
+	get hasReleasedCanvasProjection(): boolean { return this._canvasPhase === 'released'; }
+
 	get appliedDisabledRootMcpServers(): readonly string[] {
 		return this._launchPlan.disabledRootMcpServers ?? [];
 	}
@@ -5456,6 +5458,12 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
+	assertCanvasRuntimeAvailable(): void {
+		if (this._canvasPhase === 'released') {
+			throw new Error(localize('copilot.canvasesReleased', "This chat needs to restart before its canvases can be used. Send a message to continue."));
+		}
+	}
+
 	/**
 	 * Lists the canvases once the runtime's extensions have settled, waiting at most `timeoutMs` for them, and then lists
 	 * the canvases registered so far. Nothing asks a draft that has not started to list its canvases again, so an
@@ -5486,6 +5494,7 @@ export class CopilotAgentSession extends Disposable {
 		if (!this._wrapper.canvasRuntimeEnabled) {
 			throw new Error('Canvases are disabled for this session.');
 		}
+		this.assertCanvasRuntimeAvailable();
 		const generation = this._canvasRegistryGeneration;
 		const [result, extensions] = await Promise.all([
 			this._awaitControlPlaneRpc('rpc.canvas.list', this._wrapper.session.rpc.canvas.list()),
@@ -5696,6 +5705,7 @@ export class CopilotAgentSession extends Disposable {
 		if (!wrapper.canvasRuntimeEnabled) {
 			throw new Error('Canvases are disabled for this session.');
 		}
+		this.assertCanvasRuntimeAvailable();
 		const wasIgnored = this._ignoredRestoredCanvasInstanceIds.has(request.instanceId);
 		// An open of a canvas this chat lists reopens that lifetime, which may wait for consent.
 		const projected = this._canvasByInstanceId.get(request.instanceId);
@@ -8699,7 +8709,13 @@ export class CopilotAgentSession extends Disposable {
 		} catch (error) {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to flush edit attribution: ${error}`);
 		}
-		await this._wrapper.disconnect();
+		try {
+			await this._wrapper.disconnect();
+		} catch (error) {
+			// The runtime remains this session's, so workspace trust changes must reach it again.
+			this._retiring = false;
+			throw error;
+		}
 		await this._disposeShellInitScript();
 	}
 
