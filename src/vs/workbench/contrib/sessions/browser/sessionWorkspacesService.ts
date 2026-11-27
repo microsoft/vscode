@@ -3,19 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { Limiter, RunOnceScheduler } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
+import { isValidBasename } from '../../../../base/common/extpath.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
-import { dirname, joinPath } from '../../../../base/common/resources.js';
+import { dirname, IExtUri, joinPath } from '../../../../base/common/resources.js';
+import { isWindows } from '../../../../base/common/platform.js';
 import { isObject } from '../../../../base/common/types.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
-import { FileOperationError, FileOperationResult, FileSystemProviderCapabilities, IFileService } from '../../../../platform/files/common/files.js';
+import { FileOperationError, FileOperationResult, FileSystemProviderCapabilities, IFileContent, IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
@@ -23,7 +25,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { hasWorkspaceFileExtension, WORKSPACE_SUFFIX } from '../../../../platform/workspace/common/workspace.js';
 import { SESSIONS_WORKSPACES_ENABLED_SETTING } from '../common/sessionConfig.js';
-import { ISessionWorkspaceFileContent, parseSessionWorkspaceFile, stringifySessionWorkspaceFile } from '../common/sessionWorkspaceFile.js';
+import { ISessionWorkspaceFileContent, ISessionWorkspaceFileEdit, parseSessionWorkspaceFile, stringifySessionWorkspaceFile } from '../common/sessionWorkspaceFile.js';
 import { IRecentSessionWorkspace, ISessionWorkspaceAppearance, ISessionWorkspaceRemoveOptions, ISessionWorkspacesService, ISessionWorkspaceUpdate } from '../common/sessionWorkspaces.js';
 import { ISessionsRecentWorkspacesService } from './sessionsRecentWorkspacesService.js';
 
@@ -32,6 +34,7 @@ const STORAGE_KEY_FORGOTTEN_WORKSPACE_FILES = 'sessions.forgottenRecentWorkspace
 const MAX_MANAGED_WORKSPACES = 50;
 const MAX_RECENT_WORKSPACE_FILES = 20;
 const MAX_WORKSPACE_FILE_SIZE = 1024 * 1024;
+const MAX_CONCURRENT_READS = 4;
 const OWNED_WORKSPACES_FOLDER = 'AgentsWorkspaces';
 
 interface IStoredWorkspace {
@@ -48,9 +51,11 @@ interface IStoredWorkspace {
 }
 
 /** A file name for an owned workspace file, so that VS Code names its window after the workspace. */
-function toWorkspaceFileName(name: string): string {
+export function toWorkspaceFileName(name: string, isWindowsOS: boolean = isWindows): string {
 	const sanitized = name.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '-').replace(/^\.+/, '').trim();
-	return `${sanitized || 'workspace'}${WORKSPACE_SUFFIX}`;
+	const fileName = `${sanitized}${WORKSPACE_SUFFIX}`;
+	// Names that the file system reserves, such as `CON` on Windows
+	return sanitized && isValidBasename(fileName, isWindowsOS) ? fileName : `workspace${WORKSPACE_SUFFIX}`;
 }
 
 function withAppearance(workspace: IRecentSessionWorkspace, appearance: ISessionWorkspaceAppearance | undefined): IRecentSessionWorkspace {
@@ -60,6 +65,29 @@ function withAppearance(workspace: IRecentSessionWorkspace, appearance: ISession
 		...(appearance?.icon ? { icon: appearance.icon } : {}),
 		...(appearance?.color ? { color: appearance.color } : {}),
 	};
+}
+
+/** The icon and color to write into a workspace file: only those the update sets, so an omitted one is left as it is in the file. */
+function toFileAppearanceEdit(update: ISessionWorkspaceUpdate): Pick<ISessionWorkspaceFileEdit, 'icon' | 'color'> {
+	return { icon: update.icon, color: update.color };
+}
+
+/** The icon and color still kept on this computer after an update was written to the file: those the update omitted. */
+function remainingLocalAppearance(update: ISessionWorkspaceUpdate, local: ISessionWorkspaceAppearance | undefined): ISessionWorkspaceAppearance | undefined {
+	return local && {
+		icon: update.icon === undefined ? local.icon : undefined,
+		color: update.color === undefined ? local.color : undefined,
+	};
+}
+
+/** What is shown: the workspace file's icon and color, falling back to those kept on this computer. */
+function displayAppearance(file: ISessionWorkspaceAppearance, local: ISessionWorkspaceAppearance | undefined): ISessionWorkspaceAppearance {
+	return { icon: file.icon ?? local?.icon, color: file.color ?? local?.color };
+}
+
+function isSameWorkspace(a: IRecentSessionWorkspace, b: IRecentSessionWorkspace, extUri: IExtUri): boolean {
+	return a.name === b.name && a.icon === b.icon && a.color === b.color && !!a.missing === !!b.missing
+		&& a.folders.length === b.folders.length && a.folders.every((folder, index) => extUri.isEqual(folder, b.folders[index]));
 }
 
 function readAppearance(value: unknown): ISessionWorkspaceAppearance | undefined {
@@ -111,7 +139,15 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 	/** The icon and color kept on this computer, by comparison key; the workspace file's own icon and color win over them. */
 	private _localAppearance = new Map<string, ISessionWorkspaceAppearance>();
 	private readonly _fileWatchers = this._register(new DisposableMap<string>());
-	private readonly _refreshScheduler = this._register(new RunOnceScheduler(() => void this.refresh(), 300));
+	/** The comparison keys of the workspace files that changed on disk since they were last read. */
+	private readonly _changedFiles = new Set<string>();
+	private readonly _refreshScheduler = this._register(new RunOnceScheduler(() => {
+		const changed = new Set(this._changedFiles);
+		this._changedFiles.clear();
+		void this._refresh(changed);
+	}, 300));
+	/** Counts the removals, so that an update finishing after its workspace was removed does not add it again. */
+	private _removals = 0;
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
@@ -166,12 +202,12 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 			folders: parsed.folders,
 			owned: managed?.owned ?? this._isOwnedWorkspaceFile(workspaceFile),
 			...(managed?.previousUris ? { previousUris: managed.previousUris } : {}),
-		}, { icon: parsed.icon ?? local?.icon, color: parsed.color ?? local?.color });
+		}, displayAppearance(parsed, local));
 	}
 
 	async createWorkspace(name: string, folders: readonly URI[], appearance?: ISessionWorkspaceAppearance): Promise<IRecentSessionWorkspace> {
 		const workspace = await this._create(name, folders, appearance);
-		this._upsert(workspace, true);
+		this._upsert(workspace);
 		return workspace;
 	}
 
@@ -194,6 +230,8 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 	async updateWorkspace(uri: URI, update: ISessionWorkspaceUpdate): Promise<IRecentSessionWorkspace> {
 		const extUri = this.uriIdentityService.extUri;
 		const existing = this._getManagedWorkspace(uri);
+		const removals = this._removals;
+		// What is shown for a standalone folder, which keeps its icon and color on this computer, or a new workspace file
 		const appearance: ISessionWorkspaceAppearance = {
 			icon: update.icon === undefined ? existing?.icon : update.icon ?? undefined,
 			color: update.color === undefined ? existing?.color : update.color ?? undefined,
@@ -201,27 +239,28 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 
 		// Only the icon or color changed: a standalone folder keeps them on this computer, a workspace file stores them
 		if (existing && update.name === undefined && update.folders === undefined) {
+			let workspace: IRecentSessionWorkspace;
 			if (this._isFolderWorkspace(existing)) {
 				this._setLocalAppearance(existing.uri, appearance);
+				workspace = withAppearance(existing, appearance);
 			} else {
-				await this._writeFileAppearance(existing, appearance);
+				workspace = await this._writeFileAppearance(existing, update);
 			}
-			const workspace = withAppearance(existing, appearance);
-			this._upsert(workspace, false);
+			this._replace(existing.uri, workspace, removals);
 			return workspace;
 		}
 
 		// A standalone folder gets an owned workspace file once it has several folders
 		if (existing && this._isFolderWorkspace(existing)) {
 			const workspace = this._withHistory(existing, await this._create(update.name ?? existing.name, update.folders ?? existing.folders, appearance));
-			this._replace(existing, workspace);
+			this._replace(existing.uri, workspace, removals);
 			return workspace;
 		}
 
 		// An owned workspace file reduced to one folder becomes that standalone folder
 		if (existing?.owned && this._isOwnedWorkspaceFile(existing.uri) && update.folders?.length === 1) {
 			const workspace = this._withHistory(existing, await this._create(update.name ?? existing.name, update.folders, appearance));
-			this._replace(existing, workspace);
+			this._replace(existing.uri, workspace, removals);
 			await this._deleteOwnedWorkspaceFile(existing.uri);
 			return workspace;
 		}
@@ -232,22 +271,14 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 
 		// The workspace file, also when `uri` is one that it had before
 		const fileUri = existing?.uri ?? uri;
-		let content: string | undefined;
-		try {
-			content = (await this.fileService.readFile(fileUri, { limits: { size: MAX_WORKSPACE_FILE_SIZE } })).value.toString();
-		} catch (error) {
-			if ((error as FileOperationError).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
-				throw error;
-			}
-		}
-		// A missing file is written again from what is known about the workspace
-		const fileAppearance = { icon: appearance.icon ?? null, color: appearance.color ?? null };
-		const edit = content === undefined
-			? { name: update.name ?? existing?.name, folders: update.folders ?? existing?.folders, ...fileAppearance }
-			: { name: update.name, folders: update.folders, ...fileAppearance };
-		const updated = stringifySessionWorkspaceFile(fileUri, edit, extUri, { existing: content, forceAbsolute: existing?.owned });
-		await this.fileService.writeFile(fileUri, VSBuffer.fromString(updated));
-		const parsed = parseSessionWorkspaceFile(updated, fileUri, extUri);
+		const local = this._localAppearance.get(extUri.getComparisonKey(fileUri));
+		const parsed = await this._editWorkspaceFile(fileUri, current => current
+			? { name: update.name, folders: update.folders, ...toFileAppearanceEdit(update) }
+			// A missing file is written again from what is known about the workspace
+			: { name: update.name ?? existing?.name, folders: update.folders ?? existing?.folders, icon: update.icon === undefined ? existing?.icon : update.icon, color: update.color === undefined ? existing?.color : update.color },
+			{ forceAbsolute: existing?.owned });
+		const remainingLocal = remainingLocalAppearance(update, local);
+		this._setLocalAppearance(fileUri, undefined);
 
 		// An owned workspace file is named after the workspace, which VS Code names its window after; a user's file keeps its name
 		let newUri = fileUri;
@@ -258,27 +289,28 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 				newUri = renamed;
 			}
 		}
-		this._setLocalAppearance(fileUri, undefined);
-		const workspace = withAppearance({ uri: newUri, name: parsed.name, folders: parsed.folders, owned: existing?.owned ?? this._isOwnedWorkspaceFile(newUri) }, appearance);
-		if (existing && !extUri.isEqual(newUri, existing.uri)) {
-			const renamed = this._withHistory(existing, workspace);
-			this._replace(existing, renamed);
-			return renamed;
-		}
-		const result = existing?.previousUris ? { ...workspace, previousUris: existing.previousUris } : workspace;
-		this._upsert(result, false);
+		this._setLocalAppearance(newUri, remainingLocal);
+		const workspace = withAppearance({ uri: newUri, name: parsed.name, folders: parsed.folders, owned: existing?.owned ?? this._isOwnedWorkspaceFile(newUri) }, displayAppearance(parsed, remainingLocal));
+		const result = existing ? this._withHistory(existing, workspace) : workspace;
+		this._replace(fileUri, result, removals);
 		return result;
 	}
 
 	async removeWorkspace(uri: URI, options?: ISessionWorkspaceRemoveOptions): Promise<void> {
 		const workspace = this._getManagedWorkspace(uri);
+		const file = workspace?.uri ?? uri;
+		const deleteFile = !!options?.deleteFile && hasWorkspaceFileExtension(file);
+		// A user's own workspace file is only ever moved to the trash, never deleted permanently
+		if (deleteFile && !this._isOwnedWorkspaceFile(file) && !this.fileService.hasCapability(file, FileSystemProviderCapabilities.Trash)) {
+			throw new Error(localize('workspaceFileNoTrash', "The workspace file '{0}' cannot be moved to the trash.", this.uriIdentityService.extUri.basename(file)));
+		}
 		if (workspace) {
+			this._removals++;
 			this._persist(this._managedWorkspaces.get().filter(candidate => candidate !== workspace));
 		} else if (hasWorkspaceFileExtension(uri)) {
 			this._setForgotten(uri, true);
 		}
-		const file = workspace?.uri ?? uri;
-		if (options?.deleteFile && hasWorkspaceFileExtension(file)) {
+		if (deleteFile) {
 			await this._deleteWorkspaceFile(file);
 		}
 	}
@@ -288,7 +320,7 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 		if (!workspace.folders.length) {
 			throw new Error(localize('workspaceFileWithoutFolders', "The workspace file has no folders."));
 		}
-		this._upsert(workspace, true);
+		this._upsert(workspace);
 		this._setForgotten(workspaceFile, false);
 		return workspace;
 	}
@@ -296,29 +328,40 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 	touchWorkspace(uri: URI): void {
 		const workspace = this._getManagedWorkspace(uri);
 		if (workspace) {
-			this._upsert(workspace, true);
+			this._upsert(workspace);
 		}
 	}
 
-	async refresh(): Promise<void> {
+	refresh(): Promise<void> {
+		return this._refresh(undefined);
+	}
+
+	/** Rereads the managed workspace files, or only those with the given comparison keys. */
+	private async _refresh(keys: ReadonlySet<string> | undefined): Promise<void> {
 		const extUri = this.uriIdentityService.extUri;
-		const read = await Promise.all(this._managedWorkspaces.get().map(async (workspace): Promise<readonly [IRecentSessionWorkspace, IRecentSessionWorkspace]> => {
-			if (this._isFolderWorkspace(workspace)) {
-				return [workspace, workspace];
+		const reads = new Limiter<readonly [IRecentSessionWorkspace, IRecentSessionWorkspace]>(MAX_CONCURRENT_READS);
+		try {
+			const read = await Promise.all(this._managedWorkspaces.get()
+				.filter(workspace => !this._isFolderWorkspace(workspace) && (!keys || keys.has(extUri.getComparisonKey(workspace.uri))))
+				.map(workspace => reads.queue(async (): Promise<readonly [IRecentSessionWorkspace, IRecentSessionWorkspace]> => {
+					try {
+						const { missing: _missing, ...rest } = workspace;
+						const parsed = await this._readWorkspaceFile(workspace.uri);
+						const local = this._localAppearance.get(extUri.getComparisonKey(workspace.uri));
+						return [workspace, withAppearance({ ...rest, name: parsed.name, folders: parsed.folders }, displayAppearance(parsed, local))];
+					} catch (error) {
+						this.logService.trace('[SessionWorkspaces] Could not read a workspace file', error);
+						return [workspace, { ...workspace, missing: true }];
+					}
+				})));
+			// Only workspaces that are unchanged since they were read take what was read, and unchanged ones keep their object
+			const refreshed = new Map(read.filter(([before, after]) => !isSameWorkspace(before, after, extUri)));
+			if (refreshed.size) {
+				this._persist(this._managedWorkspaces.get().map(workspace => refreshed.get(workspace) ?? workspace));
 			}
-			try {
-				const { missing: _missing, ...rest } = workspace;
-				const parsed = await this._readWorkspaceFile(workspace.uri);
-				const local = this._localAppearance.get(extUri.getComparisonKey(workspace.uri));
-				return [workspace, withAppearance({ ...rest, name: parsed.name, folders: parsed.folders }, { icon: parsed.icon ?? local?.icon, color: parsed.color ?? local?.color })];
-			} catch (error) {
-				this.logService.trace('[SessionWorkspaces] Could not read a workspace file', error);
-				return [workspace, { ...workspace, missing: true }];
-			}
-		}));
-		// Workspaces added, changed or removed while the files were read are kept as they are now
-		const refreshed = new Map(read);
-		this._persist(this._managedWorkspaces.get().map(workspace => refreshed.get(workspace) ?? workspace));
+		} finally {
+			reads.dispose();
+		}
 	}
 
 	private _getManagedWorkspace(uri: URI): IRecentSessionWorkspace | undefined {
@@ -343,17 +386,61 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 	}
 
 	/** Writes the icon and color into the workspace file, keeping them on this computer and warning when that fails. */
-	private async _writeFileAppearance(workspace: IRecentSessionWorkspace, appearance: ISessionWorkspaceAppearance): Promise<void> {
+	private async _writeFileAppearance(workspace: IRecentSessionWorkspace, update: ISessionWorkspaceUpdate): Promise<IRecentSessionWorkspace> {
+		const local = this._localAppearance.get(this.uriIdentityService.extUri.getComparisonKey(workspace.uri));
 		try {
-			const content = (await this.fileService.readFile(workspace.uri, { limits: { size: MAX_WORKSPACE_FILE_SIZE } })).value.toString();
-			const updated = stringifySessionWorkspaceFile(workspace.uri, { icon: appearance.icon ?? null, color: appearance.color ?? null }, this.uriIdentityService.extUri, { existing: content });
-			if (updated !== content) {
-				await this.fileService.writeFile(workspace.uri, VSBuffer.fromString(updated));
-			}
-			this._setLocalAppearance(workspace.uri, undefined);
+			const parsed = await this._editWorkspaceFile(workspace.uri, current => {
+				if (!current) {
+					throw new FileOperationError(localize('workspaceFileNotFound', "The workspace file does not exist."), FileOperationResult.FILE_NOT_FOUND);
+				}
+				return toFileAppearanceEdit(update);
+			});
+			const remainingLocal = remainingLocalAppearance(update, local);
+			this._setLocalAppearance(workspace.uri, remainingLocal);
+			return withAppearance(workspace, displayAppearance(parsed, remainingLocal));
 		} catch (error) {
+			const appearance: ISessionWorkspaceAppearance = {
+				icon: update.icon === undefined ? workspace.icon : update.icon ?? undefined,
+				color: update.color === undefined ? workspace.color : update.color ?? undefined,
+			};
 			this._setLocalAppearance(workspace.uri, appearance);
 			this.notificationService.warn(localize('workspaceAppearanceNotSaved', "Could not save the icon and color of '{0}' in its workspace file. They are kept on this computer only. {1}", workspace.name, toErrorMessage(error)));
+			return withAppearance(workspace, appearance);
+		}
+	}
+
+	/**
+	 * Applies an edit to a workspace file, or writes a missing one, and returns what the file has then. The file is
+	 * validated before and after the edit, and written only if it did not change since it was read; when it did, the edit
+	 * is applied once more to its new content, since an edit only sets the properties that it has.
+	 */
+	private async _editWorkspaceFile(uri: URI, toEdit: (current: ISessionWorkspaceFileContent | undefined) => ISessionWorkspaceFileEdit, options?: { readonly forceAbsolute?: boolean }): Promise<ISessionWorkspaceFileContent> {
+		const extUri = this.uriIdentityService.extUri;
+		for (let attempt = 0; ; attempt++) {
+			let file: IFileContent | undefined;
+			try {
+				file = await this.fileService.readFile(uri, { limits: { size: MAX_WORKSPACE_FILE_SIZE } });
+			} catch (error) {
+				if ((error as FileOperationError).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
+					throw error;
+				}
+			}
+			const existing = file?.value.toString();
+			const current = existing === undefined ? undefined : parseSessionWorkspaceFile(existing, uri, extUri);
+			const updated = stringifySessionWorkspaceFile(uri, toEdit(current), extUri, { existing, forceAbsolute: options?.forceAbsolute });
+			try {
+				if (!file) {
+					await this.fileService.createFile(uri, VSBuffer.fromString(updated), { overwrite: false });
+				} else if (updated !== existing) {
+					await this.fileService.writeFile(uri, VSBuffer.fromString(updated), { etag: file.etag, mtime: file.mtime });
+				}
+				return parseSessionWorkspaceFile(updated, uri, extUri);
+			} catch (error) {
+				if (attempt === 0 && (error as FileOperationError).fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
+					continue;
+				}
+				throw error;
+			}
 		}
 	}
 
@@ -384,20 +471,21 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 		}
 	}
 
-	/** Moves a workspace file to the trash, and the folder of an owned workspace file when nothing else is in it. */
+	/** Moves a workspace file to the trash, or deletes an owned one where there is no trash, and the folder of an owned workspace file when nothing else is in it. */
 	private async _deleteWorkspaceFile(uri: URI): Promise<void> {
 		const useTrash = this.fileService.hasCapability(uri, FileSystemProviderCapabilities.Trash);
 		await this.fileService.del(uri, { useTrash });
 		if (!this._isOwnedWorkspaceFile(uri)) {
 			return;
 		}
+		// A non-recursive delete removes the folder only while it is empty, also if something is added to it meanwhile
 		try {
 			const folder = await this.fileService.resolve(dirname(uri));
 			if (!folder.children?.length) {
-				await this.fileService.del(folder.resource, { useTrash, recursive: true });
+				await this.fileService.del(folder.resource, { recursive: false });
 			}
 		} catch (error) {
-			this.logService.warn('[SessionWorkspaces] Could not delete the folder of the workspace file', error);
+			this.logService.trace('[SessionWorkspaces] Did not delete the folder of the workspace file', error);
 		}
 	}
 
@@ -416,6 +504,7 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 				const watcher = store.add(this.fileService.createWatcher(uri, { recursive: false, excludes: [] }));
 				store.add(watcher.onDidChange(event => {
 					if (event.affects(uri)) {
+						this._changedFiles.add(key);
 						this._refreshScheduler.schedule();
 					}
 				}));
@@ -448,25 +537,28 @@ export class SessionWorkspacesService extends Disposable implements ISessionWork
 		return new Set(Array.isArray(stored) ? stored.filter((key): key is string => typeof key === 'string') : []);
 	}
 
-	/** Puts `workspace` where `existing` was, dropping any other entry with the same URI. */
-	private _replace(existing: IRecentSessionWorkspace, workspace: IRecentSessionWorkspace): void {
+	/**
+	 * Puts `workspace` where the workspace at `previousUri` is now, dropping any other entry with its URI. When that
+	 * workspace is gone, `workspace` is added unless a workspace was removed since `removals` was read.
+	 */
+	private _replace(previousUri: URI, workspace: IRecentSessionWorkspace, removals: number): void {
 		const extUri = this.uriIdentityService.extUri;
-		this._persist(this._managedWorkspaces.get()
-			.filter(candidate => candidate === existing || !extUri.isEqual(candidate.uri, workspace.uri))
-			.map(candidate => candidate === existing ? workspace : candidate));
+		const workspaces = this._managedWorkspaces.get().filter(candidate => extUri.isEqual(candidate.uri, previousUri) || !extUri.isEqual(candidate.uri, workspace.uri));
+		const index = workspaces.findIndex(candidate => extUri.isEqual(candidate.uri, previousUri));
+		if (index >= 0) {
+			workspaces[index] = workspace;
+		} else if (removals === this._removals) {
+			workspaces.unshift(workspace);
+		} else {
+			return;
+		}
+		this._persist(workspaces.slice(0, MAX_MANAGED_WORKSPACES));
 	}
 
-	private _upsert(workspace: IRecentSessionWorkspace, moveToFront: boolean): void {
-		const workspaces = [...this._managedWorkspaces.get()];
-		const index = workspaces.findIndex(candidate => this.uriIdentityService.extUri.isEqual(candidate.uri, workspace.uri));
-		if (index >= 0 && !moveToFront) {
-			workspaces[index] = workspace;
-		} else {
-			if (index >= 0) {
-				workspaces.splice(index, 1);
-			}
-			workspaces.unshift(workspace);
-		}
+	/** Puts `workspace` first, dropping the entry with its URI. */
+	private _upsert(workspace: IRecentSessionWorkspace): void {
+		const extUri = this.uriIdentityService.extUri;
+		const workspaces = [workspace, ...this._managedWorkspaces.get().filter(candidate => !extUri.isEqual(candidate.uri, workspace.uri))];
 		this._persist(workspaces.slice(0, MAX_MANAGED_WORKSPACES));
 	}
 

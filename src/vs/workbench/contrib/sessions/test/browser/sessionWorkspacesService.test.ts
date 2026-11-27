@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { observableValue } from '../../../../../base/common/observable.js';
@@ -17,19 +18,19 @@ import { runWithFakedTimers } from '../../../../../base/test/common/virtualSched
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
-import { FileChangesEvent, IFileService, IFileSystemWatcher } from '../../../../../platform/files/common/files.js';
+import { FileChangesEvent, FileSystemProviderCapabilities, IFileService, IFileSystemWatcher } from '../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { ISessionsRecentWorkspacesService, IVSCodeRecentWorkspaceFile } from '../../browser/sessionsRecentWorkspacesService.js';
 import { SessionWorkspacesContextKeys } from '../../browser/sessionWorkspacesContextKeys.js';
-import { SessionWorkspacesService } from '../../browser/sessionWorkspacesService.js';
+import { SessionWorkspacesService, toWorkspaceFileName } from '../../browser/sessionWorkspacesService.js';
 import { SessionWorkspacesEnabledContext } from '../../common/contextkeys.js';
 import { SESSIONS_WORKSPACES_ENABLED_SETTING } from '../../common/sessionConfig.js';
 import { parseSessionWorkspaceFile } from '../../common/sessionWorkspaceFile.js';
@@ -42,9 +43,23 @@ suite('SessionWorkspacesService', () => {
 	const docs = URI.file('/work/vscode-docs');
 	const ownedHome = URI.file('/user/AgentsWorkspaces');
 
-	function createFileService(): FileService {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+	/** A file service whose moves wait for {@link moveBarrier}, to run other work in the middle of a rename. */
+	class DelayedMoveFileService extends FileService {
+		moveBarrier: DeferredPromise<void> | undefined;
+		override async move(...args: Parameters<FileService['move']>): ReturnType<FileService['move']> {
+			await this.moveBarrier?.p;
+			return super.move(...args);
+		}
+	}
+
+	/** An in-memory file system with a trash, like the local disk. */
+	class TrashInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
+		override get capabilities(): FileSystemProviderCapabilities { return super.capabilities | FileSystemProviderCapabilities.Trash; }
+	}
+
+	function createFileService(options?: { readonly trash?: boolean }): DelayedMoveFileService {
+		const fileService = disposables.add(new DelayedMoveFileService(new NullLogService()));
+		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(options?.trash === false ? new InMemoryFileSystemProvider() : new TrashInMemoryFileSystemProvider())));
 		return fileService;
 	}
 
@@ -289,16 +304,25 @@ suite('SessionWorkspacesService', () => {
 		const afterRestart = restarted.managedWorkspaces.get().map(workspace => [workspace.icon, workspace.color]);
 		await writeFile(platform, VSBuffer.fromString('{ "folders": [{ "path": "vscode" }, { "path": "vscode-docs" }], "icon": "tools" }'));
 		await restarted.refresh();
+		const fileWins = restarted.managedWorkspaces.get().map(workspace => [workspace.icon, workspace.color]);
+
+		// Writable again: an update writes only what it sets, so the color kept on this computer stays out of the file
+		fileService.writeFile = writeFile;
+		await restarted.updateWorkspace(platform, { icon: 'beaker' });
 
 		assert.deepStrictEqual({
 			workspace: service.managedWorkspaces.get().map(workspace => [workspace.icon, workspace.color]),
 			afterRestart,
-			fileWins: restarted.managedWorkspaces.get().map(workspace => [workspace.icon, workspace.color]),
+			fileWins,
+			afterUpdate: restarted.managedWorkspaces.get().map(workspace => [workspace.icon, workspace.color]),
+			file: JSON.parse((await fileService.readFile(platform)).value.toString()),
 			warnings: warnings.length,
 		}, {
 			workspace: [['rocket', 'charts.green']],
 			afterRestart: [['rocket', 'charts.green']],
 			fileWins: [['tools', 'charts.green']],
+			afterUpdate: [['beaker', 'charts.green']],
+			file: { folders: [{ path: 'vscode' }, { path: 'vscode-docs' }], icon: 'beaker' },
 			warnings: 1,
 		});
 	});
@@ -431,6 +455,105 @@ suite('SessionWorkspacesService', () => {
 			afterOpenAndRemove: ['tools'],
 			filesKept: [true, true],
 		});
+	});
+
+	test('edits never write an invalid workspace file, and leave the icon and color they do not change as they are in the file', async () => {
+		const { service, fileService, warnings } = await createService();
+		const file = URI.file('/work/platform.code-workspace');
+		const recent = URI.file('/work/recent.code-workspace');
+		await fileService.writeFile(file, VSBuffer.fromString('{ "folders": [{ "path": "vscode" }, { "path": "vscode-docs" }], "icon": "rocket", "color": "red" }'));
+		await fileService.writeFile(recent, VSBuffer.fromString('{ "folders": [{ "path": "vscode" }, { "path": "vscode-docs" }], "icon": "star", "color": "green" }'));
+		await service.openWorkspace(file);
+
+		// Edited in another editor after it was read
+		await fileService.writeFile(file, VSBuffer.fromString('{ "folders": [{ "path": "vscode" }, { "path": "vscode-docs" }], "icon": "rocket", "color": "blue" }'));
+		const iconChanged = await service.updateWorkspace(file, { icon: 'beaker' });
+		const renamed = await service.updateWorkspace(file, { name: 'Platform' });
+		// A recent workspace file that is not managed yet
+		const recentRenamed = await service.updateWorkspace(recent, { name: 'Recent' });
+
+		const invalid = '{ "folders": [';
+		await fileService.writeFile(file, VSBuffer.fromString(invalid));
+		const renameError = await service.updateWorkspace(file, { name: 'Other' }).then(() => undefined, error => String(error));
+		await service.updateWorkspace(file, { color: 'yellow' });
+
+		assert.deepStrictEqual({
+			iconChanged: { icon: iconChanged.icon, color: iconChanged.color },
+			renamed: { name: renamed.name, icon: renamed.icon, color: renamed.color },
+			recentRenamed: { name: recentRenamed.name, icon: recentRenamed.icon, color: recentRenamed.color, file: JSON.parse(await readFile(fileService, recent)) },
+			renameError,
+			warnings: warnings.length,
+			invalidFileKept: await readFile(fileService, file),
+		}, {
+			iconChanged: { icon: 'beaker', color: 'blue' },
+			renamed: { name: 'Platform', icon: 'beaker', color: 'blue' },
+			recentRenamed: { name: 'Recent', icon: 'star', color: 'green', file: { folders: [{ path: 'vscode' }, { path: 'vscode-docs' }], icon: 'star', color: 'green', name: 'Recent' } },
+			renameError: 'Error: \'platform.code-workspace\' is not a valid workspace file.',
+			warnings: 1,
+			invalidFileKept: invalid,
+		});
+	});
+
+	test('a refresh in the middle of renaming an owned workspace keeps the renamed workspace', async () => {
+		const fileService = createFileService();
+		const { service } = await createService({ fileService });
+		const owned = await service.createWorkspace('Agents', [vscode, chat]);
+		// Edited in another editor, so that the refresh reads something new
+		const content = JSON.parse(await readFile(fileService, owned.uri));
+		await fileService.writeFile(owned.uri, VSBuffer.fromString(JSON.stringify({ ...content, color: 'blue' })));
+
+		fileService.moveBarrier = new DeferredPromise<void>();
+		const renaming = service.updateWorkspace(owned.uri, { name: 'Platform' });
+		await service.refresh();
+		fileService.moveBarrier.complete();
+		const renamed = await renaming;
+
+		assert.deepStrictEqual({
+			file: extUri.basename(renamed.uri),
+			workspaces: service.managedWorkspaces.get().map(workspace => ({ file: extUri.basename(workspace.uri), name: workspace.name, color: workspace.color })),
+		}, {
+			file: 'Platform.code-workspace',
+			workspaces: [{ file: 'Platform.code-workspace', name: 'Platform', color: 'blue' }],
+		});
+	});
+
+	test('a refresh that finds nothing changed keeps the catalogue and writes nothing', async () => {
+		const storage = disposables.add(new TestStorageService());
+		const { service } = await createService({ storage });
+		await service.createWorkspace('Platform', [vscode, chat]);
+		const before = service.managedWorkspaces.get();
+		let writes = 0;
+		const listeners = disposables.add(new DisposableStore());
+		listeners.add(storage.onDidChangeValue(StorageScope.PROFILE, undefined, listeners)(() => writes++));
+
+		await service.refresh();
+
+		assert.deepStrictEqual({ same: service.managedWorkspaces.get() === before, writes }, { same: true, writes: 0 });
+	});
+
+	test('without a trash, refuses to delete a user\'s workspace file and keeps its workspace, but deletes an owned file', async () => {
+		const fileService = createFileService({ trash: false });
+		const { service } = await createService({ fileService });
+		const owned = await service.createWorkspace('Owned', [vscode, chat]);
+		const external = URI.file('/work/external.code-workspace');
+		await fileService.writeFile(external, VSBuffer.fromString('{ "folders": [{ "path": "/work/vscode-docs" }] }'));
+		await service.openWorkspace(external);
+
+		const refused = await service.removeWorkspace(external, { deleteFile: true }).then(() => false, () => true);
+		await service.removeWorkspace(owned.uri, { deleteFile: true });
+
+		assert.deepStrictEqual({
+			refused,
+			workspaces: service.managedWorkspaces.get().map(workspace => workspace.name),
+			externalExists: await fileService.exists(external),
+			ownedExists: await fileService.exists(owned.uri),
+		}, { refused: true, workspaces: ['external'], externalExists: true, ownedExists: false });
+	});
+
+	test('names an owned workspace file after the workspace, falling back for names the file system reserves', () => {
+		assert.deepStrictEqual(
+			['Platform', 'a/b', 'CON', 'nul', 'Lpt1', '...', ''].map(name => toWorkspaceFileName(name, true)),
+			['Platform.code-workspace', 'a-b.code-workspace', 'workspace.code-workspace', 'workspace.code-workspace', 'workspace.code-workspace', 'workspace.code-workspace', 'workspace.code-workspace']);
 	});
 
 	test('the workspaces context key follows its setting from startup, without the workspaces service', () => {

@@ -6,8 +6,9 @@
 import { parse, ParseError } from '../../../../base/common/json.js';
 import { applyEdits, setProperty } from '../../../../base/common/jsonEdit.js';
 import { FormattingOptions } from '../../../../base/common/jsonFormatter.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { basename, dirname, IExtUri } from '../../../../base/common/resources.js';
-import { isObject } from '../../../../base/common/types.js';
+import { hasKey, isObject } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { WORKSPACE_SUFFIX } from '../../../../platform/workspace/common/workspace.js';
@@ -24,6 +25,8 @@ export interface ISessionWorkspaceFileMetadata {
 /** The content of a `.code-workspace` file that the Agents window reads. */
 export interface ISessionWorkspaceFileContent extends ISessionWorkspaceFileMetadata {
 	readonly folders: URI[];
+	/** Whether invalid folder entries, or folder paths that are ambiguous in a remote workspace, were skipped. */
+	readonly hasErrors: boolean;
 }
 
 /** Edits to a `.code-workspace` file; omitted fields are unchanged and `null` removes the property. */
@@ -58,23 +61,47 @@ export function readWorkspaceFileMetadata(stored: { readonly name?: unknown; rea
 	return { name: readStringProperty(stored.name) ?? getWorkspaceFileBasename(uri), ...(icon ? { icon } : {}), ...(color ? { color } : {}) };
 }
 
-/** Parses a `.code-workspace` file, throwing when it is not a valid workspace file. Invalid folder entries are skipped. */
-export function parseSessionWorkspaceFile(content: string, uri: URI, extUri: IExtUri): ISessionWorkspaceFileContent {
+/**
+ * Parses a `.code-workspace` file, throwing when it is not a valid workspace file. Invalid folder entries are skipped, and
+ * so are folder paths in a local file of a remote workspace, which are paths on the remote and not on this computer.
+ */
+export function parseSessionWorkspaceFile(content: string, uri: URI, extUri: IExtUri, options?: { readonly remoteAuthority?: string }): ISessionWorkspaceFileContent {
+	const invalid = () => new Error(localize('invalidWorkspaceFile', "'{0}' is not a valid workspace file.", basename(uri)));
 	const errors: ParseError[] = [];
-	const stored: { folders?: unknown; name?: unknown; icon?: unknown; color?: unknown } | undefined = parse(content, errors);
+	const stored: { folders?: unknown; remoteAuthority?: unknown; name?: unknown; icon?: unknown; color?: unknown } | undefined = parse(content, errors);
 	if (errors.length || !isObject(stored) || !Array.isArray(stored.folders)) {
-		throw new Error(localize('invalidWorkspaceFile', "'{0}' is not a valid workspace file.", basename(uri)));
+		throw invalid();
 	}
-	const folders = toWorkspaceFolders(stored.folders.filter(isStoredWorkspaceFolder), uri, extUri).map(folder => folder.uri);
-	return { ...readWorkspaceFileMetadata(stored, uri), folders };
+	const configuredFolders = stored.folders.filter(isStoredWorkspaceFolder);
+	let hasErrors = configuredFolders.length !== stored.folders.length;
+	const remoteAuthority = options?.remoteAuthority || (typeof stored.remoteAuthority === 'string' ? stored.remoteAuthority : undefined);
+	const folders = configuredFolders.filter(folder => {
+		if (uri.scheme === Schemas.file && remoteAuthority && hasKey(folder, { path: true })) {
+			hasErrors = true;
+			return false;
+		}
+		if (hasKey(folder, { uri: true })) {
+			try {
+				URI.parse(folder.uri, true);
+			} catch {
+				throw invalid();
+			}
+		}
+		return true;
+	});
+	return { ...readWorkspaceFileMetadata(stored, uri), folders: toWorkspaceFolders(folders, uri, extUri).map(folder => folder.uri), hasErrors };
 }
 
 /**
  * Applies `edit` to the content of a `.code-workspace` file, keeping its comments, settings and other properties. Folders
- * are written relative to the file unless `forceAbsolute` is set.
+ * are written relative to the file unless `forceAbsolute` is set. Throws when the existing content or the result is not a
+ * valid workspace file, so that an invalid file is never written.
  */
 export function stringifySessionWorkspaceFile(uri: URI, edit: ISessionWorkspaceFileEdit, extUri: IExtUri, options?: { readonly existing?: string; readonly forceAbsolute?: boolean }): string {
-	let content = options?.existing?.trim() ? options.existing : '{}';
+	if (options?.existing !== undefined) {
+		parseSessionWorkspaceFile(options.existing, uri, extUri);
+	}
+	let content = options?.existing ?? '{}';
 	if (edit.folders) {
 		const configFolder = dirname(uri);
 		const folders: IStoredWorkspaceFolder[] = edit.folders.map(folder => getStoredWorkspaceFolder(folder, !!options?.forceAbsolute, undefined, configFolder, extUri));
@@ -89,5 +116,7 @@ export function stringifySessionWorkspaceFile(uri: URI, edit: ISessionWorkspaceF
 	if (edit.color !== undefined) {
 		content = applyEdits(content, setProperty(content, [COLOR_PROPERTY], edit.color ?? undefined, formattingOptions));
 	}
-	return content.endsWith('\n') ? content : `${content}\n`;
+	content = content.endsWith('\n') ? content : `${content}\n`;
+	parseSessionWorkspaceFile(content, uri, extUri);
+	return content;
 }

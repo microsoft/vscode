@@ -14,8 +14,8 @@ suite('SessionWorkspaceFile', () => {
 
 	const file = URI.file('/work/platform.code-workspace');
 
-	function parse(content: string) {
-		const parsed = parseSessionWorkspaceFile(content, file, extUri);
+	function parse(content: string, remoteAuthority?: string) {
+		const parsed = parseSessionWorkspaceFile(content, file, extUri, { remoteAuthority });
 		return { ...parsed, folders: parsed.folders.map(folder => folder.path) };
 	}
 
@@ -24,14 +24,30 @@ suite('SessionWorkspaceFile', () => {
 			named: parse('{ "name": " Platform ", "icon": "rocket", "color": "#00AA00", "folders": [{ "path": "vscode" }, { "uri": "file:///work/docs" }] }'),
 			unnamed: parse('{ "name": " ", "icon": 1, "folders": [{ "path": "/abs" }, { "nope": true }, "x"] }'),
 		}, {
-			named: { name: 'Platform', icon: 'rocket', color: '#00AA00', folders: ['/work/vscode', '/work/docs'] },
-			unnamed: { name: 'platform', folders: ['/abs'] },
+			named: { name: 'Platform', icon: 'rocket', color: '#00AA00', folders: ['/work/vscode', '/work/docs'], hasErrors: false },
+			unnamed: { name: 'platform', folders: ['/abs'], hasErrors: true },
 		});
 	});
 
 	test('rejects content that is not a workspace file', () => {
 		assert.throws(() => parseSessionWorkspaceFile('{ "folders": ', file, extUri), /is not a valid workspace file/);
 		assert.throws(() => parseSessionWorkspaceFile('{ "name": "x" }', file, extUri), /is not a valid workspace file/);
+		assert.throws(() => parseSessionWorkspaceFile('{ "folders": [{ "uri": "no scheme" }] }', file, extUri), /is not a valid workspace file/);
+	});
+
+	test('skips folder paths in a local file of a remote workspace, which are paths on the remote and not on this computer', () => {
+		assert.deepStrictEqual({
+			stored: parse('{ "remoteAuthority": "ssh-remote+box", "folders": [{ "path": "/home/me/vscode" }, { "uri": "vscode-remote://ssh-remote+box/home/me/docs" }] }'),
+			recent: parse('{ "folders": [{ "path": "/home/me/vscode" }] }', 'wsl+Ubuntu'),
+		}, {
+			stored: { name: 'platform', folders: ['/home/me/docs'], hasErrors: true },
+			recent: { name: 'platform', folders: [], hasErrors: true },
+		});
+	});
+
+	test('never writes content that is not a workspace file', () => {
+		assert.throws(() => stringifySessionWorkspaceFile(file, { icon: 'rocket' }, extUri, { existing: '{ "folders": ' }), /is not a valid workspace file/);
+		assert.throws(() => stringifySessionWorkspaceFile(file, { name: 'Platform' }, extUri), /is not a valid workspace file/);
 	});
 
 	test('writes the icon and color as properties of a workspace file, keeping its comments and the rest of it, and removes them again', () => {

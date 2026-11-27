@@ -8,21 +8,19 @@ import { disposableTimeout, Limiter, raceCancellationError, RunOnceScheduler } f
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { CancellationError, isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
-import { parse, ParseError } from '../../../../base/common/json.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { Schemas } from '../../../../base/common/network.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
-import { hasKey, isDefined, isObject } from '../../../../base/common/types.js';
+import { isDefined } from '../../../../base/common/types.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { isRecentFolder, IRecentWorkspace as IRecentWorkspaceFile, isStoredWorkspaceFolder, IWorkspacesService, toWorkspaceFolders } from '../../../../platform/workspaces/common/workspaces.js';
+import { isRecentFolder, IRecentWorkspace as IRecentWorkspaceFile, IWorkspacesService } from '../../../../platform/workspaces/common/workspaces.js';
 import { ISessionWorkspace } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
-import { getWorkspaceFileBasename, ISessionWorkspaceFileMetadata, readWorkspaceFileMetadata } from '../common/sessionWorkspaceFile.js';
+import { getWorkspaceFileBasename, ISessionWorkspaceFileContent, ISessionWorkspaceFileMetadata, parseSessionWorkspaceFile } from '../common/sessionWorkspaceFile.js';
 import { WorkspaceHistoryLoadState } from '../../../services/sessions/common/workspaceSelection.js';
 
 const STORAGE_KEY_RECENT_WORKSPACES = 'sessions.recentlyPickedWorkspaces';
@@ -76,11 +74,6 @@ export interface IVSCodeRecentWorkspaceFile extends ISessionWorkspaceFileMetadat
 interface IVSCodeRecentFolder {
 	readonly folderUri: URI;
 	readonly source: 'vscode' | 'vscodeWorkspace';
-}
-
-interface IReadWorkspaceFile extends ISessionWorkspaceFileMetadata {
-	readonly folders: URI[];
-	readonly hasErrors: boolean;
 }
 
 export const ISessionsRecentWorkspacesService = createDecorator<ISessionsRecentWorkspacesService>('sessionsRecentWorkspacesService');
@@ -336,7 +329,7 @@ export class SessionsRecentWorkspacesService extends Disposable implements ISess
 		this._historyRefresh.value = refresh;
 		const cancellation = new CancellationTokenSource();
 		refresh.add(toDisposable(() => cancellation.dispose(true)));
-		const workspaceFileReads = refresh.add(new Limiter<IReadWorkspaceFile>(4));
+		const workspaceFileReads = refresh.add(new Limiter<ISessionWorkspaceFileContent>(4));
 		let timedOut = false;
 		refresh.add(disposableTimeout(() => {
 			timedOut = true;
@@ -435,7 +428,7 @@ export class SessionsRecentWorkspacesService extends Disposable implements ISess
 		return !basename(uri).startsWith('copilot-') && !isWorktreeWorkspaceUri(uri);
 	}
 
-	private async _readWorkspaceFolders(recent: IRecentWorkspaceFile, token: CancellationToken): Promise<IReadWorkspaceFile> {
+	private async _readWorkspaceFolders(recent: IRecentWorkspaceFile, token: CancellationToken): Promise<ISessionWorkspaceFileContent> {
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
@@ -460,34 +453,17 @@ export class SessionsRecentWorkspacesService extends Disposable implements ISess
 		}
 	}
 
-	private async _readWorkspaceFile(recent: IRecentWorkspaceFile, token: CancellationToken): Promise<IReadWorkspaceFile> {
+	private async _readWorkspaceFile(recent: IRecentWorkspaceFile, token: CancellationToken): Promise<ISessionWorkspaceFileContent> {
 		const configPath = recent.workspace.configPath;
 		if (!this.fileService.hasProvider(configPath)) {
 			throw new Error('No file system provider for the recent workspace file');
 		}
 		const content = await raceCancellationError(this.fileService.readFile(configPath, { limits: { size: MAX_WORKSPACE_FILE_SIZE } }, token), token);
-		const errors: ParseError[] = [];
-		const stored: { folders?: unknown; remoteAuthority?: unknown; name?: unknown; icon?: unknown; color?: unknown } | undefined = parse(content.value.toString(), errors);
-		if (errors.length || !isObject(stored) || !Array.isArray(stored.folders)) {
-			throw new Error('Invalid recent workspace file');
-		}
-		const configuredFolders = stored.folders.filter(isStoredWorkspaceFolder);
-		let hasErrors = configuredFolders.length !== stored.folders.length;
-		const remoteAuthority = recent.remoteAuthority || (typeof stored.remoteAuthority === 'string' ? stored.remoteAuthority : undefined);
-		const folders = configuredFolders.filter(folder => {
-			if (configPath.scheme === Schemas.file && remoteAuthority && hasKey(folder, { path: true })) {
-				hasErrors = true;
-				return false;
-			}
-			if (hasKey(folder, { uri: true })) {
-				URI.parse(folder.uri, true);
-			}
-			return true;
-		});
-		if (hasErrors) {
+		const parsed = parseSessionWorkspaceFile(content.value.toString(), configPath, this.uriIdentityService.extUri, { remoteAuthority: recent.remoteAuthority });
+		if (parsed.hasErrors) {
 			this.logService.warn('[SessionsRecentWorkspaces] Skipped invalid folders or ambiguous remote paths in a recent workspace file');
 		}
-		return { ...readWorkspaceFileMetadata(stored, configPath), folders: toWorkspaceFolders(folders, configPath, this.uriIdentityService.extUri).map(folder => folder.uri), hasErrors };
+		return parsed;
 	}
 
 	private _updateExcludedVSCodeFolders(folders: readonly URI[], excluded: boolean): void {
