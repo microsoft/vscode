@@ -371,7 +371,8 @@ suite('Sessions - Chat view sessions list New button', () => {
 			layout(width);
 			await timeout(0);
 			const atOldWidth = state();
-			layout(300);
+			// Wide enough for the longer keybinding on every platform: Windows and Linux spell it out as "Ctrl+Shift+Alt+N".
+			layout(1000);
 			await timeout(0);
 
 			assert.deepStrictEqual({ hidden, atOldWidth, wide: state() }, {
