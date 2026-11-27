@@ -239,4 +239,88 @@ suite('JsonRpcProtocol', () => {
 		assert.deepStrictEqual(sequence, ['request:start', 'request:end', 'notification']);
 		assert.deepStrictEqual(replies, [{ jsonrpc: '2.0', id: 1, result: true }]);
 	});
+
+	test('cancelIncomingRequest cancels cancellation token of in-flight incoming request and suppresses response', async () => {
+		const handlerDeferred = new DeferredPromise<string>();
+		let tokenWasCanceled = false;
+
+		const { protocol, sentMessages } = createProtocol({
+			handleRequest: async (_request, token) => {
+				const listener = token.onCancellationRequested(() => {
+					tokenWasCanceled = true;
+				});
+				try {
+					return await handlerDeferred.p;
+				} finally {
+					listener.dispose();
+				}
+			}
+		});
+
+		const handlingPromise = protocol.handleMessage({
+			jsonrpc: '2.0',
+			id: 42,
+			method: 'longRunning'
+		});
+
+		assert.strictEqual(tokenWasCanceled, false);
+
+		protocol.cancelIncomingRequest(42);
+		assert.strictEqual(tokenWasCanceled, true);
+
+		// Resolve handler after cancellation
+		handlerDeferred.complete('done');
+		const replies = await handlingPromise;
+
+		// No response should be emitted or sent
+		assert.deepStrictEqual(replies, []);
+		assert.deepStrictEqual(sentMessages, []);
+	});
+
+	test('cancelIncomingRequest does not affect outgoing request with colliding id', async () => {
+		const incomingDeferred = new DeferredPromise<string>();
+		let incomingCanceled = false;
+
+		const { protocol, sentMessages } = createProtocol({
+			handleRequest: async (_request, token) => {
+				const listener = token.onCancellationRequested(() => {
+					incomingCanceled = true;
+				});
+				try {
+					return await incomingDeferred.p;
+				} finally {
+					listener.dispose();
+				}
+			}
+		});
+
+		// Start outgoing request (will get id: 1)
+		const outgoingPromise = protocol.sendRequest({ method: 'outgoing' });
+		const outgoingId = (sentMessages[0] as IJsonRpcRequest).id;
+
+		// Incoming request with the SAME id
+		const incomingHandling = protocol.handleMessage({
+			jsonrpc: '2.0',
+			id: outgoingId,
+			method: 'incoming'
+		});
+
+		// Cancel the incoming request with outgoingId
+		protocol.cancelIncomingRequest(outgoingId);
+		assert.strictEqual(incomingCanceled, true);
+
+		// Now simulate server responding to the outgoing request
+		await protocol.handleMessage({
+			jsonrpc: '2.0',
+			id: outgoingId,
+			result: 'outgoing-ok'
+		});
+
+		const outgoingResult = await outgoingPromise;
+		assert.strictEqual(outgoingResult, 'outgoing-ok');
+
+		incomingDeferred.complete('incoming-late');
+		const replies = await incomingHandling;
+		assert.deepStrictEqual(replies, []);
+	});
 });

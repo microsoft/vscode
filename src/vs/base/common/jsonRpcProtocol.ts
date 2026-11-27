@@ -6,7 +6,7 @@
 import { DeferredPromise } from './async.js';
 import { CancellationToken, CancellationTokenSource } from './cancellation.js';
 import { CancellationError } from './errors.js';
-import { Disposable, toDisposable } from './lifecycle.js';
+import { Disposable } from './lifecycle.js';
 import { hasKey } from './types.js';
 
 export type JsonRpcId = string | number;
@@ -75,6 +75,7 @@ export class JsonRpcProtocol extends Disposable {
 
 	private _nextRequestId = 1;
 	private readonly _pendingRequests = new Map<JsonRpcId, IPendingRequest>();
+	private readonly _incomingRequests = new Map<JsonRpcId, CancellationTokenSource>();
 
 	constructor(
 		private readonly _send: (message: JsonRpcMessage) => void,
@@ -160,12 +161,26 @@ export class JsonRpcProtocol extends Disposable {
 		}
 	}
 
+	public cancelIncomingRequest(id: JsonRpcId): void {
+		const cts = this._incomingRequests.get(id);
+		if (cts) {
+			this._incomingRequests.delete(id);
+			cts.cancel();
+			cts.dispose(true);
+		}
+	}
+
 	public cancelAllRequests(): void {
 		for (const [id, pending] of this._pendingRequests) {
 			this._pendingRequests.delete(id);
 			pending.cts.cancel();
 			pending.promise.cancel();
 			pending.cts.dispose(true);
+		}
+		for (const [id, cts] of this._incomingRequests) {
+			this._incomingRequests.delete(id);
+			cts.cancel();
+			cts.dispose(true);
 		}
 	}
 
@@ -212,7 +227,7 @@ export class JsonRpcProtocol extends Disposable {
 		}
 	}
 
-	private async _handleRequest(request: IJsonRpcRequest): Promise<JsonRpcResponse> {
+	private async _handleRequest(request: IJsonRpcRequest): Promise<JsonRpcResponse | undefined> {
 		if (!this._handlers.handleRequest) {
 			const response: IJsonRpcErrorResponse = {
 				jsonrpc: '2.0',
@@ -227,11 +242,14 @@ export class JsonRpcProtocol extends Disposable {
 		}
 
 		const cts = new CancellationTokenSource();
-		this._register(toDisposable(() => cts.dispose(true)));
+		this._incomingRequests.set(request.id, cts);
 
 		try {
 			const resultOrThenable = this._handlers.handleRequest(request, cts.token);
 			const result = isThenable(resultOrThenable) ? await resultOrThenable : resultOrThenable;
+			if (cts.token.isCancellationRequested) {
+				return undefined;
+			}
 			const response: IJsonRpcSuccessResponse = {
 				jsonrpc: '2.0',
 				id: request.id,
@@ -240,6 +258,9 @@ export class JsonRpcProtocol extends Disposable {
 			this._send(response);
 			return response;
 		} catch (error) {
+			if (cts.token.isCancellationRequested) {
+				return undefined;
+			}
 			let response: IJsonRpcErrorResponse;
 			if (error instanceof JsonRpcError) {
 				response = {
@@ -264,6 +285,7 @@ export class JsonRpcProtocol extends Disposable {
 			this._send(response);
 			return response;
 		} finally {
+			this._incomingRequests.delete(request.id);
 			cts.dispose(true);
 		}
 	}
