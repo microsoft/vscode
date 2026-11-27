@@ -24,7 +24,7 @@ import { TelemetryConfiguration } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AGENT_HOST_ENDPOINT_REGISTRY_SCHEMA_VERSION, type AgentHostEndpointAddress, type IAgentHostEndpointMetadata } from '../../common/agentHostEndpointRegistry.js';
 import { decodeSSHConnectFailureCode, getSSHConnectFailureCode, isSSHAuthenticationFailedError, SSHAuthMethod, SSHConnectFailureCode, type ISSHAgentHostConfig, type ISSHConnectProgress, type ISSHEndpointSelection, type ISSHEndpointSelectionRequest, type ISSHKeyboardInteractivePrompt, type ISSHKeyboardInteractiveRequest, type ISSHResolvedConfig } from '../../common/sshRemoteAgentHost.js';
-import { SSHRemoteAgentHostMainService, makeAuthHandler, type SSHAuthAttempt } from '../../node/sshRemoteAgentHostService.js';
+import { SSHRemoteAgentHostMainService, makeAuthHandler, type SSHAuthAttempt, type SSHPasswordPromptHandler } from '../../node/sshRemoteAgentHostService.js';
 import { parseSSHGOutput } from '../../common/sshConfigParsing.js';
 import type { AnyAuthMethod, AuthenticationType, ConnectConfig } from 'ssh2';
 
@@ -207,11 +207,15 @@ class KeyboardInteractiveMockSSHClient {
 	connectError: Error | undefined;
 	/** Like ssh2, report a lost connection as soon as the proxy closes its output, before the proxy exits. */
 	loseConnectionWhenProxyCloses = false;
+	/** Methods the server still offers after rejecting `none`. */
+	methodsAfterNone: AuthenticationType[] = ['keyboard-interactive'];
 	finishResponses: readonly string[] | undefined;
 	connectConfig: ConnectConfig | undefined;
 	readonly authMethods: string[] = [];
+	readonly passwords: string[] = [];
 
 	private readonly _errorListeners: Array<(err: Error) => void> = [];
+	private readonly _readyListeners: Array<() => void> = [];
 
 	on(event: 'ready', listener: () => void): this;
 	on(event: 'error', listener: (err: Error) => void): this;
@@ -219,6 +223,8 @@ class KeyboardInteractiveMockSSHClient {
 	on(event: string, listener: ((err: Error) => void) | (() => void)): this {
 		if (event === 'error') {
 			this._errorListeners.push(listener as (err: Error) => void);
+		} else if (event === 'ready') {
+			this._readyListeners.push(listener as () => void);
 		}
 		return this;
 	}
@@ -244,13 +250,19 @@ class KeyboardInteractiveMockSSHClient {
 				this.authMethods.push(method.type);
 			}
 			if (method && method.type === 'none') {
-				authHandler?.(['keyboard-interactive'], false, authenticate);
+				authHandler?.(this.methodsAfterNone, false, authenticate);
 			}
 			if (method && method.type === 'keyboard-interactive') {
 				method.prompt('Keyboard', '', 'en-US', [{ prompt: 'Password: ', echo: false }], responses => {
 					this.finishResponses = responses;
 					this.fireError(new Error('All configured authentication methods failed'));
 				});
+			}
+			if (method && method.type === 'password') {
+				this.passwords.push(method.password);
+				for (const listener of this._readyListeners) {
+					listener();
+				}
 			}
 		};
 		authHandler?.(null, false, authenticate);
@@ -502,7 +514,8 @@ class KeyboardInteractiveConnectTestService extends SSHRemoteAgentHostMainServic
 	}
 
 	protected override async _buildAuthAttempts(config: ISSHAgentHostConfig): Promise<SSHAuthAttempt[]> {
-		return [{ type: 'keyboard-interactive', username: config.username }];
+		// The interactive fallbacks of `SSHAuthMethod.Agent`.
+		return [{ type: 'keyboard-interactive', username: config.username }, { type: 'password', username: config.username }];
 	}
 
 	connectSSHForTest(config: ISSHAgentHostConfig) {
@@ -1485,6 +1498,30 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		});
 	});
 
+	test('prompts for a password when the server offers password but not keyboard-interactive', async () => {
+		const passwordService = disposables.add(new KeyboardInteractiveConnectTestService(new NullLogService(), { quality, dataFolderName } as IProductService, NullTelemetryService));
+		passwordService.client.methodsAfterNone = ['publickey', 'password'];
+		const request = new DeferredPromise<ISSHKeyboardInteractiveRequest>();
+		disposables.add(passwordService.onDidRequestKeyboardInteractive(passwordRequest => request.complete(passwordRequest)));
+
+		const connectPromise = passwordService.connectSSHForTest(makeConfig({ sshConfigHost: 'test-host' }));
+		const passwordRequest = await request.p;
+		await passwordService.respondKeyboardInteractive(passwordRequest.requestId, ['secret']);
+		await connectPromise;
+
+		assert.deepStrictEqual({
+			displayHost: passwordRequest.displayHost,
+			prompts: passwordRequest.prompts,
+			authMethods: passwordService.client.authMethods,
+			passwords: passwordService.client.passwords,
+		}, {
+			displayHost: 'test-host',
+			prompts: [{ prompt: 'Enter the password for testuser@10.0.0.1.', echo: false }],
+			authMethods: ['none', 'password'],
+			passwords: ['secret'],
+		});
+	});
+
 	test('manual hosts resolve SSH configuration and release a failed proxy while authentication is pending', async () => {
 		const proxyService = disposables.add(new KeyboardInteractiveConnectTestService(new NullLogService(), { quality, dataFolderName } as IProductService, NullTelemetryService));
 		proxyService.proxyCommand = 'exit 42';
@@ -2302,6 +2339,10 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 	const RSA = Buffer.from('rsa-key-bytes');
 	const ED = Buffer.from('ed25519-key-bytes');
 	const EXPLICIT = Buffer.from('explicit-key-bytes');
+	const interactiveFallbacks = [
+		{ type: 'keyboard-interactive', username: 'testuser' },
+		{ type: 'password', username: 'testuser' },
+	];
 
 	function sshString(value: string): Buffer {
 		const valueBuffer = Buffer.from(value, 'utf8');
@@ -2322,7 +2363,7 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 		].join('\n'));
 	}
 
-	test('Agent + no SSH_AUTH_SOCK + only id_rsa exists → publickey id_rsa, then keyboard-interactive', async () => {
+	test('Agent + no SSH_AUTH_SOCK + only id_rsa exists → publickey id_rsa, then interactive fallbacks', async () => {
 		service.agentSock = undefined;
 		service.keyFiles.set('~/.ssh/id_rsa', RSA);
 
@@ -2330,11 +2371,11 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 
 		assert.deepStrictEqual(attempts, [
 			{ type: 'publickey', username: 'testuser', key: RSA, keyPath: '~/.ssh/id_rsa' },
-			{ type: 'keyboard-interactive', username: 'testuser' },
+			...interactiveFallbacks,
 		]);
 	});
 
-	test('Agent + SSH_AUTH_SOCK + only id_rsa exists → agent then publickey id_rsa, then keyboard-interactive', async () => {
+	test('Agent + SSH_AUTH_SOCK + only id_rsa exists → agent then publickey id_rsa, then interactive fallbacks', async () => {
 		// This is the regression-driving case: agent is set but doesn't have
 		// the key, so we must still fall through to the on-disk default key.
 		service.agentSock = '/tmp/ssh-agent.sock';
@@ -2345,11 +2386,11 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 		assert.deepStrictEqual(attempts, [
 			{ type: 'agent', username: 'testuser', agent: '/tmp/ssh-agent.sock' },
 			{ type: 'publickey', username: 'testuser', key: RSA, keyPath: '~/.ssh/id_rsa' },
-			{ type: 'keyboard-interactive', username: 'testuser' },
+			...interactiveFallbacks,
 		]);
 	});
 
-	test('Agent + SSH_AUTH_SOCK + id_ed25519 and id_rsa exist → agent then both keys in default order, then keyboard-interactive', async () => {
+	test('Agent + SSH_AUTH_SOCK + id_ed25519 and id_rsa exist → agent then both keys in default order, then interactive fallbacks', async () => {
 		service.agentSock = '/tmp/ssh-agent.sock';
 		service.keyFiles.set('~/.ssh/id_ed25519', ED);
 		service.keyFiles.set('~/.ssh/id_rsa', RSA);
@@ -2360,45 +2401,46 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 			{ type: 'agent', username: 'testuser', agent: '/tmp/ssh-agent.sock' },
 			{ type: 'publickey', username: 'testuser', key: ED, keyPath: '~/.ssh/id_ed25519' },
 			{ type: 'publickey', username: 'testuser', key: RSA, keyPath: '~/.ssh/id_rsa' },
-			{ type: 'keyboard-interactive', username: 'testuser' },
+			...interactiveFallbacks,
 		]);
 	});
 
-	test('Agent + SSH_AUTH_SOCK + no default keys → agent then keyboard-interactive', async () => {
+	test('Agent + SSH_AUTH_SOCK + no default keys → agent then interactive fallbacks', async () => {
 		service.agentSock = '/tmp/ssh-agent.sock';
 
 		const attempts = await service.testBuildAuthAttempts(makeConfig({ authMethod: SSHAuthMethod.Agent }));
 
 		assert.deepStrictEqual(attempts, [
 			{ type: 'agent', username: 'testuser', agent: '/tmp/ssh-agent.sock' },
-			{ type: 'keyboard-interactive', username: 'testuser' },
+			...interactiveFallbacks,
 		]);
 	});
 
-	test('Agent skips the agent and keys when SSH config disables public key authentication', async () => {
+	test('Agent skips methods that SSH config disables or does not prefer', async () => {
 		service.agentSock = '/tmp/ssh-agent.sock';
 		const encrypted = openSSHPrivateKeyWithCipher('aes256-ctr');
 		service.keyFiles.set('~/.ssh/id_ed25519', encrypted);
 		const build = (sshGOutput: string) => service.testBuildAuthAttempts(makeConfig({ authMethod: SSHAuthMethod.Agent }), parseSSHGOutput(sshGOutput));
-		const interactiveOnly = [{ type: 'keyboard-interactive', username: 'testuser' }];
-		const all = [
+		const keys = [
 			{ type: 'agent', username: 'testuser', agent: '/tmp/ssh-agent.sock' },
 			{ type: 'publickey', username: 'testuser', key: encrypted, keyPath: '~/.ssh/id_ed25519', encrypted: true },
-			{ type: 'keyboard-interactive', username: 'testuser' },
 		];
+		const keyboardInteractive = { type: 'keyboard-interactive', username: 'testuser' };
 
 		assert.deepStrictEqual({
 			pubkeyDisabled: await build('pubkeyauthentication false\npreferredauthentications gssapi-with-mic,hostbased,publickey,keyboard-interactive,password'),
 			publickeyNotPreferred: await build('pubkeyauthentication true\npreferredauthentications keyboard-interactive,password'),
 			passwordPreferred: await build('pubkeyauthentication true\npreferredauthentications password'),
 			publickeyPreferredLast: await build('pubkeyauthentication true\npreferredauthentications keyboard-interactive,publickey'),
-			defaults: await build('pubkeyauthentication true\npreferredauthentications gssapi-with-mic,hostbased,publickey,keyboard-interactive,password'),
+			passwordDisabled: await build('passwordauthentication no\npreferredauthentications gssapi-with-mic,hostbased,publickey,keyboard-interactive,password'),
+			defaults: await build('pubkeyauthentication true\npasswordauthentication yes\npreferredauthentications gssapi-with-mic,hostbased,publickey,keyboard-interactive,password'),
 		}, {
-			pubkeyDisabled: interactiveOnly,
-			publickeyNotPreferred: interactiveOnly,
-			passwordPreferred: interactiveOnly,
-			publickeyPreferredLast: all,
-			defaults: all,
+			pubkeyDisabled: interactiveFallbacks,
+			publickeyNotPreferred: interactiveFallbacks,
+			passwordPreferred: interactiveFallbacks,
+			publickeyPreferredLast: [...keys, keyboardInteractive],
+			passwordDisabled: [...keys, keyboardInteractive],
+			defaults: [...keys, ...interactiveFallbacks],
 		});
 	});
 
@@ -2414,7 +2456,7 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 		assert.deepStrictEqual(attempts, [
 			{ type: 'agent', username: 'testuser', agent: '//./pipe/pageant.user.1234' },
 			{ type: 'publickey', username: 'testuser', key: RSA, keyPath: '~/.ssh/id_rsa' },
-			{ type: 'keyboard-interactive', username: 'testuser' },
+			...interactiveFallbacks,
 		]);
 	});
 
@@ -2428,7 +2470,7 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 
 		assert.deepStrictEqual(attempts, [
 			{ type: 'agent', username: 'testuser', agent: '/tmp/ssh-agent.sock' },
-			{ type: 'keyboard-interactive', username: 'testuser' },
+			...interactiveFallbacks,
 		]);
 	});
 
@@ -2440,12 +2482,10 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 			identityAgent: 'none',
 		}));
 
-		assert.deepStrictEqual(attempts, [
-			{ type: 'keyboard-interactive', username: 'testuser' },
-		]);
+		assert.deepStrictEqual(attempts, interactiveFallbacks);
 	});
 
-	test('Agent + explicit privateKeyPath + SSH_AUTH_SOCK + id_rsa → agent first, then explicit, id_rsa, keyboard-interactive', async () => {
+	test('Agent + explicit privateKeyPath + SSH_AUTH_SOCK + id_rsa → agent first, then explicit, id_rsa, interactive fallbacks', async () => {
 		service.agentSock = '/tmp/ssh-agent.sock';
 		service.keyFiles.set('/some/explicit/key', EXPLICIT);
 		service.keyFiles.set('~/.ssh/id_rsa', RSA);
@@ -2459,11 +2499,11 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 			{ type: 'agent', username: 'testuser', agent: '/tmp/ssh-agent.sock' },
 			{ type: 'publickey', username: 'testuser', key: EXPLICIT, keyPath: '/some/explicit/key' },
 			{ type: 'publickey', username: 'testuser', key: RSA, keyPath: '~/.ssh/id_rsa' },
-			{ type: 'keyboard-interactive', username: 'testuser' },
+			...interactiveFallbacks,
 		]);
 	});
 
-	test('Agent + explicit privateKeyPath that matches a default → explicit added once, then keyboard-interactive', async () => {
+	test('Agent + explicit privateKeyPath that matches a default → explicit added once, then interactive fallbacks', async () => {
 		// When the user pins ~/.ssh/id_rsa explicitly, we shouldn't end up
 		// with the same key twice in the queue.
 		service.agentSock = undefined;
@@ -2476,7 +2516,7 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 
 		assert.deepStrictEqual(attempts, [
 			{ type: 'publickey', username: 'testuser', key: RSA, keyPath: '~/.ssh/id_rsa' },
-			{ type: 'keyboard-interactive', username: 'testuser' },
+			...interactiveFallbacks,
 		]);
 	});
 
@@ -2497,7 +2537,7 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 		assert.deepStrictEqual(attempts, [
 			{ type: 'agent', username: 'testuser', agent: '/tmp/ssh-agent.sock' },
 			{ type: 'publickey', username: 'testuser', key: ED, keyPath: '~/.ssh/id_ed25519' },
-			{ type: 'keyboard-interactive', username: 'testuser' },
+			...interactiveFallbacks,
 		]);
 	});
 
@@ -2669,5 +2709,29 @@ suite('SSHRemoteAgentHostMainService - makeAuthHandler', () => {
 		assert.deepStrictEqual(calls, [
 			{ type: 'publickey', username: 'u', key: KEY, passphrase: 'passphrase' },
 		]);
+	});
+
+	test('password without a configured value prompts for it when the server does not offer keyboard-interactive', () => {
+		const fallbacks: SSHAuthAttempt[] = [
+			{ type: 'keyboard-interactive', username: 'u' },
+			{ type: 'password', username: 'u' },
+		];
+		const run = (attempts: SSHAuthAttempt[], passwordHandler?: SSHPasswordPromptHandler) => {
+			const calls: Array<object | false> = [];
+			makeAuthHandler(attempts, new NullLogService(), undefined, undefined, passwordHandler)(['publickey', 'password'], false, next => calls.push(next));
+			return calls;
+		};
+
+		assert.deepStrictEqual({
+			answered: run(fallbacks, finish => finish('secret')),
+			cancelled: run(fallbacks, finish => finish(undefined)),
+			noHandler: run(fallbacks),
+			configured: run([{ type: 'password', username: 'u', password: 'pw' }]),
+		}, {
+			answered: [{ type: 'password', username: 'u', password: 'secret' }],
+			cancelled: [false],
+			noHandler: [false],
+			configured: [{ type: 'password', username: 'u', password: 'pw' }],
+		});
 	});
 });
