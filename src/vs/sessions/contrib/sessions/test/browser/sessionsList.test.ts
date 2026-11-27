@@ -955,11 +955,13 @@ suite('Sessions - SessionsList', () => {
 			];
 			const content = getActiveAutomationsHoverContent(automations, runs, false, true);
 			const sharedContent = getActiveAutomationsHoverContent(automations, runs, true, true);
+			const queuedContent = getActiveAutomationsHoverContent([automations[0]], [{ automationId: 'personal', status: 'pending' }], false, false);
 			const emptyContent = getActiveAutomationsHoverContent([], [], false, false);
 
-			assert.deepStrictEqual({ content: content.value, sharedContent: sharedContent.value, emptyContent: emptyContent.value }, {
+			assert.deepStrictEqual({ content: content.value, sharedContent: sharedContent.value, queuedContent: queuedContent.value, emptyContent: emptyContent.value }, {
 				content: '**Active**\n\n$(session-in-progress) Code&nbsp;review<span style="color:var(--vscode-descriptionForeground);"> · Reviewing&nbsp;changes (2&nbsp;runs)</span>',
 				sharedContent: '**Active**\n\n$(session-in-progress) Code&nbsp;review<span style="color:var(--vscode-descriptionForeground);"> · Reviewing&nbsp;changes (2&nbsp;runs)</span>  \n$(session-in-progress) Shared&nbsp;automation<span style="color:var(--vscode-descriptionForeground);"> · Running</span>',
+				queuedContent: '**Active**\n\n$(clock) Code&nbsp;review<span style="color:var(--vscode-descriptionForeground);"> · Queued</span>',
 				emptyContent: '**Active**\n\nNo&nbsp;runs&nbsp;in&nbsp;progress',
 			});
 		});

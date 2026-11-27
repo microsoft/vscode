@@ -559,7 +559,7 @@ export function getActiveAutomationsHoverContent(
 		const status = (description && renderAsPlaintext(description, { omitMarkdownSyntax: true })) || (run.statusDescription ?? (needsInput
 			? localize('automationRunNeedsInput', "Needs input")
 			: run.status === 'pending'
-				? localize('automationRunPending', "Pending")
+				? localize('automationRunQueued', "Queued")
 				: localize('automationRunRunning', "Running")));
 		const existing = activeRuns.get(run.automationId);
 		if (!existing || needsInput && !existing.needsInput) {
