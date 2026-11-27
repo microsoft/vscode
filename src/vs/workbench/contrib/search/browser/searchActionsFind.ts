@@ -326,6 +326,11 @@ async function expandSelectSubtree(accessor: ServicesAccessor) {
 	if (searchView) {
 		const viewer = searchView.getControl();
 		const selected = viewer.getFocus()[0];
+
+		if (!selected) {
+			return;
+		}
+
 		await forcedExpandRecursively(viewer, selected);
 	}
 }
