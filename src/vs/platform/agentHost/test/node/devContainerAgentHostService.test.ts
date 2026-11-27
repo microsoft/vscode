@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { X509Certificate } from 'crypto';
 import { rootCertificates } from 'tls';
-import { EventEmitter as NodeEventEmitter } from 'events';
+import { EventEmitter as NodeEventEmitter, once } from 'events';
 import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'child_process';
 import { existsSync } from 'fs';
 import { lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'fs/promises';
@@ -14,7 +14,9 @@ import { tmpdir } from 'os';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
-import { delimiter, join } from '../../../../base/common/path.js';
+import { basename, delimiter, dirname, join } from '../../../../base/common/path.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { isLinux, isWindows } from '../../../../base/common/platform.js';
 import { getCaseInsensitive } from '../../../../base/common/objects.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -24,7 +26,11 @@ import { IProductService } from '../../../product/common/productService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
+import { IConfigurationService } from '../../../configuration/common/configuration.js';
+import { ConfigurationService } from '../../../configuration/common/configurationService.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
+import { NullPolicyService } from '../../../policy/common/policy.js';
 import { IDevContainerAgentHostUserStateReport, VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../../common/devContainerAgentHost.js';
 import { devContainerEnvironmentImage, IDevContainerEnvironmentSource } from '../../common/devContainerEnvironments.js';
 import { IPreparedDevContainerEnvironment } from '../../node/devContainerEnvironments.js';
@@ -156,8 +162,8 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		testTmpDir = '/tmp',
 		logService: NullLogService = new NullLogService(),
 		commit?: string,
+		configurationService: IConfigurationService = new TestConfigurationService({ 'http.systemCertificates': systemCertificates }),
 	) {
-		const configurationService = new TestConfigurationService({ 'http.systemCertificates': systemCertificates });
 		super(
 			logService,
 			new class extends mock<IProductService>() {
@@ -197,6 +203,9 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	}
 
 	protected override _runDocker(args: readonly string[]): Promise<{ stdout: string; stderr: string; code: number }> {
+		if (args[0] === 'exec' && args[1] === '--user') {
+			return this._runLocalCommand('docker', args);
+		}
 		this.dockerCommands.push([...args]);
 		if (args[0] === 'context') {
 			if (this.dockerContextError) {
@@ -224,6 +233,19 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 			this.volumes.set(args.at(-1)!, Object.fromEntries(labels.map(label => [label.substring(0, label.indexOf('=')), label.substring(label.indexOf('=') + 1)])));
 		}
 		return Promise.resolve({ stdout: `${args.at(-1)}\n`, stderr: '', code: 0 });
+	}
+
+	runDocker(args: readonly string[]): Promise<{ stdout: string; stderr: string; code: number }> {
+		return super._runDocker(args);
+	}
+
+	async spawnDevContainer(args: readonly string[]): Promise<readonly string[]> {
+		const child = super._spawnDevContainer(args, { ...process.env });
+		child.stdout.resume();
+		child.stderr.resume();
+		const [code] = await once(child, 'close');
+		assert.strictEqual(code, 0);
+		return child.spawnargs.slice(1);
 	}
 
 	resolveDevContainerEnvironment(): Promise<typeof process.env> {
@@ -474,6 +496,52 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 
 suite('Dev Container Agent Host Main Service', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const dockerPath of [process.execPath, basename(process.execPath)]) {
+		test(`uses an unregistered Docker executable setting (${dockerPath}) and refreshes discovery after changes`, async () => {
+			const fileService = createInMemoryFileService(store, Schemas.file);
+			const settingsResource = URI.file('/settings.json');
+			await fileService.writeFile(settingsResource, VSBuffer.fromString(JSON.stringify({ 'dev.containers.dockerPath': dockerPath })));
+			const configurationService = store.add(new ConfigurationService(settingsResource, fileService, new NullPolicyService(), new NullLogService()));
+			await configurationService.initialize();
+			const commands: { command: string; args: readonly string[] }[] = [];
+			const service = store.add(new class extends TestDevContainerAgentHostMainService {
+				protected override async _runLocalCommand(command: string, args: readonly string[]) {
+					commands.push({ command, args });
+					return { stdout: '', stderr: '', code: 0 };
+				}
+			}('', false, undefined, { PATH: dirname(process.execPath) }, false, [], new Set(), '/tmp', new NullLogService(), undefined, configurationService));
+			service.inheritedEnvironment = {};
+
+			const available = await service.isDockerAvailable();
+			await service.runDocker(['inspect', 'container-id']);
+			const cliArgs = await service.spawnDevContainer(['exec', '--help']);
+			const missingPath = join(dirname(process.execPath), 'missing-docker-executable');
+			await configurationService.updateValue('dev.containers.dockerPath', missingPath);
+			const missing = await service.isDockerAvailable();
+			await assert.rejects(service.runDocker(['version']), /Docker is not available/);
+			await fileService.writeFile(settingsResource, VSBuffer.fromString(JSON.stringify({ 'dev.containers.dockerPath': dockerPath })));
+			const cachedPath = configurationService.getValue<string>('dev.containers.dockerPath');
+			const recovered = await service.isDockerAvailable();
+
+			assert.deepStrictEqual({ available, commands, cliArgs, missing, cachedPath, recovered }, {
+				available: true,
+				commands: [{ command: process.execPath, args: ['inspect', 'container-id'] }],
+				cliArgs: [getDevContainerCliPath(), 'exec', '--docker-path', dockerPath, '--help'],
+				missing: false,
+				cachedPath: missingPath,
+				recovered: true,
+			});
+		});
+	}
+
+	for (const dockerPath of [undefined, '']) {
+		test(`keeps the default Docker CLI arguments when dockerPath is ${JSON.stringify(dockerPath)}`, async () => {
+			const configurationService = new TestConfigurationService({ 'dev.containers.dockerPath': dockerPath });
+			const service = store.add(new TestDevContainerAgentHostMainService('', false, undefined, {}, false, [], new Set(), '/tmp', new NullLogService(), undefined, configurationService));
+			assert.deepStrictEqual(await service.spawnDevContainer(['exec', '--help']), [getDevContainerCliPath(), 'exec', '--help']);
+		});
+	}
 
 	for (const enabled of [true, false]) {
 		test(`reports local certificate eligibility without injecting the AH environment (system certificates: ${enabled})`, async () => {

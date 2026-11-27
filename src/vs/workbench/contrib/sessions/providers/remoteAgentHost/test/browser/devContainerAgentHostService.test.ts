@@ -348,6 +348,23 @@ suite('Dev Container Agent Host Service', () => {
 		assert.deepStrictEqual({ removed, dockerChecks: dockerChecks.length }, { removed: [], dockerChecks: 2 });
 	});
 
+	test('discovers local container environments after the Docker executable setting changes', async () => {
+		const options = { localDocker: false };
+		const { service, configurationService } = setupEnvironments(undefined, options);
+		await timeout(0);
+		const unavailable = [...service.environmentHosts.get()];
+
+		options.localDocker = true;
+		await configurationService.setUserConfiguration('dev.containers.dockerPath', 'wslc');
+		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (key: string) => key === 'dev.containers.dockerPath' }));
+		await waitForState(service.environmentHosts, hosts => hosts.has(LocalDevContainerEnvironmentHost));
+
+		assert.deepStrictEqual({ unavailable, available: [...service.environmentHosts.get()] }, {
+			unavailable: [],
+			available: [LocalDevContainerEnvironmentHost],
+		});
+	});
+
 	test('creates environments on Docker hosts that connect and disconnect with the host until deleted', async () => {
 		const { service, remoteService, storage, createdUris, removedUris, createHostConnection } = setupEnvironments();
 		const hostsWhileDisconnected = [...service.environmentHosts.get()];
