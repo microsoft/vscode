@@ -11,8 +11,7 @@ import { equals } from '../../../../../base/common/objects.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationUpdateOptions, IConfigurationUpdateOverrides, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
-import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
-import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { ConfigurationScope, IConfigurationNode } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { localize } from '../../../../../nls.js';
 import { Configuration as BaseConfiguration, ConfigurationChangeEvent } from '../../../../../platform/configuration/common/configurationModels.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -43,8 +42,11 @@ export const AGENTS_MODE_STORAGE_KEY = 'workbench.agentsMode.active';
  */
 export const AGENTS_MODE_ENABLED_SETTING = 'chat.agentsMode.enabled';
 
-// Registered here so that it is known before the window reads it at startup.
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+/**
+ * Declares {@link AGENTS_MODE_ENABLED_SETTING}. Only desktop editor windows
+ * register it, before they read it at startup, since only they support the mode.
+ */
+export const agentsModeEnabledConfiguration: IConfigurationNode = {
 	id: 'chat',
 	title: localize('chat.configurationTitle', "Chat"),
 	properties: {
@@ -56,7 +58,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: localize('agentsMode.enabled', "Enable toggling Agents mode in a local editor window. A window with a folder or workspace gets its folders back when it leaves the mode. Takes effect in a window after it is reloaded."),
 		}
 	}
-});
+};
 
 /**
  * Whether a window's workspace and configuration service should be able to
