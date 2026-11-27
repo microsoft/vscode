@@ -973,6 +973,30 @@ suite('Desktop layout strategies', () => {
 		});
 	});
 
+	test('Existing Session reveals the Editor before Details when restoring a chat composition', () => {
+		const ctx = setup();
+		ctx.chatLayoutActive = () => true;
+		const outgoing = makeSession(URI.parse('session:/outgoing'));
+		const incoming = makeSession(URI.parse('session:/incoming'));
+		harness.activeGroupEditors.push(store.add(new TestStubEditorInput(URI.file('/repo/a.ts'))));
+		activate(outgoing);
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		store.add(harness.instaService.createInstance(DesktopExistingSessionStrategy, ctx, createVisibilityStore(), createDetailPanel()));
+		ctx.compositionStore.set(ctx.compositionKeyFor({ session: incoming, chat: incoming.activeChat.get() })!, { editor: true, auxiliaryBar: true });
+		harness.setPartHiddenCalls.length = 0;
+
+		const restore = harness.editorWorkingSetService.beginRestore({ sessionResource: incoming.resource, chatResource: incoming.activeChat.get().resource });
+		activate(incoming);
+		restore.dispose();
+
+		assert.deepStrictEqual(harness.setPartHiddenCalls, [
+			{ hidden: true, part: Parts.EDITOR_PART },
+			{ hidden: false, part: Parts.EDITOR_PART },
+			{ hidden: false, part: Parts.AUXILIARYBAR_PART },
+		]);
+	});
+
 	test('Quick Chat closes the side pane when its last editor closes while multiple chats are shown', () => {
 		const ctx = setup({}, { multipleChatsVisible: true });
 		ctx.chatLayoutActive = () => true;
