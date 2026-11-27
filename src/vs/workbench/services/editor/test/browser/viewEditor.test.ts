@@ -88,9 +88,14 @@ class TestView implements IViewEditorView {
 	focus(): void { }
 
 	disposed = false;
+	/** Whether the instantiation service it was created with is disposed. */
+	instantiationServiceDisposed = false;
+	/** Whether that service was disposed before the view, which can no longer create instances as it is disposed then. */
+	instantiationServiceDisposedBeforeView: boolean | undefined;
 
 	dispose(): void {
 		this.disposed = true;
+		this.instantiationServiceDisposedBeforeView = this.instantiationServiceDisposed;
 		this._onDidChange.dispose();
 	}
 }
@@ -105,6 +110,10 @@ suite('View Editors', () => {
 	const log: string[] = [];
 	const editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
 
+	function disposeOrder(view: TestView) {
+		return { disposed: view.disposed, serviceDisposed: view.instantiationServiceDisposed, serviceDisposedBeforeView: view.instantiationServiceDisposedBeforeView };
+	}
+
 	setup(() => {
 		disposables.add(registerTestEditor(TEST_EDITOR_ID, [new SyncDescriptor(TestFileEditorInput), new SyncDescriptor(SideBySideEditorInput)], TEST_EDITOR_INPUT_ID));
 		disposables.add(Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(EditorPaneDescriptor.create(ViewEditorPane, ViewEditorPane.ID, 'View Editor'), [new SyncDescriptor(ViewEditorInput)]));
@@ -115,6 +124,9 @@ suite('View Editors', () => {
 				providesTitle,
 				createView: instantiationService => {
 					const view = new TestView(providesTitle, instantiationService, log, `view${views.length + 1}`);
+					// Children of test instantiation services only restore sinon as they are disposed, which their root does too,
+					// so note when the view's own one is disposed instead
+					instantiationService.dispose = () => view.instantiationServiceDisposed = true;
 					views.push(view);
 					return view;
 				}
@@ -426,20 +438,30 @@ suite('View Editors', () => {
 		await part.activeGroup.openEditor(file);
 		await part.activeGroup.closeEditor(titled);
 		const closedWhileHidden = views[0].disposed;
+		const disposedWhileHidden = disposeOrder(views[0]);
 
 		const moved = createViewInput('test.titled', '/chat/b');
 		await part.activeGroup.openEditor(moved, { pinned: true });
 		await part.activeGroup.openEditor(file);
 		part.activeGroup.moveEditor(moved, parts.mainPart.activeGroup);
 		await timeout(0);
+		const createdForMove = views.length;
 
-		assert.deepStrictEqual({ whileTabShows, shownAgain, closedWhileHidden, movedWhileHidden: views[1].disposed, createdForMove: views.length }, {
+		const active = createViewInput('test.titled', '/chat/c');
+		await part.activeGroup.openEditor(active, { pinned: true });
+		await part.activeGroup.closeEditor(active);
+		const activeView = views[views.length - 1];
+
+		assert.deepStrictEqual({ whileTabShows, shownAgain, closedWhileHidden, movedWhileHidden: views[1].disposed, createdForMove, closedWhileActive: disposeOrder(activeView), disposedWhileHidden }, {
 			whileTabShows: { views: 1, disposed: false, inDom: false },
 			// It is told it hides and shows, so that it does not render or act as seen meanwhile
 			shownAgain: { views: 1, disposed: false, inDom: true, log: ['save view1', 'hide view1', 'show view1'] },
 			closedWhileHidden: true,
 			movedWhileHidden: true,
 			createdForMove: 3,
+			// Its instantiation service goes after it, as what it disposes may still create instances
+			closedWhileActive: { disposed: true, serviceDisposed: true, serviceDisposedBeforeView: false },
+			disposedWhileHidden: { disposed: true, serviceDisposed: true, serviceDisposedBeforeView: false },
 		});
 	});
 
