@@ -1412,6 +1412,34 @@ suite('ChatPetWidget', () => {
 		assert.strictEqual(button.dataset.propeller, 'false');
 	});
 
+	for (const state of ['idle', 'sleep', 'typing', 'buttonPress'] as const) {
+		test(`aligns the propeller with the ${state} sprite in both facing directions`, async () => {
+			const { button, widget } = createHostTransitionHarness(true, 'teleport', 'stable', TestIntersectionObserver, undefined, false, service => {
+				service.unlockAchievement(getChatPetAchievementForAccessory(ChatPetAccessoryIds.PropellerHat).id);
+				service.setAccessory(ChatPetAccessoryIds.PropellerHat);
+			});
+			Reflect.get(widget, '_transientState').set(state, undefined);
+			await waitForPetAnimation(() => button.dataset.state === state && !button.querySelector('.chat-pet-propeller')!.classList.contains('hidden'));
+			const sprite = button.querySelector<HTMLCanvasElement>('.chat-pet-sprite:not(.hidden) .chat-pet-canvas')!;
+			const propeller = button.querySelector<HTMLCanvasElement>('.chat-pet-propeller-canvas')!;
+			const offsets = ['right', 'left'].map(facing => {
+				button.dataset.facing = facing;
+				const bodyBounds = sprite.getBoundingClientRect();
+				const rotorBounds = propeller.getBoundingClientRect();
+				return {
+					left: rotorBounds.left - bodyBounds.left,
+					top: rotorBounds.top - bodyBounds.top,
+					width: rotorBounds.width - bodyBounds.width,
+					height: rotorBounds.height - bodyBounds.height,
+				};
+			});
+			assert.deepStrictEqual(offsets, [
+				{ left: 0, top: 0, width: 0, height: 0 },
+				{ left: 0, top: 0, width: 0, height: 0 },
+			]);
+		});
+	}
+
 	test('mirrors the propeller when its rig frame mirrors head accessories', async () => {
 		const { button, service } = createHostTransitionHarness(true, 'teleport', 'stable', TestIntersectionObserver);
 		service.unlockAchievement(getChatPetAchievementForAccessory(ChatPetAccessoryIds.PropellerHat).id);
