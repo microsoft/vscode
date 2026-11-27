@@ -12,7 +12,8 @@ import { IExtHostRpcService } from './extHostRpcService.js';
 import { IExtHostTerminalService } from './extHostTerminalService.js';
 import { Emitter, type Event } from '../../../base/common/event.js';
 import { URI } from '../../../base/common/uri.js';
-import { AsyncIterableObject, Barrier, type AsyncIterableEmitter } from '../../../base/common/async.js';
+import { AsyncIterableProducer, DeferredPromise } from '../../../base/common/async.js';
+import { LinkedList } from '../../../base/common/linkedList.js';
 
 export interface IExtHostTerminalShellIntegration extends ExtHostTerminalShellIntegrationShape {
 	readonly _serviceBrand: undefined;
@@ -236,6 +237,18 @@ export class InternalTerminalShellIntegration extends Disposable {
 		};
 	}
 
+	override dispose(): void {
+		for (const execution of [...this._pendingExecutions, this._currentExecution, this._pendingEndingExecution]) {
+			execution?.endExecution(undefined);
+			execution?.flush();
+		}
+		this._pendingExecutions.length = 0;
+		this._currentExecution = undefined;
+		this._currentExecutionProperties = undefined;
+		this._pendingEndingExecution = undefined;
+		super.dispose();
+	}
+
 	requestNewShellExecution(commandLine: vscode.TerminalShellExecutionCommandLine, cwd: URI | undefined) {
 		const execution = new InternalTerminalShellExecution(commandLine, cwd ?? this._cwd);
 		const unresolvedCommandLines = splitAndSanitizeCommandLine(commandLine.value);
@@ -398,10 +411,10 @@ class InternalTerminalShellExecution {
 	}
 
 	private _createDataStream(): AsyncIterable<string> {
+		if (this._isEnded) {
+			return AsyncIterableProducer.EMPTY;
+		}
 		if (!this._dataStream) {
-			if (this._isEnded) {
-				return AsyncIterableObject.EMPTY;
-			}
 			this._dataStream = new ShellExecutionDataStream();
 		}
 		return this._dataStream.createIterable();
@@ -422,44 +435,112 @@ class InternalTerminalShellExecution {
 	}
 
 	async flush(): Promise<void> {
-		if (this._dataStream) {
-			await this._dataStream.flush();
-			this._dataStream.dispose();
+		const dataStream = this._dataStream;
+		if (dataStream) {
+			await dataStream.flush();
+			dataStream.dispose();
 			this._dataStream = undefined;
 		}
 	}
 }
 
 class ShellExecutionDataStream extends Disposable {
-	private _barrier: Barrier | undefined;
-	private _iterables: AsyncIterableObject<string>[] = [];
-	private _emitters: AsyncIterableEmitter<string>[] = [];
+	private readonly _readers = new Set<ShellExecutionDataStreamReader>();
 
 	createIterable(): AsyncIterable<string> {
-		if (!this._barrier) {
-			this._barrier = new Barrier();
-		}
-		const barrier = this._barrier;
-		const iterable = new AsyncIterableObject<string>(async emitter => {
-			this._emitters.push(emitter);
-			await barrier.wait();
-		});
-		this._iterables.push(iterable);
-		return iterable;
+		const reader = new ShellExecutionDataStreamReader(() => this._readers.delete(reader));
+		this._readers.add(reader);
+		return reader;
 	}
 
 	emitData(data: string): void {
-		for (const emitter of this._emitters) {
-			emitter.emitOne(data);
+		for (const reader of this._readers) {
+			reader.emitData(data);
 		}
 	}
 
 	endExecution(): void {
-		this._barrier?.open();
+		for (const reader of this._readers) {
+			reader.endExecution();
+		}
 	}
 
 	async flush(): Promise<void> {
-		await Promise.all(this._iterables.map(e => e.toPromise()));
+		await Promise.all(Array.from(this._readers, reader => reader.flush()));
+	}
+
+	override dispose(): void {
+		this.endExecution();
+		this._readers.clear();
+		super.dispose();
+	}
+}
+
+class ShellExecutionDataStreamReader implements AsyncIterableIterator<string, void, void> {
+	private readonly _ended = new DeferredPromise<void>();
+	private readonly _data = new LinkedList<string>();
+	private readonly _pendingReads = new LinkedList<DeferredPromise<IteratorResult<string, void>>>();
+	private _lastRead: Promise<void> | undefined;
+
+	constructor(private _onReturn: (() => void) | undefined) { }
+
+	[Symbol.asyncIterator](): AsyncIterableIterator<string, void, void> {
+		return this;
+	}
+
+	next(): Promise<IteratorResult<string, void>> {
+		const data = this._data.shift();
+		if (data !== undefined) {
+			this._lastRead = Promise.resolve();
+			return Promise.resolve({ done: false, value: data });
+		}
+		if (this._ended.isSettled) {
+			this._lastRead = undefined;
+			return Promise.resolve({ done: true, value: undefined });
+		}
+		const pending = new DeferredPromise<IteratorResult<string, void>>();
+		this._pendingReads.push(pending);
+		this._lastRead = pending.p.then(() => { });
+		return pending.p;
+	}
+
+	return(): Promise<IteratorResult<string, void>> {
+		this._onReturn?.();
+		this._data.clear();
+		this.endExecution();
+		this._lastRead = undefined;
+		return Promise.resolve({ done: true, value: undefined });
+	}
+
+	emitData(data: string): void {
+		if (this._ended.isSettled) {
+			return;
+		}
+		const pending = this._pendingReads.shift();
+		if (pending) {
+			pending.complete({ done: false, value: data });
+		} else {
+			this._data.push(data);
+		}
+	}
+
+	endExecution(): void {
+		this._onReturn = undefined;
+		this._ended.complete();
+		while (!this._pendingReads.isEmpty()) {
+			this._pendingReads.shift()!.complete({ done: true, value: undefined });
+		}
+	}
+
+	async flush(): Promise<void> {
+		await this._ended.p;
+		// Allow ready promise/generator continuations to advance, but never wait indefinitely for stalled readers.
+		const maxIdleMicrotasks = 10;
+		for (let idleMicrotasks = 0; idleMicrotasks < maxIdleMicrotasks;) {
+			const lastRead = this._lastRead;
+			await lastRead;
+			idleMicrotasks = this._lastRead === lastRead ? idleMicrotasks + 1 : 0;
+		}
 	}
 }
 

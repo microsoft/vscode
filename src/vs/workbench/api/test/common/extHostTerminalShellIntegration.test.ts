@@ -10,7 +10,9 @@ import { Emitter } from '../../../../base/common/event.js';
 import { TerminalShellExecutionCommandLineConfidence } from '../../common/extHostTypes.js';
 import { deepStrictEqual, notStrictEqual, strictEqual } from 'assert';
 import type { URI } from '../../../../base/common/uri.js';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { AsyncIterableObject, DeferredPromise } from '../../../../base/common/async.js';
+import { LinkedList } from '../../../../base/common/linkedList.js';
+import { safeStringify } from '../../../../base/common/objects.js';
 
 function cmdLine(value: string): TerminalShellExecutionCommandLine {
 	return Object.freeze({
@@ -64,8 +66,6 @@ suite('InternalTerminalShellIntegration', () => {
 	}
 
 	async function emitData(data: string): Promise<void> {
-		// AsyncIterableObjects are initialized in a microtask, this doesn't matter in practice
-		// since the events will always come through in different events.
 		await new Promise<void>(r => queueMicrotask(r));
 		si.emitData(data);
 	}
@@ -156,6 +156,276 @@ suite('InternalTerminalShellIntegration', () => {
 			{ commandLine: testCommandLine2, type: 'start' },
 			{ commandLine: testCommandLine2, type: 'end' },
 		]);
+	});
+
+	suite('read', () => {
+		test('flush preserves a burst of data before the end event', async () => {
+			await startExecutionAwaitObject(testCommandLine);
+			const data = Array.from({ length: 100 }, (_, i) => `${i}\r\n`);
+			for (const chunk of data) {
+				si.emitData(chunk);
+			}
+			await endExecutionAwaitObject(testCommandLine);
+
+			assertTrackedEvents([
+				{ commandLine: testCommandLine, type: 'start' },
+				...data.map(data => ({ commandLine: testCommandLine, type: 'data' as const, data })),
+				{ commandLine: testCommandLine, type: 'end' },
+			]);
+		});
+
+		for (const reader of ['microtask', 'async generator'] as const) {
+			test(`flush preserves output before the end event for a ${reader} reader`, async () => {
+				const execution = await startExecutionAwaitObject(testCommandLine);
+				const stream = execution.read();
+				async function* forward() {
+					yield* stream;
+				}
+				const events: string[] = [];
+				store.add(si.onDidRequestEndExecution(() => events.push('end')));
+				const reading = (async () => {
+					for await (const chunk of reader === 'async generator' ? forward() : stream) {
+						await Promise.resolve();
+						events.push(chunk);
+					}
+				})();
+				const data = Array.from({ length: 100 }, (_, i) => `${i}\r\n`);
+				for (const chunk of data) {
+					si.emitData(chunk);
+				}
+				await endExecutionAwaitObject(testCommandLine);
+				await reading;
+
+				deepStrictEqual(events, [...data, 'end']);
+			});
+		}
+
+		test('separate reads receive all data', async () => {
+			const execution = await startExecutionAwaitObject(testCommandLine);
+			const first = AsyncIterableObject.toPromise(execution.read());
+			const second = AsyncIterableObject.toPromise(execution.read());
+			await emitData('first');
+			si.emitData('last');
+			await endExecutionAwaitObject(testCommandLine);
+
+			deepStrictEqual(await Promise.all([first, second]), [
+				['first', 'last'],
+				['first', 'last'],
+			]);
+		});
+
+		test('a subscribed stream can be consumed after the command ends', async () => {
+			const execution = await startExecutionAwaitObject(testCommandLine);
+			const stream = execution.read();
+			await emitData('first');
+			si.emitData('last');
+			await endExecutionAwaitObject(testCommandLine);
+
+			deepStrictEqual(await AsyncIterableObject.toPromise(stream), ['first', 'last']);
+		});
+
+		test('a subscribed stream preserves a large queued log after the command ends', async () => {
+			const execution = await startExecutionAwaitObject(testCommandLine);
+			const stream = execution.read();
+			const data = Array.from({ length: 10000 }, (_, i) => `${i}\r\n`);
+			for (const chunk of data) {
+				si.emitData(chunk);
+			}
+			await endExecutionAwaitObject(testCommandLine);
+
+			deepStrictEqual(await AsyncIterableObject.toPromise(stream), data);
+		});
+
+		test('concurrent pending reads receive chunks in order and complete at the end', async () => {
+			const execution = await startExecutionAwaitObject(testCommandLine);
+			const iterator = execution.read()[Symbol.asyncIterator]();
+			const pending = [iterator.next(), iterator.next(), iterator.next()];
+			si.emitData('');
+			si.emitData('last');
+			await endExecutionAwaitObject(testCommandLine);
+
+			deepStrictEqual(await Promise.all(pending), [
+				{ done: false, value: '' },
+				{ done: false, value: 'last' },
+				{ done: true, value: undefined },
+			]);
+		});
+
+		test('a stalled reader does not block the end event or lose queued data', async () => {
+			const execution = await startExecutionAwaitObject(testCommandLine);
+			const firstRead = new DeferredPromise<void>();
+			const resume = new DeferredPromise<void>();
+			const stream = execution.read();
+			const data: string[] = [];
+			const reading = (async () => {
+				for await (const chunk of stream) {
+					data.push(chunk);
+					firstRead.complete();
+					await resume.p;
+				}
+			})();
+			try {
+				await emitData('first');
+				await firstRead.p;
+				si.emitData('last');
+				await endExecutionAwaitObject(testCommandLine);
+			} finally {
+				resume.complete();
+				await reading;
+			}
+
+			deepStrictEqual(data, ['first', 'last']);
+		});
+
+		test('consumed chunks are not replayed by the same stream', async () => {
+			const execution = await startExecutionAwaitObject(testCommandLine);
+			const stream = execution.read();
+			const reading = AsyncIterableObject.toPromise(stream);
+			await emitData('first');
+			si.emitData('last');
+			await endExecutionAwaitObject(testCommandLine);
+
+			deepStrictEqual([await reading, await AsyncIterableObject.toPromise(stream)], [['first', 'last'], []]);
+		});
+
+		test('consumed queue entries are released before execution ends', async () => {
+			const execution = await startExecutionAwaitObject(testCommandLine);
+			const iterator = execution.read()[Symbol.asyncIterator]() as AsyncIterator<string, void, void> & { readonly _data: LinkedList<string> };
+			for (const chunk of ['first', 'second', 'third', 'last']) {
+				si.emitData(chunk);
+			}
+			const unread = new LinkedList<string>();
+			unread.push('third');
+			unread.push('last');
+
+			try {
+				// Serialize backing nodes to check stale links without recursing through cycles.
+				deepStrictEqual({ consumed: [await iterator.next(), await iterator.next()], queue: safeStringify(iterator._data) }, {
+					consumed: [
+						{ done: false, value: 'first' },
+						{ done: false, value: 'second' },
+					],
+					queue: safeStringify(unread),
+				});
+			} finally {
+				await endExecutionAwaitObject(testCommandLine);
+			}
+		});
+
+		for (const timing of ['buffered', 'pending', 'after execution end'] as const) {
+			test(`read progress does not retain consumed output (${timing})`, async () => {
+				const execution = await startExecutionAwaitObject(testCommandLine);
+				const iterator = execution.read()[Symbol.asyncIterator]() as AsyncIterator<string, void, void> & { readonly _lastRead: Promise<void> | undefined };
+				let reading: Promise<IteratorResult<string>>;
+				if (timing === 'pending') {
+					reading = iterator.next();
+					si.emitData('output');
+				} else {
+					si.emitData('output');
+					if (timing === 'after execution end') {
+						await endExecutionAwaitObject(testCommandLine);
+					}
+					reading = iterator.next();
+				}
+				const result = await reading;
+				if (timing !== 'after execution end') {
+					await endExecutionAwaitObject(testCommandLine);
+				}
+
+				deepStrictEqual({ result, hasProgressSignal: Object.hasOwn(iterator, '_lastRead'), progress: await iterator._lastRead }, {
+					result: { done: false, value: 'output' },
+					hasProgressSignal: true,
+					progress: undefined,
+				});
+			});
+		}
+
+		test('polling completed reads does not block the end event', async () => {
+			const execution = await startExecutionAwaitObject(testCommandLine);
+			const iterator = execution.read()[Symbol.asyncIterator]();
+			const reading = iterator.next();
+			si.emitData('last');
+			await reading;
+			let endEventFired = false;
+			store.add(si.onDidRequestEndExecution(() => {
+				endEventFired = true;
+			}));
+			const ending = endExecutionAwaitObject(testCommandLine);
+			for (let i = 0; i < 100 && !endEventFired; i++) {
+				await iterator.next();
+			}
+			const endedWhilePolling = endEventFired;
+			await ending;
+
+			strictEqual(endedWhilePolling, true);
+		});
+
+		test('early return drops the abandoned queue without affecting other readers', async () => {
+			const execution = await startExecutionAwaitObject(testCommandLine);
+			const iterator = execution.read()[Symbol.asyncIterator]();
+			const first = iterator.next();
+			await emitData('first');
+			si.emitData('queued');
+			await first;
+			await iterator.return?.();
+			si.emitData('last');
+			await endExecutionAwaitObject(testCommandLine);
+
+			deepStrictEqual({
+				abandoned: await iterator.next(),
+				healthy: trackedEvents.filter(e => e.type === 'data').map(e => e.data),
+			}, {
+				abandoned: { done: true, value: undefined },
+				healthy: ['first', 'queued', 'last'],
+			});
+		});
+
+		test('return completes a pending read', async () => {
+			const execution = await startExecutionAwaitObject(testCommandLine);
+			const iterator = execution.read()[Symbol.asyncIterator]();
+			const pending = iterator.next();
+			await iterator.return?.();
+			await emitData('after return');
+			await endExecutionAwaitObject(testCommandLine);
+
+			deepStrictEqual([await pending, await iterator.next()], [
+				{ done: true, value: undefined },
+				{ done: true, value: undefined },
+			]);
+		});
+
+		test('reads created during and after flush complete without data', async () => {
+			const execution = await startExecutionAwaitObject(testCommandLine);
+			si.emitData('last');
+			const ended = endExecutionAwaitObject(testCommandLine);
+			const duringFlush = AsyncIterableObject.toPromise(execution.read());
+			await ended;
+
+			deepStrictEqual([await duringFlush, await AsyncIterableObject.toPromise(execution.read())], [[], []]);
+		});
+
+		test('terminal disposal completes active and pending streams', async () => {
+			const execution = await startExecutionAwaitObject(testCommandLine);
+			const active = AsyncIterableObject.toPromise(execution.read());
+			const pendingExecution = si.requestNewShellExecution(cmdLine(testCommandLine2), undefined).value;
+			const pending = AsyncIterableObject.toPromise(pendingExecution.read());
+			await emitData('last');
+			si.dispose();
+			await Promise.all(readIteratorsFlushed);
+
+			deepStrictEqual(await Promise.all([active, pending]), [['last'], []]);
+		});
+
+		test('terminal disposal during flush preserves queued output', async () => {
+			const execution = await startExecutionAwaitObject(testCommandLine);
+			const delayed = execution.read();
+			await emitData('last');
+			si.endShellExecution(undefined, 0);
+			si.dispose();
+			await Promise.all(readIteratorsFlushed);
+
+			deepStrictEqual(await AsyncIterableObject.toPromise(delayed), ['last']);
+		});
 	});
 
 	suite('executeCommand', () => {
