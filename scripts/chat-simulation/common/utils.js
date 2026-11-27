@@ -517,7 +517,6 @@ async function launchVSCode(executable, launchArgs, env, opts = {}) {
 	const port = nextPort++;
 
 	const args = [`--remote-debugging-port=${port}`, ...launchArgs];
-	const isShell = process.platform === 'win32';
 
 	if (opts.verbose) {
 		console.log(`  [launch] ${executable} ${args.slice(0, 3).join(' ')} ... (port ${port})`);
@@ -526,7 +525,7 @@ async function launchVSCode(executable, launchArgs, env, opts = {}) {
 	const child = spawn(executable, args, {
 		cwd: ROOT,
 		env,
-		shell: isShell,
+		shell: false,
 		stdio: opts.verbose ? 'inherit' : ['ignore', 'ignore', 'ignore'],
 	});
 
