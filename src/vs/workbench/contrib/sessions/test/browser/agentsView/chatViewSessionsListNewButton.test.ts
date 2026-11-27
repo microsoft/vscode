@@ -154,6 +154,7 @@ suite('Sessions - Chat view sessions list New button', () => {
 		if (!options?.stock) {
 			part.viewActionViewItemProvider = (action, options) => control.createActionViewItem(action, options, true);
 		}
+		const previous = store.add(new Action('previous', 'Previous', 'codicon codicon-gear'));
 		const next = store.add(new Action('next', 'Next', 'codicon codicon-gear'));
 		const last = store.add(new Action('last', 'Last', 'codicon codicon-gear'));
 		const layout = (width: number) => {
@@ -176,14 +177,14 @@ suite('Sessions - Chat view sessions list New button', () => {
 			const states: string[][] = [];
 			for (const width of widths) {
 				layout(width);
-				const shown = [submenu, next, last].filter(action => indexOf(action) !== undefined).map(action => action === submenu ? 'New' : action.id);
+				const shown = [previous, submenu, next, last].filter(action => indexOf(action) !== undefined).map(action => action === submenu ? 'New' : action.id);
 				if (states.at(-1)?.join() !== shown.join()) {
 					states.push(shown);
 				}
 			}
 			return states;
 		};
-		return { ...rendered, part, container, next, last, layout, indexOf, newButton, recordShownActions };
+		return { ...rendered, part, container, previous, next, last, layout, indexOf, newButton, recordShownActions };
 	}
 
 	/** The widths from the first to the last, one pixel apart. */
@@ -253,7 +254,39 @@ suite('Sessions - Chat view sessions list New button', () => {
 		try {
 			const { part, submenu, next, last, recordShownActions } = renderInSecondarySideBarTitle(root);
 			part.setTitleActions('Chat', [submenu, next, last], []);
-			assert.deepStrictEqual(recordShownActions([...widths(400, 60), ...widths(60, 400)]), [['New', 'next', 'last'], ['New', 'next'], ['New'], [], ['New'], ['New', 'next'], ['New', 'next', 'last']]);
+			assert.deepStrictEqual(recordShownActions([...widths(400, 60), ...widths(60, 400)]), [['New', 'next', 'last'], ['New', 'last'], ['New'], [], ['New'], ['New', 'last'], ['New', 'next', 'last']]);
+		} finally {
+			root.remove();
+		}
+	});
+
+	test('moves into the overflow last and comes back first also after a title action before it, which keeps its place', () => {
+		const root = attachRoot();
+		try {
+			const { part, previous, submenu, next, recordShownActions } = renderInSecondarySideBarTitle(root);
+			part.setTitleActions('Chat', [previous, submenu, next], []);
+			assert.deepStrictEqual(recordShownActions([...widths(400, 60), ...widths(60, 400)]), [['previous', 'New', 'next'], ['New', 'next'], ['New'], [], ['New'], ['New', 'next'], ['previous', 'New', 'next']]);
+		} finally {
+			root.remove();
+		}
+	});
+
+	test('paints its ▾ only inside it when a product icon theme widens the glyph, in normal and high contrast themes', () => {
+		const root = attachRoot();
+		try {
+			const { layout, newButton } = renderInSecondarySideBarTitle(root);
+			layout(400);
+			const wideGlyphs = DOM.append(root, DOM.$('style'));
+			wideGlyphs.textContent = '.monaco-workbench .monaco-action-bar .action-dropdown-item > .monaco-dropdown .action-label.filled-label::before { content: "WWWWWW"; }';
+			const paintsPast = () => {
+				const chevron = newButton()!.querySelector<HTMLElement>('.monaco-dropdown .action-label')!;
+				const rect = chevron.getBoundingClientRect();
+				return chevron.contains(document.elementFromPoint(rect.right + 1, rect.top + rect.height / 2));
+			};
+			const normal = paintsPast();
+			root.classList.add('hc-black', 'vscode-high-contrast');
+			layout(400);
+			assert.deepStrictEqual({ normal, highContrast: paintsPast() }, { normal: false, highContrast: false });
 		} finally {
 			root.remove();
 		}

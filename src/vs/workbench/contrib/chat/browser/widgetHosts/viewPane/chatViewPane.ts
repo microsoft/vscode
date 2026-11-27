@@ -367,7 +367,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this.updateContextKeys();
 			this.updateViewPaneClasses(true /* layout here */);
 		}));
-		// The title showing the view's actions fits them by the location of its container
 		this._register(Event.filter(this.viewDescriptorService.onDidChangeContainerLocation, e => e.viewContainer === this.viewDescriptorService.getViewContainerByViewId(this.id))(() => this.updateActions()));
 
 		// Settings changes
@@ -1361,7 +1360,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const changed = visible !== super.headerVisible;
 		super.headerVisible = visible;
 		if (changed) {
-			// The view's actions move between its own header and the title of its container, which fit them differently
 			this.updateActions();
 		}
 	}

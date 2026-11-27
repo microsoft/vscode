@@ -143,6 +143,7 @@ geometry, such as the Extensions editor and list, override it with more specific
 .monaco-action-bar .actions-container .action-item.action-dropdown-item > .monaco-dropdown .action-label.filled-label {
 	border-left-width: 0;
 	padding: 0 var(--vscode-spacing-size20);
+	overflow: hidden;
 }
 
 .monaco-action-bar .action-item.action-dropdown-item:where(:has(> .action-label.filled-label)) > .action-dropdown-item-separator {

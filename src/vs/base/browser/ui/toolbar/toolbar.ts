@@ -30,6 +30,7 @@ export interface IToolBarResponsiveBehaviorOptions {
 	readonly kind: 'last' | 'all';
 	readonly minItems?: number;
 	readonly overflowFrom?: 'start' | 'end';
+	readonly overflowsLast?: (action: IAction) => boolean;
 	readonly actionMinWidth?: number;
 	readonly getActionMinWidth?: (action: IAction) => number | undefined;
 	readonly allowOverflow?: boolean | (() => boolean);
@@ -86,6 +87,7 @@ export interface IToolBarOptions {
 	 * - `kind`: The kind of responsive behavior to apply. Can be either `last` to only shrink the last item, or `all` to shrink all items equally.
 	 * - `minItems`: The minimum number of items that should always be visible.
 	 * - `overflowFrom`: In `all` mode, overflow actions from this end and restore them in reverse order. Defaults to `end`.
+	 * - `overflowsLast`: In `all` mode, whether an action moves into the overflow menu after all others and is restored before them.
 	 * - `actionMinWidth`: The minimum width of each action item. Defaults to `ACTION_MIN_WIDTH` (24px).
 	 * - `getActionMinWidth`: Optional per-action minimum width override in pixels.
 	 * - `allowOverflow`: Whether actions may move into the overflow menu, or a callback that decides from current presentation state.
@@ -398,6 +400,10 @@ export class ToolBar extends Disposable {
 		return this.actionBar.getWidth(index) + ACTION_PADDING;
 	}
 
+	private overflowsLast(action: IAction | undefined): boolean {
+		return !!action && this.options.responsiveBehavior?.kind === 'all' && !!this.options.responsiveBehavior.overflowsLast?.(action);
+	}
+
 	private get overflowFromStart(): boolean {
 		return this.options.responsiveBehavior?.kind === 'all' && this.options.responsiveBehavior.overflowFrom === 'start';
 	}
@@ -552,8 +558,9 @@ export class ToolBar extends Disposable {
 			.reduce((count, index) => count + (this.actionBar.getAction(index) instanceof Separator ? 0 : 1), 0);
 		const getActionsToHide = (): IAction[] => {
 			const indexes = getVisiblePrimaryActionIndexes();
-			const actionIndex = (this.overflowFromStart ? indexes : indexes.slice().reverse())
-				.find(index => !(this.actionBar.getAction(index) instanceof Separator));
+			const candidates = (this.overflowFromStart ? indexes : indexes.slice().reverse())
+				.filter(index => !(this.actionBar.getAction(index) instanceof Separator));
+			const actionIndex = candidates.find(index => !this.overflowsLast(this.actionBar.getAction(index))) ?? candidates[0];
 			if (actionIndex === undefined) {
 				return [];
 			}
@@ -582,6 +589,11 @@ export class ToolBar extends Disposable {
 		const getActionsToRestore = (): IAction[] => {
 			if (this.hiddenActions.length === 0) {
 				return [];
+			}
+
+			const firstToRestore = this.hiddenActions.find(action => this.overflowsLast(action));
+			if (firstToRestore) {
+				return [firstToRestore];
 			}
 
 			if (this.overflowFromStart) {

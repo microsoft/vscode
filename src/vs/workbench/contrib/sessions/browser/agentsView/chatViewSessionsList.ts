@@ -80,11 +80,10 @@ class ChatViewNewButtonActionViewItem extends ActionWithDropdownActionViewItem {
 		this._register(_keybindingService.onDidUpdateKeybindings(() => this.updateTooltip()));
 	}
 
+	/** The dropdown, created here after the first update, takes the title's context and New Chat's enablement. */
 	override render(container: HTMLElement): void {
 		super.render(container);
-		// The menu runs its actions with the context of the title, as the button does
 		this.dropdownMenuActionViewItem?.setActionContext(this._context);
-		// The dropdown is created after the first update, enabled with the New menu; it follows New Chat
 		this.updateEnabled();
 	}
 

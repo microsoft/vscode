@@ -76,10 +76,8 @@ export class TestAuxiliaryBarPart extends AuxiliaryBarPart {
 	}
 
 	protected override getToolbarResponsiveBehavior(): IToolBarResponsiveBehaviorOptions {
-		const behavior = super.getToolbarResponsiveBehavior();
 		return {
-			...behavior,
-			get overflowFrom() { return behavior.overflowFrom; },
+			...super.getToolbarResponsiveBehavior(),
 			getAvailableWidth: () => this.toolbarAvailableWidth ?? this.toolBar?.getElement().getBoundingClientRect().width ?? 0,
 		};
 	}

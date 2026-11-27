@@ -177,14 +177,12 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	}
 
 	protected override getToolbarResponsiveBehavior(): IToolBarResponsiveBehaviorOptions {
-		const $this = this;
 		return {
 			enabled: true,
 			kind: 'all',
 			minItems: 0,
-			// A split button that sizes itself, such as the Chat view's New button, leads the title and moves into the
-			// overflow last, after the actions that follow it
-			get overflowFrom() { return $this.hasSelfSizingSplitButton() ? 'end' : 'start'; },
+			overflowFrom: 'start',
+			overflowsLast: action => this.selfSizingSplitButtonIds.has(action.id),
 			actionMinWidth: 22,
 			getActionMinWidth: action => action instanceof SubmenuItemAction && action.item.isSplitButton ? this.getSplitButtonMinWidth(action) : undefined,
 		};
@@ -220,16 +218,6 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			}
 		}
 		return this.splitButtonMinWidths.get(action) ?? 36;
-	}
-
-	/** Includes a split button the title toolbar has moved into the overflow. */
-	private hasSelfSizingSplitButton(): boolean {
-		for (const id of this.selfSizingSplitButtonIds) {
-			if (this.toolBar?.hasPrimaryAction(id)) {
-				return true;
-			}
-		}
-		return false;
 	}
 
 	private hasMinimumWidth(item: IActionViewItem | undefined): item is IActionViewItemWithMinimumWidth {
