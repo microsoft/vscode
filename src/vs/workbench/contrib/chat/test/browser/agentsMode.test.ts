@@ -5,8 +5,9 @@
 
 import assert from 'assert';
 import { Action } from '../../../../../base/common/actions.js';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { EventType as TouchEventType } from '../../../../../base/browser/touch.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -17,7 +18,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IAgentsModeService } from '../../../../services/agentsMode/common/agentsMode.js';
 import { AGENTS_MODE_ENABLED_SETTING } from '../../../../services/configuration/browser/agents/agentsModeWorkspaceService.js';
 import { IEditorIdentifier } from '../../../../common/editor.js';
@@ -39,13 +40,13 @@ suite('Agents mode actions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	/** The Chat view's container, at `location`, which `onOpen` opens. */
-	function stubViews(instantiation: TestInstantiationService, location = ViewContainerLocation.AuxiliaryBar, onOpen: (id: string) => void = () => { }): void {
+	function stubViews(instantiation: TestInstantiationService, location = ViewContainerLocation.AuxiliaryBar, onOpen: (id: string) => void | Promise<void> = () => { }): void {
 		const chatViewContainer = { id: ChatViewContainerId } as ViewContainer;
 		instantiation.stub(IViewDescriptorService, {
 			getViewContainerById: (id: string) => id === ChatViewContainerId ? chatViewContainer : null,
 			getViewContainerLocation: () => location,
 		});
-		instantiation.stub(IViewsService, { openViewContainer: async (id: string) => { onOpen(id); return null; } });
+		instantiation.stub(IViewsService, { openViewContainer: async (id: string) => { await onOpen(id); return null; } });
 	}
 
 	test('exit remains available when AI and entry are disabled', async () => {
@@ -370,10 +371,9 @@ suite('Agents mode actions', () => {
 			return { afterEnter, ...(inMode ? { inMode } : {}), afterLeave };
 		}
 
-		test('shows a hidden secondary side bar with the Chat view on entering and hides it again on leaving', async () => {
+		test('shows the Chat view in the secondary side bar on entering, showing a hidden one, and hides it again on leaving', async () => {
 			const shownOnEnter = { visible: true, calls: [`open ${ChatViewContainerId}`] };
 			const hiddenOnLeave = { visible: false, calls: [`hide ${Parts.AUXILIARYBAR_PART}`] };
-			const untouched = { visible: true, calls: [] };
 			assert.deepStrictEqual({
 				hiddenBefore: await run({}),
 				chatViewInPanel: await run({ chatViewLocation: ViewContainerLocation.Panel }),
@@ -382,11 +382,51 @@ suite('Agents mode actions', () => {
 				visibleBefore: await run({ visibleBefore: true }),
 			}, {
 				hiddenBefore: { afterEnter: shownOnEnter, afterLeave: hiddenOnLeave },
-				// The secondary side bar shows what it shows, as it cannot show the Chat view
-				chatViewInPanel: { afterEnter: { visible: true, calls: [`show ${Parts.AUXILIARYBAR_PART}`] }, afterLeave: hiddenOnLeave },
+				// The user moved the Chat view out of the secondary side bar, which is left alone
+				chatViewInPanel: { afterEnter: { visible: false, calls: [] }, afterLeave: { visible: false, calls: [] } },
 				hiddenBeforeRestartedInMode: { afterEnter: shownOnEnter, afterLeave: hiddenOnLeave },
 				hiddenBeforeRestartedWithoutMode: { afterEnter: shownOnEnter, inMode: hiddenOnLeave, afterLeave: { visible: false, calls: [] } },
-				visibleBefore: { afterEnter: untouched, afterLeave: untouched },
+				// The Chat view comes to the front, and the secondary side bar stays as the user had it
+				visibleBefore: { afterEnter: shownOnEnter, afterLeave: { visible: true, calls: [] } },
+			});
+		});
+
+		test('leaving while the Chat view opens on entering keeps the secondary side bar hidden', async () => {
+			const instantiation = disposables.add(new TestInstantiationService());
+			const storage = disposables.add(new InMemoryStorageService());
+			const agentsMode = { isSupported: true, isActive: false, onWillChange: disposables.add(new Emitter<boolean>()).event };
+			let visible = false;
+			const calls: string[] = [];
+			const opened = new DeferredPromise<void>();
+			instantiation.stub(IStorageService, storage);
+			instantiation.stub(IAgentsModeService, agentsMode);
+			// Opening waits, as for a Chat view not registered yet, and then shows the secondary side bar
+			stubViews(instantiation, ViewContainerLocation.AuxiliaryBar, async () => {
+				await opened.p;
+				visible = true;
+			});
+			instantiation.stub(IWorkbenchLayoutService, {
+				isVisible: (part: Parts) => part === Parts.AUXILIARYBAR_PART && visible,
+				setPartHidden: (hidden: boolean, part: Parts) => {
+					calls.push(`${hidden ? 'hide' : 'show'} ${part}`);
+					visible = !hidden;
+				},
+			});
+			const auxiliaryBar = disposables.add(instantiation.createInstance(AgentsModeAuxiliaryBar));
+			const switching = disposables.add(new CancellationTokenSource());
+
+			agentsMode.isActive = true;
+			const entering = auxiliaryBar.enter(switching.token);
+			agentsMode.isActive = false;
+			switching.cancel();
+			auxiliaryBar.leave();
+			opened.complete();
+			await entering;
+
+			assert.deepStrictEqual({ visible, calls, shownOnEnter: storage.getBoolean(AgentsModeAuxiliaryBar.SHOWN_ON_ENTER_STORAGE_KEY, StorageScope.WORKSPACE) }, {
+				visible: false,
+				calls: [`hide ${Parts.AUXILIARYBAR_PART}`],
+				shownOnEnter: undefined,
 			});
 		});
 	});

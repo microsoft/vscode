@@ -252,8 +252,8 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 				handover.clear();
 				return;
 			}
-			// Returning to Agents mode, the chat part shows the chat that stayed in it, not the Chat view's
-			if ((returningToAgentsMode && this._shownChatService.shown.get()) || !this._contextKeyService.contextMatchesRules(available)) {
+			// Returning to Agents mode, the chat part shows the chat that stayed in it, not the Chat view's: unless it no longer has one
+			if ((returningToAgentsMode && this._chatPartService.hasChat()) || !this._contextKeyService.contextMatchesRules(available)) {
 				return;
 			}
 			const taken = toChatPart ? this._takeFromChatView(chatViewShown) : this._takeFromChatPart();

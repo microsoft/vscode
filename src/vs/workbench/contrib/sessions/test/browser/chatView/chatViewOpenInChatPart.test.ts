@@ -115,6 +115,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 				handovers.push(options.partParks === false ? 'part keeps its composer input' : 'part parks its composer input');
 				return options.partParks !== false;
 			},
+			hasChat: () => !!shown.part.get(),
 		}));
 		instantiationService.stub(IEditorWindowSessionsRuntime, upcastPartial<IEditorWindowSessionsRuntime>({
 			enable: (o: IEditorWindowSessionsRuntimeOptions): IDisposable => { runtimeOptions.push(o); runtimeHeld++; return toDisposable(() => runtimeHeld--); },
@@ -167,8 +168,9 @@ suite('ChatViewOpenInChatPartContribution', () => {
 		const bindings: { shown: IObservable<IEditorWindowShownChat | undefined>; options: IEditorWindowShownChatBindOptions | undefined }[] = [];
 		instantiationService.stub(IEditorWindowShownChatService, upcastPartial<IEditorWindowShownChatService>({
 			bind: (shown, bindOptions) => { bindings.push({ shown, options: bindOptions }); return toDisposable(() => bindings.splice(bindings.findIndex(binding => binding.shown === shown), 1)); },
+			// The chat shown in the window: the chat part's, or else the Chat view's
 			shown: derived(reader => {
-				const resource = shown.part.read(reader);
+				const resource = shown.part.read(reader) ?? shown.view.read(reader);
 				return resource && upcastPartial<IEditorWindowShownChat>({ session: upcastPartial<ISession>({ status: constObservable(isUntitledChatSession(resource) ? SessionStatus.Untitled : SessionStatus.Completed) }), chat: upcastPartial<IChat>({ resource }) });
 			}),
 		}));
@@ -861,9 +863,24 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			await returning.setAgentsMode(true, { setting: true });
 			await timeout(0);
 
-			assert.deepStrictEqual({ quick: { handovers: quick.handovers, reveals, source: source.state }, returning: { handovers: returning.handovers, part: returning.shown.part.get()?.path } }, {
+			// The chat that stayed in the chat part was closed outside the mode: the chat part takes the Chat view's
+			const emptied = setup({ chatViewShows: session });
+			await emptied.setAgentsMode(true, { setting: true });
+			emptied.shown.part.set(URI.parse('agent-host-copilotcli:/session-b'), undefined);
+			await emptied.setAgentsMode(false, { setting: false });
+			emptied.shown.part.set(undefined, undefined);
+			emptied.shown.view.set(URI.parse('agent-host-copilotcli:/session-c'), undefined);
+			await emptied.setAgentsMode(true, { setting: true });
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				quick: { handovers: quick.handovers, reveals, source: source.state },
+				returning: { handovers: returning.handovers, part: returning.shown.part.get()?.path },
+				emptied: { handovers: emptied.handovers, part: emptied.shown.part.get()?.path },
+			}, {
 				quick: { handovers: ['part new chat'], reveals: 0, source: { input: 'hello', attachments: ['file-a'] } },
 				returning: { handovers: ['part opens /session-a'], part: '/session-b' },
+				emptied: { handovers: ['part opens /session-a', 'part opens /session-c'], part: '/session-c' },
 			});
 		});
 

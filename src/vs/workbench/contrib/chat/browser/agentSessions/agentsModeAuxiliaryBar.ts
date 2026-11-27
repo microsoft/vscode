@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
@@ -12,9 +14,10 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { ChatViewContainerId } from '../chat.js';
 
 /**
- * Shows a hidden secondary side bar with the Chat view when the window enters Agents mode, so the sessions list it
- * hosts is visible, and hides it again when the window leaves the mode if the mode had shown it. Switching keeps the
- * secondary side bar at the width it had in the mode, however the window switches.
+ * Brings the Chat view, which hosts the sessions list, to the front of the secondary side bar when the window enters
+ * Agents mode, showing the secondary side bar if it is hidden, and hides it again when the window leaves the mode if the
+ * mode had shown it. Where the user moved the Chat view out of the secondary side bar, it is left alone. Switching keeps
+ * the secondary side bar at the width it had in the mode, however the window switches.
  */
 export class AgentsModeAuxiliaryBar extends Disposable {
 
@@ -23,7 +26,7 @@ export class AgentsModeAuxiliaryBar extends Disposable {
 	static readonly WIDTH_STORAGE_KEY = 'chat.agentsMode.auxiliaryBarWidth';
 
 	constructor(
-		@IAgentsModeService agentsModeService: IAgentsModeService,
+		@IAgentsModeService private readonly agentsModeService: IAgentsModeService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IViewsService private readonly viewsService: IViewsService,
@@ -33,7 +36,7 @@ export class AgentsModeAuxiliaryBar extends Disposable {
 
 		// Switching moves the side bars and can hide the editor area, so the width is taken before: as the window leaves
 		// the mode, and the first time it enters, where the secondary side bar is visible
-		this._register(agentsModeService.onWillChange(entering => {
+		this._register(this.agentsModeService.onWillChange(entering => {
 			const width = this.getWidth();
 			if (width !== undefined && (!entering || this.storageService.getNumber(AgentsModeAuxiliaryBar.WIDTH_STORAGE_KEY, StorageScope.PROFILE) === undefined)) {
 				this.storageService.store(AgentsModeAuxiliaryBar.WIDTH_STORAGE_KEY, width, StorageScope.PROFILE, StorageTarget.MACHINE);
@@ -46,17 +49,31 @@ export class AgentsModeAuxiliaryBar extends Disposable {
 		}
 	}
 
-	async enter(): Promise<void> {
-		if (this.layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
+	/**
+	 * @param token cancelled when the window switches again before entering finished
+	 */
+	async enter(token: CancellationToken = CancellationToken.None): Promise<void> {
+		const chatViewContainer = this.viewDescriptorService.getViewContainerById(ChatViewContainerId);
+		if (!chatViewContainer || this.viewDescriptorService.getViewContainerLocation(chatViewContainer) !== ViewContainerLocation.AuxiliaryBar) {
 			return;
 		}
 
-		// Remembered in the window's storage, so leaving after a restart in the mode hides it again too
-		this.storageService.store(AgentsModeAuxiliaryBar.SHOWN_ON_ENTER_STORAGE_KEY, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-		// With the Chat view, which hosts the sessions list, rather than what it showed last
-		const chatViewContainer = this.viewDescriptorService.getViewContainerById(ChatViewContainerId);
-		if (chatViewContainer && this.viewDescriptorService.getViewContainerLocation(chatViewContainer) === ViewContainerLocation.AuxiliaryBar) {
+		const wasVisible = this.layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+		if (!wasVisible) {
+			// Remembered in the window's storage, so leaving after a restart in the mode hides it again too
+			this.storageService.store(AgentsModeAuxiliaryBar.SHOWN_ON_ENTER_STORAGE_KEY, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		}
+		try {
 			await this.viewsService.openViewContainer(ChatViewContainerId, false);
+		} catch (error) {
+			onUnexpectedError(error);
+		}
+		if (token.isCancellationRequested) {
+			// Leaving while the Chat view opened found the secondary side bar still hidden, which opening it then showed
+			if (!wasVisible && !this.agentsModeService.isActive && this.layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
+				this.layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
+			}
+			return;
 		}
 		if (!this.layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
 			this.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);

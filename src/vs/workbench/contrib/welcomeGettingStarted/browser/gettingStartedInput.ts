@@ -8,14 +8,18 @@ import { localize } from '../../../../nls.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { IUntypedEditorInput } from '../../../common/editor.js';
+import { EditorsOrder, IUntypedEditorInput } from '../../../common/editor.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 
 export const gettingStartedInputTypeId = 'workbench.editors.gettingStartedInput';
 
-/** Whether the editor is the Welcome page. */
-export function isGettingStartedInput(editor: EditorInput): boolean {
-	return editor.typeId === gettingStartedInputTypeId;
+/** Closes the Welcome pages open in the window. */
+export async function closeGettingStartedEditors(editorService: IEditorService): Promise<void> {
+	const editors = editorService.getEditors(EditorsOrder.SEQUENTIAL).filter(({ editor }) => editor.typeId === gettingStartedInputTypeId);
+	if (editors.length) {
+		await editorService.closeEditors(editors);
+	}
 }
 
 export interface GettingStartedEditorOptions extends IEditorOptions {

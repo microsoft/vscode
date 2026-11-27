@@ -8,10 +8,9 @@ import { Disposable, MutableDisposable } from '../../../../../base/common/lifecy
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IAgentsModeService } from '../../../../services/agentsMode/common/agentsMode.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
-import { EditorsOrder } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
-import { isGettingStartedInput } from '../../../welcomeGettingStarted/browser/gettingStartedInput.js';
+import { closeGettingStartedEditors } from '../../../welcomeGettingStarted/browser/gettingStartedInput.js';
 
 /**
  * Hides an empty editor area when the window enters Agents mode, and shows it again
@@ -56,10 +55,7 @@ export class AgentsModeEditorArea extends Disposable {
 	 * Closes the Welcome page, which is not for the mode, and then hides the editor area if nothing else is open in it.
 	 */
 	async enter(): Promise<void> {
-		const welcomeEditors = this.editorService.getEditors(EditorsOrder.SEQUENTIAL).filter(({ editor }) => isGettingStartedInput(editor));
-		if (welcomeEditors.length) {
-			await this.editorService.closeEditors(welcomeEditors);
-		}
+		await closeGettingStartedEditors(this.editorService);
 		this.hideIfEmpty();
 	}
 

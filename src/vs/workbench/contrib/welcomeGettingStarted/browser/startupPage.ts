@@ -13,13 +13,12 @@ import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { IWorkspaceContextService, UNKNOWN_EMPTY_WINDOW_WORKSPACE, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IAgentsModeService } from '../../../services/agentsMode/common/agentsMode.js';
-import { EditorsOrder } from '../../../common/editor.js';
 import { ILifecycleService, LifecyclePhase, StartupKind } from '../../../services/lifecycle/common/lifecycle.js';
 import { Disposable, } from '../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
-import { GettingStartedEditorOptions, GettingStartedInput, gettingStartedInputTypeId, isGettingStartedInput } from './gettingStartedInput.js';
+import { GettingStartedEditorOptions, GettingStartedInput, gettingStartedInputTypeId, closeGettingStartedEditors } from './gettingStartedInput.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { getTelemetryLevel } from '../../../../platform/telemetry/common/telemetryUtils.js';
@@ -113,24 +112,15 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 		}));
 	}
 
-	/**
-	 * Agents mode never shows the Welcome page, so close any that the window restored in the mode. Entering the mode
-	 * closes the open ones itself.
-	 */
-	private async closeWelcomeEditors(): Promise<void> {
-		const welcomeEditors = this.editorService.getEditors(EditorsOrder.SEQUENTIAL).filter(({ editor }) => isGettingStartedInput(editor));
-		if (welcomeEditors.length) {
-			await this.editorService.closeEditors(welcomeEditors);
-		}
-	}
-
 	private async run() {
 
 		// Wait for resolving startup editor until we are restored to reduce startup pressure
 		await this.lifecycleService.when(LifecyclePhase.Restored);
 
+		// Agents mode never shows the Welcome page, so close any that the window restored in the mode. Entering the mode
+		// closes the open ones itself
 		if (this.agentsModeService.isActive) {
-			await this.closeWelcomeEditors();
+			await closeGettingStartedEditors(this.editorService);
 			return;
 		}
 

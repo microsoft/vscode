@@ -74,6 +74,9 @@ export interface IEditorWindowChatPartService {
 
 	/** Keeps what was typed in the chat part's one unsent composer for its next one; see `IAgentsChatPartService.parkComposerInput`. */
 	parkComposerInput(): boolean;
+
+	/** Whether the chat part shows a chat in its active tab; creates nothing where it has no chats yet. */
+	hasChat(): boolean;
 }
 
 export class EditorWindowChatPartService extends Disposable implements IEditorWindowChatPartService {
@@ -124,6 +127,10 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 
 	parkComposerInput(): boolean {
 		return this._frame.contentCreated.get() && !!this._frame.content.get()?.parkComposerInput();
+	}
+
+	hasChat(): boolean {
+		return this._frame.contentCreated.get() && !!this._frame.content.get()?.activeChat.get();
 	}
 
 	private _updateAnchor(): void {

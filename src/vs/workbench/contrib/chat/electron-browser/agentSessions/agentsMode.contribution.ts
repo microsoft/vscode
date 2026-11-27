@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -18,6 +19,9 @@ import { AgentsModeButtonActionViewItem } from '../../browser/agentSessions/agen
 
 class AgentsModeContribution extends Disposable {
 	static readonly ID = 'workbench.contrib.agentsMode';
+
+	/** Cancels the layout switch in progress, when the window switches again before it finished. */
+	private readonly layoutSwitch = this._register(new MutableDisposable());
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -46,7 +50,9 @@ class AgentsModeContribution extends Disposable {
 		});
 		this._register(agentsModeService.onDidChange(active => {
 			update();
-			this.switchLayout(active, editorArea, auxiliaryBar).catch(onUnexpectedError);
+			const cancellation = new CancellationTokenSource();
+			this.layoutSwitch.value = toDisposable(() => cancellation.dispose(true));
+			this.switchLayout(active, editorArea, auxiliaryBar, cancellation.token).catch(onUnexpectedError);
 		}));
 		update();
 	}
@@ -54,10 +60,16 @@ class AgentsModeContribution extends Disposable {
 	/**
 	 * Lays the window out for the mode once it switched: its settings, such as where the side bars are, applied already.
 	 */
-	private async switchLayout(entering: boolean, editorArea: AgentsModeEditorArea, auxiliaryBar: AgentsModeAuxiliaryBar): Promise<void> {
+	private async switchLayout(entering: boolean, editorArea: AgentsModeEditorArea, auxiliaryBar: AgentsModeAuxiliaryBar, token: CancellationToken): Promise<void> {
 		if (entering) {
-			await auxiliaryBar.enter();
+			await auxiliaryBar.enter(token);
+			if (token.isCancellationRequested) {
+				return;
+			}
 			await editorArea.enter();
+			if (token.isCancellationRequested) {
+				return;
+			}
 		} else {
 			editorArea.leave();
 			auxiliaryBar.leave();
