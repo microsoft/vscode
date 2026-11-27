@@ -24,7 +24,7 @@ suite('AutomationSessionsListingContribution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const mode of [AutomationSessionsListMode.Always, AutomationSessionsListMode.AfterReply, AutomationSessionsListMode.Never]) {
-		test(`shows an automation session once the user sends a message in it only when the setting is afterReply (${mode})`, () => {
+		test(`shows an automation session once the user sends a message in it only when the setting is afterReply, and a session left out while its canvas is in the sidebar regardless (${mode})`, () => {
 			const automation: ISession = { ...createTestSession('Automation').session, isAutomation: constObservable(true) };
 			const regular = createTestSession('Regular').session;
 			const scheduled: ISession = { ...createTestSession('Scheduled').session, isAutomation: constObservable(true), isScheduledChat: constObservable(true) };
@@ -42,7 +42,10 @@ suite('AutomationSessionsListingContribution', () => {
 			});
 			instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
 				override showRepliedAutomationSession(session: ISession): void {
-					shown.push(session.sessionId);
+					shown.push(`automation ${session.sessionId}`);
+				}
+				override showRepliedCanvasSession(session: ISession): void {
+					shown.push(`canvas ${session.sessionId}`);
 				}
 			});
 			instantiationService.stub(IConfigurationService, new TestConfigurationService({ [SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING]: mode }));
@@ -57,8 +60,8 @@ suite('AutomationSessionsListingContribution', () => {
 			accept(automation.mainChat.get().resource);
 
 			assert.deepStrictEqual({ beforeAutomation, shown }, {
-				beforeAutomation: [],
-				shown: mode === AutomationSessionsListMode.AfterReply ? ['Automation', 'Automation'] : [],
+				beforeAutomation: ['canvas Regular'],
+				shown: ['canvas Regular', ...(mode === AutomationSessionsListMode.AfterReply ? ['automation Automation', 'automation Automation'] : [])],
 			});
 		});
 	}

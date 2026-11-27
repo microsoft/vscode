@@ -59,9 +59,11 @@ suite('SessionChangesEditorInput', () => {
 		override readonly activeSessionChangesObs = constObservable<readonly ISessionFileChange[]>([]);
 		override readonly activeSessionResourceObs = constObservable<URI | undefined>(undefined);
 		override readonly activeSessionChangesetLoadingObs = constObservable(false);
+		override readonly activeSessionHasGitRepositoryObs = constObservable(false);
 	};
 	const emptySessionChangesService = new class extends mock<ISessionChangesService>() {
 		override readonly activeSessionUncommittedChangesCountObs = constObservable(0);
+		override getChangesEditorFileCount() { return this.activeSessionUncommittedChangesCountObs; }
 		override getSessionResource(): URI | undefined { return undefined; }
 		override getChatResource(): URI | undefined { return undefined; }
 	};
@@ -71,6 +73,7 @@ suite('SessionChangesEditorInput', () => {
 	};
 	const sessionChangesServiceWithResource = new class extends mock<ISessionChangesService>() {
 		override readonly activeSessionUncommittedChangesCountObs = constObservable(0);
+		override getChangesEditorFileCount() { return this.activeSessionUncommittedChangesCountObs; }
 		override getChatResource(): URI | undefined {
 			return undefined;
 		}
@@ -344,6 +347,45 @@ suite('SessionChangesEditorInput', () => {
 		assert.strictEqual(input.viewModelRequests, 0);
 	});
 
+	test('resolves an editor input right away while its editor shows though the editor area is reported hidden, as the Agents window docks the Changes tab beside the chat', async () => {
+		// The desktop layout shows the main editor part's editors beside the chat, without reporting the editor area visible.
+		const layoutService = { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop, onDidChangePartVisibility: Event.None, isVisible: () => false };
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		stubSessionHosts(instantiationService, disposables);
+		instantiationService.stub(IChangesViewService, emptyChangesViewService);
+		instantiationService.stub(IAgentWorkbenchLayoutService, layoutService);
+		instantiationService.stub(ISessionsHostLayoutService, layoutService);
+		instantiationService.stub(ISessionChangesService, sessionChangesServiceWithResource);
+		instantiationService.stub(IWorkbenchLayoutService, layoutService);
+		instantiationService.stub(IDiffEditorOptionsService, new class extends mock<IDiffEditorOptionsService>() {
+			override readonly viewMode = constObservable<DiffEditorViewMode>('automatic');
+			override readonly diffEditorWordWrap = constObservable<SessionsWordWrap>('off');
+		}());
+		const viewModel = disposables.add(instantiationService.createInstance(MultiDiffEditorViewModel, { documents: ValueWithChangeEvent.const([]) }));
+
+		class TestSessionChangesEditorInput extends SessionChangesEditorInput {
+			viewModelRequests = 0;
+
+			override async getViewModel(): Promise<MultiDiffEditorViewModel> {
+				this.viewModelRequests++;
+				return viewModel;
+			}
+		}
+
+		const parent = append(mainWindow.document.body, $('.editor-instance'));
+		disposables.add(toDisposable(() => parent.remove()));
+		const editor = disposables.add(instantiationService.createInstance(SessionChangesEditor, new TestEditorGroupView(1)));
+		editor.create(parent);
+		const input = disposables.add(instantiationService.createInstance(
+			TestSessionChangesEditorInput,
+			URI.parse('changes-multi-diff-source:?{"sessionResource":"agent-host-copilotcli:/session"}'),
+		));
+
+		await editor.setInput(input, undefined, {}, CancellationToken.None);
+
+		assert.deepStrictEqual({ viewModelRequests: input.viewModelRequests, hasViewModel: editor.hasViewModel }, { viewModelRequests: 1, hasViewModel: true });
+	});
+
 	test('updates managed Changes editor capabilities with editor area visibility', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		let editorVisible = false;
@@ -449,6 +491,7 @@ suite('SessionChangesEditorInput', () => {
 		const resource = URI.parse('test-changes:session');
 		const sessionChangesService = new class extends mock<ISessionChangesService>() {
 			override readonly activeSessionUncommittedChangesCountObs = derived(reader => changes.read(reader).length);
+			override getChangesEditorFileCount() { return this.activeSessionUncommittedChangesCountObs; }
 			override getSessionResource(): URI | undefined { return undefined; }
 			override getChatResource(): URI | undefined { return undefined; }
 		};
@@ -494,6 +537,7 @@ suite('SessionChangesEditorInput', () => {
 		const changes = observableValue<readonly ISessionFileChange[]>('changes', [createFileChange(1)]);
 		const sessionChangesService = new class extends mock<ISessionChangesService>() {
 			override readonly activeSessionUncommittedChangesCountObs = derived(reader => changes.read(reader).length);
+			override getChangesEditorFileCount() { return this.activeSessionUncommittedChangesCountObs; }
 			override getSessionResource(): URI | undefined { return sessionResource; }
 			override getChatResource(resource: URI): URI | undefined { return resource.query === 'chat' ? chatResource : undefined; }
 		};
@@ -568,6 +612,7 @@ suite('SessionChangesEditorInput', () => {
 		instantiationService.stub(ISessionsHostLayoutService, layoutService);
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
 			override readonly activeSessionUncommittedChangesCountObs = constObservable(0);
+			override getChangesEditorFileCount() { return this.activeSessionUncommittedChangesCountObs; }
 			override getSessionResource(resource: URI): URI | undefined {
 				return URI.parse(JSON.parse(resource.query).sessionResource);
 			}

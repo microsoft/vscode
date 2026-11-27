@@ -1562,7 +1562,7 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 	if (targetWindow.getComputedStyle(logo).visibility !== (noIcon ? 'hidden' : 'visible')) {
 		throw new Error('The progress icon visibility does not match the selected style');
 	}
-	const reasoningIcons = response.querySelectorAll<HTMLElement>('.chat-persistent-reasoning > .chat-used-context-label .monaco-button > .codicon-thinking[aria-hidden="true"]');
+	const reasoningIcons = response.querySelectorAll<HTMLElement>('.chat-persistent-reasoning > .chat-used-context-label .monaco-button > .codicon-thinking-compact[aria-hidden="true"]');
 	if (reasoningIcons.length !== response.querySelectorAll('.chat-persistent-reasoning').length) {
 		throw new Error('Collapsible reasoning must retain its thinking icon');
 	}

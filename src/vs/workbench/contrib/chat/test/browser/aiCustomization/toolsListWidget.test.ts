@@ -11,25 +11,11 @@ import { LocalMcpServerScope } from '../../../../../services/mcp/common/mcpWorkb
 import { CustomizationType, type PluginCustomization } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { withCustomizationDiscoveryMeta } from '../../../../../../platform/agentHost/common/meta/customizationDiscoveryMeta.js';
 import { CustomizationToggle } from '../../../browser/aiCustomization/customizationToggle.js';
-import { getPluginToolsGroup, isToolsTreeKeyboardTarget, ToolsListWidget } from '../../../browser/aiCustomization/toolsListWidget.js';
+import { getPluginToolsGroup, ToolsListWidget } from '../../../browser/aiCustomization/toolsListWidget.js';
 import { IToolData, IToolSet } from '../../../common/tools/languageModelToolsService.js';
 
 suite('toolsListWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('handles tree keys only from the row itself', () => {
-		const row = document.createElement('div');
-		const moreButton = document.createElement('button');
-		row.appendChild(moreButton);
-
-		assert.deepStrictEqual({
-			row: isToolsTreeKeyboardTarget(row, row),
-			moreButton: isToolsTreeKeyboardTarget(moreButton, row),
-		}, {
-			row: true,
-			moreButton: false,
-		});
-	});
 
 	test('uses switches for customization enablement', () => {
 		const enabledToggle = disposables.add(new CustomizationToggle({ ariaLabel: 'Enabled', checked: true }));

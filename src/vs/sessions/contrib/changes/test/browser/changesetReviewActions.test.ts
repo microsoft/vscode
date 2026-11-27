@@ -13,10 +13,11 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IChat, ISessionChangeset, ISessionFileChange } from '../../../../../workbench/services/sessions/common/session.js';
-import { ChangesetReviewAction } from '../../browser/changesetReviewActions.js';
+import { ChangesetReviewAction } from '../../../../../workbench/contrib/sessionChanges/browser/changesEditorActions.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ITestSessionWithChat, stubSessionHostsFromSessionsService, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
-import { IChangesSessionObservables, IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
+import { IChangesSessionObservables, IChangesSessionScope, IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
+import { SessionChangesEditor } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditor.js';
 
 suite('ChangesetReviewAction', () => {
 
@@ -129,5 +130,39 @@ suite('ChangesetReviewAction', () => {
 		new ChangesetReviewAction().run(instantiationService, originalUri);
 
 		assert.deepStrictEqual(setReviewStateCalls, [{ resources: [fileResource], reviewed: false, session: activeSession }]);
+	});
+
+	test('from a Changes editor that follows its own session, as in an editor window, toggles the file on the chat of its diffs, not on the chat its session shows', () => {
+		const resource = URI.file('/workspace/shared.ts');
+		const session = upcastPartial<ITestSessionWithChat>({ sessionId: 'a', resource: URI.parse('agent-host:a') });
+		const sideChat = upcastPartial<IChat>({ resource: URI.parse('agent-host:a/side') });
+		const calls: { readonly chat: IChat | undefined; readonly reviewed: boolean }[] = [];
+		const changesViewService = new class extends mock<IChangesViewService>() {
+			override setChangesetFilesReviewState(_resources: readonly URI[], reviewed: boolean, _session?: ITestSessionWithChat, chat?: IChat): void {
+				calls.push({ chat, reviewed });
+			}
+		}();
+		const collapsed: URI[] = [];
+		const editor = Object.create(SessionChangesEditor.prototype) as SessionChangesEditor;
+		Object.defineProperty(editor, 'followsInputSession', { value: true });
+		Object.defineProperty(editor, 'changesScope', {
+			value: upcastPartial<IChangesSessionScope>({
+				session: constObservable(session),
+				chat: constObservable(sideChat),
+				changes: upcastPartial<IChangesSessionObservables>({
+					changesetObs: constObservable(upcastPartial<ISessionChangeset>({ capabilities: { review: true } })),
+					changesObs: constObservable([{ modifiedUri: resource, insertions: 1, deletions: 0, reviewed: false }]),
+				}),
+			}),
+		});
+		Object.defineProperty(editor, 'collapse', { value: (uri: URI) => collapsed.push(uri) });
+		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(
+			[IChangesViewService, changesViewService],
+			[IEditorService, new class extends mock<IEditorService>() { }()],
+		)));
+
+		new ChangesetReviewAction().run(instantiationService, resource, { session, editor });
+
+		assert.deepStrictEqual({ calls, collapsed }, { calls: [{ chat: sideChat, reviewed: true }], collapsed: [resource] });
 	});
 });

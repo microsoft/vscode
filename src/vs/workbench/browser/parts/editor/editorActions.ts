@@ -1142,7 +1142,12 @@ export class ResetGroupSizesAction extends Action2 {
 			id: 'workbench.action.evenEditorWidths',
 			title: localize2('evenEditorGroups', 'Reset Editor Group Sizes'),
 			f1: true,
-			category: Categories.View
+			category: Categories.View,
+			keybinding: {
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.Equal),
+				weight: KeybindingWeight.WorkbenchContrib,
+				when: EditorPartMultipleEditorGroupsContext
+			}
 		});
 	}
 

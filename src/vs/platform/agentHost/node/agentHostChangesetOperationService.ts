@@ -17,6 +17,7 @@ import { ActionType } from '../common/state/sessionActions.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, isAhpChatChannel, ISessionGitHubState, readFolderGitHubState, readSessionGitHubState, readSessionGitState, type ChangesetOperation, type ErrorInfo, type ISessionGitState } from '../common/state/sessionState.js';
 import { AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID, AGENT_HOST_DISCARD_CHANGES_OPERATION_ID, AGENT_HOST_MERGE_CHANGESET_OPERATION_ID, AGENT_HOST_PULL_REQUEST_OPERATION_IDS, type IChangesetOperationContribution, type IAgentHostChangesetOperationService, type IChangesetOperationContext, type IChangesetOperationHandler, type IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
 import { getCapturedCredentialSourceKey, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
+import { LIST_BASE_BRANCHES_OPERATION_ID, SET_BASE_BRANCH_OPERATION_ID } from '../common/meta/agentBaseBranchOperationMeta.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
@@ -66,7 +67,6 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 
 		this._registry = {
 			registerChangesetOperationHandler: (operationId, handler) => this._registerChangesetOperationHandler(operationId, handler),
-			refreshSessionGitState: (sessionKey, source) => this._refreshGitState(sessionKey, source),
 			onDidChangeOperations: sessionKey => this.scheduleRelatedOperationsUpdate(sessionKey),
 		};
 	}
@@ -82,8 +82,8 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		const source = scope?.sourceUri ?? owner;
 		const session = scope?.sessionUri ?? (isAhpChatChannel(owner) ? this._chatOwnership.getChatOwner(owner) : undefined);
 		await Promise.all([
-			this._gitStateService.refreshSessionGitState(source, undefined, credentials, { force: true }),
-			...(session && session !== source ? [this._gitStateService.refreshSessionGitState(session, undefined, credentials, { force: true })] : []),
+			this._gitStateService.refreshSessionGitState(source, credentials, { force: true, immediate: true }),
+			...(session && session !== source ? [this._gitStateService.refreshSessionGitState(session, credentials, { force: true, immediate: true })] : []),
 		]);
 	}
 
@@ -227,8 +227,13 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 	 * and names the changes the client showed, so it can. Discarding them
 	 * changes the files the agent edits, so it can only when the provider's
 	 * edit tool calls wait for it (see {@link IAgentHostFileEditCoordinator}).
+	 * Listing and changing the base branch of Branch Changes changes only what
+	 * the changes are compared against, so they can.
 	 */
 	private _isAvailableDuringTurn(kind: ChangesetKind | undefined, operationId: string, sessionKey: string): boolean {
+		if (kind === ChangesetKind.Branch) {
+			return operationId === LIST_BASE_BRANCHES_OPERATION_ID || operationId === SET_BASE_BRANCH_OPERATION_ID;
+		}
 		if (kind !== ChangesetKind.WorkingSet) {
 			return false;
 		}
@@ -481,6 +486,15 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 
 		try {
 			const result = await handler.invoke(params, CancellationToken.None, source);
+			const owner = parseChangesetUri(params.channel)?.ownerUri;
+			if (handler.changesGitState && owner) {
+				this.scheduleRelatedOperationsUpdate(owner);
+				try {
+					await this._refreshGitState(owner, source);
+				} catch (refreshError) {
+					this._logService.warn(`[AgentHostChangesetOperationService] Failed to refresh the Git state after ${params.operationId}`, refreshError);
+				}
+			}
 			this._stateManager.dispatchServerAction(params.channel, {
 				type: ActionType.ChangesetOperationStatusChanged,
 				operationId: params.operationId,

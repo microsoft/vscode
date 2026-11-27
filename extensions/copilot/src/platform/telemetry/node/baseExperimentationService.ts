@@ -59,17 +59,13 @@ export class UserInfoStore extends Disposable {
 				}
 				return undefined;
 			};
-			const getIsProxima = (): boolean => {
-				const stamp = copilotTokenStore.copilotToken?.getTokenValue('st');
-				return !!stamp && stamp !== 'dotcom';
-			};
 
 			this._register(copilotTokenStore.onDidChangeTokenData(() => {
-				this.updateUserInfo(getInternalOrg(), copilotTokenStore.copilotToken?.sku, copilotTokenStore.copilotToken?.isFcv1(), copilotTokenStore.copilotToken?.isSn(), copilotTokenStore.copilotToken?.isVscodeTeamMember, copilotTokenStore.copilotToken?.organizationList, getIsProxima());
+				this.updateUserInfo(getInternalOrg(), copilotTokenStore.copilotToken?.sku, copilotTokenStore.copilotToken?.isFcv1(), copilotTokenStore.copilotToken?.isSn(), copilotTokenStore.copilotToken?.isVscodeTeamMember, copilotTokenStore.copilotToken?.organizationList, copilotTokenStore.copilotToken?.isProxima() ?? false);
 			}));
 
 			if (copilotTokenStore.copilotToken) {
-				this.updateUserInfo(getInternalOrg(), copilotTokenStore.copilotToken.sku, copilotTokenStore.copilotToken.isFcv1(), copilotTokenStore.copilotToken.isSn(), copilotTokenStore.copilotToken.isVscodeTeamMember, copilotTokenStore.copilotToken.organizationList, getIsProxima());
+				this.updateUserInfo(getInternalOrg(), copilotTokenStore.copilotToken.sku, copilotTokenStore.copilotToken.isFcv1(), copilotTokenStore.copilotToken.isSn(), copilotTokenStore.copilotToken.isVscodeTeamMember, copilotTokenStore.copilotToken.organizationList, copilotTokenStore.copilotToken.isProxima());
 			} else {
 				const cachedInternalValue = this.context.globalState.get<string>(UserInfoStore.INTERNAL_ORG_STORAGE_KEY);
 				const cachedSkuValue = this.context.globalState.get<string>(UserInfoStore.SKU_STORAGE_KEY);

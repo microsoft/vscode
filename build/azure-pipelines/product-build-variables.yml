@@ -5,12 +5,6 @@ parameters:
   - name: VSCODE_BUILD_TYPE
     type: string
     default: Product
-  - name: NPM_REGISTRY
-    type: string
-    default: 'https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/'
-  - name: CARGO_REGISTRY
-    type: string
-    default: 'sparse+https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/Cargo/index/'
   - name: VSCODE_BUILD_WIN32
     type: boolean
     default: true
@@ -50,9 +44,6 @@ parameters:
   - name: VSCODE_PUBLISH
     type: boolean
     default: true
-  - name: VSCODE_STEP_ON_IT
-    type: boolean
-    default: false
   - name: VSCODE_USE_LEGACY_OSS_NOTICE
     type: boolean
     default: false
@@ -61,9 +52,11 @@ variables:
   - name: VSCODE_PRIVATE_BUILD
     value: ${{ ne(variables['Build.Repository.Uri'], 'https://github.com/microsoft/vscode.git') }}
   - name: NPM_REGISTRY
-    value: ${{ parameters.NPM_REGISTRY }}
+    value: 'https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/'
+    readonly: true
   - name: CARGO_REGISTRY
-    value: ${{ parameters.CARGO_REGISTRY }}
+    value: 'sparse+https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/Cargo/index/'
+    readonly: true
   - name: VSCODE_QUALITY
     value: ${{ parameters.VSCODE_QUALITY }}
   - name: VSCODE_BUILD_STAGE_LINUX
@@ -106,8 +99,6 @@ variables:
     value: $[format('{0:yyyyMMdd}-{1}-{2}-{3}', pipeline.startTime, variables['VSCODE_QUALITY'], variables['VSCODE_PUBLISH'], variables['Build.SourceBranch'])]
   - name: VSCODE_PUBLISH_COUNTER
     value: $[counter(variables['VSCODE_PUBLISH_COUNTER_PREFIX'], 1)]
-  - name: VSCODE_STEP_ON_IT
-    value: ${{ eq(parameters.VSCODE_STEP_ON_IT, true) }}
   # Derived as an explicit lowercase string literal so downloadNotice.ts's
   # case-sensitive JS check (process.env['VSCODE_OVERWRITE_TPN'] === 'false')
   # works. ${{ eq(...) }} would emit 'True'/'False' (capitalized) and silently

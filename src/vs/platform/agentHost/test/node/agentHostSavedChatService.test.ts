@@ -149,7 +149,7 @@ suite('AgentHostSavedChatService', () => {
 	test('keeps the saved fingerprint stable across real Codex replay IDs while retaining response and tool content', async () => {
 		const { readers, createService } = await fixture('codex');
 		const native: Thread = {
-			id: 'native', sessionId: 'native', environments: null, extra: null, forkedFromId: null, parentThreadId: null,
+			id: 'native', sessionId: 'native', environments: null, extra: null, forkedFromId: null, parentThreadId: null, attachedToThreadId: null,
 			preview: 'Saved question', ephemeral: false, section: null, sectionEnteredAt: null, projectId: null,
 			historyMode: 'legacy', modelProvider: 'openai', model: null, reasoningEffort: null,
 			createdAt: 1, updatedAt: 2, recencyAt: null, status: { type: 'notLoaded' }, path: null,
@@ -159,9 +159,9 @@ suite('AgentHostSavedChatService', () => {
 				id: 'native-turn', rootTurnId: null, status: 'completed', itemsView: 'full', error: null, startedAt: null, completedAt: null, durationMs: null,
 				items: [
 					{ type: 'userMessage', id: 'prompt', clientId: null, content: [{ type: 'text', text: 'Saved question', text_elements: [] }] },
-					{ type: 'agentMessage', id: 'answer', text: 'Saved answer', phase: 'final_answer', memoryCitation: null, delivery: null, questions: null },
+					{ type: 'agentMessage', id: 'answer', text: 'Saved answer', phase: 'final_answer', memoryCitation: null, delivery: null, questions: null, moderation: null },
 					{ type: 'webSearch', id: 'search', query: 'VS Code', action: null, results: null },
-					{ type: 'imageGeneration', id: 'image', status: 'completed', revisedPrompt: 'Draw a square', result: 'aW1hZ2U=', failure: null },
+					{ type: 'imageGeneration', id: 'image', status: 'completed', revisedPrompt: 'Draw a square', result: 'aW1hZ2U=', failure: null, generationId: null },
 					{ type: 'fileChange', id: 'patch', changes: [], status: 'completed' },
 					{ type: 'contextCompaction', id: 'compaction' },
 				],

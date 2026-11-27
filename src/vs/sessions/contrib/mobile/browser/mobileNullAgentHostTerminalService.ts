@@ -10,7 +10,7 @@ import { localize } from '../../../../nls.js';
 import { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
 import { AgentHostOutputChannel } from '../../../../workbench/contrib/terminal/browser/agentHostOutputChannel.js';
 import { ITerminalChatService, ITerminalInstance } from '../../../../workbench/contrib/terminal/browser/terminal.js';
-import { IAgentHostEntry, IAgentHostTerminalCreateOptions, IAgentHostTerminalProfileInfo, IAgentHostTerminalService } from '../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
+import { IAgentHostEntry, IAgentHostEntryRegistration, IAgentHostTerminalCreateOptions, IAgentHostTerminalProfileInfo, IAgentHostTerminalService } from '../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
 
 /**
  * Phone implementation of {@link IAgentHostTerminalService}.
@@ -43,8 +43,8 @@ export class MobileNullAgentHostTerminalService extends Disposable implements IA
 		return undefined;
 	}
 
-	registerEntry(_entry: IAgentHostEntry): IDisposable {
-		return Disposable.None;
+	registerEntry(_entry: IAgentHostEntry): IAgentHostEntryRegistration {
+		return { setName: () => { }, dispose: () => { } };
 	}
 
 	createTerminal(_connection: IAgentConnection, _options?: IAgentHostTerminalCreateOptions): Promise<ITerminalInstance> {

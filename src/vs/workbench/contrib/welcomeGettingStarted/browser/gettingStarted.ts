@@ -1832,6 +1832,8 @@ export class GettingStartedPage extends EditorPane {
 		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const slideManager = assertReturnsDefined(this.container.querySelector('.gettingStarted'));
 		this.categoriesSlideShown.set(toEnable === 'categories', undefined);
+		this.categoriesSlide.inert = toEnable === 'details';
+		this.stepsSlide.inert = toEnable === 'categories';
 		if (toEnable === 'categories') {
 			slideManager.classList.remove('showDetails');
 			slideManager.classList.add('showCategories');

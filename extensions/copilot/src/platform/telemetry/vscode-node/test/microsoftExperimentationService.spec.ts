@@ -26,7 +26,7 @@ import { MicrosoftExperimentationService } from '../microsoftExperimentationServ
 vi.mock('vscode', async importOriginal => ({
 	...await importOriginal<typeof import('vscode')>(),
 	env: { appRoot: '', devDeviceId: 'test-device' },
-	workspace: { isAgentSessionsWorkspace: false },
+	workspace: { isAgentManaged: false },
 	extensions: { getExtension: () => undefined },
 }));
 

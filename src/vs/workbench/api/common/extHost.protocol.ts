@@ -359,8 +359,15 @@ export interface ITextDocumentShowOptions {
 	selection?: IRange;
 }
 
+export interface IWorkspaceEditStepDto {
+	readonly edit: IWorkspaceEditDto;
+	readonly undoStopBefore?: boolean;
+	readonly undoStopAfter?: boolean;
+}
+
 export interface MainThreadBulkEditsShape extends IDisposable {
-	$tryApplyWorkspaceEdit(workspaceEditDto: SerializableObjectWithBuffers<IWorkspaceEditDto>, undoRedoGroupId?: number, isRefactoring?: boolean): Promise<boolean>;
+	$tryApplyWorkspaceEdit(workspaceEditDto: SerializableObjectWithBuffers<IWorkspaceEditDto>, undoRedoGroupId?: number, isRefactoring?: boolean, undoStopBefore?: boolean, undoStopAfter?: boolean): Promise<boolean>;
+	$tryApplyWorkspaceEditSequence(stepsDto: SerializableObjectWithBuffers<IWorkspaceEditStepDto[]>): Promise<boolean>;
 }
 
 export interface MainThreadTextEditorsShape extends IDisposable {
@@ -2260,7 +2267,7 @@ export interface MainThreadSCMShape extends IDisposable {
 export interface MainThreadQuickDiffShape extends IDisposable {
 	$registerQuickDiffProvider(handle: number, selector: IDocumentFilterDto[], id: string, label: string, rootUri: UriComponents | undefined): Promise<void>;
 	$unregisterQuickDiffProvider(handle: number): Promise<void>;
-	$createSourceControlDiffInformation(handle: number, uri: UriComponents): Promise<void>;
+	$createSourceControlDiffInformation(handle: number, uri: UriComponents, includeChatEdits?: boolean): Promise<void>;
 	$disposeSourceControlDiffInformation(handle: number): Promise<void>;
 }
 
@@ -2549,12 +2556,14 @@ export interface IModelAddedData {
 	EOL: string;
 	languageId: string;
 	isDirty: boolean;
+	isReadonly?: boolean;
 	encoding: string;
 }
 export interface ExtHostDocumentsShape {
 	$acceptModelLanguageChanged(strURL: UriComponents, newLanguageId: string): void;
 	$acceptModelSaved(strURL: UriComponents): void;
 	$acceptDirtyStateChanged(strURL: UriComponents, isDirty: boolean): void;
+	$acceptReadonlyStateChanged(strURL: UriComponents, isReadonly: boolean): void;
 	$acceptEncodingChanged(strURL: UriComponents, encoding: string): void;
 	$acceptModelChanged(strURL: UriComponents, e: ISerializedModelContentChangedEvent, isDirty: boolean): void;
 }
@@ -4116,6 +4125,7 @@ export type IChatSessionHistoryItemDto = {
 	id?: string;
 	type: 'request';
 	prompt: string;
+	isRequestHidden?: boolean;
 	participant: string;
 	command?: string;
 	variableData?: Dto<IChatRequestVariableData>;

@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import { findGit, Git, GitStatusParser, parseGitCommits, parseGitFileLog, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors, getWorktreePathFromGitdir } from '../git';
+import { findGit, Git, GitStatusParser, parseGitCommits, parseGitFileLog, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors, getWorktreePathFromGitdir, stripCommitMessageComments } from '../git';
 import * as assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { LogOutputChannel, window } from 'vscode';
-import { splitInChunks } from '../util';
+import { isDescendant, pathEquals, relativePathWithNoFallback, splitInChunks } from '../util';
 
 suite('git', () => {
 	suite('Git process input', () => {
@@ -805,6 +805,34 @@ suite('git', () => {
 		});
 	});
 
+	suite('stripCommitMessageComments', () => {
+		test('keeps the blank lines of a commit template', () => {
+			const template = [
+				'# Instruction for summary format',
+				'<summary>',
+				'# Leave the next line blank',
+				'',
+				'# Optional, additional stuff to add instructions..',
+				'',
+				'# Instructions for issue link',
+				'Issue-Link:',
+				''
+			].join('\n');
+
+			assert.deepStrictEqual(
+				[stripCommitMessageComments(template), stripCommitMessageComments(template.replace(/\n/g, '\r\n'))],
+				['<summary>\n\nIssue-Link:', '<summary>\n\nIssue-Link:']
+			);
+		});
+
+		test('removes comments of a merge message and keeps indented lines', () => {
+			assert.deepStrictEqual(
+				stripCommitMessageComments('Merge branch \'x\'\n\n  - indented\n \n\n# Conflicts:\n#\ta.txt\n'),
+				'Merge branch \'x\'\n\n  - indented'
+			);
+		});
+	});
+
 	suite('splitInChunks', () => {
 		test('unit tests', function () {
 			assert.deepStrictEqual(
@@ -875,6 +903,20 @@ suite('git', () => {
 			assert.deepStrictEqual(
 				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 9)],
 				[['0', '01', '012', '0', '01'], ['012', '0', '01', '012']]
+			);
+		});
+	});
+
+	suite('path helpers', () => {
+		test('file system root contains its descendants', () => {
+			// "C:\" on Windows, "/" on macOS and Linux
+			const root = path.parse(os.tmpdir()).root;
+			const folder = path.join(root, 'repo');
+			const file = path.join(folder, 'file.txt');
+
+			assert.deepStrictEqual(
+				[isDescendant(root, file), relativePathWithNoFallback(root, file), pathEquals(`${folder}/`, folder)],
+				[true, path.join('repo', 'file.txt'), true]
 			);
 		});
 	});

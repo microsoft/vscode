@@ -17,8 +17,9 @@ import { IQuickInputService, IQuickPickItem, IQuickPickSeparator, ItemActivation
 import { notifyCanvasOpenFailure } from '../../../../workbench/contrib/canvases/common/agentHostCanvasConsent.js';
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { IPinnedCanvasService } from '../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
+import { ISessionsListModelService } from '../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { CANVASES_SECTION_ID, NEW_CANVAS_SESSION_COMMAND_ID, SESSIONS_LIST_CANVASES_SECTION_SETTING, SessionSectionToolbarMenuId, SessionSectionTypeContext } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { CANVASES_SECTION_ID, NEW_CANVAS_SESSION_COMMAND_ID, SESSIONS_LIST_CANVASES_SECTION_SETTING, SessionSectionToolbarMenuId, SessionSectionTypeContext } from '../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { SessionsCategories } from '../../../../workbench/contrib/sessions/common/categories.js';
 import { ICanvasSessionDraft, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionCanvasDefinition } from '../../../../workbench/services/sessions/common/session.js';
@@ -56,7 +57,8 @@ function isSamePickItem(a: ICanvasPickItem, b: ICanvasPickItem): boolean {
 
 /**
  * Starts a session whose first content is a new canvas, without sending a message, and shows the canvas from the
- * Canvases section of the sidebar. The canvases come from an unlisted draft, which is discarded unless one opens.
+ * Canvases section of the sidebar. The session stays out of the Sessions list while its canvas is there, until the user
+ * sends a message in it. The canvases come from an unlisted draft, which is discarded unless one opens.
  */
 class NewCanvasSessionAction extends Action2 {
 	constructor() {
@@ -83,6 +85,7 @@ class NewCanvasSessionAction extends Action2 {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const sessionsService = accessor.get(ISessionsService);
 		const pinnedCanvasService = accessor.get(IPinnedCanvasService);
+		const sessionsListModelService = accessor.get(ISessionsListModelService);
 		const progressService = accessor.get(IProgressService);
 		const instantiationService = accessor.get(IInstantiationService);
 
@@ -162,6 +165,16 @@ class NewCanvasSessionAction extends Action2 {
 			if (!current) {
 				return;
 			}
+			// The session is left out of the Sessions list from the start, while its canvas is in the Canvases section.
+			// The session that opening the canvas starts replaces the draft's under another ID, which the list state follows.
+			let sessionId = current.sessionId;
+			const replacement = sessionsManagementService.onDidReplaceSession(({ from, to }) => {
+				if (from.sessionId === sessionId) {
+					sessionId = to.sessionId;
+				}
+			});
+			sessionsListModelService.hideCanvasSessionById(sessionId);
+			const listSession = () => sessionsListModelService.showCanvasSessionById(sessionId);
 			try {
 				const reference = await progressService.withProgress({
 					location: ProgressLocation.Notification,
@@ -169,21 +182,25 @@ class NewCanvasSessionAction extends Action2 {
 					delay: 500,
 				}, () => current.open(canvas));
 				if (!reference) {
+					listSession();
 					return;
 				}
 				try {
-					// Pinning lists the canvas in the Canvases section. When it cannot be pinned, show its session instead.
+					// Pinning lists the canvas in the Canvases section. When it cannot be pinned, list and show its session instead.
 					if (pinnedCanvasService.pin(reference.object)) {
 						await pinnedCanvasService.show(reference.object);
 					} else {
+						listSession();
 						await sessionsService.openSession(reference.object.session);
 					}
 				} finally {
 					reference.dispose();
 				}
 			} catch (error) {
+				listSession();
 				notifyCanvasOpenFailure(notificationService, error, canvas.displayName, () => start(createDraft));
 			} finally {
+				replacement.dispose();
 				current.dispose();
 			}
 		};

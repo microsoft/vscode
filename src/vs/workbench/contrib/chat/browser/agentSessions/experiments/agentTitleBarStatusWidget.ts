@@ -362,7 +362,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 				attentionCount: attentionNeededSessions.length,
 				attentionText,
 				label,
-				folderLocation: this._windowTitle.folderLocationInfo ? { description: this._windowTitle.folderLocationInfo.description, icon: this._windowTitle.folderLocationInfo.icon?.id } : undefined,
+				folderLocation: this._windowTitle.folderLocationInfo ? { label: this._windowTitle.folderLocationInfo.label, description: this._windowTitle.folderLocationInfo.description, icon: this._windowTitle.folderLocationInfo.icon?.id } : undefined,
 				isFilteredToUnread,
 				isFilteredToInProgress,
 				isFilteredToNeedsInput,

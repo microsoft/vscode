@@ -5,12 +5,16 @@
 
 import assert from 'assert';
 import * as dom from '../../../../../base/browser/dom.js';
+import { createStyleSheet } from '../../../../../base/browser/domStylesheets.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Color } from '../../../../../base/common/color.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ipcRenderer } from '../../../../../base/parts/sandbox/electron-browser/globals.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { TestColorTheme, TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
@@ -18,7 +22,8 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { ICustomViewDescriptor, ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasState } from '../../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
 import { ISessionGroup, ISessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
-import { SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionsList } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SESSIONS_LIST_CANVASES_SECTION_SETTING, SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { createListHarness, createTestSession } from '../browser/sessionsListTestUtils.js';
 
 /** Focus styles only match while the document has focus, so give the test's web contents real focus. */
@@ -112,6 +117,95 @@ suite('SessionsList - focused row styles', () => {
 			assert.deepStrictEqual(results, expected);
 		});
 	}
+
+	test('Canvases swaps its icon for a folding chevron on hover and keyboard focus in both sidebar layouts', () => {
+		const sectionStyles = [...mainWindow.document.styleSheets].flatMap(sheet => [...sheet.cssRules])
+			.find((rule): rule is CSSImportRule => rule instanceof CSSImportRule && rule.href.endsWith('/sessionsList.css'));
+		assert.ok(sectionStyles?.styleSheet);
+		// Match the workbench's section styles after the global codicon styles.
+		createStyleSheet(undefined, style => style.textContent = [...sectionStyles.styleSheet!.cssRules].map(rule => rule.cssText).join('\n'), disposables.add(new DisposableStore()));
+		const pin = upcastPartial<IPinnedCanvas>({
+			id: 'plan',
+			title: constObservable('Agent Plan'),
+			chatTitle: constObservable('Fix login bug'),
+			state: constObservable(PinnedCanvasState.Live),
+			canvas: constObservable(undefined),
+		});
+		const results = [];
+		for (const separateNavigation of [true, false]) {
+			const harness = createListHarness(disposables, [], instantiationService => {
+				ChatContextKeys.enabled.bindTo(instantiationService.get(IContextKeyService)).set(true);
+				(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_CANVASES_SECTION_SETTING, true);
+			});
+			const container = harness.createContainer();
+			const navigationContainer = dom.$('.agent-sessions-navigation-container');
+			const listContainer = dom.$('div');
+			container.append(navigationContainer, listContainer);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, listContainer, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				showNavigationShortcuts: () => separateNavigation,
+				navigationContainer,
+				pinnedCanvases: upcastPartial<IPinnedCanvasService>({
+					enabled: constObservable(true),
+					entries: constObservable([pin]),
+					selected: constObservable(undefined),
+					show: async () => { },
+				}),
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			const header = () => [...container.querySelectorAll<HTMLElement>('.session-section-label')]
+				.find(label => label.textContent === 'Canvases')!.closest<HTMLElement>('.monaco-list-row')!;
+			const appearance = (row = header()) => ({
+				chevron: mainWindow.getComputedStyle(row.querySelector('.session-section-chevron')!).display,
+				icon: mainWindow.getComputedStyle(row.querySelector('.session-section-icon')!).display,
+			});
+			const listElement = header().closest<HTMLElement>('.monaco-list')!;
+			listElement.blur();
+			const resting = appearance();
+			const pinRow = container.querySelector('.session-section-pinned-canvas')!.closest<HTMLElement>('.monaco-list-row')!;
+			pinRow.classList.add('hovered');
+			const hoveredPin = appearance(pinRow);
+			pinRow.classList.remove('hovered');
+			header().classList.add('hovered');
+			const expandedHover = appearance();
+			header().classList.remove('hovered');
+			header().dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+			header().dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+			header().dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+			listElement.focus();
+			const pointerFocus = appearance();
+			header().classList.add('hovered');
+			const collapsedHover = appearance();
+			header().classList.remove('hovered');
+			mainWindow.document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+			const keyboardFocus = appearance();
+			header().classList.add('hovered');
+			const focusedHover = appearance();
+			header().classList.remove('hovered');
+			listElement.blur();
+			const afterBlur = appearance();
+			const section = header().matches('.session-section') ? header() : header().querySelector<HTMLElement>('.session-section')!;
+			section.classList.add('dropdown-active');
+			const dropdown = appearance();
+			results.push({ separateNavigation, resting, hoveredPin, expandedHover, pointerFocus, collapsedHover, keyboardFocus, focusedHover, afterBlur, dropdown });
+		}
+		const icon = { chevron: 'none', icon: 'flex' };
+		const chevron = { chevron: 'flex', icon: 'none' };
+		assert.deepStrictEqual(results, [true, false].map(separateNavigation => ({
+			separateNavigation,
+			resting: icon,
+			hoveredPin: icon,
+			expandedHover: chevron,
+			pointerFocus: icon,
+			collapsedHover: chevron,
+			keyboardFocus: chevron,
+			focusedHover: chevron,
+			afterBlur: icon,
+			dropdown: chevron,
+		})));
+	});
 
 	test('a press does not ring the pinned canvas row the page shows, while keyboard focus does, in both sidebar layouts', async () => {
 		const plan = upcastPartial<IPinnedCanvas>({

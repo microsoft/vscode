@@ -118,7 +118,7 @@ import { createChatOwnerRef } from '../../node/agentChatContext.js';
 import { AgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { AgentHostPromptCache, IAgentHostPromptCache } from '../../node/agentHostPromptCache.js';
 import { AgentHostSessionTitleSignal, IAgentHostSessionTitleSignal } from '../../node/agentHostSessionTitleSignal.js';
-import { IAgentHostGitService, type IAddWorktreeOptions } from '../../common/agentHostGitService.js';
+import { IAgentHostGitService, type IAddWorktreeOptions, type IAddWorktreeResult } from '../../common/agentHostGitService.js';
 import { TestAgentHostGitService as BaseTestAgentHostGitService } from '../common/testAgentHostGitService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { IAgentHostOTelService, NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
@@ -457,14 +457,16 @@ class TestAgentHostGitService extends BaseTestAgentHostGitService {
 	dirtyWorkingDirectories = new Set<string>();
 
 	override async getRepositoryRoot(): Promise<URI | undefined> { return this.repositoryRoot; }
-	override async addWorktree(repositoryRoot: URI, options: IAddWorktreeOptions): Promise<void> {
+	override async addWorktree(repositoryRoot: URI, options: IAddWorktreeOptions): Promise<IAddWorktreeResult> {
 		this.addedWorktrees.push({ repositoryRoot, options });
 		if (options.newBranchName) {
 			this.existingBranches.add(options.newBranchName);
 		}
+		return { gitLfsPointerFiles: false };
 	}
-	override async addExistingWorktree(repositoryRoot: URI, worktree: URI, branchName: string): Promise<void> {
+	override async addExistingWorktree(repositoryRoot: URI, worktree: URI, branchName: string): Promise<IAddWorktreeResult> {
 		this.addedExistingWorktrees.push({ repositoryRoot, worktree, branchName });
+		return { gitLfsPointerFiles: false };
 	}
 	override async isWorktreeRegistered(): Promise<boolean> { return false; }
 	override async removeWorktree(repositoryRoot: URI, worktree: URI): Promise<void> {
@@ -4457,8 +4459,12 @@ suite('CopilotAgent', () => {
 				const workspace = URI.file('/workspace');
 				const plugin = URI.file('/sdk-installed/native');
 				const source = URI.joinPath(plugin, '.mcp.json');
+				// Let the in-memory provider report these writes before the plugin watcher exists, or its publish can show the
+				// server as a plugin child before the runtime-first update below.
+				const written = Event.toPromise(fileService.onDidFilesChange);
 				await fileService.writeFile(URI.joinPath(plugin, '.plugin', 'plugin.json'), VSBuffer.fromString('{"name":"native"}'));
 				await fileService.writeFile(source, VSBuffer.fromString('{"mcpServers":{"native":{"command":"native-server"}}}'));
+				await written;
 				const client = new TestCopilotClient([]);
 				let discovered = false;
 				client.pluginInstallations = [{ id: 'opaque-plugin', rootPath: plugin.fsPath, name: 'native', marketplace: '', enabled: true }];
@@ -6322,16 +6328,15 @@ suite('CopilotAgent', () => {
 			client.createSession = async () => upcastPartial<CopilotSession>({
 				sessionId: 'setup-session',
 				rpc: upcastPartial<CopilotSession['rpc']>({
-					accounts: {
-						login: {
+					accounts: upcastPartial<CopilotSession['rpc']['accounts']>({
+						login: upcastPartial<CopilotSession['rpc']['accounts']['login']>({
 							begin: async () => ({ flowId: 'opaque-flow', step: { kind: 'awaiting' } }),
 							advance: async () => ({ kind: 'completed', result: { status: 'completed', host: service.host, login: service.login } }),
 							cancel: async () => { },
-						},
-						get: async () => ({ kind: 'activeAccount', account: { ...service, active: true, derivedFrom: 'runtime-base' } }),
-						enumerate: async () => ({ kind: 'accounts', items: [] }),
-						set: async () => { throw new Error('unexpected account switch'); },
-					},
+						}),
+						getActive: async () => ({ account: { ...service, active: true, derivedFrom: 'runtime-base' } }),
+						switchActive: async () => { throw new Error('unexpected account switch'); },
+					}),
 				}),
 				disconnect: async () => { },
 			});
@@ -10685,6 +10690,45 @@ suite('CopilotAgent', () => {
 			});
 		});
 
+		test('a retry reports a decline that the new runtime keeps without asking again', async () => {
+			const directory = URI.file(process.cwd());
+			const sdkId = 'kept-consent-sdk';
+			const { agent, launches } = setup(undefined, [sdkSession(sdkId, directory.fsPath)], [], { [AgentHostCanvasesEnabledConfigKey]: true });
+			afterTest(() => disposeAgent(agent));
+			const session = AgentSession.uri('copilotcli', 'scoped-kept-canvas-consent');
+			const chat = defaultChatUri(session);
+			const credentials = { getCredential: () => ({ resource: 'https://api.github.com', token: 'sponsor', expiresAt: undefined, revision: 1 }) };
+			const context = { ...exactChatContext(session, chat, session), credentials };
+			const open = (answer?: AgentCanvasOpenAnswer) => agent.openSessionCanvas(session, { canvasId: 'demo', extensionId: 'user:declined', instanceId: 'demo' }, chat, context, answer);
+			await agent.materializeChat(chat, context, JSON.stringify({ sdkSessionId: sdkId }));
+			await agent.chats.prepareTurn!(chat, 'first-turn', [directory], context);
+			const first = launches[launches.length - 1];
+			first.runtime.rpc.canvas.open = async params => {
+				const result = await first.config.permissions?.onRequest!({ kind: 'extension-env-access', extensionName: params.extensionId!, environmentVariables: ['BLACKBIRD_AUTH_METIS_API_KEY'] }, { sessionId: first.sessionId });
+				const kind = result?.kind === 'attributed' ? result.result.kind : result?.kind;
+				if (kind !== 'approve-once') {
+					throw new Error(`extension did not become ready: ${params.extensionId}`);
+				}
+				return { instanceId: params.instanceId, extensionId: params.extensionId!, canvasId: params.canvasId };
+			};
+			const asked = await open();
+			assert.strictEqual(asked.kind, 'consentRequired');
+			const declined = await open({ kind: 'consent', consentId: asked.consent.id, optionId: AgentExtensionConsentOption.NotNow });
+			// The replacement runtime restores the decline from the session and turns the extension away without asking.
+			const record = launches.push.bind(launches);
+			launches.push = (...added) => {
+				for (const launch of added) {
+					launch.runtime.rpc.canvas.open = async params => { throw new Error(`extension did not become ready: ${params.extensionId}`); };
+				}
+				return record(...added);
+			};
+			const retried = await open({ kind: 'retry' });
+			assert.deepStrictEqual({ declined, retried }, {
+				declined: { kind: 'consentDenied', consent: asked.consent, retryable: true },
+				retried: { kind: 'consentDenied', consent: asked.consent, retryable: false, keptForSession: true },
+			});
+		});
+
 		test('paged isolated history shares one replay across a moved chat and concurrent child transcripts without activation', async () => {
 			const data = disposables.add(new TestSessionDataService());
 			const owner = AgentSession.uri('copilotcli', 'history-owner');
@@ -13810,9 +13854,10 @@ suite('CopilotAgent', () => {
 									await super.removeWorktree(repositoryRoot, worktree);
 									await fs.rm(worktree.fsPath, { recursive: true });
 								}
-								override async addExistingWorktree(repositoryRoot: URI, worktree: URI, branch: string): Promise<void> {
-									await super.addExistingWorktree(repositoryRoot, worktree, branch);
+								override async addExistingWorktree(repositoryRoot: URI, worktree: URI, branch: string): Promise<IAddWorktreeResult> {
+									const result = await super.addExistingWorktree(repositoryRoot, worktree, branch);
 									await fs.mkdir(worktree.fsPath, { recursive: true });
+									return result;
 								}
 							}();
 							git.existingBranches.add('session-branch');
@@ -13967,9 +14012,10 @@ suite('CopilotAgent', () => {
 								await super.removeWorktree(repositoryRoot, worktree);
 								await fs.rm(worktree.fsPath, { recursive: true });
 							}
-							override async addExistingWorktree(repositoryRoot: URI, worktree: URI, branch: string): Promise<void> {
-								await super.addExistingWorktree(repositoryRoot, worktree, branch);
+							override async addExistingWorktree(repositoryRoot: URI, worktree: URI, branch: string): Promise<IAddWorktreeResult> {
+								const result = await super.addExistingWorktree(repositoryRoot, worktree, branch);
 								await fs.mkdir(worktree.fsPath, { recursive: true });
+								return result;
 							}
 						}();
 						git.existingBranches.add('peer-branch');
@@ -14281,9 +14327,10 @@ suite('CopilotAgent', () => {
 								await super.removeWorktree(repositoryRoot, worktree);
 								await fs.rm(worktree.fsPath, { recursive: true });
 							}
-							override async addExistingWorktree(repositoryRoot: URI, worktree: URI, branch: string): Promise<void> {
-								await super.addExistingWorktree(repositoryRoot, worktree, branch);
+							override async addExistingWorktree(repositoryRoot: URI, worktree: URI, branch: string): Promise<IAddWorktreeResult> {
+								const result = await super.addExistingWorktree(repositoryRoot, worktree, branch);
 								await fs.mkdir(worktree.fsPath, { recursive: true });
+								return result;
 							}
 						}();
 						git.existingBranches.add('session-branch');
@@ -23294,7 +23341,7 @@ suite('CopilotAgent', () => {
 			});
 		});
 
-		test('setClientCustomizations publishes parsed agents in SessionCustomizationUpdated', async () => {
+		test('setClientCustomizations publishes parsed children with their client source URIs', async () => {
 			const root = await fs.mkdtemp(join(os.tmpdir(), 'copilot-source-meta-'));
 			const fileService = disposables.add(new FileService(new NullLogService()));
 			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new TestDiskFileSystemProvider(new NullLogService()))));
@@ -23307,6 +23354,14 @@ suite('CopilotAgent', () => {
 				URI.joinPath(pluginDir, 'agents', 'helper.md'),
 				VSBuffer.fromString('---\nname: helper-agent\ndescription: helps out\n---\nbody'),
 			);
+			await fileService.createFolder(URI.joinPath(pluginDir, 'skills', 'review'));
+			await fileService.writeFile(
+				URI.joinPath(pluginDir, 'skills', 'review', 'SKILL.md'),
+				VSBuffer.fromString('---\nname: review\nuser-invocable: false\n---\nbody'),
+			);
+			const commandPath = 'commands/review.prompt.md';
+			await fileService.createFolder(URI.joinPath(pluginDir, 'commands'));
+			await fileService.writeFile(URI.joinPath(pluginDir, commandPath), VSBuffer.fromString('Review the changes.'));
 
 			class PluginDirSpyManager extends TestAgentPluginManager {
 				override async syncCustomizations(_clientId: string, customizations: ClientPluginCustomization[]): Promise<ISyncedCustomization[]> {
@@ -23348,14 +23403,27 @@ suite('CopilotAgent', () => {
 				.filter(a => (a.customization as PluginCustomization).children !== undefined);
 
 			assert.strictEqual(updatesWithChildren.length > 0, true, 'expected SessionCustomizationUpdated to carry parsed children');
-			const agentChildren = (updatesWithChildren.at(-1)!.customization as PluginCustomization).children!.filter(c => c.type === CustomizationType.Agent);
-			assert.deepStrictEqual(agentChildren, [{
+			const children = (updatesWithChildren.at(-1)!.customization as PluginCustomization).children;
+			assert.deepStrictEqual(children, [{
 				type: CustomizationType.Agent,
 				id: customizationId(URI.joinPath(pluginDir, 'agents', 'helper.md').toString()),
 				uri: URI.joinPath(pluginDir, 'agents', 'helper.md').toString(),
 				name: 'helper-agent',
 				description: 'helps out',
 				_meta: { 'vscode.sourceUri': URI.joinPath(sourceRoot, 'agents', 'helper.md').toString() },
+			}, {
+				type: CustomizationType.Skill,
+				id: customizationId(URI.joinPath(pluginDir, 'skills', 'review', 'SKILL.md').toString()),
+				uri: URI.joinPath(pluginDir, 'skills', 'review', 'SKILL.md').toString(),
+				name: 'review',
+				disableUserInvocation: true,
+				_meta: { 'vscode.sourceUri': URI.joinPath(sourceRoot, 'skills', 'review', 'SKILL.md').toString() },
+			}, {
+				type: CustomizationType.Prompt,
+				id: customizationId(URI.joinPath(pluginDir, commandPath).toString()),
+				uri: URI.joinPath(pluginDir, commandPath).toString(),
+				name: 'review',
+				_meta: { 'vscode.sourceUri': URI.joinPath(sourceRoot, commandPath).toString() },
 			}]);
 		});
 
@@ -26048,7 +26116,7 @@ suite('CopilotAgent', () => {
 				clientToken: undefined,
 				configToken: 'connector-session-token',
 				hasTokenProvider: false,
-				connectorFlags: { AUTO_APPROVAL: true, CATALOG_SEARCH: true, AGENT_FINDER_SKILL_INSTALL: true, AGENT_FINDER_PLUGIN_INSTALL: true, CONNECTORS: true, MCP_SKILLS: true, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, HYDRAFUSION: true, HYDRAFUSION_ROLLOUT: true, HYDRAFUSION_INTERRUPTED_COMMIT: true, HYDRAFUSION_PLAN_V2: true, HYDRAFUSION_STICKY_ROOT: true, copilot_swe_agent_memory_in_repo_store: false, SECURITY_REVIEW_FINE_TUNED_MODEL: false, MANAGED_MCP_SERVERS: true },
+				connectorFlags: { AUTO_APPROVAL: true, CATALOG_SEARCH: true, AGENT_FINDER_SKILL_INSTALL: true, AGENT_FINDER_PLUGIN_INSTALL: true, CONNECTORS: true, MCP_SKILLS: true, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, HYDRAFUSION: true, HYDRAFUSION_ROLLOUT: true, HYDRAFUSION_INTERRUPTED_COMMIT: true, HYDRAFUSION_STAGED_STREAMING: true, HYDRAFUSION_PLAN_V2: true, HYDRAFUSION_STICKY_ROOT: true, copilot_swe_agent_memory_in_repo_store: false, SECURITY_REVIEW_FINE_TUNED_MODEL: false, MANAGED_MCP_SERVERS: true },
 			});
 		});
 

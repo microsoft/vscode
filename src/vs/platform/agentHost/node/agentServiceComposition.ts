@@ -18,7 +18,8 @@ import { IAgentHostCheckpointService } from '../common/agentHostCheckpointServic
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
-import { AgentHostAgentOrchestrationLimitsConfigKey, platformRootSchema, AgentHostArtifactIntegrationsConfigKey } from '../common/agentHostSchema.js';
+import { AgentHostAgentOrchestrationLimitsConfigKey, platformRootSchema, platformSessionSchema, AgentHostArtifactIntegrationsConfigKey, AgentHostAutoReplyEnabledConfigKey } from '../common/agentHostSchema.js';
+import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, ResponsePartKind } from '../common/state/sessionState.js';
 import { CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, type AgentProvider, type IAgent } from '../common/agent.js';
 import { IAgentHostSessionStateStore } from '../common/agentHostSessionStateStore.js';
@@ -186,7 +187,7 @@ export function createAgentServiceComposition(
 		const reviewService = accessor.get(IAgentHostReviewService);
 		const changesets = accessor.get(IAgentHostChangesetService);
 		const changesetCoordinator = owned.add(instantiationService.createInstance(AgentHostChangesetCoordinator));
-		owned.add(stateManager.onDidChangeSessionActiveTurn(event => changesetCoordinator.onSessionTurnActiveChanged(event.session, event.active)));
+		owned.add(stateManager.onDidChangeSessionActiveTurn(event => changesetCoordinator.onSessionTurnActiveChanged(event.session)));
 
 		const completions = accessor.get(IAgentHostCompletions);
 
@@ -242,6 +243,13 @@ export function createAgentServiceComposition(
 			...callbackAdapter.sessionServerToolAccessor,
 			getChatOwner: chat => chatOwnership.getChatOwner(chat),
 			getDefaultChat: session => chatOwnership.getDefaultChat(session),
+			canAskUser: chat => {
+				const session = chatOwnership.getChatOwner(chat);
+				return session !== undefined
+					&& configurationService.getRootValue(platformRootSchema, AgentHostAutoReplyEnabledConfigKey) !== true
+					&& configurationService.getChatEffectiveValue({ session, chat }, platformSessionSchema, SessionConfigKey.Mode) !== 'autopilot';
+			},
+			onDidChangeRootConfig: configurationService.onDidRootConfigChange,
 			scheduleChatMove: (chat, turnId, move) => scheduledChatMoves.schedule(chat, turnId, move),
 			requestSessionWorkspaceUpdate: (chat, turnId, workspaceFolder, isolation, credentials) => {
 				const initiatingClientId = turnTracker.getInitiatorClientId(chat.toString(), turnId);

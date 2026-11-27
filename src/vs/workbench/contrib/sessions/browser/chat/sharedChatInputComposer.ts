@@ -7,6 +7,7 @@ import './media/chatInput.css';
 import './media/sharedChatInputComposer.css';
 import * as dom from '../../../../../base/browser/dom.js';
 import { ActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { IAction, Separator } from '../../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
@@ -186,7 +187,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	private readonly _modelSelection: SessionModelSelection;
 	/** The chat the input binds to: the composer's chat, else the session's shown chat. */
 	private readonly _shownChat: IObservable<IChat | undefined>;
-	private readonly _newChatModelPickerService = new NewChatModelPickerService(() => this.focus(), text => this._widget?.input.startPromptWith(text));
+	private readonly _newChatModelPickerService = new NewChatModelPickerService(() => this.focus());
 	private readonly _scopedInstantiationService: IInstantiationService;
 	private readonly _canSendRequest: IObservable<boolean>;
 	private readonly _promptOptions: NewSessionPromptOptionsPresenter;
@@ -825,6 +826,34 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		return true;
 	}
 
+	restoreUnsentInput(input: IChatDraft): boolean {
+		const widget = this._widget;
+		if (!widget?.input || this.getInputValue() || this.attachments.length || this.options.inputSnapshot?.isSubmitting || !this._showRestoredInput(widget, input)) {
+			return false;
+		}
+		status(localize('sharedChatInputComposer.unsentInputRestored', "The prompt of the session that wasn't started is back in the composer."));
+		return true;
+	}
+
+	/**
+	 * Gives back the input of a send that did not go out once the composer is gone: to the composer that shows now, else to
+	 * the saved draft that the next composer restores, unless that has input of its own.
+	 */
+	private _giveBackUnsentInput(input: IChatDraft): void {
+		if (this.options.restoreUnsentInput?.(input) || this.options.shouldPersistInput?.() === false) {
+			return;
+		}
+		let saved: IChatDraft | undefined;
+		try {
+			saved = readNewChatDraftState(this.storageService);
+		} catch {
+			// A saved draft that can't be read has no input to keep.
+		}
+		if (!saved?.inputText && !saved?.attachments.length) {
+			writeNewChatDraftState(this.storageService, input);
+		}
+	}
+
 	private _writeInputSnapshot(widget: ChatWidget): void {
 		if (this._widget === widget && !this._bindingModel) {
 			const draft = { inputText: this.getInputValue(), attachments: [...this.attachments], references: this._getDraftReferences(widget) };
@@ -1263,7 +1292,12 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		let attemptId: string | undefined;
 		let sent = false;
 		const restoreInput = () => {
-			if (isInputAlive() && !this.getInputValue() && !widget.attachmentModel.attachments.length) {
+			if (!isInputAlive()) {
+				// The composer is gone, such as when the session of its draft was removed because the request did not start it.
+				if (this.options.restoreUnsentInput && !this.options.inputSnapshot) {
+					this._giveBackUnsentInput({ inputText: rawQuery, attachments: [...attachments], references: references.length ? references : undefined });
+				}
+			} else if (!this.getInputValue() && !widget.attachmentModel.attachments.length) {
 				this.setInputValue(rawQuery);
 				widget.attachmentModel.addContext(...attachments);
 				// The send cleared the inline references along with the text.

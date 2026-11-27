@@ -367,7 +367,6 @@ suite('AgentHostPullRequestOperationContribution', () => {
 				return toDisposable(() => handlers.delete(id));
 			},
 			onDidChangeOperations: () => { },
-			refreshSessionGitState: async () => { },
 		}));
 		const params = { channel: 'agent:/session/changeset/default', operationId: PREPARE_PULL_REQUEST_OPERATION_ID };
 

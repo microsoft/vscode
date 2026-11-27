@@ -98,17 +98,6 @@ export class ImageResizeService implements IImageResizeService {
 		}
 	}
 
-	// Only used for URLs
-	convertUint8ArrayToString(data: Uint8Array): string {
-		try {
-			const decoder = new TextDecoder();
-			const decodedString = decoder.decode(data);
-			return decodedString;
-		} catch {
-			return '';
-		}
-	}
-
 	isValidBase64(str: string): boolean {
 		try {
 			decodeBase64(str);

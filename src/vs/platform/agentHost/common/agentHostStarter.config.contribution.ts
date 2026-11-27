@@ -346,7 +346,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.agentHost.agentOrchestrationLimits.on', "Enforce the limits."),
 				nls.localize('chat.agentHost.agentOrchestrationLimits.off', "Do not enforce the limits."),
 			],
-			description: nls.localize('chat.agentHost.agentOrchestrationLimits', "Controls per-session limits, over a sliding one-hour window, on sessions and chats created and messages sent, and the depth of recursive session spawning, by Agent Host session tools. Confirmation requirements and input validation are unchanged."),
+			description: nls.localize('chat.agentHost.agentOrchestrationLimits', "Controls per-session limits, over a sliding one-hour window, on sessions and chats created and messages sent, and the depth of recursive session spawning, by Agent Host session tools. When a session reaches its limit on sessions, chats, or messages, you're asked whether to allow more, except in Autopilot or with auto-reply on, where the tool is refused. Remote session messages have the same limit, counted separately in each Agents window. Confirmation requirements and input validation are unchanged."),
 			default: 'on',
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],

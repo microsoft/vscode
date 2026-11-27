@@ -6,7 +6,7 @@
 import { distinct } from '../../../../base/common/arrays.js';
 import { Barrier, RunOnceScheduler, ThrottledDelayer, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { ICopilotTokenInfo, IDefaultAccount, IDefaultAccountAuthenticationProvider, IEntitlementsData, IPolicyData, MICROSOFT_DEFAULT_ACCOUNT_PROVIDER_ID, asGitHubAccount } from '../../../../base/common/defaultAccount.js';
+import { CopilotServiceKind, ICopilotTokenInfo, IDefaultAccount, IDefaultAccountAuthenticationProvider, IEntitlementsData, IPolicyData, MICROSOFT_DEFAULT_ACCOUNT_PROVIDER_ID, asGitHubAccount } from '../../../../base/common/defaultAccount.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -14,7 +14,7 @@ import { equals } from '../../../../base/common/objects.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { IDefaultChatAgent } from '../../../../base/common/product.js';
 import { extUri } from '../../../../base/common/resources.js';
-import { isUndefined, Mutable } from '../../../../base/common/types.js';
+import { isObject, isUndefined, Mutable } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRequestContext } from '../../../../base/parts/request/common/request.js';
 import { localize2 } from '../../../../nls.js';
@@ -221,9 +221,9 @@ export class DefaultAccountService extends Disposable implements IDefaultAccount
 		await this.defaultAccountProvider?.signOut();
 	}
 
-	async rememberMicrosoftAccount(account: { readonly id: string; readonly label: string }): Promise<void> {
+	async rememberMicrosoftAccount(account: { readonly id: string; readonly label: string }, service: CopilotServiceKind): Promise<void> {
 		await this.initBarrier.wait();
-		await this.defaultAccountProvider?.rememberMicrosoftAccount(account);
+		await this.defaultAccountProvider?.rememberMicrosoftAccount(account, service);
 	}
 
 	async forgetMicrosoftAccount(): Promise<void> {
@@ -1715,32 +1715,48 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		await this.commandService.executeCommand('_signOutOfAccount', { providerId: this.defaultAccount.authenticationProvider.id, accountLabel: this.defaultAccount.accountName });
 	}
 
-	async rememberMicrosoftAccount(account: { readonly id: string; readonly label: string }): Promise<void> {
+	async rememberMicrosoftAccount(account: { readonly id: string; readonly label: string }, service: CopilotServiceKind): Promise<void> {
 		if (!this.isMicrosoftDefaultAccountEnabled()) {
 			return;
 		}
-		this.storeRememberedMicrosoftAccountLabel(account.label);
+		this.storeRememberedMicrosoftAccount(account.label, service);
 		await this.updateDefaultAccount();
 	}
 
 	async forgetMicrosoftAccount(): Promise<void> {
-		this.removeRememberedMicrosoftAccountLabel();
+		this.removeRememberedMicrosoftAccount();
 		await this.updateDefaultAccount();
 	}
 
 	// The remembered Microsoft account is stored, read, removed and watched by the four members below only.
 	// They are the only place that names its storage key and scope, so that moving it elsewhere changes just these.
 
-	private storeRememberedMicrosoftAccountLabel(accountLabel: string): void {
-		this.storageService.store(MICROSOFT_ACCOUNT_KEY, accountLabel, StorageScope.APPLICATION, StorageTarget.MACHINE);
+	private storeRememberedMicrosoftAccount(label: string, service: CopilotServiceKind): void {
+		this.storageService.store(MICROSOFT_ACCOUNT_KEY, { label, service }, StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
-	private removeRememberedMicrosoftAccountLabel(): void {
+	private removeRememberedMicrosoftAccount(): void {
 		this.storageService.remove(MICROSOFT_ACCOUNT_KEY, StorageScope.APPLICATION);
 	}
 
-	private get rememberedMicrosoftAccountLabel(): string | undefined {
-		return this.storageService.get(MICROSOFT_ACCOUNT_KEY, StorageScope.APPLICATION);
+	/** Reads the stored account. A value that is not a stored object is the label of an account remembered without a service. */
+	private get rememberedMicrosoftAccount(): { readonly label: string; readonly service?: CopilotServiceKind } | undefined {
+		const stored = this.storageService.get(MICROSOFT_ACCOUNT_KEY, StorageScope.APPLICATION);
+		if (!stored) {
+			return undefined;
+		}
+		try {
+			const parsed: unknown = JSON.parse(stored);
+			if (isObject(parsed)) {
+				const { label, service } = parsed as { readonly label?: unknown; readonly service?: unknown };
+				if (typeof label === 'string') {
+					return { label, service: service === 'github' || service === 'm365' ? service : undefined };
+				}
+			}
+		} catch {
+			// Not JSON: an older build stored the label alone.
+		}
+		return { label: stored };
 	}
 
 	/** Fires when the remembered account changed. */
@@ -1755,7 +1771,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 	/** Whether a Microsoft default account or a remembered Microsoft account exists, so that Microsoft provider changes can affect the default account. */
 	private hasMicrosoftDefaultAccountState(): boolean {
 		return this.defaultAccount?.authenticationProvider.id === MICROSOFT_DEFAULT_ACCOUNT_PROVIDER_ID
-			|| !!this.rememberedMicrosoftAccountLabel;
+			|| !!this.rememberedMicrosoftAccount?.label;
 	}
 
 	/** Whether the registration or unregistration of the given authentication provider affects the default account. */
@@ -1769,12 +1785,12 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 	 * Throws when the sessions of the Microsoft provider cannot be read.
 	 */
 	private async getMicrosoftDefaultAccount(): Promise<IDefaultAccountData | undefined> {
-		const accountLabel = this.rememberedMicrosoftAccountLabel;
-		if (!accountLabel) {
+		const remembered = this.rememberedMicrosoftAccount;
+		if (!remembered?.label) {
 			return undefined;
 		}
 		const sessions = await this.authenticationService.getSessions(MICROSOFT_DEFAULT_ACCOUNT_PROVIDER_ID, undefined, {}, true);
-		const session = sessions.find(s => s.account.label === accountLabel);
+		const session = sessions.find(s => s.account.label === remembered.label);
 		if (!session) {
 			return undefined;
 		}
@@ -1788,7 +1804,8 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 				},
 				accountName: session.account.label,
 				sessionId: session.id,
-				enterprise: false
+				enterprise: false,
+				...(remembered.service ? { copilotService: remembered.service } : {})
 			},
 			policyData: null,
 			copilotTokenInfo: null
@@ -1809,7 +1826,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		if (currentSessionRemoved) {
 			try {
 				const sessions = await this.authenticationService.getSessions(MICROSOFT_DEFAULT_ACCOUNT_PROVIDER_ID, undefined, {}, true);
-				if (this.rememberedMicrosoftAccountLabel === current.accountName && !sessions.some(session => session.account.label === current.accountName)) {
+				if (this.rememberedMicrosoftAccount?.label === current.accountName && !sessions.some(session => session.account.label === current.accountName)) {
 					this.logService.info('[DefaultAccount] The remembered Microsoft account signed out, forgetting it');
 					await this.forgetMicrosoftAccount();
 					return;

@@ -187,7 +187,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	private readonly _activeStaticComputes = new Set<ProtocolURI>();
 	private readonly _incrementalTrackerBaselines = new WeakSet<readonly ChangesetFile[]>();
 	private readonly _scheduledStaticRecomputes = new Map<string, {
-		readonly requests: IStaticChangesetRequest[];
+		requests: IStaticChangesetRequest[];
 	}>();
 	private readonly _unavailableBranchOwners = new Set<ProtocolURI>();
 	private readonly _failedBranchOwners = new Set<ProtocolURI>();
@@ -1422,7 +1422,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		)).finally(() => limiter.dispose());
 	}
 
-	private async _computeBranchDiffs(session: ProtocolURI, workingDirectory: string | undefined): Promise<BranchDiffResult> {
+	private async _computeBranchDiffs(session: ProtocolURI, workingDirectory: string | undefined, repositoryFingerprints?: ReadonlyMap<string, string>): Promise<BranchDiffResult> {
 		if (!workingDirectory) {
 			return { kind: 'nonGit' };
 		}
@@ -1437,7 +1437,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 		try {
 			const baseBranch = await this._resolveBranchBaseBranch(session);
-			const diffs = await this._gitService.computeSessionFileDiffs(workingDirectoryUri, { sessionUri: session, baseBranch });
+			const fingerprint = repositoryFingerprints?.get(workingDirectoryUri.toString());
+			const diffs = await this._gitService.computeSessionFileDiffs(workingDirectoryUri, { sessionUri: session, baseBranch, fingerprint });
 			if (diffs) {
 				return { kind: 'ready', diffs };
 			}
@@ -1486,7 +1487,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 					computedDiffs.set(repoRoot.toString(), previous);
 					return previous.diffs;
 				}
-				const diffs = await this._gitService.computeSessionFileDiffs(repoRoot, { sessionUri: session, baseBranch });
+				const diffs = await this._gitService.computeSessionFileDiffs(repoRoot, { sessionUri: session, baseBranch, fingerprint });
 				if (diffs && fingerprint !== undefined) {
 					computedDiffs.set(repoRoot.toString(), { fingerprint, diffs });
 				}
@@ -2055,7 +2056,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * Schedules a static changeset (`branch` or `session`) recompute,
 	 * serialised per-session so back-to-back triggers don't race against
 	 * stale `previousDiffs` reads. Fire-and-forget — failures are logged
-	 * but do not fail the turn.
+	 * but do not fail the turn. A Branch computation that succeeds serves the
+	 * requests queued before it read Git, except those that report telemetry.
 	 */
 	private _scheduleStaticRecompute(session: ProtocolURI, kind: StaticChangesetKind, changedTurnId?: string, reportTelemetry: boolean = false, clientContext?: IAgentHostClientTelemetryContext, strategy: ChangesetDiffStrategy = 'auto'): void {
 		const provider = reportTelemetry ? this._getTelemetryProvider(session) : undefined;
@@ -2088,7 +2090,13 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			try {
 				while (scheduled.requests.length > 0) {
 					const request = scheduled.requests.shift()!;
-					await this._doComputeStaticChangeset(session, kind, request.changedTurnId, request.statusBeforeRefresh, request.provider, request.clientContext, request.strategy);
+					let queuedBeforeGitRead: readonly IStaticChangesetRequest[] = [];
+					await this._doComputeStaticChangeset(session, kind, request.changedTurnId, request.statusBeforeRefresh, request.provider, request.clientContext, request.strategy, () => queuedBeforeGitRead = [...scheduled.requests]);
+					// A recorded fingerprint means the computation succeeded, so it saw the changes behind the requests queued before it read Git.
+					// Requests that report telemetry still run, so that each reports an outcome.
+					if (queuedBeforeGitRead.length > 0 && this._branchDiffFingerprints.has(session)) {
+						scheduled.requests = scheduled.requests.filter(queued => queued.provider !== undefined || !queuedBeforeGitRead.includes(queued));
+					}
 				}
 			} finally {
 				if (this._scheduledStaticRecomputes.get(key) === scheduled) {
@@ -2107,14 +2115,16 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	/**
 	 * A token for the inputs of the Branch changeset of `owner`: the folder's repositories, the base branch and
 	 * what each repository's {@link IAgentHostGitService.getBranchDiffFingerprint} reports. `undefined` when
-	 * they cannot all be determined cheaply, in which case the changeset must be computed.
+	 * they cannot all be determined cheaply, in which case the changeset must be computed. `onWillReadGit` runs
+	 * once the base branch is known, before the repositories and their Git state are read.
 	 */
-	private async _computeBranchFingerprint(owner: ProtocolURI, workingDirectories: readonly string[] | undefined): Promise<{ readonly fingerprint: string; readonly repositories: ReadonlyMap<string, string> } | undefined> {
+	private async _computeBranchFingerprint(owner: ProtocolURI, workingDirectories: readonly string[] | undefined, onWillReadGit?: () => void): Promise<{ readonly fingerprint: string; readonly repositories: ReadonlyMap<string, string> } | undefined> {
 		if (!workingDirectories?.length) {
 			return undefined;
 		}
 		try {
 			const baseBranch = await this._resolveBranchBaseBranch(owner);
+			onWillReadGit?.();
 			const directories = isMultiRootSession(workingDirectories)
 				? (await resolveSessionRepositories(workingDirectories.map(directory => URI.parse(directory)), this._gitService)).gitRepositories
 				: [URI.parse(workingDirectories[0])];
@@ -2153,7 +2163,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		return previous;
 	}
 
-	private async _doComputeStaticChangeset(session: ProtocolURI, kind: StaticChangesetKind, changedTurnId?: string, statusBeforeRefresh?: ChangesetState, provider?: string, clientContext?: IAgentHostClientTelemetryContext, strategy: ChangesetDiffStrategy = 'auto'): Promise<void> {
+	private async _doComputeStaticChangeset(session: ProtocolURI, kind: StaticChangesetKind, changedTurnId?: string, statusBeforeRefresh?: ChangesetState, provider?: string, clientContext?: IAgentHostClientTelemetryContext, strategy: ChangesetDiffStrategy = 'auto', onWillReadBranchGit?: () => void): Promise<void> {
 		if (this._isVirtualWorkspace(session)) {
 			this._publishEmptyChangeset(session, staticChangesetUri(session, kind));
 			return;
@@ -2196,17 +2206,19 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		let repositoryFingerprints: ReadonlyMap<string, string> | undefined;
 		const forcedRefreshes = this._branchForcedRefreshes.get(session);
 		if (kind === ChangesetKind.Branch) {
-			const fingerprinted = await this._computeBranchFingerprint(session, workingDirectories);
+			const fingerprinted = await this._computeBranchFingerprint(session, workingDirectories, onWillReadBranchGit);
 			branchFingerprint = fingerprinted?.fingerprint;
 			repositoryFingerprints = fingerprinted?.repositories;
 			const published = this._stateManager.getChangesetState(changesetUri);
 			const reusable = published?.status === ChangesetStatus.Ready ? published : statusBeforeRefresh?.status === ChangesetStatus.Ready ? statusBeforeRefresh : undefined;
-			// A computation asked to report telemetry, as at the end of a turn, runs even when nothing changed.
-			if (provider === undefined && branchFingerprint !== undefined && reusable && branchFingerprint === this._branchDiffFingerprints.get(session)) {
+			if (branchFingerprint !== undefined && reusable && branchFingerprint === this._branchDiffFingerprints.get(session)) {
 				this._logService.trace(`[AgentHostChangesetService] Branch changeset of ${session} is current; skipping its computation`);
 				this._restoreStaticChangesetStatus(changesetUri, reusable);
 				// The operations follow Git state the fingerprint does not cover, such as the commits ahead of the upstream.
 				this._changesetOperationService.updateOperations(session, changesetUri);
+				// A computation asked to report telemetry, as at the end of a turn, reports that its result was current.
+				outcome = 'unchanged';
+				emitStaticTelemetry();
 				return;
 			}
 			if (this._store.isDisposed) {
@@ -2277,7 +2289,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				branchResult = await this._computeMultiFolderBranchDiffs(session, workingDirectories!, repositoryFingerprints);
 				diffs = branchResult.kind === 'ready' ? branchResult.diffs : undefined;
 			} else if (kind === 'branch') {
-				branchResult = await this._computeBranchDiffs(session, workingDirectories?.[0]);
+				branchResult = await this._computeBranchDiffs(session, workingDirectories?.[0], repositoryFingerprints);
 				diffs = branchResult.kind === 'ready' ? branchResult.diffs : undefined;
 			} else if (strategy !== 'fileEditTracker' && !useActiveTurnEdits) {
 				if (isMultiRootSession(workingDirectories)) {

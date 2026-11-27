@@ -14,6 +14,7 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../../base/common/observable.js';
 import { isMacintosh, isWindows } from '../../../../../base/common/platform.js';
 import { ResourceTree } from '../../../../../base/common/resourceTree.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -330,24 +331,24 @@ suite('SCM structural diff tree', () => {
 		assert.deepStrictEqual({ withoutProvider, enabled, disabled }, { withoutProvider: false, enabled: true, disabled: false });
 	});
 
-	test('the menu command toggles the active Source Control view and reports the new state', async () => {
-		const view = new class extends mock<SCMViewPane>() {
-			private show = true;
-			override get showStructuralDiff(): boolean { return this.show; }
-			override set showStructuralDiff(value: boolean) { this.show = value; }
-		};
+	test('the menu command shows or hides structural changes in the workspace and reports the new state', async () => {
+		const shown = observableValue('showStructuralDiff', true);
 		const events: Record<string, unknown>[] = [];
 		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(IViewsService, {}, 'getActiveViewWithId', () => view);
+		instantiationService.stub(IViewsService, {}, 'getActiveViewWithId', () => new class extends mock<SCMViewPane>() { });
+		instantiationService.set(ISCMViewService, new class extends mock<ISCMViewService>() {
+			override readonly showStructuralDiff = shown;
+			override setShowStructuralDiff(show: boolean): void { shown.set(show, undefined); }
+		});
 		instantiationService.set(ITelemetryService, new class extends mock<ITelemetryService>() {
 			override publicLog2(eventName: string, data?: Record<string, unknown>): void { events.push({ eventName, ...data }); }
 		});
 		const command = CommandsRegistry.getCommand('workbench.scm.action.toggleShowStructuralDiff');
 		assert.ok(command);
 		await instantiationService.invokeFunction(command.handler);
-		const unchecked = view.showStructuralDiff;
+		const unchecked = shown.get();
 		await instantiationService.invokeFunction(command.handler);
-		assert.deepStrictEqual({ states: [unchecked, view.showStructuralDiff], events }, {
+		assert.deepStrictEqual({ states: [unchecked, shown.get()], events }, {
 			states: [false, true],
 			events: [{ eventName: 'scmStructuralDiffToggled', enabled: 0 }, { eventName: 'scmStructuralDiffToggled', enabled: 1 }],
 		});

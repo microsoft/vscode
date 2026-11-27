@@ -12,9 +12,9 @@ import { ISessionsListModelService } from '../../../../workbench/contrib/session
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 
 /**
- * Shows an automation session in the sessions list once the user sends a message
- * in it, when {@link SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING} is `afterReply`.
- * The automation's own prompts never reach this window's chat service, so an
+ * Shows a session in the sessions list once the user sends a message in it: an automation session when
+ * {@link SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING} is `afterReply`, and a session left out of the list by default
+ * while its canvas is in the sidebar. The automation's own prompts never reach this window's chat service, so an
  * accepted request that is neither system-initiated nor hidden is the user's.
  */
 export class AutomationSessionsListingContribution extends Disposable implements IWorkbenchContribution {
@@ -30,7 +30,14 @@ export class AutomationSessionsListingContribution extends Disposable implements
 		super();
 		this._register(chatService.onDidAcceptRequest(({ chatSessionResource }) => {
 			const session = sessionsManagementService.getSessionForChatResource(chatSessionResource)?.session;
-			if (!session?.isAutomation?.get() || session.isScheduledChat?.get()) {
+			if (!session) {
+				return;
+			}
+			if (!session.isAutomation?.get()) {
+				sessionsListModelService.showRepliedCanvasSession(session);
+				return;
+			}
+			if (session.isScheduledChat?.get()) {
 				return;
 			}
 			if (configurationService.getValue<AutomationSessionsListMode>(SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING) === AutomationSessionsListMode.AfterReply) {

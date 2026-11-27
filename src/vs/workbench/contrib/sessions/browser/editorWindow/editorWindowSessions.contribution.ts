@@ -28,6 +28,7 @@ import { ISessionsListPresentation } from '../sessionsListPresentation.js';
 import { SessionsManagementService } from '../sessionsManagementService.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { EditorWindowSessionsProvidersService } from './editorWindowSessionsProvidersService.js';
+import { IWorkspaceFolderRepositories, WorkspaceFolderRepositories } from '../workspaceFolderRepositories.js';
 import { ISessionsRecentWorkspacesService, SessionsRecentWorkspacesService } from '../sessionsRecentWorkspacesService.js';
 import { IAgentHostFilterService } from '../../common/agentHostFilter.js';
 import { ISessionComparisonService } from '../../common/sessionComparison.js';
@@ -51,6 +52,7 @@ import { FocusedSessionHostService, SessionHostService } from '../sessionHostSer
 import { ISessionWorktreeCleanupService, SessionWorktreeCleanupService } from '../sessionInputBanners/sessionWorktreeCleanupService.js';
 import { SessionWorktreeCleanupEditor } from '../sessionInputBanners/sessionWorktreeCleanupEditor.js';
 import { ISessionsListModelService, SessionsListModelService } from '../sessionsListModelService.js';
+import { ISessionsListUndoService, SessionsListUndoService } from '../sessionsListUndoService.js';
 import { ISessionDraftsService, SessionDraftsService } from '../sessionDraftsService.js';
 import { IScheduledChatsService, ScheduledChatsService } from '../scheduledChatsService.js';
 import { IChatWindowService } from '../../../chatWindow/browser/chatWindow.js';
@@ -85,6 +87,7 @@ import { EditorWindowComposerFoldersService, IEditorWindowComposerFoldersService
 registerWorkbenchContribution2(EditorWindowWorktreeCleanup.ID, EditorWindowWorktreeCleanup, { editorTypeId: SessionWorktreeCleanupEditor.ID });
 registerEditorWindowSessionsSingleton(ISessionsHostLayoutService, EditorWindowSessionsHostLayout, InstantiationType.Delayed);
 registerEditorWindowSessionsSingleton(ISessionsProvidersService, EditorWindowSessionsProvidersService, InstantiationType.Delayed);
+registerEditorWindowSessionsSingleton(IWorkspaceFolderRepositories, WorkspaceFolderRepositories, InstantiationType.Delayed);
 registerEditorWindowSessionsSingleton(ISessionsManagementService, SessionsManagementService, InstantiationType.Delayed);
 registerEditorWindowSessionsSingleton(IChatHostOpenerService, ChatHostOpenerService, InstantiationType.Delayed);
 registerEditorWindowSessionsSingleton(ISessionChangesStatsCache, SessionChangesStatsCache, InstantiationType.Delayed);
@@ -115,6 +118,7 @@ registerEditorWindowSessionsSingleton(IDiffEditorOptionsService, DiffEditorOptio
 // The sessions UI that a feature hosts in an editor window, such as a sessions list or the chat part: its hosts, its
 // composers' drafts and scheduled requests, and the changes of its sessions, as the Agents window has them
 registerEditorWindowSessionsSingleton(ISessionsListModelService, SessionsListModelService, InstantiationType.Delayed);
+registerEditorWindowSessionsSingleton(ISessionsListUndoService, SessionsListUndoService, InstantiationType.Delayed);
 registerEditorWindowSessionsSingleton(ISessionHostService, SessionHostService, InstantiationType.Delayed);
 registerEditorWindowSessionsSingleton(IFocusedSessionHostService, FocusedSessionHostService, InstantiationType.Delayed);
 registerEditorWindowSessionsSingleton(IGitHubService, GitHubService, InstantiationType.Delayed);

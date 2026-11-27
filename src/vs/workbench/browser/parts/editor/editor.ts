@@ -382,6 +382,12 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 
 	readonly onDidCloseEditor: Event<IEditorCloseEvent>;
 
+	/**
+	 * Fires when the group lays itself out again at its last size, such as
+	 * when the height of its title changes.
+	 */
+	readonly onDidRelayout: Event<void>;
+
 	readonly groupsView: IEditorGroupsView;
 
 	/**

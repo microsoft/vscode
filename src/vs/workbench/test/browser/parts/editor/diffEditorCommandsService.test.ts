@@ -60,13 +60,13 @@ suite('DiffEditorCommandsService', () => {
 		return editor;
 	}
 
-	function createService(activeEditorPane: IEditorPane | undefined): { service: DiffEditorCommandsService; resourceWrites: IWrite[] } {
+	function createService(activeEditorPane: IEditorPane | undefined, visibleEditorPanes: readonly IVisibleEditorPane[] = []): { service: DiffEditorCommandsService; resourceWrites: IWrite[] } {
 		const resourceWrites: IWrite[] = [];
 
 		const editorService = new class extends mock<IEditorService>() {
 			override get activeEditorPane() { return activeEditorPane as IVisibleEditorPane | undefined; }
 			override get activeEditor() { return undefined; }
-			override get visibleEditorPanes() { return []; }
+			override get visibleEditorPanes() { return [...visibleEditorPanes]; }
 			override get visibleEditors() { return []; }
 		};
 		const textResourceConfigurationService = new class extends mock<ITextResourceConfigurationService>() {
@@ -199,5 +199,45 @@ suite('DiffEditorCommandsService', () => {
 			resetAllCalls: 1,
 			resetActiveControlCalls: 0,
 		});
+	});
+
+	test('sets and toggles the view mode of an active editor that lays out its diffs by its own view mode, not the diff editor settings, unless a resource is targeted', async () => {
+		const model = { uri: URI.file('/foo.txt') } as ITextModel;
+		const control = createDiffEditorControl(model, false, false);
+		const calls: string[] = [];
+		const pane = new class extends mock<IEditorPane>() {
+			override getControl() { return control; }
+			setDiffEditorViewMode(mode: string): void { calls.push(`set:${mode}`); }
+			toggleDiffEditorRenderSideBySide(): void { calls.push('toggle'); }
+		};
+		const { service, resourceWrites } = createService(pane);
+
+		await service.setViewMode([], 'inline');
+		await service.toggleRenderSideBySide([]);
+		await service.setViewMode([model.uri], 'sideBySide');
+
+		assert.deepStrictEqual({ calls, resourceWrites }, {
+			calls: ['set:inline', 'toggle'],
+			resourceWrites: [
+				{ resource: model.uri, key: 'diffEditor.renderSideBySide', value: true },
+				{ resource: model.uri, key: 'diffEditor.useInlineViewWhenSpaceIsLimited', value: false },
+			],
+		});
+	});
+
+	test('sets the view mode of the editor of the group a view mode command is invoked from, though another editor is active', async () => {
+		const model = { uri: URI.file('/foo.txt') } as ITextModel;
+		const calls: string[] = [];
+		const owner = new class extends mock<IVisibleEditorPane>() {
+			override get group() { return { id: 2 } as IVisibleEditorPane['group']; }
+			setDiffEditorViewMode(mode: string): void { calls.push(`set:${mode}`); }
+			toggleDiffEditorRenderSideBySide(): void { calls.push('toggle'); }
+		};
+		const { service, resourceWrites } = createService(createTextDiffEditor(createDiffEditorControl(model, false, false)), [owner]);
+
+		await service.setViewMode([{ groupId: 2 }], 'inline');
+		await service.toggleRenderSideBySide([undefined, { groupId: 2 }]);
+
+		assert.deepStrictEqual({ calls, resourceWrites }, { calls: ['set:inline', 'toggle'], resourceWrites: [] });
 	});
 });

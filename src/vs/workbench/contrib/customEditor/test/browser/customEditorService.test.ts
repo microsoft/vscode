@@ -9,13 +9,18 @@ import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { UndoCommand, RedoCommand } from '../../../../../editor/browser/editorExtensions.js';
+import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { ContextKeyValue } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IVisibleEditorPane } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IEditorGroup, IEditorGroupContextKeyProvider, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { TestEditorInput } from '../../../../test/browser/workbenchTestServices.js';
+import { CustomEditorInput } from '../../browser/customEditorInput.js';
 import { CustomEditorService } from '../../browser/customEditors.js';
 import { CONTEXT_ACTIVE_CUSTOM_EDITOR_ID, ICustomEditorCompatibleInput } from '../../common/customEditor.js';
 
@@ -51,5 +56,46 @@ suite('CustomEditorService', () => {
 			compatible: 'test.replacedCustomEditor',
 			other: '',
 		});
+	});
+
+	test('blocks workbench undo and redo when active custom editor is read-only', () => {
+		const editorGroupsService = new class extends mock<IEditorGroupsService>() {
+			override registerContextKeyProvider(): IDisposable {
+				return Disposable.None;
+			}
+		}();
+		const fileService = new class extends mock<IFileService>() {
+			override readonly onDidRunOperation = Event.None;
+		}();
+		let readonly = true;
+		const calls: string[] = [];
+		const activeEditor = Object.create(CustomEditorInput.prototype) as CustomEditorInput;
+		Object.assign(activeEditor, {
+			isReadonly: () => readonly,
+			undo: () => { calls.push('undo'); },
+			redo: () => { calls.push('redo'); },
+		});
+		const editorService = new class extends mock<IEditorService>() {
+			override readonly activeEditor = activeEditor;
+			override readonly activeEditorPane = undefined;
+		}();
+		disposables.add(new CustomEditorService(fileService, editorService, editorGroupsService));
+
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ICodeEditorService, { getFocusedCodeEditor: () => null });
+		instantiationService.stub(IEditorService, editorService);
+		instantiationService.invokeFunction(accessor => {
+			UndoCommand.runCommand(accessor, {});
+			RedoCommand.runCommand(accessor, {});
+		});
+		assert.deepStrictEqual(calls, []);
+
+		readonly = false;
+		instantiationService.invokeFunction(accessor => {
+			UndoCommand.runCommand(accessor, {});
+			RedoCommand.runCommand(accessor, {});
+		});
+		assert.deepStrictEqual(calls, ['undo', 'redo']);
 	});
 });

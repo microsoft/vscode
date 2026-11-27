@@ -12,8 +12,8 @@
 # connections it needs, so automation that queues it never gets access to the
 # signing, publishing or release credentials. The shared templates drop every
 # step and job that references one of those connections when their
-# VSCODE_PRIVILEGED_CONNECTIONS parameter is false, which only this pipeline
-# and product-build-ci.yml (for the quality checks) pass:
+# VSCODE_PRIVILEGED_CONNECTIONS parameter is false. Every caller passes it
+# explicitly and only builds of main and release/* branches pass true:
 #
 #   git grep VSCODE_PRIVILEGED_CONNECTIONS -- build/azure-pipelines
 #
@@ -42,14 +42,6 @@ parameters:
     displayName: "Build Title Prefix"
     type: string
     default: none
-  - name: NPM_REGISTRY
-    displayName: "Custom NPM Registry"
-    type: string
-    default: 'https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/'
-  - name: CARGO_REGISTRY
-    displayName: "Custom Cargo Registry"
-    type: string
-    default: 'sparse+https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/Cargo/index/'
   # SDK -> VS Code integration: override Copilot dependencies with versions
   # already published to the private feed. 'none' = use the OSS SDK version.
   # See microsoft/vscode-engineering specs/sdk-vscode-integration.spec.md.
@@ -71,9 +63,11 @@ variables:
   - name: VSCODE_PRIVATE_BUILD
     value: ${{ ne(variables['Build.Repository.Uri'], 'https://github.com/microsoft/vscode.git') }}
   - name: NPM_REGISTRY
-    value: ${{ parameters.NPM_REGISTRY }}
+    value: 'https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/'
+    readonly: true
   - name: CARGO_REGISTRY
-    value: ${{ parameters.CARGO_REGISTRY }}
+    value: 'sparse+https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/Cargo/index/'
+    readonly: true
   # Normalize sentinels back to empty so the override script can distinguish
   # the normal SDK and inferred runtime paths.
   - name: VSCODE_SDK_CANARY_VERSION
@@ -91,8 +85,6 @@ variables:
   - name: VSCODE_CIBUILD
     value: false
   - name: VSCODE_PUBLISH
-    value: false
-  - name: VSCODE_STEP_ON_IT
     value: false
   # Keep the legacy notice: there is no Quality stage producing the CG notice.
   - name: VSCODE_OVERWRITE_TPN

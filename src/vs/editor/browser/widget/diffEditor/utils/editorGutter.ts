@@ -18,6 +18,11 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 	private readonly editorOnDidChangeViewZones;
 	private readonly editorOnDidContentSizeChange;
 	private readonly domNodeSizeChanged;
+	/**
+	 * The DOM node's height, read as it resizes: reading it as the editor
+	 * scrolls would force a layout on every scroll event.
+	 */
+	private domNodeHeight: number;
 
 	constructor(
 		private readonly _editor: CodeEditorWidget,
@@ -43,8 +48,10 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 			h('div.scroll-decoration', { role: 'presentation', ariaHidden: 'true', style: { width: '100%' } })
 				.root
 		);
+		this.domNodeHeight = this._domNode.clientHeight;
 
 		const o = new ResizeObserver(() => {
+			this.domNodeHeight = this._domNode.clientHeight;
 			transaction(tx => {
 				/** @description ResizeObserver: size changed */
 				this.domNodeSizeChanged.trigger(tx);
@@ -83,7 +90,7 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 		const visibleRanges = this._editor.getVisibleRanges();
 		const unusedIds = new Set(this.views.keys());
 
-		const viewRange = OffsetRange.ofStartAndLength(0, this._domNode.clientHeight);
+		const viewRange = OffsetRange.ofStartAndLength(0, this.domNodeHeight);
 
 		if (!viewRange.isEmpty) {
 			for (const visibleRange of visibleRanges) {

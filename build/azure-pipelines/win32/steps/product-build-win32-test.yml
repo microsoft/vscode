@@ -46,7 +46,6 @@ steps:
         exec { pnpm -C test/smoke run compile }
         exec { pnpm -C test/integration/browser run compile }
       displayName: Compile test suites (non-OSS)
-      condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - template: ../../common/restore-playwright-browsers.yml@self
 

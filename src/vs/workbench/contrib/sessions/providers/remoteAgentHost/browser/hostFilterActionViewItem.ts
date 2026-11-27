@@ -24,6 +24,7 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { IRemoteGitHubEnvironmentSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry, IAgentHostFilterService } from '../../../common/agentHostFilter.js';
+import { getSessionsTelemetryProviderId } from '../../../common/sessionsTelemetry.js';
 import { ShowConnectionDiagnosticsCommandId } from './connectionDiagnostics.js';
 
 /**
@@ -496,7 +497,7 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 					? localize('agentHostFilter.hostConnecting', "{0} (connecting…)", host.label)
 					: localize('agentHostFilter.hostDisconnected', "{0} (disconnected)", host.label);
 			actions.push(toAction({
-				id: `agentHostFilter.host.${host.id}`,
+				id: `agentHostFilter.host.${host.grouped ? host.id : getSessionsTelemetryProviderId(host.id)}`,
 				label,
 				tooltip: host.description ?? '',
 				class: selectedId === host.id ? 'codicon codicon-check' : undefined,

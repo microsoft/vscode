@@ -7,6 +7,7 @@ import assert from 'assert';
 import * as dom from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { timeout } from '../../../base/common/async.js';
+import { IDefaultAccount } from '../../../base/common/defaultAccount.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../base/common/observable.js';
@@ -41,7 +42,7 @@ function query<T extends HTMLElement>(container: ParentNode, selector: string): 
 	return element;
 }
 
-async function createHarness(store: Pick<DisposableStore, 'add'>, ctor: typeof MobileTitlebarPart) {
+async function createHarness(store: Pick<DisposableStore, 'add'>, ctor: typeof MobileTitlebarPart, defaultAccount: IDefaultAccount | null = null) {
 	const container = dom.append(mainWindow.document.body, dom.$('div'));
 	store.add(toDisposable(() => container.remove()));
 	const instantiationService = store.add(new TestInstantiationService());
@@ -71,7 +72,8 @@ async function createHarness(store: Pick<DisposableStore, 'add'>, ctor: typeof M
 	});
 	instantiationService.stub(IDefaultAccountService, {
 		onDidChangeDefaultAccount: Event.None,
-		getDefaultAccount: async () => null,
+		currentDefaultAccount: defaultAccount,
+		getDefaultAccount: async () => defaultAccount,
 	});
 	instantiationService.stub(IAuthenticationService, {
 		onDidChangeSessions: Event.None,
@@ -213,6 +215,28 @@ suite('Sessions - MobileTitlebarPart isolation', () => {
 				inChat: { showActions: false, newSession: '', account: 'none', changes: '', titleFocused: true, added: '+3', removed: '-1' },
 				newSessionClicks: 1, titleClicks: 1, sidebarClicks: 1, commands: [MOBILE_OPEN_CHANGES_VIEW_COMMAND_ID],
 				emptyToolbar: true, changesHidden: 'none',
+			});
+		});
+
+		test(`${titlebar} shows the account dashboard only for an account with a GitHub credential`, async () => {
+			const sheetShowsDashboard = async (providerId: string, providerName: string) => {
+				const h = await createHarness(store, ctor, {
+					authenticationProvider: { id: providerId, name: providerName, enterprise: false },
+					accountName: 'Alex',
+					sessionId: 'test-session',
+					enterprise: false,
+				});
+				query<HTMLButtonElement>(h.container, '.mobile-account-indicator').click();
+				const sheet = query(h.container, '.mobile-account-sheet');
+				return { provider: query(sheet, '.mobile-account-sheet-provider').textContent, dashboard: !!sheet.textContent?.includes('Account status') };
+			};
+
+			assert.deepStrictEqual({
+				microsoft: await sheetShowsDashboard('microsoft', 'Microsoft'),
+				github: await sheetShowsDashboard('github', 'GitHub'),
+			}, {
+				microsoft: { provider: 'Microsoft', dashboard: false },
+				github: { provider: 'GitHub', dashboard: true },
 			});
 		});
 

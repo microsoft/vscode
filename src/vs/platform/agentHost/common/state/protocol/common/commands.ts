@@ -1554,6 +1554,15 @@ export interface AuthenticateParams extends BaseParams {
 	 * @minLength 1
 	 */
 	accountId?: string;
+	/**
+	 * Optional OpenID Connect ID Token issued with `token`, forwarded unchanged
+	 * (`id_token` in an OpenID Connect token response). Lets the host read
+	 * identity claims that the opaque access token and `accountId` do not expose.
+	 * see {@link /specification/authentication#id-tokens | ID tokens}.
+	 *
+	 * @minLength 1
+	 */
+	idToken?: string;
 }
 
 /**

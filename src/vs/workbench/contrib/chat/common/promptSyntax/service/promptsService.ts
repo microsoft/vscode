@@ -122,10 +122,6 @@ export enum PromptsStorage {
 	builtIn = 'builtin',
 }
 
-export function isUserToggleableCustomization(type: PromptsType, storage: PromptsStorage): boolean {
-	return type === PromptsType.skill && storage === PromptsStorage.builtIn;
-}
-
 /**
  * Represents a prompt path with its type.
  * This is used for both prompt files and prompt source folders.
@@ -188,10 +184,6 @@ export interface IExtensionPromptPath extends IPromptPathBase {
 	readonly when?: string;
 }
 
-export function isExtensionPromptPath(obj: IPromptPath): obj is IExtensionPromptPath {
-	return obj.storage === PromptsStorage.extension;
-}
-
 export interface ILocalPromptPath extends IPromptPathBase {
 	readonly storage: PromptsStorage.local;
 }
@@ -212,10 +204,6 @@ export interface IPluginPromptPath extends IPromptPathBase {
  */
 export interface IBuiltinPromptPath extends IPromptPathBase {
 	readonly storage: PromptsStorage.builtIn;
-}
-
-export function isBuiltinPromptPath(obj: IPromptPath): obj is IBuiltinPromptPath {
-	return obj.storage === PromptsStorage.builtIn;
 }
 
 export type IAgentSource = ({
@@ -712,13 +700,6 @@ export interface IPromptsService extends IDisposable {
 	 */
 	parseNew(uri: URI, token: CancellationToken): Promise<ParsedPromptFile>;
 
-	/**
-	 * Internal: register a contributed file. Returns a disposable that removes the contribution.
-	 * Not intended for extension authors; used by contribution point handler.
-	 */
-	registerContributedFile(type: PromptsType, uri: URI, extension: IExtensionDescription, name: string | undefined, description: string | undefined, when?: string, sessionTypes?: readonly string[]): IDisposable;
-
-
 	getPromptLocationLabel(promptPath: IPromptPath): string;
 
 	/**
@@ -759,18 +740,6 @@ export interface IPromptsService extends IDisposable {
 	 * Persists the set of disabled prompt file URIs for the given type.
 	 */
 	setDisabledPromptFiles(type: PromptsType, uris: ResourceSet): void;
-
-	/**
-	 * Registers a prompt file provider that can provide prompt files for repositories.
-	 * @param extension The extension registering the provider.
-	 * @param type The type of contribution.
-	 * @param provider The provider implementation with optional change event.
-	 * @returns A disposable that unregisters the provider when disposed.
-	 */
-	registerPromptFileProvider(extension: IExtensionDescription, type: PromptsType, provider: {
-		onDidChangePromptFiles?: Event<void>;
-		providePromptFiles: (context: IPromptFileContext, token: CancellationToken) => Promise<IPromptFileResource[] | undefined>;
-	}): IDisposable;
 
 	/**
 	 * Gets list of agent skills files.

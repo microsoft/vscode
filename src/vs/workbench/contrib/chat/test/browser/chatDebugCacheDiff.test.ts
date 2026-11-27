@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { appendSystemDrift, appendToolsDrift, CacheDiffKind, diffPromptSignature, formatSignatureToken, parseInputMessages } from '../../browser/chatDebug/chatDebugCacheDiff.js';
+import { appendSystemDrift, appendToolsDrift, CacheDiffKind, diffPromptSignature, parseInputMessages } from '../../browser/chatDebug/chatDebugCacheDiff.js';
 
 function msg(role: string, content: string, name?: string) {
 	const part: { type: string; content: string; name?: string } = { type: 'text', content };
@@ -206,23 +206,6 @@ suite('chatDebugCacheDiff', () => {
 					lengthChange: [{ name: 'tools', status: CacheDiffKind.LengthChange, aSize: 3, bSize: 5 }, msg],
 					afterSystem: [sys, { name: 'tools', status: CacheDiffKind.LengthChange, aSize: 3, bSize: 5 }, msg],
 				},
-			);
-		});
-	});
-
-	suite('formatSignatureToken', () => {
-		test('formats identical, drift, and one-sided tokens', () => {
-			assert.strictEqual(
-				formatSignatureToken({ index: 0, kind: CacheDiffKind.Identical, aRole: 'user', aCharLength: 12, bRole: 'user', bCharLength: 12 }),
-				'user:12',
-			);
-			assert.strictEqual(
-				formatSignatureToken({ index: 1, kind: CacheDiffKind.LengthChange, aRole: 'user', aCharLength: 5, bRole: 'user', bCharLength: 8 }),
-				'user:5\u21928',
-			);
-			assert.strictEqual(
-				formatSignatureToken({ index: 2, kind: CacheDiffKind.OnlyInB, bRole: 'tool', bName: 'fs_read', bCharLength: 320 }),
-				'tool-fs_read:0\u2192320',
 			);
 		});
 	});

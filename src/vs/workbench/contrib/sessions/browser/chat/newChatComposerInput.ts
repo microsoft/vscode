@@ -148,6 +148,13 @@ export interface INewChatComposerInputOptions {
 	 * composer restores from it, writes every change to it and brackets each send with an attempt.
 	 */
 	readonly inputSnapshot?: IComposerInputSnapshot;
+	/**
+	 * Gives back the input of a send that did not go out once the composer is gone, such as when the session of its draft
+	 * was removed because its request did not start it, and returns whether another composer took it. Otherwise the composer
+	 * saves it as the draft that the next composer restores, unless that has input. A host with an {@link inputSnapshot}
+	 * gets the input back from its snapshot instead.
+	 */
+	readonly restoreUnsentInput?: (input: IChatDraft) => boolean;
 	readonly getSavedDraftId?: () => string | undefined;
 	readonly onDidChangeDraft?: (draft: IChatDraft) => void;
 	readonly onWillSendDraft?: (draft: IChatDraft) => void;

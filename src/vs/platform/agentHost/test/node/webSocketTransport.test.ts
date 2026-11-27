@@ -104,6 +104,25 @@ suite('WebSocketProtocolServer', () => {
 		}
 	});
 
+	test('reports close once when the host disposes the transport', async () => {
+		const server = store.add(await WebSocketProtocolServer.create({ port: 0 }, new NullLogService()));
+		await server.whenListening;
+		const connection = Event.toPromise(server.onConnection);
+		const socket = await connect(`ws://127.0.0.1:${server.boundPort}/`);
+		store.add(toDisposable(() => socket.close()));
+		const accepted = await connection;
+		let closeCount = 0;
+		store.add(accepted.onClose(() => closeCount++));
+		const clientClosed = new Promise<void>(resolve => socket.once('close', () => resolve()));
+
+		accepted.dispose();
+		const closedOnDispose = closeCount;
+		await clientClosed;
+		accepted.dispose();
+
+		assert.deepStrictEqual({ closedOnDispose, closeCount }, { closedOnDispose: 1, closeCount: 1 });
+	});
+
 	for (const query of ['', `?${connectionTokenQueryName}=wrong`]) {
 		test(`rejects ${query ? 'invalid' : 'missing'} connection tokens when a validator is configured`, async () => {
 			const server = store.add(await WebSocketProtocolServer.create({

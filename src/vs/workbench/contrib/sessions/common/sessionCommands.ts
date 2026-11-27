@@ -21,6 +21,9 @@ export const UNARCHIVE_SESSION_COMMAND_ID = 'sessionsViewPane.unarchiveSession';
 /** Renames a session. Registered in `sessionsViewActions.ts`. */
 export const RENAME_SESSION_COMMAND_ID = 'sessionsViewPane.renameSession';
 
+/** Opens the root folder (project or repository, not a worktree) of a sessions list section, in a new editor window. Registered in `sessionsListActions.ts`. */
+export const OPEN_SESSION_SECTION_FOLDER_IN_NEW_WINDOW_COMMAND_ID = 'sessionsViewPane.openSectionFolderInNewWindow';
+
 /** Renames a chat. Registered in `sessionsActions.ts`. */
 export const RENAME_CHAT_COMMAND_ID = 'sessions.chatCompositeBar.renameChat';
 
@@ -55,6 +58,12 @@ export const SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID = 'sessionsViewPane.show
 /** Lists automation sessions only in Automations again. Registered in `sessionsViewActions.ts`. */
 export const HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID = 'sessionsViewPane.hideAutomationSessionFromList';
 
+/**
+ * Leaves sessions out of the Sessions list while their canvas is in the sidebar, offering to undo it. Registered in
+ * `sessionsListActions.ts`; the sidebar's pinned canvases run it for their session.
+ */
+export const HIDE_CANVAS_SESSION_FROM_LIST_COMMAND_ID = 'sessionsViewPane.hideCanvasSessionFromList';
+
 export const SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID = 'sessionsViewPane.showApplicationFilters';
 
 export {
@@ -80,11 +89,29 @@ export const COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID = 'sessions.copyAgentHostChatL
 export const FOCUS_ACTIVE_SESSION_COMMAND_ID = 'sessions.focusActiveSession';
 
 export const ARRANGE_SESSIONS_COMMAND_ID = 'sessions.arrangeSessions';
+/** Gives the session panes, and the chat groups of each, equal sizes without changing their arrangement. */
+export const EVEN_SESSION_SIZES_COMMAND_ID = 'sessions.evenSessionSizes';
+/** Maximizes the focused session pane in the grid, or restores its size. */
+export const TOGGLE_MAXIMIZE_SESSION_COMMAND_ID = 'sessions.chatCompositeBar.toggleMaximize';
 export const SESSION_GRID_FOCUS_COMMANDS = {
 	left: 'sessions.focusSessionLeft',
 	right: 'sessions.focusSessionRight',
 	up: 'sessions.focusSessionAbove',
 	down: 'sessions.focusSessionBelow',
+} as const;
+/** Swap the focused session pane with the pane next to it, keeping the grid's shape. */
+export const SESSION_GRID_MOVE_COMMANDS = {
+	left: 'sessions.moveSessionLeft',
+	right: 'sessions.moveSessionRight',
+	up: 'sessions.moveSessionUp',
+	down: 'sessions.moveSessionDown',
+} as const;
+/** Dock the focused session pane beside the pane next to it, changing the grid's shape. */
+export const SESSION_GRID_DOCK_COMMANDS = {
+	left: 'sessions.dockSessionLeft',
+	right: 'sessions.dockSessionRight',
+	up: 'sessions.dockSessionUp',
+	down: 'sessions.dockSessionDown',
 } as const;
 
 export const FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID = 'sessions.focusNewSessionWorkspacePicker';

@@ -20,8 +20,9 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { INotification, INotificationHandle, INotificationService, Severity } from '../../../../../../platform/notification/common/notification.js';
 import { IProgress, IProgressService, IProgressStep, ProgressLocation } from '../../../../../../platform/progress/common/progress.js';
 import { IInputBox, IQuickInputHideEvent, IQuickInputService, QuickInputHideReason } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { IExtensionsWorkbenchService } from '../../../../extensions/common/extensions.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { AddPluginMarketplaceAction, InstallFromSourceAction, ManagePluginMarketplacesAction } from '../../../browser/actions/chatPluginActions.js';
+import { AddPluginMarketplaceAction, InstallFromSourceAction, ManagePluginMarketplacesAction, ManagePluginsAction } from '../../../browser/actions/chatPluginActions.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ICustomizationHarnessService, ICustomizationMarketplaceInfo, ICustomizationMarketplaceManagementProvider, ICustomizationPluginInstallProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
@@ -373,6 +374,31 @@ suite('InstallFromSourceAction', () => {
 			localInstalls: [],
 			installed: false,
 		});
+	});
+});
+
+suite('ManagePluginsAction', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('opens the Plugins page of Chat Customizations', async () => {
+		const calls: unknown[][] = [];
+		const instantiationService = workbenchInstantiationService({}, store);
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override async executeCommand<T>(id: string, ...args: unknown[]): Promise<T | undefined> {
+				calls.push([id, ...args]);
+				return undefined;
+			}
+		});
+		instantiationService.stub(IExtensionsWorkbenchService, new class extends mock<IExtensionsWorkbenchService>() {
+			override openSearch(searchValue: string): Promise<void> {
+				calls.push(['extensions.openSearch', searchValue]);
+				return Promise.resolve();
+			}
+		});
+
+		await instantiationService.invokeFunction(accessor => new ManagePluginsAction().run(accessor));
+
+		assert.deepStrictEqual(calls, [[AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.Plugins]]);
 	});
 });
 

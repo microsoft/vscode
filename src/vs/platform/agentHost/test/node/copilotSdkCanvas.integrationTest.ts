@@ -346,9 +346,10 @@ await joinSession({
 	/**
 	 * The runtime contract the Agent Host's extension consent relies on: a lazy extension asks for sensitive environment variables
 	 * while it starts, never for a tool call. A person's No fails the extension and is kept for the runtime session, even across a
-	 * provider reload; a resume forgets it, and forgets a session approval too, so the host must remember approvals itself.
+	 * provider reload and, since runtime 1.0.115, a resume, which restores it from the session without asking again. A resume
+	 * forgets a session approval, so the host must remember approvals itself.
 	 */
-	test('asks for sensitive environment consent without a tool call, keeps a denial until resume, and forgets session approvals on resume', async function () {
+	test('asks for sensitive environment consent without a tool call, keeps a denial across a resume, and forgets session approvals on resume', async function () {
 		this.timeout(180_000);
 		const requests: { toolCallId: string | undefined; extensionName: string; environmentVariables: readonly string[]; pluginInventoryReadable: boolean }[] = [];
 		let decide: (request: Extract<PermissionRequest, { kind: 'extension-env-access' }>) => PermissionRequestResult = () => ({ kind: 'reject' });
@@ -389,11 +390,14 @@ await joinSession({
 			await waitForContractCanvas(session);
 			const observations = [await open(), await open()];
 			await session.rpc.extensions.reload();
-			const reloaded = session;
-			await retry(async () => assert.strictEqual(await status(reloaded), 'failed'), 100, 100);
 			observations.push(await open());
 			await resume();
 			decide = request => ({ kind: 'approve-for-session', approval: { kind: 'extension-env-access', extensionName: request.extensionName, environmentVariables: request.environmentVariables } });
+			observations.push(await open());
+			// A session that has not declined the extension shows how a resume treats a session approval.
+			await session.disconnect();
+			session = await client.createSession(config);
+			await waitForContractCanvas(session);
 			observations.push(await open());
 			// Closing persists this model-free session so it can be resumed.
 			await session.rpc.canvas.close({ instanceId });
@@ -406,7 +410,9 @@ await joinSession({
 				observations: [
 					'extension did not become ready: project:canvas-contract; asked 1; failed',
 					'No canvas "contract" is registered.; asked 0; failed',
-					// The reload starts the extension again, and the runtime declines it with the kept denial, without asking.
+					// Reload leaves the denied canvas unregistered.
+					'No canvas "contract" is registered.; asked 0; failed',
+					// The resume restores the denial and declines the extension again without asking.
 					'extension did not become ready: project:canvas-contract; asked 0; failed',
 					'opened with the variable visible; asked 1; running',
 					'opened with the variable visible; asked 0; running',

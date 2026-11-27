@@ -20,8 +20,6 @@ import { ServicesAccessor } from '../../../../../platform/instantiation/common/i
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IQuickInputButton, IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
-import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
-import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
 import { ChatConfiguration } from '../../common/constants.js';
@@ -45,12 +43,7 @@ export class ManagePluginsAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		// The Agents window has no Extensions view, so show the plugins in Chat Customizations instead.
-		if (accessor.get(IWorkbenchEnvironmentService).isSessionsWindow) {
-			await accessor.get(ICommandService).executeCommand(AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.Plugins);
-			return;
-		}
-		accessor.get(IExtensionsWorkbenchService).openSearch('@agentPlugins ');
+		await accessor.get(ICommandService).executeCommand(AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.Plugins);
 	}
 }
 

@@ -902,7 +902,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 		override acquireSessionTools = (resource: URI) => new ImmortalReference(constObservable(options?.sessionTools?.(resource) ?? []));
 		override areScopeRootsEqual = (first: readonly URI[] | undefined, second: readonly URI[]) =>
 			first !== undefined && first.length === second.length && first.every((root, index) => extUriIgnorePathCase.isEqual(root, second[index]));
-		override acquireScope = (sessionType: string, roots: readonly URI[] | undefined) => options?.activeClientScope?.(sessionType, roots ?? []) ?? ({
+		override acquireScope = (sessionType: string, roots: readonly URI[]) => options?.activeClientScope?.(sessionType, roots) ?? ({
 			customizations: constObservable(options?.activeClient?.customizations ?? []),
 			customAgents: options?.activeClientAgents ?? constObservable([]),
 			tools: constObservable(options?.activeClient?.tools ?? []),
@@ -1407,6 +1407,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 			agentHost.canvasDefinitions = [{ canvasId: 'plan', extensionId: 'user:agent-plan', extensionSource: 'user', displayName: 'Agent Plan', description: 'Plans.', requiresInput: false, actionCount: 0 }];
 
 			const draft = provider.createCanvasDraft();
+			const replaced: string[] = [];
+			disposables.add(provider.onDidReplaceSession(({ from, to }) => replaced.push(`${from.sessionId === draft.sessionId ? 'draft' : from.sessionId} -> ${to.sessionId}`)));
 			const canvases = await draft.canvases;
 			const listedBeforeOpen = provider.getSessions().length;
 			const committed = await draft.open(canvas, 'plan-instance');
@@ -1420,6 +1422,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				opened: agentHost.canvasOpenRequests.map(open => ({ session: open.session.toString(), chat: open.chat.toString(), request: open.request })),
 				committed: { rawId: AgentSession.id(committed.resource), sessionType: committed.sessionType, title: committed.title.get() },
 				listed: provider.getSessions().map(session => session.sessionId),
+				replaced,
 				titles: agentHost.dispatchedActions.filter(dispatched => dispatched.action.type === ActionType.SessionTitleChanged).map(dispatched => ({ channel: dispatched.channel, action: dispatched.action })),
 			}, {
 				canvases: ['plan'],
@@ -1428,6 +1431,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				opened: [{ session: backend.toString(), chat: buildDefaultChatUri(backend), request: { canvasId: 'plan', extensionId: 'user:agent-plan', instanceId: 'plan-instance' } }],
 				committed: { rawId: AgentSession.id(backend), sessionType: 'copilotcli', title: 'Agent Plan' },
 				listed: [committed.sessionId],
+				replaced: [`draft -> ${committed.sessionId}`],
 				titles: [{ channel: backend.toString(), action: { type: ActionType.SessionTitleChanged, title: 'Agent Plan' } }],
 			});
 		});
@@ -2007,6 +2011,108 @@ suite('LocalAgentHostSessionsProvider', () => {
 			creation: provider.sessionTypes.map(t => t.id),
 			interactivity: provider.getSessions().map(session => session.mainChat.get().interactivity.get()),
 		}, { saved: ['claude', 'codex'], creation: ['copilotcli'], interactivity: [ChatInteractivity.ReadOnly, ChatInteractivity.ReadOnly] });
+	});
+
+	test('listing policy-disabled saved sessions reads the policy once per agent, not once per session', () => {
+		let inspects = 0;
+		const configurationService = new class extends TestConfigurationService {
+			override inspect<T>(key: string) {
+				inspects++;
+				const value = super.inspect<T>(key);
+				return { ...value, policyValue: key === 'chat.agentHost.claudeAgent.enabled' ? value.value : undefined };
+			}
+		}({ 'chat.agentHost.claudeAgent.enabled': false });
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService, isSessionsWindow: true });
+		for (let index = 0; index < 50; index++) {
+			fireSessionAdded(agentHost, `claude-${index}`, { title: `Claude ${index}`, provider: 'claude' });
+		}
+		provider.getSessions();
+		inspects = 0;
+		const listed = provider.getSessions().length;
+		assert.deepStrictEqual({ listed, inspects }, { listed: 50, inspects: 2 });
+	});
+
+	test('getSession finds by key exactly the saved sessions the agent gates list, without listing them', () => {
+		let listings = 0;
+		const configurationService = new class extends TestConfigurationService {
+			override inspect<T>(key: string) {
+				const value = super.inspect<T>(key);
+				return { ...value, policyValue: key === 'chat.agentHost.claudeAgent.enabled' ? value.value : undefined };
+			}
+		}({ 'chat.agentHost.claudeAgent.enabled': false, [AgentHostCodexAgentEnabledSettingId]: false });
+		const provider = createProvider(disposables, agentHost, undefined, {
+			configurationService,
+			isSessionsWindow: true,
+			providerCtor: class extends LocalAgentHostSessionsProvider {
+				override getAllSessions(): ISession[] {
+					listings++;
+					return super.getAllSessions();
+				}
+			},
+		});
+		fireSessionAdded(agentHost, 'copilot-saved');
+		fireSessionAdded(agentHost, 'claude-saved', { provider: 'claude' });
+		fireSessionAdded(agentHost, 'codex-saved', { provider: 'codex' });
+		const resources = ['agent-host-copilotcli:/copilot-saved', 'agent-host-claude:/claude-saved', 'agent-host-codex:/codex-saved', 'agent-host-copilotcli:/missing'].map(resource => URI.parse(resource));
+		const lookUp = () => resources.map(resource => provider.getSession(resource)?.resource.toString());
+		listings = 0;
+		const codexDisabled = lookUp();
+		configurationService.setUserConfiguration(AgentHostCodexAgentEnabledSettingId, true);
+		fireConfigChange(configurationService, AgentHostCodexAgentEnabledSettingId);
+		const codexEnabled = lookUp();
+
+		assert.deepStrictEqual({ listings, codexDisabled, codexEnabled }, {
+			listings: 0,
+			codexDisabled: [resources[0].toString(), resources[1].toString(), undefined, undefined],
+			codexEnabled: [resources[0].toString(), resources[1].toString(), resources[2].toString(), undefined],
+		});
+	});
+
+	test('getSession finds a parent session and the subagent fragment row an older host also lists, as either is removed', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const parent = createSession('parent', { summary: 'Parent' });
+		const subagent = { ...parent, session: parent.session.with({ fragment: 'subagent/call-1' }), summary: 'Subagent' };
+		const parentResource = URI.parse('agent-host-copilotcli:/parent');
+		const fragmentResource = parentResource.with({ fragment: 'subagent/call-1' });
+		const lookUp = (provider: LocalAgentHostSessionsProvider, sessionIds: string[]) => ({
+			listed: provider.getAllSessions().map(session => session.resource.toString()).sort(),
+			parent: provider.getSession(parentResource)?.resource.toString(),
+			fragment: provider.getSession(fragmentResource)?.resource.toString(),
+			// Session-id routing ignores fragments, so both ids route to the row cached last.
+			routed: sessionIds.map(sessionId => provider.getBackendSessionResource(sessionId)?.toString()),
+		});
+		const results = [];
+		for (const removed of [subagent, parent]) {
+			agentHost.listSessions = async () => [subagent, parent];
+			const provider = createProvider(disposables, agentHost);
+			await timeout(0);
+			const sessionIds = [parentResource, fragmentResource].map(resource => provider.getSession(resource)!.sessionId);
+			const before = lookUp(provider, sessionIds);
+			agentHost.fireNotification({ channel: 'ahp-root://', type: NotificationType.SessionRemoved, session: removed.session.toString() });
+			results.push({ before, after: lookUp(provider, sessionIds) });
+		}
+
+		const fragmentBackend = subagent.session.toString();
+		const both = { listed: [parentResource.toString(), fragmentResource.toString()], parent: parentResource.toString(), fragment: fragmentResource.toString(), routed: [fragmentBackend, fragmentBackend] };
+		assert.deepStrictEqual(results, [
+			{ before: both, after: { listed: [parentResource.toString()], parent: parentResource.toString(), fragment: undefined, routed: [undefined, undefined] } },
+			{ before: both, after: { listed: [fragmentResource.toString()], parent: undefined, fragment: fragmentResource.toString(), routed: [fragmentBackend, fragmentBackend] } },
+		]);
+	}));
+
+	test('resource lookups see sessions added and removed before the change event is debounced', () => {
+		agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: {} }]);
+		const provider = createProvider(disposables, agentHost);
+		const management = createManagementService(disposables, provider);
+		const resourceOf = (rawId: string) => provider.getAllSessions().find(session => session.resource.path.includes(rawId))?.resource;
+		fireSessionAdded(agentHost, 'removed-early');
+		const removed = resourceOf('removed-early')!;
+		assert.ok(management.getSession(removed));
+
+		fireSessionAdded(agentHost, 'added-early');
+		fireSessionRemoved(agentHost, 'removed-early');
+		const added = resourceOf('added-early')!;
+
+		assert.deepStrictEqual({ added: management.getSession(added)?.resource.toString(), removed: management.getSession(removed)?.resource.toString() }, { added: added.toString(), removed: undefined });
 	});
 
 	for (const initiallyBlocked of [false, true]) {
@@ -17470,16 +17576,19 @@ suite('LocalAgentHostSessionsProvider', () => {
 		agentHost.addSession(createSession(rawId, { summary: 'Committed Session' }));
 		fireSessionAdded(agentHost, rawId, { title: 'Committed Session' });
 		const advertised = provider.getSessions().filter(candidate => isEqual(candidate.resource, session.resource));
+		const foundIsDraft = provider.getSession(session.resource) === session;
 		agentHost.listSessionsBarrier.complete();
 		await request;
 
 		assert.deepStrictEqual({
 			count: advertised.length,
 			isDraft: advertised[0] === session,
+			foundIsDraft,
 			resources: advertised.map(candidate => candidate.resource.toString()),
 		}, {
 			count: 1,
 			isDraft: true,
+			foundIsDraft: true,
 			resources: [session.resource.toString()],
 		});
 	});

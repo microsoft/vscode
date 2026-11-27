@@ -7,11 +7,13 @@ import assert from 'assert';
 import sinon from 'sinon';
 import * as dom from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { EditorOption } from '../../../../../editor/common/config/editorOptions.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
 import { Comment, CommentInput, CommentThread } from '../../../../../editor/common/languages.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
@@ -23,7 +25,7 @@ import { IContextMenuService } from '../../../../../platform/contextview/browser
 import { TestMenuService } from '../../../../test/browser/workbenchTestServices.js';
 import { CommentMenus } from '../../browser/commentMenus.js';
 import { CommentReply } from '../../browser/commentReply.js';
-import { ICommentService } from '../../browser/commentService.js';
+import { ICommentController, ICommentService } from '../../browser/commentService.js';
 import { SimpleCommentEditor } from '../../browser/simpleCommentEditor.js';
 
 suite('CommentReply', () => {
@@ -32,7 +34,7 @@ suite('CommentReply', () => {
 
 	teardown(() => sinon.restore());
 
-	async function createReply(hasExistingComments = true, options?: { focus?: boolean }) {
+	async function createReply(hasExistingComments = true, options?: { focus?: boolean; commentController?: ICommentController }) {
 		const instantiationService = createCodeEditorServices(store);
 		const model = store.add(createTextModel(''));
 		const editor = store.add(instantiateTestCodeEditor(instantiationService, model));
@@ -52,7 +54,7 @@ suite('CommentReply', () => {
 			})
 		});
 		instantiationService.stub(ICommentService, {
-			getCommentController: () => undefined,
+			getCommentController: () => options?.commentController,
 			setActiveEditingCommentThread: () => { },
 			setActiveCommentAndThread: async () => { }
 		});
@@ -72,7 +74,7 @@ suite('CommentReply', () => {
 		));
 		await reply.whenInitialized;
 
-		return { reply, container, onDidBlurEditorWidget, onDidChangeInput, model, thread, focus, layout };
+		return { reply, container, onDidBlurEditorWidget, onDidChangeInput, model, thread, editor, focus, layout };
 	}
 
 	test('collapses an empty reply on blur and can expand it again', async () => {
@@ -158,6 +160,45 @@ suite('CommentReply', () => {
 			expanded: container.querySelector('.comment-form-container')!.classList.contains('expand'),
 			value: model.getValue()
 		}, { expanded: true, value: 'Draft comment' });
+	});
+
+	test('takes no other input while an action of its form runs', async () => {
+		const submission = new DeferredPromise<void>();
+		const submissions: string[] = [];
+		const commentController = new class extends mock<ICommentController>() {
+			override readonly id = 'test';
+			override getSubmitCommentThreadLabel() {
+				return 'Submit';
+			}
+			override submitCommentThread(_thread: CommentThread, body: string) {
+				submissions.push(body);
+				return submission.p;
+			}
+		};
+		const { reply, container, model, editor } = await createReply(false, { commentController });
+		const button = container.querySelector<HTMLElement>('.other-actions .monaco-button')!;
+		const getState = () => ({
+			submissions: [...submissions],
+			isButtonDisabled: button.getAttribute('aria-disabled') === 'true',
+			isReadOnly: editor.getOption(EditorOption.readOnly),
+			value: model.getValue(),
+		});
+		model.setValue('Draft comment');
+		button.click();
+		await timeout(0);
+		button.click();
+		await reply.submitComment();
+		const whileRunning = getState();
+		submission.complete();
+		await timeout(0);
+		const afterwards = getState();
+		model.setValue('Next comment');
+
+		assert.deepStrictEqual({ whileRunning, afterwards, withNextComment: getState() }, {
+			whileRunning: { submissions: ['Draft comment'], isButtonDisabled: true, isReadOnly: true, value: 'Draft comment' },
+			afterwards: { submissions: ['Draft comment'], isButtonDisabled: true, isReadOnly: false, value: '' },
+			withNextComment: { submissions: ['Draft comment'], isButtonDisabled: false, isReadOnly: false, value: 'Next comment' },
+		});
 	});
 
 	test('sizes the editor to its form, or by the thread\'s width when the form is not rendered', async () => {

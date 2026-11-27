@@ -97,6 +97,18 @@ Use the owning theme service for temporary palettes so CSS variables and program
 
 Verify enabling, disabling, replacement, disposal, and theme changes, including stale asynchronous results. Clearing an override must restore the original colors without persisting generated values or changing another window's theme or startup colors.
 
+### Color provenance and consumer coverage
+
+Before changing a color fallback, distinguish the registered default, an explicit theme value, a user customization, and a temporary overlay. They are not interchangeable:
+
+- Preserve the owning component's precedence contract. Adding a theme default can bypass an existing fallback to a user-customizable legacy token; test no customization, legacy-only customization, and both legacy and new tokens using the loaded theme.
+- Do not infer explicit theme intent from a resolved color alone: resolution may include registry defaults or transient overlays. A fix for an active-tab theme color must not automatically change inactive, hover, or transparent-action compositing.
+- Keep independent semantic roles independently customizable. For example, hiding editor diagnostic squiggles with transparent user colors must not hide Debug Console messages; preserve explicit console overrides and theme-defined diagnostic defaults.
+- Trace every paint path. A scoped CSS variable does not update a theme-service lookup, an inline concrete color, a terminal canvas, or a detached Test Results terminal. Use the owning shared resolver where appropriate and subscribe affected consumers to the real runtime invalidation.
+- For a new border color, check border presence, style, width, and layout reservation as well as color. A correctly resolved color cannot paint a border whose owner sets `none` or zero width. Include themes where the old border token is absent.
+- Validate moved views in both sidebars and the panel, preserving their location-specific and peek palettes. Use strongly contrasting test colors so an old-colored embedded surface cannot pass unnoticed.
+- Measure the actual painted state and token: a horizontal Activity Bar uses different foreground tokens from the vertical bar; opacity and underlying surfaces affect the result. A faint selection fill does not prove that its boundary remains distinguishable.
+
 ## 5. Focus Indicators
 
 Defined in `src/vs/workbench/browser/media/style.css`:

@@ -18,6 +18,7 @@ export class CommentFormActions implements IDisposable {
 	private readonly _toDispose = new DisposableStore();
 	private _actions: IAction[] = [];
 	private readonly _actionButtons = new Map<IAction, IButton>();
+	private _isEnabled = true;
 
 	constructor(
 		private readonly keybindingService: IKeybindingService,
@@ -77,7 +78,7 @@ export class CommentFormActions implements IDisposable {
 				this._toDispose.add(button);
 				this._toDispose.add(button.onDidClick(() => this.actionHandler(action)));
 
-				button.enabled = action.enabled;
+				button.enabled = this._isEnabled && action.enabled;
 				button.label = action.label;
 				if ((this.maxActions !== undefined) && (this._buttonElements.length >= this.maxActions)) {
 					console.warn(`An extension has contributed more than the allowable number of actions to a comments menu.`);
@@ -90,13 +91,24 @@ export class CommentFormActions implements IDisposable {
 	updateAction(action: IAction): void {
 		const button = this._actionButtons.get(action);
 		if (button) {
-			button.enabled = action.enabled;
+			button.enabled = this._isEnabled && action.enabled;
 			button.label = action.label;
 		}
 	}
 
+	/**
+	 * Disables all of the buttons and the default action, such as while one of the actions runs, or restores them to
+	 * the enablement of their actions.
+	 */
+	setEnabled(enabled: boolean): void {
+		this._isEnabled = enabled;
+		for (const [action, button] of this._actionButtons) {
+			button.enabled = enabled && action.enabled;
+		}
+	}
+
 	triggerDefaultAction() {
-		if (this._actions.length) {
+		if (this._isEnabled && this._actions.length) {
 			const lastAction = this._actions[0];
 
 			if (lastAction.enabled) {

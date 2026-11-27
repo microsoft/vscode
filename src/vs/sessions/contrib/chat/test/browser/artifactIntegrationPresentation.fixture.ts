@@ -8,7 +8,6 @@ import '../../../../../base/browser/ui/codicons/codiconStyles.js';
 import { Action } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
-import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, derived, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -64,7 +63,7 @@ interface IArtifactFixtureOptions {
 	readonly width?: number;
 	readonly longContent?: boolean;
 	readonly showListInfo?: number;
-	readonly openQuickPick?: boolean;
+	readonly expandAutopilot?: boolean;
 	/** Renders these artifacts as one group pill instead of a single artifact pill. */
 	readonly group?: readonly IArtifactFixtureData[];
 	/** Index of a group artifact pinned into a pill of its own. */
@@ -519,7 +518,7 @@ async function render(context: ComponentFixtureContext, data: IArtifactFixtureDa
 				override readonly containers = [container];
 				override readonly mainContainerDimension = { width, height };
 				override readonly activeContainerDimension = { width, height };
-				override readonly mainContainerOffset = { top: 0, quickPickTop: options.openQuickPick ? 420 : 0 };
+				override readonly mainContainerOffset = { top: 0, quickPickTop: 0 };
 				override readonly activeContainerOffset = this.mainContainerOffset;
 				override readonly onDidLayoutMainContainer = Event.None;
 				override readonly onDidLayoutContainer = Event.None;
@@ -641,15 +640,11 @@ async function render(context: ComponentFixtureContext, data: IArtifactFixtureDa
 			}
 			info.click();
 		}
-		if (options.openQuickPick) {
+		if (options.expandAutopilot) {
 			panel.querySelector<HTMLElement>('.artifact-autopilot-group .artifact-card-disclosure')?.click();
-			const picker = panel.querySelector<HTMLElement>('.artifact-autopilot-policy');
-			if (!picker) {
-				throw new Error('Expected an enum automation picker.');
+			if (!panel.querySelector('.artifact-autopilot-choices [role="radio"]')) {
+				throw new Error('Expected the choices of an enum automation.');
 			}
-			const quickInput = instantiationService.get(IQuickInputService);
-			context.disposableStackStore.add(toDisposable(() => quickInput.currentQuickInput?.hide()));
-			picker.click();
 		}
 	}
 }
@@ -686,7 +681,7 @@ async function renderGroup(
 	}]);
 	const pinnedPill = options.pinned === undefined ? undefined : presentations[options.pinned].createPill(constObservable(action(
 		`fixture.unpin.${data[options.pinned].artifact.id}`, `Unpin ${data[options.pinned].artifact.label}`, Codicon.unpin, 'Unpin', 'the artifact was not unpinned.')));
-	const group = disposableStore.add(instantiationService.createInstance(ArtifactIntegrationGroup, 'fixture', constObservable(members), controller));
+	const group = disposableStore.add(instantiationService.createInstance(ArtifactIntegrationGroup, constObservable(members), controller));
 	const pills = derived(reader => {
 		// Decorating gives each artifact's details the entry actions of its pill.
 		entries.forEach((entry, index) => presentations[index].decorate(entry, reader));
@@ -779,7 +774,7 @@ export async function renderArtifactDetails(context: ComponentFixtureContext, sc
 				...data.contribution,
 				options: data.contribution.options.map(option => option.id === 'merge' ? {
 					...option, kind: 'enum', label: 'Merge Automatically When Ready', defaultValue: 'never', disabledValue: 'never',
-					choices: [{ value: 'never', label: 'Off' }, { value: 'always', label: 'Always' }, { value: 'ifUnchanged', label: 'When No Changes Were Made' }],
+					choices: [{ value: 'never', label: 'Off' }, { value: 'ifUnchanged', label: 'When Not Changed' }, { value: 'always', label: 'On' }],
 				} : option),
 				configuration: {
 					...data.contribution.configuration,
@@ -887,7 +882,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/artifactIntegrations' 
 	ExperimentScorecardReady: defineComponentFixture({ render: context => render(context, experiment(true)) }),
 	ExperimentScorecardDetails: defineComponentFixture({ render: context => render(context, experiment(true), { openDetails: 'scorecard' }), additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
 	ExperimentAnalysisSchedule: defineComponentFixture({ render: context => render(context, experiment(true), { openDetails: 'analysis' }) }),
-	ExperimentAnalysisPicker: defineComponentFixture({ render: context => render(context, experiment(true), { openDetails: 'analysis', openQuickPick: true }) }),
+	ExperimentAnalysisChoices: defineComponentFixture({ render: context => render(context, experiment(true), { openDetails: 'analysis', expandAutopilot: true }) }),
 	ExPExperimentRunning: defineComponentFixture({ render: context => render(context, expExperiment()) }),
 	ExPExperimentStateDetails: defineComponentFixture({ render: context => render(context, expExperiment(), { openDetails: 'state' }), additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
 	ExPExperimentIdentityDetails: defineComponentFixture({ render: context => render(context, expExperiment(), { openDetails: 'actions' }) }),

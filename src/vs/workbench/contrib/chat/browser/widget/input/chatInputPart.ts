@@ -518,6 +518,8 @@ interface ISessionFileChanges {
 	readonly undo: IObservable<IChatSessionWorkingSetUndo | undefined>;
 	/** Keeps changes in the session, or `undefined` to remember kept changes in the workbench. */
 	readonly keep: IObservable<IChatSessionWorkingSetKeep | undefined>;
+	/** Opens all the changes in the session's own Changes editor, resolving to whether it did. */
+	readonly openAll?: () => Promise<boolean>;
 }
 
 export class ChatInputPart extends Disposable implements IHistoryNavigationWidget {
@@ -646,7 +648,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	readonly onDidChangeChatPetHorizontalPlatforms = this._onDidChangeChatPetHorizontalPlatforms.event;
 	private inputContainer!: HTMLElement;
 	private inputEnabled = true;
-	private inputAndSideToolbar!: HTMLElement;
 	private readonly _notificationWidget = this._register(new MutableDisposable<ChatInputNotificationWidget>());
 	private readonly _goalBannerWidget = this._register(new MutableDisposable<ChatGoalBannerWidget>());
 	private readonly _onDidDismissGoalBanner = this._register(new Emitter<void>());
@@ -728,10 +729,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	setInputToolbarAriaLabel(label: string): void {
 		this.inputActionsToolbar.setAriaLabel(label);
-	}
-
-	get inputRowHeight(): number {
-		return this.inputAndSideToolbar.offsetHeight;
 	}
 
 	get persistentContentContainerElement(): HTMLElement {
@@ -852,12 +849,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	// logging so we can detect writes that target a different session than the
 	// one the widget viewModel is currently showing (cyclic-ref window).
 	private _inputModelSessionResource: URI | undefined;
-	/**
-	 * Speaks for the intended model while no conversation is bound — the inline request-edit input
-	 * part never binds one. Keeping it off the conversation is what makes that editor
-	 * self-contained: picking a model there to resubmit one request leaves the chat's own model
-	 * alone.
-	 */
+	/** Tracks model intent while no conversation is bound, including while editing a request inline. */
 	private readonly _unboundIntent = new IntendedModelSlot();
 
 	/**
@@ -1020,9 +1012,20 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * bucket. See issue #320393.
 	 */
 	private readonly _modelConfigStore: ChatModelConfigurationStore;
+	private _modelSelectionRevision = 0;
 
 	get currentLanguageModel() {
 		return this._currentLanguageModel.get()?.identifier;
+	}
+
+	/** Changes when this input makes an explicit model or model configuration choice. */
+	get modelSelectionRevision(): number {
+		return this._modelSelectionRevision;
+	}
+
+	get hasUserSelectedModel(): boolean {
+		const intended = this._intentHolder.intendedModel;
+		return intended?.reason === ModelSelectionReason.UserSelection && intended.modelId === this.currentLanguageModel;
 	}
 
 	get selectedLanguageModel(): IObservable<ILanguageModelChatMetadataAndIdentifier | undefined> {
@@ -1059,10 +1062,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	public get currentChatModesObs(): IObservable<IChatModes> {
 		return this._currentChatModesObservable;
-	}
-
-	public get currentPermissionLevelObs(): IObservable<ChatPermissionLevel> {
-		return this._currentPermissionLevel;
 	}
 
 	public get currentModeInfo(): IChatRequestModeInfo {
@@ -1121,15 +1120,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}
 		return edits;
-	}
-
-	private _attemptedWorkingSetEntriesCount: number = 0;
-	/**
-	 * The number of working set entries that the user actually wanted to attach.
-	 * This is less than or equal to {@link ChatInputPart.chatEditWorkingSetFiles}.
-	 */
-	public get attemptedWorkingSetEntriesCount() {
-		return this._attemptedWorkingSetEntriesCount;
 	}
 
 	/**
@@ -1387,6 +1377,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const model = this._currentLanguageModel.get();
 			if (model?.identifier === modelId) {
 				this.setCurrentLanguageModel(model, true, false);
+			} else {
+				this._modelSelectionRevision++;
 			}
 		}));
 		this.selectedToolsModel = this._register(this.instantiationService.createInstance(ChatSelectedTools, this.currentModeObs, this._currentLanguageModel));
@@ -1648,10 +1640,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * The remembered profile preference is updated only when both
 	 * `isUserAction` and `storeSelection` are true.
 	 */
-	public switchModelByIdentifier(identifier: string, storeSelection: boolean = false, isUserAction: boolean = false): boolean {
+	public switchModelByIdentifier(identifier: string, storeSelection: boolean = false, isUserAction: boolean = false, configuration?: IStringDictionary<unknown>): boolean {
 		const models = this.getModels();
 		const model = models.find(m => m.identifier === identifier);
 		if (model) {
+			this.restoreModelConfiguration(identifier, configuration, false);
 			if (isUserAction) {
 				this.setCurrentLanguageModel(model, true, storeSelection);
 			} else {
@@ -1833,7 +1826,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			},
 			getProvider: () => getAgentHostProviderForTelemetry(this.getCurrentSessionType(), this.chatSessionsService),
 			getSessionType: () => this.modelTargetSessionType,
-			startPromptWith: text => this.startPromptWith(text),
 			isCacheWarm: () => (this._widget?.viewModel?.model.getRequests().length ?? 0) > 0,
 			getPresentationOptions: () => this._getModelPickerPresentationOptions(),
 			// Inline chat, editor or terminal, offers no Copilot Fusion effort level: the host runs Fusion at its fast tier there.
@@ -2352,6 +2344,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.logService.warn('[ChatInputPart] Rejected model selection outside the selected agent model list');
 			throw new Error(policyError);
 		}
+		if (isUserAction) {
+			this._modelSelectionRevision++;
+		}
 		const persistSelection = isUserAction && storeSelection;
 		this._modelSelectionDiagnostics.report('set-model', {
 			model: model.identifier,
@@ -2684,11 +2679,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._modelSelectionController.ensureCurrentModelSupported();
 	}
 
-	/** Resets the language model to the location default, forgetting what was preferred before. */
-	public resetLanguageModelToDefault(): void {
-		this._modelSelectionController.resetToDefault(this.getCurrentSessionType());
-	}
-
 	private _createDraftChangeListeners(): DisposableStore {
 		const store = new DisposableStore();
 		store.add(this._inputEditor.onDidType(() => this._onDidChangeDraft.fire()));
@@ -3017,22 +3007,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (model) {
 			this.inputEditor.setPosition(getLastPosition(model));
 		}
-	}
-
-	/** Starts the prompt with the given text, such as a slash command, keeping what is already written after it, and moves focus to it. */
-	startPromptWith(text: string): void {
-		const model = this._inputEditor.getModel();
-		const written = model?.getValue() ?? '';
-		// Already there only as a whole word: `/model-router-review` does not start with `/model-router`.
-		if (model && !(written.startsWith(text) && /^(\s|$)/.test(written.slice(text.length)))) {
-			// An edit, not a new value: the references and attachments of what is already written stay attached, and it can be undone.
-			this._inputEditor.pushUndoStop();
-			this._inputEditor.executeEdits('chat.startPromptWith', [{ range: new Range(1, 1, 1, 1), text: `${text} `, forceMoveMarkers: true }]);
-			this._inputEditor.pushUndoStop();
-			this._inputEditor.setPosition(getLastPosition(model));
-			this._widget?.refreshParsedInput();
-		}
-		this.focus();
 	}
 
 	focus() {
@@ -3608,11 +3582,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * agent and model pickers. Re-selecting the active session clears the pending target and
 	 * restores the pickers.
 	 */
-	public continueInSession(provider: AgentSessionTarget): void {
-		this.setPendingDelegationTarget(provider);
-		this.focus();
-	}
-
 	private setPendingDelegationTarget(provider: AgentSessionTarget): void {
 		const isActive = this.getActiveSessionTypeForDelegation() === provider;
 		this._pendingDelegationTarget = isActive ? undefined : provider;
@@ -4048,7 +4017,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this.followupsContainer = elements.followupsContainer;
 		const inputAndSideToolbar = elements.inputAndSideToolbar; // The chat input and toolbar to the right
-		this.inputAndSideToolbar = inputAndSideToolbar;
 		const inputContainer = elements.inputContainer; // The chat editor, attachments, and toolbars
 		this.inputContainer = inputContainer;
 		dom.append(inputContainer, dom.$('.chat-input-working-border', { 'aria-hidden': 'true' }));
@@ -5659,10 +5627,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	/**
 	 * Provides the session's file changes to the session working set, `undo`
 	 * when the session can undo its changes to single files, and `keep` when
-	 * the session keeps changes itself.
+	 * the session keeps changes itself, and `openAll` when the session opens all its changes in an editor of its own.
 	 */
-	registerSessionFileChanges(changes: IObservable<readonly IEditSessionEntryDiff[] | undefined>, undo: IObservable<IChatSessionWorkingSetUndo | undefined> = constObservable(undefined), keep: IObservable<IChatSessionWorkingSetKeep | undefined> = constObservable(undefined)): IDisposable {
-		const source: ISessionFileChanges = { changes, undo, keep };
+	registerSessionFileChanges(changes: IObservable<readonly IEditSessionEntryDiff[] | undefined>, undo: IObservable<IChatSessionWorkingSetUndo | undefined> = constObservable(undefined), keep: IObservable<IChatSessionWorkingSetKeep | undefined> = constObservable(undefined), openAll?: () => Promise<boolean>): IDisposable {
+		const source: ISessionFileChanges = { changes, undo, keep, openAll };
 		this._sessionFileChanges.set(source, undefined);
 		return toDisposable(() => {
 			if (this._sessionFileChanges.get() === source) {
@@ -5836,6 +5804,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						},
 						keepEnabled: derived(r => sessionKeep.read(r)?.enabled.read(r) ?? true),
 						undo: derived(r => this._sessionFileChanges.read(r)?.undo.read(r)),
+						openAll: async () => !!await this._sessionFileChanges.read(undefined)?.openAll?.(),
 					}, () => this.focus()));
 					this.chatEditingSessionWidgetContainer.appendChild(workingSet.domNode);
 					this._sessionWorkingSet = workingSet;

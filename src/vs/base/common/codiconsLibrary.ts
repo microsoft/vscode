@@ -773,4 +773,10 @@ export const codiconsLibrary = {
 	meteredConnection: register('metered-connection', 0xecf7),
 	reportQuestion: register('report-question', 0xecf8),
 	trophy: register('trophy', 0xecf9),
+	compare: register('compare', 0xecfa),
+	gitBranchCheckout: register('git-branch-checkout', 0xecfb),
+	mcpCompact: register('mcp-compact', 0xecfc),
+	terminalSecureCompact: register('terminal-secure-compact', 0xecfd),
+	thinkingCompact: register('thinking-compact', 0xecfe),
+	toolsCompact: register('tools-compact', 0xecff),
 } as const;
