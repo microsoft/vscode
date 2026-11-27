@@ -176,6 +176,7 @@ function renderZoomedOutStatusBar(
 
 	const instantiationService = createEditorServices(disposableStore, { colorTheme: theme });
 	const root = dom.append(container, dom.$(`.monaco-workbench.mac.macos-tahoe.border.modern-ui${floatingPanels ? '.floating-panels' : ''}`));
+	root.classList.toggle('noactivitybar', activityBarHorizontal);
 	root.style.width = '488px';
 	root.style.height = '120px';
 	root.style.setProperty('--window-zoom-factor', '0.5');
