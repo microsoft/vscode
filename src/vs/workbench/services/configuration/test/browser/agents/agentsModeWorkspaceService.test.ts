@@ -415,4 +415,11 @@ suite('AgentsModeWorkspaceService', () => {
 			enabled: true, settingOff: false, settingUnset: false, settingTruthy: false, noBackup: false, workspacesFilterOnly: false, remote: false, extensionDevelopment: false, agentsWindow: false,
 		});
 	});
+
+	test('a window in a non-default profile reads the Agents mode setting from the default profile', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await fileService.writeFile(applicationSettingsResource, VSBuffer.fromString(`{ "${AGENTS_MODE_ENABLED_SETTING}": true }`));
+		await testObject.reloadConfiguration();
+
+		assert.strictEqual(supportsAgentsMode({ remoteAuthority: undefined, isExtensionDevelopment: false, isSessionsWindow: false }, testObject, true), true);
+	}));
 });
