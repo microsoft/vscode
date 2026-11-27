@@ -248,7 +248,11 @@ export class RemoteSessionService implements IRemoteSessionService {
 		};
 	}
 
-	private getCandidate(provider: RemoteSessionsProvider, options: ICreateRemoteSessionOptions, sourceModel?: IRemoteSessionSourceModel): { candidate?: IRemoteSessionCandidate; reasons: string[] } {
+	/**
+	 * @param agentProvider The agent to start the session with, when it qualifies; undefined picks the preferred one.
+	 * @returns With the candidate, every qualifying agent on the host, preferred first.
+	 */
+	private getCandidate(provider: RemoteSessionsProvider, options: ICreateRemoteSessionOptions, sourceModel?: IRemoteSessionSourceModel, agentProvider?: string): { candidate?: IRemoteSessionCandidate; reasons: string[]; agents?: readonly string[] } {
 		const connection = this.connectionsService.getConnectionByAddress(provider.remoteAddress);
 		const host = this.describeHost(provider);
 		const reasons = remoteSessionHostRejections(host, options);
@@ -282,7 +286,11 @@ export class RemoteSessionService implements IRemoteSessionService {
 		// Without a requested model, the session continues on the source chat's model where an agent offers it.
 		const offersSourceModel = (agent: IRemoteSessionHost['agents'][number]) => !options.model && !!sourceModel
 			&& agent.provider === sourceModel.provider && agent.models.some(model => model.id === sourceModel.selection.id);
-		const agent = host.agents.find(agent => offersSourceModel(agent) && qualifies(agent)) ?? host.agents.find(qualifies);
+		const agents = [
+			...host.agents.filter(agent => offersSourceModel(agent) && qualifies(agent)),
+			...host.agents.filter(agent => !offersSourceModel(agent) && qualifies(agent)),
+		];
+		const agent = agentProvider === undefined ? agents[0] : agents.find(agent => agent.provider === agentProvider);
 		const sessionType = agent && types.find(type => type.chatSessionType === remoteAgentHostSessionTypeId(authority, agent.provider));
 		if (!sessionType) {
 			reasons.push(localize('remoteSessions.unsupportedWorkspace', "No agent supports the requested workspace and isolation with an available model or Auto fallback."));
@@ -316,6 +324,7 @@ export class RemoteSessionService implements IRemoteSessionService {
 				modelId, modelIdentifier, modelConfiguration,
 			},
 			reasons,
+			agents: agents.map(agent => agent.provider),
 		};
 	}
 
@@ -399,7 +408,8 @@ export class RemoteSessionService implements IRemoteSessionService {
 	private async candidates(options: ICreateRemoteSessionOptions, sourceModel: IRemoteSessionSourceModel | undefined, token: CancellationToken): Promise<(IRemoteSessionCandidate & { needsTrust: boolean })[]> {
 		const rejected: { hostId: string; reasons: string[] }[] = [];
 		const candidates = await Promise.all(this.remoteProviders().map(async provider => {
-			const { candidate, reasons } = this.getCandidate(provider, options, sourceModel);
+			const { candidate: preferred, reasons, agents } = this.getCandidate(provider, options, sourceModel);
+			let candidate = preferred;
 			let needsTrust = false;
 			if (candidate?.workspace) {
 				try {
@@ -424,17 +434,34 @@ export class RemoteSessionService implements IRemoteSessionService {
 					reasons.push(localize('remoteSessions.workspaceInspectionFailed', "Workspace inspection failed: {0}", toErrorMessage(error)));
 				}
 			}
-			// Requested permissions and mode depend on each host's configuration, so only those hosts are asked for it.
-			if (candidate && !reasons.length && (options.permissions !== undefined || options.mode !== undefined)) {
-				try {
-					const config = await raceCancellationError(candidate.provider.resolveSessionConfigForCreation(candidate.workspace, candidate.sessionType.id, token), token);
-					reasons.push(...this.getRequestedSettingRejections(candidate, config, options));
-				} catch (error) {
-					if (token.isCancellationRequested) {
-						throw new CancellationError();
+			// Requested permissions and mode depend on each host's configuration, so only those hosts are asked for it. The
+			// preferred agent may not offer them where another agent on the host does.
+			if (preferred && !reasons.length && (options.permissions !== undefined || options.mode !== undefined)) {
+				candidate = undefined;
+				const rejections: string[] = [];
+				for (const agentProvider of agents ?? []) {
+					const option = agentProvider === preferred.agentProvider ? preferred : this.getCandidate(provider, options, sourceModel, agentProvider).candidate;
+					if (!option) {
+						continue;
 					}
-					this.logService.warn(`[RemoteSessions] Could not resolve the session configuration on ${provider.id}`, error);
-					reasons.push(localize('remoteSessions.configurationUnavailable', "The session configuration could not be resolved: {0}", toErrorMessage(error)));
+					try {
+						const config = await raceCancellationError(option.provider.resolveSessionConfigForCreation(option.workspace, option.sessionType.id, token), token);
+						const agentRejections = this.getRequestedSettingRejections(option, config, options);
+						if (!agentRejections.length) {
+							candidate = option;
+							break;
+						}
+						rejections.push(...agentRejections);
+					} catch (error) {
+						if (token.isCancellationRequested) {
+							throw new CancellationError();
+						}
+						this.logService.warn(`[RemoteSessions] Could not resolve the ${agentProvider} session configuration on ${provider.id}`, error);
+						rejections.push(localize('remoteSessions.configurationUnavailable', "The {0} session configuration could not be resolved: {1}", agentProvider, toErrorMessage(error)));
+					}
+				}
+				if (!candidate) {
+					reasons.push(...rejections);
 				}
 			}
 			if (reasons.length || !candidate) {
@@ -494,7 +521,9 @@ export class RemoteSessionService implements IRemoteSessionService {
 					throw new CancellationError();
 				}
 			}
-			const { candidate: target, reasons } = this.getCandidate(selected.provider, options, source.model);
+			// An agent placement chose for requested permissions or mode stays chosen; otherwise the choice is made again.
+			const requestsSettings = options.permissions !== undefined || options.mode !== undefined;
+			const { candidate: target, reasons } = this.getCandidate(selected.provider, options, source.model, requestsSettings ? selected.agentProvider : undefined);
 			if (!target) {
 				throw new Error(localize('remoteSessions.hostNoLongerMatches', "Remote agent host {0} no longer matches this request. {1}", selected.host.label, JSON.stringify(reasons)));
 			}
@@ -521,6 +550,9 @@ export class RemoteSessionService implements IRemoteSessionService {
 				...(target.modelConfiguration ? { modelConfiguration: target.modelConfiguration } : {}),
 				...(settings.permission ? { permissionId: settings.permission.id } : {}),
 				...(settings.mode ? { modeId: settings.mode.id } : {}),
+				// An empty draft configuration keeps the user's remembered or configured permissions and mode, which can
+				// be more permissive than the creating chat's, from seeding a setting this session leaves unset.
+				draftConfiguration: {},
 				metadata,
 				onSessionCreated: async session => {
 					background = await this.backgroundChats.acquire(session.mainChat.get().resource, token);

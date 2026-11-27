@@ -11353,6 +11353,22 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('createNewSession with an empty draft configuration seeds no remembered or configured mode and approvals', async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({
+			[SessionConfigKey.Mode]: 'autopilot',
+			[SessionConfigKey.AutoApprove]: 'autoApprove',
+		}), StorageScope.PROFILE, StorageTarget.MACHINE);
+		const config = createSchemaDefaultConfigurationService();
+		await config.setUserConfiguration('chat.defaultConfiguration', { mode: 'plan', approvals: 'allowAll' });
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config, storageService });
+		provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id, { draftConfiguration: {} });
+		await timeout(0);
+
+		const seeded = agentHost.resolveSessionConfigRequests.at(-1)?.config;
+		assert.deepStrictEqual({ mode: seeded?.mode, autoApprove: seeded?.autoApprove }, { mode: undefined, autoApprove: undefined });
+	});
+
 	test('createNewSession keeps remembered picks over an ordinary configured chat.defaultConfiguration setting', async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({

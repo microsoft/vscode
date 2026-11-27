@@ -71,6 +71,8 @@ class RemoteProvider extends mock<IAgentHostSessionsProvider>() {
 	/** The choices once a configuration is resolved, when they differ from the listed ones. */
 	resolvedPermissionOptions: ISessionPermissionOption[] | undefined;
 	config: ResolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: {} };
+	/** Agent-specific configurations, where they differ from {@link config}. */
+	readonly configsByType = new Map<string, ResolveSessionConfigResult>();
 
 	constructor(name: string, load = 0, platform: 'windows' | 'linux' | 'macos' = 'linux', agentProvider = 'copilot') {
 		super();
@@ -105,7 +107,7 @@ class RemoteProvider extends mock<IAgentHostSessionsProvider>() {
 	override getPermissionOptionsForCreation(_sessionTypeId: string, config?: ResolveSessionConfigResult): readonly ISessionPermissionOption[] {
 		return config && this.resolvedPermissionOptions ? this.resolvedPermissionOptions : this.permissionOptions;
 	}
-	override async resolveSessionConfigForCreation(): Promise<ResolveSessionConfigResult> { return this.config; }
+	override async resolveSessionConfigForCreation(_workspace: URI | undefined, sessionTypeId: string): Promise<ResolveSessionConfigResult> { return this.configsByType.get(sessionTypeId) ?? this.config; }
 }
 
 /** The provider of the creating chat, with its permissions and mode. */
@@ -441,12 +443,14 @@ suite('RemoteSessionService', () => {
 		assert.deepStrictEqual({
 			permissionId: calls[0].options?.permissionId,
 			modeId: calls[0].options?.modeId,
+			draftConfiguration: calls[0].options?.draftConfiguration,
 			permissions: result.permissions,
 			mode: result.mode,
 			notInherited: result.notInherited,
 		}, {
 			permissionId: 'assisted',
 			modeId: 'plan',
+			draftConfiguration: {},
 			permissions: { id: 'assisted', source: 'inherited' },
 			mode: { id: 'plan', source: 'inherited' },
 			notInherited: [],
@@ -595,6 +599,22 @@ suite('RemoteSessionService', () => {
 			assisted: { host: idle.id, permissions: { id: 'assisted', source: 'explicit' } },
 			plan: { host: busy.id, mode: { id: 'plan', source: 'explicit' } },
 		});
+	});
+
+	test('placement uses another agent on a host when the preferred one cannot apply the requested mode, and keeps it', async () => {
+		const host = new RemoteProvider('host', 0, 'linux', 'claude');
+		const copilot = new RemoteProvider('host', 0, 'linux', 'copilot');
+		host.root.agents.push(...copilot.root.agents);
+		host.sessionTypes.push(...copilot.sessionTypes);
+		host.configsByType.set('copilot', modeConfig(['interactive', 'plan']));
+		const { create, calls } = setup([host]);
+		const result = await create({ mode: 'plan' });
+		assert.deepStrictEqual({
+			sessionType: calls[0].options?.sessionTypeId,
+			modeId: calls[0].options?.modeId,
+			model: result.model.provider,
+			mode: result.mode,
+		}, { sessionType: 'copilot', modeId: 'plan', model: 'copilot', mode: { id: 'plan', source: 'explicit' } });
 	});
 
 	function withModelOptions(host: RemoteProvider, models: Map<string, ILanguageModelChatMetadata>, properties: ILanguageModelConfigurationSchema['properties'] = {
