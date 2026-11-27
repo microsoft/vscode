@@ -9,12 +9,20 @@ import type { IManagedHover } from '../../../../../../base/browser/ui/hover/hove
 import { DeferredPromise, retry, timeout } from '../../../../../../base/common/async.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { Color } from '../../../../../../base/common/color.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { asCssVariableName } from '../../../../../../platform/theme/common/colorUtils.js';
+import { focusBorder } from '../../../../../../platform/theme/common/colors/baseColors.js';
+import { buttonSeparator } from '../../../../../../platform/theme/common/colors/inputColors.js';
+import { ColorScheme } from '../../../../../../platform/theme/common/theme.js';
+import { agentsCIBannerButtonBackground, agentsCIBannerButtonForeground, agentsCIBannerButtonHoverBackground } from '../../../../../common/agentsColors.js';
+import { ColorThemeData } from '../../../../../services/themes/common/colorThemeData.js';
+import '../../../../../browser/media/style.css';
 import { ISessionInputBanner, SessionInputBannerWidget } from '../../../browser/sessionInputBanners/sessionInputBannerWidget.js';
 
 suite('SessionInputBannerWidget', () => {
@@ -388,4 +396,101 @@ suite('SessionInputBannerWidget', () => {
 			dropdownLabels: ['Fix Checks', 'Address Comments', 'Reveal Checks', 'Reveal Comments'],
 		});
 	});
+
+	function renderCISplitButton(scheme: ColorScheme, themeClass: string) {
+		const theme = ColorThemeData.createUnloadedThemeForThemeType(scheme);
+		const host = mainWindow.document.createElement('div');
+		host.classList.add('monaco-workbench', themeClass);
+		for (const color of [focusBorder, buttonSeparator, agentsCIBannerButtonBackground, agentsCIBannerButtonForeground, agentsCIBannerButtonHoverBackground]) {
+			const value = theme.getColor(color);
+			if (value) {
+				host.style.setProperty(asCssVariableName(color), value.toString());
+			}
+		}
+		mainWindow.document.body.appendChild(host);
+		disposables.add(toDisposable(() => host.remove()));
+		const hoverService = upcastPartial<IHoverService>({
+			setupManagedHover: () => upcastPartial<IManagedHover>({ dispose() { } }),
+		});
+		const contextMenuService = upcastPartial<IContextMenuService>({ showContextMenu() { } });
+		const widget = disposables.add(new SessionInputBannerWidget({
+			icon: Codicon.warning,
+			accent: true,
+			text: 'Checks and comments',
+			ariaLabel: 'Checks and comments',
+			actions: [{
+				label: 'Fix Checks & Address Comments',
+				primary: true,
+				dropdownActions: [{ label: 'Fix Checks', run() { } }],
+				run() { },
+			}],
+		}, hoverService, contextMenuService));
+		host.appendChild(widget.domNode);
+		return {
+			host,
+			buttons: [...widget.domNode.querySelectorAll<HTMLElement>('.monaco-button-dropdown > .monaco-button')],
+			separator: widget.domNode.querySelector<HTMLElement>('.monaco-button-dropdown-separator')!,
+		};
+	}
+
+	for (const [scheme, themeClass] of [
+		[ColorScheme.DARK, 'vs-dark'],
+		[ColorScheme.LIGHT, 'vs'],
+		[ColorScheme.HIGH_CONTRAST_DARK, 'hc-black'],
+		[ColorScheme.HIGH_CONTRAST_LIGHT, 'hc-light'],
+	] as const) {
+		test(`CI split button text and separator contrast in ${scheme}`, () => {
+			const { host, buttons, separator } = renderCISplitButton(scheme, themeClass);
+			const separatorColor = Color.Format.CSS.parse(mainWindow.getComputedStyle(separator.firstElementChild!).backgroundColor)!;
+			const separatorBackground = Color.Format.CSS.parse(mainWindow.getComputedStyle(separator).backgroundColor)!;
+			const restStyles = mainWindow.getComputedStyle(buttons[0]);
+			const restForeground = Color.Format.CSS.parse(restStyles.color)!;
+			const restBackground = Color.Format.CSS.parse(restStyles.backgroundColor)!;
+			host.style.setProperty(asCssVariableName(agentsCIBannerButtonForeground), '#00ff00');
+
+			assert.deepStrictEqual({
+				separatorOpacity: mainWindow.getComputedStyle(separator).opacity,
+				separatorContrast: separatorColor.getContrastRatio(separatorBackground) >= 3,
+				restTextContrast: restForeground.getContrastRatio(restBackground) >= 4.5,
+				customSeparator: mainWindow.getComputedStyle(separator.firstElementChild!).backgroundColor,
+			}, {
+				separatorOpacity: '1',
+				separatorContrast: true,
+				restTextContrast: true,
+				customSeparator: 'rgb(0, 255, 0)',
+			});
+		});
+
+		test(`CI split button focus contrast in ${scheme}`, function () {
+			if (!mainWindow.document.hasFocus()) {
+				this.skip();
+			}
+
+			const { host, buttons } = renderCISplitButton(scheme, themeClass);
+			const focusStates = buttons.map(button => {
+				button.focus();
+				const style = mainWindow.getComputedStyle(button);
+				const outline = Color.Format.CSS.parse(style.outlineColor)!;
+				const background = Color.Format.CSS.parse(style.backgroundColor)!;
+				const foreground = Color.Format.CSS.parse(style.color)!;
+				return {
+					focused: mainWindow.document.activeElement === button,
+					focusVisible: button.matches(':focus-visible'),
+					outlineStyle: style.outlineStyle,
+					outlineWidth: style.outlineWidth,
+					outlineContrast: outline.getContrastRatio(background) >= 3,
+					textContrast: foreground.getContrastRatio(background) >= 4.5,
+				};
+			});
+			host.style.setProperty(asCssVariableName(agentsCIBannerButtonForeground), '#00ff00');
+
+			assert.deepStrictEqual({
+				focusStates,
+				customFocus: mainWindow.getComputedStyle(buttons[1]).outlineColor,
+			}, {
+				focusStates: Array(2).fill({ focused: true, focusVisible: true, outlineStyle: 'solid', outlineWidth: '1px', outlineContrast: true, textContrast: true }),
+				customFocus: 'rgb(0, 255, 0)',
+			});
+		});
+	}
 });
