@@ -2251,7 +2251,7 @@ export class Repository {
 		try {
 			await this.exec(args, options);
 		} catch (commitErr) {
-			await this.handleCommitError(commitErr);
+			await this.handleCommitError(commitErr, opts.requireUserConfig ?? true);
 		}
 	}
 
@@ -2270,7 +2270,7 @@ export class Repository {
 	}
 
 
-	private async handleCommitError(commitErr: unknown): Promise<void> {
+	private async handleCommitError(commitErr: unknown, requireUserConfig = true): Promise<void> {
 		if (commitErr instanceof GitError && /not possible because you have unmerged files/.test(commitErr.stderr || '')) {
 			commitErr.gitErrorCode = GitErrorCodes.UnmergedChanges;
 			throw commitErr;
@@ -2279,18 +2279,20 @@ export class Repository {
 			throw commitErr;
 		}
 
-		try {
-			await this.exec(['config', '--get-all', 'user.name']);
-		} catch (err) {
-			err.gitErrorCode = GitErrorCodes.NoUserNameConfigured;
-			throw err;
-		}
+		if (requireUserConfig) {
+			try {
+				await this.exec(['config', '--get-all', 'user.name']);
+			} catch (err) {
+				err.gitErrorCode = GitErrorCodes.NoUserNameConfigured;
+				throw err;
+			}
 
-		try {
-			await this.exec(['config', '--get-all', 'user.email']);
-		} catch (err) {
-			err.gitErrorCode = GitErrorCodes.NoUserEmailConfigured;
-			throw err;
+			try {
+				await this.exec(['config', '--get-all', 'user.email']);
+			} catch (err) {
+				err.gitErrorCode = GitErrorCodes.NoUserEmailConfigured;
+				throw err;
+			}
 		}
 
 		throw commitErr;
