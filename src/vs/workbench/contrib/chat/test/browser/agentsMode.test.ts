@@ -7,7 +7,7 @@ import assert from 'assert';
 import { Action } from '../../../../../base/common/actions.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { EventType as TouchEventType } from '../../../../../base/browser/touch.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
@@ -327,7 +327,7 @@ suite('Agents mode actions', () => {
 		async function run(scenario: IScenario) {
 			const instantiation = disposables.add(new TestInstantiationService());
 			const storage = disposables.add(new InMemoryStorageService());
-			const agentsMode = { isSupported: true, isActive: false, onWillChange: Event.None };
+			const agentsMode = { isSupported: true, isActive: false, onWillChange: disposables.add(new Emitter<boolean>()).event };
 			let visible = !!scenario.visibleBefore;
 			const calls: string[] = [];
 			instantiation.stub(IStorageService, storage);

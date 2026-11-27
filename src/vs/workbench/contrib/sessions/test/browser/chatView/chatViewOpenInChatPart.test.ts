@@ -842,9 +842,11 @@ suite('ChatViewOpenInChatPartContribution', () => {
 		});
 
 		test('leaving Agents mode right after entering it, the move into the chat part that is still on its way stops; returning to the mode, the chat part keeps the chat that stayed in it', async () => {
-			// The window leaves the mode while the chat part starts the new chat the move takes the draft to
+			// The window leaves the mode while the chat part starts the new chat the move takes the draft to: revealing the host in
+			// use then would open the Chat view, and with it the secondary side bar that leaving hides
 			let leaving: Promise<void> | undefined;
-			const quick = setup({ chatViewShows: draft, duringNewChat: () => { leaving = quick.setAgentsMode(false, { setting: false }); } });
+			let reveals = 0;
+			const quick = setup({ chatViewShows: draft, duringNewChat: () => { leaving = quick.setAgentsMode(false, { setting: false }); }, duringReveal: () => reveals++ });
 			const source = new FakeChatWidget('hello', [attachment]);
 			quick.widgets.set(draft.toString(), source);
 			await quick.setAgentsMode(true, { setting: true });
@@ -859,8 +861,8 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			await returning.setAgentsMode(true, { setting: true });
 			await timeout(0);
 
-			assert.deepStrictEqual({ quick: { handovers: quick.handovers, source: source.state }, returning: { handovers: returning.handovers, part: returning.shown.part.get()?.path } }, {
-				quick: { handovers: ['part new chat'], source: { input: 'hello', attachments: ['file-a'] } },
+			assert.deepStrictEqual({ quick: { handovers: quick.handovers, reveals, source: source.state }, returning: { handovers: returning.handovers, part: returning.shown.part.get()?.path } }, {
+				quick: { handovers: ['part new chat'], reveals: 0, source: { input: 'hello', attachments: ['file-a'] } },
 				returning: { handovers: ['part opens /session-a'], part: '/session-b' },
 			});
 		});
