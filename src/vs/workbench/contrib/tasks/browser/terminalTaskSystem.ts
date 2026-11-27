@@ -1584,6 +1584,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				type: TaskTerminalType,
 				waitOnExit,
 				name: this._createTerminalName(task),
+				type: TaskTerminalType,
 				initialText: task.command.presentation && task.command.presentation.echo ? formatMessageForTerminal(nls.localize({
 					key: 'task.executing',
 					comment: ['The task command line or label']
