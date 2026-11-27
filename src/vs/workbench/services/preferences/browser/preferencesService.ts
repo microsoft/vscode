@@ -48,6 +48,7 @@ import { compareIgnoreCase } from '../../../../base/common/strings.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
+import { IAgentsModeService } from '../../agentsMode/common/agentsMode.js';
 
 const emptyEditableSettingsContent = '{\n}';
 
@@ -92,6 +93,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IAgentsModeService private readonly agentsModeService: IAgentsModeService,
 	) {
 		super();
 		// The default keybindings.json updates based on keyboard layouts, so here we make sure
@@ -120,7 +122,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			return null;
 		}
 		const workspace = this.contextService.getWorkspace();
-		return workspace.configuration || workspace.folders[0].toResource(FOLDER_SETTINGS_PATH);
+		// The Agents mode workspace has neither a workspace file nor folders
+		return workspace.configuration ?? workspace.folders.at(0)?.toResource(FOLDER_SETTINGS_PATH) ?? null;
 	}
 
 	private createOrGetCachedSettingsEditor2Input(): SettingsEditor2Input {
@@ -308,6 +311,9 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	openWorkspaceSettings(options: IOpenSettingsOptions = {}): Promise<IEditorPane | undefined> {
+		if (this.agentsModeService.isActive) {
+			return this.openUserSettings(options); // Agents mode applies only User settings
+		}
 		if (!this.workspaceSettingsResource) {
 			this.notificationService.info(nls.localize('openFolderFirst', "Open a folder or workspace first to create workspace or folder settings."));
 			return Promise.reject(null);
@@ -321,6 +327,9 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	async openFolderSettings(options: IOpenSettingsOptions = {}): Promise<IEditorPane | undefined> {
+		if (this.agentsModeService.isActive) {
+			return this.openUserSettings(options); // Agents mode applies only User settings
+		}
 		options = {
 			...options,
 			target: ConfigurationTarget.WORKSPACE_FOLDER
