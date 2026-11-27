@@ -66,7 +66,9 @@ export class WebviewFindWidget extends SimpleFindWidget {
 	public override hide(animated = true) {
 		super.hide(animated);
 		this._delegate.stopFind(true);
-		this._delegate.focus();
+		if (animated) {
+			this._delegate.focus();
+		}
 	}
 
 	protected _onInputChanged(): boolean {
