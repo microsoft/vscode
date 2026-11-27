@@ -1367,7 +1367,7 @@ suite('ChatViewPane widget readiness', () => {
 			onDidChangeBodyVisibility: Event.None,
 			isBodyVisible: () => true,
 			welcomeController: undefined,
-			chatViewHostService: { sessionsOnly: constObservable(false) },
+			chatViewHostService: { sessionsOnly: constObservable(false), dropTarget: constObservable(undefined) },
 			relayout: () => { },
 		}) as ChatViewPane;
 		pane.whenWidget.then(created => steps.push(created === widget ? 'resolved to the widget' : `resolved to ${created}`));

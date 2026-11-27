@@ -74,7 +74,7 @@ suite('Chat Window Session Drop Target', () => {
 		return dataTransfer;
 	}
 
-	const overlaySelector = '.chat-window-session-drop-overlay';
+	const overlaySelector = '.session-chat-drop-overlay';
 
 	test('a session row dragged over the chat shows where it opens, and opens its chat beside the chat on drop', async () => {
 		const { element, opened } = setup();

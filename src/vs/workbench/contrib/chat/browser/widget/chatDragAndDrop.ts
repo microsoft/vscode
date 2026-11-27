@@ -30,7 +30,7 @@ import { IChatAttachmentResolveService, ImageTransferData } from '../attachments
 import { isCrossAgentHostChatReferenceDrop, isSelfChatReferenceDrop, resolveChatReferenceDropEntry } from './chatReferenceDrop.js';
 import { IChatInputStyles } from './input/chatInputPart.js';
 import { convertStringToUInt8Array } from '../chatImageUtils.js';
-import { isPassThroughDrag, registerInputDropTarget } from '../../../../browser/dnd.js';
+import { isPassThroughDrag, isPassThroughModifierHeld, PASS_THROUGH_MODIFIER_LABEL, registerInputDropTarget } from '../../../../browser/dnd.js';
 
 enum ChatDragAndDropType {
 	CHAT_REFERENCE,
@@ -47,6 +47,9 @@ enum ChatDragAndDropType {
 
 const IMAGE_DATA_REGEX = /^data:image\/[a-z]+;base64,/;
 const URL_REGEX = /^https?:\/\/.+/;
+
+/** Marks the overlay while it only shows, on the input, that the input takes the drag (see `setInputHint`). */
+const INPUT_HINT_CLASS = 'chat-dnd-overlay-input-hint';
 
 export class ChatDragAndDrop extends Themable {
 
@@ -85,10 +88,10 @@ export class ChatDragAndDrop extends Themable {
 		}));
 	}
 
-	addOverlay(target: HTMLElement, overlayContainer: HTMLElement, inputTarget: HTMLElement = target): void {
+	addOverlay(target: HTMLElement, overlayContainer: HTMLElement, inputTarget: HTMLElement = target, chat: HTMLElement = target): void {
 		this.removeOverlay(target);
 
-		this.overlays.set(target, this.createOverlay(target, overlayContainer, inputTarget));
+		this.overlays.set(target, this.createOverlay(target, overlayContainer, inputTarget, chat));
 	}
 
 	removeOverlay(target: HTMLElement): void {
@@ -121,25 +124,33 @@ export class ChatDragAndDrop extends Themable {
 	}
 
 	private currentActiveTarget: HTMLElement | undefined = undefined;
-	private createOverlay(target: HTMLElement, overlayContainer: HTMLElement, inputTarget: HTMLElement): { overlay: HTMLElement; disposable: IDisposable; observer: DragAndDropObserver } {
+	/**
+	 * @param target where what the chat attaches can be dropped, such as the whole view around the chat
+	 * @param inputTarget the chat's input, which takes the drags that attach on the input only
+	 * @param chat the chat in `target`: drags that attach on the input only, such as of a session, it leaves alone over the
+	 * rest of `target`, such as a sessions list beside the chat, which takes them itself
+	 */
+	private createOverlay(target: HTMLElement, overlayContainer: HTMLElement, inputTarget: HTMLElement, chat: HTMLElement): { overlay: HTMLElement; disposable: IDisposable; observer: DragAndDropObserver } {
 		const overlay = document.createElement('div');
 		overlay.classList.add('chat-dnd-overlay');
 		this.updateOverlayStyles(overlay);
 		overlayContainer.appendChild(overlay);
 
 		const disposable = new DisposableStore();
+		const getHint = (passThroughModifier: string | undefined) => passThroughModifier
+			? localize({ key: 'chatInputDropHintWithModifier', comment: ['{0} is a key, such as Shift. Keep the underscores around it: they show it as a key.'] }, "Drag here or hold __{0}__ to attach to chat", passThroughModifier)
+			: localize('chatInputDropHint', "Drag here to attach to chat");
 		// The pane around the input, such as a grid that opens what is dropped on it, leaves the input the drags it takes.
 		disposable.add(registerInputDropTarget(inputTarget, {
 			accepts: e => !this.disableOverlay && this.isDragEventSupported(e),
 			area: target,
-			getHint: passThroughModifier => passThroughModifier
-				? localize({ key: 'chatInputDropHintWithModifier', comment: ['{0} is a key, such as Shift. Keep the underscores around it: they show it as a key.'] }, "Drag here or hold __{0}__ to attach to chat", passThroughModifier)
-				: localize('chatInputDropHint', "Drag here to attach to chat"),
+			getHint,
 			adoptHint: hint => this.adoptedHints.set(target, hint),
 		}));
-		// Whether a pane around the target lets the drag through to it, such as the editor area of a chat editor while the key
-		// to drop into the editor is held. The input takes it then, as with the drag over it, until the drag leaves: also
-		// once the key is released, as the drop still attaches until the pane takes the drag again.
+		// Whether the drag is let through to the input: by a pane around the target, such as the editor area of a chat editor
+		// while the key to drop into the editor is held, or by that key held over the target itself, which lets drags through to
+		// the input of every chat, wherever it shows. The input takes the drag then, as with the drag over it, until the drag
+		// leaves: also once the key is released, as the drop still attaches until the pane takes the drag again.
 		let letThrough = false;
 		// Whether the overlay fits the input, rather than covering the whole target.
 		let fitsInput = false;
@@ -149,17 +160,49 @@ export class ChatDragAndDrop extends Themable {
 					return;
 				}
 
-				e.stopPropagation();
-				e.preventDefault();
-
 				const entering = target !== this.currentActiveTarget;
-				letThrough = (letThrough && !entering) || isPassThroughDrag(target, e);
+				// A dragged chat or session, which the pane around the input can open where it is dropped, attaches on the
+				// input only: the target around the input leaves it to that pane. Where the pane does not take it, the input
+				// shows that it takes it, as the pane's hint over the input does.
+				const inputOnly = inputTarget !== target && attachesOnInputOnly(e);
+				if (inputOnly && !(isHTMLElement(e.target) && (chat.contains(e.target) || overlay.contains(e.target)))) {
+					// Over the rest of the target, such as a sessions list beside the chat or a pane's overlay over the chat
+					if (!entering) {
+						this.currentActiveTarget = undefined;
+					}
+					if (!entering || overlay.classList.contains(INPUT_HINT_CLASS)) {
+						this.setOverlay(target, undefined);
+					}
+					return;
+				}
+				letThrough = (letThrough && !entering) || isPassThroughDrag(target, e) || (inputTarget !== target && isPassThroughModifierHeld(e));
 				const fittedInput = fitsInput && !entering;
-				fitsInput = this.layoutOverlay(overlay, overlayContainer, target, inputTarget, e, letThrough);
+				fitsInput = this.layoutOverlay(overlay, overlayContainer, target, inputTarget, e, letThrough, inputOnly);
+
+				// Nor does the target take drags while the input does not show, such as while an empty state replaces it.
+				if (!fitsInput && inputTarget !== target && (inputOnly || !isShown(inputTarget))) {
+					if (e.dataTransfer) {
+						e.dataTransfer.dropEffect = 'none';
+					}
+					if (!entering) {
+						this.setOverlay(target, undefined);
+						this.currentActiveTarget = undefined;
+					}
+					if (inputOnly && isShown(inputTarget) && this.isDragEventSupported(e)) {
+						this.setInputHint(target, getHint(PASS_THROUGH_MODIFIER_LABEL));
+					} else if (overlay.classList.contains(INPUT_HINT_CLASS)) {
+						this.setOverlay(target, undefined);
+					}
+					return;
+				}
+
 				if (!fitsInput) {
 					// Over the whole target, the overlay says what it says there
 					this.adoptedHints.delete(target);
 				}
+
+				e.stopPropagation();
+				e.preventDefault();
 
 				// The overlay that fits the input is under a drag off the input, such as after the input moved: what is under
 				// the overlay takes the drag. Covering the whole target instead would hide the drag from a pane around it that
@@ -201,6 +244,9 @@ export class ChatDragAndDrop extends Themable {
 				e.preventDefault();
 
 				if (target !== this.currentActiveTarget) {
+					if (overlay.classList.contains(INPUT_HINT_CLASS)) {
+						this.setOverlay(target, undefined);
+					}
 					return;
 				}
 
@@ -216,18 +262,20 @@ export class ChatDragAndDrop extends Themable {
 	 * Fits the overlay to what takes the drop: the input while the drag is over it, as the pane around the input, such as
 	 * a grid that opens what is dropped on it, can take the drag elsewhere, and while that pane lets the drag through to
 	 * the target (`letThrough`); else the whole target, whose drags outside the input reach it only where nothing around
-	 * it takes them. Returns whether it fits the input, which it outlines then, as the hint over the input does while
-	 * such a pane covers it.
+	 * it takes them. With `hintInput`, it fits the input also while the drag is off it, to show that the input takes the
+	 * drag there. Returns whether the input takes the drop where the drag is, which the overlay outlines then, as the hint
+	 * over the input does while such a pane covers it.
 	 */
-	private layoutOverlay(overlay: HTMLElement, overlayContainer: HTMLElement, target: HTMLElement, inputTarget: HTMLElement, e: DragEvent, letThrough: boolean): boolean {
+	private layoutOverlay(overlay: HTMLElement, overlayContainer: HTMLElement, target: HTMLElement, inputTarget: HTMLElement, e: DragEvent, letThrough: boolean, hintInput: boolean): boolean {
 		if (inputTarget === target) {
 			return false;
 		}
 
 		const input = inputTarget.getBoundingClientRect();
+		const shown = input.width > 0 && input.height > 0;
 		const overInput = e.clientX >= input.left && e.clientX <= input.right && e.clientY >= input.top && e.clientY <= input.bottom;
-		const fitsInput = input.width > 0 && input.height > 0 && (overInput || letThrough);
-		if (!fitsInput) {
+		const fitsInput = shown && (overInput || letThrough);
+		if (!fitsInput && !(shown && hintInput)) {
 			overlay.classList.remove('input-drop-target-outline');
 			overlay.style.top = overlay.style.left = overlay.style.width = overlay.style.height = overlay.style.borderRadius = '';
 			return false;
@@ -245,7 +293,7 @@ export class ChatDragAndDrop extends Themable {
 		overlay.style.width = `${input.width}px`;
 		overlay.style.height = `${input.height}px`;
 		overlay.style.borderRadius = borderRadius;
-		return true;
+		return fitsInput;
 	}
 
 	private onDragEnter(e: DragEvent, target: HTMLElement): void {
@@ -530,6 +578,10 @@ export class ChatDragAndDrop extends Themable {
 		this.overlayText = undefined;
 
 		const { overlay } = this.overlays.get(target)!;
+		if (overlay.classList.contains(INPUT_HINT_CLASS)) {
+			overlay.classList.remove(INPUT_HINT_CLASS);
+			this.updateOverlayStyles(overlay);
+		}
 		const adoptedHint = this.adoptedHints.get(target);
 		if (type === undefined) {
 			this.adoptedHints.delete(target);
@@ -556,19 +608,52 @@ export class ChatDragAndDrop extends Themable {
 		overlay.classList.toggle('visible', type !== undefined);
 	}
 
+	/**
+	 * Shows on the input of `target`, while the drag is off the input, that the input takes the drag, as the hint of a
+	 * placement overlay over the input does: outlined, saying `hint`, without the tint of a drop. Once the drag is over the
+	 * input, which takes it there, the input says the same.
+	 */
+	private setInputHint(target: HTMLElement, hint: string): void {
+		const { overlay } = this.overlays.get(target)!;
+		if (overlay.classList.contains(INPUT_HINT_CLASS) && this.adoptedHints.get(target) === hint) {
+			return;
+		}
+
+		this.setOverlay(target, undefined);
+		this.adoptedHints.set(target, hint);
+		this.overlayText = $('span.drop-overlay-label');
+		renderFormattedText(hint, undefined, this.overlayText);
+		overlay.appendChild(this.overlayText);
+		overlay.classList.add('visible', INPUT_HINT_CLASS);
+		this.updateOverlayStyles(overlay);
+	}
+
 	private getOverlayText(type: ChatDragAndDropType): string {
 		const typeName = this.getDropTypeName(type);
 		return localize('attacAsContext', 'Attach {0} as Context', typeName);
 	}
 
 	private updateOverlayStyles(overlay: HTMLElement): void {
-		overlay.style.backgroundColor = this.getColor(this.styles.overlayBackground) || '';
+		overlay.style.backgroundColor = overlay.classList.contains(INPUT_HINT_CLASS) ? '' : this.getColor(this.styles.overlayBackground) || '';
 		overlay.style.color = this.getColor(this.styles.listForeground) || '';
 	}
 
 	override updateStyles(): void {
 		this.overlays.forEach(overlay => this.updateOverlayStyles(overlay.overlay));
 	}
+}
+
+/**
+ * Whether the drag stands for a chat or a session, such as the tab of a chat or a row of the sessions list, which the
+ * panes around a chat input, such as a grid of sessions, open where it is dropped: the chat attaches it on its input only.
+ */
+function attachesOnInputOnly(e: DragEvent): boolean {
+	return containsDragType(e, CodeDataTransfers.CHAT_REFERENCE);
+}
+
+function isShown(element: HTMLElement): boolean {
+	const bounds = element.getBoundingClientRect();
+	return bounds.width > 0 && bounds.height > 0;
 }
 
 function containsImageDragType(e: DragEvent): boolean {

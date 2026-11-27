@@ -38,6 +38,7 @@ import { AccessibleViewRegistry } from '../../../../../platform/accessibility/br
 import { IEditorWindowSessionsRuntime } from '../editorWindow/editorWindowSessionsRuntime.js';
 import { Menus } from '../menus.js';
 import { ShownChatReadMarker } from '../shownChatReadMarker.js';
+import { SessionChatDropTarget } from '../parts/sessionChatDropTarget.js';
 import { IChatViewSessionsListService } from '../../../chat/common/chatViewSessionsListService.js';
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
@@ -119,8 +120,15 @@ class ChatViewSessionsListFeature extends Disposable {
 
 		// The sessions list of the Chat view, whose sessions open where the window presents them. While a host replaces the Chat
 		// view, such as the chat part, its chats show there: the Chat view shows only the sessions, unless it hosts the chat
-		// opened last, one that the host leaves to it, such as a local chat
-		this._register(_chatViewHostService.register({ sessionsList: instantiationService.createInstance(ChatViewSessionsListProvider), sessionsOnly: true }));
+		// opened last, one that the host leaves to it, such as a local chat. A session dropped on the chat opens there, in place of
+		// the chat it shows, as one picked in the list does; one dropped on a chat editor opens beside it, in its group.
+		this._register(_chatViewHostService.register({
+			sessionsList: instantiationService.createInstance(ChatViewSessionsListProvider),
+			dropTarget: {
+				create: (element, chat, open) => instantiationService.createInstance(SessionChatDropTarget, element, { chat, open }),
+			},
+			sessionsOnly: true,
+		}));
 		const sessionsOnly = _chatViewHostService.sessionsOnly;
 		const sessionsOnlyContext = ChatViewSessionsOnlyContext.bindTo(contextKeyService);
 		this._register(autorun(reader => sessionsOnlyContext.set(sessionsOnly.read(reader))));

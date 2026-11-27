@@ -11,6 +11,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { isCancellationError, onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../../base/common/observable.js';
 import { isLocalAgentHostProviderDisabledByPolicy } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -44,7 +45,8 @@ import { AgentHostSessionInputPills } from '../../agentSessions/agentHost/agentH
 import { IAgentHostUntitledProvisionalSessionService } from '../../agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { ChatEditorInput } from './chatEditorInput.js';
 import { ChatWidget } from '../../widget/chatWidget.js';
-import { IChatWidgetViewState, setModelPreservingInputTypedWhileLoading } from '../../chat.js';
+import { IChatWidgetService, IChatWidgetViewState, setModelPreservingInputTypedWhileLoading } from '../../chat.js';
+import { IChatViewHostService } from '../../chatViewHost.js';
 import { getChatSessionType, isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IChatOpen, IChatOpenDiagnosticsService } from '../../../common/chatOpenDiagnosticsService.js';
 
@@ -122,6 +124,8 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 		@IEditorService editorService: IEditorService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IAgentHostUntitledProvisionalSessionService private readonly provisionalSessionService: IAgentHostUntitledProvisionalSessionService,
+		@IChatViewHostService private readonly chatViewHostService: IChatViewHostService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super(ChatEditorInput.EditorID, group, ChatEditor.VIEW_STATE_KEY, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
 		this._register(chatSessionsService.onDidChangeContentProviderSchemes(({ added, removed }) => {
@@ -208,6 +212,13 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 		}
 	}
 
+	/** Opens `chats` in the editor's group, each in a tab of its own, or where it is open already. */
+	private async openInGroup(chats: readonly URI[]): Promise<void> {
+		for (const chat of chats) {
+			await this.chatWidgetService.openSession(chat, this.group, { pinned: true });
+		}
+	}
+
 	protected override createEditor(parent: HTMLElement): void {
 		this._editorContainer = parent;
 		// Ensure the container has position relative for the loading overlay
@@ -260,6 +271,14 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 			}
 		}));
 		this.widget.render(parent);
+		// What a feature drops on the chat, such as a session, opens beside it, each in a tab of its group; ahead of the chat,
+		// whose input attaches what is dropped on it.
+		this._register(autorun(reader => {
+			const dropTarget = this.chatViewHostService.dropTarget.read(reader);
+			if (dropTarget) {
+				reader.store.add(dropTarget.create(parent, () => this.widget.viewModel?.sessionResource, chats => void this.openInGroup(chats).catch(onUnexpectedError)));
+			}
+		}));
 		this._register(scopedInstantiationService.createInstance(AgentHostSessionInputPills, this.widget, 'auto'));
 		this.widget.setVisible(true);
 	}
