@@ -19,6 +19,8 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { IListService, ListService } from '../../../../../../platform/list/browser/listService.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { constObservable } from '../../../../../../base/common/observable.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { EditorInputCapabilities } from '../../../../../common/editor.js';
@@ -500,11 +502,13 @@ suite('SessionWorkspaceEditor', () => {
 			{ toOpen: [{ folder: 'file://server/share/project' }], forceNewWindow: true },
 		]);
 	});
-	test('Open in Editor opens a new editor window on the workspace file, or on its folders without a file to read', async () => {
+
+	test('Open in Editor opens a new editor window on the workspace file or a standalone folder, and refuses a missing workspace', async () => {
 		const open = async (workspace: IRecentSessionWorkspace) => {
 			const instantiationService = workbenchInstantiationService(undefined, disposables);
-			const opened: { toOpen: string[]; forceNewWindow: boolean | undefined }[] = [];
+			const opened: (string | { toOpen: string[]; forceNewWindow: boolean | undefined })[] = [];
 			instantiationService.stub(ISessionWorkspacesService, upcastPartial<ISessionWorkspacesService>({ getWorkspace: () => workspace }));
+			instantiationService.stub(INotificationService, upcastPartial<INotificationService>({ info: message => { opened.push(`info ${message}`); } }));
 			instantiationService.stub(IHostService, upcastPartial<IHostService>({
 				openWindow: (async (toOpen?: IWindowOpenable[] | IOpenEmptyWindowOptions, options?: IOpenWindowOptions) => {
 					const openables = Array.isArray(toOpen) ? toOpen : [];
@@ -525,7 +529,21 @@ suite('SessionWorkspaceEditor', () => {
 		}, {
 			file: [{ toOpen: ['workspace /user/AgentsWorkspaces/Agents.code-workspace'], forceNewWindow: true }],
 			folder: [{ toOpen: ['folder /work/vscode'], forceNewWindow: true }],
-			missingFile: [{ toOpen: ['folder /work/vscode', 'folder /work/vscode-docs'], forceNewWindow: true }],
+			missingFile: ['info The workspace file of \'Agents\' is missing. Edit the workspace to repair it, or remove it.'],
 		});
+	});
+
+	test('Open in Editor offers only workspaces whose file is not missing', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const offered: string[] = [];
+		instantiationService.stub(ISessionWorkspacesService, upcastPartial<ISessionWorkspacesService>({ workspaces: constObservable([agents, { ...agents, uri: URI.file('/work/gone.code-workspace'), name: 'Gone', missing: true }]) }));
+		instantiationService.stub(IQuickInputService, upcastPartial<IQuickInputService>({
+			pick: (async (items: readonly IQuickPickItem[]) => {
+				offered.push(...items.map(item => item.label));
+				return undefined;
+			}) as IQuickInputService['pick'],
+		}));
+		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(OPEN_SESSION_WORKSPACE_IN_EDITOR_COMMAND_ID)!.handler(accessor));
+		assert.deepStrictEqual(offered, ['Agents']);
 	});
 });

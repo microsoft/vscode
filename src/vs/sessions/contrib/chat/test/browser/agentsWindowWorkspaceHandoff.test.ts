@@ -194,7 +194,7 @@ suite('Agents Window workspace handoff', () => {
 			notifyInputChanged: () => inputChanged.fire(),
 			openDraft: (draft: IChatDraft, folder: URI | undefined = folderUri) => handoff.selectWorkspace({ folderUri: folder, preferDevContainer: true, isDefault: false, draft: serializeChatDraft(draft) }, state => states.push(state)),
 			open: (isDefault = false, folder = folderUri) => handoff.selectWorkspace({ folderUri: folder, preferDevContainer: true, isDefault }, state => states.push(state)),
-			openWorkspace: (workspace: IAgentsWindowWorkspaceFolders, draft?: IChatDraft) => handoff.selectWorkspace({ folderUri, workspace, preferDevContainer: false, isDefault: false, ...(draft ? { draft: serializeChatDraft(draft) } : undefined) }, state => states.push(state)),
+			openWorkspace: (workspace: IAgentsWindowWorkspaceFolders, draft?: IChatDraft, isDefault = false) => handoff.selectWorkspace({ folderUri, workspace, preferDevContainer: false, isDefault, ...(draft ? { draft: serializeChatDraft(draft) } : undefined) }, state => states.push(state)),
 		};
 	}
 
@@ -822,5 +822,33 @@ suite('Agents Window workspace handoff', () => {
 			{ name: 'workspaces disabled', state: 'applied', opened: [], folder: '/private/from-editor', workspaceConfig: undefined, folders: undefined },
 			{ name: 'draft keeps its folder', state: 'applied', opened: [], folder: '/private/from-editor', workspaceConfig: undefined, folders: undefined },
 		]);
+	});
+
+	test('adds the editor window\'s workspace neither for an inferred default that keeps a restored session nor after the handoff is superseded', async () => {
+		const file = URI.file('/work/app.code-workspace');
+		const folders = [URI.file('/work/client'), URI.file('/work/server')];
+		const workspace = { uri: file, name: 'App', folders, owned: false };
+
+		const restored = createHarness();
+		restored.openWorkspaceResult = async () => workspace;
+		restored.activeSession.set(upcastPartial<ITestSessionWithChat>({ ...withCreatedStatus(observableValue('created', true)) }), undefined);
+		await restored.openWorkspace({ file, folders }, undefined, true);
+
+		const providers = new DeferredPromise<void>();
+		const superseded = createHarness(providers.p);
+		superseded.openWorkspaceResult = async () => workspace;
+		const opening = superseded.openWorkspace({ file, folders });
+		await timeout(0);
+		superseded.handoff.cancel();
+		await providers.complete();
+		await opening;
+
+		assert.deepStrictEqual({
+			restored: { state: restored.states.at(-1), opened: restored.openedWorkspaceFiles.length, selections: restored.selections.length },
+			superseded: { opened: superseded.openedWorkspaceFiles.length, selections: superseded.selections.length },
+		}, {
+			restored: { state: 'preservedSession', opened: 0, selections: 0 },
+			superseded: { opened: 0, selections: 0 },
+		});
 	});
 });

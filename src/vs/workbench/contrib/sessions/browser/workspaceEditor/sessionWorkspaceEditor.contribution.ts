@@ -64,12 +64,15 @@ AccessibleViewRegistry.register(new SessionGroupEditorAccessibilityHelp());
 
 /** A command on a workspace, which the user picks when the command is not given one. */
 abstract class SessionWorkspacePickAction extends Action2 {
-	/** The workspace of `uri`, else one that the user picks among the workspaces. */
-	protected async resolveWorkspace(uri: URI | undefined, placeholder: string, workspacesService: ISessionWorkspacesService, labelService: ILabelService, quickInputService: IQuickInputService): Promise<IRecentSessionWorkspace | undefined> {
+	/**
+	 * The workspace of `uri`, else one that the user picks among the workspaces.
+	 * @param pickable Which workspaces the user can pick from; all by default.
+	 */
+	protected async resolveWorkspace(uri: URI | undefined, placeholder: string, workspacesService: ISessionWorkspacesService, labelService: ILabelService, quickInputService: IQuickInputService, pickable: (workspace: IRecentSessionWorkspace) => boolean = () => true): Promise<IRecentSessionWorkspace | undefined> {
 		if (URI.isUri(uri)) {
 			return workspacesService.getWorkspace(uri);
 		}
-		const items = workspacesService.workspaces.get().map((workspace): IQuickPickItem & { workspace: IRecentSessionWorkspace } => ({
+		const items = workspacesService.workspaces.get().filter(pickable).map((workspace): IQuickPickItem & { workspace: IRecentSessionWorkspace } => ({
 			workspace,
 			label: workspace.name,
 			description: workspace.folders.map(folder => labelService.getUriLabel(folder, { relative: false })).join(', '),
@@ -133,18 +136,27 @@ registerAction2(class OpenSessionWorkspaceInEditorAction extends SessionWorkspac
 		});
 	}
 
-	/** Opens a new editor window on the workspace's `.code-workspace` file, else, without a file to read, on its folders. */
+	/**
+	 * Opens a new editor window on the workspace's `.code-workspace` file, or on the folder of a workspace that has no
+	 * file. A workspace whose file is missing can't be opened: it is there to repair or remove.
+	 */
 	override async run(accessor: ServicesAccessor, uri?: URI): Promise<void> {
 		const hostService = accessor.get(IHostService);
+		const notificationService = accessor.get(INotificationService);
 		const extUri = accessor.get(IUriIdentityService).extUri;
-		const workspace = await this.resolveWorkspace(uri, localize('openWorkspaceInEditor.pick', "Select a workspace to open in an editor window"), accessor.get(ISessionWorkspacesService), accessor.get(ILabelService), accessor.get(IQuickInputService));
+		const workspace = await this.resolveWorkspace(uri, localize('openWorkspaceInEditor.pick', "Select a workspace to open in an editor window"), accessor.get(ISessionWorkspacesService), accessor.get(ILabelService), accessor.get(IQuickInputService), candidate => !candidate.missing);
 		if (!workspace) {
 			return;
 		}
-		if (SessionWorkspaceEditorInput.hasWorkspaceFile(extUri, workspace) && !workspace.missing) {
+		if (workspace.missing) {
+			notificationService.info(localize('openWorkspaceInEditor.missing', "The workspace file of '{0}' is missing. Edit the workspace to repair it, or remove it.", workspace.name));
+			return;
+		}
+		if (SessionWorkspaceEditorInput.hasWorkspaceFile(extUri, workspace)) {
 			await hostService.openWindow([{ workspaceUri: workspace.uri }], { forceNewWindow: true });
 		} else if (workspace.folders.length) {
-			await hostService.openWindow(workspace.folders.map(folderUri => ({ folderUri })), { forceNewWindow: true });
+			// Without a file, the workspace is a standalone folder
+			await hostService.openWindow([{ folderUri: workspace.folders[0] }], { forceNewWindow: true });
 		}
 	}
 });

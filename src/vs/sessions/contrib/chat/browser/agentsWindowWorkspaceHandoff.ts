@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { raceCancellationError, timeout } from '../../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -219,7 +219,11 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 				onState('waitingForProvider');
 				await raceCancellationError(this.whenStartupProvidersRegistered.catch(() => undefined), source.token);
 			}
-			const workspaceSelection = intent.workspace && !intent.remote && !intent.draft ? await raceCancellationError(this._resolveWorkspaceSelection(intent.workspace), source.token) : undefined;
+			// Resolving can add the workspace to the known workspaces. As for a remote host, an inferred default does so only
+			// once restore leaves no session to keep.
+			const resolvesWorkspace = !!intent.workspace && !intent.remote && !intent.draft
+				&& !(inferredDefault && isSessionCreated(this._focusedSessionHostService.focusedHost.get().session.get()));
+			const workspaceSelection = resolvesWorkspace && intent.workspace ? await raceCancellationError(this._resolveWorkspaceSelection(intent.workspace, source.token), source.token) : undefined;
 			folderUri = workspaceSelection?.folderUri ?? folderUri;
 			// A remote editor window must not fall back to an unrelated local folder.
 			const remoteWithoutFolder = !!intent.remote && !intent.draft && !folderUri;
@@ -356,7 +360,7 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 	 * the known workspaces when it isn't one yet, with its first folder as the selected one; the folders of an untitled
 	 * workspace, or of a workspace file that can't be added.
 	 */
-	private async _resolveWorkspaceSelection(workspace: IAgentsWindowWorkspaceFolders): Promise<IWorkspaceSelection | undefined> {
+	private async _resolveWorkspaceSelection(workspace: IAgentsWindowWorkspaceFolders, token: CancellationToken): Promise<IWorkspaceSelection | undefined> {
 		if (!this.sessionWorkspacesService.enabled.get() || workspace.folders.length === 0) {
 			return undefined;
 		}
@@ -367,6 +371,11 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 		}
 		let known = this.sessionWorkspacesService.getWorkspace(workspace.file);
 		if (!known || known.missing) {
+			// A superseded handoff adds nothing. Once started, adding the workspace is the effect of opening the Agents
+			// window on it, even when a newer intent supersedes the handoff while the file is read.
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
 			try {
 				known = await this.sessionWorkspacesService.openWorkspace(workspace.file);
 			} catch (error) {
