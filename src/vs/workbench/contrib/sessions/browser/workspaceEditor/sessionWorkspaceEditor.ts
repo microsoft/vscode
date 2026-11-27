@@ -20,6 +20,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { basename } from '../../../../../base/common/resources.js';
@@ -871,6 +872,10 @@ export class SessionWorkspaceEditorWidget extends Disposable {
 				this.applied = draft;
 				this._onDidApply.fire(workspace);
 			} catch (error) {
+				// The workspace was removed while this change waited its turn: there is nothing left to save
+				if (isCancellationError(error)) {
+					return;
+				}
 				this.logService.error(error);
 				// A refusal of the workspaces service explains itself; any other error stays in the log
 				this.notificationService.error(error instanceof SessionWorkspaceError ? error.message : this.workspace

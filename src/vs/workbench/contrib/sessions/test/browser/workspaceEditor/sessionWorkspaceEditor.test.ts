@@ -7,6 +7,7 @@ import assert from 'assert';
 import { Dimension } from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { extUriIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -206,7 +207,7 @@ suite('SessionWorkspaceEditor', () => {
 		});
 	});
 
-	test('a failed save shows the workspaces service\'s refusal as it is, and any other error as a generic message', async () => {
+	test('a failed save shows the workspaces service\'s refusal as it is, any other error as a generic message, and nothing once the workspace was removed meanwhile', async () => {
 		const save = async (error: Error) => {
 			const { container, widget, errors } = createWidget({ kind: 'edit', workspace: agents }, [], undefined, error);
 			Array.from(container.querySelectorAll<HTMLElement>('.session-workspace-editor-swatch')).find(swatch => swatch.getAttribute('aria-label') === 'Blue')!.click();
@@ -217,9 +218,12 @@ suite('SessionWorkspaceEditor', () => {
 		assert.deepStrictEqual({
 			refused: await save(new SessionWorkspaceError('The folders of the workspace file \'Agents.code-workspace\' were not changed.', 'foldersUnknown')),
 			other: await save(new Error('EACCES: /user/AgentsWorkspaces/Agents.code-workspace')),
+			// The workspace was removed while the change waited its turn
+			cancelled: await save(new CancellationError()),
 		}, {
 			refused: ['The folders of the workspace file \'Agents.code-workspace\' were not changed.'],
 			other: ['Could not save the workspace \'Agents\'. See the log for details.'],
+			cancelled: [],
 		});
 	});
 
