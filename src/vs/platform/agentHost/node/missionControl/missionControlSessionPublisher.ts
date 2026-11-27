@@ -20,7 +20,7 @@ const maxPendingBytes = 32 * 1024 * 1024;
 const maxSessions = 1024;
 
 interface SessionPublication {
-	readonly ready: Promise<void>;
+	ready: Promise<void>;
 	readonly pending: { readonly envelope: ActionEnvelope; readonly bytes: number }[];
 	registered: boolean;
 	started: boolean;
@@ -67,6 +67,9 @@ export class MissionControlSessionPublisher extends Disposable {
 				pending, registered: false, started: false, failed: false, bytes: 0, skipped: 0,
 			};
 			this._sessions.set(session, publication);
+		} else if (publication.failed) {
+			publication.failed = false;
+			publication.ready = this._registerSession(session, publication.pending);
 		}
 		return publication.ready;
 	}
@@ -74,7 +77,7 @@ export class MissionControlSessionPublisher extends Disposable {
 	enqueue(envelope: ActionEnvelope, session: string): void {
 		if (!this._isEnabled()) {
 			const publication = this._sessions.get(session);
-			if (publication && !publication.failed) {
+			if (publication) {
 				if (publication.registered) {
 					this._mirror.reportSourceLag(session, 1);
 				} else {
@@ -83,11 +86,13 @@ export class MissionControlSessionPublisher extends Disposable {
 			}
 			return;
 		}
-		const ready = this.registerSession(session);
-		const publication = this._sessions.get(session)!;
-		if (publication.failed) {
+		let publication = this._sessions.get(session);
+		if (publication?.failed) {
+			publication.skipped++;
 			return;
 		}
+		const ready = this.registerSession(session);
+		publication = this._sessions.get(session)!;
 		if (publication.registered) {
 			this._publish(envelope, session, publication);
 			return;
@@ -147,6 +152,7 @@ export class MissionControlSessionPublisher extends Disposable {
 			const publication = this._sessions.get(session);
 			if (publication) {
 				publication.failed = true;
+				publication.skipped += pending.length;
 			}
 			throw error;
 		} finally {

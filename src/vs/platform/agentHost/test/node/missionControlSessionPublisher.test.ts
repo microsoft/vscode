@@ -298,6 +298,62 @@ suite('MissionControlSessionPublisher', () => {
 		assert.deepStrictEqual({ events: f.events, sessions: f.mirror.statistics.sessions, errors: f.errors.callCount }, { events: [], sessions: 0, errors: 1 });
 	});
 
+	for (const probe of ['root', 'remotes'] as const) {
+		test(`retries a failed repository ${probe} lookup and shares the recovered registration`, async () => {
+			const options: Parameters<typeof fixture>[0] = { [probe]: null };
+			const f = fixture(options);
+			await assert.rejects(f.publisher.registerSession(session), /could not be resolved/);
+			await assert.rejects(f.publisher.registerSession(session), /could not be resolved/);
+
+			delete options[probe];
+			const gate = new DeferredPromise<void>();
+			options.gate = gate.p;
+			const ready = f.publisher.registerSession(session);
+			assert.strictEqual(f.publisher.registerSession(session), ready);
+			f.publisher.enqueue(envelope(), session);
+			await gate.complete();
+			await ready;
+			assert.strictEqual(f.publisher.registerSession(session), ready);
+			clock.runAll();
+
+			assert.deepStrictEqual({
+				reads: f.reads,
+				projects: f.frames().map(frame => frame.project),
+				failure: f.mirror.getSessionStatus(session).failure,
+			}, {
+				reads: Array.from({ length: 3 }, () => directory.toString()),
+				projects: [{ uri: 'https://github.com/microsoft/vscode', display_name: 'microsoft/vscode' }],
+				failure: undefined,
+			});
+		});
+	}
+
+	test('retains AHP integrity loss while recovering SDK publication after a failed lookup', async () => {
+		const options = { root: null as URI | null };
+		const f = fixture(options);
+		f.publisher.enqueue(envelope(), session);
+		await assert.rejects(f.publisher.registerSession(session), /could not be resolved/);
+		f.publisher.enqueue(envelope(2), session);
+		assert.deepStrictEqual(f.reads, [directory.toString()]);
+
+		options.root = directory;
+		await f.publisher.registerSession(session);
+		f.publisher.enqueue(envelope(3), session);
+		f.mirror.reserveSdkSequences(session, 0, 1024);
+		f.mirror.enqueueSdk(session, { type: 'session.idle', data: {} }, at);
+		clock.runAll();
+
+		assert.deepStrictEqual({
+			reads: f.reads,
+			frames: f.frames().map(frame => ({ ns: frame.ns, payload: frame.payload })),
+			failure: f.mirror.getSessionStatus(session).failure,
+		}, {
+			reads: [directory.toString(), directory.toString()],
+			frames: [{ ns: 'sdk', payload: { type: 'session.idle', data: {} } }],
+			failure: { namespace: 'ahp', reason: 'source_lag', skipped: 2 },
+		});
+	});
+
 	for (const options of [{ root: null }, { remotes: null }]) {
 		test(`does not freeze missing repository identity after an inconclusive Git probe: ${JSON.stringify(options)}`, async () => {
 			const f = fixture(options);
