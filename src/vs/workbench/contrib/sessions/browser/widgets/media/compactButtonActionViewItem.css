@@ -45,10 +45,13 @@ Selectors are intentionally unscoped so the widget renders identically wherever 
 	white-space: nowrap;
 }
 
-/* Icons take a fixed slot, so a product icon theme or its font loading never changes the pill's width */
+/* Icons take a fixed slot and paint only inside it, so a product icon theme or its font loading
+never changes the pill's width or paints over its label or the next action. An element's own
+overflow never clips its outline, so the focus outline stays whole. */
 .agent-sessions-compact-new-button .new-session-button-icon {
 	flex-shrink: 0;
 	width: var(--vscode-codiconFontSize, 16px);
+	overflow: hidden;
 }
 
 .agent-sessions-compact-new-button .new-session-keybinding-hint {
@@ -134,6 +137,7 @@ Selectors are intentionally unscoped so the widget renders identically wherever 
 	box-sizing: content-box;
 	width: var(--vscode-codiconFontSize, 16px);
 	min-width: 0;
+	overflow: hidden;
 	height: auto;
 	padding: 0 var(--vscode-spacing-size20);
 	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0;

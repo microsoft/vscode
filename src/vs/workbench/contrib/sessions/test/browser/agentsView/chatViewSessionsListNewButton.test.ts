@@ -21,7 +21,8 @@ import { MockContextKeyService } from '../../../../../../platform/keybinding/tes
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { ChatViewSessionsListControl } from '../../../browser/agentsView/chatViewSessionsList.js';
 import { SessionsView } from '../../../browser/views/sessionsView.js';
-import { CompactButtonActionViewItem } from '../../../browser/widgets/compactButtonActionViewItem.js';
+import { CompactButtonActionViewItem, ICompactButtonDropdown } from '../../../browser/widgets/compactButtonActionViewItem.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { USLayoutResolvedKeybinding } from '../../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
 import { KeyCodeChord, ResolvedKeybinding } from '../../../../../../base/common/keybindings.js';
@@ -407,19 +408,36 @@ suite('Sessions - Chat view sessions list New button', () => {
 		}
 	});
 
-	test('keeps its width when a product icon theme changes its icons, wherever it is mounted', () => {
+	test('keeps its width and paints its icons only inside their slots when a product icon theme widens them', () => {
+		class IconPill extends CompactButtonActionViewItem {
+			protected override get commandId() { return ACTION_ID_NEW_CHAT; }
+			protected override get label() { return 'New'; }
+			protected override get icon() { return Codicon.add; }
+			protected override get dropdown(): ICompactButtonDropdown { return { contextMenuProvider: upcastPartial<IContextMenuService>({ showContextMenu: () => { } }), actions: [] }; }
+			protected override getHoverContent() { return 'New'; }
+			protected override getAriaLabel() { return 'New'; }
+		}
 		const root = attachRoot();
 		try {
-			const { container } = render(true);
-			root.appendChild(container);
-			const width = () => container.querySelector<HTMLElement>('.agent-sessions-compact-new-button-dropdown')!.getBoundingClientRect().width;
-			const before = width();
+			const instantiationService = workbenchInstantiationService(undefined, store);
+			const item = store.add(instantiationService.createInstance(IconPill, store.add(new Action('new', 'New'))));
+			const container = DOM.append(root, DOM.$('div'));
+			item.render(container);
+			const pill = container.querySelector<HTMLElement>('.agent-sessions-compact-new-button-dropdown')!;
+			const icon = pill.querySelector<HTMLElement>('.new-session-button-icon')!;
+			const chevron = pill.querySelector<HTMLElement>('.monaco-dropdown-button')!;
+			const before = pill.getBoundingClientRect().width;
 
 			// As a product icon theme with wider glyphs, which the title never measures again
 			const wideGlyphs = DOM.append(root, DOM.$('style'));
 			wideGlyphs.textContent = '.agent-sessions-compact-new-button-dropdown > .monaco-dropdown-button::before, .agent-sessions-compact-new-button .new-session-button-icon::before { content: "WWWWWW"; }';
 
-			assert.strictEqual(width(), before);
+			// What paints just past a glyph's slot: the label's gap after the icon, the space after the ▾
+			const paintsPast = (glyph: HTMLElement) => {
+				const rect = glyph.getBoundingClientRect();
+				return glyph.contains(document.elementFromPoint(rect.right + 1, rect.top + rect.height / 2));
+			};
+			assert.deepStrictEqual({ width: pill.getBoundingClientRect().width, iconPaintsPastSlot: paintsPast(icon), chevronPaintsPastSlot: paintsPast(chevron) }, { width: before, iconPaintsPastSlot: false, chevronPaintsPastSlot: false });
 		} finally {
 			root.remove();
 		}
