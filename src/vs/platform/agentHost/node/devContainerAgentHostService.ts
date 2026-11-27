@@ -1888,12 +1888,13 @@ function getWslFolderContainerCandidates(output: string): string[] {
  * Reads the containers listed with {@link devContainerFolderContainerFormat} and keeps those whose id labels are the
  * defaults for their folder and one of its default configuration files, which a connection with the folder's path
  * reuses. Others would get a container of their own. In WSL, given the Windows paths of folders, this also keeps those
- * with the id labels Dev Containers gives the containers of WSL folders, which a connection prefers, so only their
- * states count when a folder has both. A folder runs if any of its counted containers runs.
+ * with the id labels Dev Containers gives the containers of WSL folders, which a connection with the same configuration
+ * file prefers, so only their states count when a configuration file has both. A folder runs if any of its counted
+ * containers runs.
  */
 export function parseDevContainerFolderContainers(output: string, platform: string, wslWindowsPaths?: ReadonlyMap<string, string>): { readonly workspaceFolder: string; readonly running: boolean }[] {
 	const path = platform === 'win32' ? win32 : posix;
-	const folders = new Map<string, { running: boolean; wsl: boolean }>();
+	const configs = new Map<string, { readonly workspaceFolder: string; running: boolean; wsl: boolean }>();
 	for (const [localFolder, configFile, state] of parseDevContainerFolderContainerLabels(output)) {
 		const labels = [`devcontainer.local_folder=${localFolder}`, `devcontainer.config_file=${configFile}`];
 		const usesDefaults = !!localFolder && path.isAbsolute(localFolder)
@@ -1906,14 +1907,20 @@ export function parseDevContainerFolderContainers(output: string, platform: stri
 			continue;
 		}
 		const running = state.trim().toLowerCase() === 'running';
-		const folder = folders.get(workspaceFolder);
-		if (!folder || (wsl && !folder.wsl)) {
-			folders.set(workspaceFolder, { running, wsl });
-		} else if (wsl === folder.wsl) {
-			folder.running ||= running;
+		// The folder and which of its default configuration files the container is for.
+		const key = JSON.stringify([workspaceFolder, /[\\/]\.devcontainer\.json$/.test(configFile)]);
+		const config = configs.get(key);
+		if (!config || (wsl && !config.wsl)) {
+			configs.set(key, { workspaceFolder, running, wsl });
+		} else if (wsl === config.wsl) {
+			config.running ||= running;
 		}
 	}
-	return [...folders].map(([workspaceFolder, { running }]) => ({ workspaceFolder, running }));
+	const folders = new Map<string, boolean>();
+	for (const { workspaceFolder, running } of configs.values()) {
+		folders.set(workspaceFolder, folders.get(workspaceFolder) || running);
+	}
+	return [...folders].map(([workspaceFolder, running]) => ({ workspaceFolder, running }));
 }
 
 function findContainingBindMount(mounts: readonly IDevContainerMount[], path: string): IDevContainerMount | undefined {

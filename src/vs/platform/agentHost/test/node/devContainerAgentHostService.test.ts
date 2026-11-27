@@ -722,19 +722,22 @@ suite('Dev Container Agent Host Main Service', () => {
 				['\\\\wsl.localhost\\Ubuntu\\home\\me\\project', '/home/me/project/.devcontainer/devcontainer.json', 'running'],
 				['/home/me/project', '/home/me/project/.devcontainer/devcontainer.json', 'running'],
 			], 'win32'),
-			// In WSL, a connection uses those of the folder's containers, so only their states count.
+			// In WSL, a connection uses those of a configuration file's containers, so only their states count for it.
 			wsl: list([
 				['/home/me/project', '/home/me/project/.devcontainer/devcontainer.json', 'running'],
 				['\\\\wsl.localhost\\Ubuntu\\home\\me\\project', '/home/me/project/.devcontainer/devcontainer.json', 'exited'],
-				['/home/me/project', '/home/me/project/.devcontainer.json', 'running'],
 				['\\\\wsl.localhost\\Ubuntu\\home\\me\\other', '/home/me/other/.devcontainer.json', 'running'],
 				['/home/me/older', '/home/me/older/.devcontainer.json', 'running'],
+				// The container of the folder's other default configuration file runs.
+				['/home/me/both', '/home/me/both/.devcontainer/devcontainer.json', 'running'],
+				['\\\\wsl.localhost\\Ubuntu\\home\\me\\both', '/home/me/both/.devcontainer.json', 'exited'],
 				// Another distribution's folder, which Docker Desktop shares its engine with.
 				['\\\\wsl.localhost\\Debian\\home\\me\\debian', '/home/me/debian/.devcontainer/devcontainer.json', 'running'],
 				['\\\\wsl.localhost\\Ubuntu\\home\\me\\named', '/home/me/named/.devcontainer/node/devcontainer.json', 'running'],
 			], 'linux', new Map([
 				['/home/me/project', '\\\\wsl.localhost\\Ubuntu\\home\\me\\project'],
 				['/home/me/other', '\\\\wsl.localhost\\Ubuntu\\home\\me\\other'],
+				['/home/me/both', '\\\\wsl.localhost\\Ubuntu\\home\\me\\both'],
 				['/home/me/debian', '\\\\wsl.localhost\\Ubuntu\\home\\me\\debian'],
 			])),
 		}, {
@@ -748,6 +751,7 @@ suite('Dev Container Agent Host Main Service', () => {
 				{ workspaceFolder: '/home/me/project', running: false },
 				{ workspaceFolder: '/home/me/other', running: true },
 				{ workspaceFolder: '/home/me/older', running: true },
+				{ workspaceFolder: '/home/me/both', running: true },
 			],
 		});
 	});
