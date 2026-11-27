@@ -11,31 +11,36 @@ async function main() {
 	usePwsh();
 
 	const arch = e('VSCODE_ARCH');
-	const esrpCliDLLPath = e('EsrpCliDllPath');
-	const codeSigningFolderPath = e('CodeSigningFolderPath');
+	// Builds without the privileged connections can't reach ESRP, so they package the builds unsigned
+	const sign = !!process.env['VSCODE_SIGN'];
 
-	// Start the code sign processes in parallel
-	// 1. Codesign executables and shared libraries
-	// 2. Codesign Powershell scripts
-	// 3. Codesign context menu appx package (insiders only)
-	const codesignTask1 = spawnCodesignProcess(esrpCliDLLPath, 'sign-windows', codeSigningFolderPath, '*.dll,*.exe,*.node');
-	const codesignTask2 = spawnCodesignProcess(esrpCliDLLPath, 'sign-windows-appx', codeSigningFolderPath, '*.ps1,*.psm1,*.psd1,*.ps1xml');
-	const codesignTask3 = process.env['VSCODE_QUALITY'] !== 'exploration'
-		? spawnCodesignProcess(esrpCliDLLPath, 'sign-windows-appx', codeSigningFolderPath, '*.appx')
-		: undefined;
+	if (sign) {
+		const esrpCliDLLPath = e('EsrpCliDllPath');
+		const codeSigningFolderPath = e('CodeSigningFolderPath');
 
-	// Codesign executables and shared libraries
-	printBanner('Codesign executables and shared libraries');
-	await streamProcessOutputAndCheckResult('Codesign executables and shared libraries', codesignTask1);
+		// Start the code sign processes in parallel
+		// 1. Codesign executables and shared libraries
+		// 2. Codesign Powershell scripts
+		// 3. Codesign context menu appx package (insiders only)
+		const codesignTask1 = spawnCodesignProcess(esrpCliDLLPath, 'sign-windows', codeSigningFolderPath, '*.dll,*.exe,*.node');
+		const codesignTask2 = spawnCodesignProcess(esrpCliDLLPath, 'sign-windows-appx', codeSigningFolderPath, '*.ps1,*.psm1,*.psd1,*.ps1xml');
+		const codesignTask3 = process.env['VSCODE_QUALITY'] !== 'exploration'
+			? spawnCodesignProcess(esrpCliDLLPath, 'sign-windows-appx', codeSigningFolderPath, '*.appx')
+			: undefined;
 
-	// Codesign Powershell scripts
-	printBanner('Codesign Powershell scripts');
-	await streamProcessOutputAndCheckResult('Codesign Powershell scripts', codesignTask2);
+		// Codesign executables and shared libraries
+		printBanner('Codesign executables and shared libraries');
+		await streamProcessOutputAndCheckResult('Codesign executables and shared libraries', codesignTask1);
 
-	if (codesignTask3) {
-		// Codesign context menu appx package
-		printBanner('Codesign context menu appx package');
-		await streamProcessOutputAndCheckResult('Codesign context menu appx package', codesignTask3);
+		// Codesign Powershell scripts
+		printBanner('Codesign Powershell scripts');
+		await streamProcessOutputAndCheckResult('Codesign Powershell scripts', codesignTask2);
+
+		if (codesignTask3) {
+			// Codesign context menu appx package
+			printBanner('Codesign context menu appx package');
+			await streamProcessOutputAndCheckResult('Codesign context menu appx package', codesignTask3);
+		}
 	}
 
 	// Create build artifact directory
@@ -65,11 +70,14 @@ async function main() {
 		await $`7z.exe l ${webArchivePath}`.pipe(process.stdout);
 	}
 
-	// Sign setup
+	// Create the setup packages, which Inno Setup signs with --sign
 	if (process.env['BUILT_CLIENT']) {
-		printBanner('Sign setup packages (system, user)');
-		const task = $`npm exec -- npm-run-all2 -lp "gulp vscode-win32-${arch}-system-setup -- --sign" "gulp vscode-win32-${arch}-user-setup -- --sign"`;
-		await streamProcessOutputAndCheckResult('Sign setup packages (system, user)', task);
+		const title = sign ? 'Sign setup packages (system, user)' : 'Create setup packages (system, user)';
+		printBanner(title);
+		const task = sign
+			? $`npm exec -- npm-run-all2 -lp "gulp vscode-win32-${arch}-system-setup -- --sign" "gulp vscode-win32-${arch}-user-setup -- --sign"`
+			: $`npm exec -- npm-run-all2 -lp "gulp vscode-win32-${arch}-system-setup" "gulp vscode-win32-${arch}-user-setup"`;
+		await streamProcessOutputAndCheckResult(title, task);
 	}
 }
 

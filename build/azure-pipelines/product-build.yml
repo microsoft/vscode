@@ -312,6 +312,7 @@ extends:
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_RUN_TESTS: true
                 VSCODE_PRIVILEGED_CONNECTIONS: ${{ variables.VSCODE_PRIVILEGED_CONNECTIONS }}
+                VSCODE_PACKAGE_UNSIGNED: true
 
             # Same test jobs as the Windows CI jobs of product-build-ci.yml
             - template: build/azure-pipelines/win32/product-build-win32-test.yml@self
@@ -398,6 +399,7 @@ extends:
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_PRIVILEGED_CONNECTIONS: ${{ variables.VSCODE_PRIVILEGED_CONNECTIONS }}
+                VSCODE_PACKAGE_UNSIGNED: true
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX_X64'], true) }}:
         - stage: LinuxX64
