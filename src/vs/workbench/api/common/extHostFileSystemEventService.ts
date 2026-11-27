@@ -250,7 +250,7 @@ interface RevivedFileSystemEvent {
 type FileEventBatch = Record<FileEventKind, RevivedFileSystemEvent[]>;
 type FileSystemEventListener = (session: number | undefined, events: FileEventBatch) => void;
 
-class FileSystemEventDispatcher {
+export class FileSystemEventDispatcher {
 
 	private readonly listenersByBase = new Map<string | undefined, Map<FileSystemEventListener, number>>();
 	private sequence = 0;

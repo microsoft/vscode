@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { ExtHostFileSystemEventService } from '../../common/extHostFileSystemEventService.js';
+import { ExtHostFileSystemEventService, FileSystemEventDispatcher } from '../../common/extHostFileSystemEventService.js';
 import { IMainContext } from '../../common/extHost.protocol.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -150,6 +150,17 @@ suite('ExtHostFileSystemEventService', () => {
 		watcher.dispose();
 	});
 
+	test('dispatch visits only the exact file and its ancestor bases', () => {
+		const dispatcher = new FileSystemEventDispatcher();
+		const calls: string[] = [];
+		for (const path of ['/', '/src', '/src/a.ts', '/src/b.ts', '/src/a', '/other']) {
+			disposables.add(dispatcher.subscribe(new RelativePattern(path, '*'), () => calls.push(path)));
+		}
+
+		dispatcher.dispatch({ session: undefined, created: [], changed: [URI.file('/src/a.ts')], deleted: [] });
+		assert.deepStrictEqual(calls, ['/', '/src', '/src/a.ts']);
+	});
+
 	test('routes a batch to overlapping watcher bases in registration order', () => {
 		const service = new ExtHostFileSystemEventService(protocolWithProxy, new NullLogService(), undefined!);
 		const workspace: Pick<IExtHostWorkspace, 'getWorkspaceFolder'> = { getWorkspaceFolder: () => undefined };
@@ -162,9 +173,10 @@ suite('ExtHostFileSystemEventService', () => {
 		};
 		const file = URI.file('/workspace/src/a.ts');
 		const sibling = URI.file('/workspace/src/b.ts');
-		watch(file.fsPath, 'file');
+		const first = watch(file.fsPath, 'file');
 		watch('/workspace/src/', 'folder');
-		watch('/workspace/src', 'disposed').dispose();
+		const later = watch('/workspace/src', 'disposed');
+		disposables.add(first.onDidChange(() => later.dispose()));
 		watch(file.fsPath, 'second file watcher');
 		watch('/workspace/s', 'non-parent');
 
