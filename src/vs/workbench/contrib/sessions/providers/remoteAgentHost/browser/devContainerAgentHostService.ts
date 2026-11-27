@@ -898,8 +898,11 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 			active.state = 'running';
 			this._onDidChangeAvailability.fire();
 		} catch (error) {
-			this._connectionFactory.unstageConnection(active.address);
-			await this._remoteAgentHostService.removeRemoteAgentHost(active.address);
+			// After disconnecting, the address may already have a replacement connection, which this must not tear down.
+			if (isCurrent()) {
+				this._connectionFactory.unstageConnection(active.address);
+				await this._remoteAgentHostService.removeRemoteAgentHost(active.address);
+			}
 			active.state = previousState;
 			throw error;
 		}

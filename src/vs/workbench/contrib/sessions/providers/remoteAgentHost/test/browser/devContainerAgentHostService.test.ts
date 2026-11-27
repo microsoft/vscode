@@ -1714,7 +1714,7 @@ suite('Dev Container Agent Host Service', () => {
 				await timeout(0);
 			};
 			const rows = () => service.folderContainers.get().map(({ workspaceUri, sourceAddress, running, providerId }) => ({ folder: workspaceUri.toString(), sourceAddress, running, provider: providerId === provider(workspaceUri)?.id }));
-			return { service, local, connections, provider, refresh, rows, configurationService };
+			return { service, local, connections, provider, refresh, rows, configurationService, remoteService };
 		}
 
 		test('lists running ones and connects those of trusted folders without user action until this window disconnects them while they run', async () => {
@@ -1797,6 +1797,25 @@ suite('Dev Container Agent Host Service', () => {
 			await disconnected;
 			await timeout(0);
 			assert.deepStrictEqual({ connected: !!provider(project)!.wiredConnection, status: provider(project)!.status }, { connected: false, status: RemoteAgentHostConnectionStatus.disconnected });
+		});
+
+		test('keeps the connection made after disconnecting when a stale automatic reconnect settles', async () => {
+			const { service, local, provider, refresh, remoteService } = setupFolders([{ folder: project, running: true }]);
+			await refresh();
+			await (await service.connect(project, CancellationToken.None)).release();
+			provider(project)!.publishSession();
+			await provider(project)!.config.devContainerLifecycle!.stop();
+			const attempt = new DeferredPromise<void>();
+			local.beforeConnect = () => attempt.p;
+			await refresh();
+			await service.disconnect(project);
+			local.beforeConnect = undefined;
+			await (await service.connect(project, CancellationToken.None)).release();
+			attempt.complete();
+			await timeout(0);
+			assert.deepStrictEqual(remoteService.connections.map(connection => ({ address: connection.address, status: connection.status })), [
+				{ address: devContainerAddress(project), status: RemoteAgentHostConnectionStatus.connected },
+			]);
 		});
 
 		test('removes the provider of one without sessions once this window stopped it while idle', async () => {
