@@ -327,11 +327,14 @@ suite('SessionWorkspaceEditor', () => {
 			folder: await prompt({ ...agents, uri: vscode, folders: [vscode], owned: false }),
 			// A folder of its own, even named like a workspace file, has no file to delete
 			folderNamedLikeFile: await prompt({ ...agents, uri: URI.file('/work/x.code-workspace'), folders: [URI.file('/work/x.code-workspace')], owned: true }),
+			// A workspace whose file is gone has none to delete
+			missingFile: await prompt({ ...agents, missing: true }),
 		}, {
 			owned: { buttons: ['&&Remove Workspace', '&&Delete Workspace and File'], detail: 'Its sessions are kept and listed by their folders. Delete Workspace and File also moves its workspace file to the trash.' },
 			usersFile: { buttons: ['&&Remove Workspace', '&&Delete Workspace and Its File'], detail: 'Its sessions are kept and listed by their folders. Delete Workspace and Its File also moves your workspace file ~/work/agents.code-workspace to the trash.' },
 			folder: { buttons: ['&&Remove Workspace'], detail: 'Its sessions are kept and listed by their folders.' },
 			folderNamedLikeFile: { buttons: ['&&Remove Workspace'], detail: 'Its sessions are kept and listed by their folders.' },
+			missingFile: { buttons: ['&&Remove Workspace'], detail: 'Its sessions are kept and listed by their folders.' },
 		});
 	});
 });

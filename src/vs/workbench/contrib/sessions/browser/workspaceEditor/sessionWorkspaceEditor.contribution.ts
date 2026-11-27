@@ -119,8 +119,9 @@ registerAction2(class RemoveSessionWorkspaceAction extends SessionWorkspacePickA
 			return;
 		}
 
-		// Only a workspace with a workspace file offers to delete it, never a folder; a file the user made says that it is theirs
-		const hasFile = SessionWorkspaceEditorInput.hasWorkspaceFile(extUri, workspace);
+		// Only a workspace with a workspace file that still exists offers to delete it, never a folder; a file the user made
+		// says that it is theirs
+		const hasFile = SessionWorkspaceEditorInput.hasWorkspaceFile(extUri, workspace) && !workspace.missing;
 		const buttons: IPromptButton<boolean>[] = [{ label: localize({ key: 'removeWorkspace.remove', comment: ['&& denotes a mnemonic'] }, "&&Remove Workspace"), run: () => false }];
 		let detail = localize('removeWorkspace.detail', "Its sessions are kept and listed by their folders.");
 		if (hasFile && workspace.owned) {
