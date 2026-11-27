@@ -40,7 +40,7 @@ import { ChatRequestParser, IChatParserContext } from '../../contrib/chat/common
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../../contrib/chat/browser/attachments/chatVariables.js';
 import { ChatRequestQueueKind, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatService, IChatTask, IChatTaskSerialized, IChatWarningMessage } from '../../contrib/chat/common/chatService/chatService.js';
 import { getContinuationRequestOptions } from '../../contrib/chat/common/chatService/chatContinuationRequest.js';
-import { ChatSessionOptionsMap, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
+import { ChatSessionOptionsMap, IChatSessionsService, localChatSessionType } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../contrib/chat/common/constants.js';
 import { ILanguageModelToolsService } from '../../contrib/chat/common/tools/languageModelToolsService.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
@@ -348,6 +348,10 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	async $sendRequestToSession(extensionId: ExtensionIdentifier, sessionResourceDto: UriComponents, request: IChatSessionRequestDto): Promise<void> {
 		const sessionResource = URI.revive(sessionResourceDto);
 		if (request.participant) {
+			// Other session types are handled by their own agent, which would ignore the participant.
+			if (getChatSessionType(sessionResource) !== localChatSessionType) {
+				throw new Error(`Chat sessions of type '${getChatSessionType(sessionResource)}' do not support sending requests to a participant`);
+			}
 			const agent = this._chatAgentService.getAgent(request.participant);
 			if (!agent || !ExtensionIdentifier.equals(agent.extensionId, extensionId)) {
 				throw new Error(`Chat participant '${request.participant}' is not registered by extension '${extensionId.value}'`);

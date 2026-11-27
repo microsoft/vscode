@@ -27,6 +27,9 @@ declare module 'vscode' {
 		 * The id of a {@link ChatParticipant chat participant} of the calling extension that should
 		 * handle the request. When omitted, the agent that handled the last request of the session
 		 * handles it.
+		 *
+		 * Only sessions of the built-in chat support this. Sessions that a chat session provider or
+		 * an agent host handles reject requests that set a participant.
 		 */
 		readonly participant?: string;
 

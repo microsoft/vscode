@@ -301,9 +301,12 @@ suite('MainThreadChatAgents2', function () {
 			await mainThread.$sendRequestToSession(new ExtensionIdentifier('test.ext'), sessionResource, { prompt: 'Test output', label: 'Tests finished', participant: 'own.participant', delivery: 'steer' });
 			const error = await mainThread.$sendRequestToSession(new ExtensionIdentifier('test.ext'), sessionResource, { prompt: 'Test output', label: 'Tests finished', participant: 'other.participant' }).then(() => undefined, (e: Error) => e.message);
 
-			assert.deepStrictEqual({ sent: sent.map(({ resource, message, options }) => ({ resource, message, options: { agentIdSilent: options.agentIdSilent, queue: options.queue } })), error }, {
+			const nonLocal = await mainThread.$sendRequestToSession(new ExtensionIdentifier('test.ext'), URI.from({ scheme: 'agent-host-copilot', path: '/session' }), { prompt: 'Test output', label: 'Tests finished', participant: 'own.participant' }).then(() => undefined, (e: Error) => e.message);
+
+			assert.deepStrictEqual({ sent: sent.map(({ resource, message, options }) => ({ resource, message, options: { agentIdSilent: options.agentIdSilent, queue: options.queue } })), error, nonLocal }, {
 				sent: [{ resource: sessionResource.toString(), message: 'Test output', options: { agentIdSilent: 'own.participant', queue: ChatRequestQueueKind.Steering } }],
 				error: `Chat participant 'other.participant' is not registered by extension 'test.ext'`,
+				nonLocal: `Chat sessions of type 'agent-host-copilot' do not support sending requests to a participant`,
 			});
 		});
 

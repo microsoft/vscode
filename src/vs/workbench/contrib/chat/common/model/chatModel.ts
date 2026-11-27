@@ -3028,6 +3028,10 @@ export class ChatModel extends Disposable implements IChatModel {
 		const steeringRequests: IChatPendingRequest[] = [];
 		while (this._pendingRequests.at(0)?.kind === ChatRequestQueueKind.Steering && !!this._pendingRequests[0].sendOptions.isSystemInitiated === isSystemInitiated && this._pendingRequests[0].sendOptions.requestSource === requestSource) {
 			steeringRequests.push(this._pendingRequests.shift()!);
+			// Requests from extensions can target different participants and carry their own labels; send each one on its own.
+			if (requestSource === 'extension') {
+				break;
+			}
 		}
 		if (steeringRequests.length > 0) {
 			this._onDidChangePendingRequests.fire();

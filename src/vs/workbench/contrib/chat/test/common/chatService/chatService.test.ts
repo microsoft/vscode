@@ -1741,6 +1741,54 @@ suite('ChatService', () => {
 		});
 	});
 
+	test('extension steering requests are sent one at a time to their own participants', async () => {
+		const started = new DeferredPromise<void>();
+		const complete = new DeferredPromise<void>();
+		const invocations: { agent: string; message: string }[] = [];
+		for (const agentId of ['firstAgent', 'secondAgent']) {
+			testDisposables.add(chatAgentService.registerAgent(agentId, { ...getAgentData(agentId), isDefault: agentId === 'firstAgent' }));
+			testDisposables.add(chatAgentService.registerAgentImplementation(agentId, {
+				async invoke(request) {
+					invocations.push({ agent: agentId, message: request.message });
+					if (invocations.length === 1) {
+						started.complete();
+						await complete.p;
+					}
+					return {};
+				},
+			}));
+		}
+		const service = createChatService();
+		const model = testDisposables.add(startSessionModel(service)).object;
+		const first = await service.sendRequest(model.sessionResource, 'task', { agentIdSilent: 'firstAgent' });
+		ChatSendResult.assertSent(first);
+		await started.p;
+
+		const extensionOptions = { queue: ChatRequestQueueKind.Steering, isSystemInitiated: true, requestSource: 'extension' as const };
+		const toFirst = await service.sendRequest(model.sessionResource, 'build finished', { ...extensionOptions, agentIdSilent: 'firstAgent', systemInitiatedLabel: 'Build finished (First)' });
+		const toSecond = await service.sendRequest(model.sessionResource, 'tests finished', { ...extensionOptions, agentIdSilent: 'secondAgent', systemInitiatedLabel: 'Tests finished (Second)' });
+		assert.ok(ChatSendResult.isQueued(toFirst) && ChatSendResult.isQueued(toSecond));
+		complete.complete();
+		await first.data.responseCompletePromise;
+		for (const pending of [toFirst, toSecond]) {
+			const sent = await pending.deferred;
+			ChatSendResult.assertSent(sent);
+			await sent.data.responseCompletePromise;
+		}
+
+		assert.deepStrictEqual({
+			invocations,
+			labels: model.getRequests().map(request => request.systemInitiatedLabel),
+		}, {
+			invocations: [
+				{ agent: 'firstAgent', message: 'task' },
+				{ agent: 'firstAgent', message: 'build finished' },
+				{ agent: 'secondAgent', message: 'tests finished' },
+			],
+			labels: [undefined, 'Build finished (First)', 'Tests finished (Second)'],
+		});
+	});
+
 	for (const { kind, sendOptions, expectedRequest, expectedInvocation } of [
 		{
 			kind: 'terminal system notification',

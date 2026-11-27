@@ -2181,6 +2181,8 @@ export class ChatService extends Disposable implements IChatService {
 							hasHooksEnabled: !!collectedHooks && Object.values(collectedHooks).some(arr => arr.length > 0),
 							isVoiceModeInput: options?.isVoiceModeInput,
 							isSystemInitiated: isAgentSystemInitiated({ isSystemInitiated: options?.isSystemInitiated, requestSource: options?.requestSource }),
+							requestSource: options?.requestSource,
+							systemInitiatedLabel: options?.systemInitiatedLabel,
 							hideFromTranscript: options?.hideFromTranscript,
 							workingDirectory: model.workingDirectory,
 						};
