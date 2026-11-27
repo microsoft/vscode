@@ -36,6 +36,28 @@ function fixBadRegex(grammar) {
 		throw new Error(`fixBadRegex callback couldn't patch ${msg}. It may be obsolete`);
 	}
 
+	function patchCommentLikeStringRegex(pattern, msg) {
+		if (!pattern) {
+			fail(msg);
+		}
+
+		const begin = pattern.begin;
+		if (typeof begin !== 'string') {
+			fail(`${msg}.begin`);
+		}
+
+		if (/^['"]\/\(\?!\\\*\)/.test(begin)) {
+			return;
+		}
+
+		const patchedBegin = begin.replace(/^(['"])\/(?=\(\?=)/, '$1/(?!\\*)');
+		if (patchedBegin === begin) {
+			fail(`${msg}.begin`);
+		}
+
+		pattern.begin = patchedBegin;
+	}
+
 	const scopeResolution = grammar.repository['scope-resolution'];
 	if (scopeResolution) {
 		const match = scopeResolution.patterns[0].match;
@@ -66,6 +88,9 @@ function fixBadRegex(grammar) {
 	} else {
 		fail('function-call');
 	}
+
+	patchCommentLikeStringRegex(grammar.repository['regex-double-quoted'], 'regex-double-quoted');
+	patchCommentLikeStringRegex(grammar.repository['regex-single-quoted'], 'regex-single-quoted');
 }
 
 vscodeGrammarUpdater.update('KapitanOczywisty/language-php', 'grammars/php.cson', './syntaxes/php.tmLanguage.json', fixBadRegex);
