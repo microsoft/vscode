@@ -1817,7 +1817,7 @@ export interface IAgentToolPendingConfirmationSignal {
 	 * The runtime currently sets it for managed Shell, Read, Edit, and Domain selector asks.
 	 */
 	readonly managedApprovalRequired?: boolean;
-	/** Host-only requirement for an explicit user decision instead of host auto-approval. */
+	/** Host-only requirement for an explicit user decision instead of host auto-approval; only an allow rule the user saved may stand in for it. */
 	readonly requiresUserConfirmation?: true;
 	/**
 	 * Host-only flag indicating that the runtime requested sandbox escalation.

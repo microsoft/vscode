@@ -15,7 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { pathRule, permissionGrantOptionId, PermissionGrantScope } from '../../common/permissionRules.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostDefaultUrlAllowRulesConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
 import { DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, getChatSensitiveEditLocations, mergeChatEditAutoApprovePatterns } from '../../../chat/common/chatSettings.js';
 import { AgentPermissionKind, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
@@ -206,6 +206,102 @@ suite('SessionPermissionManager', () => {
 		assert.deepStrictEqual({ subCommandAsk, askOverCommandLine, commandLineAsk, commandLineAllow, askOverDefaults }, {
 			subCommandAsk: undefined, askOverCommandLine: undefined, commandLineAsk: undefined,
 			commandLineAllow: ToolCallConfirmationReason.NotNeeded, askOverDefaults: undefined,
+		});
+	});
+
+	test('only saved rules approve a request whose reviewer requires confirmation', async () => {
+		const explicit = { explicitRulesOnly: true };
+		const alias = join(workDir, 'alias');
+		symlinkSync(outsideDir, alias, directoryLinkType);
+		const canonical = join(outsideDir, 'notes.md');
+		writeFileSync(canonical, '');
+		const linked = join(alias, 'notes.md');
+		const inside = join(workDir, 'file.txt');
+		const protectedFile = join(workDir, '.mcp.json');
+		const implicit = await Promise.all([readEvent(inside), writeEvent(inside), shellEvent('git status', 'bash')].map(event => Promise.all([
+			permissions.getAutoApproval(event, sessionUri), permissions.getAutoApproval(event, sessionUri, explicit),
+		])));
+
+		setPermissionRules([pathRule('Read', canonical, false)!, pathRule('Edit', workDir, true)!]);
+		const sessionGrants = await Promise.all([
+			readEvent(linked), readEvent(join(alias, 'other.md')), writeEvent(inside), writeEvent(protectedFile),
+			{ ...readEvent(linked), requestSandboxBypass: true },
+		].map(event => permissions.getAutoApproval(event, sessionUri, explicit)));
+		setPermissionRules([pathRule('Read', canonical, false)!, pathRule('Edit', protectedFile, false)!], [], [pathRule('Read', linked, false)!]);
+		const askAndExact = await Promise.all([readEvent(linked), writeEvent(protectedFile)].map(event => permissions.getAutoApproval(event, sessionUri, explicit)));
+
+		setPermissionRules([]);
+		configService.updateRootConfig({ [SessionConfigKey.Permissions]: { allow: [pathRule('Read', outsideDir, true)!], deny: [] } });
+		const hostGrant = await permissions.getAutoApproval(readEvent(linked), sessionUri, explicit);
+		configService.updateRootConfig({ [SessionConfigKey.Permissions]: { allow: [], deny: [] } });
+
+		const allowAll = [];
+		for (const global of [true, false]) {
+			configService.updateRootConfig({ [AgentHostGlobalAutoApproveEnabledConfigKey]: global });
+			manager.setSessionConfig(sessionUri, { schema: platformSessionSchema.toProtocol(), values: { [SessionConfigKey.AutoApprove]: global ? 'default' : 'autoApprove' } });
+			allowAll.push(await Promise.all([permissions.getAutoApproval(readEvent(linked), sessionUri), permissions.getAutoApproval(readEvent(linked), sessionUri, explicit)]));
+		}
+
+		const Setting = ToolCallConfirmationReason.Setting;
+		const NotNeeded = ToolCallConfirmationReason.NotNeeded;
+		assert.deepStrictEqual({ implicit, sessionGrants, askAndExact, hostGrant, allowAll }, {
+			implicit: [[NotNeeded, undefined], [NotNeeded, undefined], [NotNeeded, undefined]],
+			sessionGrants: [Setting, undefined, Setting, undefined, undefined],
+			askAndExact: [undefined, Setting],
+			hostGrant: Setting,
+			allowAll: [[Setting, undefined], [Setting, undefined]],
+		});
+	});
+
+	test('saved shell, URL and tool rules approve reviewer-required requests without implicit defaults', async () => {
+		const explicit = { explicitRulesOnly: true };
+		const url = (permissionUrl: string): IToolApprovalEvent => ({ toolCallId: 'url', session: URI.parse(sessionUri), permissionKind: AgentPermissionKind.Url, permissionUrl });
+		setPermissionRules(['Shell(my-command *)', 'Shell(commandLine:custom-command && rm file.txt)', 'WebFetch(example.com)', 'custom'], [], ['Shell(asked *)']);
+		const results = await Promise.all([
+			shellEvent('my-command --flag', 'bash'),
+			shellEvent('custom-command && rm file.txt', 'bash'),
+			shellEvent('my-command --flag && git status', 'bash'),
+			shellEvent('my-command --flag && asked now', 'bash'),
+			shellEvent('my-command --flag > out.txt', 'bash'),
+			shellEvent('my-command --flag', undefined),
+			url('https://example.com/page'),
+			url('https://other.test/page'),
+			{ toolCallId: 'custom', toolName: 'custom', session: URI.parse(sessionUri) },
+			{ toolCallId: 'other', toolName: 'other', session: URI.parse(sessionUri) },
+		].map(event => permissions.getAutoApproval(event, sessionUri, explicit)));
+		const withDefaults = await Promise.all(['my-command --flag && git status', 'my-command --flag > out.txt']
+			.map(command => permissions.getAutoApproval(shellEvent(command, 'bash'), sessionUri)));
+		configService.updateRootConfig({ [AgentHostTerminalAutoApproveEnabledConfigKey]: false });
+		const disabled = await permissions.getAutoApproval(shellEvent('my-command --flag', 'bash'), sessionUri, explicit);
+
+		// A local window mirrors built-in URL defaults into the host's allow rules; they are not saved by the user.
+		const defaultRule = 'WebFetch(default.test)';
+		const defaultUrl = url('https://default.test/page');
+		const mirrorDefault = () => configService.updateRootConfig({ [SessionConfigKey.Permissions]: { allow: [defaultRule], deny: [] }, [AgentHostDefaultUrlAllowRulesConfigKey]: [defaultRule] });
+		const evaluateDefault = async () => [await permissions.getAutoApproval(defaultUrl, sessionUri), await permissions.getAutoApproval(defaultUrl, sessionUri, explicit)];
+		mirrorDefault();
+		const mirroredDefault = [];
+		for (const values of [{ [SessionConfigKey.Permissions]: { allow: [], deny: [] } }, {}]) {
+			manager.setSessionConfig(sessionUri, { schema: platformSessionSchema.toProtocol(), values });
+			mirroredDefault.push(await evaluateDefault());
+		}
+		setPermissionRules([defaultRule]);
+		const savedInSession = await evaluateDefault();
+		manager.setSessionConfig(sessionUri, { schema: platformSessionSchema.toProtocol(), values: {} });
+		const signal = confirmationSignal({ permissionKind: AgentPermissionKind.Url, permissionUrl: defaultUrl.permissionUrl });
+		startConfirmation(signal);
+		confirmToolCall(signal.chat.toString(), signal.state.toolCallId, permissionGrantOptionId(PermissionGrantScope.Host, [defaultRule]));
+		const savedOnHost = { approvals: await evaluateDefault(), defaults: configService.getRootValue(platformRootSchema, AgentHostDefaultUrlAllowRulesConfigKey) };
+
+		const Setting = ToolCallConfirmationReason.Setting;
+		const NotNeeded = ToolCallConfirmationReason.NotNeeded;
+		assert.deepStrictEqual({ results, withDefaults, disabled, mirroredDefault, savedInSession, savedOnHost }, {
+			results: [Setting, Setting, undefined, undefined, undefined, undefined, Setting, undefined, Setting, undefined],
+			withDefaults: [NotNeeded, NotNeeded],
+			disabled: undefined,
+			mirroredDefault: [[Setting, undefined], [Setting, undefined]],
+			savedInSession: [Setting, Setting],
+			savedOnHost: { approvals: [Setting, Setting], defaults: [] },
 		});
 	});
 

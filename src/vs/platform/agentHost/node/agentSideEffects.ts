@@ -1711,7 +1711,8 @@ export class AgentSideEffects extends Disposable {
 	// ---- Side-effect handlers --------------------------------------------------
 
 	/**
-	 * Applies host deny rules, then auto-approval. An undefined `autoApproval` leaves the decision to the user unless denied.
+	 * Applies host deny rules, then auto-approval; a reviewer-required confirmation is approved only by a saved allow rule.
+	 * An undefined `autoApproval` leaves the decision to the user unless denied.
 	 * Decides synchronously when neither check needs to await, so those confirmations are not delayed by an extra tick.
 	 */
 	private _evaluateHostPermission(e: IAgentToolPendingConfirmationSignal, sessionKey: ProtocolURI): IHostPermissionDecision | Promise<IHostPermissionDecision> {
@@ -1740,10 +1741,11 @@ export class AgentSideEffects extends Disposable {
 			if (denied) {
 				return { denied: 'permissions' };
 			}
-			if (e.managedApprovalRequired || e.requiresUserConfirmation) {
+			if (e.managedApprovalRequired) {
 				return {};
 			}
-			return this._permissionManager.getAutoApproval(approvalEvent, sessionKey).then(autoApproval => ({ autoApproval }));
+			// A reviewer's confirmation requirement outranks Allow All and implicit host defaults, but not a rule the user saved.
+			return this._permissionManager.getAutoApproval(approvalEvent, sessionKey, { explicitRulesOnly: e.requiresUserConfirmation === true }).then(autoApproval => ({ autoApproval }));
 		};
 		const denied = this._permissionManager.isDeniedByPermissions(approvalEvent, sessionKey);
 		return isThenable(denied) ? denied.then(decide) : decide(denied);
