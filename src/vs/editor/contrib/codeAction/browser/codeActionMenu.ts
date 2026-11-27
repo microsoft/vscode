@@ -74,7 +74,7 @@ export function toMenuItems(
 					kind: ActionListItemKind.Action,
 					item: action,
 					group: action.action.isAI ? { title: group.title, kind: group.kind, icon: Codicon.sparkle } : group,
-					label: action.action.title,
+					label: action.action.disabled || action.action.title,
 					disabled: !!action.action.disabled,
 					keybinding: keybindingResolver(action.action),
 				});
