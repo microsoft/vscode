@@ -347,6 +347,12 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		frame: { ...CONTEXT_MENU_FRAME, height: 820 },
 		interaction: { contextMenu: { group: 'release' } },
 	}),
+	// The pointer over the Workspaces header: its twistie after the label and its actions on the right
+	SessionsList_WorkspacesAndGroups_HoveredWorkspacesHeader: defineSessionsListFixture({
+		...WORKSPACES_AND_GROUPS_STATE,
+		header: { navigationShortcuts: true },
+		interaction: { hovered: { section: 'workspaces' } },
+	}),
 	// The keyboard on a workspace row
 	SessionsList_WorkspacesAndGroups_FocusedWorkspace: defineSessionsListFixture({
 		...WORKSPACES_AND_GROUPS_STATE,

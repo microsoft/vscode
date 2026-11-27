@@ -4395,6 +4395,25 @@ suite('Sessions - SessionsList', () => {
 			]);
 		});
 
+		test('each top-level header but the first has a gap above it, and an empty workspace says so', () => {
+			const empty: IRecentSessionWorkspace = { uri: URI.file('/user/AgentsWorkspaces/Empty.code-workspace'), name: 'Empty', folders: [URI.file('/work/notes')], owned: true };
+			const { container } = render(() => SessionsGrouping.WorkspacesAndGroups, harness => {
+				const workspacesService = harness.instantiationService.get(ISessionWorkspacesService) as TestSessionWorkspacesService;
+				workspacesService.managedWorkspaces.set([...workspacesService.managedWorkspaces.get(), empty], undefined);
+			});
+			const topLevel = [...container.querySelectorAll<HTMLElement>('.monaco-list-row[aria-level="1"]')];
+
+			assert.deepStrictEqual({
+				grouping: container.querySelector('.sessions-list-control')?.classList.contains('workspaces-and-groups-grouping'),
+				headers: topLevel.map(row => `${row.querySelector('.session-section-label')?.textContent}${row.classList.contains('session-spaced-header') ? ' (gap)' : ''}`),
+				placeholders: [...container.querySelectorAll('.session-placeholder-label')].map(label => label.textContent),
+			}, {
+				grouping: true,
+				headers: ['Groups', 'Workspaces (gap)'],
+				placeholders: ['No sessions in this workspace'],
+			});
+		});
+
 		test('a workspace row or group row pinned in Workspaces & Groups or before shows once, in Pinned, and returns to its section when unpinned, in both sidebar layouts', () => {
 			const rows = (list: SessionsList) => list.getTreeSnapshot().flatMap(node => node.type !== 'session' && (node.id === 'pinned' || node.id === 'groups' || node.id === 'workspaces')
 				? [{ [node.label]: node.children.flatMap(child => child.type !== 'session' ? [child.label] : []) }]

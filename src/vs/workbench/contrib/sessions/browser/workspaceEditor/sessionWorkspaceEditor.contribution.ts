@@ -29,7 +29,9 @@ import { hasWorkspaceFileExtension } from '../../../../../platform/workspace/com
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { Menus } from '../menus.js';
 import { ISessionGroupsService } from '../sessionGroupsService.js';
-import { ISessionSection, ISessionSectionWorkspace, SessionSectionWorkspaceIsLocalContext, SessionSectionWorkspaceKindContext } from '../views/sessionsListCommon.js';
+import { ISessionSection, ISessionSectionWorkspace, SessionSectionToolbarMenuId, SessionSectionTypeContext, SessionSectionWorkspaceIsLocalContext, SessionSectionWorkspaceKindContext } from '../views/sessionsListCommon.js';
+import { WORKSPACES_SECTION_ID } from '../views/sessionsListHelpers.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { IRecentSessionWorkspace, ISessionWorkspacesService, SessionWorkspaceError } from '../../common/sessionWorkspaces.js';
 import { getSessionWorkspaceIcon } from './sessionWorkspaceAppearance.js';
@@ -82,8 +84,11 @@ registerAction2(class NewSessionWorkspaceAction extends Action2 {
 			id: NEW_SESSION_WORKSPACE_COMMAND_ID,
 			title: localize2('newWorkspace', "New Workspace..."),
 			category: CHAT_CATEGORY,
+			icon: Codicon.add,
 			f1: true,
 			precondition: SESSION_WORKSPACE_EDITOR_WHEN,
+			// The Workspaces header of Group by Workspaces & Groups, inline and in its context menu
+			menu: [SessionSectionToolbarMenuId, Menus.SessionSectionContext].map(id => ({ id, group: 'navigation', order: 0, when: ContextKeyExpr.and(SESSION_WORKSPACE_EDITOR_WHEN, SessionSectionTypeContext.isEqualTo(WORKSPACES_SECTION_ID)) })),
 		});
 	}
 

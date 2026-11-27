@@ -8,7 +8,7 @@ import '../media/sessionsList.css';
 import '../media/disclosure.css';
 import { ISessionSearchHint } from './sessionsListSearch.js';
 import { CANVASES_SECTION_ID, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, IsSessionPinnedContext, SessionItemStatusContext, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionChatItemIsStandaloneContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionItemCanImportContext, SessionSectionTypeContext, SessionSectionHasGitHubRepositoryContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, SessionsGrouping, ISessionSection, ISessionGroupItem, ISessionShowMore, ISessionPlaceholder, ISessionChatItem, SessionListItem, isSessionChatItem, isSessionGroupItem, isSessionSection, isSessionShowMore, isSessionPlaceholder, isSessionItem } from './sessionsListCommon.js';
-import { NEW_SESSION_SECTION_ID, AUTOMATIONS_SECTION_ID, CUSTOMIZATIONS_SECTION_ID, EXTERNAL_SESSIONS_SECTION_ID, getChatTitle, getSessionListChats, isShortcutSection, REPOSITORY_SECTION_PREFIX, ENVIRONMENT_SECTION_PREFIX, isSessionGroupingSection, getSessionSectionType, getSessionRowApproval, QUICK_CHATS_SECTION_ID, isQuickChatSession, GROUPS_SECTION_ID, WORKSPACES_SECTION_ID } from './sessionsListHelpers.js';
+import { NEW_SESSION_SECTION_ID, AUTOMATIONS_SECTION_ID, CUSTOMIZATIONS_SECTION_ID, EXTERNAL_SESSIONS_SECTION_ID, getChatTitle, getSessionListChats, isShortcutSection, REPOSITORY_SECTION_PREFIX, ENVIRONMENT_SECTION_PREFIX, isSessionGroupingSection, getSessionSectionType, getSessionRowApproval, QUICK_CHATS_SECTION_ID, isQuickChatSession } from './sessionsListHelpers.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { $ } from '../../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
@@ -219,10 +219,6 @@ function getSessionSectionIcon(sectionId: string): ThemeIcon | undefined {
 			return Codicon.mailRead;
 		case CUSTOMIZATIONS_SECTION_ID:
 			return Codicon.extensions;
-		case GROUPS_SECTION_ID:
-			return Codicon.layers;
-		case WORKSPACES_SECTION_ID:
-			return Codicon.folderLibrary;
 		case 'archived':
 			return Codicon.archive;
 		case 'recent':
@@ -307,6 +303,11 @@ export const DEFAULT_APPROVAL_ROW_MAX_LINES = 3;
 
 //#region Tree Delegate
 
+/** The gap in pixels above a header row of {@link SESSION_SPACED_HEADER_CLASS}, which its height includes. */
+export const SESSION_HEADER_GAP = 12;
+/** The class of a header's list row with a gap above it, as {@link SESSION_HEADER_GAP}. */
+const SESSION_SPACED_HEADER_CLASS = 'session-spaced-header';
+
 export class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	private static readonly ITEM_HEIGHT = 54;
 	private static readonly ITEM_HEIGHT_COMPACT = 28;
@@ -351,6 +352,8 @@ export class SessionsTreeDelegate implements IListVirtualDelegate<SessionListIte
 		private readonly _sectionRowHeight?: number,
 		private readonly _isInbox: () => boolean = () => false,
 		private readonly _titleOnlyQuickChatRowHeight?: number,
+		/** The gap above a header, which its row's height includes; see {@link SESSION_SPACED_HEADER_CLASS}. */
+		private readonly _getHeaderGap: (section: ISessionSection) => number = () => 0,
 	) { }
 
 	private withInsetRowSpacing(height: number): number {
@@ -375,7 +378,7 @@ export class SessionsTreeDelegate implements IListVirtualDelegate<SessionListIte
 				return this.withInsetRowSpacing(this._sectionRowHeight ?? SessionsTreeDelegate.SECTION_HEIGHT);
 			}
 			// Workspace and group headers expand and collapse on tap.
-			return this._sectionRowHeight ?? SessionsTreeDelegate.SECTION_HEIGHT;
+			return (this._sectionRowHeight ?? SessionsTreeDelegate.SECTION_HEIGHT) + this._getHeaderGap(element);
 		}
 		if (isSessionGroupItem(element)) {
 			return this._sectionRowHeight ?? SessionsTreeDelegate.SECTION_HEIGHT;
@@ -2447,6 +2450,8 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		private readonly isSessionListed: (session: ISession, reader: IReader) => boolean = () => false,
 		/** Whether the canvas page shows a pinned canvas, which highlights its row. */
 		private readonly isPinnedCanvasActive: (entry: IPinnedCanvas, reader: IReader) => boolean = () => false,
+		/** Whether the header has a gap above it; see {@link SESSION_SPACED_HEADER_CLASS}. */
+		private readonly isSpacedHeader: (section: ISessionSection) => boolean = () => false,
 	) { }
 
 	renderTemplate(container: HTMLElement): ISessionSectionTemplate {
@@ -2574,7 +2579,9 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		template.elementDisposables.clear();
 		template.icon.style.color = '';
 		this.renderedSections.set(template, element);
-		template.container.closest('.monaco-list-row')?.classList.toggle('sessions-disclosure-row', collapsible);
+		const row = template.container.closest('.monaco-list-row');
+		row?.classList.toggle('sessions-disclosure-row', collapsible);
+		row?.classList.toggle(SESSION_SPACED_HEADER_CLASS, this.isSpacedHeader(element));
 		const groupDepth = this.getGroupDepth(element);
 		setSessionGroupDepth(template.container, groupDepth);
 		template.container.classList.remove(SESSION_HEADER_DROP_TARGET_CLASS);
@@ -2717,6 +2724,8 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		// Set context key for section type so toolbar actions can use when clauses
 		const sectionType = getSessionSectionType(element.id);
 		SessionSectionTypeContext.bindTo(template.contextKeyService).set(sectionType);
+		// The grouping's styles tell the fixed sections apart, such as Chats
+		template.container.dataset.sectionType = sectionType;
 		const hasGitHubRepository = SessionSectionHasGitHubRepositoryContext.bindTo(template.contextKeyService);
 		const hasNonCloudRepository = SessionSectionHasNonCloudRepositoryContext.bindTo(template.contextKeyService);
 		template.elementDisposables.add(autorun(reader => {
