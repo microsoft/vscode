@@ -73,6 +73,8 @@ export {
 
 /** Closes a chat tab. Registered in `sessionsActions.ts`. */
 export const CLOSE_CHAT_COMMAND_ID = 'sessions.chatCompositeBar.closeChat';
+/** Closes the other chat tabs of a tab's strip. Registered in `sessionsActions.ts`. */
+export const CLOSE_OTHER_CHATS_COMMAND_ID = 'sessions.chatCompositeBar.closeOtherChats';
 export const CLOSE_SESSION_COMMAND_ID = 'sessions.chatCompositeBar.close';
 /** Closes a chat of the chat part of an editor window. Registered in `agentsChatPartActions.ts`. */
 export const AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID = 'workbench.action.agentsView.closeChat';
