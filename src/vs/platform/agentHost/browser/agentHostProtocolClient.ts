@@ -39,6 +39,8 @@ import { LoadClientCertificatesExtensionMethod, type IAgentHostClientCertificate
 import { AgentHostClientCertificatesCapabilityMetaKey } from '../common/meta/agentHostClientCertificatesMeta.js';
 import { ClientProxyChangedExtensionMethod, LookupClientProxyBasicAuthorizationExtensionMethod, lookupClientProxyBasicAuthorizationParamsValidator, LookupClientProxyKerberosAuthorizationExtensionMethod, lookupClientProxyKerberosAuthorizationParamsValidator, ResolveClientProxyExtensionMethod, resolveClientProxyParamsValidator, type IAgentHostClientProxyProvider } from '../common/clientProxyProtocol.js';
 import { AgentHostClientProxyCapabilityMetaKey, servesAgentHostClientProxy } from '../common/meta/agentHostClientProxyMeta.js';
+import { AgentHostClientForwardingCapabilityMetaKey } from '../common/meta/agentHostClientForwardingMeta.js';
+import { ClientForwardingCloseNotification, clientForwardingCloseParamsValidator, ClientForwardingDataNotification, clientForwardingDataParamsValidator, ClientGitConfigExtensionMethod, ClientGitCredentialExtensionMethod, clientGitCredentialParamsValidator, ClientGpgKeysExtensionMethod, DescribeClientForwardingExtensionMethod, OpenClientForwardingExtensionMethod, openClientForwardingParamsValidator, type IAgentHostClientForwardingProvider, type IClientForwardingConnection } from '../common/clientForwardingProtocol.js';
 import { AgentHostMultipleChatProvidersMetaKey } from '../common/meta/agentHostMultipleChatProvidersMeta.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
@@ -193,6 +195,8 @@ function isConnectionClosedError(error: unknown): boolean {
 
 interface IRemoteAgentHostExtensionNotificationMap {
 	'setClientManagedSettingsPermissions': { params: { permissions: IAgentHostManagedSettingsPermissions } };
+	[ClientForwardingDataNotification]: { params: { connection: number; data: string } };
+	[ClientForwardingCloseNotification]: { params: { connection: number } };
 }
 
 interface IPendingRequest {
@@ -293,6 +297,8 @@ export interface IAgentHostProtocolClientOptions {
 	readonly clientCertificates?: IAgentHostClientCertificatesProvider;
 	/** Serves proxy resolution and proxy Kerberos tickets only for remotes sharing the client's network. */
 	readonly clientProxy?: IAgentHostClientProxyProvider;
+	/** Forwards the client's Git configuration and identity, Git credentials and agents, e.g., to a Dev Container's agent host. */
+	readonly clientForwarding?: IAgentHostClientForwardingProvider;
 	/** Releases resources owned by the logical protocol client after its final disposal. */
 	readonly onDispose?: () => void;
 }
@@ -560,6 +566,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private readonly _resolveAdvertisedAuthentication: IAgentHostProtocolClientOptions['resolveAdvertisedAuthentication'];
 	private readonly _clientCertificates: IAgentHostProtocolClientOptions['clientCertificates'];
 	private readonly _clientProxy: IAgentHostProtocolClientOptions['clientProxy'];
+	private readonly _clientForwarding: IAgentHostProtocolClientOptions['clientForwarding'];
+	/** Connections the host opened to the client's agents, which end with the transport they were opened on. */
+	private readonly _forwardedConnections = new Map<number, { readonly connection: IClientForwardingConnection; readonly store: DisposableStore }>();
 	private readonly _onDispose: (() => void) | undefined;
 	private _didDispose = false;
 
@@ -664,6 +673,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		if (this._clientProxy) {
 			this._register(this._clientProxy.onDidChange(() => this._notifyClientProxyChanged()));
 		}
+		this._clientForwarding = options?.clientForwarding;
+		this._register(toDisposable(() => this._closeForwardedConnections()));
 		this._onDispose = options?.onDispose;
 
 		if (typeof transportOrFactory === 'function') {
@@ -1052,6 +1063,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 */
 	private _handleTransportClose(reason: ConnectionCloseReason = this._transport.closeReason ?? 'unknown'): void {
 		this._closeTransportChannels();
+		this._closeForwardedConnections();
 		this._onDidInvalidateTransport.fire(this._transport);
 		this._relayKeepAliveTimer.cancel();
 		if (this._state.kind !== AgentHostClientState.Closed) {
@@ -1702,6 +1714,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return {
 			...(this._clientCertificates?.isEnabled() ? { [AgentHostClientCertificatesCapabilityMetaKey]: true } : {}),
 			...(this._clientProxy?.isEnabled() ? { [AgentHostClientProxyCapabilityMetaKey]: true } : {}),
+			...(this._clientForwarding?.isEnabled() ? { [AgentHostClientForwardingCapabilityMetaKey]: true } : {}),
 			...(this._configurationService.getValue<boolean>(ChatProvidersSettingId.Enabled) === true ? { [AgentHostMultipleChatProvidersMetaKey]: true } : {}),
 			...toAgentHostClientMeta(
 				this._transport.clientConnectionKind,
@@ -2398,6 +2411,13 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	/** Lets a host serving this client's proxy support refresh the proxy it applies after this client's settings change. */
+	private _closeForwardedConnections(): void {
+		for (const { store } of this._forwardedConnections.values()) {
+			store.dispose();
+		}
+		this._forwardedConnections.clear();
+	}
+
 	private _notifyClientProxyChanged(): void {
 		if (!this._clientProxy?.isEnabled() || !servesAgentHostClientProxy(this._initializeResult.get())) {
 			return;
@@ -3439,6 +3459,22 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	private _handleNotification(notification: JsonRpcNotification): void {
 		const msg = notification as AhpNotification;
+		if (notification.method === ClientForwardingDataNotification) {
+			const { content } = clientForwardingDataParamsValidator.validate(notification.params);
+			if (content) {
+				this._forwardedConnections.get(content.connection)?.connection.write(decodeBase64(content.data));
+			}
+			return;
+		}
+		if (notification.method === ClientForwardingCloseNotification) {
+			const { content } = clientForwardingCloseParamsValidator.validate(notification.params);
+			const forwarded = content && this._forwardedConnections.get(content.connection);
+			if (content && forwarded) {
+				this._forwardedConnections.delete(content.connection);
+				forwarded.store.dispose();
+			}
+			return;
+		}
 		if (notification.method === ArtifactIntegrationUpdateNotification) {
 			if (isArtifactIntegrationUpdate(notification.params)) {
 				this._artifactIntegrationUpdates.fire(notification.params);
@@ -3693,6 +3729,63 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 							throw new Error('Proxy credential lookup failed');
 						}
 						sendResult((credentials ? { username: credentials.username, password: credentials.password } : {}) satisfies IAgentHostExtensionServerCommandMap[typeof LookupClientProxyBasicAuthorizationExtensionMethod]['result']);
+						return;
+					}
+					case DescribeClientForwardingExtensionMethod: {
+						if (!this._clientForwarding?.isEnabled()) {
+							throw new Error('This client does not forward its agents to this agent host');
+						}
+						sendResult(await this._clientForwarding.describe() satisfies IAgentHostExtensionServerCommandMap[typeof DescribeClientForwardingExtensionMethod]['result']);
+						return;
+					}
+					case OpenClientForwardingExtensionMethod: {
+						if (!this._clientForwarding?.isEnabled()) {
+							throw new Error('This client does not forward its agents to this agent host');
+						}
+						const { connection: id, socket } = openClientForwardingParamsValidator.validateOrThrow(params);
+						if (this._forwardedConnections.has(id)) {
+							throw new Error('The connection is already open');
+						}
+						const connection = await this._clientForwarding.open(socket);
+						// The host's side of the connection ends with this transport.
+						if (transport !== this._transport || this._store.isDisposed) {
+							connection.dispose();
+							throw new Error('The connection to the agent host was replaced');
+						}
+						const store = new DisposableStore();
+						store.add(connection);
+						this._forwardedConnections.set(id, { connection, store });
+						store.add(connection.onDidReceiveData(data => this._sendExtensionNotification(ClientForwardingDataNotification, { connection: id, data: encodeBase64(data) })));
+						store.add(connection.onDidClose(() => {
+							if (this._forwardedConnections.get(id)?.connection === connection) {
+								this._forwardedConnections.delete(id);
+								store.dispose();
+								this._sendExtensionNotification(ClientForwardingCloseNotification, { connection: id });
+							}
+						}));
+						sendResult({} satisfies IAgentHostExtensionServerCommandMap[typeof OpenClientForwardingExtensionMethod]['result']);
+						return;
+					}
+					case ClientGitCredentialExtensionMethod: {
+						if (!this._clientForwarding?.isEnabled()) {
+							throw new Error('This client does not forward its Git credentials to this agent host');
+						}
+						const { operation, input } = clientGitCredentialParamsValidator.validateOrThrow(params);
+						sendResult({ output: await this._clientForwarding.gitCredential(operation, input) } satisfies IAgentHostExtensionServerCommandMap[typeof ClientGitCredentialExtensionMethod]['result']);
+						return;
+					}
+					case ClientGpgKeysExtensionMethod: {
+						if (!this._clientForwarding?.isEnabled()) {
+							throw new Error('This client does not forward its GPG agent to this agent host');
+						}
+						sendResult(await this._clientForwarding.gpgKeys() satisfies IAgentHostExtensionServerCommandMap[typeof ClientGpgKeysExtensionMethod]['result']);
+						return;
+					}
+					case ClientGitConfigExtensionMethod: {
+						if (!this._clientForwarding?.isEnabled()) {
+							throw new Error('This client does not forward its Git configuration to this agent host');
+						}
+						sendResult(await this._clientForwarding.gitConfig() satisfies IAgentHostExtensionServerCommandMap[typeof ClientGitConfigExtensionMethod]['result']);
 						return;
 					}
 					case ClientArtifactIntegrationExtensionMethod: {

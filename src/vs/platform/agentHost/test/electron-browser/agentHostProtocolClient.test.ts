@@ -9,7 +9,7 @@ import { LoadClientCertificatesExtensionMethod, type IAgentHostClientCertificate
 import sinon from 'sinon';
 import { CancelablePromise, DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { VSBuffer } from '../../../../base/common/buffer.js';
+import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationError, errorHandler, getErrorCode, setUnexpectedErrorHandler, transformErrorForSerialization, transformErrorFromSerialization } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -25,6 +25,8 @@ import { ArtifactIntegrationsSettingId, type ArtifactIntegrationDescriptor } fro
 import { AgentHostClientState, AgentHostProtocolClient, RetryableAuthenticationError, type IAgentHostProtocolClientOptions } from '../../browser/agentHostProtocolClient.js';
 import { AgentHostClientProxyCapabilityMetaKey } from '../../common/meta/agentHostClientProxyMeta.js';
 import { ClientProxyChangedExtensionMethod, LookupClientProxyBasicAuthorizationExtensionMethod, LookupClientProxyKerberosAuthorizationExtensionMethod, ResolveClientProxyExtensionMethod, type IAgentHostClientProxyProvider } from '../../common/clientProxyProtocol.js';
+import { ClientForwardingDataNotification, ClientGitConfigExtensionMethod, ClientGitCredentialExtensionMethod, ClientGpgKeysExtensionMethod, DescribeClientForwardingExtensionMethod, OpenClientForwardingExtensionMethod, type IAgentHostClientForwardingProvider } from '../../common/clientForwardingProtocol.js';
+import { AgentHostClientForwardingCapabilityMetaKey } from '../../common/meta/agentHostClientForwardingMeta.js';
 import { WebPubSubRelayTransport, type IWebSocketLike } from '../../browser/webPubSubRelayTransport.js';
 import { AgentHostSessionMoveUnsupportedError, DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, type IAgentHostMcpAuthenticationRequest, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, ClientArtifactIntegrationUpdateExtensionMethod, RegisterClientArtifactIntegrationsExtensionMethod, GitHubEnvironmentChangedNotification } from '../../common/agentHostExtensionProtocol.js';
 import { AgentHostGitHubEnvironmentCapabilityMetaKey, type IAgentHostGitHubEnvironmentStatus } from '../../common/meta/agentHostGitHubEnvironmentMeta.js';
@@ -454,6 +456,14 @@ suite('AgentHostProtocolClient', () => {
 			result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [], _meta: meta },
 		});
 		await connectPromise;
+	}
+
+	/** Sends a reverse request from the host and returns the client's result or error message. */
+	async function sendRequest(transport: TestProtocolTransport, id: number, method: string, params: Record<string, unknown>): Promise<unknown> {
+		transport.fireExtensionRequest(id, method, params);
+		await timeout(0);
+		const response = transport.sentMessages.at(-1) as { result?: unknown; error?: { message: string } };
+		return response.error ? response.error.message : response.result;
 	}
 
 	for (const nativeHost of [true, false]) {
@@ -4838,13 +4848,6 @@ suite('AgentHostProtocolClient', () => {
 			return { client, transport, onDidChange };
 		}
 
-		async function sendRequest(transport: TestProtocolTransport, id: number, method: string, params: Record<string, unknown>): Promise<unknown> {
-			transport.fireExtensionRequest(id, method, params);
-			await timeout(0);
-			const response = transport.sentMessages.at(-1) as { result?: unknown; error?: { message: string } };
-			return response.error ? response.error.message : response.result;
-		}
-
 		test('advertises the capability and serves proxy resolution and Kerberos lookups', async () => {
 			const calls: string[][] = [];
 			const { client, transport } = createProxyClient(calls);
@@ -4944,6 +4947,71 @@ suite('AgentHostProtocolClient', () => {
 			unconfirmed.onDidChange.fire();
 
 			assert.deepStrictEqual({ confirmed: sentChanges(confirmed.transport), unconfirmed: sentChanges(unconfirmed.transport) }, { confirmed: 1, unconfirmed: 0 });
+		});
+	});
+	suite('client forwarding', () => {
+		function createForwardingClient(enabled: boolean) {
+			const transport = disposables.add(new TestProtocolTransport());
+			const trust = createWorkspaceTrustServices();
+			const onDidReceiveData = disposables.add(new Emitter<VSBuffer>());
+			const events: string[] = [];
+			const clientForwarding: IAgentHostClientForwardingProvider = {
+				isEnabled: () => enabled,
+				describe: async () => ({ gitConfig: true, gitCredentials: true, sshAgent: true, gpgAgent: false, keyboxd: false }),
+				open: async socket => ({
+					onDidReceiveData: onDidReceiveData.event,
+					onDidClose: Event.None,
+					write: data => events.push(`write ${socket}: ${data.toString()}`),
+					dispose: () => events.push(`dispose ${socket}`),
+				}),
+				gitCredential: async (operation, input) => `${operation} ${input}`,
+				gpgKeys: async () => ({ ownertrust: 'dHJ1c3Q=' }),
+				gitConfig: async () => ({ user: { name: 'Client User' } }),
+			};
+			const client = disposables.add(new AgentHostProtocolClient('dev-container-test', transport, { clientForwarding }, new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService, workspaceTrustEnablementService, trust.management, trust.request));
+			return { client, transport, onDidReceiveData, events };
+		}
+
+		const advertised = (transport: TestProtocolTransport) => ((transport.sentMessages[0] as JsonRpcRequest).params as { _meta: Record<string, unknown> })._meta[AgentHostClientForwardingCapabilityMetaKey];
+
+		test('advertises client forwarding and connects agents for the host until the transport closes', async () => {
+			const { client, transport, onDidReceiveData, events } = createForwardingClient(true);
+			await connectClient(client, transport);
+			const results = [
+				await sendRequest(transport, 51, DescribeClientForwardingExtensionMethod, {}),
+				await sendRequest(transport, 52, OpenClientForwardingExtensionMethod, { connection: 3, socket: 'ssh-agent' }),
+				await sendRequest(transport, 53, ClientGitCredentialExtensionMethod, { operation: 'get', input: 'host=example.com\n' }),
+				await sendRequest(transport, 54, ClientGpgKeysExtensionMethod, {}),
+				await sendRequest(transport, 55, ClientGitConfigExtensionMethod, {}),
+			];
+			transport.fireExtensionNotification({ jsonrpc: '2.0', method: ClientForwardingDataNotification, params: { connection: 3, data: encodeBase64(VSBuffer.fromString('request')) } });
+			onDidReceiveData.fire(VSBuffer.fromString('reply'));
+			const sent = transport.sentMessages.filter(message => (message as JsonRpcNotification).method === ClientForwardingDataNotification).map(message => (message as JsonRpcNotification).params);
+			transport.fireClose();
+
+			assert.deepStrictEqual({ advertised: advertised(transport), results, sent, events }, {
+				advertised: true,
+				results: [{ gitConfig: true, gitCredentials: true, sshAgent: true, gpgAgent: false, keyboxd: false }, {}, { output: 'get host=example.com\n' }, { ownertrust: 'dHJ1c3Q=' }, { user: { name: 'Client User' } }],
+				sent: [{ connection: 3, data: encodeBase64(VSBuffer.fromString('reply')) }],
+				events: ['write ssh-agent: request', 'dispose ssh-agent'],
+			});
+		});
+
+		test('neither advertises nor serves client forwarding when disabled', async () => {
+			const { client, transport, events } = createForwardingClient(false);
+			await connectClient(client, transport);
+			assert.deepStrictEqual({
+				advertised: advertised(transport),
+				errors: [
+					await sendRequest(transport, 51, OpenClientForwardingExtensionMethod, { connection: 3, socket: 'ssh-agent' }),
+					await sendRequest(transport, 52, ClientGitCredentialExtensionMethod, { operation: 'get', input: 'host=example.com\n' }),
+				],
+				events,
+			}, {
+				advertised: undefined,
+				errors: ['This client does not forward its agents to this agent host', 'This client does not forward its Git credentials to this agent host'],
+				events: [],
+			});
 		});
 	});
 	suite('reverse MCP authentication', () => {

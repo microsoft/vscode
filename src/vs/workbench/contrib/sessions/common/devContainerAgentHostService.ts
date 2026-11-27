@@ -9,6 +9,7 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import type { IAgentHostClientCertificatesProvider } from '../../../../platform/agentHost/common/clientCertificatesProtocol.js';
 import type { IAgentHostClientProxyProvider } from '../../../../platform/agentHost/common/clientProxyProtocol.js';
+import type { IAgentHostClientForwardingProvider } from '../../../../platform/agentHost/common/clientForwardingProtocol.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IProtocolTransport } from '../../../../platform/agentHost/common/state/sessionTransport.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -32,6 +33,9 @@ export const DevContainerStateVolumeEnabledSettingId = 'chat.agentHost.devContai
 
 /** Experimental setting that enables Dev Container environments created from a base image on this computer and on SSH, Tunnel, and WSL hosts. */
 export const DevContainerEnvironmentsEnabledSettingId = 'chat.agentHost.devContainer.environments.enabled';
+
+/** Experimental setting that forwards the client's Git configuration, Git credentials, and SSH and GPG agents into Dev Containers without sandboxing. */
+export const DevContainerCredentialForwardingEnabledSettingId = 'chat.agentHost.devContainer.credentialForwarding.enabled';
 
 /** Experimental setting that lets agents create Dev Container environments and continue work in them. */
 export const DevContainerHandoffEnabledSettingId = 'chat.agentHost.devContainer.handoff.enabled';
@@ -100,6 +104,8 @@ export interface IDevContainerAgentHostConnection {
 	readonly defaultDirectory?: string;
 	readonly clientCertificates?: IAgentHostClientCertificatesProvider;
 	readonly clientProxy?: IAgentHostClientProxyProvider;
+	/** Forwards the client's Git identity, and without sandboxing, its Git configuration, Git credentials and agents. */
+	readonly clientForwarding?: IAgentHostClientForwardingProvider;
 }
 
 /** Options for {@link IDevContainerAgentHostConnector.createConnection}. */

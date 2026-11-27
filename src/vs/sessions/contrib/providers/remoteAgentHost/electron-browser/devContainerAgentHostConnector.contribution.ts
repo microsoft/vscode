@@ -24,10 +24,12 @@ import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost
 import { AgentHostAhpJsonlLoggingSettingId, IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { AhpJsonlLogger } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
 import { AgentHostClientProxy } from '../../../../../platform/agentHost/browser/agentHostClientProxy.js';
+import { AgentHostClientForwarding } from '../../../../../platform/agentHost/browser/agentHostClientForwarding.js';
+import { AGENT_HOST_CLIENT_FORWARDING_CHANNEL, IAgentHostClientForwardingMainService } from '../../../../../platform/agentHost/common/agentHostClientForwardingMainService.js';
 import { DEV_CONTAINER_AGENT_HOST_CHANNEL, DevContainerAgentHostSource, DevContainerConnectStage, DevContainerEnvironmentVolumeLookupTimeoutMs, IDevContainerAgentHostConfig, IDevContainerAgentHostConnectFailure, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport, IDevContainerHostFolderContainer, isValidDevContainerConnectionName } from '../../../../../platform/agentHost/common/devContainerAgentHost.js';
 import { findDevContainerSample } from '../../../../../platform/agentHost/common/devContainerSamples.js';
 import { devContainerEnvironmentImage, findDevContainerEnvironment, isLocalDevContainerEnvironment } from '../../../../../platform/agentHost/common/devContainerEnvironments.js';
-import { areDevContainerEnvironmentsEnabled, areDevContainerSamplesEnabled, DevContainerAgentHostEnabledSettingId, DevContainerDiscoveryEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, DevContainerHandoffEnabledSettingId, DevContainerIdleTimeoutSettingId, DevContainerSamplesEnabledSettingId, DevContainerStateVolumeEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostConnection, IDevContainerAgentHostConnectionOptions, IDevContainerAgentHostConnector, IDevContainerAgentHostService } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
+import { areDevContainerEnvironmentsEnabled, areDevContainerSamplesEnabled, DevContainerAgentHostEnabledSettingId, DevContainerCredentialForwardingEnabledSettingId, DevContainerDiscoveryEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, DevContainerHandoffEnabledSettingId, DevContainerIdleTimeoutSettingId, DevContainerSamplesEnabledSettingId, DevContainerStateVolumeEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostConnection, IDevContainerAgentHostConnectionOptions, IDevContainerAgentHostConnector, IDevContainerAgentHostService } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { ReconnectingRelayTransport, type IRelayConnectionHandle, type IRelayMessage } from '../../../../../platform/agentHost/common/relayTransport.js';
 import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { NonReconnectableTransportError } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
@@ -464,6 +466,7 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 	private readonly _sandboxSupport = this._register(new Emitter<{ readonly workspaceUri: URI; readonly supported: boolean }>());
 	readonly onDidChangeSandboxSupport = this._sandboxSupport.event;
 	private readonly _mainService: IDevContainerAgentHostMainService;
+	private readonly _clientForwardingService: IAgentHostClientForwardingMainService;
 
 	constructor(
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
@@ -482,6 +485,7 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 		this._mainService = ProxyChannel.toService<IDevContainerAgentHostMainService>(
 			sharedProcessService.getChannel(DEV_CONTAINER_AGENT_HOST_CHANNEL),
 		);
+		this._clientForwardingService = ProxyChannel.toService<IAgentHostClientForwardingMainService>(sharedProcessService.getChannel(AGENT_HOST_CLIENT_FORWARDING_CHANNEL));
 	}
 
 	async isAvailable(workspaceUri: URI): Promise<boolean> {
@@ -802,6 +806,11 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 					loadCertificates: () => this._requestService.loadCertificates(),
 				},
 				clientProxy: remoteService ? undefined : this._instantiationService.createInstance(AgentHostClientProxy, () => result.sharesClientNetwork === true, env),
+				clientForwarding: connectionStore.add(new AgentHostClientForwarding(this._clientForwardingService, {
+					// Sandboxed containers get only the Git identity, as before.
+					forwardCredentials: () => !options?.sandboxEnabled && this._configurationService.getValue<boolean>(DevContainerCredentialForwardingEnabledSettingId) !== false,
+					folder: workspaceUri.scheme === Schemas.file ? workspaceUri.fsPath : undefined,
+				})),
 				transportFactory,
 				transportDisposable: combinedDisposable(
 					connectionStore,
@@ -895,6 +904,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			description: localize('chat.agentHost.devContainer.stateVolume.enabled', "Keep user and agent state of new Dev Containers, including agent sessions and worktrees, on a per-container volume across rebuilds."),
 			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
+		[DevContainerCredentialForwardingEnabledSettingId]: {
+			type: 'boolean',
+			description: localize('chat.agentHost.devContainer.credentialForwarding.enabled', "Controls whether Dev Container sessions without terminal sandboxing copy your Git configuration and use your Git credentials, SSH agent, and GPG agent, like the Dev Containers extension. Sessions with terminal sandboxing only get your Git user name and email."),
+			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
