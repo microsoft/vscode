@@ -4,10 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IActionViewItem } from '../../../../../base/browser/ui/actionbar/actionbar.js';
-import { IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { ActionWithDropdownActionViewItem, IDropdownMenuActionViewItemOptions } from '../../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
-import { ActionRunner, IAction } from '../../../../../base/common/actions.js';
-import { isCancellationError } from '../../../../../base/common/errors.js';
+import { IDropdownMenuActionViewItemOptions } from '../../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
+import { IAction } from '../../../../../base/common/actions.js';
 import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -25,163 +23,7 @@ import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ChatViewSessionsListHelpHint } from '../chatView/chatViewSessionsListAccessibilityHelp.js';
 import { MenuId, MenuItemAction, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
-import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
-import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
-import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { $, reset } from '../../../../../base/browser/dom.js';
-import { KeybindingLabel } from '../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
-import { ResolvedKeybinding } from '../../../../../base/common/keybindings.js';
-import { OS } from '../../../../../base/common/platform.js';
-import '../media/chatViewNewButton.css';
-
-/** The class of the filled label buttons of action bars, such as the split buttons of the Extensions editor. */
-const FILLED_LABEL_CLASS = 'filled-label';
-
-/**
- * Runs the actions of the New menu, and reports a failure itself: the menu closes as the action starts and no longer listens
- * to its end, and the button may be gone by then too.
- */
-class ChatViewNewMenuActionRunner extends ActionRunner {
-
-	constructor(@INotificationService private readonly _notificationService: INotificationService) {
-		super();
-	}
-
-	protected override async runAction(action: IAction, context?: unknown): Promise<void> {
-		try {
-			await action.run(context);
-		} catch (error) {
-			if (!isCancellationError(error)) {
-				this._notificationService.error(error);
-			}
-		}
-	}
-}
-
-/**
- * The "New" split button of the Chat view title for the New menu, the split button of the Extensions editor: "New", with the
- * keybinding of New Chat as the New button of the Agents window shows it, runs New Chat and the dropdown opens the New menu.
- * The title's toolbar knows it as the New menu itself, so that it can move it into its overflow menu, and asks it for the
- * width it needs.
- */
-class ChatViewNewButtonActionViewItem extends ActionWithDropdownActionViewItem {
-
-	private readonly _keybindingHint = $('span.chat-view-new-button-keybinding');
-	private readonly _keybindingLabel = this._register(new KeybindingLabel(this._keybindingHint, OS, {
-		disableTitle: true,
-		keybindingLabelBackground: 'transparent',
-		keybindingLabelForeground: 'inherit',
-		keybindingLabelBorder: 'transparent',
-		keybindingLabelBottomBorder: undefined,
-		keybindingLabelShadow: undefined,
-	}));
-
-	constructor(
-		newMenu: SubmenuItemAction,
-		private readonly _newChat: MenuItemAction,
-		options: IActionViewItemOptions | undefined,
-		menuActionRunner: ChatViewNewMenuActionRunner,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-	) {
-		super(null, newMenu, {
-			...options,
-			icon: false,
-			label: true,
-			menuActionsOrProvider: { getActions: () => newMenu.actions },
-			menuActionClassNames: [FILLED_LABEL_CLASS],
-			menuActionRunner,
-			filledSplitButton: true,
-		}, contextMenuService);
-		this._register(menuActionRunner);
-		this._register(_keybindingService.onDidUpdateKeybindings(() => {
-			this.updateLabel();
-			this.updateTooltip();
-		}));
-	}
-
-	/** The dropdown, created here after the first update, takes the title's context and New Chat's enablement. */
-	override render(container: HTMLElement): void {
-		super.render(container);
-		this.element?.classList.add('chat-view-new-button');
-		this.dropdownMenuActionViewItem?.setActionContext(this._context);
-		this.updateEnabled();
-	}
-
-	override setActionContext(context: unknown): void {
-		super.setActionContext(context);
-		this.dropdownMenuActionViewItem?.setActionContext(context);
-	}
-
-	/**
-	 * The width the button needs, for the title to fit it. It is measured unshrunk and without the minimum width the title
-	 * gave it from an earlier measure, as the title toolbar measures its items, so that it can need less than before.
-	 */
-	getMinimumWidth(): number | undefined {
-		const element = this.element;
-		if (!element) {
-			return undefined;
-		}
-		const { minWidth, flexShrink } = element.style;
-		try {
-			element.style.minWidth = '0';
-			element.style.flexShrink = '0';
-			const width = element.getBoundingClientRect().width;
-			return width ? Math.ceil(width) : undefined;
-		} finally {
-			element.style.minWidth = minWidth;
-			element.style.flexShrink = flexShrink;
-		}
-	}
-
-	/** "New" runs New Chat. */
-	override getActionToRun(): IAction {
-		return this._newChat;
-	}
-
-	protected override updateLabel(): void {
-		if (this.label) {
-			const keybinding = this.getKeybinding();
-			this._keybindingLabel.set(keybinding);
-			reset(this.label, localize('chatViewNewButton', "New"), ...(keybinding ? [this._keybindingHint] : []));
-		}
-	}
-
-	/** The button is disabled when New Chat is, which is only when Chat is. */
-	protected override updateEnabled(): void {
-		const enabled = this._newChat.enabled;
-		this.element?.classList.toggle('disabled', !enabled);
-		this.label?.classList.toggle('disabled', !enabled);
-		if (enabled) {
-			this.label?.removeAttribute('aria-disabled');
-		} else {
-			this.label?.setAttribute('aria-disabled', 'true');
-		}
-		if (this.dropdownMenuActionViewItem) {
-			this.dropdownMenuActionViewItem.action.enabled = enabled;
-		}
-	}
-
-	protected override updateClass(): void {
-		super.updateClass();
-		this.label?.classList.add(FILLED_LABEL_CLASS);
-	}
-
-	/** New Chat with its keybinding. */
-	protected override getTooltip(): string {
-		const keybindingLabel = this.getKeybinding()?.getLabel();
-		return keybindingLabel
-			? localize('chatViewNewButtonTitle', "{0} ({1})", this._newChat.label, keybindingLabel)
-			: this._newChat.label;
-	}
-
-	/** The keybinding of New Chat, or that of the canonical New Chat for its icon variants, which have none. */
-	private getKeybinding(): ResolvedKeybinding | undefined {
-		const id = this._newChat.id;
-		const isIconVariant = NEW_CHAT_ICON_VARIANTS.some(variant => id === ACTION_ID_NEW_CHAT + variant.idSuffix);
-		return this._keybindingService.lookupKeybinding(id) ?? (isIconVariant ? this._keybindingService.lookupKeybinding(ACTION_ID_NEW_CHAT) : undefined);
-	}
-}
+import { NewSplitButtonActionViewItem } from '../newSplitButton/newSplitButtonActionViewItem.js';
 
 /** The shared sessions list of an editor window, embedded in the Chat view, as the Chat view acts on it. */
 export class ChatViewSessionsListControl implements IChatViewSessionsListControl {
@@ -216,14 +58,15 @@ export class ChatViewSessionsListControl implements IChatViewSessionsListControl
 	getFocus(): IAgentSession[] { return []; }
 	openFind(): void { this._view.openFind(); }
 	/**
-	 * The New menu shows as the "New" split button only in a title that fits it by the width it needs; other titles, which
-	 * would cover or clip it, show it as the stock split button.
+	 * The New menu shows as the "New" split button, which runs New Chat and shows its keybinding, only in a title that fits it
+	 * by the width it needs; other titles, which would cover or clip it, show it as the stock split button.
 	 */
 	createActionViewItem(action: IAction, options: IDropdownMenuActionViewItemOptions | undefined, titleFitsWidths: boolean): IActionViewItem | undefined {
 		if (titleFitsWidths && action instanceof SubmenuItemAction && action.item.submenu === MenuId.ChatNewMenu) {
 			const newChat = action.actions.find(action => action instanceof MenuItemAction && (action.id === ACTION_ID_NEW_CHAT || NEW_CHAT_ICON_VARIANTS.some(variant => action.id === ACTION_ID_NEW_CHAT + variant.idSuffix)));
 			if (newChat instanceof MenuItemAction) {
-				return this._instantiationService.createInstance(ChatViewNewButtonActionViewItem, action, newChat, options, this._instantiationService.createInstance(ChatViewNewMenuActionRunner));
+				// The icon variants of New Chat have no keybinding of their own, and show that of New Chat
+				return this._instantiationService.createInstance(NewSplitButtonActionViewItem, action, newChat, options, { keybindingActionId: ACTION_ID_NEW_CHAT });
 			}
 		}
 		return this._view.createActionViewItem(action, options);
