@@ -15,6 +15,10 @@ import { IContextViewService } from '../../../../../../platform/contextview/brow
 import { ContextViewService } from '../../../../../../platform/contextview/browser/contextViewService.js';
 import { ILayoutService } from '../../../../../../platform/layout/browser/layoutService.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IProductService } from '../../../../../../platform/product/common/productService.js';
+import { SESSIONS_WORKSPACES_ENABLED_SETTING } from '../../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { IChatEntitlementService } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IViewsService } from '../../../../../../workbench/services/views/common/viewsService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
@@ -41,6 +45,8 @@ import { ITestSessionWithChat, testChatSourceOf } from '../../../../../../workbe
 interface IIsolationPickerOptions {
 	readonly value: 'worktree' | 'folder';
 	readonly devContainer?: boolean;
+	/** Lists two Git repositories and selects a worktree for each of them. */
+	readonly allFolders?: boolean;
 	/** Suggests a new worktree for a folder with uncommitted files, counted after Branch and listed in the picker. */
 	readonly uncommittedFiles?: {
 		/** Whether the user already started a session in a new worktree. */
@@ -50,7 +56,7 @@ interface IIsolationPickerOptions {
 
 const UNCOMMITTED_FILES = ['src/app.ts', 'README.md', 'src/todo.ts', 'src/store.ts', 'src/view.ts'];
 
-async function renderIsolationPicker({ container, disposableStore, theme }: ComponentFixtureContext, { value, devContainer = false, uncommittedFiles }: IIsolationPickerOptions): Promise<void> {
+async function renderIsolationPicker({ container, disposableStore, theme }: ComponentFixtureContext, { value, devContainer = false, allFolders = false, uncommittedFiles }: IIsolationPickerOptions): Promise<void> {
 	container.classList.add('monaco-workbench', 'agent-sessions-workbench');
 	container.style.width = '480px';
 	container.style.height = uncommittedFiles ? '340px' : '220px';
@@ -69,9 +75,17 @@ async function renderIsolationPicker({ container, disposableStore, theme }: Comp
 					title: 'Where to run this session',
 					enum: ['folder', 'worktree'],
 				},
+				...(allFolders ? {
+					[SessionConfigKey.WorktreeFolders]: {
+						type: 'string',
+						title: 'Worktree Folders',
+						enum: ['primary', 'all'],
+						default: 'primary',
+					},
+				} : {}),
 			},
 		},
-		values: { [SessionConfigKey.Isolation]: value },
+		values: { [SessionConfigKey.Isolation]: value, ...(allFolders ? { [SessionConfigKey.WorktreeFolders]: 'all' } : {}) },
 	};
 	const provider = new class extends mock<IAgentHostSessionsProvider>() {
 		override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
@@ -87,22 +101,23 @@ async function renderIsolationPicker({ container, disposableStore, theme }: Comp
 		override trackSessionConfigOperation(): void { }
 		override async setIsolationMode(): Promise<void> { }
 	}();
-	const workspace: ISessionWorkspace | undefined = uncommittedFiles && {
+	const workspace: ISessionWorkspace | undefined = (uncommittedFiles || allFolders) ? {
 		label: 'repo',
 		icon: { id: 'folder' },
 		uri: URI.file('/repo'),
-		folders: [{
-			root: URI.file('/repo'),
-			workingDirectory: URI.file('/repo'),
-			name: 'repo',
+		folders: (allFolders ? ['/repo', '/docs'] : ['/repo']).map(path => ({
+			root: URI.file(path),
+			workingDirectory: URI.file(path),
+			name: path.substring(1),
 			description: undefined,
-			gitRepository: { uri: URI.file('/repo'), workTreeUri: undefined, baseBranchName: undefined, branchName: 'main', uncommittedChanges: UNCOMMITTED_FILES.length, gitHubInfo: constObservable(undefined) },
-		}],
+			gitRepository: { uri: URI.file(path), workTreeUri: undefined, baseBranchName: undefined, branchName: 'main', uncommittedChanges: uncommittedFiles ? UNCOMMITTED_FILES.length : 0, gitHubInfo: constObservable(undefined) },
+		})),
 		requiresWorkspaceTrust: false,
 		isVirtualWorkspace: false,
-	};
+	} : undefined;
 	const changes = UNCOMMITTED_FILES.map((path, index): IChatSessionFileChange2 => ({ uri: URI.file(`/repo/${path}`), modifiedUri: URI.file(`/repo/${path}`), insertions: 12 - index * 2, deletions: index }));
 	const chat = new class extends mock<IChat>() {
+		override readonly resource = URI.parse('test-chat:/fixture');
 		override readonly changesets = constObservable(uncommittedFiles ? [new class extends mock<ISessionChangeset>() {
 			override readonly id = UNCOMMITTED_CHANGES_CHANGESET_ID;
 			override readonly isEnabled = constObservable(true);
@@ -123,6 +138,12 @@ async function renderIsolationPicker({ container, disposableStore, theme }: Comp
 	}());
 	const instantiationService = createEditorServices(disposableStore, { colorTheme: theme, additionalServices: registerWorkbenchServices });
 	instantiationService.stub(ISessionInputPickerVisibility, disposableStore.add(new SessionInputPickerVisibility()));
+	instantiationService.stub(IProductService, { quality: 'insider' });
+	if (allFolders) {
+		const configurationService = new TestConfigurationService();
+		await configurationService.setUserConfiguration(SESSIONS_WORKSPACES_ENABLED_SETTING, true);
+		instantiationService.stub(IConfigurationService, configurationService);
+	}
 	const providers: ISessionsProvider[] = [provider];
 	instantiationService.stub(ISessionsProvidersService, {
 		onDidChangeProviders: Event.None,
@@ -174,6 +195,9 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/isolationPicker/'
 	Branch: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: context => renderIsolationPicker(context, { value: 'folder' }),
+	}),
+	NewWorktreeForAllFolders: defineComponentFixture({
+		render: context => renderIsolationPicker(context, { value: 'worktree', allFolders: true }),
 	}),
 	DevContainer: defineComponentFixture({
 		render: context => renderIsolationPicker(context, { value: 'folder', devContainer: true }),

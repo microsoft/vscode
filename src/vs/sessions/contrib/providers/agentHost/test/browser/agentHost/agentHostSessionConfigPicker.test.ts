@@ -27,6 +27,8 @@ import { JsonRpcErrorCodes, ProtocolError } from '../../../../../../../platform/
 import { ResolveSessionConfigResult, SessionConfigPropertySchema, SessionConfigValueItem } from '../../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IProductService } from '../../../../../../../platform/product/common/productService.js';
+import { SESSIONS_WORKSPACES_ENABLED_SETTING } from '../../../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { Context } from '../../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService, type IPrompt, type IPromptResult } from '../../../../../../../platform/dialogs/common/dialogs.js';
@@ -124,6 +126,43 @@ function makeRepoConfig(branchValue?: string, isolation: 'folder' | 'worktree' =
 		},
 		values: { [SessionConfigKey.Isolation]: isolation, ...(branchValue ? { [SessionConfigKey.Branch]: branchValue } : {}) },
 	} as ResolveSessionConfigResult;
+}
+
+/** A workspace whose folders are in the given Git repositories, or in no repository for `undefined`. */
+function makeMultiFolderWorkspace(repositories: readonly (string | undefined)[]): ISessionWorkspace {
+	const workspace = makeWorkspace(undefined);
+	return {
+		...workspace,
+		folders: repositories.map((repository, index) => {
+			const root = URI.file(`/folder${index}`);
+			return {
+				root,
+				workingDirectory: root,
+				name: `folder${index}`,
+				description: undefined,
+				gitRepository: repository === undefined ? undefined : { ...workspace.folders[0].gitRepository!, uri: URI.file(repository) },
+			};
+		}),
+	};
+}
+
+/** {@link makeRepoConfig} with the host's Worktree Folders property. */
+function makeWorktreeFoldersConfig(isolation: 'folder' | 'worktree', worktreeFolders: 'primary' | 'all' = 'primary'): ResolveSessionConfigResult {
+	const config = makeRepoConfig('main', isolation);
+	return {
+		schema: {
+			...config.schema,
+			properties: {
+				...config.schema.properties,
+				[SessionConfigKey.WorktreeFolders]: {
+					title: 'Worktree Folders', type: 'string',
+					enum: ['primary', 'all'], enumLabels: ['Main Folder', 'All Folders'],
+					default: 'primary', sessionMutable: false,
+				},
+			},
+		},
+		values: { ...config.values, [SessionConfigKey.WorktreeFolders]: worktreeFolders },
+	};
 }
 
 /** A config whose Branch property is resolved dynamically (no static `enum`), as the real branch picker is. */
@@ -340,6 +379,7 @@ function setupServices(
 	});
 	store.add(configurationService.onDidChangeConfigurationEmitter);
 	instantiationService.stub(IConfigurationService, configurationService);
+	instantiationService.stub(IProductService, upcastPartial<IProductService>({ quality: 'insider' }));
 	const checkoutDialogs: { message: string; buttons: readonly string[]; cancelButton: boolean; alignment: string | undefined }[] = [];
 	instantiationService.stub(IDialogService, {
 		prompt: async <T,>(prompt: IPrompt<T>): Promise<IPromptResult<T>> => {
@@ -638,6 +678,69 @@ suite('Agent Host Session Config Picker', () => {
 			finalLabel: 'New Worktree',
 			checkbox: null,
 		});
+	});
+
+	test('offers New Worktree for All Folders for a new session with several Git repositories and sets the isolation of every folder', async () => {
+		const services = setupServices(store);
+		await services.configurationService.setUserConfiguration(SESSIONS_WORKSPACES_ENABLED_SETTING, true);
+		services.workspaceObs.set(makeMultiFolderWorkspace(['/repo', '/other', undefined]), undefined);
+		services.provider.config = makeWorktreeFoldersConfig('folder');
+		const { container } = renderPicker(store, services);
+		const properties = Array.from(container.querySelectorAll<HTMLElement>('[data-session-config-property]')).map(element => element.dataset.sessionConfigProperty);
+		const steps = [];
+		for (const value of ['worktree:allFolders', 'worktree', 'worktree:allFolders', 'folder']) {
+			isolationSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+			await timeout(0);
+			const items = services.actionWidget.items.map(item => ({ value: item.item?.value, checked: item.item?.checked }));
+			services.provider.setSessionConfigValueArguments.length = 0;
+			await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.value === value)!.item!);
+			await timeout(0);
+			steps.push({
+				items,
+				writes: services.provider.setSessionConfigValueArguments.map(({ property, value }) => `${property}=${value}`),
+				label: isolationSlot(container)?.textContent,
+				icon: isolationSlot(container)?.querySelector('.codicon')?.className,
+			});
+		}
+		const items = (checked: string) => ['folder', 'worktree', 'worktree:allFolders'].map(value => ({ value, checked: value === checked }));
+		assert.deepStrictEqual({ properties, steps }, {
+			properties: [SessionConfigKey.Isolation, SessionConfigKey.Branch],
+			steps: [
+				{ items: items('folder'), writes: ['isolation=worktree', 'worktreeFolders=all'], label: 'New Worktree for All Folders', icon: 'codicon codicon-worktree' },
+				{ items: items('worktree:allFolders'), writes: ['worktreeFolders=primary'], label: 'New Worktree', icon: 'codicon codicon-worktree' },
+				{ items: items('worktree'), writes: ['worktreeFolders=all'], label: 'New Worktree for All Folders', icon: 'codicon codicon-worktree' },
+				{ items: items('worktree:allFolders'), writes: ['isolation=folder', 'worktreeFolders=primary'], label: 'Branch', icon: 'codicon codicon-git-branch-checkout' },
+			],
+		});
+	});
+
+	test('offers New Worktree for All Folders only with workspaces and several Git repositories', async () => {
+		const offers = [];
+		for (const { workspacesEnabled, repositories } of [
+			{ workspacesEnabled: true, repositories: ['/repo', '/other'] },
+			{ workspacesEnabled: false, repositories: ['/repo', '/other'] },
+			{ workspacesEnabled: true, repositories: ['/repo', '/repo'] },
+			{ workspacesEnabled: true, repositories: ['/repo', undefined] },
+		]) {
+			const services = setupServices(store);
+			await services.configurationService.setUserConfiguration(SESSIONS_WORKSPACES_ENABLED_SETTING, workspacesEnabled);
+			services.workspaceObs.set(makeMultiFolderWorkspace(repositories), undefined);
+			services.provider.config = makeWorktreeFoldersConfig('worktree', 'all');
+			const { container } = renderPicker(store, services);
+			isolationSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+			await timeout(0);
+			offers.push({
+				values: services.actionWidget.items.map(item => item.item?.value),
+				label: isolationSlot(container)?.textContent,
+			});
+		}
+		const notOffered = { values: ['folder', 'worktree'], label: 'New Worktree' };
+		assert.deepStrictEqual(offers, [
+			{ values: ['folder', 'worktree', 'worktree:allFolders'], label: 'New Worktree for All Folders' },
+			notOffered,
+			notOffered,
+			notOffered,
+		]);
 	});
 
 	for (const enumDynamic of [false, true]) {
