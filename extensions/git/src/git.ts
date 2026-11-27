@@ -3244,7 +3244,8 @@ export class Repository {
 							continue;
 						}
 
-						throw err;
+						// On other filesystem errors (e.g. EACCES, EPERM), retain the worktree entry
+						// rather than failing the repository's status refresh.
 					}
 
 					result.push({
