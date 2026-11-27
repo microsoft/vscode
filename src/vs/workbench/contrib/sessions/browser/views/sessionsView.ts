@@ -6,7 +6,6 @@
 import '../media/sessionsViewPane.css';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
-import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
@@ -171,6 +170,28 @@ export function restoreLostFocus(candidates: readonly (() => HTMLElement | null 
 export function getReplacementList(container: Element | null | undefined, ownElement: Element | null | undefined): HTMLElement | undefined {
 	// eslint-disable-next-line eslint-js/no-restricted-syntax -- the list that replaces this view is the host's, which renders it into the same container
 	return Array.from(container?.querySelectorAll<HTMLElement>('.monaco-list') ?? []).find(list => !ownElement?.contains(list));
+}
+
+/**
+ * The action bar of the title that shows the actions of the view that `element` is in: its pane's header, or, where that
+ * header is hidden, such as when the pane is the only view of its container, its part's title. The host owns that title, which
+ * stays as its toolbar moves actions into its overflow, so this does not depend on which actions it renders.
+ */
+export function getHostTitleActionBar(element: Element | null | undefined): HTMLElement | undefined {
+	for (let ancestor = element?.parentElement; ancestor; ancestor = ancestor.parentElement) {
+		for (const child of Array.from(ancestor.children)) {
+			const isPaneHeader = child.classList.contains('pane-header');
+			if (!child.contains(element!) && (isPaneHeader || (child.classList.contains('composite') && child.classList.contains('title'))) && child.getClientRects().length > 0) {
+				// The view's actions, not the part's tabs or global actions that its title also has
+				// eslint-disable-next-line eslint-js/no-restricted-syntax -- the title, owned by the host, does not expose its toolbar
+				const actionBar = child.querySelector<HTMLElement>(isPaneHeader ? '.actions .monaco-action-bar' : '.title-actions .monaco-action-bar');
+				if (actionBar) {
+					return actionBar;
+				}
+			}
+		}
+	}
+	return undefined;
 }
 
 /** The action of a host's title toolbar that takes the focus Toggle Inbox loses: its overflow, where Toggle Inbox moves when the title has no room for it, or else its first action. */
@@ -488,8 +509,6 @@ export class SessionsView extends ViewPane {
 
 	private readonly headerInTitle: boolean;
 	private readonly inboxToggles = new Set<InboxToggleActionViewItem>();
-	/** The action bar of the host's title, where the view's header is in it, which takes the focus as the view goes. */
-	private titleActionBar: HTMLElement | undefined;
 	private readonly inboxToggleFocusHandOver = { pending: false };
 	private readonly hideCustomizations: boolean;
 	private readonly groupings: ISessionsViewOptions['groupings'];
@@ -964,25 +983,15 @@ export class SessionsView extends ViewPane {
 	private handOverLostFocus(): void {
 		const ownElement = this.element;
 		const host = ownElement?.parentElement;
-		const titleActionBar = this.titleActionBar;
-		restoreLostFocus([() => getReplacementList(host, ownElement), () => getTitleToolbarFocusTarget(titleActionBar)], callback => DOM.scheduleAtNextAnimationFrame(DOM.getWindow(host), callback));
+		// Found while the view is still in the host, and again where the host's title rerendered since
+		const titleActionBar = getHostTitleActionBar(ownElement);
+		restoreLostFocus([
+			() => getReplacementList(host, ownElement),
+			() => getTitleToolbarFocusTarget(titleActionBar?.isConnected ? titleActionBar : getHostTitleActionBar(host)),
+		], callback => DOM.scheduleAtNextAnimationFrame(DOM.getWindow(host), callback));
 	}
 
 	override createActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {
-		const item = this.doCreateActionViewItem(action, options);
-		if (this.headerInTitle && item instanceof BaseActionViewItem) {
-			// The host's title renders it right away, into the action bar it keeps as it lays out its actions
-			queueMicrotask(() => {
-				const actionBar = item.element?.closest<HTMLElement>('.monaco-action-bar');
-				if (actionBar) {
-					this.titleActionBar = actionBar;
-				}
-			});
-		}
-		return item;
-	}
-
-	private doCreateActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {
 		if (this.headerInTitle && action instanceof SubmenuItemAction && action.item.submenu === Menus.SessionsViewFilter) {
 			return this.instantiationService.createInstance(SessionsFilterActionViewItem, action, options, () => this.sessionsControl?.reportFilterMenuShown());
 		}

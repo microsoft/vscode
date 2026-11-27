@@ -24,8 +24,7 @@ import { SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../../common/sessionConfig.
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { ToolBar } from '../../../../../base/browser/ui/toolbar/toolbar.js';
-import { ActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { Action, IAction } from '../../../../../base/common/actions.js';
+import { Action } from '../../../../../base/common/actions.js';
 import { IContextMenuProvider } from '../../../../../base/browser/contextmenu.js';
 import { scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 
@@ -191,46 +190,48 @@ suite('Chat view sessions list focus', () => {
 		}
 	});
 
-	test('focus the view loses as it goes falls back to the title, which it knows with Toggle Inbox overflowed, as the list that replaces it hides on relayout', async () => {
+	test('focus the view loses as it goes falls back to its part\'s title, whose responsive toolbar overflowed every action from its first render, as the list that replaces it hides on relayout', async () => {
 		const container = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
 		const find = new Action('sessionsViewPane.find', 'Find');
 		const toggleInbox = new Action('sessionsViewPane.inboxMode', 'Toggle Inbox');
-		const host = {
-			headerInTitle: true,
-			titleActionBar: undefined as HTMLElement | undefined,
-			element: undefined as HTMLElement | undefined,
-			doCreateActionViewItem: (action: IAction) => new ActionViewItem(undefined, action, {}),
-		};
-		const createActionViewItem = Reflect.get(SessionsView.prototype, 'createActionViewItem') as (this: typeof host, action: IAction) => ActionViewItem;
-		const handOverLostFocus = Reflect.get(SessionsView.prototype, 'handOverLostFocus') as (this: typeof host) => void;
-		const toolbar = new ToolBar(container.appendChild(mainWindow.document.createElement('div')), upcastPartial<IContextMenuProvider>({ showContextMenu: () => { } }), {
-			actionViewItemProvider: action => createActionViewItem.call(host, action),
+		const handOverLostFocus = Reflect.get(SessionsView.prototype, 'handOverLostFocus') as (this: { element: HTMLElement | undefined }) => void;
+		// The part's title, such as the secondary side bar's, with its tabs before the actions of its only view
+		const title = container.appendChild(mainWindow.document.createElement('div'));
+		title.className = 'composite title';
+		const tabs = title.appendChild(mainWindow.document.createElement('div'));
+		tabs.className = 'composite-bar-container';
+		const tab = tabs.appendChild(mainWindow.document.createElement('div')).appendChild(mainWindow.document.createElement('div'));
+		tab.className = 'monaco-action-bar';
+		const titleActions = title.appendChild(mainWindow.document.createElement('div'));
+		titleActions.className = 'title-actions';
+		titleActions.style.width = '30px';
+		// As the secondary side bar's title toolbar, which keeps no primary action where it has no room
+		const toolbar = new ToolBar(titleActions, upcastPartial<IContextMenuProvider>({ showContextMenu: () => { } }), {
+			responsiveBehavior: { enabled: true, kind: 'all', minItems: 0, overflowFrom: 'start', actionMinWidth: 22 },
 		});
 		try {
-			// The narrow title shows Find and has Toggle Inbox in its overflow, so no toggle item renders
-			toolbar.setActions([find], [toggleInbox]);
+			toolbar.setActions([find, toggleInbox]);
+			const renderedActions = Array.from(titleActions.querySelectorAll('.action-item .action-label')).map(label => label.classList.contains('codicon-toolbar-more') ? 'more actions' : label.textContent);
 			const paneBody = container.appendChild(mainWindow.document.createElement('div'));
-			host.element = paneBody.appendChild(mainWindow.document.createElement('div'));
-			const ownList = host.element.appendChild(mainWindow.document.createElement('div'));
+			const view = { element: paneBody.appendChild(mainWindow.document.createElement('div')) };
+			const ownList = view.element.appendChild(mainWindow.document.createElement('div'));
 			ownList.className = 'monaco-list';
 			ownList.tabIndex = 0;
 			const replacement = paneBody.appendChild(mainWindow.document.createElement('div'));
 			replacement.className = 'monaco-list';
 			replacement.tabIndex = 0;
-			replacement.textContent = 'replacement';
-			await timeout(0);
 			const focused = () => {
 				const active = mainWindow.document.activeElement as HTMLElement | null;
-				return active === replacement ? 'replacement' : active?.classList.contains('codicon-toolbar-more') ? 'title overflow' : active?.tagName;
+				return active === replacement ? 'replacement' : active?.classList.contains('codicon-toolbar-more') && titleActions.contains(active) ? 'title overflow' : active?.tagName;
 			};
 
 			(mainWindow.document.activeElement as HTMLElement | null)?.blur();
-			handOverLostFocus.call(host);
+			handOverLostFocus.call(view);
 			await timeout(0);
 			const first = focused();
 			replacement.style.display = 'none';
 			await new Promise<void>(resolve => scheduleAtNextAnimationFrame(mainWindow, () => setTimeout(resolve, 0)));
-			assert.deepStrictEqual({ first, afterRelayout: focused() }, { first: 'replacement', afterRelayout: 'title overflow' });
+			assert.deepStrictEqual({ renderedActions, first, afterRelayout: focused() }, { renderedActions: ['more actions'], first: 'replacement', afterRelayout: 'title overflow' });
 		} finally {
 			toolbar.dispose();
 			find.dispose();
