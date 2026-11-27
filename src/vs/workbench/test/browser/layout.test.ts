@@ -707,6 +707,54 @@ suite('Workbench layout chat part', () => {
 			});
 		});
 
+		test('the chat part that took the editor\'s place, closed and shown again beside an open editor, comes back at its own width and keeps the secondary side bar\'s, also once the editor area hides for it again and after a reload', () => {
+			const { layout, grid, views, save } = createGridLayout({ ...configuration, anchor: ViewContainerLocation.AuxiliaryBar, widths: { window: 1200, auxiliaryBar: 296 } });
+			const width = (part: Parts) => grid.getViewSize(views.get(part)!).width;
+			const auxiliaryBar = width(Parts.AUXILIARYBAR_PART);
+			const chat = width(Parts.CHAT_PART);
+			layout.setEditorHiddenByChat(true);
+			layout.setPartHidden(true, Parts.CHAT_PART);
+			const savedWhileClosed = (JSON.parse(save().stored!) as { size: number }).size;
+			layout.setPartHidden(false, Parts.CHAT_PART);
+			const reopened = { auxiliaryBar: width(Parts.AUXILIARYBAR_PART), chat: width(Parts.CHAT_PART), editor: layout.isVisible(Parts.EDITOR_PART, mainWindow) };
+			layout.setEditorHiddenByChat(true);
+			assert.deepStrictEqual({ savedWhileClosed, reopened, editorHiddenAgain: { hiddenByChat: layout.isEditorHiddenByChat(), auxiliaryBar: width(Parts.AUXILIARYBAR_PART) } }, {
+				savedWhileClosed: chat,
+				reopened: { auxiliaryBar, chat, editor: true },
+				editorHiddenAgain: { hiddenByChat: true, auxiliaryBar },
+			});
+		});
+
+		test('closing the chat part that took the editor\'s place with the panel hidden shows the editor area, not the panel, and the grid hiding a visible editor area still opens the panel', () => {
+			const create = () => {
+				const { layout, views } = createGridLayout(configuration);
+				// As the real parts: the layout follows the editor part that the grid shows or hides, also with its branch
+				const editorPart = views.get(Parts.EDITOR_PART)!;
+				const setVisible = editorPart.setVisible;
+				Object.assign(editorPart, {
+					setVisible: (visible: boolean) => {
+						setVisible(visible);
+						(Reflect.get(layout, 'onDidChangeGridPartVisibility') as (part: string, visible: boolean) => void).call(layout, Parts.EDITOR_PART, visible);
+					}
+				});
+				layout.setPartHidden(true, Parts.PANEL_PART);
+				return { layout, editorPart };
+			};
+
+			const closed = create().layout;
+			closed.setEditorHiddenByChat(true);
+			closed.setPartHidden(true, Parts.CHAT_PART);
+
+			const { layout: hiddenByGrid, editorPart } = create();
+			hiddenByGrid.setPartHidden(true, Parts.CHAT_PART);
+			editorPart.setVisible(false);
+
+			assert.deepStrictEqual({ closed: state(closed), hiddenByGrid: state(hiddenByGrid) }, {
+				closed: { hiddenByChat: false, editor: true, chat: false, panel: false },
+				hiddenByGrid: { hiddenByChat: false, editor: false, chat: false, panel: true },
+			});
+		});
+
 		test('focus goes to the chat part, not the hidden editor area', () => {
 			const { layout } = createGridLayout(configuration);
 			const focused: Parts[] = [];
