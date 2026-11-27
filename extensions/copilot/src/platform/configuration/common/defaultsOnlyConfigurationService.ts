@@ -24,7 +24,7 @@ export class DefaultsOnlyConfigurationService extends AbstractConfigurationServi
 		return Promise.resolve();
 	}
 
-	override getNonExtensionConfig<T>(configKey: string): T | undefined {
+	override getNonExtensionConfig<T>(configKey: string, _scope?: ConfigurationScope): T | undefined {
 		return undefined;
 	}
 

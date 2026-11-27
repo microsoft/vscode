@@ -158,8 +158,8 @@ export class ConfigurationServiceImpl extends AbstractConfigurationService {
 		};
 	}
 
-	override getNonExtensionConfig<T>(configKey: string): T | undefined {
-		return vscode.workspace.getConfiguration().get<T>(configKey);
+	override getNonExtensionConfig<T>(configKey: string, scope?: vscode.ConfigurationScope): T | undefined {
+		return vscode.workspace.getConfiguration(undefined, scope).get<T>(configKey);
 	}
 
 	private _getTargetFromInspect(inspect?: { key: string; workspaceValue?: unknown; workspaceFolderValue?: unknown }): vscode.ConfigurationTarget {
