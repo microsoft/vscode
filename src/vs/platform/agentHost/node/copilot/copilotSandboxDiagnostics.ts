@@ -45,11 +45,10 @@ export class CopilotSandboxDiagnostics extends Disposable {
 					this._logService.warn(`[Copilot:${this._session}] Sandbox backend unavailable`, support.reason);
 					reasons = [support.reason || localize('copilot.sandbox.missingDependencies', "Missing sandbox dependencies may prevent terminal commands from running.")];
 				} else {
-					const network = config.userPolicy?.network;
 					const missingCapabilities = support.capabilities.filter(capability => !capability.supported && (
 						capability.name === 'shell'
 						|| capability.name === 'filesystem_enumeration'
-						|| capability.name === 'network' && network?.allowOutbound === true
+						|| capability.name === 'network'
 						|| capability.name === 'network_filtering'
 						|| capability.name === 'denied_paths' && !!config.userPolicy?.filesystem?.deniedPaths?.length
 					));
