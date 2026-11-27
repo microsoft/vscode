@@ -143,7 +143,8 @@ async function renderPicker(context: ComponentFixtureContext, pick: boolean, ope
 	}
 	if (focus) {
 		const targetWindow = dom.getWindow(container);
-		await new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => resolve()));
+		// As a user who reads the opened picker first: after its rows settle, which refreshes them
+		await new Promise<void>(resolve => setTimeout(resolve, 300));
 		// As Up Arrow moves from the selected recent folder to the missing workspace above it
 		actionWidgetService.focusPrevious();
 		if (focus === 'missingRowAction') {
@@ -173,11 +174,13 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/' }, {
 	MissingWorkspaceFocused: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['With the keyboard, the Archive workspace row with a warning icon and Workspace file missing is focused, showing its edit and remove buttons.'],
+		virtualTime: { enabled: false },
 		render: context => renderPicker(context, false, true, 'missingRow'),
 	}),
 	MissingWorkspaceActionFocused: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['After Tab from the focused Archive row, its Edit Workspace button has keyboard focus (the fixture fails otherwise); the gear and remove buttons stay shown.'],
+		virtualTime: { enabled: false },
 		render: context => renderPicker(context, false, true, 'missingRowAction'),
 	}),
 	WorkspacePicked: defineComponentFixture({

@@ -33,7 +33,7 @@ import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHo
 import { getSessionWorkspaceProperties } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { localize } from '../../../../../nls.js';
 import { ICreateNewSessionOptions, INewSessionDraftSlot, ISendRequestOptions, ISessionsManagementService, trackNewSessionRequestEnd, trackNewSessionRequestSent, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
-import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, isSessionCreated, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../../services/sessions/common/session.js';
+import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, ISessionWorkspaceConfig, isSessionCreated, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../../services/sessions/common/session.js';
 import { IOpenNewSessionResult, ISessionsService } from '../sessionsService.js';
 import { getMainWindowHost, ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
@@ -159,6 +159,14 @@ export function areNewSessionWelcomePhrasesEnabled(configurationService: IConfig
  */
 function isWorktreeSupportEnabled(configurationService: IConfigurationService): boolean {
 	return !!configurationService.getValue<boolean>(ChatConfiguration.EditorWindowEnableWorktree);
+}
+
+/**
+ * The workspace configuration the draft `sessionId` of `workspace` is in: as it records it, or as its composer requested
+ * it (`requested`), for a provider that does not record it.
+ */
+function getDraftWorkspaceConfig(sessionId: string, workspace: ISessionWorkspace | undefined, requested: { readonly sessionId: string; readonly config: ISessionWorkspaceConfig | undefined } | undefined): ISessionWorkspaceConfig | undefined {
+	return workspace?.workspaceConfig ?? (requested && requested.sessionId === sessionId ? requested.config : undefined);
 }
 
 export function isSessionWorkspaceOptOutEnabled(configurationService: IConfigurationService): boolean {
@@ -915,7 +923,7 @@ export class NewChatWidget extends Disposable {
 			const folderUri = workspace?.folders[0]?.root;
 			this._handlePromptOptionsWorkspaceChange(previousFolderUri, folderUri);
 			previousFolderUri = folderUri;
-			this._syncWorkspacePickerFromSessionWorkspace(workspace);
+			this._syncWorkspacePickerFromSessionWorkspace(session, workspace);
 		}));
 
 		this._register(autorun(reader => {
@@ -988,10 +996,10 @@ export class NewChatWidget extends Disposable {
 		});
 	}
 
-	private _syncWorkspacePickerFromSessionWorkspace(workspace: ISessionWorkspace | undefined): void {
+	private _syncWorkspacePickerFromSessionWorkspace(session: ISession | undefined, workspace: ISessionWorkspace | undefined): void {
 		const folderUri = workspace?.folders[0]?.root;
-		if (folderUri && !this._workspacePicker.matchesSelectedWorkspace(workspace)) {
-			this._workspacePicker.setSelectedWorkspace(folderUri, { fireEvent: false, origin: WorkspaceSelectionOrigin.SessionSync });
+		if (session && folderUri && !this._workspacePicker.matchesSelectedWorkspace(workspace)) {
+			this._workspacePicker.setSelectedWorkspace(folderUri, { fireEvent: false, origin: WorkspaceSelectionOrigin.SessionSync, sessionWorkspaceUri: getDraftWorkspaceConfig(session.sessionId, workspace, this._requestedWorkspaceConfig)?.uri });
 		}
 	}
 
@@ -2382,7 +2390,7 @@ export class NewChatWidget extends Disposable {
 		if (origin === WorkspaceSelectionOrigin.RestoredDraft) {
 			this._reconcileWorkspaceEnvironment({ providerId: activeSession.providerId, preferDevContainer });
 		}
-		this._workspacePicker.setSelectedWorkspace(folderUri, { fireEvent: false, providerId: activeSession.providerId, persist, preferDevContainer, origin });
+		this._workspacePicker.setSelectedWorkspace(folderUri, { fireEvent: false, providerId: activeSession.providerId, persist, preferDevContainer, origin, sessionWorkspaceUri: getDraftWorkspaceConfig(activeSession.sessionId, activeSession.workspace.get(), this._requestedWorkspaceConfig)?.uri });
 		return folderUri;
 	}
 
@@ -2555,12 +2563,13 @@ export class NewChatWidget extends Disposable {
 			this.logService.trace('Waiting for a compatible harness in the selected environment.');
 			return { session: undefined, trustDeclined: false };
 		}
-		const workspaceConfig = this._workspacePicker.selectedWorkspaceConfig;
+		const selectedWorkspaceConfig = this._workspacePicker.selectedWorkspaceConfig;
+		const workspaceConfig = selectedWorkspaceConfig && this.uriIdentityService.extUri.isEqual(selectedWorkspaceConfig.folders[0], folderUri) ? selectedWorkspaceConfig : undefined;
 		try {
 			const result = await this.sessionsService.openNewSession({
 				folderUri,
 				preserveNavigation: true,
-				...(workspaceConfig && this.uriIdentityService.extUri.isEqual(workspaceConfig.folders[0], folderUri) ? { workspaceConfig } : undefined),
+				...(workspaceConfig ? { workspaceConfig } : undefined),
 				...(this._draftHost ? { draftSlot: this._draftHost.slot } : this._preserveCustomView ? { preserveCustomView: true } : {}),
 				...(environment?.kind === 'container' || this._requestsDevContainer(folderUri) ? { requireDevContainer: true } : undefined),
 				...(background ? { background: true } : undefined),
@@ -2570,6 +2579,9 @@ export class NewChatWidget extends Disposable {
 						? { providerId: fallbackProviderId }
 						: undefined),
 			}, token);
+			if (result.session) {
+				this._requestedWorkspaceConfig = { sessionId: result.session.sessionId, config: workspaceConfig };
+			}
 			if (this._draftHost) {
 				this._applyRequestedSelection(result.session);
 			}
@@ -3715,12 +3727,15 @@ export class NewChatWidget extends Disposable {
 		}
 	}
 
+	/** The workspace configuration this composer requested its draft in, for a provider that does not record it. */
+	private _requestedWorkspaceConfig: { readonly sessionId: string; readonly config: ISessionWorkspaceConfig | undefined } | undefined;
+
 	private _isCurrentWorkspaceSelection(folderUri: URI | undefined): boolean {
 		const session = this._session.get();
 		if (!folderUri || !session || isSessionCreated(session) || this._pendingWorkspaceCreation
 			|| !this.uriIdentityService.extUri.isEqual(session.workspace.get()?.folders[0]?.root, folderUri)
 			|| this._workspacePicker.selectedResolved?.providerId !== session.providerId
-			|| !this._isSelectedWorkspaceConfig(session.workspace.get(), folderUri)) {
+			|| !this._isSelectedWorkspaceConfig(session, folderUri)) {
 			return false;
 		}
 		const provider = this.sessionsProvidersService.getProvider(session.providerId, session.sessionId);
@@ -3729,18 +3744,20 @@ export class NewChatWidget extends Disposable {
 	}
 
 	/**
-	 * Whether a draft's workspace is the one the picker selects for `folderUri`: in the picked workspace configuration and
-	 * its folders, or in neither and only the folder.
+	 * Whether a draft is in the workspace configuration the picker selects for `folderUri`, as it was configured: the same
+	 * file with the same folders, or none. Not the folders the draft works in, which a provider may reduce to the first.
 	 */
-	private _isSelectedWorkspaceConfig(workspace: ISessionWorkspace | undefined, folderUri: URI): boolean {
+	private _isSelectedWorkspaceConfig(session: ISession, folderUri: URI): boolean {
 		const extUri = this.uriIdentityService.extUri;
 		const selected = this._workspacePicker.selectedWorkspaceConfig;
 		const config = selected && extUri.isEqual(selected.folders[0], folderUri) ? selected : undefined;
-		const roots = workspace?.folders.map(folder => folder.root) ?? [];
-		const expectedRoots = config?.folders ?? [folderUri];
-		return extUri.isEqual(workspace?.workspaceConfig?.uri, config?.uri)
-			&& roots.length === expectedRoots.length
-			&& roots.every((root, index) => extUri.isEqual(root, expectedRoots[index]));
+		const draftConfig = getDraftWorkspaceConfig(session.sessionId, session.workspace.get(), this._requestedWorkspaceConfig);
+		if (!draftConfig || !config) {
+			return !draftConfig && !config;
+		}
+		return extUri.isEqual(draftConfig.uri, config.uri)
+			&& draftConfig.folders.length === config.folders.length
+			&& draftConfig.folders.every((folder, index) => extUri.isEqual(folder, config.folders[index]));
 	}
 
 	/**

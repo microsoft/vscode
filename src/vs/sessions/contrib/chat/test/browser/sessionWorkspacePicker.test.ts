@@ -54,7 +54,7 @@ import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../
 import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { IAgentHostSessionsProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SessionStatus, SessionTypeAuthRequirement, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../../workbench/services/sessions/common/session.js';
-import { type IResolvedFolderWorkspace, IWorkspacePickerItem, IWorkspacePickerOptions, WORKSPACE_PICKER_LIST_OPTIONS, WorkspacePicker } from '../../../../../workbench/contrib/sessions/browser/chat/sessionWorkspacePicker.js';
+import { type IResolvedFolderWorkspace, IWorkspacePickerItem, IWorkspacePickerOptions, WorkspacePicker } from '../../../../../workbench/contrib/sessions/browser/chat/sessionWorkspacePicker.js';
 import { WebWorkspacePicker } from '../../../../../workbench/contrib/sessions/browser/chat/webWorkspacePicker.js';
 import { NewSessionWorkspacePreselectionSource } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { ISelectNoWorkspaceOptions, WorkspaceSelectionOrigin } from '../../../../../workbench/services/sessions/common/workspaceSelection.js';
@@ -319,6 +319,10 @@ class DispatchingWorkspacePicker extends WorkspacePicker {
 		return this._buildItems();
 	}
 
+	getListOptions(items: readonly IActionListItem<IWorkspacePickerItem>[]): IActionListOptions {
+		return this._buildListOptions(items, undefined);
+	}
+
 	dispatchFolder(folderUri: URI, providerId: string): Promise<boolean> {
 		return this._dispatchPickerItem({ folderUri, providerId });
 	}
@@ -532,6 +536,7 @@ suite('WorkspacePicker - Workspaces group', () => {
 	const otherLib = URI.file('/other/app-lib');
 	const docs = URI.file('/work/docs');
 	const product: IRecentSessionWorkspace = { uri: URI.file('/ws/product.code-workspace'), name: 'Product', folders: [app, appLib, otherLib], owned: true, icon: 'rocket' };
+	const formerProductUri = URI.file('/ws/old-product.code-workspace');
 	const gone: IRecentSessionWorkspace = { uri: URI.file('/ws/gone.code-workspace'), name: 'Gone', folders: [docs], owned: true, missing: true };
 
 	function setupPicker(enabled = true, allowedFolders?: IObservable<readonly URI[]>) {
@@ -547,7 +552,8 @@ suite('WorkspacePicker - Workspaces group', () => {
 			commandService: { executeCommand: async (id: string, arg: unknown) => { commands.push([id, arg]); return undefined; } },
 			sessionWorkspacesService: {
 				workspaces: constObservable(workspaces),
-				getWorkspace: uri => workspaces.find(workspace => extUri.isEqual(workspace.uri, uri)),
+				// As the service resolves a workspace by its former file too, after a rename
+				getWorkspace: uri => workspaces.find(workspace => extUri.isEqual(workspace.uri, uri) || (workspace === product && extUri.isEqual(formerProductUri, uri))),
 				touchWorkspace: uri => { touched.push(uri); },
 			},
 		});
@@ -568,7 +574,7 @@ suite('WorkspacePicker - Workspaces group', () => {
 		const { workspaceRows } = setupPicker();
 		assert.deepStrictEqual(workspaceRows().map(row => ({ label: row.label, description: row.description, disabled: !!row.disabled, aria: row.item?.ariaLabel, folder: row.item?.folderUri?.path, actions: row.toolbarActions?.map(action => action.id) })), [
 			{ label: 'Product', description: 'app, work/app-lib, other/app-lib', disabled: false, aria: 'Workspace Product, app, work/app-lib, other/app-lib', folder: '/work/app', actions: ['workspacePicker.sessionWorkspace.edit', 'workspacePicker.sessionWorkspace.remove'] },
-			{ label: 'Gone', description: 'Workspace file missing', disabled: false, aria: 'Workspace Gone, Workspace file missing', folder: undefined, actions: ['workspacePicker.sessionWorkspace.edit', 'workspacePicker.sessionWorkspace.remove'] },
+			{ label: 'Gone', description: 'Workspace file missing', disabled: false, aria: 'Workspace Gone, Workspace file missing, activate to open Edit Workspace', folder: undefined, actions: ['workspacePicker.sessionWorkspace.edit', 'workspacePicker.sessionWorkspace.remove'] },
 		]);
 	});
 
@@ -607,30 +613,73 @@ suite('WorkspacePicker - Workspaces group', () => {
 		assert.deepStrictEqual({ folder: picker.selectedFolderUri?.path, workspace: picker.selectedSessionWorkspace?.name, touched }, { folder: '/work/app', workspace: undefined, touched: [] });
 	});
 
-	test('a missing workspace is reachable by keyboard, and Tab reaches its edit action', async () => {
+	test('a missing workspace found by typing edits on Enter, and Tab then Enter on its Edit Workspace action edits it', async () => {
 		const { picker, commands } = setupPicker();
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.set(IKeybindingService, new MockKeybindingService());
 		instantiationService.set(IHoverService, NullHoverService);
 		instantiationService.set(IOpenerService, NullOpenerService);
-		const widget = store.add(instantiationService.createInstance(ActionListWidget<IWorkspacePickerItem>, 'workspacePicker', false, picker.getItems(), { onHide: () => { }, onSelect: () => { } }, undefined, WORKSPACE_PICKER_LIST_OPTIONS));
+		// As the picker's delegate: a selected row is dispatched
+		const items = picker.getItems();
+		// The picker's own list, which filters its rows itself here rather than through the action widget service
+		const widget = store.add(instantiationService.createInstance(ActionListWidget<IWorkspacePickerItem>, 'workspacePicker', false, items, { onHide: () => { }, onSelect: item => { void picker.dispatchItem(item); } }, undefined, { ...picker.getListOptions(items), onDidChangeFilter: undefined }));
+		const pressEnter = (target: Element | null) => {
+			for (const type of ['keydown', 'keyup']) {
+				target?.dispatchEvent(new KeyboardEvent(type, { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+			}
+		};
+		const editCommands = () => commands.map(([id, uri]) => `${id} ${(uri as URI).path}`);
 		const wrapper = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
 		wrapper.classList.add('action-widget');
-		wrapper.appendChild(widget.domNode);
+		// As the action widget mounts the list's search above it
+		wrapper.append(widget.filterContainer!, widget.domNode);
 		store.add({ dispose: () => wrapper.remove() });
 		widget.layout(400, 400);
+		// As the user opens the picker, which focuses its search, types the workspace's name and presses Enter
 		widget.focus();
-		widget.focusNext();
+		const search = wrapper.querySelector<HTMLInputElement>('input.action-list-filter-input')!;
+		search.focus();
+		search.value = 'Gone';
+		search.dispatchEvent(new InputEvent('input', { bubbles: true }));
 		const focused = widget.getFocusedElement()?.label;
-		mainWindow.document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
-		const action = mainWindow.document.activeElement as HTMLElement | null;
-		const actionLabel = action?.getAttribute('aria-label');
-		action?.click();
+		// What the action widget's Enter keybinding runs (`acceptSelectedCodeAction`), which keybinding dispatch drives
+		widget.acceptSelected();
 		await timeout(0);
-		assert.deepStrictEqual({ focused, actionLabel, commands: commands.map(([id, uri]) => [id, (uri as URI).path]) }, {
+		const onRow = { selected: picker.selectedSessionWorkspace?.name, commands: editCommands() };
+		// What its Down keybinding runs, moving from the search into the list, then Tab into the row's actions
+		widget.focusNext();
+		mainWindow.document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
+		const action = mainWindow.document.activeElement;
+		const actionLabel = action?.getAttribute('aria-label');
+		pressEnter(action);
+		await timeout(0);
+		assert.deepStrictEqual({ focused, onRow, actionLabel, onAction: editCommands() }, {
 			focused: 'Gone',
+			onRow: { selected: undefined, commands: ['sessions.workspaces.edit /ws/gone.code-workspace'] },
 			actionLabel: 'Edit Workspace',
-			commands: [['sessions.workspaces.edit', '/ws/gone.code-workspace']],
+			onAction: ['sessions.workspaces.edit /ws/gone.code-workspace', 'sessions.workspaces.edit /ws/gone.code-workspace'],
+		});
+	});
+
+	test('selecting the folder of a session keeps or restores its workspace, without touching it', async () => {
+		const { picker, touched, workspaceRows } = setupPicker();
+		const state = () => ({ folder: picker.selectedFolderUri?.path, workspace: picker.selectedSessionWorkspace?.name });
+		await picker.dispatchItem(workspaceRows()[0].item!);
+		touched.length = 0;
+		picker.setSelectedWorkspace(app, { fireEvent: false, origin: WorkspaceSelectionOrigin.SessionSync, sessionWorkspaceUri: product.uri });
+		const synced = state();
+		// A draft syncs its folder before it has the workspace it was requested in
+		picker.setSelectedWorkspace(app, { fireEvent: false, origin: WorkspaceSelectionOrigin.SessionSync });
+		const syncedEarly = state();
+		picker.setSelectedWorkspace(app, { fireEvent: false, origin: WorkspaceSelectionOrigin.RestoredDraft });
+		const restoredWithout = state();
+		picker.setSelectedWorkspace(app, { fireEvent: false, origin: WorkspaceSelectionOrigin.RestoredDraft, sessionWorkspaceUri: formerProductUri });
+		assert.deepStrictEqual({ synced, syncedEarly, restoredWithout, restoredRenamed: state(), touched }, {
+			synced: { folder: '/work/app', workspace: 'Product' },
+			syncedEarly: { folder: '/work/app', workspace: 'Product' },
+			restoredWithout: { folder: '/work/app', workspace: undefined },
+			restoredRenamed: { folder: '/work/app', workspace: 'Product' },
+			touched: [],
 		});
 	});
 

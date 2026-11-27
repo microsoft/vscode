@@ -1410,7 +1410,10 @@ export class WorkspacePicker extends Disposable {
 	 *        workspace were created by a specific provider).
 	 * @param options.persist Whether to persist the selection as a recent workspace. Defaults to true.
 	 */
-	setSelectedWorkspace(folderUri: URI, options?: { fireEvent?: boolean; providerId?: string; persist?: boolean; preferDevContainer?: boolean; origin?: WorkspaceSelectionOrigin }): void {
+	/**
+	 * @param options.sessionWorkspaceUri The workspace, of the Workspaces group, of the session the folder is selected for.
+	 */
+	setSelectedWorkspace(folderUri: URI, options?: { fireEvent?: boolean; providerId?: string; persist?: boolean; preferDevContainer?: boolean; origin?: WorkspaceSelectionOrigin; sessionWorkspaceUri?: URI }): void {
 		this._selectedDevContainerFolderUri = options?.preferDevContainer ? folderUri : undefined;
 		const origin = options?.origin ?? WorkspaceSelectionOrigin.Programmatic;
 		const preserveOrigin = (origin === WorkspaceSelectionOrigin.RestoredDraft || origin === WorkspaceSelectionOrigin.SessionSync)
@@ -1422,6 +1425,8 @@ export class WorkspacePicker extends Disposable {
 			options?.persist ?? true,
 			NewSessionWorkspacePreselectionSource.ProvidedWorkspace,
 			preserveOrigin ? this._selectionOrigin : origin,
+			// A session that syncs its folder before it has the workspace it was requested in keeps the picked one
+			options?.sessionWorkspaceUri ?? (preserveOrigin && origin === WorkspaceSelectionOrigin.SessionSync ? this._selectedSessionWorkspaceUri : undefined),
 		);
 	}
 
@@ -3269,7 +3274,9 @@ export class WorkspacePicker extends Disposable {
 				? localize('workspacePicker.sessionWorkspace.missing', "Workspace file missing")
 				: this._getSessionWorkspaceFoldersDescription(workspace);
 			const id = `workspacePicker.sessionWorkspace.${getOrSet(this._workspaceItemIds, `workspace:${extUri.getComparisonKey(workspace.uri)}`, this._workspaceItemIds.size)}`;
-			const ariaLabel = localize('workspacePicker.sessionWorkspace.ariaLabel', "Workspace {0}, {1}", name, description);
+			const ariaLabel = workspace.missing
+				? localize('workspacePicker.sessionWorkspace.missingAriaLabel', "Workspace {0}, {1}, activate to open Edit Workspace", name, description)
+				: localize('workspacePicker.sessionWorkspace.ariaLabel', "Workspace {0}, {1}", name, description);
 			rows.push({
 				kind: ActionListItemKind.Action,
 				label: name,
