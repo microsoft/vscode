@@ -113,6 +113,7 @@ class EditorAccessibilityHelpProvider extends Disposable implements IAccessibleV
 		content.push(AccessibilityHelpNLS.toggleSuggestionFocus);
 
 		if (!options.get(EditorOption.readOnly)) {
+			content.push(localize('editor.hideEmptyEditorHint', "In an empty editor, hide the empty editor hint for this file{0}.", '<keybinding:editor.action.hideEmptyEditorHint>'));
 			const dictationInfo = getDictationInfo(this._contextKeyService);
 			if (dictationInfo) {
 				content.push(dictationInfo);
