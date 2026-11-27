@@ -14,6 +14,7 @@ import { equals } from '../../../base/common/arrays.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { CancellationError, getErrorMessage, isCancellationError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
+import { Lazy } from '../../../base/common/lazy.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { join, posix, win32 } from '../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
@@ -207,6 +208,15 @@ const devContainerMountsValidator = vArray(vObj({
 	Name: vOptionalProp(vString()),
 }));
 
+/** The containers that `up` reuses for a folder and its selected configuration file. */
+interface IDevContainerFolderContainer {
+	readonly idLabels: readonly string[];
+	/** Whether the id labels aren't the Dev Container CLI's defaults, so each CLI call for the container passes them. */
+	readonly explicitIdLabels: boolean;
+	/** The states of the containers with the id labels, see `docker ps --format {{.State}}`. */
+	readonly states: readonly string[];
+}
+
 /** How to read the container user's HOME as the Agent Host's shell sees it. */
 interface IDevContainerUserQuery {
 	/** Selects the container for `devcontainer exec`. */
@@ -287,6 +297,8 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	private _shellEnvironment: Promise<typeof process.env> | undefined;
 	private _dockerExecutable: { path: string; executable: Promise<string | undefined> } | undefined;
 	private _certificatesFile: Promise<string | undefined> | undefined;
+	/** Windows paths of WSL folders by their Linux paths, see {@link _getWslWindowsPath}. */
+	private readonly _wslWindowsPaths = new Map<string, string | undefined>();
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -365,6 +377,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			} else {
 				workspaceSelector = config.workspaceFolder;
 				const configuration = this._readDevContainerConfiguration(config.connectionId, config.workspaceFolder, tokenSource.token);
+				const folderContainer = new Lazy(() => this._findFolderContainer(config.workspaceFolder, configuration, tokenSource.token));
 				const cacheMountArgs = await this._getServerCacheMountArgs(config.connectionId, configuration, tokenSource.token);
 				if (config.sandboxEnabled) {
 					const directory = await mkdtemp(join(this._environmentService.tmpDir.fsPath, 'vscode-dev-container-sandbox-'));
@@ -375,10 +388,14 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 					workspaceSelector = ['--workspace-folder', config.workspaceFolder, ...sandbox.args];
 					sandboxEnvironment = sandbox.environment;
 				}
-				const userStateMount = config.persistUserState ? await this._getUserStateMountArgs(config.connectionId, configuration, config.workspaceFolder, tokenSource.token) : { args: [], keepExistingFolders: true };
-				const selectorArgs = typeof workspaceSelector === 'string' ? ['--workspace-folder', workspaceSelector] : workspaceSelector;
+				const userStateMount = config.persistUserState ? await this._getUserStateMountArgs(config.connectionId, configuration, folderContainer, tokenSource.token) : { args: [], keepExistingFolders: true };
+				const idLabelArgs = this._isWsl() ? await this._getIdLabelArgs(config.connectionId, folderContainer, tokenSource.token) : [];
+				const selectorArgs = [...typeof workspaceSelector === 'string' ? ['--workspace-folder', workspaceSelector] : workspaceSelector, ...idLabelArgs];
+				if (idLabelArgs.length) {
+					workspaceSelector = selectorArgs;
+				}
 				// `up` starts a stopped container, which a connection without user action must not do, so this checks right before it.
-				if (config.requireRunning && !await this._isFolderContainerRunning(config.workspaceFolder, configuration, tokenSource.token)) {
+				if (config.requireRunning && !await this._isFolderContainerRunning(folderContainer.value)) {
 					throw new Error(localize('devContainerAgentHost.containerNotRunning', "The Dev Container for '{0}' is not running.", config.name));
 				}
 				const up = await this._runDevContainerStage(
@@ -701,7 +718,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	 * Mount arguments for a new container's user state volume. Existing folders in the home folders are kept when linking
 	 * unless the container is new or was stopped, so no process may be using them.
 	 */
-	private async _getUserStateMountArgs(connectionId: string, configuration: Promise<string>, workspaceFolder: string, token: CancellationToken): Promise<{ readonly args: readonly string[]; readonly keepExistingFolders: boolean }> {
+	private async _getUserStateMountArgs(connectionId: string, configuration: Promise<string>, folderContainer: Lazy<Promise<IDevContainerFolderContainer>>, token: CancellationToken): Promise<{ readonly args: readonly string[]; readonly keepExistingFolders: boolean }> {
 		this._setConnectStage(connectionId, 'mount');
 		let output: string;
 		try {
@@ -724,18 +741,12 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			if (error) {
 				throw new Error(`Invalid Dev Container configuration: ${error.message}`);
 			}
-			// `--mount` does not substitute ${devcontainerId}, so compute the id the CLI gives a new container.
-			const { configPath } = parseDevContainerSandboxConfiguration(output);
-			const idLabels = getDefaultDevContainerIdLabels(process.platform, workspaceFolder, configPath);
 			const mountTarget = getDevContainerStateMountTarget(content.configuration, content.mergedConfiguration?.mounts);
 			target = getDevContainerStateTargetKind(mountTarget);
 			// Only new containers get the mount; adding it to an existing Compose container could recreate it.
 			reason = 'listContainers';
-			const existing = await this._runDocker(['ps', '-a', '--format', '{{.State}}', ...idLabels.flatMap(label => ['--filter', `label=${label}`])], token);
-			if (existing.code !== 0) {
-				throw new Error(`Cannot list Docker containers (exit ${existing.code}): ${existing.stderr}`);
-			}
-			const states = existing.stdout.split(/\r?\n/).filter(state => state.trim());
+			// `--mount` does not substitute ${devcontainerId}, so compute the id from the labels `up` gives a new container.
+			const { idLabels, states } = await folderContainer.value;
 			keepExistingFolders = states.some(isDevContainerRunning);
 			if (states.length) {
 				this._logService.info(`${LOG_PREFIX} Keeping existing container mounts; only new containers keep user state on a volume`);
@@ -1379,7 +1390,16 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			if (result.code !== 0) {
 				throw new Error(`Cannot list Docker containers (exit ${result.code}): ${result.stderr}`);
 			}
-			return parseDevContainerFolderContainers(result.stdout, process.platform);
+			const wslWindowsPaths = this._isWsl() ? new Map<string, string>() : undefined;
+			if (wslWindowsPaths) {
+				await Promise.all(getWslFolderContainerCandidates(result.stdout).map(async folder => {
+					const windowsPath = await this._getWslWindowsPath(folder, tokenSource.token);
+					if (windowsPath !== undefined) {
+						wslWindowsPaths.set(folder, windowsPath);
+					}
+				}));
+			}
+			return parseDevContainerFolderContainers(result.stdout, process.platform, wslWindowsPaths);
 		} finally {
 			clearTimeout(timer);
 			tokenSource.dispose();
@@ -1387,17 +1407,97 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	}
 
 	/**
-	 * Whether the container that `up` reuses for the folder and its selected configuration file runs. Another
-	 * configuration file's container may run while that one is stopped, and `up` would start it.
+	 * Finds the containers that `up` reuses for the folder and its selected configuration file. In WSL, Dev Containers
+	 * labels the container of a folder that it opens from a WSL window with the folder's Windows path, so that container
+	 * is shared with such windows. A container with the CLI's default labels, which earlier versions created, is used
+	 * until one with the extension's labels exists, and a new container gets the extension's labels.
 	 */
-	private async _isFolderContainerRunning(workspaceFolder: string, configuration: Promise<string>, token: CancellationToken): Promise<boolean> {
+	private async _findFolderContainer(workspaceFolder: string, configuration: Promise<string>, token: CancellationToken): Promise<IDevContainerFolderContainer> {
 		const { configPath } = parseDevContainerSandboxConfiguration(await configuration);
-		const idLabels = getDefaultDevContainerIdLabels(process.platform, workspaceFolder, configPath);
+		const defaultIdLabels = getDefaultDevContainerIdLabels(process.platform, workspaceFolder, configPath);
+		const windowsFolder = await this._getWslWindowsPath(workspaceFolder, token);
+		if (windowsFolder === undefined) {
+			return { idLabels: defaultIdLabels, explicitIdLabels: false, states: await this._listContainerStates(defaultIdLabels, token) };
+		}
+		const wslIdLabels = getWslDevContainerIdLabels(windowsFolder, configPath);
+		const states = await this._listContainerStates(wslIdLabels, token);
+		const defaultStates = states.length ? [] : await this._listContainerStates(defaultIdLabels, token);
+		return defaultStates.length
+			? { idLabels: defaultIdLabels, explicitIdLabels: false, states: defaultStates }
+			: { idLabels: wslIdLabels, explicitIdLabels: true, states };
+	}
+
+	private async _listContainerStates(idLabels: readonly string[], token: CancellationToken): Promise<string[]> {
 		const result = await this._runDocker(['ps', '-a', '--format', '{{.State}}', ...idLabels.flatMap(label => ['--filter', `label=${label}`])], token);
 		if (result.code !== 0) {
 			throw new Error(`Cannot list Docker containers (exit ${result.code}): ${result.stderr}`);
 		}
-		const states = result.stdout.split(/\r?\n/).filter(state => state.trim());
+		return result.stdout.split(/\r?\n/).filter(state => state.trim());
+	}
+
+	/** `--id-label` arguments selecting the folder's container for each CLI call, unless it has the CLI's default labels. */
+	private async _getIdLabelArgs(connectionId: string, folderContainer: Lazy<Promise<IDevContainerFolderContainer>>, token: CancellationToken): Promise<readonly string[]> {
+		try {
+			const { idLabels, explicitIdLabels } = await folderContainer.value;
+			return explicitIdLabels ? idLabels.flatMap(label => ['--id-label', label]) : [];
+		} catch (error) {
+			if (isCancellationError(error) || token.isCancellationRequested) {
+				throw error;
+			}
+			// For example, the configuration is unreadable, which `up` then reports.
+			this._logService.warn(`${LOG_PREFIX} Cannot find the folder's container; using the Dev Container CLI's default id labels`, getErrorMessage(error));
+			this._reportOutput(connectionId, `Cannot find the folder's container; using the Dev Container CLI's default id labels: ${getErrorMessage(error)}\n`);
+			return [];
+		}
+	}
+
+	/**
+	 * Whether this host runs in WSL for windows on Windows, whose Dev Containers extension labels the containers of the
+	 * host's folders with their Windows paths. A desktop's shared process doesn't, even in WSL: its windows run there.
+	 */
+	protected _isWsl(): boolean {
+		return false;
+	}
+
+	/**
+	 * The Windows path with which Dev Containers labels the container of a folder in the WSL distribution's file system
+	 * that it opens from a WSL window: `wslpath -w` output, such as `\\wsl.localhost\Ubuntu\home\me\project`. Undefined
+	 * outside WSL, for folders on Windows drives, such as `/mnt/c/project`, whose containers Dev Containers labels like
+	 * those of Windows folders, or if `wslpath` fails.
+	 */
+	private async _getWslWindowsPath(folder: string, token: CancellationToken): Promise<string | undefined> {
+		if (!this._isWsl()) {
+			return undefined;
+		}
+		const linuxFolder = posix.resolve(folder);
+		if (this._wslWindowsPaths.has(linuxFolder)) {
+			return this._wslWindowsPaths.get(linuxFolder);
+		}
+		try {
+			const result = await this._runLocalCommand('wslpath', ['-w', linuxFolder], process.env, token);
+			const windowsPath = result.stdout.trim();
+			if (result.code !== 0 || !windowsPath) {
+				throw new Error(`wslpath failed (exit ${result.code}): ${result.stderr}`);
+			}
+			// Like `isWslPath` in Dev Containers.
+			const labelPath = /^\\\\wsl(?:\.localhost|\$)?\\/i.test(windowsPath) ? windowsPath : undefined;
+			this._wslWindowsPaths.set(linuxFolder, labelPath);
+			return labelPath;
+		} catch (error) {
+			if (isCancellationError(error) || token.isCancellationRequested) {
+				throw error;
+			}
+			this._logService.warn(`${LOG_PREFIX} Cannot get the Windows path of a WSL folder; using the Dev Container CLI's default id labels`, getErrorMessage(error));
+			return undefined;
+		}
+	}
+
+	/**
+	 * Whether the containers that `up` reuses for the folder and its selected configuration file run. Another
+	 * configuration file's container may run while that one is stopped, and `up` would start it.
+	 */
+	private async _isFolderContainerRunning(folderContainer: Promise<IDevContainerFolderContainer>): Promise<boolean> {
+		const { states } = await folderContainer;
 		return states.length > 0 && states.every(isDevContainerRunning);
 	}
 
@@ -1649,6 +1749,10 @@ export class RemoteDevContainerAgentHostService extends DevContainerAgentHostSer
 		return Promise.resolve(process.env);
 	}
 
+	protected override _isWsl(): boolean {
+		return process.platform === 'linux' && !!process.env.WSL_DISTRO_NAME;
+	}
+
 	/**
 	 * Refreshes Copilot's shared bundle before each CLI run. Agent Host roots include its `NODE_EXTRA_CA_CERTS` file;
 	 * native roots are loaded once and client roots once per connection.
@@ -1739,14 +1843,16 @@ export function parseDevContainerMounts(output: string): readonly IDevContainerM
 }
 
 /**
- * Reads the containers listed with {@link devContainerFolderContainerFormat} and keeps those whose id labels are the
- * defaults for their folder and one of its default configuration files, which a connection with the folder's path
- * reuses. Others would get a container of their own: for example, Dev Containers labels a WSL folder's container with
- * the folder's Windows UNC path and its configuration file's Linux path. A folder runs if any of its containers runs.
+ * The id labels Dev Containers gives the container of a WSL folder that it opens from a WSL window: the folder's Windows
+ * path and the configuration file's Linux path.
  */
-export function parseDevContainerFolderContainers(output: string, platform: string): { readonly workspaceFolder: string; readonly running: boolean }[] {
-	const path = platform === 'win32' ? win32 : posix;
-	const folders = new Map<string, boolean>();
+function getWslDevContainerIdLabels(windowsFolder: string, configFile: string): string[] {
+	return [`devcontainer.local_folder=${windowsFolder}`, `devcontainer.config_file=${configFile}`];
+}
+
+/** Reads the folder and configuration file id labels and the state of each container listed with {@link devContainerFolderContainerFormat}. */
+function parseDevContainerFolderContainerLabels(output: string): (readonly [localFolder: string, configFile: string, state: string])[] {
+	const containers: (readonly [string, string, string])[] = [];
 	for (const line of output.split(/\r?\n/)) {
 		let value: unknown;
 		try {
@@ -1754,19 +1860,60 @@ export function parseDevContainerFolderContainers(output: string, platform: stri
 		} catch {
 			continue;
 		}
-		if (!Array.isArray(value) || value.length !== 3 || !value.every(item => typeof item === 'string')) {
-			continue;
-		}
-		const [workspaceFolder, configFile, state]: string[] = value;
-		const labels = [`devcontainer.local_folder=${workspaceFolder}`, `devcontainer.config_file=${configFile}`];
-		const usesDefaults = !!workspaceFolder && path.isAbsolute(workspaceFolder)
-			&& [path.join(workspaceFolder, '.devcontainer', 'devcontainer.json'), path.join(workspaceFolder, '.devcontainer.json')]
-				.some(defaultConfigFile => equals(getDefaultDevContainerIdLabels(platform, workspaceFolder, defaultConfigFile), labels));
-		if (usesDefaults) {
-			folders.set(workspaceFolder, folders.get(workspaceFolder) || state.trim().toLowerCase() === 'running');
+		if (Array.isArray(value) && value.length === 3 && value.every(item => typeof item === 'string')) {
+			containers.push([value[0], value[1], value[2]]);
 		}
 	}
-	return [...folders].map(([workspaceFolder, running]) => ({ workspaceFolder, running }));
+	return containers;
+}
+
+/** The Linux folder whose default configuration file a `devcontainer.config_file` label names. */
+function getDefaultConfigFileFolder(configFile: string): string | undefined {
+	if (!posix.isAbsolute(configFile)) {
+		return undefined;
+	}
+	const folder = posix.basename(configFile) === '.devcontainer.json' ? posix.dirname(configFile) : posix.dirname(posix.dirname(configFile));
+	return [posix.join(folder, '.devcontainer', 'devcontainer.json'), posix.join(folder, '.devcontainer.json')].includes(configFile) ? folder : undefined;
+}
+
+/** The Linux folders of listed containers that Dev Containers may have labeled with the folders' Windows paths. */
+function getWslFolderContainerCandidates(output: string): string[] {
+	const folders = parseDevContainerFolderContainerLabels(output)
+		.filter(([localFolder]) => !posix.isAbsolute(localFolder))
+		.map(([, configFile]) => getDefaultConfigFileFolder(configFile));
+	return [...new Set(folders.filter(folder => folder !== undefined))];
+}
+
+/**
+ * Reads the containers listed with {@link devContainerFolderContainerFormat} and keeps those whose id labels are the
+ * defaults for their folder and one of its default configuration files, which a connection with the folder's path
+ * reuses. Others would get a container of their own. In WSL, given the Windows paths of folders, this also keeps those
+ * with the id labels Dev Containers gives the containers of WSL folders, which a connection prefers, so only their
+ * states count when a folder has both. A folder runs if any of its counted containers runs.
+ */
+export function parseDevContainerFolderContainers(output: string, platform: string, wslWindowsPaths?: ReadonlyMap<string, string>): { readonly workspaceFolder: string; readonly running: boolean }[] {
+	const path = platform === 'win32' ? win32 : posix;
+	const folders = new Map<string, { running: boolean; wsl: boolean }>();
+	for (const [localFolder, configFile, state] of parseDevContainerFolderContainerLabels(output)) {
+		const labels = [`devcontainer.local_folder=${localFolder}`, `devcontainer.config_file=${configFile}`];
+		const usesDefaults = !!localFolder && path.isAbsolute(localFolder)
+			&& [path.join(localFolder, '.devcontainer', 'devcontainer.json'), path.join(localFolder, '.devcontainer.json')]
+				.some(defaultConfigFile => equals(getDefaultDevContainerIdLabels(platform, localFolder, defaultConfigFile), labels));
+		const wslFolder = !usesDefaults && wslWindowsPaths ? getDefaultConfigFileFolder(configFile) : undefined;
+		const wsl = wslFolder !== undefined && wslWindowsPaths?.get(wslFolder) === localFolder;
+		const workspaceFolder = usesDefaults ? localFolder : wsl ? wslFolder : undefined;
+		if (workspaceFolder === undefined) {
+			continue;
+		}
+		const running = state.trim().toLowerCase() === 'running';
+		const folder = folders.get(workspaceFolder);
+		if (!folder || (wsl && !folder.wsl)) {
+			folders.set(workspaceFolder, { running, wsl });
+		} else if (wsl === folder.wsl) {
+			folder.running ||= running;
+		}
+	}
+	return [...folders].map(([workspaceFolder, { running }]) => ({ workspaceFolder, running }));
 }
 
 function findContainingBindMount(mounts: readonly IDevContainerMount[], path: string): IDevContainerMount | undefined {

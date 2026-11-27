@@ -40,7 +40,7 @@ import { writeUserDataCertificatesFile } from '../../../request/node/certificate
 import { IGitHubService } from '../../../github/common/githubService.js';
 import { URI } from '../../../../base/common/uri.js';
 import { DevContainerAgentHostMainService, getDevContainerCliPath, getDevContainerExecArgs, IDevContainerRelay, IDevContainerShellExec, parseDevContainerFolderContainers, parseDevContainerMounts, parseDevContainerUpResult, RemoteDevContainerAgentHostService, waitForDevContainerRelayConnection } from '../../node/devContainerAgentHostService.js';
-import { getDevContainerSecurityOptions, IDevContainerSecurityOptions } from '../../node/devContainerState.js';
+import { getDevContainerSecurityOptions, getDevContainerStateVolumeName, IDevContainerSecurityOptions } from '../../node/devContainerState.js';
 import { ISshExec, shellEscape } from '../../node/sshRemoteAgentHostHelpers.js';
 import { devContainerServerCacheMount } from '../../node/devContainerServerCache.js';
 import { DevContainerSample } from '../../common/devContainerSamples.js';
@@ -134,6 +134,10 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	containerHostConfig: unknown;
 	/** States of existing containers, see `docker ps --format {{.State}}`. */
 	existingContainerStates: readonly string[] = [];
+	/** If set, states of existing containers by their `devcontainer.local_folder` label instead. */
+	containerStatesByFolder: ReadonlyMap<string, readonly string[]> | undefined;
+	/** Whether the service runs in WSL, where `wslpath -w` maps `/folder` to `\\wsl.localhost\Ubuntu\folder` and `/mnt/c/folder` to `C:\folder`. */
+	wsl = false;
 	/** Folder containers listed with `docker ps --all`, as their folder, configuration file and state. */
 	folderContainers: readonly (readonly [string, string, string])[] = [];
 	/** Whether `up` must not create a container. */
@@ -224,7 +228,9 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 			return Promise.resolve({ stdout: this.folderContainers.map(container => `${JSON.stringify(container)}\n`).join(''), stderr: '', code: 0 });
 		}
 		if (args[0] === 'ps') {
-			return Promise.resolve({ stdout: this.existingContainerStates.map(state => `${state}\n`).join(''), stderr: '', code: 0 });
+			const localFolder = args.find(arg => arg.startsWith('label=devcontainer.local_folder='))?.substring('label=devcontainer.local_folder='.length);
+			const states = this.containerStatesByFolder ? this.containerStatesByFolder.get(localFolder ?? '') ?? [] : this.existingContainerStates;
+			return Promise.resolve({ stdout: states.map(state => `${state}\n`).join(''), stderr: '', code: 0 });
 		}
 		if (args[0] === 'volume' && args[1] === 'ls') {
 			return Promise.resolve({ stdout: [...this.volumes.keys()].map(name => `${name}\n`).join(''), stderr: '', code: 0 });
@@ -244,6 +250,10 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 
 	runDocker(args: readonly string[]): Promise<{ stdout: string; stderr: string; code: number }> {
 		return super._runDocker(args);
+	}
+
+	protected override _isWsl(): boolean {
+		return this.wsl;
 	}
 
 	async spawnDevContainer(args: readonly string[]): Promise<readonly string[]> {
@@ -306,6 +316,8 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 			return Promise.resolve({ stdout: `${JSON.stringify(this.userCommandsExitCode ? { outcome: 'error', description: 'postCreateCommand from devcontainer.json failed.', message: 'npm ERR! Your cache folder contains root-owned files: /home/node/.npm, run: sudo chown -R node /home/node/.npm' } : { outcome: 'success' })}\n`, stderr: '', code: this.userCommandsExitCode });
 		}
 		const expectedUpArgs = ['up', '--log-level', 'debug', '--workspace-folder', '/workspace', ...this.sandboxConfigurationPrepared ? ['--config', '/workspace/.devcontainer/devcontainer.json', '--override-config', '/sandbox/devcontainer.json'] : [], ...this.cacheMountConfigured ? [] : ['--mount', devContainerServerCacheMount], ...this.expectExistingContainer ? ['--expect-existing-container'] : []];
+		// Tests read the id labels from `devContainerArgs`.
+		args = args.filter((arg, i) => arg !== '--id-label' && args[i - 1] !== '--id-label');
 		if (args.includes('--skip-post-create')) {
 			assert.deepStrictEqual(args.slice(0, expectedUpArgs.length), expectedUpArgs);
 			this.userStateUpArgs = args.slice(expectedUpArgs.length);
@@ -368,6 +380,11 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 
 	protected override _runLocalCommand(command: string, args: readonly string[]): Promise<{ stdout: string; stderr: string; code: number }> {
 		this.localCommands.push({ command, args });
+		if (command === 'wslpath' && args[0] === '-w') {
+			const drive = /^\/mnt\/(?<letter>[a-z])(?<path>\/.*)?$/.exec(args[1])?.groups;
+			const windowsPath = drive ? `${drive.letter.toUpperCase()}:${drive.path ?? '/'}` : `//wsl.localhost/Ubuntu${args[1]}`;
+			return Promise.resolve({ stdout: `${windowsPath.replace(/\//g, '\\')}\n`, stderr: '', code: 0 });
+		}
 		if (command === 'git' && args[0] === 'config' && args[1] === '--global' && args[2] === '--get') {
 			const value = this.hostGitConfig.get(args[3]);
 			return Promise.resolve({
@@ -688,7 +705,7 @@ suite('Dev Container Agent Host Main Service', () => {
 	});
 
 	test('lists the folder containers that a connection with the folder reuses, running if any of its containers runs', () => {
-		const list = (containers: readonly (readonly [string, string, string])[], platform: string) => parseDevContainerFolderContainers([...containers.map(container => JSON.stringify(container)), 'not json', ''].join('\r\n'), platform);
+		const list = (containers: readonly (readonly [string, string, string])[], platform: string, wslWindowsPaths?: ReadonlyMap<string, string>) => parseDevContainerFolderContainers([...containers.map(container => JSON.stringify(container)), 'not json', ''].join('\r\n'), platform, wslWindowsPaths);
 		assert.deepStrictEqual({
 			linux: list([
 				['/home/me/project', '/home/me/project/.devcontainer/devcontainer.json', 'running'],
@@ -705,6 +722,21 @@ suite('Dev Container Agent Host Main Service', () => {
 				['\\\\wsl.localhost\\Ubuntu\\home\\me\\project', '/home/me/project/.devcontainer/devcontainer.json', 'running'],
 				['/home/me/project', '/home/me/project/.devcontainer/devcontainer.json', 'running'],
 			], 'win32'),
+			// In WSL, a connection uses those of the folder's containers, so only their states count.
+			wsl: list([
+				['/home/me/project', '/home/me/project/.devcontainer/devcontainer.json', 'running'],
+				['\\\\wsl.localhost\\Ubuntu\\home\\me\\project', '/home/me/project/.devcontainer/devcontainer.json', 'exited'],
+				['/home/me/project', '/home/me/project/.devcontainer.json', 'running'],
+				['\\\\wsl.localhost\\Ubuntu\\home\\me\\other', '/home/me/other/.devcontainer.json', 'running'],
+				['/home/me/older', '/home/me/older/.devcontainer.json', 'running'],
+				// Another distribution's folder, which Docker Desktop shares its engine with.
+				['\\\\wsl.localhost\\Debian\\home\\me\\debian', '/home/me/debian/.devcontainer/devcontainer.json', 'running'],
+				['\\\\wsl.localhost\\Ubuntu\\home\\me\\named', '/home/me/named/.devcontainer/node/devcontainer.json', 'running'],
+			], 'linux', new Map([
+				['/home/me/project', '\\\\wsl.localhost\\Ubuntu\\home\\me\\project'],
+				['/home/me/other', '\\\\wsl.localhost\\Ubuntu\\home\\me\\other'],
+				['/home/me/debian', '\\\\wsl.localhost\\Ubuntu\\home\\me\\debian'],
+			])),
 		}, {
 			linux: [
 				{ workspaceFolder: '/home/me/project', running: true },
@@ -712,6 +744,11 @@ suite('Dev Container Agent Host Main Service', () => {
 				{ workspaceFolder: '/home/me/stopped', running: false },
 			],
 			windows: [{ workspaceFolder: 'c:\\Users\\me\\project', running: true }],
+			wsl: [
+				{ workspaceFolder: '/home/me/project', running: false },
+				{ workspaceFolder: '/home/me/other', running: true },
+				{ workspaceFolder: '/home/me/older', running: true },
+			],
 		});
 	});
 
@@ -747,6 +784,55 @@ suite('Dev Container Agent Host Main Service', () => {
 			upCalls: 1,
 			checkedLabels: [selectedLabels, selectedLabels],
 			listed: [{ folder: URI.file(labelFolder).fsPath, running: true }],
+		});
+	});
+
+	test('in WSL, uses the container that Dev Containers gives a folder opened from a WSL window, or an earlier one with the default labels', async () => {
+		// The Dev Containers CLI labels a folder with its resolved path, on Windows with a lowercase drive letter.
+		const labelFolder = isWindows ? resolve('/workspace').replace(/^[A-Z]:/, drive => drive.toLowerCase()) : '/workspace';
+		const windowsFolder = '\\\\wsl.localhost\\Ubuntu\\workspace';
+		const configFile = URI.file('/workspace/.devcontainer/devcontainer.json');
+		const wslIdLabels = [`devcontainer.local_folder=${windowsFolder}`, `devcontainer.config_file=${configFile.fsPath}`];
+		const createService = (wsl: boolean) => {
+			const service = store.add(new class extends TestDevContainerAgentHostMainService {
+				override async isDockerAvailable() { return true; }
+			}());
+			service.wsl = wsl;
+			service.sandboxConfigurationOutput = JSON.stringify({ configuration: { configFilePath: configFile.toJSON() }, mergedConfiguration: { mounts: [] } });
+			return service;
+		};
+		const idLabels = (args: string | readonly string[]) => typeof args === 'string' ? '' : args.flatMap((arg, i) => args[i - 1] === '--id-label' ? [arg] : []).join(' ');
+		const run = async (containers: Record<string, readonly string[]>, { wsl = true, requireRunning = false } = {}) => {
+			const service = createService(wsl);
+			service.expectExistingContainer = requireRunning;
+			service.containerStatesByFolder = new Map(Object.entries(containers));
+			const connected = await service.connect({ connectionId: 'wsl', workspaceFolder: '/workspace', name: 'Project', persistUserState: true, requireRunning }).then(() => true, (error: Error) => error.message);
+			return {
+				connected,
+				// Each CLI call for the container passes its id labels, which also give `${devcontainerId}`.
+				cli: service.devContainerArgs.filter(args => args[0] !== 'read-configuration').map(args => `${args[0]}: ${idLabels(args)}`),
+				shell: service.shellSelectors.map(idLabels),
+				stateVolumes: [...service.volumes.keys()],
+			};
+		};
+		const listing = createService(true);
+		// Dev Containers labels the containers of folders on Windows drives like those of Windows folders, unless set to run in WSL.
+		listing.folderContainers = [[windowsFolder, '/workspace/.devcontainer/devcontainer.json', 'running'], ['c:\\work', '/mnt/c/work/.devcontainer/devcontainer.json', 'running']];
+		const extensionLabels = wslIdLabels.join(' ');
+		assert.deepStrictEqual({
+			new: await run({}),
+			earlier: await run({ [labelFolder]: ['running'] }),
+			both: await run({ [windowsFolder]: ['running'], [labelFolder]: ['running'] }),
+			extensionsStopped: await run({ [windowsFolder]: ['exited'], [labelFolder]: ['running'] }, { requireRunning: true }),
+			outsideWsl: await run({ [windowsFolder]: ['running'] }, { wsl: false }),
+			listed: (await listing.listFolderContainers()).map(container => ({ folder: URI.parse(container.folder).path, running: container.running })),
+		}, {
+			new: { connected: true, cli: [`up: ${extensionLabels}`, `run-user-commands: ${extensionLabels}`], shell: [extensionLabels], stateVolumes: [getDevContainerStateVolumeName(wslIdLabels)] },
+			earlier: { connected: true, cli: ['up: ', 'run-user-commands: '], shell: [''], stateVolumes: [] },
+			both: { connected: true, cli: [`up: ${extensionLabels}`, `run-user-commands: ${extensionLabels}`], shell: [extensionLabels], stateVolumes: [] },
+			extensionsStopped: { connected: 'The Dev Container for \'Project\' is not running.', cli: [], shell: [], stateVolumes: [] },
+			outsideWsl: { connected: true, cli: ['up: ', 'run-user-commands: '], shell: [''], stateVolumes: [getDevContainerStateVolumeName([`devcontainer.local_folder=${labelFolder}`, `devcontainer.config_file=${configFile.fsPath}`])] },
+			listed: [{ folder: '/workspace', running: true }],
 		});
 	});
 
