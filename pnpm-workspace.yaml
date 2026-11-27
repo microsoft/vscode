@@ -33,6 +33,7 @@ packages:
   - extensions/microsoft-authentication
   - extensions/notebook-renderers
   - extensions/npm
+  - extensions/pdf-preview
   - extensions/php-language-features
   - extensions/references-view
   - extensions/search-result
@@ -140,6 +141,8 @@ overrides:
   '@vscode/web-editors@0.0.2-104>@vscode/hubrpc': 0.0.2-54
   '@vscode/web-editors@0.0.2-41>@vscode/hubrpc': 0.0.2-15
   '@azure/msal-node-extensions@5.3.2>keytar': file:extensions/microsoft-authentication/packageMocks/keytar
+  # pdf.js needs a native canvas only in Node.js; the PDF preview runs it in a webview
+  'pdfjs-dist>@napi-rs/canvas': '-'
 # @vscode/extension-telemetry requires @microsoft/applicationinsights-common without declaring it. Each
 # version gets the one of its @microsoft/applicationinsights-web-basic, which the extensions bundle
 # anyway, instead of the one that pnpm happens to hoist for the whole workspace.
