@@ -11,7 +11,7 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, agentSdkSetupStatusKey, type AgentSdkDownloadStatus } from '../../common/agentSdkSetup.js';
-import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { IAgentConfigurationService, type IAgentRootConfigurationChangeEvent } from '../../node/agentConfigurationService.js';
 import { AgentSdkSetupChannel, type IAgentSdkSetupChannelAgent } from '../../node/agentSdkSetupChannel.js';
 import { IAgentSdkDownloader, type IAgentSdkDownloadProgress, type IAgentSdkPackage } from '../../node/agentSdkDownloader.js';
 
@@ -23,7 +23,7 @@ const sdkPackage: IAgentSdkPackage = {
 };
 
 class TestConfigurationService extends mock<IAgentConfigurationService>() implements IDisposable {
-	private readonly _onDidRootConfigChange = new Emitter<void>();
+	private readonly _onDidRootConfigChange = new Emitter<IAgentRootConfigurationChangeEvent>();
 	override readonly onDidRootConfigChange = this._onDidRootConfigChange.event;
 	readonly statuses: AgentSdkDownloadStatus[] = [];
 	readonly values: Record<string, unknown> = {};
@@ -34,7 +34,7 @@ class TestConfigurationService extends mock<IAgentConfigurationService>() implem
 
 	override updateRootConfig(patch: Record<string, unknown>): void {
 		Object.assign(this.values, patch);
-		this._onDidRootConfigChange.fire();
+		this._onDidRootConfigChange.fire({ changedKeys: new Set(Object.keys(patch)) });
 	}
 
 	override publishRootTransientValues(patch: Readonly<Record<string, unknown>>): void {

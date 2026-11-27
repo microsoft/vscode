@@ -20,7 +20,8 @@ import { NullTelemetryServiceShape } from '../../../../telemetry/common/telemetr
 import { TelemetryLevel } from '../../../../telemetry/common/telemetry.js';
 import { EditArcReporterService } from '../../../node/shared/editArcReporter.js';
 import { TestDiffComputeService, createNoopGitService } from '../../common/sessionTestHelpers.js';
-import { IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
+import { IAgentConfigurationService, type IAgentRootConfigurationChangeEvent } from '../../../node/agentConfigurationService.js';
+import { AgentHostEditTelemetryEnabledConfigKey } from '../../../common/agentHostSchema.js';
 import { IAgentHostGitService } from '../../../common/agentHostGitService.js';
 import { IDetailedDiffResult, IDiffComputeService } from '../../../common/diffComputeService.js';
 import { AgentHostClientType } from '../../../common/agentHostClientInfo.js';
@@ -618,7 +619,7 @@ interface TestAgentConfigurationService extends IAgentConfigurationService {
 }
 
 function createConfigurationService(enabled: boolean, disposables: DisposableStore): TestAgentConfigurationService {
-	const rootConfigChange = disposables.add(new Emitter<void>());
+	const rootConfigChange = disposables.add(new Emitter<IAgentRootConfigurationChangeEvent>());
 	return {
 		_serviceBrand: undefined,
 		copilotM365EnabledAtStartup: false,
@@ -655,7 +656,7 @@ function createConfigurationService(enabled: boolean, disposables: DisposableSto
 		whenIdle: async () => { },
 		setEnabled(value) {
 			enabled = value;
-			rootConfigChange.fire();
+			rootConfigChange.fire({ changedKeys: new Set([AgentHostEditTelemetryEnabledConfigKey]) });
 		},
 	};
 }

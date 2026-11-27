@@ -29,8 +29,8 @@ export class AgentHostSettingExperimentTrigger extends Disposable {
 		private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
-		this._register(this._configurationService.onDidRootConfigChange(() => {
-			if (this._pending) {
+		this._register(this._configurationService.onDidRootConfigChange(({ changedKeys }) => {
+			if (this._pending && changedKeys.has(CopilotCliVSCodeAssignmentContextKey)) {
 				// Deferred so that the listener installing the forwarded assignment context on telemetry runs first.
 				queueMicrotask(() => {
 					if (this._pending && !this._store.isDisposed) {

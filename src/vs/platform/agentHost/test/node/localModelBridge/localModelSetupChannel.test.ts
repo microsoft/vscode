@@ -15,13 +15,13 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { NullLogService } from '../../../../log/common/log.js';
 import { LOCAL_MODEL_REQUEST_KEY, LOCAL_MODEL_STATUS_KEY, type ILocalModelConsent, type ILocalModelStatusV1, type ILocalTurnExecution } from '../../../common/localModel.js';
 import type { ProtectedResourceMetadata } from '../../../common/state/protocol/state.js';
-import { IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
+import { IAgentConfigurationService, type IAgentRootConfigurationChangeEvent } from '../../../node/agentConfigurationService.js';
 import type { ILocalModelLiveConfig, ILocalModelModelRow, ILocalModelProvider, ILocalModelSessionConfigContribution } from '../../../node/copilot/localModelBridge/localModelProvider.js';
 import { createInitialLocalModelStatus } from '../../../node/copilot/localModelBridge/shim/shimLocalModelProvider.js';
 import { LocalModelSetupChannel } from '../../../node/localModelSetupChannel.js';
 
 class TestConfigurationService extends mock<IAgentConfigurationService>() implements IDisposable {
-	private readonly _onDidRootConfigChange = new Emitter<void>();
+	private readonly _onDidRootConfigChange = new Emitter<IAgentRootConfigurationChangeEvent>();
 	override readonly onDidRootConfigChange = this._onDidRootConfigChange.event;
 	readonly values: Record<string, unknown> = {};
 	readonly published: (ILocalModelStatusV1 | undefined)[] = [];
@@ -32,7 +32,7 @@ class TestConfigurationService extends mock<IAgentConfigurationService>() implem
 
 	override updateRootConfig(patch: Record<string, unknown>): void {
 		Object.assign(this.values, patch);
-		this._onDidRootConfigChange.fire();
+		this._onDidRootConfigChange.fire({ changedKeys: new Set(Object.keys(patch)) });
 	}
 
 	override publishRootTransientValues(patch: Readonly<Record<string, unknown>>): void {

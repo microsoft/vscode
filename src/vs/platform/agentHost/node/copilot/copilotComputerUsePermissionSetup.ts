@@ -323,7 +323,11 @@ export class CopilotComputerUsePermissionSetup extends Disposable {
 	) {
 		super();
 		this._discardStaleRequest();
-		this._register(this._configurationService.onDidRootConfigChange(() => this._handleRequest()));
+		this._register(this._configurationService.onDidRootConfigChange(({ changedKeys }) => {
+			if (changedKeys.has(COMPUTER_USE_REQUEST_KEY)) {
+				this._handleRequest();
+			}
+		}));
 		const accessibilityCheck = this._register(new RunOnceScheduler(() => this._checkAccessibilityAgain(), ACCESSIBILITY_CHANGE_DEBOUNCE_MS));
 		this._register(runOnChange(accessibilityTrust.changes, () => {
 			if (this._isAskingForAccessibility()) {

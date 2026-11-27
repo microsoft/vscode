@@ -713,4 +713,77 @@ suite('AgentConfigurationService', () => {
 			host: [true, undefined, undefined],
 		});
 	});
+
+	suite('root config change events', () => {
+		test('drops incremental patches that do not change any root value', () => {
+			service.updateRootConfig({
+				level: 'high',
+				nested: { a: 1, b: [true, 'x'] },
+			});
+			const fired: string[][] = [];
+			disposables.add(service.onDidRootConfigChange(e => fired.push([...e.changedKeys].sort())));
+
+			// Empty patch, unchanged primitive, unchanged nested object with reordered keys,
+			// and setting an absent key to undefined are all no-ops.
+			service.updateRootConfig({});
+			service.updateRootConfig({ level: 'high' });
+			service.updateRootConfig({ nested: { b: [true, 'x'], a: 1 } });
+			service.updateRootConfig({ absentKey: undefined });
+
+			assert.deepStrictEqual(fired, []);
+		});
+
+		test('reports only the keys that actually changed on incremental patches', () => {
+			service.updateRootConfig({
+				level: 'low',
+				limit: 10,
+				nested: { a: 1, b: 2 },
+			});
+			const fired: string[][] = [];
+			disposables.add(service.onDidRootConfigChange(e => fired.push([...e.changedKeys].sort())));
+
+			service.updateRootConfig({
+				level: 'low',
+				limit: 20,
+				nested: { b: 2, a: 1 },
+				added: 'value',
+			});
+
+			assert.deepStrictEqual(fired, [['added', 'limit']]);
+		});
+
+		test('drops replace updates when the effective root values are unchanged', () => {
+			service.updateRootConfig({
+				level: 'high',
+				nested: { first: 1, second: 2 },
+			}, true);
+			const fired: string[][] = [];
+			disposables.add(service.onDidRootConfigChange(e => fired.push([...e.changedKeys].sort())));
+
+			service.updateRootConfig({
+				nested: { second: 2, first: 1 },
+				level: 'high',
+			}, true);
+
+			assert.deepStrictEqual(fired, []);
+		});
+
+		test('reports added, modified, and removed keys on replace updates without unchanged keys', () => {
+			service.updateRootConfig({
+				unchanged: 'same',
+				modified: 1,
+				removed: true,
+			}, true);
+			const fired: string[][] = [];
+			disposables.add(service.onDidRootConfigChange(e => fired.push([...e.changedKeys].sort())));
+
+			service.updateRootConfig({
+				unchanged: 'same',
+				modified: 2,
+				added: 'new',
+			}, true);
+
+			assert.deepStrictEqual(fired, [['added', 'modified', 'removed']]);
+		});
+	});
 });

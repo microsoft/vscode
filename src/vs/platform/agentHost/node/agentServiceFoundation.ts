@@ -149,7 +149,7 @@ export function createAgentServiceFoundation(options: ICreateAgentServiceFoundat
 	const authenticationService = options.owned.add(new AgentHostAuthenticationService(options.logService, fetchFn, {
 		isEnabled: () => configurationService.getRootValue(platformRootSchema, MissionControlUseLocalCredentialsConfigKey) === true,
 		getResources: () => [gitHubEndpointService.getCopilotResource(), gitHubEndpointService.getRepoResource()],
-		onDidChange: configurationService.onDidRootConfigChange,
+		onDidChange: Event.map(configurationService.onDidRootConfigChange, () => undefined, options.owned),
 	}));
 
 	options.services.set(IAgentHostStateManager, stateManager);

@@ -58,7 +58,7 @@ import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, COPILOT_HYDRA_FUSION_MODEL_IDS, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, isCopilotHydraFusionModelId, normalizeCopilotPolicyHelperConfig, normalizeSkillCharBudget, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
 import { agentModelCatalogStatusKey, type AgentModelCatalogStatus } from '../../common/agentModelCatalogStatus.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMcpGalleryServiceUrlConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostBrowserUseEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, AgentHostWorkspaceTrustConfigKey, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMcpGalleryServiceUrlConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostBrowserUseEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostProxyConfigKey, AgentHostTelemetryLevelConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, AgentHostWorkspaceTrustConfigKey, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { getCopilotApprovalConfig, getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
 import { CopilotEntraAuthentication, copilotEntraDiscoveryMetadata } from './copilotEntraAuthentication.js';
 import { ICopilotAccountService } from './copilotAccountService.js';
@@ -113,7 +113,7 @@ import { EXTENSION_HOST_CLI_PER_INSTALL_BULK_FILE, EXTENSION_HOST_CLI_SHARED_BUL
 import { getByokLmAgentModelId, resolveByokLmEnablement } from '../../common/agentHostByokLm.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
-import { IAgentConfigurationService } from '../agentConfigurationService.js';
+import { hasChangedRootConfigKey, IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostManagedSettingsService } from '../agentHostManagedSettingsService.js';
 import { deriveLegacyDefaultChat } from '../../common/agentHostLegacyDefaultChat.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
@@ -1760,7 +1760,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 			discoveryRoot, scan => this._emitCopilotChats(scan)));
 		this._gitHubTelemetryForwarder = this._instantiationService.createInstance(CopilotGitHubTelemetryForwarder);
 		this._secondaryAssignmentContext = this._instantiationService.createInstance(CopilotSecondaryAssignmentContext);
-		this._register(this._configurationService.onDidRootConfigChange(() => this._updateVSCodeAssignmentContext()));
+		this._register(this._configurationService.onDidRootConfigChange(({ changedKeys }) => {
+			if (changedKeys.has(CopilotCliVSCodeAssignmentContextKey)) {
+				this._updateVSCodeAssignmentContext();
+			}
+		}));
 		this._updateVSCodeAssignmentContext();
 		this._slashCommandProvider = new CopilotSlashCommandProvider(() => this._ensureClient().then(c => c.rpc.commands.list().then(c => c.commands)), undefined, this._logService);
 		this._githubTelemetryRouter = isAgentHostTelemetryService(this._telemetryService)
@@ -1798,34 +1802,48 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// Restart the CLI client when a setting baked into the client/subprocess at
 		// startup changes, disposing any active sessions. These values are applied in
 		// `_ensureClient`, so they only take effect on the next client start.
-		this._register(this._configurationService.onDidRootConfigChange(() => {
-			const trustChange = this._projectExtensionLaunchPolicy.updateTrust();
-			if (trustChange) {
-				this._scheduleProjectExtensionTrustReconciliation(trustChange);
+		this._register(this._configurationService.onDidRootConfigChange(({ changedKeys }) => {
+			if (changedKeys.has(AgentHostWorkspaceTrustConfigKey)) {
+				const trustChange = this._projectExtensionLaunchPolicy.updateTrust();
+				if (trustChange) {
+					this._scheduleProjectExtensionTrustReconciliation(trustChange);
+				}
 			}
-			this._restartClientIfStartupConfigChanged().catch(err =>
-				this._logService.error('[Copilot] Failed to apply root config change', err)
-			);
-			this._revokeSessionTelemetryIfDisabled().catch(err =>
-				this._logService.error('[Copilot] Failed to revoke session telemetry', err)
-			);
+			if (hasChangedRootConfigKey(changedKeys, CopilotAgent._clientStartupRootConfigKeys)) {
+				this._restartClientIfStartupConfigChanged().catch(err =>
+					this._logService.error('[Copilot] Failed to apply root config change', err)
+				);
+			}
+			if (changedKeys.has(AgentHostTelemetryLevelConfigKey)) {
+				this._revokeSessionTelemetryIfDisabled().catch(err =>
+					this._logService.error('[Copilot] Failed to revoke session telemetry', err)
+				);
+			}
 		}));
 		this._register(this._managedSettingsService.onDidChange(() => {
 			this._restartClientIfStartupConfigChanged().catch(err =>
 				this._logService.error('[Copilot] Failed to apply managed settings change', err)
 			);
 		}));
-		this._register(this._configurationService.onDidRootConfigChange(() => {
+		this._register(this._configurationService.onDidRootConfigChange(({ changedKeys }) => {
 			// The migrate-legacy gate is snapshotted at startup (a change requires a
 			// window reload), so nothing reacts to it here.
-			this._refreshByokModels();
+			if (changedKeys.has(AgentHostByokModelsEnabledConfigKey)) {
+				this._refreshByokModels();
+			}
 		}));
 		this._updateModelRouterCatalog();
-		this._register(this._configurationService.onDidRootConfigChange(() => this._updateModelRouterCatalog()));
+		this._register(this._configurationService.onDidRootConfigChange(({ changedKeys }) => {
+			if (changedKeys.has(ModelRouterEnabledConfigKey)) {
+				this._updateModelRouterCatalog();
+			}
+		}));
 		// On-device model settings are read live at dispatch. The opt-in is pushed too,
 		// so the dispatch gate closes at once; the handler itself changes at the next client start.
-		this._register(this._configurationService.onDidRootConfigChange(() => {
-			this._localModelProvider?.updateLiveConfig(readLocalModelRootConfig(this._configurationService));
+		this._register(this._configurationService.onDidRootConfigChange(({ changedKeys }) => {
+			if (hasChangedRootConfigKey(changedKeys, CopilotAgent._localModelLiveRootConfigKeys)) {
+				this._localModelProvider?.updateLiveConfig(readLocalModelRootConfig(this._configurationService));
+			}
 		}));
 
 		// Surface renderer BYOK models in the picker: republish them whenever the
@@ -2244,6 +2262,35 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true;
 	}
 
+
+	private static readonly _clientStartupRootConfigKeys: ReadonlySet<string> = new Set([
+		CopilotCliConfigKey.RubberDuck,
+		CopilotCliConfigKey.ClaudeAdvisor,
+		CopilotCliConfigKey.LocalMemory,
+		CopilotCliConfigKey.SkillCharBudget,
+		CopilotCliConfigKey.CopilotSdkLogLevel,
+		CopilotCliConfigKey.RuntimePath,
+		AgentHostSystemProxyEnabledConfigKey,
+		AgentHostGitHubMcpServerEnabledConfigKey,
+		AgentHostMcpConnectorsEnabledConfigKey,
+		CopilotCliConfigKey.LocalIndexEnabled,
+		AgentHostAutoApprovePolicyRestrictedConfigKey,
+		CopilotCliConfigKey.SearchSubagentModel,
+		CopilotCliConfigKey.LocalModelEnabled,
+		CopilotCliConfigKey.ExecutionSubagent,
+		CopilotCliConfigKey.ExecutionSubagentModel,
+		AgentHostComputerUseEnabledConfigKey,
+		CopilotCliConfigKey.PolicyHelper,
+		AgentHostBrowserUseEnabledConfigKey,
+		ModelRouterEnabledConfigKey,
+	]);
+
+	private static readonly _localModelLiveRootConfigKeys: ReadonlySet<string> = new Set([
+		CopilotCliConfigKey.LocalModelEnabled,
+		CopilotCliConfigKey.LocalModelUseInAuto,
+		CopilotCliConfigKey.LocalModelAccountGate,
+		CopilotCliConfigKey.LocalModelLlamaServerPath,
+	]);
 
 	private _readClientStartupConfig(): CopilotAgentStartupConfig {
 		return new CopilotAgentStartupConfig(
@@ -12592,8 +12639,10 @@ class PluginController extends Disposable {
 
 		// Seed from current root config and subscribe to future changes.
 		this._applyHostCustomizations();
-		this._register(this._configurationService.onDidRootConfigChange(() => {
-			this._applyHostCustomizations();
+		this._register(this._configurationService.onDidRootConfigChange(({ changedKeys }) => {
+			if (changedKeys.has(AgentHostConfigKey.Customizations)) {
+				this._applyHostCustomizations();
+			}
 		}));
 	}
 

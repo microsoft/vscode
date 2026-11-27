@@ -135,7 +135,8 @@ import { AgentHostStorageService, IAgentHostStorageService } from '../../node/ag
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
 import { buildCopilotSystemNotification, getCopilotSubagentDisplayNames } from '../../node/copilot/copilotSystemNotification.js';
-import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { ChatProvidersConfigKey } from '../../common/agentHostChatProviders.js';
+import { IAgentConfigurationService, type IAgentRootConfigurationChangeEvent } from '../../node/agentConfigurationService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentHostAssistedApprovalInstructionsConfigKey, AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostExtensionPermissionApprovalsConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpSkillsEnabledConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostMcpSkillsServerApprovalsConfigKey, AgentHostMcpToolRoutingEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotMemoryModeSettingId, AgentHostCopilotProgressUpdatesPromptSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, CopilotSearchSubagentGrepNudgeSettingId } from '../../common/copilotCliConfig.js';
@@ -1442,7 +1443,7 @@ type TestCopilotSessionRuntime = Omit<ICopilotSessionRuntime, 'handlePermissionR
 interface ITestSessionConfiguration {
 	setConfigValue(key: string, value: unknown): void;
 	setRootValue(key: string, value: unknown): void;
-	fireRootConfigChange(): void;
+	fireRootConfigChange(changedKeys?: Iterable<string>): void;
 	fireSessionConfigChange(config: Record<string, unknown>, session?: string): void;
 }
 
@@ -1803,13 +1804,25 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	const configValues = options?.configValues ?? {};
 	let configLoaded = !options?.configLoadsAfterLaunch;
 	const rootValues: Record<string, unknown> = { ...(options?.rootValues ?? {}) };
+	const dirtyRootKeys = new Set<string>();
 	const rootConfigUpdates: Record<string, unknown>[] = [];
-	const rootConfigEmitter = disposables.add(new Emitter<void>());
+	const rootConfigEmitter = disposables.add(new Emitter<IAgentRootConfigurationChangeEvent>());
 	const sessionConfigEmitter = disposables.add(new Emitter<{ session: string; config: Record<string, unknown>; origin: { clientId: string; clientSeq: number } | undefined }>());
 	const configuration: ITestSessionConfiguration = {
 		setConfigValue: (key, value) => { configValues[key] = value; },
-		setRootValue: (key, value) => { rootValues[key] = value; },
-		fireRootConfigChange: () => rootConfigEmitter.fire(),
+		setRootValue: (key, value) => {
+			rootValues[key] = value;
+			dirtyRootKeys.add(key);
+		},
+		fireRootConfigChange: changedKeys => {
+			const keys = changedKeys !== undefined
+				? new Set(changedKeys)
+				: dirtyRootKeys.size > 0
+					? new Set(dirtyRootKeys)
+					: new Set(Object.keys(rootValues));
+			dirtyRootKeys.clear();
+			rootConfigEmitter.fire({ changedKeys: keys });
+		},
 		fireSessionConfigChange: (config, session = sessionUri.toString()) => sessionConfigEmitter.fire({ session, config, origin: { clientId: 'test', clientSeq: 1 } }),
 	};
 	const customizationEnablementEmitter = disposables.add(new Emitter<{ sessions: readonly string[] }>());
@@ -1871,7 +1884,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		updateRootConfig: patch => {
 			rootConfigUpdates.push(patch);
 			Object.assign(rootValues, patch);
-			rootConfigEmitter.fire();
+			rootConfigEmitter.fire({ changedKeys: new Set(Object.keys(patch)) });
 		},
 		persistRootConfig: () => { /* no-op */ },
 		whenIdle: async () => { /* no-op */ },
@@ -42120,6 +42133,191 @@ Use the attached image as context.
 			await timeout(0);
 
 			assert.ok(![...storedFileContents.keys()].some(key => key.includes('/agentHost/shellInit/')));
+		});
+	});
+
+	suite('root config change scoping and sandbox deduplication', () => {
+		const initScript = { shell: 'bash', script: 'activate' } satisfies IShellInitScript;
+
+		test('unrelated root config changes do not sync permission mode, sandbox, assisted approval, image generation, or shell init', async () => {
+			const { session, mockSession, setRootValue, fireRootConfigChange } = await createAgentSession(disposables, {
+				rootValues: {
+					[AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On },
+					[AgentHostAssistedApprovalInstructionsConfigKey]: 'Be cautious.',
+					[CopilotCliConfigKey.ImageGeneration]: true,
+					[CopilotCliConfigKey.EnableShellInitScript]: true,
+				},
+				configValues: {
+					[SessionConfigKey.ShellInitScripts]: [initScript],
+				},
+			});
+			await session.send('hello', undefined, 'turn-1', 'interactive');
+
+			mockSession.permissionModeSetCalls.length = 0;
+			mockSession.sandboxConfigUpdates.length = 0;
+			mockSession.permissionConfigureCalls.length = 0;
+			mockSession.imageGenerationOptionsUpdates.length = 0;
+			mockSession.shellInitScriptUpdates.length = 0;
+
+			// Mutate underlying values that would trigger reactions if handlers ran,
+			// but report only an unrelated root config key as changed.
+			setRootValue(AgentHostGlobalAutoApproveEnabledConfigKey, true);
+			setRootValue(AgentHostAssistedApprovalInstructionsConfigKey, 'Changed instructions.');
+			setRootValue(CopilotCliConfigKey.ImageGeneration, false);
+			setRootValue(CopilotCliConfigKey.EnableShellInitScript, false);
+			setRootValue('vscode.codexAccount.refreshRequest', 1);
+			fireRootConfigChange(['vscode.codexAccount.refreshRequest']);
+			await timeout(20);
+
+			assert.deepStrictEqual({
+				permissionModes: mockSession.permissionModeSetCalls,
+				sandboxUpdates: mockSession.sandboxConfigUpdates,
+				permissionConfigures: mockSession.permissionConfigureCalls,
+				imageGenerationUpdates: mockSession.imageGenerationOptionsUpdates,
+				shellInitUpdates: mockSession.shellInitScriptUpdates,
+			}, {
+				permissionModes: [],
+				sandboxUpdates: [],
+				permissionConfigures: [],
+				imageGenerationUpdates: [],
+				shellInitUpdates: [],
+			});
+		});
+
+		test('permission-only root config change syncs permission mode without applying sandbox config', async () => {
+			const { session, mockSession, setRootValue, fireRootConfigChange } = await createAgentSession(disposables, {
+				rootValues: {
+					[AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On },
+					[AgentHostGlobalAutoApproveEnabledConfigKey]: false,
+				},
+			});
+			await session.send('hello', undefined, 'turn-1', 'interactive');
+
+			mockSession.permissionModeSetCalls.length = 0;
+			mockSession.sandboxConfigUpdates.length = 0;
+
+			// Also alter sandbox root value without reporting sandbox as changed,
+			// verifying a permission-only change does not run sandbox apply.
+			setRootValue(AgentHostSandboxConfigKey.Sandbox, { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.Off });
+			setRootValue(AgentHostGlobalAutoApproveEnabledConfigKey, true);
+			fireRootConfigChange([AgentHostGlobalAutoApproveEnabledConfigKey]);
+			await timeout(20);
+
+			assert.deepStrictEqual({
+				permissionModes: mockSession.permissionModeSetCalls,
+				sandboxUpdates: mockSession.sandboxConfigUpdates,
+			}, {
+				permissionModes: ['allow-all'],
+				sandboxUpdates: [],
+			});
+		});
+
+		test('sandbox-only root config change applies sandbox without syncing permission mode and deduplicates equal configs across key order', async () => {
+			const { session, mockSession, setRootValue, fireRootConfigChange } = await createAgentSession(disposables, {
+				rootValues: {
+					[AgentHostSandboxConfigKey.Sandbox]: {
+						[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
+						[AgentHostSandboxKey.UserConfiguredPaths]: { readonlyPaths: ['/a'], readwritePaths: ['/b'] },
+					},
+					[AgentHostGlobalAutoApproveEnabledConfigKey]: false,
+				},
+			});
+			await session.send('hello', undefined, 'turn-1', 'interactive');
+
+			mockSession.permissionModeSetCalls.length = 0;
+			mockSession.sandboxConfigUpdates.length = 0;
+
+			// Mutate global auto-approve without reporting it as changed, and change sandbox.
+			setRootValue(AgentHostGlobalAutoApproveEnabledConfigKey, true);
+			setRootValue(AgentHostSandboxConfigKey.Sandbox, {
+				[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
+				[AgentHostSandboxKey.UserConfiguredPaths]: { readonlyPaths: ['/a'], readwritePaths: ['/b', '/c'] },
+			});
+			fireRootConfigChange([AgentHostSandboxConfigKey.Sandbox]);
+			await timeout(20);
+
+			assert.strictEqual(mockSession.sandboxConfigUpdates.length, 1);
+			assert.deepStrictEqual(mockSession.permissionModeSetCalls, []);
+
+			// Re-fire with the same effective SandboxConfig but different object property order.
+			setRootValue(AgentHostSandboxConfigKey.Sandbox, {
+				[AgentHostSandboxKey.UserConfiguredPaths]: { readwritePaths: ['/b', '/c'], readonlyPaths: ['/a'] },
+				[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
+			});
+			fireRootConfigChange([AgentHostSandboxConfigKey.Sandbox]);
+			await timeout(20);
+
+			assert.strictEqual(mockSession.sandboxConfigUpdates.length, 1);
+		});
+
+		test('relaunching the SDK session resets cached sandbox state so sandbox config is re-applied', async () => {
+			const { session, mockSession, fireRootConfigChange } = await createAgentSession(disposables, {
+				rootValues: {
+					[AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On },
+				},
+			});
+			await session.send('hello', undefined, 'turn-1', 'interactive');
+			assert.strictEqual(mockSession.sandboxConfigUpdates.length, 1);
+
+			fireRootConfigChange([AgentHostSandboxConfigKey.Sandbox]);
+			await timeout(20);
+			assert.strictEqual(mockSession.sandboxConfigUpdates.length, 1);
+
+			session.markTelemetryRevocationRequiresRestart();
+			await session.revalidateTelemetryBeforeRegistration();
+
+			fireRootConfigChange([AgentHostSandboxConfigKey.Sandbox]);
+			await timeout(20);
+			assert.strictEqual(mockSession.sandboxConfigUpdates.length, 2);
+		});
+
+		test('shell init root config changes re-sync shell init scripts while unrelated root config changes do not', async () => {
+			const { session, mockSession, setRootValue, fireRootConfigChange } = await createAgentSession(disposables, {
+				rootValues: { [CopilotCliConfigKey.EnableShellInitScript]: true },
+				configValues: { [SessionConfigKey.ShellInitScripts]: [initScript] },
+			});
+			await session.send('go', undefined, 'turn-1', 'interactive');
+
+			mockSession.shellInitScriptUpdates.length = 0;
+
+			fireRootConfigChange(['vscode.codexAccount.refreshRequest']);
+			await timeout(20);
+			assert.deepStrictEqual(mockSession.shellInitScriptUpdates, []);
+
+			setRootValue(CopilotCliConfigKey.EnableShellInitScript, false);
+			fireRootConfigChange([CopilotCliConfigKey.EnableShellInitScript]);
+			await timeout(20);
+			assert.deepStrictEqual(mockSession.shellInitScriptUpdates, [[]]);
+		});
+
+		test('disabling multipleChatProviders re-syncs both permission mode and sandbox config', async () => {
+			const { session, mockSession, setConfigValue, setRootValue, fireRootConfigChange } = await createAgentSession(disposables, {
+				rootValues: {
+					[ChatProvidersConfigKey.Enabled]: true,
+					[AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.Off },
+				},
+				configValues: {
+					[SessionConfigKey.AutoApprove]: 'default',
+					[SessionConfigKey.SandboxEnabled]: AgentSandboxEnabledValue.Off,
+				},
+			});
+			await session.send('hello', undefined, 'turn-1', 'interactive');
+
+			mockSession.permissionModeSetCalls.length = 0;
+			mockSession.sandboxConfigUpdates.length = 0;
+
+			// Simulate a completed non-default chat falling back to inheriting its session's
+			// approval and sandbox settings when `multipleChatProviders.enabled` turns off
+			// without emitting an effective chat-config change.
+			setConfigValue(SessionConfigKey.AutoApprove, 'autoApprove');
+			setConfigValue(SessionConfigKey.SandboxEnabled, AgentSandboxEnabledValue.On);
+			setRootValue(ChatProvidersConfigKey.Enabled, false);
+			fireRootConfigChange([ChatProvidersConfigKey.Enabled]);
+			await timeout(20);
+
+			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['allow-all']);
+			assert.strictEqual(mockSession.sandboxConfigUpdates.length, 1);
+			assert.strictEqual((mockSession.sandboxConfigUpdates[0] as { enabled?: boolean }).enabled, true);
 		});
 	});
 });

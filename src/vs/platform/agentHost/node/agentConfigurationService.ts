@@ -89,6 +89,22 @@ export function getSessionSummaryWorkingDirectories(stateManager: AgentHostState
 	return workingDirectories.length ? workingDirectories : undefined;
 }
 
+/** Fired whenever one or more host-level root configuration keys change. */
+export interface IAgentRootConfigurationChangeEvent {
+	/** Root config keys whose effective values were added, modified, or removed. */
+	readonly changedKeys: ReadonlySet<string>;
+}
+
+/** Returns whether any key in `keys` is present in `changedKeys`. */
+export function hasChangedRootConfigKey(changedKeys: ReadonlySet<string>, keys: Iterable<string>): boolean {
+	for (const key of keys) {
+		if (changedKeys.has(key)) {
+			return true;
+		}
+	}
+	return false;
+}
+
 export interface IAgentSessionConfigurationChangeEvent {
 	readonly session: ProtocolURI;
 	readonly config: Record<string, unknown>;
@@ -174,11 +190,10 @@ export interface IAgentConfigurationService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Fires whenever a {@link ActionType.RootConfigChanged} action is
-	 * processed by the state manager, signalling that callers should
-	 * re-read any root config values they depend on.
+	 * Fires whenever a {@link ActionType.RootConfigChanged} action changes one
+	 * or more root config values, reporting the exact keys whose values changed.
 	 */
-	readonly onDidRootConfigChange: Event<void>;
+	readonly onDidRootConfigChange: Event<IAgentRootConfigurationChangeEvent>;
 
 	/** Fires whenever a session configuration change is processed. */
 	readonly onDidSessionConfigChange: Event<IAgentSessionConfigurationChangeEvent>;
@@ -373,8 +388,8 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	/** Rollbacks of a rejected sandbox selection, which keep the rejection reported. */
 	private readonly _sandboxRollbackActions = new WeakSet<object>();
 
-	private readonly _onDidRootConfigChange = this._register(new Emitter<void>());
-	readonly onDidRootConfigChange: Event<void> = this._onDidRootConfigChange.event;
+	private readonly _onDidRootConfigChange = this._register(new Emitter<IAgentRootConfigurationChangeEvent>());
+	readonly onDidRootConfigChange: Event<IAgentRootConfigurationChangeEvent> = this._onDidRootConfigChange.event;
 	private readonly _onDidSessionConfigChange = this._register(new Emitter<IAgentSessionConfigurationChangeEvent>());
 	readonly onDidSessionConfigChange: Event<IAgentSessionConfigurationChangeEvent> = this._onDidSessionConfigChange.event;
 	private readonly _onDidChatConfigChange = this._register(new Emitter<IAgentChatConfigurationChangeEvent>());
@@ -441,6 +456,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 			this._sessionSandboxUserSelections.delete(session);
 		}));
 		// Reduction precedes the envelope and knows the previous values, so a replacement's removed keys are known too.
+		this._register(this._stateManager.onDidChangeRootConfig(event => this._reducedChanges.set(ROOT_STATE_URI, changedConfigKeys(event.previous?.values, event.current?.values))));
 		this._register(this._stateManager.onDidChangeSessionConfig(event => this._reducedChanges.set(event.session.toString(), changedConfigKeys(event.previous?.values, event.current?.values))));
 		this._register(this._stateManager.onDidChangeChatConfig(event => this._reducedChanges.set(event.chat.toString(), changedConfigKeys(event.previous?.values, event.current?.values))));
 		this._register(this._stateManager.onDidRegisterChat(({ chat, session }) => {
@@ -467,11 +483,17 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
 			if (envelope.action.type === ActionType.RootConfigChanged) {
+				const reduced = this._reducedChanges.get(ROOT_STATE_URI);
+				this._reducedChanges.delete(ROOT_STATE_URI);
+				const changedKeys = new Set(reduced ?? Object.keys(envelope.action.config));
+				if (changedKeys.size === 0) {
+					return;
+				}
 				this._onDidChangeChatValuesComplete();
 				for (const session of this._stateManager.getSessionUris()) {
 					this._publishSessionSandboxPolicy(session);
 				}
-				this._onDidRootConfigChange.fire();
+				this._onDidRootConfigChange.fire({ changedKeys });
 			} else if (envelope.action.type === ActionType.SessionConfigChanged) {
 				const clearedDefaultChatKeys = this._clearDefaultChatOwnValues(envelope.channel, envelope.action.replace ? [...new Set([...Object.keys(envelope.action.config), ...(this._reducedChanges.get(envelope.channel) ?? [])])] : Object.keys(envelope.action.config));
 				const sandboxConfigChanged = Object.hasOwn(envelope.action.config, SessionConfigKey.SandboxEnabled);

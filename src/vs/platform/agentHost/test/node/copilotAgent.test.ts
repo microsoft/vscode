@@ -36780,4 +36780,152 @@ suite('CopilotAgent', () => {
 		});
 
 	});
+
+	suite('root config change key gating', () => {
+		function createInstrumentedAgent() {
+			const provider = disposables.add(new FakeLocalModelProvider([]));
+			const localModelSetupService = createLocalModelSetupService(provider);
+			const fileService = disposables.add(new FileService(new NullLogService()));
+			disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+			const telemetryService = new class extends RecordingTelemetryService {
+				readonly experimentPropertyUpdates: Array<{ name: string; value: string }> = [];
+
+				override setExperimentProperty(name?: string, value?: string): void {
+					super.setExperimentProperty(name, value);
+					this.experimentPropertyUpdates.push({ name: name ?? '', value: value ?? '' });
+				}
+			}();
+			const byokBridgeRegistry = new ByokLmBridgeRegistry();
+			const { agent, configurationService } = createTestAgentContext(disposables, {
+				copilotClient: new TestCopilotClient([]),
+				fileService,
+				localModelSetupService,
+				telemetryService,
+				byokBridgeRegistry,
+				rootConfig: {
+					[CopilotCliConfigKey.LocalModelEnabled]: true,
+					[AgentHostByokModelsEnabledConfigKey]: true,
+				},
+			});
+			afterTest(() => disposeAgent(agent));
+
+			const restartSpy = spy(agent as unknown as { _restartClientIfStartupConfigChanged(): Promise<void> }, '_restartClientIfStartupConfigChanged');
+			const byokSpy = spy(agent as unknown as { _refreshByokModels(): void }, '_refreshByokModels');
+			const modelRouterSpy = stub(agent as unknown as { _updateModelRouterCatalog(): void }, '_updateModelRouterCatalog');
+			const revokeTelemetrySpy = spy(agent as unknown as { _revokeSessionTelemetryIfDisabled(): Promise<void> }, '_revokeSessionTelemetryIfDisabled');
+			const updateTrustSpy = spy((agent as unknown as { _projectExtensionLaunchPolicy: { updateTrust(): unknown } })._projectExtensionLaunchPolicy, 'updateTrust');
+			const hostCustomizationsSpy = spy((agent as unknown as { _plugins: { _applyHostCustomizations(): void } })._plugins, '_applyHostCustomizations');
+			disposables.add(toDisposable(() => {
+				restartSpy.restore();
+				byokSpy.restore();
+				modelRouterSpy.restore();
+				revokeTelemetrySpy.restore();
+				updateTrustSpy.restore();
+				hostCustomizationsSpy.restore();
+			}));
+
+			return {
+				agent,
+				configurationService,
+				provider,
+				telemetryService,
+				spies: {
+					restartSpy,
+					byokSpy,
+					modelRouterSpy,
+					revokeTelemetrySpy,
+					updateTrustSpy,
+					hostCustomizationsSpy,
+				},
+			};
+		}
+
+		test('unrelated root config changes do not re-run CopilotAgent or PluginController root config handlers', async () => {
+			const { agent, configurationService, provider, telemetryService, spies } = createInstrumentedAgent();
+			await agent.listChatsToMigrate();
+
+			provider.calls.length = 0;
+			telemetryService.experimentPropertyUpdates.length = 0;
+			spies.restartSpy.resetHistory();
+			spies.byokSpy.resetHistory();
+			spies.modelRouterSpy.resetHistory();
+			spies.revokeTelemetrySpy.resetHistory();
+			spies.updateTrustSpy.resetHistory();
+			spies.hostCustomizationsSpy.resetHistory();
+
+			configurationService.updateRootConfig({ 'vscode.codexAccount.refreshRequest': 1 });
+			configurationService.updateRootConfig({ 'vscode.codexAccount.refreshRequest': 2 });
+			await timeout(20);
+
+			assert.deepStrictEqual({
+				experimentUpdates: telemetryService.experimentPropertyUpdates,
+				localModelUpdates: provider.calls.filter(call => call.startsWith('updateLiveConfig')),
+				restartCalls: spies.restartSpy.callCount,
+				byokCalls: spies.byokSpy.callCount,
+				modelRouterCalls: spies.modelRouterSpy.callCount,
+				revokeTelemetryCalls: spies.revokeTelemetrySpy.callCount,
+				updateTrustCalls: spies.updateTrustSpy.callCount,
+				hostCustomizationsCalls: spies.hostCustomizationsSpy.callCount,
+			}, {
+				experimentUpdates: [],
+				localModelUpdates: [],
+				restartCalls: 0,
+				byokCalls: 0,
+				modelRouterCalls: 0,
+				revokeTelemetryCalls: 0,
+				updateTrustCalls: 0,
+				hostCustomizationsCalls: 0,
+			});
+		});
+
+		test('relevant root config keys still trigger their respective CopilotAgent and PluginController handlers', async () => {
+			const { agent, configurationService, provider, telemetryService, spies } = createInstrumentedAgent();
+			await agent.listChatsToMigrate();
+
+			provider.calls.length = 0;
+			telemetryService.experimentPropertyUpdates.length = 0;
+			spies.restartSpy.resetHistory();
+			spies.byokSpy.resetHistory();
+			spies.modelRouterSpy.resetHistory();
+			spies.revokeTelemetrySpy.resetHistory();
+			spies.updateTrustSpy.resetHistory();
+			spies.hostCustomizationsSpy.resetHistory();
+
+			configurationService.updateRootConfig({ [CopilotCliVSCodeAssignmentContextKey]: 'exp:2' });
+			configurationService.updateRootConfig({ [AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [] } });
+			configurationService.updateRootConfig({ [CopilotCliConfigKey.SkillCharBudget]: 20_000 });
+			// Repeating the same startup config value is a no-op and must not trigger again.
+			configurationService.updateRootConfig({ [CopilotCliConfigKey.SkillCharBudget]: 20_000 });
+			const restartCallsAfterSkillBudget = spies.restartSpy.callCount;
+			// Telemetry level is both a client startup config key and the session telemetry revocation trigger.
+			configurationService.updateRootConfig({ [AgentHostTelemetryLevelConfigKey]: telemetryLevelToAgentHostConfigValue(TelemetryLevel.NONE) });
+			configurationService.updateRootConfig({ [AgentHostByokModelsEnabledConfigKey]: false });
+			configurationService.updateRootConfig({ [ModelRouterEnabledConfigKey]: true });
+			configurationService.updateRootConfig({ [CopilotCliConfigKey.LocalModelUseInAuto]: true });
+			configurationService.updateRootConfig({ [AgentHostConfigKey.Customizations]: [{ uri: URI.file('/plugin-a').toString(), displayName: 'Plugin A' }] });
+			await timeout(20);
+
+			assert.deepStrictEqual({
+				experimentUpdates: telemetryService.experimentPropertyUpdates,
+				localModelUpdateCount: provider.calls.filter(call => call.startsWith('updateLiveConfig')).length,
+				restartCallsAfterSkillBudget,
+				restartCalls: spies.restartSpy.callCount,
+				byokCalls: spies.byokSpy.callCount,
+				modelRouterCalls: spies.modelRouterSpy.callCount,
+				revokeTelemetryCalls: spies.revokeTelemetrySpy.callCount,
+				updateTrustCalls: spies.updateTrustSpy.callCount,
+				hostCustomizationsCalls: spies.hostCustomizationsSpy.callCount,
+			}, {
+				experimentUpdates: [{ name: 'abexp.assignmentcontext', value: 'exp:2' }],
+				localModelUpdateCount: 1,
+				restartCallsAfterSkillBudget: 1,
+				restartCalls: 2,
+				byokCalls: 1,
+				modelRouterCalls: 1,
+				revokeTelemetryCalls: 1,
+				updateTrustCalls: 1,
+				hostCustomizationsCalls: 1,
+			});
+		});
+	});
 });
