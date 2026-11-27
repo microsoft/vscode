@@ -8,6 +8,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { suite, test } from 'node:test';
+import { load } from 'js-yaml';
 import { advisoryAreaLabels, assignOwner, checkIssue, checkTeamMember, checkTeamMembers, getSkipReason, publishTranslation, run, suggestArea, type IIssue } from '../../../.github/actions/issue-triage/issueTriage.ts';
 
 type Parameters = Readonly<Record<string, string | number | readonly string[]>>;
@@ -80,6 +81,27 @@ function handlePermission(call: string): object | number | undefined {
 }
 
 suite('Issue Triage', () => {
+
+	test('keeps the conclusion job unprivileged while issue reporting is disabled', () => {
+		const workflow = load(readFileSync(new URL('../../../.github/workflows/issue-triage.lock.yml', import.meta.url), 'utf8')) as {
+			jobs: Record<string, { permissions: Record<string, string>; steps: { id?: string; env?: Record<string, string> }[] }>;
+		};
+		const conclusion = workflow.jobs.conclusion;
+		const env = (id: string) => conclusion.steps.find(step => step.id === id)?.env;
+		assert.deepStrictEqual({
+			permissions: conclusion.permissions,
+			noopReports: env('noop')?.GH_AW_NOOP_REPORT_AS_ISSUE,
+			missingToolReports: env('missing_tool')?.GH_AW_MISSING_TOOL_CREATE_ISSUE,
+			incompleteReports: env('report_incomplete')?.GH_AW_REPORT_INCOMPLETE_CREATE_ISSUE,
+			failureReports: env('handle_agent_failure')?.GH_AW_FAILURE_REPORT_AS_ISSUE,
+		}, {
+			permissions: {},
+			noopReports: 'false',
+			missingToolReports: 'false',
+			incompleteReports: 'false',
+			failureReports: 'false',
+		});
+	});
 
 	test('skips issues that are handled elsewhere or already assigned', () => {
 		const cases: Record<string, IIssue> = {
