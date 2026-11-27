@@ -33,10 +33,10 @@ function getEnvironmentIcon(environment: string): ThemeIcon {
 }
 
 export class SessionsInboxScope extends Disposable {
+	private static readonly PICKER_USER = 'sessionsInboxScope';
+
 	readonly element: HTMLElement;
 	private activeTrigger: HTMLElement | undefined;
-	/** What took the focus when the scope opened its picker */
-	private pickerFocus: Element | null = null;
 
 	constructor(
 		container: HTMLElement,
@@ -233,7 +233,7 @@ export class SessionsInboxScope extends Disposable {
 		}
 		this.activeTrigger = trigger;
 		trigger.setAttribute('aria-expanded', 'true');
-		this.actionWidgetService.show('sessionsInboxScope', false, items, {
+		this.actionWidgetService.show(SessionsInboxScope.PICKER_USER, false, items, {
 			onSelect: item => {
 				this.actionWidgetService.hide();
 				if (!this._store.isDisposed && !this.element.hidden) {
@@ -243,14 +243,12 @@ export class SessionsInboxScope extends Disposable {
 			},
 			onHide: () => {
 				this.activeTrigger = undefined;
-				this.pickerFocus = null;
 				trigger.setAttribute('aria-expanded', 'false');
 				if (!this._store.isDisposed && !this.element.hidden && trigger.isConnected) {
 					trigger.focus();
 				}
 			},
 		}, trigger, undefined, [], { getWidgetAriaLabel: () => label }, options);
-		this.pickerFocus = this.activeTrigger === trigger ? dom.getActiveElement() : null;
 	}
 
 	private hidePicker(): void {
@@ -269,9 +267,8 @@ export class SessionsInboxScope extends Disposable {
 			this.element.hidden = !visible;
 			return false;
 		}
-		const active = dom.getActiveElement();
-		// The open picker keeps the focus it took until it closes; focus the user moved elsewhere as it closes is not the scope's
-		const hadFocus = dom.isAncestorOfActiveElement(this.element) || (!!this.activeTrigger && !!this.pickerFocus && !!active && dom.isAncestor(active, this.pickerFocus));
+		// Focus the user moved elsewhere while the picker closes is not the scope's
+		const hadFocus = dom.isAncestorOfActiveElement(this.element) || (!!this.activeTrigger && this.actionWidgetService.hasFocus(SessionsInboxScope.PICKER_USER));
 		// Hidden before the picker closes, so that closing it does not focus its trigger
 		this.element.hidden = true;
 		this.hidePicker();

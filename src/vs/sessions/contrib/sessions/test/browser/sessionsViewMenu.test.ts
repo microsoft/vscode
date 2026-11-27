@@ -550,7 +550,7 @@ suite('Sessions - View Menu', () => {
 		});
 	});
 
-	test('hiding the Inbox scope hands over only the focus it had: in its controls or its open picker, not focus moved elsewhere as the picker closes', () => {
+	test('hiding the Inbox scope hands over only the focus it had: in its controls or its open picker, its filter or results, not focus moved elsewhere as the picker closes', () => {
 		const harness = createListHarness(store, []);
 		const actionWidgetService = store.add(harness.instantiationService.createInstance(ActionWidgetService));
 		harness.instantiationService.stub(IActionWidgetService, actionWidgetService);
@@ -570,15 +570,22 @@ suite('Sessions - View Menu', () => {
 		const inControls = hide();
 		open();
 		const inPicker = hide();
+		// Down (the widget's focus next command) moves the focus from the picker's filter into its results
+		open();
+		actionWidgetService.focusNext();
+		const resultsFocused = !!getActiveElement()?.closest('.action-widget .monaco-list');
+		const inResults = hide();
 		// The picker closes as its blur is noticed, later: the bar hides first
 		open();
 		elsewhere.focus();
 		const movedElsewhere = hide();
 		elsewhere.focus();
 		const notInScope = hide();
-		assert.deepStrictEqual({ inControls, inPicker, movedElsewhere, notInScope }, {
+		assert.deepStrictEqual({ inControls, inPicker, resultsFocused, inResults, movedElsewhere, notInScope }, {
 			inControls: { handedOver: true, focusKeptElsewhere: false, picker: false },
 			inPicker: { handedOver: true, focusKeptElsewhere: false, picker: false },
+			resultsFocused: true,
+			inResults: { handedOver: true, focusKeptElsewhere: false, picker: false },
 			movedElsewhere: { handedOver: false, focusKeptElsewhere: true, picker: false },
 			notInScope: { handedOver: false, focusKeptElsewhere: true, picker: false },
 		});

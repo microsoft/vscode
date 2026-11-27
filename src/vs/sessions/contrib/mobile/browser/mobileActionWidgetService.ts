@@ -19,6 +19,7 @@ import { IMobilePickerSheetItem, IMobilePickerSheetItemsChangeEvent, showMobileP
 
 /** What the phone needs to know about a shown widget until it closes. */
 interface IShownWidget {
+	readonly user: string;
 	readonly delegate: IActionListDelegate<unknown>;
 	readonly dismiss: CancellationTokenSource;
 	readonly updateItems: (items: readonly IActionListItem<unknown>[], focusItemId?: string, options?: IActionListUpdateOptions) => void;
@@ -57,7 +58,7 @@ export class MobileActionWidgetService extends Disposable implements IActionWidg
 	}
 
 	show<T>(
-		_user: string,
+		user: string,
 		_supportsPreview: boolean,
 		items: readonly IActionListItem<T>[],
 		delegate: IActionListDelegate<T>,
@@ -125,6 +126,7 @@ export class MobileActionWidgetService extends Disposable implements IActionWidg
 		this._shownStore.value = store;
 		const itemsChanged = store.add(new Emitter<IMobilePickerSheetItemsChangeEvent>());
 		const shown: IShownWidget = {
+			user,
 			delegate: delegate as IActionListDelegate<unknown>,
 			dismiss: store.add(new CancellationTokenSource()),
 			hidden: false,
@@ -216,6 +218,11 @@ export class MobileActionWidgetService extends Disposable implements IActionWidg
 	}
 
 	focusItemById(_itemId: string): void { }
+
+	hasFocus(user: string): boolean {
+		// The sheet is modal: while it shows, it has the focus
+		return this._shown?.user === user;
+	}
 
 	collapseSection(): void { }
 
