@@ -541,7 +541,8 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 		const workspace = this.workspaceService.getWorkspace();
 		if (workspace) {
-			return isTemporaryWorkspace(this.workspaceService.getWorkspace()) && workspace.folders.length === 0;
+			// A workspace with neither folders nor a workspace file, like an editor window's Agents mode, is trusted like an empty window
+			return (isTemporaryWorkspace(workspace) || !workspace.configuration) && workspace.folders.length === 0;
 		}
 
 		return false;
