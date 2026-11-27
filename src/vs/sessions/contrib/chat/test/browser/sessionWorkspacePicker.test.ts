@@ -9188,7 +9188,7 @@ suite('WorkspacePicker - a composer outside the main window', () => {
 			_pendingWorktreePlacement: observableValue<object | undefined>('pendingWorktreePlacement', undefined),
 			_applyRequestedWorktreePlacement: () => { },
 		};
-		for (const method of ['_selectRequestedNoWorkspace', '_isRequestedAgent', '_seedRequestedTarget', '_syncWorkspacePickerDevContainerMode', 'selectNoWorkspace']) {
+		for (const method of ['_selectRequestedNoWorkspace', '_isRequestedAgent', '_seedRequestedTarget', '_syncWorkspacePickerDevContainerMode', '_getDraftWorkspaceConfig', 'selectNoWorkspace']) {
 			const implementation = Reflect.get(NewChatWidget.prototype, method) as (...args: unknown[]) => unknown;
 			harness[method] = (...args: unknown[]) => implementation.apply(harness, args);
 		}

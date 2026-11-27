@@ -31,7 +31,7 @@ import { IOpenNewSessionOptions, IOpenNewSessionResult, IOpenSessionOptions } fr
 import { SessionsManagementService } from '../../../../../workbench/contrib/sessions/browser/sessionsManagementService.js';
 import { ISessionsProvidersService, SessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IPickedSessionType, IPreferredSessionType } from '../../../../../workbench/contrib/sessions/browser/chat/sessionTypePicker.js';
-import { BackgroundSendStatus, composesForAllSessions, getSupportsSessionFolders, NewChatWidget, shouldShowNewSessionChatTip } from '../../../../../workbench/contrib/sessions/browser/chat/newChatWidget.js';
+import { BackgroundSendStatus, composesForAllSessions, NewChatWidget, shouldShowNewSessionChatTip } from '../../../../../workbench/contrib/sessions/browser/chat/newChatWidget.js';
 import { INewSessionWorktreeSendChoiceProvider, NewSessionWorktreeSendChoiceService } from '../../../../../workbench/contrib/sessions/browser/chat/newSessionWorktreeSendChoice.js';
 import { findOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { OnboardingScenarioService } from '../../../../../workbench/contrib/onboarding/browser/onboardingService.js';
@@ -257,6 +257,7 @@ const recreateOnProviderChange = Reflect.get(NewChatWidget.prototype, '_recreate
 	created: { readonly sessionId: string } | undefined,
 ) => void;
 const handlePromptOptionsWorkspaceChange = Reflect.get(NewChatWidget.prototype, '_handlePromptOptionsWorkspaceChange') as (this: IPromptOptionsWorkspaceHarness, previousFolderUri: URI | undefined, folderUri: URI | undefined) => void;
+const getDraftWorkspaceConfig = Reflect.get(NewChatWidget.prototype, '_getDraftWorkspaceConfig') as (sessionId: string, workspace: ISessionWorkspace | undefined) => ISessionWorkspaceConfig | undefined;
 const syncWorkspacePickerFromSessionWorkspace = Reflect.get(NewChatWidget.prototype, '_syncWorkspacePickerFromSessionWorkspace') as (this: ISyncWorkspacePickerHarness, session: ITestSessionWithChat | undefined, workspace: ISessionWorkspace | undefined) => void;
 const hasEnoughSessionsForFirstRunNotices = Reflect.get(NewChatWidget.prototype, '_hasEnoughSessionsForFirstRunNotices') as (this: ISessionCountHarness) => boolean;
 const prepareChatTipSession = Reflect.get(NewChatWidget.prototype, '_prepareChatTipSession') as (this: IChatTipSessionHarness) => void;
@@ -344,6 +345,7 @@ interface ISyncWorkspacePickerHarness {
 		matchesSelectedWorkspace(workspace: ISessionWorkspace): boolean;
 		setSelectedWorkspace(folderUri: URI, options: { fireEvent: false; origin: WorkspaceSelectionOrigin; sessionWorkspaceUri?: URI }): void;
 	};
+	_getDraftWorkspaceConfig(sessionId: string, workspace: ISessionWorkspace | undefined): ISessionWorkspaceConfig | undefined;
 }
 
 interface ISessionCountHarness {
@@ -4057,8 +4059,9 @@ suite('NewChatWidget', () => {
 	});
 
 	test('offers more folders only once the draft says its agent works in them, never before there is a draft', () => {
-		const draft = (supportsChatFolders: boolean | undefined) => ({ capabilities: constObservable({ supportsMultipleChats: false, supportsChatFolders }) }) as unknown as ISession;
-		assert.deepStrictEqual([undefined, draft(undefined), draft(false), draft(true)].map(session => derived(reader => getSupportsSessionFolders(session, reader)).get()), [false, false, false, true]);
+		const supportsSessionFolders = Reflect.get(NewChatWidget.prototype, '_supportsSessionFolders') as (this: object, reader: IReader) => boolean;
+		const draft = (supportsChatFolders: boolean | undefined) => upcastPartial<ISession>({ capabilities: constObservable({ supportsMultipleChats: false, supportsChatFolders }) });
+		assert.deepStrictEqual([undefined, draft(undefined), draft(false), draft(true)].map(session => derived(reader => supportsSessionFolders.call({ _session: constObservable(session) }, reader)).get()), [false, false, false, true]);
 	});
 
 	test('shows the folders the user added as pills, and keeps them while a send clears the input', () => {
@@ -4255,6 +4258,7 @@ suite('NewChatWidget', () => {
 		const selections: Array<{ readonly folderUri: string; readonly providerId: string; readonly persist: boolean; readonly preferDevContainer: boolean; readonly origin: WorkspaceSelectionOrigin }> = [];
 		const harness = {
 			_reconcileWorkspaceEnvironment: () => { },
+			_getDraftWorkspaceConfig: getDraftWorkspaceConfig,
 			uriIdentityService: { extUri },
 			sessionsProvidersService: {
 				getProvider: () => ({
@@ -4311,6 +4315,7 @@ suite('NewChatWidget', () => {
 				readonly sessionsProvidersService: { getProvider(): { readonly id: string; isDevContainerEnabled(): boolean } };
 				readonly _requestedWorkspaceConfig: { readonly sessionId: string; readonly config: ISessionWorkspaceConfig | undefined } | undefined;
 				_isSelectedWorkspaceConfig(session: ITestSessionWithChat, folderUri: URI): boolean;
+				_getDraftWorkspaceConfig(sessionId: string, workspace: ISessionWorkspace | undefined): ISessionWorkspaceConfig | undefined;
 			},
 			folderUri: URI | undefined,
 		) => boolean;
@@ -4358,6 +4363,7 @@ suite('NewChatWidget', () => {
 				_workspacePicker: { selectedResolved: { providerId: options.providerId ?? LOCAL_AGENT_HOST_PROVIDER_ID }, selectedWorkspaceConfig: options.selectedConfig, addedSessionFolderUris: options.added ?? [] },
 				_requestedWorkspaceConfig: options.requestedConfig && { sessionId: 'draft', config: options.requestedConfig },
 				_isSelectedWorkspaceConfig: isSelectedWorkspaceConfig,
+				_getDraftWorkspaceConfig: getDraftWorkspaceConfig,
 				_preferredDevContainerFolderUri: options.preferDevContainer ? folder : undefined,
 				_pendingWorkspaceCreation: options.pending ? Promise.resolve({ session: undefined, trustDeclined: false }) : undefined,
 				uriIdentityService: { extUri },
@@ -4634,6 +4640,7 @@ suite('NewChatWidget', () => {
 				matchesSelectedWorkspace: workspace => workspace.folders[0].root.toString() === cloudFolder.toString(),
 				setSelectedWorkspace: (folderUri, options) => selected.push({ folder: folderUri.toString(), origin: options.origin }),
 			},
+			_getDraftWorkspaceConfig: getDraftWorkspaceConfig,
 		};
 		const session = upcastPartial<ITestSessionWithChat>({ sessionId: 'draft' });
 		const workspace = (root: URI): ISessionWorkspace => upcastPartial<ISessionWorkspace>({

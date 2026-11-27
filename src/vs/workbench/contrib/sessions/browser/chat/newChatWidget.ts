@@ -162,24 +162,8 @@ function isWorktreeSupportEnabled(configurationService: IConfigurationService): 
 	return !!configurationService.getValue<boolean>(ChatConfiguration.EditorWindowEnableWorktree);
 }
 
-/**
- * The workspace configuration the draft `sessionId` of `workspace` is in: as it records it, or as its composer requested
- * it (`requested`), for a provider that does not record it.
- */
-function getDraftWorkspaceConfig(sessionId: string, workspace: ISessionWorkspace | undefined, requested: { readonly sessionId: string; readonly config: ISessionWorkspaceConfig | undefined } | undefined): ISessionWorkspaceConfig | undefined {
-	return workspace?.workspaceConfig ?? (requested && requested.sessionId === sessionId ? requested.config : undefined);
-}
-
 /** The prefix of the ids of the pills of the folders the user added to a new session. */
 const SESSION_FOLDER_CONTEXT_ID_PREFIX = 'session-folder:';
-
-/**
- * Whether the composer offers more folders for the session of `draft`: only once the draft says its agent works in
- * them ({@link ISessionCapabilities.supportsChatFolders}). A provider that cannot drops the folders it is created with.
- */
-export function getSupportsSessionFolders(draft: ISession | undefined, reader: IReader): boolean {
-	return draft?.capabilities.read(reader).supportsChatFolders === true;
-}
 
 export function isSessionWorkspaceOptOutEnabled(configurationService: IConfigurationService): boolean {
 	return configurationService.getValue<boolean>(WORKSPACE_OPT_OUT_SETTING) === true;
@@ -515,7 +499,7 @@ export class NewChatWidget extends Disposable {
 		const PickerCtor = isWeb ? WebWorkspacePicker : WorkspacePicker;
 		this._workspacePicker = this._register(this.instantiationService.createInstance(PickerCtor, {
 			searchWorkspaceTargetDirectly: this.options.newSessionPresentation.searchWorkspaceTargetDirectly,
-			supportsSessionFolders: derived(this, reader => getSupportsSessionFolders(this._session.read(reader), reader)),
+			supportsSessionFolders: derived(this, reader => this._supportsSessionFolders(reader)),
 			environment: this._environment,
 			environmentPickerEnabled,
 			canRestoreWorkspace: () => !this._savedDraftComposer?.isRestoring && !this._savedDraftTargetUnavailable.get()
@@ -1020,7 +1004,7 @@ export class NewChatWidget extends Disposable {
 	private _syncWorkspacePickerFromSessionWorkspace(session: ISession | undefined, workspace: ISessionWorkspace | undefined): void {
 		const folderUri = workspace?.folders[0]?.root;
 		if (session && folderUri && !this._workspacePicker.matchesSelectedWorkspace(workspace)) {
-			this._workspacePicker.setSelectedWorkspace(folderUri, { fireEvent: false, origin: WorkspaceSelectionOrigin.SessionSync, sessionWorkspaceUri: getDraftWorkspaceConfig(session.sessionId, workspace, this._requestedWorkspaceConfig)?.uri, sessionFolders: workspace?.folders.map(folder => folder.root) });
+			this._workspacePicker.setSelectedWorkspace(folderUri, { fireEvent: false, origin: WorkspaceSelectionOrigin.SessionSync, sessionWorkspaceUri: this._getDraftWorkspaceConfig(session.sessionId, workspace)?.uri, sessionFolders: workspace?.folders.map(folder => folder.root) });
 		}
 	}
 
@@ -2414,7 +2398,7 @@ export class NewChatWidget extends Disposable {
 			this._reconcileWorkspaceEnvironment({ providerId: activeSession.providerId, preferDevContainer });
 		}
 		const workspace = activeSession.workspace.get();
-		this._workspacePicker.setSelectedWorkspace(folderUri, { fireEvent: false, providerId: activeSession.providerId, persist, preferDevContainer, origin, sessionWorkspaceUri: getDraftWorkspaceConfig(activeSession.sessionId, workspace, this._requestedWorkspaceConfig)?.uri, sessionFolders: workspace?.folders.map(folder => folder.root) });
+		this._workspacePicker.setSelectedWorkspace(folderUri, { fireEvent: false, providerId: activeSession.providerId, persist, preferDevContainer, origin, sessionWorkspaceUri: this._getDraftWorkspaceConfig(activeSession.sessionId, workspace)?.uri, sessionFolders: workspace?.folders.map(folder => folder.root) });
 		return folderUri;
 	}
 
@@ -3834,6 +3818,23 @@ export class NewChatWidget extends Disposable {
 	/** The workspace configuration this composer requested its draft in, for a provider that does not record it. */
 	private _requestedWorkspaceConfig: { readonly sessionId: string; readonly config: ISessionWorkspaceConfig | undefined } | undefined;
 
+	/**
+	 * The workspace configuration the draft `sessionId` of `workspace` is in: as it records it, or as this composer
+	 * requested it, for a provider that does not record it.
+	 */
+	private _getDraftWorkspaceConfig(sessionId: string, workspace: ISessionWorkspace | undefined): ISessionWorkspaceConfig | undefined {
+		const requested = this._requestedWorkspaceConfig;
+		return workspace?.workspaceConfig ?? (requested && requested.sessionId === sessionId ? requested.config : undefined);
+	}
+
+	/**
+	 * Whether the composer offers more folders for the session of its draft: only once the draft says its agent works in
+	 * them ({@link ISessionCapabilities.supportsChatFolders}). A provider that cannot drops the folders it is created with.
+	 */
+	private _supportsSessionFolders(reader: IReader): boolean {
+		return this._session.read(reader)?.capabilities.read(reader).supportsChatFolders === true;
+	}
+
 	private _isCurrentWorkspaceSelection(folderUri: URI | undefined): boolean {
 		const session = this._session.get();
 		if (!folderUri || !session || isSessionCreated(session) || this._pendingWorkspaceCreation
@@ -3857,7 +3858,7 @@ export class NewChatWidget extends Disposable {
 		const selected = this._workspacePicker.selectedWorkspaceConfig;
 		const config = selected && extUri.isEqual(selected.folders[0], folderUri) ? selected : undefined;
 		const workspace = session.workspace.get();
-		const draftConfig = getDraftWorkspaceConfig(session.sessionId, workspace, this._requestedWorkspaceConfig);
+		const draftConfig = this._getDraftWorkspaceConfig(session.sessionId, workspace);
 		const sameConfig = !draftConfig || !config
 			? !draftConfig && !config
 			: extUri.isEqual(draftConfig.uri, config.uri)
