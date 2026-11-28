@@ -326,6 +326,15 @@ export async function activate(context: vscode.ExtensionContext) {
 }
 
 async function watchPathDirectories(context: vscode.ExtensionContext, env: ITerminalEnvironment, pathExecutableCache: PathExecutableCache | undefined): Promise<void> {
+	if (isWindows) {
+		// On Windows, holding long-lived filesystem watchers on PATH directories opens directory
+		// handles (CreateFileW) that prevent installers and updaters from renaming or replacing
+		// application parent directories (e.g. MoveFileEx returning ERROR_ACCESS_DENIED #349080).
+		// Instead, PathExecutableCache on Windows validates directory mtimes on demand without
+		// keeping open handles.
+		return;
+	}
+
 	const pathDirectories = new Set<string>();
 
 	const envPath = env.PATH;

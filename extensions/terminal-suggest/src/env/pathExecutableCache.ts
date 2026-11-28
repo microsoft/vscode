@@ -18,11 +18,17 @@ export interface IExecutablesInPath {
 	labels: Set<string> | undefined;
 }
 
+interface ICachedDirectoryEntry {
+	executables: Set<ICompletionResource>;
+	mtimeMs: number;
+	lastCheckedMs: number;
+}
+
 export class PathExecutableCache implements vscode.Disposable {
 	private _disposables: vscode.Disposable[] = [];
 
 	private readonly _windowsExecutableExtensionsCache: WindowsExecutableExtensionsCache | undefined;
-	private _cachedExes: Map<string, Set<ICompletionResource> | undefined> = new Map();
+	private _cachedExes: Map<string, ICachedDirectoryEntry | undefined> = new Map();
 
 	private _inProgressRequest: {
 		env: ITerminalEnvironment;
@@ -106,7 +112,30 @@ export class PathExecutableCache implements vscode.Disposable {
 
 		for (const pathDir of paths) {
 			// Check if this directory is already cached
-			const cachedExecutables = this._cachedExes.get(pathDir);
+			let cachedExecutables: Set<ICompletionResource> | undefined;
+			const cachedEntry = this._cachedExes.get(pathDir);
+			if (cachedEntry) {
+				if (isWindows) {
+					const now = Date.now();
+					// On Windows, re-check directory mtime every 2 seconds without keeping open handles.
+					// This avoids holding open file handles that block parent directory renames (#349080)
+					// while ensuring replaced or updated PATH directories are detected (#331457).
+					if (now - cachedEntry.lastCheckedMs < 2000) {
+						cachedExecutables = cachedEntry.executables;
+					} else {
+						cachedEntry.lastCheckedMs = now;
+						const stat = await fs.stat(pathDir).catch(() => undefined);
+						if (stat?.isDirectory() && stat.mtimeMs === cachedEntry.mtimeMs) {
+							cachedExecutables = cachedEntry.executables;
+						} else {
+							this._cachedExes.delete(pathDir);
+						}
+					}
+				} else {
+					cachedExecutables = cachedEntry.executables;
+				}
+			}
+
 			if (cachedExecutables) {
 				for (const executable of cachedExecutables) {
 					const labelText = typeof executable.label === 'string' ? executable.label : executable.label.label;
@@ -127,7 +156,16 @@ export class PathExecutableCache implements vscode.Disposable {
 			for (const [i, resultSet] of resultSets.entries()) {
 				const pathDir = promisePaths[i];
 				if (!this._cachedExes.has(pathDir)) {
-					this._cachedExes.set(pathDir, resultSet || new Set());
+					let mtimeMs = 0;
+					if (isWindows) {
+						const stat = await fs.stat(pathDir).catch(() => undefined);
+						mtimeMs = stat?.mtimeMs ?? 0;
+					}
+					this._cachedExes.set(pathDir, {
+						executables: resultSet || new Set(),
+						mtimeMs,
+						lastCheckedMs: Date.now()
+					});
 				}
 			}
 		}
@@ -140,7 +178,7 @@ export class PathExecutableCache implements vscode.Disposable {
 				continue;
 			}
 			processedPaths.add(pathDir);
-			const dirExecutables = this._cachedExes.get(pathDir);
+			const dirExecutables = this._cachedExes.get(pathDir)?.executables;
 			if (dirExecutables) {
 				for (const executable of dirExecutables) {
 					executables.add(executable);
