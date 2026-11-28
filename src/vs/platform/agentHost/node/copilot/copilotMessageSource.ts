@@ -27,15 +27,18 @@ export function toCopilotMessageSource(provenance: AgentMessageProvenance | unde
 }
 
 /**
- * The SDK send options for a message a person did not author. `clientTurnId` is the host turn or
- * pending-message ID: the runtime echoes it on the message's `user.message` event and persists it, which
- * is how {@link isHostSentUserMessage} tells the message from the runtime's own injections.
+ * The SDK send options carry caller-turn identity independently of authorship. `clientTurnId` is the
+ * host turn or pending-message ID: the runtime persists and echoes it on `user.message`, which is how
+ * {@link isHostSentUserMessage} tells host messages from the runtime's own injections.
  */
 export function toCopilotMessageSourceOptions(source: MessageSource | undefined, clientTurnId: string | undefined): Pick<MessageOptions, 'source' | 'clientTurnId'> {
-	return source === undefined ? {} : { source, ...(clientTurnId ? { clientTurnId } : {}) };
+	return {
+		...(source === undefined ? {} : { source }),
+		...(clientTurnId ? { clientTurnId } : {}),
+	};
 }
 
-/** Whether the host sent this message. The runtime's own injections, such as skills and continuations, carry no caller turn ID. */
+/** Autopilot continuations inherit the caller's ID without becoming host-sent messages. */
 export function isHostSentUserMessage(event: SessionEvent): boolean {
-	return event.type === 'user.message' && !!event.data.clientTurnId;
+	return event.type === 'user.message' && !!event.data.clientTurnId && event.data.source?.toLowerCase() !== 'autopilot';
 }
