@@ -122,7 +122,7 @@ export async function prepareDevContainerSample(sample: DevContainerSample, cach
 		await writeAtomic(sourcePath, sourceContent);
 	}
 	const source: unknown = JSON.parse(sourceContent);
-	if (!isRecord(source) || typeof source.commit !== 'string' || !/^[a-f0-9]{40}$/.test(source.commit) || typeof source.content !== 'string') {
+	if (!isRecord(source) || typeof source.commit !== 'string' || !/^(?:[a-f0-9]{40}|[0-9a-f]{64})$/.test(source.commit) || typeof source.content !== 'string') {
 		throw new Error(localize('devContainerSample.invalidCache', "The cached sample configuration is invalid: {0}", sourcePath));
 	}
 	const config = parseDevContainerSampleConfiguration(source.content);

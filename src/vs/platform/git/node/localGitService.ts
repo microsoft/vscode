@@ -11,7 +11,7 @@ import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { IGitNetworkOptions, IGitPullOptions, ILocalGitService } from '../common/localGitService.js';
 
-const FULL_COMMIT_SHA_PATTERN = /^[0-9a-f]{40}$/i;
+const FULL_COMMIT_SHA_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i;
 
 export class LocalGitService implements ILocalGitService {
 	declare readonly _serviceBrand: undefined;
