@@ -417,10 +417,15 @@ class SessionsListFixtureMenuService extends MenuService {
 
 	override createMenu(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuCreateOptions): IMenu {
 		if (id === Menus.SidebarSessionsHeader) {
-			const newSession = new MenuItemAction({ id: NEW_SESSION_ACTION_ID, title: 'New Session', icon: Codicon.add }, undefined, undefined, undefined, undefined, contextKeyService, this.commandService);
+			const newMenuActions = [
+				{ id: NEW_SESSION_ACTION_ID, title: 'New Session', icon: Codicon.add },
+				{ id: 'sessionsView.newQuickChat', title: 'New Quick Chat' },
+				{ id: 'workbench.action.sessions.newSession.pickFolderQuickPick', title: 'New Session in Folder...' },
+			].map(command => new MenuItemAction(command, undefined, undefined, undefined, undefined, contextKeyService, this.commandService));
+			const newMenu = new SubmenuItemAction({ submenu: Menus.SidebarSessionsNew, title: 'New', icon: Codicon.add }, undefined, newMenuActions);
 			return {
 				onDidChange: Event.None,
-				getActions: () => SessionsListRearrangeContext.getValue(contextKeyService) ? [] : [['navigation', [newSession]]],
+				getActions: () => SessionsListRearrangeContext.getValue(contextKeyService) ? [] : [['navigation', [newMenu]]],
 				dispose: () => { },
 			};
 		}
@@ -1041,7 +1046,7 @@ async function renderHeaderState(container: HTMLElement, instantiationService: T
 			affectsConfiguration: configuration => configuration === NEW_SESSION_BUTTON_STYLE_SETTING,
 		});
 	}
-	const newSessionButton = container.querySelector('.agent-sessions-compact-new-button, .agent-sessions-header-row.inbox-layout .action-label.codicon-add');
+	const newSessionButton = container.querySelector('.agent-sessions-header-row .action-item.new-split-button, .agent-sessions-header-row.inbox-layout .action-label.codicon-add');
 	if (header.navigationShortcuts && newSessionButton) {
 		throw new Error('Expected the experimental navigation to replace the Sessions header New Session action.');
 	}
@@ -1049,10 +1054,10 @@ async function renderHeaderState(container: HTMLElement, instantiationService: T
 		throw new Error('Expected the production New Session action in the Sessions header.');
 	}
 	const style = header.newSessionButtonStyle ?? header.newSessionButtonTreatment;
-	if (style === 'lightweight' && !container.querySelector('.agent-sessions-compact-new-button.lightweight:not(.lightweight-keybinding-background)')) {
+	if (style === 'lightweight' && !container.querySelector('.agent-sessions-header-row .action-item.new-split-button.lightweight:not(.lightweight-keybinding-background)')) {
 		throw new Error('Expected the New Session action to render the lightweight style.');
 	}
-	if (style === 'lightweightWithKeybindingBackground' && !container.querySelector('.agent-sessions-compact-new-button.lightweight.lightweight-keybinding-background')) {
+	if (style === 'lightweightWithKeybindingBackground' && !container.querySelector('.agent-sessions-header-row .action-item.new-split-button.lightweight.lightweight-keybinding-background')) {
 		throw new Error('Expected the New Session action to render the lightweight keybinding-background style.');
 	}
 }

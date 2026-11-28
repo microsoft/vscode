@@ -16,7 +16,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, MenuRegistry, MenuId, registerAction2, MenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuRegistry, MenuId, registerAction2, MenuItemAction, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -41,7 +41,7 @@ import { getQuickNavigateHandler, inQuickPickContext } from '../../../../workben
 import { Menus, SessionHeaderMenus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { SessionsCategories } from '../../../../workbench/contrib/sessions/common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionHasSplitChatsContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionFocusedChatIsRenameTargetContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsNewChatSessionContext, SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT, SessionsListPromoteNewChatActionContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionHeaderTargetsChatContext, SessionInChatEditorContext, SessionItemIsMultiSelectionContext, IsPhoneLayoutContext, SessionToolbarShowsSessionContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionHasSplitChatsContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionFocusedChatIsRenameTargetContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsNewChatSessionContext, SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT, SessionsListPromoteNewChatActionContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionHeaderTargetsChatContext, SessionInChatEditorContext, SessionItemIsMultiSelectionContext, IsPhoneLayoutContext, SessionToolbarShowsSessionContext, SessionsListRearrangeContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { SessionsTitleBarNewSessionEnabledContext } from '../../../common/agentsWindowContextKeys.js';
 import { ARRANGE_SESSIONS_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, DETACH_CHAT_COMMAND_ID, EVEN_SESSION_SIZES_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SESSION_GRID_DOCK_COMMANDS, SESSION_GRID_FOCUS_COMMANDS, SESSION_GRID_MOVE_COMMANDS, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, TOGGLE_MAXIMIZE_SESSION_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
@@ -56,7 +56,9 @@ import { ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighe
 import { ISessionsPartService } from '../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { $, append, EventHelper, EventLike, getWindow, isMouseEvent, ModifierKeyEmitter, reset } from '../../../../base/browser/dom.js';
-import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { BaseActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { NewSplitButtonActionViewItem } from '../../../../workbench/contrib/sessions/browser/newSplitButton/newSplitButtonActionViewItem.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
@@ -1751,10 +1753,15 @@ export abstract class CompactButtonActionViewItem extends BaseActionViewItem {
 }
 
 /**
- * Renders the new-session action as the compact "New" pill, shared by the sessions sidebar
- * header and the titlebar.
+ * Renders the new-session action as the compact "New" pill of the titlebar.
  */
 export class NewSessionActionViewItem extends CompactButtonActionViewItem {
+
+	/** Styles a New button of the Agents window, also the New split button of the sessions header, as the experiment picked. */
+	static applyStyle(element: HTMLElement, style: NewSessionButtonStyle): void {
+		element.classList.toggle('lightweight', style === 'lightweight' || style === 'lightweightWithKeybindingBackground');
+		element.classList.toggle('lightweight-keybinding-background', style === 'lightweightWithKeybindingBackground');
+	}
 
 	constructor(
 		action: IAction,
@@ -1783,11 +1790,7 @@ export class NewSessionActionViewItem extends CompactButtonActionViewItem {
 	}
 
 	protected override configureButton(button: Button): void {
-		this._register(autorun(reader => {
-			const style = this.newSessionButtonStyle.read(reader);
-			button.element.classList.toggle('lightweight', style === 'lightweight' || style === 'lightweightWithKeybindingBackground');
-			button.element.classList.toggle('lightweight-keybinding-background', style === 'lightweightWithKeybindingBackground');
-		}));
+		this._register(autorun(reader => NewSessionActionViewItem.applyStyle(button.element, this.newSessionButtonStyle.read(reader))));
 	}
 
 	protected override getHoverContent(keybindingLabel: string | undefined): string {
@@ -1856,7 +1859,71 @@ export class NewSessionActionViewItem extends CompactButtonActionViewItem {
 }
 
 /**
- * Registers {@link NewSessionActionViewItem} in the sessions sidebar header and the titlebar.
+ * Renders the New menu of the sessions sidebar header as the shared "New" split button: "New" starts a new session, as
+ * {@link NewSessionActionViewItem} does, also to the side with Alt, and its dropdown opens the other ways to start one.
+ */
+export class NewSessionSplitButtonActionViewItem extends NewSplitButtonActionViewItem {
+
+	private readonly onDidRunNewSession = this._register(new Emitter<void>());
+
+	constructor(
+		menu: SubmenuItemAction,
+		private readonly newSessionAction: MenuItemAction,
+		options: IActionViewItemOptions | undefined,
+		private readonly newSessionButtonStyle: IObservable<NewSessionButtonStyle>,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@INotificationService notificationService: INotificationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ICommandService private readonly commandService: ICommandService,
+	) {
+		super(menu, newSessionAction, options, { showMenuKeybindings: true }, contextMenuService, keybindingService, notificationService);
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		const element = this.element;
+		if (!element) {
+			return;
+		}
+		this._register(autorun(reader => NewSessionActionViewItem.applyStyle(element, this.newSessionButtonStyle.read(reader))));
+		if (this.label) {
+			this._register(markOnboardingTarget(this.label, 'sessions.newSession.button', { onDidActivate: this.onDidRunNewSession.event }));
+		}
+	}
+
+	/** New Session, which is logged, and opens to the side with Alt, by mouse and keyboard alike. */
+	override getActionToRun(event?: EventLike & { readonly altKey?: boolean; readonly shiftKey?: boolean }): IAction {
+		const toSide = !!event?.altKey;
+		return toAction({
+			id: this.newSessionAction.id,
+			label: this.newSessionAction.label,
+			enabled: this.newSessionAction.enabled,
+			run: async (...args: unknown[]) => {
+				logSessionsInteraction(this.telemetryService, 'newSession', 'sidebar');
+				this.onDidRunNewSession.fire();
+				if (toSide) {
+					await this.commandService.executeCommand(NEW_SESSION_ACTION_ID, { toSide: true });
+				} else {
+					await this.newSessionAction.run(...args);
+				}
+			},
+		});
+	}
+}
+
+// The New menu of the sessions sidebar header, which shows as the New split button.
+MenuRegistry.appendMenuItem(Menus.SidebarSessionsHeader, {
+	submenu: Menus.SidebarSessionsNew,
+	title: localize2('sessions.newMenu', "New"),
+	icon: Codicon.add,
+	group: 'navigation',
+	order: 0,
+	when: SessionsListRearrangeContext.negate(),
+});
+
+/**
+ * Registers {@link NewSessionSplitButtonActionViewItem} in the sessions sidebar header and {@link NewSessionActionViewItem} in the titlebar.
  * The titlebar entry is gated behind an A/B experiment via {@link SessionsTitleBarNewSessionEnabledContext}.
  */
 export class NewSessionActionViewItemContribution extends Disposable implements IWorkbenchContribution {
@@ -1892,19 +1959,22 @@ export class NewSessionActionViewItemContribution extends Disposable implements 
 
 		const onDidRegister = this._register(new Emitter<void>());
 		// The title bar of a chat window shows the window's own New Session, in place of the main window's.
-		const entries: [MenuId, string][] = [[Menus.SidebarSessionsHeader, NEW_SESSION_ACTION_ID], [AgentsWindowMenus.TitleBarLeftLayout, NEW_SESSION_ACTION_ID], [AgentsWindowMenus.TitleBarLeftLayout, NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID]];
-		for (const [menu, commandId] of entries) {
-			const source: SessionsInteractionSource = menu === AgentsWindowMenus.TitleBarLeftLayout ? 'titleBar' : 'sidebar';
-			this._register(actionViewItemService.register(menu, commandId, (action, _options, instantiationService) => {
-				if (!(action instanceof MenuItemAction)) {
-					return undefined;
-				}
-				if (source === 'sidebar' && SessionsViewGroupingContext.getValue(contextKeyService) === SessionsGrouping.Inbox) {
-					return instantiationService.createInstance(MenuEntryActionViewItem, action, _options);
-				}
-				return instantiationService.createInstance(NewSessionActionViewItem, action, source, this.newSessionButtonStyle);
+		for (const commandId of [NEW_SESSION_ACTION_ID, NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID]) {
+			this._register(actionViewItemService.register(AgentsWindowMenus.TitleBarLeftLayout, commandId, (action, _options, instantiationService) => {
+				return action instanceof MenuItemAction ? instantiationService.createInstance(NewSessionActionViewItem, action, 'titleBar', this.newSessionButtonStyle) : undefined;
 			}, onDidRegister.event));
 		}
+		// The sessions header shows its New menu as the New split button, or as the New Session icon in the Inbox layout.
+		this._register(actionViewItemService.register(Menus.SidebarSessionsHeader, Menus.SidebarSessionsNew, (action, options, instantiationService) => {
+			const newSession = action instanceof SubmenuItemAction ? action.actions.find(candidate => candidate.id === NEW_SESSION_ACTION_ID) : undefined;
+			if (!(action instanceof SubmenuItemAction) || !(newSession instanceof MenuItemAction)) {
+				return undefined;
+			}
+			if (SessionsViewGroupingContext.getValue(contextKeyService) === SessionsGrouping.Inbox) {
+				return instantiationService.createInstance(MenuEntryActionViewItem, newSession, options);
+			}
+			return instantiationService.createInstance(NewSessionSplitButtonActionViewItem, action, newSession, options, this.newSessionButtonStyle);
+		}, onDidRegister.event));
 		onDidRegister.fire();
 
 		// Resolve the titlebar experiment now and on refetch.

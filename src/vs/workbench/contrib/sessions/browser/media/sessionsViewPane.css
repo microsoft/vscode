@@ -145,11 +145,30 @@
 		display: flex;
 		align-items: center;
 		margin-left: auto;
-		flex-shrink: 0;
+		min-width: 0;
+	}
+
+	.agent-sessions-header-actions :is(.monaco-toolbar, .monaco-action-bar, .actions-container) {
+		min-width: 0;
 	}
 
 	.agent-sessions-header-actions .actions-container {
 		gap: 4px;
+	}
+
+	/* When the actions don't fit, only the primary part of the New split button gives way: it clips its own content, so every action stays visible and reachable. */
+	.agent-sessions-header-actions .action-item {
+		flex-shrink: 0;
+	}
+
+	.agent-sessions-header-actions .action-item.new-split-button {
+		flex-shrink: 1;
+		min-width: 0;
+	}
+
+	.agent-sessions-header-actions .action-item.new-split-button > .action-label {
+		min-width: 0;
+		overflow: hidden;
 	}
 
 	.sessions-inbox-scope {
@@ -248,7 +267,7 @@
 		justify-content: center;
 	}
 
-	/* Compact "New" button in header — styled in media/newSessionActionViewItem.css so the same widget can also render in the titlebar. */
+	/* "New" split button in header — styled in newSplitButton/media/newSplitButton.css, as in the Chat view's sessions list. */
 
 	.agent-sessions-control-container {
 		flex: 1;
