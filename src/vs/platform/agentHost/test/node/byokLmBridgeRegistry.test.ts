@@ -60,6 +60,38 @@ suite('ByokLmBridgeRegistry', () => {
 		regNonServing.dispose();
 	});
 
+	test('selects the requested serving client without falling back to another window', () => {
+		const registry = new ByokLmBridgeRegistry();
+		const first = pushable();
+		const second = pushable();
+		const firstRegistration = registry.register('first', first.connection);
+		const secondRegistration = registry.register('second', second.connection);
+		first.push([{ vendor: 'acme', id: 'model' }]);
+		second.push([{ vendor: 'acme', id: 'model' }]);
+
+		assert.deepStrictEqual({
+			selected: registry.getServingConnection('second') === second.connection,
+			missing: registry.getServingConnection('missing'),
+		}, { selected: true, missing: undefined });
+		firstRegistration.dispose();
+		secondRegistration.dispose();
+	});
+
+	test('uses a replacement connection only after it becomes serving', () => {
+		const registry = new ByokLmBridgeRegistry();
+		const original = pushable();
+		const replacement = pushable();
+		const originalRegistration = registry.register('client', original.connection);
+		original.push([{ vendor: 'acme', id: 'model' }]);
+		const replacementRegistration = registry.register('client', replacement.connection);
+		const beforeSnapshot = registry.getServingConnection('client');
+		originalRegistration.dispose();
+		replacement.push([{ vendor: 'acme', id: 'model' }]);
+		assert.deepStrictEqual({ beforeSnapshot, replacement: registry.getServingConnection('client') === replacement.connection },
+			{ beforeSnapshot: undefined, replacement: true });
+		replacementRegistration.dispose();
+	});
+
 	test('a window that pushes an empty list is still a valid serving target', () => {
 		const registry = new ByokLmBridgeRegistry();
 		const only = pushable();

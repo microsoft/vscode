@@ -1666,6 +1666,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@IAgentHostAuthenticationService private readonly _authenticationService: IAgentHostAuthenticationService,
 	) {
 		super();
+		this._register(byokLmProxyService.registerClientResolver(sessionId => this._findSessionBySdkId(sessionId)?.currentTurnClientId));
 		this._managedSettingsResolver = this._register(new CopilotManagedSettingsResolver(this._logService));
 		this._entraAuthentication = this._accountService.authentication;
 		if (this._entraAuthentication) {
