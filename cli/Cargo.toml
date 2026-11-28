@@ -47,10 +47,8 @@ log = "0.4.18"
 const_format = "0.2.31"
 sha2 = "0.10.6"
 base64 = "0.22"
-shell-escape = "0.1.5"
 thiserror = "2"
 cfg-if = "1.0.0"
-pin-project = "1.1.0"
 console = "0.15.7"
 bytes = "1.11.1"
 tar = "0.4.46"
@@ -67,6 +65,8 @@ winresource = "0.1"
 regex = { version = "1.8.3", default-features = false, features = ["std", "unicode-perl"] }
 
 [target.'cfg(windows)'.dependencies]
+pin-project = "1.1.0"
+shell-escape = "0.1.5"
 winreg = "0.56"
 winapi = "0.3.9"
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_Security_Authorization", "Win32_Storage_FileSystem", "Win32_System_Console", "Win32_System_Threading", "Win32_System_WindowsProgramming", "Win32_UI_Input_KeyboardAndMouse"] }
