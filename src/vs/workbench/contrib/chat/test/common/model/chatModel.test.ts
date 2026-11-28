@@ -1657,6 +1657,50 @@ suite('Response', () => {
 		]);
 	});
 
+	test('status notices remain distinct from surrounding response content', async () => {
+		const deferred = new DeferredPromise<string | void>();
+		const progressTask: IChatTask = {
+			kind: 'progressTask',
+			content: new MarkdownString('Compacting conversation...'),
+			deferred,
+			progress: [],
+			onDidAddProgress: Event.None,
+			add: () => { },
+			complete: result => deferred.complete(result),
+			task: () => deferred.p,
+			isSettled: () => deferred.isSettled,
+			toJSON: () => ({ kind: 'progressTaskSerialized', content: progressTask.content, progress: progressTask.progress }),
+		};
+		const streamed = store.add(new Response([]));
+		streamed.updateContent({ kind: 'markdownContent', content: new MarkdownString('Checking the workspace.') });
+		streamed.updateContent(progressTask);
+		progressTask.complete('Compacted conversation');
+		await progressTask.task();
+		streamed.updateContent({ kind: 'markdownContent', content: new MarkdownString('Yes, see ') });
+		streamed.updateContent({ kind: 'inlineReference', inlineReference: URI.parse('https://microsoft.com/') });
+		streamed.updateContent({ kind: 'markdownContent', content: new MarkdownString(' for details.') });
+
+		const restored = (status: SerializedChatResponsePart) => store.add(new Response([
+			status,
+			{ kind: 'markdownContent', content: new MarkdownString('Yes, that ') },
+			{ kind: 'markdownContent', content: new MarkdownString('was a deviation.') },
+		])).toString();
+
+		assert.deepStrictEqual({
+			progressTask: streamed.toString(),
+			progressTaskSerialized: restored({ kind: 'progressTaskSerialized', content: new MarkdownString('Compacted conversation'), progress: [] }),
+			warning: restored({ kind: 'warning', content: new MarkdownString('Compacted conversation') }),
+			info: restored({ kind: 'info', content: new MarkdownString('Compacted conversation') }),
+			withoutText: restored({ kind: 'info', content: new MarkdownString('') }),
+		}, {
+			progressTask: 'Checking the workspace.\n\nCompacted conversation\n\nYes, see https://microsoft.com/ for details.',
+			progressTaskSerialized: 'Compacted conversation\n\nYes, that was a deviation.',
+			warning: 'Compacted conversation\n\nYes, that was a deviation.',
+			info: 'Compacted conversation\n\nYes, that was a deviation.',
+			withoutText: 'Yes, that was a deviation.',
+		});
+	});
+
 	test('inline reference', async () => {
 		const response = store.add(new Response([]));
 		response.updateContent({ content: new MarkdownString('text before '), kind: 'markdownContent' });
