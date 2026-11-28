@@ -60,6 +60,16 @@ export const SESSIONS_LIST_INBOX_ENABLED_SETTING = 'sessions.list.inboxEnabled';
 
 export const SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING = 'sessions.list.inboxAutoAdvance';
 
+/** How attention priority combines with recency when Inbox rows are sorted by update time. */
+export const SESSIONS_LIST_INBOX_PRIORITY_ORDER_SETTING = 'sessions.list.inboxPriorityOrder';
+
+export const enum InboxPriorityOrder {
+	/** Under Sort by Updated, a higher priority counts as a fixed amount of extra recency, so old notifications cannot outrank recent activity. */
+	HeadStart = 'headStart',
+	/** A higher priority always sorts first, whatever its age. */
+	Strict = 'strict',
+}
+
 /** When automation sessions automatically also appear in the Sessions list. */
 export const SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING = 'sessions.list.showAutomationSessions';
 

@@ -18,6 +18,7 @@ import { getSessionComparisonChat, getSessionComparisonHarnessDisplayLabel, getS
 import { compareSessionEnvironments, getSessionEnvironments } from './sessionsListFilters.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { InboxNotificationPriority } from '../../common/sessionAttentionService.js';
+import { InboxPriorityOrder } from '../../common/sessionConfig.js';
 import { IRecentSessionWorkspace } from '../../common/sessionWorkspaces.js';
 import { getSessionInboxPriority, getSessionInboxSection, SessionInboxSection, sessionInboxSections } from '../../common/sessionInbox.js';
 
@@ -449,6 +450,7 @@ export function groupSessionsForList(
 	quickChatsInTimeGrouping = false,
 	quickChatsSection = true,
 	workspaces?: ISessionListWorkspaces,
+	inboxPriorityOrder = InboxPriorityOrder.HeadStart,
 ): ISessionSection[] {
 	const sorted = sortSessions(sessions, sorting, getSortKey);
 
@@ -488,7 +490,7 @@ export function groupSessionsForList(
 		if (grouping === SessionsGrouping.Workspace && workspaces) {
 			return groupByWorkspaces(regular, workspaces);
 		} else if (grouping === SessionsGrouping.Inbox) {
-			return groupByInboxSection(regular, sorting, getInboxSection, getInboxPriority);
+			return groupByInboxSection(regular, sorting, getInboxSection, getInboxPriority, inboxPriorityOrder);
 		} else if (grouping === SessionsGrouping.Workspace) {
 			return groupByWorkspace(regular);
 		} else if (grouping === SessionsGrouping.Repository) {
@@ -513,21 +515,45 @@ export function groupSessionsForList(
 	return sections;
 }
 
+/** How much later than its update time a session of each attention priority sorts with {@link InboxPriorityOrder.HeadStart}. */
+const INBOX_PRIORITY_HEAD_START_MS: Record<InboxNotificationPriority, number> = {
+	[InboxNotificationPriority.Now]: 24 * 60 * 60 * 1000,
+	[InboxNotificationPriority.Next]: 2 * 60 * 60 * 1000,
+	[InboxNotificationPriority.Later]: 0,
+};
+
+/** The inputs that order an Inbox row: its attention priority and its created or updated time, per the sorting. */
+export interface IInboxRowOrder {
+	readonly priority: InboxNotificationPriority;
+	readonly time: number;
+}
+
+/**
+ * Orders Inbox rows, newest first. Sorted by update time with {@link InboxPriorityOrder.HeadStart}, a higher priority counts
+ * as extra recency; otherwise it always sorts first. Shared by session rows and comparison groups so they cannot disagree.
+ */
+export function compareInboxRows(a: IInboxRowOrder, b: IInboxRowOrder, sorting: SessionsSorting, priorityOrder: InboxPriorityOrder): number {
+	if (sorting === SessionsSorting.Updated && priorityOrder === InboxPriorityOrder.HeadStart) {
+		return (b.time + INBOX_PRIORITY_HEAD_START_MS[b.priority]) - (a.time + INBOX_PRIORITY_HEAD_START_MS[a.priority]);
+	}
+	return a.priority - b.priority || b.time - a.time;
+}
+
 /** Buckets sessions into the Inbox sections the list renders, classifying each session once. */
-function groupByInboxSection(sessions: ISession[], sorting: SessionsSorting, getInboxSection: (session: ISession) => SessionInboxSection, getInboxPriority: (session: ISession) => InboxNotificationPriority): ISessionSection[] {
+function groupByInboxSection(sessions: ISession[], sorting: SessionsSorting, getInboxSection: (session: ISession) => SessionInboxSection, getInboxPriority: (session: ISession) => InboxNotificationPriority, priorityOrder: InboxPriorityOrder): ISessionSection[] {
 	const buckets = new Map<SessionInboxSection, ISession[]>(sessionInboxSections.map(id => [id, []]));
-	const priorities = new Map<ISession, InboxNotificationPriority>();
+	const rows = new Map<ISession, IInboxRowOrder>();
 	for (const session of sessions) {
 		const bucket = buckets.get(getInboxSection(session));
 		if (bucket) {
 			bucket.push(session);
-			priorities.set(session, getInboxPriority(session));
+			rows.set(session, { priority: getInboxPriority(session), time: defaultSortKey(session, sorting) });
 		}
 	}
 	return sessionInboxSections.map(id => ({
 		id,
 		label: getSessionInboxSectionLabel(id),
-		sessions: sortSessions(buckets.get(id)!, sorting).sort((a, b) => priorities.get(a)! - priorities.get(b)!),
+		sessions: buckets.get(id)!.sort((a, b) => compareInboxRows(rows.get(a)!, rows.get(b)!, sorting, priorityOrder)),
 	}));
 }
 

@@ -90,7 +90,7 @@ import { IsPhoneLayoutContext, SessionIsArchivedContext, SessionSupportsMultiple
 import { WorkbenchScopeContext } from '../../../../../workbench/common/contextkeys.js';
 import { ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID, ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSION_GROUP_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { getSessionApplication } from '../../../../../workbench/services/sessions/common/sessionApplication.js';
-import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING, SESSIONS_WORKSPACES_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { ExternalSessionApplicationBadgeMode, InboxPriorityOrder, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING, SESSIONS_LIST_INBOX_PRIORITY_ORDER_SETTING, SESSIONS_WORKSPACES_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { ICustomViewService, type ICustomViewDescriptor } from '../../../../../workbench/contrib/sessions/browser/customView.js';
@@ -7683,6 +7683,30 @@ suite('Sessions - SessionsList', () => {
 			]);
 		});
 
+		test('inbox gives attention priorities a head start over recent activity when sorted by Updated, unless strict', () => {
+			const now = Date.now();
+			const at = (msAgo: number) => ({ createdAt: new Date(now - msAgo), updatedAt: new Date(now - msAgo) });
+			const hour = 60 * 60 * 1000;
+			const staleFailing = createSession('staleFailing', at(10 * 24 * hour));
+			const freshFailing = createSession('freshFailing', at(2 * hour));
+			const merged = createSession('merged', at(3 * hour));
+			const recent = createSession('recent', at(3 * 60 * 1000));
+			const priorities = new Map<ISession, InboxNotificationPriority>([[staleFailing, InboxNotificationPriority.Now], [freshFailing, InboxNotificationPriority.Now], [merged, InboxNotificationPriority.Next]]);
+			const order = (sorting: SessionsSorting, priorityOrder: InboxPriorityOrder) => groupSessionsForList([staleFailing, freshFailing, merged, recent], SessionsGrouping.Inbox, sorting, () => false,
+				undefined, undefined, true, [], () => SessionInboxSection.ReadyForYou, session => priorities.get(session) ?? InboxNotificationPriority.Later,
+				false, true, undefined, priorityOrder)
+				.find(section => section.id === SessionInboxSection.ReadyForYou)!.sessions.map(session => session.sessionId);
+			assert.deepStrictEqual({
+				headStart: order(SessionsSorting.Updated, InboxPriorityOrder.HeadStart),
+				strict: order(SessionsSorting.Updated, InboxPriorityOrder.Strict),
+				created: order(SessionsSorting.Created, InboxPriorityOrder.HeadStart),
+			}, {
+				headStart: ['freshFailing', 'recent', 'merged', 'staleFailing'],
+				strict: ['freshFailing', 'staleFailing', 'merged', 'recent'],
+				created: ['freshFailing', 'staleFailing', 'merged', 'recent'],
+			});
+		});
+
 		test('inbox displays the session timestamps used to order rows with no attention notifications', () => {
 			const now = Date.now();
 			const specs = [
@@ -7902,7 +7926,7 @@ suite('Sessions - SessionsList', () => {
 		test('inbox renders historical and explicit triage state and restores custom placement when leaving the mode', async () => {
 			const grouped = createTestSession('grouped');
 			const running = createTestSession('running', { status: SessionStatus.InProgress, updatedAt: new Date(1) });
-			const ready = createTestSession('ready', { updatedAt: new Date(3) });
+			const ready = createTestSession('ready', { updatedAt: new Date(Date.now() - 1000) });
 			const pinned = createTestSession('pinned', { status: SessionStatus.InProgress });
 			const items = [grouped.session, running.session, ready.session, pinned.session];
 			const group: ISessionGroup = { id: 'later', name: 'Later', createdAt: 1 };
@@ -11184,7 +11208,7 @@ suite('Sessions - SessionsList', () => {
 			'Judge: Copilot · Claude Opus 5', 'Synthesizer: Copilot · Claude Opus 5',
 		].join('\n');
 
-		function renderComparison(verdict?: ISessionComparison['verdict'], sessionVariant: 'all' | 'attempt1' | 'none' | 'launching' = 'all', pinnedSessionIds: ReadonlySet<string> = new Set(), includeOrdinaryWorkspace = false, grouping = SessionsGrouping.Workspace, sectionParent?: ISessionGroup, configure?: (harness: ReturnType<typeof createListHarness>) => void, mixedHarnesses = false, presentation: { compact?: boolean; phone?: boolean; originatingChatResource?: URI; folderless?: boolean; groupParentId?: string; findWidgetContainer?: HTMLElement } = {}) {
+		function renderComparison(verdict?: ISessionComparison['verdict'], sessionVariant: 'all' | 'attempt1' | 'none' | 'launching' = 'all', pinnedSessionIds: ReadonlySet<string> = new Set(), includeOrdinaryWorkspace = false, grouping = SessionsGrouping.Workspace, sectionParent?: ISessionGroup, configure?: (harness: ReturnType<typeof createListHarness>) => void, mixedHarnesses = false, presentation: { compact?: boolean; phone?: boolean; originatingChatResource?: URI; folderless?: boolean; groupParentId?: string; findWidgetContainer?: HTMLElement; sorting?: SessionsSorting } = {}) {
 			const attempt1 = createTestSession('Stored attempt one', { resourceId: 'attempt-1', status: SessionStatus.InProgress, isQuickChat: presentation.folderless });
 			const attempt2 = createTestSession('Stored attempt two', { resourceId: 'attempt-2', status: SessionStatus.InProgress, application: 'github/cli', isQuickChat: presentation.folderless });
 			const judge = createTestSession('Judge', { resourceId: 'judge', status: SessionStatus.InProgress, application: 'github/cli', isQuickChat: presentation.folderless });
@@ -11297,7 +11321,7 @@ suite('Sessions - SessionsList', () => {
 			container.style.setProperty('--vscode-strokeThickness', '1px');
 			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
 				grouping: () => grouping,
-				sorting: () => SessionsSorting.Created,
+				sorting: () => presentation.sorting ?? SessionsSorting.Created,
 				compact: () => presentation.compact ?? false,
 				findWidgetContainer: presentation.findWidgetContainer,
 				onSessionOpen: () => { },
@@ -11580,6 +11604,25 @@ suite('Sessions - SessionsList', () => {
 				resumed: [[SessionInboxSection.ReadyForYou, ['group:comparison-group']], [SessionInboxSection.Acknowledged, ['recent']]],
 			});
 		});
+
+		for (const priorityOrder of [InboxPriorityOrder.HeadStart, InboxPriorityOrder.Strict]) {
+			test(`inbox orders comparison groups and ordinary sessions alike by attention priority and activity (${priorityOrder})`, async () => {
+				const { list, attempt1 } = renderComparison(undefined, 'all', new Set(), false, SessionsGrouping.Inbox, undefined, harness => {
+					harness.managementService.sessions.push(
+						createTestSession('Stale waiting', { resourceId: 'stale', status: SessionStatus.NeedsInput, updatedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000) }).session,
+						createTestSession('Recent', { resourceId: 'recent' }).session,
+					);
+					harness.instantiationService.stub(ISessionsListModelService, disposables.add(harness.instantiationService.createInstance(SessionsListModelService)));
+					void (harness.instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_INBOX_PRIORITY_ORDER_SETTING, priorityOrder);
+				}, false, { sorting: SessionsSorting.Updated });
+				attempt1.status.set(SessionStatus.NeedsInput, undefined);
+				list.update(true);
+				const readyForYou = list.getTreeSnapshot().flatMap(node => node.type === 'section' && node.id === SessionInboxSection.ReadyForYou ? node.children.map(child => child.type === 'session' ? child.session.sessionId : child.id) : []);
+				assert.deepStrictEqual(readyForYou, priorityOrder === InboxPriorityOrder.HeadStart
+					? ['group:comparison-group', 'recent', 'stale']
+					: ['group:comparison-group', 'stale', 'recent']);
+			});
+		}
 
 		for (const outcome of ['success', 'cancelled', 'disabled', 'reduced motion', 'failure'] as const) {
 			test(`group Mark All as Done confetti: ${outcome}`, async () => {
