@@ -717,7 +717,9 @@ export class WorkspacePicker extends Disposable {
 						// The workspace starts with another folder now: it stays selected, in that folder, where a composer can work in it.
 						// Its file changed, not the user's pick.
 						const source = this._preselectionSource === NewSessionWorkspacePreselectionSource.User ? NewSessionWorkspacePreselectionSource.ProvidedWorkspace : this._preselectionSource;
+						const userHasPicked = this._userHasPicked;
 						this._selectFolder(folders[0], false, this._selectedResolved?.providerId, false, source, this._selectionOrigin, workspaceUri, this._addedSessionFolders);
+						this._userHasPicked = userHasPicked;
 					} else {
 						this._onDidChangeSelection.fire();
 					}
