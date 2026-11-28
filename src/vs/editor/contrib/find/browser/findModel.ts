@@ -537,6 +537,8 @@ export class FindModelBoundToEditorModel {
 		}
 
 		let searchRegex = searchData.regex;
+		// A search that is not multiline matches each line on its own, so it must not match across lines (e.g. `[^/]` must not match `\n`)
+		const replaceLineByLine = !searchRegex.multiline;
 		if (!searchRegex.multiline) {
 			let mod = 'mu';
 			if (searchRegex.ignoreCase) {
@@ -553,17 +555,21 @@ export class FindModelBoundToEditorModel {
 		const fullModelRange = model.getFullModelRange();
 
 		const replacePattern = this._getReplacePattern();
-		let resultText: string;
 		const preserveCase = this._state.preserveCase;
 
-		if (replacePattern.hasReplacementPatterns || preserveCase) {
-			resultText = modelText.replace(searchRegex, function () {
-				// eslint-disable-next-line local/code-no-any-casts
-				return replacePattern.buildReplaceString(<string[]><any>arguments, preserveCase);
-			});
-		} else {
-			resultText = modelText.replace(searchRegex, replacePattern.buildReplaceString(null, preserveCase));
-		}
+		const replaceInText = (text: string): string => {
+			if (replacePattern.hasReplacementPatterns || preserveCase) {
+				return text.replace(searchRegex, function () {
+					// eslint-disable-next-line local/code-no-any-casts
+					return replacePattern.buildReplaceString(<string[]><any>arguments, preserveCase);
+				});
+			}
+			return text.replace(searchRegex, replacePattern.buildReplaceString(null, preserveCase));
+		};
+
+		const resultText = replaceLineByLine
+			? modelText.split('\n').map(replaceInText).join('\n')
+			: replaceInText(modelText);
 
 		const command = new ReplaceCommandThatPreservesSelection(fullModelRange, resultText, this._editor.getSelection());
 		this._executeEditorCommand('replaceAll', command);
