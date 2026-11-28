@@ -120,6 +120,60 @@ suite('Themes - TokenStyleResolving', () => {
 		});
 	});
 
+	test('defaultLibrary methods and functions resolve through the support scopes', async () => {
+		const themeData = ColorThemeData.createLoadedEmptyTheme('test', 'test');
+		themeData.setCustomColors({ 'editor.foreground': '#000000' });
+		themeData.setCustomTokenColors({
+			textMateRules: [
+				{
+					scope: 'entity.name.function.member',
+					settings: { foreground: '#aa0000' }
+				},
+				{
+					scope: 'support.function',
+					settings: { foreground: '#00aa00' }
+				}
+			]
+		});
+
+		// symbols from a default library are styled like the theme styles support scopes,
+		// while symbols of user code keep their own styling
+		assertTokenStyles(themeData, {
+			'function.defaultLibrary': ts('#00aa00', undefinedStyle),
+			'method.defaultLibrary': ts('#00aa00', undefinedStyle),
+			'member.defaultLibrary': ts('#00aa00', undefinedStyle),
+			'function': ts('#00aa00', undefinedStyle),
+			'method': ts('#aa0000', undefinedStyle)
+		}, 'rust');
+	});
+
+	test('Dark 2026 and Light 2026 style defaultLibrary tokens with the theme support color', async () => {
+		for (const { file, selector, supportColor, functionColor } of [
+			{ file: '2026-dark.json', selector: 'vs-dark', supportColor: '#79c0ff', functionColor: '#d2a8ff' },
+			{ file: '2026-light.json', selector: 'vs', supportColor: '#0550ae', functionColor: '#8250df' }
+		] as const) {
+			const themeData = ColorThemeData.createUnloadedTheme(selector);
+			themeData.location = FileAccess.asFileUri(`vs/../../extensions/theme-defaults/themes/${file}`);
+			await themeData.ensureLoaded(extensionResourceLoaderService);
+
+			// the themes inherit more specific `support.*` rules from the themes they include.
+			// the rules of the theme itself must win so that library symbols are styled with
+			// the support color of the theme instead of the inherited one
+			assertTokenStyles(themeData, {
+				'function.defaultLibrary': ts(supportColor, undefinedStyle),
+				'method.defaultLibrary': ts(supportColor, undefinedStyle),
+				'member.defaultLibrary': ts(supportColor, undefinedStyle),
+				'type.defaultLibrary': ts(supportColor, undefinedStyle),
+				'class.defaultLibrary': ts(supportColor, undefinedStyle),
+				'interface.defaultLibrary': ts(supportColor, undefinedStyle),
+				'variable.defaultLibrary': ts(supportColor, undefinedStyle),
+				'property.defaultLibrary': ts(supportColor, undefinedStyle),
+				'function': ts(functionColor, undefinedStyle),
+				'method': ts(functionColor, undefinedStyle)
+			}, 'rust');
+		}
+	});
+
 	test('resolveScopes', async () => {
 		const themeData = ColorThemeData.createLoadedEmptyTheme('test', 'test');
 
