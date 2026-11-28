@@ -3493,7 +3493,9 @@ export class NewChatWidget extends Disposable {
 		}
 		// A hosted composer creating its draft again, such as after a send that failed, sends the draft that creation makes
 		if (!session && this._draftHost && pendingCreation) {
-			session = (await pendingCreation.catch(() => undefined))?.session;
+			const created = await pendingCreation.catch(() => undefined);
+			// Not a draft it fell back to, which it did not create
+			session = created?.created ? created.session : undefined;
 		}
 		if (!session) {
 			this._workspacePicker.showPicker();
@@ -3539,7 +3541,7 @@ export class NewChatWidget extends Disposable {
 		}
 		// A comparison is sent as it was asked for, or not at all: a replacement of the draft can change or reset it
 		if (this._getComparisonIntent() !== comparison) {
-			this.notificationService.warn(localize('newChatWidget.comparisonChanged', "The agents to compare changed while the session's workspace changed. Check them and send again."));
+			this.notificationService.warn(localize('newChatWidget.comparisonChanged', "The agents to compare changed before the request was sent. Check them and send again."));
 			return false;
 		}
 		const workspaceRoots = this._getWorkspaceRoots(session);

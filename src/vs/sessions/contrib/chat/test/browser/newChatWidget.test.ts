@@ -4655,16 +4655,17 @@ suite('NewChatWidget', () => {
 		});
 	});
 
-	for (const meanwhile of ['otherWorkspace', 'otherAgent', 'hostedOtherAgent', 'comparisonReset'] as const) {
+	for (const meanwhile of ['otherWorkspace', 'otherAgent', 'hostedOtherAgent', 'hostedFallback', 'comparisonReset'] as const) {
 		test(`a send waiting for its draft's replacement sends nothing ${{
 			otherWorkspace: 'to a workspace the user picks meanwhile',
 			otherAgent: 'to another agent\'s draft the user picks meanwhile in the same workspace',
 			hostedOtherAgent: 'to another agent\'s draft the user picks while a hosted composer creates its draft',
+			hostedFallback: 'to a draft a hosted composer\'s creation fell back to rather than created',
 			comparisonReset: 'when the comparison it was sent with is reset meanwhile',
 		}[meanwhile]}, keeping the input`, async () => {
 			const reconcileDraftBeforeSend = Reflect.get(NewChatWidget.prototype, '_reconcileDraftBeforeSend') as ISendHarness['_reconcileDraftBeforeSend'];
 			const draft = (sessionId: string) => upcastPartial<ISession>({ sessionId, ...withCreatedStatus(constObservable(false)) });
-			const hosted = meanwhile === 'hostedOtherAgent';
+			const hosted = meanwhile === 'hostedOtherAgent' || meanwhile === 'hostedFallback';
 			// A hosted composer with no draft as Send is pressed, creating it again
 			const session = observableValue<ISession | undefined>('session', hosted ? undefined : draft('a'));
 			const replacing = new DeferredPromise<void>();
@@ -4708,14 +4709,16 @@ suite('NewChatWidget', () => {
 			if (meanwhile === 'otherWorkspace') {
 				picker.selectionId++;
 			}
+			const shown = draft('b');
 			if (meanwhile === 'comparisonReset') {
 				comparing = false;
 			} else {
-				session.set(draft('b'), undefined);
+				session.set(shown, undefined);
 			}
 			composer._workspaceFoldersReconciliation = undefined;
 			replacing.complete();
-			creating.complete({ session: draft('created'), trustDeclined: false, created: true });
+			// The creation makes its draft, or fails and returns the draft shown, which it did not create
+			creating.complete(meanwhile === 'hostedFallback' ? { session: shown, trustDeclined: false } : { session: draft('created'), trustDeclined: false, created: true });
 			assert.deepStrictEqual({ result: await sending, sent, consumed, warned: warnings.length > 0 }, {
 				result: false, sent: [], consumed: [], warned: meanwhile === 'comparisonReset',
 			});
@@ -7809,7 +7812,7 @@ suite('NewChatWidget', () => {
 						// As `SessionsService.openNewSession` for a draft slot: a folder no provider can serve leaves the slot's draft.
 						openNewSession: async (options: IOpenNewSessionOptions) => {
 							try {
-								return { session: options.draftSlot!.createNewSession(options.folderUri!, options), trustDeclined: false };
+								return { session: options.draftSlot!.createNewSession(options.folderUri!, options), trustDeclined: false, created: true };
 							} catch {
 								return { session: options.draftSlot!.newSession.get(), trustDeclined: false };
 							}
@@ -7984,7 +7987,7 @@ suite('NewChatWidget', () => {
 					sessionsService: {
 						openNewSession: async (options: IOpenNewSessionOptions) => {
 							await creating?.p;
-							return { session: options.draftSlot!.createNewSession(options.folderUri!, options), trustDeclined: false };
+							return { session: options.draftSlot!.createNewSession(options.folderUri!, options), trustDeclined: false, created: true };
 						},
 						openSession: async () => assert.fail('A hosted composer must not change the grid'),
 					},
