@@ -1381,11 +1381,20 @@ export class AgentHostSessionConfigPicker extends Disposable {
 
 		// Static enum: schema.enum/enumLabels already carry a reliable
 		// label mapping, so there's no need to cache these separately.
-		return (schema.enum ?? []).map((value, index): IConfigPickerItem => ({
-			value: String(value),
-			label: schema.enumLabels?.[index] ?? String(value),
-			description: schema.enumDescriptions?.[index],
-		})).concat(this._getWorktreeForAllFoldersItems(provider, sessionId, property, schema, !this._isDevContainerWorktreeEnabled() && provider.isDevContainerEnabled?.(sessionId) === true));
+		const isolationChoice = this._isNewSessionIsolationChoice(sessionId, property, schema);
+		const worktreeDisabled = isolationChoice && !this._isDevContainerWorktreeEnabled() && provider.isDevContainerEnabled?.(sessionId) === true;
+		return (schema.enum ?? []).map((value, index): IConfigPickerItem => value === 'worktree' && worktreeDisabled
+			? {
+				value,
+				label: schema.enumLabels?.[index] ?? value,
+				description: localize('agentHostSessionConfig.isolation.devContainerDisabled', "New Worktree cannot be combined with Dev Container execution."),
+				disabled: true,
+			}
+			: {
+				value: String(value),
+				label: schema.enumLabels?.[index] ?? String(value),
+				description: schema.enumDescriptions?.[index],
+			}).concat(this._getWorktreeForAllFoldersItems(provider, sessionId, property, schema, worktreeDisabled));
 	}
 
 	/**

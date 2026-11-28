@@ -833,6 +833,31 @@ suite('Agent Host Session Config Picker', () => {
 		assert.deepStrictEqual({ writes: services.provider.setSessionConfigValueArguments, errors: services.notificationErrors }, { writes: [], errors: [] });
 	});
 
+	test('does not write New Worktree for All Folders from the phone sheet once the isolation no longer offers it', async () => {
+		const services = setupServices(store);
+		await services.configurationService.setUserConfiguration(SESSIONS_WORKSPACES_ENABLED_SETTING, true);
+		services.workspaceObs.set(makeMultiFolderWorkspace(['/repo', '/other']), undefined);
+		services.provider.config = makeWorktreeFoldersConfig('folder');
+		const mainContainer = services.instantiationService.get(IWorkbenchLayoutService).mainContainer;
+		mainContainer.classList.add('phone-layout');
+		mainWindow.document.body.appendChild(mainContainer);
+		store.add(toDisposable(() => mainContainer.remove()));
+		const picker = store.add(services.instantiationService.createInstance(MobileAgentHostSessionConfigPicker, testChatSourceOf(services.sessionObs), { property: SessionConfigKey.Isolation }));
+		const container = document.createElement('div');
+		picker.render(container);
+		container.querySelector<HTMLElement>('.action-label')!.click();
+		await timeout(0);
+		const config = makeWorktreeFoldersConfig('folder');
+		services.provider.config = {
+			...config,
+			schema: { ...config.schema, properties: { ...config.schema.properties, [SessionConfigKey.Isolation]: { title: 'Isolation', type: 'string', enum: ['folder', 'worktree', 'sandbox'] } } },
+		};
+		Array.from(mainContainer.querySelectorAll<HTMLElement>('.mobile-picker-sheet-item')).find(row => row.textContent?.includes('New Worktree for All Folders'))!.click();
+		await timeout(0);
+		mainContainer.querySelector<HTMLButtonElement>('.mobile-picker-sheet-done')?.click();
+		assert.deepStrictEqual({ writes: services.provider.setSessionConfigValueArguments, errors: services.notificationErrors }, { writes: [], errors: [] });
+	});
+
 	test('does not select New Worktree for All Folders once Dev Container execution is on', async () => {
 		const services = setupServices(store);
 		await services.configurationService.setUserConfiguration(SESSIONS_WORKSPACES_ENABLED_SETTING, true);
@@ -848,7 +873,7 @@ suite('Agent Host Session Config Picker', () => {
 		assert.deepStrictEqual(services.provider.setSessionConfigValueArguments, []);
 	});
 
-	test('disables New Worktree for All Folders in the phone repository sheet with Dev Container execution', async () => {
+	test('disables both worktree choices but not Folder in the phone repository sheet with Dev Container execution', async () => {
 		const services = setupServices(store);
 		await services.configurationService.setUserConfiguration(SESSIONS_WORKSPACES_ENABLED_SETTING, true);
 		services.workspaceObs.set(makeMultiFolderWorkspace(['/repo', '/other']), undefined);
@@ -863,11 +888,14 @@ suite('Agent Host Session Config Picker', () => {
 		picker.render(container);
 		container.querySelector<HTMLElement>('.action-label')!.click();
 		await timeout(0);
-		const disabled = Array.from(mainContainer.querySelectorAll<HTMLElement>('.mobile-picker-sheet-item'))
-			.filter(row => row.getAttribute('aria-disabled') === 'true')
-			.map(row => row.querySelector('.mobile-picker-sheet-label')?.textContent);
+		const isolationRows = Array.from(mainContainer.querySelectorAll<HTMLElement>('.mobile-picker-sheet-item')).slice(0, 3)
+			.map(row => ({ label: row.querySelector('.mobile-picker-sheet-label')?.textContent, disabled: row.getAttribute('aria-disabled') === 'true' }));
 		mainContainer.querySelector<HTMLButtonElement>('.mobile-picker-sheet-done')?.click();
-		assert.deepStrictEqual(disabled, ['New Worktree for All Folders']);
+		assert.deepStrictEqual(isolationRows, [
+			{ label: 'Folder', disabled: false },
+			{ label: 'Worktree', disabled: true },
+			{ label: 'New Worktree for All Folders', disabled: true },
+		]);
 	});
 
 	test('completes New Worktree for All Folders for its draft when another session shows while the isolation resolves', async () => {
