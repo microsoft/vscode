@@ -745,7 +745,7 @@ suite('Agent Host Session Config Picker', () => {
 			const services = setupServices(store);
 			await services.configurationService.setUserConfiguration(SESSIONS_WORKSPACES_ENABLED_SETTING, workspacesEnabled);
 			services.workspaceObs.set(makeMultiFolderWorkspace(repositories), undefined);
-			services.provider.config = makeWorktreeFoldersConfig('worktree', 'all');
+			services.provider.config = makeWorktreeFoldersConfig('worktree');
 			const { container } = renderPicker(store, services);
 			isolationSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
 			await timeout(0);
@@ -756,7 +756,7 @@ suite('Agent Host Session Config Picker', () => {
 		}
 		const notOffered = { values: ['folder', 'worktree'], label: 'New Worktree' };
 		assert.deepStrictEqual(offers, [
-			{ values: ['folder', 'worktree', 'worktree:allFolders'], label: 'New Worktree for All Folders' },
+			{ values: ['folder', 'worktree', 'worktree:allFolders'], label: 'New Worktree' },
 			notOffered,
 			notOffered,
 			notOffered,
@@ -767,7 +767,7 @@ suite('Agent Host Session Config Picker', () => {
 		const services = setupServices(store);
 		await services.configurationService.setUserConfiguration(SESSIONS_WORKSPACES_ENABLED_SETTING, true);
 		services.workspaceObs.set(makeMultiFolderWorkspace(['/repo']), undefined);
-		services.provider.config = makeWorktreeFoldersConfig('worktree', 'all');
+		services.provider.config = makeWorktreeFoldersConfig('worktree');
 		const { container } = renderPicker(store, services);
 		const labels = [isolationSlot(container)?.textContent];
 		const offered: boolean[] = [];
@@ -788,8 +788,32 @@ suite('Agent Host Session Config Picker', () => {
 			offered.push(services.actionWidget.items.some(item => item.item?.value === 'worktree:allFolders'));
 		}
 		assert.deepStrictEqual({ labels, offered, writes: services.provider.setSessionConfigValueArguments }, {
-			labels: ['New Worktree', 'New Worktree', 'New Worktree', 'New Worktree', 'New Worktree for All Folders'],
+			labels: ['New Worktree', 'New Worktree', 'New Worktree', 'New Worktree', 'New Worktree'],
 			offered: [false, false, false, true],
+			writes: [],
+		});
+	});
+
+	test('keeps showing New Worktree for All Folders as the session\'s choice once its folders no longer offer it', async () => {
+		const services = setupServices(store);
+		await services.configurationService.setUserConfiguration(SESSIONS_WORKSPACES_ENABLED_SETTING, true);
+		services.workspaceObs.set(makeMultiFolderWorkspace(['/repo', '/other']), undefined);
+		services.provider.config = makeWorktreeFoldersConfig('worktree', 'all');
+		const { container } = renderPicker(store, services);
+		const properties = () => Array.from(container.querySelectorAll<HTMLElement>('[data-session-config-property]')).map(element => element.dataset.sessionConfigProperty);
+		const state = async () => {
+			isolationSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+			await timeout(0);
+			const item = services.actionWidget.items.find(item => item.item?.value === 'worktree:allFolders');
+			return { label: isolationSlot(container)?.textContent, properties: properties(), item: item && { checked: item.item?.checked, disabled: !!item.disabled, detail: item.detail } };
+		};
+		const offered = await state();
+		// The second repository is removed from the session
+		services.workspaceObs.set(makeMultiFolderWorkspace(['/repo']), undefined);
+		const kept = await state();
+		assert.deepStrictEqual({ offered, kept, writes: services.provider.setSessionConfigValueArguments }, {
+			offered: { label: 'New Worktree for All Folders', properties: [SessionConfigKey.Isolation, SessionConfigKey.Branch], item: { checked: true, disabled: false, detail: 'Creates a separate copy of each Git folder for this session' } },
+			kept: { label: 'New Worktree for All Folders', properties: [SessionConfigKey.Isolation, SessionConfigKey.Branch], item: { checked: true, disabled: true, detail: 'Kept from your choice; the folders are no longer in several Git repositories' } },
 			writes: [],
 		});
 	});
@@ -973,11 +997,13 @@ suite('Agent Host Session Config Picker', () => {
 			services.instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri: extUriIgnorePathCase }));
 			await services.configurationService.setUserConfiguration(SESSIONS_WORKSPACES_ENABLED_SETTING, true);
 			services.workspaceObs.set(makeMultiFolderWorkspace(repositories), undefined);
-			services.provider.config = makeWorktreeFoldersConfig('worktree', 'all');
+			services.provider.config = makeWorktreeFoldersConfig('worktree');
 			const { container } = renderPicker(store, services);
-			offers.push(isolationSlot(container)?.textContent);
+			isolationSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+			await timeout(0);
+			offers.push(services.actionWidget.items.some(item => item.item?.value === 'worktree:allFolders'));
 		}
-		assert.deepStrictEqual(offers, ['New Worktree', 'New Worktree', 'New Worktree for All Folders']);
+		assert.deepStrictEqual(offers, [false, false, true]);
 	});
 
 	for (const enumDynamic of [false, true]) {

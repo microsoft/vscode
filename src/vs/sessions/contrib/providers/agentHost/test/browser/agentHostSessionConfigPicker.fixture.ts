@@ -48,8 +48,11 @@ import { ITestSessionWithChat, testChatSourceOf } from '../../../../../../workbe
 interface IIsolationPickerOptions {
 	readonly value: 'worktree' | 'folder';
 	readonly devContainer?: boolean;
-	/** Lists two Git repositories and selects a worktree for each of them. */
-	readonly allFolders?: boolean;
+	/**
+	 * Selects a worktree for each Git folder, listing two Git repositories, or with `'kept'` the
+	 * session's choice once its two folders are in one repository, which no longer offers it.
+	 */
+	readonly allFolders?: boolean | 'kept';
 	/** Shows the phone repository sheet instead of the desktop dropdown. */
 	readonly phone?: boolean;
 	/** Suggests a new worktree for a folder with uncommitted files, counted after Branch and listed in the picker. */
@@ -123,7 +126,7 @@ async function renderIsolationPicker({ container, disposableStore, theme }: Comp
 			description: undefined,
 			gitRepository: { uri: URI.file(path), workTreeUri: undefined, baseBranchName: undefined, branchName: 'main', uncommittedChanges: uncommittedFiles ? UNCOMMITTED_FILES.length : 0, gitHubInfo: constObservable(undefined) },
 		})),
-		...(allFolders ? { repositories: ['/repo', '/docs'].map(path => ({ root: URI.file(path), folder: URI.file(path), kind: SessionRepositoryKind.Folder })) } : {}),
+		...(allFolders ? { repositories: ['/repo', '/docs'].map(path => ({ root: URI.file(allFolders === 'kept' ? '/repo' : path), folder: URI.file(path), kind: SessionRepositoryKind.Folder })) } : {}),
 		requiresWorkspaceTrust: false,
 		isVirtualWorkspace: false,
 	} : undefined;
@@ -219,6 +222,12 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/isolationPicker/'
 	}),
 	NewWorktreeForAllFolders: defineComponentFixture({
 		render: context => renderIsolationPicker(context, { value: 'worktree', allFolders: true }),
+	}),
+	KeptNewWorktreeForAllFolders: defineComponentFixture({
+		render: context => renderIsolationPicker(context, { value: 'worktree', allFolders: 'kept' }),
+	}),
+	PhoneKeptNewWorktreeForAllFolders: defineComponentFixture({
+		render: context => renderIsolationPicker(context, { value: 'worktree', allFolders: 'kept', phone: true }),
 	}),
 	PhoneNewWorktreeForAllFoldersWithDevContainer: defineComponentFixture({
 		render: context => renderIsolationPicker(context, { value: 'folder', allFolders: true, devContainer: true, phone: true }),
