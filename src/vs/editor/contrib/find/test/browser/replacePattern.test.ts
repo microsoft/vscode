@@ -219,6 +219,11 @@ suite('Replace Pattern test', () => {
 		assertReplace(['Foo_Bar-abc'], 'newfoo_newbar-abc', 'Newfoo_newbar-abc');
 		assertReplace(['foo_Bar'], 'newfoo_newbar', 'newfoo_Newbar');
 		assertReplace(['Foo_BAR'], 'newfoo_newbar', 'Newfoo_NEWBAR');
+		// #192168 - matches without any cased characters have no case to preserve
+		assertReplace(['()'], 'fontSize: 20', 'fontSize: 20');
+		assertReplace(['123'], 'Def', 'Def');
+		assertReplace(['!'], 'someValue', 'someValue');
+		assertReplace(['ABC-123'], 'Def-someValue', 'DEF-someValue');
 	});
 
 	test('preserve case', () => {
@@ -250,5 +255,10 @@ suite('Replace Pattern test', () => {
 		assertReplace(['Foo_Bar-abc'], 'newfoo_newbar-abc', 'Newfoo_newbar-abc');
 		assertReplace(['foo_Bar'], 'newfoo_newbar', 'newfoo_Newbar');
 		assertReplace(['foo_BAR'], 'newfoo_newbar', 'newfoo_NEWBAR');
+		// #192168 - matches without any cased characters have no case to preserve
+		assertReplace(['()'], 'fontSize: 20', 'fontSize: 20');
+		assertReplace(['123'], 'Def', 'Def');
+		assertReplace(['!'], 'someValue', 'someValue');
+		assertReplace(['ABC-123'], 'Def-someValue', 'DEF-someValue');
 	});
 });
