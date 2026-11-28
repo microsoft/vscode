@@ -1090,6 +1090,8 @@ export interface IEditableMcpServerConfiguration {
 	readonly format: McpResourceFormat;
 	/** Writes {@link config} over {@link previous}, the configuration that was edited. */
 	save(previous: IMcpServerConfiguration, config: IMcpServerConfiguration): Promise<void>;
+	/** Removes the server from the file. */
+	remove(): Promise<void>;
 }
 export interface IMcpWorkbenchService {
 	readonly _serviceBrand: undefined;
@@ -1107,7 +1109,7 @@ export interface IMcpWorkbenchService {
 	install(server: IWorkbenchMcpServer, installOptions?: IWorkbencMcpServerInstallOptions): Promise<IWorkbenchMcpServer>;
 	uninstall(mcpServer: IWorkbenchMcpServer): Promise<void>;
 	/**
-	 * Resolves the configuration of server {@link name} for editing when {@link source} is a file
+	 * Resolves the configuration of server {@link name} for editing or removal when {@link source} is a file
 	 * shared with other MCP clients: a workspace root `.mcp.json` or the Copilot CLI's global
 	 * `mcp-config.json`. Returns undefined for any other source, including VS Code's own `mcp.json`.
 	 */

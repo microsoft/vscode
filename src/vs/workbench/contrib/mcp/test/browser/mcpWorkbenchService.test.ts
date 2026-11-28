@@ -34,7 +34,12 @@ import { COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_CONFIG } from '../../../../../pl
 import { IMcpGalleryManifest, IMcpGalleryManifestService, McpGalleryManifestStatus } from '../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { McpGalleryServerUrlError } from '../../../../../platform/mcp/common/mcpGalleryService.js';
 import { IMcpServerConfiguration, McpServerType, McpServerVariableType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
-import { McpResourceScannerService } from '../../../../../platform/mcp/common/mcpResourceScannerService.js';
+import { McpResourceScannerService, IMcpResourceScannerService } from '../../../../../platform/mcp/common/mcpResourceScannerService.js';
+import { INativeMcpDiscoveryData } from '../../../../../platform/mcp/common/nativeMcpDiscoveryHelper.js';
+import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { ServiceIdentifier } from '../../../../../platform/instantiation/common/instantiation.js';
+import { Platform } from '../../../../../base/common/platform.js';
+import { IMcpCopilotGlobalConfigurationService, McpCopilotGlobalConfigurationService } from '../../common/mcpCopilotGlobalConfigurationService.js';
 import { McpResourceFormat } from '../../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -327,13 +332,13 @@ suite('McpWorkbenchService', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function createFixture(installed: IWorkbenchLocalMcpServer[], accessValue: McpAccessValue = McpAccessValue.Registry, initialInstalledError?: Error, runtimeServers: IObservable<readonly IMcpServer[]> = constObservable([])) {
-		const fixture = createUninitializedFixture(installed, accessValue, initialInstalledError, runtimeServers);
+	async function createFixture(installed: IWorkbenchLocalMcpServer[], accessValue: McpAccessValue = McpAccessValue.Registry, initialInstalledError?: Error, runtimeServers: IObservable<readonly IMcpServer[]> = constObservable([]), serviceOverrides: readonly [ServiceIdentifier<unknown>, unknown][] = []) {
+		const fixture = createUninitializedFixture(installed, accessValue, initialInstalledError, runtimeServers, serviceOverrides);
 		await fixture.service.whenInitialLocalMcpServersLoaded;
 		return fixture;
 	}
 
-	function createUninitializedFixture(installed: IWorkbenchLocalMcpServer[] | Promise<IWorkbenchLocalMcpServer[]>, accessValue: McpAccessValue = McpAccessValue.Registry, initialInstalledError?: Error, runtimeServers: IObservable<readonly IMcpServer[]> = constObservable([])) {
+	function createUninitializedFixture(installed: IWorkbenchLocalMcpServer[] | Promise<IWorkbenchLocalMcpServer[]>, accessValue: McpAccessValue = McpAccessValue.Registry, initialInstalledError?: Error, runtimeServers: IObservable<readonly IMcpServer[]> = constObservable([]), serviceOverrides: readonly [ServiceIdentifier<unknown>, unknown][] = []) {
 		const galleryService = new TestMcpGalleryService(store);
 		const manifestService = new TestMcpGalleryManifestService(store);
 		const managementService = new TestWorkbenchMcpManagementService(store);
@@ -395,6 +400,7 @@ suite('McpWorkbenchService', () => {
 			[IMcpService, upcastPartial<IMcpService>({ servers: runtimeServers })],
 			[IURLService, upcastPartial<IURLService>({ registerHandler: () => Disposable.None })],
 			[IFileService, upcastPartial<IFileService>({})],
+			...serviceOverrides,
 		);
 		const instantiationService = store.add(new TestInstantiationService(services));
 		const service = store.add(instantiationService.createInstance(McpWorkbenchService));
@@ -715,6 +721,39 @@ suite('McpWorkbenchService', () => {
 		await complete(await galleryService.nextRequest(), new Map([[local.name, notFound()]]));
 		await configurationService.setUserConfiguration(mcpAllowedServersConfig, [{ serverName: local.name }]);
 		assert.deepStrictEqual(service.getEnabledLocalMcpServers(), []);
+	});
+
+	test('resolves and removes a Copilot CLI server while the agent host is disabled', async () => {
+		const fileService = createInMemoryFileService(store, Schemas.inMemory);
+		const homedir = URI.from({ scheme: Schemas.inMemory, path: '/home/local' });
+		const resource = URI.joinPath(homedir, '.copilot', 'mcp-config.json');
+		await fileService.writeFile(resource, VSBuffer.fromString(JSON.stringify({ mcpServers: { memory: { type: 'local', command: 'memory', tools: ['*'] }, other: { type: 'local', command: 'other', tools: ['*'] } } })));
+		class LocalCopilotGlobalConfigurationService extends McpCopilotGlobalConfigurationService {
+			protected override async loadLocalDiscoveryData(): Promise<INativeMcpDiscoveryData> {
+				return { platform: Platform.Linux, homedir };
+			}
+		}
+		const { service } = await createFixture([], McpAccessValue.All, undefined, undefined, [
+			[IFileService, fileService],
+			[IMcpResourceScannerService, store.add(new McpResourceScannerService(fileService, store.add(new UriIdentityService(fileService))))],
+			[IMcpCopilotGlobalConfigurationService, new LocalCopilotGlobalConfigurationService(
+				upcastPartial<IAgentHostEnablementService>({ enabled: constObservable(false) }),
+				upcastPartial<IRemoteAgentService>({ getConnection: () => null }),
+				new NullLogService(),
+			)],
+		]);
+		const editable = await service.resolveEditableMcpServerConfiguration(resource, 'memory');
+		await editable?.remove();
+
+		assert.deepStrictEqual({
+			command: editable?.config.type === McpServerType.LOCAL ? editable.config.command : undefined,
+			format: editable?.format,
+			remaining: Object.keys(JSON.parse((await fileService.readFile(resource)).value.toString()).mcpServers),
+		}, {
+			command: 'memory',
+			format: McpResourceFormat.CopilotGlobal,
+			remaining: ['other'],
+		});
 	});
 
 	test('malformed persisted servers do not prevent healthy siblings from being published or refreshed', async () => {

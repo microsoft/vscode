@@ -864,10 +864,12 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 				config: root.config,
 				format: McpResourceFormat.WorkspaceRoot,
 				save: (previous, next) => this.mcpResourceScannerService.updateMcpServer(name, previous, next, root.mcpResource, ConfigurationTarget.WORKSPACE_FOLDER, McpResourceFormat.WorkspaceRoot),
+				remove: () => this.mcpResourceScannerService.removeMcpServers([name], root.mcpResource, ConfigurationTarget.WORKSPACE_FOLDER, McpResourceFormat.WorkspaceRoot),
 			};
 		}
 
-		const resource = await this.copilotGlobalConfigurationService.getConfigurationResource();
+		// Native discovery lists this file even while the agent host is disabled, so its servers stay editable.
+		const resource = await this.copilotGlobalConfigurationService.getConfigurationResource({ includeWhenAgentHostDisabled: true });
 		if (!resource || !this.uriIdentityService.extUri.isEqual(resource, source)) {
 			return undefined;
 		}
@@ -880,6 +882,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			config,
 			format: McpResourceFormat.CopilotGlobal,
 			save: (previous, next) => this.mcpResourceScannerService.updateMcpServer(name, previous, next, resource, undefined, McpResourceFormat.CopilotGlobal),
+			remove: () => this.mcpResourceScannerService.removeMcpServers([name], resource, undefined, McpResourceFormat.CopilotGlobal),
 		};
 	}
 

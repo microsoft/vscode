@@ -17,8 +17,13 @@ export const IMcpCopilotGlobalConfigurationService = createDecorator<IMcpCopilot
 
 export interface IMcpCopilotGlobalConfigurationService {
 	readonly _serviceBrand: undefined;
-	/** Resolves the configuration on the window's agent-host machine, or undefined when unavailable. */
-	getConfigurationResource(): Promise<URI | undefined>;
+	/**
+	 * Resolves the configuration on the window's agent-host machine, or undefined when unavailable.
+	 * Unless {@link options.includeWhenAgentHostDisabled} is set, this is undefined while the agent
+	 * host is disabled. Set it to reach a file that native discovery still lists, for example to
+	 * edit or remove its servers.
+	 */
+	getConfigurationResource(options?: { readonly includeWhenAgentHostDisabled?: boolean }): Promise<URI | undefined>;
 }
 
 export class McpCopilotGlobalConfigurationService implements IMcpCopilotGlobalConfigurationService {
@@ -30,8 +35,8 @@ export class McpCopilotGlobalConfigurationService implements IMcpCopilotGlobalCo
 		@ILogService private readonly _logService: ILogService,
 	) { }
 
-	async getConfigurationResource(): Promise<URI | undefined> {
-		if (!this._agentHostEnablementService.enabled.get()) {
+	async getConfigurationResource(options?: { readonly includeWhenAgentHostDisabled?: boolean }): Promise<URI | undefined> {
+		if (!options?.includeWhenAgentHostDisabled && !this._agentHostEnablementService.enabled.get()) {
 			return undefined;
 		}
 		try {
