@@ -630,17 +630,6 @@ export function isDateSectionPlacement(placement: SessionListPlacement): boolean
 	return placement.kind === 'section' && DATE_SECTION_IDS.includes(placement.sectionId);
 }
 
-/**
- * Puts the date sections of a top-level order back in their fixed relative
- * order, within the positions they hold. A reorder in another grouping mode
- * carries them along with the headers they follow, which can swap them.
- */
-export function keepDateSectionOrder(order: readonly string[]): string[] {
-	const dateSectionIds = DATE_SECTION_IDS.filter(id => order.includes(id));
-	let next = 0;
-	return order.map(id => DATE_SECTION_IDS.includes(id) ? dateSectionIds[next++] : id);
-}
-
 export function sectorToPosition(sector: ListViewTargetSector | undefined): 'before' | 'after' {
 	return sector !== undefined && sector >= ListViewTargetSector.CENTER_BOTTOM ? 'after' : 'before';
 }
