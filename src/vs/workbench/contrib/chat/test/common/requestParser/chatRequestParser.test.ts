@@ -781,6 +781,40 @@ suite('ChatRequestParser', () => {
 		]);
 	});
 
+	test('a reference is parsed where a completion can insert it, unlike a tool name, which is recognized from its text', () => {
+		const reference = '#file:foo.ts';
+		const data = URI.file('/foo.ts');
+		const tools = ToolAndToolSetEnablementMap.fromEntries([
+			[{ id: 'get_selection', toolReferenceName: 'selection', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: ToolDataSource.Internal }, true],
+		] satisfies [IToolData | ToolSet, boolean][]);
+		parser = instantiationService.createInstance(ChatRequestParser);
+		const parse = (text: string) => {
+			const start = text.indexOf(reference);
+			const references = start === -1 ? [] : [{ id: 'foo', range: new Range(1, start + 1, 1, start + reference.length + 1), data }];
+			return parser.parseChatRequestWithReferences(references, tools, text).parts.map(part => part instanceof ChatRequestDynamicVariablePart
+				? { reference: part.text, offsets: [part.range.start, part.range.endExclusive], editorRange: Range.lift(part.editorRange).toString(), data: part.data }
+				: `${part.kind}:${part.text}`);
+		};
+
+		assert.deepStrictEqual({
+			parentheses: parse('(#file:foo.ts)'),
+			afterText: parse('(see #file:foo.ts)'),
+			quotes: parse('"#file:foo.ts"'),
+			list: parse('a.ts,#file:foo.ts'),
+			withinWord: parse('abc#file:foo.ts'),
+			toolAfterWhitespace: parse('(see #selection)'),
+			toolAfterParenthesis: parse('[Selection](#selection)'),
+		}, {
+			parentheses: ['text:(', { reference, offsets: [1, 13], editorRange: '[1,2 -> 1,14]', data }, 'text:)'],
+			afterText: ['text:(see ', { reference, offsets: [5, 17], editorRange: '[1,6 -> 1,18]', data }, 'text:)'],
+			quotes: ['text:"', { reference, offsets: [1, 13], editorRange: '[1,2 -> 1,14]', data }, 'text:"'],
+			list: ['text:a.ts,', { reference, offsets: [5, 17], editorRange: '[1,6 -> 1,18]', data }],
+			withinWord: ['text:abc#file:foo.ts'],
+			toolAfterWhitespace: ['text:(see ', 'tool:#selection', 'text:)'],
+			toolAfterParenthesis: ['text:[Selection](#selection)'],
+		});
+	});
+
 	test('the prompt reads a reference as its prompt text, which keeps ranges in the prompt', () => {
 		// An inline attachment pill reads as its attachment's name and location, however often it is mentioned.
 		const text = 'compare #attachment:a.ts with #attachment:a.ts';

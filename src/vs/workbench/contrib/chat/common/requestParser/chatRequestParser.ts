@@ -7,6 +7,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IPosition, Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
+import { USUAL_WORD_SEPARATORS } from '../../../../../editor/common/core/wordHelper.js';
 import { IChatVariablesService, IDynamicVariable } from '../attachments/chatVariables.js';
 import { getAgentHostCompletionReferenceKindFromValue } from '../attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from '../constants.js';
@@ -79,7 +80,8 @@ export class ChatRequestParser {
 			let newPart: IParsedChatRequestPart | undefined;
 			// What a part covers, such as the name in a reference, does not start another part.
 			const isInPart = i < (parts.at(-1)?.range.endExclusive ?? 0);
-			if (!isInPart && (previousChar.match(/\s/) || i === 0)) {
+			const isAfterWhitespace = i === 0 || /\s/.test(previousChar);
+			if (!isInPart && isAfterWhitespace) {
 				if (char === chatVariableLeader) {
 					newPart = this.tryToParseVariable(message.slice(i), i, new Position(lineNumber, column), parts, toolsByName, toolSetsByName);
 				} else if (char === chatAgentLeader) {
@@ -90,10 +92,12 @@ export class ChatRequestParser {
 						? reference
 						: this.tryToParseSlashCommand(message.slice(i), message, i, new Position(lineNumber, column), parts, location, context);
 				}
+			}
 
-				if (!newPart) {
-					newPart = this.tryToParseDynamicVariable(message.slice(i), i, new Position(lineNumber, column), references);
-				}
+			// A reference is registered rather than recognized from its text, so it is also parsed
+			// where a completion inserts it without whitespace before it, as in `(#file:a.ts)`.
+			if (!newPart && !isInPart && (isAfterWhitespace || USUAL_WORD_SEPARATORS.includes(previousChar))) {
+				newPart = this.tryToParseDynamicVariable(message.slice(i), i, new Position(lineNumber, column), references);
 			}
 
 			if (newPart) {

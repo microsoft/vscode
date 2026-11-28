@@ -30,6 +30,20 @@ export const enum CompletionTriggerCharacter {
 }
 
 /**
+ * Whether the trigger character at `offset` in `text` starts a token: it is at
+ * the start of the input, or follows whitespace or an opening bracket, as in
+ * `(#file`. A trigger character within a word, as in `user@example`, does not.
+ */
+export function isCompletionTokenStart(text: string, offset: number): boolean {
+	if (offset === 0) {
+		return true;
+	}
+	const previous = text.charCodeAt(offset - 1);
+	return previous === 0x20 /* space */ || previous === 0x09 /* tab */ || previous === 0x0a /* \n */ || previous === 0x0d /* \r */
+		|| previous === 0x28 /* ( */ || previous === 0x5b /* [ */ || previous === 0x7b /* { */;
+}
+
+/**
  * Pluggable provider that contributes {@link CompletionItem}s for one or
  * more {@link CompletionItemKind}s.
  *
