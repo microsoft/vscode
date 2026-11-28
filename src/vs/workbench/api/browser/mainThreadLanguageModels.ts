@@ -18,7 +18,7 @@ import { ILogService } from '../../../platform/log/common/log.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { resizeImage } from '../../contrib/chat/browser/chatImageUtils.js';
 import { ILanguageModelIgnoredFilesService } from '../../contrib/chat/common/ignoredFiles.js';
-import { IChatMessage, IChatResponsePart, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService } from '../../contrib/chat/common/languageModels.js';
+import { IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService } from '../../contrib/chat/common/languageModels.js';
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService, INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
@@ -164,8 +164,8 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 						stream: stream.asyncIterable
 					} satisfies ILanguageModelChatResponse;
 				},
-				provideTokenCount: (modelId, str, token) => {
-					return this._proxy.$provideTokenLength(modelId, str, token);
+				provideTokenCount: (modelId, value, token) => {
+					return this._proxy.$provideTokenLength(modelId, typeof value === 'string' ? value : new SerializableObjectWithBuffers(value), token);
 				},
 			}));
 			this._providerRegistrations.set(vendor, disposables);
@@ -216,6 +216,10 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		return this._chatProviderService.selectLanguageModels(selector);
 	}
 
+	async $getLanguageModelChatMetadata(modelId: string): Promise<ILanguageModelChatMetadata | undefined> {
+		return this._chatProviderService.lookupLanguageModel(modelId);
+	}
+
 	async $tryStartChatRequest(extension: ExtensionIdentifier, modelIdentifier: string, requestId: number, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: {}, token: CancellationToken): Promise<void> {
 		this._logService.trace('[CHAT] request STARTED', extension.value, requestId);
 
@@ -264,8 +268,8 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 	}
 
 
-	$countTokens(modelId: string, value: string | IChatMessage, token: CancellationToken): Promise<number> {
-		return this._chatProviderService.computeTokenLength(modelId, value, token);
+	$countTokens(modelId: string, value: string | SerializableObjectWithBuffers<IChatMessage>, token: CancellationToken): Promise<number> {
+		return this._chatProviderService.computeTokenLength(modelId, typeof value === 'string' ? value : value.value, token);
 	}
 
 	private _registerAuthenticationProvider(extension: ExtensionIdentifier, auth: { providerLabel: string; accountLabel?: string | undefined }): IDisposable {
