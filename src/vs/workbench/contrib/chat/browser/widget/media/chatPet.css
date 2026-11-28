@@ -269,7 +269,7 @@
 
 .chat-pet-button[data-facing='left'] .chat-pet-sprite,
 .chat-pet-button[data-facing='left'] .chat-pet-eye-accessory,
-.chat-pet-button[data-facing='left'] .chat-pet-propeller {
+.chat-pet-button[data-facing='left'] .chat-pet-propeller-pose {
 	right: 0;
 	left: auto;
 }
