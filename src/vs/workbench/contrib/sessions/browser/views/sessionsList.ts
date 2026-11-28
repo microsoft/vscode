@@ -6239,10 +6239,19 @@ export class SessionsList extends Disposable implements ISessionsList {
 		for (const workspace of this.workspacesService.managedWorkspaces.get()) {
 			workspacesByRow.set(`workspace:${lookup.getKey(workspace.uri)}`, workspace);
 		}
+		// A former key that several workspaces were renamed from is not known to be any one's
+		const formerKeys = (workspace: IRecentSessionWorkspace) => new Set((workspace.previousUris ?? []).map(uri => `workspace:${lookup.getKey(uri)}`));
+		const claims = new Map<string, number>();
+		const claimants = new Map([...workspacesValue.map(workspace => [`workspace:${lookup.getKey(workspace.uri)}`, workspace] as const), ...workspacesByRow]);
+		for (const workspace of claimants.values()) {
+			for (const key of formerKeys(workspace)) {
+				claims.set(key, (claims.get(key) ?? 0) + 1);
+			}
+		}
 		const formerKeysByRow = new Map<string, string[]>();
 		for (const [row, workspace] of workspacesByRow) {
 			// A former key that a workspace has now is that workspace's
-			const former = (workspace.previousUris ?? []).map(uri => `workspace:${lookup.getKey(uri)}`).filter(key => !workspacesByRow.has(key) && !labelsByRow.has(key));
+			const former = [...formerKeys(workspace)].filter(key => !workspacesByRow.has(key) && !labelsByRow.has(key) && claims.get(key) === 1);
 			if (former.length > 0) {
 				formerKeysByRow.set(row, former);
 			}

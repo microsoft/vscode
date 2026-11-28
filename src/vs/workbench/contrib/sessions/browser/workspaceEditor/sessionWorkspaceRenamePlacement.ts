@@ -38,11 +38,18 @@ export class SessionWorkspaceRenamePlacementContribution extends Disposable impl
 			const workspaces = workspacesService.workspaces.read(reader);
 			// Compared as the rows' ids compare the files, such as without case where the file system ignores it
 			const rowIds = new Set(workspaces.map(workspace => this.getRowId(workspace.uri)));
+			// A former file that several workspaces were renamed from is not known to be any one's
+			const claims = new Map<string, number>();
+			for (const workspace of workspaces) {
+				for (const formerRowId of new Set((workspace.previousUris ?? []).map(previous => this.getRowId(previous)))) {
+					claims.set(formerRowId, (claims.get(formerRowId) ?? 0) + 1);
+				}
+			}
 			for (const workspace of workspaces) {
 				for (const previous of workspace.previousUris ?? []) {
 					const formerRowId = this.getRowId(previous);
 					// The former file can be another workspace's now, whose placement it is
-					if (!rowIds.has(formerRowId)) {
+					if (!rowIds.has(formerRowId) && claims.get(formerRowId) === 1) {
 						this.groupsService.renameSection(formerRowId, this.getRowId(workspace.uri));
 					}
 				}

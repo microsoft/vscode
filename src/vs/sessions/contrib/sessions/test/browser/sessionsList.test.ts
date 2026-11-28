@@ -4585,6 +4585,22 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('a former file that two workspaces were renamed from carries its pin and collapse state to neither', () => {
+			let formerKey = '';
+			const { list } = render(harness => {
+				formerKey = rowId(harness, oldAgentsFile);
+				harness.instantiationService.get(ISessionsListModelService).pinSection(formerKey);
+				harness.instantiationService.get(IStorageService).store('sessionsListControl.sectionCollapseState', JSON.stringify({ [formerKey]: true }), StorageScope.PROFILE, StorageTarget.USER);
+				// Another workspace was later created at the former file and renamed too
+				const workspacesService = harness.instantiationService.get(ISessionWorkspacesService) as TestSessionWorkspacesService;
+				workspacesService.managedWorkspaces.set([...workspacesService.managedWorkspaces.get(), { uri: URI.file('/user/AgentsWorkspaces/Other.code-workspace'), name: 'Other', folders: [], owned: true, previousUris: [oldAgentsFile] }], undefined);
+			});
+			const rows = list.getTreeSnapshot().flatMap(node => node.type !== 'session' && (node.id === 'pinned' || node.id === 'workspaces') ? node.children.flatMap(child => child.type !== 'session' && (child.label === 'Agents' || child.label === 'Other') ? [`${node.id}: ${child.label}${child.collapsed ? ' (collapsed)' : ''}`] : []) : []);
+
+			// Neither row is pinned or collapsed; the user's own Agents workspace has a row of that name too
+			assert.deepStrictEqual(rows, ['workspaces: Agents', 'workspaces: Agents', 'workspaces: Other']);
+		});
+
 		test('a pin from before a workspace\'s rename shows on its label while not separate, and unpinning it there clears it', () => {
 			let formerKey = '';
 			// The user's workspace has a label of its own, so that Agents is the renamed workspace's alone

@@ -21,7 +21,7 @@ import { IRecentSessionWorkspace, ISessionWorkspacesService } from '../../../com
 suite('SessionWorkspaceRenamePlacementContribution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('gives a renamed workspace\'s group placement to its new row, once workspaces are enabled, but not a former file that another workspace has now, also by a name that differs only in case', async () => {
+	test('gives a renamed workspace\'s group placement to its new row, once workspaces are enabled, but not a former file that another workspace has now, also by a name that differs only in case, nor a former file that several workspaces were renamed from', async () => {
 		const workspace = (path: string, previous: string[] = []): IRecentSessionWorkspace => ({ uri: URI.file(path), name: path, folders: [], owned: true, previousUris: previous.map(p => URI.file(p)) });
 		const workspaces = observableValue<readonly IRecentSessionWorkspace[]>('workspaces', [workspace('/user/A.code-workspace', ['/user/Old.code-workspace'])]);
 		const renames: string[] = [];
@@ -43,12 +43,16 @@ suite('SessionWorkspaceRenamePlacementContribution', () => {
 		const renamedAgain = renames.splice(0);
 		// The first file is another workspace's, by a name that differs only in case, which the file system ignores
 		workspaces.set([workspace('/user/C.code-workspace', ['/user/B.code-workspace']), workspace('/user/b.CODE-workspace')], undefined);
+		const caseVariant = renames.splice(0);
+		// Two workspaces were renamed from the same file, so that it is not known to be either's
+		workspaces.set([workspace('/user/D.code-workspace', ['/user/Shared.code-workspace']), workspace('/user/E.code-workspace', ['/user/Shared.code-workspace'])], undefined);
 
-		assert.deepStrictEqual({ disabled, enabled, renamedAgain, caseVariant: renames }, {
+		assert.deepStrictEqual({ disabled, enabled, renamedAgain, caseVariant, shared: renames }, {
 			disabled: [],
 			enabled: ['workspace:file:///user/old.code-workspace -> workspace:file:///user/a.code-workspace'],
 			renamedAgain: ['workspace:file:///user/a.code-workspace -> workspace:file:///user/b.code-workspace'],
 			caseVariant: [],
+			shared: [],
 		});
 	});
 
