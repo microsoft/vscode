@@ -321,14 +321,16 @@ suite('Agents mode actions', () => {
 					welcome = welcome && !toClose.some(({ editor }) => editor.typeId === gettingStartedInputTypeId);
 				},
 			});
-			const mainPart: Partial<IEditorPart> = { get groups() { return [{ id: 1, get isEmpty() { return editorInputs().length === 0; } } as Partial<IEditorGroup> as IEditorGroup]; } };
+			const mainGroup: Partial<IEditorGroup> = { id: 1, get isEmpty() { return editorInputs().length === 0; }, focus: () => { calls.push('focus main group'); } };
+			const mainPart: Partial<IEditorPart> = { get groups() { return [mainGroup as IEditorGroup]; }, get activeGroup() { return mainGroup as IEditorGroup; } };
 			instantiation.stub(IEditorGroupsService, { mainPart: mainPart as IEditorPart });
 			instantiation.stub(IWorkbenchLayoutService, {
 				onDidChangePartVisibility: partVisibilityChange.event,
 				isAuxiliaryBarMaximized: () => false,
 				isVisible: (part: Parts) => part === Parts.EDITOR_PART ? editorVisible : part === Parts.CHAT_PART ? chatPartVisible : part === Parts.AUXILIARYBAR_PART || (part === Parts.PANEL_PART && panelVisible),
 				hasFocus: (part: Parts) => part === Parts.EDITOR_PART ? !!scenario.editorFocused && editorVisible : part === Parts.CHAT_PART && chatPartFocused,
-				focusPart: (part: Parts) => { calls.push(`focus ${part}`); },
+				// Like the layout in the mode: focusing the editor part focuses the editor part that has focus, the chat surface's
+				focusPart: (part: Parts) => { calls.push(part === Parts.EDITOR_PART && chatPartFocused ? 'focus chat surface group' : `focus ${part}`); },
 				setPartHidden: (hidden: boolean, part: Parts) => {
 					if (!laidOut) {
 						throw new Error('not laid out');
@@ -404,9 +406,9 @@ suite('Agents mode actions', () => {
 			chatPartFocused = !!scenario.chatPartFocusedOnLeave;
 			willChange.fire(false);
 			agentsMode.isActive = false;
-			// Like the window: the chat part hides as the mode's settings go, which leaves the focus it had nowhere
-			chatPartFocused = false;
+			// Like the window: the chat surface still has focus as the editor area leaves the mode, it only hides afterwards
 			editorArea.leave();
+			chatPartFocused = false;
 			editorArea.dispose();
 			return { afterEnter, ...(inMode ? { inMode } : {}), afterLeave: state() };
 		}
@@ -452,8 +454,8 @@ suite('Agents mode actions', () => {
 				withEditors: { afterEnter: untouched, afterLeave: untouched },
 				editorOpenedInMode: { afterEnter: hiddenByChat, inMode: { editorVisible: true, panelVisible: false, calls: [`show ${Parts.EDITOR_PART}`] }, afterLeave: untouched },
 				// The focus the chat part had goes to the editor area that shows again, as the window entered with it
-				chatPartFocusedOnLeave: { afterEnter: { ...hiddenByChat, panelVisible: true }, afterLeave: { editorVisible: true, panelVisible: true, calls: [`show ${Parts.EDITOR_PART}`, `focus ${Parts.EDITOR_PART}`] } },
-				chatPartFocusedOnLeaveWithEditors: { afterEnter: untouched, afterLeave: { ...untouched, calls: [`focus ${Parts.EDITOR_PART}`] } },
+				chatPartFocusedOnLeave: { afterEnter: { ...hiddenByChat, panelVisible: true }, afterLeave: { editorVisible: true, panelVisible: true, calls: [`show ${Parts.EDITOR_PART}`, 'focus main group'] } },
+				chatPartFocusedOnLeaveWithEditors: { afterEnter: untouched, afterLeave: { ...untouched, calls: ['focus main group'] } },
 			});
 		});
 	});

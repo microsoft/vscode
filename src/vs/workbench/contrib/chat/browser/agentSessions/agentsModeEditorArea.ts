@@ -178,7 +178,8 @@ export class AgentsModeEditorArea extends Disposable {
 		this.chatPartFocusedOnLeave = false;
 		if (chatPartFocused && !this.layoutService.hasFocus(Parts.EDITOR_PART) && !this.layoutService.hasFocus(Parts.PANEL_PART)) {
 			if (this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
-				this.layoutService.focusPart(Parts.EDITOR_PART, mainWindow);
+				// The main editor part itself: the layout would focus the editor part that has focus, the chat surface's
+				this.editorGroupsService.mainPart.activeGroup.focus();
 			} else {
 				this.layoutService.focusPart(Parts.PANEL_PART);
 			}
