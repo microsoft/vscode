@@ -232,7 +232,7 @@ export function getModelConfigDisplayValues(
 /** The effort and context properties whose effective values differ from their defaults. */
 export function getChangedModelConfigProperties(
 	model: ILanguageModelChatMetadataAndIdentifier | undefined,
-	configurationAccess: IModelConfigurationAccess,
+	configurationAccess: ModelConfigurationReader,
 	useModelConfigurationSchema = false,
 ): IModelConfigProperty[] {
 	const properties: IModelConfigProperty[] = [];

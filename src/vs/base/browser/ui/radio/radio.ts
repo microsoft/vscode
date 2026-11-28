@@ -183,10 +183,15 @@ export class Radio extends Widget {
 		this.updateButtons(changed);
 	}
 
+	/** Whether the selection indicator has motion that a refresh would interrupt. */
+	get isSelectionAnimating(): boolean {
+		return this.getSelectionAnimations().length > 0;
+	}
+
 	/** Waits for selection motion, including a newer selection that interrupts it. */
 	async whenSelectionAnimationSettles(): Promise<void> {
 		while (!this._store.isDisposed && this.selectionIndicator) {
-			const animations = this.selectionIndicator.getAnimations().filter(animation => animation.playState !== 'finished' && animation.playState !== 'idle');
+			const animations = this.getSelectionAnimations();
 			if (!animations.length) {
 				return;
 			}
@@ -301,6 +306,10 @@ export class Radio extends Widget {
 		// The `translate` property, unlike a `transform`, is applied outside `scale`, so the press feedback shrinks the indicator in place.
 		indicator.style.translate = `${bounds.left}px ${bounds.top}px`;
 		this.selectionIndicatorBounds = bounds;
+	}
+
+	private getSelectionAnimations(): Animation[] {
+		return this.selectionIndicator?.getAnimations().filter(animation => animation.playState !== 'finished' && animation.playState !== 'idle') ?? [];
 	}
 
 }
