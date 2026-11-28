@@ -306,6 +306,26 @@ suite('Editor Contrib - Line Operations', () => {
 					});
 				});
 		});
+
+		test('keeps the final newline when applied to the whole document', function () {
+			withTestCodeEditor(
+				[
+					'alpha',
+					'',
+					'beta',
+					'alpha',
+					''
+				], {}, (editor) => {
+					const model = editor.getModel()!;
+					const deleteDuplicateLinesAction = new DeleteDuplicateLinesAction();
+
+					executeAction(deleteDuplicateLinesAction, editor);
+					assert.deepStrictEqual({ lines: model.getLinesContent(), selectionIsEmpty: editor.getSelection()!.isEmpty() }, {
+						lines: ['alpha', '', 'beta', ''],
+						selectionIsEmpty: true,
+					});
+				});
+		});
 	});
 
 
