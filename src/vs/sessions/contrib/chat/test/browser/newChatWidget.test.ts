@@ -4687,8 +4687,8 @@ suite('NewChatWidget', () => {
 		assert.deepStrictEqual({ result: await sending, sent }, { result: false, sent: [] });
 	});
 
-	for (const followed of [true, false]) {
-		test(`a send ${followed ? 'validates the folder its workspace follows to when the former one went stale' : 'is refused when its unchanged folder is not valid'}`, async () => {
+	for (const followed of ['replaced', 'unrelated', 'unchanged'] as const) {
+		test(`a send ${followed === 'replaced' ? 'validates the folder its workspace follows to when the former one went stale' : followed === 'unrelated' ? 'that followed its workspace sends nothing to a draft that is not its replacement' : 'is refused when its unchanged folder is not valid'}`, async () => {
 			const reconcileDraftBeforeSend = Reflect.get(NewChatWidget.prototype, '_reconcileDraftBeforeSend') as ISendHarness['_reconcileDraftBeforeSend'];
 			const isCurrentSendTarget = Reflect.get(NewChatWidget.prototype, '_isCurrentSendTarget') as ISendHarness['_isCurrentSendTarget'];
 			const draft = (sessionId: string) => upcastPartial<ISession>({ sessionId, ...withCreatedStatus(constObservable(false)) });
@@ -4708,8 +4708,9 @@ suite('NewChatWidget', () => {
 					return validated.length === 1 ? firstValidation.p : Promise.resolve(true);
 				},
 				showPicker: () => { },
-				clearAttachedContext: () => { },
+				clearAttachedContext: () => consumed.push('attachments'),
 			};
+			const consumed: string[] = [];
 			const composer = upcastPartial<ISendHarness>({
 				_session: session,
 				_workspacePicker: upcastPartial<ISendHarness['_workspacePicker']>(picker),
@@ -4719,8 +4720,8 @@ suite('NewChatWidget', () => {
 				_isQuickChatComposer: constObservable(false),
 				_comparisonSelection: { enabled: constObservable(false) },
 				_feedbackItems: constObservable([]),
-				agentFeedbackService: { removeFeedback: () => { } },
-				newSessionComposerService: { notifyWillSendRequest: () => { } },
+				agentFeedbackService: { removeFeedback: () => consumed.push('feedback') },
+				newSessionComposerService: { notifyWillSendRequest: () => consumed.push('prompt') },
 				recentWorkspacesService: { restoreDismissedWorkspace: () => { } },
 				_pendingBackgroundSends: { set: () => { }, deleteAndDispose: () => { } },
 				_getWorkspaceRoots: () => [],
@@ -4736,16 +4737,22 @@ suite('NewChatWidget', () => {
 			});
 			const sending = send.call(composer, 'fix the bug');
 			await timeout(0);
-			if (followed) {
-				// The workspace's first folder is replaced while the former one is validated: the selection follows, and its draft is replaced
+			if (followed !== 'unchanged') {
+				// The workspace's first folder is replaced while the former one is validated: the selection follows, and its draft is
+				// replaced, or another draft is created there, such as for another agent the user picks
 				picker.selectedFolderUri = URI.file('/beta');
-				replacements.set(alpha, beta);
+				if (followed === 'replaced') {
+					replacements.set(alpha, beta);
+				}
 				session.set(beta, undefined);
 			}
 			firstValidation.complete(false);
-			assert.deepStrictEqual({ result: await sending, validated, sent }, followed
-				? { result: true, validated: ['/alpha', '/beta'], sent: ['beta'] }
-				: { result: false, validated: ['/alpha'], sent: [] });
+			// Not sent, the prompt and its attachments are kept: nothing is prepared or consumed
+			assert.deepStrictEqual({ result: await sending, validated, sent, consumed }, {
+				replaced: { result: true, validated: ['/alpha', '/beta'], sent: ['beta'], consumed: ['prompt', 'attachments'] },
+				unrelated: { result: false, validated: ['/alpha', '/beta'], sent: [], consumed: [] },
+				unchanged: { result: false, validated: ['/alpha'], sent: [], consumed: [] },
+			}[followed]);
 		});
 	}
 

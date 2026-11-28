@@ -3507,7 +3507,7 @@ export class NewChatWidget extends Disposable {
 			// reports as not valid: the folder it is in now is validated
 			const followedToOtherFolder = !workspaceValid && this._hasSelectionFollowedFrom(folderUri, selectionId);
 			if (followedToOtherFolder && attempt < 2) {
-				session = this._session.get() ?? session;
+				// The draft sent stays what replacements are traced from: another draft is taken only as its replacement
 				continue;
 			}
 			if (followedToOtherFolder) {
@@ -3521,8 +3521,10 @@ export class NewChatWidget extends Disposable {
 			if (!reconciled) {
 				return false;
 			}
-			// Checked once more after the last wait, with nothing awaited until it is sent
-			if (reconciled === session && this._isCurrentSendTarget(session, selectionId, folderUri)) {
+			// Checked once more after the last wait, with nothing awaited until it is sent: the draft, or its replacement, in the
+			// folder validated in this round
+			if (this._isCurrentSendTarget(reconciled, selectionId, folderUri)) {
+				session = reconciled;
 				break;
 			}
 			if (attempt >= 2) {
