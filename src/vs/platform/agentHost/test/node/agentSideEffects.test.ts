@@ -9474,7 +9474,7 @@ suite('AgentSideEffects', () => {
 			assert.ok(tc && tc.kind === ResponsePartKind.ToolCall, 'tool call should exist');
 			assert.strictEqual(tc.toolCall.status, ToolCallStatus.PendingConfirmation);
 			assert.ok(Array.isArray(tc.toolCall.options), 'options should be an array');
-			assert.deepStrictEqual(tc.toolCall.options!.map(o => o.id), ['allow-session', 'allow-once', 'skip']);
+			assert.deepStrictEqual(tc.toolCall.options!.map(o => o.id), ['allow-once', 'allow-session', 'skip']);
 		});
 
 		test('ChatToolCallConfirmed with allow-session adds tool to session permissions', async () => {
