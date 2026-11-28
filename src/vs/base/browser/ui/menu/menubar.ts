@@ -977,8 +977,8 @@ export class MenuBar extends Disposable {
 			}
 		}
 
-		// Alt key released
-		if (!modifierKeyStatus.altKey && modifierKeyStatus.lastKeyReleased === 'alt') {
+		// A key release or a focus reset ends the previous Alt gesture.
+		if (!modifierKeyStatus.altKey) {
 			this.awaitingAltRelease = false;
 		}
 
