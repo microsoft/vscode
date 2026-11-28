@@ -22,6 +22,7 @@ import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/c
 import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { isCopilotHydraFusionModelId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { toAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
+import { withMessageExtensionRequest } from '../../../../../../platform/agentHost/common/meta/agentMessageMeta.js';
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../../../../../platform/agentHost/common/meta/agentChatInputRequestMeta.js';
 import { toToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import { compactContextAttribution } from '../../../../../../platform/agentHost/common/meta/agentUsageMeta.js';
@@ -218,6 +219,17 @@ suite('stateToProgressAdapter', () => {
 			request: { prompt: 'display', hidden: undefined, requestHidden: true, metadata: turn.message._meta, attachment: { 'copilot.attachmentDetail': detail } },
 			usage: { cost: undefined, latest: { cost: 0.5, duration: 10 } },
 		});
+	});
+
+	test('requests that extensions sent project back as labelled notifications', () => {
+		const message = withMessageExtensionRequest({ text: '[Notification from extension test.ext]\nBuild output', origin: { kind: MessageKind.User } }, 'Build finished (Test)');
+		const history = turnsToHistory(URI.parse('copilot:/session'), [createTurn({ message }), createTurn({ id: 'user', message: { text: 'hello', origin: { kind: MessageKind.User } } })], 'copilot');
+		assert.deepStrictEqual(history.filter(item => item.type === 'request').map(item => item.type === 'request' && ({
+			isSystemInitiated: item.isSystemInitiated, systemInitiatedLabel: item.systemInitiatedLabel, requestSource: item.requestSource,
+		})), [
+			{ isSystemInitiated: true, systemInitiatedLabel: 'Build finished (Test)', requestSource: 'extension' },
+			{ isSystemInitiated: undefined, systemInitiatedLabel: undefined, requestSource: undefined },
+		]);
 	});
 
 	test('Copilot attachment details survive history alongside VS Code metadata', () => {

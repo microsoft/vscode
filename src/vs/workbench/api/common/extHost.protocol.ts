@@ -1723,6 +1723,13 @@ export interface IChatAgentProgressShape {
 	$handleAnchorResolve(requestId: string, handle: string, anchor: Dto<IChatContentInlineReference>): void;
 }
 
+export interface IChatSessionRequestDto {
+	readonly prompt: string;
+	readonly label: string;
+	readonly participant?: string;
+	readonly delivery?: 'queue' | 'steer';
+}
+
 export interface MainThreadChatAgentsShape2 extends IChatAgentProgressShape, IDisposable {
 	$registerAgent(handle: number, extension: ExtensionIdentifier, id: string, metadata: IExtensionChatAgentMetadata, dynamicProps: IDynamicChatAgentProps | undefined): void;
 	$registerChatParticipantDetectionProvider(handle: number): void;
@@ -1739,6 +1746,7 @@ export interface MainThreadChatAgentsShape2 extends IChatAgentProgressShape, IDi
 	$unregisterAgent(handle: number): void;
 
 	$transferActiveChatSession(toWorkspace: UriComponents): Promise<void>;
+	$sendRequestToSession(extension: ExtensionIdentifier, sessionResource: UriComponents, request: IChatSessionRequestDto): Promise<void>;
 	$provideCustomAgents(token: CancellationToken): Promise<ICustomAgentDto[]>;
 	$provideInstructions(token: CancellationToken): Promise<IInstructionDto[]>;
 	$provideSkills(token: CancellationToken): Promise<ISkillDto[]>;

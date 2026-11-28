@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import { join } from 'path';
 import 'mocha';
-import { ChatContext, ChatRequest, ChatRequestTurn, ChatRequestTurn2, ChatResult, Disposable, env, Event, EventEmitter, chat, commands, lm, UIKind } from 'vscode';
+import { ChatContext, ChatRequest, ChatRequestTurn, ChatRequestTurn2, ChatResult, Disposable, env, Event, EventEmitter, chat, commands, lm, UIKind, Uri, window } from 'vscode';
 import { DeferredPromise, asPromise, assertNoRpc, closeAllEditors, delay, disposeAll } from '../utils';
 
 // TODO: this now became flaky with built-in copilot
@@ -92,6 +92,52 @@ suite('chat', () => {
 
 		await deferred.p;
 	});
+
+	test('sendRequest delivers to the session of the token while another session stays active', async () => {
+		const onRequest = setupParticipant();
+
+		// Start the work in session A.
+		await commands.executeCommand('workbench.action.chat.newLocalChat');
+		commands.executeCommand('workbench.action.chat.open', { query: '@participant start the build' });
+		const start = await asPromise(onRequest);
+		const sessionA = start.request.sessionResource;
+
+		// The user moves on to session B.
+		await commands.executeCommand('workbench.action.chat.newLocalChat');
+		const sessionB = await waitForActiveChatSession(resource => resource.toString() !== sessionA.toString());
+
+		// The result goes to the extension's own participant in A.
+		const delivered = asPromise(onRequest);
+		await chat.sendRequest(start.request.toolInvocationToken, { prompt: 'build output', label: 'Build finished', participant: 'api-test.participant' });
+		const result = await delivered;
+		assert.deepStrictEqual({
+			session: result.request.sessionResource.toString(),
+			prompt: result.request.prompt,
+			history: result.context.history.length,
+			active: window.activeChatPanelSessionResource?.toString(),
+		}, { session: sessionA.toString(), prompt: 'build output', history: 2, active: sessionB.toString() });
+
+		// Without a participant, the agent of the last request in A handles it and learns who sent it.
+		const notified = asPromise(onRequest);
+		await chat.sendRequest(result.request.toolInvocationToken, { prompt: 'tests passed', label: 'Tests finished' });
+		const notification = await notified;
+		assert.deepStrictEqual({
+			session: notification.request.sessionResource.toString(),
+			prompt: notification.request.prompt,
+			active: window.activeChatPanelSessionResource?.toString(),
+		}, { session: sessionA.toString(), prompt: '[Notification from extension vscode.vscode-api-tests]\ntests passed', active: sessionB.toString() });
+	});
+
+	async function waitForActiveChatSession(predicate: (resource: Uri) => boolean): Promise<Uri> {
+		for (let i = 0; i < 100; i++) {
+			const resource = window.activeChatPanelSessionResource;
+			if (resource && predicate(resource)) {
+				return resource;
+			}
+			await delay(50);
+		}
+		throw new Error('The active chat session did not change');
+	}
 
 	test('result metadata is returned to the followup provider', async () => {
 		const deferred = new DeferredPromise<ChatResult>();

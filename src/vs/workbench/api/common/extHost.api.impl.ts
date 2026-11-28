@@ -1785,6 +1785,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			createChatParticipant(id: string, handler: vscode.ChatExtendedRequestHandler) {
 				return extHostChatAgents2.createChatAgent(extension, id, handler);
 			},
+			sendRequest(toolInvocationToken: vscode.ChatParticipantToolToken, request: vscode.ChatSessionRequest) {
+				checkProposedApiEnabled(extension, 'chatSendRequest');
+				return extHostChatAgents2.sendRequestToSession(extension, toolInvocationToken, request);
+			},
 			createDynamicChatParticipant(id: string, dynamicProps: vscode.DynamicChatParticipantProps, handler: vscode.ChatExtendedRequestHandler): vscode.ChatParticipant {
 				checkProposedApiEnabled(extension, 'chatParticipantPrivate');
 				return extHostChatAgents2.createDynamicChatAgent(extension, id, dynamicProps, handler);
@@ -2348,6 +2352,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatRequestNotebookData: extHostTypes.ChatRequestNotebookData,
 			ChatReferenceBinaryData: extHostTypes.ChatReferenceBinaryData,
 			ChatRequestEditedFileEventKind: extHostTypes.ChatRequestEditedFileEventKind,
+			ChatSessionRequestDelivery: extHostTypes.ChatSessionRequestDelivery,
 			LanguageModelChatMessageRole: extHostTypes.LanguageModelChatMessageRole,
 			LanguageModelChatApiType: extHostTypes.LanguageModelChatApiType,
 			LanguageModelChatMessage: extHostTypes.LanguageModelChatMessage,

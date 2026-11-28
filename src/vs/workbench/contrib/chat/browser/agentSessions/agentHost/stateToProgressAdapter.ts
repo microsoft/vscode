@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, readMessageSystemInitiatedLabel, readAgentMessageRoundTripMetadata } from '../../../../../../platform/agentHost/common/meta/agentMessageMeta.js';
+import { isMessageExtensionRequest, isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, readMessageSystemInitiatedLabel, readAgentMessageRoundTripMetadata } from '../../../../../../platform/agentHost/common/meta/agentMessageMeta.js';
 import { readUsageInfoMeta, type UsageInfoMeta, type IAgentContextUsage, type IAgentChatUsage } from '../../../../../../platform/agentHost/common/meta/agentUsageMeta.js';
 import { readAgentModelCallDiagnostics } from '../../../../../../platform/agentHost/common/meta/agentModelCallMeta.js';
 import { decodeBase64 } from '../../../../../../base/common/buffer.js';
@@ -1435,7 +1435,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 		// Request
 		const variableData = messageToVariableData(turn.message, connectionAuthority, resourceUris);
 		const origin = messageToRequestOrigin(backendSession, turn.message, participantId, connectionAuthority);
-		const isSystemInitiated = turn.message.origin.kind === MessageKind.SystemNotification;
+		const isSystemInitiated = isMessageSystemInitiated(turn.message);
 		const requestSource = messageToRequestSource(turn.message);
 		const artifactRequest = readArtifactIntegrationRequest(turn.message);
 		// A message runs as a terminal command when it starts with the host's
@@ -1553,10 +1553,21 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 	return history;
 }
 
+/**
+ * Whether a host message renders as a system-initiated request. Requests that extensions send reach the agent as
+ * user messages but render like system notifications.
+ */
+export function isMessageSystemInitiated(message: Message): boolean {
+	return message.origin.kind === MessageKind.SystemNotification || isMessageExtensionRequest(message);
+}
+
 /** Maps explicit host metadata to a chat request source. */
 export function messageToRequestSource(message: Message): ChatRequestSource | undefined {
 	if (message.origin.kind === MessageKind.SystemNotification && isAgentMergeMessage(message)) {
 		return 'agentMerge';
+	}
+	if (isMessageExtensionRequest(message)) {
+		return 'extension';
 	}
 	if (readArtifactIntegrationRequest(message)) {
 		return 'artifactIntegration';

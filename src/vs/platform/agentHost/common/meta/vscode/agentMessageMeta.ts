@@ -11,6 +11,7 @@ const requestHiddenKey = 'vscode.chat.requestHiddenFromTranscript';
 const requestHiddenPrefix = '<!-- vscode-request-hidden-from-transcript -->\n';
 const labelKey = 'vscode.chat.systemInitiatedLabel';
 const replacedTurnKey = 'vscode.chat.replacedTurn';
+const extensionRequestKey = 'vscode.chat.extensionRequest';
 
 export function hasMessagePresentation(message: Message): boolean {
 	return [hiddenKey, requestHiddenKey, labelKey].some(key => !!message._meta && Object.hasOwn(message._meta, key))
@@ -44,6 +45,18 @@ export function withMessageRequestHiddenFromTranscript(message: Message, hidden:
 
 export function withMessageSystemInitiatedLabel(message: Message, label: string): Message {
 	return { ...message, _meta: { ...message._meta, [labelKey]: label } };
+}
+
+/**
+ * Marks a message as a request that an extension sent into the chat. The agent receives it as a user message;
+ * clients render it as a system notification with the given label.
+ */
+export function withMessageExtensionRequest(message: Message, label: string | undefined): Message {
+	return { ...message, _meta: { ...message._meta, [extensionRequestKey]: true, ...(label ? { [labelKey]: label } : {}) } };
+}
+
+export function isMessageExtensionRequest(message: Message): boolean {
+	return message._meta?.[extensionRequestKey] === true;
 }
 
 /** Marks a host-written turn as the replacement of an earlier turn that the host removed. */

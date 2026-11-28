@@ -39,6 +39,7 @@ import * as extHostTypes from './extHostTypes.js';
 import { IPromptFileContext, IPromptFileResource } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../contrib/chat/common/promptSyntax/promptTypes.js';
 import { ExtHostChatSessions } from './extHostChatSessions.js';
+import { isToolInvocationContext } from '../../contrib/chat/common/tools/languageModelToolsService.js';
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors.js';
 
 export class ChatAgentResponseStream {
@@ -703,6 +704,31 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 	async transferActiveChat(newWorkspace: vscode.Uri): Promise<void> {
 		await this._proxy.$transferActiveChatSession(newWorkspace);
+	}
+
+	async sendRequestToSession(extension: IExtensionDescription, toolInvocationToken: unknown, request: vscode.ChatSessionRequest): Promise<void> {
+		if (!isToolInvocationContext(toolInvocationToken)) {
+			throw new Error('Invalid tool invocation token');
+		}
+		if (typeof request?.prompt !== 'string' || !request.prompt.trim()) {
+			throw new Error('A chat session request needs a prompt');
+		}
+		if (typeof request.label !== 'string' || !request.label.trim()) {
+			throw new Error('A chat session request needs a label');
+		}
+		if (request.delivery !== undefined && request.delivery !== extHostTypes.ChatSessionRequestDelivery.Queue && request.delivery !== extHostTypes.ChatSessionRequestDelivery.Steer) {
+			throw new Error(`Invalid chat session request delivery: ${request.delivery}`);
+		}
+		if (request.participant !== undefined && !Iterable.some(this._agents.values(), a => a.id === request.participant && ExtensionIdentifier.equals(a.extension.identifier, extension.identifier))) {
+			throw new Error(`Chat participant '${request.participant}' is not registered by extension '${extension.identifier.value}'`);
+		}
+
+		await this._proxy.$sendRequestToSession(extension.identifier, toolInvocationToken.sessionResource, {
+			prompt: request.prompt,
+			label: request.label,
+			participant: request.participant,
+			delivery: request.delivery === extHostTypes.ChatSessionRequestDelivery.Steer ? 'steer' : 'queue',
+		});
 	}
 
 	createChatAgent(extension: IExtensionDescription, id: string, handler: vscode.ChatExtendedRequestHandler): vscode.ChatParticipant {

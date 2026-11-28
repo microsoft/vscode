@@ -22,7 +22,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../../
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ChatContextKeys } from '../actions/chatContextKeys.js';
-import { IChatAgentEditedFileEvent, IChatProgressHistoryResponseContent, IChatRequestModeInstructions, IChatRequestVariableData, ISerializableChatAgentData } from '../model/chatModel.js';
+import { ChatRequestSource, IChatAgentEditedFileEvent, IChatProgressHistoryResponseContent, IChatRequestModeInstructions, IChatRequestVariableData, ISerializableChatAgentData } from '../model/chatModel.js';
 import { ChatRequestHooks } from '../promptSyntax/hookSchema.js';
 import { IRawChatCommandContribution } from './chatParticipantContribTypes.js';
 import { IChatFollowup, IChatLocationData, IChatProgress, IChatResponseErrorDetails, IChatTaskDto } from '../chatService/chatService.js';
@@ -201,6 +201,10 @@ export interface IChatAgentRequest {
 	 * When true, this request was initiated by the system rather than the user.
 	 */
 	isSystemInitiated?: boolean;
+	/** The feature that submitted this request on the user's behalf, see {@link IChatRequestModel.requestSource}. */
+	requestSource?: ChatRequestSource;
+	/** The label that the transcript shows in place of the prompt of a system-initiated request. */
+	systemInitiatedLabel?: string;
 	/** Whether the request and response should be hidden from the transcript. */
 	hideFromTranscript?: boolean;
 }

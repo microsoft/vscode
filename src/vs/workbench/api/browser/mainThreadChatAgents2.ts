@@ -7,7 +7,8 @@ import { DeferredPromise } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
-import { Disposable, DisposableMap, IDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { createSingleCallFunction } from '../../../base/common/functional.js';
 import { autorun } from '../../../base/common/observable.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { Schemas } from '../../../base/common/network.js';
@@ -37,20 +38,22 @@ import { IChatModel, IChatResponseModel } from '../../contrib/chat/common/model/
 import { ChatRequestAgentPart } from '../../contrib/chat/common/requestParser/chatParserTypes.js';
 import { ChatRequestParser, IChatParserContext } from '../../contrib/chat/common/requestParser/chatRequestParser.js';
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../../contrib/chat/browser/attachments/chatVariables.js';
-import { IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatService, IChatTask, IChatTaskSerialized, IChatWarningMessage } from '../../contrib/chat/common/chatService/chatService.js';
-import { ChatSessionOptionsMap, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
+import { ChatRequestQueueKind, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatService, IChatTask, IChatTaskSerialized, IChatWarningMessage } from '../../contrib/chat/common/chatService/chatService.js';
+import { getContinuationRequestOptions } from '../../contrib/chat/common/chatService/chatContinuationRequest.js';
+import { ChatSessionOptionsMap, IChatSessionsService, localChatSessionType } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../contrib/chat/common/constants.js';
 import { ILanguageModelToolsService } from '../../contrib/chat/common/tools/languageModelToolsService.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostChatAgentsShape2, ExtHostContext, IChatAgentInvokeResult, IChatSessionCustomizationItemDto, IChatSessionCustomizationProviderMetadataDto, IChatNotebookEditDto, IChatParticipantMetadata, IChatProgressDto, IChatSessionContextDto, ICustomAgentDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, IHookDto, IInstructionDto, IPluginDto, ISkillDto, ISlashCommandDto, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
+import { ExtHostChatAgentsShape2, ExtHostContext, IChatAgentInvokeResult, IChatSessionCustomizationItemDto, IChatSessionCustomizationProviderMetadataDto, IChatNotebookEditDto, IChatParticipantMetadata, IChatProgressDto, IChatSessionContextDto, IChatSessionRequestDto, ICustomAgentDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, IHookDto, IInstructionDto, IPluginDto, ISkillDto, ISlashCommandDto, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
 import { NotebookDto } from './mainThreadNotebookDto.js';
 import { getChatSessionType, isUntitledChatSession } from '../../contrib/chat/common/model/chatUri.js';
 import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, IHarnessDescriptor } from '../../contrib/chat/common/customizationHarnessService.js';
 import { AICustomizationManagementSection } from '../../contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../contrib/chat/common/plugins/agentPluginService.js';
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
+import { localize } from '../../../nls.js';
 
 interface AgentData {
 	dispose: () => void;
@@ -123,6 +126,9 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	private readonly _activeTasks = new Map<string, IChatTask>();
 
 	private readonly _unresolvedAnchors = new Map</* requestId */string, Map</* id */ string, UnresolvedAnchor>>();
+
+	/** References that keep sessions alive while requests that extensions sent into them are pending. */
+	private readonly _sessionRequestReferences = this._register(new DisposableStore());
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -337,6 +343,63 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		}
 
 		await this._chatService.transferChatSession(model.sessionResource, URI.revive(toWorkspace));
+	}
+
+	async $sendRequestToSession(extensionId: ExtensionIdentifier, sessionResourceDto: UriComponents, request: IChatSessionRequestDto): Promise<void> {
+		const sessionResource = URI.revive(sessionResourceDto);
+		if (request.participant) {
+			// Other session types are handled by their own agent, which would ignore the participant.
+			if (getChatSessionType(sessionResource) !== localChatSessionType) {
+				throw new Error(`Chat sessions of type '${getChatSessionType(sessionResource)}' do not support sending requests to a participant`);
+			}
+			const agent = this._chatAgentService.getAgent(request.participant);
+			if (!agent || !ExtensionIdentifier.equals(agent.extensionId, extensionId)) {
+				throw new Error(`Chat participant '${request.participant}' is not registered by extension '${extensionId.value}'`);
+			}
+		}
+
+		// The session may not be shown anywhere. Keep it alive until the request completes.
+		const ref = await this._chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None, 'MainThreadChatAgents2#sendRequestToSession');
+		if (!ref) {
+			throw new Error(`Chat session not found: ${sessionResource.toString()}`);
+		}
+		// Releasing after this is disposed must not dispose the reference a second time.
+		const reference = toDisposable(createSingleCallFunction(() => ref.dispose()));
+		this._sessionRequestReferences.add(reference);
+		const release = () => this._sessionRequestReferences.delete(reference);
+
+		try {
+			const extension = await this._extensionService.getExtension(extensionId.value);
+			const extensionName = extension?.displayName || extension?.name || extensionId.value;
+			// Tell the agent where the message comes from, unless the extension's own participant handles it.
+			const prompt = request.participant ? request.prompt : `[Notification from extension ${extensionId.value}]\n${request.prompt}`;
+			const result = await this._chatService.sendRequest(sessionResource, prompt, {
+				...getContinuationRequestOptions(ref.object, this._chatSessionService),
+				...(request.participant ? { agentIdSilent: request.participant } : {}),
+				queue: request.delivery === 'steer' ? ChatRequestQueueKind.Steering : ChatRequestQueueKind.Queued,
+				isSystemInitiated: true,
+				systemInitiatedLabel: localize('chatSessionRequestLabel', "{0} ({1})", request.label, extensionName),
+				requestSource: 'extension',
+			});
+			if (result.kind === 'rejected') {
+				throw new Error(result.reason);
+			}
+			void (async () => {
+				try {
+					const sent = result.kind === 'queued' ? await result.deferred : result;
+					if (sent.kind === 'sent') {
+						await sent.data.responseCompletePromise;
+					}
+				} catch (error) {
+					this._logService.warn(`MainThreadChatAgents2#sendRequestToSession: request from ${extensionId.value} failed`, error);
+				} finally {
+					release();
+				}
+			})();
+		} catch (error) {
+			release();
+			throw error;
+		}
 	}
 
 	async $registerAgent(handle: number, extension: ExtensionIdentifier, id: string, metadata: IExtensionChatAgentMetadata, dynamicProps: IDynamicChatAgentProps | undefined): Promise<void> {

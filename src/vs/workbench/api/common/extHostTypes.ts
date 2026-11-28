@@ -3120,6 +3120,11 @@ export enum ChatRequestEditedFileEventKind {
 	UserModification = 3,
 }
 
+export enum ChatSessionRequestDelivery {
+	Queue = 1,
+	Steer = 2,
+}
+
 //#endregion
 
 //#region Interactive Editor

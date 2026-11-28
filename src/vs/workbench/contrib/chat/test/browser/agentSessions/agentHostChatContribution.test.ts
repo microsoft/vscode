@@ -23442,6 +23442,44 @@ suite('AgentHostChatContribution', () => {
 			}
 		}
 
+		for (const kind of [ChatRequestQueueKind.Queued, ChatRequestQueueKind.Steering]) {
+			test(`sends ${kind} requests from extensions as user messages that keep their label`, async () => {
+				const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
+
+				const backendSession = AgentSession.uri('copilot', 'pending-extension');
+				agentHostService.sessionStates.set(backendSession.toString(), {
+					...createSessionState({
+						resource: backendSession.toString(),
+						provider: 'copilot',
+						title: 'Test',
+						status: SessionStatus.Idle,
+						createdAt: new Date().toISOString(),
+						modifiedAt: new Date().toISOString(),
+					}),
+					lifecycle: SessionLifecycle.Ready,
+				});
+
+				const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/pending-extension' });
+				const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+				disposables.add(toDisposable(() => chatSession.dispose()));
+				agentHostService.dispatchedActions.length = 0;
+
+				const text = '[Notification from extension test.ext]\nBuild output';
+				chatService.setSession(sessionResource, createPendingChatModel(sessionResource, [{
+					request: upcastPartial<IChatRequestModel>({ id: 'extension-request', message: { text, parts: [] }, isSystemInitiated: true, requestSource: 'extension', systemInitiatedLabel: 'Build finished (Test)' }),
+					kind,
+					sendOptions: {},
+				}]).model);
+
+				const action = agentHostService.dispatchedActions.map(d => d.action).find((action): action is Extract<ChatAction, { type: ActionType.ChatPendingMessageSet }> => action.type === ActionType.ChatPendingMessageSet);
+				assert.deepStrictEqual(action?.message, {
+					text,
+					origin: { kind: MessageKind.User },
+					_meta: { 'vscode.chat.extensionRequest': true, 'vscode.chat.systemInitiatedLabel': 'Build finished (Test)' },
+				});
+			});
+		}
+
 		for (const kind of agentHostConnectionKinds) {
 			test(`carries the selected agent on queued and steering messages (${kind.name})`, async () => {
 				const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
