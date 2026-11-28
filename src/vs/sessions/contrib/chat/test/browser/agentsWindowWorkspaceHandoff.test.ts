@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { extUri } from '../../../../../base/common/resources.js';
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -78,6 +80,7 @@ suite('Agents Window workspace handoff', () => {
 		const knownWorkspaces: IRecentSessionWorkspace[] = [];
 		const openedWorkspaceFiles: URI[] = [];
 		let openWorkspace = async (file: URI): Promise<IRecentSessionWorkspace> => { throw new Error(`Cannot read ${file.path}`); };
+		instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri }));
 		instantiationService.stub(ISessionWorkspacesService, upcastPartial<ISessionWorkspacesService>({
 			enabled: workspacesEnabled,
 			getWorkspace: uri => knownWorkspaces.find(workspace => [workspace.uri, ...workspace.previousUris ?? []].some(candidate => candidate.toString() === uri.toString())),
@@ -825,6 +828,12 @@ suite('Agents Window workspace handoff', () => {
 				// The workspace as last read, which reading the file again leaves marked missing
 				harness.openWorkspaceResult = async () => ({ ...workspace, missing: true });
 			}, { file, folders }),
+			await run('known workspace whose folders cannot be confirmed now, and which the file no longer has, selects the editor window\'s folders', harness => {
+				harness.knownWorkspaces.push(workspace);
+				// As the workspaces service returns a known workspace when it can't tell whether the file's folders are on
+				// this computer: as last read, not marked missing
+				harness.openWorkspaceResult = async () => workspace;
+			}, { file, folders: [folders[1], URI.file('/work/docs')] }),
 			await run('workspaces disabled', harness => harness.workspacesEnabled.set(false, undefined), { file, folders }),
 			await run('draft keeps its folder', harness => harness.knownWorkspaces.push(workspace), { file, folders }, { inputText: 'Continue here', attachments: [] }),
 		];
@@ -837,6 +846,7 @@ suite('Agents Window workspace handoff', () => {
 			{ name: 'known workspace, also a VS Code recent, whose file changed while the Agents window was closed', state: 'applied', opened: ['/work/app.code-workspace'], folder: '/work/server', workspaceConfig: { uri: '/work/app.code-workspace', name: 'App', folders: ['/work/server', '/work/client'] }, folders: undefined },
 			{ name: 'workspace known by its earlier file is read under its current one', state: 'applied', opened: ['/work/app-renamed.code-workspace'], folder: '/work/client', workspaceConfig: { ...appConfig, uri: '/work/app-renamed.code-workspace' }, folders: undefined },
 			{ name: 'file whose folders cannot be read now selects the folders', state: 'applied', opened: ['/work/app.code-workspace'], folder: '/work/client', workspaceConfig: undefined, folders: ['/work/client', '/work/server'] },
+			{ name: 'known workspace whose folders cannot be confirmed now, and which the file no longer has, selects the editor window\'s folders', state: 'applied', opened: ['/work/app.code-workspace'], folder: '/work/server', workspaceConfig: undefined, folders: ['/work/server', '/work/docs'] },
 			{ name: 'workspaces disabled', state: 'applied', opened: [], folder: '/private/from-editor', workspaceConfig: undefined, folders: undefined },
 			{ name: 'draft keeps its folder', state: 'applied', opened: [], folder: '/private/from-editor', workspaceConfig: undefined, folders: undefined },
 		]);

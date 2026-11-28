@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { raceCancellationError, timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
@@ -99,6 +100,7 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 		@IStorageService private readonly storageService: IStorageService,
 		@IRemoteWorkspaceHandoffService private readonly remoteWorkspaceHandoffService: IRemoteWorkspaceHandoffService,
 		@ISessionWorkspacesService private readonly sessionWorkspacesService: ISessionWorkspacesService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
 		this._register(lifecycleService.onWillShutdown(() => this.cancel()));
@@ -382,8 +384,11 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 			this.logService.warn('[AgentsHandoff] Could not add the editor window\'s workspace; selecting its folders', error);
 			return folders;
 		}
-		// A file it can't read the folders of now leaves the workspace as it last read it, marked missing
-		if (known.missing || known.folders.length === 0) {
+		// A file it can't read the folders of now leaves the workspace as it last read it, marked missing, or, when it can't
+		// tell whether they are on this computer, unmarked: the editor window has the folders the file has now, so a
+		// workspace whose folders are not those selects the editor window's folders
+		const extUri = this.uriIdentityService.extUri;
+		if (known.missing || known.folders.length !== workspace.folders.length || known.folders.some((folder, index) => !extUri.isEqual(folder, workspace.folders[index]))) {
 			return folders;
 		}
 		return { folderUri: known.folders[0], workspaceConfig: { uri: known.uri, name: known.name, folders: known.folders } };
