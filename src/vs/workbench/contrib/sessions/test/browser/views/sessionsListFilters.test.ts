@@ -324,6 +324,26 @@ suite('SessionsListFilters', () => {
 		assert.deepStrictEqual({ persisted, reset, undone: restored.isScheduledOnly() }, { persisted: true, reset: false, undone: true });
 	});
 
+	test('reloads the filters that storage holds, such as of the profile the window switches to, without storing them', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const filters = createFilters(storage);
+		filters.setScheduledOnly(true);
+		// Another profile's values, as the storage switches to them
+		storage.store('sessionsListControl.filters', JSON.stringify([[sessionFilterKey({ kind: 'harness', id: 'claude' }), true]]), StorageScope.PROFILE, StorageTarget.USER);
+		let changes = 0;
+		store.add(filters.onDidChange(() => changes++));
+		const written: string[] = [];
+		store.add(storage.onDidChangeValue(StorageScope.PROFILE, undefined, store.add(new DisposableStore()))(e => written.push(e.key)));
+		filters.reload();
+
+		assert.deepStrictEqual({ scheduledOnly: filters.isScheduledOnly(), claude: filters.isExcluded({ kind: 'harness', id: 'claude' }), changes, written }, {
+			scheduledOnly: false,
+			claude: true,
+			changes: 1,
+			written: [],
+		});
+	});
+
 	test('Inbox scope distinguishes exact workspaces and environments without separating harnesses', () => {
 		const filters = createFilters();
 		const sessions = [

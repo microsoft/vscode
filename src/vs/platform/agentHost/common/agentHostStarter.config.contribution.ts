@@ -73,7 +73,7 @@ import { computerUseConfigurationProperties } from './computerUseConfiguration.j
 import { chatMoveConfigurationProperties } from './chatMoveConfiguration.js';
 import { titleGenerationConfigurationProperties } from './titleGenerationConfiguration.js';
 import { isAhpJsonlLoggingEnabled } from './ahpJsonlLogger.js';
-import { ModelRouterEnabledConfigKey, ModelRouterEnabledSettingId } from './modelRouterConfig.js';
+import { MODEL_ROUTER_DEFAULT_DECISION_MODEL, ModelRouterDecisionModelConfigKey, ModelRouterDecisionModelSettingId, ModelRouterEnabledConfigKey, ModelRouterEnabledSettingId } from './modelRouterConfig.js';
 
 // Settings consumed by the agent host starter (`electronAgentHostStarter.ts`
 // and `nodeAgentHostStarter.ts`) to populate the spawned agent host process's
@@ -303,6 +303,14 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['preview', 'advanced', 'experimental'],
 			agentHost: { key: ModelRouterEnabledConfigKey },
+		},
+		[ModelRouterDecisionModelSettingId]: {
+			type: 'string',
+			markdownDescription: nls.localize('chat.copilot.modelRouter.decisionModel', "The id of the Copilot decision model that picks a model router's route for each turn, such as `{0}` or `{1}`. The model must be one your account can use; otherwise routers use their first route. Empty uses the default decision model. Requires `#{2}#`.", MODEL_ROUTER_DEFAULT_DECISION_MODEL, 'microsoft-decision-1-1', ModelRouterEnabledSettingId),
+			default: MODEL_ROUTER_DEFAULT_DECISION_MODEL,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['preview', 'advanced', 'experimental'],
+			agentHost: { key: ModelRouterDecisionModelConfigKey },
 		},
 		[AgentHostOverlapProviderPreparationSettingId]: {
 			type: 'boolean',

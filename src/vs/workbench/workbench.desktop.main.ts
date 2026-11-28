@@ -50,6 +50,7 @@ import '../platform/customizationMarketplace/electron-browser/customizationMarke
 import './services/clipboard/electron-browser/clipboardService.js';
 import './services/contextmenu/electron-browser/contextmenuService.js';
 import './services/workspaces/electron-browser/workspaceEditingService.js';
+import './services/agentsMode/electron-browser/agentsMode.contribution.js';
 import './services/configurationResolver/electron-browser/configurationResolverService.js';
 import './services/accessibility/electron-browser/accessibilityService.js';
 import './services/keybinding/electron-browser/nativeKeyboardLayout.js';

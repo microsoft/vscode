@@ -45,6 +45,7 @@ import { IChatRequestVariableEntry } from '../../../../chat/common/attachments/c
 import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { asGitHubAccount } from '../../../../../../base/common/defaultAccount.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
@@ -2643,6 +2644,10 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				}
 			};
 			try {
+				const defaultAccount = this.defaultAccountService.currentDefaultAccount ?? await raceCancellationError(this.defaultAccountService.getDefaultAccount(), token);
+				if (defaultAccount && !asGitHubAccount(defaultAccount)) {
+					throw new Error(localize('cloudSessions.githubAccountRequired', "Sign in to Copilot with a GitHub account to use Copilot cloud sessions."));
+				}
 				checkHost();
 				await raceCancellationError(this.gitHubService.authenticateForRepositoryAccess(token), token);
 				if (token.isCancellationRequested) {

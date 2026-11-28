@@ -19,6 +19,14 @@ import { updateSourceLineAttributes } from '../src/util/sourceLineMap';
 let scrollDisabledCount = 0;
 let scrollDisabledTimer: number | undefined;
 
+/**
+ * How long the page has to stay unchanged before updated content counts as settled.
+ */
+const contentSettleDelay = 200;
+let isContentSettling = false;
+let contentSettleTimer: number | undefined;
+const contentSettleObserver = new MutationObserver(() => restartContentSettleTimer());
+
 const marker = new ActiveLineMarker();
 const settings = new SettingsManager();
 
@@ -68,6 +76,35 @@ window.cspAlerter.setPoster(messaging);
 window.styleLoadingMonitor.setPoster(messaging);
 
 
+/**
+ * Stops reporting the scroll position to the editor until updated content has settled.
+ *
+ * Updating the content changes the layout of the page, and preview scripts keep changing it while they render the new
+ * content, for example diagrams. The browser moves the scroll position to follow these changes. That is not the user
+ * scrolling the preview, so it must not scroll the editor.
+ */
+function waitForContentToSettle(): void {
+	isContentSettling = true;
+	contentSettleObserver.observe(document.body, { subtree: true, childList: true, attributes: true, characterData: true });
+	restartContentSettleTimer();
+}
+
+function restartContentSettleTimer(): void {
+	clearTimeout(contentSettleTimer);
+	contentSettleTimer = window.setTimeout(stopWaitingForContentToSettle, contentSettleDelay);
+}
+
+function stopWaitingForContentToSettle(): void {
+	isContentSettling = false;
+	clearTimeout(contentSettleTimer);
+	contentSettleObserver.disconnect();
+}
+
+// Scrolls that follow input in the preview are the user's, even if the content never settles.
+for (const type of ['wheel', 'pointerdown', 'keydown']) {
+	window.addEventListener(type, stopWaitingForContentToSettle, { capture: true, passive: true });
+}
+
 function doAfterImagesLoaded(cb: () => void) {
 	const imgElements = document.getElementsByTagName('img');
 	if (imgElements.length > 0) {
@@ -94,6 +131,7 @@ onceDocumentLoaded(() => {
 		getRawData('data-initial-md-content'),
 		'text/html'
 	);
+	setAutoDirection(markDownHtml);
 
 	const newElements = [...markDownHtml.body.children];
 	document.body.append(...newElements);
@@ -339,6 +377,7 @@ window.addEventListener('message', async event => {
 			return;
 
 		case 'updateContent': {
+			waitForContentToSettle();
 			lineChanges = data.lineChanges;
 			if (data.diffScrollSync) {
 				diffScrollSyncManager?.update(data.diffScrollSync);
@@ -359,6 +398,7 @@ window.addEventListener('message', async event => {
 			clearLineChanges();
 			if (data.source !== documentResource) {
 				documentResource = data.source;
+				setAutoDirection(newContent);
 				const newBody = newContent.querySelector('.markdown-body')!;
 				root.replaceWith(newBody);
 				domEval(newBody);
@@ -766,7 +806,7 @@ document.addEventListener('click', event => {
 window.addEventListener('scroll', throttle(() => {
 	updateScrollProgress();
 
-	if (scrollDisabledCount > 0) {
+	if (scrollDisabledCount > 0 || isContentSettling) {
 		return;
 	}
 
@@ -782,6 +822,21 @@ window.addEventListener('scroll', throttle(() => {
 function updateScrollProgress() {
 	state.scrollProgress = window.scrollY / document.body.clientHeight;
 	vscode.setState(state);
+}
+
+/**
+ * Lets the root of parsed preview content take its direction from the content, for right-to-left documents.
+ * Only use it for content whose root becomes the root of the page: in-place updates move the children of the
+ * parsed root into the page's root, which keeps its `dir`.
+ *
+ * The rendered html leaves `dir="auto"` off the root because Chromium re-resolves an auto direction whenever a
+ * node is added to or removed from it. That makes parsing a large document quadratic, and so is moving the nodes
+ * of an in-place update out of the parsed root. Set it on the parsed content, not in the page: setting a `dir` in
+ * the page makes Chromium re-resolve directions for every later change to the page, such as adding the code block
+ * copy buttons.
+ */
+function setAutoDirection(content: Document): void {
+	content.querySelector('.markdown-body')?.setAttribute('dir', 'auto');
 }
 
 

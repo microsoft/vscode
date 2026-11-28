@@ -22,12 +22,14 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import '../../../../../workbench/contrib/chat/browser/agentSessionsConfiguration.js';
 import { AUTO_DELETE_MARKED_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING, GitHubPullRequestPollingContribution } from '../../browser/github.contribution.js';
 import { AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY, AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_TAG } from '../../../../../workbench/contrib/sessions/common/github/sessionLifecycleSettings.js';
-import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { IGitHubService, IGitHubSessionPullRequestObservables } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { ChatInteractivity, IChat, IGitHubInfo, ISession, ISessionArtifact, ISessionCapabilities, ISessionChangeset, IChatCheckpoints, ISessionFileChange, ISessionWorkspace, SessionArtifactKind, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { focusedSessionHostServiceOf, ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
-import { ISessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionHost, ISessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { isEqual } from '../../../../../base/common/resources.js';
+import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
+import { IChangesRepository } from '../../../../../workbench/contrib/sessions/common/changesRepositories.js';
 
 suite('GitHubPullRequestPollingContribution', () => {
 
@@ -41,13 +43,16 @@ suite('GitHubPullRequestPollingContribution', () => {
 	const logService = new NullLogService();
 	let sessionsManagementService: TestSessionsManagementService;
 	let gitHubService: TestGitHubService;
-	let activeSession: ISettableObservable<ITestSessionWithChat | undefined>;
+	/** The session the main window shows. */
+	let mainWindowSession: ISettableObservable<ITestSessionWithChat | undefined>;
 	/** The session each host shows; a session appears once per host that shows it. */
 	let shownByHosts: ISettableObservable<readonly ISession[]>;
+	/** The repository the main window's Changes show. */
+	const selectedRepository = constObservable<IChangesRepository | undefined>(undefined);
 
 	setup(() => {
 		sessionsManagementService = new TestSessionsManagementService(store);
-		activeSession = observableValue<ITestSessionWithChat | undefined>('test.activeSession', undefined);
+		mainWindowSession = observableValue<ITestSessionWithChat | undefined>('test.mainWindowSession', undefined);
 		shownByHosts = observableValue<readonly ISession[]>('test.shownByHosts', []);
 		gitHubService = new TestGitHubService();
 	});
@@ -325,13 +330,42 @@ suite('GitHubPullRequestPollingContribution', () => {
 		});
 	});
 
+	test('keeps the pull request of the repository the main window\'s Changes show current while the main window shows a session that is not archived', () => {
+		const session = sessionsManagementService.addSession('session', makeGitHubInfo(1));
+		store.add(createContribution());
+		const events = () => gitHubService.selectionEvents.slice(1);
+		const steps: Record<string, readonly string[]> = {};
+
+		steps.noSession = events();
+		mainWindowSession.set(Object.assign(session, { activeChat: session.mainChat }), undefined);
+		steps.shown = events();
+		sessionsManagementService.setArchived(session, true);
+		steps.archived = events();
+		sessionsManagementService.setArchived(session, false);
+		mainWindowSession.set(undefined, undefined);
+		steps.noLongerShown = events();
+
+		assert.deepStrictEqual({ selection: gitHubService.selectionEvents[0], steps }, {
+			selection: 'pull request of the selection',
+			steps: {
+				noSession: [],
+				shown: ['kept current'],
+				archived: ['kept current', 'no longer kept current'],
+				noLongerShown: ['kept current', 'no longer kept current', 'kept current', 'no longer kept current'],
+			},
+		});
+	});
+
 	function createContribution(): GitHubPullRequestPollingContribution {
 		return new GitHubPullRequestPollingContribution(
 			gitHubService,
 			sessionsManagementService,
-			focusedSessionHostServiceOf(activeSession),
-			upcastPartial<ISessionHostService>({ isShown: (resource, reader) => shownByHosts.read(reader).some(session => isEqual(session.resource, resource)) }),
+			upcastPartial<ISessionHostService>({
+				isShown: (resource, reader) => shownByHosts.read(reader).some(session => isEqual(session.resource, resource)),
+				getHostOfWindow: () => upcastPartial<ISessionHost>({ session: mainWindowSession }),
+			}),
 			logService,
+			upcastPartial<IChangesViewService>({ activeSessionRepositoryObs: selectedRepository }),
 		);
 	}
 });
@@ -481,6 +515,19 @@ class TestGitHubService extends mock<IGitHubService>() {
 	override readonly activeSessionPullRequestObs = observableValue('test.activePR', undefined);
 	override readonly activeSessionPullRequestCIObs = observableValue('test.activePRCI', undefined);
 	override readonly activeSessionPullRequestReviewThreadsObs = observableValue('test.activePRReviewThreads', undefined);
+	/** Which pull request the contribution keeps current, and when. */
+	readonly selectionEvents: string[] = [];
+	private readonly _selectedPullRequest = upcastPartial<IGitHubSessionPullRequestObservables>({});
+
+	override getSessionPullRequest(_sessionObs: IObservable<ISession | undefined>, repositoryObs?: IObservable<IChangesRepository | undefined>): IGitHubSessionPullRequestObservables {
+		this.selectionEvents.push(repositoryObs ? 'pull request of the selection' : 'pull request of the first folder');
+		return this._selectedPullRequest;
+	}
+
+	override keepSessionPullRequestCurrent(pullRequest: IGitHubSessionPullRequestObservables): IDisposable {
+		this.selectionEvents.push(pullRequest === this._selectedPullRequest ? 'kept current' : 'kept another current');
+		return toDisposable(() => this.selectionEvents.push('no longer kept current'));
+	}
 
 	override createPullRequestModelReference(owner: string, repo: string, prNumber: number): IReference<GitHubPullRequestModel> {
 		const key = `${owner}/${repo}/${prNumber}`;

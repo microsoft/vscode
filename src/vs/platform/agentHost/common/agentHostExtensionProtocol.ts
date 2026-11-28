@@ -19,6 +19,8 @@ import { AgentHostSessionMoveCapabilityMetaKey } from './meta/agentHostSessionMo
 import { AgentHostSavedChatCapabilityMetaKey, AgentHostSavedChatContinuationCapabilityMetaKey } from './meta/agentHostSavedChatMeta.js';
 import { AgentHostDevContainerEnvironmentsCapabilityMetaKey, AgentHostDevContainerFolderContainersCapabilityMetaKey, AgentHostDevContainersCapabilityMetaKey } from './meta/agentHostDevContainersMeta.js';
 import { AgentHostClientProxyCapabilityMetaKey } from './meta/agentHostClientProxyMeta.js';
+import { AgentHostClientForwardingCapabilityMetaKey } from './meta/agentHostClientForwardingMeta.js';
+import { ClientForwardingCloseNotification, clientForwardingCloseParamsValidator, ClientForwardingDataNotification, clientForwardingDataParamsValidator, ClientGitConfigExtensionMethod, clientGitConfigResultValidator, ClientGitCredentialExtensionMethod, clientGitCredentialParamsValidator, clientGitCredentialResultValidator, ClientGpgKeysExtensionMethod, clientGpgKeysResultValidator, DescribeClientForwardingExtensionMethod, describeClientForwardingResultValidator, OpenClientForwardingExtensionMethod, openClientForwardingParamsValidator } from './clientForwardingProtocol.js';
 import { AgentHostTimingCapabilityMetaKey, ChatUserInteractionCapability } from './meta/agentHostTimingMeta.js';
 import type { IAgentHostFirstResponseDiagnostic } from './otel/agentHostTiming.js';
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
@@ -126,6 +128,7 @@ export const RequestAgentHostWorkspaceTrustExtensionMethod = 'vscode/requestWork
 export const RequestAgentHostMcpAuthenticationExtensionMethod = 'vscode/requestMcpAuthentication';
 export const RemoveSessionArtifactExtensionMethod = 'vscode/removeSessionArtifact';
 export const StopBackgroundWorkExtensionMethod = 'vscode/stopBackgroundWork';
+export const DetachSessionsFromWorkspaceExtensionMethod = 'vscode/detachSessionsFromWorkspace';
 export const AnswerShellAuthenticationExtensionMethod = 'vscode/answerShellAuthentication';
 export const MeasureWorktreeDiskUsageExtensionMethod = 'vscode/measureWorktreeDiskUsage';
 export const CancelWorktreeDiskUsageExtensionMethod = 'vscode/cancelWorktreeDiskUsage';
@@ -210,6 +213,8 @@ export interface IAgentHostExtensionInitializeResultMeta extends Record<string, 
 	readonly [ChatUserInteractionCapability]?: true;
 	/** Present when the host serves the client's proxy support and accepts `vscode/clientProxyChanged`. */
 	readonly [AgentHostClientProxyCapabilityMetaKey]?: true;
+	/** Present when the host forwards the client's agents and Git credentials to the processes it runs. */
+	readonly [AgentHostClientForwardingCapabilityMetaKey]?: true;
 	readonly [AgentHostCopilotExtensionsCapabilityMetaKey]?: true;
 	/** Present when this direct client may register the host as a GitHub environment; the host's current status. */
 	readonly [AgentHostGitHubEnvironmentCapabilityMetaKey]?: IAgentHostGitHubEnvironmentStatus;
@@ -290,6 +295,14 @@ export type CollectAgentHostDebugLogsParams = ValidatorType<typeof collectAgentH
 export const removeSessionArtifactParamsValidator = vObj({
 	session: vString(),
 	artifactId: vString(),
+});
+
+/**
+ * Detaches every session that records one of `workspaceFiles` (host URI space) as its multi-root workspace, loaded or
+ * stored, by removing that record from its `_meta`. The sessions keep their working directories.
+ */
+export const detachSessionsFromWorkspaceParamsValidator = vObj({
+	workspaceFiles: vArray(vString()),
 });
 
 /** Stops a chat's background work entry that the host marked stoppable in its `_meta`. */
@@ -442,6 +455,11 @@ export interface IAgentHostExtensionCommandMap {
 		params: ValidatorType<typeof removeSessionArtifactParamsValidator>;
 		result: void;
 	};
+	[DetachSessionsFromWorkspaceExtensionMethod]: {
+		params: ValidatorType<typeof detachSessionsFromWorkspaceParamsValidator>;
+		/** The sessions that were detached. */
+		result: { sessions: string[] };
+	};
 	[StopBackgroundWorkExtensionMethod]: {
 		params: ValidatorType<typeof stopBackgroundWorkParamsValidator>;
 		/** `stopped` is false when the work had already finished or the host no longer tracks it. */
@@ -505,6 +523,8 @@ export interface IAgentHostExtensionNotificationMap {
 	[DevContainerSandboxSupportNotification]: ValidatorType<typeof devContainerSandboxSupportValidator>;
 	[DevContainerUserStateNotification]: ValidatorType<typeof devContainerUserStateValidator>;
 	[DevContainerConnectFailureNotification]: ValidatorType<typeof devContainerConnectFailureValidator>;
+	[ClientForwardingDataNotification]: ValidatorType<typeof clientForwardingDataParamsValidator>;
+	[ClientForwardingCloseNotification]: ValidatorType<typeof clientForwardingCloseParamsValidator>;
 }
 
 export interface IAgentHostWorkspaceTrustRequest {
@@ -548,4 +568,9 @@ export interface IAgentHostExtensionServerCommandMap {
 		params: IAgentHostMcpAuthenticationRequest;
 		result: { authenticated: boolean };
 	};
+	[DescribeClientForwardingExtensionMethod]: { params: Record<string, never>; result: ValidatorType<typeof describeClientForwardingResultValidator> };
+	[OpenClientForwardingExtensionMethod]: { params: ValidatorType<typeof openClientForwardingParamsValidator>; result: Record<string, never> };
+	[ClientGitCredentialExtensionMethod]: { params: ValidatorType<typeof clientGitCredentialParamsValidator>; result: ValidatorType<typeof clientGitCredentialResultValidator> };
+	[ClientGpgKeysExtensionMethod]: { params: Record<string, never>; result: ValidatorType<typeof clientGpgKeysResultValidator> };
+	[ClientGitConfigExtensionMethod]: { params: Record<string, never>; result: ValidatorType<typeof clientGitConfigResultValidator> };
 }

@@ -101,6 +101,11 @@ export interface ICreatedRemoteSession {
 	readonly openLink: string;
 	readonly host: { readonly id: string; readonly label: string };
 	readonly model: { readonly provider: string; readonly id: string | null };
+	/** The permission ID and mode the session starts with; null where the target has no such setting. */
+	readonly permissions: string | null;
+	readonly mode: string | null;
+	/** Permissions or mode of the creating chat that the target does not offer, with what it uses instead. */
+	readonly notInherited: readonly string[];
 	readonly workspace: {
 		readonly requestedUri: string;
 		readonly uri: string | null;

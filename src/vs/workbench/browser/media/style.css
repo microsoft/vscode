@@ -15,8 +15,18 @@
 .monaco-workbench.mac:lang(ja) { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic Pro", sans-serif; }
 .monaco-workbench.mac:lang(ko) { font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Nanum Gothic", "AppleGothic", sans-serif; }
 
+/*
+ * Microsoft YaHei draws the full stop of DIGIT ONE FULL STOP to DIGIT NINE FULL STOP (U+2488 to U+2490)
+ * over the digit, which hides it. Render these characters with SimSun, which ships with Windows.
+ */
+@font-face {
+	font-family: "vscode-digit-full-stop";
+	src: local("SimSun");
+	unicode-range: U+2488-2490;
+}
+
 .monaco-workbench.windows { font-family: "Segoe WPC", "Segoe UI", sans-serif; }
-.monaco-workbench.windows:lang(zh-Hans) { font-family: "Segoe WPC", "Segoe UI", "Microsoft YaHei", sans-serif; }
+.monaco-workbench.windows:lang(zh-Hans) { font-family: "Segoe WPC", "Segoe UI", "vscode-digit-full-stop", "Microsoft YaHei", sans-serif; }
 .monaco-workbench.windows:lang(zh-Hant) { font-family: "Segoe WPC", "Segoe UI", "Microsoft Jhenghei", sans-serif; }
 .monaco-workbench.windows:lang(ja) { font-family: "Segoe WPC", "Segoe UI", "Yu Gothic UI", "Meiryo UI", sans-serif; }
 .monaco-workbench.windows:lang(ko) { font-family: "Segoe WPC", "Segoe UI", "Malgun Gothic", "Dotom", sans-serif; }

@@ -314,7 +314,7 @@ class OpenChangesAction extends Action2 {
 		if (!session) {
 			return;
 		}
-		const sessionChanges = getChangesOfSession(changesViewService, mainWindowChangesOwner(accessor), session, target.chat).changesObs.get();
+		const sessionChanges = getChangesOfSession(changesViewService, mainWindowChangesOwner(accessor.get(ISessionHostService)), session, target.chat).changesObs.get();
 
 		const changes = sessionChanges?.filter(change =>
 			resources.some(resource => isChangesFileResource(change, resource))

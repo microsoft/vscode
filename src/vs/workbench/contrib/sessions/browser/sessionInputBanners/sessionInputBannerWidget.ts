@@ -22,7 +22,7 @@ import { IContextMenuService } from '../../../../../platform/contextview/browser
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
-import { chartsOrange } from '../../../../../platform/theme/common/colors/chartsColors.js';
+import { agentsCIBannerButtonBackground, agentsCIBannerButtonForeground, agentsCIBannerButtonHoverBackground } from '../../../../common/agentsColors.js';
 
 /**
  * Delay before the working border is shown while the chat model loads.
@@ -320,9 +320,11 @@ export class SessionInputBannerWidget extends Disposable {
 			...defaultButtonStyles,
 			hoverDelegate: this._hoverDelegate,
 			...(action.primary && banner.accent ? {
-				buttonBackground: asCssVariable(chartsOrange),
-				buttonHoverBackground: `color-mix(in srgb, ${asCssVariable(chartsOrange)} 88%, black)`,
-				buttonBorder: asCssVariable(chartsOrange),
+				buttonBackground: asCssVariable(agentsCIBannerButtonBackground),
+				buttonHoverBackground: asCssVariable(agentsCIBannerButtonHoverBackground),
+				buttonForeground: asCssVariable(agentsCIBannerButtonForeground),
+				buttonBorder: asCssVariable(agentsCIBannerButtonBackground),
+				buttonSeparator: asCssVariable(agentsCIBannerButtonForeground),
 			} : {}),
 			...(action.primary ? {} : {
 				buttonBackground: undefined,

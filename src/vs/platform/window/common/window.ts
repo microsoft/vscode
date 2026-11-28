@@ -669,6 +669,12 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	policiesData?: IStringDictionary<{ definition: PolicyDefinition; value: PolicyValue }>;
 
 	isSessionsWindow?: boolean;
+
+	/**
+	 * Whether the window is in Agents mode. Main remembers it per window
+	 * across reloads and restarts.
+	 */
+	agentsMode?: boolean;
 }
 
 /**

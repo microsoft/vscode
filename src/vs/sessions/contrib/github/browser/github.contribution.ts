@@ -14,11 +14,13 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ISession } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { IFocusedSessionHostService, ISessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { GitHubPullRequestState } from '../../../../workbench/contrib/sessions/common/github/types.js';
 import { getSessionGitHubReferences } from '../../../../workbench/contrib/sessions/common/github/sessionGitHubReferences.js';
 import { getPullRequestKey } from '../../../../workbench/contrib/sessions/common/github/utils.js';
 import { AUTO_DELETE_MARKED_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING } from '../../../../workbench/contrib/sessions/common/github/sessionLifecycleSettings.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { GitHubService, IGitHubService, isGitHubReferenceSupported } from '../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { IPullRequestIconCache, PullRequestIconCache } from '../../../../workbench/contrib/sessions/browser/github/pullRequestIconCache.js';
 import { PullRequestChangesMultiDiffSourceResolver } from './pullRequestChangesMultiDiffSourceResolver.js';
@@ -73,62 +75,28 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 	constructor(
 		@IGitHubService private readonly _gitHubService: IGitHubService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
-		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 		@ISessionHostService private readonly _sessionHostService: ISessionHostService,
 		@ILogService private readonly _logService: ILogService,
+		@IChangesViewService changesViewService: IChangesViewService,
 	) {
 		super();
 
-		const activeSessionResourceObs = derivedOpts<URI | undefined>({ equalsFn: isEqual }, reader => {
-			const activeSession = this._focusedSessionHostService.focusedHost.read(reader).session.read(reader);
-			if (!activeSession || !activeSession.resource || activeSession.isArchived.read(reader)) {
-				return undefined;
-			}
+		// The pull request of the repository the main window's Changes show, whose checks they show and act on: a
+		// repository's pull request can be known only from its metadata, so its details, and with them its head commit
+		// and checks, load only as it is refreshed here.
+		const mainWindowSessionObs = derived(reader => this._sessionHostService.getHostOfWindow(mainWindow.vscodeWindowId, reader)?.session.read(reader));
+		const selectedPullRequest = this._gitHubService.getSessionPullRequest(mainWindowSessionObs, changesViewService.activeSessionRepositoryObs);
 
-			return activeSession.resource;
+		// Kept current while that session, the same one, is not archived
+		const mainWindowSessionResourceObs = derivedOpts<URI | undefined>({ equalsFn: isEqual }, reader => {
+			const session = mainWindowSessionObs.read(reader);
+			return session?.resource && !session.isArchived.read(reader) ? session.resource : undefined;
 		});
 
-		// Pull request model
 		this._register(autorun(reader => {
-			const activeSessionResource = activeSessionResourceObs.read(reader);
-			if (!activeSessionResource) {
-				return;
+			if (mainWindowSessionResourceObs.read(reader)) {
+				reader.store.add(this._gitHubService.keepSessionPullRequestCurrent(selectedPullRequest));
 			}
-
-			const model = this._gitHubService.activeSessionPullRequestObs.read(reader);
-			model?.refresh({ priority: 'visible' });
-		}));
-
-		// Pull request CI model
-		this._register(autorun(reader => {
-			const activeSessionResource = activeSessionResourceObs.read(reader);
-			if (!activeSessionResource) {
-				return;
-			}
-
-			const model = this._gitHubService.activeSessionPullRequestCIObs.read(reader);
-			if (!model) {
-				return;
-			}
-
-			model.refresh(false, { priority: 'visible' });
-			reader.store.add(model.startPolling());
-		}));
-
-		// Pull request review threads model
-		this._register(autorun(reader => {
-			const activeSessionResource = activeSessionResourceObs.read(reader);
-			if (!activeSessionResource) {
-				return;
-			}
-
-			const model = this._gitHubService.activeSessionPullRequestReviewThreadsObs.read(reader);
-			if (!model) {
-				return;
-			}
-
-			model.refresh(false, { priority: 'visible' });
-			reader.store.add(model.startPolling());
 		}));
 
 		this._sessionsManagementService.onDidChangeSessions(this._onDidChangeSessions, this, this._store);

@@ -378,6 +378,8 @@ export interface ISSHResolvedConfig {
 	readonly strictHostKeyChecking: SSHStrictHostKeyChecking | undefined;
 	/** `PubkeyAuthentication`; false when public key authentication, including keys from an agent, is disabled. */
 	readonly pubkeyAuthentication?: boolean;
+	/** `PasswordAuthentication`; false when password authentication is disabled. */
+	readonly passwordAuthentication?: boolean;
 	/** `PreferredAuthentications`: the authentication methods to try, in order. */
 	readonly preferredAuthentications?: readonly string[];
 }

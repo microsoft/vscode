@@ -76,7 +76,8 @@ export class DesktopDetailPanelCoordinator extends Disposable {
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
-		this._checks = getChangesViewChecksObs(gitHubService, configurationService);
+		const mainWindowHost = getMainWindowHost(sessionHostService);
+		this._checks = getChangesViewChecksObs(gitHubService, configurationService, mainWindowHost.session, _changesViewService.activeSessionRepositoryObs);
 		this._hasDockedDetailsContext = HasDockedDetailsContext.bindTo(contextKeyService);
 		this._register(this._layoutService.onDidChangePartVisibility(event => {
 			if (event.partId === Parts.AUXILIARYBAR_PART && event.source !== 'resize') {
@@ -86,7 +87,6 @@ export class DesktopDetailPanelCoordinator extends Disposable {
 				this._queueTarget(this._target);
 			}
 		}));
-		const mainWindowHost = getMainWindowHost(sessionHostService);
 		this._register(autorun(reader => {
 			const activeSession = mainWindowHost.session.read(reader);
 			const activeChat = mainWindowHost.chat.read(reader);

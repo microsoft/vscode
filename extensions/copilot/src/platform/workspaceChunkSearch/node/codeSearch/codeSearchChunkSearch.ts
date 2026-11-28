@@ -230,17 +230,14 @@ export class CodeSearchChunkSearch extends Disposable {
 				return;
 			}
 
-			if (this.isExternalIngestEnabled()) {
-				void this.ensureExternalIngestInitialized().finally(() => this._onDidChangeIndexState.fire());
-				return;
-			}
-
+			this.updateExternalIngestIndex();
 			this._onDidChangeIndexState.fire();
 		}));
 
 		// Whether external ingest applies depends on which workspace folders are outside GitHub repos
 		this._register(this._workspaceService.onDidChangeWorkspaceFolders(() => {
-			void this.ensureExternalIngestInitialized().finally(() => this._onDidChangeIndexState.fire());
+			this.updateExternalIngestIndex();
+			this._onDidChangeIndexState.fire();
 		}));
 
 		if (this.isCodeSearchEnabled()) {
@@ -287,7 +284,7 @@ export class CodeSearchChunkSearch extends Disposable {
 						return;
 					}
 
-					await this.ensureExternalIngestInitialized();
+					this.updateExternalIngestIndex();
 				} finally {
 					this._hasFinishedInitialization = true;
 					this._onDidFinishInitialization.fire();
@@ -331,7 +328,8 @@ export class CodeSearchChunkSearch extends Disposable {
 		this._externalIngestIndex.rawValue?.updateCodeSearchRoots(this.getExternalIngestRoots());
 	}
 
-	private async ensureExternalIngestInitialized(): Promise<void> {
+	/** Index status only needs the stored checkpoint. Leave workspace reconciliation to doIngest on first use. */
+	private updateExternalIngestIndex(): void {
 		if (!this.shouldUseExternalIngest()) {
 			return;
 		}
@@ -342,8 +340,6 @@ export class CodeSearchChunkSearch extends Disposable {
 				this._onDidChangeIndexState.fire();
 			}));
 		}
-
-		await this._externalIngestIndex.value.initialize();
 	}
 
 	private isInitializing(): boolean {
@@ -555,7 +551,7 @@ export class CodeSearchChunkSearch extends Disposable {
 
 		await this._configService.setConfig(ConfigKey.Advanced.WorkspaceEnableCodeSearchExternalIngest, true, ConfigTarget.Workspace);
 		await this.initialize();
-		await this.ensureExternalIngestInitialized();
+		this.updateExternalIngestIndex();
 		this._onDidChangeIndexState.fire();
 		return true;
 	}
@@ -877,7 +873,7 @@ export class CodeSearchChunkSearch extends Disposable {
 		}
 
 		try {
-			await raceCancellationError(this.ensureExternalIngestInitialized(), token);
+			this.updateExternalIngestIndex();
 			return await this._externalIngestIndex.value.search(sizing, query, telemetryInfo.addCaller('CodeSearchChunkSearch::searchExternalIngest'), token);
 		} catch (e) {
 			if (isCancellationError(e)) {

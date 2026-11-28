@@ -14,11 +14,30 @@ const range = z.object({ start: offset, endExclusive: offset });
  * offsets into its current text, or ignores them if it cannot.
  */
 const version = z.object({ serverRevision: offset, clientRevision: offset });
+export const DEFAULT_MARKDOWN_EDITOR_ZOOM_PERCENT = 100;
+export const MIN_MARKDOWN_EDITOR_ZOOM_PERCENT = 25;
+export const MAX_MARKDOWN_EDITOR_ZOOM_PERCENT = 400;
+export const MARKDOWN_EDITOR_ZOOM_STEP_PERCENT = 10;
+
+export function clampMarkdownEditorZoomPercent(percent: number): number {
+	if (!Number.isFinite(percent)) {
+		return DEFAULT_MARKDOWN_EDITOR_ZOOM_PERCENT;
+	}
+	return Math.max(MIN_MARKDOWN_EDITOR_ZOOM_PERCENT, Math.min(MAX_MARKDOWN_EDITOR_ZOOM_PERCENT, Math.round(percent)));
+}
+
+export function stepMarkdownEditorZoomDelta(configured: number, currentDelta: number, step: number): number {
+	const current = clampMarkdownEditorZoomPercent(configured + currentDelta);
+	const next = clampMarkdownEditorZoomPercent(current + step);
+	return next === current ? currentDelta : next - configured;
+}
+
 const editorConfiguration = z.object({
 	highlightActiveBlock: z.boolean(),
 	renderWhitespace: z.boolean(),
 	/** The line break the document uses, which the editor should insert. */
 	lineBreak: z.enum(['\n', '\r\n']),
+	zoomPercent: z.number(),
 	/** Whether the underlying file or editor input is read-only. */
 	documentReadonly: z.boolean(),
 	fontFamily: z.optional(z.string()),

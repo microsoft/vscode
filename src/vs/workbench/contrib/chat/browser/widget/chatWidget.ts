@@ -3116,6 +3116,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			renderWorkingSet: this.viewOptions.enableWorkingSet === 'explicit',
 			supportsChangingModes: this.viewOptions.supportsChangingModes,
 			dndContainer: this.viewOptions.dndContainer,
+			dndChat: this.viewOptions.dndChat,
 			inputEditorMinLines: this.viewOptions.inputEditorMinLines,
 			inputEditorOptions: this.viewOptions.inputEditorOptions,
 			inputEditorPadding: this.viewOptions.inputEditorPadding,

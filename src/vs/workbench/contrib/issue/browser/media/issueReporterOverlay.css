@@ -11,7 +11,6 @@
 	overflow: hidden;
 	height: 100%;
 	background: var(--vscode-editor-background);
-	font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, sans-serif;
 	font-size: var(--vscode-fontSize-body1);
 	color: var(--vscode-foreground);
 }
@@ -165,7 +164,6 @@
 	box-shadow: var(--vscode-shadow-lg, 0 2px 8px rgba(0, 0, 0, 0.2));
 	-webkit-app-region: no-drag;
 	user-select: none;
-	font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, sans-serif;
 	font-size: var(--vscode-fontSize-body1);
 	color: var(--vscode-foreground);
 	/* Lock against compression — the bar's width is determined by its content

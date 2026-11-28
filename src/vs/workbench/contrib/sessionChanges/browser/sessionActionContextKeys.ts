@@ -8,7 +8,7 @@ import { Event } from '../../../../base/common/event.js';
 import { autorun, IObservable, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { BrandedService, IConstructorSignature, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { bindContextKey, observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { AGENT_HOST_PULL_REQUEST_OPERATION_IDS } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
@@ -25,19 +25,22 @@ export interface ISessionActionContextKeysSource {
 	readonly session: IObservable<ISession | undefined>;
 	/** The chat the host shows of {@link session}. */
 	readonly chat: IObservable<IChat | undefined>;
-	readonly changes: Pick<IChangesSessionObservables, 'changesObs' | 'changesetsLoadingObs' | 'loadingObs' | 'changesetObs' | 'changesetOperationsObs' | 'stateObs'>;
+	readonly changes: Pick<IChangesSessionObservables, 'changesObs' | 'changesetsLoadingObs' | 'loadingObs' | 'changesetObs' | 'changesetOperationsObs' | 'stateObs' | 'operationsChangesetObs' | 'repositoryObs'>;
 	readonly pullRequest: Pick<IGitHubSessionPullRequestObservables, 'pullRequestCIObs'>;
 }
 
 /**
  * Binds additional session action context keys, e.g. contributed by providers
- * which shared Sessions code must not import.
+ * which shared Sessions code must not import. A binder is created with the
+ * source and context key service it binds, followed by the services it injects,
+ * and unbinds when disposed.
  */
-export type SessionActionContextKeyBinder = (accessor: ServicesAccessor, source: ISessionActionContextKeysSource, contextKeyService: IContextKeyService) => IDisposable;
+export type SessionActionContextKeyBinder = IConstructorSignature<IDisposable, [source: ISessionActionContextKeysSource, contextKeyService: IContextKeyService]>;
 
 const sessionActionContextKeyBinders: SessionActionContextKeyBinder[] = [];
 
-export function registerSessionActionContextKeyBinder(binder: SessionActionContextKeyBinder): IDisposable {
+export function registerSessionActionContextKeyBinder<Services extends BrandedService[]>(ctor: { new(source: ISessionActionContextKeysSource, contextKeyService: IContextKeyService, ...services: Services): IDisposable }): IDisposable {
+	const binder = ctor as SessionActionContextKeyBinder;
 	sessionActionContextKeyBinders.push(binder);
 	return {
 		dispose: () => {
@@ -72,9 +75,8 @@ class SessionActionContextKeys extends Disposable {
 		this._register(bindChangesetOperationContextKeys(source, contextKeyService, logService));
 		this._register(bindArtifactIntegrationsContextKey(source, contextKeyService, configurationService));
 		this._register(bindSessionCIChecksContextKeys(source.pullRequest, contextKeyService));
-		// The binders that providers register take the services they need, as command handlers do.
 		for (const binder of sessionActionContextKeyBinders) {
-			this._register(instantiationService.invokeFunction(accessor => binder(accessor, source, contextKeyService)));
+			this._register(instantiationService.createInstance(binder, source, contextKeyService));
 		}
 	}
 }
@@ -127,7 +129,10 @@ function bindChangesetOperationContextKeys(source: ISessionActionContextKeysSour
 			|| changes.loadingObs.read(reader)) {
 			return;
 		}
-		const operations = changes.changesetObs.read(reader)?.operations.read(reader) ?? [];
+		// The picked repository's own pull request, when one is picked; one without a changeset of its own, as for a
+		// changeset other than Branch, offers none of the chat's
+		const changeset = changes.operationsChangesetObs.read(reader);
+		const operations = changes.repositoryObs.read(reader) && changeset === changes.changesetObs.read(reader) ? [] : changeset?.operations.read(reader) ?? [];
 		const primary = operations.find(op => AGENT_HOST_PULL_REQUEST_OPERATION_IDS.has(op.id))?.id ?? '';
 		const hasOpenPullRequest = changes.stateObs.read(reader)?.hasOpenPullRequest === true;
 		contextKeyService.bufferChangeEvents(() => {

@@ -6,7 +6,8 @@
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { hash } from '../../../../base/common/hash.js';
 import { agentDecisionErrorKind, type IAgentDecisionQuestion, type IAgentDecisionsRequest, type IAgentDecisionsResult } from '../../common/agentDecisions.js';
-import { MODEL_ROUTER_DECISION_MODEL, MODEL_ROUTER_MAX_ROUTES } from '../../common/modelRouter.js';
+import { MODEL_ROUTER_MAX_ROUTES } from '../../common/modelRouter.js';
+import { MODEL_ROUTER_DEFAULT_DECISION_MODEL } from '../../common/modelRouterConfig.js';
 import { ModelRouterPickerError, ModelRouterPickerFailure, type IModelRouterPick, type IModelRouterPicker, type IModelRouterPickRequest } from './copilotModelRouter.js';
 
 /** Routing holds up the turn, so a slow decision falls back to the router's first route. */
@@ -52,13 +53,18 @@ const effortCriteria: readonly string[] = [
 /** Asks the decision model which route fits a request, through the agent's gated `askDecisions`. */
 export class DecisionsModelRouterPicker implements IModelRouterPicker {
 
-	constructor(private readonly _ask: ModelRouterAskDecisions) { }
+	private readonly _model: string;
+
+	/** `model` is the decision model to ask; a missing or blank one is the default. */
+	constructor(private readonly _ask: ModelRouterAskDecisions, model?: string) {
+		this._model = model?.trim() || MODEL_ROUTER_DEFAULT_DECISION_MODEL;
+	}
 
 	async pick(request: IModelRouterPickRequest): Promise<IModelRouterPick> {
 		if (request.candidates.length > MODEL_ROUTER_MAX_ROUTES) {
 			throw new ModelRouterPickerError(ModelRouterPickerFailure.Unavailable, `A router picks between at most ${MODEL_ROUTER_MAX_ROUTES} models`);
 		}
-		const built = buildRequest(request);
+		const built = buildRequest(request, this._model);
 		let result: IAgentDecisionsResult;
 		try {
 			result = await this._ask(built.decisions);
@@ -103,12 +109,12 @@ export function truncateToEscapedBytes(text: string, maxBytes: number): string {
 	return text.slice(0, end);
 }
 
-export function buildModelRouterDecisionsRequest(request: IModelRouterPickRequest): IAgentDecisionsRequest {
-	return buildRequest(request).decisions;
+export function buildModelRouterDecisionsRequest(request: IModelRouterPickRequest, model: string = MODEL_ROUTER_DEFAULT_DECISION_MODEL): IAgentDecisionsRequest {
+	return buildRequest(request, model).decisions;
 }
 
 /** The request to ask, and the facts about the turn that are in it: each is cut to a line, and all are left out when the request has no room. */
-function buildRequest(request: IModelRouterPickRequest): { readonly decisions: IAgentDecisionsRequest; readonly facts: readonly string[] } {
+function buildRequest(request: IModelRouterPickRequest, model: string): { readonly decisions: IAgentDecisionsRequest; readonly facts: readonly string[] } {
 	const { followUp } = request;
 	// Each fact stays one bounded line, so none can pose as another or crowd out the message.
 	const facts = (request.situation ?? []).map(line => line.replace(/\s+/g, ' ').trim().slice(0, modelRouterRequestLimits.situationLine)).filter(line => line).slice(0, modelRouterRequestLimits.situationLines);
@@ -137,7 +143,7 @@ function buildRequest(request: IModelRouterPickRequest): { readonly decisions: I
 		return { prompt, response: truncateToEscapedBytes(turn.response, modelRouterRequestLimits.recentTurn - escapedBytes(prompt)) };
 	}) ?? [];
 	const build = (): IAgentDecisionsRequest => ({
-		model: MODEL_ROUTER_DECISION_MODEL,
+		model,
 		context: followUp
 			? {
 				kind: 'json',

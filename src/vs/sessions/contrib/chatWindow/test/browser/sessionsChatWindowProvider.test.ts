@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { ISessionAgentMergeService, SessionAgentMergeService } from '../../../../../workbench/contrib/sessions/browser/sessionAgentMerge.js';
 import assert from 'assert';
 import { parse, stringify } from '../../../../../base/common/marshalling.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
@@ -10,7 +12,7 @@ import { $, append } from '../../../../../base/browser/dom.js';
 import { createStyleSheet } from '../../../../../base/browser/domStylesheets.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { constObservable, derived, IObservable, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -140,6 +142,8 @@ suite('Sessions chat window provider', () => {
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const sentiment = observableValue<IChatSentiment>('sentiment', {});
 		const instantiationService = store.add(new TestInstantiationService());
+		// Created on first use, from the session providers stubbed by then
+		instantiationService.set(ISessionAgentMergeService, new SyncDescriptor(SessionAgentMergeService) as unknown as ISessionAgentMergeService);
 		stubSessionHosts(instantiationService, store);
 		instantiationService.stub(IConfigurationService, configuration);
 		instantiationService.stub(ISizeService, store.add(new WorkbenchSizeService(configuration, store.add(new NullLogService()))));
@@ -278,9 +282,13 @@ suite('Sessions chat window provider', () => {
 		}());
 		// The changes of the session a window shows: a changeset with an operation on its files.
 		const operations = [upcastPartial<ISessionChangesetOperation>({ id: 'discard', label: 'Discard Changes', scopes: [SessionChangesetOperationScope.Resource] })];
+		const changesetObs = constObservable(upcastPartial<ISessionChangeset>({ id: 'uncommitted', operations: constObservable(operations) }));
 		instantiationService.stub(IChangesViewService, upcastPartial<IChangesViewService>({
 			getSessionChanges: () => upcastPartial<IChangesSessionObservables>({
-				changesetObs: constObservable(upcastPartial<ISessionChangeset>({ id: 'uncommitted', operations: constObservable(operations) })),
+				changesetObs: changesetObs,
+				operationsChangesetObs: changesetObs,
+				repositoriesObs: constObservable([]),
+				repositoryObs: constObservable(undefined),
 				changesetOperationsObs: constObservable(operations),
 				changesObs: constObservable([]),
 				changesetsLoadingObs: constObservable(false),
@@ -306,6 +314,7 @@ suite('Sessions chat window provider', () => {
 			},
 		}));
 		instantiationService.stub(IGitHubService, upcastPartial<IGitHubService>({
+			keepSessionPullRequestCurrent: () => Disposable.None,
 			getSessionPullRequest: () => upcastPartial<ReturnType<IGitHubService['getSessionPullRequest']>>({
 				pullRequestCIObs: constObservable(upcastPartial<GitHubPullRequestCIModel>({ checks: constObservable([]), requiredChecks: constObservable(undefined), fixRequested: observableValue('fixRequested', false) })),
 			}),

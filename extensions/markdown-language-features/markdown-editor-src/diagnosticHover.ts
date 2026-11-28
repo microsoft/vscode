@@ -57,10 +57,14 @@ export class DiagnosticHover extends Disposable {
 			}
 			this.element.style.left = '0px';
 			this.element.style.top = '0px';
+			const scale = this.element.currentCSSZoom;
 			const bounds = this.element.getBoundingClientRect();
-			this.element.style.left = `${Math.max(4, Math.min(state.anchor.left, window.innerWidth - bounds.width - 4))}px`;
+			const inset = 4 * scale;
+			const left = Math.max(inset, Math.min(state.anchor.left, window.innerWidth - bounds.width - inset));
 			const above = state.anchor.top - bounds.height;
-			this.element.style.top = `${Math.max(4, Math.min(above >= 4 ? above : state.anchor.bottom, window.innerHeight - bounds.height - 4))}px`;
+			const top = Math.max(inset, Math.min(above >= inset ? above : state.anchor.bottom, window.innerHeight - bounds.height - inset));
+			this.element.style.left = `${left / scale}px`;
+			this.element.style.top = `${top / scale}px`;
 		}));
 		const enter = (): void => { clearTimeout(this.#timer); };
 		const leave = (): void => this.scheduleHide();

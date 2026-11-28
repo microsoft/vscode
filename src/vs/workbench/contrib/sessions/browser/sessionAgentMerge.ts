@@ -11,53 +11,15 @@ import { themeColorFromId, ThemeIcon } from '../../../../base/common/themables.j
 import { AgentMergeConfiguration, AgentMergeSettingId, defaultAgentMergeConfiguration, isAgentMergeMergePullRequest, resolveAgentMergeConfiguration } from '../../../../platform/agentHost/common/agentMerge.js';
 import { ArtifactIntegrationsSettingId } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IAgentMergeClientState, isAgentHostProvider } from '../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, IChat, ISession } from '../../../services/sessions/common/session.js';
 
-/** Cached per session, then per chat (`''` for the session folder). */
-const agentMergeSessionStateBySession = new WeakMap<ISession, Map<string, IObservable<IAgentMergeClientState | undefined>>>();
-const agentMergeConfigurationBySession = new WeakMap<ISession, Map<string, IObservable<ISessionAgentMergeConfiguration | undefined>>>();
-
-function getCached<T>(cache: WeakMap<ISession, Map<string, T>>, session: ISession, chat: IChat | undefined): T | undefined {
-	return cache.get(session)?.get(chatCacheKey(session, chat));
-}
-
-function setCached<T>(cache: WeakMap<ISession, Map<string, T>>, session: ISession, chat: IChat | undefined, value: T): void {
-	let byChat = cache.get(session);
-	if (!byChat) {
-		byChat = new Map();
-		cache.set(session, byChat);
-	}
-	byChat.set(chatCacheKey(session, chat), value);
-}
-
-/** The main chat works in the session folder, so it shares the session folder's cache entry. */
-function chatCacheKey(session: ISession, chat: IChat | undefined): string {
-	return !chat || chat === session.mainChat.get() ? '' : chat.resource.toString();
-}
 const openPullRequestIcon = { ...Codicon.gitPullRequest, color: themeColorFromId('charts.green') };
-
-function observeSessionProvider(session: ISession, providers: ISessionsProvidersService) {
-	const providersChanged = observableSignalFromEvent(session, providers.onDidChangeProviders);
-	return derived(reader => {
-		providersChanged.read(reader);
-		const provider = providers.getProvider(session.providerId);
-		if (!provider) {
-			return constObservable(undefined);
-		}
-		const sessionsChanged = Event.filter(provider.onDidChangeSessions, event =>
-			event.added.some(value => value.sessionId === session.sessionId)
-			|| event.changed.some(value => value.sessionId === session.sessionId)
-			|| event.removed.some(value => value.sessionId === session.sessionId));
-		const changed = Event.any(
-			Event.signal(sessionsChanged),
-			isAgentHostProvider(provider) ? Event.signal(Event.filter(provider.onDidChangeSessionConfig, id => id === session.sessionId)) : Event.None,
-		);
-		return observableFromEvent(session, changed, () => providers.getProvider(session.providerId, session.sessionId));
-	}).flatten();
-}
 
 /** Effective Agent Merge state used by client presentation. */
 export interface ISessionAgentMergeConfiguration {
@@ -65,56 +27,115 @@ export interface ISessionAgentMergeConfiguration {
 	readonly actions: AgentMergeConfiguration;
 }
 
-/**
- * Returns the Agent Merge state observable of a session's folder. Each folder a
- * chat works in has its own Agent Merge: pass `chat` for the folder it works
- * in, or omit it for the session folder (the main chat's), which session-wide
- * surfaces use alongside the session folder's pull request.
- */
-export function getSessionAgentMergeStateObservable(session: ISession, sessionsProvidersService: ISessionsProvidersService, chat?: IChat): IObservable<IAgentMergeClientState | undefined> {
-	const cached = getCached(agentMergeSessionStateBySession, session, chat);
-	if (cached) {
-		return cached;
-	}
-	const provider = observeSessionProvider(session, sessionsProvidersService);
-	const observable = derived(reader => {
-		const current = provider.read(reader);
-		return current && isAgentHostProvider(current)
-			? current.getAgentMergeClientStateObservable(session.sessionId, chatCacheKey(session, chat) ? chat?.resource : undefined).read(reader)
-			: undefined;
-	});
-	setCached(agentMergeSessionStateBySession, session, chat, observable);
-	return observable;
+export const ISessionAgentMergeService = createDecorator<ISessionAgentMergeService>('sessionAgentMergeService');
+
+/** The Agent Merge state of the folders of sessions, as their client presentation shows it. */
+export interface ISessionAgentMergeService {
+	readonly _serviceBrand: undefined;
+
+	/**
+	 * The Agent Merge state of a session's folder. Each folder a chat works in has its own Agent Merge: pass `chat` for
+	 * the folder it works in, or omit it for the session folder (the main chat's), which session-wide surfaces use
+	 * alongside the session folder's pull request. Pass `repository` for one repository of a session of several, which
+	 * has its own.
+	 */
+	getStateObservable(session: ISession, chat?: IChat, repository?: URI): IObservable<IAgentMergeClientState | undefined>;
+
+	/** The effective Agent Merge actions of a session's folder; see {@link getStateObservable}. */
+	getConfigurationObservable(session: ISession, chat?: IChat, repository?: URI): IObservable<ISessionAgentMergeConfiguration | undefined>;
 }
 
-/** Returns effective Agent Merge actions of a session's folder; see {@link getSessionAgentMergeStateObservable}. */
-export function getSessionAgentMergeConfigurationObservable(session: ISession, sessionsProvidersService: ISessionsProvidersService, configurationService: IConfigurationService, chat?: IChat): IObservable<ISessionAgentMergeConfiguration | undefined> {
-	const cached = getCached(agentMergeConfigurationBySession, session, chat);
-	if (cached) {
-		return cached;
+export class SessionAgentMergeService implements ISessionAgentMergeService {
+	declare readonly _serviceBrand: undefined;
+
+	/** Cached per session, then per chat (`''` for the session folder) and repository. */
+	private readonly _states = new WeakMap<ISession, Map<string, IObservable<IAgentMergeClientState | undefined>>>();
+	private readonly _configurations = new WeakMap<ISession, Map<string, IObservable<ISessionAgentMergeConfiguration | undefined>>>();
+
+	constructor(
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+	) { }
+
+	getStateObservable(session: ISession, chat?: IChat, repository?: URI): IObservable<IAgentMergeClientState | undefined> {
+		return this._getOrCreate(this._states, session, chat, repository, () => {
+			const provider = this._observeProvider(session);
+			return derived(reader => {
+				const current = provider.read(reader);
+				return current && isAgentHostProvider(current)
+					? current.getAgentMergeClientStateObservable(session.sessionId, this._chatKey(session, chat) || repository ? chat?.resource : undefined, repository).read(reader)
+					: undefined;
+			});
+		});
 	}
-	const provider = observeSessionProvider(session, sessionsProvidersService);
-	const state = getSessionAgentMergeStateObservable(session, sessionsProvidersService, chat);
-	const artifactIntegrationsEnabled = observableConfigValue(ArtifactIntegrationsSettingId, false, configurationService);
-	const globalConfiguration = observableFromEvent(
-		Event.filter(configurationService.onDidChangeConfiguration, event => Object.values(AgentMergeSettingId).some(settingId => event.affectsConfiguration(settingId))),
-		() => getGlobalAgentMergeConfiguration(configurationService));
-	const observable = derivedOpts<ISessionAgentMergeConfiguration | undefined>({
-		owner: session,
-		equalsFn: structuralEquals,
-	}, reader => {
-		const current = provider.read(reader);
-		if (!current || !isAgentHostProvider(current)) {
-			return undefined;
+
+	getConfigurationObservable(session: ISession, chat?: IChat, repository?: URI): IObservable<ISessionAgentMergeConfiguration | undefined> {
+		return this._getOrCreate(this._configurations, session, chat, repository, () => {
+			const configurationService = this.configurationService;
+			const provider = this._observeProvider(session);
+			const state = this.getStateObservable(session, chat, repository);
+			const artifactIntegrationsEnabled = observableConfigValue(ArtifactIntegrationsSettingId, false, configurationService);
+			const globalConfiguration = observableFromEvent(
+				Event.filter(configurationService.onDidChangeConfiguration, event => Object.values(AgentMergeSettingId).some(settingId => event.affectsConfiguration(settingId))),
+				() => getGlobalAgentMergeConfiguration(configurationService));
+			return derivedOpts<ISessionAgentMergeConfiguration | undefined>({
+				owner: session,
+				equalsFn: structuralEquals,
+			}, reader => {
+				const current = provider.read(reader);
+				if (!current || !isAgentHostProvider(current)) {
+					return undefined;
+				}
+				const sessionState = state.read(reader);
+				return {
+					enabled: sessionState?.enabled === true && !artifactIntegrationsEnabled.read(reader),
+					actions: resolveAgentMergeConfiguration(globalConfiguration.read(reader), sessionState?.overrides),
+				};
+			});
+		});
+	}
+
+	/** The cached value of a session's chat (`undefined` for the session folder's) and repository, created on first use. */
+	private _getOrCreate<T>(cache: WeakMap<ISession, Map<string, T>>, session: ISession, chat: IChat | undefined, repository: URI | undefined, create: () => T): T {
+		const key = `${this._chatKey(session, chat)}\u0001${repository ? extUriBiasedIgnorePathCase.getComparisonKey(repository) : ''}`;
+		let byChat = cache.get(session);
+		if (!byChat) {
+			byChat = new Map();
+			cache.set(session, byChat);
 		}
-		const sessionState = state.read(reader);
-		return {
-			enabled: sessionState?.enabled === true && !artifactIntegrationsEnabled.read(reader),
-			actions: resolveAgentMergeConfiguration(globalConfiguration.read(reader), sessionState?.overrides),
-		};
-	});
-	setCached(agentMergeConfigurationBySession, session, chat, observable);
-	return observable;
+		let value = byChat.get(key);
+		if (value === undefined) {
+			value = create();
+			byChat.set(key, value);
+		}
+		return value;
+	}
+
+	/** The main chat works in the session folder, so it shares the session folder's cache entry. */
+	private _chatKey(session: ISession, chat: IChat | undefined): string {
+		return !chat || chat === session.mainChat.get() ? '' : chat.resource.toString();
+	}
+
+	private _observeProvider(session: ISession) {
+		const providers = this.sessionsProvidersService;
+		const providersChanged = observableSignalFromEvent(session, providers.onDidChangeProviders);
+		return derived(reader => {
+			providersChanged.read(reader);
+			const provider = providers.getProvider(session.providerId);
+			if (!provider) {
+				return constObservable(undefined);
+			}
+			const sessionsChanged = Event.filter(provider.onDidChangeSessions, event =>
+				event.added.some(value => value.sessionId === session.sessionId)
+				|| event.changed.some(value => value.sessionId === session.sessionId)
+				|| event.removed.some(value => value.sessionId === session.sessionId));
+			const changed = Event.any(
+				Event.signal(sessionsChanged),
+				isAgentHostProvider(provider) ? Event.signal(Event.filter(provider.onDidChangeSessionConfig, id => id === session.sessionId)) : Event.None,
+			);
+			return observableFromEvent(session, changed, () => providers.getProvider(session.providerId, session.sessionId));
+		}).flatten();
+	}
 }
 
 /** Hides pull-request blockers that an enabled Agent Merge session owns. */

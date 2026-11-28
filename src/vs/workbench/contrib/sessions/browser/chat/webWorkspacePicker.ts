@@ -25,6 +25,9 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IProgressService } from '../../../../../platform/progress/common/progress.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { ISessionWorkspacesService } from '../../common/sessionWorkspaces.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
@@ -80,6 +83,9 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		@IAgentHostFilterService private readonly _agentHostFilterService: IAgentHostFilterService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@IProgressService progressService: IProgressService,
+		@ISessionWorkspacesService sessionWorkspacesService: ISessionWorkspacesService,
+		@ILabelService labelService: ILabelService,
+		@IProductService productService: IProductService,
 	) {
 		super(
 			{
@@ -109,6 +115,9 @@ export class WebWorkspacePicker extends WorkspacePicker {
 			dialogService,
 			_agentHostFilterService,
 			progressService,
+			sessionWorkspacesService,
+			labelService,
+			productService,
 		);
 
 		// When the scoped host changes, if the current selection no longer

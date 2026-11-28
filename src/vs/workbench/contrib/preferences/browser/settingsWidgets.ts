@@ -1332,6 +1332,7 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 
 interface IBoolObjectSetValueOptions {
 	settingKey: string;
+	isReadOnly?: boolean;
 }
 
 export interface IBoolObjectDataItem {
@@ -1344,6 +1345,7 @@ export interface IBoolObjectDataItem {
 }
 
 export class ObjectSettingCheckboxWidget extends AbstractListSettingWidget<IBoolObjectDataItem> {
+	private editable: boolean = true;
 	private currentSettingKey: string = '';
 
 	constructor(
@@ -1357,6 +1359,7 @@ export class ObjectSettingCheckboxWidget extends AbstractListSettingWidget<IBool
 	}
 
 	override setValue(listData: IBoolObjectDataItem[], options?: IBoolObjectSetValueOptions): void {
+		this.editable = !options?.isReadOnly;
 		if (isDefined(options) && options.settingKey !== this.currentSettingKey) {
 			this.model.setEditKey('none');
 			this.model.select(null);
@@ -1364,6 +1367,10 @@ export class ObjectSettingCheckboxWidget extends AbstractListSettingWidget<IBool
 		}
 
 		super.setValue(listData);
+	}
+
+	protected override get isReadOnly(): boolean {
+		return !this.editable;
 	}
 
 	override isItemNew(item: IBoolObjectDataItem): boolean {
@@ -1430,7 +1437,7 @@ export class ObjectSettingCheckboxWidget extends AbstractListSettingWidget<IBool
 
 		this.listDisposables.add(DOM.addDisposableListener(valueElement, DOM.EventType.MOUSE_DOWN, e => {
 			const targetElement = <HTMLElement>e.target;
-			if (targetElement.tagName.toLowerCase() !== 'a') {
+			if (targetElement.tagName.toLowerCase() !== 'a' && !this.isReadOnly) {
 				checkbox.checked = !checkbox.checked;
 				onValueChange(checkbox.checked);
 			}
@@ -1459,6 +1466,10 @@ export class ObjectSettingCheckboxWidget extends AbstractListSettingWidget<IBool
 		wrapper.classList.add('setting-list-object-input-key-checkbox');
 		checkbox.domNode.classList.add('setting-value-checkbox');
 		wrapper.appendChild(checkbox.domNode);
+		if (this.isReadOnly) {
+			checkbox.disable();
+			return { widget: checkbox, element: wrapper };
+		}
 
 		this.listDisposables.add(DOM.addDisposableListener(wrapper, DOM.EventType.MOUSE_DOWN, e => {
 			checkbox.checked = !checkbox.checked;

@@ -9,7 +9,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { SESSIONS_LIST_CANVASES_SECTION_SETTING, SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING } from './views/sessionsListCommon.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../platform/chat/common/sessionArchiveActions.js';
-import { AutomationSessionsListMode, ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, USE_WORKTREE_SETTING } from '../common/sessionConfig.js';
+import { AutomationSessionsListMode, ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SESSIONS_WORKSPACES_ENABLED_SETTING, USE_WORKTREE_SETTING } from '../common/sessionConfig.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import product from '../../../../platform/product/common/product.js';
 import { NEW_SESSION_WELCOME_GRAPHIC_SETTING, NEW_SESSION_WELCOME_GRAPHICS, SESSIONS_LIST_WORKSPACES_FILTER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../common/chatConstants.js';
@@ -45,7 +45,7 @@ export const sessionsListConfigurationProperties = {
 			localize('sessions.list.inboxAutoAdvance.off', "Stay in the current session after sending a reply or approving a request."),
 			localize('sessions.list.inboxAutoAdvance.newSession', "Open New Session and focus its chat input after sending a reply or approving a request."),
 		],
-		description: localize('sessions.list.inboxAutoAdvance', "Controls where focus moves after sending a reply or approving a request in an Inbox session: the next visible Inbox session (or the Inbox heading when none remain), the current session, or the New Session chat input."),
+		description: localize('sessions.list.inboxAutoAdvance', "Controls where focus moves after sending a reply or approving a request in an Inbox session of the Agents window: the next visible Inbox session (or the Inbox heading when none remain), the current session, or the New Session chat input. In the Chat view of an editor window, focus stays in the current session."),
 		default: 'auto',
 	},
 	[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING]: {
@@ -157,6 +157,15 @@ export const sessionsListConfigurationProperties = {
 		description: localize('sessions.chat.welcomeGraphic', "Controls which graphic is shown above the welcome message of a new session until you have started two sessions in the Agents window."),
 		tags: ['advanced', 'experimental'],
 		experiment: { mode: 'auto' },
+	},
+	[SESSIONS_WORKSPACES_ENABLED_SETTING]: {
+		type: 'boolean',
+		default: false,
+		scope: ConfigurationScope.APPLICATION,
+		tags: ['experimental'],
+		// Insiders only: see `observableSessionWorkspacesEnabled`, which also ignores a value written by hand in Stable
+		included: product.quality !== 'stable',
+		description: localize('sessions.workspaces.enabled', "Controls whether the Agents window offers workspaces: named sets of folders, saved as workspace files, that sessions start in together. Working in several folders in a session does not need workspaces."),
 	},
 } satisfies IStringDictionary<IConfigurationPropertySchema>;
 

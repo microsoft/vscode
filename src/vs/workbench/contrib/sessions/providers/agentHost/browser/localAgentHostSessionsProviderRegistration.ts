@@ -61,7 +61,7 @@ export function registerLocalAgentHostSessionsProvider(accessor: ServicesAccesso
 					return provider.getSessionByResource(sessionResource)?.workspace.get()?.folders[0]?.workingDirectory;
 				}, sessionResource => {
 					return provider.getSessionByResource(sessionResource)?.status.get() === SessionStatus.Untitled;
-				}));
+				}, sessionResource => provider.getNewSessionCreation(sessionResource)));
 			}
 		};
 		registerResolvers();

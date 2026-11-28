@@ -10,6 +10,9 @@ import { LoadClientCertificatesExtensionMethod, loadClientCertificatesResultVali
 import { supportsAgentHostClientCertificates } from '../common/meta/agentHostClientCertificatesMeta.js';
 import { ClientProxyChangedExtensionMethod, LookupClientProxyBasicAuthorizationExtensionMethod, lookupClientProxyBasicAuthorizationResultValidator, LookupClientProxyKerberosAuthorizationExtensionMethod, lookupClientProxyKerberosAuthorizationResultValidator, ResolveClientProxyExtensionMethod, resolveClientProxyResultValidator } from '../common/clientProxyProtocol.js';
 import { AgentHostClientProxyCapabilityMetaKey, supportsAgentHostClientProxy } from '../common/meta/agentHostClientProxyMeta.js';
+import { AgentHostClientForwardingCapabilityMetaKey, supportsAgentHostClientForwarding } from '../common/meta/agentHostClientForwardingMeta.js';
+import { ClientForwardingCloseNotification, clientForwardingCloseParamsValidator, ClientForwardingDataNotification, clientForwardingDataParamsValidator, ClientGitConfigExtensionMethod, clientGitConfigResultValidator, ClientGitCredentialExtensionMethod, clientGitCredentialResultValidator, ClientGpgKeysExtensionMethod, clientGpgKeysResultValidator, DescribeClientForwardingExtensionMethod, describeClientForwardingResultValidator, OpenClientForwardingExtensionMethod } from '../common/clientForwardingProtocol.js';
+import { IAgentHostClientForwardingService } from './agentHostClientForwarding.js';
 import { IAgentHostProxyResolver } from './agentHostProxyResolver.js';
 import { disposableTimeout, raceCancellationError, raceTimeout, SequencerByKey } from '../../../base/common/async.js';
 import { cancelOnDispose, CancellationTokenSource } from '../../../base/common/cancellation.js';
@@ -22,7 +25,7 @@ import { resolveBranchChangesetScopeForOwner } from './agentHostBranchChangesetS
 import { basename, dirname, relative, isAbsolute, resolve, sep } from '../../../base/common/path.js';
 import { Schemas } from '../../../base/common/network.js';
 import { deepClone, equals, mixin } from '../../../base/common/objects.js';
-import { encodeBase64 } from '../../../base/common/buffer.js';
+import { decodeBase64, encodeBase64, type VSBuffer } from '../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { isJsonRpcResponse } from '../../../base/common/jsonRpcProtocol.js';
 import type { ILoadEstimator } from '../../../base/parts/ipc/common/ipc.net.js';
@@ -55,7 +58,7 @@ import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings
 import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { hasChangesetPath } from '../common/changesetUri.js';
 import { type IAgentService } from '../common/agentService.js';
-import { AgentHostChatStateFileCapabilityMetaKey, AcknowledgeAutomationDeletionExtensionMethod, acknowledgeAutomationDeletionParamsValidator, CancelWorktreeDiskUsageExtensionMethod, cancelWorktreeDiskUsageParamsValidator, MeasureWorktreeDiskUsageExtensionMethod, measureWorktreeDiskUsageParamsValidator, MoveAgentHostSessionExtensionMethod, moveSessionParamsValidator, SetChatWorkspaceExtensionMethod, setChatWorkspaceParamsValidator, CompleteSavedChatContinuationExtensionMethod, completeSavedChatContinuationParamsValidator, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, ListAgentExtensionsExtensionMethod, listAgentExtensionsParamsValidator, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, setAgentExtensionEnabledParamsValidator, SetAgentHostDetachedWorktreeArchivedExtensionMethod, StopBackgroundWorkExtensionMethod, stopBackgroundWorkParamsValidator, AnswerShellAuthenticationExtensionMethod, answerShellAuthenticationParamsValidator, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, type IAgentHostWorkspaceTrustRequest, ReadSavedChatExtensionMethod, readSavedChatParamsValidator, ArtifactIntegrationExtensionMethod, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, DeleteAutomationExtensionMethod, deleteAutomationParamsValidator, RegisterGitHubEnvironmentExtensionMethod, registerGitHubEnvironmentParamsValidator, UnregisterGitHubEnvironmentExtensionMethod, unregisterGitHubEnvironmentParamsValidator, type IAgentHostGitHubEnvironmentRegistration, GitHubEnvironmentChangedNotification, type IAgentHostExtensionInitializeResultMeta } from '../common/agentHostExtensionProtocol.js';
+import { AgentHostChatStateFileCapabilityMetaKey, AcknowledgeAutomationDeletionExtensionMethod, acknowledgeAutomationDeletionParamsValidator, CancelWorktreeDiskUsageExtensionMethod, cancelWorktreeDiskUsageParamsValidator, MeasureWorktreeDiskUsageExtensionMethod, measureWorktreeDiskUsageParamsValidator, MoveAgentHostSessionExtensionMethod, moveSessionParamsValidator, SetChatWorkspaceExtensionMethod, setChatWorkspaceParamsValidator, CompleteSavedChatContinuationExtensionMethod, completeSavedChatContinuationParamsValidator, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, ListAgentExtensionsExtensionMethod, listAgentExtensionsParamsValidator, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, DetachSessionsFromWorkspaceExtensionMethod, detachSessionsFromWorkspaceParamsValidator, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, setAgentExtensionEnabledParamsValidator, SetAgentHostDetachedWorktreeArchivedExtensionMethod, StopBackgroundWorkExtensionMethod, stopBackgroundWorkParamsValidator, AnswerShellAuthenticationExtensionMethod, answerShellAuthenticationParamsValidator, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, type IAgentHostWorkspaceTrustRequest, ReadSavedChatExtensionMethod, readSavedChatParamsValidator, ArtifactIntegrationExtensionMethod, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, DeleteAutomationExtensionMethod, deleteAutomationParamsValidator, RegisterGitHubEnvironmentExtensionMethod, registerGitHubEnvironmentParamsValidator, UnregisterGitHubEnvironmentExtensionMethod, unregisterGitHubEnvironmentParamsValidator, type IAgentHostGitHubEnvironmentRegistration, GitHubEnvironmentChangedNotification, type IAgentHostExtensionInitializeResultMeta } from '../common/agentHostExtensionProtocol.js';
 import { CleanupManagedWorktreeExtensionMethod, cleanupManagedWorktreeParamsValidator, ListManagedWorktreesExtensionMethod, listManagedWorktreesParamsValidator, PrepareSessionWorktreeCleanupExtensionMethod, prepareSessionWorktreeCleanupParamsValidator, SessionWorktreeCleanupExtensionMethod, sessionWorktreeCleanupParamsValidator } from '../common/agentHostWorktreeCleanup.js';
 import { AgentHostWorktreeCleanupCapabilityMetaKey, ForceWorktreeCleanupCapabilityMetaKey, ManagedWorktreesCapabilityMetaKey, PrepareSessionWorktreeCleanupCapabilityMetaKey } from '../common/meta/agentHostWorktreeCleanupMeta.js';
 import { savedChatToDto } from '../common/agentHostSavedChat.js';
@@ -156,12 +159,6 @@ const CLIENT_LIVENESS_TIMEOUT = 20_000;
 const CLIENT_ACTION_ACKNOWLEDGEMENT_TIMEOUT = 30_000;
 
 const readOnlyConnectionMessage = localize('agentHost.readOnlyConnection', "This connection is read-only. You can view sessions, but you cannot create sessions, send messages, or make changes.");
-
-/** Client actions whose state transition has no corresponding host-side behavior. */
-const UNSUPPORTED_CLIENT_ACTION_TYPES: ReadonlySet<ActionType> = new Set([
-	ActionType.ChatWorkingDirectorySet,
-	ActionType.ChatWorkingDirectoryRemoved,
-]);
 
 /** Projects an agent session listing entry into the root-channel {@link SessionSummary} a `listSessions` reply carries. */
 export function toListedSessionSummary(s: IAgentSessionMetadata): ListSessionsResult['items'][number] {
@@ -503,6 +500,8 @@ interface IConnectedClient {
 	/** A positively identified VS Code client without `vscode.ahpChatUris`: it sees shaped chats only. */
 	readonly legacyChatUris: boolean;
 	devContainers?: DevContainerAgentHostProtocol;
+	/** Delivers the client's forwarding notifications while the agent host forwards its agents. */
+	forwarding?: { readonly onData: Emitter<{ readonly connection: number; readonly data: VSBuffer }>; readonly onClose: Emitter<number> };
 	readonly clientId: string;
 	readonly clientInfo: Implementation | undefined;
 	readonly telemetryContext: IAgentHostClientTelemetryContext;
@@ -789,6 +788,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 		@IAgentHostProxyResolver private readonly _proxyResolver: IAgentHostProxyResolver,
+		@IAgentHostClientForwardingService private readonly _clientForwarding: IAgentHostClientForwardingService,
 	) {
 		super();
 		let tcpBudget = ProtocolServerHandler._tcpBudgets.get(_agentService);
@@ -1184,6 +1184,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			this._initializeClientExtensions(client);
 			this._registerClientCertificates(client, params);
 			const servesClientProxy = this._registerClientProxy(client, params);
+			const servesClientForwarding = this._registerClientForwarding(client, params);
+			// Processes a client starts once initialized, like the Copilot runtime, get the forwarding environment. The rest
+			// follows in the background. Bounded, though it needs no client, so a stuck startup cannot block connecting.
+			const clientForwardingReady = this._clientForwarding.enabled ? raceTimeout(this._clientForwarding.whenEnvironmentReady(), 10_000) : undefined;
 			this._registerClientFileSystemAuthority(params.clientId, initializationDisposables);
 
 			const snapshots: IStateSnapshot[] = [];
@@ -1256,6 +1260,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 							? { [AgentHostScheduledChatExistingConversationCapabilityMetaKey]: true } : {}),
 						...(transport.relayClientId === undefined && !transport.relayPassive ? { [AgentHostWorktreeDiskUsageCapabilityMetaKey]: true } : {}),
 						...(servesClientProxy ? { [AgentHostClientProxyCapabilityMetaKey]: true } : {}),
+						...(servesClientForwarding ? { [AgentHostClientForwardingCapabilityMetaKey]: true } : {}),
 						...(transport.relayClientId === undefined && !transport.relayPassive && this._agentService.sessionWorktreeCleanup ? { [AgentHostWorktreeCleanupCapabilityMetaKey]: true } : {}),
 						...(transport.relayClientId === undefined && !transport.relayPassive && this._agentService.sessionWorktreeCleanup ? { [ForceWorktreeCleanupCapabilityMetaKey]: true } : {}),
 						...(!this._config.relayRoots && !this._config.relayRootMeta && transport.relayClientId === undefined && !transport.relayPassive && this._agentService.prepareSessionWorktreeCleanup ? { [PrepareSessionWorktreeCleanupCapabilityMetaKey]: true } : {}),
@@ -1288,7 +1293,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			};
 			return {
 				client,
-				response: pendingSnapshots.length === 0 ? response : Promise.all(pendingSnapshots).then(() => ({
+				response: pendingSnapshots.length === 0 && !clientForwardingReady ? response : Promise.all([...pendingSnapshots, clientForwardingReady]).then(() => ({
 					...response,
 					// A status change while snapshots load was broadcast before this response, so report the latest.
 					_meta: { ...response._meta, ...this._getGitHubEnvironmentMeta(transport) },
@@ -1478,6 +1483,21 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	private _handleClientNotification(client: IConnectedClient, message: JsonRpcNotification): void {
+		const method: string = message.method;
+		if (method === ClientForwardingDataNotification) {
+			const { content } = clientForwardingDataParamsValidator.validate(message.params);
+			if (content) {
+				client.forwarding?.onData.fire({ connection: content.connection, data: decodeBase64(content.data) });
+			}
+			return;
+		}
+		if (method === ClientForwardingCloseNotification) {
+			const { content } = clientForwardingCloseParamsValidator.validate(message.params);
+			if (content) {
+				client.forwarding?.onClose.fire(content.connection);
+			}
+			return;
+		}
 		switch (message.method) {
 			case 'unsubscribe':
 				if (isParamsObject(message.params) && typeof message.params.channel === 'string') {
@@ -1581,6 +1601,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			this._initializeClientExtensions(client);
 			this._registerClientCertificates(client, params);
 			this._registerClientProxy(client, params);
+			this._registerClientForwarding(client, params);
 			// Re-establish the reverse-RPC filesystem authority for this client.
 			// The prior transport's `onClose` disposed the previous registration,
 			// so without this step any subsequent `resourceRead` / `resourceWrite`
@@ -1661,6 +1682,35 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				const { username, password } = lookupClientProxyBasicAuthorizationResultValidator.validateOrThrow(response);
 				return username ? { username, password: password ?? '' } : undefined;
 			},
+		}));
+		return true;
+	}
+
+	/**
+	 * Forwards the Git configuration and identity, Git credentials and agents of a client offering them, e.g., one connecting
+	 * to a Dev Container, to the processes this agent host starts, when it was started to forward them.
+	 */
+	private _registerClientForwarding(client: IConnectedClient, params: InitializeParams | ReconnectParams): boolean {
+		const service = this._clientForwarding;
+		if (!service.enabled || !supportsAgentHostClientForwarding(params) || this._isRelayClient(client)) {
+			return false;
+		}
+		const onData = client.initializationDisposables.add(new Emitter<{ readonly connection: number; readonly data: VSBuffer }>());
+		const onClose = client.initializationDisposables.add(new Emitter<number>());
+		client.forwarding = { onData, onClose };
+		client.initializationDisposables.add(service.registerClient({
+			onDidReceiveData: onData.event,
+			onDidReceiveClose: onClose.event,
+			describe: async () => describeClientForwardingResultValidator.validateOrThrow(await this._sendReverseRequestToConnection<unknown>(client, DescribeClientForwardingExtensionMethod, {}, 30_000)),
+			open: async (connection, socket) => {
+				await this._sendReverseRequestToConnection<unknown>(client, OpenClientForwardingExtensionMethod, { connection, socket }, 30_000);
+			},
+			sendData: (connection, data) => client.channels.send({ jsonrpc: '2.0', method: ClientForwardingDataNotification, params: { connection, data: encodeBase64(data) } }),
+			sendClose: connection => client.channels.send({ jsonrpc: '2.0', method: ClientForwardingCloseNotification, params: { connection } }),
+			// Long enough for the user to sign in on the client.
+			gitCredential: async (operation, input) => clientGitCredentialResultValidator.validateOrThrow(await this._sendReverseRequestToConnection<unknown>(client, ClientGitCredentialExtensionMethod, { operation, input }, 5 * 60_000)).gitCredential,
+			gpgKeys: async () => clientGpgKeysResultValidator.validateOrThrow(await this._sendReverseRequestToConnection<unknown>(client, ClientGpgKeysExtensionMethod, {}, 60_000)),
+			gitConfig: async () => clientGitConfigResultValidator.validateOrThrow(await this._sendReverseRequestToConnection<unknown>(client, ClientGitConfigExtensionMethod, {}, 60_000)),
 		}));
 		return true;
 	}
@@ -3136,8 +3186,6 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			rejection = readOnlyConnectionMessage;
 		} else if (IS_CLIENT_DISPATCHABLE[action.type] !== true) {
 			rejection = `Server-only action: ${action.type}`;
-		} else if (UNSUPPORTED_CLIENT_ACTION_TYPES.has(action.type)) {
-			rejection = `Unsupported action: ${action.type}`;
 		}
 		if (!rejection && client.transport.relayClientId !== undefined && this._config.relayResourceRoots && action.type === ActionType.SessionWorkingDirectorySet) {
 			try {
@@ -3792,6 +3840,27 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	/**
+	 * Handles the `vscode/detachSessionsFromWorkspace` method. Returns `undefined`, answered as method-not-found, when the
+	 * agent service does not support it.
+	 */
+	private _handleDetachSessionsFromWorkspaceRequest(params: unknown): Promise<unknown> | undefined {
+		if (!this._agentService.detachSessionsFromWorkspace) {
+			return undefined;
+		}
+		const validated = detachSessionsFromWorkspaceParamsValidator.validate(params);
+		if (validated.error) {
+			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message));
+		}
+		let workspaceFiles: URI[];
+		try {
+			workspaceFiles = validated.content.workspaceFiles.map(file => URI.parse(file, true));
+		} catch {
+			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'workspaceFiles must be URIs'));
+		}
+		return this._agentService.detachSessionsFromWorkspace(workspaceFiles).then(sessions => ({ sessions: sessions.map(session => session.toString()) }));
+	}
+
+	/**
 	 * Handle the `vscode/removeSessionArtifact` session-data method. Returns a
 	 * Promise when the underlying service supports removal, undefined otherwise.
 	 */
@@ -4332,6 +4401,13 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		// host-control methods below are gated by `allowExtensionMethods`.
 		if (method === RemoveSessionArtifactExtensionMethod) {
 			return this._handleRemoveSessionArtifactRequest(params);
+		}
+		if (method === DetachSessionsFromWorkspaceExtensionMethod) {
+			// It changes every session of the host, not only those a relayed client can see
+			if (client.transport.relayClientId !== undefined || client.transport.relayPassive || this._config.relayRoots || this._config.relayRootMeta) {
+				return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidRequest, localize('agentHost.detachSessionsFromWorkspace.relayed', "Detaching sessions from a workspace is not available over a relayed connection.")));
+			}
+			return this._handleDetachSessionsFromWorkspaceRequest(params);
 		}
 		if (method === StopBackgroundWorkExtensionMethod) {
 			return this._handleStopBackgroundWorkRequest(params);

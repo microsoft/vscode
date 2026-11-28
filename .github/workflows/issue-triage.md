@@ -5,6 +5,10 @@ description: >-
     assign an owner based on similar and recent issues.
 # Compile with the gh-aw version in the header of issue-triage.lock.yml:
 #   gh aw compile issue-triage
+# Then set jobs.conclusion.permissions to {} in issue-triage.lock.yml and run:
+#   node --test build/lib/test/issueTriage.test.ts
+# gh-aw v0.89.21 copies label-write permissions into conclusion even though all
+# issue reporting below is disabled. The test guards this post-generation edit.
 on:
     workflow_dispatch:
         inputs:
@@ -142,6 +146,8 @@ tools:
         allowed-repos: ["microsoft/vscode"]
 safe-outputs:
     needs: [check_issue]
+    # Use each job's scoped token rather than a separately configured token.
+    github-token: ${{ secrets.GITHUB_TOKEN }}
     # Reports would be public issues and comments in this repository. Failures show in the Actions runs instead.
     report-failure-as-issue: false
     report-failed-jobs: false

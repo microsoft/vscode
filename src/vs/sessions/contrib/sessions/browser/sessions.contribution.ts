@@ -11,6 +11,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/viewPaneContainer.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
+import { SessionWorkspacesContextKeys } from '../../../../workbench/contrib/sessions/browser/sessionWorkspacesContextKeys.js';
 import { SessionsTitleBarContribution } from './sessionsTitleBarWidget.js';
 import { SessionsTelemetryContribution } from './sessionsTelemetry.contribution.js';
 import { SessionsAccountTelemetryContribution } from './sessionsAccountTelemetry.js';
@@ -36,7 +37,7 @@ import { SessionsWindowNotifier } from './sessionsWindowNotifier.js';
 import { AutomationSessionsListingContribution } from './automationSessionsListing.js';
 import { SessionsUnattendedRestartParticipant } from './sessionsUnattendedRestart.js';
 import '../../../../workbench/contrib/sessions/browser/sessionAttentionService.js';
-import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_DRAFTS_ENABLED_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING, SESSIONS_LIST_AGENT_TOOLS_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, SESSIONS_SIDEBAR_CUSTOMIZATIONS_AT_BOTTOM_SETTING, SESSIONS_SIDEBAR_CUSTOMIZATIONS_CATEGORIES_SETTING, SESSIONS_LIST_REARRANGE_TREATMENT, SessionsChatTabsMode, SessionsSidebarCustomizationsCategories, USE_WORKTREE_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_DRAFTS_ENABLED_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING, SESSIONS_LIST_AGENT_TOOLS_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, SESSIONS_SIDEBAR_CUSTOMIZATIONS_AT_BOTTOM_SETTING, SESSIONS_SIDEBAR_CUSTOMIZATIONS_CATEGORIES_SETTING, SESSIONS_LIST_REARRANGE_TREATMENT, SessionsChatTabsMode, SessionsSidebarCustomizationsCategories, SESSIONS_WORKSPACES_ENABLED_SETTING, USE_WORKTREE_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { SESSIONS_LIST_WORKSPACES_FILTER_SETTING } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { sessionsListConfigurationProperties } from '../../../../workbench/contrib/sessions/browser/sessionsConfiguration.js';
 
@@ -179,6 +180,7 @@ export const sessionsConfiguration = {
 			description: localize('sessions.newSessionButton.style', "Controls the visual style of the New Session button."),
 		},
 		[USE_WORKTREE_SETTING]: sessionsListConfigurationProperties[USE_WORKTREE_SETTING],
+		[SESSIONS_WORKSPACES_ENABLED_SETTING]: sessionsListConfigurationProperties[SESSIONS_WORKSPACES_ENABLED_SETTING],
 	},
 } satisfies IConfigurationNode;
 
@@ -187,6 +189,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 registerWorkbenchContribution2(AutomationHistoryActionsContribution.ID, AutomationHistoryActionsContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(AutomationsCustomViewContribution.ID, AutomationsCustomViewContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(SessionsTitleBarContribution.ID, SessionsTitleBarContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(SessionWorkspacesContextKeys.ID, SessionWorkspacesContextKeys, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(NewSessionActionViewItemContribution.ID, NewSessionActionViewItemContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(SessionListActionsExperimentContribution.ID, SessionListActionsExperimentContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(SessionsMouseNavigationContribution.ID, SessionsMouseNavigationContribution, WorkbenchPhase.BlockRestore);

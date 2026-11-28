@@ -14,7 +14,6 @@ import { autorun, constObservable, derived, IObservable, IReader, observableFrom
 import { extUri, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { EditorActivation } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -26,9 +25,8 @@ import { ChatEditorInput, getChatEditorInputDetails, ISessionChatViewHost, regis
 import { ChatEditorContent } from '../../../../workbench/contrib/sessions/browser/chatEditor/chatEditorContent.js';
 import { isChatWindowChatGone } from '../../../../workbench/contrib/sessions/browser/chatEditor/sessionChatOpening.js';
 import { ISessionViewHostOptions } from '../../../../workbench/contrib/sessions/browser/parts/chatView.js';
-import { getSessionAgentMergeConfigurationObservable } from '../../../../workbench/contrib/sessions/browser/sessionAgentMerge.js';
+import { ISessionAgentMergeService } from '../../../../workbench/contrib/sessions/browser/sessionAgentMerge.js';
 import { ISessionsListModelService } from '../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
-import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ShownChatReadMarker } from '../../../../workbench/contrib/sessions/browser/shownChatReadMarker.js';
 import { isSideChat, ISideChatPlacementService } from '../../../../workbench/contrib/sessions/browser/sideChatPlacement.js';
@@ -102,8 +100,7 @@ export class SideChatTab extends Disposable implements ISessionChatViewHost {
 		close: () => void,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsListModelService sessionsListModelService: ISessionsListModelService,
-		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@ISessionAgentMergeService sessionAgentMergeService: ISessionAgentMergeService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 	) {
 		super();
@@ -141,7 +138,7 @@ export class SideChatTab extends Disposable implements ISessionChatViewHost {
 				return;
 			}
 			const details = getChatEditorInputDetails(shown.session, shown.chat, title.read(reader), reader, sessionsListModelService,
-				() => getSessionAgentMergeConfigurationObservable(shown.session, sessionsProvidersService, configurationService, shown.chat));
+				() => sessionAgentMergeService.getConfigurationObservable(shown.session, shown.chat));
 			this.input.setDetails(sideChatNeedsAttention(shown.chat, reader) ? details : { ...details, icon: Codicon.commentDiscussion });
 		}));
 

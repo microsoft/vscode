@@ -42,6 +42,7 @@ import { IRelayMessage } from '../common/relayTransport.js';
 import { getAppNodeModulesUri } from './appNodeModules.js';
 import { hasDevContainerEnvironmentVolume, IPreparedDevContainerEnvironment, prepareDevContainerEnvironment, readDevContainerEnvironmentTestConfiguration, removeDevContainerEnvironment } from './devContainerEnvironments.js';
 import { IPreparedDevContainerSample, prepareDevContainerSample } from './devContainerSamples.js';
+import { AGENT_HOST_CLIENT_FORWARDING_ENV } from './agentHostClientForwarding.js';
 import { IDevContainerSandboxConfiguration, isDevContainerSandboxSupported, parseDevContainerSandboxConfiguration, prepareDevContainerSandboxConfiguration } from './devContainerSandbox.js';
 import { buildCreateDevContainerCacheCommand, buildLinkDevContainerServerCacheCommand, canAddDevContainerServerCacheMount, devContainerServerCacheMount, getDevContainerCliCachePath, getDevContainerServerCachePath } from './devContainerServerCache.js';
 import { DevContainerShell, IDevContainerShellResult } from './devContainerShell.js';
@@ -161,11 +162,6 @@ interface IDevContainerMount {
 	readonly Source: string;
 	readonly Destination: string;
 	readonly Name?: string;
-}
-
-interface IGitIdentity {
-	readonly name: string | undefined;
-	readonly email: string | undefined;
 }
 
 export interface IDevContainerShellExec extends IDisposable {
@@ -447,15 +443,6 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				safeDirectoryStopWatch.stop();
 				this._logService.warn(`${LOG_PREFIX} Failed to configure Git safe.directory after ${safeDirectoryStopWatch.elapsed()}ms`, error);
 			}
-			const gitIdentityStopWatch = StopWatch.create(false);
-			try {
-				await this._configureGitIdentity(exec, tokenSource.token);
-				gitIdentityStopWatch.stop();
-				this._logService.info(`${LOG_PREFIX} Git identity configuration completed in ${gitIdentityStopWatch.elapsed()}ms`);
-			} catch (error) {
-				gitIdentityStopWatch.stop();
-				this._logService.warn(`${LOG_PREFIX} Failed to configure Git identity after ${gitIdentityStopWatch.elapsed()}ms`, error);
-			}
 			const [{ stdout: unameS }, { stdout: unameM }, { stdout: libc }] = await Promise.all([
 				exec('uname -s'),
 				exec('uname -m'),
@@ -486,7 +473,8 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			let endpoint = selectAgentHostEndpoint(live, this._productService.quality, undefined);
 			if (!endpoint) {
 				const sessionId = this._telemetryService.sessionId;
-				const spawnCommand = `${VSCODE_REMOTE_CONTAINERS_SESSION_ENV}=${shellEscape(sessionId)} ${buildAgentHostSpawnCommand(
+				// Lets the Agent Host forward the Git configuration, identity, credentials and agents of clients offering them.
+				const spawnCommand = `${VSCODE_REMOTE_CONTAINERS_SESSION_ENV}=${shellEscape(sessionId)} ${AGENT_HOST_CLIENT_FORWARDING_ENV}=1 ${buildAgentHostSpawnCommand(
 					cliBin,
 					serverDataFolderName,
 					initial.userDataPath,
@@ -1004,46 +992,6 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		}
 		await exec(`git config --global --add safe.directory ${shellEscape(rootFolder)}`);
 		this._logService.info(`${LOG_PREFIX} Added Git root '${rootFolder}' to the Dev Container user's safe.directory list`);
-	}
-
-	private async _configureGitIdentity(exec: ISshExec, token: CancellationToken): Promise<void> {
-		const identity = await this._getHostGitIdentity(token);
-		if (!identity.name && !identity.email) {
-			return;
-		}
-
-		const gitAvailable = await exec('command -v git >/dev/null 2>&1', { ignoreExitCode: true });
-		if (gitAvailable.code !== 0) {
-			return;
-		}
-
-		const values: readonly { readonly key: string; readonly value: string | undefined }[] = [
-			{ key: 'user.name', value: identity.name },
-			{ key: 'user.email', value: identity.email },
-		];
-		for (const { key, value } of values) {
-			if (!value) {
-				continue;
-			}
-			const configured = await exec(`git config --get ${key}`, { ignoreExitCode: true });
-			if (configured.code === 0 && configured.stdout.trim()) {
-				continue;
-			}
-			await exec(`git config --global --replace-all ${key} ${shellEscape(value)}`);
-			this._logService.info(`${LOG_PREFIX} Configured Git ${key} from the host for the Dev Container user`);
-		}
-	}
-
-	protected async _getHostGitIdentity(token: CancellationToken): Promise<IGitIdentity> {
-		const environment = await this._resolveShellEnvironment();
-		const read = async (key: string): Promise<string | undefined> => {
-			const result = await this._runLocalCommand('git', ['config', '--global', '--get', key], environment, token);
-			return result.code === 0 ? result.stdout.trim() || undefined : undefined;
-		};
-		return {
-			name: await read('user.name'),
-			email: await read('user.email'),
-		};
 	}
 
 	protected async _getContainerMounts(connectionId: string, containerId: string, token: CancellationToken): Promise<readonly IDevContainerMount[]> {

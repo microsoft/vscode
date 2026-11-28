@@ -57,10 +57,12 @@ function ofChat(sessionHostService: ISessionHostService, session: ISession, chat
 /**
  * Resolves what a Sessions command acts on from the arguments it runs with, the first that matches:
  *
+ * - a chat or `{ chat }` as the first argument: that chat, its session, and the host that shows it, if any, also when a host's
+ *   context follows, as from the Changes of a chat that its window does not show;
  * - a host's {@link ISessionHostCommandContext}, as its toolbars and menus pass: that host;
  * - an editor command context: the host of the window of its group;
  * - a window command context: the host of that window;
- * - a chat, `{ chat }` or a chat resource: that chat, its session, and the host that shows it, if any;
+ * - a chat resource: that chat, its session, and the host that shows it, if any;
  * - a session, `{ session }` or a session resource: that session and the host that shows it, with the chat that host shows; when
  *   several hosts show it, the one in the focused window; without a host, its main chat;
  * - no arguments, as from keybindings and the Command Palette: the window host that has focus.
@@ -81,6 +83,14 @@ export function resolveSessionCommandTarget(accessor: ServicesAccessor, args: re
 		if (values.length === 0) {
 			return ofHost(accessor.get(IFocusedSessionHostService).getFocusedHost());
 		}
+		const managementService = accessor.get(ISessionsManagementService);
+		const value = values[0];
+		const chatContext = value && typeof value === 'object' ? (value as { readonly chat?: unknown }).chat : undefined;
+		const chat = isChat(value) ? value : isChat(chatContext) ? chatContext : undefined;
+		if (chat) {
+			const owner = managementService.getSessionForChatResource(chat.resource);
+			return owner && ofChat(sessionHostService, owner.session, owner.chat);
+		}
 		const hostContext = values.find(isSessionHostCommandContext);
 		if (hostContext) {
 			const host = sessionHostService.getHost(hostContext.sessionHostId);
@@ -95,14 +105,6 @@ export function resolveSessionCommandTarget(accessor: ServicesAccessor, args: re
 		if (windowContext) {
 			const host = sessionHostService.getHostOfWindow(windowContext.windowId);
 			return host && ofHost(host);
-		}
-		const managementService = accessor.get(ISessionsManagementService);
-		const value = values[0];
-		const chatContext = value && typeof value === 'object' ? (value as { readonly chat?: unknown }).chat : undefined;
-		const chat = isChat(value) ? value : isChat(chatContext) ? chatContext : undefined;
-		if (chat) {
-			const owner = managementService.getSessionForChatResource(chat.resource);
-			return owner && ofChat(sessionHostService, owner.session, owner.chat);
 		}
 		const sessionContext = value && typeof value === 'object' ? (value as { readonly session?: unknown }).session : undefined;
 		const session = isSession(value) ? value : isSession(sessionContext) ? sessionContext : undefined;

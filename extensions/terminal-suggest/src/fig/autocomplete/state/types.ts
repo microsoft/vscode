@@ -74,11 +74,3 @@ export type AutocompleteState = {
 	fuzzySearchEnabled: boolean;
 	// settings: SettingsMap;
 }; // & AutocompleteActions;
-
-export declare type NamedSetState<T> = {
-	(
-		name: string,
-		partial: Partial<T> | ((s: T) => Partial<T>),
-		replace?: boolean,
-	): void;
-};

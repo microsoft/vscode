@@ -429,17 +429,18 @@ suite('Frosted glass styles', () => {
 				sharesBorderBox: Math.abs(paintWidth - bounds.width) < 0.01 && Math.abs(paintHeight - bounds.height) < 0.01,
 			};
 		};
-		const radii = ['8px', '8px', '5px', '8px', '8px', '4px', '4px'];
+		const radii = ['8px', '8px', '5px', '8px', '8px', '8px', '4px', '4px'];
+		// The comment card's material paints its frame, so the blur never samples the host border.
 		const expected = (bordered: boolean) => overlays.geometrySurfaces.map(({ name }, index) => ({
 			name,
 			hostRadius: radii[index],
 			hostBorder: bordered || name === 'spotlight callout' ? 'solid 1px' : 'none 0px',
-			hostBorderColor: name === 'spotlight callout' ? 'rgba(0, 0, 0, 0)' : bordered ? 'rgb(90, 123, 157)' : undefined,
+			hostBorderColor: name === 'spotlight callout' || bordered && name === 'comment card' ? 'rgba(0, 0, 0, 0)' : bordered ? 'rgb(90, 123, 157)' : undefined,
 			paintRadius: radii[index],
 			paintBorder: bordered || name === 'spotlight callout' ? 'solid 1px' : 'none 0px',
-			paintBorderColor: 'rgba(0, 0, 0, 0)',
+			paintBorderColor: bordered && name === 'comment card' ? 'rgb(90, 123, 157)' : 'rgba(0, 0, 0, 0)',
 			paintBoxSizing: 'content-box',
-			paintClip: name === 'spotlight callout' ? 'border-box' : 'padding-box',
+			paintClip: name === 'spotlight callout' || name === 'comment card' ? 'border-box' : 'padding-box',
 			paintBackgroundClip: name === 'spotlight callout' ? 'border-box' : 'padding-box',
 			paintFilter: 'blur(12px)',
 			sharesBorderBox: true,
@@ -657,6 +658,53 @@ suite('Frosted glass styles', () => {
 		const before = [sticky, editor, selection].map(element => readColor(element).rgba);
 		overlays.root.classList.add('modern-ui-frosted-glass');
 		assert.deepStrictEqual([sticky, editor, selection].map(element => readColor(element).rgba), before);
+	});
+
+	test('keeps inline comments and comment reply inputs solid', () => {
+		const overlays = createOverlays();
+		const inlineComment = append(overlays.commentCard.parentElement!, 'review-widget');
+		const replyForm = append(append(overlays.commentBody, 'comment-form-container'), 'comment-form');
+		const replyButton = append(replyForm, 'review-thread-reply-button');
+		const replyEditor = append(replyForm, 'monaco-editor');
+		const editorBackground = append(replyEditor, 'monaco-editor-background');
+		const surfaces = [inlineComment, replyButton, replyEditor, editorBackground];
+		const colors = () => surfaces.map(element => readColor(element).rgba);
+		const before = colors();
+		overlays.root.classList.add('modern-ui-frosted-glass');
+
+		assert.deepStrictEqual({
+			colors: colors(),
+			filters: surfaces.map(element => getWindow(element).getComputedStyle(element, '::before').backdropFilter),
+		}, {
+			colors: before,
+			filters: surfaces.map(() => 'none'),
+		});
+	});
+
+	test('paints the comment card frame above its blur so the blur cannot smear the frame', () => {
+		const overlays = createOverlays();
+		const card = overlays.commentCard;
+		card.style.setProperty('--vscode-focusBorder', 'rgb(1, 2, 3)');
+		const focusable = append(overlays.commentBody, 'review-comment');
+		focusable.tabIndex = 0;
+		const frame = () => {
+			const targetWindow = getWindow(card);
+			return { host: targetWindow.getComputedStyle(card).borderTopColor, material: targetWindow.getComputedStyle(card, '::before').borderTopColor };
+		};
+		const solid = frame();
+		overlays.root.classList.add('modern-ui-frosted-glass');
+		const rest = frame();
+		focusable.focus();
+		const focused = frame();
+		focusable.blur();
+		overlays.root.classList.remove('modern-ui-frosted-glass');
+
+		const supported = supportsGlass(overlays.root);
+		assert.deepStrictEqual({ rest, focused, restored: frame() }, {
+			rest: supported ? { host: 'rgba(0, 0, 0, 0)', material: solid.host } : solid,
+			focused: supported ? { host: 'rgba(0, 0, 0, 0)', material: 'rgb(1, 2, 3)' } : { ...solid, host: 'rgb(1, 2, 3)' },
+			restored: solid,
+		});
 	});
 
 	test('keeps rich quick widgets and animating toasts on their original backgrounds', () => {

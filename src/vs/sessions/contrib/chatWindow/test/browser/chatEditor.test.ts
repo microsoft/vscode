@@ -287,6 +287,9 @@ suite('Session chat view editor', () => {
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override readonly onDidChangeSessions = Event.None;
 			override readonly onDidChangeSessionTypes = Event.None;
+			override getSession() {
+				return undefined;
+			}
 			override getSessionForChatResource() {
 				const chat = new class extends mock<IChat>() {
 					override readonly resource = other.mainChat.get().resource;
@@ -323,7 +326,7 @@ suite('Session chat view editor', () => {
 		fillSessionChatDragData(new DragEvent('dragstart', { dataTransfer }), 'other', URI.parse('test-chat://other'));
 
 		view.element.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer }));
-		const overlay = view.element.querySelector<HTMLElement>('.chat-window-session-drop-overlay');
+		const overlay = view.element.querySelector<HTMLElement>('.session-chat-drop-overlay');
 		overlay?.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }));
 		await timeout(0);
 

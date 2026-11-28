@@ -20,6 +20,7 @@ import '../../../../../platform/quickinput/browser/media/quickInput.css';
 import '../../../../browser/parts/notifications/media/notificationsCenter.css';
 import '../../../../browser/parts/notifications/media/notificationsToasts.css';
 import '../../../../browser/parts/notifications/media/notificationsList.css';
+import '../../../comments/browser/media/review.css';
 import '../../../onboarding/browser/media/spotlight.css';
 import '../../browser/media/roundedCorners.css';
 import '../../browser/media/frostedGlass.css';
@@ -34,7 +35,7 @@ export function append(parent: HTMLElement | ShadowRoot, className: string): HTM
 export function createFrostedGlassOverlays(store: Pick<DisposableStore, 'add'>, background = '#242424', rootClassName = 'monaco-workbench modern-ui') {
 	const root = append(document.body, rootClassName);
 	store.add(toDisposable(() => root.remove()));
-	for (const token of ['quickInput-background', 'menu-background', 'editorHoverWidget-background', 'editorWidget-background', 'notifications-background', 'editor-background', 'input-background']) {
+	for (const token of ['quickInput-background', 'menu-background', 'editorHoverWidget-background', 'editorWidget-background', 'notifications-background', 'editor-background', 'input-background', 'peekViewResult-background']) {
 		root.style.setProperty(`--vscode-${token}`, background);
 	}
 	for (const token of ['widget-border', 'editorWidget-border', 'editorHoverWidget-border']) {
@@ -70,6 +71,11 @@ export function createFrostedGlassOverlays(store: Pick<DisposableStore, 'add'>, 
 	const pickerFooter = append(picker, 'action-widget-action-bar');
 	const hover = append(root, 'monaco-hover workbench-hover');
 	const editor = append(root, 'monaco-editor');
+	const commentCard = append(editor, 'comment-thread-floating-widget');
+	commentCard.style.position = 'absolute';
+	const commentWidget = append(commentCard, 'review-widget');
+	const commentHeader = append(commentWidget, 'head');
+	const commentBody = append(append(commentWidget, 'comment-thread-body-scrollable'), 'body');
 	const resizableHover = append(editor, 'monaco-resizable-hover');
 	resizableHover.style.position = 'absolute';
 	const resizableHoverContent = append(resizableHover, 'monaco-hover');
@@ -88,18 +94,19 @@ export function createFrostedGlassOverlays(store: Pick<DisposableStore, 'add'>, 
 	toast.style.border = '1px solid var(--vscode-widget-border)';
 	const toastList = append(toast, 'notifications-list-container');
 	return {
-		root, quickInput, menu, menuContainer, menubarMenuContainer, shadowMenuContainer, picker, pickerFilter, pickerRows, pickerFooter, hover, resizableHover, resizableHoverContent, dialog, dialogShadow, spotlightCallout, spotlightPointer, center, toast, toastList,
+		root, quickInput, menu, menuContainer, menubarMenuContainer, shadowMenuContainer, picker, pickerFilter, pickerRows, pickerFooter, hover, resizableHover, resizableHoverContent, commentCard, commentWidget, commentHeader, commentBody, dialog, dialogShadow, spotlightCallout, spotlightPointer, center, toast, toastList,
 		geometrySurfaces: [
 			{ name: 'quick input', surface: quickInput },
 			{ name: 'action widget', surface: picker },
 			{ name: 'hover', surface: hover },
 			{ name: 'resizable hover', surface: resizableHover },
+			{ name: 'comment card', surface: commentCard },
 			{ name: 'spotlight callout', surface: spotlightCallout },
 			{ name: 'notification center', surface: center },
 			{ name: 'notification toast', surface: toast },
 		],
-		surfaces: [quickInput, menuContainer, shadowMenuContainer, picker, hover, resizableHover, dialogShadow, spotlightCallout, center, toast],
-		backgrounds: [quickInput, menuBackground, shadowMenuBackground, picker, pickerRows, hover, resizableHover, resizableHoverContent, dialog, spotlightCallout, centerBackground, toast, toastList],
+		surfaces: [quickInput, menuContainer, shadowMenuContainer, picker, hover, resizableHover, commentCard, dialogShadow, spotlightCallout, center, toast],
+		backgrounds: [quickInput, menuBackground, shadowMenuBackground, picker, pickerRows, hover, resizableHover, resizableHoverContent, commentCard, commentWidget, commentHeader, commentBody, dialog, spotlightCallout, centerBackground, toast, toastList],
 	};
 }
 
