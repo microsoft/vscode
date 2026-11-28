@@ -720,9 +720,9 @@ function getCanvasOpenFailure(error: unknown): AgentCanvasOpenFailure | undefine
 	return canvasOpenFailurePatterns.find(([pattern]) => pattern.test(message))?.[1];
 }
 
-/** How often, and how many times, to list extensions while a revoked name's relaunch is still starting without a process. */
+/** How often, and for how long after the first read, to list extensions while a revoked name's relaunch is still starting without a process. */
 const PROJECT_EXTENSION_SETTLE_POLL_MS = 100;
-const PROJECT_EXTENSION_SETTLE_POLLS = 10;
+const PROJECT_EXTENSION_SETTLE_MS = 1_000;
 
 /** A live extension and, while it runs, its process. */
 interface ICopilotRuntimeExtension extends IAgentExtensionInfo {
@@ -738,7 +738,7 @@ interface ICopilotRuntimeExtensionInventory {
 /** A session couldn't confirm that the project extensions whose workspace trust was revoked stopped. */
 export class CopilotProjectExtensionRevocationError extends Error {
 	constructor(revokedExtensionNames: ReadonlySet<string>, cause: unknown) {
-		super(`Couldn't confirm that project extensions whose workspace trust was revoked (${[...revokedExtensionNames].join(', ')}) stopped: ${getErrorMessage(cause)}`);
+		super(localize('projectExtensionRevocationUnconfirmed', "Couldn't confirm that project extensions whose workspace trust was revoked ({0}) stopped: {1}", [...revokedExtensionNames].join(', '), getErrorMessage(cause)));
 		this.name = 'CopilotProjectExtensionRevocationError';
 	}
 }
@@ -7578,8 +7578,8 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private async _stopRevokedProjectExtensions(revoked: readonly ICopilotRuntimeExtension[], revokedComplete: boolean, revokedNames: ReadonlySet<string>, wrapper: CopilotSessionWrapper, isCurrent: () => boolean): Promise<ICopilotRuntimeExtensionInventory | undefined> {
 		const revokedPids = new Set(revoked.flatMap(extension => extension.pid === undefined ? [] : [extension.pid]));
-		// Without its process, or its row, only a reload that succeeded shows a revoked extension stopped: a later process
-		// could be the same one.
+		// Without its process, or its row, a revoked extension can't be told apart from a same-named one listed after a
+		// failed reload. After a reload that succeeded, that one is a relaunch.
 		const hasUnidentified = !revokedComplete || revoked.some(extension => extension.pid === undefined);
 		let failure: unknown;
 		for (let attempt = 0; attempt < 2; attempt++) {
@@ -7612,13 +7612,15 @@ export class CopilotAgentSession extends Disposable {
 			// A same-named extension that trust still covers relaunches in a new process; one without a process can't be told apart.
 			const runsRevoked = (extension: ICopilotRuntimeExtension) => (extension.status === 'running' || extension.status === 'starting')
 				&& (extension.pid === undefined ? extension.source === 'project' && revokedNames.has(extension.name) : revokedPids.has(extension.pid));
-			const stillRunning = inventory.extensions.filter(runsRevoked);
-			if (inventory.complete && stillRunning.length === 0 && (reloaded || !hasUnidentified)) {
+			const mayRunUnidentified = !reloaded && hasUnidentified;
+			const stillRunning = inventory.extensions.filter(extension => runsRevoked(extension)
+				|| (mayRunUnidentified && isActiveProjectExtension(extension) && revokedNames.has(extension.name)));
+			if (inventory.complete && stillRunning.length === 0) {
 				return inventory;
 			}
 			if (!inventory.complete) {
 				failure = new Error('the runtime reported an extension this host could not read');
-			} else if (stillRunning.length) {
+			} else {
 				failure = new Error(`${stillRunning.map(extension => extension.id).join(', ')} still running`);
 			}
 		}
@@ -7627,20 +7629,22 @@ export class CopilotAgentSession extends Disposable {
 
 	/** Lists extensions, briefly waiting while one with a revoked name is starting without a process to tell which it is. */
 	private async _settledRuntimeExtensions(wrapper: CopilotSessionWrapper, revokedNames: ReadonlySet<string>, isCurrent: () => boolean): Promise<ICopilotRuntimeExtensionInventory | undefined> {
-		for (let poll = 1; ; poll++) {
-			const inventory = await this._listRuntimeExtensions(wrapper);
-			if (!isCurrent()) {
-				return undefined;
-			}
-			const unidentified = inventory.extensions.some(extension => extension.source === 'project' && extension.status === 'starting' && extension.pid === undefined && revokedNames.has(extension.name));
-			if (!unidentified || poll >= PROJECT_EXTENSION_SETTLE_POLLS) {
-				return inventory;
-			}
+		const unidentified = (inventory: ICopilotRuntimeExtensionInventory) => inventory.extensions.some(extension => extension.source === 'project' && extension.status === 'starting' && extension.pid === undefined && revokedNames.has(extension.name));
+		let inventory = await this._listRuntimeExtensions(wrapper);
+		// Later reads only get what remains of the wait, so a runtime that answers slowly can't stretch it.
+		const deadline = Date.now() + PROJECT_EXTENSION_SETTLE_MS;
+		while (isCurrent() && unidentified(inventory) && deadline - Date.now() > PROJECT_EXTENSION_SETTLE_POLL_MS) {
 			await timeout(PROJECT_EXTENSION_SETTLE_POLL_MS);
 			if (!isCurrent()) {
-				return undefined;
+				break;
 			}
+			const next = await raceTimeout(this._listRuntimeExtensions(wrapper), Math.max(0, deadline - Date.now()));
+			if (!next) {
+				break;
+			}
+			inventory = next;
 		}
+		return isCurrent() ? inventory : undefined;
 	}
 
 	/**
