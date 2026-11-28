@@ -428,6 +428,7 @@ interface ISendHarness {
 	_reconcileDraftBeforeSend(session: ISession, selectionId: number): Promise<ISession | undefined>;
 	_isCurrentSendTarget(session: ISession, selectionId: number, validatedFolderUri: URI | undefined): boolean;
 	_hasSelectionFollowedFrom(folderUri: URI | undefined, selectionId: number): boolean;
+	_getComparisonIntent(): string | undefined;
 	_createNewSession?(folderUri: URI, pick?: IPreferredSessionType): Promise<void>;
 	_openQuickChat?(): void;
 	_backgroundReseedTarget?(session: ISession, folderUri: URI | undefined): INewSessionTarget;
@@ -4654,12 +4655,22 @@ suite('NewChatWidget', () => {
 		});
 	});
 
-	for (const meanwhile of ['otherWorkspace', 'otherAgent'] as const) {
-		test(`a send waiting for its draft's replacement sends nothing to ${meanwhile === 'otherWorkspace' ? 'a workspace' : 'another agent\'s draft in the same workspace'} the user picks meanwhile, keeping the input`, async () => {
+	for (const meanwhile of ['otherWorkspace', 'otherAgent', 'hostedOtherAgent', 'comparisonReset'] as const) {
+		test(`a send waiting for its draft's replacement sends nothing ${{
+			otherWorkspace: 'to a workspace the user picks meanwhile',
+			otherAgent: 'to another agent\'s draft the user picks meanwhile in the same workspace',
+			hostedOtherAgent: 'to another agent\'s draft the user picks while a hosted composer creates its draft',
+			comparisonReset: 'when the comparison it was sent with is reset meanwhile',
+		}[meanwhile]}, keeping the input`, async () => {
 			const reconcileDraftBeforeSend = Reflect.get(NewChatWidget.prototype, '_reconcileDraftBeforeSend') as ISendHarness['_reconcileDraftBeforeSend'];
 			const draft = (sessionId: string) => upcastPartial<ISession>({ sessionId, ...withCreatedStatus(constObservable(false)) });
-			const session = observableValue<ISession | undefined>('session', draft('a'));
+			const hosted = meanwhile === 'hostedOtherAgent';
+			// A hosted composer with no draft as Send is pressed, creating it again
+			const session = observableValue<ISession | undefined>('session', hosted ? undefined : draft('a'));
 			const replacing = new DeferredPromise<void>();
+			const creating = new DeferredPromise<IOpenNewSessionResult>();
+			let comparing = meanwhile === 'comparisonReset';
+			const warnings: string[] = [];
 			const consumed: string[] = [];
 			const picker = { selectionId: 1, validateSelectedWorkspace: async () => true, showPicker: () => { }, clearAttachedContext: () => consumed.push('attachments') };
 			const sent: string[] = [];
@@ -4667,7 +4678,8 @@ suite('NewChatWidget', () => {
 				_session: session,
 				_workspacePicker: upcastPartial<ISendHarness['_workspacePicker']>(picker),
 				_workspaceFoldersReconciliation: replacing.p,
-				notificationService: upcastPartial<ISendHarness['notificationService']>({ error: () => { }, warn: () => { } }),
+				...(hosted ? { _draftHost: upcastPartial<INewSessionDraftHost>({}), _pendingWorkspaceCreation: creating.p } : {}),
+				notificationService: upcastPartial<ISendHarness['notificationService']>({ error: () => { }, warn: (message: string) => warnings.push(message) }),
 				logService: upcastPartial<ISendHarness['logService']>({ error: () => { } }),
 				newSessionComposerService: { notifyWillSendRequest: () => consumed.push('prompt') },
 				agentFeedbackService: { removeFeedback: () => consumed.push('feedback') },
@@ -4675,6 +4687,14 @@ suite('NewChatWidget', () => {
 				_reconcileDraftBeforeSend: reconcileDraftBeforeSend,
 				_isCurrentSendTarget: Reflect.get(NewChatWidget.prototype, '_isCurrentSendTarget') as ISendHarness['_isCurrentSendTarget'],
 				_hasSelectionFollowedFrom: () => false,
+				_getComparisonIntent: () => comparing ? 'agents' : undefined,
+				uriIdentityService: { extUri },
+				_feedbackItems: constObservable([]),
+				_getWorkspaceRoots: () => [],
+				_comparisonSelection: { enabled: constObservable(false) },
+				_isQuickChatComposer: constObservable(false),
+				recentWorkspacesService: { restoreDismissedWorkspace: () => { } },
+				_pendingBackgroundSends: { set: () => { }, deleteAndDispose: () => { } },
 			});
 			Object.assign(composer, {
 				_workspaceFoldersReplacements: new WeakMap<ISession, ISession>(),
@@ -4683,14 +4703,22 @@ suite('NewChatWidget', () => {
 			});
 			const sending = send.call(composer, 'fix the bug');
 			await timeout(0);
-			// While the draft is replaced the user picks another workspace, or another agent, whose draft is not its replacement
+			// While the draft is replaced the user picks another workspace, or another agent, whose draft is not its replacement, or the
+			// replacement resets the comparison; a hosted composer's creation makes its draft meanwhile
 			if (meanwhile === 'otherWorkspace') {
 				picker.selectionId++;
 			}
-			session.set(draft('b'), undefined);
+			if (meanwhile === 'comparisonReset') {
+				comparing = false;
+			} else {
+				session.set(draft('b'), undefined);
+			}
 			composer._workspaceFoldersReconciliation = undefined;
 			replacing.complete();
-			assert.deepStrictEqual({ result: await sending, sent, consumed }, { result: false, sent: [], consumed: [] });
+			creating.complete({ session: draft('created'), trustDeclined: false, created: true });
+			assert.deepStrictEqual({ result: await sending, sent, consumed, warned: warnings.length > 0 }, {
+				result: false, sent: [], consumed: [], warned: meanwhile === 'comparisonReset',
+			});
 		});
 	}
 
@@ -4736,6 +4764,7 @@ suite('NewChatWidget', () => {
 				_reconcileDraftBeforeSend: reconcileDraftBeforeSend,
 				_isCurrentSendTarget: isCurrentSendTarget,
 				_hasSelectionFollowedFrom: Reflect.get(NewChatWidget.prototype, '_hasSelectionFollowedFrom') as ISendHarness['_hasSelectionFollowedFrom'],
+				_getComparisonIntent: () => undefined,
 			});
 			Object.assign(composer, {
 				_workspaceFoldersReplacements: replacements,
@@ -4769,7 +4798,7 @@ suite('NewChatWidget', () => {
 		const alpha = draft('alpha');
 		const created = draft('created');
 		const results: (string | undefined)[] = [];
-		for (const shown of [created, draft('otherAgent')]) {
+		for (const outcome of ['created', 'otherAgent', 'failed'] as const) {
 			const session = observableValue<ITestSessionWithChat | undefined>('session', alpha);
 			const replacements = new WeakMap<ITestSessionWithChat, ITestSessionWithChat>();
 			await handleFoldersChange.call({
@@ -4778,15 +4807,42 @@ suite('NewChatWidget', () => {
 				uriIdentityService: { extUri },
 				_workspaceFoldersReplacements: replacements,
 				_isCurrentWorkspaceSelection: () => false,
-				// It creates its draft, while the user picks another agent, whose draft is shown when it returns
+				// It creates its draft, while the user picks another agent whose draft is shown when it returns, or fails and returns
+				// the draft shown, which it did not create
 				_onWorkspaceSelected: async () => {
+					const shown = outcome === 'otherAgent' ? draft('otherAgent') : outcome === 'failed' ? draft('fallback') : created;
 					session.set(shown, undefined);
-					return { session: created, trustDeclined: false };
+					return outcome === 'failed' ? { session: shown, trustDeclined: false } : { session: created, trustDeclined: false, created: true };
 				},
 			});
 			results.push(replacements.get(alpha)?.sessionId);
 		}
-		assert.deepStrictEqual(results, ['created', undefined]);
+		assert.deepStrictEqual(results, ['created', undefined, undefined]);
+	});
+
+	test('a folder change that fails does not hold up the ones after it', async () => {
+		const handleFoldersChange = Reflect.get(NewChatWidget.prototype, '_handleSelectedWorkspaceFoldersChange') as (this: object) => Promise<void>;
+		const replaced: string[] = [];
+		let fail = true;
+		const composer: { _workspaceFoldersReconciliation: Promise<void> | undefined;[key: string]: unknown } = {
+			_workspaceFoldersReconciliation: undefined,
+			_session: constObservable(upcastPartial<ITestSessionWithChat>({ sessionId: 'draft', ...withCreatedStatus(constObservable(false)) })),
+			_workspacePicker: { selectedFolderUri: URI.file('/project'), selectionId: 1 },
+			uriIdentityService: { extUri },
+			_isCurrentWorkspaceSelection: () => false,
+			_onWorkspaceSelected: async (folderUri: URI) => {
+				if (fail) {
+					fail = false;
+					throw new Error('Cannot create the draft');
+				}
+				replaced.push(folderUri.path);
+			},
+		};
+		const failing = handleFoldersChange.call(composer);
+		const later = handleFoldersChange.call(composer);
+		const failure = await failing.then(() => undefined, (error: Error) => error.message);
+		await later;
+		assert.deepStrictEqual({ failure, replaced }, { failure: 'Cannot create the draft', replaced: ['/project'] });
 	});
 
 	test('cancels an in-flight creation and keeps the newer draft ownership', async () => {
@@ -5385,6 +5441,7 @@ suite('NewChatWidget', () => {
 			_reconcileDraftBeforeSend: async (session: ISession) => session,
 			_isCurrentSendTarget: () => true,
 			_hasSelectionFollowedFrom: () => false,
+			_getComparisonIntent: () => undefined,
 		}, 'work across contexts', [
 			composerAttachment,
 			duplicateRepositoryAttachment,
@@ -5451,6 +5508,7 @@ suite('NewChatWidget', () => {
 			_reconcileDraftBeforeSend: async (session: ISession) => session,
 			_isCurrentSendTarget: () => true,
 			_hasSelectionFollowedFrom: () => false,
+			_getComparisonIntent: () => undefined,
 		}, 'work across contexts');
 
 		assert.deepStrictEqual({ result, pickerOpenCount, sendCount }, {
@@ -5500,6 +5558,7 @@ suite('NewChatWidget', () => {
 				_reconcileDraftBeforeSend: async (session: ISession) => session,
 				_isCurrentSendTarget: () => true,
 				_hasSelectionFollowedFrom: () => false,
+				_getComparisonIntent: () => undefined,
 			}, 'keep this prompt');
 
 			assert.deepStrictEqual({ result, calls }, { result: false, calls: outcome === 'error' ? ['validate', 'log', 'error'] : ['validate'] });
@@ -5619,6 +5678,7 @@ suite('NewChatWidget', () => {
 				_reconcileDraftBeforeSend: async (session: ISession) => session,
 				_isCurrentSendTarget: () => true,
 				_hasSelectionFollowedFrom: () => false,
+				_getComparisonIntent: () => undefined,
 			};
 			results.push(await harness.send('hello'));
 		}
@@ -5685,6 +5745,7 @@ suite('NewChatWidget', () => {
 				_reconcileDraftBeforeSend: async (session: ISession) => session,
 				_isCurrentSendTarget: () => true,
 				_hasSelectionFollowedFrom: () => false,
+				_getComparisonIntent: () => undefined,
 				_createNewSession: async () => { picker.selectedFolderUri = URI.file('/different-workspace'); },
 			};
 			await send.call(harness, 'hello', undefined, true);
@@ -5749,6 +5810,7 @@ suite('NewChatWidget', () => {
 				_reconcileDraftBeforeSend: async (session: ISession) => session,
 				_isCurrentSendTarget: () => true,
 				_hasSelectionFollowedFrom: () => false,
+				_getComparisonIntent: () => undefined,
 				_createNewSession: async () => { },
 			};
 			const result = await send.call(harness, 'hello', undefined, true);
@@ -5982,6 +6044,7 @@ suite('NewChatWidget', () => {
 				_reconcileDraftBeforeSend: async (session: ISession) => session,
 				_isCurrentSendTarget: () => true,
 				_hasSelectionFollowedFrom: () => false,
+				_getComparisonIntent: () => undefined,
 			} satisfies ISendHarness, 'hello');
 
 			assert.deepStrictEqual({ shown, result, sent, infos }, {
@@ -6036,6 +6099,7 @@ suite('NewChatWidget', () => {
 					_reconcileDraftBeforeSend: async (session: ISession) => session,
 					_isCurrentSendTarget: () => true,
 					_hasSelectionFollowedFrom: () => false,
+					_getComparisonIntent: () => undefined,
 					_createNewSession: async () => { },
 					_clearBackgroundSendOnFailure: (...args) => clearBackgroundSendOnFailure.apply(harness, args),
 				};
@@ -6123,6 +6187,7 @@ suite('NewChatWidget', () => {
 				_reconcileDraftBeforeSend: async (session: ISession) => session,
 				_isCurrentSendTarget: () => true,
 				_hasSelectionFollowedFrom: () => false,
+				_getComparisonIntent: () => undefined,
 				_createNewSession: async () => { },
 				_clearBackgroundSendOnFailure: (...args) => clearBackgroundSendOnFailure.apply(harness, args),
 			};
@@ -6221,6 +6286,7 @@ suite('NewChatWidget', () => {
 				_reconcileDraftBeforeSend: async (session: ISession) => session,
 				_isCurrentSendTarget: () => true,
 				_hasSelectionFollowedFrom: () => false,
+				_getComparisonIntent: () => undefined,
 				_createNewSession: async () => { },
 				_clearBackgroundSendOnFailure: (...args) => clearBackgroundSendOnFailure.apply(harness, args),
 			};
@@ -7922,6 +7988,8 @@ suite('NewChatWidget', () => {
 						},
 						openSession: async () => assert.fail('A hosted composer must not change the grid'),
 					},
+					_getComparisonIntent: () => undefined,
+					_feedbackItems: constObservable([]),
 				}), ['_createNewSession', '_createSessionNow', '_applyPreferredDevContainer', '_seedRequestedTarget', '_reseedAfterFailedSend', '_isPreferredServable', '_scheduleRecreateOnProviderChange', '_recreateOnProviderChange', '_send', '_hasSelectionFollowedFrom']);
 				const reseeding = composer._reseedAfterFailedSend(composer._draftHost) as IDisposable;
 				await composer._createNewSession(folder, { providerId: 'p', sessionTypeId: 't' });
@@ -8078,6 +8146,7 @@ suite('NewChatWidget', () => {
 					_reconcileDraftBeforeSend: async (session: ISession) => session,
 					_isCurrentSendTarget: () => true,
 					_hasSelectionFollowedFrom: () => false,
+					_getComparisonIntent: () => undefined,
 					_createNewSession: async (folderUri: URI, pick?: IPreferredSessionType) => { created.push({ folder: folderUri.path, pick }); },
 					_clearBackgroundSendOnFailure: (...args) => clearBackgroundSendOnFailure.apply(harness, args),
 					_backgroundReseedTarget: (session, folderUri) => backgroundReseedTarget.call({ _environment: constObservable(undefined), _requestsDevContainer: () => false }, session, folderUri),
@@ -8958,6 +9027,7 @@ suite('NewChatWidget', () => {
 			_reconcileDraftBeforeSend: async (session: ISession) => session,
 			_isCurrentSendTarget: () => true,
 			_hasSelectionFollowedFrom: () => false,
+			_getComparisonIntent: () => undefined,
 		}, 'hello');
 		assert.deepStrictEqual({
 			result,

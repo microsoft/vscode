@@ -3482,15 +3482,18 @@ export class NewChatWidget extends Disposable {
 		}
 		// What is sent goes to the selection it was sent for, or a draft that replaced its own as its workspace's folders changed
 		const selectionId = this._workspacePicker.selectionId;
-		// The draft sent is the one shown as Send is pressed: another taken only as its replacement
+		// The draft sent is the one shown as Send is pressed: another taken only as its replacement. What else is sent, the
+		// feedback and the agents to compare, is also as it is then.
 		let session = this._session.get();
+		const pendingCreation = this._pendingWorkspaceCreation;
+		const feedbackItems = [...this._feedbackItems.get()];
+		const comparison = this._getComparisonIntent();
 		while (this._workspaceFoldersReconciliation) {
 			await this._workspaceFoldersReconciliation.catch(() => undefined);
 		}
-		// A hosted composer creating its draft again, such as after a send that failed, sends once it has it.
-		if (!session && this._draftHost && this._pendingWorkspaceCreation) {
-			await this._pendingWorkspaceCreation;
-			session = this._session.get();
+		// A hosted composer creating its draft again, such as after a send that failed, sends the draft that creation makes
+		if (!session && this._draftHost && pendingCreation) {
+			session = (await pendingCreation.catch(() => undefined))?.session;
 		}
 		if (!session) {
 			this._workspacePicker.showPicker();
@@ -3534,7 +3537,11 @@ export class NewChatWidget extends Disposable {
 			}
 			session = reconciled;
 		}
-		const feedbackItems = [...this._feedbackItems.get()];
+		// A comparison is sent as it was asked for, or not at all: a replacement of the draft can change or reset it
+		if (this._getComparisonIntent() !== comparison) {
+			this.notificationService.warn(localize('newChatWidget.comparisonChanged', "The agents to compare changed while the session's workspace changed. Check them and send again."));
+			return false;
+		}
 		const workspaceRoots = this._getWorkspaceRoots(session);
 		const request = buildNewSessionPrompt(query, feedbackItems, workspaceRoots);
 		const requestContext = new Map<string, IChatRequestVariableEntry>();
@@ -3919,7 +3926,8 @@ export class NewChatWidget extends Disposable {
 	private _handleSelectedWorkspaceFoldersChange(): Promise<void> {
 		const previous = this._workspaceFoldersReconciliation;
 		const reconciliation = (async () => {
-			await previous;
+			// A failed change, which its own caller reports, does not hold up the ones after it
+			await previous?.catch(() => undefined);
 			while (this._pendingWorkspaceCreation) {
 				await this._pendingWorkspaceCreation.catch(() => undefined);
 			}
@@ -3934,9 +3942,10 @@ export class NewChatWidget extends Disposable {
 				host.setRequestedTarget({ ...host.requestedTarget?.get(), folderUri }, 'background');
 			}
 			const selectionId = this._workspacePicker.selectionId;
-			const replacement = (await this._onWorkspaceSelected(folderUri))?.session;
-			// Its replacement is the draft it created, while it is shown for the same selection: not another, such as one the user
-			// created meanwhile for another agent
+			const result = await this._onWorkspaceSelected(folderUri);
+			const replacement = result?.created ? result.session : undefined;
+			// Its replacement is the draft it created, while it is shown for the same selection: not one it fell back to, nor
+			// another, such as one the user created meanwhile for another agent
 			if (replacement && replacement !== session && replacement === this._session.get() && selectionId === this._workspacePicker.selectionId) {
 				this._workspaceFoldersReplacements.set(session, replacement);
 			}
@@ -3987,6 +3996,14 @@ export class NewChatWidget extends Disposable {
 		}
 		this.notificationService.warn(localize('newChatWidget.workspaceFoldersChanged', "The folders of this session's workspace changed. Check the workspace and send again."));
 		return undefined;
+	}
+
+	/** The agents a send compares, `undefined` when it does not compare them, as a key that changes with them. */
+	private _getComparisonIntent(): string | undefined {
+		const selection = this._comparisonSelection;
+		return selection.enabled.get()
+			? JSON.stringify({ attempts: selection.attempts.get(), judge: selection.judgeModelId.get(), synthesizer: selection.synthesizerModelId.get() })
+			: undefined;
 	}
 
 	/** Whether the selection a send for `selectionId` is for is the same, but in another folder than `folderUri` now. */
