@@ -5,7 +5,6 @@
 
 import { IAction } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Iterable } from '../../../../../../base/common/iterator.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -31,7 +30,6 @@ import { ISessionTypePickerDelegate } from '../../chat.js';
 import { IChatHarnessSwitchFeedbackSurveyService } from '../../feedbackSurvey/chatHarnessSwitchFeedbackSurveyService.js';
 import { IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ISessionTypeItem, SessionTypePickerActionItem } from './sessionTargetPickerActionItem.js';
-import { IGitService } from '../../../../git/common/gitService.js';
 import { ILocalChatAvailabilityService } from '../../../common/localChatAvailability.js';
 
 /**
@@ -61,7 +59,6 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 		@IAgentHostEnablementService agentHostEnablementService: IAgentHostEnablementService,
 		@IAgentSdkSetupService agentSdkSetupService: IAgentSdkSetupService,
 		@IChatHarnessSwitchFeedbackSurveyService harnessSwitchFeedbackSurveyService: IChatHarnessSwitchFeedbackSurveyService,
-		@IGitService private readonly gitService: IGitService,
 		@IManagedSettingsService managedSettingsService: IManagedSettingsService,
 		@ILocalChatAvailabilityService localChatAvailabilityService: ILocalChatAvailabilityService,
 	) {
@@ -109,7 +106,7 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 		}
 
 		// In the sessions window, cloud delegation requires a git repository
-		if (this._isSessionsWindow && type === AgentSessionProviders.Cloud && !this._hasGitRepository()) {
+		if (this._isSessionsWindow && type === AgentSessionProviders.Cloud && !this.delegate.hasGitRepository?.()) {
 			return false;
 		}
 
@@ -118,13 +115,6 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 		}
 
 		return this._getSelectedSessionType() !== type; // Always allow switching back to active session
-	}
-
-	private _hasGitRepository(): boolean {
-		if (this.delegate.hasGitRepository) {
-			return this.delegate.hasGitRepository();
-		}
-		return !Iterable.isEmpty(this.gitService.repositories);
 	}
 
 	protected override _isVisible(type: AgentSessionTarget): boolean {

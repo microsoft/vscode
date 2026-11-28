@@ -16,8 +16,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
-import { getGitHubRemoteInfo, IGitHubRemoteInfo } from '../../../../workbench/contrib/git/common/utils.js';
+import { IGitHubRemoteInfo } from '../../../../workbench/contrib/git/common/utils.js';
 import { getOnboardingDeveloperModeVariation, isOnboardingDeveloperModeEnabled, OnboardingDeveloperModeVariations, ONBOARDING_DEVELOPER_MODE_VARIATIONS_CONFIG } from '../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { IWorkbenchAssignmentService } from '../../../../workbench/services/assignment/common/assignmentService.js';
 import { isAgentHostProviderId } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
@@ -268,7 +267,6 @@ export class NewSessionViewV3PromptRunner {
 		/** The session the main window shows, whose new-session composer the prompt fills. */
 		private readonly _mainWindowSession: IObservable<ISession | undefined>,
 		private readonly _newSessionComposerService: INewSessionComposerService,
-		private readonly _gitService: IGitService,
 		private readonly _fileService: IFileService,
 		private readonly _gitHubService: IGitHubService,
 		private readonly _telemetryService: ITelemetryService,
@@ -957,19 +955,8 @@ export class NewSessionViewV3PromptRunner {
 				}
 			}
 
-			this._logService.trace(`${LOG_PREFIX} Session metadata, workspace URIs, and .git/config did not identify GitHub; inspecting Git extension remotes.`);
-			const repository = await this._gitService.openRepository(folder.workingDirectory);
-			if (!repository) {
-				this._logService.trace(`${LOG_PREFIX} The selected workspace folder could not be opened through the Git extension.`);
-				return undefined;
-			}
-			const repositoryFromRemote = getGitHubRemoteInfo(repository.state.get(), supportedHosts);
-			if (!repositoryFromRemote) {
-				this._logService.trace(`${LOG_PREFIX} The selected Git repository has no supported GitHub remote.`);
-				return undefined;
-			}
-			this._logService.info(`${LOG_PREFIX} Resolved GitHub repository '${repositoryFromRemote.owner}/${repositoryFromRemote.repo}' from Git extension remotes.`);
-			return this._createRepositoryContext(activeSession, workspace.uri.toString(), folder.workingDirectory.toString(), repositoryFromRemote);
+			this._logService.trace(`${LOG_PREFIX} Session metadata, workspace URIs, and .git/config did not identify GitHub.`);
+			return undefined;
 		}
 		return undefined;
 	}
