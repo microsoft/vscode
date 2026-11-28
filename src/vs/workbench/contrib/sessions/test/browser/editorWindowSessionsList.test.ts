@@ -11,6 +11,8 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IViewletViewOptions } from '../../../../browser/parts/views/viewsViewlet.js';
 import { ChatViewSessionsGroupingState, createEditorWindowSessionsScope, createEditorWindowSessionsViewOptions, EDITOR_WINDOW_SESSIONS_GROUPINGS, EditorWindowSessionsList } from '../../browser/agentsView/editorWindowSessionsList.js';
+import { ChatViewSessionsListControl } from '../../browser/agentsView/chatViewSessionsList.js';
+import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { EditorWindowSessionsContext, EditorWindowSessionsViewOffersInboxContext, ISessionsViewLocator, SessionsView, SessionsViewId } from '../../browser/views/sessionsView.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { SessionsGrouping } from '../../browser/views/sessionsListCommon.js';
@@ -34,6 +36,30 @@ import { NEW_SESSION_WELCOME_GRAPHIC_SETTING, WORKSPACE_OPT_OUT_SETTING } from '
 suite('EditorWindowSessionsList', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('a hidden Chat list stops suppressing the title without closing Find', () => {
+		const visibilityChanged = store.add(new Emitter<boolean>());
+		const searchChanged = store.add(new Emitter<boolean>());
+		let visible = true;
+		let findOpen = true;
+		const view = upcastPartial<SessionsView>({
+			isBodyVisible: () => visible,
+			get searchOpen() { return findOpen; },
+			onDidChangeBodyVisibility: visibilityChanged.event,
+			onDidChangeSearchMode: searchChanged.event,
+			dispose: () => { },
+		});
+		const control = store.add(new ChatViewSessionsListControl(view, undefined, upcastPartial<ISessionsManagementService>({}), store.add(new TestInstantiationService())));
+		const states = [control.searchOpen];
+		store.add(control.onDidChangeSearchMode(open => states.push(open)));
+		visible = false;
+		visibilityChanged.fire(false);
+		visible = true;
+		visibilityChanged.fire(true);
+		findOpen = false;
+		searchChanged.fire(false);
+		assert.deepStrictEqual(states, [true, false, true, false]);
+	});
 
 	test('the providers list only the sessions of the window\'s folders in a folder window, and every session in a plain empty window and in the Agents window', () => {
 		const scoped = (folders: readonly URI[], scope: URI | undefined) => {

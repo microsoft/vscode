@@ -6,6 +6,7 @@
 import { IActionViewItem } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { IDropdownMenuActionViewItemOptions } from '../../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { IAction } from '../../../../../base/common/actions.js';
+import { Event } from '../../../../../base/common/event.js';
 import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -57,8 +58,10 @@ export class ChatViewSessionsListControl implements IChatViewSessionsListControl
 	/** The sessions of the Chat view's own list that have focus: none of those here. */
 	getFocus(): IAgentSession[] { return []; }
 	openFind(): void { this._view.openFind(); }
-	get searchOpen() { return this._view.searchOpen; }
-	get onDidChangeSearchMode() { return this._view.onDidChangeSearchMode; }
+	get searchOpen() { return this._view.isBodyVisible() && this._view.searchOpen; }
+	get onDidChangeSearchMode() {
+		return Event.map(Event.any(this._view.onDidChangeSearchMode, this._view.onDidChangeBodyVisibility), () => this.searchOpen);
+	}
 	/**
 	 * The New menu shows as the "New" split button, which runs New Chat and shows its keybinding, only in a title that fits it
 	 * by the width it needs; other titles, which would cover or clip it, show it as the stock split button.

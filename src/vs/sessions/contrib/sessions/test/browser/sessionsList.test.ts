@@ -402,12 +402,13 @@ suite('Sessions - SessionsList', () => {
 			comparisons: [comparison],
 		});
 		harness.managementService.unlistedSessions = attempts;
-		const render = (scoped: IObservable<boolean> | undefined) => {
+		const render = (scoped?: IObservable<boolean>, scopeChips?: IObservable<boolean>) => {
 			const container = harness.createContainer(400, 1400);
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
 				grouping: () => SessionsGrouping.Workspace,
 				sorting: () => SessionsSorting.Created,
 				scoped,
+				scopeChips,
 				onSessionOpen: () => { },
 			}));
 			list.layout(1400, 400);
@@ -417,9 +418,10 @@ suite('Sessions - SessionsList', () => {
 			};
 		};
 
-		assert.deepStrictEqual({ unscoped: render(undefined), scoped: render(constObservable(true)) }, {
+		assert.deepStrictEqual({ unscoped: render(), scoped: render(constObservable(true)), chips: render(undefined, constObservable(true)) }, {
 			unscoped: { sessions: ['here'], comparison: true },
 			scoped: { sessions: ['here'], comparison: false },
+			chips: { sessions: ['here'], comparison: false },
 		});
 	});
 

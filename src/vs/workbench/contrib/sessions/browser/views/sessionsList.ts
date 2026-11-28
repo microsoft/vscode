@@ -2531,10 +2531,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 
 		const draftsSection = this.options.pendingSections?.get().find(section => section.id === 'drafts');
+		const pendingFilters = {
+			applyScope: inbox || this.appliesScopeFilters(),
+			ignoreEnvironmentExclusions: inbox || !!this.options.scopeBar?.get(),
+			providerIds: scopedProviderIds,
+		};
 		const pendingItems = [
 			...(this.options.scheduledSessions?.get() ?? []),
 			...(scheduledOnly ? [] : draftsSection?.items ?? []),
-		].filter(item => matchesPendingSession(item, this.filters, inbox || this.appliesScopeFilters(), scopedProviderIds)
+		].filter(item => matchesPendingSession(item, this.filters, pendingFilters)
 			&& (this.options.pendingSessionScope?.get()?.(item) ?? true));
 		if (pendingItems.length > 0) {
 			const element: ISessionSection = { id: 'drafts', label: draftsSection?.label ?? localize('drafts', "Drafts"), sessions: [], pendingItems };
@@ -5416,7 +5421,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	/** The IDs of the sessions the providers list in the host's scope, or `undefined` while the list is not scoped. See {@link ISessionsListControlOptions.scoped}. */
 	private getHostScope(): ReadonlySet<string> | undefined {
-		if (!this.options.scoped?.get() && !this.options.sessionScope?.get() && !this.options.scopeBar?.get()) {
+		if (!this.options.scoped?.get() && !this.options.sessionScope?.get() && !this.appliesScopeFilters()) {
 			return undefined;
 		}
 		return new Set(this.sessions.filter(session => this.isSessionInScope(session)).map(session => session.sessionId));

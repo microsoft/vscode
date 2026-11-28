@@ -30,6 +30,7 @@ export interface IChatViewSessionsListControl extends IDisposable {
 	getFocus(): IAgentSession[];
 	/** Opens the list's find, as Find of the Chat view's sessions toolbar does, which a list without a header of its own keeps. */
 	openFind(): void;
+	/** Whether the visible list is in Find mode. */
 	readonly searchOpen?: boolean;
 	readonly onDidChangeSearchMode?: Event<boolean>;
 	/**

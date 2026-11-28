@@ -782,6 +782,27 @@ suite('Sessions - pending list items', () => {
 		}, { startPrevented: false, endPrevented: false, opened: [], preview: 'Check the build' });
 	});
 
+	test('pending filtering composes environment exclusions with chip scope outside Inbox', () => {
+		const harness = createListHarness(disposables, []);
+		const folder = URI.file('/work/project');
+		const draft = item('local-draft', { folderUri: folder });
+		const scheduled = item('local-scheduled', { kind: 'scheduled', folderUri: folder });
+		const other = item('other', { folderUri: URI.file('/work/other') });
+		const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(400, 800), {
+			grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Created,
+			scopeChips: constObservable(true),
+			pendingSections: constObservable<readonly IPendingSessionSection[]>([{ id: 'drafts', label: 'Drafts', items: [draft, other] }]),
+			scheduledSessions: constObservable([scheduled]), onSessionOpen: () => { },
+		}));
+		list.layout(800, 400);
+		list.filters.setInboxWorkspace({ environment: 'local', resource: getComparisonKey(folder), label: 'Project' });
+		list.setItemCollapsed({ section: 'drafts' }, false);
+		const visible = () => [draft, scheduled, other].filter(item => !!list.getItemRow({ pendingSession: item.id })).map(item => item.id);
+		const scoped = visible();
+		list.filters.setExcluded({ kind: 'environment', id: 'local' }, true);
+		assert.deepStrictEqual({ scoped, excluded: visible() }, { scoped: ['local-draft', 'local-scheduled'], excluded: [] });
+	});
+
 	test('pending filtering composes harness, environment and application with strict Inbox workspace scope', () => {
 		const harness = createListHarness(disposables, []);
 		let grouping = SessionsGrouping.Workspace;
