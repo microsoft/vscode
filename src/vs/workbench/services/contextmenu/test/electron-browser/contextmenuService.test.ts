@@ -87,7 +87,7 @@ suite('Native ContextMenuService', () => {
 		});
 	}
 
-	test('shows group titles as disabled items at the start of each group', () => {
+	test('shows group titles as headers at the start of each group', () => {
 		const action = (id: string, title: string, groupTitle?: string) => new MenuItemAction({ id, title }, undefined, { groupTitle }, undefined, undefined, new MockContextKeyService(), NullCommandService);
 		const actions = [
 			// The first group's title, from its first action
@@ -98,27 +98,31 @@ suite('Native ContextMenuService', () => {
 			new Separator('Help'),
 			action('about', 'About'),
 		];
-		service.showContextMenu({
-			getAnchor: () => mainWindow.document.body,
-			getActions: () => actions,
-			autoSelectItem: 2,
+		// `true` skips the first group's title to its first action, and an index maps past the titles before its action
+		const positioningItems = [true, 2].map(autoSelectItem => {
+			service.showContextMenu({
+				getAnchor: () => mainWindow.document.body,
+				getActions: () => actions,
+				autoSelectItem,
+			});
+			return popupOptions?.positioningItem;
 		});
 
 		assert.deepStrictEqual({
 			menu: menu.map(item => ({ type: item.type, label: item.label, enabled: item.enabled })),
-			positioningItem: popupOptions?.positioningItem,
+			positioningItems,
 		}, {
 			menu: [
-				{ type: undefined, label: 'Recent', enabled: false },
+				{ type: 'header', label: 'Recent', enabled: false },
 				{ type: undefined, label: 'Open', enabled: true },
 				{ type: 'separator', label: undefined, enabled: undefined },
-				{ type: undefined, label: 'Discover More', enabled: false },
+				{ type: 'header', label: 'Discover More', enabled: false },
 				{ type: undefined, label: 'Browse', enabled: true },
 				{ type: 'separator', label: undefined, enabled: undefined },
-				{ type: undefined, label: 'Help', enabled: false },
+				{ type: 'header', label: 'Help', enabled: false },
 				{ type: undefined, label: 'About', enabled: true },
 			],
-			positioningItem: 4,
+			positioningItems: [1, 4],
 		});
 	});
 

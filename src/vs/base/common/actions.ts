@@ -212,8 +212,8 @@ export class ActionRunner extends Disposable implements IActionRunner {
  * Separates groups of actions.
  *
  * A separator with a {@link Separator.label label} introduces the actions after it with a
- * non-interactive header. Menus render the label as a section header and native menus as a
- * disabled item, while toolbars show a plain separator.
+ * non-interactive header. Menus render the label as a section header. Native menus do too on
+ * macOS 14 and later, and show a disabled item elsewhere. Toolbars show a plain separator.
  */
 export class Separator implements IAction {
 

@@ -6,7 +6,11 @@
 export interface ICommonContextMenuItem {
 	label?: string;
 
-	type?: 'normal' | 'separator' | 'submenu' | 'checkbox' | 'radio';
+	/**
+	 * A `header` is a non-interactive section header on macOS 14 and later. Other platforms show it as
+	 * a normal item, so a header should also be disabled.
+	 */
+	type?: 'normal' | 'separator' | 'submenu' | 'checkbox' | 'radio' | 'header';
 
 	accelerator?: string;
 
