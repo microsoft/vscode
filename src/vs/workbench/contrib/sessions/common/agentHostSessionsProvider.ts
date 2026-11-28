@@ -410,6 +410,11 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 * turns it on.
 	 */
 	getAgentMergeSessionState(sessionId: string, chat?: URI, repository?: URI): AgentMergeSessionState | undefined;
+	/**
+	 * Whether a running session's repository (see {@link getAgentMergeSessionState}) has its own Agent Merge: only
+	 * where the host serves the repository's own scope.
+	 */
+	supportsRepositoryAgentMerge(sessionId: string, repository: URI, reader?: IReader): boolean;
 	/** Returns observable Agent Merge client state of a folder (see {@link getAgentMergeSessionState}) while retaining the required session subscription. */
 	getAgentMergeClientStateObservable(sessionId: string, chat?: URI, repository?: URI): IObservable<IAgentMergeClientState | undefined>;
 	/** Enables or disables Agent Merge for a folder (see {@link getAgentMergeSessionState}) while preserving its action overrides. */

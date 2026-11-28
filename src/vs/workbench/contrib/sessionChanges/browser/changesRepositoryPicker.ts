@@ -151,7 +151,7 @@ export class ChangesRepositoryPickerActionItem extends ActionWidgetDropdownActio
 		this._iconElement = dom.append(element, dom.$('span.changes-repository-picker-icon'));
 		this._iconElement.setAttribute('aria-hidden', 'true');
 		this._nameElement = dom.append(element, dom.$('span.changes-repository-picker-name'));
-		const chevron = dom.append(element, renderIcon(Codicon.chevronDown));
+		const chevron = dom.append(element, renderIcon(Codicon.chevronDownCompact));
 		chevron.setAttribute('aria-hidden', 'true');
 		this._updateLabel();
 		return null;

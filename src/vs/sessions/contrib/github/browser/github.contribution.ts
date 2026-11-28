@@ -14,7 +14,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ISession } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { IFocusedSessionHostService, ISessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { GitHubPullRequestState } from '../../../../workbench/contrib/sessions/common/github/types.js';
 import { getSessionGitHubReferences } from '../../../../workbench/contrib/sessions/common/github/sessionGitHubReferences.js';
 import { getPullRequestKey } from '../../../../workbench/contrib/sessions/common/github/utils.js';
@@ -75,7 +75,6 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 	constructor(
 		@IGitHubService private readonly _gitHubService: IGitHubService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
-		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 		@ISessionHostService private readonly _sessionHostService: ISessionHostService,
 		@ILogService private readonly _logService: ILogService,
 		@IChangesViewService changesViewService: IChangesViewService,
@@ -85,21 +84,17 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 		// The pull request of the repository the main window's Changes show, whose checks they show and act on: a
 		// repository's pull request can be known only from its metadata, so its details, and with them its head commit
 		// and checks, load only as it is refreshed here.
-		const selectedPullRequest = this._gitHubService.getSessionPullRequest(
-			derived(reader => this._sessionHostService.getHostOfWindow(mainWindow.vscodeWindowId, reader)?.session.read(reader)),
-			changesViewService.activeSessionRepositoryObs);
+		const mainWindowSessionObs = derived(reader => this._sessionHostService.getHostOfWindow(mainWindow.vscodeWindowId, reader)?.session.read(reader));
+		const selectedPullRequest = this._gitHubService.getSessionPullRequest(mainWindowSessionObs, changesViewService.activeSessionRepositoryObs);
 
-		const activeSessionResourceObs = derivedOpts<URI | undefined>({ equalsFn: isEqual }, reader => {
-			const activeSession = this._focusedSessionHostService.focusedHost.read(reader).session.read(reader);
-			if (!activeSession || !activeSession.resource || activeSession.isArchived.read(reader)) {
-				return undefined;
-			}
-
-			return activeSession.resource;
+		// Kept current while that session, the same one, is not archived
+		const mainWindowSessionResourceObs = derivedOpts<URI | undefined>({ equalsFn: isEqual }, reader => {
+			const session = mainWindowSessionObs.read(reader);
+			return session?.resource && !session.isArchived.read(reader) ? session.resource : undefined;
 		});
 
 		this._register(autorun(reader => {
-			if (activeSessionResourceObs.read(reader)) {
+			if (mainWindowSessionResourceObs.read(reader)) {
 				reader.store.add(this._gitHubService.keepSessionPullRequestCurrent(selectedPullRequest));
 			}
 		}));

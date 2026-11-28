@@ -21,6 +21,7 @@ import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessi
 import { FIX_CI_CHECKS_COMMAND_ID } from '../../browser/checksActions.js';
 import { ITestSessionsService, ITestSessionWithChat, stubSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionHostService, SessionHostKind } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 
 suite('Fix Checks', () => {
 
@@ -69,15 +70,37 @@ suite('Fix Checks', () => {
 				override readonly resource = secondChat;
 			}());
 		}();
-		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({ windowSessions: constObservable([session]) }));
+		// The main window, which has focus, shows another session
+		const otherResource = URI.parse('local-agent-host:/other');
+		const other = new class extends mock<ITestSessionWithChat>() {
+			override readonly sessionId = 'other';
+			override readonly resource = otherResource;
+			override readonly mainChat = constObservable(new class extends mock<IChat>() {
+				override readonly resource = otherResource;
+			}());
+			override readonly activeChat = this.mainChat;
+		}();
+		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({ windowSessions: constObservable([session]), mainWindowActiveSession: constObservable(other) }));
 		stubSessionHostsFromSessionsService(instantiationService);
-		const run = () => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(FIX_CI_CHECKS_COMMAND_ID)!.handler(accessor, session));
-		return { run, lookups, requestedRepositories, secondChat };
+		const handler = CommandsRegistry.getCommand(FIX_CI_CHECKS_COMMAND_ID)!.handler;
+		const run = () => instantiationService.invokeFunction(accessor => handler(accessor, session));
+		// As the Changes header of the session's window runs it: no session, the header's host
+		const runFromHeader = () => instantiationService.invokeFunction(accessor => {
+			const windowHost = accessor.get(ISessionHostService).hosts.get().find(host => host.kind === SessionHostKind.ChatWindow)!;
+			return handler(accessor, undefined, undefined, { sessionHostId: windowHost.id });
+		});
+		return { run, runFromHeader, lookups, requestedRepositories, secondChat };
 	}
 
 	test('sends the fix to the widget of the chat its session shows, not to the widget of its main chat', async () => {
 		const harness = createHarness();
 		await harness.run();
+		assert.deepStrictEqual(harness.lookups, [harness.secondChat.toString()]);
+	});
+
+	test('from a Changes header, fixes the checks of the session of the header\'s window, not of the focused window', async () => {
+		const harness = createHarness();
+		await harness.runFromHeader();
 		assert.deepStrictEqual(harness.lookups, [harness.secondChat.toString()]);
 	});
 

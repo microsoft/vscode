@@ -7371,6 +7371,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return this._getAgentMergeSessionState(sessionId, folder);
 	}
 
+	supportsRepositoryAgentMerge(sessionId: string, repository: URI, reader?: IReader): boolean {
+		const rawId = this._sessionKeyFromChatId(sessionId);
+		return !!(rawId && this._sessionCache.get(rawId)?.getAgentMergeFolder(undefined, reader, repository));
+	}
+
 	private _getAgentMergeSessionState(sessionId: string, folder: IAgentMergeFolder | undefined): AgentMergeSessionState | undefined {
 		if (!folder) {
 			return undefined;

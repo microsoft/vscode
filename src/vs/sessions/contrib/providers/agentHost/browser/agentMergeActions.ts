@@ -32,8 +32,15 @@ import { ISessionsProvidersService } from '../../../../../workbench/contrib/sess
 import { resolveSessionCommandTarget } from '../../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
 import { getGlobalAgentMergeConfiguration, ISessionAgentMergeService } from '../../../../../workbench/contrib/sessions/browser/sessionAgentMerge.js';
 
+/**
+ * Whether the repository the Changes show has no Agent Merge of its own: a host that doesn't serve the scope of each
+ * repository of a session of several has none for them.
+ */
+const SessionAgentMergeUnavailableContext = new RawContextKey<boolean>('sessionAgentMergeUnavailable', false, { type: 'boolean', description: localize('sessionAgentMergeUnavailable', "True when the repository the Changes of the active agent session show has no Agent Merge of its own.") });
+
 const agentMergeCommandPrecondition = ContextKeyExpr.and(
 	IsSessionsWindowContext,
+	SessionAgentMergeUnavailableContext.negate(),
 	ChatContextKeys.enabled,
 	ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
 	SessionIsArchivedContext.negate(),
@@ -135,10 +142,12 @@ class AgentMergeContextKeys extends Disposable {
 		contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ISessionAgentMergeService sessionAgentMergeService: ISessionAgentMergeService,
+		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@ILogService logService: ILogService,
 	) {
 		super();
 		const enabledKey = SessionAgentMergeEnabledContext.bindTo(contextKeyService);
+		const unavailableKey = SessionAgentMergeUnavailableContext.bindTo(contextKeyService);
 		const actionKeys = new Map(agentMergeRepairActions.map(action => [action, AgentMergeSessionActionContexts[action].bindTo(contextKeyService)]));
 		const mergePullRequestKey = AgentMergeSessionMergePullRequestContext.bindTo(contextKeyService);
 		const changesEditorTransitionObs = observableFromEvent(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([DesktopChangesEditorTransitionContext.key]))), () =>
@@ -154,10 +163,13 @@ class AgentMergeContextKeys extends Disposable {
 			// Each folder has its own Agent Merge; follow the one the host's chat works in, or the repository the Changes show.
 			const chat = source.chat.read(reader);
 			const repository = source.changes.repositoryObs.read(reader)?.root;
-			const state = session ? sessionAgentMergeService.getConfigurationObservable(session, chat, repository).read(reader) : undefined;
+			const provider = session && sessionsProvidersService.getProvider(session.providerId);
+			const available = !repository || !!(session && provider && isAgentHostProvider(provider) && provider.supportsRepositoryAgentMerge(session.sessionId, repository, reader));
+			const state = session && available ? sessionAgentMergeService.getConfigurationObservable(session, chat, repository).read(reader) : undefined;
 			const enabled = state?.enabled === true;
 			const effective = state?.actions ?? getGlobalAgentMergeConfiguration(configurationService);
 			contextKeyService.bufferChangeEvents(() => {
+				unavailableKey.set(!available);
 				enabledKey.set(enabled);
 				for (const [action, key] of actionKeys) {
 					key.set(effective[action]);
@@ -186,11 +198,12 @@ abstract class AgentMergeActionBase extends Action2 {
 	 * The target session (the argument, else the active session) and its active chat, whose folder's Agent Merge the
 	 * actions change, or the repository the Changes of the session show when one of several is picked.
 	 */
-	protected getTargetSession(accessor: ServicesAccessor, changesViewService: IChangesViewService, sessionArg?: unknown) {
+	protected getTargetSession(accessor: ServicesAccessor, changesViewService: IChangesViewService, args: readonly unknown[]) {
 		if (accessor.get(IConfigurationService).getValue<boolean>(ArtifactIntegrationsSettingId) === true) {
 			throw new Error(localize('agentMerge.artifactIntegrationsEnabled', "Agent Merge is unavailable while artifact integrations are enabled."));
 		}
-		const target = resolveSessionCommandTarget(accessor, [sessionArg]);
+		// Of the host the arguments name, such as that of the Changes header the action runs from, else the focused one
+		const target = resolveSessionCommandTarget(accessor, args);
 		const session = target?.session;
 		const provider = session && accessor.get(ISessionsProvidersService).getProvider(session.providerId, session.sessionId);
 		if (!session || !provider || !isAgentHostProvider(provider)) {
@@ -198,8 +211,11 @@ abstract class AgentMergeActionBase extends Action2 {
 		}
 		const chat = target.chat ?? session.mainChat.get();
 		// The repository the Changes of that chat show, in whichever window or editor the command runs: it is picked per chat
-		const repository = changesViewService.getSessionChanges(constObservable(session), constObservable(chat)).repositoryObs.get()?.root;
-		return { session, provider, chat: chat.resource, repository };
+		const repository = changesViewService.getSessionChanges(constObservable(session), constObservable(chat)).repositoryObs.get();
+		if (repository && !provider.supportsRepositoryAgentMerge(session.sessionId, repository.root)) {
+			throw new Error(localize('agentMerge.repositoryUnavailable', "Agent Merge is not available for the repository '{0}' of this session.", repository.name));
+		}
+		return { session, provider, chat: chat.resource, repository: repository?.root };
 	}
 
 	/**
@@ -207,8 +223,8 @@ abstract class AgentMergeActionBase extends Action2 {
 	 * not just the changed one, so the session keeps what was on screen rather
 	 * than silently picking up a later change to the global defaults.
 	 */
-	protected async updateOverrides(accessor: ServicesAccessor, changesViewService: IChangesViewService, patch: Partial<AgentMergeSessionOverrides>, sessionArg?: unknown): Promise<void> {
-		const active = this.getTargetSession(accessor, changesViewService, sessionArg);
+	protected async updateOverrides(accessor: ServicesAccessor, changesViewService: IChangesViewService, patch: Partial<AgentMergeSessionOverrides>, args: readonly unknown[]): Promise<void> {
+		const active = this.getTargetSession(accessor, changesViewService, args);
 		if (!active) {
 			return;
 		}
@@ -266,8 +282,8 @@ registerAction2(class EnableAgentMergeInSessionAction extends AgentMergeActionBa
 		});
 	}
 
-	async run(accessor: ServicesAccessor, sessionArg?: unknown): Promise<void> {
-		const active = this.getTargetSession(accessor, accessor.get(IChangesViewService), sessionArg);
+	async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const active = this.getTargetSession(accessor, accessor.get(IChangesViewService), args);
 		const logService = accessor.get(ILogService);
 		if (!active) {
 			return;
@@ -292,8 +308,8 @@ registerAction2(class DisableAgentMergeInSessionAction extends AgentMergeActionB
 		});
 	}
 
-	async run(accessor: ServicesAccessor, sessionArg?: unknown): Promise<void> {
-		const active = this.getTargetSession(accessor, accessor.get(IChangesViewService), sessionArg);
+	async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const active = this.getTargetSession(accessor, accessor.get(IChangesViewService), args);
 		const logService = accessor.get(ILogService);
 		if (!active) {
 			return;
@@ -330,15 +346,15 @@ for (const [index, action] of agentMergeRepairActions.entries()) {
 			});
 		}
 
-		async run(accessor: ServicesAccessor, sessionArg?: unknown): Promise<void> {
+		async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 			const changesViewService = accessor.get(IChangesViewService);
-			const active = this.getTargetSession(accessor, changesViewService, sessionArg);
+			const active = this.getTargetSession(accessor, changesViewService, args);
 			if (!active) {
 				return;
 			}
 			const state = active.provider.getAgentMergeSessionState(active.session.sessionId, active.chat, active.repository);
 			const effective = resolveAgentMergeConfiguration(getGlobalAgentMergeConfiguration(accessor.get(IConfigurationService)), state?.overrides);
-			await this.updateOverrides(accessor, changesViewService, { [action]: !effective[action] }, sessionArg);
+			await this.updateOverrides(accessor, changesViewService, { [action]: !effective[action] }, args);
 		}
 	});
 }
@@ -377,8 +393,8 @@ for (const [index, value] of agentMergeMergePullRequestValues.entries()) {
 			});
 		}
 
-		async run(accessor: ServicesAccessor, sessionArg?: unknown): Promise<void> {
-			await this.updateOverrides(accessor, accessor.get(IChangesViewService), { mergePullRequest: value }, sessionArg);
+		async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+			await this.updateOverrides(accessor, accessor.get(IChangesViewService), { mergePullRequest: value }, args);
 		}
 	});
 }
@@ -416,8 +432,8 @@ registerAction2(class EnableAgentMergeAction extends AgentMergeActionBase {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, sessionArg?: unknown): Promise<void> {
-		const active = this.getTargetSession(accessor, accessor.get(IChangesViewService), sessionArg);
+	async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const active = this.getTargetSession(accessor, accessor.get(IChangesViewService), args);
 		if (!active) {
 			return;
 		}
@@ -439,8 +455,8 @@ registerAction2(class DisableAgentMergeAction extends AgentMergeActionBase {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, sessionArg?: unknown): Promise<void> {
-		const active = this.getTargetSession(accessor, accessor.get(IChangesViewService), sessionArg);
+	async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const active = this.getTargetSession(accessor, accessor.get(IChangesViewService), args);
 		if (!active) {
 			return;
 		}
@@ -462,8 +478,8 @@ registerAction2(class ConfigureAgentMergeAction extends AgentMergeActionBase {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, sessionArg?: unknown): Promise<void> {
-		const active = this.getTargetSession(accessor, accessor.get(IChangesViewService), sessionArg);
+	async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const active = this.getTargetSession(accessor, accessor.get(IChangesViewService), args);
 		if (!active) {
 			return;
 		}

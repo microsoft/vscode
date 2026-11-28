@@ -25,8 +25,8 @@ import { AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY, AUTOMATIC_MERGED_SESSI
 import { IGitHubService, IGitHubSessionPullRequestObservables } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { ChatInteractivity, IChat, IGitHubInfo, ISession, ISessionArtifact, ISessionCapabilities, ISessionChangeset, IChatCheckpoints, ISessionFileChange, ISessionWorkspace, SessionArtifactKind, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { focusedSessionHostServiceOf, ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
-import { ISessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionHost, ISessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { IChangesRepository } from '../../../../../workbench/contrib/sessions/common/changesRepositories.js';
@@ -43,7 +43,8 @@ suite('GitHubPullRequestPollingContribution', () => {
 	const logService = new NullLogService();
 	let sessionsManagementService: TestSessionsManagementService;
 	let gitHubService: TestGitHubService;
-	let activeSession: ISettableObservable<ITestSessionWithChat | undefined>;
+	/** The session the main window shows. */
+	let mainWindowSession: ISettableObservable<ITestSessionWithChat | undefined>;
 	/** The session each host shows; a session appears once per host that shows it. */
 	let shownByHosts: ISettableObservable<readonly ISession[]>;
 	/** The repository the main window's Changes show. */
@@ -51,7 +52,7 @@ suite('GitHubPullRequestPollingContribution', () => {
 
 	setup(() => {
 		sessionsManagementService = new TestSessionsManagementService(store);
-		activeSession = observableValue<ITestSessionWithChat | undefined>('test.activeSession', undefined);
+		mainWindowSession = observableValue<ITestSessionWithChat | undefined>('test.mainWindowSession', undefined);
 		shownByHosts = observableValue<readonly ISession[]>('test.shownByHosts', []);
 		gitHubService = new TestGitHubService();
 	});
@@ -329,21 +330,29 @@ suite('GitHubPullRequestPollingContribution', () => {
 		});
 	});
 
-	test('keeps the pull request of the repository the main window\'s Changes show current while a session is active', () => {
+	test('keeps the pull request of the repository the main window\'s Changes show current while the main window shows a session that is not archived', () => {
 		const session = sessionsManagementService.addSession('session', makeGitHubInfo(1));
 		store.add(createContribution());
+		const events = () => gitHubService.selectionEvents.slice(1);
 		const steps: Record<string, readonly string[]> = {};
 
-		steps.noActiveSession = [...gitHubService.selectionEvents];
-		activeSession.set(Object.assign(session, { activeChat: session.mainChat }), undefined);
-		steps.active = [...gitHubService.selectionEvents];
-		activeSession.set(undefined, undefined);
-		steps.noLongerActive = [...gitHubService.selectionEvents];
+		steps.noSession = events();
+		mainWindowSession.set(Object.assign(session, { activeChat: session.mainChat }), undefined);
+		steps.shown = events();
+		sessionsManagementService.setArchived(session, true);
+		steps.archived = events();
+		sessionsManagementService.setArchived(session, false);
+		mainWindowSession.set(undefined, undefined);
+		steps.noLongerShown = events();
 
-		assert.deepStrictEqual(steps, {
-			noActiveSession: ['pull request of the selection'],
-			active: ['pull request of the selection', 'kept current'],
-			noLongerActive: ['pull request of the selection', 'kept current', 'no longer kept current'],
+		assert.deepStrictEqual({ selection: gitHubService.selectionEvents[0], steps }, {
+			selection: 'pull request of the selection',
+			steps: {
+				noSession: [],
+				shown: ['kept current'],
+				archived: ['kept current', 'no longer kept current'],
+				noLongerShown: ['kept current', 'no longer kept current', 'kept current', 'no longer kept current'],
+			},
 		});
 	});
 
@@ -351,8 +360,10 @@ suite('GitHubPullRequestPollingContribution', () => {
 		return new GitHubPullRequestPollingContribution(
 			gitHubService,
 			sessionsManagementService,
-			focusedSessionHostServiceOf(activeSession),
-			upcastPartial<ISessionHostService>({ isShown: (resource, reader) => shownByHosts.read(reader).some(session => isEqual(session.resource, resource)) }),
+			upcastPartial<ISessionHostService>({
+				isShown: (resource, reader) => shownByHosts.read(reader).some(session => isEqual(session.resource, resource)),
+				getHostOfWindow: () => upcastPartial<ISessionHost>({ session: mainWindowSession }),
+			}),
 			logService,
 			upcastPartial<IChangesViewService>({ activeSessionRepositoryObs: selectedRepository }),
 		);

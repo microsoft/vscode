@@ -18,7 +18,7 @@ import { IsSessionsWindowContext } from '../../../../../../workbench/common/cont
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
 import { DesktopChangesEditorTransitionContext, SessionAgentMergeEnabledContext, SessionHasOpenPullRequestContext, SessionIsArchivedContext, SessionPrimaryPullRequestOperationContext, SessionProviderIdContext } from '../../../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { IChat, ISession, ISessionChangeset } from '../../../../../../workbench/services/sessions/common/session.js';
+import { IChat, ISession, ISessionChangeset, SessionStatus } from '../../../../../../workbench/services/sessions/common/session.js';
 import { GitHubPullRequestCIModel } from '../../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
 import { bindSessionActionContextKeys } from '../../../../../../workbench/contrib/sessionChanges/browser/sessionActionContextKeys.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -29,7 +29,9 @@ import { ActiveSessionState, IChangesSessionObservables, IChangesViewService } f
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ISessionHostService } from '../../../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISessionHost, ISessionHostService } from '../../../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISessionAgentMergeService } from '../../../../../../workbench/contrib/sessions/browser/sessionAgentMerge.js';
+import { basename } from '../../../../../../base/common/resources.js';
 import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import '../../browser/agentMergeActions.js';
 
@@ -37,7 +39,7 @@ suite('Agent Merge Actions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	/** A session where Agent Merge applies: agent host provider, live, with an open pull request. */
-	function createContext(options: { readonly primaryOperation: string; readonly agentMergeEnabled: boolean; readonly featureEnabled?: boolean; readonly artifactIntegrationsEnabled?: boolean; readonly archived?: boolean; readonly hasOpenPullRequest?: boolean }): Context {
+	function createContext(options: { readonly primaryOperation: string; readonly agentMergeEnabled: boolean; readonly featureEnabled?: boolean; readonly artifactIntegrationsEnabled?: boolean; readonly archived?: boolean; readonly hasOpenPullRequest?: boolean; readonly repositoryWithoutAgentMerge?: boolean }): Context {
 		const context = new Context(1, null);
 		context.setValue(IsSessionsWindowContext.key, true);
 		context.setValue(ChatContextKeys.enabled.key, true);
@@ -48,10 +50,13 @@ suite('Agent Merge Actions', () => {
 		context.setValue(SessionHasOpenPullRequestContext.key, options.hasOpenPullRequest ?? true);
 		context.setValue(SessionPrimaryPullRequestOperationContext.key, options.primaryOperation);
 		context.setValue(SessionAgentMergeEnabledContext.key, options.agentMergeEnabled);
+		if (options.repositoryWithoutAgentMerge) {
+			context.setValue('sessionAgentMergeUnavailable', true);
+		}
 		return context;
 	}
 
-	function ownsPrimaryButton(options: { readonly primaryOperation: string; readonly agentMergeEnabled: boolean; readonly featureEnabled?: boolean; readonly artifactIntegrationsEnabled?: boolean; readonly archived?: boolean; readonly hasOpenPullRequest?: boolean }): boolean {
+	function ownsPrimaryButton(options: { readonly primaryOperation: string; readonly agentMergeEnabled: boolean; readonly featureEnabled?: boolean; readonly artifactIntegrationsEnabled?: boolean; readonly archived?: boolean; readonly hasOpenPullRequest?: boolean; readonly repositoryWithoutAgentMerge?: boolean }): boolean {
 		const item = MenuRegistry.getMenuItems(Menus.ChangesOperationsDropdown)
 			.find(entry => !isIMenuItem(entry) && entry.submenu === Menus.ChangesAgentMerge);
 		assert.ok(item, 'Agent Merge is contributed to the changes operations dropdown');
@@ -109,11 +114,14 @@ suite('Agent Merge Actions', () => {
 			artifactIntegrations: ownsPrimaryButton({ primaryOperation: AgentHostPullRequestOperationId.EnableAutoMerge, agentMergeEnabled: true, artifactIntegrationsEnabled: true }),
 			archived: ownsPrimaryButton({ primaryOperation: AgentHostPullRequestOperationId.EnableAutoMerge, agentMergeEnabled: true, archived: true }),
 			mergeCompleted: ownsPrimaryButton({ primaryOperation: '', agentMergeEnabled: true, hasOpenPullRequest: false }),
+			// A picked repository whose host doesn't serve its own scope, such as a remote one
+			repositoryWithoutAgentMerge: ownsPrimaryButton({ primaryOperation: AgentHostPullRequestOperationId.EnableAutoMerge, agentMergeEnabled: false, repositoryWithoutAgentMerge: true }),
 		}, {
 			featureOff: false,
 			artifactIntegrations: false,
 			archived: false,
 			mergeCompleted: false,
+			repositoryWithoutAgentMerge: false,
 		});
 	});
 
@@ -213,6 +221,7 @@ suite('Agent Merge Actions', () => {
 			getProvider: <T extends ISessionsProvider>() => upcastPartial<IAgentHostSessionsProvider>({
 				id: LOCAL_AGENT_HOST_PROVIDER_ID,
 				setAgentMergeEnabled: async (sessionId: string, _enabled: boolean, chat?: URI, repository?: URI) => { writes.push({ session: sessionId, chat: chat?.fragment, repository: repository?.path }); },
+				supportsRepositoryAgentMerge: () => true,
 			}) as unknown as T,
 		}));
 
@@ -225,6 +234,79 @@ suite('Agent Merge Actions', () => {
 			{ session: 'a', chat: 'second', repository: undefined },
 			{ session: 'b', chat: 'main', repository: '/work/web' },
 		]);
+	});
+
+	test('acts on the chat of the Changes header it runs from, and refuses a repository without Agent Merge of its own', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		const mainChat = upcastPartial<IChat>({ resource: URI.parse('agent-host-copilotcli:/a#main'), title: constObservable('main') });
+		const headerChat = upcastPartial<IChat>({ resource: URI.parse('agent-host-copilotcli:/a#header'), title: constObservable('header') });
+		const session = upcastPartial<ISession>({ sessionId: 'a', resource: URI.parse('agent-host-copilotcli:/a'), providerId: LOCAL_AGENT_HOST_PROVIDER_ID, mainChat: constObservable(mainChat) });
+		const supported = URI.file('/work/api');
+		const unsupported = URI.file('/work/remote');
+		let picked: URI | undefined;
+		// The header's host shows the session's other chat; the focused host is not asked
+		instantiationService.stub(ISessionHostService, upcastPartial<ISessionHostService>({
+			getHost: id => id === 'header-host' ? upcastPartial<ISessionHost>({ session: constObservable(session), chat: constObservable(headerChat) }) : undefined,
+		}));
+		instantiationService.stub(IChangesViewService, upcastPartial<IChangesViewService>({
+			getSessionChanges: () => upcastPartial<IChangesSessionObservables>({ repositoryObs: constObservable(picked && upcastPartial<IChangesRepository>({ root: picked, name: basename(picked) })) }),
+		}));
+		const writes: string[] = [];
+		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({
+			getProvider: <T extends ISessionsProvider>() => upcastPartial<IAgentHostSessionsProvider>({
+				id: LOCAL_AGENT_HOST_PROVIDER_ID,
+				setAgentMergeEnabled: async (_sessionId: string, _enabled: boolean, chat?: URI, repository?: URI) => { writes.push(`${chat?.fragment}:${repository?.path}`); },
+				supportsRepositoryAgentMerge: (_sessionId: string, repository: URI) => repository.path === supported.path,
+			}) as unknown as T,
+		}));
+		const runFromHeader = async () => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('sessions.agentHost.agentMerge.enableInSession')!.handler(accessor, undefined, undefined, { sessionHostId: 'header-host' }));
+
+		picked = supported;
+		await runFromHeader();
+		picked = unsupported;
+		const refusal = await runFromHeader().then(() => undefined, (error: Error) => error.message);
+
+		assert.deepStrictEqual({ writes, refusal }, {
+			writes: ['header:/work/api'],
+			refusal: 'Agent Merge is not available for the repository \'remote\' of this session.',
+		});
+	});
+
+	test('the context key binder tells whether the repository the Changes show has Agent Merge of its own', () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		// As much of a session as every binder of the session action keys reads
+		const session = upcastPartial<ISession>({ sessionId: 'a', providerId: LOCAL_AGENT_HOST_PROVIDER_ID, status: constObservable(SessionStatus.Completed) });
+		const repository = observableValue<IChangesRepository | undefined>('test.repository', undefined);
+		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({
+			getProvider: <T extends ISessionsProvider>() => upcastPartial<IAgentHostSessionsProvider>({ id: LOCAL_AGENT_HOST_PROVIDER_ID, supportsRepositoryAgentMerge: () => false }) as unknown as T,
+		}));
+		instantiationService.stub(ISessionAgentMergeService, upcastPartial<ISessionAgentMergeService>({ getConfigurationObservable: () => constObservable(undefined) }));
+		const scoped = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		disposables.add(bindSessionActionContextKeys(instantiationService, {
+			session: constObservable(session),
+			chat: constObservable(undefined),
+			changes: {
+				changesObs: constObservable([]),
+				changesetsLoadingObs: constObservable(false),
+				loadingObs: constObservable(false),
+				changesetObs: constObservable(upcastPartial<ISessionChangeset>({ operations: constObservable([]) })),
+				changesetOperationsObs: constObservable([]),
+				operationsChangesetObs: constObservable(upcastPartial<ISessionChangeset>({ operations: constObservable([]) })),
+				repositoryObs: repository,
+				stateObs: constObservable(upcastPartial<ActiveSessionState>({})),
+			},
+			pullRequest: {
+				pullRequestCIObs: constObservable(upcastPartial<GitHubPullRequestCIModel>({ checks: constObservable([]), requiredChecks: constObservable(undefined), fixRequested: observableValue('fixRequested', false) })),
+			},
+		}, scoped));
+		const unavailable = () => scoped.getContextKeyValue<boolean>('sessionAgentMergeUnavailable');
+
+		const all = unavailable();
+		repository.set(upcastPartial<IChangesRepository>({ root: URI.file('/work/remote') }), undefined);
+		const remote = unavailable();
+
+		assert.deepStrictEqual({ all, remote }, { all: false, remote: true });
 	});
 
 	test('the context key binder does not re-read the editor transition key for unrelated context changes', () => {

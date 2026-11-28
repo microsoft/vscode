@@ -46,14 +46,15 @@ class FixCIChecksAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, sessionArg?: unknown): Promise<void> {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const gitHubService = accessor.get(IGitHubService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const logService = accessor.get(ILogService);
 		const changesViewService = accessor.get(IChangesViewService);
 		const sessionHostService = accessor.get(ISessionHostService);
 
-		const target = resolveSessionCommandTarget(accessor, [sessionArg]);
+		// Of the host the arguments name, such as that of the Changes header the action runs from, else the focused one
+		const target = resolveSessionCommandTarget(accessor, args);
 		const session = target?.session;
 		if (!session) {
 			return;

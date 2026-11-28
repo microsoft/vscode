@@ -75,7 +75,7 @@ import { ISessionChangesService } from './sessionChangesService.js';
 import { createSessionActionsInstantiationService } from './sessionActionsHost.js';
 import { getWindowHost, ISessionHost, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
 import { CIStatusWidget } from './checksWidget.js';
-import { BRANCH_CHANGES_CHANGESET_ID, getWellKnownChangesetId, GITHUB_REMOTE_FILE_SCHEME, IChat, ISessionChangeset, ISessionChangesetBaseBranchSelection, ISessionFolder, ISessionChangesetOperation, ISessionChangesSummary, ISessionWorkspace, isSessionCreated, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession } from '../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, getWellKnownChangesetId, GITHUB_REMOTE_FILE_SCHEME, IChat, ISessionChangeset, ISessionChangesetBaseBranchSelection, ISessionFolder, ISessionChangesetOperation, ISessionFileChange, ISessionChangesSummary, ISessionWorkspace, isSessionCreated, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession } from '../../../services/sessions/common/session.js';
 import { isAgentHostProviderId } from '../../sessions/common/agentHostSessionsProvider.js';
 import { ISessionsManagementService } from '../../sessions/common/sessionsManagement.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
@@ -1161,10 +1161,7 @@ export class ChangesViewPane extends ViewPane {
 		}));
 
 		// Changes
-		const changesObs = derived(reader => {
-			const changes = this.scope.changes.changesObs.read(reader);
-			return toIChangesFileItem(changes);
-		});
+		const changesObs = derived(reader => this.toFileItems(this.scope.changes.changesObs.read(reader), reader));
 
 		// Changes statistics
 		const topLevelStats = derivedObservableWithCache<{ files: number; added: number; removed: number } | undefined>(this, (reader, lastValue) => {
@@ -1635,6 +1632,31 @@ export class ChangesViewPane extends ViewPane {
 	}
 
 	/**
+	 * The file items of the changes, each of a repository of a chat in several with that repository's root, which its row
+	 * shows its path relative to. Every list of the changes (the tree, the diff's navigation and its sidebar) is made of
+	 * these same items, as opening one finds it among them.
+	 */
+	private toFileItems(changes: readonly ISessionFileChange[], reader: IReader | undefined): IChangesFileItem[] {
+		const items = toIChangesFileItem(changes);
+		const repositories = this.scope.changes.repositoriesObs.read(reader);
+		if (!repositories.length) {
+			return items;
+		}
+		const roots = new Map<IChangesFileItem, URI>();
+		for (const group of this.changesViewService.groupByRepository(items, item => item.uri, repositories)) {
+			if (group.repository) {
+				for (const item of group.items) {
+					roots.set(item, group.repository.root);
+				}
+			}
+		}
+		return items.map(item => {
+			const root = roots.get(item);
+			return root ? { ...item, root } : item;
+		});
+	}
+
+	/**
 	 * The rows of changes grouped by repository: a root row for each repository, then one for the changes outside every
 	 * repository, with the files of each in a tree or flat.
 	 */
@@ -1649,7 +1671,7 @@ export class ChangesViewPane extends ViewPane {
 					...(group.failure ? { failure: group.failure } : {}),
 				}
 				: { type: 'root', uri: ChangesViewPane.OUTSIDE_REPOSITORIES_ROOT, name: localize('changesOutsideRepositories', "Other Changes") };
-			const items = group.repository ? group.items.map(item => ({ ...item, root: group.repository!.root })) : group.items;
+			const items = group.items;
 			// The tree of a repository's files under its own root row, which takes the place of the one the tree builds
 			const children: ICompressedTreeElement<ChangesTreeElement>[] = viewMode === ChangesViewMode.Tree && group.repository
 				? Array.from(buildTreeChildren(items, { root, resourceTreeRootUri: group.repository.root })[0]?.children ?? [])
@@ -1879,7 +1901,7 @@ export class ChangesViewPane extends ViewPane {
 		}
 
 		if (this.shouldOpenModalDiff()) {
-			const changes = toIChangesFileItem(items);
+			const changes = this.toFileItems(items, undefined);
 			const changeToOpen = resource ? changes.find(c => isEqual(c.uri, resource)) : undefined;
 			await this._openFileItem(changeToOpen ?? changes[0], changes, false, false, false, changes.length > 1);
 			return;
