@@ -554,6 +554,9 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		override activeSessionPullRequestCIObs = constObservable(new class extends mock<GitHubPullRequestCIModel>() {
 			override readonly checks = harness.ciChecksObs;
 		}());
+		override getSessionPullRequest(): ReturnType<IGitHubService['getSessionPullRequest']> {
+			return { pullRequestObs: constObservable(undefined), pullRequestCIObs: this.activeSessionPullRequestCIObs, pullRequestReviewThreadsObs: constObservable(undefined) };
+		}
 	});
 	instaService.stub(ILifecycleService, new class extends mock<ILifecycleService>() {
 		// Resolves only when a test opts in via `activateAux`, so the desktop

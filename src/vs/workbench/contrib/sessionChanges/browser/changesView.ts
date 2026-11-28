@@ -1282,7 +1282,7 @@ export class ChangesViewPane extends ViewPane {
 
 		// Checks
 		if (this.ciStatusWidget) {
-			const checksViewModel = this.scopedInstantiationService.createInstance(ChecksViewModel);
+			const checksViewModel = this.scopedInstantiationService.createInstance(ChecksViewModel, this.scope.session, this.scope.changes.repositoryObs);
 			this.renderDisposables.add(checksViewModel);
 
 			this.renderDisposables.add(this.ciStatusWidget.setInput(checksViewModel));

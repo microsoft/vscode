@@ -19,6 +19,8 @@ import { GitHubPullRequestState } from '../../../../workbench/contrib/sessions/c
 import { getSessionGitHubReferences } from '../../../../workbench/contrib/sessions/common/github/sessionGitHubReferences.js';
 import { getPullRequestKey } from '../../../../workbench/contrib/sessions/common/github/utils.js';
 import { AUTO_DELETE_MARKED_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING } from '../../../../workbench/contrib/sessions/common/github/sessionLifecycleSettings.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { GitHubService, IGitHubService, isGitHubReferenceSupported } from '../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { IPullRequestIconCache, PullRequestIconCache } from '../../../../workbench/contrib/sessions/browser/github/pullRequestIconCache.js';
 import { PullRequestChangesMultiDiffSourceResolver } from './pullRequestChangesMultiDiffSourceResolver.js';
@@ -76,8 +78,16 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 		@ISessionHostService private readonly _sessionHostService: ISessionHostService,
 		@ILogService private readonly _logService: ILogService,
+		@IChangesViewService changesViewService: IChangesViewService,
 	) {
 		super();
+
+		// The pull request of the repository the main window's Changes show, whose checks they show and act on: a
+		// repository's pull request can be known only from its metadata, so its details, and with them its head commit
+		// and checks, load only as it is refreshed here.
+		const selectedPullRequest = this._gitHubService.getSessionPullRequest(
+			derived(reader => this._sessionHostService.getHostOfWindow(mainWindow.vscodeWindowId, reader)?.session.read(reader)),
+			changesViewService.activeSessionRepositoryObs);
 
 		const activeSessionResourceObs = derivedOpts<URI | undefined>({ equalsFn: isEqual }, reader => {
 			const activeSession = this._focusedSessionHostService.focusedHost.read(reader).session.read(reader);
@@ -95,7 +105,7 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 				return;
 			}
 
-			const model = this._gitHubService.activeSessionPullRequestObs.read(reader);
+			const model = selectedPullRequest.pullRequestObs.read(reader);
 			model?.refresh({ priority: 'visible' });
 		}));
 
@@ -106,7 +116,7 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 				return;
 			}
 
-			const model = this._gitHubService.activeSessionPullRequestCIObs.read(reader);
+			const model = selectedPullRequest.pullRequestCIObs.read(reader);
 			if (!model) {
 				return;
 			}
@@ -122,7 +132,7 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 				return;
 			}
 
-			const model = this._gitHubService.activeSessionPullRequestReviewThreadsObs.read(reader);
+			const model = selectedPullRequest.pullRequestReviewThreadsObs.read(reader);
 			if (!model) {
 				return;
 			}

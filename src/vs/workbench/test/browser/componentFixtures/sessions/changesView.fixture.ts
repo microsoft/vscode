@@ -458,6 +458,9 @@ function createGitHubService(checks: readonly IGitHubCICheck[] | undefined): IGi
 		override readonly activeSessionPullRequestObs = constObservable(undefined);
 		override readonly activeSessionPullRequestCIObs = constObservable(createCIModel(checks));
 		override readonly activeSessionPullRequestReviewThreadsObs = constObservable(undefined);
+		override getSessionPullRequest(): ReturnType<IGitHubService['getSessionPullRequest']> {
+			return { pullRequestObs: constObservable(undefined), pullRequestCIObs: this.activeSessionPullRequestCIObs, pullRequestReviewThreadsObs: constObservable(undefined) };
+		}
 		override createPullRequestModelReference(): ReturnType<IGitHubService['createPullRequestModelReference']> { throw new Error('Not implemented in fixture.'); }
 		override createPullRequestReviewThreadsModelReference(): ReturnType<IGitHubService['createPullRequestReviewThreadsModelReference']> { throw new Error('Not implemented in fixture.'); }
 		override createPullRequestCIModelReference(): ReturnType<IGitHubService['createPullRequestCIModelReference']> { throw new Error('Not implemented in fixture.'); }
