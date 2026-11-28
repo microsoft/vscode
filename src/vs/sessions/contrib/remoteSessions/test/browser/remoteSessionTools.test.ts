@@ -78,6 +78,9 @@ suite('RemoteSessionTools', () => {
 		openLink: 'agent-host-session://remote-host-copilot/child',
 		host: { id: 'host', label: 'Linux' },
 		model: { provider: 'copilot', id: null },
+		permissions: 'default',
+		mode: 'plan',
+		notInherited: ['Permission Allow all is not available for copilot on Linux; Manual permissions is used.'],
 		workspace: null,
 		placement: { runningSessions: 0, pendingCreations: 0 },
 	};
@@ -144,7 +147,8 @@ suite('RemoteSessionTools', () => {
 			noBlindRetry: description.includes('Do not retry an uncertain creation'),
 			connectedWindow: description.includes('Keep the coordinating Agents window connected'),
 			agentHostSource: description.includes('Requires an Agent Host originating chat'),
-		}, { noWorkspace: true, noCopying: true, trustedWorkspace: true, replies: true, shareLink: true, reuseLink: true, noBlindRetry: true, connectedWindow: true, agentHostSource: true });
+			inheritsPermissionsAndMode: description.includes('inherits this chat\'s permissions and mode where the target offers them'),
+		}, { noWorkspace: true, noCopying: true, trustedWorkspace: true, replies: true, shareLink: true, reuseLink: true, noBlindRetry: true, connectedWindow: true, agentHostSource: true, inheritsPermissionsAndMode: true });
 	});
 
 	test('creation waits for exact chat context when invoked in the background', () => {
@@ -291,6 +295,9 @@ suite('RemoteSessionTools', () => {
 				openLink: result.openLink,
 				host: result.host,
 				model: result.model,
+				permissions: result.permissions,
+				mode: result.mode,
+				notInherited: result.notInherited,
 				workspace: result.workspace,
 				placement: result.placement,
 			}],

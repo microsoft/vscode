@@ -6881,12 +6881,19 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
-	async resolveSessionConfigForCreation(workspace: URI, sessionTypeId: string, token: CancellationToken): Promise<ResolveSessionConfigResult> {
+	async resolveSessionConfigForCreation(workspace: URI | undefined, sessionTypeId: string, token: CancellationToken): Promise<ResolveSessionConfigResult> {
 		const connection = this.connection;
-		if (!connection || !this.getSessionTypes(workspace).some(type => type.id === sessionTypeId) || this._isAgentDisabledByPolicy(sessionTypeId)) {
+		const sessionTypes = workspace ? this.getSessionTypes(workspace) : this.sessionTypes;
+		if (!connection || !sessionTypes.some(type => type.id === sessionTypeId) || this._isAgentDisabledByPolicy(sessionTypeId)) {
 			throw new Error(localize('agentHost.sessionConfigUnavailable', "Could not resolve the Agent Host session configuration. Please try again."));
 		}
 		return raceCancellationError(connection.resolveSessionConfig({ provider: sessionTypeId, workingDirectory: workspace, config: undefined }), token);
+	}
+
+	getPermissionOptionsForCreation(sessionTypeId: string, config: ResolveSessionConfigResult): readonly ISessionPermissionOption[] {
+		const policyRestricted = isAutoApprovePolicyRestricted(this._baseConfigurationService, config.schema);
+		return getAgentHostSessionPermissionOptions(sessionTypeId, policyRestricted, true, config)
+			.filter(option => !option.locked && getAgentHostSessionPermissionConfig(sessionTypeId, option.id, policyRestricted, true, config) !== undefined);
 	}
 
 	getNewSessionCancellationToken(sessionId: string): CancellationToken {

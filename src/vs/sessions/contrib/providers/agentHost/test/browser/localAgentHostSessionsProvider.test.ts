@@ -11353,6 +11353,22 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('createNewSession with an empty draft configuration seeds no remembered or configured mode and approvals', async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({
+			[SessionConfigKey.Mode]: 'autopilot',
+			[SessionConfigKey.AutoApprove]: 'autoApprove',
+		}), StorageScope.PROFILE, StorageTarget.MACHINE);
+		const config = createSchemaDefaultConfigurationService();
+		await config.setUserConfiguration('chat.defaultConfiguration', { mode: 'plan', approvals: 'allowAll' });
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config, storageService });
+		provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id, { draftConfiguration: {} });
+		await timeout(0);
+
+		const seeded = agentHost.resolveSessionConfigRequests.at(-1)?.config;
+		assert.deepStrictEqual({ mode: seeded?.mode, autoApprove: seeded?.autoApprove }, { mode: undefined, autoApprove: undefined });
+	});
+
 	test('createNewSession keeps remembered picks over an ordinary configured chat.defaultConfiguration setting', async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({
@@ -19051,6 +19067,26 @@ suite('LocalAgentHostSessionsProvider', () => {
 			requests: ['copilotcli', 'claude'].map(provider => ({ provider, workspace: workspace.toString(), config: undefined })),
 			isolation: [['folder', 'worktree'], ['folder']],
 			created: 0,
+		});
+	});
+
+	test('offers only the creation permission choices a resolved configuration can apply and policy allows, also for a quick chat', async () => {
+		agentHost.setAgents([{ provider: 'claude', displayName: 'Claude', description: '', models: [] } as AgentInfo]);
+		const provider = createProvider(disposables, agentHost);
+		const restricted = createProvider(disposables, agentHost, undefined, { configurationService: createPolicyRestrictedConfigurationService() });
+		agentHost.resolveSessionConfigHandler = () => ({
+			schema: createVSCodeSessionConfigSchema({ permissionMode: { type: 'string', title: 'Permissions', enum: ['default', 'acceptEdits', 'plan', 'bypassPermissions'] } }),
+			values: {},
+		});
+		const config = await provider.resolveSessionConfigForCreation(undefined, 'claude', CancellationToken.None);
+		assert.deepStrictEqual({
+			workspace: agentHost.resolveSessionConfigRequests.map(request => request.workingDirectory?.toString()),
+			applicable: provider.getPermissionOptionsForCreation('claude', config).map(option => option.id),
+			policyRestricted: restricted.getPermissionOptionsForCreation('claude', config).map(option => option.id),
+		}, {
+			workspace: [undefined],
+			applicable: ['default', 'acceptEdits', 'plan', 'bypassPermissions'],
+			policyRestricted: ['default', 'plan'],
 		});
 	});
 
