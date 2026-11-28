@@ -1218,11 +1218,13 @@ suite('prompt slash command matching', () => {
 			matches('dev-tools:migrate-platform-from-version-four-to-five', ['/dev-tools', '/dev-tools migrate', '/version-four', '/qqq']),
 			matches(`${'a'.repeat(128)}-summary`, [`/${'a'.repeat(32)}`, '/summary', '/qqq']),
 			matches(`${'a'.repeat(64)}:${'b'.repeat(56)}-summary`, [`/${'a'.repeat(64)}`, '/summary', '/qqq']),
+			matches(`${'p'.repeat(64)}:ab-review-${'z'.repeat(54)}`, [`/${'p'.repeat(64)}`, '/review', `/${'z'.repeat(20)}`, '/qqq']),
 		], [
 			[true, true, true, false],
 			[true, true, true, false],
 			[true, true, false],
 			[true, true, false],
+			[true, true, true, false],
 		]);
 	});
 

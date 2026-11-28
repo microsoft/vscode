@@ -22,6 +22,11 @@ export function getAttachedContextCompletionSortText(score: number): string {
  */
 const maxPromptSlashCommandFilterTextLength = 128;
 
+/**
+ * Word suffix aliases, with their `/`, are not shortened below this length.
+ */
+const minPromptSlashCommandAliasLength = 10;
+
 export function getPromptSlashCommandFilterText(name: string): string | undefined {
 	const command = `/${name}`;
 	const displayCommand = name.includes(':') ? `/${name.replace(/:/g, ' ')}` : undefined;
@@ -30,18 +35,38 @@ export function getPromptSlashCommandFilterText(name: string): string | undefine
 	const wordSuffixes = [...skillName.matchAll(/-(?=[^-])/g)].map(match => `/${skillName.slice(match.index + 1)}`);
 
 	// Word suffixes go before the commands so that a later word of the name ranks like
-	// the start of a command, but only as many as keep the commands matchable: the
-	// shortest suffixes are kept, the longest dropped. The shortest suffix is always
-	// kept, so that a command too long for the window stays matchable by its last word
-	// while its start, with the plugin prefix, still fits.
-	let remaining = maxPromptSlashCommandFilterTextLength - commands.length;
-	let firstSuffix = wordSuffixes.length;
-	while (firstSuffix > 0 && (firstSuffix === wordSuffixes.length || wordSuffixes[firstSuffix - 1].length + 1 <= remaining)) {
-		firstSuffix--;
-		remaining -= wordSuffixes[firstSuffix].length + 1;
-	}
-	const suffixes = wordSuffixes.slice(firstSuffix);
+	// the start of a command, in the room the commands leave. When there is no room
+	// even for the shortest suffix, the commands are cut: they keep at least half of the
+	// window, and their start up to the first word of the skill, so that a long command
+	// stays matchable by its plugin prefix, and the suffixes share the rest.
+	const room = maxPromptSlashCommandFilterTextLength - commands.length;
+	const commandStartLength = command.length - (wordSuffixes.length ? wordSuffixes[0].length - 1 : 0);
+	const budget = !wordSuffixes.length || wordSuffixes[wordSuffixes.length - 1].length < room
+		? room
+		: Math.max(maxPromptSlashCommandFilterTextLength - Math.max(commandStartLength, maxPromptSlashCommandFilterTextLength / 2), minPromptSlashCommandAliasLength + 1);
+	const suffixes = fitPromptSlashCommandAliases(wordSuffixes, budget);
 	return displayCommand || suffixes.length ? [...suffixes, commands].join(' ') : undefined;
+}
+
+/**
+ * Fits slash command aliases, each followed by a space, into `budget` characters.
+ * Aliases that are too long are shortened to a common length, since an alias is matched
+ * by its start, but not below {@link minPromptSlashCommandAliasLength}: if they still do
+ * not fit, the longest are dropped. Aliases that end up the same are kept once.
+ */
+function fitPromptSlashCommandAliases(aliases: string[], budget: number): string[] {
+	for (let first = 0; first < aliases.length; first++) {
+		const kept = aliases.slice(first);
+		const length = (maxAliasLength: number) => kept.reduce((total, alias) => total + Math.min(alias.length, maxAliasLength) + 1, 0);
+		let maxAliasLength = Math.max(...kept.map(alias => alias.length));
+		while (maxAliasLength > minPromptSlashCommandAliasLength && length(maxAliasLength) > budget) {
+			maxAliasLength--;
+		}
+		if (length(maxAliasLength) <= budget) {
+			return [...new Set(kept.map(alias => alias.slice(0, maxAliasLength)))];
+		}
+	}
+	return [];
 }
 
 export function getAttachedContextCompletionMatch(typedWord: string, leader: string, name: string, kind: string, suggestOptions: InternalSuggestOptions): { filterText: string; score: number } | undefined {
