@@ -1275,19 +1275,16 @@ impl AgentHostSidecar {
 		// character-equal without spuriously flagging hostname-vs-IP
 		// equivalents as a config conflict.
 		let host = host_label.unwrap_or_else(|| bound_addr.ip().to_string());
-		let entry = AgentHostEndpointMetadata {
-			client_forwarding: manager.config.client_forwarding,
-			..AgentHostEndpointMetadata::new_standalone(
-				pid,
-				instance_id.clone(),
-				host,
-				bound_addr.port(),
-				public_token.clone().unwrap_or_default(),
-				AGENT_HOST_PROTOCOL_VERSION.to_string(),
-				VSCODE_CLI_QUALITY.map(str::to_string),
-				None,
-			)
-		};
+		let entry = AgentHostEndpointMetadata::new_standalone(
+			pid,
+			instance_id.clone(),
+			host,
+			bound_addr.port(),
+			public_token.clone().unwrap_or_default(),
+			AGENT_HOST_PROTOCOL_VERSION.to_string(),
+			VSCODE_CLI_QUALITY.map(str::to_string),
+			None,
+		);
 
 		// Registry publish does blocking filesystem I/O (write a temp file and
 		// atomically rename it into place); run it on a blocking-safe thread so
@@ -1531,8 +1528,6 @@ pub enum AgentHostReuseDecision {
 		/// This entry's stable identity within the registry, used by
 		/// `--replace` to scope removal to exactly this instance.
 		instance_id: String,
-		/// Whether the supervisor was started with `--client-forwarding`.
-		client_forwarding: bool,
 	},
 }
 
@@ -1560,7 +1555,6 @@ pub async fn classify_agent_host(
 				Some(selected.connection_token)
 			},
 			instance_id: selected.instance_id,
-			client_forwarding: selected.client_forwarding,
 		},
 		None => AgentHostReuseDecision::SpawnFresh,
 	}
@@ -3352,7 +3346,6 @@ mod tests {
 				port,
 				token: Some("registry-tok".to_string()),
 				instance_id: "instance-registry".to_string(),
-				client_forwarding: false,
 			}
 		);
 	}
@@ -3375,7 +3368,6 @@ mod tests {
 			},
 			quality: None,
 			tunnel_name: None,
-			client_forwarding: false,
 		};
 		agent_host_registry::publish_agent_host_endpoint(
 			&log::Logger::test(),
@@ -3485,7 +3477,6 @@ mod tests {
 			},
 			quality: Some("stable".to_string()),
 			tunnel_name: None,
-			client_forwarding: false,
 		}
 	}
 
@@ -3509,7 +3500,6 @@ mod tests {
 			},
 			quality: Some("stable".to_string()),
 			tunnel_name: None,
-			client_forwarding: false,
 		}
 	}
 
@@ -3547,7 +3537,6 @@ mod tests {
 			},
 			quality: None,
 			tunnel_name: None,
-			client_forwarding: false,
 		};
 		let gw: AgentHostGatewayEndpoint = (&entry).into();
 		assert_eq!(gw.endpoint_kind, "socket");

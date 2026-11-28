@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { timeout } from '../../../base/common/async.js';
-import { CancellationToken } from '../../../base/common/cancellation.js';
-import { CancellationError } from '../../../base/common/errors.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { CancellationError, isCancellationError } from '../../../base/common/errors.js';
 import { vArray, vObj, vString, vUnknown } from '../../../base/common/validation.js';
 import { TelemetryConfiguration } from '../../telemetry/common/telemetry.js';
 import { getAgentHostEndpointIdentityKey, IAgentHostEndpointMetadata, parseAgentHostEndpointRegistry } from '../common/agentHostEndpointRegistry.js';
@@ -595,5 +595,53 @@ export async function waitForNewStandaloneEndpoint(
 		} else {
 			await timeout(intervalMs);
 		}
+	}
+}
+
+/** The command that starts an agent host, e.g., {@link buildAgentHostSpawnCommand}, exited with an error. */
+export class AgentHostStartError extends Error {
+	constructor(readonly code: number, readonly stderr: string) {
+		super(`The agent host start command failed (exit code ${code})${stderr.trim() ? `: ${stderr.trim()}` : ''}`);
+	}
+
+	/** Whether the CLI does not know `--client-forwarding`, as 1.149 builds from before it do not. */
+	get rejectsClientForwarding(): boolean {
+		return this.stderr.includes('unexpected argument \'--client-forwarding\'');
+	}
+}
+
+/**
+ * Like {@link waitForNewStandaloneEndpoint}, but stops waiting as soon as `start`, the command starting the agent
+ * host, fails: when it exits with an error, with an {@link AgentHostStartError}. The command may also end
+ * successfully before the agent host registers, once the CLI started it in the background.
+ */
+export async function waitForStartedStandaloneEndpoint(
+	start: ReturnType<ISshExec>,
+	exec: ISshExec,
+	cliBin: string,
+	cliDataDir: string,
+	userDataPath: string,
+	before: readonly IAgentHostEndpointMetadata[],
+	options?: IWaitForNewEndpointOptions,
+): Promise<IAgentHostEndpointMetadata> {
+	const waiting = new CancellationTokenSource(options?.token);
+	const failed = new Promise<never>((_resolve, reject) => {
+		void start.then(({ code, stderr }) => {
+			if (code !== 0) {
+				reject(new AgentHostStartError(code, stderr));
+			}
+		}, error => {
+			if (!isCancellationError(error)) {
+				reject(error);
+			}
+		});
+	});
+	try {
+		return await Promise.race([
+			waitForNewStandaloneEndpoint(exec, cliBin, cliDataDir, userDataPath, before, { ...options, token: waiting.token }),
+			failed,
+		]);
+	} finally {
+		waiting.dispose(true);
 	}
 }

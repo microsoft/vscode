@@ -296,10 +296,8 @@ pub struct AgentHostArgs {
 	pub foreground: bool,
 
 	/// Forward what clients offer, such as their Git credentials and SSH and
-	/// GPG agents, to the processes the agent host starts. Recorded in the
-	/// agent host's registry entry; an existing agent host is only reused
-	/// when it was started with this flag too. Used by the Dev Container
-	/// launcher.
+	/// GPG agents, to the processes the agent host starts. Used by the Dev
+	/// Container launcher.
 	#[clap(long, hide = true)]
 	pub client_forwarding: bool,
 

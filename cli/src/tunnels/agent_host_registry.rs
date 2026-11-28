@@ -95,15 +95,6 @@ pub struct AgentHostEndpointMetadata {
 	pub quality: Option<String>,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub tunnel_name: Option<String>,
-	/// Whether the agent host forwards what clients offer to the processes it
-	/// starts (`code agent host --client-forwarding`). Omitted when false,
-	/// and by writers that predate it.
-	#[serde(default, skip_serializing_if = "is_false")]
-	pub client_forwarding: bool,
-}
-
-fn is_false(value: &bool) -> bool {
-	!*value
 }
 
 /// The subset of [`AgentHostEndpointMetadata`] that identifies a unique
@@ -140,7 +131,6 @@ impl AgentHostEndpointMetadata {
 			endpoint: AgentHostEndpointAddress::Tcp { host, port },
 			quality,
 			tunnel_name,
-			client_forwarding: false,
 		}
 	}
 
@@ -742,8 +732,6 @@ pub struct LiveStandaloneEndpoint {
 	/// Empty when the standalone host was started with
 	/// `--without-connection-token`.
 	pub connection_token: String,
-	/// Whether the standalone host was started with `--client-forwarding`.
-	pub client_forwarding: bool,
 }
 
 /// Reads the registry and returns a live `standalone` `tcp` entry to reuse, if
@@ -766,7 +754,6 @@ pub async fn select_live_standalone_endpoint(
 				host,
 				port,
 				connection_token: e.connection_token,
-				client_forwarding: e.client_forwarding,
 			}),
 			AgentHostEndpointAddress::Socket { .. } => None,
 		})
@@ -885,7 +872,6 @@ mod tests {
 			},
 			quality: None,
 			tunnel_name: None,
-			client_forwarding: false,
 		};
 		publish_agent_host_endpoint(&log, dir.path(), &editor).unwrap();
 
@@ -981,7 +967,6 @@ mod tests {
 		let mut metadata = standalone(42, "instance-a", 8080);
 		metadata.quality = Some("insider".to_string());
 		metadata.tunnel_name = Some("my-tunnel".to_string());
-		metadata.client_forwarding = true;
 
 		let value = serde_json::to_value(&metadata).unwrap();
 		assert_eq!(value["schemaVersion"], 2);
@@ -995,11 +980,6 @@ mod tests {
 		assert_eq!(value["endpoint"]["port"], 8080);
 		assert_eq!(value["quality"], "insider");
 		assert_eq!(value["tunnelName"], "my-tunnel");
-		assert_eq!(value["clientForwarding"], true);
-		assert_eq!(
-			serde_json::from_value::<AgentHostEndpointMetadata>(value).unwrap(),
-			metadata
-		);
 	}
 
 	#[test]
@@ -1008,11 +988,6 @@ mod tests {
 		let value = serde_json::to_value(&metadata).unwrap();
 		assert!(value.get("quality").is_none());
 		assert!(value.get("tunnelName").is_none());
-		assert!(value.get("clientForwarding").is_none());
-		assert_eq!(
-			serde_json::from_value::<AgentHostEndpointMetadata>(value).unwrap(),
-			metadata
-		);
 	}
 
 	#[test]
@@ -1178,7 +1153,6 @@ mod tests {
 			},
 			quality: None,
 			tunnel_name: None,
-			client_forwarding: false,
 		};
 		publish_agent_host_endpoint(&log, dir.path(), &editor).unwrap();
 
@@ -1508,7 +1482,6 @@ mod tests {
 			},
 			quality: None,
 			tunnel_name: None,
-			client_forwarding: false,
 		}
 	}
 

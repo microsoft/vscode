@@ -9,7 +9,7 @@ import { CancellationError, getErrorCode } from '../../base/common/errors.js';
 import { Disposable } from '../../base/common/lifecycle.js';
 import { isAbsolute, join } from '../../base/common/path.js';
 import { isWindows } from '../../base/common/platform.js';
-import type { IAgentHostIpcConnectionOptions } from '../../platform/agentHost/common/agentService.js';
+import { AgentHostClientForwardingEnvVar, type IAgentHostIpcConnectionOptions } from '../../platform/agentHost/common/agentService.js';
 import { ILogService } from '../../platform/log/common/log.js';
 import type { RemoteAgentConnectionContext } from '../../platform/remote/common/remoteAgentEnvironment.js';
 
@@ -22,6 +22,8 @@ export class ServerAgentHostEnvironment extends Disposable {
 	private readonly _updates = new Sequencer();
 	private _directory: string | undefined;
 	private readonly _targets = new Map<string, string | undefined>();
+	/** Kept once a window asked for it: other clients, e.g., the Agents window's Dev Container connections, may still use a restarted agent host. */
+	private _clientForwarding = false;
 
 	constructor(
 		private readonly _setLaunchEnvironment: (env: Environment, debugEnv?: Environment) => void,
@@ -38,6 +40,7 @@ export class ServerAgentHostEnvironment extends Disposable {
 		if (options?.env || options?.debugEnv) {
 			this._windows.set(ctx, options);
 		}
+		this._clientForwarding ||= options?.clientForwarding === true;
 		return this._updates.queue(() => this._refresh());
 	}
 
@@ -58,6 +61,9 @@ export class ServerAgentHostEnvironment extends Disposable {
 					env[key] = socket;
 				}
 			}
+		}
+		if (this._clientForwarding) {
+			env[AgentHostClientForwardingEnvVar] = '1';
 		}
 		this._setLaunchEnvironment(env, latest?.debugEnv);
 	}

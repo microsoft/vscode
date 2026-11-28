@@ -131,17 +131,22 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 			async () => {
 				const hostKey = getSSHRemoteAuthorityConnectionKey(connection.remoteAuthority);
 				const preferredAgentLocation = hostKey ? locationPreferenceService.getPreference(hostKey) : undefined;
-				const preference = preferredAgentLocation === undefined ? undefined : { preferredAgentLocation };
+				// The Agents window's Dev Container connections may reuse the Agent Host this window's server starts.
+				const clientForwarding = ['dev-container', 'attached-container'].includes(getRemoteName(connection.remoteAuthority));
+				const options = preferredAgentLocation === undefined && !clientForwarding ? undefined : {
+					...preferredAgentLocation === undefined ? {} : { preferredAgentLocation },
+					...clientForwarding ? { clientForwarding } : {},
+				};
 				this._useHostProxy = (await this._remoteAgentService.getRawEnvironment())?.useHostProxy === true;
 				let resolverResult: ResolverResult;
 				try {
 					resolverResult = await remoteAuthorityResolverService.resolveAuthority(connection.remoteAuthority);
 				} catch {
 					this._logService.warn(`${LOG_PREFIX} Unable to resolve the remote environment; connecting without environment overrides.`);
-					return preference;
+					return options;
 				}
 				return {
-					...preference,
+					...options,
 					env: resolverResult.options?.extensionHostEnv ?? {},
 					debugEnv: environmentService.debugExtensionHost.env,
 				};

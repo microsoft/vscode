@@ -49,6 +49,7 @@ import { IDevContainerSecurityOptions, IDevContainerStateErrorValues, IDevContai
 import { prepareOwnerOnlyDirectory } from './localAgentHostMetadata.js';
 import { ensureRemoteAgentHostCliInstalled } from './remoteAgentHostCliInstaller.js';
 import {
+	AgentHostStartError,
 	COLD_AGENT_HOST_REGISTRATION_TIMEOUT_MS,
 	DETECT_MUSL_COMMAND,
 	ISshExec,
@@ -61,7 +62,7 @@ import {
 	resolveRemotePlatform,
 	runAgentEndpoints,
 	shellEscape,
-	waitForNewStandaloneEndpoint,
+	waitForStartedStandaloneEndpoint,
 } from './sshRemoteAgentHostHelpers.js';
 
 const LOG_PREFIX = '[DevContainerAgentHost]';
@@ -467,42 +468,41 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				reportCacheStatus: message => this._reportOutput(config.connectionId, `${message}\n`),
 			});
 			const { cliBin } = cliInstallation;
-			// The client's own CLI and the latest one dev builds use have the option; an older fallback CLI does not.
-			const clientForwarding = cliInstallation.fallbackVersion === undefined || cliVersionSupportsClientForwarding(cliInstallation.fallbackVersion);
-			if (!clientForwarding) {
-				this._logService.warn(`${LOG_PREFIX} Fallback CLI ${cliInstallation.fallbackVersion} cannot start an Agent Host that forwards Git credentials and agents`);
-			}
 			const cliDataDir = getRemoteCLIDataDir(serverDataFolderName);
 			const initial = await runAgentEndpoints(exec, cliBin, cliDataDir);
 			const live = await filterLiveAgentHostEndpoints(exec, initial.endpoints);
-			// Only an Agent Host started with forwarding forwards, not, e.g., one a remote editor's server started.
-			let endpoint = selectAgentHostEndpoint(clientForwarding ? live.filter(entry => entry.clientForwarding) : live, this._productService.quality, undefined);
+			let endpoint = selectAgentHostEndpoint(live, this._productService.quality, undefined);
 			if (!endpoint) {
-				const sessionId = this._telemetryService.sessionId;
-				const spawnCommand = `${VSCODE_REMOTE_CONTAINERS_SESSION_ENV}=${shellEscape(sessionId)} ${buildAgentHostSpawnCommand(
+				// The Agent Host keeps this command running, so it cannot share the startup shell.
+				const start = (forwarding: boolean) => this._createExec(config.connectionId, execSelector, tokenSource.token, sandboxEnvironment)(`${VSCODE_REMOTE_CONTAINERS_SESSION_ENV}=${shellEscape(this._telemetryService.sessionId)} ${buildAgentHostSpawnCommand(
 					cliBin,
 					serverDataFolderName,
 					initial.userDataPath,
 					telemetryLevelToAgentHostValue(this._telemetryService.telemetryLevel),
-					{ clientForwarding },
-				)}`;
-				// The Agent Host keeps this command running, so it cannot share the startup shell.
-				void this._createExec(config.connectionId, execSelector, tokenSource.token, sandboxEnvironment)(spawnCommand, { ignoreExitCode: true }).catch(error => {
-					this._logService.warn(`${LOG_PREFIX} Agent Host spawn command failed`, error);
-				});
-				this._logService.info(`${LOG_PREFIX} Waiting for the new agent host to register...`);
-				endpoint = await waitForNewStandaloneEndpoint(
-					exec,
-					cliBin,
-					cliDataDir,
-					initial.userDataPath,
-					live,
-					{
+					{ clientForwarding: forwarding },
+				)}`, { ignoreExitCode: true });
+				const waitForRegistration = (started: ReturnType<typeof start>) => {
+					this._logService.info(`${LOG_PREFIX} Waiting for the new agent host to register...`);
+					return waitForStartedStandaloneEndpoint(started, exec, cliBin, cliDataDir, initial.userDataPath, live, {
 						timeoutMs: COLD_AGENT_HOST_REGISTRATION_TIMEOUT_MS,
 						token: tokenSource.token,
 						progress: elapsedMs => this._logService.info(`${LOG_PREFIX} Waiting for the new agent host to register... (${Math.floor(elapsedMs / 1000)} seconds elapsed)`),
-					},
-				);
+					});
+				};
+				// The client's own CLI and the latest one dev builds use have the option; an older fallback CLI does not.
+				const clientForwarding = cliInstallation.fallbackVersion === undefined || cliVersionSupportsClientForwarding(cliInstallation.fallbackVersion);
+				if (!clientForwarding) {
+					this._logService.warn(`${LOG_PREFIX} Fallback CLI ${cliInstallation.fallbackVersion} cannot start an Agent Host that forwards Git credentials and agents`);
+				}
+				try {
+					endpoint = await waitForRegistration(start(clientForwarding));
+				} catch (error) {
+					if (!clientForwarding || !(error instanceof AgentHostStartError) || !error.rejectsClientForwarding) {
+						throw error;
+					}
+					this._logService.warn(`${LOG_PREFIX} The CLI does not support --client-forwarding; starting an Agent Host that does not forward Git credentials and agents`);
+					endpoint = await waitForRegistration(start(false));
+				}
 			}
 
 			const relayCommand = `${VSCODE_REMOTE_CONTAINERS_SESSION_ENV}=${shellEscape(this._telemetryService.sessionId)} ${buildAgentRelayCommand(cliBin, cliDataDir, endpoint.instanceId, initial.userDataPath)}`;

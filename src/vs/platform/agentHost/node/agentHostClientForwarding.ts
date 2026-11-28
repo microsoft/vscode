@@ -20,6 +20,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { clientGitCredentialOperationValidator, type ClientForwardingDescription, type ClientForwardingSocket, type ClientGitConfig, type ClientGitCredentialOperation, type ClientGpgKeys } from '../common/clientForwardingProtocol.js';
+import { AgentHostClientForwardingEnvVar } from '../common/agentService.js';
 import { ClientForwardingTelemetry, getClientForwardingSetup, getGitCredentialOutcome, type ClientForwardingGitConfigSetup, type ClientForwardingGitIdentitySetup, type ClientForwardingSocketOutcome, type IClientForwardingSetupState } from './agentHostClientForwardingTelemetry.js';
 import { parseGpgDirs, useKeyboxdPattern } from './clientForwardingHost.js';
 import { applyClientGitConfig, IClientGitConfigTarget } from './clientGitConfig.js';
@@ -30,12 +31,6 @@ import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { shellEscape } from './sshRemoteAgentHostHelpers.js';
 
-/**
- * Set to `1` by the VS Code CLI for the server of an agent host started with `code agent host --client-forwarding`, as
- * the Dev Container launcher does, to have the agent host forward what its clients offer.
- */
-export const AGENT_HOST_CLIENT_FORWARDING_ENV = 'VSCODE_AGENT_HOST_CLIENT_FORWARDING';
-
 export const IAgentHostClientForwardingService = createDecorator<IAgentHostClientForwardingService>('agentHostClientForwardingService');
 
 /**
@@ -45,7 +40,7 @@ export const IAgentHostClientForwardingService = createDecorator<IAgentHostClien
  */
 export interface IAgentHostClientForwardingService {
 	readonly _serviceBrand: undefined;
-	/** Whether the agent host was started to forward its clients', see {@link AGENT_HOST_CLIENT_FORWARDING_ENV}. */
+	/** Whether the agent host was started to forward its clients', see {@link AgentHostClientForwardingEnvVar}. */
 	readonly enabled: boolean;
 	/** Serves the client's forwarding until disposed; the newest client offering something serves it. */
 	registerClient(client: IAgentHostForwardingClient): IDisposable;
@@ -184,9 +179,9 @@ export class AgentHostClientForwardingService extends Disposable implements IAge
 	) {
 		super();
 		this._telemetry = new ClientForwardingTelemetry(telemetryService, _logService);
-		this.enabled = _environment[AGENT_HOST_CLIENT_FORWARDING_ENV] === '1';
+		this.enabled = _environment[AgentHostClientForwardingEnvVar] === '1';
 		// Not for the processes this agent host starts.
-		delete _environment[AGENT_HOST_CLIENT_FORWARDING_ENV];
+		delete _environment[AgentHostClientForwardingEnvVar];
 		this._originalSshAgentSocket = _environment.SSH_AUTH_SOCK;
 		this._register(toDisposable(() => {
 			for (const connection of this._connections.values()) {

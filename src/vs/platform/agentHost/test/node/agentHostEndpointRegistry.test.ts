@@ -84,16 +84,6 @@ suite('Agent Host Endpoint Registry (schema v2)', () => {
 		);
 	});
 
-	test('keeps whether an endpoint forwards what clients offer', () => {
-		const entry = createEntry({ type: 'standalone', endpoint: { type: 'tcp', host: '127.0.0.1', port: 12345 } });
-		assert.deepStrictEqual([
-			parseAgentHostEndpointMetadataEntry({ ...entry, clientForwarding: true })?.clientForwarding,
-			Object.hasOwn(parseAgentHostEndpointMetadataEntry({ ...entry, clientForwarding: false })!, 'clientForwarding'),
-			Object.hasOwn(parseAgentHostEndpointMetadataEntry(entry)!, 'clientForwarding'),
-			parseAgentHostEndpointMetadataEntry({ ...entry, clientForwarding: 'true' }),
-		], [true, false, false, undefined]);
-	});
-
 	test('ignores unsupported schema versions without failing the whole array', () => {
 		const current = createEntry({ instanceId: 'current' });
 		const raw = [
