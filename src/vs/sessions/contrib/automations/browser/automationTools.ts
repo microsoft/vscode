@@ -662,6 +662,7 @@ The change uses the current tool-approval policy. When approval is required, the
 						description: 'Legacy Mode alias. Use sessionTemplate for provider-owned configuration.',
 					},
 					permissionLevel: {
+						type: ['string', 'null'],
 						enum: [...chatPermissionLevels, null],
 						description: 'Legacy Approvals alias. Use sessionTemplate for provider-owned configuration.',
 					},

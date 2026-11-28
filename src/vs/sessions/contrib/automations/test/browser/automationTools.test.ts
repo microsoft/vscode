@@ -1518,6 +1518,12 @@ suite('AutomationTools', () => {
 		});
 	});
 
+	test('configureAutomation schema declares nullable string permissions', () => {
+		const tool = createConfigureAutomationTool(new FakeAutomationService(), new FakeSessionsManagementService(undefined), createConfigurationService());
+		const permissionLevel = tool.getToolData().inputSchema?.properties?.permissionLevel;
+		assert.deepStrictEqual(permissionLevel?.type, ['string', 'null']);
+	});
+
 	test('configureAutomation schema offers local weekdays and cron schedules', () => {
 		const tool = createConfigureAutomationTool(new FakeAutomationService(), new FakeSessionsManagementService(undefined), createConfigurationService());
 		const schedule = tool.getToolData().inputSchema?.properties?.schedule;
