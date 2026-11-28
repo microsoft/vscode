@@ -85,7 +85,7 @@ import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { ChatMode } from '../../../common/chatModes.js';
 import type { IChatModel, IChatModelInputState } from '../../../common/model/chatModel.js';
-import { IAgentHostNewSessionFolderService, computeDesiredWorkingDirectories, computeWorkingDirectories, hasImmutablePrimaryWorkingDirectory, supportsMultipleWorkingDirectories } from './agentHostNewSessionFolderService.js';
+import { IAgentHostNewSessionFolderService, computeDesiredWorkingDirectories, computeWorkingDirectories, filterHostAddressableWorkingDirectories, hasImmutablePrimaryWorkingDirectory, supportsMultipleWorkingDirectories } from './agentHostNewSessionFolderService.js';
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { type IAgentHostImportConversation, IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
 import { getLocalAgentHostSessionProvider } from './agentHostSessionUri.js';
@@ -549,20 +549,48 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		return this._generationMatchingDesiredState(entry)?.workingDirectories;
 	}
 
+	private _hostAddressableDirectories(directories: readonly URI[] | undefined, provider: string): readonly URI[] | undefined {
+		return filterHostAddressableWorkingDirectories(directories, {
+			defaultDirectory: this._agentHostService.initializeResult.get()?.defaultDirectory,
+			resourceUris: this._agentHostService.resourceUris,
+			clientConnectionKind: this._agentHostService.clientConnectionKind,
+			provider,
+			isSessionsWindow: this._environmentService.isSessionsWindow,
+			logService: this._logService,
+		});
+	}
+
 	private _computeWorkingDirectories(primary: URI | undefined, provider: string): readonly URI[] | undefined {
-		return computeWorkingDirectories(primary, this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri), this._agentHostService.rootState.value, provider);
+		const workspaceFolders = this._hostAddressableDirectories(
+			this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri),
+			provider,
+		) ?? [];
+		const effectivePrimary = (primary && this._hostAddressableDirectories([primary], provider)?.[0])
+			?? workspaceFolders[0];
+		return this._hostAddressableDirectories(
+			computeWorkingDirectories(effectivePrimary, workspaceFolders, this._agentHostService.rootState.value, provider),
+			provider,
+		);
 	}
 
 	private _computeEntryWorkingDirectories(entry: IEntry): readonly URI[] | undefined {
-		const primary = entry.workingDirectory;
+		const workspaceFolders = this._hostAddressableDirectories(
+			this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri),
+			entry.provider,
+		) ?? [];
+		const primary = (entry.workingDirectory && this._hostAddressableDirectories([entry.workingDirectory], entry.provider)?.[0])
+			?? workspaceFolders[0];
 		if (!primary || !entry.usesWorkspaceRootSet || !supportsMultipleWorkingDirectories(this._agentHostService.rootState.value, entry.provider)) {
 			return primary ? [primary] : undefined;
 		}
 		const current = entry.generation?.workingDirectories ?? [primary];
-		return computeDesiredWorkingDirectories(
-			primary,
-			current,
-			this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri),
+		return this._hostAddressableDirectories(
+			computeDesiredWorkingDirectories(
+				primary,
+				current,
+				workspaceFolders,
+			),
+			entry.provider,
 		);
 	}
 

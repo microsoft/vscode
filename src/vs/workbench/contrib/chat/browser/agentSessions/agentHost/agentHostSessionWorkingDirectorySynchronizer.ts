@@ -76,7 +76,7 @@ import { IWorkspaceContextService } from '../../../../../../platform/workspace/c
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { computeDesiredWorkingDirectories, hasImmutablePrimaryWorkingDirectory } from './agentHostNewSessionFolderService.js';
+import { computeDesiredWorkingDirectories, filterHostAddressableWorkingDirectories, hasImmutablePrimaryWorkingDirectory } from './agentHostNewSessionFolderService.js';
 
 export const IAgentHostSessionWorkingDirectorySynchronizer = createDecorator<IAgentHostSessionWorkingDirectorySynchronizer>('agentHostSessionWorkingDirectorySynchronizer');
 
@@ -292,10 +292,21 @@ export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable imp
 			return;
 		}
 		// The session's own primary stays the primary; only its peers follow the workspace.
+		const workspaceFolders = filterHostAddressableWorkingDirectories(
+			this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri),
+			{
+				defaultDirectory: registration.connection.initializeResult.get()?.defaultDirectory,
+				resourceUris: registration.connection.resourceUris,
+				clientConnectionKind: registration.connection.clientConnectionKind,
+				provider: registration.provider,
+				isSessionsWindow: this._environmentService.isSessionsWindow,
+				logService: this._logService,
+			},
+		) ?? [];
 		const desired = computeDesiredWorkingDirectories(
 			current[0],
 			current,
-			this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri),
+			workspaceFolders,
 			this._uriIdentityService.extUri,
 		);
 		// `slice(1)` on both sides keeps the immutable primary out of the diff.

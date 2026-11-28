@@ -1111,7 +1111,7 @@ suite('ChatConfiguration defaults', () => {
 		});
 	});
 
-	test('a mixed workspace does not restore an unsupported local harness', () => {
+	test('a mixed workspace keeps local harnesses usable and restores them', () => {
 		const configuration = new TestConfigurationService({ [ChatConfiguration.DefaultToCopilotHarness]: true });
 		const sessions = createChatSessionsService(SessionType.AgentHostCopilot);
 		const storage = disposables.add(new TestStorageService());
@@ -1123,8 +1123,8 @@ suite('ChatConfiguration defaults', () => {
 				.map(type => isNewChatSessionTypeUsable(type, configuration, sessions, workspace)),
 			resolved: resolveSessionType(configuration, sessions, storage, workspace, true, { currentSessionType: SessionType.AgentHostCodex }),
 		}, {
-			usable: [true, false, false],
-			resolved: { sessionType: SessionType.AgentHostCopilot },
+			usable: [true, true, true],
+			resolved: { sessionType: SessionType.AgentHostClaude },
 		});
 	});
 

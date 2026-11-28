@@ -395,4 +395,20 @@ suite('AgentHostSessionWorkingDirectorySynchronizer', () => {
 			{ type: ActionType.SessionWorkingDirectoryRemoved, directory: stale.toString() },
 		]);
 	});
+
+	test('excludes virtual workspace folders for non-Copilot local providers', async () => {
+		const virtualFolder = URI.parse('abap:/repotree-v1/SYSTEM_A');
+		const synchronizer = createSynchronizer(true, [primary, retained, added, virtualFolder]);
+		const subscription = createSubscription();
+		const connection = new TestConnection(subscription, 'claude');
+		connection.initializeResult.set({ protocolVersion: '0.7.0', defaultDirectory: 'file:///' } as InitializeResult, undefined);
+		disposables.add(synchronizer.register({ session, provider: 'claude', connection, subscription }));
+
+		await synchronizer.reconcile(session, CancellationToken.None);
+
+		assert.deepStrictEqual(connection.dispatched, [
+			{ type: ActionType.SessionWorkingDirectorySet, directory: added.toString() },
+			{ type: ActionType.SessionWorkingDirectoryRemoved, directory: stale.toString() },
+		]);
+	});
 });
