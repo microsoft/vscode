@@ -766,8 +766,10 @@ suite('WorkspacePicker - session folders', () => {
 		providersService.setProviders([{ ...createMockProvider('local-agent-host', { group: SESSION_WORKSPACE_GROUP_LOCAL }), supportsLocalWorkspaces: true }]);
 		const other: IRecentSessionWorkspace = { uri: URI.file('/ws/other.code-workspace'), name: 'Other', folders: [docs], owned: true };
 		const workspaces = observableValue<readonly IRecentSessionWorkspace[]>('workspaces', [product, other]);
+		let userSelections = 0;
 		const picker = createTestPicker(store, providersService, undefined, undefined, DispatchingWorkspacePicker, undefined, undefined, undefined, {
 			restoreFromSessions: false,
+			onUserSelection: () => userSelections++,
 			configuration: { [SESSIONS_WORKSPACES_ENABLED_SETTING]: true },
 			sessionWorkspacesService: {
 				workspaces,
@@ -779,6 +781,7 @@ suite('WorkspacePicker - session folders', () => {
 		const changed: string[] = [];
 		store.add(picker.onDidChangeSelectedWorkspaceFolders(workspace => changed.push(`${workspace.path} in ${picker.selectedFolderUri?.path}`)));
 		await picker.dispatchItem({ folderUri: app, providerId: 'local-agent-host', sessionWorkspaceUri: product.uri });
+		const userSelectionsBeforeEdits = userSelections;
 		const edit = (workspace: IRecentSessionWorkspace, folders: URI[]) => workspaces.set(workspaces.get().map(candidate => candidate === workspace || extUri.isEqual(candidate.uri, workspace.uri) ? { ...candidate, folders } : candidate), undefined);
 		// Another workspace, and the selected one with the same folders
 		edit(other, [docs, lib]);
@@ -792,17 +795,27 @@ suite('WorkspacePicker - session folders', () => {
 		edit(product, [lib, docs]);
 		const firstRemoved = picker.selectedWorkspaceConfig?.folders.map(folder => folder.path);
 		edit(product, [app, docs]);
-		assert.deepStrictEqual({ unchanged, changed, added, firstRemoved, folders: picker.selectedWorkspaceConfig?.folders.map(folder => folder.path) }, {
+		const replaced = picker.selectedWorkspaceConfig?.folders.map(folder => folder.path);
+		const availableBefore = !picker.isSelectedWorkspaceUnavailable;
+		// All its folders removed: it can no longer be the selection's, which says so
+		edit(product, []);
+		// Following the workspace's file is not the user's choice
+		assert.deepStrictEqual({ userSelectionsByEdits: userSelections - userSelectionsBeforeEdits, unchanged, changed, added, firstRemoved, replaced, availableBefore, unavailable: picker.isSelectedWorkspaceUnavailable, folders: picker.selectedWorkspaceConfig?.folders.map(folder => folder.path) }, {
+			userSelectionsByEdits: 0,
 			unchanged: [],
 			changed: [
 				'/ws/product.code-workspace in /agent-host/app',
 				'/ws/product.code-workspace in /agent-host/app',
 				'/ws/product.code-workspace in /agent-host/lib',
 				'/ws/product.code-workspace in /agent-host/app',
+				'/ws/product.code-workspace in /agent-host/app',
 			],
 			added: ['/agent-host/app', '/agent-host/lib'],
 			firstRemoved: ['/agent-host/lib', '/agent-host/docs'],
-			folders: ['/agent-host/app', '/agent-host/docs'],
+			replaced: ['/agent-host/app', '/agent-host/docs'],
+			availableBefore: true,
+			unavailable: true,
+			folders: undefined,
 		});
 	});
 

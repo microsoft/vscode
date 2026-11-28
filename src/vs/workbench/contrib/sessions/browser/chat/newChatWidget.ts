@@ -3480,10 +3480,6 @@ export class NewChatWidget extends Disposable {
 			this._backgroundSendStatus.set(undefined, undefined);
 			this._lastBackgroundSendOptions = undefined;
 		}
-		// A draft being replaced after its workspace's folders changed is sent once it works in them, as they are last
-		while (this._workspaceFoldersReconciliation) {
-			await this._workspaceFoldersReconciliation.catch(() => undefined);
-		}
 		let session = this._session.get();
 		// A hosted composer creating its draft again, such as after a send that failed, sends once it has it.
 		if (!session && this._draftHost && this._pendingWorkspaceCreation) {
@@ -3502,6 +3498,11 @@ export class NewChatWidget extends Disposable {
 		if (!workspaceValid || session !== this._session.get()) {
 			return false;
 		}
+		const reconciled = await this._reconcileDraftBeforeSend(session);
+		if (!reconciled) {
+			return false;
+		}
+		session = reconciled;
 		const feedbackItems = [...this._feedbackItems.get()];
 		const workspaceRoots = this._getWorkspaceRoots(session);
 		const request = buildNewSessionPrompt(query, feedbackItems, workspaceRoots);
@@ -3891,12 +3892,13 @@ export class NewChatWidget extends Disposable {
 			}
 			const folderUri = this._workspacePicker.selectedFolderUri;
 			const session = this._session.get();
-			if (!folderUri || !session || isSessionCreated(session) || this._isCurrentWorkspaceSelection(folderUri)) {
+			// A workspace that can no longer be selected is not replaced by its former folder alone: the draft is not sent
+			if (!folderUri || !session || isSessionCreated(session) || this._workspacePicker.isSelectedWorkspaceUnavailable || this._isCurrentWorkspaceSelection(folderUri)) {
 				return;
 			}
 			const host = this._draftHost;
 			if (host?.setRequestedTarget && !this.uriIdentityService.extUri.isEqual(host.requestedTarget?.get()?.folderUri, folderUri)) {
-				host.setRequestedTarget({ ...host.requestedTarget?.get(), folderUri }, 'user');
+				host.setRequestedTarget({ ...host.requestedTarget?.get(), folderUri }, 'background');
 			}
 			await this._onWorkspaceSelected(folderUri);
 		})();
@@ -3908,6 +3910,42 @@ export class NewChatWidget extends Disposable {
 		};
 		reconciliation.then(clear, clear);
 		return reconciliation;
+	}
+
+	/**
+	 * The draft to send: `session`, or the draft that replaces it in its workspace's folders as they are now, once any
+	 * replacement settles. `undefined`, with the user told, when no draft works in them, which keeps the input.
+	 */
+	private async _reconcileDraftBeforeSend(session: ISession): Promise<ISession | undefined> {
+		while (this._workspaceFoldersReconciliation) {
+			await this._workspaceFoldersReconciliation.catch(() => undefined);
+		}
+		let current = this._session.get();
+		if (current && !isSessionCreated(current) && !this._isDraftInSelectedWorkspaceFolders(current)) {
+			await this._handleSelectedWorkspaceFoldersChange().catch(error => this.logService.error('Failed to replace the draft for its workspace\'s folders:', error));
+			current = this._session.get();
+		}
+		if (current && (current === session || !isSessionCreated(current)) && (isSessionCreated(current) || this._isDraftInSelectedWorkspaceFolders(current))) {
+			return current;
+		}
+		this.notificationService.warn(localize('newChatWidget.workspaceFoldersChanged', "The folders of this session's workspace changed. Check the workspace and send again."));
+		return undefined;
+	}
+
+	/**
+	 * Whether a draft works in its workspace's folders as the picker reads them now. A draft outside a workspace, with
+	 * none selected, has nothing to compare.
+	 */
+	private _isDraftInSelectedWorkspaceFolders(session: ISession): boolean {
+		if (this._workspacePicker.isSelectedWorkspaceUnavailable) {
+			return false;
+		}
+		const folderUri = this._workspacePicker.selectedFolderUri;
+		const workspace = session.workspace.get();
+		if (!folderUri || !workspace || (!this._getDraftWorkspaceConfig(session.sessionId, workspace) && !this._workspacePicker.selectedWorkspaceConfig)) {
+			return true;
+		}
+		return this.uriIdentityService.extUri.isEqual(workspace.folders[0]?.root, folderUri) && this._isSelectedWorkspaceConfig(session, folderUri);
 	}
 
 	/** The workspace configuration this composer requested its draft in, for a provider that does not record it. */

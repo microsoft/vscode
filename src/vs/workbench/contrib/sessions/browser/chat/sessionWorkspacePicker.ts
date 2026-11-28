@@ -517,6 +517,15 @@ export class WorkspacePicker extends Disposable {
 		return folders.length === others.length && folders.every((folder, index) => extUri.isEqual(folder, others[index]));
 	}
 
+	/**
+	 * Whether the selected workspace can no longer be the selection's, as an edit of its file left it without folders or
+	 * starting with one this picker cannot select. Its session is not created in its former folder alone.
+	 */
+	get isSelectedWorkspaceUnavailable(): boolean {
+		const uri = this._selectedSessionWorkspaceUri;
+		return !!uri && this._workspacesEnabled.get() && !!this.sessionWorkspacesService.getWorkspace(uri) && !this.selectedSessionWorkspace;
+	}
+
 	/** Removes a folder the user added to the session of the selected folder. */
 	removeSessionFolder(folder: URI): void {
 		const extUri = this.uriIdentityService.extUri;
@@ -703,10 +712,12 @@ export class WorkspacePicker extends Disposable {
 				this._updateTriggerLabel();
 				const workspaceUri = this._selectedSessionWorkspaceUri;
 				const folders = workspaceUri && workspaceFolders.get(workspaceUri);
-				if (previousFolders && workspaceUri && folders?.length && this._selectedFolderUri && !this._isSameFolderList(previousFolders, folders)) {
-					if (!this.uriIdentityService.extUri.isEqual(folders[0], this._selectedFolderUri)) {
-						// The workspace starts with another folder now: it stays selected, in that folder, where a composer can work in it
-						this._selectFolder(folders[0], false, this._selectedResolved?.providerId, false, this._preselectionSource, this._selectionOrigin, workspaceUri, this._addedSessionFolders);
+				if (previousFolders && workspaceUri && folders && this._selectedFolderUri && !this._isSameFolderList(previousFolders, folders)) {
+					if (folders.length && !this.uriIdentityService.extUri.isEqual(folders[0], this._selectedFolderUri)) {
+						// The workspace starts with another folder now: it stays selected, in that folder, where a composer can work in it.
+						// Its file changed, not the user's pick.
+						const source = this._preselectionSource === NewSessionWorkspacePreselectionSource.User ? NewSessionWorkspacePreselectionSource.ProvidedWorkspace : this._preselectionSource;
+						this._selectFolder(folders[0], false, this._selectedResolved?.providerId, false, source, this._selectionOrigin, workspaceUri, this._addedSessionFolders);
 					} else {
 						this._onDidChangeSelection.fire();
 					}
