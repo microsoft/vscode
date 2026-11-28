@@ -32,18 +32,26 @@ const cssExtensionPoint = ExtensionsRegistry.registerExtensionPoint<ICSSExtensio
 	extensionPoint: 'css',
 	jsonSchema: {
 		description: nls.localize('contributes.css', "Contributes CSS files to be loaded in the workbench."),
-		type: 'array',
-		items: {
-			type: 'object',
-			properties: {
-				path: {
-					description: nls.localize('contributes.css.path', "Path to the CSS file. The path is relative to the extension folder."),
-					type: 'string'
-				}
+		anyOf: [
+			{
+				type: 'array',
+				items: {
+					type: 'object',
+					properties: {
+						path: {
+							description: nls.localize('contributes.css.path', "Path to the CSS file. The path is relative to the extension folder."),
+							type: 'string'
+						}
+					},
+					required: ['path']
+				},
+				defaultSnippets: [{ body: [{ path: '${1:styles.css}' }] }]
 			},
-			required: ['path']
-		},
-		defaultSnippets: [{ body: [{ path: '${1:styles.css}' }] }]
+			{
+				// The object form (`contributes.css.customData`) belongs to the CSS language features extension
+				type: 'object'
+			}
+		]
 	}
 });
 
@@ -136,16 +144,13 @@ export class CSSExtensionPoint {
 
 			// Handle added extensions
 			for (const extension of delta.added) {
-				if (!isProposedApiEnabled(extension.description, 'css')) {
-					extension.collector.error(`The '${cssExtensionPoint.name}' contribution point is proposed API.`);
+				if (!Array.isArray(extension.value)) {
+					// Not a workbench CSS contribution, e.g. `contributes.css.customData` for the CSS language features extension
 					continue;
 				}
 
-				const extensionValue = extension.value;
-				const collector = extension.collector;
-
-				if (!extensionValue || !Array.isArray(extensionValue)) {
-					collector.error(nls.localize('invalid.css.configuration', "'contributes.css' must be an array."));
+				if (!isProposedApiEnabled(extension.description, 'css')) {
+					extension.collector.error(`The '${cssExtensionPoint.name}' contribution point is proposed API.`);
 					continue;
 				}
 
