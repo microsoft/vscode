@@ -519,11 +519,25 @@ export class WorkspacePicker extends Disposable {
 
 	/**
 	 * Whether the selected workspace can no longer be the selection's, as an edit of its file left it without folders or
-	 * starting with one this picker cannot select. Its session is not created in its former folder alone.
+	 * starting with one this picker cannot select, or its file can no longer be read. Its session is not created in its
+	 * former folder alone.
 	 */
 	get isSelectedWorkspaceUnavailable(): boolean {
 		const uri = this._selectedSessionWorkspaceUri;
-		return !!uri && this._workspacesEnabled.get() && !!this.sessionWorkspacesService.getWorkspace(uri) && !this.selectedSessionWorkspace;
+		if (!uri || !this._workspacesEnabled.get() || !this.sessionWorkspacesService.getWorkspace(uri)) {
+			return false;
+		}
+		// A file that can no longer be read keeps its last known folders, but is no workspace to create a session in
+		const workspace = this.selectedSessionWorkspace;
+		return !workspace || !!workspace.missing;
+	}
+
+	/**
+	 * Changes with each selection, of the user's or another's, but not as the selection follows its workspace's file:
+	 * what was sent for one selection is not sent for another.
+	 */
+	get selectionId(): number {
+		return this._selectionGeneration;
 	}
 
 	/** Removes a folder the user added to the session of the selected folder. */
@@ -718,7 +732,12 @@ export class WorkspacePicker extends Disposable {
 						// Its file changed, not the user's pick.
 						const source = this._preselectionSource === NewSessionWorkspacePreselectionSource.User ? NewSessionWorkspacePreselectionSource.ProvidedWorkspace : this._preselectionSource;
 						const userHasPicked = this._userHasPicked;
+						const selectionGeneration = this._selectionGeneration;
 						this._selectFolder(folders[0], false, this._selectedResolved?.providerId, false, source, this._selectionOrigin, workspaceUri, this._addedSessionFolders);
+						if (this.uriIdentityService.extUri.isEqual(this._selectedFolderUri, folders[0])) {
+							// The same selection, which followed its workspace
+							this._selectionGeneration = selectionGeneration;
+						}
 						this._userHasPicked = userHasPicked;
 					} else {
 						this._onDidChangeSelection.fire();

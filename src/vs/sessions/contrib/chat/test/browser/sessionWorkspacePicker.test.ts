@@ -782,6 +782,7 @@ suite('WorkspacePicker - session folders', () => {
 		store.add(picker.onDidChangeSelectedWorkspaceFolders(workspace => changed.push(`${workspace.path} in ${picker.selectedFolderUri?.path}`)));
 		await picker.dispatchItem({ folderUri: app, providerId: 'local-agent-host', sessionWorkspaceUri: product.uri });
 		const userSelectionsBeforeEdits = userSelections;
+		const generationBeforeEdits = picker.selectionId;
 		const edit = (workspace: IRecentSessionWorkspace, folders: URI[]) => workspaces.set(workspaces.get().map(candidate => candidate === workspace || extUri.isEqual(candidate.uri, workspace.uri) ? { ...candidate, folders } : candidate), undefined);
 		// Another workspace, and the selected one with the same folders
 		edit(other, [docs, lib]);
@@ -800,11 +801,18 @@ suite('WorkspacePicker - session folders', () => {
 		edit(product, [app, docs]);
 		const replaced = picker.selectedWorkspaceConfig?.folders.map(folder => folder.path);
 		const availableBefore = !picker.isSelectedWorkspaceUnavailable;
+		// Its file can no longer be read: it keeps its last known folders, but is no workspace to create a session in
+		const generationAfterEdits = picker.selectionId;
+		workspaces.set(workspaces.get().map(candidate => extUri.isEqual(candidate.uri, product.uri) ? { ...candidate, missing: true } : candidate), undefined);
+		const missingUnavailable = picker.isSelectedWorkspaceUnavailable;
+		workspaces.set(workspaces.get().map(candidate => extUri.isEqual(candidate.uri, product.uri) ? { ...candidate, missing: undefined } : candidate), undefined);
 		// All its folders removed: it can no longer be the selection's, which says so
 		edit(product, []);
 		// Following the workspace's file is not the user's choice
-		assert.deepStrictEqual({ userSelectionsByEdits: userSelections - userSelectionsBeforeEdits, stillNotPicked, unchanged, changed, added, firstRemoved, replaced, availableBefore, unavailable: picker.isSelectedWorkspaceUnavailable, folders: picker.selectedWorkspaceConfig?.folders.map(folder => folder.path) }, {
+		assert.deepStrictEqual({ userSelectionsByEdits: userSelections - userSelectionsBeforeEdits, sameSelection: generationAfterEdits === generationBeforeEdits, missingUnavailable, stillNotPicked, unchanged, changed, added, firstRemoved, replaced, availableBefore, unavailable: picker.isSelectedWorkspaceUnavailable, folders: picker.selectedWorkspaceConfig?.folders.map(folder => folder.path) }, {
 			userSelectionsByEdits: 0,
+			sameSelection: true,
+			missingUnavailable: true,
 			stillNotPicked: true,
 			unchanged: [],
 			changed: [

@@ -3480,6 +3480,11 @@ export class NewChatWidget extends Disposable {
 			this._backgroundSendStatus.set(undefined, undefined);
 			this._lastBackgroundSendOptions = undefined;
 		}
+		// What is sent goes to the selection it was sent for, or a draft that replaced its own as its workspace's folders changed
+		const selectionId = this._workspacePicker.selectionId;
+		while (this._workspaceFoldersReconciliation) {
+			await this._workspaceFoldersReconciliation.catch(() => undefined);
+		}
 		let session = this._session.get();
 		// A hosted composer creating its draft again, such as after a send that failed, sends once it has it.
 		if (!session && this._draftHost && this._pendingWorkspaceCreation) {
@@ -3495,10 +3500,10 @@ export class NewChatWidget extends Disposable {
 			this.notificationService.error(localize('newSession.workspaceValidationFailed', "Could not check the session's workspace: {0}", toErrorMessage(error)));
 			return false;
 		});
-		if (!workspaceValid || session !== this._session.get()) {
+		if (!workspaceValid || !this._session.get()) {
 			return false;
 		}
-		const reconciled = await this._reconcileDraftBeforeSend(session);
+		const reconciled = await this._reconcileDraftBeforeSend(session, selectionId);
 		if (!reconciled) {
 			return false;
 		}
@@ -3876,6 +3881,8 @@ export class NewChatWidget extends Disposable {
 
 	/** Replacing the draft after its workspace's folders changed; a send waits for it. */
 	private _workspaceFoldersReconciliation: Promise<void> | undefined;
+	/** The draft that replaced each draft as its workspace's folders changed, by session ID. */
+	private readonly _workspaceFoldersReplacements = new Map<string, string>();
 
 	/**
 	 * A draft works in its workspace's folders as they are: a draft not yet sent, in a workspace whose folders changed, is
@@ -3900,7 +3907,13 @@ export class NewChatWidget extends Disposable {
 			if (host?.setRequestedTarget && !this.uriIdentityService.extUri.isEqual(host.requestedTarget?.get()?.folderUri, folderUri)) {
 				host.setRequestedTarget({ ...host.requestedTarget?.get(), folderUri }, 'background');
 			}
+			const selectionId = this._workspacePicker.selectionId;
 			await this._onWorkspaceSelected(folderUri);
+			const replacement = this._session.get();
+			// Its replacement only while the selection is the same: another selection's draft is not
+			if (replacement && replacement !== session && selectionId === this._workspacePicker.selectionId) {
+				this._workspaceFoldersReplacements.set(session.sessionId, replacement.sessionId);
+			}
 		})();
 		this._workspaceFoldersReconciliation = reconciliation;
 		const clear = () => {
@@ -3913,19 +3926,37 @@ export class NewChatWidget extends Disposable {
 	}
 
 	/**
-	 * The draft to send: `session`, or the draft that replaces it in its workspace's folders as they are now, once any
-	 * replacement settles. `undefined`, with the user told, when no draft works in them, which keeps the input.
+	 * The draft to send: `session`, or the draft that replaced it in its workspace's folders as they are now, once any
+	 * replacement settles, while the selection is the one it was sent for (`selectionId`). `undefined` for another
+	 * selection, which the user picked after sending, or, with the user told, when no draft works in the folders: the
+	 * input is kept.
 	 */
-	private async _reconcileDraftBeforeSend(session: ISession): Promise<ISession | undefined> {
+	private async _reconcileDraftBeforeSend(session: ISession, selectionId: number): Promise<ISession | undefined> {
 		while (this._workspaceFoldersReconciliation) {
 			await this._workspaceFoldersReconciliation.catch(() => undefined);
 		}
+		// `session`, or a draft that replaced it as its workspace's folders changed
+		const isSessionOrReplacement = (candidate: ISession) => {
+			let sessionId: string | undefined = session.sessionId;
+			for (let replacements = 0; sessionId && replacements <= this._workspaceFoldersReplacements.size; replacements++) {
+				if (sessionId === candidate.sessionId) {
+					return true;
+				}
+				sessionId = this._workspaceFoldersReplacements.get(sessionId);
+			}
+			return false;
+		};
+		const isSameSelection = () => this._workspacePicker.selectionId === selectionId;
 		let current = this._session.get();
-		if (current && !isSessionCreated(current) && !this._isDraftInSelectedWorkspaceFolders(current)) {
+		if (current && isSameSelection() && isSessionOrReplacement(current) && !isSessionCreated(current) && !this._isDraftInSelectedWorkspaceFolders(current)) {
 			await this._handleSelectedWorkspaceFoldersChange().catch(error => this.logService.error('Failed to replace the draft for its workspace\'s folders:', error));
 			current = this._session.get();
 		}
-		if (current && (current === session || !isSessionCreated(current)) && (isSessionCreated(current) || this._isDraftInSelectedWorkspaceFolders(current))) {
+		// Another selection, or its draft: the user picked it after sending, which sends nothing
+		if (!current || !isSameSelection() || !isSessionOrReplacement(current)) {
+			return undefined;
+		}
+		if (isSessionCreated(current) ? current === session : this._isDraftInSelectedWorkspaceFolders(current)) {
 			return current;
 		}
 		this.notificationService.warn(localize('newChatWidget.workspaceFoldersChanged', "The folders of this session's workspace changed. Check the workspace and send again."));
