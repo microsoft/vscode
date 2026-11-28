@@ -8,9 +8,9 @@ import { spawn } from 'child_process';
 import { mkdtemp, rm } from 'fs/promises';
 import { connect } from 'net';
 import { tmpdir } from 'os';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import type { IDisposable } from '../../../../base/common/lifecycle.js';
 import { join } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -310,6 +310,64 @@ suite('AgentHostClientForwarding', () => {
 			});
 		} finally {
 			registration?.dispose();
+			service.dispose();
+			await rm(folder, { recursive: true, force: true });
+		}
+	});
+
+	test('reports a connection that sandboxing closed while the client was connecting to its agent as sandboxed', async () => {
+		const folder = await mkdtemp(join(tmpdir(), 'vscode-ah-fwd-test-'));
+		const environment: NodeJS.ProcessEnv = { ...process.env, [AGENT_HOST_CLIENT_FORWARDING_ENV]: '1', HOME: folder, XDG_CONFIG_HOME: join(folder, '.config'), GIT_CONFIG_NOSYSTEM: '1' };
+		delete environment.SSH_AUTH_SOCK;
+		delete environment.GIT_CONFIG_GLOBAL;
+		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
+		const configuration = store.add(new AgentConfigurationService(stateManager, new NullLogService()));
+		const uses: (ITelemetryData | undefined)[] = [];
+		const telemetryService = new class extends mock<ITelemetryService>() {
+			override readonly telemetryLevel = TelemetryLevel.USAGE;
+			override publicLog2(eventName: string, data?: ITelemetryData): void {
+				if (eventName === 'agentHost.forwardingUse') {
+					uses.push(data);
+				}
+			}
+		}();
+		const service = store.add(new AgentHostClientForwardingService(environment, process.execPath, new NullLogService(), stateManager, configuration, telemetryService));
+		const opening = new DeferredPromise<void>();
+		const opened = new DeferredPromise<void>();
+		const registration = service.registerClient({
+			clientId: 'client',
+			onDidReceiveData: Event.None,
+			onDidReceiveClose: Event.None,
+			describe: async () => ({ gitConfig: false, gitCredentials: true, sshAgent: true, gpgAgent: false, keyboxd: false }),
+			open: async () => {
+				opening.complete();
+				await opened.p;
+			},
+			sendData: () => { },
+			sendClose: () => { },
+			gitCredential: async () => '',
+			gpgKeys: async () => ({}),
+			gitConfig: async () => ({ user: {} }),
+		});
+		try {
+			await service.settled();
+			const socket = connect(environment.SSH_AUTH_SOCK!);
+			socket.on('error', () => { });
+			const closed = new Promise<void>(resolve => socket.once('close', () => resolve()));
+			await opening.p;
+			const session = 'copilot:/sandboxed';
+			stateManager.createSession({
+				resource: session, provider: 'copilot', title: 'Sandboxed', status: SessionStatus.Idle,
+				createdAt: '2026-01-01T00:00:00Z', modifiedAt: '2026-01-01T00:00:00Z',
+				defaultChat: buildDefaultChatUri(session),
+			});
+			configuration.setChatSandboxEnabled({ session, chat: buildDefaultChatUri(session) }, true);
+			await closed;
+			opened.complete();
+			await timeout(0);
+			assert.deepStrictEqual(uses, [{ clientId: 'client', service: 'ssh-agent', operation: 'connect', outcome: 'sandboxed', protocol: undefined, hostCategory: undefined }]);
+		} finally {
+			registration.dispose();
 			service.dispose();
 			await rm(folder, { recursive: true, force: true });
 		}

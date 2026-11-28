@@ -85,6 +85,8 @@ interface IForwardedConnection {
 	readonly socket: Socket;
 	readonly client: IRegisteredClient;
 	open: boolean;
+	/** Whether a session turned sandboxing on, which closed the connection. */
+	sandboxed: boolean;
 	readonly pending: VSBuffer[];
 }
 
@@ -201,6 +203,7 @@ export class AgentHostClientForwardingService extends Disposable implements IAge
 			const closeIfSandboxed = () => {
 				if (this._hasSandboxedSession()) {
 					for (const connection of this._connections.values()) {
+						connection.sandboxed = true;
 						connection.socket.destroy();
 					}
 				}
@@ -616,11 +619,12 @@ export class AgentHostClientForwardingService extends Disposable implements IAge
 	/** @param reportUse Whether to report the connection as use of the client's agent. */
 	private _forward(socket: Socket, name: ClientForwardingSocket, client: IRegisteredClient, reportUse: boolean): void {
 		const id = ++this._nextConnection;
-		const connection: IForwardedConnection = { socket, client, open: false, pending: [] };
+		const connection: IForwardedConnection = { socket, client, open: false, sandboxed: false, pending: [] };
 		this._connections.set(id, connection);
+		// A connection sandboxing closed while the client was connecting was not forwarded.
 		const report = (outcome: ClientForwardingSocketOutcome) => {
 			if (reportUse) {
-				this._telemetry.reportSocketUse(client.client.clientId, name, outcome);
+				this._telemetry.reportSocketUse(client.client.clientId, name, connection.sandboxed ? 'sandboxed' : outcome);
 			}
 		};
 		socket.on('data', (data: Buffer) => {
