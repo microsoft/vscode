@@ -7,7 +7,7 @@ import '../../browser/keyboardLayouts/en.darwin.js';
 import '../../browser/keyboardLayouts/de.darwin.js';
 import { KeyboardLayoutContribution } from '../../browser/keyboardLayouts/_.contribution.js';
 import { BrowserKeyboardMapperFactoryBase } from '../../browser/keyboardLayoutService.js';
-import { KeymapInfo, IKeymapInfo } from '../../common/keymapInfo.js';
+import { KeymapInfo, IKeymapInfo, IRawMixedKeyboardMapping } from '../../common/keymapInfo.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -17,6 +17,9 @@ import { TestStorageService } from '../../../../test/common/workbenchTestService
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { getKeyboardLayoutId } from '../../../../../platform/keyboardLayout/common/keyboardLayout.js';
+import { CachedKeyboardMapper } from '../../../../../platform/keyboardLayout/common/keyboardMapper.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 
 class TestKeyboardMapperFactory extends BrowserKeyboardMapperFactoryBase {
 	constructor(configurationService: IConfigurationService, notificationService: INotificationService, storageService: IStorageService, commandService: ICommandService) {
@@ -164,5 +167,134 @@ suite('keyboard layout loader', () => {
 
 		instance.setUSKeyboardLayout();
 		assert.strictEqual(instance.activeKeyboardLayout!.isUSStandard, true);
+	});
+});
+
+class TestLoadingKeyboardMapperFactory extends BrowserKeyboardMapperFactoryBase {
+	browserAPIDetections = 0;
+	// Don't depend on the keyboard of the machine running the tests
+	browserKeyMapping: Promise<IRawMixedKeyboardMapping | null> = Promise.resolve(null);
+
+	constructor(configurationService: IConfigurationService) {
+		super(configurationService);
+	}
+
+	loadKeymapInfos(): void {
+		this._onKeymapInfosLoaded(KeyboardLayoutContribution.INSTANCE.layoutInfos);
+	}
+
+	protected override _getBrowserKeyMapping(): Promise<IRawMixedKeyboardMapping | null> {
+		return this.browserKeyMapping;
+	}
+
+	override setLayoutFromBrowserAPI(): void {
+		this.browserAPIDetections++;
+	}
+
+	simulateBrowserLayoutChange(): Promise<void> {
+		return this._onBrowserLayoutChange();
+	}
+}
+
+suite('keyboard layout loader with keyboard.layout setting', () => {
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createFactory(layout: string): { instance: TestLoadingKeyboardMapperFactory; fired: () => number; configurationService: TestConfigurationService } {
+		const configurationService = new TestConfigurationService({ 'keyboard.layout': layout });
+		const instance = ds.add(new TestLoadingKeyboardMapperFactory(configurationService));
+		let fired = 0;
+		ds.add(instance.onDidChangeKeyboardMapper(() => fired++));
+		return { instance, fired: () => fired, configurationService };
+	}
+
+	test('applies the configured keyboard layout once layouts are loaded', () => {
+		const { instance, fired } = createFactory('com.apple.keylayout.German');
+		assert.strictEqual(instance.activeKeyboardLayout, null);
+
+		instance.loadKeymapInfos();
+		assert.strictEqual(getKeyboardLayoutId(instance.activeKeyboardLayout!), 'com.apple.keylayout.German');
+		assert.strictEqual(fired(), 1);
+		assert.ok(instance.getKeyboardMapper() instanceof CachedKeyboardMapper);
+	});
+
+	test('applies the configured keyboard layout when it is the first loaded layout', () => {
+		const firstLayoutId = getKeyboardLayoutId(KeyboardLayoutContribution.INSTANCE.layoutInfos[0].layout);
+		const { instance, fired } = createFactory(firstLayoutId);
+
+		instance.loadKeymapInfos();
+		assert.strictEqual(getKeyboardLayoutId(instance.activeKeyboardLayout!), firstLayoutId);
+		assert.strictEqual(fired(), 1);
+		assert.ok(instance.getKeyboardMapper() instanceof CachedKeyboardMapper);
+	});
+
+	test('setKeyboardLayout reports whether the layout was found', () => {
+		const { instance } = createFactory('autodetect');
+		instance.loadKeymapInfos();
+
+		assert.strictEqual(instance.setKeyboardLayout('com.example.unknown'), false);
+		assert.strictEqual(instance.setKeyboardLayout('com.apple.keylayout.German'), true);
+		assert.strictEqual(getKeyboardLayoutId(instance.activeKeyboardLayout!), 'com.apple.keylayout.German');
+	});
+
+	test('ignores browser layout changes while the configured keyboard layout is active', async () => {
+		const { instance } = createFactory('com.apple.keylayout.German');
+		instance.loadKeymapInfos();
+		assert.strictEqual(instance.browserAPIDetections, 0);
+
+		await instance.simulateBrowserLayoutChange();
+		assert.strictEqual(instance.browserAPIDetections, 0);
+		assert.strictEqual(getKeyboardLayoutId(instance.activeKeyboardLayout!), 'com.apple.keylayout.German');
+	});
+
+	test('ignores browser layout changes before layouts are loaded while a keyboard layout is configured', async () => {
+		const { instance } = createFactory('com.example.unknown');
+
+		await instance.simulateBrowserLayoutChange();
+		assert.strictEqual(instance.browserAPIDetections, 0);
+	});
+
+	test('auto-detects on browser layout changes when the configured keyboard layout is unknown', async () => {
+		const { instance } = createFactory('com.example.unknown');
+		instance.loadKeymapInfos();
+		assert.strictEqual(instance.browserAPIDetections, 1);
+
+		await instance.simulateBrowserLayoutChange();
+		assert.strictEqual(instance.browserAPIDetections, 2);
+	});
+
+	test('auto-detects on browser layout changes when no keyboard layout is configured', async () => {
+		const { instance } = createFactory('autodetect');
+		instance.loadKeymapInfos();
+		assert.strictEqual(instance.browserAPIDetections, 1);
+
+		await instance.simulateBrowserLayoutChange();
+		assert.strictEqual(instance.browserAPIDetections, 2);
+	});
+
+	test('auto-detects on browser layout changes when the configured keyboard layout is known but not active', async () => {
+		const { instance } = createFactory('com.apple.keylayout.German');
+		instance.loadKeymapInfos();
+		instance.setUSKeyboardLayout();
+		assert.strictEqual(instance.browserAPIDetections, 0);
+
+		await instance.simulateBrowserLayoutChange();
+		assert.strictEqual(instance.browserAPIDetections, 1);
+	});
+
+	test('does not auto-detect when the configured keyboard layout is applied while the browser mapping is read', async () => {
+		const { instance, configurationService } = createFactory('autodetect');
+		instance.loadKeymapInfos();
+		assert.strictEqual(instance.browserAPIDetections, 1);
+
+		const browserKeyMapping = new DeferredPromise<IRawMixedKeyboardMapping | null>();
+		instance.browserKeyMapping = browserKeyMapping.p;
+		const layoutChange = instance.simulateBrowserLayoutChange();
+		configurationService.setUserConfiguration('keyboard.layout', 'com.apple.keylayout.German');
+		instance.setKeyboardLayout('com.apple.keylayout.German');
+
+		browserKeyMapping.complete(null);
+		await layoutChange;
+		assert.strictEqual(instance.browserAPIDetections, 1);
+		assert.strictEqual(getKeyboardLayoutId(instance.activeKeyboardLayout!), 'com.apple.keylayout.German');
 	});
 });
