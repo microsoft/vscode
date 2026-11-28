@@ -6,7 +6,7 @@
 import { ResourceMap } from '../../../../base/common/map.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { EncodingMode, IResolvedTextFileEditorModel, isTextFileEditorModel, ITextFileEditorModel, ITextFileService } from '../../../services/textfile/common/textfiles.js';
-import { Disposable, DisposableMap, DisposableStore, IReference, ReferenceCollection } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, ReferenceCollection } from '../../../../base/common/lifecycle.js';
 import { DiffAlgorithmName, IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -14,7 +14,7 @@ import { IChange } from '../../../../editor/common/diff/legacyLinesDiffComputer.
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { ITextModel, shouldSynchronizeModel } from '../../../../editor/common/model.js';
 import { compareChanges, getModifiedEndLineNumber, IQuickDiffService, QuickDiff, QuickDiffChange, QuickDiffResult } from '../common/quickDiff.js';
-import { ThrottledDelayer } from '../../../../base/common/async.js';
+import { disposableTimeout, ThrottledDelayer } from '../../../../base/common/async.js';
 import { ISCMRepository, ISCMService } from '../common/scm.js';
 import { sortedDiff, equals } from '../../../../base/common/arrays.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
@@ -55,21 +55,84 @@ export interface IQuickDiffModelService {
 	createQuickDiffModelReference(resource: URI, options?: QuickDiffModelOptions): IReference<QuickDiffModel> | undefined;
 }
 
-class QuickDiffModelReferenceCollection extends ReferenceCollection<QuickDiffModel> {
+/**
+ * How long a quick diff model is kept after its last reference is released.
+ */
+const UNREFERENCED_MODEL_TIMEOUT = 60 * 1000;
+
+/**
+ * How many quick diff models are kept at most after their last reference is released.
+ */
+const MAX_UNREFERENCED_MODELS = 10;
+
+class QuickDiffModelReferenceCollection extends ReferenceCollection<QuickDiffModel> implements IDisposable {
+
+	/**
+	 * Models whose last reference was released, in the order in which it was released. Showing the editor
+	 * of a model again (ex: switching back to its tab) reuses it, instead of asking the quick diff providers
+	 * for the original resources and resolving them again, which can be costly (ex: it runs git).
+	 */
+	private readonly _unreferencedModels = new Map<string, { readonly model: QuickDiffModel; readonly disposables: IDisposable }>();
+
 	constructor(@IInstantiationService private readonly _instantiationService: IInstantiationService) {
 		super();
 	}
 
-	protected override createReferencedObject(_key: string, textFileModel: IResolvedTextFileEditorModel, options: QuickDiffModelOptions): QuickDiffModel {
+	protected override createReferencedObject(key: string, textFileModel: IResolvedTextFileEditorModel, options: QuickDiffModelOptions): QuickDiffModel {
+		const unreferenced = this._unreferencedModels.get(key);
+		if (unreferenced) {
+			this._unreferencedModels.delete(key);
+			unreferenced.disposables.dispose();
+
+			if (unreferenced.model.textFileModel === textFileModel) {
+				unreferenced.model.resume();
+				return unreferenced.model;
+			}
+
+			unreferenced.model.dispose();
+		}
+
 		return this._instantiationService.createInstance(QuickDiffModel, textFileModel, options);
 	}
 
-	protected override destroyReferencedObject(_key: string, object: QuickDiffModel): void {
-		object.dispose();
+	protected override destroyReferencedObject(key: string, object: QuickDiffModel): void {
+		if (object.textFileModel.isDisposed()) {
+			object.dispose();
+			return;
+		}
+
+		object.suspend();
+
+		const disposables = new DisposableStore();
+		disposables.add(disposableTimeout(() => this.disposeUnreferencedModel(key), UNREFERENCED_MODEL_TIMEOUT));
+		disposables.add(object.textFileModel.onWillDispose(() => this.disposeUnreferencedModel(key)));
+		this._unreferencedModels.set(key, { model: object, disposables });
+
+		if (this._unreferencedModels.size > MAX_UNREFERENCED_MODELS) {
+			const [oldestKey] = this._unreferencedModels.keys();
+			this.disposeUnreferencedModel(oldestKey);
+		}
+	}
+
+	private disposeUnreferencedModel(key: string): void {
+		const unreferenced = this._unreferencedModels.get(key);
+		if (!unreferenced) {
+			return;
+		}
+
+		this._unreferencedModels.delete(key);
+		unreferenced.disposables.dispose();
+		unreferenced.model.dispose();
+	}
+
+	dispose(): void {
+		for (const key of [...this._unreferencedModels.keys()]) {
+			this.disposeUnreferencedModel(key);
+		}
 	}
 }
 
-export class QuickDiffModelService implements IQuickDiffModelService {
+export class QuickDiffModelService extends Disposable implements IQuickDiffModelService {
 	_serviceBrand: undefined;
 
 	private readonly _references: QuickDiffModelReferenceCollection;
@@ -79,7 +142,8 @@ export class QuickDiffModelService implements IQuickDiffModelService {
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
-		this._references = this.instantiationService.createInstance(QuickDiffModelReferenceCollection);
+		super();
+		this._references = this._register(this.instantiationService.createInstance(QuickDiffModelReferenceCollection));
 	}
 
 	createQuickDiffModelReference(resource: URI, options: QuickDiffModelOptions = decoratorQuickDiffModelOptions): IReference<QuickDiffModel> | undefined {
@@ -106,6 +170,8 @@ export class QuickDiffModel extends Disposable {
 	private _quickDiffs: QuickDiff[] = [];
 	private _quickDiffsPromise?: Promise<QuickDiff[]>;
 	private _diffDelayer = this._register(new ThrottledDelayer<void>(200));
+	private _suspended = false;
+	private _diffPending = false;
 
 	private readonly _onDidChange = this._register(new Emitter<{ changes: QuickDiffChange[]; diff: ISplice<QuickDiffChange>[] }>());
 	readonly onDidChange: Event<{ changes: QuickDiffChange[]; diff: ISplice<QuickDiffChange>[] }> = this._onDidChange.event;
@@ -187,6 +253,39 @@ export class QuickDiffModel extends Disposable {
 		return this._quickDiffs;
 	}
 
+	get textFileModel(): IResolvedTextFileEditorModel {
+		return this._model;
+	}
+
+	/**
+	 * Stops computing the changes, ex: while no editor shows the model. The
+	 * changes are computed again on {@link resume} if anything changed.
+	 */
+	suspend(): void {
+		this._suspended = true;
+
+		if (this._diffDelayer.isTriggered()) {
+			this._diffDelayer.cancel();
+			this._diffPending = true;
+		}
+	}
+
+	resume(): void {
+		this._suspended = false;
+
+		// The changes were computed for another version of the model and do not match its lines anymore
+		const versionId = this._model.textEditorModel.getVersionId();
+		if (this._changesVersionId !== versionId) {
+			this.setChanges([], [], new Map(), versionId);
+			this._diffPending = true;
+		}
+
+		if (this._diffPending) {
+			this._diffPending = false;
+			this.triggerDiff();
+		}
+	}
+
 	public getQuickDiffResults(): QuickDiffResult[] {
 		return this._quickDiffs.map(quickDiff => {
 			const changes = this.allChanges
@@ -227,6 +326,11 @@ export class QuickDiffModel extends Disposable {
 
 	private triggerDiff(): void {
 		if (!this._diffDelayer) {
+			return;
+		}
+
+		if (this._suspended) {
+			this._diffPending = true;
 			return;
 		}
 
