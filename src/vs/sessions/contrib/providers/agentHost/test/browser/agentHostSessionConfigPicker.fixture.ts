@@ -7,6 +7,7 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ActionWidgetService, IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -34,7 +35,7 @@ import { ISendRequestSentEvent, ISessionsManagementService } from '../../../../.
 import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionChangesService } from '../../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
 import { IOnboardingScenarioService } from '../../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
-import { AgentHostSessionConfigPicker } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostSessionConfigPicker.js';
+import { AgentHostSessionConfigPicker, MobileAgentHostSessionConfigPicker } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostSessionConfigPicker.js';
 import { worktreeSuggestionInputPresentation } from '../../../../../../workbench/contrib/sessions/browser/worktreeSuggestion/worktreeSuggestionInputPresentation.js';
 import { IWorktreeSuggestionService, WorktreeSuggestionService } from '../../../../../../workbench/contrib/sessions/browser/worktreeSuggestion/worktreeSuggestionService.js';
 import { WorktreeSuggestionVariant } from '../../../../../../workbench/contrib/sessions/common/worktreeSuggestion.js';
@@ -49,6 +50,8 @@ interface IIsolationPickerOptions {
 	readonly devContainer?: boolean;
 	/** Lists two Git repositories and selects a worktree for each of them. */
 	readonly allFolders?: boolean;
+	/** Shows the phone repository sheet instead of the desktop dropdown. */
+	readonly phone?: boolean;
 	/** Suggests a new worktree for a folder with uncommitted files, counted after Branch and listed in the picker. */
 	readonly uncommittedFiles?: {
 		/** Whether the user already started a session in a new worktree. */
@@ -58,10 +61,16 @@ interface IIsolationPickerOptions {
 
 const UNCOMMITTED_FILES = ['src/app.ts', 'README.md', 'src/todo.ts', 'src/store.ts', 'src/view.ts'];
 
-async function renderIsolationPicker({ container, disposableStore, theme }: ComponentFixtureContext, { value, devContainer = false, allFolders = false, uncommittedFiles }: IIsolationPickerOptions): Promise<void> {
+async function renderIsolationPicker({ container, disposableStore, theme }: ComponentFixtureContext, { value, devContainer = false, allFolders = false, phone = false, uncommittedFiles }: IIsolationPickerOptions): Promise<void> {
 	container.classList.add('monaco-workbench', 'agent-sessions-workbench');
-	container.style.width = '480px';
-	container.style.height = uncommittedFiles ? '340px' : '220px';
+	if (phone) {
+		container.classList.add('phone-layout');
+		container.style.position = 'relative';
+		container.style.boxSizing = 'border-box';
+		container.style.contain = 'layout paint';
+	}
+	container.style.width = phone ? '390px' : '480px';
+	container.style.height = phone ? '640px' : uncommittedFiles ? '340px' : '220px';
 	container.style.padding = 'var(--vscode-spacing-size160)';
 	if (uncommittedFiles) {
 		// The Git extension registers the color of modified files, which the fixture's color registry lacks.
@@ -181,7 +190,7 @@ async function renderIsolationPicker({ container, disposableStore, theme }: Comp
 	instantiationService.set(IContextViewService, disposableStore.add(instantiationService.createInstance(ContextViewService)));
 	instantiationService.set(IActionWidgetService, disposableStore.add(instantiationService.createInstance(ActionWidgetService)));
 	const row = dom.append(container, dom.$('.new-chat-session-options'));
-	const picker = disposableStore.add(instantiationService.createInstance(AgentHostSessionConfigPicker, testChatSourceOf(session), {
+	const picker = disposableStore.add(instantiationService.createInstance(phone ? MobileAgentHostSessionConfigPicker : AgentHostSessionConfigPicker, testChatSourceOf(session), {
 		property: SessionConfigKey.Isolation,
 		isolationPresentation: worktreeSuggestionInputPresentation.createIsolationPicker?.(session, instantiationService),
 	}));
@@ -189,6 +198,14 @@ async function renderIsolationPicker({ container, disposableStore, theme }: Comp
 	picker.setFocusable(true);
 	trigger?.click();
 	await new Promise<void>(resolve => dom.getWindow(container).requestAnimationFrame(() => resolve()));
+	if (phone) {
+		const overlay = container.querySelector<HTMLElement>('.mobile-picker-sheet-overlay');
+		if (!overlay) {
+			throw new Error('Expected the phone repository sheet');
+		}
+		overlay.style.height = '100%';
+		disposableStore.add(toDisposable(() => overlay.querySelector<HTMLButtonElement>('.mobile-picker-sheet-done')?.click()));
+	}
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/chat/isolationPicker/' }, {
@@ -201,6 +218,9 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/isolationPicker/'
 	}),
 	NewWorktreeForAllFolders: defineComponentFixture({
 		render: context => renderIsolationPicker(context, { value: 'worktree', allFolders: true }),
+	}),
+	PhoneNewWorktreeForAllFoldersWithDevContainer: defineComponentFixture({
+		render: context => renderIsolationPicker(context, { value: 'folder', allFolders: true, devContainer: true, phone: true }),
 	}),
 	DevContainer: defineComponentFixture({
 		render: context => renderIsolationPicker(context, { value: 'folder', devContainer: true }),

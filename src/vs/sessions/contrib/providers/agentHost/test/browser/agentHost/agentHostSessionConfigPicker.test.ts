@@ -814,6 +814,62 @@ suite('Agent Host Session Config Picker', () => {
 		});
 	});
 
+	test('does not write New Worktree for All Folders once the isolation no longer offers it', async () => {
+		const services = setupServices(store);
+		await services.configurationService.setUserConfiguration(SESSIONS_WORKSPACES_ENABLED_SETTING, true);
+		services.workspaceObs.set(makeMultiFolderWorkspace(['/repo', '/other']), undefined);
+		services.provider.config = makeWorktreeFoldersConfig('folder');
+		const { container } = renderPicker(store, services);
+		isolationSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+		await timeout(0);
+		const item = services.actionWidget.items.find(item => item.item?.value === 'worktree:allFolders')!.item!;
+		const config = makeWorktreeFoldersConfig('folder');
+		services.provider.config = {
+			...config,
+			schema: { ...config.schema, properties: { ...config.schema.properties, [SessionConfigKey.Isolation]: { title: 'Isolation', type: 'string', enum: ['folder', 'worktree', 'sandbox'] } } },
+		};
+		await services.actionWidget.delegate!.onSelect(item);
+		await timeout(0);
+		assert.deepStrictEqual({ writes: services.provider.setSessionConfigValueArguments, errors: services.notificationErrors }, { writes: [], errors: [] });
+	});
+
+	test('does not select New Worktree for All Folders once Dev Container execution is on', async () => {
+		const services = setupServices(store);
+		await services.configurationService.setUserConfiguration(SESSIONS_WORKSPACES_ENABLED_SETTING, true);
+		services.workspaceObs.set(makeMultiFolderWorkspace(['/repo', '/other']), undefined);
+		services.provider.config = makeWorktreeFoldersConfig('folder');
+		const { container } = renderPicker(store, services);
+		isolationSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+		await timeout(0);
+		const item = services.actionWidget.items.find(item => item.item?.value === 'worktree:allFolders')!.item!;
+		services.provider.devContainerEnabled = true;
+		await services.actionWidget.delegate!.onSelect(item);
+		await timeout(0);
+		assert.deepStrictEqual(services.provider.setSessionConfigValueArguments, []);
+	});
+
+	test('disables New Worktree for All Folders in the phone repository sheet with Dev Container execution', async () => {
+		const services = setupServices(store);
+		await services.configurationService.setUserConfiguration(SESSIONS_WORKSPACES_ENABLED_SETTING, true);
+		services.workspaceObs.set(makeMultiFolderWorkspace(['/repo', '/other']), undefined);
+		services.provider.config = makeWorktreeFoldersConfig('folder');
+		services.provider.devContainerEnabled = true;
+		const mainContainer = services.instantiationService.get(IWorkbenchLayoutService).mainContainer;
+		mainContainer.classList.add('phone-layout');
+		mainWindow.document.body.appendChild(mainContainer);
+		store.add(toDisposable(() => mainContainer.remove()));
+		const picker = store.add(services.instantiationService.createInstance(MobileAgentHostSessionConfigPicker, testChatSourceOf(services.sessionObs), { property: SessionConfigKey.Isolation }));
+		const container = document.createElement('div');
+		picker.render(container);
+		container.querySelector<HTMLElement>('.action-label')!.click();
+		await timeout(0);
+		const disabled = Array.from(mainContainer.querySelectorAll<HTMLElement>('.mobile-picker-sheet-item'))
+			.filter(row => row.getAttribute('aria-disabled') === 'true')
+			.map(row => row.querySelector('.mobile-picker-sheet-label')?.textContent);
+		mainContainer.querySelector<HTMLButtonElement>('.mobile-picker-sheet-done')?.click();
+		assert.deepStrictEqual(disabled, ['New Worktree for All Folders']);
+	});
+
 	test('completes New Worktree for All Folders for its draft when another session shows while the isolation resolves', async () => {
 		const services = setupServices(store);
 		await services.configurationService.setUserConfiguration(SESSIONS_WORKSPACES_ENABLED_SETTING, true);
@@ -839,14 +895,18 @@ suite('Agent Host Session Config Picker', () => {
 		});
 	});
 
-	test('keeps the Worktree Folders picker for isolation schemas without the folder and worktree choice', () => {
+	test('keeps the Worktree Folders picker unless the isolation choice offers and writes worktrees for all folders', async () => {
 		const shown = [];
-		for (const isolation of [
-			{ enum: ['folder', 'worktree', 'sandbox'] },
-			{ enum: ['folder', 'worktree'], enumDynamic: true },
-			{ enum: ['folder', 'worktree'] },
+		for (const { isolation, repositories } of [
+			{ isolation: { enum: ['folder', 'worktree', 'sandbox'] }, repositories: ['/repo', '/other'] },
+			{ isolation: { enum: ['folder', 'worktree'], enumDynamic: true }, repositories: ['/repo', '/other'] },
+			{ isolation: { enum: ['folder', 'worktree'], readOnly: true }, repositories: ['/repo', '/other'] },
+			{ isolation: { enum: ['folder', 'worktree'] }, repositories: ['/repo'] },
+			{ isolation: { enum: ['folder', 'worktree'] }, repositories: ['/repo', '/other'] },
 		]) {
 			const services = setupServices(store);
+			await services.configurationService.setUserConfiguration(SESSIONS_WORKSPACES_ENABLED_SETTING, true);
+			services.workspaceObs.set(makeMultiFolderWorkspace(repositories), undefined);
 			const config = makeWorktreeFoldersConfig('folder');
 			services.provider.config = {
 				...config,
@@ -855,7 +915,7 @@ suite('Agent Host Session Config Picker', () => {
 			const { container } = renderPicker(store, services);
 			shown.push(Array.from(container.querySelectorAll<HTMLElement>('[data-session-config-property]')).some(element => element.dataset.sessionConfigProperty === SessionConfigKey.WorktreeFolders));
 		}
-		assert.deepStrictEqual(shown, [true, true, false]);
+		assert.deepStrictEqual(shown, [true, true, true, true, false]);
 	});
 
 	test('counts a repository once across case variants of its path on a case-insensitive platform', async () => {
