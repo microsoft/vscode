@@ -14,6 +14,7 @@ import { EditorOption } from '../../../common/config/editorOptions.js';
 import { CursorState } from '../../../common/cursorCommon.js';
 import { CursorChangeReason, ICursorSelectionChangedEvent } from '../../../common/cursorEvents.js';
 import { CursorMoveCommands } from '../../../common/cursor/cursorMoveCommands.js';
+import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { Selection } from '../../../common/core/selection.js';
 import { IEditorContribution, IEditorDecorationsCollection, ScrollType } from '../../../common/editorCommon.js';
@@ -300,7 +301,7 @@ export class MultiCursorSession {
 
 		if (isFindWidgetSearch(editor, findController)) {
 			// Find widget owns what is searched for
-			return new MultiCursorSession(editor, findController, false, true, findState.searchString, findState.wholeWord, findState.matchCase, null);
+			return new MultiCursorSession(editor, findController, false, true, findState.searchString, findState.wholeWord, findState.matchCase, findState.isRegex, null);
 		}
 
 		let isDisconnectedFromFindController = false;
@@ -338,7 +339,8 @@ export class MultiCursorSession {
 			searchText = editor.getModel().getValueInRange(s).replace(/\r\n/g, '\n');
 		}
 
-		return new MultiCursorSession(editor, findController, isDisconnectedFromFindController, usesFindOptions, searchText, wholeWord, matchCase, currentMatch);
+		// Selection-derived search text is always treated literally, not as a regex
+		return new MultiCursorSession(editor, findController, isDisconnectedFromFindController, usesFindOptions, searchText, wholeWord, matchCase, false, currentMatch);
 	}
 
 	constructor(
@@ -349,6 +351,7 @@ export class MultiCursorSession {
 		public readonly searchText: string,
 		public readonly wholeWord: boolean,
 		public readonly matchCase: boolean,
+		public readonly isRegex: boolean,
 		public currentMatch: Selection | null
 	) { }
 
@@ -395,12 +398,67 @@ export class MultiCursorSession {
 
 		const allSelections = this._editor.getSelections();
 		const lastAddedSelection = allSelections[allSelections.length - 1];
-		const nextMatch = this._editor.getModel().findNextMatch(this.searchText, lastAddedSelection.getEndPosition(), false, this.matchCase, this.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false);
+		const model = this._editor.getModel();
+		const wordSeparators = this.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null;
+		let position = lastAddedSelection.getEndPosition();
+		let nextMatch = model.findNextMatch(this.searchText, position, this.isRegex, this.matchCase, wordSeparators, false);
+
+		if (nextMatch && nextMatch.range.isEmpty() && nextMatch.range.getStartPosition().equals(position)) {
+			// Looks like we're stuck at this position, unacceptable!
+			position = this._nextSearchPosition(position);
+			nextMatch = model.findNextMatch(this.searchText, position, this.isRegex, this.matchCase, wordSeparators, false);
+		}
 
 		if (!nextMatch) {
 			return null;
 		}
 		return new Selection(nextMatch.range.startLineNumber, nextMatch.range.startColumn, nextMatch.range.endLineNumber, nextMatch.range.endColumn);
+	}
+
+	private _nextSearchPosition(after: Position): Position {
+		const isUsingLineStops = this.isRegex && (
+			this.searchText.indexOf('^') >= 0
+			|| this.searchText.indexOf('$') >= 0
+		);
+
+		let { lineNumber, column } = after;
+		const model = this._editor.getModel()!;
+
+		if (isUsingLineStops || column === model.getLineMaxColumn(lineNumber)) {
+			if (lineNumber === model.getLineCount()) {
+				lineNumber = 1;
+			} else {
+				lineNumber++;
+			}
+			column = 1;
+		} else {
+			column++;
+		}
+
+		return new Position(lineNumber, column);
+	}
+
+	private _prevSearchPosition(before: Position): Position {
+		const isUsingLineStops = this.isRegex && (
+			this.searchText.indexOf('^') >= 0
+			|| this.searchText.indexOf('$') >= 0
+		);
+
+		let { lineNumber, column } = before;
+		const model = this._editor.getModel()!;
+
+		if (isUsingLineStops || column === 1) {
+			if (lineNumber === 1) {
+				lineNumber = model.getLineCount();
+			} else {
+				lineNumber--;
+			}
+			column = model.getLineMaxColumn(lineNumber);
+		} else {
+			column--;
+		}
+
+		return new Position(lineNumber, column);
 	}
 
 	public addSelectionToPreviousFindMatch(): MultiCursorSessionResult | null {
@@ -446,7 +504,16 @@ export class MultiCursorSession {
 
 		const allSelections = this._editor.getSelections();
 		const lastAddedSelection = allSelections[allSelections.length - 1];
-		const previousMatch = this._editor.getModel().findPreviousMatch(this.searchText, lastAddedSelection.getStartPosition(), false, this.matchCase, this.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false);
+		const model = this._editor.getModel();
+		const wordSeparators = this.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null;
+		let position = lastAddedSelection.getStartPosition();
+		let previousMatch = model.findPreviousMatch(this.searchText, position, this.isRegex, this.matchCase, wordSeparators, false);
+
+		if (previousMatch && previousMatch.range.isEmpty() && previousMatch.range.getStartPosition().equals(position)) {
+			// Looks like we're stuck at this position, unacceptable!
+			position = this._prevSearchPosition(position);
+			previousMatch = model.findPreviousMatch(this.searchText, position, this.isRegex, this.matchCase, wordSeparators, false);
+		}
 
 		if (!previousMatch) {
 			return null;
@@ -463,9 +530,9 @@ export class MultiCursorSession {
 
 		const editorModel = this._editor.getModel();
 		if (searchScope) {
-			return editorModel.findMatches(this.searchText, searchScope, false, this.matchCase, this.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
+			return editorModel.findMatches(this.searchText, searchScope, this.isRegex, this.matchCase, this.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
 		}
-		return editorModel.findMatches(this.searchText, true, false, this.matchCase, this.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
+		return editorModel.findMatches(this.searchText, true, this.isRegex, this.matchCase, this.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
 	}
 
 	private _highlightFindOptions(): void {
@@ -538,7 +605,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 				}
 			}));
 			this._sessionDispose.add(findController.getState().onFindReplaceStateChange((e) => {
-				if (session.usesFindOptions && (e.matchCase || e.wholeWord)) {
+				if (session.usesFindOptions && (e.matchCase || e.wholeWord || e.isRegex)) {
 					this._endSession();
 				}
 			}));
