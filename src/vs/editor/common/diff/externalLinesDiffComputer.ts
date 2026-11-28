@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IDiffComputer as IExternalDiffComputer, createDiffComputer as createExternalDiffComputer } from '@vscode/diff';
+import { onUnexpectedError } from '../../../base/common/errors.js';
 // #if MONACO
 // import { createTsDiffComputer } from '@vscode/diff/core';
 // #endif
@@ -43,6 +44,23 @@ export function getExternalLinesDiffComputer(useWasm: boolean): Promise<ILinesDi
 		externalComputers.set(useWasm, computer);
 	}
 	return computer;
+}
+
+let packageComputer: Promise<ILinesDiffComputer> | undefined;
+
+/**
+ * The package's wasm backend, or its TypeScript backend where wasm cannot be loaded (e.g. a CSP without `wasm-unsafe-eval`).
+ * Rejects only if the package itself cannot be loaded.
+ */
+export function getPackageLinesDiffComputer(): Promise<ILinesDiffComputer> {
+	if (!packageComputer) {
+		packageComputer = getExternalLinesDiffComputer(true).catch(async e => {
+			const computer = await getExternalLinesDiffComputer(false);
+			onUnexpectedError(e);
+			return computer;
+		});
+	}
+	return packageComputer;
 }
 
 export async function createExternalLinesDiffComputer(externalModule: ExternalDiffModule, useWasm: boolean): Promise<ILinesDiffComputer> {

@@ -22,15 +22,15 @@ export type LinesDiffWithFallbackComputer = (originalLines: string[], modifiedLi
  * Resolves the requested diff algorithm. The returned function computes diffs synchronously, so callers must
  * read the documents only after this promise resolves: model updates can arrive while a backend loads.
  *
- * Diffs from `@vscode/diff` are replaced by the built-in algorithm's diff if the package fails to load or throws,
- * or if `verify` is set and the diff turns out to be invalid. Verification is linear in the document size,
- * so it only happens for sampled diffs. The built-in algorithms are used as is.
+ * Diffs from `@vscode/diff` (`advanced`, `advanced-external`, `advanced-wasm`) are replaced by the built-in algorithm's diff
+ * if the package fails to load or throws, or if `verify` is set and the diff turns out to be invalid. Verification is linear
+ * in the document size, so it only happens for sampled diffs. `legacy` is used as is.
  */
 export async function resolveLinesDiffComputerWithFallback(
 	algorithm: DiffAlgorithmName,
 	resolve: (algorithm: DiffAlgorithmName) => ILinesDiffComputer | Promise<ILinesDiffComputer>,
 ): Promise<LinesDiffWithFallbackComputer> {
-	const isPackage = algorithm === 'advanced-external' || algorithm === 'advanced-wasm';
+	const isPackage = algorithm !== 'legacy';
 	let computer: ILinesDiffComputer | undefined;
 	try {
 		computer = await resolve(algorithm);
