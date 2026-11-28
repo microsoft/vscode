@@ -569,7 +569,7 @@ export function getNextFoldLine(lineNumber: number, foldingModel: FoldingModel):
 
 		// Find fold at same level.
 		while (foldingRegion !== null) {
-			if (foldingRegion.regionIndex < foldingModel.regions.length) {
+			if (foldingRegion.regionIndex < foldingModel.regions.length - 1) {
 				foldingRegion = foldingModel.regions.toRegion(foldingRegion.regionIndex + 1);
 
 				// Keep at same level.
@@ -591,7 +591,7 @@ export function getNextFoldLine(lineNumber: number, foldingModel: FoldingModel):
 				if (foldingRegion.startLineNumber > lineNumber) {
 					return foldingRegion.startLineNumber;
 				}
-				if (foldingRegion.regionIndex < foldingModel.regions.length) {
+				if (foldingRegion.regionIndex < foldingModel.regions.length - 1) {
 					foldingRegion = foldingModel.regions.toRegion(foldingRegion.regionIndex + 1);
 				} else {
 					foldingRegion = null;

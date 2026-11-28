@@ -874,6 +874,26 @@ suite('Folding Model', () => {
 		assert.strictEqual(getPreviousFoldLine(6, foldingModel), 4);
 	});
 
+	test('fold jumping to next stops at the last region', () => {
+		const lines = [
+			/* 1*/	'class A {',
+			/* 2*/	'  foo() {',
+			/* 3*/	'    a();',
+			/* 4*/	'  }',
+			/* 5*/	'  bar() {',
+			/* 6*/	'    b();',
+			/* 7*/	'  }',
+			/* 8*/	'}'
+		];
+
+		const textModel = store.add(createTextModel(lines.join('\n')));
+		const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+		foldingModel.update(computeRanges(textModel, false, undefined));
+
+		assertRanges(foldingModel, [r(1, 7, false), r(2, 3, false), r(5, 6, false)]);
+		assert.deepStrictEqual([1, 2, 5].map(line => getNextFoldLine(line, foldingModel)), [null, 5, null]);
+	});
+
 	test('removeManualRanges - cursor on manual range removes innermost only', () => {
 		const lines = [
 		/* 1*/	'class A {',
