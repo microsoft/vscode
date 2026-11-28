@@ -10,7 +10,7 @@ import * as nls from '../../../../nls.js';
 import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
-import { IWebviewService, IWebview } from './webview.js';
+import { IWebviewService, IWebview, WebviewReadOnlyContentContextKeyName } from './webview.js';
 import { WebviewInput } from '../../webviewPanel/browser/webviewEditorInput.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { WebviewFindAccessibilityHelp } from './webviewFindAccessibilityHelp.js';
@@ -52,6 +52,11 @@ overrideCommandForWebview(CutAction, webview => webview.cut());
 
 export const PreventDefaultContextMenuItemsContextKeyName = 'preventDefaultContextMenuItems';
 
+const editContextMenuItemWhen = ContextKeyExpr.and(
+	ContextKeyExpr.not(PreventDefaultContextMenuItemsContextKeyName),
+	ContextKeyExpr.not(WebviewReadOnlyContentContextKeyName),
+);
+
 if (CutAction) {
 	MenuRegistry.appendMenuItem(MenuId.WebviewContext, {
 		command: {
@@ -60,7 +65,7 @@ if (CutAction) {
 		},
 		group: '5_cutcopypaste',
 		order: 1,
-		when: ContextKeyExpr.not(PreventDefaultContextMenuItemsContextKeyName),
+		when: editContextMenuItemWhen,
 	});
 }
 
@@ -84,7 +89,7 @@ if (PasteAction) {
 		},
 		group: '5_cutcopypaste',
 		order: 3,
-		when: ContextKeyExpr.not(PreventDefaultContextMenuItemsContextKeyName),
+		when: editContextMenuItemWhen,
 	});
 }
 

@@ -1356,6 +1356,7 @@ suite('ChatMarkdownContentPart', () => {
 				previews: webviews.length,
 				contentOptions: webviews[0].init.contentOptions,
 				serviceWorkerDisabled: webviews[0].init.options.disableServiceWorker,
+				readOnlyContent: webviews[0].init.options.readOnlyContent,
 				title: webviews[0].init.title,
 				heading: document.querySelector('h2')?.textContent,
 				style: document.querySelector('body style')?.textContent,
@@ -1368,6 +1369,7 @@ suite('ChatMarkdownContentPart', () => {
 				previews: 1,
 				contentOptions: { allowScripts: false, allowForms: false, enableCommandUris: false, localResourceRoots: [] },
 				serviceWorkerDisabled: true,
+				readOnlyContent: true,
 				title: 'HTML preview for code block 1',
 				heading: 'Quarterly report',
 				style: 'h2 { color: red }',
@@ -1689,12 +1691,13 @@ suite('ChatMarkdownContentPart', () => {
 				expandedDisposed: webviews[1].webview.disposed,
 				contentOptions: webviews[1].init.contentOptions,
 				find: webviews[1].init.options.enableFindWidget,
+				readOnlyContent: webviews[1].init.options.readOnlyContent,
 				heading: document.querySelector('h1')?.textContent,
 				scripts: document.scripts.length,
 			}, {
 				count: 3, reused: true, reusedAfterRecycling: true, editor: true, editorDisposed: false, inlineDisposed: true, expandedDisposed: false,
 				contentOptions: { allowScripts: false, allowForms: false, enableCommandUris: false, localResourceRoots: [] },
-				find: true, heading: 'Review', scripts: 0,
+				find: true, readOnlyContent: true, heading: 'Review', scripts: 0,
 			});
 		});
 

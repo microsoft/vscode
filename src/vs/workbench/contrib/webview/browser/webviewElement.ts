@@ -37,7 +37,7 @@ import { IRemoteAgentService } from '../../../services/remote/common/remoteAgent
 import { decodeAuthority, webviewGenericCspSource, webviewMouseActivityEvent, webviewRootResourceAuthority } from '../common/webview.js';
 import { loadLocalResource, WebviewResourceResponse } from './resourceLoading.js';
 import { WebviewThemeDataProvider } from './themeing.js';
-import { areWebviewContentOptionsEqual, IWebviewElement, WebviewContentOptions, WebviewExtensionDescription, WebviewInitInfo, WebviewMessageReceivedEvent, WebviewOptions } from './webview.js';
+import { areWebviewContentOptionsEqual, IWebviewElement, WebviewContentOptions, WebviewExtensionDescription, WebviewInitInfo, WebviewMessageReceivedEvent, WebviewOptions, WebviewReadOnlyContentContextKeyName } from './webview.js';
 import { WebviewFindDelegate, WebviewFindWidget } from './webviewFindWidget.js';
 import { FromWebviewMessage, KeyEvent, ToWebviewMessage, WebViewDragEvent } from './webviewMessages.js';
 
@@ -283,6 +283,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 			const contextKeyService = this._contextKeyService.createOverlay([
 				...Object.entries(data.context),
 				[webviewIdContext, this.providedViewType],
+				[WebviewReadOnlyContentContextKeyName, !!this._options.readOnlyContent],
 			]);
 			contextMenuService.showContextMenu({
 				menuId: MenuId.WebviewContext,
