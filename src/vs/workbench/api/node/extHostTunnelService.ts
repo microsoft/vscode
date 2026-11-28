@@ -182,6 +182,7 @@ export class NodeExtHostTunnelService extends ExtHostTunnelService {
 	private _initialCandidates: CandidatePort[] | undefined = undefined;
 	private _foundRootPorts: Map<number, CandidatePort & { ppid: number }> = new Map();
 	private _candidateFindingEnabled: boolean = false;
+	private _managedAuthority: vscode.ManagedResolvedAuthority | undefined;
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
@@ -320,6 +321,12 @@ export class NodeExtHostTunnelService extends ExtHostTunnelService {
 	}
 
 	protected override makeManagedTunnelFactory(authority: vscode.ManagedResolvedAuthority): vscode.RemoteAuthorityResolver['tunnelFactory'] {
+		// The authority is resolved again when the remote reconnects. Forwarded ports outlive that,
+		// so they must connect through the latest authority rather than the one they were created with.
+		this._managedAuthority = authority;
+		const getAuthority = () => this._managedAuthority ?? authority;
+		// A connection must be made through the authority whose connection token it sends, even if the remote reconnects in between.
+		const connectionAuthorities = new WeakMap<ManagedRemoteConnection, vscode.ManagedResolvedAuthority>();
 		return async (tunnelOptions) => {
 			const t = new NodeRemoteTunnel(
 				{
@@ -331,8 +338,8 @@ export class NodeExtHostTunnelService extends ExtHostTunnelService {
 					// the connection identification that the renderer process uses
 					remoteSocketFactoryService: {
 						_serviceBrand: undefined,
-						async connect(_connectTo: ManagedRemoteConnection, path: string, query: string, debugLabel: string): Promise<ISocket> {
-							const result = await authority.makeConnection();
+						async connect(connectTo: ManagedRemoteConnection, path: string, query: string, debugLabel: string): Promise<ISocket> {
+							const result = await (connectionAuthorities.get(connectTo) ?? getAuthority()).makeConnection();
 							return ExtHostManagedSocket.connect(result, path, query, debugLabel);
 						},
 						register() {
@@ -341,9 +348,12 @@ export class NodeExtHostTunnelService extends ExtHostTunnelService {
 					},
 					addressProvider: {
 						getAddress() {
+							const connectTo = new ManagedRemoteConnection(0);
+							const connectionAuthority = getAuthority();
+							connectionAuthorities.set(connectTo, connectionAuthority);
 							return Promise.resolve({
-								connectTo: new ManagedRemoteConnection(0),
-								connectionToken: authority.connectionToken,
+								connectTo,
+								connectionToken: connectionAuthority.connectionToken,
 							});
 						},
 					},
@@ -355,7 +365,12 @@ export class NodeExtHostTunnelService extends ExtHostTunnelService {
 				tunnelOptions.localAddressPort,
 			);
 
-			await t.waitForReady();
+			try {
+				await t.waitForReady();
+			} catch (error) {
+				t.dispose();
+				throw error;
+			}
 
 			const disposeEmitter = new Emitter<void>();
 

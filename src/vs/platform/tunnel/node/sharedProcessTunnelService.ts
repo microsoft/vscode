@@ -78,7 +78,7 @@ export class SharedProcessTunnelService extends Disposable implements ISharedPro
 		if (!tunnel || (typeof tunnel === 'string')) {
 			this._logService.info(`[SharedProcessTunnelService] Could not create a tunnel to ${tunnelRemoteHost}:${tunnelRemotePort} (remote).`);
 			tunnelData.dispose();
-			throw new Error(`Could not create tunnel`);
+			throw new Error(typeof tunnel === 'string' ? tunnel : `Could not create tunnel`);
 		}
 
 		if (this._disposedTunnels.delete(id)) {

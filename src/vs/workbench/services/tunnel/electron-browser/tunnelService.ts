@@ -93,8 +93,7 @@ export class TunnelService extends AbstractTunnelService {
 
 			const tunnel = this._createSharedProcessTunnel(addressOrTunnelProvider, remoteHost, remotePort, localHost, localPort, elevateIfNeeded);
 			this.logService.trace('ForwardedPorts: (TunnelService) Tunnel created without provider.');
-			this.addTunnelToMap(remoteHost, remotePort, tunnel);
-			return tunnel;
+			return this.addTunnelToMap(remoteHost, remotePort, tunnel);
 		}
 	}
 
