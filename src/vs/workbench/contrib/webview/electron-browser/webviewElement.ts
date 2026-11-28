@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getWindow } from '../../../../base/browser/dom.js';
-import { isAuxiliaryWindow } from '../../../../base/browser/window.js';
+import { CodeWindow, isAuxiliaryWindow } from '../../../../base/browser/window.js';
 import { Delayer } from '../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -63,7 +63,7 @@ export class ElectronWebviewElement extends WebviewElement {
 			configurationService, contextMenuService, notificationService, environmentService,
 			logService, remoteAuthorityResolverService, tunnelService, accessibilityService, instantiationService, remoteAgentService);
 
-		this._webviewKeyboardHandler = new WindowIgnoreMenuShortcutsManager(configurationService, mainProcessService, _nativeHostService);
+		this._webviewKeyboardHandler = this._register(new WindowIgnoreMenuShortcutsManager(this.element, configurationService, mainProcessService, _nativeHostService));
 
 		this._webviewMainService = ProxyChannel.toService<IWebviewManagerService>(mainProcessService.getChannel('webview'));
 
@@ -81,11 +81,16 @@ export class ElectronWebviewElement extends WebviewElement {
 		}
 	}
 
+	override mountTo(element: HTMLElement, targetWindow: CodeWindow): void {
+		super.mountTo(element, targetWindow);
+		this._webviewKeyboardHandler.setWindow(targetWindow);
+	}
+
 	override dispose(): void {
 		this.stopFind(false);
 
 		// Make sure keyboard handler knows it closed (#71800)
-		this._webviewKeyboardHandler.didBlur();
+		this._webviewKeyboardHandler.dispose();
 
 		super.dispose();
 	}

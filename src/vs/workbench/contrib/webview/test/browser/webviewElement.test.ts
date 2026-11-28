@@ -55,7 +55,16 @@ suite('WebviewElement', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	type WebviewMessage = { [K in keyof ToWebviewMessage]: { channel: K; args: ToWebviewMessage[K] } }[keyof ToWebviewMessage];
 
-	teardown(() => sinon.restore());
+	teardown(() => {
+		sinon.restore();
+		const button = mainWindow.document.createElement('button');
+		mainWindow.document.body.appendChild(button);
+		try {
+			button.focus();
+		} finally {
+			button.remove();
+		}
+	});
 
 	test('enables native fullscreen requests only for a host that delegates them', async () => {
 		const standard = await createWebview();
