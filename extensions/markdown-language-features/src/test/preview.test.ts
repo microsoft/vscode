@@ -10,6 +10,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { MdDocumentRenderer } from '../preview/documentRenderer';
+import { MarkdownPreviewLineDiffProvider } from '../preview/lineDiff';
 import { DynamicMarkdownPreview } from '../preview/preview';
 import { MarkdownPreviewConfigurationManager } from '../preview/previewConfig';
 import { ContentSecurityPolicyArbiter, MarkdownPreviewSecurityLevel } from '../preview/security';
@@ -25,6 +26,42 @@ const strictCsp = new class implements ContentSecurityPolicyArbiter {
 	shouldDisableSecurityWarnings() { return false; }
 	setShouldDisableSecurityWarning() { return Promise.resolve(); }
 };
+
+suite('Markdown preview diff', () => {
+	const resources = { asWebviewUri: (uri: vscode.Uri) => uri, cspSource: '' };
+	const renderer = new MdDocumentRenderer(createNewMarkdownEngine(), { extensionUri: emptyContributions.extensionUri }, strictCsp, emptyContributions, nulLogger);
+
+	test('renders added and removed headings as in the regular preview', async () => {
+		const before = await vscode.workspace.openTextDocument({ language: 'markdown', content: '# Guide\n' });
+		const after = await vscode.workspace.openTextDocument({ language: 'markdown', content: '# Guide\n\n## New *section* ##\n\nDetails.\n' });
+		const added = await new MarkdownPreviewLineDiffProvider(before, after).getModifiedLineChanges();
+		const removed = await new MarkdownPreviewLineDiffProvider(after, before).getOriginalLineChanges();
+		assert.ok(added?.added?.includes(2) && removed?.deleted?.includes(2));
+
+		const expected = (await renderer.renderBody(after, resources)).html;
+		for (const changes of [added, removed]) {
+			assert.strictEqual((await renderer.renderBody(after, resources, changes)).html, expected);
+		}
+	});
+
+	test('recognizes a whole-line change that ends before CRLF', async () => {
+		const heading = '## New section';
+		const document = await vscode.workspace.openTextDocument({ language: 'markdown', content: heading + '\r\n\r\nDetails.\r\n' });
+		const { html } = await renderer.renderBody(document, resources, {
+			added: [0],
+			innerChanges: [{ line: 0, startColumn: 0, endColumn: heading.length }],
+		});
+		assert.strictEqual(html, (await renderer.renderBody(document, resources)).html);
+	});
+
+	test('keeps word-level highlighting within an edited heading', async () => {
+		const before = await vscode.workspace.openTextDocument({ language: 'markdown', content: '## Old title\n' });
+		const after = await vscode.workspace.openTextDocument({ language: 'markdown', content: '## New title\n' });
+		const changes = await new MarkdownPreviewLineDiffProvider(before, after).getModifiedLineChanges();
+		const { html } = await renderer.renderBody(after, resources, changes);
+		assert.match(html, /<h2\b[^>]*><span data-diff-start="(\d+)"><\/span>New<span data-diff-end="\1"><\/span> title<\/h2>/);
+	});
+});
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
