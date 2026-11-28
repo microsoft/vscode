@@ -95,10 +95,12 @@ import { IAuthenticationMcpAccessService } from '../../../../../services/authent
 import { IAuthenticationMcpService } from '../../../../../services/authentication/browser/authenticationMcpService.js';
 import { IAuthenticationMcpUsageService } from '../../../../../services/authentication/browser/authenticationMcpUsageService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 import { IChatExtensionCustomizationsService } from '../../../common/promptSyntax/service/chatExtensionCustomizationsService.js';
 import { IAgenticSkillsService, NullAgenticSkillsService } from '../../../common/promptSyntax/service/agenticSkillsService.js';
-import { AgentHostClientCustomizationsService, IAgentHostClientCustomizationsService } from '../../../browser/agentSessions/agentHost/agentHostClientCustomizationsService.js';
+import { AgentHostClientCustomizationsService, IAgentHostClientCustomizationsService, IClientCustomizationSnapshot } from '../../../browser/agentSessions/agentHost/agentHostClientCustomizationsService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
+import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { IMcpServer, IMcpService, IMcpWorkbenchService, LazyCollectionState, McpCollectionDefinition, McpCollectionProvenance, McpServerDefinition, McpServerTransportType, McpServerTrust } from '../../../../mcp/common/mcpTypes.js';
 import { ExternalDiscoverySource } from '../../../../mcp/common/mcpConfiguration.js';
 import { ContributionEnablementState, IEnablementModel } from '../../../common/enablement.js';
@@ -130,7 +132,8 @@ suite('AgentHostClientTools', () => {
 		fullReferenceNames?: ReadonlyMap<string, string>,
 	) {
 		const instantiationService = disposables.add(new TestInstantiationService());
-		instantiationService.stub(IFileService, TestFileService);
+		const fileService = new TestFileService();
+		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IAgentHostFileSystemService, {
 			ensureSyncedCustomizationProvider: () => { },
 		});
@@ -206,7 +209,15 @@ suite('AgentHostClientTools', () => {
 
 		instantiationService.stub(IAgentHostClientCustomizationsService, instantiationService.createInstance(AgentHostClientCustomizationsService));
 		const service = disposables.add(instantiationService.createInstance(AgentHostActiveClientService));
-		return { service, promptListings, getFullReferenceNameSnapshots: () => fullReferenceNameSnapshots };
+		return { service, instantiationService, promptListings, getFullReferenceNameSnapshots: () => fullReferenceNameSnapshots };
+	}
+
+	function createAgentSnapshot(uri?: URI): IClientCustomizationSnapshot {
+		return {
+			files: uri ? [{ uri, type: PromptsType.agent, source: AICustomizationSources.local, disabled: false }] : [],
+			plugins: [],
+			mcpServers: [],
+		};
 	}
 
 	test('lazily creates scopes and shares them for equivalent root sets', async () => {
@@ -258,6 +269,77 @@ suite('AgentHostClientTools', () => {
 
 		assert.deepStrictEqual(promptListings.filter((listing, index) => promptListings.indexOf(listing) !== index), []);
 	});
+
+	test('publishes the first scan during a change burst and coalesces a serialized refresh', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { service, instantiationService } = createActiveClientService();
+		const changed = disposables.add(new Emitter<void>());
+		const firstScan = new DeferredPromise<void>();
+		const refreshScan = new DeferredPromise<void>();
+		const refreshPublished = new DeferredPromise<void>();
+		let scans = 0;
+		instantiationService.stub(IAgentHostClientCustomizationsService, {
+			onDidChange: changed.event,
+			async collect() {
+				const scan = ++scans;
+				await (scan === 1 ? firstScan.p : refreshScan.p);
+				return createAgentSnapshot(URI.file(`/agent-${scan}.agent.md`));
+			}
+		});
+		const scope = disposables.add(service.acquireScope('agent-host-claude', []));
+		disposables.add(autorun(reader => {
+			if (scope.customAgents.read(reader)[0]?.name === 'agent-2') {
+				refreshPublished.complete();
+			}
+		}));
+		await timeout(100);
+		for (let i = 0; i < 10; i++) {
+			changed.fire();
+			await timeout(100);
+		}
+		const scansDuringBurst = scans;
+		await firstScan.complete();
+		await scope.whenResolved();
+		const initial = {
+			resolved: scope.isResolved.get(),
+			agents: scope.customAgents.get().map(agent => agent.name),
+		};
+		await refreshScan.complete();
+		await refreshPublished.p;
+		assert.deepStrictEqual({
+			scansDuringBurst,
+			initial,
+			scans,
+			refreshedAgents: scope.customAgents.get().map(agent => agent.name),
+		}, {
+			scansDuringBurst: 1,
+			initial: { resolved: true, agents: ['agent-1'] },
+			scans: 2,
+			refreshedAgents: ['agent-2'],
+		});
+	}));
+
+	test('does not publish an in-flight scan or run a queued refresh after scope disposal', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { service, instantiationService } = createActiveClientService();
+		const scan = new DeferredPromise<void>();
+		let scans = 0;
+		instantiationService.stub(IAgentHostClientCustomizationsService, {
+			onDidChange: Event.None,
+			async collect() {
+				scans++;
+				await scan.p;
+				return createAgentSnapshot(URI.file('/agent.agent.md'));
+			}
+		});
+		const scope = service.acquireScope('agent-host-claude', []);
+		await timeout(100);
+		service.getSyncProvider('agent-host-claude').setDisabled(URI.file('/agent.agent.md'), true);
+		await timeout(100);
+		scope.dispose();
+		await scope.whenResolved();
+		await scan.complete();
+		await timeout(100);
+		assert.deepStrictEqual({ scans, resolved: scope.isResolved.get() }, { scans: 1, resolved: false });
+	}));
 
 	test('isolates additional tools to one session and moves them with the session resource', () => {
 		const tool: IToolData = {
