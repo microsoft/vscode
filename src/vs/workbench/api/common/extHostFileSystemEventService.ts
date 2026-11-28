@@ -17,7 +17,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { IExtHostWorkspace } from './extHostWorkspace.js';
 import { getOrSet } from '../../../base/common/map.js';
-import { sep } from '../../../base/common/path.js';
+import { normalize, sep } from '../../../base/common/path.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { ExtHostConfigProvider } from './extHostConfiguration.js';
 import { rtrim } from '../../../base/common/strings.js';
@@ -95,7 +95,7 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 			changed: options.ignoreChangeEvents ? undefined : this._onDidChange,
 			deleted: options.ignoreDeleteEvents ? undefined : this._onDidDelete,
 		};
-		const subscription = dispatcher.subscribe(globPattern, (session, events) => {
+		const subscription = dispatcher.subscribe(matchGlob, fileEventKinds.filter(kind => emitters[kind]), (session, events) => {
 			if (typeof session === 'number' && session !== this.session) {
 				return; // ignore events from other file watchers that are in correlation mode
 			}
@@ -253,14 +253,21 @@ type FileSystemEventListener = (session: number | undefined, events: FileEventBa
 export class FileSystemEventDispatcher {
 
 	private readonly listenersByBase = new Map<string | undefined, Map<FileSystemEventListener, number>>();
+	private readonly listenerCounts = { created: 0, changed: 0, deleted: 0 };
 	private sequence = 0;
 
-	subscribe(pattern: string | IRelativePattern, listener: FileSystemEventListener): Disposable {
-		// isEqualOrParent can normalize both paths when either contains '..'; let the glob decide those cases.
-		const base = typeof pattern === 'string' || pattern.base.includes('..') ? undefined : rtrim(pattern.base.toLowerCase(), sep);
+	subscribe(pattern: string | IRelativePattern, kinds: readonly FileEventKind[], listener: FileSystemEventListener): Disposable {
+		// A '..' in either operand makes isEqualOrParent normalize both, so only index stable bases.
+		const base = typeof pattern === 'string' || pattern.base.includes('..') || normalize(pattern.base) !== pattern.base ? undefined : rtrim(pattern.base.toLowerCase(), sep);
 		const listeners = getOrSet(this.listenersByBase, base, new Map<FileSystemEventListener, number>());
 		listeners.set(listener, this.sequence++);
+		for (const kind of kinds) {
+			this.listenerCounts[kind]++;
+		}
 		return new Disposable(() => {
+			for (const kind of kinds) {
+				this.listenerCounts[kind]--;
+			}
 			listeners.delete(listener);
 			if (listeners.size === 0) {
 				this.listenersByBase.delete(base);
@@ -284,11 +291,16 @@ export class FileSystemEventDispatcher {
 			}
 		};
 		for (const kind of fileEventKinds) {
+			if (this.listenerCounts[kind] === 0) {
+				continue;
+			}
 			for (const components of events[kind]) {
 				const uri = URI.revive(components);
-				const path = uri.fsPath.toLowerCase();
+				const fsPath = uri.fsPath;
+				const path = fsPath.toLowerCase();
 				const event = { uri, lowerCaseFsPath: path };
-				if (path.includes('..')) {
+				// A literal '..' in a filename need not fan out if neither spelling used by the matcher changes.
+				if (path.includes('..') && (normalize(fsPath) !== fsPath || (path !== fsPath && normalize(path) !== path))) {
 					for (const base of this.listenersByBase.keys()) {
 						append(base, kind, event);
 					}

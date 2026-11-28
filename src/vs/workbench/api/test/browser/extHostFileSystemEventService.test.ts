@@ -154,11 +154,41 @@ suite('ExtHostFileSystemEventService', () => {
 		const dispatcher = new FileSystemEventDispatcher();
 		const calls: string[] = [];
 		for (const path of ['/', '/src', '/src/a.ts', '/src/b.ts', '/src/a', '/other']) {
-			disposables.add(dispatcher.subscribe(new RelativePattern(path, '*'), () => calls.push(path)));
+			disposables.add(dispatcher.subscribe(new RelativePattern(path, '*'), ['changed'], () => calls.push(path)));
 		}
 
 		dispatcher.dispatch({ session: undefined, created: [], changed: [URI.file('/src/a.ts')], deleted: [] });
 		assert.deepStrictEqual(calls, ['/', '/src', '/src/a.ts']);
+	});
+
+	test('dispatch prunes unrelated bases for a literal double dot without losing non-normalized bases', () => {
+		const dispatcher = new FileSystemEventDispatcher();
+		const calls: string[] = [];
+		for (const base of ['/src/nested', '/unrelated', '/src/./nested']) {
+			disposables.add(dispatcher.subscribe(new RelativePattern(base, '*.ts'), ['changed'], () => calls.push(base)));
+		}
+
+		dispatcher.dispatch({ session: undefined, created: [], changed: [URI.file('/src/nested/report..v1.ts')], deleted: [] });
+		assert.deepStrictEqual(calls, ['/src/nested', '/src/./nested']);
+	});
+
+	test('dispatch stops reading changed paths when the last interested watcher is disposed', () => {
+		const service = new ExtHostFileSystemEventService(protocol, new NullLogService(), undefined!);
+		const info = new ExtHostFileSystemInfo();
+		disposables.add(service.createFileSystemWatcher(undefined!, undefined!, info, undefined!, '**/*.ts', { ignoreChangeEvents: true }));
+		const interested = disposables.add(service.createFileSystemWatcher(undefined!, undefined!, info, undefined!, '**/*.ts', {}));
+		const dispatch = () => {
+			let pathRead = false;
+			service.$onFileEvent({
+				session: undefined, created: [], deleted: [],
+				changed: [{ ...URI.file('/note.txt').toJSON(), get path() { pathRead = true; return '/note.txt'; } }]
+			});
+			return pathRead;
+		};
+
+		const before = dispatch();
+		interested.dispose();
+		assert.deepStrictEqual([before, dispatch()], [true, false]);
 	});
 
 	for (const { name, base, path } of [
@@ -168,7 +198,7 @@ suite('ExtHostFileSystemEventService', () => {
 		test(`dispatch routes changes with '..' in the ${name}`, () => {
 			const dispatcher = new FileSystemEventDispatcher();
 			const changed: string[] = [];
-			disposables.add(dispatcher.subscribe(new RelativePattern(base, '**/*.ts'), (_session, batch) => {
+			disposables.add(dispatcher.subscribe(new RelativePattern(base, '**/*.ts'), ['changed'], (_session, batch) => {
 				changed.push(...batch.changed.map(event => event.uri.path));
 			}));
 
