@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { spy, stub } from 'sinon';
+import { Dimension, IDomPosition } from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
@@ -20,6 +21,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { IDiffEditorHeightCalculatorService } from '../../../browser/diff/editorHeightCalculator.js';
 import { NotebookDiffEditorEventDispatcher } from '../../../browser/diff/eventDispatcher.js';
 import { NotebookTextDiffEditor } from '../../../browser/diff/notebookDiffEditor.js';
+import { NotebookInlineDiffWidget } from '../../../browser/diff/inlineDiff/notebookInlineDiffWidget.js';
 import { NotebookDiffViewModel } from '../../../browser/diff/notebookDiffViewModel.js';
 import { CellKind, INotebookDiffEditorModel, INotebookDiffResult, IResolvedNotebookEditorModel } from '../../../common/notebookCommon.js';
 import { NotebookDiffEditorInput } from '../../../common/notebookDiffEditorInput.js';
@@ -31,7 +33,7 @@ suite('NotebookTextDiffEditor', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	type TestEditor = Pick<NotebookTextDiffEditor, 'clearInput' | 'setInput' | 'currentChangedIndex' | 'input'> & {
+	type TestEditor = Pick<NotebookTextDiffEditor, 'clearInput' | 'setInput' | 'currentChangedIndex' | 'input' | 'setVisible' | 'layout'> & {
 		_currentChangedIndex: ISettableObservable<number>;
 		_localStore: DisposableStore;
 		_modifiedResourceDisposableStore: DisposableStore;
@@ -44,7 +46,10 @@ suite('NotebookTextDiffEditor', () => {
 		notebookService: INotebookService;
 		diffEditorCalcuator: IDiffEditorHeightCalculatorService;
 		_list: { length: number; rowsContainer: HTMLElement; onDidChangeContentHeight: Event<void>; onDidChangeFocus: Event<{ indexes: number[] }>; clear(): void; splice(start: number, deleteCount: number): void };
-		_listViewContainer: { style: { display: string } };
+		_listViewContainer: HTMLElement;
+		_rootElement: HTMLElement;
+		_inlineView: boolean;
+		inlineDiffWidget: Pick<NotebookInlineDiffWidget, 'show' | 'hide' | 'setLayout'> | undefined;
 		_notebookOptions: { computeDiffWebviewOptions(): object };
 		instantiationService: Pick<IInstantiationService, 'createInstance'>;
 		_generateFontFamily(): string;
@@ -63,7 +68,7 @@ suite('NotebookTextDiffEditor', () => {
 		editor._modifiedResourceDisposableStore = store.add(new DisposableStore());
 		editor._model = null;
 		editor._list = { length: 0, rowsContainer: document.createElement('div'), onDidChangeContentHeight: Event.None, onDidChangeFocus: Event.None, clear() { }, splice() { } };
-		editor._listViewContainer = { style: { display: '' } };
+		editor._listViewContainer = document.createElement('div');
 		editor._attachModel = model => { editor._model = model; };
 		editor._createOriginalWebview = async () => { };
 		editor._createModifiedWebview = async () => { };
@@ -111,6 +116,44 @@ suite('NotebookTextDiffEditor', () => {
 		cellsDiff: { changes: [{ originalStart: 0, originalLength: 1, modifiedStart: 0, modifiedLength: 1 }], quitEarly: false },
 		metadataChanged: false
 	};
+
+	test('restoring an inline diff waits for a visible nonzero layout and restores its comparison model', async () => {
+		const editor = createEditor();
+		editor.configurationService = new TestConfigurationService();
+		editor._rootElement = document.createElement('div');
+		await editor.setInput(createInput(), undefined, { newInGroup: true }, CancellationToken.None);
+		editor._inlineView = true;
+		const changes: string[] = [];
+		const shownInputs: Parameters<NotebookInlineDiffWidget['show']>[] = [];
+		editor.inlineDiffWidget = {
+			show: async (...args) => {
+				shownInputs.push(args);
+				changes.push('show');
+			},
+			hide: () => changes.push('hide'),
+			setLayout: () => { }
+		};
+		const position: IDomPosition = { top: 0, left: 0 };
+		editor.setVisible(true);
+		editor.layout(new Dimension(800, 600), position);
+		editor.setVisible(false);
+		editor.layout(new Dimension(800, 600), position);
+		editor.layout(new Dimension(0, 0), position);
+		editor.setVisible(true);
+		assert.deepStrictEqual(changes, ['hide']);
+		editor.layout(new Dimension(800, 600), position);
+		editor.layout(new Dimension(900, 600), position);
+		assert.deepStrictEqual(changes, ['hide', 'show']);
+		editor.setVisible(false);
+		editor.setVisible(true);
+		assert.deepStrictEqual({ changes, shownInputs }, {
+			changes: ['hide', 'show', 'hide', 'show'],
+			shownInputs: [
+				[editor.input, editor._model?.modified.notebook, editor._model?.original.notebook, undefined],
+				[editor.input, editor._model?.modified.notebook, editor._model?.original.notebook, undefined]
+			]
+		});
+	});
 
 	for (const action of ['clear', 'replace'] as const) {
 		test(`${action} input disposes the attached view model and dispatcher`, async () => {
