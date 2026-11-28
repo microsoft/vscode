@@ -42,7 +42,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { DevContainerAgentHostMainService, getDevContainerCliPath, getDevContainerExecArgs, IDevContainerRelay, IDevContainerShellExec, parseDevContainerFolderContainers, parseDevContainerMounts, parseDevContainerUpResult, RemoteDevContainerAgentHostService, waitForDevContainerRelayConnection } from '../../node/devContainerAgentHostService.js';
 import { getDefaultDevContainerIdLabels, getDevContainerSecurityOptions, getDevContainerStateVolumeLabels, IDevContainerSecurityOptions } from '../../node/devContainerState.js';
 import { ISshExec, shellEscape } from '../../node/sshRemoteAgentHostHelpers.js';
-import { AGENT_HOST_CLIENT_FORWARDING_ENV } from '../../node/agentHostClientForwarding.js';
+import { AgentHostClientForwardingEnvVar } from '../../common/agentService.js';
 import { devContainerServerCacheMount } from '../../node/devContainerServerCache.js';
 import { DevContainerSample } from '../../common/devContainerSamples.js';
 import { IPreparedDevContainerSample } from '../../node/devContainerSamples.js';
@@ -154,6 +154,10 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	linkedBeforeLifecycle: boolean | undefined;
 	cacheSetupError: Error | undefined;
 	cliCacheSetupError: Error | undefined;
+	/** The `--version` output of a fallback CLI, used because installing the client's own CLI fails. */
+	fallbackCliVersion: string | undefined;
+	/** The exit code and error output of a failing Agent Host start command. */
+	startFailure: ((command: string) => { readonly code: number; readonly stderr: string } | undefined) | undefined;
 	cacheMountConfigured = false;
 	hostDirectoryOwnedByCurrentUser = true;
 	readonly checkedHostDirectories: string[] = [];
@@ -449,6 +453,20 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 			if (command.includes('/etc/alpine-release')) {
 				return { stdout: this._libc, stderr: '', code: 0 };
 			}
+			if (this.fallbackCliVersion !== undefined) {
+				if (command.startsWith('test -x ')) {
+					return { stdout: '', stderr: '', code: 1 };
+				}
+				if (command.includes('curl -fsSL')) {
+					throw new Error('CLI download failed');
+				}
+				if (command.includes('ls -1t')) {
+					return { stdout: `~/.vscode-server-oss/code-insiders-${'0'.repeat(40)}\n`, stderr: '', code: 0 };
+				}
+				if (command.endsWith(' --version')) {
+					return { stdout: `${this.fallbackCliVersion}\n`, stderr: '', code: 0 };
+				}
+			}
 			if (this._forceCliInstall && command.includes('--version &&')) {
 				return { stdout: '', stderr: '', code: 1 };
 			}
@@ -477,6 +495,10 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 				};
 			}
 			if (command.includes(`${VSCODE_REMOTE_CONTAINERS_SESSION_ENV}=`)) {
+				const failure = this.startFailure?.(command);
+				if (failure) {
+					return { stdout: '', ...failure };
+				}
 				this._spawnedAgentHost = true;
 			}
 			return { stdout: '', stderr: '', code: 0 };
@@ -1597,11 +1619,45 @@ suite('Dev Container Agent Host Main Service', () => {
 		}, { sharedServer: true, warning: true, cacheCommands: 0, privateDownloads: 1 });
 	});
 
-	test('starts a new Agent Host that forwards what its clients offer, e.g., their Git identity', async () => {
+	test('starts an Agent Host that forwards what its clients offer, unless the CLI cannot', async () => {
+		const commit = 'a'.repeat(40);
+		const version = (minor: number) => `code-insiders 1.${minor}.0 (commit ${'0'.repeat(40)})`;
+		const rejectsFlag = (command: string) => command.endsWith(' --client-forwarding') ? { code: 2, stderr: 'error: unexpected argument \'--client-forwarding\' found\n' } : undefined;
+		const results: Record<string, unknown> = {};
+		for (const { label, commit: productCommit, fallbackCliVersion, startFailure } of [
+			{ label: 'own CLI', commit },
+			{ label: 'dev build' },
+			{ label: '1.148 fallback', commit, fallbackCliVersion: version(148) },
+			{ label: '1.149 fallback', commit, fallbackCliVersion: version(149) },
+			{ label: '1.149 fallback without the flag', commit, fallbackCliVersion: version(149), startFailure: rejectsFlag },
+		]) {
+			const service = store.add(new TestDevContainerAgentHostMainService('', false, undefined, process.env, true, [], new Set(), '/tmp', new NullLogService(), productCommit));
+			service.fallbackCliVersion = fallbackCliVersion;
+			service.startFailure = startFailure;
+			service.endpoints = [{ ...service.endpoints[0], quality: 'stable' }];
+			await service.connect({ connectionId: label, workspaceFolder: '/workspace', name: 'Project Dev Container' });
+			results[label] = {
+				spawned: service.separateExecs.map(({ command }) => ({ flag: command.endsWith(' --client-forwarding'), variable: command.includes(AgentHostClientForwardingEnvVar) })),
+				relaysTo: service.relayCommand?.match(/ agent relay '(?<instance>[^']+)'/)?.groups?.instance,
+			};
+		}
+		assert.deepStrictEqual(results, {
+			'own CLI': { spawned: [{ flag: true, variable: false }], relaysTo: 'spawned-instance' },
+			'dev build': { spawned: [{ flag: true, variable: false }], relaysTo: 'spawned-instance' },
+			'1.148 fallback': { spawned: [{ flag: false, variable: false }], relaysTo: 'spawned-instance' },
+			'1.149 fallback': { spawned: [{ flag: true, variable: false }], relaysTo: 'spawned-instance' },
+			'1.149 fallback without the flag': { spawned: [{ flag: true, variable: false }, { flag: false, variable: false }], relaysTo: 'spawned-instance' },
+		});
+	});
+
+	test('stops waiting for the Agent Host to register as soon as its start command fails', async () => {
 		const service = store.add(new TestDevContainerAgentHostMainService());
-		service.endpointPollsBeforeAvailable = 1;
-		await service.connect({ connectionId: 'forwarding', workspaceFolder: '/workspace', name: 'Project Dev Container' });
-		assert.deepStrictEqual(service.separateExecs.map(({ command }) => command.includes(` ${AGENT_HOST_CLIENT_FORWARDING_ENV}=1 `)), [true]);
+		service.endpoints = [{ ...service.endpoints[0], quality: 'stable' }];
+		service.startFailure = () => ({ code: 1, stderr: 'error: No space left on device\n' });
+		const stages: string[] = [];
+		store.add(service.onDidFailConnect(failure => stages.push(failure.stage)));
+		await assert.rejects(service.connect({ connectionId: 'failing', workspaceFolder: '/workspace', name: 'Project' }), /exit code 1\): error: No space left on device$/);
+		assert.deepStrictEqual({ stages, starts: service.separateExecs.length }, { stages: ['agentHostStart'], starts: 1 });
 	});
 
 	test('adds the exact bind-mounted repository root to Git safe.directory only when host-owned', async () => {

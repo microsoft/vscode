@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { timeout } from '../../../base/common/async.js';
-import { CancellationToken } from '../../../base/common/cancellation.js';
-import { CancellationError } from '../../../base/common/errors.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { CancellationError, isCancellationError } from '../../../base/common/errors.js';
 import { vArray, vObj, vString, vUnknown } from '../../../base/common/validation.js';
 import { TelemetryConfiguration } from '../../telemetry/common/telemetry.js';
 import { getAgentHostEndpointIdentityKey, IAgentHostEndpointMetadata, parseAgentHostEndpointRegistry } from '../common/agentHostEndpointRegistry.js';
@@ -372,12 +372,35 @@ export function buildAgentEndpointsCommand(cliBin: string, cliDataDir: string, u
  * selection path is still relying on. `--new-instance` guarantees a
  * genuinely new process/registry entry every time this command runs,
  * leaving all existing standalone/editor entries untouched.
+ *
+ * `clientForwarding` passes `--client-forwarding`, which only CLIs that
+ * {@link cliVersionSupportsClientForwarding} accept.
  */
-export function buildAgentHostSpawnCommand(cliBin: string, serverDataFolderName: string, userDataPath: string, telemetryLevel: TelemetryConfiguration, idleTimeoutSec = 300): string {
+export function buildAgentHostSpawnCommand(cliBin: string, serverDataFolderName: string, userDataPath: string, telemetryLevel: TelemetryConfiguration, options: { readonly idleTimeoutSec?: number; readonly clientForwarding?: boolean } = {}): string {
+	const idleTimeoutSec = options.idleTimeoutSec ?? 300;
 	if (!Number.isSafeInteger(idleTimeoutSec) || idleTimeoutSec <= 0) {
 		throw new Error(`Unsafe idle timeout value for shell interpolation: ${JSON.stringify(idleTimeoutSec)}`);
 	}
-	return `${buildAgentHostBaseCommand(cliBin, serverDataFolderName, telemetryLevel)} --new-instance --user-data-dir ${shellEscape(userDataPath)} --idle-timeout ${idleTimeoutSec}`;
+	return `${buildAgentHostBaseCommand(cliBin, serverDataFolderName, telemetryLevel)} --new-instance --user-data-dir ${shellEscape(userDataPath)} --idle-timeout ${idleTimeoutSec}${options.clientForwarding ? ' --client-forwarding' : ''}`;
+}
+
+/**
+ * Whether a CLI that prints `version` for `--version`, e.g.,
+ * `code-insiders 1.149.0 (commit <sha>)`, accepts `agent host --client-forwarding`:
+ * CLIs from 1.149 on and those built from sources, which print `dev`, do.
+ * Builds of an Insiders version share it, so this treats all 1.149 builds as
+ * supporting it.
+ */
+export function cliVersionSupportsClientForwarding(version: string): boolean {
+	const match = /^\S+ (?:(?<major>\d+)\.(?<minor>\d+)\.\d+|(?<dev>dev)) \(commit /.exec(version.trim());
+	if (!match?.groups) {
+		return false;
+	}
+	const { major, minor, dev } = match.groups;
+	if (dev) {
+		return true;
+	}
+	return Number(major) > 1 || (Number(major) === 1 && Number(minor) >= 149);
 }
 
 /**
@@ -572,5 +595,53 @@ export async function waitForNewStandaloneEndpoint(
 		} else {
 			await timeout(intervalMs);
 		}
+	}
+}
+
+/** The command that starts an agent host, e.g., {@link buildAgentHostSpawnCommand}, exited with an error. */
+export class AgentHostStartError extends Error {
+	constructor(readonly code: number, readonly stderr: string) {
+		super(`The agent host start command failed (exit code ${code})${stderr.trim() ? `: ${stderr.trim()}` : ''}`);
+	}
+
+	/** Whether the CLI does not know `--client-forwarding`, as 1.149 builds from before it do not. */
+	get rejectsClientForwarding(): boolean {
+		return this.stderr.includes('unexpected argument \'--client-forwarding\'');
+	}
+}
+
+/**
+ * Like {@link waitForNewStandaloneEndpoint}, but stops waiting as soon as `start`, the command starting the agent
+ * host, fails: when it exits with an error, with an {@link AgentHostStartError}. The command may also end
+ * successfully before the agent host registers, once the CLI started it in the background.
+ */
+export async function waitForStartedStandaloneEndpoint(
+	start: ReturnType<ISshExec>,
+	exec: ISshExec,
+	cliBin: string,
+	cliDataDir: string,
+	userDataPath: string,
+	before: readonly IAgentHostEndpointMetadata[],
+	options?: IWaitForNewEndpointOptions,
+): Promise<IAgentHostEndpointMetadata> {
+	const waiting = new CancellationTokenSource(options?.token);
+	const failed = new Promise<never>((_resolve, reject) => {
+		void start.then(({ code, stderr }) => {
+			if (code !== 0) {
+				reject(new AgentHostStartError(code, stderr));
+			}
+		}, error => {
+			if (!isCancellationError(error)) {
+				reject(error);
+			}
+		});
+	});
+	try {
+		return await Promise.race([
+			waitForNewStandaloneEndpoint(exec, cliBin, cliDataDir, userDataPath, before, { ...options, token: waiting.token }),
+			failed,
+		]);
+	} finally {
+		waiting.dispose(true);
 	}
 }

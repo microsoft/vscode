@@ -43,7 +43,8 @@ function isConnectionOptions(value: unknown): value is IAgentHostIpcConnectionOp
 	return isObject(value)
 		&& (!('env' in value) || isEnvironment(value.env))
 		&& (!('debugEnv' in value) || isEnvironment(value.debugEnv))
-		&& (!('preferredAgentLocation' in value) || value.preferredAgentLocation === undefined || isRemoteAgentHostLocationPreference(value.preferredAgentLocation));
+		&& (!('preferredAgentLocation' in value) || value.preferredAgentLocation === undefined || isRemoteAgentHostLocationPreference(value.preferredAgentLocation))
+		&& (!('clientForwarding' in value) || value.clientForwarding === undefined || typeof value.clientForwarding === 'boolean');
 }
 
 function isEnvironment(value: unknown): value is IAgentHostIpcConnectionOptions['env'] {

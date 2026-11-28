@@ -325,6 +325,7 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 			without_connection_token: true,
 			connection_token: None,
 			connection_token_file: None,
+			client_forwarding: args.client_forwarding,
 		},
 		// The backend counts as activity while it runs, so the idle timeout
 		// can't kill agent sessions that are still working after the last

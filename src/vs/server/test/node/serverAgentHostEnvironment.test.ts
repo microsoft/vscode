@@ -8,6 +8,7 @@ import { readlink } from 'fs/promises';
 import { isWindows } from '../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { NullLogService } from '../../../platform/log/common/log.js';
+import { AgentHostClientForwardingEnvVar } from '../../../platform/agentHost/common/agentService.js';
 import { ServerAgentHostEnvironment } from '../../node/serverAgentHostEnvironment.js';
 
 suite('ServerAgentHostEnvironment', () => {
@@ -26,6 +27,17 @@ suite('ServerAgentHostEnvironment', () => {
 		await environment.remove(editor);
 
 		assert.deepStrictEqual(snapshots, [first, { ...second, debugEnv: undefined }, first, { env: {}, debugEnv: undefined }]);
+	});
+
+	test('starts the agent host forwarding what clients offer once a window asked for it, also after it left', async () => {
+		const launches: Readonly<Record<string, string | null>>[] = [];
+		const environment = store.add(new ServerAgentHostEnvironment(env => launches.push(env), new NullLogService()));
+		await environment.update(agents, undefined);
+		await environment.update(editor, { clientForwarding: true });
+		await environment.remove(editor);
+		await environment.update(agents, { env: { OTHER: 'value' } });
+
+		assert.deepStrictEqual(launches, [{}, { [AgentHostClientForwardingEnvVar]: '1' }, { [AgentHostClientForwardingEnvVar]: '1', OTHER: 'value' }]);
 	});
 
 	(isWindows ? test.skip : test)('inherited socket paths follow a live resolver across connects, removals and restarts', async () => {

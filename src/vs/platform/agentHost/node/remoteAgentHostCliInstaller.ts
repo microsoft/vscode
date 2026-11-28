@@ -32,6 +32,8 @@ export interface IRemoteAgentHostCliInstallOptions {
 export interface IRemoteAgentHostCliInstallResult {
 	readonly cliBin: string;
 	readonly installed: boolean;
+	/** The `--version` output of a fallback CLI, which is not built from the client's commit. */
+	readonly fallbackVersion?: string;
 }
 
 /**
@@ -116,8 +118,8 @@ async function ensurePinnedCliInstalled(
 		options.logService.warn(`${logPrefix} Could not install matching CLI for commit ${commit}: ${message}. Looking for a fallback CLI...`);
 		const fallback = await findFallbackCli(exec, options);
 		if (fallback) {
-			options.logService.warn(`${logPrefix} Using fallback CLI at ${fallback} (does not match desktop commit ${commit}).`);
-			return { cliBin: fallback, installed: false };
+			options.logService.warn(`${logPrefix} Using fallback CLI at ${fallback.cliBin} (${fallback.version}, does not match desktop commit ${commit}).`);
+			return { cliBin: fallback.cliBin, installed: false, fallbackVersion: fallback.version };
 		}
 		throw error;
 	}
@@ -156,7 +158,7 @@ async function ensureLooseCliInstalled(
 	return { cliBin, installed: true };
 }
 
-async function findFallbackCli(exec: ISshExec, options: IRemoteAgentHostCliInstallOptions): Promise<string | undefined> {
+async function findFallbackCli(exec: ISshExec, options: IRemoteAgentHostCliInstallOptions): Promise<{ readonly cliBin: string; readonly version: string } | undefined> {
 	const logPrefix = options.logPrefix ?? '[RemoteAgentHostCliInstaller]';
 	const { stdout } = await exec(buildFindFallbackCLICommand(options.serverDataFolderName, options.quality), { ignoreExitCode: true });
 	const rawCandidates = stdout.split('\n').map(candidate => candidate.trim()).filter(candidate => candidate.length > 0);
@@ -165,9 +167,9 @@ async function findFallbackCli(exec: ISshExec, options: IRemoteAgentHostCliInsta
 			options.logService.info(`${logPrefix} Ignoring fallback CLI candidate with unexpected path shape: ${candidate}`);
 			continue;
 		}
-		const { code } = await exec(`${candidate} --version`, { ignoreExitCode: true });
+		const { code, stdout: version } = await exec(`${candidate} --version`, { ignoreExitCode: true });
 		if (code === 0) {
-			return candidate;
+			return { cliBin: candidate, version: version.trim() };
 		}
 		options.logService.info(`${logPrefix} Fallback CLI candidate ${candidate} failed --version check (exit ${code}).`);
 	}

@@ -179,14 +179,14 @@ suite('AgentHostChannel', () => {
 			debugEnv: { Github_Token: 'debug-token' },
 			preferredAgentLocation: 'editor',
 		});
-		await channel.call('second', 'connect', { env: { GITHUB_TOKEN: 'refreshed-codespace-token' }, preferredAgentLocation: 'dedicated' });
+		await channel.call('second', 'connect', { env: { GITHUB_TOKEN: 'refreshed-codespace-token' }, preferredAgentLocation: 'dedicated', clientForwarding: true });
 		await channel.call('third', 'connect');
 
 		assert.deepStrictEqual({ beforeConnect, options: Object.fromEntries(options) }, {
 			beforeConnect: 0,
 			options: {
 				first: { env: { GITHUB_TOKEN: 'codespace-token', GH_TOKEN: null, EMPTY: '' }, debugEnv: { Github_Token: 'debug-token' }, preferredAgentLocation: 'editor' },
-				second: { env: { GITHUB_TOKEN: 'refreshed-codespace-token' }, preferredAgentLocation: 'dedicated' },
+				second: { env: { GITHUB_TOKEN: 'refreshed-codespace-token' }, preferredAgentLocation: 'dedicated', clientForwarding: true },
 				third: undefined,
 			},
 		});
@@ -212,7 +212,7 @@ suite('AgentHostChannel', () => {
 			() => ds.add(new FakeUpstream()),
 		));
 
-		for (const options of [null, [], 'secret', { env: null }, { env: [] }, { env: 'secret' }, { env: { GITHUB_TOKEN: 123 } }, { debugEnv: null }, { debugEnv: [] }, { debugEnv: 'secret' }, { debugEnv: { GITHUB_TOKEN: 123 } }, { preferredAgentLocation: null }, { preferredAgentLocation: 'standalone' }, { preferredAgentLocation: {} }, { preferredAgentLocation: 1 }]) {
+		for (const options of [null, [], 'secret', { env: null }, { env: [] }, { env: 'secret' }, { env: { GITHUB_TOKEN: 123 } }, { debugEnv: null }, { debugEnv: [] }, { debugEnv: 'secret' }, { debugEnv: { GITHUB_TOKEN: 123 } }, { preferredAgentLocation: null }, { preferredAgentLocation: 'standalone' }, { preferredAgentLocation: {} }, { preferredAgentLocation: 1 }, { clientForwarding: null }, { clientForwarding: 'true' }]) {
 			await assert.rejects(channel.call('renderer', 'connect', options), /Invalid agent host connection options/);
 		}
 		assert.strictEqual(resolveCount, 0);

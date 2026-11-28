@@ -17,7 +17,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { mock } from '../../../../base/test/common/mock.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { AGENT_HOST_CLIENT_FORWARDING_ENV, AgentHostClientForwardingService, IAgentHostForwardingClient } from '../../node/agentHostClientForwarding.js';
+import { AgentHostClientForwardingService, IAgentHostForwardingClient } from '../../node/agentHostClientForwarding.js';
+import { AgentHostClientForwardingEnvVar } from '../../common/agentService.js';
 import { AgentHostClientForwardingMainService } from '../../node/agentHostClientForwardingMainService.js';
 import { categorizeGitHost, categorizeProtocol, getClientForwardingSetup, parseGitCredentialRequest } from '../../node/agentHostClientForwardingTelemetry.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -156,7 +157,7 @@ suite('AgentHostClientForwarding', () => {
 		// Isolated from the machine's Git configuration, whose helpers could prompt.
 		const environment: NodeJS.ProcessEnv = {
 			...process.env,
-			[AGENT_HOST_CLIENT_FORWARDING_ENV]: '1',
+			[AgentHostClientForwardingEnvVar]: '1',
 			HOME: folder,
 			XDG_CONFIG_HOME: join(folder, '.config'),
 			GIT_CONFIG_NOSYSTEM: '1',
@@ -273,7 +274,7 @@ suite('AgentHostClientForwarding', () => {
 			const afterClient = { sshAuthSock: environment.SSH_AUTH_SOCK === sshAuthSock, reply: [...await request(requestIdentities)] };
 			const use = (clientId: string | undefined, forwarded: string, operation: string, outcome: string, protocol?: string, hostCategory?: string) => ({ eventName: 'agentHost.forwardingUse', data: { clientId, service: forwarded, operation, outcome, protocol, hostCategory } });
 			assert.deepStrictEqual({
-				launcherVariable: environment[AGENT_HOST_CLIENT_FORWARDING_ENV],
+				launcherVariable: environment[AgentHostClientForwardingEnvVar],
 				gitConfig: [environment.GIT_CONFIG_KEY_0, environment.GIT_CONFIG_VALUE_0, environment.GIT_CONFIG_KEY_1],
 				withoutClient,
 				agentReply,
@@ -317,7 +318,7 @@ suite('AgentHostClientForwarding', () => {
 
 	test('reports a connection that sandboxing closed while the client was connecting to its agent as sandboxed', async () => {
 		const folder = await mkdtemp(join(tmpdir(), 'vscode-ah-fwd-test-'));
-		const environment: NodeJS.ProcessEnv = { ...process.env, [AGENT_HOST_CLIENT_FORWARDING_ENV]: '1', HOME: folder, XDG_CONFIG_HOME: join(folder, '.config'), GIT_CONFIG_NOSYSTEM: '1' };
+		const environment: NodeJS.ProcessEnv = { ...process.env, [AgentHostClientForwardingEnvVar]: '1', HOME: folder, XDG_CONFIG_HOME: join(folder, '.config'), GIT_CONFIG_NOSYSTEM: '1' };
 		delete environment.SSH_AUTH_SOCK;
 		delete environment.GIT_CONFIG_GLOBAL;
 		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));

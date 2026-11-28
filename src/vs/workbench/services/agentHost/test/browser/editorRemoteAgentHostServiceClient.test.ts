@@ -162,15 +162,16 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		return protocolClientCall?.args[2] as () => IClientTransport;
 	}
 
-	for (const [remoteAuthority, expectedKey] of [
-		['ssh-remote+myhost', 'ssh:myhost'],
-		[`ssh-remote+${encodeHex(VSBuffer.fromString(JSON.stringify({ hostName: 'MyHost' })))}`, 'ssh:MyHost'],
-		[`ssh-remote+${encodeHex(VSBuffer.fromString(JSON.stringify({ hostName: 'myhost', user: 'me', port: 2222 })))}`, 'me@myhost:2222'],
-		['ssh-remote+me@myhost:2222', 'me@myhost:2222'],
-		['ssh-remote+myhost:2222', undefined],
-		['tunnel+my-tunnel', undefined],
-		['wsl+test', undefined],
-		['dev-container+test', undefined],
+	for (const [remoteAuthority, expectedKey, forwarding] of [
+		['ssh-remote+myhost', 'ssh:myhost', undefined],
+		[`ssh-remote+${encodeHex(VSBuffer.fromString(JSON.stringify({ hostName: 'MyHost' })))}`, 'ssh:MyHost', undefined],
+		[`ssh-remote+${encodeHex(VSBuffer.fromString(JSON.stringify({ hostName: 'myhost', user: 'me', port: 2222 })))}`, 'me@myhost:2222', undefined],
+		['ssh-remote+me@myhost:2222', 'me@myhost:2222', undefined],
+		['ssh-remote+myhost:2222', undefined, undefined],
+		['tunnel+my-tunnel', undefined, undefined],
+		['wsl+test', undefined, undefined],
+		['dev-container+test', undefined, { clientForwarding: true }],
+		['attached-container+test', undefined, { clientForwarding: true }],
 	] as const) {
 		test(`reads the stored location on each connection for ${remoteAuthority}, even if environment resolution fails`, async () => {
 			const calls: unknown[] = [];
@@ -191,7 +192,7 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 			await disposables.add(createTransport()).connect();
 			assert.deepStrictEqual({ keys, calls }, {
 				keys: expectedKey ? [expectedKey, expectedKey, expectedKey] : [],
-				calls: expectedKey ? [{ preferredAgentLocation: 'editor' }, { preferredAgentLocation: 'dedicated' }, undefined] : [undefined, undefined, undefined],
+				calls: expectedKey ? [{ preferredAgentLocation: 'editor' }, { preferredAgentLocation: 'dedicated' }, undefined] : [forwarding, forwarding, forwarding],
 			});
 		});
 	}

@@ -17,6 +17,7 @@ import {
 	buildCLIDownloadUrl,
 	buildCleanupOldCLIsCommand,
 	buildFindFallbackCLICommand,
+	cliVersionSupportsClientForwarding,
 	filterLiveAgentHostEndpoints,
 	findNewAgentHostEndpoint,
 	formatAgentHostUrlHost,
@@ -497,11 +498,14 @@ suite('SSH Remote Agent Host Helpers', () => {
 			);
 		});
 
-		test('honors a custom idle timeout', () => {
-			assert.strictEqual(
-				buildAgentHostSpawnCommand('~/.vscode-server/code', '.vscode-server', '/home/user/.vscode-remote', TelemetryConfiguration.ON, 60),
+		test('honors a custom idle timeout and client forwarding', () => {
+			assert.deepStrictEqual([
+				buildAgentHostSpawnCommand('~/.vscode-server/code', '.vscode-server', '/home/user/.vscode-remote', TelemetryConfiguration.ON, { idleTimeoutSec: 60 }),
+				buildAgentHostSpawnCommand('~/.vscode-server/code', '.vscode-server', '/home/user/.vscode-remote', TelemetryConfiguration.ON, { clientForwarding: true }),
+			], [
 				'~/.vscode-server/code --cli-data-dir ~/.vscode-server/cli --telemetry-level all agent host --port 0 --server-data-dir ~/.vscode-server --new-instance --user-data-dir \'/home/user/.vscode-remote\' --idle-timeout 60',
-			);
+				'~/.vscode-server/code --cli-data-dir ~/.vscode-server/cli --telemetry-level all agent host --port 0 --server-data-dir ~/.vscode-server --new-instance --user-data-dir \'/home/user/.vscode-remote\' --idle-timeout 300 --client-forwarding',
+			]);
 		});
 
 		test('propagates telemetry disablement to a new dedicated agent host', () => {
@@ -512,14 +516,30 @@ suite('SSH Remote Agent Host Helpers', () => {
 		});
 
 		test('rejects unsafe idle timeout values', () => {
-			assert.throws(() => buildAgentHostSpawnCommand('~/.vscode-server/code', '.vscode-server', '/x', TelemetryConfiguration.ON, 0), /Unsafe idle timeout/);
-			assert.throws(() => buildAgentHostSpawnCommand('~/.vscode-server/code', '.vscode-server', '/x', TelemetryConfiguration.ON, -1), /Unsafe idle timeout/);
-			assert.throws(() => buildAgentHostSpawnCommand('~/.vscode-server/code', '.vscode-server', '/x', TelemetryConfiguration.ON, 1.5), /Unsafe idle timeout/);
+			assert.throws(() => buildAgentHostSpawnCommand('~/.vscode-server/code', '.vscode-server', '/x', TelemetryConfiguration.ON, { idleTimeoutSec: 0 }), /Unsafe idle timeout/);
+			assert.throws(() => buildAgentHostSpawnCommand('~/.vscode-server/code', '.vscode-server', '/x', TelemetryConfiguration.ON, { idleTimeoutSec: -1 }), /Unsafe idle timeout/);
+			assert.throws(() => buildAgentHostSpawnCommand('~/.vscode-server/code', '.vscode-server', '/x', TelemetryConfiguration.ON, { idleTimeoutSec: 1.5 }), /Unsafe idle timeout/);
 		});
 
 		test('always includes --new-instance so an existing standalone is never silently reused', () => {
 			const cmd = buildAgentHostSpawnCommand('~/.vscode-server/code', '.vscode-server', '/x', TelemetryConfiguration.ON);
 			assert.ok(cmd.includes(' --new-instance '), 'spawn command must request a genuinely new instance, not reuse an existing standalone');
+		});
+	});
+
+	suite('cliVersionSupportsClientForwarding', () => {
+		test('accepts CLIs from 1.149 on and those built from sources', () => {
+			const commit = 'd8b0b6fc93e3027e3dae61d348d73f8b3f33c59c';
+			assert.deepStrictEqual([
+				`code-insiders 1.148.0 (commit ${commit})`,
+				`code-insiders 1.149.0 (commit ${commit})\n`,
+				`code 1.149.2 (commit ${commit})`,
+				`code-insiders 1.150.0 (commit ${commit})`,
+				`code 2.0.0 (commit ${commit})`,
+				'code-oss dev (commit unknown)',
+				'0.9.149.0',
+				'',
+			].map(cliVersionSupportsClientForwarding), [false, true, true, true, true, true, false, false]);
 		});
 	});
 

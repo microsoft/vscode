@@ -106,6 +106,8 @@ export interface IAgentHostIpcConnectionOptions {
 	readonly env?: Readonly<Record<string, string | null>>;
 	/** Kept separate so the server can apply resolver precedence using its own environment casing. */
 	readonly debugEnv?: Readonly<Record<string, string | null>>;
+	/** Asks a server to start its agent host with {@link AgentHostClientForwardingEnvVar}. */
+	readonly clientForwarding?: boolean;
 }
 
 /** Configuration key that controls whether AHP JSONL logs are written for agent host transports. */
@@ -283,6 +285,14 @@ export const AgentHostSessionReleaseRetryMsEnvVar = 'VSCODE_AGENT_HOST_SESSION_R
 
 /** Overrides how long a changeset read waits for the file snapshots of a running Codex turn. Primarily used by integration tests. */
 export const AgentHostCodexTurnEditsWaitMsEnvVar = 'VSCODE_AGENT_HOST_CODEX_TURN_EDITS_WAIT_MS';
+
+/**
+ * Set to `1` to have the agent host forward what clients advertising `vscode.clientForwarding` offer to the processes
+ * it starts. The VS Code CLI sets it for the server of `code agent host --client-forwarding`, as the Dev Container
+ * launcher starts it, and a server for the agent host it starts when an editor window asks for it with
+ * {@link IAgentHostIpcConnectionOptions.clientForwarding}. The agent host removes it from its environment.
+ */
+export const AgentHostClientForwardingEnvVar = 'VSCODE_AGENT_HOST_CLIENT_FORWARDING';
 
 /**
  * Resolves the effective enable state for a Claude/Codex provider from the
