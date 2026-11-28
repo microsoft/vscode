@@ -24,7 +24,7 @@ const MochaJUnitReporter = require('mocha-junit-reporter');
 const url = require('url');
 const net = require('net');
 const createStatsCollector = require('mocha/lib/stats-collector');
-const { applyReporter, importMochaReporter } = require('../reporter');
+const { applyReporter, importMochaReporter } = require('../reporter.mts');
 const { getWorkerCount, getWorkerCountForFiles, removeArgument, runInWorkers, runEachFileAlone, writeWorkerReport } = require('../parallel.ts');
 const { findTestFiles } = require('./testFiles.ts');
 

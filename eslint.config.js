@@ -2414,6 +2414,8 @@ export default [
 					'target': 'test/unit/**',
 					'restrictions': [
 						'test/unit/**',
+						'mocha/lib/**',
+						'@playwright/*',
 						'*' // node modules
 					]
 				},

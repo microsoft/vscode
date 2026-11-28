@@ -17,9 +17,14 @@
 		"exactOptionalPropertyTypes": false,
 		"useUnknownInCatchVariables": false,
 		"noUnusedLocals": true,
-		"noUnusedParameters": true
+		"noUnusedParameters": true,
+		// read the types of the npm packages that have no type packages from their JavaScript
+		"allowJs": true,
+		"maxNodeModuleJsDepth": 1
 	},
 	"include": [
-		"node/**/*.ts"
+		"*.mts",
+		"node/**/*.ts",
+		"browser/**/*.ts"
 	]
 }
