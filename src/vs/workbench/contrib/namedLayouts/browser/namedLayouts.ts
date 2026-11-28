@@ -34,8 +34,8 @@ export const INamedLayoutsService = createDecorator<INamedLayoutsService>('named
  * {@link saveLayout}. A window that starts with a named layout active applies the layout as it is
  * stored, as other windows can have changed it. The default layout is the window's own layout while
  * no named layout is active. While named layouts are disabled, the layouts don't change. Named layouts
- * belong to the profile: when the window switches to a profile that doesn't have the active layout,
- * the default layout is applied, and what changed since the active layout was saved last is lost.
+ * belong to the profile: when the window switches to or starts in a profile that doesn't have the active
+ * layout, the default layout is applied, and what changed since the active layout was saved last is lost.
  */
 export interface INamedLayoutsService {
 

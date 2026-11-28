@@ -11,6 +11,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IStorageService, isProfileUsingDefaultStorage, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../platform/storage/common/storage.js';
+import { IUserDataProfile } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { EditorGroupLayout, GroupLayoutArgument, GroupOrientation, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IPartsLayoutState, IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
@@ -32,6 +33,12 @@ const ACTIVE_LAYOUT_STORAGE_KEY = 'workbench.namedLayouts.activeLayout';
  * the editor grid that it could not apply, until its editor groups change.
  */
 const DEFAULT_LAYOUT_STORAGE_KEY = 'workbench.namedLayouts.defaultLayout';
+
+/**
+ * The profile whose storage has the active layout, unless the profile uses the default storage, which profiles can share.
+ * A window that starts in another profile does not have the active layout, as after a profile switch.
+ */
+const ACTIVE_LAYOUT_PROFILE_STORAGE_KEY = 'workbench.namedLayouts.activeLayoutProfile';
 
 /**
  * What a layout arranges. Each part is stored, saved and applied on its own, so that a window writes only what it changed,
@@ -68,7 +75,10 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	private storedLayouts: readonly INamedLayout[];
 	private activeLayoutId: string;
 
-	/** Whether the window switched to a profile with its own storage before it restored, so that it applies its default layout once it restored. */
+	/**
+	 * Whether the window switched to a profile with its own storage before it restored, or started in another profile than the
+	 * one with its active layout, so that it applies its default layout once it restored.
+	 */
 	private applyDefaultLayoutWhenRestored = false;
 
 	/**
@@ -88,17 +98,23 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IExtensionService extensionService: IExtensionService,
 	) {
 		super();
 
 		this.storedLayouts = this.readStoredLayouts();
 		const activeLayoutId = this.storageService.get(ACTIVE_LAYOUT_STORAGE_KEY, StorageScope.WORKSPACE);
-		this.activeLayoutId = activeLayoutId && this.storedLayouts.some(layout => layout.id === activeLayoutId) ? activeLayoutId : DEFAULT_NAMED_LAYOUT_ID;
-		if (activeLayoutId && this.activeLayoutId === DEFAULT_NAMED_LAYOUT_ID) {
-			// The active layout was deleted in another window: the window keeps its arrangement as its default layout
-			this.storeActiveLayoutId();
+		if (activeLayoutId && this.storageService.get(ACTIVE_LAYOUT_PROFILE_STORAGE_KEY, StorageScope.WORKSPACE) !== toLayoutsProfileId(this.userDataProfileService.currentProfile)) {
+			// The window starts in another profile than the one with its active layout, as after a profile switch, so it keeps the stored state of its default layout to apply it
+			this.activeLayoutId = DEFAULT_NAMED_LAYOUT_ID;
+			this.applyDefaultLayoutWhenRestored = true;
+		} else {
+			this.activeLayoutId = activeLayoutId && this.storedLayouts.some(layout => layout.id === activeLayoutId) ? activeLayoutId : DEFAULT_NAMED_LAYOUT_ID;
+			if (activeLayoutId && this.activeLayoutId === DEFAULT_NAMED_LAYOUT_ID) {
+				// The active layout was deleted in another window: the window keeps its arrangement as its default layout
+				this.storeActiveLayoutId();
+			}
 		}
 
 		// The `Restored` phase can start before slow editors restored, while editors still open into groups that applying a layout could merge
@@ -131,7 +147,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			}
 		}));
 
-		this._register(userDataProfileService.onDidChangeCurrentProfile(e => this.onDidChangeProfile(e)));
+		this._register(this.userDataProfileService.onDidChangeCurrentProfile(e => this.onDidChangeProfile(e)));
 
 		this._register(this.storageService.onWillSaveState(e => {
 			if (e.reason === WillSaveStateReason.SHUTDOWN && this.isEnabled()) {
@@ -288,6 +304,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			this.showFullArrangement();
 			this.applyDefaultLayout();
 		} else {
+			// Storage keeps the active layout and its profile, so that a window that closes before it restored applies the default layout as it next starts
 			this.activeLayoutId = DEFAULT_NAMED_LAYOUT_ID;
 			this.applyDefaultLayoutWhenRestored = true;
 		}
@@ -479,9 +496,11 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		if (this.activeLayoutId === DEFAULT_NAMED_LAYOUT_ID) {
 			// While the default layout is active, its state is what the window shows
 			this.storageService.remove(ACTIVE_LAYOUT_STORAGE_KEY, StorageScope.WORKSPACE);
+			this.storageService.remove(ACTIVE_LAYOUT_PROFILE_STORAGE_KEY, StorageScope.WORKSPACE);
 			this.storageService.remove(DEFAULT_LAYOUT_STORAGE_KEY, StorageScope.WORKSPACE);
 		} else {
 			this.storageService.store(ACTIVE_LAYOUT_STORAGE_KEY, this.activeLayoutId, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			this.storageService.store(ACTIVE_LAYOUT_PROFILE_STORAGE_KEY, toLayoutsProfileId(this.userDataProfileService.currentProfile), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}
 	}
 
@@ -497,6 +516,13 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 
 function layoutStorageKey(id: string, key: NamedLayoutStateKey | 'name'): string {
 	return `${LAYOUT_STORAGE_KEY_PREFIX}${id}.${key}`;
+}
+
+/**
+ * Returns the profile whose storage has the layouts, or undefined when the profile uses the default storage, which profiles can share.
+ */
+function toLayoutsProfileId(profile: IUserDataProfile): string | undefined {
+	return isProfileUsingDefaultStorage(profile) ? undefined : profile.id;
 }
 
 function toLayoutName(name: string): string {

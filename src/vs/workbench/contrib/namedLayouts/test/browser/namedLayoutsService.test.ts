@@ -48,10 +48,11 @@ suite('NamedLayoutsService', () => {
 	 * A window whose parts and editor groups show what was applied last, and whose Zen mode hides the parts until it ends.
 	 * Applying editor groups restores a maximized panel, as it activates an editor group. A maximized editor group reports
 	 * the size of all groups together, as the grid does. With `restore`, the window starts with that layout active, as
-	 * stored, and with the arrangement that it restores itself. The layout service reports the window restored, including
-	 * its editors, once `whenRestored` resolves.
+	 * stored, and with the arrangement that it restores itself. With `layoutProfile`, the active layout is stored as one
+	 * of that profile, which the window does not start in. With `defaultLayout`, the stored state of the default layout.
+	 * The layout service reports the window restored, including its editors, once `whenRestored` resolves.
 	 */
-	function createWindow(restore?: { layout: Record<string, unknown>; zenMode?: boolean; groupMaximized?: boolean; parts?: IPartsLayoutState; editorGroups?: EditorGroupLayout; whenRestored?: Promise<void> }) {
+	function createWindow(restore?: { layout: Record<string, unknown>; layoutProfile?: string; defaultLayout?: Record<string, unknown>; zenMode?: boolean; groupMaximized?: boolean; parts?: IPartsLayoutState; editorGroups?: EditorGroupLayout; whenRestored?: Promise<void> }) {
 		const storageService = store.add(new TestStorageService());
 		const configurationService = new TestConfigurationService({ [NAMED_LAYOUTS_ENABLED_SETTING]: true });
 		const onDidChangeZenMode = store.add(new Emitter<boolean>());
@@ -156,6 +157,10 @@ suite('NamedLayoutsService', () => {
 
 		if (restore) {
 			storageService.store('workbench.namedLayouts.activeLayout', 'restored', StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			storageService.store('workbench.namedLayouts.activeLayoutProfile', restore.layoutProfile, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			if (restore.defaultLayout) {
+				storageService.store('workbench.namedLayouts.defaultLayout', JSON.stringify(restore.defaultLayout), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			}
 			for (const [part, value] of Object.entries(restore.layout)) {
 				storeFromOtherWindow('restored', part, value);
 			}
@@ -533,25 +538,57 @@ suite('NamedLayoutsService', () => {
 		assert.deepStrictEqual({ active: service.activeLayout.name, parts: window.parts }, { active: 'Default', parts: partsState(false, Position.LEFT) });
 	});
 
-	test('a window that switches to a profile with its own storage before its editors restored applies the default layout only once they restored, as editors still open into the editor groups that applying it can merge, and ends Zen mode then', async () => {
+	test('a window that switches to a profile with its own storage before its editors restored applies the default layout only once they restored, as editors still open into the editor groups that applying it can merge, and ends Zen mode then, and keeps what is stored as it closes before then', async () => {
 		const whenRestored = new DeferredPromise<void>();
 		const debugParts = partsState(false, Position.RIGHT);
-		const { service, window, storageService, switchProfile } = createWindow({ layout: { name: 'Debug', ...debugParts, editorGroups: twoGroups }, parts: debugParts, editorGroups: twoGroups, zenMode: true, whenRestored: whenRestored.p });
-		storageService.store('workbench.namedLayouts.defaultLayout', JSON.stringify({ ...partsState(true, Position.BOTTOM), editorGroups: singleGroup }), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		const defaultLayout = { ...partsState(true, Position.BOTTOM), editorGroups: singleGroup };
+		const { service, window, storageService, switchProfile } = createWindow({ layout: { name: 'Debug', ...debugParts, editorGroups: twoGroups }, defaultLayout, parts: debugParts, editorGroups: twoGroups, zenMode: true, whenRestored: whenRestored.p });
 		switchProfile({ id: 'work' });
 		await timeout(0);
-		const beforeRestored = { active: service.activeLayout.name, zenMode: window.zenMode, editorGroupsApplied: window.editorGroupsApplied };
+		storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
+		const beforeRestored = { active: service.activeLayout.name, zenMode: window.zenMode, editorGroupsApplied: window.editorGroupsApplied, activeLayoutStored: storageService.get('workbench.namedLayouts.activeLayout', StorageScope.WORKSPACE), defaultLayout: defaultLayoutState(storageService) };
 
 		whenRestored.complete();
 		await service.saveLayout();
 
 		assert.deepStrictEqual({ beforeRestored, active: service.activeLayout.name, zenMode: window.zenMode, parts: window.parts, editorGroups: window.editorGroups, defaultLayout: defaultLayoutState(storageService) }, {
-			beforeRestored: { active: 'Default', zenMode: true, editorGroupsApplied: 0 },
+			beforeRestored: { active: 'Default', zenMode: true, editorGroupsApplied: 0, activeLayoutStored: 'restored', defaultLayout },
 			active: 'Default',
 			zenMode: false,
 			parts: partsState(true, Position.BOTTOM),
 			editorGroups: singleGroup,
 			defaultLayout: null,
+		});
+	});
+
+	test('a window that starts in another profile than the one with its active layout, as after a profile switch before it restored, keeps the stored state of the default layout and applies it once its editors restored, and the window stores the profile of a layout only when the profile has its own storage', async () => {
+		const whenRestored = new DeferredPromise<void>();
+		const debugParts = partsState(false, Position.RIGHT);
+		const { service, window, storageService, switchProfile } = createWindow({ layout: {}, layoutProfile: 'work', defaultLayout: { ...partsState(true, Position.BOTTOM), editorGroups: singleGroup }, parts: debugParts, editorGroups: twoGroups, whenRestored: whenRestored.p });
+		const activeLayoutProfile = () => storageService.get('workbench.namedLayouts.activeLayoutProfile', StorageScope.WORKSPACE);
+		await timeout(0);
+		const beforeRestored = { active: service.activeLayout.name, editorGroupsApplied: window.editorGroupsApplied, defaultLayout: defaultLayoutState(storageService) };
+
+		whenRestored.complete();
+		await service.saveLayout();
+		const restored = {
+			parts: window.parts,
+			editorGroups: window.editorGroups,
+			activeLayoutStored: storageService.get('workbench.namedLayouts.activeLayout', StorageScope.WORKSPACE),
+			activeLayoutProfile: activeLayoutProfile(),
+			defaultLayout: defaultLayoutState(storageService),
+		};
+
+		await service.createLayout('Shared');
+		const inDefaultStorage = activeLayoutProfile();
+		switchProfile({ id: 'work' });
+		await service.createLayout('Work');
+
+		assert.deepStrictEqual({ beforeRestored, restored, inDefaultStorage, inOwnStorage: activeLayoutProfile() }, {
+			beforeRestored: { active: 'Default', editorGroupsApplied: 0, defaultLayout: { ...partsState(true, Position.BOTTOM), editorGroups: singleGroup } },
+			restored: { parts: partsState(true, Position.BOTTOM), editorGroups: singleGroup, activeLayoutStored: undefined, activeLayoutProfile: undefined, defaultLayout: null },
+			inDefaultStorage: undefined,
+			inOwnStorage: 'work',
 		});
 	});
 
