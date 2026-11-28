@@ -10,7 +10,7 @@ import { SessionGroupAppearancePicker } from './sessionGroupAppearancePicker.js'
 import { findSearchWords, getSessionSearchHint, ISessionSearchDocument, ISessionSearchField, ISessionSearchHint, ISessionSearchMatch, ISessionsListSearchResults, matchSessionSearch, SessionsListFindController, SessionsListSearchQuery, SessionsListSearchTelemetry, SessionSearchFieldKind, toSearchFilterData } from './sessionsListSearch.js';
 import { ISessionRowIndent, SessionRowIndent, SessionsListIndentGuides } from './sessionsListIndentGuides.js';
 import { CANVASES_SECTION_ID, SessionItemContextMenuId, SessionItemOrganizeMenuGroup, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_CANVASES_SECTION_SETTING, IsSessionPinnedContext, SessionItemInboxStateContext, SessionItemCanAcknowledgeContext, SessionItemCanMergePullRequestContext, SessionItemHasUnreadNestedSessionsContext, SessionChatItemCanRenameContext, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemCanMoveContext, SessionChatItemHasMoveDestinationContext, SessionItemHasMoveDestinationContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionChatItemCanSetReadStateContext, SessionChatItemIsUntitledContext, SessionChatItemIsStandaloneContext, SessionChatItemCanMoveUpContext, SessionChatItemCanMoveDownContext, SessionsListFocusedChatItemContext, SessionItemInGroupContext, SessionItemInExternalSectionContext, SessionItemCanImportContext, SessionItemHasPinnedCanvasContext, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionSectionHasRootFolderContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, ISessionShowMore, ISessionPlaceholder, SessionChatItem, ISessionChatItem, SessionListItem, isSessionChatItem, isSessionGroupItem, isSessionSection, isSessionShowMore, isSessionPlaceholder, isSessionItem, SessionsListSearchOpenContext, SessionSectionWorkspaceKindContext, SessionSectionWorkspaceIsLocalContext, SessionSectionHasSessionsContext } from './sessionsListCommon.js';
-import { NEW_SESSION_SECTION_ID, AUTOMATIONS_SECTION_ID, CUSTOMIZATIONS_SECTION_ID, PINNED_CANVAS_SECTION_PREFIX, EXTERNAL_SESSIONS_SECTION_ID, DATE_SECTION_IDS, getChatTitle, getSessionListChats, isShortcutSection, REPOSITORY_SECTION_PREFIX, ENVIRONMENT_SECTION_PREFIX, isSessionGroupingSection, getSessionSectionType, getSessionsRootFolder, sessionMatchesFolder, sortSessions, sortSessionListChats, sortComparisonGroupMembers, isComparisonLaunchPending, getComparisonGroupConfiguration, getComparisonGroupSummary, limitSessionsForList, computeReorderSortChanges, QUICK_CHATS_SECTION_ID, isQuickChatSession, groupingHasQuickChatsSection, isAutomationSession, groupSessionsForList, IInboxPlacement, inboxPlacementsEqual, sessionWorkspaceLabel, isGroupingSpecificCollapseStateId, getSessionRepository, getRepositorySectionId, getSessionGroupingSectionId, labelRepositorySections, getNewSessionSources, RECENTLY_UPDATED_SESSION_THRESHOLD_MS, partitionByDate, GROUPS_SECTION_ID, WORKSPACES_SECTION_ID, ISessionListWorkspaces, getSessionWorkspaceUri, createWorkspaceRow, compareWorkspaceRows } from './sessionsListHelpers.js';
+import { NEW_SESSION_SECTION_ID, AUTOMATIONS_SECTION_ID, CUSTOMIZATIONS_SECTION_ID, PINNED_CANVAS_SECTION_PREFIX, EXTERNAL_SESSIONS_SECTION_ID, DATE_SECTION_IDS, getChatTitle, getSessionListChats, isShortcutSection, REPOSITORY_SECTION_PREFIX, ENVIRONMENT_SECTION_PREFIX, isSessionGroupingSection, getSessionSectionType, getSessionsRootFolder, sessionMatchesFolder, sortSessions, sortSessionListChats, sortComparisonGroupMembers, isComparisonLaunchPending, getComparisonGroupConfiguration, getComparisonGroupSummary, limitSessionsForList, computeReorderSortChanges, QUICK_CHATS_SECTION_ID, isQuickChatSession, groupingHasQuickChatsSection, isAutomationSession, groupSessionsForList, IInboxPlacement, inboxPlacementsEqual, compareInboxRows, IInboxRowOrder, sessionWorkspaceLabel, isGroupingSpecificCollapseStateId, getSessionRepository, getRepositorySectionId, getSessionGroupingSectionId, labelRepositorySections, getNewSessionSources, RECENTLY_UPDATED_SESSION_THRESHOLD_MS, partitionByDate, GROUPS_SECTION_ID, WORKSPACES_SECTION_ID, ISessionListWorkspaces, getSessionWorkspaceUri, createWorkspaceRow, compareWorkspaceRows } from './sessionsListHelpers.js';
 import { SESSION_SHORTCUT_SECTION_TEMPLATE_ID, SESSION_HEADER_GAP, SESSION_SHORTCUT_ROW_HEIGHT, EMPTY_GUIDE_SESSION_IDS, SessionGroupConnectorPosition, isOpenChat, getSessionRowStatus, INSET_ROW_GAP, DEFAULT_APPROVAL_ROW_MAX_LINES, SessionsTreeDelegate, withSessionsListHoverPresentation, getCreatorHoverData, SessionChatItemRenderer, SessionItemActionRunner, ISessionOnboardingTarget, SessionItemRenderer, getSessionArchiveOnboardingTargetId, getSessionOnboardingTargetId, getWorkspaceSectionOnboardingTargetId, logDefaultSettingExperimentTrigger, ISessionHeaderStatusTrigger, SessionSectionRenderer, SessionShortcutListDelegate, SessionShortcutListRenderer, SessionGroupRenderer, SessionShowMoreRenderer, SessionPlaceholderRenderer, SessionsAccessibilityProvider } from './sessionsListRenderers.js';
 import { SessionListPlacement, getPlacementState, getSectionPlacement, isSamePlacement, getPlacementHeader, ISessionDropAnchor, ISessionDropDestination, SessionDropEffect, ISessionDropTargetHeader, IDraggedHeader, SessionHeaderDrop, SessionsListDragAndDrop, isDateSectionPlacement, keepDateSectionOrder, sectorToPosition, findLastVisible } from './sessionsListDragAndDrop.js';
 import * as DOM from '../../../../../base/browser/dom.js';
@@ -2052,7 +2052,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			? getSessionEnvironments(this._sessionsProvidersService.getProviders().map(provider => provider.environment))
 			: [];
 		const workspaces = this.listWorkspaces = separateGroupsAndWorkspaces ? this.createListWorkspaces(!!scope) : undefined;
-		const sections = groupSessionsForList(forSections, grouping, sorting, session => this.isSessionPinned(session), (s, srt) => this._sessionsListModelService.getSortKey(s, sortingToMode(srt)), archivedSectionLabel, this.groupExternalSessions, environments, session => this.getInboxSection(session), session => this.getInboxPriority(session), this.quickChatsInTimeGrouping, this.hasQuickChatsSection, workspaces, this.configurationService.getValue<InboxPriorityOrder>(SESSIONS_LIST_INBOX_PRIORITY_ORDER_SETTING) === InboxPriorityOrder.Strict ? InboxPriorityOrder.Strict : InboxPriorityOrder.HeadStart);
+		const sections = groupSessionsForList(forSections, grouping, sorting, session => this.isSessionPinned(session), (s, srt) => this._sessionsListModelService.getSortKey(s, sortingToMode(srt)), archivedSectionLabel, this.groupExternalSessions, environments, session => this.getInboxSection(session), session => this.getInboxPriority(session), this.quickChatsInTimeGrouping, this.hasQuickChatsSection, workspaces, this.inboxPriorityOrder);
 
 		// When done items are shown, the done chats of a session that is not done
 		// are listed in the Done section as rows of their own instead of under
@@ -4522,16 +4522,33 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private sortComparisonChildren(children: IObjectTreeElement<SessionListItem>[]): IObjectTreeElement<SessionListItem>[] {
-		const inbox = this.options.grouping() === SessionsGrouping.Inbox;
-		const key = (child: IObjectTreeElement<SessionListItem>) => isSessionItem(child.element) || (isSessionGroupItem(child.element) && child.element.comparison)
-			? inbox ? (this.options.sorting() === SessionsSorting.Created ? this.getListSortEntry(child.element).createdAt : this.getListSortEntry(child.element).updatedAt.get()).getTime()
-				: this._sessionsListModelService.getSortKey(this.getListSortEntry(child.element), sortingToMode(this.options.sorting()))
-			: Number.NEGATIVE_INFINITY;
-		const priority = (child: IObjectTreeElement<SessionListItem>) => !inbox ? InboxNotificationPriority.Later
-			: isSessionItem(child.element) ? this.getInboxPriority(child.element)
+		const sorting = this.options.sorting();
+		const sortable = (element: SessionListItem): element is ISession | ISessionGroupItem => isSessionItem(element) || (isSessionGroupItem(element) && !!element.comparison);
+		if (this.options.grouping() !== SessionsGrouping.Inbox) {
+			const key = (child: IObjectTreeElement<SessionListItem>) => sortable(child.element)
+				? this._sessionsListModelService.getSortKey(this.getListSortEntry(child.element), sortingToMode(sorting))
+				: Number.NEGATIVE_INFINITY;
+			return children.sort((a, b) => key(b) - key(a));
+		}
+		const time = (element: SessionListItem) => {
+			if (!sortable(element)) {
+				return Number.NEGATIVE_INFINITY;
+			}
+			const entry = this.getListSortEntry(element);
+			return (sorting === SessionsSorting.Created ? entry.createdAt : entry.updatedAt.get()).getTime();
+		};
+		const row = (child: IObjectTreeElement<SessionListItem>): IInboxRowOrder => ({
+			time: time(child.element),
+			priority: isSessionItem(child.element) ? this.getInboxPriority(child.element)
 				: isSessionGroupItem(child.element) ? Math.min(InboxNotificationPriority.Later, ...child.element.sessions.map(session => this.getInboxPriority(session)))
-					: InboxNotificationPriority.Later;
-		return children.sort((a, b) => priority(a) - priority(b) || key(b) - key(a));
+					: InboxNotificationPriority.Later,
+		});
+		const priorityOrder = this.inboxPriorityOrder;
+		return children.sort((a, b) => compareInboxRows(row(a), row(b), sorting, priorityOrder));
+	}
+
+	private get inboxPriorityOrder(): InboxPriorityOrder {
+		return this.configurationService.getValue<InboxPriorityOrder>(SESSIONS_LIST_INBOX_PRIORITY_ORDER_SETTING) === InboxPriorityOrder.Strict ? InboxPriorityOrder.Strict : InboxPriorityOrder.HeadStart;
 	}
 
 	private getComparisonDrop(group: ISessionGroupItem, target: SessionListItem, sector: ListViewTargetSector | undefined): SessionHeaderDrop | undefined {
