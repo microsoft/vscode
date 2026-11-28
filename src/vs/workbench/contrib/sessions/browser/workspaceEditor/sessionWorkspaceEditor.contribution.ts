@@ -152,26 +152,37 @@ registerAction2(class OpenSessionWorkspaceInEditorAction extends SessionWorkspac
 			notificationService.info(localize('openWorkspaceInEditor.missing', "The workspace file of '{0}' is missing. Edit the workspace to repair it, or remove it.", workspace.name));
 			return;
 		}
-		const toOpen = workspace ? this._getWindowToOpen(extUri, workspace) : URI.isUri(uri) ? this._getWindowToOpenOfUri(uri) : undefined;
+		const toOpen = workspace ? this._getWindowToOpen(extUri, workspace) : URI.isUri(uri) ? this._getWindowToOpenOfUnknownUri(uri) : undefined;
 		if (toOpen) {
 			await hostService.openWindow([toOpen], { forceNewWindow: true });
 		}
 	}
 
-	/** The workspace file of the workspace, else its standalone folder; `undefined` when it is not on this computer. */
+	/**
+	 * The workspace file of the workspace, else its standalone folder, also one whose name ends in `.code-workspace`;
+	 * `undefined` when it is not on this computer.
+	 */
 	private _getWindowToOpen(extUri: IExtUri, workspace: IRecentSessionWorkspace): IWindowOpenable | undefined {
 		if (SessionWorkspaceEditorInput.hasWorkspaceFile(extUri, workspace)) {
-			return this._getWindowToOpenOfUri(workspace.uri);
+			return this._isOnThisComputer(workspace.uri) ? { workspaceUri: workspace.uri } : undefined;
 		}
-		return workspace.folders.length ? this._getWindowToOpenOfUri(workspace.folders[0]) : undefined;
+		const folder = workspace.folders[0];
+		return folder && this._isOnThisComputer(folder) ? { folderUri: folder } : undefined;
 	}
 
-	/** A `.code-workspace` file as a workspace, anything else as a folder; `undefined` when it is not on this computer. */
-	private _getWindowToOpenOfUri(uri: URI): IWindowOpenable | undefined {
-		if (uri.scheme !== Schemas.file) {
+	/**
+	 * What a URI that the workspaces service doesn't know is, such as a folder's row: a `.code-workspace` file is a
+	 * workspace, anything else a folder; `undefined` when it is not on this computer.
+	 */
+	private _getWindowToOpenOfUnknownUri(uri: URI): IWindowOpenable | undefined {
+		if (!this._isOnThisComputer(uri)) {
 			return undefined;
 		}
 		return hasWorkspaceFileExtension(uri) ? { workspaceUri: uri } : { folderUri: uri };
+	}
+
+	private _isOnThisComputer(uri: URI): boolean {
+		return uri.scheme === Schemas.file;
 	}
 });
 

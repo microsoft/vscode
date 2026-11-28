@@ -529,6 +529,8 @@ suite('SessionWorkspaceEditor', () => {
 		assert.deepStrictEqual({
 			file: await open(agents),
 			folder: await open({ ...agents, uri: vscode, folders: [vscode], owned: false }),
+			// A standalone folder whose name looks like a workspace file is still a folder
+			folderNamedLikeWorkspaceFile: await open({ ...agents, uri: URI.file('/work/x.code-workspace'), folders: [URI.file('/work/x.code-workspace')], owned: false }),
 			missingFile: await open({ ...agents, missing: true }),
 			// An editor window opens only a workspace on this computer
 			remoteFile: await open({ ...agents, uri: URI.from({ scheme: 'vscode-remote', authority: 'ssh-remote+host', path: '/ws/remote.code-workspace' }), folders: [remoteFolder] }),
@@ -536,6 +538,7 @@ suite('SessionWorkspaceEditor', () => {
 		}, {
 			file: [{ toOpen: ['workspace /user/AgentsWorkspaces/Agents.code-workspace'], forceNewWindow: true }],
 			folder: [{ toOpen: ['folder /work/vscode'], forceNewWindow: true }],
+			folderNamedLikeWorkspaceFile: [{ toOpen: ['folder /work/x.code-workspace'], forceNewWindow: true }],
 			missingFile: ['info The workspace file of \'Agents\' is missing. Edit the workspace to repair it, or remove it.'],
 			remoteFile: [],
 			remoteFolder: [],
