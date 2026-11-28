@@ -15,7 +15,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { IAuthenticationService } from '../../authentication/common/authentication.js';
+import { IAuthenticationExtensionsService, IAuthenticationService } from '../../authentication/common/authentication.js';
 import { WorkbenchGitHubService } from '../browser/githubService.js';
 import { IWorkbenchGitHubService } from '../common/githubService.js';
 
@@ -27,9 +27,10 @@ export class NativeWorkbenchGitHubService extends WorkbenchGitHubService {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IProductService productService: IProductService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IAuthenticationExtensionsService authenticationExtensionsService: IAuthenticationExtensionsService,
 		@ISharedProcessGitHubService private readonly sharedGitHubService: ISharedProcessGitHubService,
 	) {
-		super(authenticationService, defaultAccountService, logService, telemetryService, productService, configurationService);
+		super(authenticationService, defaultAccountService, logService, telemetryService, productService, configurationService, authenticationExtensionsService);
 	}
 
 	override acquireAnonymousApiClient(cancellationToken: CancellationToken): Promise<IGitHubAnonymousClient> {
