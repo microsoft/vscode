@@ -113,6 +113,17 @@ suite('resolveSessionCommandTarget', () => {
 		});
 	});
 
+	test('a chat named first wins over a host\'s context that follows it, as from the Changes of a chat that its window does not show', () => {
+		const { resolve, chatWindowHost } = setup();
+		assert.deepStrictEqual({
+			namedChat: resolve({ session: sessionA, chat: mainChat }, undefined, chatWindowHost.commandContext),
+			sessionOnly: resolve(sessionA, undefined, chatWindowHost.commandContext),
+		}, {
+			namedChat: { host: undefined, session: 'a', chat: 'main' },
+			sessionOnly: { host: SessionHostKind.ChatWindow, session: 'a', chat: 'side' },
+		});
+	});
+
 	test('a session that several windows show resolves to the host in the focused window', () => {
 		const resolveIn = (focusedWindow: 'main' | 'chat') => {
 			const { resolve, mainHost, sessionHostService } = setup(focusedWindow);

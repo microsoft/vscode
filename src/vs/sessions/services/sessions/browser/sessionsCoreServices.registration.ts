@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ISessionAgentMergeService, SessionAgentMergeService } from '../../../../workbench/contrib/sessions/browser/sessionAgentMerge.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ISessionsNavigationService } from '../../../../workbench/contrib/sessions/browser/sessionsNavigationService.js';
 import { SessionsServiceNavigationService } from '../../../../workbench/contrib/sessions/browser/sessionsServiceNavigationService.js';
@@ -47,6 +48,7 @@ registerSingleton(ISessionHostService, SessionHostService, InstantiationType.Del
 registerSingleton(IFocusedSessionHostService, FocusedSessionHostService, InstantiationType.Delayed);
 registerSingleton(ISessionSectionOrderService, SessionSectionOrderService, InstantiationType.Delayed);
 registerSingleton(ISessionGroupsService, SessionGroupsService, InstantiationType.Delayed);
+registerSingleton(ISessionAgentMergeService, SessionAgentMergeService, InstantiationType.Delayed);
 registerSingleton(ISessionsRecentWorkspacesService, SessionsRecentWorkspacesService, InstantiationType.Delayed);
 registerSingleton(ISessionWorkspacesService, SessionWorkspacesService, InstantiationType.Delayed);
 registerSingleton(ISessionComparisonService, SessionComparisonService, InstantiationType.Delayed);

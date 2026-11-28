@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ISessionAgentMergeService, SessionAgentMergeService } from '../../../../contrib/sessions/browser/sessionAgentMerge.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
@@ -263,6 +264,7 @@ function renderBlockedList(ctx: ComponentFixtureContext, sessions: readonly ISes
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 				override markRead(): Promise<void> { return Promise.resolve(); }
 			}());
+			reg.define(ISessionAgentMergeService, SessionAgentMergeService);
 			reg.defineInstance(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 				override readonly onDidChangeProviders = Event.None;
 				override getProviders() { return []; }

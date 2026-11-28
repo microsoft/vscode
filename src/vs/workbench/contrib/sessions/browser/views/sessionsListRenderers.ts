@@ -106,7 +106,7 @@ import { ChatCustomizationsHover } from '../../../chat/browser/aiCustomization/c
 import { NEW_SESSION_ACTION_ID } from '../../common/chatConstants.js';
 import { Menus } from '../menus.js';
 import { getSessionConversationStatusAriaLabel } from '../sessionConversationGroups.js';
-import { getChatCompletedStateIcon, getSessionAgentMergeConfigurationObservable, getSessionCompletedStateIcon, ISessionAgentMergeConfiguration } from '../sessionAgentMerge.js';
+import { getChatCompletedStateIcon, getSessionCompletedStateIcon, ISessionAgentMergeConfiguration, ISessionAgentMergeService } from '../sessionAgentMerge.js';
 import { KeybindingLabel } from '../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IPinnedCanvas, PinnedCanvasState } from '../pinnedCanvases.js';
 import { SessionInboxSection, sessionInboxSections } from '../../common/sessionInbox.js';
@@ -1367,6 +1367,7 @@ export class SessionItemRenderer implements ITreeRenderer<SessionListItem, Fuzzy
 		// TEMPORARY — see the note on the `IAgentSessionsService` import above (#320480).
 		private readonly agentSessionsService: IAgentSessionsService,
 		private readonly _voicePlaybackService: IVoicePlaybackService,
+		private readonly sessionAgentMergeService: ISessionAgentMergeService,
 		notificationService: INotificationService,
 	) {
 		this.scheduledIndicatorRenderer = new ScheduledRequestsIndicatorRenderer(hoverService, notificationService, options.scheduledRequests);
@@ -1704,7 +1705,7 @@ export class SessionItemRenderer implements ITreeRenderer<SessionListItem, Fuzzy
 			template.isQuickChatContext.set(isQuickChat);
 			template.supportsMultipleChatsContext.set(capabilities.supportsMultipleChats);
 			template.supportsDeleteContext.set(capabilities.supportsDelete === true);
-			const completedStateIcon = getSessionCompletedStateIcon(element, reader, () => agentMergeConfiguration ??= getSessionAgentMergeConfigurationObservable(element, this.sessionsProvidersService, this.configurationService));
+			const completedStateIcon = getSessionCompletedStateIcon(element, reader, () => agentMergeConfiguration ??= this.sessionAgentMergeService.getConfigurationObservable(element));
 
 			// The status icon widget snaps on row recycling and cross-fades real state changes.
 			template.statusIcon.setStatus(sessionStatus, isRead, isArchived, completedStateIcon, element.resource);

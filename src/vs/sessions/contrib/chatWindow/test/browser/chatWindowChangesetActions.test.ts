@@ -3,10 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { ISessionAgentMergeService, SessionAgentMergeService } from '../../../../../workbench/contrib/sessions/browser/sessionAgentMerge.js';
 import assert from 'assert';
 import { IAction } from '../../../../../base/common/actions.js';
 import { Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -32,7 +34,7 @@ import { ChangesHeaderChangesetOperationsActionContribution } from '../../../../
 import { bindSessionActionContextKeys } from '../../../../../workbench/contrib/sessionChanges/browser/sessionActionContextKeys.js';
 import { ChangesetReviewSupportContext } from '../../../../../workbench/contrib/sessionChanges/browser/changesViewService.js';
 import { CHANGESET_REVIEW_ACTION_ID, SessionChangesEditor, SessionChangesUIElementFactory } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditor.js';
-import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { IGitHubService, IGitHubSessionPullRequestObservables } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
 import { ActiveSessionState, IChangesSessionObservables, IChangesSessionScope, IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { bindSessionScopeContextKeys } from '../../../../../workbench/contrib/sessionChanges/browser/sessionActionsHost.js';
@@ -61,6 +63,9 @@ suite('Chat window changeset actions', () => {
 			return upcastPartial<IChangesSessionObservables>({
 				changesetObs: constObservable(changeset),
 				changesetOperationsObs: constObservable(operations),
+				operationsChangesetObs: constObservable(changeset),
+				repositoryObs: constObservable(undefined),
+				repositoriesObs: constObservable([]),
 				changesObs: constObservable([{ modifiedUri: file(session), originalUri: undefined, insertions: 1, deletions: 0 }]),
 				changesetsLoadingObs: constObservable(false),
 				loadingObs: constObservable(false),
@@ -72,12 +77,15 @@ suite('Chat window changeset actions', () => {
 		const chatChanges = changesOf(chat, true);
 
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		// Created on first use, from the session providers stubbed by then
+		instantiationService.set(ISessionAgentMergeService, new SyncDescriptor(SessionAgentMergeService) as unknown as ISessionAgentMergeService);
 		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({
 			executeCommand: async <R>(id: string, ...args: unknown[]) => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor, ...args)) as R,
 		}));
 		instantiationService.stub(IGitHubService, upcastPartial<IGitHubService>({
+			keepSessionPullRequestCurrent: () => Disposable.None,
 			getSessionPullRequest: () => upcastPartial<ReturnType<IGitHubService['getSessionPullRequest']>>({
 				pullRequestCIObs: constObservable(upcastPartial<GitHubPullRequestCIModel>({ checks: constObservable([]), requiredChecks: constObservable(undefined), fixRequested: observableValue('fixRequested', false) })),
 			}),
@@ -168,5 +176,46 @@ suite('Chat window changeset actions', () => {
 				invoked: ['main:commit', 'main:discard'],
 			},
 		});
+	});
+
+	test('the Changes of a chat window keep the pull request of the repository they select current while its session is not archived', () => {
+		const isArchived = observableValue('test.isArchived', false);
+		const session: ITestSessionWithChat = Object.assign(Object.create(createTestActiveSession('chat')), { isArchived });
+		const repositoryObs = constObservable(undefined);
+		const events: string[] = [];
+		const pullRequest = upcastPartial<IGitHubSessionPullRequestObservables>({ pullRequestCIObs: constObservable(undefined) });
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.set(ISessionAgentMergeService, new SyncDescriptor(SessionAgentMergeService) as unknown as ISessionAgentMergeService);
+		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		instantiationService.stub(IContextKeyService, contextKeyService);
+		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({ onDidChangeProviders: Event.None, getProvider: () => undefined }));
+		instantiationService.stub(IGitHubService, upcastPartial<IGitHubService>({
+			getSessionPullRequest: (_sessionObs, selected) => {
+				events.push(selected === repositoryObs ? 'pull request of the selection' : 'pull request of the first folder');
+				return pullRequest;
+			},
+			keepSessionPullRequestCurrent: kept => {
+				events.push(kept === pullRequest ? 'kept current' : 'kept another current');
+				return toDisposable(() => events.push('no longer kept current'));
+			},
+		}));
+		const changes = upcastPartial<IChangesSessionObservables>({
+			changesetObs: constObservable(undefined),
+			changesetOperationsObs: constObservable([]),
+			operationsChangesetObs: constObservable(undefined),
+			repositoryObs,
+			repositoriesObs: constObservable([]),
+			changesObs: constObservable([]),
+			changesetsLoadingObs: constObservable(false),
+			loadingObs: constObservable(false),
+			stateObs: constObservable(upcastPartial<ActiveSessionState>({})),
+		});
+
+		const keys = bindSessionScopeContextKeys(instantiationService, { session: constObservable(session), chat: constObservable(session.activeChat.get()), changes, isMainWindow: false }, contextKeyService);
+		isArchived.set(true, undefined);
+		isArchived.set(false, undefined);
+		keys.dispose();
+
+		assert.deepStrictEqual(events, ['pull request of the selection', 'kept current', 'no longer kept current', 'kept current', 'no longer kept current']);
 	});
 });

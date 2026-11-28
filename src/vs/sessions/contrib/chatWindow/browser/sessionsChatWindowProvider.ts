@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ISessionAgentMergeService } from '../../../../workbench/contrib/sessions/browser/sessionAgentMerge.js';
 import './media/chatWindow.css';
 import { timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -120,12 +121,11 @@ class SessionsChatWindowChat extends SessionChatEditorEntry implements IChatWind
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@IChatHostOpenerService private readonly _chatHostOpenerService: IChatHostOpenerService,
 		@ISessionsListModelService sessionsListModelService: ISessionsListModelService,
-		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@ISessionAgentMergeService sessionAgentMergeService: ISessionAgentMergeService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
-		super(chatResource, sessionsManagementService, chatService, sessionsListModelService, sessionsProvidersService, configurationService);
+		super(chatResource, sessionsManagementService, chatService, sessionsListModelService, sessionAgentMergeService);
 		this.window = owner.window;
 		this.active = derived(this, reader => isEqual(owner.window.read(reader)?.chat.read(reader), this.chat.read(reader)));
 		// It takes the chat out of the main window's grid only once the window binds it: the window first takes along the

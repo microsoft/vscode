@@ -356,3 +356,17 @@
 .changes-view-body .chat-editing-session-actions .monaco-button .working-set-lines-removed {
 	color: var(--vscode-chat-linesRemovedForeground);
 }
+
+/* Repository picker: the changeset picker's look, with its own icon and a truncated name */
+.changes-repository-picker .changes-repository-picker-name {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* The root row of a repository whose changes could not be computed shows why */
+.monaco-list .monaco-icon-label.changes-repository-failed .label-description {
+	color: var(--vscode-list-errorForeground);
+	opacity: 1;
+}

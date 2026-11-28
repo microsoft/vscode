@@ -399,6 +399,7 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 			supportsCanvasPresentation: (agentProvider: string) => agentProvider === CopilotCLISessionType.id,
 			// The local host is this build's, which takes chat folder changes from the Agents window only
 			supportsChatFolders: this._environmentService.isSessionsWindow,
+			servesFolderScopes: true,
 			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectories: readonly URI[] | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined) => {
 				const primary = workingDirectories?.[0];
 				const uriForDescription = project?.uri ?? primary;

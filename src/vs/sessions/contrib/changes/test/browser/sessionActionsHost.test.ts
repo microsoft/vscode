@@ -44,6 +44,9 @@ suite('Session Actions Host', () => {
 				changesetOperationsObs: constObservable([]),
 				loadingObs: constObservable(false),
 				changesetObs: constObservable(changeset),
+				operationsChangesetObs: constObservable(changeset),
+				repositoriesObs: constObservable([]),
+				repositoryObs: constObservable(undefined),
 				stateObs: constObservable(upcastPartial<ActiveSessionState>({ hasOpenPullRequest: true })),
 			}),
 		});
@@ -76,6 +79,9 @@ suite('Session Actions Host', () => {
 				changesetOperationsObs: constObservable([]),
 				loadingObs: constObservable(false),
 				changesetObs: constObservable(undefined),
+				operationsChangesetObs: constObservable(undefined),
+				repositoriesObs: constObservable([]),
+				repositoryObs: constObservable(undefined),
 				stateObs: constObservable(upcastPartial<ActiveSessionState>({})),
 			}),
 		});

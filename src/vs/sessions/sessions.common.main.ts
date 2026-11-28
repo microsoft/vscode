@@ -507,6 +507,7 @@ import '../workbench/contrib/sessions/browser/workspaceEditor/sessionWorkspaceEd
 import './contrib/canvases/browser/pinnedCanvases.contribution.js';
 import './contrib/sessions/browser/customizationsToolbar.contribution.js';
 import './contrib/changes/browser/changes.contribution.js';
+import './contrib/changes/browser/changesRepositoryPicker.contribution.js';
 import './contrib/codeReview/browser/codeReview.contributions.js';
 import './contrib/files/browser/files.contribution.js';
 import './contrib/github/browser/github.contribution.js';

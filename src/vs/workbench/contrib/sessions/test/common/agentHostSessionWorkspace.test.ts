@@ -66,6 +66,25 @@ suite('Agent Host Session Workspace', () => {
 		});
 	});
 
+	test('reports the GitHub info of each repository: its folder\'s, or its root\'s for one found in a folder', () => {
+		const nested = URI.file('/other/lib');
+		const otherGitHubInfo = constObservable<IGitHubInfo | undefined>({ owner: 'contoso', repo: 'other' });
+		const nestedGitHubInfo = constObservable<IGitHubInfo | undefined>({ owner: 'contoso', repo: 'lib' });
+		const noGitHubInfo = constObservable<IGitHubInfo | undefined>(undefined);
+		const repository = (root: URI, folder: URI, kind: SessionRepositoryKind) => ({ root, folder, kind, gitRepository: { uri: root, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: noGitHubInfo } });
+		const workspace: ISessionWorkspace = {
+			...sessionWorkspace,
+			repositories: [repository(primary, primary, SessionRepositoryKind.Folder), repository(other, other, SessionRepositoryKind.Folder), repository(nested, other, SessionRepositoryKind.Nested)],
+		};
+		const resolver: IFolderGitHubInfoResolver = workingDirectory => isEqual(workingDirectory, other) ? otherGitHubInfo : isEqual(workingDirectory, nested) ? nestedGitHubInfo : sessionGitHubInfo;
+		const chat = buildAgentHostChatWorkspace(workspace, undefined, resolver);
+		assert.deepStrictEqual(chat?.repositories?.map(candidate => ({ root: candidate.root.path, gitHubInfo: candidate.gitRepository?.gitHubInfo.get()?.repo })), [
+			{ root: '/repo', gitHubInfo: 'vscode' },
+			{ root: '/other', gitHubInfo: 'other' },
+			{ root: '/other/lib', gitHubInfo: 'lib' },
+		]);
+	});
+
 	test('a chat with a folder of its own in a quick chat reports the folder\'s own GitHub info, keeping its Git state', () => {
 		const scratch = URI.file('/home/.copilot/chats/s-a');
 		const gitState: ISessionGitState = { branchName: 'feature', baseBranchName: 'main' };

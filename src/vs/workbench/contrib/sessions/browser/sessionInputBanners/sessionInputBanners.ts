@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ISessionAgentMergeService } from '../sessionAgentMerge.js';
 import * as dom from '../../../../../base/browser/dom.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
@@ -13,7 +14,6 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IChatWidgetService } from '../../../chat/browser/chat.js';
 import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
-import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { IAgentFeedbackService } from '../agentFeedback.js';
 import type { ISessionChatPillsDebugData } from '../chat/sessionChatInputToolbarDebug.js';
 import { IGitHubService } from '../github/githubService.js';
@@ -27,8 +27,8 @@ export class SessionInputBanners extends Disposable {
 
 	constructor(
 		@ISessionHost sessionHost: ISessionHost,
-		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@ISessionAgentMergeService sessionAgentMergeService: ISessionAgentMergeService,
 		@IGitHubService gitHubService: IGitHubService,
 		@IAgentFeedbackService feedbackService: IAgentFeedbackService,
 		@ICommandService commandService: ICommandService,
@@ -38,7 +38,7 @@ export class SessionInputBanners extends Disposable {
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 	) {
 		super();
-		this.model = this._register(new SessionInputBannerModel(sessionHost, sessionsProvidersService, configurationService,
+		this.model = this._register(new SessionInputBannerModel(sessionHost, configurationService, sessionAgentMergeService,
 			gitHubService, feedbackService, commandService, storageService, logService, chatWidgetService));
 		const widget = this._register(instantiationService.createInstance(SessionInputBannerWidget, []));
 		this.domNode.appendChild(widget.domNode);

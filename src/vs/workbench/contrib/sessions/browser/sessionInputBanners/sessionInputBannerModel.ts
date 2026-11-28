@@ -24,9 +24,8 @@ import { IGitHubService } from '../github/githubService.js';
 import { GitHubPullRequestCIModel } from '../github/models/githubPullRequestCIModel.js';
 import { GitHubPullRequestState, OPEN_PULL_REQUEST_ACTION_ID } from '../../common/github/types.js';
 import { getWindowHost, ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
-import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { getGitHubPullRequestRefs, IGitHubPullRequestRef, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { getSessionAgentMergeConfigurationObservable } from '../sessionAgentMerge.js';
+import { ISessionAgentMergeService } from '../sessionAgentMerge.js';
 import { ISessionInputBanner, ISessionInputBannerAction } from './sessionInputBannerWidget.js';
 
 const STORAGE_KEY_DISMISSED = 'sessions.inputBanners.dismissedItems';
@@ -112,7 +111,7 @@ export class SessionInputBannerModel extends Disposable {
 	private readonly _agentMergeConfiguration = derived(this, reader => {
 		const session = this._session.read(reader);
 		const activeChat = this._chat.read(reader);
-		return session && activeChat ? getSessionAgentMergeConfigurationObservable(session, this.sessionsProvidersService, this.configurationService, activeChat).read(reader) : undefined;
+		return session && activeChat ? this.sessionAgentMergeService.getConfigurationObservable(session, activeChat).read(reader) : undefined;
 	});
 
 	private readonly _states: IObservable<readonly BannerState[]> = derived(this, reader => {
@@ -210,8 +209,8 @@ export class SessionInputBannerModel extends Disposable {
 
 	constructor(
 		@ISessionHost private readonly sessionHost: ISessionHost,
-		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ISessionAgentMergeService private readonly sessionAgentMergeService: ISessionAgentMergeService,
 		@IGitHubService private readonly gitHubService: IGitHubService,
 		@IAgentFeedbackService private readonly feedbackService: IAgentFeedbackService,
 		@ICommandService private readonly commandService: ICommandService,
