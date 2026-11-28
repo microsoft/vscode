@@ -124,7 +124,6 @@
 		box-sizing: border-box;
 		-webkit-user-select: none;
 		user-select: none;
-		container: agent-sessions-header-row / inline-size;
 	}
 
 	.agent-sessions-header-label {
@@ -336,12 +335,9 @@
 	}
 }
 
-/* The New split button, Filter, Search and More Actions take 190px with a "Ctrl+N" keybinding. Below that the keybinding
-hides, so that the actions still fit at the minimum width of the sidebar. */
-@container agent-sessions-header-row (max-width: 189px) {
-	.agent-sessions-viewpane .agent-sessions-header-actions .monaco-action-bar .actions-container .action-item.new-split-button .action-label > .new-split-button-keybinding {
-		display: none;
-	}
+/* The New split button hides its keybinding while the header's actions do not fit with it (see SessionsHeaderActionsFit). */
+.agent-sessions-viewpane .agent-sessions-header-row.compact-new-button .action-item.new-split-button .action-label > .new-split-button-keybinding {
+	display: none;
 }
 
 .agent-sessions-workbench:not(.phone-layout) .agent-sessions-viewpane .agent-sessions-header-row {
