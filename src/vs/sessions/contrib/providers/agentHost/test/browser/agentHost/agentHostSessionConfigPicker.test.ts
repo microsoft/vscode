@@ -28,6 +28,8 @@ import { ResolveSessionConfigResult, SessionConfigPropertySchema, SessionConfigV
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IProductService } from '../../../../../../../platform/product/common/productService.js';
+import { IUriIdentityService } from '../../../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { extUri, extUriIgnorePathCase } from '../../../../../../../base/common/resources.js';
 import { SESSIONS_WORKSPACES_ENABLED_SETTING } from '../../../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { Context } from '../../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
@@ -60,7 +62,7 @@ import { ISessionsProvidersService } from '../../../../../../../workbench/contri
 import { ISessionsService } from '../../../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IChat, ISessionChangeset, ISessionChangesetOperationTarget, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { AgentHostSessionConfigPicker, AgentHostSessionConfigPickerContribution, PickerActionViewItem } from '../../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostSessionConfigPicker.js';
+import { AgentHostSessionConfigPicker, MobileAgentHostSessionConfigPicker, AgentHostSessionConfigPickerContribution, PickerActionViewItem } from '../../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostSessionConfigPicker.js';
 import { IConfigPickerItem } from '../../../../../../../workbench/contrib/sessions/browser/newSessionInputPresentation.js';
 import { IChatViewFactory } from '../../../../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
 import { worktreeSuggestionInputPresentation } from '../../../../../../../workbench/contrib/sessions/browser/worktreeSuggestion/worktreeSuggestionInputPresentation.js';
@@ -221,6 +223,9 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 	completions: readonly SessionConfigValueItem[] = [];
 	readonly completionQueries: (string | undefined)[] = [];
 	completionBarrier: DeferredPromise<void> | undefined;
+	/** Holds every `setSessionConfigValue` until it completes, as a config resolve does. */
+	writeBarrier: DeferredPromise<void> | undefined;
+	readonly trackedOperations: Promise<void>[] = [];
 
 	constructor(
 		private readonly _emitter: Emitter<string>,
@@ -236,13 +241,16 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 		this.setSessionConfigValueCalls++;
 		this.setSessionConfigValueArguments.push({ sessionId, property, value });
 		this._onSetSessionConfigValue?.(value);
+		await this.writeBarrier?.p;
 		this.config = {
 			...this.config,
 			values: { ...this.config.values, [property]: value },
 		};
 		this._emitter.fire(sessionId);
 	}
-	trackSessionConfigOperation(_sessionId: string, _operation: Promise<void>): void { }
+	trackSessionConfigOperation(_sessionId: string, operation: Promise<void>): void {
+		this.trackedOperations.push(operation);
+	}
 	async getSessionConfigCompletions(_sessionId: string, property: string, query?: string): Promise<readonly SessionConfigValueItem[]> {
 		this.completionQueries.push(query);
 		await this.completionBarrier?.p;
@@ -380,6 +388,7 @@ function setupServices(
 	store.add(configurationService.onDidChangeConfigurationEmitter);
 	instantiationService.stub(IConfigurationService, configurationService);
 	instantiationService.stub(IProductService, upcastPartial<IProductService>({ quality: 'insider' }));
+	instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri }));
 	const checkoutDialogs: { message: string; buttons: readonly string[]; cancelButton: boolean; alignment: string | undefined }[] = [];
 	instantiationService.stub(IDialogService, {
 		prompt: async <T,>(prompt: IPrompt<T>): Promise<IPromptResult<T>> => {
@@ -741,6 +750,126 @@ suite('Agent Host Session Config Picker', () => {
 			notOffered,
 			notOffered,
 		]);
+	});
+
+	test('offers New Worktree for All Folders as folders are added and their repositories resolve', async () => {
+		const services = setupServices(store);
+		await services.configurationService.setUserConfiguration(SESSIONS_WORKSPACES_ENABLED_SETTING, true);
+		services.workspaceObs.set(makeMultiFolderWorkspace(['/repo']), undefined);
+		services.provider.config = makeWorktreeFoldersConfig('worktree', 'all');
+		const { container } = renderPicker(store, services);
+		const labels = [isolationSlot(container)?.textContent];
+		const isRepository = observableValue('isRepository', false);
+		const workspace = makeMultiFolderWorkspace(['/repo', '/other']);
+		services.workspaceObs.set({
+			...workspace,
+			folders: [workspace.folders[0], { ...workspace.folders[1], gitRepository: { ...workspace.folders[1].gitRepository!, isRepository } }],
+		}, undefined);
+		labels.push(isolationSlot(container)?.textContent);
+		isRepository.set(true, undefined);
+		labels.push(isolationSlot(container)?.textContent);
+		isRepository.set(false, undefined);
+		labels.push(isolationSlot(container)?.textContent);
+		assert.deepStrictEqual({ labels, writes: services.provider.setSessionConfigValueArguments }, {
+			labels: ['New Worktree', 'New Worktree', 'New Worktree for All Folders', 'New Worktree'],
+			writes: [],
+		});
+	});
+
+	test('offers New Worktree for All Folders in the phone repository sheet', async () => {
+		const services = setupServices(store);
+		await services.configurationService.setUserConfiguration(SESSIONS_WORKSPACES_ENABLED_SETTING, true);
+		services.workspaceObs.set(makeMultiFolderWorkspace(['/repo', '/other']), undefined);
+		services.provider.config = makeWorktreeFoldersConfig('folder');
+		const mainContainer = services.instantiationService.get(IWorkbenchLayoutService).mainContainer;
+		mainContainer.classList.add('phone-layout');
+		mainWindow.document.body.appendChild(mainContainer);
+		store.add(toDisposable(() => mainContainer.remove()));
+		const picker = store.add(services.instantiationService.createInstance(MobileAgentHostSessionConfigPicker, testChatSourceOf(services.sessionObs), { property: SessionConfigKey.Isolation }));
+		const container = document.createElement('div');
+		picker.render(container);
+		// A confirmed sheet stays in the DOM while it animates closed, so read the latest one.
+		const rows = () => Array.from(Array.from(mainContainer.querySelectorAll<HTMLElement>('.mobile-picker-sheet')).at(-1)?.querySelectorAll<HTMLElement>('.mobile-picker-sheet-item') ?? []);
+		const labels = () => rows().map(row => `${row.querySelector('.mobile-picker-sheet-label')?.textContent}${row.classList.contains('checked') ? ' (checked)' : ''}`);
+		container.querySelector<HTMLElement>('.action-label')!.click();
+		await timeout(0);
+		const offered = labels();
+		rows().find(row => row.textContent?.includes('New Worktree for All Folders'))!.click();
+		await Promise.all(services.provider.trackedOperations);
+		await timeout(0);
+		container.querySelector<HTMLElement>('.action-label')!.click();
+		await timeout(0);
+		const selected = labels();
+		Array.from(mainContainer.querySelectorAll<HTMLButtonElement>('.mobile-picker-sheet-done')).at(-1)?.click();
+		assert.deepStrictEqual({
+			offered,
+			writes: services.provider.setSessionConfigValueArguments.map(({ property, value }) => `${property}=${value}`),
+			selected,
+			label: container.textContent,
+		}, {
+			offered: ['Folder (checked)', 'Worktree', 'New Worktree for All Folders', 'main (checked)', 'dev'],
+			writes: ['isolation=worktree', 'worktreeFolders=all'],
+			selected: ['Folder', 'Worktree', 'New Worktree for All Folders (checked)', 'main (checked)', 'dev'],
+			label: 'New Worktree for All Folders',
+		});
+	});
+
+	test('completes New Worktree for All Folders for its draft when another session shows while the isolation resolves', async () => {
+		const services = setupServices(store);
+		await services.configurationService.setUserConfiguration(SESSIONS_WORKSPACES_ENABLED_SETTING, true);
+		services.workspaceObs.set(makeMultiFolderWorkspace(['/repo', '/other']), undefined);
+		services.provider.config = makeWorktreeFoldersConfig('folder');
+		const { container } = renderPicker(store, services);
+		isolationSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+		await timeout(0);
+		services.provider.writeBarrier = new DeferredPromise<void>();
+		await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.value === 'worktree:allFolders')!.item!);
+		services.sessionObs.set(otherActiveSession(services.activeSession), undefined);
+		services.provider.writeBarrier.complete();
+		await Promise.all(services.provider.trackedOperations);
+		assert.deepStrictEqual({
+			tracked: services.provider.trackedOperations.length,
+			writes: services.provider.setSessionConfigValueArguments,
+		}, {
+			tracked: 1,
+			writes: [
+				{ sessionId: SESSION_ID, property: SessionConfigKey.Isolation, value: 'worktree' },
+				{ sessionId: SESSION_ID, property: SessionConfigKey.WorktreeFolders, value: 'all' },
+			],
+		});
+	});
+
+	test('keeps the Worktree Folders picker for isolation schemas without the folder and worktree choice', () => {
+		const shown = [];
+		for (const isolation of [
+			{ enum: ['folder', 'worktree', 'sandbox'] },
+			{ enum: ['folder', 'worktree'], enumDynamic: true },
+			{ enum: ['folder', 'worktree'] },
+		]) {
+			const services = setupServices(store);
+			const config = makeWorktreeFoldersConfig('folder');
+			services.provider.config = {
+				...config,
+				schema: { ...config.schema, properties: { ...config.schema.properties, [SessionConfigKey.Isolation]: { title: 'Isolation', type: 'string', ...isolation } } },
+			};
+			const { container } = renderPicker(store, services);
+			shown.push(Array.from(container.querySelectorAll<HTMLElement>('[data-session-config-property]')).some(element => element.dataset.sessionConfigProperty === SessionConfigKey.WorktreeFolders));
+		}
+		assert.deepStrictEqual(shown, [true, true, false]);
+	});
+
+	test('counts a repository once across case variants of its path on a case-insensitive platform', async () => {
+		const offers = [];
+		for (const repositories of [['/C:/Repo', '/c:/repo'], ['//Server/Share/repo', '//server/share/REPO'], ['/C:/Repo', '/C:/Other']]) {
+			const services = setupServices(store);
+			services.instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri: extUriIgnorePathCase }));
+			await services.configurationService.setUserConfiguration(SESSIONS_WORKSPACES_ENABLED_SETTING, true);
+			services.workspaceObs.set(makeMultiFolderWorkspace(repositories), undefined);
+			services.provider.config = makeWorktreeFoldersConfig('worktree', 'all');
+			const { container } = renderPicker(store, services);
+			offers.push(isolationSlot(container)?.textContent);
+		}
+		assert.deepStrictEqual(offers, ['New Worktree', 'New Worktree', 'New Worktree for All Folders']);
 	});
 
 	for (const enumDynamic of [false, true]) {

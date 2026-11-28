@@ -20,7 +20,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { isCancellationError, onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
-import { autorun, IObservable, IReader, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, IReader, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../../nls.js';
@@ -59,6 +59,7 @@ import { reportNewChatPickerClosed } from '../../../browser/newChatPickerTelemet
 import { NEW_WORKTREE_LABEL } from '../../../browser/chat/branchPicker.js';
 import { observableSessionWorkspacesEnabled } from '../../../common/sessionConfig.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
+import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ISessionChangesService } from '../../../../../services/sessions/common/sessionChangesService.js';
 import { CHANGES_VIEW_ID } from '../../../common/changes.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
@@ -334,8 +335,11 @@ function isRenderableSessionConfigProperty(property: string, schema: SessionConf
 	if (property === SessionConfigKey.SandboxEnabled) {
 		return false;
 	}
-	// The isolation picker offers worktrees for all folders.
-	if (property === SessionConfigKey.WorktreeFolders) {
+	// A new session's isolation choice between its folder and a worktree offers worktrees for all folders.
+	const isolationSchema = workspace.isolation?.schema;
+	if (property === SessionConfigKey.WorktreeFolders && workspace.isolationKey === SessionConfigKey.Isolation
+		&& !!isolationSchema?.enum?.includes('worktree') && (isolationSchema.enum.includes('folder') || isolationSchema.enum.includes('workspace'))
+		&& isolationSchema.enum.length === 2 && !isolationSchema.enumDynamic) {
 		return false;
 	}
 	// TODO: Consolidate timeout configuration UI with other clients.
@@ -525,6 +529,8 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	private readonly _property: string | undefined;
 	private readonly _isolationPresentation: ISessionIsolationPickerPresentation | undefined;
 	private readonly _workspacesEnabled: IObservable<boolean>;
+	/** Whether the session's folders are in at least two Git repositories, as their repositories resolve. */
+	private readonly _hasSeveralGitRepositories: IObservable<boolean>;
 
 	constructor(
 		source: ISessionChatSource,
@@ -546,6 +552,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		@ISessionInputPickerVisibility private readonly _pickerVisibility: ISessionInputPickerVisibility,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IProductService productService: IProductService,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
 		this._session = source.session;
@@ -553,10 +560,20 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		this._property = options?.property;
 		this._isolationPresentation = options?.isolationPresentation;
 		this._workspacesEnabled = observableSessionWorkspacesEnabled(this._configurationService, productService);
+		this._hasSeveralGitRepositories = derived(this, reader => {
+			const repositories = new ResourceSet(uri => this._uriIdentityService.extUri.getComparisonKey(uri));
+			for (const folder of this._session.read(reader)?.workspace.read(reader)?.folders ?? []) {
+				if (folder.gitRepository && folder.gitRepository.isRepository?.read(reader) !== false) {
+					repositories.add(folder.gitRepository.uri);
+				}
+			}
+			return repositories.size > 1;
+		});
 
 		this._register(autorun(reader => {
 			this._session.read(reader);
 			this._workspacesEnabled.read(reader);
+			this._hasSeveralGitRepositories.read(reader);
 			for (const changeset of this._chat.read(reader)?.changesets.read(reader) ?? []) {
 				changeset.operations?.read(reader);
 			}
@@ -800,30 +817,6 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	}
 
 	protected async _setSessionConfigValue(provider: IAgentHostSessionsProvider, sessionId: string, property: string, value: unknown): Promise<void> {
-		if (!this._isNewSessionIsolationPicker(sessionId, property, this._getSessionConfig(provider, sessionId)?.schema.properties[property])) {
-			return this._setConfigValue(provider, sessionId, property, value);
-		}
-
-		// The isolation picker sets the folders that get a worktree with the isolation.
-		const allFolders = value === WORKTREE_FOR_ALL_FOLDERS_VALUE;
-		const isolation = allFolders ? 'worktree' : value;
-		const worktreeFolders = allFolders ? 'all' : 'primary';
-		const setsWorktreeFolders = () => {
-			const config = this._getSessionConfig(provider, sessionId);
-			const schema = config?.schema.properties[SessionConfigKey.WorktreeFolders];
-			return !!schema?.enum?.includes(worktreeFolders) && isSessionConfigWritable(schema, true)
-				&& (config?.values[SessionConfigKey.WorktreeFolders] ?? schema.default) !== worktreeFolders;
-		};
-		if (!setsWorktreeFolders() || this._getSessionConfig(provider, sessionId)?.values[property] !== isolation) {
-			await this._setConfigValue(provider, sessionId, property, isolation);
-		}
-		// The isolation write re-resolves the configuration, so check the folders' schema again.
-		if (this._isCurrentSession(provider, sessionId) && setsWorktreeFolders()) {
-			await provider.setSessionConfigValue(sessionId, this._requireChat(provider, sessionId), SessionConfigKey.WorktreeFolders, worktreeFolders);
-		}
-	}
-
-	private async _setConfigValue(provider: IAgentHostSessionsProvider, sessionId: string, property: string, value: unknown): Promise<void> {
 		const presentation = this._presentationProperty(sessionId, property);
 		const isDraftRepositoryProperty = provider.getCreateSessionConfig(sessionId) !== undefined
 			&& (presentation === SessionConfigKey.Isolation || presentation === SessionConfigKey.Branch);
@@ -841,7 +834,15 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			treeish = value;
 		}
 
+		// The new-session isolation choice also sets which folders get a worktree.
+		const worktreeFolders = this._isNewSessionIsolationChoice(sessionId, property, provider.getSessionConfig(sessionId, chat)?.schema.properties[property])
+			? value === WORKTREE_FOR_ALL_FOLDERS_VALUE ? 'all' : 'primary'
+			: undefined;
 		const configOperation = repositoryConfigSequencer.queue(sessionId, async () => {
+			if (worktreeFolders !== undefined) {
+				await this._setIsolationWithWorktreeFolders(provider, sessionId, chat, property, value === WORKTREE_FOR_ALL_FOLDERS_VALUE ? 'worktree' : value, worktreeFolders);
+				return;
+			}
 			const shouldCheckout = this._requiresBranchCheckout(provider, sessionId, property);
 			if (!shouldCheckout) {
 				await provider.setSessionConfigValue(sessionId, chat, property, value);
@@ -863,6 +864,25 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		});
 		provider.trackSessionConfigOperation(sessionId, configOperation);
 		await configOperation;
+	}
+
+	/**
+	 * Sets the isolation of the draft `sessionId` and its {@link SessionConfigKey.WorktreeFolders}, which
+	 * the isolation write re-resolves, so the folders are written to the configuration it resolves to.
+	 */
+	private async _setIsolationWithWorktreeFolders(provider: IAgentHostSessionsProvider, sessionId: string, chat: URI, property: string, isolation: unknown, worktreeFolders: 'primary' | 'all'): Promise<void> {
+		const setsWorktreeFolders = () => {
+			const config = provider.getSessionConfig(sessionId, chat);
+			const schema = config?.schema.properties[SessionConfigKey.WorktreeFolders];
+			return !!schema?.enum?.includes(worktreeFolders) && isSessionConfigWritable(schema, true)
+				&& (config?.values[SessionConfigKey.WorktreeFolders] ?? schema.default) !== worktreeFolders;
+		};
+		if (!setsWorktreeFolders() || provider.getSessionConfig(sessionId, chat)?.values[property] !== isolation) {
+			await provider.setSessionConfigValue(sessionId, chat, property, isolation);
+		}
+		if (setsWorktreeFolders()) {
+			await provider.setSessionConfigValue(sessionId, chat, SessionConfigKey.WorktreeFolders, worktreeFolders);
+		}
 	}
 
 	private async _invokeCheckoutOperation(changeset: ISessionChangeset, treeish: string): Promise<boolean> {
@@ -1333,7 +1353,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	protected async _getItems(provider: IAgentHostSessionsProvider, sessionId: string, property: string, schema: SessionConfigPropertySchema, query?: string, branchCompletions?: readonly SessionConfigValueItem[], branchResultLimit?: number): Promise<readonly IConfigPickerItem[]> {
 		if (this._isNewSessionIsolationPicker(sessionId, property, schema)) {
 			const worktreeDisabled = !this._isDevContainerWorktreeEnabled() && provider.isDevContainerEnabled?.(sessionId) === true;
-			return [schema.enum?.includes('workspace') ? 'workspace' : 'folder', 'worktree'].filter(value => schema.enum?.includes(value)).map(value => ({
+			return [schema.enum?.includes('workspace') ? 'workspace' : 'folder', 'worktree'].filter(value => schema.enum?.includes(value)).map((value): IConfigPickerItem => ({
 				value,
 				label: this._getLabel(sessionId, property, schema, value),
 				description: value === 'worktree'
@@ -1342,14 +1362,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 						: localize('agentHostSessionConfig.isolation.worktreeDescription', "Creates a separate copy for this session")
 					: localize('agentHostSessionConfig.isolation.branchDescription', "Works in the repository already on this computer"),
 				disabled: value === 'worktree' && worktreeDisabled,
-			})).concat(this._offersWorktreeForAllFolders(provider, sessionId) ? [{
-				value: WORKTREE_FOR_ALL_FOLDERS_VALUE,
-				label: this._getLabel(sessionId, property, schema, WORKTREE_FOR_ALL_FOLDERS_VALUE),
-				description: worktreeDisabled
-					? localize('agentHostSessionConfig.isolation.devContainerDisabled', "New Worktree cannot be combined with Dev Container execution.")
-					: localize('agentHostSessionConfig.isolation.worktreeForAllFoldersDescription', "Creates a separate copy of each Git folder for this session"),
-				disabled: worktreeDisabled,
-			}] : []);
+			})).concat(this._getWorktreeForAllFoldersItems(provider, sessionId, property, schema, worktreeDisabled));
 		}
 		if (schema.type === 'boolean') {
 			return [
@@ -1370,11 +1383,26 @@ export class AgentHostSessionConfigPicker extends Disposable {
 
 		// Static enum: schema.enum/enumLabels already carry a reliable
 		// label mapping, so there's no need to cache these separately.
-		return (schema.enum ?? []).map((value, index) => ({
+		return (schema.enum ?? []).map((value, index): IConfigPickerItem => ({
 			value: String(value),
 			label: schema.enumLabels?.[index] ?? String(value),
 			description: schema.enumDescriptions?.[index],
-		}));
+		})).concat(this._getWorktreeForAllFoldersItems(provider, sessionId, property, schema, !this._isDevContainerWorktreeEnabled() && provider.isDevContainerEnabled?.(sessionId) === true));
+	}
+
+	/** The isolation item that creates a worktree for every Git folder, when the new session offers it. */
+	private _getWorktreeForAllFoldersItems(provider: IAgentHostSessionsProvider, sessionId: string, property: string, schema: SessionConfigPropertySchema, worktreeDisabled: boolean): IConfigPickerItem[] {
+		if (!this._isNewSessionIsolationChoice(sessionId, property, schema) || !this._offersWorktreeForAllFolders(provider, sessionId)) {
+			return [];
+		}
+		return [{
+			value: WORKTREE_FOR_ALL_FOLDERS_VALUE,
+			label: this._getLabel(sessionId, property, schema, WORKTREE_FOR_ALL_FOLDERS_VALUE),
+			description: worktreeDisabled
+				? localize('agentHostSessionConfig.isolation.devContainerDisabled', "New Worktree cannot be combined with Dev Container execution.")
+				: localize('agentHostSessionConfig.isolation.worktreeForAllFoldersDescription', "Creates a separate copy of each Git folder for this session"),
+			disabled: worktreeDisabled,
+		}];
 	}
 
 	private _fromCompletionItem(item: SessionConfigValueItem): IConfigPickerItem {
@@ -1422,14 +1450,15 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	}
 
 	private _getLabel(sessionId: string, property: string, schema: SessionConfigPropertySchema, value: unknown | undefined): string {
+		if (value === WORKTREE_FOR_ALL_FOLDERS_VALUE) {
+			return localize('agentHostSessionConfig.isolation.worktreeForAllFolders', "New Worktree for All Folders");
+		}
 		if (this._isNewSessionIsolationPicker(sessionId, property, schema)) {
 			return value === 'worktree'
 				? NEW_WORKTREE_LABEL
-				: value === WORKTREE_FOR_ALL_FOLDERS_VALUE
-					? localize('agentHostSessionConfig.isolation.worktreeForAllFolders', "New Worktree for All Folders")
-					: value === 'folder' || value === 'workspace'
-						? localize('agentHostSessionConfig.isolation.branch', "Branch")
-						: schema.title;
+				: value === 'folder' || value === 'workspace'
+					? localize('agentHostSessionConfig.isolation.branch', "Branch")
+					: schema.title;
 		}
 		if (schema.type === 'boolean') {
 			return value === true
@@ -1460,7 +1489,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	 */
 	protected _getPickerValue(provider: IAgentHostSessionsProvider, sessionId: string, property: string, schema: SessionConfigPropertySchema, value: unknown): unknown {
 		return value === 'worktree'
-			&& this._isNewSessionIsolationPicker(sessionId, property, schema)
+			&& this._isNewSessionIsolationChoice(sessionId, property, schema)
 			&& this._getSessionConfig(provider, sessionId)?.values[SessionConfigKey.WorktreeFolders] === 'all'
 			&& this._offersWorktreeForAllFolders(provider, sessionId)
 			? WORKTREE_FOR_ALL_FOLDERS_VALUE
@@ -1469,25 +1498,26 @@ export class AgentHostSessionConfigPicker extends Disposable {
 
 	/** Whether a new session can create a worktree for each of its Git repositories: it has workspaces and at least two. */
 	private _offersWorktreeForAllFolders(provider: IAgentHostSessionsProvider, sessionId: string): boolean {
-		const session = this._session.get();
 		const schema = this._getSessionConfig(provider, sessionId)?.schema.properties[SessionConfigKey.WorktreeFolders];
-		if (session?.sessionId !== sessionId || !this._workspacesEnabled.get() || !schema?.enum?.includes('all') || !isSessionConfigWritable(schema, true)) {
-			return false;
-		}
-		const repositories = new ResourceSet();
-		for (const folder of session.workspace.get()?.folders ?? []) {
-			if (folder.gitRepository && folder.gitRepository.isRepository?.get() !== false) {
-				repositories.add(folder.gitRepository.uri);
-			}
-		}
-		return repositories.size > 1;
+		return this._session.get()?.sessionId === sessionId
+			&& this._workspacesEnabled.get()
+			&& !!schema?.enum?.includes('all')
+			&& isSessionConfigWritable(schema, true)
+			&& this._hasSeveralGitRepositories.get();
 	}
 
+	/** Whether `property` is the desktop picker of {@link _isNewSessionIsolationChoice}, which offers Branch and New Worktree. */
 	private _isNewSessionIsolationPicker(sessionId: string, property: string, schema: SessionConfigPropertySchema | undefined): boolean {
+		return !!schema && this._shouldRenderIsolationAsCheckbox(schema) && this._isNewSessionIsolationChoice(sessionId, property, schema);
+	}
+
+	/** Whether `property` is a new session's choice between its folder and a worktree, in any layout. */
+	private _isNewSessionIsolationChoice(sessionId: string, property: string, schema: SessionConfigPropertySchema | undefined): boolean {
 		const session = this._session.get();
 		return !!schema
 			&& this._presentationProperty(sessionId, property) === SessionConfigKey.Isolation
-			&& this._shouldRenderIsolationAsCheckbox(schema)
+			&& !!schema.enum?.includes('worktree')
+			&& (schema.enum.includes('folder') || schema.enum.includes('workspace'))
 			&& schema.enum?.length === 2
 			&& !schema.enumDynamic
 			&& session?.sessionId === sessionId
@@ -1521,7 +1551,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
  * is during module evaluation — a separate file that imported the base
  * would hit "Cannot access before initialization").
  */
-class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
+export class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 
 	/**
 	 * On phone the chip lane has a fixed visual sequence — Default

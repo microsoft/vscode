@@ -18,6 +18,8 @@ import { IQuickInputService } from '../../../../../../platform/quickinput/common
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
+import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { extUri } from '../../../../../../base/common/resources.js';
 import { SESSIONS_WORKSPACES_ENABLED_SETTING } from '../../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { IChatEntitlementService } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IViewsService } from '../../../../../../workbench/services/views/common/viewsService.js';
@@ -139,6 +141,7 @@ async function renderIsolationPicker({ container, disposableStore, theme }: Comp
 	const instantiationService = createEditorServices(disposableStore, { colorTheme: theme, additionalServices: registerWorkbenchServices });
 	instantiationService.stub(ISessionInputPickerVisibility, disposableStore.add(new SessionInputPickerVisibility()));
 	instantiationService.stub(IProductService, { quality: 'insider' });
+	instantiationService.stub(IUriIdentityService, { extUri });
 	if (allFolders) {
 		const configurationService = new TestConfigurationService();
 		await configurationService.setUserConfiguration(SESSIONS_WORKSPACES_ENABLED_SETTING, true);
