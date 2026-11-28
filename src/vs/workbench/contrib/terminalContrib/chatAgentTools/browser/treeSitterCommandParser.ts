@@ -220,8 +220,10 @@ export class TreeSitterCommandParser extends Disposable {
 	 */
 	private _parseCommand(commandText: string): ITerminalSandboxCommand | undefined {
 		const tokens = this._splitCommandTokens(commandText);
+		const environmentAssignments: string[] = [];
 		let commandIndex = 0;
 		while (commandIndex < tokens.length && this._isVariableAssignment(tokens[commandIndex])) {
+			environmentAssignments.push(tokens[commandIndex]);
 			commandIndex++;
 		}
 
@@ -232,6 +234,11 @@ export class TreeSitterCommandParser extends Disposable {
 		if (keyword === 'env') {
 			const wrappedCommandIndex = this._getEnvWrappedCommandIndex(tokens, commandIndex + 1);
 			if (wrappedCommandIndex !== undefined) {
+				for (const token of tokens.slice(commandIndex + 1, wrappedCommandIndex)) {
+					if (this._isVariableAssignment(token)) {
+						environmentAssignments.push(token);
+					}
+				}
 				commandIndex = wrappedCommandIndex;
 				keyword = this._normalizeCommandKeyword(tokens[commandIndex] ?? '');
 				if (!keyword) {
@@ -243,6 +250,9 @@ export class TreeSitterCommandParser extends Disposable {
 		return {
 			keyword,
 			args: tokens.slice(commandIndex + 1),
+			// Left off entirely when the command has no prefix assignments, so the
+			// common case keeps the shape it had.
+			...(environmentAssignments.length > 0 ? { environmentAssignments } : undefined),
 		};
 	}
 
