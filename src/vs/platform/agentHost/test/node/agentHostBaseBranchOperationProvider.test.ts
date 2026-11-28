@@ -169,6 +169,17 @@ suite('AgentHostBaseBranchOperationContribution', () => {
 		assert.strictEqual(h.contribution.getOperations({ sessionKey: session, ownerKey, changesetUri: buildBranchChangesetUri(ownerKey), changesetKind: ChangesetKind.Branch }), undefined);
 	});
 
+	test('does not record a base for a folder of the session on its own', async () => {
+		const h = createHarness();
+		const third = URI.file('/third').toString();
+		h.stateManager.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectorySet, directory: third });
+		const changesetUri = buildBranchChangesetUri(buildFolderChangesetOwnerUri(session, getWorkingDirectoryScopeId([third])));
+
+		const set = await h.handlers.get(SET_BASE_BRANCH_OPERATION_ID)!.invoke({ channel: changesetUri, operationId: SET_BASE_BRANCH_OPERATION_ID, _meta: createSetBaseBranchMeta(branches[0].ref) }, CancellationToken.None).then(() => 'recorded', () => 'refused');
+
+		assert.deepStrictEqual({ set, writes: h.writes }, { set: 'refused', writes: [] });
+	});
+
 	test('advertises the operations on single-folder Branch Changes only where the diff reads the recorded base', () => {
 		const h = createHarness();
 		const operationIds = (changesetUri: string, changesetKind: ChangesetKind) =>

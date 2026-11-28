@@ -92,7 +92,7 @@ import { IAgentHostSessionStateStore, type ISessionStateChatMove, type ISessionS
 import { getSessionStateValueKey } from './agentHostSessionStateMirror.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH, resolveDefaultBaseBranchRef, tryResolvePrimaryWorktreeRoot } from '../common/agentHostGitService.js';
 import { getChatsInUse } from './agentHostChatsInUse.js';
-import { resolveAgentMergeOwningChat, resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource, resolveChangesetOwnerScope, resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
+import { getFolderOnlyAgentMergeRoots, resolveAgentMergeOwningChat, resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource, resolveChangesetOwnerScope, resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
 import { IAgentHostSubscriptionService, resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
 import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
 import { IAgentHostChatOwnershipService, usesStandardSessionUris, type IChatOwnerResolution } from './agentHostChatOwnershipService.js';
@@ -14111,10 +14111,11 @@ export class AgentService extends Disposable implements IAgentService {
 	private _withMergedClientAgentMergeFolders(session: string, action: SessionConfigChangedAction): SessionConfigChangedAction {
 		const state = this._stateManager.getSessionState(session);
 		const defaultChat = this._defaultChat(session);
-		// The session's folders and each chat's, as a chat may work in a folder the session was not created with.
+		// The session's folders and each chat's, as a chat may work in a folder the session was not created with, and the folder-only scopes with an Agent Merge of their own.
 		const sessionWorkingDirectories = [
 			...(this._stateManager.getSessionSummary(session)?.workingDirectories ?? []),
 			...(state?.chats.flatMap(chat => chat.workingDirectories ?? []) ?? []),
+			...getFolderOnlyAgentMergeRoots(this._stateManager, session).values(),
 		];
 		const sessionFolders = new Set(sessionWorkingDirectories.map(getWorkingDirectoryKey));
 		const folders = mergeClientAgentMergeFolders(state?.config?.values, action.config[SessionConfigKey.AgentMergeFolders],

@@ -92,6 +92,9 @@ export class AgentHostBaseBranchOperationContribution extends Disposable impleme
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.setBaseBranch.missing', "Select a base branch."));
 		}
 		const { scope, repositoryRoot } = await this._resolveRepository(params);
+		if (isFolderOnlyScope(this._stateManager, scope)) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.setBaseBranch.folderOnly', "The base branch of one folder of a session cannot be changed."));
+		}
 		const branches = await this._gitService.getBranches(repositoryRoot, branchQuery);
 		if (!branches.some(branch => branch.ref === ref)) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.setBaseBranch.invalid', "Branch Changes cannot compare against '{0}'.", ref));
