@@ -181,6 +181,17 @@ async function hasCommand(target: IClientGitConfigTarget, command: string, extra
 	return false;
 }
 
+/** What {@link applyClientGitConfig} did. */
+export interface IClientGitConfigResult {
+	/**
+	 * `copied`: the client's `.gitconfig`, possibly with its XDG configuration; `xdgOnly`: only its XDG configuration;
+	 * `ownConfig`: the agent host's own was kept; `none`: the client has none; `notOffered`: the client does not supply it.
+	 */
+	readonly config: 'copied' | 'xdgOnly' | 'ownConfig' | 'none' | 'notOffered' | 'noGit';
+	/** `set`: the client's user name or email was set, also over a copy with the same; `existing`: Git's own was kept; `none`: the client has none; `failed`: Git could not set it. */
+	readonly identity: 'set' | 'existing' | 'none' | 'noGit' | 'failed';
+}
+
 /**
  * Copies the client's Git configuration where the agent host has none of its own, like Dev Containers, removes settings
  * that cannot work there, and sets the client's identity where the agent host has none or the copy lacks the client
@@ -193,10 +204,10 @@ export async function applyClientGitConfig(
 	agents: IClientGitSigningAgents,
 	requestGitConfig: () => Promise<ClientGitConfig>,
 	log: (message: string) => void,
-): Promise<void> {
+): Promise<IClientGitConfigResult> {
 	if (!await target.run('git', ['--version'])) {
 		log('Git: Not installed, not configuring it.');
-		return;
+		return { config: 'noGit', identity: 'noGit' };
 	}
 	const getValue = (key: string) => getGitConfig(target, ['--get', key]);
 	const configPath = join(target.home, '.gitconfig');
@@ -205,7 +216,7 @@ export async function applyClientGitConfig(
 	const copyConfig = offersConfig && canCopyGitConfig(existing);
 	const copyXdgConfig = offersConfig && !await exists(xdgConfigPath);
 	if (!copyConfig && !copyXdgConfig && await getValue('user.name') && await getValue('user.email')) {
-		return;
+		return { config: offersConfig ? 'ownConfig' : 'notOffered', identity: 'existing' };
 	}
 
 	const gitConfig = await requestGitConfig();
@@ -242,17 +253,30 @@ export async function applyClientGitConfig(
 		await removeUnavailableSigning(target, copiedFiles, await getSigningSupport(target, agents), log);
 	}
 
+	let identity: 'set' | 'failed' | undefined;
 	for (const [key, value] of [['user.name', gitConfig.user.name], ['user.email', gitConfig.user.email]] as const) {
 		const current = value && await getValue(key);
 		// A copied configuration lacks the client folder's conditional includes, e.g., for a work email, and may add a
 		// second value to an earlier identity, which replacing all leaves as one.
 		if (value && (!current || copied)) {
-			await target.run('git', ['config', '--global', '--replace-all', key, value]);
-			if (current !== value) {
-				log(`Git: Set ${key} to the client's.`);
+			if ((await target.run('git', ['config', '--global', '--replace-all', key, value]))?.code !== 0) {
+				identity = 'failed';
+			} else {
+				identity ??= 'set';
+				if (current !== value) {
+					log(`Git: Set ${key} to the client's.`);
+				}
 			}
 		}
 	}
+	return {
+		config: !offersConfig ? 'notOffered'
+			: copiedFiles.includes(configPath) ? 'copied'
+				: copied ? 'xdgOnly'
+					: (copyConfig || copyXdgConfig) && !global?.config && !global?.xdgConfig ? 'none'
+						: 'ownConfig',
+		identity: identity ?? (gitConfig.user.name || gitConfig.user.email ? 'existing' : 'none'),
+	};
 }
 
 /** Signing the client's agents support, and GPG signing with keys of the agent host's own, which it then uses. */

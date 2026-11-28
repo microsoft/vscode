@@ -18,7 +18,9 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { vObj, vString } from '../../../base/common/validation.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { clientGitCredentialOperationValidator, type ClientForwardingDescription, type ClientForwardingSocket, type ClientGitConfig, type ClientGitCredentialOperation, type ClientGpgKeys } from '../common/clientForwardingProtocol.js';
+import { ClientForwardingTelemetry, getClientForwardingSetup, getGitCredentialOutcome, type ClientForwardingGitConfigSetup, type ClientForwardingGitIdentitySetup, type ClientForwardingSocketOutcome, type IClientForwardingSetupState } from './agentHostClientForwardingTelemetry.js';
 import { parseGpgDirs, useKeyboxdPattern } from './clientForwardingHost.js';
 import { applyClientGitConfig, IClientGitConfigTarget } from './clientGitConfig.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
@@ -61,6 +63,8 @@ export const NullAgentHostClientForwardingService: IAgentHostClientForwardingSer
 
 /** The agent host's side of a client's connection: reverse requests and notifications. */
 export interface IAgentHostForwardingClient {
+	/** The client's identifier, which stays the same when it reconnects. */
+	readonly clientId: string;
 	readonly onDidReceiveData: Event<{ readonly connection: number; readonly data: VSBuffer }>;
 	readonly onDidReceiveClose: Event<number>;
 	describe(): Promise<ClientForwardingDescription>;
@@ -81,6 +85,8 @@ interface IForwardedConnection {
 	readonly socket: Socket;
 	readonly client: IRegisteredClient;
 	open: boolean;
+	/** Whether a session turned sandboxing on, which closed the connection. */
+	sandboxed: boolean;
 	readonly pending: VSBuffer[];
 }
 
@@ -90,6 +96,9 @@ interface IGpgPlan {
 	readonly importKeys: boolean;
 	readonly importOwnertrust: boolean;
 }
+
+/** Why the GPG agent is not forwarded. */
+type GpgSkipReason = 'noGnuPG' | 'ownKeys';
 
 const gitCredentialRequestValidator = vObj({ operation: clientGitCredentialOperationValidator, input: vString() });
 
@@ -147,11 +156,16 @@ export class AgentHostClientForwardingService extends Disposable implements IAge
 	private readonly _pipePrefix = `\\\\.\\pipe\\vscode-ah-fwd-${generateUuid()}`;
 	private readonly _originalSshAgentSocket: string | undefined;
 	private readonly _environmentReady: Promise<void>;
+	private readonly _telemetry: ClientForwardingTelemetry;
 	private _nextConnection = 0;
 	private _folder: Promise<string> | undefined;
-	private _gpgPlan: Promise<IGpgPlan | undefined> | undefined;
+	private _gpgPlan: Promise<IGpgPlan | GpgSkipReason> | undefined;
 	/** Until it fails, so the next client can retry. */
 	private _gpgImport: Promise<void> | undefined;
+	/** While the agent host imports the client's GPG keys, which connects to the GPG agent without that being use of it. */
+	private _importingGpgKeys = 0;
+	private _gitCredentialHelperSetup: IClientForwardingSetupState['gitCredentialHelper'] = 'failed';
+	private _sshAgentStarted = false;
 
 	/**
 	 * @param _environment The environment processes inherit, this process's in production.
@@ -163,8 +177,10 @@ export class AgentHostClientForwardingService extends Disposable implements IAge
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super();
+		this._telemetry = new ClientForwardingTelemetry(telemetryService, _logService);
 		this.enabled = _environment[AGENT_HOST_CLIENT_FORWARDING_ENV] === '1';
 		// Not for the processes this agent host starts.
 		delete _environment[AGENT_HOST_CLIENT_FORWARDING_ENV];
@@ -187,6 +203,7 @@ export class AgentHostClientForwardingService extends Disposable implements IAge
 			const closeIfSandboxed = () => {
 				if (this._hasSandboxedSession()) {
 					for (const connection of this._connections.values()) {
+						connection.sandboxed = true;
 						connection.socket.destroy();
 					}
 				}
@@ -227,25 +244,39 @@ export class AgentHostClientForwardingService extends Disposable implements IAge
 			if (!isRegistered()) {
 				return;
 			}
+			let described = true;
 			try {
 				registered.description = await client.describe();
 			} catch (error) {
 				this._logService.warn('[AgentHostClientForwarding] The client did not describe its forwarding', error);
 				registered.description = noForwarding;
+				described = false;
 			}
 			if (!isRegistered()) {
 				return;
 			}
+			const description = registered.description;
 			// GnuPG on Windows uses its own socket emulation, which forwarding would have to emulate as well. Before the Git
 			// configuration, so signing it enables finds the agent.
-			if (registered.description.gpgAgent && !isWindows) {
+			let gpg: IGpgPlan | GpgSkipReason | 'failed' | undefined;
+			if (description.gpgAgent && !isWindows) {
 				try {
-					await this._startGpgAgent(registered.description.keyboxd);
+					gpg = await this._startGpgAgent(description.keyboxd);
 				} catch (error) {
 					this._logService.warn('[AgentHostClientForwarding] Failed to forward the GPG agent', error);
+					gpg = 'failed';
 				}
 			}
-			await this._applyGitConfig(registered, registered.description);
+			const { forwardGitConfig, forwardGitIdentity } = await this._applyGitConfig(registered, description, described ? 'withheld' : 'failed');
+			this._telemetry.reportSetup(client.clientId, () => getClientForwardingSetup({
+				description: described ? description : undefined,
+				sshAgentStarted: this._sshAgentStarted,
+				gitCredentialHelper: this._gitCredentialHelperSetup,
+				gpgAgent: isWindows ? 'windows' : typeof gpg === 'object' ? 'local' : gpg,
+				keyboxd: typeof gpg === 'object' && !!gpg.keyboxdSocket,
+				gitConfig: forwardGitConfig,
+				gitIdentity: forwardGitIdentity,
+			}));
 		}).catch(error => this._logService.error('[AgentHostClientForwarding] Failed to start forwarding', error));
 		return toDisposable(() => {
 			store.dispose();
@@ -297,8 +328,14 @@ export class AgentHostClientForwardingService extends Disposable implements IAge
 	}
 
 	/** The newest client offering something to forward, unless a session is sandboxed. */
-	private _findForwardingClient(offers: (description: ClientForwardingDescription) => boolean): IRegisteredClient | undefined {
-		return this._hasSandboxedSession() ? undefined : this._findClient(offers);
+	private _findForwardingClient(offers: (description: ClientForwardingDescription) => boolean): { readonly client: IRegisteredClient | undefined; readonly sandboxed: boolean } {
+		const sandboxed = this._hasSandboxedSession();
+		return { client: sandboxed ? undefined : this._findClient(offers), sandboxed };
+	}
+
+	/** The client that use without a forwarding client is reported for. */
+	private _getNewestClientId(): string | undefined {
+		return this._clients.at(-1)?.client.clientId;
 	}
 
 	private async _startEnvironment(): Promise<void> {
@@ -331,10 +368,12 @@ export class AgentHostClientForwardingService extends Disposable implements IAge
 		await this._listen('git', ipcPath, createHttpServer((request, response) => void this._answerGitCredential(request, response)));
 		const helper = join(folder, 'git-credential-helper.js');
 		await writeFile(helper, getGitCredentialHelperScript());
-		const version = /(\d+)\.(\d+)/.exec((await this._run('git', ['--version']))?.stdout.toString() ?? '');
+		const gitVersion = await this._run('git', ['--version']);
+		const version = /(\d+)\.(\d+)/.exec(gitVersion?.stdout.toString() ?? '');
 		const legacy = !!version && Number(version[1]) * 1000 + Number(version[2]) < 2031;
 		// Appended after the configured helpers, it serves what they cannot, also after a URL resets the helper list.
 		appendGitEnvironmentConfig(this._environment, 'credential.helper', `!f() { ELECTRON_RUN_AS_NODE=1 ${shellEscape(this._execPath)} ${shellEscape(helper)} ${shellEscape(ipcPath)} "$@"; }; f`, legacy);
+		this._gitCredentialHelperSetup = !gitVersion ? 'noGit' : legacy ? 'legacyEnvironment' : 'environment';
 		this._logService.info(`[AgentHostClientForwarding] Forwarding Git credentials${legacy ? ' with the configuration format of Git before 2.31' : ''}`);
 	}
 
@@ -348,16 +387,20 @@ export class AgentHostClientForwardingService extends Disposable implements IAge
 			response.writeHead(400).end();
 			return;
 		}
-		const client = this._findForwardingClient(description => description.gitCredentials);
+		const { client, sandboxed } = this._findForwardingClient(description => description.gitCredentials);
+		const clientId = client?.client.clientId ?? this._getNewestClientId();
 		try {
 			// Without a client, Git asks its other helpers or the user.
 			const output = client ? await client.client.gitCredential(content.operation, content.input) : '';
 			// A session may have turned sandboxing on, or the client left, while a credential manager signed in.
-			const allowed = !!client && this._clients.includes(client) && !this._store.isDisposed && !this._hasSandboxedSession();
-			response.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ output: allowed ? output : '' }));
+			const left = !client || !this._clients.includes(client) || this._store.isDisposed;
+			const withheld = sandboxed || !left && this._hasSandboxedSession();
+			response.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ output: left || withheld ? '' : output }));
+			this._telemetry.reportGitCredentialUse(clientId, content.operation, content.input, withheld ? 'sandboxed' : left ? 'noClient' : getGitCredentialOutcome(content.operation, output));
 		} catch (error) {
 			this._logService.warn('[AgentHostClientForwarding] Git credential request failed', error);
 			response.writeHead(502).end();
+			this._telemetry.reportGitCredentialUse(clientId, content.operation, content.input, 'error');
 		}
 	}
 
@@ -365,17 +408,19 @@ export class AgentHostClientForwardingService extends Disposable implements IAge
 		const path = this._socketPath(folder, 'ssh-agent');
 		await this._listen('ssh-agent', path, createServer(socket => this._forwardSshAgent(socket)));
 		this._environment.SSH_AUTH_SOCK = path;
+		this._sshAgentStarted = true;
 		this._logService.info('[AgentHostClientForwarding] Forwarding the SSH agent');
 	}
 
 	/** Forwards to the newest client's SSH agent, else to the agent this agent host had, else answers without keys. */
 	private _forwardSshAgent(socket: Socket): void {
 		socket.on('error', () => { });
-		const client = this._findForwardingClient(description => description.sshAgent);
+		const { client, sandboxed } = this._findForwardingClient(description => description.sshAgent);
 		if (client) {
-			this._forward(socket, 'ssh-agent', client);
+			this._forward(socket, 'ssh-agent', client, true);
 			return;
 		}
+		this._telemetry.reportSocketUse(this._getNewestClientId(), 'ssh-agent', sandboxed ? 'sandboxed' : this._originalSshAgentSocket ? 'fallback' : 'emptyAgent');
 		if (this._originalSshAgentSocket) {
 			const upstream = netConnect(this._originalSshAgentSocket);
 			upstream.on('error', () => socket.destroy());
@@ -387,19 +432,28 @@ export class AgentHostClientForwardingService extends Disposable implements IAge
 		serveEmptySshAgent(socket);
 	}
 
-	private async _applyGitConfig(registered: IRegisteredClient, description: ClientForwardingDescription): Promise<void> {
+	/** @param notOffered Why the client does not supply its configuration when it does not. */
+	private async _applyGitConfig(registered: IRegisteredClient, description: ClientForwardingDescription, notOffered: 'withheld' | 'failed'): Promise<{ readonly forwardGitConfig: ClientForwardingGitConfigSetup; readonly forwardGitIdentity: ClientForwardingGitIdentitySetup }> {
 		try {
 			// A sandboxed session gets only the identity, also where it shares the agent host with others.
-			const offersConfig = description.gitConfig && !this._hasSandboxedSession();
+			const sandboxed = description.gitConfig && this._hasSandboxedSession();
+			const offersConfig = description.gitConfig && !sandboxed;
 			const agents = { sshAgent: description.sshAgent, gpgAgent: description.gpgAgent && !isWindows };
+			let sandboxedWhileRequesting = false;
 			const requestGitConfig = async (): Promise<ClientGitConfig> => {
 				const gitConfig = await registered.client.gitConfig();
 				// Also when a session turned sandboxing on while the client answered.
-				return offersConfig && this._hasSandboxedSession() ? { user: gitConfig.user } : gitConfig;
+				sandboxedWhileRequesting = offersConfig && this._hasSandboxedSession();
+				return sandboxedWhileRequesting ? { user: gitConfig.user } : gitConfig;
 			};
-			await applyClientGitConfig(this._getGitConfigTarget(), offersConfig, agents, requestGitConfig, message => this._logService.info(`[AgentHostClientForwarding] ${message}`));
+			const { config, identity } = await applyClientGitConfig(this._getGitConfigTarget(), offersConfig, agents, requestGitConfig, message => this._logService.info(`[AgentHostClientForwarding] ${message}`));
+			return {
+				forwardGitConfig: config === 'notOffered' ? (sandboxed ? 'sandboxed' : notOffered) : sandboxedWhileRequesting ? 'sandboxed' : config,
+				forwardGitIdentity: identity,
+			};
 		} catch (error) {
 			this._logService.warn('[AgentHostClientForwarding] Failed to apply the client\'s Git configuration', error);
+			return { forwardGitConfig: 'failed', forwardGitIdentity: 'failed' };
 		}
 	}
 
@@ -417,11 +471,12 @@ export class AgentHostClientForwardingService extends Disposable implements IAge
 		};
 	}
 
-	private async _startGpgAgent(clientUsesKeyboxd: boolean): Promise<void> {
+	/** @returns The plan, or why the GPG agent is not forwarded. */
+	private async _startGpgAgent(clientUsesKeyboxd: boolean): Promise<IGpgPlan | GpgSkipReason> {
 		this._gpgPlan ??= this._prepareGpg(clientUsesKeyboxd);
 		const plan = await this._gpgPlan;
-		if (!plan) {
-			return;
+		if (typeof plan === 'string') {
+			return plan;
 		}
 		// The agent host's GnuPG uses its standard sockets, so they are replaced, like Dev Containers does.
 		await this._listen('gpg-agent', plan.agentSocket, createServer(socket => this._forwardAgent(socket, 'gpg-agent')));
@@ -440,21 +495,22 @@ export class AgentHostClientForwardingService extends Disposable implements IAge
 			});
 			await gpgImport;
 		}
+		return plan;
 	}
 
-	/** Port of the Dev Containers GPG forwarding; `undefined` when GnuPG is missing or has its own private keys. */
-	private async _prepareGpg(clientUsesKeyboxd: boolean): Promise<IGpgPlan | undefined> {
+	/** Port of the Dev Containers GPG forwarding; the reason when GnuPG is missing or has its own private keys. */
+	private async _prepareGpg(clientUsesKeyboxd: boolean): Promise<IGpgPlan | GpgSkipReason> {
 		const dirs = parseGpgDirs((await this._run('gpgconf', ['--list-dirs']))?.stdout.toString() ?? '', false);
 		const agentSocket = dirs['agent-socket'];
 		const homedir = dirs.homedir;
 		if (!agentSocket || !homedir) {
 			this._logService.info('[AgentHostClientForwarding] No GnuPG agent socket, not forwarding the GPG agent');
-			return undefined;
+			return 'noGnuPG';
 		}
 		// Keys of its own need its own agent (microsoft/vscode-remote-release#3221).
 		if ((await readdir(join(homedir, 'private-keys-v1.d')).catch(() => [])).length) {
 			this._logService.info('[AgentHostClientForwarding] GnuPG has private keys, not forwarding the GPG agent');
-			return undefined;
+			return 'ownKeys';
 		}
 		const keyboxdSocket = dirs['keyboxd-socket'];
 		const commonConf = join(homedir, 'common.conf');
@@ -490,15 +546,21 @@ export class AgentHostClientForwardingService extends Disposable implements IAge
 			['gpg', ['--import-ownertrust'], plan.importOwnertrust ? keys.ownertrust : undefined],
 		];
 		const failures: string[] = [];
-		for (const [command, args, content] of imports) {
-			if (content) {
-				const result = await this._run(command, args, { stdin: decodeBase64(content).buffer });
-				if (!result) {
-					this._logService.info(`[AgentHostClientForwarding] ${command} is not installed, not running ${command} ${args[0]}`);
-				} else if (result.code !== 0) {
-					failures.push(`${command} ${args[0]}: ${result.stderr.toString().trim()}`);
+		// Importing connects to the forwarded GPG agent, which is not use of it.
+		this._importingGpgKeys++;
+		try {
+			for (const [command, args, content] of imports) {
+				if (content) {
+					const result = await this._run(command, args, { stdin: decodeBase64(content).buffer });
+					if (!result) {
+						this._logService.info(`[AgentHostClientForwarding] ${command} is not installed, not running ${command} ${args[0]}`);
+					} else if (result.code !== 0) {
+						failures.push(`${command} ${args[0]}: ${result.stderr.toString().trim()}`);
+					}
 				}
 			}
+		} finally {
+			this._importingGpgKeys--;
 		}
 		if (failures.length) {
 			throw new Error(failures.join('\n'));
@@ -542,18 +604,29 @@ export class AgentHostClientForwardingService extends Disposable implements IAge
 
 	private _forwardAgent(socket: Socket, name: 'gpg-agent' | 'keyboxd'): void {
 		socket.on('error', () => { });
-		const client = this._findForwardingClient(description => name === 'gpg-agent' ? description.gpgAgent : description.keyboxd);
+		const reportUse = !this._importingGpgKeys;
+		const { client, sandboxed } = this._findForwardingClient(description => name === 'gpg-agent' ? description.gpgAgent : description.keyboxd);
 		if (client) {
-			this._forward(socket, name, client);
+			this._forward(socket, name, client, reportUse);
 		} else {
+			if (reportUse) {
+				this._telemetry.reportSocketUse(this._getNewestClientId(), name, sandboxed ? 'sandboxed' : 'noClient');
+			}
 			socket.destroy();
 		}
 	}
 
-	private _forward(socket: Socket, name: ClientForwardingSocket, client: IRegisteredClient): void {
+	/** @param reportUse Whether to report the connection as use of the client's agent. */
+	private _forward(socket: Socket, name: ClientForwardingSocket, client: IRegisteredClient, reportUse: boolean): void {
 		const id = ++this._nextConnection;
-		const connection: IForwardedConnection = { socket, client, open: false, pending: [] };
+		const connection: IForwardedConnection = { socket, client, open: false, sandboxed: false, pending: [] };
 		this._connections.set(id, connection);
+		// A connection sandboxing closed while the client was connecting was not forwarded.
+		const report = (outcome: ClientForwardingSocketOutcome) => {
+			if (reportUse) {
+				this._telemetry.reportSocketUse(client.client.clientId, name, connection.sandboxed ? 'sandboxed' : outcome);
+			}
+		};
 		socket.on('data', (data: Buffer) => {
 			if (connection.open) {
 				client.client.sendData(id, VSBuffer.wrap(data));
@@ -570,6 +643,7 @@ export class AgentHostClientForwardingService extends Disposable implements IAge
 			}
 		});
 		client.client.open(id, name).then(() => {
+			report('success');
 			if (this._connections.get(id) !== connection) {
 				client.client.sendClose(id);
 				return;
@@ -579,6 +653,7 @@ export class AgentHostClientForwardingService extends Disposable implements IAge
 				client.client.sendData(id, data);
 			}
 		}, error => {
+			report('error');
 			// Every use of a missing agent fails the same way.
 			if (!this._failedSockets.has(name)) {
 				this._failedSockets.add(name);

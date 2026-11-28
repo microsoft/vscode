@@ -25,6 +25,7 @@ export interface IAgentHostClientForwardingMainService {
 	open(id: string, socket: ClientForwardingSocket): Promise<void>;
 	write(id: string, data: VSBuffer): Promise<void>;
 	close(id: string): Promise<void>;
+	/** Rejects when Git fails other than for a missing credential, e.g., when it is not installed. */
 	gitCredential(operation: ClientGitCredentialOperation, input: string): Promise<string>;
 	gpgKeys(): Promise<ClientGpgKeys>;
 	/**

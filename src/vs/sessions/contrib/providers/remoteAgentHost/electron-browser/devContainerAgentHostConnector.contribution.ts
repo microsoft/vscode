@@ -179,6 +179,8 @@ type DevContainerConnectEvent = {
 	cancelled: boolean;
 	reconnect: boolean;
 	stateVolume: boolean;
+	credentialForwarding: boolean;
+	sandboxed: boolean;
 	sample: boolean;
 	remote: boolean;
 	engine: DevContainerEngine;
@@ -193,6 +195,8 @@ type DevContainerConnectClassification = {
 	cancelled: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the attempt failed because it was cancelled.' };
 	reconnect: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether this is an automatic reconnect rather than the initial connection.' };
 	stateVolume: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether user state was kept on a per-container volume.' };
+	credentialForwarding: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the chat.agentHost.devContainer.credentialForwarding.enabled setting is on, which together with sandboxed explains why the Agent Host\'s agentHost.forwardingSetup event reports forwarding as withheld.' };
+	sandboxed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the connection is for sandboxed sessions, which get only the Git identity forwarded.' };
 	sample: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the container is for a Dev Container sample.' };
 	remote: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the container runs on a remote Docker host through SSH, Tunnel or WSL.' };
 	engine: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The container engine that runs the Dev Container: docker or wslc (WSL containers).' };
@@ -731,6 +735,8 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 				cancelled,
 				reconnect,
 				stateVolume: persistUserState,
+				credentialForwarding: this._configurationService.getValue<boolean>(DevContainerCredentialForwardingEnabledSettingId) !== false,
+				sandboxed: !!options?.sandboxEnabled,
 				sample: !!sample,
 				remote: !!sourceEntry,
 				engine,

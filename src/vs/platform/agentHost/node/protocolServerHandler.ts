@@ -1699,6 +1699,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const onClose = client.initializationDisposables.add(new Emitter<number>());
 		client.forwarding = { onData, onClose };
 		client.initializationDisposables.add(service.registerClient({
+			clientId: client.clientId,
 			onDidReceiveData: onData.event,
 			onDidReceiveClose: onClose.event,
 			describe: async () => describeClientForwardingResultValidator.validateOrThrow(await this._sendReverseRequestToConnection<unknown>(client, DescribeClientForwardingExtensionMethod, {}, 30_000)),

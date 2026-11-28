@@ -1129,7 +1129,7 @@ suite('ProtocolServerHandler', () => {
 		client.sendData(7, VSBuffer.fromString('request'));
 		advertised.transport.simulateMessage(notification(ClientForwardingDataNotification, { connection: 7, data: encodeBase64(VSBuffer.fromString('reply')) }));
 		advertised.transport.simulateMessage(notification(ClientForwardingCloseNotification, { connection: 7 }));
-		const registeredBeforeClose = registered.length;
+		const registeredBeforeClose = registered.map(registeredClient => registeredClient.clientId);
 		advertised.transport.simulateClose();
 
 		assert.deepStrictEqual({
@@ -1143,7 +1143,7 @@ suite('ProtocolServerHandler', () => {
 		}, {
 			confirmations: [undefined, true],
 			respondedBeforeReady: [false, false],
-			registeredBeforeClose: 1,
+			registeredBeforeClose: ['dev-container-client'],
 			openParams: { connection: 7, socket: 'ssh-agent' },
 			sent: [{ connection: 7, data: encodeBase64(VSBuffer.fromString('request')) }],
 			received: [['data', 7, 'reply'], ['close', 7]],
