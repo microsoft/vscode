@@ -966,7 +966,7 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 				this._proxy.$backup(this._editorResource.toJSON(), this.viewType, token)));
 		this._hotExitState = pendingState;
 
-		token.onCancellationRequested(() => {
+		const cancellationListener = token.onCancellationRequested(() => {
 			pendingState.operation.cancel();
 		});
 
@@ -992,6 +992,8 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 			if (e.message) {
 				errorMessage = e.message;
 			}
+		} finally {
+			cancellationListener.dispose();
 		}
 
 		if (this._hotExitState === HotExitState.Allowed) {
