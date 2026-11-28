@@ -7,6 +7,10 @@
 	height: 100%;
 }
 
+.icon-select-box .icon-select-input-container .monaco-inputbox > .ibwrapper > .input {
+	height: auto;
+}
+
 .icon-select-box .icon-select-icons-container {
 	height: 100%;
 	outline: 0 !important;
