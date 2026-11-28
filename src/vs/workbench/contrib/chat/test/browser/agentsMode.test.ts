@@ -473,9 +473,10 @@ suite('Agents mode actions', () => {
 			readonly chatViewLocation?: ViewContainerLocation;
 			/**
 			 * Whether the Chat view had focus when entering: its chat moves to the chat part, which shows as it enters or
-			 * later, and the focus is lost with it, unless something else took it meanwhile
+			 * later, and the focus is lost with it, or stays on its input that no longer renders, unless something else took
+			 * it meanwhile
 			 */
-			readonly chatViewFocused?: 'chatPartShown' | 'chatPartShowsLater' | 'focusTakenElsewhere';
+			readonly chatViewFocused?: 'chatPartShown' | 'chatPartShowsLater' | 'inputNoLongerRendered' | 'focusTakenElsewhere';
 		}
 
 		async function run(scenario: IScenario) {
@@ -486,7 +487,7 @@ suite('Agents mode actions', () => {
 			const agentsMode = { isSupported: true, isActive: false, onWillChange: willChange.event };
 			let visible = !!scenario.visibleBefore;
 			let chatViewFocused = !!scenario.chatViewFocused;
-			let chatPartVisible = scenario.chatViewFocused === 'chatPartShown';
+			let chatPartVisible = scenario.chatViewFocused === 'chatPartShown' || scenario.chatViewFocused === 'inputNoLongerRendered';
 			const calls: string[] = [];
 			// Like the layout, which can't show or hide parts before it laid them out once the window starts
 			let laidOut = true;
@@ -525,6 +526,12 @@ suite('Agents mode actions', () => {
 			chatViewFocused = false;
 			if (scenario.chatViewFocused === 'focusTakenElsewhere') {
 				elsewhere.focus();
+			}
+			const chatViewInput = mainWindow.document.body.appendChild(mainWindow.document.createElement('input'));
+			disposables.add(toDisposable(() => chatViewInput.remove()));
+			if (scenario.chatViewFocused === 'inputNoLongerRendered') {
+				chatViewInput.focus();
+				chatViewInput.style.display = 'none';
 			}
 			await auxiliaryBar.enter();
 			if (scenario.chatViewFocused === 'chatPartShowsLater' || scenario.chatViewFocused === 'focusTakenElsewhere') {
@@ -572,6 +579,7 @@ suite('Agents mode actions', () => {
 				visibleBefore: await run({ visibleBefore: true }),
 				chatViewFocusedChatPartShown: await run({ visibleBefore: true, chatViewFocused: 'chatPartShown' }),
 				chatViewFocusedChatPartShowsLater: await run({ visibleBefore: true, chatViewFocused: 'chatPartShowsLater' }),
+				chatViewFocusedInputNoLongerRendered: await run({ visibleBefore: true, chatViewFocused: 'inputNoLongerRendered' }),
 				chatViewFocusedFocusTakenElsewhere: await run({ visibleBefore: true, chatViewFocused: 'focusTakenElsewhere' }),
 			}, {
 				hiddenBefore: { afterEnter: shownOnEnter, afterLeave: hiddenOnLeave },
@@ -584,6 +592,7 @@ suite('Agents mode actions', () => {
 				// The focus the Chat view had follows its chat to the chat part, once it shows, but doesn't take it back
 				chatViewFocusedChatPartShown: { afterEnter: { visible: true, calls: [`open ${ChatViewId}`, `focus ${Parts.CHAT_PART}`] }, afterLeave: { visible: true, calls: [] } },
 				chatViewFocusedChatPartShowsLater: { afterEnter: { visible: true, calls: [`open ${ChatViewId}`, `focus ${Parts.CHAT_PART}`] }, afterLeave: { visible: true, calls: [] } },
+				chatViewFocusedInputNoLongerRendered: { afterEnter: { visible: true, calls: [`open ${ChatViewId}`, `focus ${Parts.CHAT_PART}`] }, afterLeave: { visible: true, calls: [] } },
 				chatViewFocusedFocusTakenElsewhere: { afterEnter: shownOnEnter, afterLeave: { visible: true, calls: [] } },
 			});
 		});

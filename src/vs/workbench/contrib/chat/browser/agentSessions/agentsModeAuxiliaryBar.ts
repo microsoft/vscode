@@ -103,11 +103,12 @@ export class AgentsModeAuxiliaryBar extends Disposable {
 		}
 
 		// The chat the Chat view had focused moves to the chat part, which shows it as the window enters or later, and leaves
-		// the focus nowhere: it follows the chat there, unless something else took it meanwhile
+		// the focus nowhere or on an element that no longer renders: it follows the chat there, unless something else took it
+		// meanwhile. Where the Chat view is not in the secondary side bar, this returned above and the focus stays where it is
 		if (chatViewFocused) {
 			const focusChatPart = () => {
 				const activeElement = getActiveElement();
-				if (!activeElement || activeElement === activeElement.ownerDocument.body) {
+				if (!activeElement || activeElement === activeElement.ownerDocument.body || activeElement.getClientRects().length === 0) {
 					this.layoutService.focusPart(Parts.CHAT_PART);
 				}
 			};
