@@ -11,7 +11,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IGitHubAccountClient } from '../../../../../../platform/github/common/account/account.js';
 import { FileContent } from '../../../../../../platform/github/common/content/content.js';
-import { PullRequestSummary } from '../../../../../../platform/github/common/core/pullRequests.js';
+import { PullRequest, PullRequestSummary } from '../../../../../../platform/github/common/core/pullRequests.js';
 import { Commit } from '../../../../../../platform/github/common/core/repositories.js';
 import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
 import { NullLogService, ILogService } from '../../../../../../platform/log/common/log.js';
@@ -21,11 +21,12 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { GitHubService } from '../../../browser/github/githubService.js';
 import { IPullRequestIconCache, PullRequestIconCache } from '../../../browser/github/pullRequestIconCache.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISessionGitRepository } from '../../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
 import { ISessionHostService } from '../../../../../services/sessions/browser/sessionHost.js';
 import { ITestSessionWithChat, sessionHostServiceOf } from '../sessionHostTestUtils.js';
-import { constObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { IChangesRepository } from '../../../common/changesRepositories.js';
 
 suite('GitHubService', () => {
 
@@ -74,7 +75,9 @@ suite('GitHubService', () => {
 							return upcastPartial<FileContent>({ type: 'file', encoding: 'base64', content: 'aGVsbG8=' });
 						},
 					}),
+					reviews: upcastPartial<IGitHubAccountClient['reviews']>({ list: async () => [] }),
 					pullRequests: upcastPartial<IGitHubAccountClient['pullRequests']>({
+						get: async (repository, prNumber) => upcastPartial<PullRequest>({ number: prNumber, state: 'open', user: null, head: upcastPartial<PullRequest['head']>({ ref: 'topic', sha: `${repository.repo}-head` }), base: upcastPartial<PullRequest['base']>({ ref: 'main' }) }),
 						list: async (repository, _signal, options) => {
 							domainCalls.push({ operation: 'pullRequests.list', args: [repository, options] });
 							return [upcastPartial<PullRequestSummary>({ number: 42 })];
@@ -149,6 +152,32 @@ suite('GitHubService', () => {
 			initial: { scoped: 7, active: 3 },
 			scopedCleared: { scoped: undefined, active: 3 },
 		});
+	});
+
+	test('getSessionPullRequest follows the selected repository, also a pull request known only from its metadata, and the first folder for all of them', async () => {
+		const gitHubInfo = (repo: string, prNumber: number) => constObservable({ owner: 'o', repo, pullRequest: { number: prNumber, uri: URI.parse(`https://github.com/o/${repo}/pull/${prNumber}`) } });
+		const session = upcastPartial<ITestSessionWithChat>({
+			workspace: constObservable({ folders: [{ gitRepository: { gitHubInfo: gitHubInfo('a', 1) } }] }) as unknown as ITestSessionWithChat['workspace'],
+		});
+		const repositoryB = upcastPartial<IChangesRepository>({ gitRepository: upcastPartial<ISessionGitRepository>({ gitHubInfo: gitHubInfo('b', 2) }) });
+		const selected = observableValue<IChangesRepository | undefined>('test.selected', undefined);
+		const pullRequest = service.getSessionPullRequest(constObservable(session), selected);
+		// Observed, as the Checks, their context and the polling observe it, so that its models stay alive
+		store.add(autorun(reader => pullRequest.pullRequestCIObs.read(reader)));
+		const step = async () => {
+			// Its details, and with them its head commit, load as the pull request is refreshed
+			await pullRequest.pullRequestObs.get()?.refresh();
+			const ci = pullRequest.pullRequestCIObs.get();
+			return ci && `${ci.owner}/${ci.repo}#${ci.prNumber}@${ci.headSha}`;
+		};
+
+		const all = await step();
+		selected.set(repositoryB, undefined);
+		const b = await step();
+		selected.set(undefined, undefined);
+		const allAgain = await step();
+
+		assert.deepStrictEqual({ all, b, allAgain }, { all: 'o/a#1@a-head', b: 'o/b#2@b-head', allAgain: 'o/a#1@a-head' });
 	});
 
 	test('createPullRequestModelReference returns shared model for same key', () => {
