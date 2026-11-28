@@ -126,7 +126,8 @@ function parseOsc633Payload(payload: string): Osc633Event | undefined {
 			return { type: Osc633EventType.CommandLine, commandLine, nonce };
 		}
 		case 'P': {
-			const deserialized = deserializeOscMessage(argsRaw);
+			const nonceIdx = argsRaw.indexOf(';');
+			const deserialized = deserializeOscMessage(nonceIdx === -1 ? argsRaw : argsRaw.substring(0, nonceIdx));
 			const eqIdx = deserialized.indexOf('=');
 			if (eqIdx === -1) {
 				return undefined;
