@@ -9,13 +9,13 @@ import { structuralEquals } from '../../../../base/common/equals.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache, ResourceMap } from '../../../../base/common/map.js';
 import { derived, derivedObservableWithCache, derivedOpts, IObservable, IReader, ISettableObservable, observableSignal, observableSignalFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
-import { basename, extUriBiasedIgnorePathCase, isEqual, relativePath } from '../../../../base/common/resources.js';
-import { findDeepestContainingWorkingDirectory } from '../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
+import { basename, isEqual, relativePath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_MERGE_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { getMainWindowHost, ISessionHost, ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { BRANCH_CHANGES_CHANGESET_ID, IChat, ISession, ISessionChangeset, ISessionChangesetFolderFailure, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange, ISessionGitRepository, ISessionWorkspace, SessionRepositoryKind, isSessionCreated, sessionFileChangesEqual, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../sessions/common/sessionsManagement.js';
@@ -229,6 +229,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		@ISessionHostService sessionHostService: ISessionHostService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
 		this._mainWindowHost = getMainWindowHost(sessionHostService);
@@ -881,35 +882,54 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			&& one.hasGitOperationInProgress === other.hasGitOperationInProgress && one.gitHubInfo === other.gitHubInfo;
 		return a.length === b.length && a.every((repository, index) => {
 			const other = b[index];
-			return isEqual(repository.root, other.root) && isEqual(repository.folder, other.folder) && repository.name === other.name && repository.description === other.description
+			return isEqual(repository.root, other.root) && isEqual(repository.folder, other.folder)
+				&& repository.folders.length === other.folders.length && repository.folders.every((folder, folderIndex) => isEqual(folder, other.folders[folderIndex]))
+				&& repository.name === other.name && repository.description === other.description
 				&& repository.kind === other.kind && gitStateEqual(repository.gitRepository, other.gitRepository);
 		});
 	}
 
 	/**
 	 * The repositories of a workspace that Changes are grouped by, in folder order: each folder's own repository, then those
-	 * found in it. A folder in no repository stands for itself. Empty for a workspace of fewer than two, whose Changes are
-	 * not grouped.
+	 * found in it. A folder in no repository stands for itself. Folders of one repository share its entry. Empty for a
+	 * workspace of fewer than two, whose Changes are not grouped.
 	 */
 	private _getChangesRepositories(workspace: ISessionWorkspace | undefined, reader: IReader): readonly IChangesRepository[] {
 		if (!workspace) {
 			return [];
 		}
-		const repositories: IChangesRepository[] = [];
+		const extUri = this.uriIdentityService.extUri;
+		const repositories: (IChangesRepository & { folders: URI[] })[] = [];
+		const findByRoot = (root: URI) => repositories.find(repository => repository.kind !== undefined && extUri.isEqual(repository.root, root));
 		for (const folder of workspace.folders) {
-			const found = workspace.repositories?.filter(repository => extUriBiasedIgnorePathCase.isEqual(repository.folder, folder.workingDirectory));
+			const found = workspace.repositories?.filter(repository => extUri.isEqual(repository.folder, folder.workingDirectory));
 			if (!found?.length) {
+				// A host that records repositories lists one shared by several folders once, under the first: a folder in a
+				// listed repository is one of its folders
+				const containing = workspace.repositories ? this._findDeepestContainingRepository(repositories.filter(repository => repository.kind !== undefined), folder.workingDirectory) : undefined;
+				if (containing) {
+					containing.folders.push(folder.workingDirectory);
+					continue;
+				}
 				// Without repository records each folder is its own repository, if any
 				const isRepository = !!folder.gitRepository && folder.gitRepository.isRepository?.read(reader) !== false;
-				repositories.push({ root: folder.workingDirectory, folder: folder.workingDirectory, name: folder.name, description: undefined, kind: isRepository ? SessionRepositoryKind.Folder : undefined, gitRepository: isRepository ? folder.gitRepository : undefined });
+				repositories.push({ root: folder.workingDirectory, folder: folder.workingDirectory, folders: [folder.workingDirectory], name: folder.name, description: undefined, kind: isRepository ? SessionRepositoryKind.Folder : undefined, gitRepository: isRepository ? folder.gitRepository : undefined });
 				continue;
 			}
 			for (const repository of found) {
+				const listed = findByRoot(repository.root);
+				if (listed) {
+					listed.folders.push(folder.workingDirectory);
+					continue;
+				}
 				const isOwn = repository.kind === SessionRepositoryKind.Folder;
+				// A folder's own repository can have its root above the folder; it is named by its root then
+				const isFolder = isOwn && extUri.isEqual(repository.root, folder.workingDirectory);
 				repositories.push({
 					root: repository.root,
 					folder: folder.workingDirectory,
-					name: isOwn ? folder.name : basename(repository.root),
+					folders: [folder.workingDirectory],
+					name: isFolder ? folder.name : basename(repository.root),
 					description: isOwn ? undefined : relativePath(folder.workingDirectory, repository.root),
 					kind: repository.kind,
 					gitRepository: repository.gitRepository ?? (isOwn ? folder.gitRepository : undefined),
@@ -919,9 +939,21 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		return repositories.length > 1 ? repositories : [];
 	}
 
+	/** The deepest of `repositories` whose root contains `resource`, compared by the case rules of its file system. */
+	private _findDeepestContainingRepository<T extends IChangesRepository>(repositories: readonly T[], resource: URI): T | undefined {
+		let deepest: T | undefined;
+		for (const repository of repositories) {
+			if (this.uriIdentityService.extUri.isEqualOrParent(resource, repository.root)
+				&& (!deepest || this.uriIdentityService.extUri.isEqualOrParent(repository.root, deepest.root))) {
+				deepest = repository;
+			}
+		}
+		return deepest;
+	}
+
 	/** The repository `repositories` has with root `root`. */
 	private _findChangesRepository(repositories: readonly IChangesRepository[], root: URI | undefined): IChangesRepository | undefined {
-		return root ? repositories.find(repository => extUriBiasedIgnorePathCase.isEqual(repository.root, root)) : undefined;
+		return root ? repositories.find(repository => this.uriIdentityService.extUri.isEqual(repository.root, root)) : undefined;
 	}
 
 	/**
@@ -929,18 +961,15 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 	 * provider gives them, both in the client's space, so a resource of another host at the same path is in none.
 	 */
 	private _createRepositoryLookup(repositories: readonly IChangesRepository[]): (resource: URI) => IChangesRepository | undefined {
-		const roots = repositories.map(repository => repository.root);
-		return resource => {
-			const root = findDeepestContainingWorkingDirectory(resource, roots);
-			return root ? repositories[roots.indexOf(root)] : undefined;
-		};
+		return resource => this._findDeepestContainingRepository(repositories, resource);
 	}
 
 	/** Why the changes of `repository` could not be loaded, among the `failures` a changeset reports per folder, if they could not. */
 	findRepositoryFailure(repository: IChangesRepository, failures: readonly ISessionChangesetFolderFailure[]): ISessionChangesetFolderFailure | undefined {
 		// A host reports a folder's own repository by the folder, and one found in it by its root
-		return failures.find(failure => extUriBiasedIgnorePathCase.isEqual(failure.workingDirectory, repository.root)
-			|| repository.kind !== SessionRepositoryKind.Nested && extUriBiasedIgnorePathCase.isEqual(failure.workingDirectory, repository.folder));
+		const extUri = this.uriIdentityService.extUri;
+		return failures.find(failure => extUri.isEqual(failure.workingDirectory, repository.root)
+			|| repository.kind !== SessionRepositoryKind.Nested && repository.folders.some(folder => extUri.isEqual(failure.workingDirectory, folder)));
 	}
 
 	/**
@@ -978,7 +1007,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		const getRepository = this._createRepositoryLookup(repositories);
 		return changes.filter(change => {
 			const changeRepository = getRepository(getChangesEditorFileResource(change));
-			return !!changeRepository && extUriBiasedIgnorePathCase.isEqual(changeRepository.root, repository.root);
+			return !!changeRepository && this.uriIdentityService.extUri.isEqual(changeRepository.root, repository.root);
 		});
 	}
 }

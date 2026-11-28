@@ -18,7 +18,8 @@ import { IContextViewService } from '../../../../../platform/contextview/browser
 import { ContextViewService } from '../../../../../platform/contextview/browser/contextViewService.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { IChangesSessionObservables, IChangesSessionScope, IChangesViewService } from '../../../../contrib/sessions/common/changesViewService.js';
-import { isEqual } from '../../../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../base/common/resources.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IChangesRepository } from '../../../../contrib/sessions/common/changesRepositories.js';
 import { ChangesRepositoryPickerActionItem } from '../../../../contrib/sessionChanges/browser/changesRepositoryPicker.js';
 import { IGitHubInfo, ISession, ISessionChangeset, ISessionChangesetFolderFailure, SessionRepositoryKind } from '../../../../services/sessions/common/session.js';
@@ -28,8 +29,8 @@ const VSCODE = URI.file('/workspace/vscode');
 const DOCS = URI.file('/workspace/vscode-docs');
 
 const REPOSITORIES: readonly IChangesRepository[] = [
-	{ root: VSCODE, folder: VSCODE, name: 'vscode', description: undefined, kind: SessionRepositoryKind.Folder, gitRepository: { uri: VSCODE, workTreeUri: undefined, branchName: 'feature/projects', baseBranchName: 'main', gitHubInfo: constObservable<IGitHubInfo | undefined>(undefined) } },
-	{ root: DOCS, folder: DOCS, name: 'vscode-docs', description: undefined, kind: SessionRepositoryKind.Folder, gitRepository: { uri: DOCS, workTreeUri: undefined, branchName: 'docs/projects', baseBranchName: 'main', gitHubInfo: constObservable<IGitHubInfo | undefined>(undefined) } },
+	{ root: VSCODE, folder: VSCODE, folders: [VSCODE], name: 'vscode', description: undefined, kind: SessionRepositoryKind.Folder, gitRepository: { uri: VSCODE, workTreeUri: undefined, branchName: 'feature/projects', baseBranchName: 'main', gitHubInfo: constObservable<IGitHubInfo | undefined>(undefined) } },
+	{ root: DOCS, folder: DOCS, folders: [DOCS], name: 'vscode-docs', description: undefined, kind: SessionRepositoryKind.Folder, gitRepository: { uri: DOCS, workTreeUri: undefined, branchName: 'docs/projects', baseBranchName: 'main', gitHubInfo: constObservable<IGitHubInfo | undefined>(undefined) } },
 ];
 
 /** Renders the Repository picker of a Changes header, as it shows all repositories or one, or open with its list. */
@@ -48,6 +49,7 @@ function renderPicker({ container, disposableStore, theme }: ComponentFixtureCon
 			if (!open) {
 				reg.defineInstance(IActionWidgetService, new class extends mock<IActionWidgetService>() { }());
 			}
+			reg.defineInstance(IUriIdentityService, new class extends mock<IUriIdentityService>() { override readonly extUri = extUriBiasedIgnorePathCase; }());
 			// The fixture's repositories are each a folder's own, whose failures the host reports by the folder
 			reg.defineInstance(IChangesViewService, new class extends mock<IChangesViewService>() {
 				override findRepositoryFailure(repository: IChangesRepository, failures: readonly ISessionChangesetFolderFailure[]) {

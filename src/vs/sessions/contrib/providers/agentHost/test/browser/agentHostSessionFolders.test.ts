@@ -146,6 +146,27 @@ suite('agentHostSessionFolders', () => {
 				});
 			});
 
+			test('lists a repository that several folders are in once, under the first, as the host records it for each', () => {
+				// The host records each folder's own repository when several folders are in Git, also a root above the folder
+				const [mono, monoA, monoB, apiSub] = ['/work/mono', '/work/mono/a', '/work/mono/b', '/work/api/sub'].map(path => URI.file(path));
+				const read = (folders: URI[], roots: URI[]) => withSessionFolderState(workspace(folders.map(folder => kind.toClient(folder))), withSessionRepositories(undefined,
+					Object.fromEntries(folders.map((folder, index) => [hostKey(folder), [{ root: roots[index].toString(), kind: 'folder' as const }]]))), toHost, toClient)
+					?.repositories?.map(repository => ({ root: repository.root.toString(), folder: repository.folder.toString() }));
+				assert.deepStrictEqual({
+					foldersOfOneRepository: read([monoA, monoB, web], [mono, mono, web]),
+					folderAndSubfolder: read([api, apiSub, web], [api, api, web]),
+				}, {
+					foldersOfOneRepository: [
+						{ root: kind.toClient(mono).toString(), folder: kind.toClient(monoA).toString() },
+						{ root: clientWeb.toString(), folder: clientWeb.toString() },
+					],
+					folderAndSubfolder: [
+						{ root: clientApi.toString(), folder: clientApi.toString() },
+						{ root: clientWeb.toString(), folder: clientWeb.toString() },
+					],
+				});
+			});
+
 			test('reads a changeset\'s folder failures', () => {
 				const changeset = 'copilot:/session/changeset/branch';
 				const meta = withChangesetFolderFailures(undefined, changeset, [{ folder: web.toString(), message: 'Not a repository', detail: 'fatal' }]);

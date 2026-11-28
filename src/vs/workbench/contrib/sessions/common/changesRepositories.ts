@@ -10,8 +10,10 @@ import { ISessionChangesetFolderFailure, ISessionGitRepository, SessionRepositor
 export interface IChangesRepository {
 	/** The repository's root, or the folder's working directory for a folder in no repository. */
 	readonly root: URI;
-	/** The working directory of the session folder the repository is in. */
+	/** The working directory of the first session folder the repository is in, whose scope is the repository's. */
 	readonly folder: URI;
+	/** The working directories of all session folders in the repository, in folder order, starting with {@link folder}. */
+	readonly folders: readonly URI[];
 	readonly name: string;
 	/** Where a repository found in a folder is, relative to that folder. */
 	readonly description: string | undefined;
