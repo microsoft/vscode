@@ -38,6 +38,26 @@ export function matchesTerminalSandboxCommandRule<T>(command: ITerminalSandboxCo
 }
 
 /**
+ * Returns rule values shared by every command so a compound invocation cannot transfer command-specific capabilities between executables.
+ */
+export function getTerminalSandboxCommandRuleValuesForAllCommands<T>(commands: readonly ITerminalSandboxCommand[], rules: readonly ITerminalSandboxCommandRule<T>[], context?: ITerminalSandboxCommandRuleContext): readonly T[] {
+	if (commands.length === 0) {
+		return [];
+	}
+
+	const values = new Set<T>();
+	for (const rule of rules) {
+		if (values.has(rule.value)) {
+			continue;
+		}
+		if (commands.every(command => rules.some(candidate => candidate.value === rule.value && matchesTerminalSandboxCommandRule(command, candidate, context)))) {
+			values.add(rule.value);
+		}
+	}
+	return [...values];
+}
+
+/**
  * Returns the first non-option argument, treating it as the command's subcommand.
  * Options are skipped, and options listed in `optionsWithValue` also skip the
  * following argument so global option values are not mistaken for subcommands.
