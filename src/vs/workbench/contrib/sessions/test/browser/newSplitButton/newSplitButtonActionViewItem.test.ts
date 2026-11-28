@@ -13,7 +13,7 @@ import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { KeyCodeChord, ResolvedKeybinding } from '../../../../../../base/common/keybindings.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
-import { OS } from '../../../../../../base/common/platform.js';
+import { OperatingSystem, OS } from '../../../../../../base/common/platform.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { MenuId, MenuItemAction, SubmenuItemAction } from '../../../../../../platform/actions/common/actions.js';
@@ -88,7 +88,7 @@ suite('Sessions - New split button', () => {
 			label: 'New',
 			keybinding: cmdN.getLabel(),
 			filled: [true, true],
-			ariaLabel: `New Chat (${cmdN.getLabel()})`,
+			ariaLabel: `New Chat (${cmdN.getAriaLabel()})`,
 			disabled: false,
 			commands: [{ id: PRIMARY_ID, args: ['titleContext'] }],
 			menus: [{ sameActions: true, context: 'titleContext' }],
@@ -110,9 +110,15 @@ suite('Sessions - New split button', () => {
 		const rebound = shown();
 		updateKeybinding(PRIMARY_ID, undefined);
 		assert.deepStrictEqual([rebound, shown()], [
-			{ label: `New${cmdShiftN.getLabel()}`, keybinding: cmdShiftN.getLabel(), ariaLabel: `New Chat (${cmdShiftN.getLabel()})` },
+			{ label: `New${cmdShiftN.getLabel()}`, keybinding: cmdShiftN.getLabel(), ariaLabel: `New Chat (${cmdShiftN.getAriaLabel()})` },
 			{ label: 'New', keybinding: null, ariaLabel: 'New Chat' },
 		]);
+	});
+
+	test('speaks the keybinding of New Chat in the label\'s aria-label, not the glyphs it shows', () => {
+		const macCmdN = new USLayoutResolvedKeybinding([new KeyCodeChord(false, false, false, true, KeyCode.KeyN)], OperatingSystem.Macintosh);
+		const { primary, shownKeybinding } = render(true, { [PRIMARY_ID]: macCmdN });
+		assert.deepStrictEqual({ keybinding: shownKeybinding(), ariaLabel: primary.getAttribute('aria-label') }, { keybinding: '⌘N', ariaLabel: 'New Chat (Command+N)' });
 	});
 
 	test('runs the New menu with the context of the title and reports a failure once, even after the menu and the button are gone', async () => {
@@ -149,7 +155,7 @@ suite('Sessions - New split button', () => {
 		}, {
 			label: 'Add',
 			keybinding: cmdN.getLabel(),
-			ariaLabel: `New Chat (${cmdN.getLabel()})`,
+			ariaLabel: `New Chat (${cmdN.getAriaLabel()})`,
 			commands: ['addThing'],
 			menus: [true],
 		});

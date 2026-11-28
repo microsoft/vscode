@@ -183,6 +183,16 @@ export class NewSplitButtonActionViewItem extends ActionWithDropdownActionViewIt
 			: this._primaryAction.label;
 	}
 
+	/** The primary action with its keybinding as a screen reader speaks it, such as "Command+N" rather than the glyphs of the tooltip. */
+	protected override updateAriaLabel(): void {
+		if (this.label) {
+			const keybindingAriaLabel = this.getKeybinding()?.getAriaLabel();
+			this.label.setAttribute('aria-label', keybindingAriaLabel
+				? localize('newSplitButton.ariaLabel', "{0} ({1})", this._primaryAction.label, keybindingAriaLabel)
+				: this._primaryAction.label);
+		}
+	}
+
 	private getKeybinding(): ResolvedKeybinding | undefined {
 		const fallbackId = this._buttonOptions?.keybindingActionId;
 		return this._keybindingService.lookupKeybinding(this._primaryAction.id) ?? (fallbackId ? this._keybindingService.lookupKeybinding(fallbackId) : undefined);
