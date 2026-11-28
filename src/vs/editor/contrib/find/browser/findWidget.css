@@ -224,7 +224,7 @@
 }
 
 .monaco-editor .findMatch {
-	animation-duration: 0;
+	animation-duration: 0s;
 	animation-name: inherit !important;
 	background-color: var(--vscode-editor-findMatchHighlightBackground);
 }
