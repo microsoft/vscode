@@ -1,0 +1,16 @@
+export {
+	addSprite2DIndex,
+	clearSprite2DLayer,
+	createEngine,
+	createSprite2DLayer,
+	createSpriteAtlasFromFrames,
+	createSpriteRenderer,
+	disposeEngine,
+	disposeSpriteAtlas,
+	disposeSpriteRenderer,
+	onEngineDeviceLost,
+	onEngineGpuError,
+	registerSpriteRenderer,
+	renderFrame,
+	setEngineSize,
+} from '@babylonjs/lite';

@@ -61,6 +61,16 @@
 	pointer-events: none;
 }
 
+.chat-pet-jump-playfield {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+}
+
+.chat-pet-jump-playfield-lite-webgpu {
+	display: block;
+}
+
 .chat-pet-jump-platform {
 	position: absolute;
 	height: var(--vscode-spacing-size40);

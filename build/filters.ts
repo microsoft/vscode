@@ -72,6 +72,7 @@ export const unicodeFilter = Object.freeze<string[]>([
 	'!extensions/copilot/**',
 
 	'!src/vs/base/browser/dompurify/**',
+	'!src/vs/base/browser/babylonLite/**',
 	'!src/vs/workbench/services/keybinding/browser/keyboardLayouts/**',
 	'!src/vs/workbench/contrib/terminal/common/scripts/psreadline/**',
 
@@ -90,6 +91,7 @@ export const indentationFilter = Object.freeze<string[]>([
 	'!**/LICENSE',
 	'!**/*.mp3',
 	'!src/vs/base/browser/dompurify/*',
+	'!src/vs/base/browser/babylonLite/*',
 	'!src/vs/base/common/lit-html/**',
 	'!src/vs/base/common/signals-core/**',
 	'!src/vs/base/common/marked/marked.js',

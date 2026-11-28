@@ -42,6 +42,7 @@
 **/node_modules/**
 **/out/**
 **/out-*/**
+**/src/vs/base/browser/babylonLite/**
 **/src/**/dompurify.js
 **/src/**/marked.js
 **/src/**/semver.js

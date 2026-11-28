@@ -10,9 +10,11 @@ import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { ButtonBar } from '../../../../../base/browser/ui/button/button.js';
 import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { KeybindingLabel } from '../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
+import { Color } from '../../../../../base/common/color.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { KeyCodeChord } from '../../../../../base/common/keybindings.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { AppResourcePath, FileAccess } from '../../../../../base/common/network.js';
 import { clamp } from '../../../../../base/common/numbers.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { localize } from '../../../../../nls.js';
@@ -23,18 +25,23 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { defaultButtonStyles, defaultKeybindingLabelStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { contrastBorder, descriptionForeground, foreground } from '../../../../../platform/theme/common/colorRegistry.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { ChatPetJumpDirection, ChatPetJumpGameModel } from '../../common/chatPetJumpGame.js';
+import type { ChatPetJumpGameLiteColor, IChatPetJumpGameLiteColors } from './chatPetJumpGameLiteShapes.js';
+import { ChatPetJumpGameDomRenderer, ChatPetJumpGameRendererKind, IChatPetJumpGameRenderer, IChatPetJumpGameRenderState } from './chatPetJumpGameRenderer.js';
 
 export const ChatPetJumpGameFocusedContext = new RawContextKey<boolean>('chatPetJumpGameFocused', false, localize('chatPet.jump.focused', "Whether Blobby's jump game is focused"));
 
-interface IChatPetJumpGameOptions {
+export interface IChatPetJumpGameOptions {
 	readonly bounds: HTMLElement;
 	readonly platform: HTMLElement;
 	readonly motionReduced: boolean;
 	readonly model?: ChatPetJumpGameModel;
 	readonly onRender: (airborne: boolean, direction: ChatPetJumpDirection, charge: number) => void;
 	readonly onExit: (reason: 'escape' | 'fall' | 'blur' | 'cancel') => void;
+	readonly loadWebGpuRenderer?: (stage: HTMLElement, themeService: IThemeService, onDidFail: (error: Error) => void) => Promise<IChatPetJumpGameRenderer>;
 }
 
 const FADE_DURATION = 160;
@@ -49,8 +56,7 @@ export class ChatPetJumpGame extends Disposable {
 	private readonly cells: HTMLElement[];
 	private readonly hopsLabel: HTMLElement;
 	private readonly highScoreLabel: HTMLElement;
-	private readonly platforms = new Map<number, { element: HTMLElement; integrity: HTMLElement | undefined }>();
-	private readonly walls = new Map<number, HTMLElement>();
+	private readonly renderer = this._register(new MutableDisposable<IChatPetJumpGameRenderer>());
 	private readonly frame = this._register(new MutableDisposable());
 	private readonly originalParent: HTMLElement;
 	private readonly originalStyle: Pick<CSSStyleDeclaration, 'left' | 'right' | 'top' | 'bottom'>;
@@ -65,6 +71,8 @@ export class ChatPetJumpGame extends Disposable {
 	private disposed = false;
 	private highScore = 0;
 	private displayedHops = -1;
+	private rendererRequest = 0;
+	private lastRenderState: IChatPetJumpGameRenderState | undefined;
 
 	constructor(
 		private readonly overlay: HTMLElement,
@@ -75,6 +83,7 @@ export class ChatPetJumpGame extends Disposable {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ILogService private readonly logService: ILogService,
+		@IThemeService private readonly themeService: IThemeService,
 	) {
 		super();
 		this.originalParent = overlay.parentElement!;
@@ -88,6 +97,7 @@ export class ChatPetJumpGame extends Disposable {
 		this.effects = dom.append(root, dom.$('.chat-pet-jump-effects', { 'aria-hidden': 'true' }));
 		this.backdrop = dom.append(this.effects, dom.$('.chat-pet-jump-backdrop'));
 		this.stage = dom.append(this.effects, dom.$('.chat-pet-jump-stage'));
+		this.renderer.value = new ChatPetJumpGameDomRenderer(this.stage);
 		this.gauge = dom.append(this.stage, dom.$('.chat-pet-jump-charge'));
 		const track = dom.append(this.gauge, dom.$('.chat-pet-jump-charge-track'));
 		this.cells = Array.from({ length: 8 }, () => dom.append(track, dom.$('.chat-pet-jump-charge-cell')));
@@ -135,6 +145,7 @@ export class ChatPetJumpGame extends Disposable {
 			}
 		}
 		pet.setAttribute('aria-label', label);
+		this.updateRenderer();
 
 		const targetWindow = dom.getWindow(pet);
 		this._register(dom.addDisposableListener(overlay, dom.EventType.KEY_DOWN, (event: KeyboardEvent) => this.onKeyDown(event), true));
@@ -196,7 +207,131 @@ export class ChatPetJumpGame extends Disposable {
 		this.stage.style.top = `${bounds.top - effectsBounds.top}px`;
 		this.stage.style.width = `${bounds.width}px`;
 		this.stage.style.height = `${bounds.height}px`;
+		this.layoutRenderer(bounds.width, bounds.height);
 		this.render();
+	}
+
+	private updateRenderer(): void {
+		const request = ++this.rendererRequest;
+		const loadRenderer = this.options.loadWebGpuRenderer ?? (async (stage: HTMLElement, themeService: IThemeService, onDidFail: (error: Error) => void) => {
+			const rendererUri = FileAccess.asBrowserUri('vs/workbench/contrib/chat/browser/widget/chatPetJumpGameWebGpuRenderer.js' satisfies AppResourcePath).path;
+			const runtimeUri = FileAccess.asBrowserUri('vs/workbench/contrib/chat/browser/widget/chatPetJumpGameWebGpuRuntime.js' satisfies AppResourcePath).path;
+			const { createChatPetJumpGameWebGpuRenderer } = await import(/* webpackIgnore: true */ rendererUri) as typeof import('./chatPetJumpGameWebGpuRenderer.js');
+			const canvas = dom.prepend(stage, dom.$('canvas.chat-pet-jump-playfield.chat-pet-jump-playfield-lite-webgpu', {
+				'aria-hidden': 'true',
+			})) as HTMLCanvasElement;
+			const getColors = (): IChatPetJumpGameLiteColors => {
+				const theme = themeService.getColorTheme();
+				const border = theme.getColor(contrastBorder);
+				return {
+					foreground: toLiteColor(theme.getColor(descriptionForeground) ?? Color.white),
+					integrityForeground: toLiteColor(theme.getColor(foreground) ?? Color.white),
+					border: border ? toLiteColor(border) : undefined,
+				};
+			};
+			return createChatPetJumpGameWebGpuRenderer(
+				canvas,
+				runtimeUri,
+				navigator.gpu,
+				getColors,
+				listener => themeService.onDidColorThemeChange(listener),
+				() => Math.max(1, dom.getWindow(canvas).devicePixelRatio),
+				onDidFail,
+			);
+		});
+		void this.installRenderer(request, loadRenderer);
+	}
+
+	private async installRenderer(request: number, loadRenderer: NonNullable<IChatPetJumpGameOptions['loadWebGpuRenderer']>): Promise<void> {
+		let renderer: IChatPetJumpGameRenderer | undefined;
+		let installed = false;
+		let pendingFailure: Error | undefined;
+		try {
+			renderer = await loadRenderer(this.stage, this.themeService, error => {
+				if (installed) {
+					this.handleRendererFailure(request, error);
+				} else {
+					pendingFailure = error;
+				}
+			});
+			if (this.disposed || request !== this.rendererRequest) {
+				renderer.dispose();
+				return;
+			}
+			if (pendingFailure) {
+				throw pendingFailure;
+			}
+			renderer.layout(this.bounds.width, this.bounds.height);
+			if (pendingFailure) {
+				throw pendingFailure;
+			}
+			if (this.lastRenderState) {
+				renderer.render(this.lastRenderState);
+			}
+			if (pendingFailure) {
+				throw pendingFailure;
+			}
+			this.renderer.value = renderer;
+			installed = true;
+		} catch (error) {
+			if (renderer && !installed) {
+				renderer.dispose();
+			}
+			if (request === this.rendererRequest) {
+				this.handleRendererFailure(request, error instanceof Error ? error : new Error(String(error)));
+			}
+		}
+	}
+
+	private handleRendererFailure(request: number, error: Error): void {
+		if (this.disposed || request !== this.rendererRequest) {
+			return;
+		}
+		this.logService.warn('[ChatPetJumpGame] Babylon Lite WebGPU renderer failed; continuing with the DOM renderer.', error);
+		this.rendererRequest++;
+		this.useDomRenderer();
+	}
+
+	private useDomRenderer(): void {
+		if (this.renderer.value?.kind === 'dom') {
+			return;
+		}
+		const renderer = new ChatPetJumpGameDomRenderer(this.stage);
+		renderer.layout(this.bounds.width, this.bounds.height);
+		this.renderer.value = renderer;
+		if (this.lastRenderState) {
+			renderer.render(this.lastRenderState);
+		}
+	}
+
+	private layoutRenderer(width: number, height: number): void {
+		const renderer = this.renderer.value;
+		if (!renderer) {
+			return;
+		}
+		try {
+			renderer.layout(width, height);
+		} catch (error) {
+			if (renderer.kind !== 'lite-webgpu') {
+				throw error;
+			}
+			this.handleRendererFailure(this.rendererRequest, error instanceof Error ? error : new Error(String(error)));
+		}
+	}
+
+	private renderPlayfield(state: IChatPetJumpGameRenderState): void {
+		const renderer = this.renderer.value;
+		if (!renderer) {
+			return;
+		}
+		try {
+			renderer.render(state);
+		} catch (error) {
+			if (renderer.kind !== 'lite-webgpu') {
+				throw error;
+			}
+			this.handleRendererFailure(this.rendererRequest, error instanceof Error ? error : new Error(String(error)));
+		}
 	}
 
 	private onKeyDown(event: KeyboardEvent): void {
@@ -278,61 +413,16 @@ export class ChatPetJumpGame extends Disposable {
 		}
 		const cameraHeight = Math.max(0, player.height);
 		this.model.ensurePlatforms(player.height + this.anchor + this.model.petSize * 4);
-		const visible = new Set<number>();
-		for (const platform of this.model.platforms) {
-			const top = this.anchor + cameraHeight - platform.height + platform.fallDistance;
-			if (top < -16 || top > this.bounds.height || platform.fallDistance >= this.model.petSize * 4) {
-				continue;
-			}
-			visible.add(platform.id);
-			let rendered = this.platforms.get(platform.id);
-			if (!rendered) {
-				const element = dom.prepend(this.stage, dom.$('.chat-pet-jump-platform'));
-				element.classList.add(platform.kind);
-				const integrity = platform.kind === 'crumbling' ? dom.append(element, dom.$('.chat-pet-jump-platform-integrity')) : undefined;
-				rendered = { element, integrity };
-				this.platforms.set(platform.id, rendered);
-			}
-			const { element, integrity } = rendered;
-			element.style.left = `${platform.left + platform.width / 2}px`;
-			element.style.top = `${top}px`;
-			element.style.width = `${platform.width}px`;
-			element.classList.toggle('crumbling-active', platform.collapseProgress > 0);
-			if (integrity) {
-				integrity.style.transform = `scaleX(${1 - platform.collapseProgress})`;
-				element.style.opacity = String(1 - platform.fallDistance / (this.model.petSize * 4));
-			}
-		}
-		const visibleWalls = new Set<number>();
-		for (const wall of this.model.walls) {
-			const top = this.anchor + cameraHeight - wall.top;
-			const height = wall.top - wall.bottom;
-			if (top + height < 0 || top > this.bounds.height) {
-				continue;
-			}
-			visibleWalls.add(wall.id);
-			let element = this.walls.get(wall.id);
-			if (!element) {
-				element = dom.prepend(this.stage, dom.$('.chat-pet-jump-wall'));
-				this.walls.set(wall.id, element);
-			}
-			element.style.left = `${wall.left}px`;
-			element.style.top = `${top}px`;
-			element.style.width = `${wall.width}px`;
-			element.style.height = `${height}px`;
-		}
-		for (const [id, element] of this.walls) {
-			if (!visibleWalls.has(id)) {
-				element.remove();
-				this.walls.delete(id);
-			}
-		}
-		for (const [id, { element }] of this.platforms) {
-			if (!visible.has(id)) {
-				element.remove();
-				this.platforms.delete(id);
-			}
-		}
+		this.lastRenderState = {
+			width: this.bounds.width,
+			height: this.bounds.height,
+			anchor: this.anchor,
+			cameraHeight,
+			petSize: this.model.petSize,
+			platforms: this.model.platforms,
+			walls: this.model.walls,
+		};
+		this.renderPlayfield(this.lastRenderState);
 		const overlayBounds = this.overlay.getBoundingClientRect();
 		this.pet.style.left = `${this.bounds.left - overlayBounds.left + player.x - this.model.petSize / 2}px`;
 		this.pet.style.top = `${this.bounds.top - overlayBounds.top + this.anchor + cameraHeight - player.height - this.model.petSize}px`;
@@ -347,6 +437,10 @@ export class ChatPetJumpGame extends Disposable {
 		}
 		const direction = player.velocityX < 0 ? -1 : player.velocityX > 0 ? 1 : this.model.direction;
 		this.options.onRender(player.platform === undefined, direction, this.model.charge);
+	}
+
+	get rendererKind(): ChatPetJumpGameRendererKind | undefined {
+		return this.renderer.value?.kind;
 	}
 
 	private updateScore(): void {
@@ -390,6 +484,10 @@ export class ChatPetJumpGame extends Disposable {
 	fadeOut(motionReduced: boolean): IDisposable {
 		const store = new DisposableStore();
 		this.effectsReleased = true;
+		const renderer = this.renderer.clearAndLeak();
+		if (renderer) {
+			store.add(renderer);
+		}
 		const opacity = this.fadeIn?.effect?.getComputedTiming().progress ?? 1;
 		this.fadeIn?.cancel();
 		store.add(toDisposable(() => this.effects.remove()));
@@ -447,8 +545,6 @@ export class ChatPetJumpGame extends Disposable {
 		if (!this.effectsReleased) {
 			this.effects.remove();
 		}
-		this.platforms.clear();
-		this.walls.clear();
 		this.overlay.classList.remove('chat-pet-jump-game');
 		this.originalParent.prepend(this.overlay);
 		Object.assign(this.pet.style, this.originalStyle);
@@ -463,6 +559,10 @@ export class ChatPetJumpGame extends Disposable {
 			this.pet.dataset.facing = this.originalFacing;
 		}
 	}
+}
+
+function toLiteColor(color: Color): ChatPetJumpGameLiteColor {
+	return [color.rgba.r / 255, color.rgba.g / 255, color.rgba.b / 255, color.rgba.a];
 }
 
 export class ChatPetJumpGameRetry extends Disposable {

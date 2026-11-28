@@ -133,6 +133,11 @@ const keyboardMapEntryPoints = [
 	'vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.win',
 ];
 
+const lazyWorkbenchEntryPoints = [
+	'vs/workbench/contrib/chat/browser/widget/chatPetJumpGameWebGpuRenderer',
+	'vs/workbench/contrib/chat/browser/widget/chatPetJumpGameWebGpuRuntime',
+];
+
 // Server entry points (reh)
 const serverEntryPoints = [
 	'vs/workbench/api/node/extensionHostProcess',
@@ -153,6 +158,7 @@ function getEntryPointsForTarget(target: BuildTarget): string[] {
 				...desktopWorkerEntryPoints,
 				...desktopEntryPoints,
 				...codeEntryPoints,
+				...lazyWorkbenchEntryPoints,
 			];
 		case 'server':
 			return [
@@ -164,6 +170,7 @@ function getEntryPointsForTarget(target: BuildTarget): string[] {
 				...workerEntryPoints,
 				'vs/code/browser/workbench/workbench', // Includes workbench.web.main.internal.
 				...keyboardMapEntryPoints,
+				...lazyWorkbenchEntryPoints,
 			];
 		case 'web':
 			return [
@@ -171,12 +178,14 @@ function getEntryPointsForTarget(target: BuildTarget): string[] {
 				...webOnlyEntryPoints,
 				'vs/workbench/workbench.web.main.internal', // web workbench only (no browser shell)
 				...keyboardMapEntryPoints,
+				...lazyWorkbenchEntryPoints,
 			];
 		case 'mobile':
 			return [
 				...workerEntryPoints,
 				mobileEntryPoint,
 				...keyboardMapEntryPoints,
+				...lazyWorkbenchEntryPoints,
 			];
 		default:
 			throw new Error(`Unknown target: ${target}`);

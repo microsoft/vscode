@@ -1,0 +1,17 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "@babylonjs/lite",
+					"repositoryUrl": "https://github.com/BabylonJS/Babylon-Lite",
+					"commitHash": "454a69495947d41f7298f2aed09f8d5f26c5d7cb"
+				}
+			},
+			"license": "Apache-2.0",
+			"version": "1.38.1"
+		}
+	],
+	"version": 1
+}
