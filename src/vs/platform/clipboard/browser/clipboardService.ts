@@ -143,11 +143,13 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		// Clear resources given we are writing text
 		this.clearResourcesState();
 
-		// With type: only in-memory is supported
+		// With type: only in-memory is supported (except 'clipboard', which also writes to system clipboard)
 		if (type) {
 			this.mapTextToType.set(type, text);
-			this.logService.trace('BrowserClipboardService#writeText');
-			return;
+			if (type !== 'clipboard') {
+				this.logService.trace('BrowserClipboardService#writeText');
+				return;
+			}
 		}
 
 		if (this.webKitPendingClipboardWritePromise) {
