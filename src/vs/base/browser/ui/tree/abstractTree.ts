@@ -2416,6 +2416,7 @@ export interface IAbstractTreeOptionsUpdate<T> extends ITreeRendererOptions<T> {
 	readonly scrollByPage?: boolean;
 	readonly mouseWheelScrollSensitivity?: number;
 	readonly fastScrollSensitivity?: number;
+	readonly collapseRecursive?: boolean;
 	readonly expandOnDoubleClick?: boolean;
 	readonly expandOnlyOnTwistieClick?: boolean | ((e: T) => boolean);
 	readonly enableStickyScroll?: boolean;
@@ -3187,7 +3188,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	}
 
 	collapse(location: TRef, recursive: boolean = false): boolean {
-		return this.model.setCollapsed(location, true, recursive);
+		return this.model.setCollapsed(location, true, recursive || this.shouldCollapseRecursively(location));
 	}
 
 	expand(location: TRef, recursive: boolean = false): boolean {
@@ -3195,7 +3196,16 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	}
 
 	toggleCollapsed(location: TRef, recursive: boolean = false): boolean {
-		return this.model.setCollapsed(location, undefined, recursive);
+		return this.model.setCollapsed(location, undefined, recursive || this.shouldCollapseRecursively(location));
+	}
+
+	private shouldCollapseRecursively(location: TRef): boolean {
+		if (!this._options.collapseRecursive) {
+			return false;
+		}
+
+		const node = this.model.getNode(location);
+		return node.collapsible && !node.collapsed;
 	}
 
 	expandAll(): void {
@@ -3425,7 +3435,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 		const node = nodes[0];
 		const location = this.model.getNodeLocation(node);
-		const didChange = this.model.setCollapsed(location, true);
+		const didChange = this.collapse(location);
 
 		if (!didChange) {
 			const parentLocation = this.model.getParentNodeLocation(location);
@@ -3482,7 +3492,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		const location = this.model.getNodeLocation(node);
 		const recursive = e.browserEvent.altKey;
 
-		this.model.setCollapsed(location, undefined, recursive);
+		this.toggleCollapsed(location, recursive);
 	}
 
 	protected abstract createModel(user: string, options: IAbstractTreeOptions<T, TFilterData>): ITreeModel<T, TFilterData, TRef>;
