@@ -9,6 +9,8 @@ import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
@@ -193,6 +195,7 @@ suite('Agents mode actions', () => {
 			instantiation.stub(IWorkbenchLayoutService, {
 				isVisible: (part: Parts) => part === Parts.AUXILIARYBAR_PART && auxiliaryBarVisible,
 				isAuxiliaryBarMaximized: () => maximized,
+				hasFocus: () => false,
 				mainContainerDimension: { width: 1184, height: 800 },
 				getSize: () => ({ width, height: 800 }),
 				setSize: (_part: Parts, size: { width: number }) => { width = size.width; sizes.push(size.width); },
@@ -468,13 +471,22 @@ suite('Agents mode actions', () => {
 			readonly inMode?: 'restart' | 'restartWithoutMode';
 			/** Where the Chat view is: in the secondary side bar unless set */
 			readonly chatViewLocation?: ViewContainerLocation;
+			/**
+			 * Whether the Chat view had focus when entering: its chat moves to the chat part, which shows as it enters or
+			 * later, and the focus is lost with it, unless something else took it meanwhile
+			 */
+			readonly chatViewFocused?: 'chatPartShown' | 'chatPartShowsLater' | 'focusTakenElsewhere';
 		}
 
 		async function run(scenario: IScenario) {
 			const instantiation = disposables.add(new TestInstantiationService());
 			const storage = disposables.add(new InMemoryStorageService());
-			const agentsMode = { isSupported: true, isActive: false, onWillChange: disposables.add(new Emitter<boolean>()).event };
+			const willChange = disposables.add(new Emitter<boolean>());
+			const partVisibilityChange = disposables.add(new Emitter<IPartVisibilityChangeEvent>());
+			const agentsMode = { isSupported: true, isActive: false, onWillChange: willChange.event };
 			let visible = !!scenario.visibleBefore;
+			let chatViewFocused = !!scenario.chatViewFocused;
+			let chatPartVisible = scenario.chatViewFocused === 'chatPartShown';
 			const calls: string[] = [];
 			// Like the layout, which can't show or hide parts before it laid them out once the window starts
 			let laidOut = true;
@@ -487,7 +499,12 @@ suite('Agents mode actions', () => {
 				visible = true;
 			});
 			instantiation.stub(IWorkbenchLayoutService, {
-				isVisible: (part: Parts) => part === Parts.AUXILIARYBAR_PART && visible,
+				onDidChangePartVisibility: partVisibilityChange.event,
+				isAuxiliaryBarMaximized: () => false,
+				getSize: () => ({ width: 300, height: 800 }),
+				isVisible: (part: Parts) => part === Parts.AUXILIARYBAR_PART ? visible : part === Parts.CHAT_PART && chatPartVisible,
+				hasFocus: (part: Parts) => part === Parts.AUXILIARYBAR_PART && chatViewFocused,
+				focusPart: (part: Parts) => { calls.push(`focus ${part}`); },
 				setPartHidden: (hidden: boolean, part: Parts) => {
 					if (!laidOut) {
 						throw new Error('not laid out');
@@ -497,10 +514,23 @@ suite('Agents mode actions', () => {
 				},
 			});
 			const state = () => ({ visible, calls: calls.splice(0) });
+			// What has focus once the Chat view's chat moved: nothing, unless something else took it
+			const elsewhere = mainWindow.document.body.appendChild(mainWindow.document.createElement('input'));
+			disposables.add(toDisposable(() => elsewhere.remove()));
+			(mainWindow.document.activeElement as HTMLElement | null)?.blur();
 
 			let auxiliaryBar = instantiation.createInstance(AgentsModeAuxiliaryBar);
+			willChange.fire(true);
 			agentsMode.isActive = true;
+			chatViewFocused = false;
+			if (scenario.chatViewFocused === 'focusTakenElsewhere') {
+				elsewhere.focus();
+			}
 			await auxiliaryBar.enter();
+			if (scenario.chatViewFocused === 'chatPartShowsLater' || scenario.chatViewFocused === 'focusTakenElsewhere') {
+				chatPartVisible = true;
+				partVisibilityChange.fire({ partId: Parts.CHAT_PART, visible: true });
+			}
 			const afterEnter = state();
 
 			let inMode: { visible: boolean; calls: string[] } | undefined;
@@ -540,6 +570,9 @@ suite('Agents mode actions', () => {
 				hiddenBeforeRestartedInMode: await run({ inMode: 'restart' }),
 				hiddenBeforeRestartedWithoutMode: await run({ inMode: 'restartWithoutMode' }),
 				visibleBefore: await run({ visibleBefore: true }),
+				chatViewFocusedChatPartShown: await run({ visibleBefore: true, chatViewFocused: 'chatPartShown' }),
+				chatViewFocusedChatPartShowsLater: await run({ visibleBefore: true, chatViewFocused: 'chatPartShowsLater' }),
+				chatViewFocusedFocusTakenElsewhere: await run({ visibleBefore: true, chatViewFocused: 'focusTakenElsewhere' }),
 			}, {
 				hiddenBefore: { afterEnter: shownOnEnter, afterLeave: hiddenOnLeave },
 				// The user moved the Chat view out of the secondary side bar, which is left alone, though its default container is there
@@ -548,6 +581,10 @@ suite('Agents mode actions', () => {
 				hiddenBeforeRestartedWithoutMode: { afterEnter: shownOnEnter, inMode: { ...hiddenOnLeave, calls: ['restored after 0 calls', `hide ${Parts.AUXILIARYBAR_PART}`] }, afterLeave: { visible: false, calls: [] } },
 				// The Chat view comes to the front, and the secondary side bar stays as the user had it
 				visibleBefore: { afterEnter: shownOnEnter, afterLeave: { visible: true, calls: [] } },
+				// The focus the Chat view had follows its chat to the chat part, once it shows, but doesn't take it back
+				chatViewFocusedChatPartShown: { afterEnter: { visible: true, calls: [`open ${ChatViewId}`, `focus ${Parts.CHAT_PART}`] }, afterLeave: { visible: true, calls: [] } },
+				chatViewFocusedChatPartShowsLater: { afterEnter: { visible: true, calls: [`open ${ChatViewId}`, `focus ${Parts.CHAT_PART}`] }, afterLeave: { visible: true, calls: [] } },
+				chatViewFocusedFocusTakenElsewhere: { afterEnter: shownOnEnter, afterLeave: { visible: true, calls: [] } },
 			});
 		});
 

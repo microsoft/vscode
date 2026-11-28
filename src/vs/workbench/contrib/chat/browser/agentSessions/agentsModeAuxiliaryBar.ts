@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getActiveElement } from '../../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { IAgentsModeService } from '../../../../services/agentsMode/common/agentsMode.js';
@@ -19,13 +20,18 @@ import { ChatViewId } from '../chat.js';
  * Agents mode, showing the secondary side bar if it is hidden, and hides it again when the window leaves the mode if the
  * mode had shown it. Where the user moved the Chat view out of the secondary side bar, it is left alone; where they moved
  * it into another view container of the secondary side bar, that container comes to the front. Switching keeps
- * the secondary side bar at the width it had in the mode, however the window switches.
+ * the secondary side bar at the width it had in the mode, however the window switches. The focus the Chat view had as the
+ * window entered follows its chat to the chat part, which shows it in the mode.
  */
 export class AgentsModeAuxiliaryBar extends Disposable {
 
 	static readonly SHOWN_ON_ENTER_STORAGE_KEY = 'chat.agentsMode.auxiliaryBarShownOnEnter';
 	/** The secondary side bar's width in the mode, as the window last switched. */
 	static readonly WIDTH_STORAGE_KEY = 'chat.agentsMode.auxiliaryBarWidth';
+
+	/** Whether the Chat view had focus as the window was about to enter the mode, before its chat moved to the chat part. */
+	private chatViewFocusedOnEnter = false;
+	private readonly pendingFocus = this._register(new MutableDisposable());
 
 	constructor(
 		@IAgentsModeService private readonly agentsModeService: IAgentsModeService,
@@ -40,6 +46,7 @@ export class AgentsModeAuxiliaryBar extends Disposable {
 		// Switching moves the side bars and can hide the editor area, so the width is taken before: as the window leaves
 		// the mode, and the first time it enters, where the secondary side bar is visible
 		this._register(this.agentsModeService.onWillChange(entering => {
+			this.chatViewFocusedOnEnter = entering && this.layoutService.hasFocus(Parts.AUXILIARYBAR_PART);
 			const width = this.getWidth();
 			if (width !== undefined && (!entering || this.storageService.getNumber(AgentsModeAuxiliaryBar.WIDTH_STORAGE_KEY, StorageScope.PROFILE) === undefined)) {
 				this.storageService.store(AgentsModeAuxiliaryBar.WIDTH_STORAGE_KEY, width, StorageScope.PROFILE, StorageTarget.MACHINE);
@@ -67,6 +74,9 @@ export class AgentsModeAuxiliaryBar extends Disposable {
 	 * @param token cancelled when the window switches again before entering finished
 	 */
 	async enter(token: CancellationToken = CancellationToken.None): Promise<void> {
+		const chatViewFocused = this.chatViewFocusedOnEnter;
+		this.chatViewFocusedOnEnter = false;
+		this.pendingFocus.clear();
 		if (this.viewDescriptorService.getViewLocationById(ChatViewId) !== ViewContainerLocation.AuxiliaryBar) {
 			return;
 		}
@@ -91,9 +101,31 @@ export class AgentsModeAuxiliaryBar extends Disposable {
 		if (!this.layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
 			this.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
 		}
+
+		// The chat the Chat view had focused moves to the chat part, which shows it as the window enters or later, and leaves
+		// the focus nowhere: it follows the chat there, unless something else took it meanwhile
+		if (chatViewFocused) {
+			const focusChatPart = () => {
+				const activeElement = getActiveElement();
+				if (!activeElement || activeElement === activeElement.ownerDocument.body) {
+					this.layoutService.focusPart(Parts.CHAT_PART);
+				}
+			};
+			if (this.layoutService.isVisible(Parts.CHAT_PART)) {
+				focusChatPart();
+			} else {
+				this.pendingFocus.value = this.layoutService.onDidChangePartVisibility(e => {
+					if (e.partId === Parts.CHAT_PART && e.visible) {
+						this.pendingFocus.clear();
+						focusChatPart();
+					}
+				});
+			}
+		}
 	}
 
 	leave(): void {
+		this.pendingFocus.clear();
 		if (!this.storageService.getBoolean(AgentsModeAuxiliaryBar.SHOWN_ON_ENTER_STORAGE_KEY, StorageScope.WORKSPACE, false)) {
 			return;
 		}
