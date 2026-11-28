@@ -40,9 +40,12 @@ export class FileWatcherManager {
 		// The `*` pattern also matches the direct children of `uri` when `uri` is a directory.
 		// Those events are not about `uri` itself, so don't forward them: otherwise deleting
 		// a file inside a linked folder would report the folder itself as deleted.
-		const watchedUri = uri.toString();
+		// Compare case-insensitively: on case-insensitive file systems, watcher events can use
+		// a different casing than the requested uri. The pattern is relative to `uri`, so a
+		// child event can only ever have `uri` as its parent, regardless of casing.
+		const watchedUri = uri.toString().toLowerCase();
 		const forwardIfWatchedResource = (listener: () => void) => (changed: vscode.Uri) => {
-			if (Utils.dirname(changed).toString() !== watchedUri) {
+			if (Utils.dirname(changed).toString().toLowerCase() !== watchedUri) {
 				listener();
 			}
 		};
