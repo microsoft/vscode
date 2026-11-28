@@ -997,9 +997,9 @@ const sessionChatResourceIndexes = new WeakMap<readonly Pick<ChatSummary, 'resou
 	readonly byId: ReadonlyMap<string, ProtocolURI>;
 }>();
 
-/** Resolves a client chat id against the immutable catalog, preferring exact resources over short ids. */
+/** Resolves a client chat id against the immutable catalog, preferring the recorded default chat and then exact resources over short ids. */
 export function getSessionChatResource(state: { readonly chats: readonly Pick<ChatSummary, 'resource'>[] }, chatId: string, defaultChat: ProtocolURI | undefined): ProtocolURI | undefined {
-	if (chatId === DEFAULT_CHAT_ID) {
+	if (chatId === DEFAULT_CHAT_ID || (defaultChat !== undefined && chatId === defaultChat.toString())) {
 		return defaultChat;
 	}
 	let index = sessionChatResourceIndexes.get(state.chats);

@@ -16,7 +16,7 @@ import { getGlobalConfigurationValue } from '../../../../platform/agentHost/comm
 import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { resolveAgentHostSessionTrustFolders } from '../../../../platform/agentHost/common/agentHostWorkspaceTrust.js';
 import { AgentHostAgentOrchestrationLimitsSettingId } from '../../../../platform/agentHost/common/agentService.js';
-import { toRemoteSessionMessageMetadata } from '../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
+import { buildAgentMessageSenderLink, readAgentMessageSender, toRemoteSessionMessageMetadata } from '../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { buildOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
 import { maxSentMessages, orchestrationLimitWindowMs, SessionActionLimiter } from '../../../../platform/agentHost/common/sessionActionLimiter.js';
 import { ChatInteractivity as ProtocolChatInteractivity } from '../../../../platform/agentHost/common/state/protocol/state.js';
@@ -215,6 +215,8 @@ export class RemoteSessionMessageRouter extends Disposable {
 				throw new Error(localize('remoteMessage.noOrigin', "This session has no saved remote-session origin."));
 			}
 			targetReference = origin.chat;
+		} else if (targetReference === 'sender') {
+			targetReference = await this.resolveSender(source, token);
 		}
 		const { resource: targetResource } = await resolveRemoteSessionReference(targetReference, this.connectionsService);
 		const target = this.resolveChat(targetResource);
@@ -228,6 +230,33 @@ export class RemoteSessionMessageRouter extends Disposable {
 		this.checkConnected(source);
 		this.checkEnabled();
 		return { source, target };
+	}
+
+	/** Resolves the exact chat whose message started the source chat's current turn. */
+	private async resolveSender(source: IResolvedRemoteSource, token: CancellationToken): Promise<string> {
+		const store = new DisposableStore();
+		try {
+			const cancellation = store.add(new CancellationTokenSource(token));
+			let failure: Error | undefined;
+			store.add(disposableTimeout(() => {
+				failure = new Error(localize('remoteMessage.senderTimeout', "Timed out reading the originating chat's current turn."));
+				cancellation.cancel();
+			}, 10_000));
+			const chat = store.add(source.host.connection.getSubscription(StateComponents.Chat, URI.parse(source.sourceChat), 'RemoteSessionMessageRouter'));
+			const state = await readRemoteSessionState(chat.object, cancellation.token).catch(error => { throw failure ?? error; });
+			const sender = state.activeTurn && readAgentMessageSender(state.activeTurn.message);
+			if (!sender) {
+				throw new Error(localize('remoteMessage.noSender', "The current turn was not started by a message from another chat."));
+			}
+			// A same-host sender names its session by its host URI; qualify it with the source chat's host.
+			const session = sender.sameHost ? this.connectionsService.findSessionResource(sender.session, source.host.connectionAuthority) : sender.session;
+			if (!session) {
+				throw new Error(localize('remoteMessage.senderUnavailable', "The chat that sent the current message is no longer available in this Agents window."));
+			}
+			return buildAgentMessageSenderLink(sender, session);
+		} finally {
+			store.dispose();
+		}
 	}
 
 	private checkConnected(chat: IResolvedRemoteChat): void {

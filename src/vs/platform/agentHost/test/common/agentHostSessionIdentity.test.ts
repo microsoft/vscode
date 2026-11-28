@@ -10,7 +10,7 @@ import { AgentSession } from '../../common/agent.js';
 import { getAgentHostChatId } from '../../common/agentHostChatIdentity.js';
 import { newAgentHostChatUri, newAgentHostSessionUri } from '../../common/agentHostSessionIdentity.js';
 import { AgentHostChatUrisCapabilityMetaKey, AgentHostSessionUrisCapabilityMetaKey, supportsAgentHostSessionUris } from '../../common/meta/agentHostSessionUrisMeta.js';
-import { buildChatUri, buildDefaultChatUri, getSessionChatResource } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, getSessionChatResource, isSessionDefaultChatId } from '../../common/state/sessionState.js';
 import type { InitializeResult } from '../../common/state/sessionProtocol.js';
 
 suite('Agent Host session identity', () => {
@@ -102,6 +102,16 @@ suite('Agent Host session identity', () => {
 			getSessionChatResource(state, 'default', 'conversation:/default'),
 			getSessionChatResource(state, 'missing', undefined),
 		], [shortId, first, 'conversation:/default', undefined]);
+	});
+
+	test('resolves the recorded default chat exactly even when the catalog lists a stale default', () => {
+		const recordedDefault = `${buildDefaultChatUri('copilot:/s')}?generation=1`;
+		const state = { chats: [{ resource: buildDefaultChatUri('copilot:/s') }, { resource: buildChatUri('copilot:/s', 'peer') }] };
+		assert.deepStrictEqual([
+			getSessionChatResource(state, recordedDefault, recordedDefault),
+			isSessionDefaultChatId(state, recordedDefault, recordedDefault),
+			getSessionChatResource(state, buildChatUri('copilot:/s', 'missing'), recordedDefault),
+		], [recordedDefault, true, undefined]);
 	});
 
 	test('client chat ids never collide for client-chosen opaque and shaped chat URIs', () => {

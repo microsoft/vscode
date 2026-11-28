@@ -1272,7 +1272,7 @@
     },
     {
       "name": "get_session_context",
-      "description": "Read the recent conversation of an existing session or chat and your pending messages there. Use this to see what a session you created is doing, recover message IDs and revisions before replacing or cancelling pending work, or gather context before sending a message. Returns bounded excerpts at every detail level. For a shortened assistant reply, pass its responseTurnId and follow nextResponseOffset until truncated is false to read the complete reply. For session metadata (status, working directory, changes, …) use `list_sessions` with the `session` argument.",
+      "description": "Read the recent conversation of an existing session or chat and your pending messages there. Use this to see what a session you created is doing, recover message IDs and revisions before replacing or cancelling pending work, or gather context before sending a message. A turn started by another chat's message has `from`: the exact chat that sent it and `replyWith`, the tool that replies to it with `from.chat` as its `session`. Returns bounded excerpts at every detail level. For a shortened assistant reply, pass its responseTurnId and follow nextResponseOffset until truncated is false to read the complete reply. For session metadata (status, working directory, changes, …) use `list_sessions` with the `session` argument.",
       "parameters": {
         "type": "object",
         "properties": {

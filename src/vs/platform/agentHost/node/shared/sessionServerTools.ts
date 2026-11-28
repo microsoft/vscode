@@ -11,6 +11,7 @@ import { basename, isEqual } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { findAgentSessionMessage, getPendingSteeringMessages, readOwnedAgentSessionMessage } from '../../common/agentSessionMessage.js';
 import { toAgentMessageDelegationMeta, type IAgentMessageDelegationMeta, type IAgentMessageSessionDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
+import { buildAgentMessageSenderLink, readAgentMessageSender, SendRemoteMessageToolReferenceName } from '../../common/meta/agentRemoteSessionMeta.js';
 import { localize } from '../../../../nls.js';
 import { AgentSession, type AgentProvider, type IAgentCreateSessionConfig, type IAgentModelInfo, type IAgentSessionChatMetadata, type IAgentSessionMetadata } from '../../common/agent.js';
 import { fromAgentHostChatHarness, toAgentHostChatHarness } from '../../common/agentHostChatProviders.js';
@@ -356,7 +357,7 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: SessionServerToolName.GetSessionContext,
 		title: 'Get Session Context',
-		description: 'Read the recent conversation of an existing session or chat and your pending messages there. Use this to see what a session you created is doing, recover message IDs and revisions before replacing or cancelling pending work, or gather context before sending a message. Returns bounded excerpts at every detail level. For a shortened assistant reply, pass its responseTurnId and follow nextResponseOffset until truncated is false to read the complete reply. For session metadata (status, working directory, changes, …) use `list_sessions` with the `session` argument.',
+		description: 'Read the recent conversation of an existing session or chat and your pending messages there. Use this to see what a session you created is doing, recover message IDs and revisions before replacing or cancelling pending work, or gather context before sending a message. A turn started by another chat\'s message has `from`: the exact chat that sent it and `replyWith`, the tool that replies to it with `from.chat` as its `session`. Returns bounded excerpts at every detail level. For a shortened assistant reply, pass its responseTurnId and follow nextResponseOffset until truncated is false to read the complete reply. For session metadata (status, working directory, changes, …) use `list_sessions` with the `session` argument.',
 		inputSchema: getSessionContextInputSchema,
 		annotations: { readOnlyHint: true },
 		deferLoading: true,
@@ -1767,7 +1768,9 @@ export function getSendMessageArgs(rawArgs: unknown, sessions: readonly IAgentSe
 		throw new Error(`Invalid ${SessionServerToolName.SendMessage} input: session must match the URI of a known session (see list_sessions).`);
 	}
 	const chatId = parseOpenSessionLinkChatId(sessionInput);
-	const chat = chatId ? resolveLinkedChat(sessions, session, chatId) : resolveDefaultChat(sessions, session, getDefaultChat);
+	// The recorded default chat is authoritative even when a stale listing names another resource for it.
+	const chat = chatId === undefined ? resolveDefaultChat(sessions, session, getDefaultChat)
+		: chatId === getDefaultChat(session.toString()) ? URI.parse(chatId) : resolveLinkedChat(sessions, session, chatId);
 	if (!chat) {
 		throw new Error(`Invalid ${SessionServerToolName.SendMessage} input: ${chatId ? `chat ${chatId} is not a known chat of session ${session.toString()}.` : `session ${session.toString()} has no known default chat.`}`);
 	}
@@ -2068,11 +2071,27 @@ function assistantTextOf(parts: readonly ResponsePart[]): string {
 interface ISerializedContextTurn {
 	readonly turn: number;
 	readonly state: string;
+	/** The exact chat whose message started this turn, and the tool that replies to it. */
+	readonly from?: ISerializedMessageSender;
 	readonly user?: string;
 	readonly assistant?: string;
 	readonly assistantTruncated?: boolean;
 	readonly responseTurnId?: string;
 	readonly toolCalls?: readonly (string | { readonly name: string; readonly input?: string })[];
+}
+
+interface ISerializedMessageSender {
+	readonly chat: string;
+	readonly replyWith: SessionServerToolName.SendMessage | typeof SendRemoteMessageToolReferenceName;
+}
+
+/** Describes the chat that sent `message` as a reference its reply tool accepts. */
+function serializeMessageSender(message: Message): ISerializedMessageSender | undefined {
+	const sender = readAgentMessageSender(message);
+	return sender && {
+		chat: buildAgentMessageSenderLink(sender),
+		replyWith: sender.sameHost ? SessionServerToolName.SendMessage : SendRemoteMessageToolReferenceName,
+	};
 }
 
 /** Maps a {@link TurnState} (or the in-progress active turn) to a display string. */
@@ -2144,9 +2163,11 @@ export function serializeSessionContext(session: URI, chatId: string | undefined
 				return tc.toolName;
 			});
 		}
+		const from = serializeMessageSender(entry.message);
 		return {
 			turn: windowStart + index + 1,
 			state: describeTurnState(entry.state),
+			...(from ? { from } : {}),
 			...(user !== undefined ? { user } : {}),
 			...(assistant !== undefined ? { assistant } : {}),
 			...(assistantTruncated ? { assistantTruncated: true, ...(entry.id !== undefined ? { responseTurnId: entry.id } : {}) } : {}),
