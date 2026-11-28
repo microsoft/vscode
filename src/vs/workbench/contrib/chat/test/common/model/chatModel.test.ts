@@ -42,6 +42,8 @@ import { ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, 
 import { IToolResult, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { MockChatService } from '../chatService/mockChatService.js';
+import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
+import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 
@@ -2743,7 +2745,7 @@ suite('ChatResponseModel', () => {
 			response.updateContent(createTool('tool', 'Tool approval'));
 			const snapshots = [pending(response)];
 
-			for (const part of [confirmation, carousel, plan]) {
+			for (const part of response.response.value.filter((part): part is IChatConfirmation | IChatQuestionCarousel | IChatPlanReview => part.kind === 'confirmation' || part.kind === 'questionCarousel' || part.kind === 'planReview')) {
 				part.isUsed = true;
 				response.setResult({});
 				snapshots.push(pending(response));
@@ -2758,6 +2760,49 @@ suite('ChatResponseModel', () => {
 				{ detail: 'Elicit', tools: ['tool'] },
 				{ detail: 'Tool approval', tools: ['tool'] },
 			]);
+		});
+
+		test('settling a question or plan without another response change clears needed input and releases the keep-alive', () => {
+			let keepAlive = false;
+			instantiationService.stub(IChatService, 'acquireExistingSession', () => {
+				keepAlive = true;
+				return { object: undefined!, dispose: () => keepAlive = false };
+			});
+			const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const request = model.addRequest({ text: 'ask', parts: [] }, { variables: [] }, 0);
+			const carousel = new ChatQuestionCarouselData([{ id: 'q', title: 'Question', type: 'text' }], true, 'carousel');
+			const plan = new ChatPlanReviewData('Plan', '', [], true);
+			model.acceptResponseProgress(request, carousel);
+			model.acceptResponseProgress(request, plan);
+			request.response!.complete();
+			const state = () => ({ needsInput: model.requestNeedsInput.get()?.detail, keepAlive });
+			const snapshots = [state()];
+
+			carousel.data = {};
+			carousel.isUsed = true;
+			snapshots.push(state());
+			plan.dismiss();
+			snapshots.push(state());
+
+			assert.deepStrictEqual(snapshots, [
+				{ needsInput: 'Answer questions to continue...', keepAlive: true },
+				{ needsInput: 'Review the plan to continue...', keepAlive: true },
+				{ needsInput: undefined, keepAlive: false },
+			]);
+		});
+
+		test('settling a question an extension provided clears needed input', () => {
+			const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const request = model.addRequest({ text: 'ask', parts: [] }, { variables: [] }, 0);
+			model.acceptResponseProgress(request, { kind: 'questionCarousel', questions: [{ id: 'q', title: 'Question', type: 'text' }], allowSkip: true, resolveId: 'carousel' });
+			request.response!.complete();
+			const pending = model.requestNeedsInput.get()?.detail;
+
+			const carousel = request.response!.response.value.find((part): part is IChatQuestionCarousel => part.kind === 'questionCarousel')!;
+			carousel.data = {};
+			carousel.isUsed = true;
+
+			assert.deepStrictEqual([pending, model.requestNeedsInput.get()?.detail], ['Answer questions to continue...', undefined]);
 		});
 
 		test('tracks authentication and post-approval on an existing tool', async () => {
