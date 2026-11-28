@@ -2199,7 +2199,7 @@ suite('Sessions - Actions', () => {
 		disposables.add(toDisposable(() => pane.remove()));
 		// The height of the row as in the workbench, so that it does not follow its content
 		pane.style.setProperty('--vscode-spacing-size320', '32px');
-		const { row } = renderSessionsHeader(pane, false, instantiationService, contextKeyService, disposables);
+		const { row } = renderSessionsHeader(pane, false, instantiationService, contextKeyService, disposables.add(new DisposableStore()));
 		const actions = row.querySelector<HTMLElement>('.agent-sessions-header-actions')!;
 		const shown = () => [...actions.querySelectorAll<HTMLElement>('.actions-container > .action-item')].filter(item => item.style.display !== 'none').map(item => item.querySelector('.action-label')?.getAttribute('aria-label'));
 		const fitAt = async (width: number) => {
