@@ -9,6 +9,7 @@ import { Extensions, IWorkbenchContributionsRegistry } from '../../../common/con
 import { StartupProfiler } from './startupProfiler.js';
 import { NativeStartupTimings } from './startupTimings.js';
 import { RendererProfiling } from './rendererAutoProfiler.js';
+import { RendererMemoryUsageLogger } from './memoryUsageLogger.js';
 import { IConfigurationRegistry, Extensions as ConfigExt } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { localize } from '../../../../nls.js';
 import { applicationConfigurationNodeBase } from '../../../common/configuration.js';
@@ -17,6 +18,13 @@ import { applicationConfigurationNodeBase } from '../../../common/configuration.
 
 Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
 	RendererProfiling,
+	LifecyclePhase.Eventually
+);
+
+// -- memory usage logger
+
+Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
+	RendererMemoryUsageLogger,
 	LifecyclePhase.Eventually
 );
 
