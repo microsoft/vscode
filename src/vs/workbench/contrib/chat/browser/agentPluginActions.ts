@@ -38,7 +38,7 @@ export class InstallPluginAction extends Action {
 		item: IMarketplacePluginItem,
 		@IPluginInstallService pluginInstallService: IPluginInstallService,
 	) {
-		super('agentPlugin.install', localize('install', "Install"), 'extension-action label prominent install', true,
+		super('agentPlugin.install', localize('install', "Install"), 'extension-action label filled-label prominent install', true,
 			() => pluginInstallService.installPlugin({
 				name: item.name,
 				description: item.description,
@@ -56,7 +56,7 @@ export class InstallPluginAction extends Action {
 export class UninstallPluginAction extends Action {
 	constructor(private readonly removePlugin: () => Promise<boolean>, readonly requiredByOrganization = false) {
 		// Without the `uninstall` class, extension action bars show the disabled action instead of hiding it.
-		super('agentPlugin.uninstall', localize('uninstall', "Uninstall"), requiredByOrganization ? 'extension-action label' : 'extension-action label uninstall', !requiredByOrganization);
+		super('agentPlugin.uninstall', localize('uninstall', "Uninstall"), requiredByOrganization ? 'extension-action label filled-label' : 'extension-action label filled-label uninstall', !requiredByOrganization);
 		if (requiredByOrganization) {
 			this.tooltip = getPluginManagedByOrganizationMessage();
 		}
@@ -409,7 +409,7 @@ interface IEnablementActionChangeEvent extends IActionChangeEvent {
  * Hides itself entirely when all sub-actions are hidden.
  */
 export class EnablementDropDownAction extends Action {
-	readonly menuActionClassNames = ['extension-action', 'label', 'action-dropdown'];
+	readonly menuActionClassNames = ['extension-action', 'label', 'filled-label', 'action-dropdown'];
 	private _menuActions: IAction[] = [];
 	get menuActions(): IAction[] { return [...this._menuActions]; }
 
@@ -422,7 +422,7 @@ export class EnablementDropDownAction extends Action {
 	private readonly subActions: EnablementSubAction[];
 
 	constructor(id: string, subActions: EnablementSubAction[]) {
-		super(id, undefined, 'extension-action label action-dropdown');
+		super(id, undefined, 'extension-action label filled-label action-dropdown');
 		this.subActions = subActions;
 		for (const a of subActions) {
 			a.onDidChange(() => this._updateDropdown());
@@ -506,11 +506,11 @@ export function createEnablePluginDropDown(
 ): EnablementDropDownAction {
 	const hasWorkspace = workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY;
 
-	const enable = new EnablementSubAction('agentPlugin.enable', localize('enable', "Enable"), 'extension-action label prominent',
+	const enable = new EnablementSubAction('agentPlugin.enable', localize('enable', "Enable"), 'extension-action label filled-label prominent',
 		isContributionDisabled(plugin.enablement.get()),
 		() => setAgentPluginEnablement(plugin, enablementModel, ContributionEnablementState.EnabledProfile));
 
-	const enableWorkspace = new EnablementSubAction('agentPlugin.enableForWorkspace', localize('enableForWorkspace', "Enable (Workspace)"), 'extension-action label',
+	const enableWorkspace = new EnablementSubAction('agentPlugin.enableForWorkspace', localize('enableForWorkspace', "Enable (Workspace)"), 'extension-action label filled-label',
 		isContributionDisabled(plugin.enablement.get()) && hasWorkspace,
 		() => setAgentPluginEnablement(plugin, enablementModel, ContributionEnablementState.EnabledWorkspace));
 
@@ -528,11 +528,11 @@ export function createDisablePluginDropDown(
 ): EnablementDropDownAction {
 	const hasWorkspace = workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY;
 
-	const disable = new EnablementSubAction('agentPlugin.disable', localize('disable', "Disable"), 'extension-action label disable',
+	const disable = new EnablementSubAction('agentPlugin.disable', localize('disable', "Disable"), 'extension-action label filled-label disable',
 		isContributionEnabled(plugin.enablement.get()),
 		() => setAgentPluginEnablement(plugin, enablementModel, ContributionEnablementState.DisabledProfile));
 
-	const disableWorkspace = new EnablementSubAction('agentPlugin.disableForWorkspace', localize('disableForWorkspace', "Disable (Workspace)"), 'extension-action label disable',
+	const disableWorkspace = new EnablementSubAction('agentPlugin.disableForWorkspace', localize('disableForWorkspace', "Disable (Workspace)"), 'extension-action label filled-label disable',
 		isContributionEnabled(plugin.enablement.get()) && hasWorkspace,
 		() => setAgentPluginEnablement(plugin, enablementModel, ContributionEnablementState.DisabledWorkspace));
 
