@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { Direction } from '../../../../../base/browser/ui/grid/grid.js';
-import { $ } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -21,9 +20,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import '../../../../../editor/contrib/wordOperations/browser/wordOperations.js';
 import { isICommandActionToggleInfo } from '../../../../../platform/action/common/action.js';
-import { IMenuService, isIMenuItem, isISubmenuItem, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
-import { MenuService } from '../../../../../platform/actions/common/menuService.js';
-import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
+import { isIMenuItem, isISubmenuItem, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -36,7 +33,6 @@ import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/k
 import { KeybindingResolver, ResultKind } from '../../../../../platform/keybinding/common/keybindingResolver.js';
 import { ResolvedKeybindingItem } from '../../../../../platform/keybinding/common/resolvedKeybindingItem.js';
 import { USLayoutResolvedKeybinding } from '../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
-import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
@@ -94,7 +90,6 @@ import { WindowCanvasInput, IWindowCanvasService } from '../../../../../workbenc
 import { ITestSessionsService, ITestSessionWithChat, ITestShownChat, stubMissingSessionHostsFromSessionsService, stubPaneHost, testGridPane, testGridPanes, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionGridPane, SessionGridPaneKind } from '../../../../../workbench/services/sessions/browser/sessionGridPane.js';
 import '../../browser/views/sessionsViewActions.js';
-import { ISessionsHeaderElements, renderSessionsHeader, SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 
 suite('Sessions - Actions', () => {
 
@@ -2166,106 +2161,6 @@ suite('Sessions - Actions', () => {
 			header: { group: 'navigation', order: 0, when: SessionsListRearrangeContext.negate().serialize() },
 			newSessionInHeader: false,
 			menu: [NEW_SESSION_ACTION_ID, 'sessionsView.newQuickChat', 'workbench.action.sessions.newSession.pickFolderQuickPick'],
-		});
-	});
-
-	test('sessions header fits its actions by their widths: the New split button hides its keybinding first, then the other actions move into the overflow menu from the end, and New last; the row gives its label the width left', async () => {
-		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
-		instantiationService.stub(ICommandService, new TestCommandService());
-		instantiationService.stub(IMenuService, disposables.add(instantiationService.createInstance(MenuService)));
-		const twoChords = new USLayoutResolvedKeybinding([new KeyCodeChord(true, false, false, false, KeyCode.KeyK), new KeyCodeChord(true, false, false, false, KeyCode.KeyN)], OperatingSystem.Linux);
-		const oneChord = new USLayoutResolvedKeybinding([new KeyCodeChord(true, false, false, false, KeyCode.KeyN)], OperatingSystem.Linux);
-		let newSessionKeybinding: USLayoutResolvedKeybinding | undefined = twoChords;
-		const onDidUpdateKeybindings = disposables.add(new Emitter<void>());
-		instantiationService.stub(IKeybindingService, new class extends MockKeybindingService {
-			override get onDidUpdateKeybindings() { return onDidUpdateKeybindings.event; }
-			override lookupKeybinding(id: string) { return id === NEW_SESSION_ACTION_ID ? newSessionKeybinding : undefined; }
-		});
-		const style = constObservable<NewSessionButtonStyle>('default');
-		instantiationService.stub(IActionViewItemService, upcastPartial<IActionViewItemService>({
-			onDidChange: Event.None,
-			lookUp: (menu: MenuId, id: MenuId | string) => menu === Menus.SidebarSessionsHeader && id === Menus.SidebarSessionsNew.id ? (action, options, instantiationService) => {
-				const newSession = action instanceof SubmenuItemAction ? action.actions.find(candidate => candidate.id === NEW_SESSION_ACTION_ID) : undefined;
-				return action instanceof SubmenuItemAction && newSession instanceof MenuItemAction ? instantiationService.createInstance(NewSessionSplitButtonActionViewItem, action, newSession, options, style) : undefined;
-			} : undefined,
-		}));
-		const contextKeyService = disposables.add(instantiationService.createInstance(ContextKeyService));
-		const fitKey = 'test.sessionsHeaderFit';
-		contextKeyService.createKey(fitKey, true);
-		for (const [order, id] of ['first', 'second', 'third'].entries()) {
-			disposables.add(CommandsRegistry.registerCommand(`test.sessionsHeaderFit.${id}`, () => { }));
-			disposables.add(MenuRegistry.appendMenuItem(Menus.SidebarSessionsHeader, { command: { id: `test.sessionsHeaderFit.${id}`, title: id, icon: Codicon.search }, group: 'navigation', order: order + 1, when: ContextKeyExpr.has(fitKey) }));
-		}
-		const pane = mainWindow.document.body.appendChild($('.agent-sessions-viewpane'));
-		disposables.add(toDisposable(() => pane.remove()));
-		// The height of the row as in the workbench, so that it does not follow its content
-		pane.style.setProperty('--vscode-spacing-size320', '32px');
-		// The row gives its label the width the actions leave, as the view does
-		const updateHeaderLayout = Reflect.get(SessionsView.prototype, 'updateHeaderLayout') as (this: { readonly sessionsHeaders: ReadonlySet<ISessionsHeaderElements>; readonly layoutService: { readonly mainContainer: HTMLElement }; readonly isFindWidgetOpen: boolean }) => void;
-		const sessionsHeaders = new Set<ISessionsHeaderElements>();
-		let fitChanges = 0;
-		const header = renderSessionsHeader(pane, false, instantiationService, contextKeyService, disposables.add(new DisposableStore()), undefined, undefined, () => {
-			fitChanges++;
-			updateHeaderLayout.call({ sessionsHeaders, layoutService: { mainContainer: mainWindow.document.createElement('div') }, isFindWidgetOpen: false });
-		});
-		sessionsHeaders.add(header);
-		const { row, label } = header;
-		const actions = row.querySelector<HTMLElement>('.agent-sessions-header-actions')!;
-		const shown = () => [...actions.querySelectorAll<HTMLElement>('.actions-container > .action-item')].filter(item => item.style.display !== 'none').map(item => item.querySelector('.action-label')?.getAttribute('aria-label'));
-		const fitAt = async (width: number) => {
-			pane.style.width = `${width}px`;
-			await timeout(50);
-			return { compact: row.classList.contains('compact-new-button'), shown: shown(), fits: actions.getBoundingClientRect().right <= row.getBoundingClientRect().right };
-		};
-
-		await fitAt(1000);
-		const all = shown();
-		const widthWithKeybinding = Math.ceil(actions.getBoundingClientRect().width);
-		const withKeybinding = await fitAt(widthWithKeybinding + 1);
-		const justNarrower = await fitAt(widthWithKeybinding - 1);
-		newSessionKeybinding = undefined;
-		onDidUpdateKeybindings.fire();
-		const withoutKeybinding = await fitAt(widthWithKeybinding - 1);
-		newSessionKeybinding = twoChords;
-		onDidUpdateKeybindings.fire();
-		const narrow = await Promise.all([await fitAt(150), await fitAt(90)].map(async ({ compact, shown, fits }) => {
-			const overflowed = shown.at(-1) === 'More Actions...' ? shown.slice(0, -1) : shown;
-			return { compact, fits, overflows: shown.length < all.length + 1, keepsTheFirstActions: overflowed.every((label, index) => label === all[index]) };
-		}));
-		const narrowest = await fitAt(60);
-
-		// At a fixed width that leaves the label too little room with the long keybinding, a shorter keybinding gives it room
-		// without hiding the keybinding or overflowing actions
-		const labelAt = async (keybinding: USLayoutResolvedKeybinding) => {
-			const fitChangesBefore = fitChanges;
-			newSessionKeybinding = keybinding;
-			onDidUpdateKeybindings.fire();
-			await timeout(50);
-			return { compact: row.classList.contains('compact-new-button'), overflows: shown().length !== all.length, labelShown: label.style.display !== 'none', fitChanges: fitChanges - fitChangesBefore };
-		};
-		await fitAt(widthWithKeybinding + 4);
-		const labels = [{ compact: row.classList.contains('compact-new-button'), overflows: shown().length !== all.length, labelShown: label.style.display !== 'none' }, await labelAt(oneChord), await labelAt(oneChord), await labelAt(twoChords)];
-
-		assert.deepStrictEqual({ all, withKeybinding, justNarrower, withoutKeybinding, narrow, narrowest, labels }, {
-			all: ['New Session (Control+K Control+N)', 'first', 'second', 'third', 'Filter Sessions', 'Find Session'],
-			withKeybinding: { compact: false, shown: all, fits: true },
-			// Hiding the keybinding is enough for all actions to fit
-			justNarrower: { compact: true, shown: all, fits: true },
-			// Without a keybinding there is nothing to hide
-			withoutKeybinding: { compact: false, shown: ['New Session', ...all.slice(1)], fits: true },
-			narrow: [
-				{ compact: true, fits: true, overflows: true, keepsTheFirstActions: true },
-				{ compact: true, fits: true, overflows: true, keepsTheFirstActions: true },
-			],
-			// New moves into the overflow menu last
-			narrowest: { compact: false, shown: ['More Actions...'], fits: true },
-			// The row hears of each fit that changes the width left for its label, once
-			labels: [
-				{ compact: false, overflows: false, labelShown: false },
-				{ compact: false, overflows: false, labelShown: true, fitChanges: 1 },
-				{ compact: false, overflows: false, labelShown: true, fitChanges: 0 },
-				{ compact: false, overflows: false, labelShown: false, fitChanges: 1 },
-			],
 		});
 	});
 

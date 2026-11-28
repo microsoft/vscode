@@ -297,11 +297,6 @@ export class ToolBar extends Disposable {
 		return this.actionBar.hasAction(this.toggleMenuAction);
 	}
 
-	/** Whether the responsive behavior moved primary actions into the overflow menu, as they did not fit. */
-	hasOverflowedPrimaryActions(): boolean {
-		return this.hiddenActions.some(action => !(action instanceof Separator));
-	}
-
 	setAriaLabel(label: string): void {
 		this.actionBar.setAriaLabel(label);
 	}

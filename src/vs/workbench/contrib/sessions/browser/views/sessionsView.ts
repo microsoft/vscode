@@ -67,8 +67,6 @@ import { ISessionDraftsService } from '../sessionDraftsService.js';
 import { IScheduledChatsService } from '../scheduledChatsService.js';
 import { IChatScheduledRequest } from '../../../chat/common/model/chatViewModel.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
-import { IToolBarResponsiveBehaviorOptions } from '../../../../../base/browser/ui/toolbar/toolbar.js';
-import { NewSplitButtonActionViewItem } from '../newSplitButton/newSplitButtonActionViewItem.js';
 import { IWorkspaceContextService, WorkbenchMode } from '../../../../../platform/workspace/common/workspace.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { Menus, SessionsViewShowGroup } from '../menus.js';
@@ -417,7 +415,6 @@ export function renderSessionsHeader(
 	disposables: DisposableStore,
 	onDidShowFilters?: () => void,
 	getGrouping: () => SessionsGrouping = () => SessionsGrouping.Workspace,
-	onDidChangeActionsFit?: () => void,
 ): ISessionsHeaderElements {
 	const row = DOM.append(parent, $('.agent-sessions-header-row'));
 	const label = DOM.append(row, $('.agent-sessions-header-label'));
@@ -429,176 +426,19 @@ export function renderSessionsHeader(
 		row.classList.toggle('inbox-layout', inbox);
 		label.textContent = inbox ? localize('inboxHeader', "Inbox") : localize('sessionsHeader', "Sessions");
 		const scopedInstantiationService = disposables.add(instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
-		const actionsFit = scopedInstantiationService.createInstance(SessionsHeaderActionsFit, row, onDidChangeActionsFit);
 		toolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actions, Menus.SidebarSessionsHeader, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			telemetrySource: 'sessionsView.header',
 			toolbarOptions: { primaryGroup: group => group.startsWith('navigation') },
-			responsiveBehavior: actionsFit.responsiveBehavior,
 			actionViewItemProvider: (action, options) => onDidShowFilters && action instanceof SubmenuItemAction && action.item.submenu === Menus.SessionsViewFilter
 				? scopedInstantiationService.createInstance(SessionsFilterActionViewItem, action, options, onDidShowFilters)
 				: undefined,
 		}));
-		disposables.add(actionsFit.attach(toolbar));
 	} else {
 		row.classList.add('phone-layout-empty');
 	}
 
 	return { row, label, actions, toolbar };
-}
-
-/**
- * Fits the actions of the sessions header into its row, by their rendered widths. When they do not all fit, the New
- * split button hides its keybinding first; when they still do not fit, the other actions move into the overflow menu
- * from the end, and the New button moves last.
- */
-class SessionsHeaderActionsFit {
-
-	/** The class of the row while the New split button hides its keybinding. */
-	static readonly COMPACT_NEW_BUTTON_CLASS = 'compact-new-button';
-
-	private toolbar: MenuWorkbenchToolBar | undefined;
-
-	/** The width the New split button needs without its keybinding, kept for while it is in the overflow menu. */
-	private compactNewButtonWidth: number | undefined;
-
-	/** The width the actions left for the rest of the row, as of the last fit. */
-	private lastRemainingWidth: number | undefined;
-
-	readonly responsiveBehavior: IToolBarResponsiveBehaviorOptions;
-
-	/**
-	 * @param onDidChangeFit Called when a fit changes the width the actions leave for the rest of the row, such as when the
-	 * New split button hides or shows its keybinding, its keybinding changes, or actions move into or out of the overflow menu.
-	 */
-	constructor(
-		private readonly row: HTMLElement,
-		private readonly onDidChangeFit: (() => void) | undefined,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
-	) {
-		this.responsiveBehavior = {
-			enabled: true,
-			kind: 'all',
-			minItems: 0,
-			overflowsLast: action => this.isNewMenu(action),
-			actionMinWidth: 22,
-			getActionMinWidth: action => this.isNewMenu(action) ? this.getCompactNewButtonWidth() : undefined,
-			observedElement: row,
-			getAvailableWidth: () => this.getAvailableWidth(),
-		};
-	}
-
-	/**
-	 * Fits the actions of `toolbar` whenever the row or the actions change size, or the keybindings change. A resize of the
-	 * row fits them before it paints. Other changes fit them in the next frame: fitting changes the size of the actions
-	 * again, which a resize observer cannot report in the frame it reports their resize, and a hidden keybinding changes
-	 * no size.
-	 */
-	attach(toolbar: MenuWorkbenchToolBar): IDisposable {
-		this.toolbar = toolbar;
-		const store = new DisposableStore();
-		const targetWindow = DOM.getWindow(this.row);
-		const scheduledFit = store.add(new MutableDisposable());
-		const scheduleFit = () => {
-			scheduledFit.value ??= DOM.scheduleAtNextAnimationFrame(targetWindow, () => {
-				scheduledFit.clear();
-				this.fit();
-			});
-		};
-		const observer = store.add(new DOM.DisposableResizeObserver('sessionsHeaderActionsFit', entries => {
-			if (entries.some(entry => entry.target === this.row)) {
-				scheduledFit.clear();
-				this.fit();
-			} else {
-				scheduleFit();
-			}
-		}, targetWindow));
-		store.add(this.keybindingService.onDidUpdateKeybindings(scheduleFit));
-		store.add(observer.observe(this.row));
-		store.add(observer.observe(toolbar.getElement()));
-		store.add(toDisposable(() => this.toolbar = undefined));
-		return store;
-	}
-
-	/**
-	 * Lets the toolbar move actions that do not fit into its overflow menu, taking the New split button at its width without
-	 * its keybinding, and then shows the keybinding if all actions fit with it.
-	 */
-	private fit(): void {
-		const toolbar = this.toolbar;
-		if (!toolbar) {
-			return;
-		}
-		toolbar.relayout();
-		const newButton = this.getNewButton();
-		const overflowed = toolbar.hasOverflowedPrimaryActions();
-		const compact = !!newButton && (overflowed || this.getWidthWithKeybinding(newButton) > this.getAvailableWidth());
-		this.row.classList.toggle(SessionsHeaderActionsFit.COMPACT_NEW_BUTTON_CLASS, compact);
-		const remainingWidth = Math.floor(this.getAvailableWidth()) - toolbar.getElement().offsetWidth;
-		if (remainingWidth !== this.lastRemainingWidth) {
-			this.lastRemainingWidth = remainingWidth;
-			this.onDidChangeFit?.();
-		}
-	}
-
-	private getAvailableWidth(): number {
-		return DOM.getContentWidth(this.row);
-	}
-
-	private isNewMenu(action: IAction): boolean {
-		return action instanceof SubmenuItemAction && action.item.submenu === Menus.SidebarSessionsNew;
-	}
-
-	private getNewButton(): NewSplitButtonActionViewItem | undefined {
-		const toolbar = this.toolbar;
-		for (let index = 0; toolbar && index < toolbar.getItemsLength(); index++) {
-			const viewItem = toolbar.getItemViewItem(index);
-			if (viewItem instanceof NewSplitButtonActionViewItem) {
-				return viewItem;
-			}
-		}
-		return undefined;
-	}
-
-	/** The width of the New split button without its keybinding, or its last width while it has no view item, such as in the Inbox layout or the overflow menu. */
-	private getCompactNewButtonWidth(): number | undefined {
-		const newButton = this.getNewButton();
-		if (newButton) {
-			this.compactNewButtonWidth = this.measureCompactNewButton(newButton) ?? this.compactNewButtonWidth;
-		}
-		return this.compactNewButtonWidth;
-	}
-
-	private measureCompactNewButton(newButton: NewSplitButtonActionViewItem): number | undefined {
-		const wasCompact = this.row.classList.contains(SessionsHeaderActionsFit.COMPACT_NEW_BUTTON_CLASS);
-		this.row.classList.add(SessionsHeaderActionsFit.COMPACT_NEW_BUTTON_CLASS);
-		try {
-			return newButton.getMinimumWidth();
-		} finally {
-			this.row.classList.toggle(SessionsHeaderActionsFit.COMPACT_NEW_BUTTON_CLASS, wasCompact);
-		}
-	}
-
-	/** The width the shown actions take, unshrunk, with the New split button showing its keybinding. */
-	private getWidthWithKeybinding(newButton: NewSplitButtonActionViewItem): number {
-		const actionsContainer = newButton.element?.parentElement;
-		if (!actionsContainer) {
-			return 0;
-		}
-		const wasCompact = this.row.classList.contains(SessionsHeaderActionsFit.COMPACT_NEW_BUTTON_CLASS);
-		const items = [...actionsContainer.children].filter(DOM.isHTMLElement);
-		const flexShrinks = items.map(item => item.style.flexShrink);
-		this.row.classList.remove(SessionsHeaderActionsFit.COMPACT_NEW_BUTTON_CLASS);
-		items.forEach(item => item.style.flexShrink = '0');
-		try {
-			// Fractional widths, as the integer scroll width can hide an overflow of less than a pixel
-			const left = actionsContainer.getBoundingClientRect().left;
-			return Math.max(0, ...items.map(item => item.getBoundingClientRect().right - left));
-		} finally {
-			items.forEach((item, index) => item.style.flexShrink = flexShrinks[index]);
-			this.row.classList.toggle(SessionsHeaderActionsFit.COMPACT_NEW_BUTTON_CLASS, wasCompact);
-		}
-	}
 }
 
 /** The Filter Sessions dropdown, which reports whenever it shows. */
@@ -1219,7 +1059,7 @@ export class SessionsView extends ViewPane {
 	}
 
 	private createSessionsHeader(parent: HTMLElement, phoneLayout: boolean, disposables: DisposableStore): ISessionsHeaderElements {
-		const header = renderSessionsHeader(parent, phoneLayout || this.headerInTitle, this.instantiationService, this.scopedContextKeyService, disposables, () => this.sessionsControl?.reportFilterMenuShown(), () => this.grouping, () => this.updateHeaderLayout());
+		const header = renderSessionsHeader(parent, phoneLayout || this.headerInTitle, this.instantiationService, this.scopedContextKeyService, disposables, () => this.sessionsControl?.reportFilterMenuShown(), () => this.grouping);
 		this.sessionsHeaders.add(header);
 		disposables.add(toDisposable(() => this.sessionsHeaders.delete(header)));
 		this.updateHeaderLayout();

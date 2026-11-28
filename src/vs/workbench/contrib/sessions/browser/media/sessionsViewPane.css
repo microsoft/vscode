@@ -248,8 +248,7 @@
 		justify-content: center;
 	}
 
-	/* "New" split button in header — styled in newSplitButton/media/newSplitButton.css, as in the Chat view's sessions list.
-	It hides its keybinding in a narrow header row (compact-new-button below). */
+	/* "New" split button in header — styled in newSplitButton/media/newSplitButton.css, as in the Chat view's sessions list. */
 
 	.agent-sessions-control-container {
 		flex: 1;
@@ -333,11 +332,6 @@
 		overflow: hidden;
 		min-height: 0;
 	}
-}
-
-/* The New split button hides its keybinding while the header's actions do not fit with it (see SessionsHeaderActionsFit). */
-.agent-sessions-viewpane .agent-sessions-header-row.compact-new-button .action-item.new-split-button .action-label > .new-split-button-keybinding {
-	display: none;
 }
 
 .agent-sessions-workbench:not(.phone-layout) .agent-sessions-viewpane .agent-sessions-header-row {
