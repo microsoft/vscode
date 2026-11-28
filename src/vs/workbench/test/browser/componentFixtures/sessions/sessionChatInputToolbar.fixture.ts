@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ISessionAgentMergeService, SessionAgentMergeService } from '../../../../contrib/sessions/browser/sessionAgentMerge.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Event } from '../../../../../base/common/event.js';
@@ -185,6 +186,7 @@ function registerSessionChatPillFixtureServices(registration: ServiceRegistratio
 	registration.defineInstance(IExternalUriOpenerService, new class extends mock<IExternalUriOpenerService>() {
 		override async getOpener() { return undefined; }
 	}());
+	registration.define(ISessionAgentMergeService, SessionAgentMergeService);
 	registration.defineInstance(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 		override getProvider() { return undefined; }
 	}());

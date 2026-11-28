@@ -17,7 +17,6 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IAgentMergeClientState, isAgentHostProvider } from '../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, IChat, ISession } from '../../../services/sessions/common/session.js';
 
 const openPullRequestIcon = { ...Codicon.gitPullRequest, color: themeColorFromId('charts.green') };
@@ -138,8 +137,6 @@ export class SessionAgentMergeService implements ISessionAgentMergeService {
 		}).flatten();
 	}
 }
-
-registerSingleton(ISessionAgentMergeService, SessionAgentMergeService, InstantiationType.Delayed);
 
 /** Hides pull-request blockers that an enabled Agent Merge session owns. */
 export function getAgentMergeAwarePullRequestIcon(icon: ThemeIcon, agentMerge: ISessionAgentMergeConfiguration | undefined, blockers?: { readonly hasFailingChecks?: boolean; readonly hasMergeConflicts?: boolean; readonly hasUnresolvedComments?: boolean }): ThemeIcon {
