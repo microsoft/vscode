@@ -58,6 +58,14 @@ export class ChatTransferService implements IChatTransferService {
 		if (!workspace) {
 			return false;
 		}
+		// This list is only ever written at MACHINE target, and a match on it grants
+		// workspace trust. Reading it without regard to target would accept a value
+		// this machine did not record: applying profile content writes what it
+		// carries at USER target, so an imported profile could name a folder here
+		// and have it trusted on open.
+		if (!storageService.keys(StorageScope.PROFILE, StorageTarget.MACHINE).includes(transferredWorkspacesKey)) {
+			return false;
+		}
 		const chatWorkspaceTransfer: URI[] = storageService.getObject(transferredWorkspacesKey, StorageScope.PROFILE, []);
 		return chatWorkspaceTransfer.some(item => item.toString() === workspace.toString());
 	}
