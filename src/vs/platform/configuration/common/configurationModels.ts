@@ -166,6 +166,24 @@ export class ConfigurationModel implements IConfigurationModel {
 			}
 			this.mergeContents(contents, other.contents);
 
+			// A multi-language override from a later (higher priority) source must win over
+			// single-language overrides from earlier sources, which otherwise take precedence
+			// regardless of source. Merge the later source's effective contents for each such
+			// language into the earlier single-language override, so that only the keys the
+			// later source supplies are overridden and all other keys are preserved.
+			const multiLanguageIdentifiers = arrays.distinct(other.overrides.filter(o => o.identifiers.length > 1).flatMap(o => o.identifiers));
+			for (const identifier of multiLanguageIdentifiers) {
+				const singleLanguageOverride = overrides.find(o => o.identifiers.length === 1 && o.identifiers[0] === identifier);
+				if (!singleLanguageOverride) {
+					continue;
+				}
+				const effectiveContents = other.getContentsForOverrideIdentifer(identifier);
+				if (effectiveContents) {
+					this.mergeContents(singleLanguageOverride.contents, effectiveContents);
+					singleLanguageOverride.keys = arrays.distinct([...singleLanguageOverride.keys, ...other.getKeysForOverrideIdentifier(identifier)]);
+				}
+			}
+
 			for (const otherOverride of other.overrides) {
 				const [override] = overrides.filter(o => arrays.equals(o.identifiers, otherOverride.identifiers));
 				if (override) {
