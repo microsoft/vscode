@@ -4340,6 +4340,8 @@ suite('Sessions - SessionsList', () => {
 		const usersAgents: IRecentSessionWorkspace = { uri: URI.file('/work/agents.code-workspace'), name: 'Agents', folders: [docs], owned: false };
 		const release: ISessionGroup = { id: 'release', name: 'Release', createdAt: 1 };
 		const comparisonGroup: ISessionGroup = { id: 'comparison-group', name: 'Compare: Fix', createdAt: 2 };
+		// A workspace's row id, comparing its file as the list does: with or without case, as the file system has it
+		const rowId = (harness: ReturnType<typeof createListHarness>, uri: URI) => `workspace:${harness.instantiationService.get(IUriIdentityService).extUri.getComparisonKey(uri)}`;
 
 		function render(configure?: (harness: ReturnType<typeof createListHarness>) => void, separateNavigation?: boolean, separate: () => boolean = () => true, options: { readonly usersAgentsLabel?: string; readonly pinnedTitles?: readonly string[] } = {}) {
 			// Each session a minute older than the one before, so that the order does not depend on the clock's resolution
@@ -4535,15 +4537,9 @@ suite('Sessions - SessionsList', () => {
 
 		test('a workspace pinned in one layout stays pinned in the other, but a label that several workspaces share pins none of them and none pins it', () => {
 			let separate = false;
-			const { list } = render(undefined, undefined, () => separate);
+			const { list, harness } = render(undefined, undefined, () => separate);
 			const pinned = () => list.getTreeSnapshot().flatMap(node => node.type !== 'session' && node.id === 'pinned' ? node.children.flatMap(child => child.type !== 'session' ? [child.label] : []) : []);
-			const toolsRow = `workspace:${URI.file('/work/tools').toString()}`;
-			// The row's id compares the workspace file's path as the list does, without case
-			const agentsRow = () => {
-				const workspaces = list.getTreeSnapshot().find(node => node.type !== 'session' && node.id === 'workspaces');
-				const row = workspaces?.type !== 'session' ? workspaces?.children.find(child => child.type !== 'session' && child.id.includes('agentsworkspaces')) : undefined;
-				return row && row.type !== 'session' ? row.id : '';
-			};
+			const toolsRow = rowId(harness, URI.file('/work/tools'));
 			const toggle = (on: boolean) => { separate = on; list.update(); return pinned(); };
 			// Not separate: tools by its own label, Agents by a label that the user's Agents workspace shares
 			list.setHeaderPinned('workspace:tools', true);
@@ -4552,7 +4548,7 @@ suite('Sessions - SessionsList', () => {
 			const pinnedOn = toggle(true);
 			// Separate: unpinning tools unpins it in both; pinning a row of a shared label does not pin the label
 			list.setHeaderPinned(toolsRow, false);
-			list.setHeaderPinned(agentsRow(), true);
+			list.setHeaderPinned(rowId(harness, agents.uri), true);
 			const changedOn = pinned();
 			const changedOff = toggle(false);
 
@@ -4565,8 +4561,9 @@ suite('Sessions - SessionsList', () => {
 		});
 
 		test('a workspace keeps its pin and collapse state after its file is renamed, and unpinning or expanding it clears its former state', () => {
-			const formerKey = `workspace:${new ExtUri(() => true).getComparisonKey(oldAgentsFile)}`;
+			let formerKey = '';
 			const { list, harness } = render(harness => {
+				formerKey = rowId(harness, oldAgentsFile);
 				harness.instantiationService.get(ISessionsListModelService).pinSection(formerKey);
 				harness.instantiationService.get(IStorageService).store('sessionsListControl.sectionCollapseState', JSON.stringify({ [formerKey]: true }), StorageScope.PROFILE, StorageTarget.USER);
 			});
@@ -4589,9 +4586,10 @@ suite('Sessions - SessionsList', () => {
 		});
 
 		test('a pin from before a workspace\'s rename shows on its label while not separate, and unpinning it there clears it', () => {
-			const formerKey = `workspace:${new ExtUri(() => true).getComparisonKey(oldAgentsFile)}`;
+			let formerKey = '';
 			// The user's workspace has a label of its own, so that Agents is the renamed workspace's alone
 			const { list, harness } = render(harness => {
+				formerKey = rowId(harness, oldAgentsFile);
 				harness.instantiationService.get(ISessionsListModelService).pinSection(formerKey);
 				// Workspaces are enabled, with groups and workspaces not separate
 				void (harness.instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_WORKSPACES_ENABLED_SETTING, true);
@@ -4608,8 +4606,9 @@ suite('Sessions - SessionsList', () => {
 		});
 
 		test('a pin from before a workspace\'s rename shows on its label while not separate once the workspace learns of the rename, without another change', async () => {
-			const formerKey = `workspace:${new ExtUri(() => true).getComparisonKey(oldAgentsFile)}`;
+			let formerKey = '';
 			const { list, harness } = render(harness => {
+				formerKey = rowId(harness, oldAgentsFile);
 				harness.instantiationService.get(ISessionsListModelService).pinSection(formerKey);
 				// The workspace does not know its former file yet, so that the Agents label has two files' sessions
 				(harness.instantiationService.get(ISessionWorkspacesService) as TestSessionWorkspacesService).managedWorkspaces.set([{ ...agents, previousUris: undefined }], undefined);
