@@ -5,7 +5,10 @@
 
 import { raceCancellationError } from '../../../../../base/common/async.js';
 import { CancellationToken, cancelOnDispose } from '../../../../../base/common/cancellation.js';
+import { asGitHubAccount } from '../../../../../base/common/defaultAccount.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { localize } from '../../../../../nls.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IGitHubAccountClient } from '../../../../../platform/github/common/account/account.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
@@ -29,6 +32,7 @@ export class CloudSandboxRepositoryPicker extends Disposable {
 
 	constructor(
 		@IWorkbenchGitHubService private readonly _gitHubService: IWorkbenchGitHubService,
+		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
@@ -42,6 +46,10 @@ export class CloudSandboxRepositoryPicker extends Disposable {
 		store.add(token.onCancellationRequested(() => store.dispose()));
 		try {
 			CancellationToken.throwIfCanceled(token);
+			const defaultAccount = this._defaultAccountService.currentDefaultAccount ?? await raceCancellationError(this._defaultAccountService.getDefaultAccount(), pickToken);
+			if (defaultAccount && !asGitHubAccount(defaultAccount)) {
+				throw new Error(localize('cloudSessions.githubAccountRequired', "Sign in to Copilot with a GitHub account to use Copilot cloud sessions."));
+			}
 			const client = store.add(await raceCancellationError(this._gitHubService.acquireDefaultAccountApiClient(pickToken), pickToken));
 			// The viewer and their organizations scope every search, so resolve them once per pick.
 			let scope: Promise<string> | undefined;

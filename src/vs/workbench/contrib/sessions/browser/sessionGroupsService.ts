@@ -21,7 +21,7 @@ import { ISessionSectionOrderService, ISessionSectionPositions, resolveSectionOr
 export interface ISessionGroupAppearance {
 	/** Theme icon id chosen by the user. */
 	readonly icon?: string;
-	/** Theme color id applied to the group icon and name. */
+	/** Color applied to the group icon and name: a theme color id, or a custom `#rrggbb` that the Workspace editor picks. */
 	readonly color?: string;
 }
 
@@ -213,7 +213,7 @@ export interface ISessionGroupsService {
 	/** Set a group's icon, or restore the default with `undefined`. */
 	setGroupIcon(groupId: string, icon: string | undefined): void;
 
-	/** Set a group's icon and name color, or restore the default with `undefined`. */
+	/** Set a group's icon and name color, a theme color id or a custom `#rrggbb`, or restore the default with `undefined`. */
 	setGroupColor(groupId: string, color: string | undefined): void;
 
 	/** Appearance of a workspace, repository, or environment section, keyed by its stable section id. */

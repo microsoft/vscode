@@ -6,10 +6,12 @@
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { autoModeRoutingHover, autoModeRoutingTitle } from '../../../common/chatAutoModeExplainability.js';
 import { IChatAutoModeResolutionPart } from '../../../common/chatService/chatService.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
+import { modelRouterIcon } from '../input/modelPicker/modelProviderIcons.js';
 import { IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatThinkingStyleContentPart } from './chatThinkingStyleContentPart.js';
 
@@ -30,6 +32,11 @@ export class ChatAutoModeResolutionContentPart extends ChatThinkingStyleContentP
 		return 'autoModeResolution';
 	}
 
+	protected override getThinkingIcon(active: boolean, expanded: boolean): ThemeIcon {
+		// A model router's line keeps the router's icon, like the Routers tab and the model picker do.
+		return this.content.router ? modelRouterIcon : super.getThinkingIcon(active, expanded);
+	}
+
 	constructor(
 		private readonly content: IChatAutoModeResolutionPart,
 		context: IChatContentPartRenderContext,
@@ -40,6 +47,10 @@ export class ChatAutoModeResolutionContentPart extends ChatThinkingStyleContentP
 		super(autoModeRoutingTitle(content), context, undefined, hoverService, configurationService, telemetryService);
 
 		this.isRouting = !content.resolved;
+		if (content.router) {
+			this.domNode.classList.add('chat-model-router-routing');
+			this._collapseButton?.iconElement.setAttribute('aria-hidden', 'true');
+		}
 		this.setThinkingActive(this.isRouting);
 		// The title says everything, so this is a status line, not a disclosure.
 		this.setExpandable(false);

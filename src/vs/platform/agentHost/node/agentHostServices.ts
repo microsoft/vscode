@@ -88,6 +88,7 @@ import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from './shared/ag
 import { AgentHostTurnService, IAgentHostTurnService } from './agentHostTurnService.js';
 import { IDevContainerAgentHostMainService } from '../common/devContainerAgentHost.js';
 import { RemoteDevContainerAgentHostService } from './devContainerAgentHostService.js';
+import { AgentHostClientForwardingService, IAgentHostClientForwardingService } from './agentHostClientForwarding.js';
 import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
 import { AgentHostStartupMarks, AgentHostStartupPerformance, IAgentHostStartupPerformance } from './agentHostStartupPerformance.js';
 
@@ -169,6 +170,7 @@ export function registerAgentHostHostServices(services: ServiceCollection, input
 	services.set(ICopilotHomeService, new SyncDescriptor(CopilotHomeService));
 	services.set(ICopilotAccountService, new SyncDescriptor(CopilotAccountService));
 	services.set(IDevContainerAgentHostMainService, new SyncDescriptor(RemoteDevContainerAgentHostService));
+	services.set(IAgentHostClientForwardingService, new SyncDescriptor(AgentHostClientForwardingService, [undefined, undefined]));
 	services.set(ISandboxHelperService, new SyncDescriptor(SandboxHelperService));
 	services.set(IAgentHostGitService, new SyncDescriptor(AgentHostGitService));
 	services.set(IAgentPluginManager, new SyncDescriptor(AgentPluginManager, [inputs.userDataPath]));

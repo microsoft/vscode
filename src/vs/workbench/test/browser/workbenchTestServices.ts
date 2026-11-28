@@ -203,6 +203,7 @@ import { IWorkingCopyService, WorkingCopyService } from '../../services/workingC
 import { IActivityService } from '../../services/activity/common/activity.js';
 import { TestActivityService, TestChatEntitlementService, TestContextService, TestExtensionService, TestFileService, TestHistoryService, TestLifecycleService, TestLoggerService, TestMarkerService, TestProductService, TestStorageService, TestTextResourcePropertiesService, TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService } from '../common/workbenchTestServices.js';
 import { DefaultAccountService } from '../../services/accounts/browser/defaultAccount.js';
+import { IAgentsModeService } from '../../services/agentsMode/common/agentsMode.js';
 import { IAgentHostConnectionsService } from '../../../platform/agentHost/common/agentHostConnectionsService.js';
 
 // Backcompat export
@@ -313,6 +314,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(ITextResourceConfigurationService, textResourceConfigurationService);
 	instantiationService.stub(IUntitledTextEditorService, disposables.add(instantiationService.createInstance(UntitledTextEditorService)));
 	instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
+	instantiationService.stub(IAgentsModeService, { _serviceBrand: undefined, isSupported: false, windowFolders: [], isActive: false, onWillChange: Event.None, onDidChange: Event.None, setActive: async () => { } });
 	instantiationService.stub(IRemoteAgentService, new TestRemoteAgentService());
 	instantiationService.stub(ILanguageDetectionService, new TestLanguageDetectionService());
 	const pathService = overrides?.pathService ? overrides.pathService(instantiationService) : new TestPathService();

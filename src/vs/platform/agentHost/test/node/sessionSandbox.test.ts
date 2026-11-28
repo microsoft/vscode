@@ -1588,6 +1588,6 @@ suite('Session sandbox configuration', () => {
 			kind: 'pending_confirmation', chat: URI.parse(buildChatUri(owner, 'peer')), managedApprovalRequired,
 			state: { status: ToolCallStatus.PendingConfirmation, toolCallId: 'tool', toolName: 'bash', displayName: 'Bash', invocationMessage: 'run', confirmationTitle: 'Run command?' },
 		}, owner, 'turn').options?.map(option => option.label));
-		assert.deepStrictEqual(labels, [['Allow in this Session', 'Allow Once', 'Skip'], ['Allow Once', 'Skip']]);
+		assert.deepStrictEqual(labels, [['Allow Once', 'Allow in this Session', 'Skip'], ['Allow Once', 'Skip']]);
 	});
 });

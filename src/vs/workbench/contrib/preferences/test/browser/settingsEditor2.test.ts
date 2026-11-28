@@ -40,6 +40,7 @@ import { SettingsTargetsWidget } from '../../browser/preferencesWidgets.js';
 import { IManagedSettingsPresentationService, ManagedSettingsPresentationService } from '../../../../services/configuration/common/managedSettingsPresentation.js';
 import { terminalContribConfiguration } from '../../../terminal/terminalContribExports.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { IAgentsModeService } from '../../../../services/agentsMode/common/agentsMode.js';
 
 suite('SettingsTargetsWidget Agents mode', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -103,6 +104,7 @@ suite('SettingsEditor2', () => {
 			const managedSettings: Record<string, boolean | undefined> = {};
 			const instantiationService = workbenchInstantiationService({ configurationService: () => configuration }, store);
 			instantiationService.stub(IPreferencesService, {});
+			instantiationService.stub(IAgentsModeService, { isActive: false, onDidChange: Event.None });
 			instantiationService.stub(IPreferencesSearchService, {});
 			instantiationService.stub(IUserDataSyncWorkbenchService, {});
 			instantiationService.stub(IUserDataSyncEnablementService, {});

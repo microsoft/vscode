@@ -1243,6 +1243,11 @@ export class SettingComplexRenderer extends AbstractSettingRenderer implements I
 		template.button.textContent = isLanguageTagSetting
 			? editLanguageSettingLabel
 			: SettingComplexRenderer.EDIT_IN_JSON_LABEL;
+		if (!isLanguageTagSetting && dataElement.isAgentsReadOnly) {
+			DOM.hide(template.button);
+		} else {
+			DOM.show(template.button);
+		}
 
 		const onClickOrKeydown = (e: UIEvent) => {
 			if (isLanguageTagSetting) {
@@ -1568,6 +1573,7 @@ class SettingObjectRenderer extends AbstractSettingObjectRenderer implements ITr
 					isDefined(objectPatternProperties)
 				)
 				: true,
+			isReadOnly: dataElement.isAgentsReadOnly,
 			keySuggester: createObjectKeySuggester(dataElement),
 			valueSuggester: createObjectValueSuggester(dataElement),
 			propertyNames
@@ -1661,7 +1667,8 @@ class SettingBoolObjectRenderer extends AbstractSettingObjectRenderer implements
 		const { key } = dataElement.setting;
 
 		template.objectCheckboxWidget!.setValue(items, {
-			settingKey: key
+			settingKey: key,
+			isReadOnly: dataElement.isAgentsReadOnly
 		});
 
 		template.context = dataElement;
@@ -2238,7 +2245,7 @@ export class SettingTreeRenderers extends Disposable {
 		this.settingActions = [
 			new Action('settings.resetSetting', localize('resetSettingLabel', "Reset Setting"), undefined, undefined, async context => {
 				if (context instanceof SettingsTreeSettingElement) {
-					if (!context.isUntrusted) {
+					if (!context.isUntrusted && !context.isAgentsReadOnly) {
 						this._onDidChangeSetting.fire({
 							key: context.setting.key,
 							value: undefined,

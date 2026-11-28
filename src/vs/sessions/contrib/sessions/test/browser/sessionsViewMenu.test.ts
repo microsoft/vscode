@@ -52,9 +52,9 @@ import { ChatEntitlementContextKeys } from '../../../../../workbench/services/ch
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { IAgentHostSessionsProvider, LocalAgentHostRegistration } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { IsPhoneLayoutContext, SessionIsArchivedContext, SessionIsReadContext, SessionItemIsMultiSelectionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionIsArchivedContext, SessionIsReadContext, SessionItemIsMultiSelectionContext, SessionWorkspacesEnabledContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
-import { AutomationSessionsListMode, SESSIONS_LIST_FILTER_CHIPS_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { AutomationSessionsListMode, SESSIONS_LIST_FILTER_CHIPS_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING, SESSIONS_WORKSPACES_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ISession, ISessionChangeset, ISessionChangesetOperation, ISessionEnvironment, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionAttentionService, IInboxSessionAttention, InboxNotificationPriority, InboxTab } from '../../../../../workbench/contrib/sessions/common/sessionAttentionService.js';
 import { buildTestSession } from '../../../../../workbench/contrib/sessions/test/common/testSessionBuilder.js';
@@ -68,13 +68,15 @@ import { ISessionsService } from '../../../../../workbench/contrib/sessions/brow
 import { getInboxWorkspaceFilter, getSessionFilterEnvironments, getSessionFilterOptions, ISessionFilterOption, SessionsListFilters } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
 import { SessionsInboxScope } from '../../../../../workbench/contrib/sessions/browser/views/sessionsInboxScope.js';
 import { ISessionsListChange, ISessionsListUndoService } from '../../../../../workbench/contrib/sessions/browser/sessionsListUndoService.js';
-import { IsWorkspaceGroupCappedContext, ISessionsViewLocator, SessionsView, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSortingContext, DEFAULT_SESSIONS_GROUPINGS, bindSessionsViewGroupings, renderSessionsHeader, SessionsViewGroupingState } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { IsWorkspaceGroupCappedContext, ISessionsViewLocator, SessionsView, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSeparateGroupsAndWorkspacesContext, SessionsViewSortingContext, DEFAULT_SESSIONS_GROUPINGS, bindSessionsViewGroupings, renderSessionsHeader, SessionsViewGroupingState } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { MobileSessionFilterChips } from '../../../../../workbench/contrib/sessions/browser/mobile/mobileSessionFilterChips.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { EDITOR_WINDOW_SESSIONS_GROUPINGS } from '../../../../../workbench/contrib/sessions/browser/agentsView/editorWindowSessionsList.js';
 import { ISessionsFilterChip, SessionsFilterChips } from '../../../../../workbench/contrib/sessions/browser/views/sessionsFilterChips.js';
 import { createListHarness, TestCommandService } from './sessionsListTestUtils.js';
 import { SessionsArchiveActionsContribution } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
+import { SessionWorkspacesContextKeys } from '../../../../../workbench/contrib/sessions/browser/sessionWorkspacesContextKeys.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import '../../browser/views/sessionsViewActions.js';
 
 suite('Sessions - View Menu', () => {
@@ -802,6 +804,55 @@ suite('Sessions - View Menu', () => {
 		assert.deepStrictEqual({ visible, hiddenAI, visibleAgain: offered(), participantEnabled: contextKeyService.getContextKeyValue(ChatContextKeys.enabled.key) }, {
 			visible: [true, true, true], hiddenAI: [false, false, false], visibleAgain: [true, true, true], participantEnabled: true,
 		});
+	});
+
+	test('Separate Groups and Workspaces is a toggle next to Compact View in the Sessions header, offered only while grouped by workspace with workspaces and AI features enabled', () => {
+		const { snapshot, grouping, contextKeyService } = createMenu();
+		const workspacesEnabled = SessionWorkspacesEnabledContext.bindTo(contextKeyService);
+		const separate = SessionsViewSeparateGroupsAndWorkspacesContext.bindTo(contextKeyService);
+		const offered = () => snapshot(Menus.SidebarSessionsHeader).filter(item => item.title === 'Compact View' || item.title === 'Separate Groups and Workspaces');
+		grouping.set(SessionsGrouping.Workspace);
+		const workspacesOff = offered();
+		workspacesEnabled.set(true);
+		separate.set(true);
+		const on = offered();
+		separate.set(false);
+		const off = offered();
+		grouping.set(SessionsGrouping.Repository);
+		const byRepository = offered();
+		grouping.set(SessionsGrouping.Workspace);
+		// The phone offers it in its sort and group sheet
+		const phone = IsPhoneLayoutContext.bindTo(contextKeyService);
+		phone.set(true);
+		const onPhone = offered().map(item => item.title);
+		phone.set(false);
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(false);
+		const withoutAI = offered().map(item => item.title);
+
+		assert.deepStrictEqual({ workspacesOff, on, off, byRepository, onPhone, withoutAI }, {
+			workspacesOff: [{ title: 'Compact View', group: '1_view', checked: false }],
+			on: [{ title: 'Compact View', group: '1_view', checked: false }, { title: 'Separate Groups and Workspaces', group: '1_view', checked: true, enabled: true }],
+			off: [{ title: 'Compact View', group: '1_view', checked: false }, { title: 'Separate Groups and Workspaces', group: '1_view', checked: false, enabled: true }],
+			byRepository: [{ title: 'Compact View', group: '1_view', checked: false }],
+			onPhone: [],
+			withoutAI: [],
+		});
+	});
+
+	async function isSeparateGroupsAndWorkspacesOffered(quality: string): Promise<boolean> {
+		const { snapshot, grouping, contextKeyService, configurationService } = createMenu();
+		await configurationService.updateValue(SESSIONS_WORKSPACES_ENABLED_SETTING, true);
+		store.add(new SessionWorkspacesContextKeys(contextKeyService, configurationService, upcastPartial<IProductService>({ quality })));
+		grouping.set(SessionsGrouping.Workspace);
+		return snapshot(Menus.SidebarSessionsHeader).some(item => item.title === 'Separate Groups and Workspaces');
+	}
+
+	test('Separate Groups and Workspaces is not offered in Stable, also with workspaces enabled by hand in settings.json', async () => {
+		assert.strictEqual(await isSeparateGroupsAndWorkspacesOffered('stable'), false);
+	});
+
+	test('Separate Groups and Workspaces is offered in Insiders with workspaces enabled', async () => {
+		assert.strictEqual(await isSeparateGroupsAndWorkspacesOffered('insider'), true);
 	});
 
 	test('the Grouping menu offers the groupings of its view: Time and Environment in the editor window', () => {

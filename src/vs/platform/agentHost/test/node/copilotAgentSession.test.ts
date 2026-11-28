@@ -1546,6 +1546,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	enableDevelopmentErrorInjection?: boolean;
 	trackModelConfigurationUpdates?: boolean;
 	managedSettings?: CopilotClient['rpc']['managedSettings'];
+	mcpInstallations?: Pick<CopilotClient['rpc']['mcp']['installations'], 'list'>;
 	modelPolicyModels?: CopilotSessionLaunchPlan['modelPolicyModels'];
 	resume?: boolean;
 	/** Whether a resumed session keeps the permission mode the runtime restored. */
@@ -1655,7 +1656,10 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 
 	const launchPlanBase = {
 		client: {
-			rpc: { managedSettings: options?.managedSettings ?? createUnmanagedCopilotSettings(), account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { proxyCa: sandboxCertificateRpc, getHostSupport: options?.getSandboxHostSupport ?? (async () => ({ supported: true, capabilities: [] })) } },
+			rpc: {
+				managedSettings: options?.managedSettings ?? createUnmanagedCopilotSettings(), account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { proxyCa: sandboxCertificateRpc, getHostSupport: options?.getSandboxHostSupport ?? (async () => ({ supported: true, capabilities: [] })) },
+				...(options?.mcpInstallations ? { mcp: { installations: options.mcpInstallations } as unknown as CopilotClient['rpc']['mcp'] } : {}),
+			},
 			createSession: async () => mockSession as unknown as CopilotSession,
 			resumeSession: async () => mockSession as unknown as CopilotSession,
 			deleteSession: async () => { assert.fail('Unexpected session deletion'); },
@@ -38449,6 +38453,40 @@ Use the attached image as context.
 				beforeStart: { kind: McpServerStatus.Error, error: { errorType: 'mcp-server-failed', message: 'boom' } },
 				afterFailedStart: { kind: McpServerStatus.Error, error: { errorType: 'mcp-server-failed', message: 'boom' } },
 				afterSdkPending: { kind: McpServerStatus.Starting, blocking: true },
+			});
+		});
+
+		test('startMcpServer names the installation receipt of an owned MCP server', async () => {
+			const id = 'mcp-top-level:copilotcli:test-session-1:';
+			const listRequests: unknown[] = [];
+			const { session, mockSession } = await createAgentSession(disposables, {
+				sessionCustomizations: () => ['com.figma.mcp/mcp', 'manual'].map(name => ({
+					type: CustomizationType.McpServer,
+					id: id + name,
+					uri: id + name,
+					name,
+					state: { kind: McpServerStatus.Stopped },
+				})),
+				mcpInstallations: {
+					list: async request => {
+						listRequests.push(request.policySessionId);
+						return {
+							kind: 'outcome',
+							outcome: { kind: 'listed', installations: [{ installationId: 'receipt-1', identity: { serverName: 'com.figma.mcp/mcp' } }] },
+						} as unknown as Awaited<ReturnType<CopilotClient['rpc']['mcp']['installations']['list']>>;
+					},
+				},
+				configureMockSession: mock => {
+					mock.mcpListResult = { servers: [{ name: 'com.figma.mcp/mcp', status: 'not_configured' }, { name: 'manual', status: 'stopped' }] };
+				},
+			});
+
+			await session.startMcpServer(id + 'com.figma.mcp/mcp');
+			await session.startMcpServer(id + 'manual');
+
+			assert.deepStrictEqual({ startServerCalls: mockSession.mcpStartServerCalls, listRequests }, {
+				startServerCalls: [{ serverName: 'com.figma.mcp/mcp', expectedInstallationId: 'receipt-1' }, { serverName: 'manual' }],
+				listRequests: ['test-session-1', 'test-session-1'],
 			});
 		});
 

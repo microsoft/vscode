@@ -1860,6 +1860,32 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		});
 	}
 
+	test('detaches only the workspace configurations on its own host, in that host\'s URI space', async () => {
+		const other = new class extends MockAgentConnection {
+			override readonly resourceUris = createAgentHostResourceUriMapper(agentHostAuthority('build:22'));
+		}();
+		disposables.add(toDisposable(() => other.dispose()));
+		const calls: { host: string; files: string[] }[] = [];
+		for (const [host, candidate] of [['localhost:4321', connection], ['build:22', other]] as const) {
+			candidate.detachSessionsFromWorkspace = async files => {
+				calls.push({ host, files: files.map(String) });
+				return [];
+			};
+		}
+		const first = createProvider(disposables, connection, { address: 'localhost:4321' });
+		const second = createProvider(disposables, other, { address: 'build:22' });
+		// The same path on this machine and on both hosts
+		const projectFile = URI.file('/work/project.code-workspace');
+		const files = [projectFile, toAgentHostUri(projectFile, agentHostAuthority('localhost:4321')), toAgentHostUri(projectFile, agentHostAuthority('build:22'))];
+		await first.detachSessionsFromWorkspace(files);
+		await second.detachSessionsFromWorkspace(files);
+		await second.detachSessionsFromWorkspace([projectFile]);
+		assert.deepStrictEqual(calls, [
+			{ host: 'localhost:4321', files: [projectFile.toString()] },
+			{ host: 'build:22', files: [projectFile.toString()] },
+		]);
+	});
+
 	// ---- Provider identity -------
 
 	test('derives id and label from config, and session types from rootState agents', () => {

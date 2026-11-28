@@ -71,7 +71,7 @@ suite('ModelEvaluationTools', () => {
 		});
 		let permissionId = 'default';
 		const permissionChats: (URI | undefined)[] = [];
-		const workspaceConfigRequests: { workspace: URI; sessionTypeId: string }[] = [];
+		const workspaceConfigRequests: { workspace: URI | undefined; sessionTypeId: string }[] = [];
 		const provider = upcastPartial<IAgentHostSessionsProvider>({
 			id: caller.providerId, environment: { id: 'local', label: 'Local' },
 			supportsPermissionsForCreation: true, supportsModelConfigurationForCreation: options.supportsModelConfigurationForCreation ?? true, supportsQuickChats: true,
@@ -363,7 +363,7 @@ suite('ModelEvaluationTools', () => {
 			workspace: fixture.launches[0].workspace?.toString(),
 			permissions: fixture.launches[0].attempts.map(attempt => attempt.harness.permissionId),
 			nestedSource: fixture.permissionChats.every(resource => isEqual(resource, callerResource)),
-			targets: fixture.workspaceConfigRequests.map(request => [request.workspace.toString(), request.sessionTypeId]),
+			targets: fixture.workspaceConfigRequests.map(request => [request.workspace?.toString(), request.sessionTypeId]),
 		}, {
 			discoveryError: undefined, creationError: undefined, workspace: project.toString(), permissions: ['default', 'default'], nestedSource: true,
 			targets: Array.from({ length: 3 }, () => [project.toString(), 'copilotcli']),

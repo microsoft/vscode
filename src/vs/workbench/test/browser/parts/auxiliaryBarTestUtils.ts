@@ -32,7 +32,12 @@ class TestAuxiliaryBarMenuService extends MenuService {
 	}
 }
 
-export function createTestAuxiliaryBarPart(container: HTMLElement, store: Pick<DisposableStore, 'add'>, options?: { readonly globalActions?: boolean; readonly onDidUpdateKeybindings?: Event<void> }): TestAuxiliaryBarPart {
+/**
+ * Creates a secondary side bar part with the Chat view's title actions.
+ * Parts that coexist in one test must share a `viewDescriptorService`: each instance registers
+ * a reset-location command for every registered view container, and command ids are global.
+ */
+export function createTestAuxiliaryBarPart(container: HTMLElement, store: Pick<DisposableStore, 'add'>, options?: { readonly globalActions?: boolean; readonly onDidUpdateKeybindings?: Event<void>; readonly viewDescriptorService?: IViewDescriptorService }): TestAuxiliaryBarPart {
 	const instantiationService = workbenchInstantiationService({}, store);
 	const onDidUpdateKeybindings = options?.onDidUpdateKeybindings;
 	if (onDidUpdateKeybindings) {
@@ -41,7 +46,7 @@ export function createTestAuxiliaryBarPart(container: HTMLElement, store: Pick<D
 		}());
 	}
 	instantiationService.stub(IContextKeyService, store.add(instantiationService.createInstance(ContextKeyService)));
-	instantiationService.stub(IViewDescriptorService, store.add(instantiationService.createInstance(ViewDescriptorService)));
+	instantiationService.stub(IViewDescriptorService, options?.viewDescriptorService ?? store.add(instantiationService.createInstance(ViewDescriptorService)));
 	instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(TestAuxiliaryBarMenuService)));
 	for (const [order, [id, title, icon]] of (options?.globalActions === false ? [] : [
 		['test.maximize', 'Maximize Secondary Side Bar', Codicon.screenFull],

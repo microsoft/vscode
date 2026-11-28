@@ -60,7 +60,7 @@ import '../../browser/agentsViewProviders.contribution.js';
  */
 const CORE_SERVICES = new Set([
 	'accessibilityService', 'accessibilitySignalService', 'accountPolicyGateService', 'actionWidgetService', 'actionViewItemService', 'agentHostConnectionsService',
-	'agentHostEnablementService', 'agentHostService', 'agentPluginService', 'agentSessions', 'assignmentService', 'chatAgentNameService', 'chatAgentService', 'chatAttachmentResolveService',
+	'agentHostEnablementService', 'agentHostService', 'agentPluginService', 'agentSessions', 'assignmentService', 'chatAgentNameService', 'chatAgentService', 'chatAttachmentResolveService', 'IContextPickService',
 	'chatEditingService', 'chatEntitlementService', 'chatModeService', 'chatOpenDiagnosticsService', 'chatPetService', 'chatService', 'chatSessionsService', 'chatSideChatService',
 	'chatSlashCommandService', 'chatSubmitRequestHandlerService', 'chatTipService', 'chatViewHostService', 'chatViewSessionsListService', 'chatWidgetHistoryService',
 	'chatWidgetService', 'clipboardService', 'commandService', 'configurationService', 'contextKeyService', 'contextMenuService', 'contextService',

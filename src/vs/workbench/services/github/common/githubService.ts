@@ -16,10 +16,16 @@ import { AuthenticationSession } from '../../authentication/common/authenticatio
 export const IWorkbenchGitHubService = refineServiceDecorator<IGitHubService, IWorkbenchGitHubService>(IGitHubService);
 
 export interface IWorkbenchGitHubService extends IGitHubService {
+	/**
+	 * Fires when the client returned by the default-account methods may be a different one. The default account is the default GitHub
+	 * account or, while the default account is not a GitHub account, the person's GitHub account for repository data; not for Copilot features.
+	 */
 	readonly onDidChangeDefaultClient: Event<void>;
 	acquireAnonymousApiClient(cancellationToken: CancellationToken): Promise<IGitHubAnonymousClient>;
 	acquireAccountApiClient(providerId: string, session: AuthenticationSession, cancellationToken: CancellationToken): Promise<IGitHubAccountClient>;
+	/** Acquires a client for the default GitHub account, or, while the default account is not a GitHub account, the person's GitHub account for repository data; not for Copilot features. */
 	acquireDefaultAccountClient(cancellationToken: CancellationToken): Promise<IReference<IGitHubClient>>;
+	/** Acquires an API client for the default GitHub account, or, while the default account is not a GitHub account, the person's GitHub account for repository data; not for Copilot features. */
 	acquireDefaultAccountApiClient(cancellationToken: CancellationToken): Promise<IGitHubAccountClient>;
 }
 

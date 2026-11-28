@@ -733,11 +733,9 @@ export interface ISessionsProvider {
 	/**
 	 * Detaches the provider's sessions, loaded or not, that were created in one of the workspace configurations
 	 * (`.code-workspace` files, in the client's URI space): they no longer record it (see
-	 * {@link ISessionWorkspace.workspaceConfig}) and keep working in their folders. Resolves when there are none, also
-	 * when the provider's backend cannot record workspace configurations.
-	 *
-	 * TODO: no provider implements this yet; the agent host provider implements it in a follow-up. Until then,
-	 * removing or renaming a workspace doesn't detach its sessions.
+	 * {@link ISessionWorkspace.workspaceConfig}) and keep working in their folders. A file that is not on the provider's
+	 * backend is ignored, and is not sent to it. Resolves when there are none, also when the provider's backend cannot
+	 * record workspace configurations.
 	 */
 	detachSessionsFromWorkspace?(workspaceFiles: readonly URI[]): Promise<void>;
 

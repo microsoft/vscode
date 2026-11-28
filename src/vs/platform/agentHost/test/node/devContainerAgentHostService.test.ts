@@ -42,6 +42,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { DevContainerAgentHostMainService, getDevContainerCliPath, getDevContainerExecArgs, IDevContainerRelay, IDevContainerShellExec, parseDevContainerFolderContainers, parseDevContainerMounts, parseDevContainerUpResult, RemoteDevContainerAgentHostService, waitForDevContainerRelayConnection } from '../../node/devContainerAgentHostService.js';
 import { getDevContainerSecurityOptions, IDevContainerSecurityOptions } from '../../node/devContainerState.js';
 import { ISshExec, shellEscape } from '../../node/sshRemoteAgentHostHelpers.js';
+import { AGENT_HOST_CLIENT_FORWARDING_ENV } from '../../node/agentHostClientForwarding.js';
 import { devContainerServerCacheMount } from '../../node/devContainerServerCache.js';
 import { DevContainerSample } from '../../common/devContainerSamples.js';
 import { IPreparedDevContainerSample } from '../../node/devContainerSamples.js';
@@ -152,8 +153,6 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	cacheMountConfigured = false;
 	hostDirectoryOwnedByCurrentUser = true;
 	readonly checkedHostDirectories: string[] = [];
-	readonly hostGitConfig = new Map<string, string>();
-	readonly containerGitConfig = new Map<string, string>();
 
 	constructor(
 		private readonly _libc = '',
@@ -368,14 +367,6 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 
 	protected override _runLocalCommand(command: string, args: readonly string[]): Promise<{ stdout: string; stderr: string; code: number }> {
 		this.localCommands.push({ command, args });
-		if (command === 'git' && args[0] === 'config' && args[1] === '--global' && args[2] === '--get') {
-			const value = this.hostGitConfig.get(args[3]);
-			return Promise.resolve({
-				stdout: value === undefined ? '' : `${value}\n`,
-				stderr: '',
-				code: value === undefined ? 1 : 0,
-			});
-		}
 		if (command === 'docker' && args[0] === 'exec' && args[1] === '--user' && args[2] === 'root') {
 			if (args.at(-1)?.includes('/cli/bin/') && this.cliCacheSetupError) {
 				throw this.cliCacheSetupError;
@@ -434,11 +425,6 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 			}
 			if (command === 'git config --global --get-all safe.directory') {
 				return { stdout: this.safeDirectories.join('\n'), stderr: '', code: this.safeDirectories.length ? 0 : 1 };
-			}
-			const gitIdentityMatch = /^git config --get (?<key>user\.(?:name|email))$/.exec(command);
-			if (gitIdentityMatch?.groups) {
-				const value = this.containerGitConfig.get(gitIdentityMatch.groups.key);
-				return { stdout: value === undefined ? '' : `${value}\n`, stderr: '', code: value === undefined ? 1 : 0 };
 			}
 			if (command === 'uname -s') {
 				return { stdout: 'Linux\n', stderr: '', code: 0 };
@@ -1597,56 +1583,11 @@ suite('Dev Container Agent Host Main Service', () => {
 		}, { sharedServer: true, warning: true, cacheCommands: 0, privateDownloads: 1 });
 	});
 
-	test('forwards missing host Git identity without overwriting container identity', async () => {
-		const forwarded = store.add(new TestDevContainerAgentHostMainService());
-		forwarded.hostGitConfig.set('user.name', 'Host User');
-		forwarded.hostGitConfig.set('user.email', 'host@example.com');
-		await forwarded.connect({
-			connectionId: 'forwarded',
-			workspaceFolder: '/workspace',
-			name: 'Project Dev Container',
-		});
-
-		const preserved = store.add(new TestDevContainerAgentHostMainService());
-		preserved.hostGitConfig.set('user.name', 'Host User');
-		preserved.hostGitConfig.set('user.email', 'host@example.com');
-		preserved.containerGitConfig.set('user.name', 'Container User');
-		await preserved.connect({
-			connectionId: 'preserved',
-			workspaceFolder: '/workspace',
-			name: 'Project Dev Container',
-		});
-
-		const absent = store.add(new TestDevContainerAgentHostMainService());
-		await absent.connect({
-			connectionId: 'absent',
-			workspaceFolder: '/workspace',
-			name: 'Project Dev Container',
-		});
-
-		assert.deepStrictEqual({
-			hostCommands: forwarded.localCommands.filter(command => command.command === 'git'),
-			forwardedCommands: forwarded.execCommands.filter(command => command.includes('user.')),
-			preservedCommands: preserved.execCommands.filter(command => command.includes('user.')),
-			absentCommands: absent.execCommands.filter(command => command.includes('user.')),
-		}, {
-			hostCommands: [
-				{ command: 'git', args: ['config', '--global', '--get', 'user.name'] },
-				{ command: 'git', args: ['config', '--global', '--get', 'user.email'] },
-			],
-			forwardedCommands: [
-				'git config --get user.name',
-				'git config --global --replace-all user.name \'Host User\'',
-				'git config --get user.email',
-				'git config --global --replace-all user.email \'host@example.com\'',
-			],
-			preservedCommands: [
-				'git config --get user.name',
-				'git config --get user.email',
-				'git config --global --replace-all user.email \'host@example.com\'',
-			],
-			absentCommands: [],
-		});
+	test('starts a new Agent Host that forwards what its clients offer, e.g., their Git identity', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService());
+		service.endpointPollsBeforeAvailable = 1;
+		await service.connect({ connectionId: 'forwarding', workspaceFolder: '/workspace', name: 'Project Dev Container' });
+		assert.deepStrictEqual(service.separateExecs.map(({ command }) => command.includes(` ${AGENT_HOST_CLIENT_FORWARDING_ENV}=1 `)), [true]);
 	});
 
 	test('adds the exact bind-mounted repository root to Git safe.directory only when host-owned', async () => {

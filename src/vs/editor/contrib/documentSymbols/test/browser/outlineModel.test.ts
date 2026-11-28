@@ -283,4 +283,37 @@ suite('OutlineModel', function () {
 		assert.strictEqual(model.children.get('g2')!.children.get('c2')!.children.get('c2.2')!.marker!.count, 1);
 	});
 
+	test('OutlineElement - updateMarker, elements without markers don\'t scan all markers', function () {
+
+		const group = new OutlineGroup('group', null!, null!, 1);
+		for (let line = 1; line <= 1000; line++) {
+			const element = new OutlineElement(`e${line}`, group, fakeSymbolInformation(new Range(line, 1, line, 10)));
+			group.children.set(element.id, element);
+		}
+
+		// markers on the last 100 elements, 900 elements come before them
+		const data: IMarker[] = [];
+		for (let line = 901; line <= 1000; line++) {
+			data.push(fakeMarker(new Range(line, 2, line, 4)));
+		}
+
+		let reads = 0;
+		group.updateMarker(new Proxy(data, {
+			get(target, property, receiver) {
+				if (typeof property === 'string' && /^\d+$/.test(property)) {
+					reads++;
+				}
+				return Reflect.get(target, property, receiver);
+			}
+		}));
+
+		const withMarker = [...group.children.values()].filter(element => element.marker?.count === 1).map(element => element.id);
+		assert.deepStrictEqual(
+			{ remaining: data.length, withMarker: withMarker.length, first: withMarker[0], last: withMarker.at(-1) },
+			{ remaining: 0, withMarker: 100, first: 'e901', last: 'e1000' }
+		);
+		// a pass over all markers for every element is 1000 * 100 reads
+		assert.ok(reads < 1000 * 100, `${reads} reads of the marker array`);
+	});
+
 });

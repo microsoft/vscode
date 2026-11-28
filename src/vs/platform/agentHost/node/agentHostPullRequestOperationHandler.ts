@@ -30,7 +30,7 @@ import { AHP_AUTH_REQUIRED, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolEr
 import { readFolderGitHubState, readSessionGitState, type ChangesetOperationFollowUp, type ISessionFileDiff, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
-import { isSessionChatInFolder, resolveChangesetOwnerScope, resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
+import { getDiffBaseBranch, isFolderOnlyScope, isSessionChatInFolder, readSessionFolderScopeGitState, resolveChangesetOwnerScope, resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { IAgentHostGitHubService } from './agentHostGitHubService.js';
 import { parseGitHubOwnerRepoFromUrl } from './agentHostGitService.js';
@@ -275,7 +275,14 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		const workingDirectory = URI.parse(workingDirectoryStr);
 		// The session's saved Git state describes the session folder only.
 		const storedGitState = gitHubFolder.isSessionFolder ? readSessionGitState(sessionState._meta) : undefined;
-		const recordedBaseBranch = await this._resolveBaseBranch(scope.sourceUri);
+		// A folder of the session on its own uses its own base branch, the one its Branch Changes compare against, not that of the
+		// conversation's folder.
+		let recordedBaseBranch: string | undefined;
+		if (isFolderOnlyScope(this._stateManager, scope)) {
+			recordedBaseBranch = getDiffBaseBranch(readSessionFolderScopeGitState(this._stateManager, scope));
+		} else {
+			recordedBaseBranch = await this._resolveBaseBranch(scope.sourceUri);
+		}
 		const baseBranch = recordedBaseBranch ? await this._gitService.resolveBaseBranch(workingDirectory, recordedBaseBranch) : undefined;
 
 		const currentGitState = await this._gitService.getSessionGitState(workingDirectory, recordedBaseBranch);

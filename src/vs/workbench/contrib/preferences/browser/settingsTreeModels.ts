@@ -407,7 +407,10 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			hasAgentsWindowOverride = this.isSessionsWindow ? !!property?.agentsWindow : !!property?.agentsMode;
 			this.isAgentsReadOnly = this.isSessionsWindow ? !!property?.agentsWindow?.readOnly : !!property?.agentsMode?.readOnly;
 			if (this.isAgentsReadOnly) {
+				// The user's value does not apply, so show the value in effect, as for a policy value
 				isConfigured = false;
+				displayValue = inspected.value;
+				this.scopeValue = inspected.value;
 			}
 		}
 

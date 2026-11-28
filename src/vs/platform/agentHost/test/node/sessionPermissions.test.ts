@@ -1155,14 +1155,35 @@ suite('SessionPermissionManager', () => {
 		});
 	}
 
-	test('other kinds keep the session grant first, while managed and sandbox asks remain one-time', () => {
+	test('kinds without scoped grants default to Allow Once and keep the tool-wide session grant', () => {
+		const kinds = [
+			AgentPermissionKind.Mcp, AgentPermissionKind.Skill, AgentPermissionKind.CustomTool, AgentPermissionKind.Hook,
+			AgentPermissionKind.Memory, AgentPermissionKind.Workflow, AgentPermissionKind.ExtensionManagement,
+			AgentPermissionKind.ExtensionPermissionAccess, AgentPermissionKind.ExtensionEnvAccess, undefined,
+		];
+		assert.deepStrictEqual(
+			kinds.map(permissionKind => permissions.createToolReadyAction(confirmationSignal({ permissionKind }), sessionUri, 'turn').options),
+			kinds.map(() => [
+				{ id: 'allow-once', label: 'Allow Once', kind: 'approve' },
+				{ id: 'allow-session', label: 'Allow in this Session', kind: 'approve', group: 1 },
+				{ id: 'skip', label: 'Skip', kind: 'deny', group: 2 },
+			]),
+		);
+	});
+
+	test('agent-supplied options keep their order, while managed and sandbox asks remain one-time', () => {
+		const agentOptions: ConfirmationOption[] = [
+			{ id: 'approve-all', label: 'Approve All', kind: ConfirmationOptionKind.Approve },
+			{ id: 'allow-once', label: 'Allow Once', kind: ConfirmationOptionKind.Approve },
+		];
+		const agentSignal = confirmationSignal({ permissionKind: AgentPermissionKind.CustomTool });
 		assert.deepStrictEqual([
-			confirmationSignal({ permissionKind: AgentPermissionKind.Mcp }),
+			{ ...agentSignal, state: { ...agentSignal.state, options: agentOptions } },
 			confirmationSignal({ permissionKind: AgentPermissionKind.Shell, managedApprovalRequired: true }),
 			confirmationSignal({ permissionKind: AgentPermissionKind.Url, requestSandboxBypass: true }),
 			confirmationSignal({ permissionKind: AgentPermissionKind.Shell, requestSandboxPermissive: true }),
 		].map(signal => permissions.createToolReadyAction(signal, sessionUri, 'turn').options?.map(option => option.id)), [
-			['allow-session', 'allow-once', 'skip'], ['allow-once', 'skip'], ['allow-once', 'skip'], ['allow-once', 'skip'],
+			['approve-all', 'allow-once'], ['allow-once', 'skip'], ['allow-once', 'skip'], ['allow-once', 'skip'],
 		]);
 	});
 

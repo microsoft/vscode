@@ -134,6 +134,9 @@ export interface IAgentsChatPartService {
 	/** Whether one of its tabs is a new-session composer that has not sent its session yet. */
 	hasComposer(): boolean;
 
+	/** Whether one of its tabs is a new-session composer with something typed or attached, or a send of it under way. */
+	hasDraftComposer(): boolean;
+
 	/** Closes the tabs of new-session composers with nothing typed or attached, and no send under way. */
 	closeIdleComposers(): Promise<void>;
 
@@ -552,6 +555,16 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	hasComposer(): boolean {
 		for (const chat of this._chats.values()) {
 			if (chat.isComposer) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	hasDraftComposer(): boolean {
+		for (const chat of this._chats.values()) {
+			// Also while its send creates its session, after the send cleared what was typed
+			if (this._keepsComposer(chat.input) && !!this._groupOf(chat.input)) {
 				return true;
 			}
 		}

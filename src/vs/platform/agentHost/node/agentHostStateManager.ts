@@ -1639,6 +1639,8 @@ export class AgentHostStateManager extends Disposable {
 		this._dataOnlySessions.add(summary.resource);
 		const restoredState = this._registerRestoredSession(summary, chatStorageResource, (key, chat, storageResource) => {
 			const chatSummary = this._defaultChatSummary(chat, summary, defaultChat.title, defaultChat.modifiedAt, defaultChat.workingDirectories, defaultChat.isRead);
+			// List the chat in state.chats before firing onDidRegisterChat: its listeners may dispatch session actions, which drop unlisted chats
+			this._setDefaultChatSummary(key, chat, chatSummary);
 			this._setChatEntry(chat, {
 				session: key,
 				storageResource,
@@ -1651,7 +1653,6 @@ export class AgentHostStateManager extends Disposable {
 				resolver: defaultChat.resolver,
 				valid: true,
 			});
-			this._setDefaultChatSummary(key, chat, chatSummary);
 		});
 		this._logService.trace(`[AgentHostStateManager] Restored the data of session ${summary.resource} for a move`);
 		return restoredState;
@@ -1728,6 +1729,8 @@ export class AgentHostStateManager extends Disposable {
 	 */
 	private _ensureDefaultChat(sessionKey: string, chatUri: URI, summary: SessionSummary, storageResource: string, turns?: Turn[], draft?: Message, defaultChatTitle?: string, modifiedAt?: string, workingDirectories?: readonly string[], isRead?: boolean, config?: ChatConfigState): void {
 		const chatSummary = this._defaultChatSummary(chatUri, summary, defaultChatTitle, modifiedAt, workingDirectories, isRead);
+		// List the chat in state.chats before firing onDidRegisterChat: its listeners may dispatch session actions, which drop unlisted chats
+		this._setDefaultChatSummary(sessionKey, chatUri, chatSummary);
 		this._setChatEntry(chatUri, {
 			session: sessionKey,
 			storageResource,
@@ -1738,7 +1741,6 @@ export class AgentHostStateManager extends Disposable {
 			config,
 			valid: true,
 		});
-		this._setDefaultChatSummary(sessionKey, chatUri, chatSummary);
 	}
 
 	private _defaultChatSummary(chatUri: URI, summary: SessionSummary, defaultChatTitle: string | undefined, modifiedAt: string | undefined, workingDirectories: readonly string[] | undefined, isRead: boolean | undefined): ChatSummary {

@@ -38,7 +38,7 @@ import { observableConfigValue } from '../../../../../platform/observable/common
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { localize } from '../../../../../nls.js';
+import { localize, localize2 } from '../../../../../nls.js';
 import { SessionsList } from './sessionsList.js';
 import { IPendingSessionItem } from './pendingSessions.js';
 import { SessionsGrouping, SessionsSorting } from './sessionsListCommon.js';
@@ -74,7 +74,7 @@ import { Menus, SessionsViewShowGroup } from '../menus.js';
 import { MobileSessionFilterChips } from '../mobile/mobileSessionFilterChips.js';
 import { IMobileSortGroupSheetItem, showMobileSortGroupSheet } from '../mobile/mobileSortGroupSheet.js';
 import { isPhoneLayout } from '../../../../browser/parts/sessions/mobileLayout.js';
-import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionsListRearrangeContext, SessionWorkspacesEnabledContext } from '../../common/contextkeys.js';
 import { ISessionsHostLayoutService } from '../../../../services/sessions/browser/sessionsHostLayoutService.js';
 import { ISessionsListPresentation } from '../sessionsListPresentation.js';
 import { logSessionsListCompactViewState } from '../../common/sessionsTelemetry.js';
@@ -114,6 +114,14 @@ export interface ISessionsViewGroupingStorageKeys {
 	 */
 	readonly inboxLeft?: { readonly key: string; readonly keptBy: string };
 }
+
+const SEPARATE_GROUPS_AND_WORKSPACES_STORAGE_KEY = 'sessionsViewPane.separateGroupsAndWorkspaces';
+/** Whether Group by Workspace separates groups and workspaces for a user who has not chosen. */
+const DEFAULT_SEPARATE_GROUPS_AND_WORKSPACES = false;
+/** The grouping that listed custom groups and workspaces under headers of their own, which Group by Workspace now does as an option. */
+export const LEGACY_WORKSPACES_AND_GROUPS_GROUPING = 'workspacesAndGroups';
+/** The phone sheet's row that turns {@link SEPARATE_GROUPS_AND_WORKSPACES_LABEL} on or off. */
+const SEPARATE_GROUPS_AND_WORKSPACES_SHEET_ITEM = 'separateGroupsAndWorkspaces';
 
 const DEFAULT_GROUPING_STORAGE_KEYS: ISessionsViewGroupingStorageKeys = {
 	grouping: 'sessionsViewPane.grouping',
@@ -160,6 +168,42 @@ export class SessionsViewGroupingState {
 			return { grouping: this.readNonInboxGrouping(offered, fallback), seed: false };
 		}
 		return { grouping, seed: false };
+	}
+
+	/**
+	 * Whether Group by Workspace lists the custom groups and the workspaces under headers of their own, as the user chose, else
+	 * by default. It takes effect only while workspaces are enabled.
+	 */
+	get separateGroupsAndWorkspaces(): boolean {
+		const stored = this.storageService.get(SEPARATE_GROUPS_AND_WORKSPACES_STORAGE_KEY, StorageScope.PROFILE);
+		return stored === 'true' || stored === 'false' ? stored === 'true' : DEFAULT_SEPARATE_GROUPS_AND_WORKSPACES;
+	}
+
+	/** Fires as the choice whether to separate groups and workspaces is stored, by any view of the profile, until `disposables` is disposed. */
+	onDidChangeSeparateGroupsAndWorkspaces(disposables: DisposableStore): Event<void> {
+		return Event.signal(this.storageService.onDidChangeValue(StorageScope.PROFILE, SEPARATE_GROUPS_AND_WORKSPACES_STORAGE_KEY, disposables));
+	}
+
+	setSeparateGroupsAndWorkspaces(separate: boolean): void {
+		// One choice for every view of the profile, whichever view's keys stay on the machine
+		this.storageService.store(SEPARATE_GROUPS_AND_WORKSPACES_STORAGE_KEY, separate, StorageScope.PROFILE, StorageTarget.USER);
+	}
+
+	/**
+	 * Stores a stored choice of the former Workspaces & Groups grouping, as the grouping or as the one Inbox returns to, as
+	 * Group by Workspace with groups and workspaces separate, whether or not workspaces are enabled.
+	 */
+	migrateWorkspacesAndGroupsGrouping(): void {
+		let migrated = false;
+		for (const key of [this.keys.grouping, this.keys.nonInboxGrouping]) {
+			if (this.storageService.get(key, StorageScope.PROFILE) === LEGACY_WORKSPACES_AND_GROUPS_GROUPING) {
+				this.storageService.store(key, SessionsGrouping.Workspace, StorageScope.PROFILE, this.keys.target ?? StorageTarget.USER);
+				migrated = true;
+			}
+		}
+		if (migrated) {
+			this.setSeparateGroupsAndWorkspaces(true);
+		}
 	}
 
 	/** Stores the grouping the view opens with, without forgetting that Inbox was left. */
@@ -323,6 +367,10 @@ export const ChatViewSessionsListContext = new RawContextKey<boolean>('chatViewS
 /** The `when` of the actions of the shared sessions list in the title of the Chat view. */
 export const ChatViewSessionsListTitleContext = ContextKeyExpr.and(ContextKeyExpr.equals('view', ChatViewId), ChatViewSessionsListContext, ChatContextKeys.enabled, ChatContextKeys.agentSessionsViewerVisible, ChatContextKeys.sessionsListSearchOpen.negate())!;
 export const SessionsViewCompactContext = new RawContextKey<boolean>('sessionsViewPane.compact', false);
+/** Whether Group by Workspace lists the custom groups and the workspaces under headers of their own, as the user chose. */
+export const SessionsViewSeparateGroupsAndWorkspacesContext = new RawContextKey<boolean>('sessionsViewPane.separateGroupsAndWorkspaces', DEFAULT_SEPARATE_GROUPS_AND_WORKSPACES);
+/** The label of the option of Group by Workspace that lists the custom groups and the workspaces under headers of their own. */
+export const SEPARATE_GROUPS_AND_WORKSPACES_LABEL = localize2('separateGroupsAndWorkspaces', "Separate Groups and Workspaces");
 export const IsWorkspaceGroupCappedContext = new RawContextKey<boolean>('sessionsViewPane.workspaceGroupCapped', true);
 /** The groupings a Sessions view offers by default, as the Agents window's does: all of them. */
 export const DEFAULT_SESSIONS_GROUPINGS: readonly SessionsGrouping[] = Object.values(SessionsGrouping);
@@ -491,6 +539,7 @@ export class SessionsView extends ViewPane {
 	private groupingContextKey: IContextKey | undefined;
 	private sortingContextKey: IContextKey | undefined;
 	private compactContextKey: IContextKey<boolean> | undefined;
+	private separateGroupsAndWorkspacesContextKey: IContextKey<boolean> | undefined;
 	private workspaceGroupCappedContextKey: IContextKey<boolean> | undefined;
 	/** Context keys of filter menu toggles, each with a reader of the list state it mirrors. */
 	private readonly filterContextKeys = new Map<string, { key: IContextKey<boolean>; read: () => boolean }>();
@@ -591,10 +640,19 @@ export class SessionsView extends ViewPane {
 		bindSessionsViewGroupings(contextKeyService, this.offeredGroupings);
 		this.groupingContextKey = SessionsViewGroupingContext.bindTo(contextKeyService);
 		this.groupingContextKey.set(this.grouping);
+		// Group by Workspace separates groups and workspaces only while workspaces are on
+		this._register(contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(new Set([SessionWorkspacesEnabledContext.key, ChatContextKeys.enabled.key])) && this.grouping === SessionsGrouping.Workspace) {
+				this.sessionsControl?.update(true);
+			}
+		}));
 		this.sortingContextKey = SessionsViewSortingContext.bindTo(contextKeyService);
 		this.sortingContextKey.set(this.currentSorting);
 		this.compactContextKey = SessionsViewCompactContext.bindTo(contextKeyService);
 		this.compactContextKey.set(this.currentCompact);
+		this.separateGroupsAndWorkspacesContextKey = SessionsViewSeparateGroupsAndWorkspacesContext.bindTo(contextKeyService);
+		this.separateGroupsAndWorkspacesContextKey.set(this.groupingState.separateGroupsAndWorkspaces);
+		this.followSeparateGroupsAndWorkspaces();
 
 		// Bind workspace group capped context key (will be synced with persisted state in renderBody)
 		this.workspaceGroupCappedContextKey = IsWorkspaceGroupCappedContext.bindTo(contextKeyService);
@@ -727,6 +785,7 @@ export class SessionsView extends ViewPane {
 			grouping: () => this.grouping,
 			sorting: () => this.currentSorting,
 			compact: () => this.currentCompact,
+			separateGroupsAndWorkspaces: () => this.separateGroupsAndWorkspaces,
 			showNavigationShortcuts: () => this.navigationShortcutsVisible,
 			showCustomizations: () => this.customizationsPresentation === 'treatment',
 			customizationsCount: this.customizationsNavigationState.totalCount,
@@ -1750,6 +1809,12 @@ export class SessionsView extends ViewPane {
 				checked: this.grouping === SessionsGrouping.Date,
 				group: 'group',
 			},
+			...(this.grouping === SessionsGrouping.Workspace && this.workspacesEnabled ? [{
+				id: SEPARATE_GROUPS_AND_WORKSPACES_SHEET_ITEM,
+				label: SEPARATE_GROUPS_AND_WORKSPACES_LABEL.value,
+				checked: this.groupingState.separateGroupsAndWorkspaces,
+				group: 'layout',
+			}] : []),
 		];
 		showMobileSortGroupSheet(this.layoutService.mainContainer, localize('sortGroupSheet.title', "Sort"), items).then(selectedId => {
 			if (!selectedId) {
@@ -1757,14 +1822,27 @@ export class SessionsView extends ViewPane {
 			}
 			if (selectedId === SessionsSorting.Created || selectedId === SessionsSorting.Updated) {
 				this.setSorting(selectedId);
+			} else if (selectedId === SEPARATE_GROUPS_AND_WORKSPACES_SHEET_ITEM) {
+				this.toggleSeparateGroupsAndWorkspaces();
 			} else if (selectedId === SessionsGrouping.Workspace || selectedId === SessionsGrouping.Repository || selectedId === SessionsGrouping.Environment || selectedId === SessionsGrouping.Date) {
 				this.setGrouping(selectedId);
 			}
 		}).catch(onUnexpectedError);
 	}
 
+	/** Whether workspaces and chat are on, which separating groups and workspaces needs. */
+	private get workspacesEnabled(): boolean {
+		return !!this.scopedContextKeyService.getContextKeyValue<boolean>(SessionWorkspacesEnabledContext.key)
+			&& !!this.scopedContextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key);
+	}
+
 	get grouping(): SessionsGrouping {
 		return this.currentGrouping ?? this.groupings?.default ?? SessionsGrouping.Workspace;
+	}
+
+	/** Whether Group by Workspace lists the custom groups and the workspaces under headers of their own: as the user chose, while workspaces are on. */
+	get separateGroupsAndWorkspaces(): boolean {
+		return this.groupingState.separateGroupsAndWorkspaces && this.workspacesEnabled;
 	}
 
 	private get offeredGroupings(): readonly SessionsGrouping[] {
@@ -1796,6 +1874,7 @@ export class SessionsView extends ViewPane {
 	}
 
 	private initializeGrouping(): void {
+		this.groupingState.migrateWorkspacesAndGroupsGrouping();
 		const { grouping, seed } = this.readStoredGrouping();
 		this.currentGrouping = grouping;
 		if (this.leaveInboxWithoutChat) {
@@ -1869,12 +1948,15 @@ export class SessionsView extends ViewPane {
 	 */
 	private restoreStoredGrouping(): void {
 		this.sessionsControl?.filters.reload();
+		this.groupingState.migrateWorkspacesAndGroupsGrouping();
 		this.mountedNonInboxGrouping = this.storedNonInboxGrouping;
 		const stored = this.readStoredGrouping().grouping;
 		const grouping = stored === SessionsGrouping.Inbox && !this.inboxAvailable ? this.nonInboxGrouping : stored;
 		if (this.currentGrouping === grouping) {
+			this.showSeparateGroupsAndWorkspaces();
 			return;
 		}
+		this.separateGroupsAndWorkspacesContextKey?.set(this.groupingState.separateGroupsAndWorkspaces);
 		// Read only: the sections show the collapse state the profile stores, which a reset would change, in either profile
 		this.currentGrouping = grouping;
 		this.groupingContextKey?.set(this.grouping);
@@ -1980,5 +2062,38 @@ export class SessionsView extends ViewPane {
 
 	toggleCompact(): void {
 		this.setCompact(!this.currentCompact);
+	}
+
+	setSeparateGroupsAndWorkspaces(separate: boolean): void {
+		if (this.groupingState.separateGroupsAndWorkspaces === separate) {
+			return;
+		}
+
+		this.groupingState.setSeparateGroupsAndWorkspaces(separate);
+		this.showSeparateGroupsAndWorkspaces();
+	}
+
+	/**
+	 * Shows the stored choice whether to separate groups and workspaces, as this view or another, such as one in another window,
+	 * made it: its checkmark and, while grouped by workspace, the list.
+	 */
+	private showSeparateGroupsAndWorkspaces(): void {
+		const separate = this.groupingState.separateGroupsAndWorkspaces;
+		if (!this.separateGroupsAndWorkspacesContextKey || this.separateGroupsAndWorkspacesContextKey.get() === separate) {
+			return;
+		}
+		this.separateGroupsAndWorkspacesContextKey.set(separate);
+		if (this.grouping === SessionsGrouping.Workspace) {
+			this.sessionsControl?.update(true);
+		}
+	}
+
+	/** Shows the choice whether to separate groups and workspaces as another view, such as one in another window, stores it. */
+	private followSeparateGroupsAndWorkspaces(): void {
+		this._register(this.groupingState.onDidChangeSeparateGroupsAndWorkspaces(this._store)(() => this.showSeparateGroupsAndWorkspaces()));
+	}
+
+	toggleSeparateGroupsAndWorkspaces(): void {
+		this.setSeparateGroupsAndWorkspaces(!this.groupingState.separateGroupsAndWorkspaces);
 	}
 }

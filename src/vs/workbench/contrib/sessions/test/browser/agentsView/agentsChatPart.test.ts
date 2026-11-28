@@ -44,7 +44,7 @@ import { INewSessionTarget } from '../../../browser/parts/chatView.js';
 import { fromStoredChatDraft, toStoredChatDraft } from '../../../common/newChatDraftState.js';
 import { IChatViewFactory } from '../../../browser/chatViewFactory.js';
 import { ISessionGroupsService } from '../../../browser/sessionGroupsService.js';
-import { INewSessionDraftSlot, ISessionChange, ISessionsManagementService } from '../../../common/sessionsManagement.js';
+import { INewSessionDraftSlot, INewSessionRequestAcceptedEvent, ISessionChange, ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../common/sessionConfig.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { buildTestSession } from '../../common/testSessionBuilder.js';
@@ -300,10 +300,13 @@ suite('AgentsChatPartService', () => {
 		};
 		let liveSlots = 0;
 		let nextSlot = 0;
+		const slots: INewSessionDraftSlot[] = [];
+		const acceptedRequests = store.add(new Emitter<INewSessionRequestAcceptedEvent>());
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
 			onDidChangeSessions: counted(sessionsChanged),
 			onDidChangeSession: counted(allSessionsChanged),
-			onDidAcceptNewSessionRequest: Event.None,
+			onDidAcceptNewSessionRequest: acceptedRequests.event,
+			onDidEndNewSessionRequest: Event.None,
 			onDidReplaceSession: Event.None,
 			onDidReplaceNewDraftSession: Event.None,
 			getSessions: () => [],
@@ -319,7 +322,9 @@ suite('AgentsChatPartService', () => {
 			},
 			createNewSessionSlot: () => {
 				liveSlots++;
-				return upcastPartial<INewSessionDraftSlot & IDisposable>({ id: `slot-${nextSlot++}`, newSession: options?.newSession ?? constObservable(undefined), dispose: () => { liveSlots--; } });
+				const slot = upcastPartial<INewSessionDraftSlot & IDisposable>({ id: `slot-${nextSlot++}`, newSession: options?.newSession ?? constObservable(undefined), dispose: () => { liveSlots--; } });
+				slots.push(slot);
+				return slot;
 			},
 		}));
 		instantiationService.stub(ISessionsListModelService, upcastPartial<ISessionsListModelService>({ getStatusIcon: () => Codicon.circle }));
@@ -392,6 +397,8 @@ suite('AgentsChatPartService', () => {
 				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (candidate: string) => candidate === key }));
 			},
 			setChatEnabled: (enabled: boolean) => contextKeyService.setValue(ChatContextKeys.enabled.key, enabled),
+			/** Accepts the foreground send of the composer created last, whose session is then still being created. */
+			acceptSend: (session: ISession) => acceptedRequests.fire({ session, owner: slots.at(-1)!, background: false }),
 			fireSessionsChanged: (added: readonly ISession[], removed: readonly ISession[] = []) => {
 				sessionsChanged.fire({ added, removed, changed: [] } as never);
 				allSessionsChanged.fire(toSessionChanges(added, removed) as never);
@@ -440,6 +447,16 @@ suite('AgentsChatPartService', () => {
 		status.set(SessionStatus.InProgress, undefined);
 
 		assert.deepStrictEqual({ draft, untitled, firstTurn: active() }, { draft: 'none', untitled: 'none', firstTurn: { session: true, chat: true } });
+	});
+
+	test('a composer counts as a draft also while its send creates its session, after the send cleared what was typed', async () => {
+		const { service, acceptSend } = createService();
+
+		await service.openComposer(undefined);
+		const empty = service.hasDraftComposer();
+		acceptSend(sentSession('sending'));
+
+		assert.deepStrictEqual({ empty, sending: service.hasDraftComposer() }, { empty: false, sending: true });
 	});
 
 	test('the session a composer\'s first send made shows as committed, until the user picks its tab again', async () => {
