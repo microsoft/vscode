@@ -457,7 +457,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 		output.push(line);
 
 		// Conf Files
-		if (workspaceStats.configFiles.length >= 0) {
+		if (workspaceStats.configFiles.length > 0) {
 			line = '|      Conf files:';
 			col = 0;
 			workspaceStats.configFiles.forEach((item) => {
