@@ -271,14 +271,14 @@ suite('Floating comment heading styles', () => {
 		const comment: Comment = { body: 'A review comment', uniqueIdInThread: 1, userName: 'Reviewer' };
 		const node = store.add(instantiationService.createInstance(
 			CommentNode<IRange>, { getLayoutInfo: () => ({ height: 500 }) }, thread, comment, undefined, 'test', URI.parse('test:/file'),
-			{ submitComment: async () => { }, collapse: () => { } }, {}, false
+			{ submitComment: async () => { }, collapse: () => { } }, {}, false, true
 		));
 		const widget = createWidget();
 		const body = dom.append(widget, dom.$('.body'));
 		dom.append(body, node.domNode);
 		const avatar = node.domNode.querySelector<HTMLElement>('.avatar-container')!;
 		const author = node.domNode.querySelector<HTMLElement>('.author')!;
-		const message = node.domNode.querySelector<HTMLElement>('.monaco-scrollable-element')!;
+		const message = node.domNode.querySelector<HTMLElement>('.comment-body')!;
 		const state = () => {
 			const icon = avatar.querySelector<HTMLElement>('.comment-avatar-default');
 			return {

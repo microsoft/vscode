@@ -46,7 +46,8 @@ export interface ICommentThreadWidgetOptions {
 	/**
 	 * Lets only the comments scroll, within the height set by {@link CommentThreadWidget.layoutCommentsHeight}, so that
 	 * the reply and the additional actions below them stay in view. When the thread is too short even for those, such
-	 * as in a short editor, the whole body scrolls.
+	 * as in a short editor, the whole body scrolls. Each comment shows its body in full rather than scrolling it within
+	 * its own height, and a long comment can be collapsed instead.
 	 */
 	readonly scrollableComments?: boolean;
 	/** The title to show for a non-empty thread that has no label. */

@@ -206,6 +206,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		const viewport = dom.$('.comments-scroll-viewport');
 		viewport.appendChild(this._commentsElement);
 		const scrollable = this._commentsScrollable = this._register(new DomScrollableElement(viewport, {
+			className: 'comments-scrollable',
 			vertical: ScrollbarVisibility.Auto,
 			horizontal: ScrollbarVisibility.Hidden
 		}));
@@ -232,6 +233,17 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		}, dom.getWindow(this.container)));
 		this._register(resizeObserver.observe(this._commentsElement));
 		this._register(resizeObserver.observe(scrollable.getDomNode()));
+	}
+
+	/**
+	 * Scrolls scrollable comments to the start of a comment that was collapsed when its start is above them, so that
+	 * the comment doesn't shrink out of view.
+	 */
+	private _revealCollapsedComment(commentNode: CommentNode<T>): void {
+		const viewport = this._commentsScrollable?.getDomNode();
+		if (viewport && commentNode.domNode.getBoundingClientRect().top < viewport.getBoundingClientRect().top) {
+			this.revealComment(commentNode.comment.uniqueIdInThread);
+		}
 	}
 
 	private _containerClientArea: dom.Dimension | undefined = undefined;
@@ -398,12 +410,14 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 			this.parentResourceUri,
 			this._parentCommentThreadWidget,
 			this._markdownRendererOptions,
-			this._reactionPickerInTitle) as unknown as CommentNode<T>;
+			this._reactionPickerInTitle,
+			this._scrollableComments) as unknown as CommentNode<T>;
 
 		const disposables: DisposableStore = new DisposableStore();
 		disposables.add(newCommentNode.onDidClick(clickedNode =>
 			this._setFocusedComment(this._commentElements.findIndex(commentNode => commentNode.comment.uniqueIdInThread === clickedNode.comment.uniqueIdInThread))
 		));
+		disposables.add(newCommentNode.onDidCollapseBody(collapsedNode => this._revealCollapsedComment(collapsedNode)));
 		disposables.add(newCommentNode);
 		this._commentDisposable.set(newCommentNode, disposables);
 

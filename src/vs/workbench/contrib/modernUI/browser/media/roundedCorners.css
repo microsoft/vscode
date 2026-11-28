@@ -140,9 +140,11 @@
  * off there is no `.diffViewport`, so the real slider is the sole scrollbar and
  * should stay rounded on all corners like every other scrollbar. The
  * `modified-in-monaco-diff-editor` class lives on the `.monaco-editor` root, so
- * target the slider as a descendant.
+ * target the slider of the editor's own scrollable element through its
+ * overflow guard, rather than those of the widgets that the editor shows, such
+ * as floating comments.
  */
-.modern-ui .monaco-diff-editor.has-diff-overview .modified-in-monaco-diff-editor .monaco-scrollable-element > .scrollbar.vertical > .slider {
+.modern-ui .monaco-diff-editor.has-diff-overview .modified-in-monaco-diff-editor > .overflow-guard > .editor-scrollable > .scrollbar.vertical > .slider {
 	border-radius: var(--vscode-cornerRadius-small) 0 0 var(--vscode-cornerRadius-small);
 }
 
