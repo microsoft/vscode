@@ -124,6 +124,7 @@
 		box-sizing: border-box;
 		-webkit-user-select: none;
 		user-select: none;
+		container: agent-sessions-header-row / inline-size;
 	}
 
 	.agent-sessions-header-label {
@@ -248,7 +249,8 @@
 		justify-content: center;
 	}
 
-	/* "New" split button in header — styled in newSplitButton/media/newSplitButton.css, as in the Chat view's sessions list. */
+	/* "New" split button in header — styled in newSplitButton/media/newSplitButton.css, as in the Chat view's sessions list.
+	It hides its keybinding in a narrow header row (agent-sessions-header-row container below). */
 
 	.agent-sessions-control-container {
 		flex: 1;
@@ -331,6 +333,14 @@
 	.agent-sessions-customizations-section {
 		overflow: hidden;
 		min-height: 0;
+	}
+}
+
+/* The New split button, Filter, Search and More Actions take 190px with a "Ctrl+N" keybinding. Below that the keybinding
+hides, so that the actions still fit at the minimum width of the sidebar. */
+@container agent-sessions-header-row (max-width: 189px) {
+	.agent-sessions-viewpane .agent-sessions-header-actions .monaco-action-bar .actions-container .action-item.new-split-button .action-label > .new-split-button-keybinding {
+		display: none;
 	}
 }
 
