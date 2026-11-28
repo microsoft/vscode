@@ -1,0 +1,51 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.automation-import-drop-target {
+	position: relative;
+}
+
+/* Its top, left, width and height are set while a drag hovers, to cover the part of the drop target on screen. */
+.automation-import-drop-overlay {
+	position: absolute;
+	z-index: 10;
+	display: none;
+	align-items: center;
+	justify-content: center;
+	pointer-events: none;
+}
+
+.automation-import-drop-overlay.visible {
+	display: flex;
+}
+
+/* A drop here imports: the tint every drop target in the window shows, outlined where a theme has contrast borders. */
+.automation-import-drop-overlay.accept {
+	background-color: var(--vscode-editorGroup-dropBackground);
+	outline: 2px dashed var(--vscode-contrastActiveBorder, transparent);
+	outline-offset: -2px;
+}
+
+/* The label's text carries the meaning; its icon repeats it. */
+.automation-import-drop-overlay .drop-overlay-label {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+}
+
+.automation-import-drop-overlay .automation-import-drop-icon {
+	flex: none;
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.automation-import-drop-overlay.reject .automation-import-drop-icon {
+	color: var(--vscode-errorForeground);
+}
+
+.automation-import-drop-overlay .automation-import-drop-text {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}

@@ -39,6 +39,7 @@ import { AutomationsModalCommands } from '../../browser/automationsModalActions.
 import { AutomationCommands } from '../../browser/automationCommands.js';
 import { AutomationsModalWidget } from '../../browser/automationsModalWidget.js';
 import { TableAutomationService, TableEnvironmentService, TableRemoteService, tableAutomation, setupModalHistoryServices } from './automationsTableTestUtils.js';
+import { createDragEvent, fileDataTransfer, ProtectedModeDataTransfer } from './automationDragTestUtils.js';
 import { createTestSession } from '../../../sessions/test/browser/sessionsListTestUtils.js';
 import { SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { AutomationDisableConditionKind } from '../../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
@@ -648,6 +649,16 @@ suite('Automations modal table', () => {
 		manual.click();
 		assert.deepStrictEqual({ label: manual.textContent, command: commands.at(-1)?.id }, {
 			label: 'Create Manually', command: 'sessionsView.newAutomation',
+		});
+	});
+
+	test('dragging an automation file over the modal offers to import it', () => {
+		const { widget } = setup();
+		const file = new File(['x'], 'review.automation.md', { type: 'text/markdown' });
+		widget.domNode.dispatchEvent(createDragEvent(dom.EventType.DRAG_ENTER, new ProtectedModeDataTransfer(fileDataTransfer(file))));
+		const overlay = widget.domNode.querySelector('.automation-import-drop-overlay');
+		assert.deepStrictEqual({ className: overlay?.className, label: overlay?.textContent }, {
+			className: 'automation-import-drop-overlay visible accept', label: 'Import Automation File',
 		});
 	});
 

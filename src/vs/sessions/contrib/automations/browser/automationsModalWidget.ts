@@ -52,6 +52,7 @@ import { ShowSharedAutomationsByOthersContext } from '../../../common/agentsWind
 import { formatAutomationRunStatus, formatSchedule, getAutomationsViewContent, getAutomationRemoteStatusPresentation, getConnectedAutomationRemoteCount, getUnavailableAutomationsReasons } from '../../sessions/browser/views/automationCataloguePresentation.js';
 import { automationRunWithLocalProgress, isLocalAutomationRunStarting } from '../../sessions/browser/views/automationRunProgress.js';
 import { AutomationCommands } from './automationCommands.js';
+import { AutomationImportDropTarget } from './automationImportDropTarget.js';
 import { IAutomationRunDispatch } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { getAutomationAfterDate } from '../../../../platform/agentHost/common/automationDisableConditions.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
@@ -279,6 +280,7 @@ export class AutomationsModalWidget extends Disposable {
 		}));
 		const resizeObserver = this._register(new dom.DisposableResizeObserver('AutomationsTable', () => this.layout(), dom.getWindow(this.domNode)));
 		this._register(resizeObserver.observe(this.domNode));
+		this._register(scopedInstantiationService.createInstance(AutomationImportDropTarget, this.domNode));
 		const configurationChanged = observableSignalFromEvent(this, configurationService.onDidChangeConfiguration);
 		const remotesChanged = observableSignalFromEvent(this, Event.any(remoteAgentHostService.onDidChangeConfiguredEntries, remoteAgentHostService.onDidChangeConnections));
 		const sessionsChanged = observableSignalFromEvent(this, sessionsManagementService.onDidChangeSessions);
