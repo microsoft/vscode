@@ -501,6 +501,37 @@ suite('WebPubSubRelayTransport', () => {
 		assert.deepStrictEqual({ initialized, reconnecting, open: transport.isOpen }, { initialized: true, reconnecting: true, open: false });
 	}));
 
+	test('delivers only current ping replies without completing or extending the handshake', () => runWithFakedTimers({}, async () => {
+		const fake = new FakeWebSocket();
+		const transport = createTransport(fake);
+		const received: ProtocolMessage[] = [];
+		store.add(transport.onMessage(message => received.push(message)));
+		await connectHandshake(transport, fake);
+		transport.send({ jsonrpc: '2.0', id: 1, method: 'reconnect', params: {} });
+		transport.send({ jsonrpc: '2.0', id: 2, method: 'ping', params: { channel: 'ahp-root://' } });
+		transport.send({ jsonrpc: '2.0', id: 3, method: 'initialize', params: {} });
+		transport.send({ jsonrpc: '2.0', id: 4, method: 'ping', params: { channel: 'ahp-root://' } });
+		transport.send({ jsonrpc: '2.0', id: 5, method: 'ping', params: { channel: 'ahp-root://' } });
+		for (const publish of fake.sentApplicationPublishes()) {
+			fake.emit({ type: 'ack', ackId: publish['ackId'], success: true });
+		}
+		await timeout(25_000);
+		const pong = { jsonrpc: '2.0', id: 4, result: {} } as const;
+		const unsupported = { jsonrpc: '2.0', id: 5, error: { code: -32601, message: 'Method not found' } } as const;
+		fake.emitGroupMessage(1, { kind: 'message', data: { ...pong, id: 2 } });
+		fake.emitGroupMessage(2, { kind: 'message', data: pong }, BROADCAST);
+		fake.emitGroupMessage(3, { kind: 'message', data: pong }, 'user.other.env.other.client.c1.to-client');
+		fake.emit({ type: 'message', from: 'group', group: TO_CLIENT, dataType: 'json', sequenceId: 4, data: { kind: 'closed', generation: 7 } });
+		fake.emitGroupMessage(5, { kind: 'message', generation: 7, data: pong });
+		fake.emitGroupMessage(6, { kind: 'message', data: { jsonrpc: '2.0', id: 4, error: null } });
+		const beforeReply = received.length;
+		fake.emitGroupMessage(7, { kind: 'message', data: pong });
+		fake.emitGroupMessage(8, { kind: 'message', data: pong });
+		fake.emitGroupMessage(9, { kind: 'message', generation: 8, data: unsupported });
+		await timeout(5000);
+		assert.deepStrictEqual({ beforeReply, received, reason: transport.closeReason }, { beforeReply: 0, received: [pong, unsupported], reason: 'hostHandshakeTimeout' });
+	}));
+
 	test('keeps an established socket and protocol handshake across admission token lifetimes', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 3000 }, async () => {
 		const fake = new FakeWebSocket();
 		let socketCreations = 0;
