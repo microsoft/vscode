@@ -52,7 +52,7 @@ import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.
 import type { IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IListStyles } from '../../../../base/browser/ui/list/listWidget.js';
-import { PANEL_BACKGROUND, PANEL_SECTION_DRAG_AND_DROP_BACKGROUND, PANEL_STICKY_SCROLL_BACKGROUND, PANEL_STICKY_SCROLL_BORDER, PANEL_STICKY_SCROLL_SHADOW, SIDE_BAR_BACKGROUND, SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_STICKY_SCROLL_BACKGROUND, SIDE_BAR_STICKY_SCROLL_BORDER, SIDE_BAR_STICKY_SCROLL_SHADOW } from '../../../common/theme.js';
+import { PANEL_BACKGROUND, PANEL_SECTION_DRAG_AND_DROP_BACKGROUND, PANEL_STICKY_SCROLL_BACKGROUND, PANEL_STICKY_SCROLL_BORDER, PANEL_STICKY_SCROLL_SHADOW, SIDE_BAR_BACKGROUND, SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_STICKY_SCROLL_BACKGROUND, SIDE_BAR_STICKY_SCROLL_BORDER, SIDE_BAR_STICKY_SCROLL_SHADOW, PANEL_FOREGROUND, SIDE_BAR_FOREGROUND } from '../../../common/theme.js';
 import { IAccessibleViewInformationService } from '../../../services/accessibility/common/accessibleViewInformationService.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ViewMenuActions } from './viewMenuActions.js';
@@ -891,16 +891,18 @@ export abstract class FilterViewPane extends ViewPane {
 
 export interface IViewPaneLocationColors {
 	background: string;
+	foreground: string;
 	overlayBackground: string;
 	listOverrideStyles: PartialExcept<IListStyles, 'listBackground' | 'treeStickyScrollBackground'>;
 }
 
 export function getLocationBasedViewColors(location: ViewContainerLocation | null): IViewPaneLocationColors {
-	let background, overlayBackground, stickyScrollBackground, stickyScrollBorder, stickyScrollShadow;
+	let background, foreground, overlayBackground, stickyScrollBackground, stickyScrollBorder, stickyScrollShadow;
 
 	switch (location) {
 		case ViewContainerLocation.Panel:
 			background = PANEL_BACKGROUND;
+			foreground = PANEL_FOREGROUND;
 			overlayBackground = PANEL_SECTION_DRAG_AND_DROP_BACKGROUND;
 			stickyScrollBackground = PANEL_STICKY_SCROLL_BACKGROUND;
 			stickyScrollBorder = PANEL_STICKY_SCROLL_BORDER;
@@ -911,6 +913,7 @@ export function getLocationBasedViewColors(location: ViewContainerLocation | nul
 		case ViewContainerLocation.AuxiliaryBar:
 		default:
 			background = SIDE_BAR_BACKGROUND;
+			foreground = SIDE_BAR_FOREGROUND;
 			overlayBackground = SIDE_BAR_DRAG_AND_DROP_BACKGROUND;
 			stickyScrollBackground = SIDE_BAR_STICKY_SCROLL_BACKGROUND;
 			stickyScrollBorder = SIDE_BAR_STICKY_SCROLL_BORDER;
@@ -919,6 +922,7 @@ export function getLocationBasedViewColors(location: ViewContainerLocation | nul
 
 	return {
 		background,
+		foreground,
 		overlayBackground,
 		listOverrideStyles: {
 			listBackground: background,

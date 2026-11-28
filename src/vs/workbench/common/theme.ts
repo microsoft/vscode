@@ -503,6 +503,8 @@ export const PANEL_BORDER = registerColor('panel.border', {
 	hcLight: contrastBorder
 }, localize('panelBorder', "Panel border color to separate the panel from the editor. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
+export const PANEL_FOREGROUND = registerColor('panel.foreground', null, localize('panelForeground', "Panel foreground color. Panels are shown below the editor area and contain views like output and integrated terminal."));
+
 export const PANEL_TITLE_BORDER = registerColor('panelTitle.border', {
 	dark: null,
 	light: null,
