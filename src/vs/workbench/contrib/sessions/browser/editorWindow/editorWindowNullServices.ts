@@ -121,6 +121,7 @@ export class EditorWindowAgentFeedbackService implements IAgentFeedbackService {
 	}
 	acceptFeedback(): void { }
 	removeFeedback(): void { }
+	removeFeedbacks(): void { }
 	updateFeedback(): void { }
 	updateFeedbackSourcePullRequest(): void { }
 	setFeedbackResolved(): void { }

@@ -123,9 +123,7 @@ class FeedbackFileRenderer implements ITreeRenderer<IFeedbackFileElement, void, 
 				ThemeIcon.asClassName(Codicon.close),
 				true,
 				() => {
-					for (const item of element.items) {
-						service.removeFeedback(sessionResource, item.id);
-					}
+					service.removeFeedbacks(sessionResource, Array.from(element.items, item => item.id));
 				}
 			), { icon: true, label: false });
 		}
