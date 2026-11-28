@@ -2098,6 +2098,9 @@ export class SessionConversationActionsContribution extends Disposable implement
 	}
 }
 
+/** The Side Chats submenu shows about 15 entries before it scrolls. */
+const SIDE_CHATS_MENU_MAX_HEIGHT = 360;
+
 for (const menu of SessionHeaderMenus) {
 	MenuRegistry.appendMenuItem(menu, {
 		submenu: MenuId.ChatViewMode,
@@ -2113,6 +2116,8 @@ for (const menu of SessionHeaderMenus) {
 		icon: Codicon.commentDiscussion,
 		group: 'secondary/0_pane',
 		order: 40,
+		// A session can have many side chats: keep the submenu short and let it scroll.
+		maxHeight: SIDE_CHATS_MENU_MAX_HEIGHT,
 		when: ContextKeyExpr.and(
 			SessionIsCreatedContext,
 			SessionIsArchivedContext.negate(),

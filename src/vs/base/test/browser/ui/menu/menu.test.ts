@@ -436,6 +436,32 @@ suite('Menu', () => {
 		}
 	}
 
+	test('a submenu with a max height caps its own menu but not nested submenus (#325361)', () => {
+		const host = append(document.body, $('.monaco-workbench'));
+		disposables.add(toDisposable(() => host.remove()));
+		const root = host.appendChild($('.context-view'));
+		const child = disposables.add(new Action('child', 'Child'));
+		const nested = new SubmenuAction('nested', 'Nested', [child]);
+		const submenu = new SubmenuAction('submenu', 'Submenu', [nested], undefined, undefined, 100);
+		disposables.add(new Menu(root, [submenu], {}, unthemedMenuStyles));
+
+		root.querySelector<HTMLElement>('.monaco-submenu-item')!.dispatchEvent(new KeyboardEvent(EventType.KEY_UP, { key: 'ArrowRight', keyCode: 39, bubbles: true }));
+		const first = root.querySelector<HTMLElement>('.monaco-submenu')!;
+		first.querySelector<HTMLElement>('.monaco-submenu-item')!.dispatchEvent(new KeyboardEvent(EventType.KEY_UP, { key: 'ArrowRight', keyCode: 39, bubbles: true }));
+		const second = first.querySelector<HTMLElement>('.monaco-submenu')!;
+		const maxHeight = (container: HTMLElement) => parseFloat(container.querySelector<HTMLElement>('.monaco-menu')!.style.maxHeight);
+
+		assert.deepStrictEqual({
+			rootCapped: maxHeight(root) <= 100,
+			submenu: maxHeight(first),
+			nestedCapped: maxHeight(second) <= 100,
+		}, {
+			rootCapped: false,
+			submenu: 100,
+			nestedCapped: false,
+		});
+	});
+
 	suite('window controls overlay (#165454)', () => {
 		interface IOpenOptions {
 			readonly overlay: DOMRect | undefined;

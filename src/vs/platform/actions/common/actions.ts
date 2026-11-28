@@ -35,6 +35,12 @@ export interface ISubmenuItem {
 	when?: ContextKeyExpression;
 	/** Submenu item is checked if this expression returns true. */
 	toggled?: ContextKeyExpression;
+	/**
+	 * The maximum height, in pixels, of the menu that shows the submenu's
+	 * actions. Longer menus scroll. When not set, the menu is only limited
+	 * by the window.
+	 */
+	maxHeight?: number;
 	group?: 'navigation' | string;
 	order?: number;
 	isSelection?: boolean;
@@ -651,7 +657,7 @@ export class SubmenuItemAction extends SubmenuAction {
 		/** The {@link IMenuGroup.title title} of the menu group the submenu belongs to. */
 		readonly groupTitle?: string,
 	) {
-		super(`submenuitem.${item.submenu.id}`, typeof item.title === 'string' ? item.title : item.title.value, actions, 'submenu', checked);
+		super(`submenuitem.${item.submenu.id}`, typeof item.title === 'string' ? item.title : item.title.value, actions, 'submenu', checked, item.maxHeight);
 	}
 }
 
