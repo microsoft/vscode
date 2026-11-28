@@ -2785,6 +2785,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			return;
 		}
 
+		const viewIndex = this._list.getViewIndex(cell);
+		if (viewIndex === undefined || viewIndex < 0 || viewIndex >= this._list.length) {
+			return;
+		}
+
 		const webviewTop = parseInt(this._list.webviewElement.domNode.style.top, 10);
 		const top = !!webviewTop ? (0 - webviewTop) : 0;
 

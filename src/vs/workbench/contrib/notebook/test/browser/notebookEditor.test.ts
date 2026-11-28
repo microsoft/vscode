@@ -23,6 +23,7 @@ import { IPreferencesService } from '../../../../services/preferences/common/pre
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { NotebookEditor } from '../../browser/notebookEditor.js';
 import { getDefaultNotebookCreationOptions, NotebookEditorWidget } from '../../browser/notebookEditorWidget.js';
+import { MarkupCellViewModel } from '../../browser/viewModel/markupCellViewModel.js';
 import { INotebookEditorService } from '../../browser/services/notebookEditorService.js';
 import { INotebookService } from '../../common/notebookService.js';
 import { EDITOR_FONT_DEFAULTS } from '../../../../../editor/common/config/fontInfo.js';
@@ -290,5 +291,85 @@ suite('ListViewInfoAccessor', () => {
 				assert.deepStrictEqual(expandCellRangesWithHiddenCells(notebookEditor, [{ start: 2, end: 3 }]), [{ start: 2, end: 5 }]);
 				assert.deepStrictEqual(expandCellRangesWithHiddenCells(notebookEditor, [{ start: 0, end: 1 }, { start: 2, end: 3 }]), [{ start: 0, end: 5 }]);
 			});
+	});
+});
+
+suite('NotebookEditorWidget createMarkupPreview', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createMarkupCell(): MarkupCellViewModel {
+		return {
+			mime: 'text/markdown',
+			handle: 1,
+			id: 'cell-1',
+			metadata: {},
+			getText: () => '# heading',
+		} as unknown as MarkupCellViewModel;
+	}
+
+	function createWidgetHarness(options: { listLength: number; viewIndex: number | undefined; webviewResolved?: boolean; onResolveWebview?: () => void }) {
+		const showMarkupPreview = sinon.stub().resolves();
+		const getCellViewScrollTop = sinon.stub().returns(42);
+		const list = {
+			webviewElement: { domNode: { style: { top: '-10px' } } },
+			viewModel: {},
+			length: options.listLength,
+			getViewIndex: () => options.viewIndex,
+			getCellViewScrollTop,
+		};
+		const widget = Object.assign(Object.create(NotebookEditorWidget.prototype), {
+			_webview: {
+				isResolved: () => options.webviewResolved ?? true,
+				showMarkupPreview,
+			},
+			_resolveWebview: async () => {
+				options.onResolveWebview?.();
+			},
+			_list: list,
+			viewModel: {
+				getCellIndex: () => 1,
+				getHiddenRanges: () => [],
+			},
+		});
+		return { widget: widget as NotebookEditorWidget, list, showMarkupPreview, getCellViewScrollTop };
+	}
+
+	test('issue #225581 - skips preview when cell view index is out of range after webview resolution', async () => {
+		const cell = createMarkupCell();
+		const harness = createWidgetHarness({
+			listLength: 2,
+			viewIndex: 1,
+			webviewResolved: false,
+			onResolveWebview: () => {
+				harness.list.length = 1;
+			},
+		});
+
+		await harness.widget.createMarkupPreview(cell);
+
+		assert.strictEqual(harness.getCellViewScrollTop.called, false);
+		assert.strictEqual(harness.showMarkupPreview.called, false);
+	});
+
+	test('renders markup preview when cell view index is within list bounds', async () => {
+		const cell = createMarkupCell();
+		const harness = createWidgetHarness({
+			listLength: 2,
+			viewIndex: 1,
+		});
+
+		await harness.widget.createMarkupPreview(cell);
+
+		assert.strictEqual(harness.getCellViewScrollTop.calledOnceWithExactly(cell), true);
+		assert.strictEqual(harness.showMarkupPreview.calledOnce, true);
+		assert.deepStrictEqual(harness.showMarkupPreview.firstCall.args[0], {
+			mime: 'text/markdown',
+			cellHandle: 1,
+			cellId: 'cell-1',
+			content: '# heading',
+			offset: 52,
+			visible: true,
+			metadata: {},
+		});
 	});
 });
