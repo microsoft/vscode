@@ -244,6 +244,14 @@ suite('Filters', () => {
 		// Handles issue #123915
 		filterOk(matchesWords, 'C++', 'C/C++: command', [{ start: 2, end: 5 }]);
 
+		// Handles issue #192789: the last Hangul character may still be composing
+		filterOk(matchesWords, 'ㅌ', '터미널: 새 터미널 만들기', [{ start: 0, end: 1 }]);
+		filterOk(matchesWords, '커미', '커밋', [{ start: 0, end: 2 }]);
+		filterOk(matchesWords, '고', '과일', [{ start: 0, end: 1 }]);
+		filterOk(matchesWords, '새 ㅌ', '터미널: 새 터미널 만들기', [{ start: 5, end: 8 }]);
+		filterNotOk(matchesWords, 'ㅌ미', '터미널');
+		filterNotOk(matchesWords, 'ㄱ', '나');
+
 		// Handles issue #154533
 		filterOk(matchesWords, '.', ':', []);
 		filterOk(matchesWords, '.', '.', [{ start: 0, end: 1 }]);
