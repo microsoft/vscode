@@ -13,7 +13,6 @@ import { FileSystemProviderCapabilities } from '../../../../platform/files/commo
 import { IExtHostWorkspace } from '../../common/extHostWorkspace.js';
 import { RelativePattern } from '../../common/extHostTypes.js';
 import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
-import { ExtHostConfigProvider } from '../../common/extHostConfiguration.js';
 
 suite('ExtHostFileSystemEventService', () => {
 
@@ -118,37 +117,24 @@ suite('ExtHostFileSystemEventService', () => {
 		watcher.dispose();
 	});
 
-	test('FileSystemWatcher matches relative pattern case-insensitively via pre-lowercasing', function () {
-		const fileSystemInfo = new ExtHostFileSystemInfo();
-		fileSystemInfo.$acceptProviderInfos(URI.file('/'), FileSystemProviderCapabilities.FileReadWrite); // no PathCaseSensitive → ignoreCase=true
+	for (const caseSensitive of [true, false]) {
+		test(`relative watcher preserves event path casing on a case-${caseSensitive ? 'sensitive' : 'insensitive'} filesystem`, () => {
+			const fileSystemInfo = new ExtHostFileSystemInfo();
+			fileSystemInfo.$acceptProviderInfos(URI.file('/'), caseSensitive ? FileSystemProviderCapabilities.PathCaseSensitive : FileSystemProviderCapabilities.FileReadWrite);
+			const workspace: Pick<IExtHostWorkspace, 'getWorkspaceFolder'> = { getWorkspaceFolder: () => undefined };
+			const service = new ExtHostFileSystemEventService(protocolWithProxy, new NullLogService(), undefined!);
+			const watcher = disposables.add(service.createFileSystemWatcher(workspace as IExtHostWorkspace, undefined!, fileSystemInfo, nullExtensionDescription, new RelativePattern('/Workspace', '*.TXT'), {}));
+			const created: string[] = [];
+			disposables.add(watcher.onDidCreate(uri => created.push(uri.path)));
 
-		const workspace: Pick<IExtHostWorkspace, 'getWorkspaceFolder'> = {
-			getWorkspaceFolder: () => ({ uri: URI.file('/workspace'), name: 'test', index: 0 })
-		};
+			const mixed = URI.file('/Workspace/Mixed.TXT');
+			const upper = URI.file('/WORKSPACE/UPPER.TXT');
+			const lowerExtension = URI.file('/Workspace/file.txt');
+			service.$onFileEvent({ session: undefined, created: [mixed, upper, lowerExtension], changed: [], deleted: [] });
 
-		const configProvider = {
-			getConfiguration: () => ({ get: () => ({}) })
-		} as unknown as ExtHostConfigProvider;
-
-		const service = new ExtHostFileSystemEventService(protocolWithProxy, new NullLogService(), undefined!);
-		const watcher = service.createFileSystemWatcher(workspace as IExtHostWorkspace, configProvider, fileSystemInfo, nullExtensionDescription, new RelativePattern('/Workspace', '**/*.TXT'), {});
-
-		const created: URI[] = [];
-		const sub = watcher.onDidCreate(uri => created.push(uri));
-
-		// lowercase path should match mixed-case base + uppercase extension on case-insensitive fs
-		service.$onFileEvent({
-			session: undefined,
-			created: [URI.file('/workspace/file.txt')],
-			changed: [],
-			deleted: []
+			assert.deepStrictEqual(created, caseSensitive ? [mixed.path] : [mixed.path, upper.path, lowerExtension.path]);
 		});
-
-		assert.strictEqual(created.length, 1);
-
-		sub.dispose();
-		watcher.dispose();
-	});
+	}
 
 	test('dispatch visits only the exact file and its ancestor bases', () => {
 		const dispatcher = new FileSystemEventDispatcher();
