@@ -28,7 +28,7 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { getConfiguredCustomMcpGalleryUrl, IQueryOptions, isProductMcpGalleryEnabled, mcpAccessConfig, McpAccessValue, normalizeMcpGalleryUrl } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpGalleryManifest, IMcpGalleryManifestService } from '../../../../../platform/mcp/common/mcpGalleryManifest.js';
-import { IMcpWorkbenchService, IWorkbenchMcpServer, McpCollectionDefinition, McpCollectionProvenance, McpConnectionState, McpServerDefinition, McpServerInstallState, IMcpService, IMcpServer, McpServerTransportType } from '../../../../contrib/mcp/common/mcpTypes.js';
+import { IEditableMcpServerConfiguration, IMcpWorkbenchService, IWorkbenchMcpServer, McpCollectionDefinition, McpCollectionProvenance, McpConnectionState, McpServerDefinition, McpServerInstallState, IMcpService, IMcpServer, McpServerTransportType } from '../../../../contrib/mcp/common/mcpTypes.js';
 import { IMcpRegistry } from '../../../mcp/common/mcpRegistryTypes.js';
 import { MCP_PLUGIN_COLLECTION_ID_PREFIX } from '../../../mcp/common/discovery/pluginMcpDiscovery.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
@@ -40,6 +40,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { getManagedSupportUrl, IManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { appendContactAdministratorLink } from '../../../../services/policies/browser/organizationSupportLink.js';
 import { Link } from '../../../../../platform/opener/browser/link.js';
+import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isEqual, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { InputBox, MessageType } from '../../../../../base/browser/ui/inputbox/inputBox.js';
@@ -2422,7 +2423,7 @@ export class McpListWidget extends Disposable {
 		this._register(this.list.onContextMenu(event => {
 			const element = event.element;
 			if (element && element.type !== 'group-header' && element.type !== 'marketplace-item') {
-				this.showMcpServerActions(element, event.anchor);
+				void this.showMcpServerActions(element, event.anchor);
 			}
 		}));
 		this._register(this.list.onDidChangeFocus(event => {
@@ -2955,7 +2956,7 @@ export class McpListWidget extends Disposable {
 		registerMcpInlineButtonAction(disposables, more, () => {
 			const currentEntry = getEntry();
 			if (currentEntry) {
-				this.showMcpServerActions(currentEntry, more.element);
+				void this.showMcpServerActions(currentEntry, more.element);
 			}
 		});
 	}
@@ -3547,13 +3548,14 @@ export class McpListWidget extends Disposable {
 		this.element.classList.toggle('wide-layout', wide);
 	}
 
-	private showMcpServerActions(entry: IMcpInstalledEntry, anchor: HTMLElement | IMouseEvent): void {
+	private async showMcpServerActions(entry: IMcpInstalledEntry, anchor: HTMLElement | IMouseEvent): Promise<void> {
 		if (isConnectorMcpEntry(entry)) {
 			this.showConnectorActions(entry.connector.connector, anchor);
 			return;
 		}
+		const editable = await this.resolveEditableSessionServerConfiguration(entry);
 		const disposables = new DisposableStore();
-		const actions = this.getMcpServerActions(entry, disposables);
+		const actions = this.getMcpServerActions(entry, disposables, editable);
 		if (actions.length === 0) {
 			disposables.dispose();
 			return;
@@ -3573,7 +3575,23 @@ export class McpListWidget extends Disposable {
 			: getMcpServerOutputHandler(this.outputService, entry.type === 'session-server-item' ? undefined : entry.localServer, undefined, this._closeCustomizationEditor);
 	}
 
-	private getMcpServerActions(entry: IMcpInstalledEntry, disposables: DisposableStore): IAction[] {
+	/**
+	 * Resolves the configuration of an agent-host server that comes from a file VS Code can edit (the
+	 * Copilot CLI's `mcp-config.json` or a workspace root `.mcp.json`), so that it can be removed there.
+	 */
+	private async resolveEditableSessionServerConfiguration(entry: IMcpInstalledEntry): Promise<IEditableMcpServerConfiguration | undefined> {
+		if (entry.type !== 'session-server-item' || !entry.server.sourceUri || entry.server.isPluginProvided || entry.server.isClientBundled) {
+			return undefined;
+		}
+		try {
+			return await this.mcpWorkbenchService.resolveEditableMcpServerConfiguration(entry.server.sourceUri, entry.server.name);
+		} catch (error) {
+			this.logService.debug(`[MCP] Cannot resolve the configuration of '${entry.server.name}' in ${entry.server.sourceUri.toString()}`, error);
+			return undefined;
+		}
+	}
+
+	private getMcpServerActions(entry: IMcpInstalledEntry, disposables: DisposableStore, editable?: IEditableMcpServerConfiguration): IAction[] {
 		const sessionResource = this.customizationHarnessService.activeSessionResource.get();
 		const currentEntry = resolveMcpEntry(entry, this.agentHostCustomizationService, sessionResource);
 		if (!currentEntry) {
@@ -3598,7 +3616,33 @@ export class McpListWidget extends Disposable {
 				actions.push(outputAction);
 			}
 		}
+		if (editable && entry.type === 'session-server-item' && entry.server.sourceUri) {
+			if (actions.length > 0) {
+				actions.push(new Separator());
+			}
+			actions.push(disposables.add(this.createRemoveSessionServerAction(entry.server, entry.server.sourceUri, editable)));
+		}
 		return actions;
+	}
+
+	private createRemoveSessionServerAction(server: AgentHostMcpServer, sourceUri: URI, editable: IEditableMcpServerConfiguration): Action {
+		return new Action('mcpServer.activeSession.remove', localize('removeMcpServer', "Remove"), undefined, true, async () => {
+			const label = getMcpServerDisplayLabel(server);
+			const result = await this.dialogService.confirm({
+				type: 'warning',
+				message: localize('confirmRemoveMcpServer', "Remove the MCP server '{0}'?", label),
+				detail: localize('confirmRemoveMcpServerDetail', "The server is removed from {0}. Other clients that use this file no longer see it either.", this.labelService.getUriLabel(sourceUri, { relative: true })),
+				primaryButton: localize({ key: 'removeMcpServerButton', comment: ['&& denotes a mnemonic'] }, "&&Remove"),
+			});
+			if (!result.confirmed) {
+				return;
+			}
+			try {
+				await editable.remove();
+			} catch (error) {
+				this.notificationService.error(localize('removeMcpServerFailed', "Could not remove the MCP server '{0}': {1}", label, toErrorMessage(error)));
+			}
+		});
 	}
 
 	private getMcpServerManagementActions(entry: IMcpInstalledEntry, disposables: DisposableStore): IAction[] {

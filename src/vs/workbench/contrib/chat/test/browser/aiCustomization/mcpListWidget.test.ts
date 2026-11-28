@@ -457,6 +457,63 @@ suite('mcpListWidget', () => {
 		});
 	});
 
+	test('offers to remove an agent host server only when its configuration file is editable', async () => {
+		const sessionResource = URI.parse('agent-host-copilot:/session');
+		const editableSource = URI.file('/Users/test/.copilot/mcp-config.json');
+		const fileServer = createAgentHostServer({ id: 'file', name: 'file-server', sourceUri: editableSource });
+		const otherServer = createAgentHostServer({ id: 'other', name: 'other-server', sourceUri: URI.file('/Users/test/.vscode/mcp.json') });
+		const pluginServer = createAgentHostServer({ id: 'plugin', name: 'plugin-server', sourceUri: editableSource, isPluginProvided: true });
+		const removed: string[] = [];
+		const resolved: string[] = [];
+		let confirmed = true;
+		let menuActions: readonly IAction[] = [];
+		const widget = Object.assign(Object.create(McpListWidget.prototype), {
+			customizationHarnessService: { activeSessionResource: constObservable(sessionResource) },
+			agentHostCustomizationService: { ...createAgentHostCustomizations().service, getMcpServers: () => [fileServer, otherServer, pluginServer] },
+			agentPluginService: {},
+			commandService: {},
+			outputService: {},
+			logService: { debug: () => { } },
+			labelService: { getUriLabel: (uri: URI) => uri.path },
+			notificationService: { error: (message: string) => assert.fail(message) },
+			dialogService: { confirm: async () => ({ confirmed }) },
+			contextMenuService: { showContextMenu: (delegate: { getActions(): readonly IAction[]; onHide(): void }) => { menuActions = delegate.getActions(); delegate.onHide(); } },
+			mcpWorkbenchService: {
+				resolveEditableMcpServerConfiguration: async (source: URI, name: string) => {
+					resolved.push(name);
+					return source.toString() === editableSource.toString() ? { remove: async () => { removed.push(name); } } : undefined;
+				},
+			},
+		}) as { showMcpServerActions(entry: unknown, anchor: HTMLElement): Promise<void> };
+		const showMenu = async (server: AgentHostMcpServer) => {
+			await widget.showMcpServerActions({ type: 'session-server-item', server }, document.body);
+			return menuActions;
+		};
+
+		const fileMenu = await showMenu(fileServer);
+		const remove = fileMenu.find(action => action.id === 'mcpServer.activeSession.remove');
+		confirmed = false;
+		await remove?.run();
+		confirmed = true;
+		await remove?.run();
+		const otherMenu = await showMenu(otherServer);
+		const pluginMenu = await showMenu(pluginServer);
+
+		assert.deepStrictEqual({
+			fileMenuLast: fileMenu[fileMenu.length - 1].label,
+			otherHasRemove: otherMenu.some(action => action.id === 'mcpServer.activeSession.remove'),
+			pluginHasRemove: pluginMenu.some(action => action.id === 'mcpServer.activeSession.remove'),
+			resolved,
+			removed,
+		}, {
+			fileMenuLast: 'Remove',
+			otherHasRemove: false,
+			pluginHasRemove: false,
+			resolved: ['file-server', 'other-server'],
+			removed: ['file-server'],
+		});
+	});
+
 	test('creates receipt-only MCP entries without duplicating configured servers', () => {
 		const resource: ICustomizationMarketplaceResource = {
 			sourceId: 'githubFeed',
