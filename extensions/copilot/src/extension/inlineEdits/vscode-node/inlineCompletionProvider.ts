@@ -300,6 +300,8 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 		}
 
 		const documentVersion = (isNotebookCell(document.uri) ? findNotebook(document.uri, workspace.notebookDocuments)?.version : undefined) || document.version;
+		// `document` is live, but `position` and the suggested edit refer to this version.
+		const requestDocumentVersion = document.version;
 		const logContext = new InlineEditRequestLogContext(doc.id.uri, documentVersion, context);
 		logContext.recordingBookmark = this.model.debugRecorder.createBookmark();
 		this.logger.addLive(logContext);
@@ -363,6 +365,15 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 
 			if (token.isCancellationRequested) {
 				logger.trace('Return: lost race to cancellation');
+				this.telemetrySender.scheduleSendingEnhancedTelemetry({ requestId: logContext.requestId, result: undefined }, telemetryBuilder);
+				return emptyList;
+			}
+
+			// Core drops results for an outdated document version, so don't map a stale edit onto the new text.
+			if (document.version !== requestDocumentVersion) {
+				logger.trace('Return: document changed while computing next edit');
+				telemetryBuilder.setStatus('docChanged');
+				logContext.setIsSkipped();
 				this.telemetrySender.scheduleSendingEnhancedTelemetry({ requestId: logContext.requestId, result: undefined }, telemetryBuilder);
 				return emptyList;
 			}
