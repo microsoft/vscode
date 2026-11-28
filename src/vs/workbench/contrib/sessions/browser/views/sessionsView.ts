@@ -233,6 +233,8 @@ export class SessionsViewGroupingState {
 }
 
 const SORTING_STORAGE_KEY = 'sessionsViewPane.sorting';
+/** Inbox remembers its own sorting, by default the most recently updated first, as the time its rows show. */
+const INBOX_SORTING_STORAGE_KEY = 'sessionsViewPane.inboxSorting';
 const COMPACT_STORAGE_KEY = 'sessionsViewPane.compact';
 const CUSTOMIZATIONS_MIN_HEIGHT = 129;
 const SESSIONS_SECTION_MIN_HEIGHT = 120;
@@ -523,6 +525,7 @@ export class SessionsView extends ViewPane {
 	private readonly customizationsLocation: IObservable<ChatCustomizationsLocation>;
 	private currentGrouping: SessionsGrouping | undefined;
 	private currentSorting: SessionsSorting = SessionsSorting.Created;
+	private currentInboxSorting: SessionsSorting = SessionsSorting.Updated;
 	private currentCompact = false;
 	private groupingContextKey: IContextKey | undefined;
 	private sortingContextKey: IContextKey | undefined;
@@ -617,10 +620,7 @@ export class SessionsView extends ViewPane {
 		this._register(sessionsViewLocator.register(this));
 
 		// Restore persisted sorting
-		const storedSorting = this.storageService.get(SORTING_STORAGE_KEY, StorageScope.PROFILE);
-		if (storedSorting && Object.values(SessionsSorting).includes(storedSorting as SessionsSorting)) {
-			this.currentSorting = storedSorting as SessionsSorting;
-		}
+		this.restoreSorting();
 		this.currentCompact = this.storageService.getBoolean(COMPACT_STORAGE_KEY, StorageScope.PROFILE, false);
 		logSessionsListCompactViewState(telemetryService, this.currentCompact);
 
@@ -635,7 +635,7 @@ export class SessionsView extends ViewPane {
 			}
 		}));
 		this.sortingContextKey = SessionsViewSortingContext.bindTo(contextKeyService);
-		this.sortingContextKey.set(this.currentSorting);
+		this.sortingContextKey.set(this.sorting);
 		this.compactContextKey = SessionsViewCompactContext.bindTo(contextKeyService);
 		this.compactContextKey.set(this.currentCompact);
 		this.separateGroupsAndWorkspacesContextKey = SessionsViewSeparateGroupsAndWorkspacesContext.bindTo(contextKeyService);
@@ -762,7 +762,7 @@ export class SessionsView extends ViewPane {
 			titleOnlyQuickChatRowHeight: this.presentation.titleOnlyQuickChatRowHeight,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			grouping: () => this.grouping,
-			sorting: () => this.currentSorting,
+			sorting: () => this.sorting,
 			compact: () => this.currentCompact,
 			separateGroupsAndWorkspaces: () => this.separateGroupsAndWorkspaces,
 			showNavigationShortcuts: () => this.navigationShortcutsVisible,
@@ -1607,14 +1607,14 @@ export class SessionsView extends ViewPane {
 			{
 				id: SessionsSorting.Created,
 				label: localize('sortByCreated', "Sort by Created"),
-				checked: this.currentSorting === SessionsSorting.Created,
+				checked: this.sorting === SessionsSorting.Created,
 				group: 'sort',
 				groupTitle: sortTitle,
 			},
 			{
 				id: SessionsSorting.Updated,
 				label: localize('sortByUpdated', "Sort by Updated"),
-				checked: this.currentSorting === SessionsSorting.Updated,
+				checked: this.sorting === SessionsSorting.Updated,
 				group: 'sort',
 			},
 			{
@@ -1744,7 +1744,7 @@ export class SessionsView extends ViewPane {
 
 	/**
 	 * In the Chat view ({@link ISessionsViewOptions.leaveInboxWithoutChat}), as the window switches to another profile, shows
-	 * the grouping and the filters that profile remembers, as the view would open in it, without storing anything: what the
+	 * the grouping, the sorting and the filters that profile remembers, as the view would open in it, without storing anything: what the
 	 * view remembered in the previous profile stays there. Until Chat is back after the switch restarts the extension host,
 	 * whose stopping, before the switch, left Inbox in the previous profile, it reads them again as the new profile's storage
 	 * tells the values that differ, if any, and as its settings arrive, in either order, and then once more.
@@ -1776,23 +1776,30 @@ export class SessionsView extends ViewPane {
 	}
 
 	/**
-	 * Shows the grouping and the filters stored now, as the view restores them as it opens, without storing them: Inbox even
-	 * while Chat starts, but not where Inbox is unavailable.
+	 * Shows the grouping, the sorting and the filters stored now, as the view restores them as it opens, without storing them:
+	 * Inbox even while Chat starts, but not where Inbox is unavailable.
 	 */
 	private restoreStoredGrouping(): void {
 		this.sessionsControl?.filters.reload();
 		this.groupingState.migrateWorkspacesAndGroupsGrouping();
 		this.mountedNonInboxGrouping = this.storedNonInboxGrouping;
+		const previousSorting = this.sorting;
+		this.restoreSorting();
 		const stored = this.readStoredGrouping().grouping;
 		const grouping = stored === SessionsGrouping.Inbox && !this.inboxAvailable ? this.nonInboxGrouping : stored;
 		if (this.currentGrouping === grouping) {
 			this.showSeparateGroupsAndWorkspaces();
+			if (this.sorting !== previousSorting) {
+				this.sortingContextKey?.set(this.sorting);
+				this.sessionsControl?.update();
+			}
 			return;
 		}
 		this.separateGroupsAndWorkspacesContextKey?.set(this.groupingState.separateGroupsAndWorkspaces);
 		// Read only: the sections show the collapse state the profile stores, which a reset would change, in either profile
 		this.currentGrouping = grouping;
 		this.groupingContextKey?.set(this.grouping);
+		this.sortingContextKey?.set(this.sorting);
 		this.sessionsControl?.update(true);
 		this.updateHeaderLayout();
 	}
@@ -1836,8 +1843,20 @@ export class SessionsView extends ViewPane {
 		return this.grouping !== grouping;
 	}
 
+	/** The sorting of the current grouping: Inbox and the other groupings each remember their own. */
 	get sorting(): SessionsSorting {
-		return this.currentSorting;
+		return this.grouping === SessionsGrouping.Inbox ? this.currentInboxSorting : this.currentSorting;
+	}
+
+	/** Reads both sortings the profile stores, each falling back to its own default rather than to the previous profile's. */
+	private restoreSorting(): void {
+		this.currentSorting = this.readStoredSorting(SORTING_STORAGE_KEY) ?? SessionsSorting.Created;
+		this.currentInboxSorting = this.readStoredSorting(INBOX_SORTING_STORAGE_KEY) ?? SessionsSorting.Updated;
+	}
+
+	private readStoredSorting(key: string): SessionsSorting | undefined {
+		const stored = this.storageService.get(key, StorageScope.PROFILE);
+		return stored && Object.values(SessionsSorting).includes(stored as SessionsSorting) ? stored as SessionsSorting : undefined;
 	}
 
 	get compact(): boolean {
@@ -1864,6 +1883,7 @@ export class SessionsView extends ViewPane {
 		this.inProfileTransition = false;
 		this.groupingState.storeGrouping(grouping, left);
 		this.groupingContextKey?.set(this.currentGrouping);
+		this.sortingContextKey?.set(this.sorting);
 		if (!preserveCollapseState) {
 			this.sessionsControl?.resetSectionCollapseState();
 		}
@@ -1872,13 +1892,18 @@ export class SessionsView extends ViewPane {
 	}
 
 	setSorting(sorting: SessionsSorting): void {
-		if (this.currentSorting === sorting) {
+		if (this.sorting === sorting) {
 			return;
 		}
 
-		this.currentSorting = sorting;
-		this.storageService.store(SORTING_STORAGE_KEY, this.currentSorting, StorageScope.PROFILE, StorageTarget.USER);
-		this.sortingContextKey?.set(this.currentSorting);
+		if (this.grouping === SessionsGrouping.Inbox) {
+			this.currentInboxSorting = sorting;
+			this.storageService.store(INBOX_SORTING_STORAGE_KEY, sorting, StorageScope.PROFILE, StorageTarget.USER);
+		} else {
+			this.currentSorting = sorting;
+			this.storageService.store(SORTING_STORAGE_KEY, sorting, StorageScope.PROFILE, StorageTarget.USER);
+		}
+		this.sortingContextKey?.set(sorting);
 		this.sessionsControl?.update();
 	}
 
