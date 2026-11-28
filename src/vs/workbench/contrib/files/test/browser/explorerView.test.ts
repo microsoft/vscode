@@ -15,12 +15,12 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { provideDecorations } from '../../browser/views/explorerDecorationsProvider.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { NullFilesConfigurationService, TestFileService } from '../../../../test/common/workbenchTestServices.js';
+import { NullFilesConfigurationService, TestContextService, TestFileService } from '../../../../test/common/workbenchTestServices.js';
 import { TestEnvironmentService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspace, IWorkspaceContextService, toWorkspaceFolder, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
@@ -29,16 +29,53 @@ import { TestClipboardService } from '../../../../../platform/clipboard/test/com
 import { IContextMenuMenuDelegate, IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { WorkbenchCompressibleAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
+import { IViewContainerModel, IViewDescriptorService, ViewContainer, ViewContainerLocation } from '../../../../common/views.js';
 import { IEditorResolverService } from '../../../../services/editor/common/editorResolverService.js';
 import { IExplorerService } from '../../browser/files.js';
 import { ResourceLabels } from '../../../../browser/labels.js';
 import { hasKey } from '../../../../../base/common/types.js';
-import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
+import { testIWorkspace, Workspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
 class TestExplorerView extends ExplorerView {
+	lastTreeInput: Promise<void> | undefined;
+
 	renderForTesting(container: HTMLElement): void {
 		this.renderBody(container);
+	}
+
+	renderHeaderForTesting(container: HTMLElement): void {
+		this.renderHeader(container);
+	}
+
+	override setTreeInput(): Promise<void> {
+		return this.lastTreeInput = super.setTreeInput();
+	}
+}
+
+class SwitchingContextService extends TestContextService {
+	state: WorkbenchState | undefined;
+	switchedWorkspace: IWorkspace | undefined;
+
+	constructor(readonly stateChange: Emitter<WorkbenchState>) {
+		super();
+	}
+
+	override get onDidChangeWorkbenchState(): Event<WorkbenchState> {
+		return this.stateChange.event;
+	}
+
+	override getWorkbenchState(): WorkbenchState {
+		return this.state ?? super.getWorkbenchState();
+	}
+
+	override getWorkspace(): IWorkspace {
+		return this.switchedWorkspace ?? super.getWorkspace();
+	}
+
+	switchState(state: WorkbenchState, workspace?: IWorkspace): void {
+		this.state = state;
+		this.switchedWorkspace = workspace;
+		this.stateChange.fire(state);
 	}
 }
 
@@ -117,6 +154,7 @@ suite('Files - ExplorerView', () => {
 		let opened: ExplorerItem[];
 		let controllers: Map<ExplorerItem, ICompressedNavigationController[]>;
 		let refreshGate: DeferredPromise<void> | undefined;
+		let contextService: SwitchingContextService;
 
 		setup(async () => {
 			const createItem = (path: string, isDirectory = false) => new ExplorerItem(URI.file(path), fileService, configService, NullFilesConfigurationService, undefined, isDirectory);
@@ -141,6 +179,10 @@ suite('Files - ExplorerView', () => {
 			instantiationService.stub(IViewDescriptorService, {
 				onDidChangeLocation: Event.None,
 				getViewLocationById: () => ViewContainerLocation.Sidebar,
+				getViewDescriptorById: () => null,
+				getViewContainerByViewId: () => new class extends mock<ViewContainer>() { override id = 'testExplorerContainer'; },
+				getViewContainerModel: () => new class extends mock<IViewContainerModel>() { override onDidChangeContainerInfo = Event.None; },
+				getDefaultContainerById: () => null,
 			});
 			instantiationService.stub(IExplorerService, {
 				roots: [root],
@@ -163,6 +205,8 @@ suite('Files - ExplorerView', () => {
 				getEditors: () => [],
 			});
 			instantiationService.stub(IOpenerService, {});
+			contextService = new SwitchingContextService(ds.add(new Emitter<WorkbenchState>()));
+			instantiationService.stub(IWorkspaceContextService, contextService);
 
 			view = ds.add(instantiationService.createInstance(TestExplorerView, {
 				id: 'testExplorerContextMenu',
@@ -223,6 +267,38 @@ suite('Files - ExplorerView', () => {
 				dispose: () => { },
 			});
 			view.renderForTesting(container);
+		});
+
+		test('shows the roots or the single folder when only the workbench state changes, as when Agents mode is entered and left with the same folder', async () => {
+			view.setVisible(true);
+			contextService.state = WorkbenchState.FOLDER;
+			await view.setTreeInput();
+			const inputs = () => {
+				const input = tree.getInput();
+				return Array.isArray(input) ? input.map(item => item.resource.path) : input?.resource.path;
+			};
+			const folderWindow = inputs();
+			contextService.switchState(WorkbenchState.WORKSPACE);
+			await view.lastTreeInput;
+			const inMode = inputs();
+			contextService.switchState(WorkbenchState.FOLDER);
+			await view.lastTreeInput;
+			assert.deepStrictEqual({ folderWindow, inMode, afterLeaving: inputs() }, { folderWindow: '/workspace', inMode: ['/workspace'], afterLeaving: '/workspace' });
+		});
+
+		test('shows the folder name in the header after leaving the mode with the same folder, also when only the workbench state changes', () => {
+			const header = dom.append(document.body, $('.explorer-header-test'));
+			ds.add(toDisposable(() => header.remove()));
+			const folderWorkspace = new Workspace('folder', [toWorkspaceFolder(URI.file('/workspace'))]);
+			const agentsWorkspace = new Workspace('agents', [toWorkspaceFolder(URI.file('/workspace'))], URI.file('/agents/agents.code-workspace'));
+			contextService.switchState(WorkbenchState.FOLDER, folderWorkspace);
+			view.renderHeaderForTesting(header);
+			const title = () => header.querySelector('.title')?.textContent;
+			const folderWindow = title();
+			contextService.switchState(WorkbenchState.WORKSPACE, agentsWorkspace);
+			const inMode = title();
+			contextService.switchState(WorkbenchState.FOLDER, folderWorkspace);
+			assert.deepStrictEqual({ folderWindow, inMode, afterLeaving: title() }, { folderWindow: 'workspace', inMode: 'agents (Workspace)', afterLeaving: 'workspace' });
 		});
 
 		test('waits for a newly queued tree refresh before selecting a folder', async () => {

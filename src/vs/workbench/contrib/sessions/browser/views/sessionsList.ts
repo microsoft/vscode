@@ -105,7 +105,7 @@ import { getChatMoveDestinations, getSessionMoveDestinations, getSessionsListCha
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { InboxAutoAdvanceSpotlight } from './inboxAutoAdvanceSpotlight.js';
 import { ONBOARDING_ENABLED_CONFIG } from '../../../onboarding/common/onboardingScenarioService.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
+import { canLog, ILogService, LogLevel } from '../../../../../platform/log/common/log.js';
 import { ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { createSessionSummaryHover, getChatSummaryHoverData, getDistinctChatHarnessLabel } from '../sessionHoverContent.js';
@@ -117,7 +117,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { ICustomViewService } from '../customView.js';
 import { IOpenAICustomizationsCommandOptions, OPEN_AI_CUSTOMIZATIONS_COMMAND_ID } from '../customizationsConstants.js';
 import { ChatCustomizationsTelemetry } from '../../../chat/browser/aiCustomization/chatCustomizationsTelemetry.js';
-import { NEW_SESSION_ACTION_ID } from '../../common/chatConstants.js';
+import { NEW_SESSION_ACTION_ID, SESSIONS_LIST_WORKSPACES_FILTER_SETTING } from '../../common/chatConstants.js';
 import { Menus } from '../menus.js';
 import { getSessionAgentMergeConfigurationObservable } from '../sessionAgentMerge.js';
 import { BlockedSessionReason, BlockedSessions } from '../blockedSessions.js';
@@ -368,7 +368,6 @@ interface ISessionsListControlOptions {
 	/** List-side window scope; providers retain their complete inventories. */
 	readonly sessionScope?: IObservable<ReadonlySet<string> | undefined>;
 	readonly pendingSessionScope?: IObservable<((item: IPendingSessionItem) => boolean) | undefined>;
-	readonly scopeBar?: IObservable<boolean>;
 	/**
 	 * Whether grouping by time lists the sessions without a workspace in the "Chats" section, flat, as the other groupings
 	 * do, rather than among the time sections; it does not by default. A {@link scoped} list has no Chats section at all.
@@ -379,6 +378,17 @@ interface ISessionsListControlOptions {
 	 * `sessions.list.inboxAutoAdvance` setting chooses; it does by default. Where it does not, replies stay in the current chat.
 	 */
 	readonly inboxAutoAdvance?: boolean;
+	/**
+	 * Whether the list shows the sessions of the workspace and environment picked in its scope bar, as Inbox Mode does,
+	 * in every grouping: then the bar's environment replaces the Environment filter.
+	 */
+	readonly scopeBar?: IObservable<boolean>;
+	/**
+	 * Whether the workspace scope bar's pick is fixed while it scopes every grouping ({@link scopeBar}), such as while a
+	 * window with a folder is in Agents mode without its bar: then the Environment filter applies, as the bar picks no
+	 * environment. The filters themselves keep a fixed pick on reset.
+	 */
+	readonly scopePickFixed?: IObservable<boolean>;
 	onSessionOpen(resource: URI, preserveFocus: boolean, sideBySide: boolean): void | Promise<void>;
 
 	/**
@@ -388,8 +398,8 @@ interface ISessionsListControlOptions {
 	 * omitted, opens are not gated.
 	 */
 	canOpenSession?(session: ISession): Promise<boolean>;
-	/** Whether the Worktrees filter applies, as it does outside the Agents window. Defaults to `true`. */
-	readonly offersWorktreeFilter?: boolean;
+	/** Whether the Worktrees filter applies, as it does where the list offers worktree grouping. Defaults to `true`. */
+	readonly offersWorktreeFilter?: IObservable<boolean>;
 	/**
 	 * Whether it lists quick chats, which have no workspace: as the Agents window and an editor window without a folder do,
 	 * and an editor window with one does not. It lists them again, or no longer, as this changes. Defaults to listing them.
@@ -615,6 +625,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 */
 	private readonly chatRowHeightReconcile = this._register(new MutableDisposable());
 	private readonly automationSessions = observableValue<readonly ISession[]>(this, []);
+	private lastFilteredSessionsLog: string | undefined;
 	private readonly collapsedSessionIds = observableValue<ReadonlySet<string>>(this, new Set());
 	/**
 	 * Session IDs whose hierarchy indent/connector guides show while the pointer
@@ -752,6 +763,19 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	private isInboxLayout(): boolean {
 		return this.options.grouping() === SessionsGrouping.Inbox;
+	}
+
+	/** Whether the list shows only the sessions of its scope bar's picks: in Inbox Mode, and wherever the bar shows. */
+	private isScopedByBar(): boolean {
+		return this.isInboxLayout() || this.options.scopeBar?.get() === true;
+	}
+
+	/**
+	 * Whether the bar's environment picker replaces the Environment filter: wherever the bar shows. A fixed pick without
+	 * the bar keeps the Environment filter.
+	 */
+	private isEnvironmentPickedByBar(): boolean {
+		return this.isInboxLayout() || (this.options.scopeBar?.get() === true && this.options.scopePickFixed?.get() !== true);
 	}
 
 	/** The chat the main window shows, which its row reflects as the open one. */
@@ -1183,6 +1207,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 		if (this.options.scopeBar) {
 			this._register(runOnChange(this.options.scopeBar, () => this.update()));
+		}
+		if (this.options.scopePickFixed) {
+			this._register(runOnChange(this.options.scopePickFixed, () => this.update()));
 		}
 
 		const indentGuides = new SessionsListIndentGuides<SessionListItem>(element => this.getRowIndent(element), () => this.tree);
@@ -1718,6 +1745,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (this.options.listsQuickChats) {
 			this._register(runOnChange(this.options.listsQuickChats, () => this.scheduleListUpdate()));
 		}
+		if (this.options.offersWorktreeFilter) {
+			this._register(runOnChange(this.options.offersWorktreeFilter, () => this.scheduleListUpdate()));
+		}
 		if (this.options.schedulingEnabled || this.options.scheduledSessions || this.options.scheduledSessionResources) {
 			this._register(autorun(reader => {
 				this.options.schedulingEnabled?.read(reader);
@@ -1878,6 +1908,23 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 	}
 
+	/** Traces which sessions the filters hide, by harness, environment and the application they were created in. */
+	private logFilteredSessions(unfiltered: readonly ISession[], filtered: readonly ISession[]): void {
+		const shown = new Set(filtered);
+		const hidden = new Map<string, number>();
+		for (const session of unfiltered) {
+			if (!shown.has(session)) {
+				const key = `${session.harness}/${session.environment}/${session.application.get().id}`;
+				hidden.set(key, (hidden.get(key) ?? 0) + 1);
+			}
+		}
+		const message = `[SessionsList] filters hide ${unfiltered.length - filtered.length} of ${unfiltered.length} sessions (harness/environment/application): ${[...hidden].map(([key, count]) => `${key}: ${count}`).join(', ')}`;
+		if (message !== this.lastFilteredSessionsLog) {
+			this.lastFilteredSessionsLog = message;
+			this.logService.trace(message);
+		}
+	}
+
 	update(expandAll?: boolean): void {
 		this.pendingListUpdate.clear();
 		if (this.refreshPending) {
@@ -1891,6 +1938,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const grouping = this.options.grouping();
 		const inbox = grouping === SessionsGrouping.Inbox;
 		const separateGroupsAndWorkspaces = this.isSeparateGroupsAndWorkspaces(grouping);
+		const scopedByBar = this.isScopedByBar();
+		const environmentPickedByBar = this.isEnvironmentPickedByBar();
 		const nextNestedSessionResources = new Set(
 			this.sessions
 				.filter(session => getSessionListChats(session, undefined, false, this._hideSideChats.get()).length > 0)
@@ -1903,14 +1952,18 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const listsQuickChats = this.options.listsQuickChats?.get() ?? true;
 		const isEligible = (session: ISession) => this.isSessionInScope(session) && (listsQuickChats || !isQuickChatSession(session));
 		let filtered = this.sessions.filter(isEligible);
-		// The Worktrees filter is of an editor window: in the Agents window, a folder selected there selects nothing
-		const availableWorktrees = this.options.offersWorktreeFilter === false ? new Set<string>() : getWorktreeFilterKeys(filtered, () => true, this.uriIdentityService.extUri);
+		// The Worktrees filter goes with worktree grouping: where it isn't offered, a folder selected there selects nothing
+		const availableWorktrees = this.options.offersWorktreeFilter?.get() === false ? new Set<string>() : getWorktreeFilterKeys(filtered, () => true, this.uriIdentityService.extUri);
 		const scopedProviderIds = this._agentHostFilterService.selectedHost?.providerIds;
 		if (scopedProviderIds) {
 			const scoped = new Set(scopedProviderIds);
 			filtered = filtered.filter(s => scoped.has(s.providerId));
 		}
-		filtered = filtered.filter(session => this.filters.matches(session, inbox || this.options.scopeBar?.get(), availableWorktrees));
+		const unfiltered = filtered;
+		filtered = filtered.filter(session => this.filters.matches(session, environmentPickedByBar, availableWorktrees));
+		if (filtered.length !== unfiltered.length && canLog(this.logService.getLevel(), LogLevel.Trace)) {
+			this.logFilteredSessions(unfiltered, filtered);
+		}
 		const scheduledOnly = this.options.schedulingEnabled?.get() && this.filters.isScheduledOnly();
 		if (scheduledOnly) {
 			filtered = filtered.filter(session => this.options.scheduledSessionResources?.get().has(session.resource.toString()));
@@ -1936,7 +1989,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (this.pendingSessionMoves.size > 0) {
 			filtered = filtered.filter(session => !this.pendingSessionMoves.has(session.sessionId));
 		}
-		if (inbox || this.options.scopeBar?.get()) {
+		if (scopedByBar) {
 			filtered = filtered.filter(session => this.filters.matchesInboxScope(session));
 		}
 		// The same sessions also stay visible past the "+N more" caps of sections and folders.
@@ -2067,10 +2120,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 				if (!comparison) {
 					continue;
 				}
-				const comparisonSessions = inbox && this.filters.hasInboxScope
+				const comparisonSessions = scopedByBar && this.filters.hasInboxScope
 					? sortedMembersByGroupId.get(group.id)!
 					: getComparisonSessions(comparison, this._sessionsManagementService);
-				if ((inbox && this.filters.hasInboxScope && comparisonSessions.length === 0) || !isComparisonInScope(comparison)) {
+				if ((scopedByBar && this.filters.hasInboxScope && comparisonSessions.length === 0) || !isComparisonInScope(comparison)) {
 					continue;
 				}
 				const environmentId = grouping === SessionsGrouping.Environment
@@ -2573,7 +2626,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const pendingItems = [
 			...(this.options.scheduledSessions?.get() ?? []),
 			...(scheduledOnly ? [] : draftsSection?.items ?? []),
-		].filter(item => matchesPendingSession(item, this.filters, inbox || !!this.options.scopeBar?.get(), scopedProviderIds)
+		].filter(item => matchesPendingSession(item, this.filters, scopedByBar, environmentPickedByBar, scopedProviderIds)
 			&& (this.options.pendingSessionScope?.get()?.(item) ?? true));
 		if (pendingItems.length > 0) {
 			const element: ISessionSection = { id: 'drafts', label: draftsSection?.label ?? localize('drafts', "Drafts"), sessions: [], pendingItems };
@@ -3466,7 +3519,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private revealOnboardingTarget(session: ISession, archiveAction: boolean): IDisposable & { readonly targetId: string } {
-		if ((this.isInboxLayout() || this.options.scopeBar?.get()) && !this.filters.matchesInboxScope(session)) {
+		if (this.isScopedByBar() && !this.filters.matchesInboxScope(session)) {
+			// A fixed pick can't be reset: the pick is fixed only while the workspaces filter is off, so the user is pointed to it
+			if (this.options.scopePickFixed?.get()) {
+				throw new Error(localize('sessionsList.outsideFixedScope', "This session is outside the folders of this window. To reveal it, turn on the '{0}' setting and pick its workspace.", SESSIONS_LIST_WORKSPACES_FILTER_SETTING));
+			}
 			throw new Error(this.isInboxLayout()
 				? localize('sessionsList.outsideInboxScope', "This session is outside the current Inbox scope. Reset the scope to reveal it.")
 				: localize('sessionsList.outsideSessionsScope', "This session is outside the current Sessions scope. Reset the scope to reveal it."));

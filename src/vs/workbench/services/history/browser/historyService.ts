@@ -46,6 +46,12 @@ interface ISerializedPutAwayHistory {
 	readonly folders: readonly { readonly folder: string; readonly entries: readonly ISerializedEditorHistoryEntry[] }[];
 }
 
+interface ISerializedSavedHistory {
+	readonly version: 1;
+	readonly entries: readonly ISerializedEditorHistoryEntry[];
+	readonly putAway: ISerializedPutAwayHistory['folders'];
+}
+
 interface IRecentlyClosedEditor {
 	readonly editorId: string | undefined;
 	readonly editor: IUntypedEditorInput;
@@ -1027,6 +1033,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private static readonly HISTORY_STORAGE_KEY = 'history.entries';
 	private static readonly HISTORY_FOLDERS_STORAGE_KEY = 'history.entries.folders';
 	private static readonly PUT_AWAY_HISTORY_STORAGE_KEY = 'history.entries.putAway';
+	private static readonly SAVED_HISTORY_STORAGE_KEY = 'history.entries.saved';
 	private static readonly MAX_PUT_AWAY_FOLDERS = 20;
 
 	private history: Array<EditorInput | IResourceEditorInput> | undefined = undefined;
@@ -1361,7 +1368,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.history = newHistory;
 	}
 
-	clearRecentlyOpened(): void {
+	clearRecentlyOpened(options?: { readonly keepSaved?: boolean }): void {
 		this.history = [];
 		this.historyLoaded = true;
 
@@ -1369,6 +1376,82 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		// Also clear the lists of the folders that left the window
 		this.putAwayHistory = new Map();
+
+		// The user cleared the history: the saved list must not bring it back, so restoring brings back an empty list
+		if (!options?.keepSaved && this.storageService.get(HistoryService.SAVED_HISTORY_STORAGE_KEY, StorageScope.WORKSPACE) !== undefined) {
+			const saved: ISerializedSavedHistory = { version: 1, entries: [], putAway: [] };
+			this.storageService.store(HistoryService.SAVED_HISTORY_STORAGE_KEY, JSON.stringify(saved), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		}
+	}
+
+	saveRecentlyOpened(): void {
+		this.ensureHistoryLoaded(this.history);
+
+		// Like the stored history, the saved list keeps the resources of the editors
+		const entries = this.history.flatMap(entry => isSideBySideEditorInput(entry) ? this.toResourceInputs(entry) : [entry]);
+		const putAway = [...this.ensurePutAwayHistoryLoaded()].map(([folder, folderEntries]) => ({ folder, entries: this.serializeHistory(folderEntries) }));
+		const saved: ISerializedSavedHistory = { version: 1, entries: this.serializeHistory(entries), putAway };
+		this.storageService.store(HistoryService.SAVED_HISTORY_STORAGE_KEY, JSON.stringify(saved), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+	}
+
+	restoreRecentlyOpened(): void {
+		if (this.storageService.get(HistoryService.SAVED_HISTORY_STORAGE_KEY, StorageScope.WORKSPACE) === undefined) {
+			return;
+		}
+
+		// The saved list is read and checked before it is forgotten. It replaces the current list, cleared or not, so
+		// nothing opened since it was saved stays.
+		const saved = this.readSavedHistory();
+		this.storageService.remove(HistoryService.SAVED_HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
+		if (!saved) {
+			return;
+		}
+
+		this.history = [];
+		this.historyLoaded = true;
+		this.editorHistoryListeners.clearAndDisposeAll();
+		for (const editor of saved.entries) {
+			if (this.includeInHistory(editor)) {
+				this.addToHistory(editor, false /* in their order */);
+			}
+		}
+
+		this.putAwayHistory = saved.putAway;
+	}
+
+	private readSavedHistory(): { readonly entries: IResourceEditorInput[]; readonly putAway: Map<string, IResourceEditorInput[]> } | undefined {
+		const savedRaw = this.storageService.get(HistoryService.SAVED_HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
+		if (savedRaw) {
+			try {
+				const savedParsed: Partial<ISerializedSavedHistory> | undefined = JSON.parse(savedRaw);
+				if (savedParsed?.version === 1 && Array.isArray(savedParsed.entries)) {
+					const putAway = this.parsePutAwayFolders(savedParsed.putAway);
+					if (putAway) {
+						return { entries: this.deserializeHistory(savedParsed.entries), putAway };
+					}
+				}
+			} catch (error) {
+				this.logService.error('[History]: could not read the saved history', error);
+			}
+		}
+
+		return undefined;
+	}
+
+	/** Reads stored put away lists, skipping folders in an unexpected format. */
+	private parsePutAwayFolders(folders: unknown): Map<string, IResourceEditorInput[]> | undefined {
+		if (!Array.isArray(folders)) {
+			return undefined;
+		}
+
+		const putAway = new Map<string, IResourceEditorInput[]>();
+		for (const item of folders) {
+			if (typeof item?.folder === 'string' && Array.isArray(item.entries)) {
+				putAway.set(item.folder, this.deserializeHistory(item.entries));
+			}
+		}
+
+		return putAway;
 	}
 
 	private onDidChangeWorkspaceFolders(event: IWorkspaceFoldersChangeEvent): void {
@@ -1524,7 +1607,10 @@ export class HistoryService extends Disposable implements IHistoryService {
 				(async () => {
 					await this.editorGroupService.whenReady;
 
-					this.loadHistory();
+					// Clearing or restoring the list in the meantime replaced it
+					if (!this.historyLoaded) {
+						this.loadHistory();
+					}
 				})();
 			}
 		}
@@ -1629,12 +1715,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 			if (putAwayRaw) {
 				try {
 					const putAwayParsed: Partial<ISerializedPutAwayHistory> | undefined = JSON.parse(putAwayRaw);
-					if (putAwayParsed?.version === 1 && Array.isArray(putAwayParsed.folders)) {
-						for (const { folder, entries } of putAwayParsed.folders) {
-							if (typeof folder === 'string' && Array.isArray(entries)) {
-								this.putAwayHistory.set(folder, this.deserializeHistory(entries));
-							}
-						}
+					if (putAwayParsed?.version === 1) {
+						this.putAwayHistory = this.parsePutAwayFolders(putAwayParsed.folders) ?? this.putAwayHistory;
 					}
 				} catch (error) {
 					onUnexpectedError(error);
@@ -1662,7 +1744,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		const entries: IResourceEditorInput[] = [];
 
 		for (const entryParsed of entriesParsed) {
-			if (!entryParsed.editor || !entryParsed.editor.resource) {
+			if (!entryParsed?.editor?.resource) {
 				continue; // unexpected data format
 			}
 

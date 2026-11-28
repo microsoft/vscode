@@ -136,7 +136,24 @@ export interface IHistoryService {
 	clear(): void;
 
 	/**
-	 * Clear list of recently opened editors.
+	 * Clear list of recently opened editors. Unless `keepSaved` is set, so that {@link restoreRecentlyOpened} can bring
+	 * back the list that {@link saveRecentlyOpened} saved, the saved list is emptied too: restoring then brings back
+	 * an empty list.
 	 */
-	clearRecentlyOpened(): void;
+	clearRecentlyOpened(options?: { readonly keepSaved?: boolean }): void;
+
+	/**
+	 * Saves the list of recently opened editors, so that {@link restoreRecentlyOpened} brings it back as it was, also
+	 * when {@link clearRecentlyOpened} clears it with `keepSaved` in the meantime. The saved list survives a restart of the window.
+	 * Saving again replaces it.
+	 */
+	saveRecentlyOpened(): void;
+
+	/**
+	 * Replaces the list of recently opened editors with the list that {@link saveRecentlyOpened} saved, dropping what
+	 * was opened since, and forgets the saved list. Keeps the current list when nothing was saved or the saved list cannot be read.
+	 * The list is saved in the storage of the current workspace only: restore it before the window switches to
+	 * another workspace's storage.
+	 */
+	restoreRecentlyOpened(): void;
 }

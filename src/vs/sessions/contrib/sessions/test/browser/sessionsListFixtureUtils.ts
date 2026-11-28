@@ -104,6 +104,7 @@ import { NEW_SESSION_BUTTON_STYLE_SETTING, NEW_SESSION_BUTTON_STYLE_TREATMENT, N
 import { SessionsList, SessionsListItemReference } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { SessionChatItem, SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { ISessionsHeaderElements, ISessionsViewLocator, ISessionsViewOptions, renderSessionsHeader, SessionsView, SessionsViewGroupingContext, SessionsViewId, SessionsViewLocator } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { IAgentsModeService } from '../../../../../workbench/services/agentsMode/common/agentsMode.js';
 import { SessionsArchiveActionsContribution, getSessionsArchiveActionConstructors } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
 import '../../browser/views/sessionsViewActions.js';
 import { TestSessionsList } from '../../../../../workbench/contrib/sessions/test/browser/views/testSessionsList.js';
@@ -794,6 +795,12 @@ async function createSessionsListFixtureServices(context: ComponentFixtureContex
 				override readonly claimedDraftIds = constObservable(new Set<string>());
 			}());
 			reg.define(ISessionsViewLocator, SessionsViewLocator);
+			reg.defineInstance(IAgentsModeService, new class extends mock<IAgentsModeService>() {
+				override readonly windowFolders = [];
+				override readonly isActive = false;
+				override readonly onWillChange = Event.None;
+				override readonly onDidChange = Event.None;
+			}());
 			reg.defineInstance(ISessionDraftsService, new class extends mock<ISessionDraftsService>() {
 				override readonly enabled = constObservable(false);
 				override readonly sections = constObservable([]);

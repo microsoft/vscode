@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { extUriIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -17,11 +17,13 @@ import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { WorkbenchMode, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
+import { IAgentsModeService } from '../../../../../services/agentsMode/common/agentsMode.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchWorkspaceContextService } from '../../../../../services/workspaces/common/workbenchWorkspaceContextService.js';
 import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
 import { SESSIONS_LIST_WORKSPACES_FILTER_SETTING } from '../../../common/chatConstants.js';
-import { SessionsListFilters } from '../../../browser/views/sessionsListFilters.js';
+import { getInboxWorkspaceOptions, SessionsListFilters } from '../../../browser/views/sessionsListFilters.js';
+import { buildTestSession } from '../../common/testSessionBuilder.js';
 import { SessionsWindowScopeController } from '../../../browser/views/sessionsWindowScopeController.js';
 
 suite('SessionsWindowScopeController', () => {
@@ -29,45 +31,57 @@ suite('SessionsWindowScopeController', () => {
 
 	type WindowKind = 'agents' | 'empty' | 'folder' | 'multiRoot';
 
-	function createScope({ chatEnabled = true, hidden = false, kind = 'agents' as WindowKind } = {}) {
+	/** A window of `kind`, whose own folders are `windowFolders`, which turns into the Agents mode while it is in Agents mode. */
+	function createScope({ chatEnabled = true, hidden = false, kind = 'agents' as WindowKind, enabled = true, windowFolders = [] as URI[], restoredInMode = false } = {}) {
 		const folder = URI.file('/work/repo');
-		let scope: URI | undefined = folder;
+		// Like the workbench workspace, each mode keeps its own scope
+		const scopes = new Map<WorkbenchMode, URI | undefined>([[WorkbenchMode.Editor, folder], [WorkbenchMode.Agents, folder]]);
+		const scopeWrites: string[] = [];
 		const state = kind === 'folder' ? WorkbenchState.FOLDER : kind === 'multiRoot' ? WorkbenchState.WORKSPACE : WorkbenchState.EMPTY;
+		const agentsMode = { isActive: restoredInMode, onWillChange: store.add(new Emitter<boolean>()), onDidChange: store.add(new Emitter<boolean>()) };
+		const onDidChangeWorkbenchMode = store.add(new Emitter<WorkbenchMode>());
+		const setAgentsMode = (active: boolean) => {
+			agentsMode.onWillChange.fire(active);
+			agentsMode.isActive = active;
+			onDidChangeWorkbenchMode.fire(active ? WorkbenchMode.Agents : WorkbenchMode.Editor);
+			agentsMode.onDidChange.fire(active);
+		};
 		const workspace = new class extends mock<IWorkbenchWorkspaceContextService>() {
 			override onDidChangeWorkspaceFolders = Event.None;
 			override onDidChangeWorkbenchState = Event.None;
-			override onDidChangeWorkbenchMode = Event.None;
-			override getWorkbenchMode() { return kind === 'agents' ? WorkbenchMode.Agents : WorkbenchMode.Editor; }
+			override onDidChangeWorkbenchMode = onDidChangeWorkbenchMode.event;
+			override getWorkbenchMode() { return kind === 'agents' || agentsMode.isActive ? WorkbenchMode.Agents : WorkbenchMode.Editor; }
 			override getWorkbenchState() { return state; }
 			override getWorkspace() { return { id: 'repo', uri: folder, folders: [] }; }
-			override getWorkbenchScope() { return scope; }
-			override setWorkbenchScope(value: URI | undefined) { scope = value; }
-			override resetWorkbenchScope() { scope = folder; }
+			override getWorkbenchScope() { return scopes.get(this.getWorkbenchMode()); }
+			override setWorkbenchScope(value: URI | undefined) { scopeWrites.push(`${this.getWorkbenchMode()}:${value?.path}`); scopes.set(this.getWorkbenchMode(), value); }
+			override resetWorkbenchScope() { scopeWrites.push(`${this.getWorkbenchMode()}:reset`); scopes.set(this.getWorkbenchMode(), folder); }
 		}();
-		const configuration = new TestConfigurationService({ [SESSIONS_LIST_WORKSPACES_FILTER_SETTING]: true });
+		const configuration = new TestConfigurationService({ [SESSIONS_LIST_WORKSPACES_FILTER_SETTING]: enabled });
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const identity = upcastPartial<IUriIdentityService>({ extUri: extUriIgnorePathCase });
 		const contextKeyService = new MockContextKeyService();
 		contextKeyService.createKey(ChatContextKeys.enabled.key, chatEnabled);
 		const sentiment = observableValue<IChatSentiment>('sentiment', { hidden });
-		const controller = store.add(new SessionsWindowScopeController(workspace, configuration, identity, contextKeyService, upcastPartial<IChatEntitlementService>({ sentimentObs: sentiment })));
+		const controller = store.add(new SessionsWindowScopeController(workspace, configuration, identity, contextKeyService, upcastPartial<IChatEntitlementService>({ sentimentObs: sentiment }),
+			upcastPartial<IAgentsModeService>({ windowFolders, get isActive() { return agentsMode.isActive; }, onWillChange: agentsMode.onWillChange.event, onDidChange: agentsMode.onDidChange.event })));
 		const storage = store.add(new InMemoryStorageService());
 		const filters = () => store.add(new SessionsListFilters(storage, store.add(new NullLogService()), configuration, identity));
-		return { controller, workspace, configuration, filters, sentiment };
-	}
-
-	test('the window scope follows the bar pick and is released when the setting turns off or the controller is disposed', async () => {
-		const { controller, workspace, configuration, filters } = createScope();
-		const bar = filters();
-		controller.setScopeBarFilters(bar);
-		const scopes = [workspace.getWorkbenchScope()?.toString()];
-		bar.setInboxWorkspace({ environment: 'local', resource: 'file:///other', label: 'other' });
-		scopes.push(workspace.getWorkbenchScope()?.toString());
 		const setEnabled = async (value: boolean) => {
 			const key = SESSIONS_LIST_WORKSPACES_FILTER_SETTING;
 			await configuration.setUserConfiguration(key, value);
 			configuration.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: section => section === key, affectedKeys: new Set([key]), change: { keys: [key], overrides: [] }, source: ConfigurationTarget.USER });
 		};
+		return { controller, workspace, configuration, filters, sentiment, setAgentsMode, setEnabled, scopeWrites };
+	}
+
+	test('the window scope follows the bar pick and is released when the setting turns off or the controller is disposed', async () => {
+		const { controller, workspace, filters, setEnabled } = createScope();
+		const bar = filters();
+		controller.setScopeBarFilters(bar);
+		const scopes = [workspace.getWorkbenchScope()?.toString()];
+		bar.setInboxWorkspace({ environment: 'local', resource: 'file:///other', label: 'other' });
+		scopes.push(workspace.getWorkbenchScope()?.toString());
 		await setEnabled(false);
 		scopes.push(workspace.getWorkbenchScope()?.toString());
 		await setEnabled(true);
@@ -120,5 +134,190 @@ suite('SessionsWindowScopeController', () => {
 		workspace.setWorkbenchScope(URI.file('/another-owner'));
 		controller.dispose();
 		assert.strictEqual(workspace.getWorkbenchScope()?.toString(), 'file:///another-owner');
+	});
+
+	test('a pick equal to the default scope is set explicitly after another component reset the scope', () => {
+		const { controller, workspace, filters, scopeWrites } = createScope();
+		const bar = filters();
+		bar.setInboxWorkspace({ environment: 'local', resource: 'file:///other', label: 'other' });
+		controller.setScopeBarFilters(bar);
+		workspace.resetWorkbenchScope();
+		scopeWrites.splice(0);
+		bar.setInboxWorkspace({ environment: 'local', resource: 'file:///work/repo', label: 'repo' });
+		assert.deepStrictEqual(scopeWrites, [`${WorkbenchMode.Agents}:/work/repo`]);
+	});
+
+	test('a window with folders in Agents mode is scoped to its pick also without the bar, which then fixes the pick', () => {
+		const run = (enabled: boolean, windowFolders: URI[]) => {
+			const { controller, workspace, filters, setAgentsMode } = createScope({ kind: windowFolders.length ? 'folder' : 'empty', enabled, windowFolders });
+			const bar = filters();
+			bar.setInboxWorkspace({ environment: 'local', resource: 'file:///work/app', label: 'app' });
+			controller.setScopeBarFilters(bar);
+			const state = () => ({
+				scopes: controller.scopesWindow.get(), bar: controller.barShown.get(), fixed: controller.scopePickFixed.get(),
+				scope: workspace.getWorkbenchScope()?.path, offered: controller.windowWorkspaces.get().map(folder => folder.label),
+			});
+			const before = state();
+			setAgentsMode(true);
+			const entered = state();
+			setAgentsMode(false);
+			return { before, entered, left: state() };
+		};
+		const notScoped = { scopes: false, bar: false, fixed: false, scope: '/work/repo', offered: [] };
+		assert.deepStrictEqual({
+			settingOff: run(false, [URI.file('/work/app')]),
+			settingOn: run(true, [URI.file('/work/app')]),
+			emptySettingOff: run(false, []),
+		}, {
+			// Scoped to the pick in the mode, which the hidden bar can't change, and back to the window's own scope on leaving
+			settingOff: { before: notScoped, entered: { scopes: true, bar: false, fixed: true, scope: '/work/app', offered: ['app'] }, left: notScoped },
+			// The bar shows in the mode, so the user can pick another workspace
+			settingOn: { before: notScoped, entered: { scopes: true, bar: true, fixed: false, scope: '/work/app', offered: ['app'] }, left: notScoped },
+			// An empty window is scoped in the mode only with the setting on
+			emptySettingOff: { before: notScoped, entered: notScoped, left: notScoped },
+		});
+	});
+
+	test('disposing with a fixed pick does not update the list, which the view disposes with it', () => {
+		const { controller, filters, setAgentsMode } = createScope({ kind: 'folder', enabled: false, windowFolders: [URI.file('/work/app')] });
+		const bar = filters();
+		bar.setInboxWorkspace({ environment: 'local', resource: 'file:///work/other', label: 'other' });
+		controller.setScopeBarFilters(bar);
+		setAgentsMode(true);
+		let changes = 0;
+		store.add(bar.onDidChange(() => changes++));
+		const fixed = controller.scopePickFixed.get();
+		controller.dispose();
+		// The bar stays fixed after the dispose: its filters go away with the view
+		assert.deepStrictEqual({ fixed, changes }, { fixed: true, changes: 0 });
+	});
+
+	test('replacing the bar filters with a fixed pick unfixes the old ones, which pick the stored pick again', () => {
+		const { controller, filters, setAgentsMode } = createScope({ kind: 'folder', enabled: false, windowFolders: [URI.file('/work/app')] });
+		const bar = filters();
+		bar.setInboxWorkspace({ environment: 'local', resource: 'file:///work/other', label: 'other' });
+		const picked = (filters: SessionsListFilters) => {
+			const workspace = filters.inboxScope.workspace;
+			return workspace === undefined ? 'all' : workspace === 'none' ? 'none' : workspace.label;
+		};
+		controller.setScopeBarFilters(bar);
+		setAgentsMode(true);
+		const fixed = picked(bar);
+		const otherBar = filters();
+		controller.setScopeBarFilters(otherBar);
+		assert.deepStrictEqual({ fixed, replaced: picked(bar), other: picked(otherBar) }, { fixed: 'app', replaced: 'other', other: 'app' });
+	});
+
+	test('the pick applies again to the mode an empty window switches to, so leaving does not keep an older pick', () => {
+		const { controller, workspace, filters, setAgentsMode } = createScope({ kind: 'empty' });
+		const bar = filters();
+		bar.setInboxWorkspace({ environment: 'local', resource: 'file:///work/first', label: 'first' });
+		controller.setScopeBarFilters(bar);
+		const before = workspace.getWorkbenchScope()?.path;
+		setAgentsMode(true);
+		// Entering starts the bar of an empty window on all sessions
+		const entered = workspace.getWorkbenchScope()?.path;
+		bar.setInboxWorkspace({ environment: 'local', resource: 'file:///work/second', label: 'second' });
+		setAgentsMode(false);
+		assert.deepStrictEqual({ before, entered, left: workspace.getWorkbenchScope()?.path }, { before: '/work/first', entered: undefined, left: '/work/second' });
+	});
+
+	test('entering Agents mode scopes the window to where the bar starts, never to the stale pick first', () => {
+		const run = (windowFolders: URI[], enabled = true) => {
+			const { controller, filters, setAgentsMode, scopeWrites } = createScope({ kind: windowFolders.length ? 'folder' : 'empty', windowFolders, enabled });
+			const bar = filters();
+			bar.setInboxWorkspace({ environment: 'local', resource: 'file:///work/other', label: 'other' });
+			controller.setScopeBarFilters(bar);
+			scopeWrites.splice(0);
+			setAgentsMode(true);
+			return scopeWrites;
+		};
+		assert.deepStrictEqual({ folder: run([URI.file('/work/app')]), folderSettingOff: run([URI.file('/work/app')], false), empty: run([]) }, {
+			folder: [`${WorkbenchMode.Agents}:/work/app`],
+			// Without the bar the pick is fixed on the window's folder, before the scope follows it
+			folderSettingOff: [`${WorkbenchMode.Agents}:/work/app`],
+			// The pick of an empty window also scopes it in the editor mode, which it leaves on all sessions
+			empty: [`${WorkbenchMode.Editor}:undefined`, `${WorkbenchMode.Agents}:undefined`],
+		});
+	});
+
+	test('a window with folders leaving Agents mode does not touch its editor scope', () => {
+		const { controller, filters, setAgentsMode, scopeWrites } = createScope({ kind: 'folder', enabled: false, windowFolders: [URI.file('/work/app')] });
+		controller.setScopeBarFilters(filters());
+		setAgentsMode(true);
+		const entered = scopeWrites.splice(0);
+		setAgentsMode(false);
+		assert.deepStrictEqual({ entered, left: scopeWrites }, { entered: [`${WorkbenchMode.Agents}:/work/app`], left: [] });
+	});
+
+	test('starts the bar of a window entering or restoring in Agents mode on its first folder, or an empty window on all sessions with the setting on', async () => {
+		const run = async ({ enabled, windowFolders, restoredInMode = false, turnSettingOff = false, turnSettingOnInMode = false }: { enabled: boolean; windowFolders: URI[]; restoredInMode?: boolean; turnSettingOff?: boolean; turnSettingOnInMode?: boolean }) => {
+			const { controller, filters, setAgentsMode, setEnabled, scopeWrites } = createScope({ kind: windowFolders.length ? 'folder' : 'empty', enabled, windowFolders, restoredInMode });
+			const bar = filters();
+			bar.setInboxWorkspace({ environment: 'local', resource: 'file:///work/other', label: 'other' });
+			const picked = () => {
+				const workspace = bar.inboxScope.workspace;
+				return workspace === undefined ? 'all' : workspace === 'none' ? 'none' : workspace.label;
+			};
+			controller.setScopeBarFilters(bar);
+			const restored = picked();
+			if (turnSettingOff) {
+				await setEnabled(false);
+				return { restored, settingOff: picked() };
+			}
+			setAgentsMode(true);
+			const entered = picked();
+			if (turnSettingOnInMode) {
+				scopeWrites.splice(0);
+				await setEnabled(true);
+				const settingOn = picked();
+				const settingOnWrites = scopeWrites.splice(0);
+				setAgentsMode(false);
+				return { restored, entered, settingOn, settingOnWrites, left: picked() };
+			}
+			setAgentsMode(false);
+			return { restored, entered, left: picked() };
+		};
+		const folder = (name: string) => URI.file(`/work/${name}`);
+		assert.deepStrictEqual({
+			folder: await run({ enabled: true, windowFolders: [folder('repo')] }),
+			multiRoot: await run({ enabled: true, windowFolders: [folder('first'), folder('second')] }),
+			empty: await run({ enabled: true, windowFolders: [] }),
+			settingOff: await run({ enabled: false, windowFolders: [folder('repo')] }),
+			emptySettingOff: await run({ enabled: false, windowFolders: [] }),
+			restoredSettingOff: await run({ enabled: false, windowFolders: [folder('repo')], restoredInMode: true }),
+			restoredSettingOn: await run({ enabled: true, windowFolders: [folder('repo')], restoredInMode: true, turnSettingOff: true }),
+			settingTurnedOnInMode: await run({ enabled: false, windowFolders: [folder('repo')], turnSettingOnInMode: true }),
+		}, {
+			// Leaving keeps the pick, as a pick of the user's would be
+			folder: { restored: 'other', entered: 'repo', left: 'repo' },
+			multiRoot: { restored: 'other', entered: 'first', left: 'first' },
+			empty: { restored: 'other', entered: 'all', left: 'all' },
+			// Without the bar the pick is fixed on the folder, which is not the user's: leaving gives the user's pick back
+			settingOff: { restored: 'other', entered: 'repo', left: 'other' },
+			emptySettingOff: { restored: 'other', entered: 'other', left: 'other' },
+			// Without the bar nothing could have widened the pick, so it starts on the folder again
+			restoredSettingOff: { restored: 'repo', entered: 'repo', left: 'other' },
+			// With the bar the user's pick stays, until the setting turns off and fixes the pick on the folder again
+			restoredSettingOn: { restored: 'other', settingOff: 'repo' },
+			// The bar showing in the mode starts on the folder, as when entering with the setting on, not on the pick from before
+			// The scope stays on the folder meanwhile: it never moves to the pick from before, not even for a moment
+			settingTurnedOnInMode: { restored: 'other', entered: 'repo', settingOn: 'repo', settingOnWrites: [], left: 'repo' },
+		});
+	});
+
+	test('the bar offers the window\'s own folders while the pick scopes the window, also before they have sessions', () => {
+		const { controller, filters, setAgentsMode } = createScope({ kind: 'folder', enabled: false, windowFolders: [URI.file('/home/user/projects/repo'), URI.file('/home/user/projects/APP')] });
+		const bar = filters();
+		const sessionOptions = getInboxWorkspaceOptions(['app', 'other'].map(workspace => buildTestSession({ id: workspace, title: workspace, workspace }).session), extUriIgnorePathCase);
+		const offered = (environment?: string) => bar.withWindowWorkspaces(sessionOptions, controller.windowWorkspaces.get(), environment).map(workspace => workspace.label);
+		const outside = offered();
+		setAgentsMode(true);
+		assert.deepStrictEqual({ outside, inMode: offered(), otherEnvironment: offered('remote') }, {
+			outside: ['app', 'other'],
+			// `…/APP` is the `app` sessions' folder where paths ignore case, so it is not offered twice
+			inMode: ['app', 'other', 'repo'],
+			otherEnvironment: ['app', 'other'],
+		});
 	});
 });

@@ -53,16 +53,20 @@ export function isPendingSessionItem(item: SessionListItem): item is IPendingSes
 	return 'pendingSession' in item && item.pendingSession === true;
 }
 
-export function matchesPendingSession(item: IPendingSessionItem, filters: SessionsListFilters, inbox: boolean, providerIds?: readonly string[]): boolean {
+/**
+ * Whether a pending session matches the list's filters. `scopedByBar` applies the bar's scope pick;
+ * `environmentPickedByBar` says the bar's environment picker replaces the Environment filter.
+ */
+export function matchesPendingSession(item: IPendingSessionItem, filters: SessionsListFilters, scopedByBar: boolean, environmentPickedByBar: boolean, providerIds?: readonly string[]): boolean {
 	if (providerIds && (!item.providerId || !providerIds.includes(item.providerId))) {
 		return false;
 	}
 	if (item.harness && filters.isExcluded({ kind: 'harness', id: item.harness })
-		|| !inbox && item.environmentId && filters.isExcluded({ kind: 'environment', id: item.environmentId })
+		|| !environmentPickedByBar && item.environmentId && filters.isExcluded({ kind: 'environment', id: item.environmentId })
 		|| item.applicationId && item.applicationId !== UNKNOWN_SESSION_APPLICATION_ID && item.environmentId && filters.isExcluded({ kind: 'application', environment: item.environmentId, id: item.applicationId })) {
 		return false;
 	}
-	if (inbox) {
+	if (scopedByBar) {
 		const { environment, workspace } = filters.inboxScope;
 		if (environment && item.environmentId !== environment.id) {
 			return false;

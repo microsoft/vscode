@@ -4807,7 +4807,7 @@ suite('Sessions - SessionsList', () => {
 				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, harness.createContainer(400, 1400), {
 					grouping: () => SessionsGrouping.Workspace,
 					sorting: () => SessionsSorting.Updated,
-					offersWorktreeFilter,
+					offersWorktreeFilter: offersWorktreeFilter === undefined ? undefined : constObservable(offersWorktreeFilter),
 					onSessionOpen: () => { },
 				}));
 				list.layout(1400, 400);
@@ -7890,6 +7890,34 @@ suite('Sessions - SessionsList', () => {
 				stillScoped: [{ id: SessionInboxSection.ReadyForYou, sessions: [] }],
 				resetPins: ['other-pinned', 'pinned', 'remote-pinned'],
 				active: 'other-pinned',
+			});
+		});
+
+		test('revealing a session outside a fixed pick does not ask to reset the scope, which the user can\'t do', () => {
+			const workspaceResource = URI.file('/projects/app');
+			const inside = createTestSession('inside', { workspaceResource }).session;
+			const outside = createTestSession('outside').session;
+			const harness = createListHarness(disposables, [inside, outside]);
+			const scopePickFixed = observableValue('scopePickFixed', true);
+			const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+				grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Updated, onSessionOpen: () => { },
+				scopeBar: constObservable(true), scopePickFixed,
+			}));
+			list.layout(800, 320);
+			list.filters.setInboxWorkspace(getInboxWorkspaceFilter(inside));
+			const message = () => {
+				try {
+					list.revealSessionForOnboarding(outside).dispose();
+					return undefined;
+				} catch (error) {
+					return error instanceof Error ? error.message : undefined;
+				}
+			};
+			const fixed = message();
+			scopePickFixed.set(false, undefined);
+			assert.deepStrictEqual({ fixed, picked: message() }, {
+				fixed: 'This session is outside the folders of this window. To reveal it, turn on the \'sessions.list.workspacesFilter.enabled\' setting and pick its workspace.',
+				picked: 'This session is outside the current Sessions scope. Reset the scope to reveal it.',
 			});
 		});
 

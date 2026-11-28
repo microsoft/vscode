@@ -782,6 +782,25 @@ suite('Sessions - pending list items', () => {
 		}, { startPrevented: false, endPrevented: false, opened: [], preview: 'Check the build' });
 	});
 
+	test('pending rows keep the Environment filter when the bar\'s pick is fixed, and leave it to the bar otherwise, also when that changes', () => {
+		const harness = createListHarness(disposables, []);
+		const drafts = [item('local'), item('remote', { environmentId: 'remote' })];
+		const scopePickFixed = observableValue('scopePickFixed', true);
+		const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(400, 800), {
+			grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Created,
+			pendingSections: constObservable<readonly IPendingSessionSection[]>([{ id: 'drafts', label: 'Drafts', items: drafts }]),
+			scopeBar: constObservable(true), scopePickFixed, onSessionOpen: () => { },
+		}));
+		list.filters.setExcluded({ kind: 'environment', id: 'remote' }, true);
+		list.setItemCollapsed({ section: 'drafts' }, false);
+		const visible = () => drafts.filter(item => !!list.getItemRow({ pendingSession: item.id })).map(item => item.id);
+		const fixed = visible();
+		scopePickFixed.set(false, undefined);
+		const picked = visible();
+		scopePickFixed.set(true, undefined);
+		assert.deepStrictEqual({ fixed, picked, fixedAgain: visible() }, { fixed: ['local'], picked: ['local', 'remote'], fixedAgain: ['local'] });
+	});
+
 	test('pending filtering composes harness, environment and application with strict Inbox workspace scope', () => {
 		const harness = createListHarness(disposables, []);
 		let grouping = SessionsGrouping.Workspace;

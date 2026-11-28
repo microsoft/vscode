@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, WorkbenchMode, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { EditorWindowSessionsProvidersService } from '../../../browser/editorWindow/editorWindowSessionsProvidersService.js';
 import { SessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
@@ -39,7 +39,11 @@ suite('EditorWindowSessionsProvidersService', () => {
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
 			onDidChangeWorkspaceFolders: Event.None,
 			onDidChangeWorkbenchState: Event.None,
+			onDidChangeWorkbenchScope: Event.None,
+			onDidChangeWorkbenchMode: Event.None,
+			getWorkbenchMode: () => WorkbenchMode.Editor,
 			getWorkbenchState: () => WorkbenchState.FOLDER,
+			getWorkbenchScope: () => URI.file('/workspace'),
 			getWorkspace: () => upcastPartial<IWorkspace>({ uri: URI.parse('vscode-remote://host/work/repo'), folders: [upcastPartial<IWorkspaceFolder>({ uri: URI.parse('vscode-remote://host/work/repo') })] }),
 		}));
 		instantiationService.stub(IWorkspaceFolderRepositories, store.add(instantiationService.createInstance(WorkspaceFolderRepositories)));

@@ -85,10 +85,15 @@ import { AgentsChatPartFrame, IAgentsChatPartFrame } from '../agentsView/agentsC
 import { AgentsChatPartService, IAgentsChatPartService } from '../agentsView/agentsChatPart.js';
 import { EditorWindowChatPartService, IEditorWindowChatPartService } from '../agentsView/agentsChatPartContribution.js';
 import { EditorWindowComposerFoldersService, IEditorWindowComposerFoldersService } from './editorWindowComposerFolders.js';
+import { WorkspaceFolderManagementContribution } from '../workspaceFolderManagement.js';
+import { SessionsWorkspaceFolderLabelService } from '../sessionsWorkspaceFolderLabelService.js';
+import { IWorkspaceFolderLabelService } from '../../../../services/workspaces/common/workspaceFolderLabelService.js';
 
 // The sessions services of an editor window, for the sessions features it can host. Every one is created only as it is
 // first used, and nothing in the window uses them until such a feature does.
 registerWorkbenchContribution2(EditorWindowWorktreeCleanup.ID, EditorWindowWorktreeCleanup, { editorTypeId: SessionWorktreeCleanupEditor.ID });
+// Mounts the focused chat's folders while the window is in Agents mode; does nothing in other editor windows
+registerWorkbenchContribution2(WorkspaceFolderManagementContribution.ID, WorkspaceFolderManagementContribution, WorkbenchPhase.AfterRestored);
 registerEditorWindowSessionsSingleton(ISessionsHostLayoutService, EditorWindowSessionsHostLayout, InstantiationType.Delayed);
 registerEditorWindowSessionsSingleton(ISessionsProvidersService, EditorWindowSessionsProvidersService, InstantiationType.Delayed);
 registerEditorWindowSessionsSingleton(IWorkspaceFolderRepositories, WorkspaceFolderRepositories, InstantiationType.Delayed);
@@ -120,6 +125,8 @@ registerEditorWindowSessionsSingleton(ISessionsChatBackgroundService, SessionsCh
 registerEditorWindowSessionsSingleton(INewSessionComposerService, NewSessionComposerService, InstantiationType.Delayed);
 registerEditorWindowSessionsSingleton(ISessionActivityBarActivityService, SessionActivityBarActivityService, InstantiationType.Delayed);
 registerEditorWindowSessionsSingleton(IDiffEditorOptionsService, DiffEditorOptionsService, InstantiationType.Delayed);
+// Labels the folders that Agents mode mounts as the Agents window does; other editor windows keep the default labels
+registerEditorWindowSessionsSingleton(IWorkspaceFolderLabelService, SessionsWorkspaceFolderLabelService, InstantiationType.Delayed);
 
 // The sessions UI that a feature hosts in an editor window, such as a sessions list or the chat part: its hosts, its
 // composers' drafts and scheduled requests, and the changes of its sessions, as the Agents window has them

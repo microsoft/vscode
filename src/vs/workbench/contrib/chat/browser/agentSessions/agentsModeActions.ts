@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -10,7 +11,9 @@ import { Action2, MenuId } from '../../../../../platform/actions/common/actions.
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IAgentsModeService } from '../../../../services/agentsMode/common/agentsMode.js';
+import { IHistoryService } from '../../../../services/history/common/history.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 
@@ -54,6 +57,42 @@ export class ToggleAgentsModeAction extends Action2 {
 			throw new Error(localize('agentsMode.unavailable', "Agents mode is unavailable in this window."));
 		}
 
-		await agentsModeService.setActive(!agentsModeService.isActive);
+		// Switching sessions in the mode clears the history of recently opened editors: the window gets its own history back
+		// when the user leaves the mode, or when it enters another workspace from the mode.
+		const historyService = accessor.get(IHistoryService);
+		const logService = accessor.get(ILogService);
+		// Saving and restoring the history must neither block the switch nor hide why it failed
+		const guarded = (step: () => void) => {
+			try {
+				step();
+			} catch (error) {
+				logService.error(error);
+			}
+		};
+		const restoreOutsideMode = () => {
+			if (!agentsModeService.isActive) {
+				guarded(() => historyService.restoreRecentlyOpened());
+			}
+		};
+		// Saved before entering, as the mode can switch sessions as soon as it is entered. Whenever the window ends up
+		// outside the mode, also when switching fails after the switch, the saved history comes back.
+		if (agentsModeService.isActive) {
+			try {
+				await agentsModeService.setActive(false);
+			} finally {
+				restoreOutsideMode();
+			}
+		} else {
+			guarded(() => historyService.saveRecentlyOpened());
+			try {
+				await agentsModeService.setActive(true);
+			} finally {
+				restoreOutsideMode();
+			}
+		}
+		// Switching moves and hides parts of the window without a visible cue for screen readers
+		alert(agentsModeService.isActive
+			? localize('agentsModeOn', "Agents mode on")
+			: localize('agentsModeOff', "Agents mode off"));
 	}
 }

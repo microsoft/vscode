@@ -109,6 +109,18 @@ suite('Sessions presentation entry isolation', () => {
 			assert.deepStrictEqual(services.filter(file => dependencies.has(file)), services);
 		});
 
+		test(`${entry} registers the Agents mode service required by its Sessions view`, () => {
+			const module = 'src/vs/workbench/services/agentsMode/browser/browserAgentsModeService.ts';
+			const dependencies = collectSourceDependencies(entry);
+			assert.deepStrictEqual({
+				sessionsView: dependencies.has('src/vs/workbench/contrib/sessions/browser/views/sessionsWindowScopeController.ts'),
+				registrations: dependencies.has(module) ? getSingletonRegistrations(module) : [],
+			}, {
+				sessionsView: true,
+				registrations: [['IAgentsModeService', 'NullAgentsModeService']],
+			});
+		});
+
 		test(`${entry} registers the workspace-folder location service required by extension-host customers`, () => {
 			const module = 'src/vs/workbench/services/workspaces/common/workspaceFolderLocationService.ts';
 			const dependencies = collectSourceDependencies(entry);
