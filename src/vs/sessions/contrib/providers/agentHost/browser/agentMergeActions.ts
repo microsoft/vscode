@@ -163,7 +163,7 @@ class AgentMergeContextKeys extends Disposable {
 			// Each folder has its own Agent Merge; follow the one the host's chat works in, or the repository the Changes show.
 			const chat = source.chat.read(reader);
 			const repository = source.changes.repositoryObs.read(reader)?.root;
-			const provider = session && sessionsProvidersService.getProvider(session.providerId);
+			const provider = session && sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 			const available = !repository || !!(session && provider && isAgentHostProvider(provider) && provider.supportsRepositoryAgentMerge(session.sessionId, repository, reader));
 			const state = session && available ? sessionAgentMergeService.getConfigurationObservable(session, chat, repository).read(reader) : undefined;
 			const enabled = state?.enabled === true;
