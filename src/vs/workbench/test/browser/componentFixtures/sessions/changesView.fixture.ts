@@ -72,6 +72,8 @@ interface IChangesViewFixtureOptions {
 		readonly selected?: URI;
 		/** The root of a repository whose changes could not be computed. */
 		readonly failed?: URI;
+		/** Instead, two folders of one repository, mono, and the vscode-docs folder. */
+		readonly sharedRoot?: boolean;
 	};
 }
 
@@ -330,6 +332,35 @@ function createRepositoriesWorkspace(): ISessionWorkspace {
 	};
 }
 
+const MONO_URI = URI.file('/workspace/mono');
+const MONO_APP_URI = URI.file('/workspace/mono/app');
+const MONO_LIB_URI = URI.file('/workspace/mono/lib');
+
+/** Two folders of the mono repository, which the host lists once under the first, and the vscode-docs folder. */
+function createSharedRootWorkspace(): ISessionWorkspace {
+	const gitRepository = (uri: URI, branchName: string): ISessionGitRepository => ({ uri, workTreeUri: undefined, branchName, baseBranchName: 'main', gitHubInfo: constObservable<IGitHubInfo | undefined>(undefined) });
+	const folder = (uri: URI, name: string, branchName: string) => ({ root: uri, workingDirectory: uri, name, description: undefined, gitRepository: gitRepository(uri, branchName) });
+	return {
+		uri: MONO_APP_URI,
+		label: 'mono',
+		icon: Codicon.folder,
+		folders: [folder(MONO_APP_URI, 'app', 'feature/shared'), folder(MONO_LIB_URI, 'lib', 'feature/shared'), folder(DOCS_URI, 'vscode-docs', 'docs/projects')],
+		repositories: [
+			{ root: MONO_URI, folder: MONO_APP_URI, kind: SessionRepositoryKind.Folder },
+			{ root: DOCS_URI, folder: DOCS_URI, kind: SessionRepositoryKind.Folder },
+		],
+		requiresWorkspaceTrust: false,
+		isVirtualWorkspace: false,
+	};
+}
+
+function createFixtureWorkspace(options: IChangesViewFixtureOptions): ISessionWorkspace {
+	if (options.repositories?.sharedRoot) {
+		return createSharedRootWorkspace();
+	}
+	return options.repositories ? createRepositoriesWorkspace() : createWorkspace();
+}
+
 function createWorkspace(): ISessionWorkspace {
 	const gitRepository: ISessionGitRepository = {
 		uri: WORKSPACE_URI,
@@ -375,7 +406,7 @@ function createSession(options: IChangesViewFixtureOptions): ITestSessionWithCha
 	};
 	const changesets = [createChangeset(options.changes)];
 	// A chat without its own folders shares the session's workspace.
-	const workspace = constObservable(options.repositories ? createRepositoriesWorkspace() : createWorkspace());
+	const workspace = constObservable(createFixtureWorkspace(options));
 	const chat = new class extends mock<IChat>() {
 		// Whose repository selection the Changes keep
 		override readonly resource = URI.parse('fixture-chat://changes-view');
@@ -684,6 +715,21 @@ export default defineThemedFixtureGroup({ path: 'sessions/changes/' }, {
 			changes: REPOSITORY_CHANGES,
 			repositories: {},
 			height: 440,
+		}),
+	}),
+
+	Repositories_SharedRoot: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['Two root rows, mono and vscode-docs, each with its branch: the files of both the app and lib folders of the mono repository are listed together under the one mono row.'],
+		render: ctx => renderChangesView(ctx, {
+			viewMode: ChangesViewMode.List,
+			changes: [
+				createFileChange('src/main.ts', 'modified', 12, 4, MONO_APP_URI.path),
+				createFileChange('src/index.ts', 'added', 30, 0, MONO_LIB_URI.path),
+				createFileChange('docs/agents/projects.md', 'added', 96, 0, DOCS_URI.path),
+			],
+			repositories: { sharedRoot: true },
+			height: 320,
 		}),
 	}),
 

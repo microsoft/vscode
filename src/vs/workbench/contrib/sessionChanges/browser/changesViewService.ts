@@ -9,8 +9,7 @@ import { structuralEquals } from '../../../../base/common/equals.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache, ResourceMap } from '../../../../base/common/map.js';
 import { derived, derivedObservableWithCache, derivedOpts, IObservable, IReader, ISettableObservable, observableSignal, observableSignalFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
-import { basename, extUriBiasedIgnorePathCase, isEqual, relativePath } from '../../../../base/common/resources.js';
-import { findDeepestContainingWorkingDirectory } from '../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
+import { basename, isEqual, relativePath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_MERGE_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
@@ -907,7 +906,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			if (!found?.length) {
 				// A host that records repositories lists one shared by several folders once, under the first: a folder in a
 				// listed repository is one of its folders
-				const containing = workspace.repositories ? this._findDeepestContainingRepository(repositories, folder.workingDirectory) : undefined;
+				const containing = workspace.repositories ? this._findDeepestContainingRepository(repositories.filter(repository => repository.kind !== undefined), folder.workingDirectory) : undefined;
 				if (containing) {
 					containing.folders.push(folder.workingDirectory);
 					continue;
@@ -940,11 +939,11 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		return repositories.length > 1 ? repositories : [];
 	}
 
-	/** The deepest repository of `repositories` whose root contains `folder`; folders in no repository contain none. */
-	private _findDeepestContainingRepository<T extends IChangesRepository>(repositories: readonly T[], folder: URI): T | undefined {
+	/** The deepest of `repositories` whose root contains `resource`, compared by the case rules of its file system. */
+	private _findDeepestContainingRepository<T extends IChangesRepository>(repositories: readonly T[], resource: URI): T | undefined {
 		let deepest: T | undefined;
 		for (const repository of repositories) {
-			if (repository.kind !== undefined && this.uriIdentityService.extUri.isEqualOrParent(folder, repository.root)
+			if (this.uriIdentityService.extUri.isEqualOrParent(resource, repository.root)
 				&& (!deepest || this.uriIdentityService.extUri.isEqualOrParent(repository.root, deepest.root))) {
 				deepest = repository;
 			}
@@ -954,7 +953,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 
 	/** The repository `repositories` has with root `root`. */
 	private _findChangesRepository(repositories: readonly IChangesRepository[], root: URI | undefined): IChangesRepository | undefined {
-		return root ? repositories.find(repository => extUriBiasedIgnorePathCase.isEqual(repository.root, root)) : undefined;
+		return root ? repositories.find(repository => this.uriIdentityService.extUri.isEqual(repository.root, root)) : undefined;
 	}
 
 	/**
@@ -962,18 +961,15 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 	 * provider gives them, both in the client's space, so a resource of another host at the same path is in none.
 	 */
 	private _createRepositoryLookup(repositories: readonly IChangesRepository[]): (resource: URI) => IChangesRepository | undefined {
-		const roots = repositories.map(repository => repository.root);
-		return resource => {
-			const root = findDeepestContainingWorkingDirectory(resource, roots);
-			return root ? repositories[roots.indexOf(root)] : undefined;
-		};
+		return resource => this._findDeepestContainingRepository(repositories, resource);
 	}
 
 	/** Why the changes of `repository` could not be loaded, among the `failures` a changeset reports per folder, if they could not. */
 	findRepositoryFailure(repository: IChangesRepository, failures: readonly ISessionChangesetFolderFailure[]): ISessionChangesetFolderFailure | undefined {
 		// A host reports a folder's own repository by the folder, and one found in it by its root
-		return failures.find(failure => extUriBiasedIgnorePathCase.isEqual(failure.workingDirectory, repository.root)
-			|| repository.kind !== SessionRepositoryKind.Nested && repository.folders.some(folder => extUriBiasedIgnorePathCase.isEqual(failure.workingDirectory, folder)));
+		const extUri = this.uriIdentityService.extUri;
+		return failures.find(failure => extUri.isEqual(failure.workingDirectory, repository.root)
+			|| repository.kind !== SessionRepositoryKind.Nested && repository.folders.some(folder => extUri.isEqual(failure.workingDirectory, folder)));
 	}
 
 	/**
@@ -1011,7 +1007,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		const getRepository = this._createRepositoryLookup(repositories);
 		return changes.filter(change => {
 			const changeRepository = getRepository(getChangesEditorFileResource(change));
-			return !!changeRepository && extUriBiasedIgnorePathCase.isEqual(changeRepository.root, repository.root);
+			return !!changeRepository && this.uriIdentityService.extUri.isEqual(changeRepository.root, repository.root);
 		});
 	}
 }

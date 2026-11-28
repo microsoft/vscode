@@ -1458,7 +1458,7 @@ suite('ChangesViewService', () => {
 			const mono = URI.file('/work/mono');
 			const [monoA, monoB] = [URI.file('/work/mono/a'), URI.file('/work/mono/b')];
 			const apiSub = URI.file('/work/api/sub');
-			// The host lists a repository once, under the first of its folders
+			// The host lists a repository once, under the first of its folders, as withSessionFolderState reads its records (see agentHostSessionFolders.test.ts)
 			const foldersOfOneRepository = repositoriesOf(
 				[folder(monoA, gitRepository(monoA, 'm')), folder(monoB, gitRepository(monoB, 'm')), folder(web, gitRepository(web, 'w'))],
 				[{ root: mono, folder: monoA, kind: SessionRepositoryKind.Folder }, { root: web, folder: web, kind: SessionRepositoryKind.Folder }],
@@ -1502,6 +1502,26 @@ suite('ChangesViewService', () => {
 				local: ['Mono', 'web'],
 				// An agent host's paths do not: it is another folder
 				remote: ['Mono', 'sub', 'web'],
+			});
+		});
+
+		test('groups and selects the repositories of an agent host by the case of their paths', () => {
+			const remote = (path: string) => URI.file(path).with({ scheme: 'vscode-agent-host', authority: 'remote' });
+			const [upper, lower] = [remote('/work/Mono'), remote('/work/mono')];
+			const { service, repositories } = repositoriesOf(
+				[folder(upper, gitRepository(upper, 'u')), folder(lower, gitRepository(lower, 'l'))],
+				[{ root: upper, folder: upper, kind: SessionRepositoryKind.Folder }, { root: lower, folder: lower, kind: SessionRepositoryKind.Folder }],
+			);
+			const lowerChange = change('/work/mono/x.ts', 'vscode-agent-host', 'remote');
+			service.setRepository(lower);
+			assert.deepStrictEqual({
+				groups: service.groupByRepository([lowerChange], resourceOf, repositories).map(group => group.repository?.name),
+				selected: service.activeSessionRepositoryObs.get()?.name,
+				failure: service.findRepositoryFailure(repositories[0], [{ workingDirectory: lower, message: 'Not loaded' }])?.message,
+			}, {
+				groups: ['mono'],
+				selected: 'mono',
+				failure: undefined,
 			});
 		});
 	});
