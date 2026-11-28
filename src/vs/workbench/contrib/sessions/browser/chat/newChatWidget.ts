@@ -831,6 +831,7 @@ export class NewChatWidget extends Disposable {
 		}));
 
 		this._register(this._workspacePicker.onDidSelectWorkspace(folderUri => this._handleWorkspaceSelection(folderUri, this._workspacePicker.selectionSnapshot.origin !== WorkspaceSelectionOrigin.User)));
+		this._register(this._workspacePicker.onDidChangeSelectedWorkspaceFolders(() => this._handleSelectedWorkspaceFoldersChange().catch(onUnexpectedError)));
 		this._register(this._workspacePicker.onDidSelectWorkspaceMode(({ folderUri, preferDevContainer }) => {
 			const environment = this._environment.get();
 			this._preferredDevContainerFolderUri = preferDevContainer || environment?.kind === 'container' ? folderUri : undefined;
@@ -3479,25 +3480,70 @@ export class NewChatWidget extends Disposable {
 			this._backgroundSendStatus.set(undefined, undefined);
 			this._lastBackgroundSendOptions = undefined;
 		}
+		// What is sent goes to the selection it was sent for, or a draft that replaced its own as its workspace's folders changed
+		const selectionId = this._workspacePicker.selectionId;
+		// The draft sent is the one shown as Send is pressed: another taken only as its replacement. What else is sent, the
+		// feedback and the agents to compare, is also as it is then.
 		let session = this._session.get();
-		// A hosted composer creating its draft again, such as after a send that failed, sends once it has it.
-		if (!session && this._draftHost && this._pendingWorkspaceCreation) {
-			await this._pendingWorkspaceCreation;
-			session = this._session.get();
+		const pendingCreation = this._pendingWorkspaceCreation;
+		const feedbackItems = [...this._feedbackItems.get()];
+		const comparison = this._getComparisonIntent();
+		while (this._workspaceFoldersReconciliation) {
+			await this._workspaceFoldersReconciliation.catch(() => undefined);
+		}
+		// A hosted composer creating its draft again, such as after a send that failed, sends the draft that creation makes
+		if (!session && this._draftHost && pendingCreation) {
+			const created = await pendingCreation.catch(() => undefined);
+			// Not a draft it fell back to, which it did not create
+			session = created?.created ? created.session : undefined;
 		}
 		if (!session) {
 			this._workspacePicker.showPicker();
 			return false;
 		}
-		const workspaceValid = await this._workspacePicker.validateSelectedWorkspace().catch(error => {
-			this.logService.error('Failed to validate workspace:', error);
-			this.notificationService.error(localize('newSession.workspaceValidationFailed', "Could not check the session's workspace: {0}", toErrorMessage(error)));
-			return false;
-		});
-		if (!workspaceValid || session !== this._session.get()) {
+		// The workspace is validated for the draft that is sent: again for a draft that replaced it meanwhile
+		for (let attempt = 0; ; attempt++) {
+			const folderUri = this._workspacePicker.selectedFolderUri;
+			const workspaceValid = await this._workspacePicker.validateSelectedWorkspace().catch(error => {
+				this.logService.error('Failed to validate workspace:', error);
+				this.notificationService.error(localize('newSession.workspaceValidationFailed', "Could not check the session's workspace: {0}", toErrorMessage(error)));
+				return false;
+			});
+			// The selection followed its workspace to another folder while the former one was validated, which the picker
+			// reports as not valid: the folder it is in now is validated
+			const followedToOtherFolder = !workspaceValid && this._hasSelectionFollowedFrom(folderUri, selectionId);
+			if (followedToOtherFolder && attempt < 2) {
+				// The draft sent stays what replacements are traced from: another draft is taken only as its replacement
+				continue;
+			}
+			if (followedToOtherFolder) {
+				this.notificationService.warn(localize('newChatWidget.workspaceFoldersChanged', "The folders of this session's workspace changed. Check the workspace and send again."));
+				return false;
+			}
+			if (!workspaceValid || !this._session.get()) {
+				return false;
+			}
+			const reconciled = await this._reconcileDraftBeforeSend(session, selectionId);
+			if (!reconciled) {
+				return false;
+			}
+			// Checked once more after the last wait, with nothing awaited until it is sent: the draft, or its replacement, in the
+			// folder validated in this round
+			if (this._isCurrentSendTarget(reconciled, selectionId, folderUri)) {
+				session = reconciled;
+				break;
+			}
+			if (attempt >= 2) {
+				this.notificationService.warn(localize('newChatWidget.workspaceFoldersChanged', "The folders of this session's workspace changed. Check the workspace and send again."));
+				return false;
+			}
+			session = reconciled;
+		}
+		// A comparison is sent as it was asked for, or not at all: a replacement of the draft can change or reset it
+		if (this._getComparisonIntent() !== comparison) {
+			this.notificationService.warn(localize('newChatWidget.comparisonChanged', "The agents to compare changed before the request was sent. Check them and send again."));
 			return false;
 		}
-		const feedbackItems = [...this._feedbackItems.get()];
 		const workspaceRoots = this._getWorkspaceRoots(session);
 		const request = buildNewSessionPrompt(query, feedbackItems, workspaceRoots);
 		const requestContext = new Map<string, IChatRequestVariableEntry>();
@@ -3866,6 +3912,131 @@ export class NewChatWidget extends Disposable {
 		if ((folderUri || !this._workspaceOptOutEnabled.get()) && !(notByUser && isTypingInEditableElement())) {
 			this._newChatInput.focus();
 		}
+	}
+
+	/** Replacing the draft after its workspace's folders changed; a send waits for it. */
+	private _workspaceFoldersReconciliation: Promise<void> | undefined;
+	/** The draft that replaced each draft as its workspace's folders changed. */
+	private readonly _workspaceFoldersReplacements = new WeakMap<ISession, ISession>();
+
+	/**
+	 * A draft works in its workspace's folders as they are: a draft not yet sent, in a workspace whose folders changed, is
+	 * replaced, as when the user adds or removes a folder, without moving focus. Changes are handled one at a time, each
+	 * once any creation of a draft has settled, against the selection as it is then, so that the last one applies. Nothing
+	 * changes for a session that started.
+	 */
+	private _handleSelectedWorkspaceFoldersChange(): Promise<void> {
+		const previous = this._workspaceFoldersReconciliation;
+		const reconciliation = (async () => {
+			// A failed change, which its own caller reports, does not hold up the ones after it
+			await previous?.catch(() => undefined);
+			while (this._pendingWorkspaceCreation) {
+				await this._pendingWorkspaceCreation.catch(() => undefined);
+			}
+			const folderUri = this._workspacePicker.selectedFolderUri;
+			const session = this._session.get();
+			// A workspace that can no longer be selected is not replaced by its former folder alone: the draft is not sent
+			if (!folderUri || !session || isSessionCreated(session) || this._workspacePicker.isSelectedWorkspaceUnavailable || this._isCurrentWorkspaceSelection(folderUri)) {
+				return;
+			}
+			const host = this._draftHost;
+			if (host?.setRequestedTarget && !this.uriIdentityService.extUri.isEqual(host.requestedTarget?.get()?.folderUri, folderUri)) {
+				host.setRequestedTarget({ ...host.requestedTarget?.get(), folderUri }, 'background');
+			}
+			const selectionId = this._workspacePicker.selectionId;
+			const result = await this._onWorkspaceSelected(folderUri);
+			const replacement = result?.created ? result.session : undefined;
+			// Its replacement is the draft it created, while it is shown for the same selection: not one it fell back to, nor
+			// another, such as one the user created meanwhile for another agent
+			if (replacement && replacement !== session && replacement === this._session.get() && selectionId === this._workspacePicker.selectionId) {
+				this._workspaceFoldersReplacements.set(session, replacement);
+			}
+		})();
+		this._workspaceFoldersReconciliation = reconciliation;
+		const clear = () => {
+			if (this._workspaceFoldersReconciliation === reconciliation) {
+				this._workspaceFoldersReconciliation = undefined;
+			}
+		};
+		reconciliation.then(clear, clear);
+		return reconciliation;
+	}
+
+	/**
+	 * The draft to send: `session`, or the draft that replaced it in its workspace's folders as they are now, once any
+	 * replacement settles, while the selection is the one it was sent for (`selectionId`). `undefined` for another
+	 * selection, which the user picked after sending, or, with the user told, when no draft works in the folders: the
+	 * input is kept.
+	 */
+	private async _reconcileDraftBeforeSend(session: ISession, selectionId: number): Promise<ISession | undefined> {
+		while (this._workspaceFoldersReconciliation) {
+			await this._workspaceFoldersReconciliation.catch(() => undefined);
+		}
+		// `session`, or a draft that replaced it as its workspace's folders changed
+		const isSessionOrReplacement = (candidate: ISession) => {
+			const seen = new Set<ISession>();
+			for (let draft: ISession | undefined = session; draft && !seen.has(draft); draft = this._workspaceFoldersReplacements.get(draft)) {
+				if (draft === candidate) {
+					return true;
+				}
+				seen.add(draft);
+			}
+			return false;
+		};
+		const isSameSelection = () => this._workspacePicker.selectionId === selectionId;
+		let current = this._session.get();
+		if (current && isSameSelection() && isSessionOrReplacement(current) && !isSessionCreated(current) && !this._isDraftInSelectedWorkspaceFolders(current)) {
+			await this._handleSelectedWorkspaceFoldersChange().catch(error => this.logService.error('Failed to replace the draft for its workspace\'s folders:', error));
+			current = this._session.get();
+		}
+		// Another selection, or its draft: the user picked it after sending, which sends nothing
+		if (!current || !isSameSelection() || !isSessionOrReplacement(current)) {
+			return undefined;
+		}
+		if (isSessionCreated(current) ? current === session : this._isDraftInSelectedWorkspaceFolders(current)) {
+			return current;
+		}
+		this.notificationService.warn(localize('newChatWidget.workspaceFoldersChanged', "The folders of this session's workspace changed. Check the workspace and send again."));
+		return undefined;
+	}
+
+	/** The agents a send compares, `undefined` when it does not compare them, as a key that changes with them. */
+	private _getComparisonIntent(): string | undefined {
+		const selection = this._comparisonSelection;
+		return selection.enabled.get()
+			? JSON.stringify({ attempts: selection.attempts.get(), judge: selection.judgeModelId.get(), synthesizer: selection.synthesizerModelId.get() })
+			: undefined;
+	}
+
+	/** Whether the selection a send for `selectionId` is for is the same, but in another folder than `folderUri` now. */
+	private _hasSelectionFollowedFrom(folderUri: URI | undefined, selectionId: number): boolean {
+		return this._workspacePicker.selectionId === selectionId && !this.uriIdentityService.extUri.isEqual(this._workspacePicker.selectedFolderUri, folderUri);
+	}
+
+	/**
+	 * Whether `session` is still what a send for `selectionId` goes to: the current draft, in its workspace's folders as
+	 * they are, with the picker on the folder it validated.
+	 */
+	private _isCurrentSendTarget(session: ISession, selectionId: number, validatedFolderUri: URI | undefined): boolean {
+		return this._session.get() === session && this._workspacePicker.selectionId === selectionId && !this._workspaceFoldersReconciliation
+			&& this.uriIdentityService.extUri.isEqual(this._workspacePicker.selectedFolderUri, validatedFolderUri)
+			&& (isSessionCreated(session) || this._isDraftInSelectedWorkspaceFolders(session));
+	}
+
+	/**
+	 * Whether a draft works in its workspace's folders as the picker reads them now. A draft outside a workspace, with
+	 * none selected, has nothing to compare.
+	 */
+	private _isDraftInSelectedWorkspaceFolders(session: ISession): boolean {
+		if (this._workspacePicker.isSelectedWorkspaceUnavailable) {
+			return false;
+		}
+		const folderUri = this._workspacePicker.selectedFolderUri;
+		const workspace = session.workspace.get();
+		if (!folderUri || !workspace || (!this._getDraftWorkspaceConfig(session.sessionId, workspace) && !this._workspacePicker.selectedWorkspaceConfig)) {
+			return true;
+		}
+		return this.uriIdentityService.extUri.isEqual(workspace.folders[0]?.root, folderUri) && this._isSelectedWorkspaceConfig(session, folderUri);
 	}
 
 	/** The workspace configuration this composer requested its draft in, for a provider that does not record it. */

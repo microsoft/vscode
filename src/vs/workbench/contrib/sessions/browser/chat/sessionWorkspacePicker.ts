@@ -16,7 +16,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { disposableTimeout, Limiter, RunOnceScheduler } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { getOrSet } from '../../../../../base/common/map.js';
+import { getOrSet, ResourceMap } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { basename, dirname } from '../../../../../base/common/resources.js';
@@ -312,6 +312,12 @@ export class WorkspacePicker extends Disposable {
 	readonly onDidSelectWorkspace: Event<URI | undefined> = this._onDidSelectWorkspace.event;
 	private readonly _onDidSelectWorkspaceMode = this._register(new Emitter<{ readonly folderUri: URI; readonly preferDevContainer: boolean }>());
 	readonly onDidSelectWorkspaceMode = this._onDidSelectWorkspaceMode.event;
+	private readonly _onDidChangeSelectedWorkspaceFolders = this._register(new Emitter<URI>());
+	/**
+	 * The folders of the selected workspace changed, as its file was edited, which the selection follows: a workspace that
+	 * starts with another folder now is selected in it, where it can be. Fires the workspace's URI.
+	 */
+	readonly onDidChangeSelectedWorkspaceFolders: Event<URI> = this._onDidChangeSelectedWorkspaceFolders.event;
 	protected readonly _onDidChangeSelection = this._register(new Emitter<void>());
 	readonly onDidChangeSelection: Event<void> = this._onDidChangeSelection.event;
 	private readonly _onDidChangeChatPetPlatform = this._register(new Emitter<void>());
@@ -506,6 +512,37 @@ export class WorkspacePicker extends Disposable {
 		this._setAddedSessionFolders(added);
 	}
 
+	private _isSameFolderList(folders: readonly URI[], others: readonly URI[]): boolean {
+		const extUri = this.uriIdentityService.extUri;
+		return folders.length === others.length && folders.every((folder, index) => extUri.isEqual(folder, others[index]));
+	}
+
+	/**
+	 * Whether the selected workspace can no longer be the selection's, as an edit of its file left it without folders or
+	 * starting with one this picker cannot select, or its file can no longer be read. Its session is not created in its
+	 * former folder alone.
+	 */
+	get isSelectedWorkspaceUnavailable(): boolean {
+		const uri = this._selectedSessionWorkspaceUri;
+		if (!uri || !this._workspacesEnabled.get() || !this.sessionWorkspacesService.getWorkspace(uri)) {
+			return false;
+		}
+		// A file that can no longer be read keeps its last known folders, but is no workspace to create a session in
+		const workspace = this.selectedSessionWorkspace;
+		return !workspace || !!workspace.missing;
+	}
+
+	/**
+	 * Changes with each selection, of the user's or another's, but not as the selection follows its workspace's file:
+	 * what was sent for one selection is not sent for another.
+	 */
+	get selectionId(): number {
+		return this._selectionGeneration - this._workspaceFollowingSelections;
+	}
+
+	/** The selections that followed the selected workspace's file, which {@link selectionId} leaves out. */
+	private _workspaceFollowingSelections = 0;
+
 	/** Removes a folder the user added to the session of the selected folder. */
 	removeSessionFolder(folder: URI): void {
 		const extUri = this.uriIdentityService.extUri;
@@ -518,8 +555,7 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	private _setAddedSessionFolders(folders: readonly URI[]): void {
-		const extUri = this.uriIdentityService.extUri;
-		if (folders.length === this._addedSessionFolders.length && folders.every((folder, index) => extUri.isEqual(folder, this._addedSessionFolders[index]))) {
+		if (this._isSameFolderList(folders, this._addedSessionFolders)) {
 			return;
 		}
 		this._addedSessionFolders = folders;
@@ -683,12 +719,32 @@ export class WorkspacePicker extends Disposable {
 		// Read from the configuration, not the workspaces service, so that the service is only created while workspaces are on
 		this._workspacesEnabled = observableSessionWorkspacesEnabled(this.configurationService, productService);
 		let initialized = false;
+		// The folders of each workspace as last read, to tell when the selected workspace's folders change
+		let workspaceFolders = new ResourceMap<readonly URI[]>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
 		this._register(autorun(reader => {
-			if (this._workspacesEnabled.read(reader)) {
-				this.sessionWorkspacesService.workspaces.read(reader);
-			}
+			const workspaces = this._workspacesEnabled.read(reader) ? this.sessionWorkspacesService.workspaces.read(reader) : [];
+			const previousFolders = this._selectedSessionWorkspaceUri && workspaceFolders.get(this._selectedSessionWorkspaceUri);
+			workspaceFolders = new ResourceMap<readonly URI[]>(workspaces.map((workspace): [URI, readonly URI[]] => [workspace.uri, workspace.folders]), uri => this.uriIdentityService.extUri.getComparisonKey(uri));
 			if (initialized) {
 				this._updateTriggerLabel();
+				const workspaceUri = this._selectedSessionWorkspaceUri;
+				const folders = workspaceUri && workspaceFolders.get(workspaceUri);
+				if (previousFolders && workspaceUri && folders && this._selectedFolderUri && !this._isSameFolderList(previousFolders, folders)) {
+					if (folders.length && !this.uriIdentityService.extUri.isEqual(folders[0], this._selectedFolderUri)) {
+						// The workspace starts with another folder now: it stays selected, in that folder, where a composer can work in it.
+						// Its file changed, not the user's pick.
+						const source = this._preselectionSource === NewSessionWorkspacePreselectionSource.User ? NewSessionWorkspacePreselectionSource.ProvidedWorkspace : this._preselectionSource;
+						const selectionGeneration = this._selectionGeneration;
+						this._selectFolder(folders[0], false, this._selectedResolved?.providerId, false, source, this._selectionOrigin, workspaceUri, this._addedSessionFolders);
+						if (this.uriIdentityService.extUri.isEqual(this._selectedFolderUri, folders[0])) {
+							// The same selection, which followed its workspace. Its generation still changes, for what checked its former folder.
+							this._workspaceFollowingSelections += this._selectionGeneration - selectionGeneration;
+						}
+					} else {
+						this._onDidChangeSelection.fire();
+					}
+					this._onDidChangeSelectedWorkspaceFolders.fire(workspaceUri);
+				}
 			}
 			initialized = true;
 		}));
