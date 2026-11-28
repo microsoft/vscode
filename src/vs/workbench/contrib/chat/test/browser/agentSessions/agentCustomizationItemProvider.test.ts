@@ -1862,4 +1862,61 @@ suite('AgentCustomizationItemProvider', () => {
 			enabledItems: [],
 		});
 	});
+
+	test('re-expands unversioned draft plugins when nonce is undefined while caching matching nonces', async () => {
+		const pluginUri = URI.file('/plugins/local');
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
+		await fileService.writeFile(URI.joinPath(pluginUri, 'plugin.json'), VSBuffer.fromString(JSON.stringify({ name: 'Local' })));
+		await fileService.writeFile(URI.joinPath(pluginUri, 'agents', 'first.agent.md'), VSBuffer.fromString('---\nname: First\n---\n'));
+
+		const draftCustomizations = observableValue<readonly ClientPluginCustomization[]>('draftCustomizations', [{
+			type: CustomizationType.Plugin,
+			id: pluginUri.toString(),
+			uri: pluginUri.toString(),
+			name: 'Local',
+		}]);
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('local') },
+			undefined,
+			undefined,
+			fileService,
+			new NullLogService(),
+			new NullAgentHostCustomizationService(),
+			...makeSources(), labelService,
+		));
+		provider.setDraftCustomizations(draftCustomizations);
+
+		const sessionUri = URI.parse('agent-host-codex:///draft');
+		const initialAgents = (await provider.provideChatSessionCustomizations(sessionUri, CancellationToken.None))
+			.filter(item => item.type === PromptsType.agent).map(item => item.name);
+
+		await fileService.writeFile(URI.joinPath(pluginUri, 'agents', 'second.agent.md'), VSBuffer.fromString('---\nname: Second\n---\n'));
+		const refreshedUnversioned = (await provider.provideChatSessionCustomizations(sessionUri, CancellationToken.None))
+			.filter(item => item.type === PromptsType.agent).map(item => item.name);
+
+		draftCustomizations.set([{
+			type: CustomizationType.Plugin,
+			id: pluginUri.toString(),
+			uri: pluginUri.toString(),
+			name: 'Local',
+			nonce: 'rev-1',
+		}], undefined);
+		const versionedFirst = (await provider.provideChatSessionCustomizations(sessionUri, CancellationToken.None))
+			.filter(item => item.type === PromptsType.agent).map(item => item.name);
+		await fileService.writeFile(URI.joinPath(pluginUri, 'agents', 'third.agent.md'), VSBuffer.fromString('---\nname: Third\n---\n'));
+		const versionedCached = (await provider.provideChatSessionCustomizations(sessionUri, CancellationToken.None))
+			.filter(item => item.type === PromptsType.agent).map(item => item.name);
+
+		assert.deepStrictEqual({
+			initialAgents,
+			refreshedUnversioned,
+			versionedFirst,
+			versionedCached,
+		}, {
+			initialAgents: ['First'],
+			refreshedUnversioned: ['First', 'Second'],
+			versionedFirst: ['First', 'Second'],
+			versionedCached: ['First', 'Second'],
+		});
+	});
 });

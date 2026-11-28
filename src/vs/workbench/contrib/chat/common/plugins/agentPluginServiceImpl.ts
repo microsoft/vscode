@@ -4,23 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { arrayEquals } from '../../../../../base/common/equals.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { untildify } from '../../../../../base/common/labels.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { autorun, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableFromEvent, ObservablePromise, observableSignal, observableValue, transaction } from '../../../../../base/common/observable.js';
 import {
-	basename, dirname, isEqual, isEqualOrParent, joinPath
+	basename, dirname, extUriBiasedIgnorePathCase, isEqual, isEqualOrParent, joinPath
 } from '../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, getConfigValueInTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../platform/files/common/files.js';
+import { FileChangesEvent, FileOperationResult, IFileService, toFileOperationResult } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -56,7 +56,7 @@ import { AUTOMATION_BLUEPRINT_FILE_SUFFIX, parseAutomationBlueprint } from '../a
 import { HookType } from '../promptSyntax/hookTypes.js';
 import { AgentPluginCollisionEnablementModel, getAgentPluginPolicyEnablement, getAgentPluginPolicyId, getCanonicalAgentPluginCollisionGroups, getSortedAgentPlugins, IAgentPluginEnablementService, IDiscoveredAgentPlugins, isAgentPluginBlockedByPolicy, isAgentPluginForceEnabledByPolicy } from './agentPluginEnablement.js';
 import { IAgentPluginRepositoryService } from './agentPluginRepositoryService.js';
-import { AgentPluginDiscoveryKind, AgentPluginDiscoveryPriority, agentPluginDiscoveryRegistry, IAgentPlugin, IAgentPluginAutomation, IAgentPluginDiscovery, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginService, ICopilotCliPluginInstallation } from './agentPluginService.js';
+import { AgentPluginDiscoveryKind, AgentPluginDiscoveryPriority, agentPluginDiscoveryRegistry, IAgentPlugin, IAgentPluginAutomation, IAgentPluginDiscovery, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginService, ICopilotCliPluginInstallation, IGNORED_PLUGIN_DIR_NAMES, PLUGIN_WATCH_EXCLUDES } from './agentPluginService.js';
 import { IPluginInstallService } from './pluginInstallService.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from './pluginMarketplaceService.js';
 
@@ -284,6 +284,39 @@ interface IPluginSource {
 }
 
 /**
+ * Returns whether `event` affects `root` outside {@link IGNORED_PLUGIN_DIR_NAMES}.
+ * Changes that only touch `.git` or `node_modules` inside `root` are ignored even
+ * when another uncorrelated watcher (such as a workspace watcher) reports them.
+ */
+function isRelevantPluginChange(root: URI, event: FileChangesEvent): boolean {
+	if (!event.affects(root)) {
+		return false;
+	}
+	for (const resource of event.rawDeleted) {
+		if (extUriBiasedIgnorePathCase.isEqualOrParent(root, resource)) {
+			return true;
+		}
+		if (extUriBiasedIgnorePathCase.isEqualOrParent(resource, root)) {
+			const rel = extUriBiasedIgnorePathCase.relativePath(root, resource);
+			if (!rel || !rel.split('/').some(segment => IGNORED_PLUGIN_DIR_NAMES.has(segment))) {
+				return true;
+			}
+		}
+	}
+	for (const resources of [event.rawAdded, event.rawUpdated]) {
+		for (const resource of resources) {
+			if (extUriBiasedIgnorePathCase.isEqualOrParent(resource, root)) {
+				const rel = extUriBiasedIgnorePathCase.relativePath(root, resource);
+				if (!rel || !rel.split('/').some(segment => IGNORED_PLUGIN_DIR_NAMES.has(segment))) {
+					return true;
+				}
+			}
+		}
+	}
+	return false;
+}
+
+/**
  * Shared base class for plugin discovery implementations. Contains the common
  * logic for reading plugin contents (commands, skills, agents, hooks, MCP server
  * definitions) from the filesystem and watching for live updates.
@@ -405,6 +438,9 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		// re-read whenever the manifest changes on disk.
 		const initialManifest = await readPluginManifest(uri, format, this._fileService);
 		const manifest = observableValue<IPluginManifest | undefined>('agentPluginManifest', initialManifest);
+		const contentVersion = watchPluginContents ? observableValue<number>('agentPluginContentVersion', 0) : undefined;
+		const bumpContentVersion = () => contentVersion?.set(contentVersion.get() + 1, undefined);
+		const pluginFileChanges = watchPluginContents ? store.add(new Emitter<FileChangesEvent>()) : undefined;
 		const pluginVersion = derived(reader => {
 			const manifestVersion = manifest.read(reader)?.version;
 			if (typeof manifestVersion === 'string' && manifestVersion.trim()) {
@@ -434,10 +470,27 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 
 				const dirs = resolvePluginComponentDirs(uri, format, prop, defaultPath, section, repositoryUri);
 				if (watchPluginContents) {
+					const insideDirs: URI[] = [];
+					const externalDirs: URI[] = [];
 					for (const d of dirs) {
-						const watcher = this._fileService.createWatcher(d, { recursive: false, excludes: [] });
-						reader.store.add(watcher);
-						reader.store.add(watcher.onDidChange(() => changeTrigger.trigger(undefined)));
+						if (extUriBiasedIgnorePathCase.isEqualOrParent(d, uri)) {
+							insideDirs.push(d);
+						} else {
+							externalDirs.push(d);
+						}
+					}
+					if (insideDirs.length > 0) {
+						reader.store.add(pluginFileChanges!.event(change => {
+							if (insideDirs.some(dir => isRelevantPluginChange(dir, change))) {
+								changeTrigger.trigger(undefined);
+							}
+						}));
+					}
+					for (const d of externalDirs) {
+						reader.store.add(this._watchExternalComponentPath(d, () => {
+							bumpContentVersion();
+							changeTrigger.trigger(undefined);
+						}));
 					}
 				}
 
@@ -513,12 +566,12 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 
 		const agentManifestUri = joinPath(uri, 'plugin.json');
 		if (watchPluginContents) {
-			const rootWatcher = this._fileService.createWatcher(uri, { recursive: false, excludes: [] });
-			store.add(rootWatcher);
-			store.add(rootWatcher.onDidChange(change => {
-				if (change.affects(agentManifestUri)) {
+			store.add(this._watchDirectoryRecursively(uri, change => {
+				bumpContentVersion();
+				if (change.affects(agentManifestUri) || (!isEqual(manifestUri, agentManifestUri) && change.affects(manifestUri))) {
 					void readManifest();
 				}
+				pluginFileChanges!.fire(change);
 			}));
 		}
 		store.add(this._fileService.onDidRunOperation(event => {
@@ -526,11 +579,6 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 				void readManifest();
 			}
 		}));
-		if (watchPluginContents && !isEqual(manifestUri, agentManifestUri)) {
-			const manifestWatcher = this._fileService.createWatcher(manifestUri, { recursive: false, excludes: [] });
-			store.add(manifestWatcher);
-			store.add(manifestWatcher.onDidChange(() => readManifest()));
-		}
 
 		const manifestName = typeof initialManifest?.name === 'string' && initialManifest.name.trim()
 			? initialManifest.name.trim()
@@ -542,6 +590,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			format: format.format,
 			label: fromMarketplace?.name ?? manifestName ?? basename(uri),
 			version: pluginVersion,
+			contentVersion,
 			enablement,
 			policyEnablement,
 			policyBlocked,
@@ -567,6 +616,80 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		}
 
 		return plugin;
+	}
+
+	/**
+	 * Watches a plugin directory recursively while avoiding duplicate uncorrelated
+	 * watch requests on opened workspace folders (`ParcelWatcher` intersects
+	 * `excludes` across same-root uncorrelated requests, which would drop
+	 * `files.watcherExclude`).
+	 */
+	private _watchDirectoryRecursively(dir: URI, onChange: (event: FileChangesEvent) => void): IDisposable {
+		const store = new DisposableStore();
+		const watchDisposable = store.add(new MutableDisposable<IDisposable>());
+		const syncWatch = () => {
+			const isWorkspaceFolder = this._workspaceContextService.getWorkspace().folders
+				.some(folder => extUriBiasedIgnorePathCase.isEqual(folder.uri, dir));
+			if (isWorkspaceFolder) {
+				watchDisposable.clear();
+			} else if (!watchDisposable.value) {
+				watchDisposable.value = this._fileService.watch(dir, { recursive: true, excludes: [...PLUGIN_WATCH_EXCLUDES] });
+			}
+		};
+		syncWatch();
+		store.add(this._workspaceContextService.onDidChangeWorkspaceFolders(() => syncWatch()));
+		store.add(this._fileService.onDidFilesChange(change => {
+			if (isRelevantPluginChange(dir, change)) {
+				onChange(change);
+			}
+		}));
+		return store;
+	}
+
+	/**
+	 * Watches a component path resolved outside the plugin root (for example via
+	 * `repositoryUri`). Directories use recursive watching; files and not-yet-existing
+	 * paths use a correlated non-recursive watcher because `ParcelWatcher` rejects
+	 * non-directory paths.
+	 */
+	private _watchExternalComponentPath(path: URI, onChange: () => void): IDisposable {
+		const store = new DisposableStore();
+		const watcher = store.add(new MutableDisposable<IDisposable>());
+		let disposed = false;
+		store.add(toDisposable(() => { disposed = true; }));
+
+		const attachNonRecursive = (recheckOnChange: boolean) => {
+			const inner = new DisposableStore();
+			const fileWatcher = inner.add(this._fileService.createWatcher(path, { recursive: false, excludes: [] }));
+			inner.add(fileWatcher.onDidChange(() => {
+				onChange();
+				if (recheckOnChange) {
+					void resolveKind();
+				}
+			}));
+			watcher.value = inner;
+		};
+
+		const resolveKind = async () => {
+			try {
+				const stat = await this._fileService.stat(path);
+				if (disposed) {
+					return;
+				}
+				if (stat.isDirectory) {
+					watcher.value = this._watchDirectoryRecursively(path, () => onChange());
+				} else {
+					attachNonRecursive(false);
+				}
+			} catch {
+				if (!disposed) {
+					attachNonRecursive(true);
+				}
+			}
+		};
+
+		void resolveKind();
+		return store;
 	}
 
 	private async _readAutomations(dirs: readonly URI[]): Promise<readonly IAgentPluginAutomation[]> {

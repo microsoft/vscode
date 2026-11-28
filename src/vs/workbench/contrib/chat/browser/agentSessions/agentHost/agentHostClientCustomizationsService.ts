@@ -117,6 +117,7 @@ export class AgentHostClientCustomizationsService implements IAgentHostClientCus
 		const pluginsAndMcpServers = derived(reader => {
 			for (const plugin of this._agentPluginService.plugins.read(reader)) {
 				plugin.enablement.read(reader);
+				plugin.contentVersion?.read(reader);
 				plugin.hooks.read(reader);
 				plugin.commands.read(reader);
 				plugin.skills.read(reader);

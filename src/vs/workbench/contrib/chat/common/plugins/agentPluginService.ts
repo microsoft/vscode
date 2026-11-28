@@ -21,6 +21,12 @@ export const IAgentPluginService = createDecorator<IAgentPluginService>('agentPl
 
 export const IAgentPluginEnablementService = createDecorator<IAgentPluginEnablementService>('agentPluginEnablementService');
 
+/** Directory names ignored when watching or fingerprinting plugin trees. */
+export const IGNORED_PLUGIN_DIR_NAMES: ReadonlySet<string> = new Set(['.git', 'node_modules']);
+
+/** Glob exclusions matching {@link IGNORED_PLUGIN_DIR_NAMES} for recursive plugin watchers. */
+export const PLUGIN_WATCH_EXCLUDES: readonly string[] = Object.freeze(['**/.git/**', '**/node_modules/**']);
+
 export interface IAgentPluginEnablementService extends IEnablementModel {
 	readonly _serviceBrand: undefined;
 	/** Keeps a stable enablement identity across install locations, including other workspaces. */
@@ -90,6 +96,12 @@ export interface IAgentPlugin {
 	readonly label: string;
 	/** Version declared by the plugin manifest, falling back to marketplace metadata. */
 	readonly version?: IObservable<string | undefined>;
+	/**
+	 * Monotonically increasing counter incremented whenever watched content
+	 * inside the plugin directory changes (including nested files, scripts,
+	 * manifests, and extensions). Absent when the plugin is not watched.
+	 */
+	readonly contentVersion?: IObservable<number>;
 	readonly enablement: IObservable<ContributionEnablementState>;
 	/** Explicit managed enablement for this plugin. Undefined when policy does not mention it. */
 	readonly policyEnablement?: IObservable<boolean | undefined>;

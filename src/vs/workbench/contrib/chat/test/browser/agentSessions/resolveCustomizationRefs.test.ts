@@ -17,9 +17,9 @@ import { parseHooksJson, PluginFormat } from '../../../../../../platform/agentPl
 import { CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { IFileService, IFileStat, IFileStatWithMetadata } from '../../../../../../platform/files/common/files.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
-import { type ISyncedCustomizationBundlers, resolveCustomizationRefs as resolveSnapshotRefs, resolveLocalCustomAgents as resolveSnapshotAgents } from '../../../browser/agentSessions/agentHost/agentHostLocalCustomizations.js';
+import { computePluginNonce, type ISyncedCustomizationBundlers, resolveCustomizationRefs as resolveSnapshotRefs, resolveLocalCustomAgents as resolveSnapshotAgents } from '../../../browser/agentSessions/agentHost/agentHostLocalCustomizations.js';
 import { type IClientCustomizationSnapshot } from '../../../browser/agentSessions/agentHost/agentHostClientCustomizationsService.js';
 import { type ISyncableFile, type ISyncableMcpServer } from '../../../browser/agentSessions/agentHost/syncedCustomizationBundler.js';
 import { BUILTIN_STORAGE } from '../../../common/aiCustomizationWorkspaceService.js';
@@ -1406,5 +1406,349 @@ suite('resolveLocalCustomAgents', () => {
 		);
 
 		assert.deepStrictEqual(agents.map(agent => agent.uri), [agentUri.toString()]);
+	});
+});
+
+suite('resolveCustomizationRefs - local plugin nonces', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('local plugin nonce tracks nested additions, edits, and deletions while ignoring .git and node_modules', async () => {
+		const pluginUri = URI.file('/plugins/local-plugin');
+		const copilotDir = URI.joinPath(pluginUri, 'com.github.copilot');
+		const agentsDir = URI.joinPath(copilotDir, 'agents');
+		const agentA = URI.joinPath(agentsDir, 'a.agent.md');
+		const agentB = URI.joinPath(agentsDir, 'b.agent.md');
+		const gitDir = URI.joinPath(pluginUri, '.git');
+		const gitIndex = URI.joinPath(gitDir, 'index');
+		const nodeModulesDir = URI.joinPath(pluginUri, 'node_modules');
+		const depFile = URI.joinPath(nodeModulesDir, 'pkg.js');
+		const linkedAgent = URI.joinPath(agentsDir, 'linked.agent.md');
+		const cyclicLinkDir = URI.joinPath(agentsDir, 'cycle');
+
+		let includeAgentB = false;
+		let agentAMtime = 2000;
+		let linkedMtime = 4000;
+		let gitMtime = 1000;
+		let depMtime = 1000;
+		const resolveOptions: unknown[] = [];
+
+		const makeEntry = (resource: URI, name: string, kind: 'dir' | 'file' | 'symlink-file' | 'symlink-dir', mtime: number, size: number, children?: IFileStatWithMetadata[]): IFileStatWithMetadata => ({
+			resource,
+			name,
+			isDirectory: kind === 'dir' || kind === 'symlink-dir',
+			isFile: kind === 'file' || kind === 'symlink-file',
+			isSymbolicLink: kind === 'symlink-file' || kind === 'symlink-dir',
+			mtime,
+			ctime: 1000,
+			etag: '',
+			size,
+			readonly: false,
+			locked: false,
+			executable: false,
+			children,
+		});
+
+		const getTree = () => {
+			const agentChildren = [
+				makeEntry(agentA, 'a.agent.md', 'file', agentAMtime, 10),
+				makeEntry(linkedAgent, 'linked.agent.md', 'symlink-file', linkedMtime, 12),
+				makeEntry(cyclicLinkDir, 'cycle', 'symlink-dir', 1000, 0),
+			];
+			if (includeAgentB) {
+				agentChildren.push(makeEntry(agentB, 'b.agent.md', 'file', 10000, 42));
+			}
+			return new Map<string, IFileStatWithMetadata>([
+				[pluginUri.toString(), makeEntry(pluginUri, 'local-plugin', 'dir', 1000, 0, [
+					makeEntry(copilotDir, 'com.github.copilot', 'dir', 1000, 0),
+					makeEntry(gitDir, '.git', 'dir', gitMtime, 0),
+					makeEntry(nodeModulesDir, 'node_modules', 'dir', depMtime, 0),
+				])],
+				[copilotDir.toString(), makeEntry(copilotDir, 'com.github.copilot', 'dir', 1000, 0, [
+					makeEntry(agentsDir, 'agents', 'dir', 1000, 0),
+				])],
+				[agentsDir.toString(), makeEntry(agentsDir, 'agents', 'dir', 1000, 0, agentChildren)],
+				[agentA.toString(), makeEntry(agentA, 'a.agent.md', 'file', agentAMtime, 10)],
+				...(includeAgentB ? [[agentB.toString(), makeEntry(agentB, 'b.agent.md', 'file', 10000, 42)] as const] : []),
+				[linkedAgent.toString(), makeEntry(linkedAgent, 'linked.agent.md', 'symlink-file', linkedMtime, 12)],
+				[cyclicLinkDir.toString(), makeEntry(cyclicLinkDir, 'cycle', 'symlink-dir', 1000, 0, [
+					makeEntry(copilotDir, 'com.github.copilot', 'dir', 1000, 0),
+				])],
+				[gitDir.toString(), makeEntry(gitDir, '.git', 'dir', gitMtime, 0, [makeEntry(gitIndex, 'index', 'file', gitMtime, 5)])],
+				[gitIndex.toString(), makeEntry(gitIndex, 'index', 'file', gitMtime, 5)],
+				[nodeModulesDir.toString(), makeEntry(nodeModulesDir, 'node_modules', 'dir', depMtime, 0, [makeEntry(depFile, 'pkg.js', 'file', depMtime, 5)])],
+				[depFile.toString(), makeEntry(depFile, 'pkg.js', 'file', depMtime, 5)],
+			]);
+		};
+
+		const fileService = {
+			async resolve(resource: URI, options?: unknown): Promise<IFileStat> {
+				resolveOptions.push(options);
+				const entry = getTree().get(resource.toString());
+				if (!entry) {
+					throw new Error(`missing ${resource.toString()}`);
+				}
+				return entry;
+			},
+			async stat(resource: URI): Promise<IFileStatWithMetadata> {
+				const entry = getTree().get(resource.toString());
+				if (!entry) {
+					throw new Error(`missing ${resource.toString()}`);
+				}
+				return entry;
+			},
+			async realpath(resource: URI): Promise<URI> {
+				return resource.toString() === cyclicLinkDir.toString() ? pluginUri : resource;
+			},
+		} as unknown as IFileService;
+
+		const resolveNonce = async () => {
+			const refs = await resolveCustomizationRefs(
+				fileService,
+				makeLocalCustomizationSources(new Map()),
+				new FakeSyncProvider(),
+				makeAgentPluginService([makePlugin(pluginUri, { label: 'Local Plugin' })]),
+				makeMcpService(),
+				makeConfigurationResolverService(),
+				toBundlers(new FakeBundler()),
+				SessionType.AgentHostCopilot,
+				undefined,
+			);
+			return refs.find(r => r.uri === pluginUri.toString())?.nonce;
+		};
+
+		const initial = await resolveNonce();
+		const repeated = await resolveNonce();
+
+		includeAgentB = true;
+		const afterAdd = await resolveNonce();
+
+		// Updating a.agent.md from 2000 to 3000 stays below b.agent.md's 10000.
+		agentAMtime = 3000;
+		const afterBelowMaxEdit = await resolveNonce();
+
+		linkedMtime = 5000;
+		const afterSymlinkEdit = await resolveNonce();
+
+		includeAgentB = false;
+		const afterDelete = await resolveNonce();
+
+		gitMtime = 99999;
+		depMtime = 99999;
+		const afterIgnoredChange = await resolveNonce();
+
+		assert.deepStrictEqual({
+			isHexDirectorySafe: /^[0-9a-f]+$/.test(initial ?? ''),
+			stableWhenUnchanged: repeated === initial,
+			changedOnNestedAdd: afterAdd !== initial,
+			changedOnEditBelowMaxMtime: afterBelowMaxEdit !== afterAdd,
+			changedOnSymlinkFileEdit: afterSymlinkEdit !== afterBelowMaxEdit,
+			changedOnNestedDelete: afterDelete !== afterSymlinkEdit,
+			unchangedOnIgnoredDirs: afterIgnoredChange === afterDelete,
+			noEagerChildMetadata: resolveOptions.every(opt => opt === undefined),
+		}, {
+			isHexDirectorySafe: true,
+			stableWhenUnchanged: true,
+			changedOnNestedAdd: true,
+			changedOnEditBelowMaxMtime: true,
+			changedOnSymlinkFileEdit: true,
+			changedOnNestedDelete: true,
+			unchangedOnIgnoredDirs: true,
+			noEagerChildMetadata: true,
+		});
+	});
+
+	test('oversized plugins fall back to a watcher-backed nonce without statting beyond budget and fire onDidChange', async () => {
+		const pluginUri = URI.file('/plugins/huge-plugin');
+		let statCalls = 0;
+		const manyChildren: IFileStat[] = Array.from({ length: 2001 }, (_, i) => ({
+			resource: URI.joinPath(pluginUri, `file-${i}.txt`),
+			name: `file-${i}.txt`,
+			isDirectory: false,
+			isFile: true,
+			isSymbolicLink: false,
+			readonly: false,
+			locked: false,
+			executable: false,
+			children: undefined,
+		}));
+		const fileService = {
+			async resolve(resource: URI): Promise<IFileStat> {
+				assert.strictEqual(resource.toString(), pluginUri.toString());
+				return {
+					resource,
+					name: 'huge-plugin',
+					isDirectory: true,
+					isFile: false,
+					isSymbolicLink: false,
+					mtime: 1000,
+					size: 0,
+					readonly: false,
+					locked: false,
+					executable: false,
+					children: manyChildren,
+				};
+			},
+			async stat(): Promise<IFileStatWithMetadata> {
+				statCalls++;
+				throw new Error('child stat must not run after budget overflow');
+			},
+		} as unknown as IFileService;
+
+		const contentVersion = observableValue('contentVersion', 0);
+		const plugin: IAgentPlugin = { ...makePlugin(pluginUri, { label: 'Huge' }), contentVersion };
+		const pluginService = makeAgentPluginService([plugin]);
+		const clientCustomizations = createClientCustomizationsService(makeLocalCustomizationSources(new Map()), { agentPluginService: pluginService });
+		let changeCount = 0;
+		const listener = clientCustomizations.onDidChange(() => changeCount++);
+
+		const resolveFor = async (target: IAgentPlugin) => {
+			const refs = await resolveCustomizationRefs(
+				fileService,
+				makeLocalCustomizationSources(new Map()),
+				new FakeSyncProvider(),
+				makeAgentPluginService([target]),
+				makeMcpService(),
+				makeConfigurationResolverService(),
+				toBundlers(new FakeBundler()),
+				SessionType.AgentHostCopilot,
+				undefined,
+			);
+			return refs.find(r => r.uri === pluginUri.toString())?.nonce;
+		};
+
+		try {
+			const directOverflow = await computePluginNonce(fileService, pluginUri);
+			const first = await resolveFor(plugin);
+			const second = await resolveFor(plugin);
+
+			contentVersion.set(1, undefined);
+			const afterContentChange = await resolveFor(plugin);
+
+			const restartedPlugin: IAgentPlugin = { ...makePlugin(pluginUri, { label: 'Huge' }), contentVersion: observableValue('contentVersion2', 0) };
+			const afterRestart = await resolveFor(restartedPlugin);
+
+			assert.deepStrictEqual({
+				directOverflow,
+				statCalls,
+				isHex: /^[0-9a-f]+$/.test(first ?? ''),
+				stableAcrossUnrelatedRefreshes: second === first,
+				changedOnContentVersion: afterContentChange !== first,
+				changedOnNewPluginInstance: afterRestart !== first && afterRestart !== afterContentChange,
+				serviceFiredOnContentVersion: changeCount,
+			}, {
+				directOverflow: undefined,
+				statCalls: 0,
+				isHex: true,
+				stableAcrossUnrelatedRefreshes: true,
+				changedOnContentVersion: true,
+				changedOnNewPluginInstance: true,
+				serviceFiredOnContentVersion: 1,
+			});
+		} finally {
+			listener.dispose();
+		}
+	});
+
+	test('computePluginNonce is deterministic across duplicate directory symlinks and skips non-root symlink cycles', async () => {
+		const pluginUri = URI.file('/plugins/symlink-plugin');
+		const subDir = URI.joinPath(pluginUri, 'sub');
+		const subFile = URI.joinPath(subDir, 'item.md');
+		const subLoop = URI.joinPath(subDir, 'loop');
+		const linkA = URI.joinPath(pluginUri, 'a-link');
+		const linkB = URI.joinPath(pluginUri, 'b-link');
+		const sharedTarget = URI.file('/shared/skills-pack');
+		const sharedSkillInA = URI.joinPath(linkA, 'SKILL.md');
+		const sharedSkillInB = URI.joinPath(linkB, 'SKILL.md');
+
+		const makeEntry = (resource: URI, name: string, kind: 'dir' | 'file' | 'symlink-dir', mtime: number, size: number, children?: IFileStatWithMetadata[]): IFileStatWithMetadata => ({
+			resource,
+			name,
+			isDirectory: kind === 'dir' || kind === 'symlink-dir',
+			isFile: kind === 'file',
+			isSymbolicLink: kind === 'symlink-dir',
+			mtime,
+			ctime: 1000,
+			etag: '',
+			size,
+			readonly: false,
+			locked: false,
+			executable: false,
+			children,
+		});
+
+		const runScan = async (reverseRootChildren: boolean) => {
+			let subResolveCount = 0;
+			const rootChildren = [
+				makeEntry(linkA, 'a-link', 'symlink-dir', 1000, 0),
+				makeEntry(linkB, 'b-link', 'symlink-dir', 1000, 0),
+				makeEntry(subDir, 'sub', 'dir', 1000, 0),
+			];
+			if (reverseRootChildren) {
+				rootChildren.reverse();
+			}
+			const tree = new Map<string, IFileStatWithMetadata>([
+				[pluginUri.toString(), makeEntry(pluginUri, 'symlink-plugin', 'dir', 1000, 0, rootChildren)],
+				[subDir.toString(), makeEntry(subDir, 'sub', 'dir', 1000, 0, [
+					makeEntry(subFile, 'item.md', 'file', 2000, 10),
+					makeEntry(subLoop, 'loop', 'symlink-dir', 1000, 0),
+				])],
+				[subFile.toString(), makeEntry(subFile, 'item.md', 'file', 2000, 10)],
+				[subLoop.toString(), makeEntry(subLoop, 'loop', 'symlink-dir', 1000, 0, [
+					makeEntry(URI.joinPath(subLoop, 'item.md'), 'item.md', 'file', 2000, 10),
+				])],
+				[linkA.toString(), makeEntry(linkA, 'a-link', 'symlink-dir', 1000, 0, [
+					makeEntry(sharedSkillInA, 'SKILL.md', 'file', 3000, 20),
+				])],
+				[linkB.toString(), makeEntry(linkB, 'b-link', 'symlink-dir', 1000, 0, [
+					makeEntry(sharedSkillInB, 'SKILL.md', 'file', 3000, 20),
+				])],
+				[sharedSkillInA.toString(), makeEntry(sharedSkillInA, 'SKILL.md', 'file', 3000, 20)],
+				[sharedSkillInB.toString(), makeEntry(sharedSkillInB, 'SKILL.md', 'file', 3000, 20)],
+			]);
+			const fileService = {
+				async resolve(resource: URI): Promise<IFileStat> {
+					if (resource.toString() === subDir.toString() || resource.toString() === subLoop.toString()) {
+						subResolveCount++;
+					}
+					const entry = tree.get(resource.toString());
+					if (!entry) {
+						throw new Error(`missing ${resource.toString()}`);
+					}
+					return entry;
+				},
+				async stat(resource: URI): Promise<IFileStatWithMetadata> {
+					const entry = tree.get(resource.toString());
+					if (!entry) {
+						throw new Error(`missing ${resource.toString()}`);
+					}
+					return entry;
+				},
+				async realpath(resource: URI): Promise<URI> {
+					if (resource.toString() === linkA.toString() || resource.toString() === linkB.toString()) {
+						return sharedTarget;
+					}
+					if (resource.toString() === subLoop.toString()) {
+						return subDir;
+					}
+					return resource;
+				},
+			} as unknown as IFileService;
+
+			const nonce = await computePluginNonce(fileService, pluginUri);
+			return { nonce, subResolveCount };
+		};
+
+		const forward = await runScan(false);
+		const reversed = await runScan(true);
+
+		assert.deepStrictEqual({
+			deterministic: forward.nonce !== undefined && forward.nonce === reversed.nonce,
+			forwardSubResolves: forward.subResolveCount,
+			reversedSubResolves: reversed.subResolveCount,
+		}, {
+			deterministic: true,
+			forwardSubResolves: 1,
+			reversedSubResolves: 1,
+		});
 	});
 });
