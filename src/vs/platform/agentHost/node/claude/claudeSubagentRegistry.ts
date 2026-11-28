@@ -124,12 +124,22 @@ export interface ISubagentSpawnInit {
  * `getSpawn(toolUseId)` plus direct field reads/writes on the spawn.
  */
 export class SubagentRegistry extends Disposable {
+	/**
+	 * Upper bound on remembered completed tool-use ids. Only used to tell
+	 * a duplicate terminal notification apart from one for an unknown
+	 * spawn, so a small FIFO window is enough.
+	 */
+	private static readonly MAX_RECENTLY_COMPLETED = 256;
+
 	private readonly _spawns = new Map<string, SubagentSpawn>();
+	/** Insertion-ordered; oldest ids are evicted first. */
+	private readonly _recentlyCompleted = new Set<string>();
 	private readonly _innerToParent = new Map<string, string>();
 
 	override dispose(): void {
 		this._spawns.clear();
 		this._innerToParent.clear();
+		this._recentlyCompleted.clear();
 		super.dispose();
 	}
 
@@ -166,9 +176,27 @@ export class SubagentRegistry extends Disposable {
 		return this._spawns.get(toolUseId);
 	}
 
+	/**
+	 * Remove a spawn that completed, and remember its id in a bounded
+	 * window so a later duplicate terminal notification can be
+	 * recognised via {@link wasRecentlyCompleted}.
+	 */
 	removeSpawn(toolUseId: string): void {
 		this._spawns.delete(toolUseId);
 		this._evictInnerEdgesFor(toolUseId);
+		this._recentlyCompleted.delete(toolUseId);
+		this._recentlyCompleted.add(toolUseId);
+		if (this._recentlyCompleted.size > SubagentRegistry.MAX_RECENTLY_COMPLETED) {
+			const oldest = this._recentlyCompleted.values().next().value;
+			if (oldest !== undefined) {
+				this._recentlyCompleted.delete(oldest);
+			}
+		}
+	}
+
+	/** True when `toolUseId` was removed by {@link removeSpawn} and is still in the bounded recent window. */
+	wasRecentlyCompleted(toolUseId: string): boolean {
+		return this._recentlyCompleted.has(toolUseId);
 	}
 
 	/** Mapper records the parent of an inner `tool_use` block when an inner subagent message arrives. */

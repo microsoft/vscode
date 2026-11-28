@@ -160,6 +160,25 @@ suite('ClaudeSdkMessageRouter', () => {
 		assert.deepStrictEqual(signals, []);
 	});
 
+	test('background subagent task_notification that arrives while the parent is idle still completes the subagent', async () => {
+		const { router, signals } = createRouter(disposables);
+		await router.handle(assistantMessage([
+			{ type: 'tool_use', id: 'toolu_bg', name: 'Agent', input: { description: 'bg', subagent_type: 'general-purpose', prompt: 'p', run_in_background: true } },
+		]), 'turn-1');
+		await router.handle({ type: 'system', subtype: 'task_started', task_id: 't1', tool_use_id: 'toolu_bg', description: 'bg' } as unknown as SDKMessage, 'turn-1');
+		await router.handle(userMessage([
+			{ type: 'tool_result', tool_use_id: 'toolu_bg', content: 'Async agent launched successfully.' },
+		]), 'turn-1');
+		// The parent's turn has ended; the subagent finishes later.
+		await router.handle({ type: 'system', subtype: 'task_notification', task_id: 't1', tool_use_id: 'toolu_bg', status: 'completed', output_file: 'o', summary: 's' } as unknown as SDKMessage, undefined);
+		await router.handle({ type: 'system', subtype: 'task_notification', task_id: 't1', tool_use_id: 'toolu_bg', status: 'completed', output_file: 'o', summary: 's' } as unknown as SDKMessage, undefined);
+
+		assert.deepStrictEqual(
+			signals.flatMap(s => s.kind === 'subagent_completed' ? [{ chat: s.chat.toString(), toolCallId: s.toolCallId }] : []),
+			[{ chat: buildDefaultChatUri('claude:/sess-1'), toolCallId: 'toolu_bg' }],
+		);
+	});
+
 	test('handle with a turnId on a text content block produces ChatResponsePart + ChatDelta signals', async () => {
 		const { router, signals } = createRouter(disposables);
 		await router.handle(makeStreamEvent('sess-1', makeMessageStart()), 'turn-1');
