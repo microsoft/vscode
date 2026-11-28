@@ -25,7 +25,7 @@ import { IMouseWheelEvent, StandardMouseEvent } from '../../../../base/browser/m
 import { OverlayLayoutElement } from '../../../../base/browser/overlayLayoutElement.js';
 import { IListContextMenuEvent } from '../../../../base/browser/ui/list/list.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { SequencerByKey } from '../../../../base/common/async.js';
+import { raceTimeout, SequencerByKey } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Color, RGBA } from '../../../../base/common/color.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
@@ -112,6 +112,14 @@ import { NotebookCellLayoutManager } from './notebookCellLayoutManager.js';
 import { FloatingEditorToolbar } from '../../../../editor/contrib/floatingMenu/browser/floatingMenu.js';
 
 const $ = DOM.$;
+
+// The Markdown renderer warmup usually takes around 200ms, but it is unbounded: when the
+// machine is busy with other processes, the webview can take tens of seconds to load
+// (https://github.com/microsoft/vscode/issues/347729). The warmup is only an optimization
+// for Markdown cells, so the editor only waits this long before attaching the view model.
+// Markdown cells that missed the warmup are rendered once the webview is ready, the same
+// way as Markdown cells scrolled into view later on.
+const markdownRendererWarmupTimeout = 2000;
 
 export function getDefaultNotebookCreationOptions(): INotebookEditorCreationOptions {
 	// We inlined the id to avoid loading comment contrib in tests
@@ -1679,16 +1687,28 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private async _warmupWithMarkdownRenderer(viewModel: NotebookViewModel, viewState: INotebookEditorViewState | undefined, perf?: NotebookPerfMarks) {
 
 		this.logService.debug('NotebookEditorWidget', 'warmup ' + this.viewModel?.uri.toString());
-		await this._resolveWebview();
-		perf?.mark('webviewCommLoaded');
-
-		this.logService.debug('NotebookEditorWidget', 'warmup - webview resolved');
 
 		// make sure that the webview is not visible otherwise users will see pre-rendered markdown cells in wrong position as the list view doesn't have a correct `top` offset yet
 		this._webview!.element.style.visibility = 'hidden';
-		// warm up can take around 200ms to load markdown libraries, etc.
-		await this._warmupViewportMarkdownCells(viewModel, viewState);
-		this.logService.debug('NotebookEditorWidget', 'warmup - viewport warmed up');
+
+		// warm up can take around 200ms to load markdown libraries, etc. but it is unbounded:
+		// when the machine is busy with other processes, the webview can take tens of seconds
+		// to load the markdown renderer, and cells, code cells included, don't need the warmup
+		// to be rendered. Don't leave the user looking at an empty editor, instead race the
+		// warmup against `markdownRendererWarmupTimeout` and attach the view model when the
+		// timeout fires. Markdown cells that missed the warmup are rendered once the webview
+		// is ready, the same way as markdown cells scrolled into view later on.
+		await raceTimeout(
+			this._warmupViewportMarkdownCells(viewModel, viewState, perf),
+			markdownRendererWarmupTimeout,
+			() => this.logService.debug('NotebookEditorWidget', 'warmup - timeout, attaching view model before markdown cells are warmed up')
+		);
+
+		// the editor might have been closed or switched to another notebook while the warmup
+		// was still running, attaching the stale view model to the list would be wrong
+		if (this._isDisposed || this.viewModel !== viewModel) {
+			return;
+		}
 
 		// todo@rebornix @mjbvz, is this too complicated?
 
@@ -1711,7 +1731,20 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._onDidAttachViewModel.fire();
 	}
 
-	private async _warmupViewportMarkdownCells(viewModel: NotebookViewModel, viewState: INotebookEditorViewState | undefined) {
+	/**
+	 * Resolves the webview for the markdown warmup. Returns `undefined` if the editor was
+	 * closed or detached while the webview was loading.
+	 */
+	private async _resolveWebviewForWarmup(perf?: NotebookPerfMarks): Promise<BackLayerWebView<ICommonCellInfo> | undefined> {
+		await this._resolveWebview();
+		perf?.mark('webviewCommLoaded');
+
+		this.logService.debug('NotebookEditorWidget', 'warmup - webview resolved');
+
+		return this._webview ?? undefined;
+	}
+
+	private async _warmupViewportMarkdownCells(viewModel: NotebookViewModel, viewState: INotebookEditorViewState | undefined, perf?: NotebookPerfMarks) {
 		if (viewState && viewState.cellTotalHeights) {
 			const totalHeightCache = viewState.cellTotalHeights;
 			const scrollTop = viewState.scrollPosition?.top ?? 0;
@@ -1740,14 +1773,34 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				}
 			}
 
-			await this._webview!.initializeMarkup(requests.map(([model, offset]) => this.createMarkupCellInitialization(model, offset)));
+			if (!requests.length) {
+				// no markdown cell in the viewport, the list view can be attached without waiting for the webview
+				return;
+			}
+
+			const webview = await this._resolveWebviewForWarmup(perf);
+			if (!webview) {
+				return;
+			}
+
+			await webview.initializeMarkup(requests.map(([model, offset]) => this.createMarkupCellInitialization(model, offset)));
 		} else {
 			const initRequests = viewModel.viewCells
 				.filter(cell => cell.cellKind === CellKind.Markup)
 				.slice(0, 5)
 				.map(cell => this.createMarkupCellInitialization(cell, -10000));
 
-			await this._webview!.initializeMarkup(initRequests);
+			if (!initRequests.length) {
+				// no markdown cell in the viewport, the list view can be attached without waiting for the webview
+				return;
+			}
+
+			const webview = await this._resolveWebviewForWarmup(perf);
+			if (!webview) {
+				return;
+			}
+
+			await webview.initializeMarkup(initRequests);
 
 			// no cached view state so we are rendering the first viewport
 			// after above async call, we already get init height for markdown cells, we can update their offset
@@ -1766,7 +1819,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				}
 			}
 
-			this._webview?.updateScrollTops([], offsetUpdateRequests);
+			webview.updateScrollTops([], offsetUpdateRequests);
 		}
 	}
 
