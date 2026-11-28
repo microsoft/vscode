@@ -192,7 +192,7 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		@IAgentHostMcpAppToolsService mcpAppToolsService: IAgentHostMcpAppToolsService,
 		@IStorageService storageService: IStorageService,
 		@IDialogService dialogService: IDialogService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkspaceTrustRequestService workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IDevContainerAgentHostService devContainerAgentHostService: IDevContainerAgentHostService,
@@ -397,6 +397,8 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		return {
 			readOnly: observableFromEvent(this, this._configurationService.onDidChangeConfiguration, () => this._isAgentDisabledByPolicy(agentProvider)),
 			supportsCanvasPresentation: (agentProvider: string) => agentProvider === CopilotCLISessionType.id,
+			// The local host is this build's, which takes chat folder changes from the Agents window only
+			supportsChatFolders: this._environmentService.isSessionsWindow,
 			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectories: readonly URI[] | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined) => {
 				const primary = workingDirectories?.[0];
 				const uriForDescription = project?.uri ?? primary;
@@ -426,6 +428,10 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		// `workspace.label` as the group key — divergent labels would surface
 		// the same folder as multiple groups.
 		return buildAgentHostSessionWorkspace(project, workingDirectories, { providerLabel: undefined, fallbackIcon: Codicon.folder, requiresWorkspaceTrust: true, description, branchProtectionPatterns, group: SESSION_WORKSPACE_GROUP_LOCAL }, gitHubInfo, gitState);
+	}
+
+	protected override _isResourceOfThisHost(resource: URI): boolean {
+		return resource.scheme === Schemas.file;
 	}
 
 	resolveWorkspace(repositoryUri: URI): ISessionWorkspace | undefined {

@@ -11,7 +11,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import type { ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { agentHostSessionWorkspaceKey, buildAgentHostChatWorkspace, buildAgentHostChatWorkspaceWithScratchFolders, buildAgentHostSessionWorkspace, type IFolderGitHubInfoResolver } from '../../common/agentHostSessionWorkspace.js';
-import { getSessionWorkspaceKind, IGitHubInfo, ISessionWorkspace, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
+import { getSessionWorkspaceKind, IGitHubInfo, ISessionWorkspace, SessionRepositoryKind, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
 
 suite('Agent Host Session Workspace', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -108,6 +108,23 @@ suite('Agent Host Session Workspace', () => {
 			repositoryWorkingInItself: true,
 			keyChangesWhenItsWorkingDirectoryArrives: true,
 		});
+	});
+
+	test('a found repository\'s Git state changes the workspace key, also on the same branch', () => {
+		const nested = URI.file('/repo/lib');
+		const withNested = (uncommittedChanges: number, isRepository = true, defaults?: { defaultBranchName?: string; defaultRemoteBranchName?: string }): ISessionWorkspace => ({
+			...sessionWorkspace,
+			repositories: [{ root: nested, folder: primary, kind: SessionRepositoryKind.Nested, gitRepository: { uri: nested, workTreeUri: undefined, baseBranchName: 'main', branchName: 'feature', uncommittedChanges, isRepository: constObservable(isRepository), gitHubInfo: constObservable(undefined), ...defaults } }],
+		});
+
+		assert.deepStrictEqual({
+			same: agentHostSessionWorkspaceKey(withNested(1)) === agentHostSessionWorkspaceKey(withNested(1)),
+			uncommittedChanges: agentHostSessionWorkspaceKey(withNested(1)) === agentHostSessionWorkspaceKey(withNested(2)),
+			isRepository: agentHostSessionWorkspaceKey(withNested(1)) === agentHostSessionWorkspaceKey(withNested(1, false)),
+			// Only the default branches refresh
+			defaultBranch: agentHostSessionWorkspaceKey(withNested(1, true, { defaultBranchName: 'main' })) === agentHostSessionWorkspaceKey(withNested(1, true, { defaultBranchName: 'trunk' })),
+			defaultRemoteBranch: agentHostSessionWorkspaceKey(withNested(1, true, { defaultRemoteBranchName: 'origin/main' })) === agentHostSessionWorkspaceKey(withNested(1, true, { defaultRemoteBranchName: 'origin/trunk' })),
+		}, { same: true, uncommittedChanges: false, isRepository: false, defaultBranch: false, defaultRemoteBranch: false });
 	});
 
 	test('a chat in an additional worktree reports the worktree\'s repository as its project', () => {
