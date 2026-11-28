@@ -767,6 +767,8 @@ export interface IShellLaunchConfigDto {
  * are set internally to the terminal component, not from the outside.
  */
 export interface ITerminalProcessOptions {
+	/** The workbench terminal instance ID at launch, exposed to non-strict shell environments. */
+	terminalId?: number;
 	shellIntegration: {
 		enabled: boolean;
 		suggestEnabled: boolean;

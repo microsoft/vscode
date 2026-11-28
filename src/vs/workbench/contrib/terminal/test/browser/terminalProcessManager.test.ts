@@ -309,6 +309,35 @@ suite('Workbench - TerminalProcessManager', () => {
 		}, { cancelled: true, startCalls: [] });
 	});
 
+	test('passes the workbench instance ID to local launches and relaunches', async () => {
+		const instanceManager = store.add(instantiationService.createInstance(TerminalProcessManager, 12, undefined, undefined, undefined));
+		await instanceManager.createProcess({}, 80, 24, false);
+		await instanceManager.relaunch({}, 80, 24, false);
+		deepStrictEqual(terminalInstanceService.createProcessRequests.map(request => request.options.terminalId), [12, 12]);
+	});
+
+	test('passes the workbench instance ID to remote launches', async () => {
+		instantiationService.stub(IRemoteAgentService, {
+			getEnvironment: async () => upcastPartial<IRemoteAgentEnvironment>({ os: OperatingSystem.Linux, userHome: URI.file('/home/test') })
+		});
+		const remoteManager = store.add(instantiationService.createInstance(TerminalProcessManager, 21,
+			URI.from({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+test', path: '/workspace' }), undefined, undefined));
+		await remoteManager.createProcess({}, 80, 24, false);
+		strictEqual(terminalInstanceService.createProcessRequests.at(-1)!.options.terminalId, 21);
+	});
+
+	for (const remoteAuthority of [undefined, 'ssh-remote+test']) {
+		test(`does not request an injected ID for strict ${remoteAuthority ? 'remote' : 'local'} launches`, async () => {
+			instantiationService.stub(IRemoteAgentService, {
+				getEnvironment: async () => upcastPartial<IRemoteAgentEnvironment>({ os: OperatingSystem.Linux, userHome: URI.file('/home/test') })
+			});
+			const cwd = remoteAuthority ? URI.from({ scheme: Schemas.vscodeRemote, authority: remoteAuthority, path: '/workspace' }) : undefined;
+			const strictManager = store.add(instantiationService.createInstance(TerminalProcessManager, 12, cwd, undefined, undefined));
+			await strictManager.createProcess({ strictEnv: true, env: { PATH: '/strict/bin' } }, 80, 24, false);
+			strictEqual(terminalInstanceService.createProcessRequests.at(-1)!.options.terminalId, undefined);
+		});
+	}
+
 	test('does not apply or serialize PATH from a different terminal host while retaining non-PATH variables', async () => {
 		setCollection('foreign.extension', {
 			remoteAuthority: 'ssh-remote+foreign-host',

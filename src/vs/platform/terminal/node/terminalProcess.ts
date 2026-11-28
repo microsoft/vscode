@@ -160,6 +160,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._properties[ProcessPropertyType.Cwd] = this._initialCwd;
 		const useConpty = process.platform === 'win32' && getWindowsBuildNumberSync() >= 18309;
 		const useConptyDll = useConpty && this._options.windowsUseConptyDll;
+		if (!shellLaunchConfig.strictEnv && this._options.terminalId !== undefined) {
+			env.VSCODE_TERMINAL_ID = String(this._options.terminalId);
+		}
 		this._ptyOptions = {
 			name,
 			cwd,

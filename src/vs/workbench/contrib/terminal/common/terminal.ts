@@ -480,6 +480,7 @@ export const enum TerminalCommandId {
 	ChangeIconActiveTab = 'workbench.action.terminal.changeIconActiveTab',
 	ChangeColor = 'workbench.action.terminal.changeColor',
 	ChangeColorActiveTab = 'workbench.action.terminal.changeColorActiveTab',
+	CopyInstanceId = 'workbench.action.terminal.copyInstanceId',
 	Rename = 'workbench.action.terminal.rename',
 	RenameActiveTab = 'workbench.action.terminal.renameActiveTab',
 	RenameWithArgs = 'workbench.action.terminal.renameWithArg',

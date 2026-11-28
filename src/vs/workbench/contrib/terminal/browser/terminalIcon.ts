@@ -43,7 +43,7 @@ export function getStandardColors(colorTheme: IColorTheme): string[] {
 
 	for (const colorKey in ansiColorMap) {
 		const color = colorTheme.getColor(colorKey);
-		if (color && !colorKey.toLowerCase().includes('bright')) {
+		if (color) {
 			standardColors.push(colorKey);
 		}
 	}
