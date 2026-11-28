@@ -332,7 +332,13 @@ export class DeleteDuplicateLinesAction extends EditorAction {
 			const uniqueLines = new Set();
 			const lines = [];
 
-			for (let i = selection.startLineNumber; i <= selection.endLineNumber; i++) {
+			// A selection that ends at the start of a line doesn't include that line
+			let endLineNumber = selection.endLineNumber;
+			if (selection.startLineNumber < endLineNumber && selection.endColumn === 1) {
+				endLineNumber--;
+			}
+
+			for (let i = selection.startLineNumber; i <= endLineNumber; i++) {
 				const line = model.getLineContent(i);
 
 				if (uniqueLines.has(line)) {
@@ -347,8 +353,8 @@ export class DeleteDuplicateLinesAction extends EditorAction {
 			const selectionToReplace = new Selection(
 				selection.startLineNumber,
 				1,
-				selection.endLineNumber,
-				model.getLineMaxColumn(selection.endLineNumber)
+				endLineNumber,
+				model.getLineMaxColumn(endLineNumber)
 			);
 
 			const adjustedSelectionStart = selection.startLineNumber - linesDeleted;
@@ -362,7 +368,7 @@ export class DeleteDuplicateLinesAction extends EditorAction {
 			edits.push(EditOperation.replace(selectionToReplace, lines.join('\n')));
 			endCursorState.push(finalSelection);
 
-			linesDeleted += (selection.endLineNumber - selection.startLineNumber + 1) - lines.length;
+			linesDeleted += (endLineNumber - selection.startLineNumber + 1) - lines.length;
 		}
 
 		editor.pushUndoStop();
