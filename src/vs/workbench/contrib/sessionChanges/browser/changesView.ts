@@ -41,6 +41,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { WorkbenchCompressibleObjectTree } from '../../../../platform/list/browser/listService.js';
 import type { ICompressedTreeElement } from '../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
@@ -75,7 +76,7 @@ import { ISessionChangesService } from './sessionChangesService.js';
 import { createSessionActionsInstantiationService } from './sessionActionsHost.js';
 import { getWindowHost, ISessionHost, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
 import { CIStatusWidget } from './checksWidget.js';
-import { BRANCH_CHANGES_CHANGESET_ID, getWellKnownChangesetId, GITHUB_REMOTE_FILE_SCHEME, IChat, ISessionChangeset, ISessionChangesetBaseBranchSelection, ISessionFolder, ISessionChangesetOperation, ISessionFileChange, ISessionChangesSummary, ISessionWorkspace, isSessionCreated, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession } from '../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, getWellKnownChangesetId, GITHUB_REMOTE_FILE_SCHEME, IChat, ISessionChangeset, ISessionChangesetBaseBranchSelection, ISessionFolder, ISessionChangesetOperation, ISessionChangesSummary, ISessionWorkspace, isSessionCreated, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession } from '../../../services/sessions/common/session.js';
 import { isAgentHostProviderId } from '../../sessions/common/agentHostSessionsProvider.js';
 import { ISessionsManagementService } from '../../sessions/common/sessionsManagement.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
@@ -1168,7 +1169,10 @@ export class ChangesViewPane extends ViewPane {
 		}));
 
 		// Changes
-		const changesObs = derived(reader => this.toFileItems(this.scope.changes.changesObs.read(reader), reader));
+		const changesObs = derived(reader => {
+			const changes = this.scope.changes.changesObs.read(reader);
+			return toIChangesFileItem(changes);
+		});
 
 		// Changes statistics
 		const topLevelStats = derivedObservableWithCache<{ files: number; added: number; removed: number } | undefined>(this, (reader, lastValue) => {
@@ -1639,31 +1643,6 @@ export class ChangesViewPane extends ViewPane {
 	}
 
 	/**
-	 * The file items of the changes, each of a repository of a chat in several with that repository's root, which its row
-	 * shows its path relative to. Every list of the changes (the tree, the diff's navigation and its sidebar) is made of
-	 * these same items, as opening one finds it among them.
-	 */
-	private toFileItems(changes: readonly ISessionFileChange[], reader: IReader | undefined): IChangesFileItem[] {
-		const items = toIChangesFileItem(changes);
-		const repositories = this.scope.changes.repositoriesObs.read(reader);
-		if (!repositories.length) {
-			return items;
-		}
-		const roots = new Map<IChangesFileItem, URI>();
-		for (const group of this.changesViewService.groupByRepository(items, item => item.uri, repositories)) {
-			if (group.repository) {
-				for (const item of group.items) {
-					roots.set(item, group.repository.root);
-				}
-			}
-		}
-		return items.map(item => {
-			const root = roots.get(item);
-			return root ? { ...item, root } : item;
-		});
-	}
-
-	/**
 	 * The rows of changes grouped by repository: a root row for each repository, then one for the changes outside every
 	 * repository, with the files of each in a tree or flat.
 	 */
@@ -1678,7 +1657,8 @@ export class ChangesViewPane extends ViewPane {
 					...(group.failure ? { failure: group.failure } : {}),
 				}
 				: { type: 'root', uri: ChangesViewPane.OUTSIDE_REPOSITORIES_ROOT, name: localize('changesOutsideRepositories', "Other Changes") };
-			const items = group.items;
+			// With the repository's root, which their rows show their paths relative to; navigation finds them by their URI
+			const items = group.repository ? group.items.map(item => ({ ...item, root: group.repository!.root })) : group.items;
 			// The tree of a repository's files under its own root row, which takes the place of the one the tree builds
 			const children: ICompressedTreeElement<ChangesTreeElement>[] = viewMode === ChangesViewMode.Tree && group.repository
 				? Array.from(buildTreeChildren(items, { root, resourceTreeRootUri: group.repository.root })[0]?.children ?? [])
@@ -1767,13 +1747,24 @@ export class ChangesViewPane extends ViewPane {
 		const tree = this.createChangesTree(container, Event.None, disposables, () => tree.getSelection().filter(item => !!item && isChangesFileItem(item)), contextKeyService);
 
 		const repositoryChildren = this.getRepositoryChildren(items, viewMode, undefined);
-		if (repositoryChildren) {
-			tree.setChildren(null, repositoryChildren);
-		} else if (viewMode === ChangesViewMode.Tree) {
-			tree.setChildren(null, buildTreeChildren(items, this.getTreeRootInfo(items, this.getTreeRootFolder(this.getActiveChangesetWorkspace(undefined)))));
-		} else {
-			tree.setChildren(null, items.map(item => ({ element: item as ChangesTreeElement, collapsible: false })));
-		}
+		const children: ICompressedTreeElement<ChangesTreeElement>[] = repositoryChildren
+			?? (viewMode === ChangesViewMode.Tree
+				? buildTreeChildren(items, this.getTreeRootInfo(items, this.getTreeRootFolder(this.getActiveChangesetWorkspace(undefined))))
+				: items.map(item => ({ element: item as ChangesTreeElement, collapsible: false })));
+		tree.setChildren(null, children);
+		// The rows' own items by URI: those of a repository's files are copies of the items, with its root
+		const rowItems = new ResourceMap<IChangesFileItem>();
+		const collectRowItems = (elements: Iterable<ICompressedTreeElement<ChangesTreeElement>>) => {
+			for (const element of elements) {
+				if (isChangesFileItem(element.element)) {
+					rowItems.set(element.element.uri, element.element);
+				}
+				if (element.children) {
+					collectRowItems(element.children);
+				}
+			}
+		};
+		collectRowItems(children);
 
 		// Open file on selection. The `updatingSelection` guard relies on
 		// `tree.setFocus`/`setSelection` firing events synchronously.
@@ -1801,9 +1792,10 @@ export class ChangesViewPane extends ViewPane {
 			if (index >= 0) {
 				updatingSelection = true;
 				try {
-					tree.setFocus([items[index]]);
-					tree.setSelection([items[index]]);
-					tree.reveal(items[index]);
+					const row = rowItems.get(items[index].uri) ?? items[index];
+					tree.setFocus([row]);
+					tree.setSelection([row]);
+					tree.reveal(row);
 				} finally {
 					updatingSelection = false;
 				}
@@ -1908,7 +1900,7 @@ export class ChangesViewPane extends ViewPane {
 		}
 
 		if (this.shouldOpenModalDiff()) {
-			const changes = this.toFileItems(items, undefined);
+			const changes = toIChangesFileItem(items);
 			const changeToOpen = resource ? changes.find(c => isEqual(c.uri, resource)) : undefined;
 			await this._openFileItem(changeToOpen ?? changes[0], changes, false, false, false, changes.length > 1);
 			return;
@@ -2016,7 +2008,8 @@ export class ChangesViewPane extends ViewPane {
 
 	private async _openFileItem(item: IChangesFileItem, items: IChangesFileItem[], sideBySide: boolean, preserveFocus: boolean, pinned: boolean, includeSidebar: boolean): Promise<void> {
 		const { uri: modifiedFileUri, originalUri, isDeletion } = item;
-		const currentIndex = items.indexOf(item);
+		// By URI: the rows of a repository's files are copies of the items, with its root
+		const currentIndex = items.findIndex(candidate => isEqual(candidate.uri, item.uri));
 
 		const sidebar = includeSidebar ? {
 			render: (container: unknown, onDidLayout: Event<{ readonly height: number; readonly width: number }>, contextKeyService: IContextKeyService) => {
