@@ -609,6 +609,32 @@ suite('Event', function () {
 		});
 	});
 
+	test('DebounceEmitter - dispose cancels pending timeout', async function () {
+		return runWithFakedTimers({}, async function () {
+			let fired = false;
+			const emitter = new DebounceEmitter<number>({
+				merge: arr => arr.reduce((a, b) => a + b, 0),
+				delay: 50
+			});
+			const listener = emitter.event(() => { fired = true; });
+			const resume = stub(emitter, 'resume').callThrough();
+
+			try {
+				emitter.fire(1);
+				emitter.fire(2);
+				emitter.dispose();
+				listener.dispose();
+
+				await timeout(100);
+				assert.deepStrictEqual({ fired, resumed: resume.called }, { fired: false, resumed: false });
+			} finally {
+				resume.restore();
+				emitter.dispose();
+				listener.dispose();
+			}
+		});
+	});
+
 	suite('Event.toPromise', () => {
 		class DisposableStoreWithSize extends DisposableStore {
 			public size = 0;
@@ -735,6 +761,67 @@ suite('Event', function () {
 			count++;
 			listener.dispose();
 		});
+	});
+
+	test('MicrotaskEmitter - re-entrant fire with mergeFn', async function () {
+		const emitter = ds.add(new MicrotaskEmitter<string>({
+			merge: items => items.join(',')
+		}));
+
+		const delivered: string[] = [];
+		let first = true;
+		ds.add(emitter.event(e => {
+			delivered.push(e);
+			if (first) {
+				first = false;
+				emitter.fire('second');
+				emitter.fire('third');
+			}
+		}));
+
+		emitter.fire('first');
+
+		await Promise.resolve();
+		await Promise.resolve();
+
+		assert.deepStrictEqual(delivered, ['first', 'second,third']);
+	});
+
+	test('MicrotaskEmitter - re-entrant fire without mergeFn', async function () {
+		const emitter = ds.add(new MicrotaskEmitter<string>());
+
+		const delivered: string[] = [];
+		let first = true;
+		ds.add(emitter.event(e => {
+			delivered.push(e);
+			if (first) {
+				first = false;
+				emitter.fire('second');
+			}
+		}));
+
+		emitter.fire('first');
+
+		await Promise.resolve();
+		await Promise.resolve();
+
+		assert.deepStrictEqual(delivered, ['first', 'second']);
+	});
+
+	test('MicrotaskEmitter - dispose does not fire queued events', async function () {
+		let fired = false;
+		let merged = false;
+		const emitter = new MicrotaskEmitter<void>({
+			merge: () => { merged = true; }
+		});
+		const listener = emitter.event(() => { fired = true; });
+
+		emitter.fire();
+		emitter.dispose();
+		listener.dispose();
+
+		await Promise.resolve();
+		assert.deepStrictEqual({ fired, merged }, { fired: false, merged: false });
 	});
 
 	test('Emitter - In Order Delivery', function () {
@@ -1036,6 +1123,28 @@ suite('PausableEmitter', function () {
 		emitter.pause();
 		emitter.resume();
 		assert.deepStrictEqual(data, []);
+	});
+
+	test('pause/resume and dispose', function () {
+		class TestEmitter extends PauseableEmitter<number> {
+			get queuedEventCount(): number {
+				return this._eventQueue.size;
+			}
+		}
+
+		let fired = false;
+		const emitter = new TestEmitter();
+		const listener = emitter.event(() => { fired = true; });
+
+		emitter.pause();
+		emitter.fire(1);
+		emitter.fire(2);
+		emitter.dispose();
+		listener.dispose();
+
+		const queuedEventsAfterDispose = emitter.queuedEventCount;
+		emitter.resume();
+		assert.deepStrictEqual({ fired, queuedEventsAfterDispose }, { fired: false, queuedEventsAfterDispose: 0 });
 	});
 
 });
