@@ -761,6 +761,39 @@ suite('WorkspacePicker - session folders', () => {
 		});
 	});
 
+	test('says when the selected workspace\'s folders change, as its file is edited, and not for other workspaces or the same folders', async () => {
+		const providersService = store.add(new MockSessionsProvidersService());
+		providersService.setProviders([{ ...createMockProvider('local-agent-host', { group: SESSION_WORKSPACE_GROUP_LOCAL }), supportsLocalWorkspaces: true }]);
+		const other: IRecentSessionWorkspace = { uri: URI.file('/ws/other.code-workspace'), name: 'Other', folders: [docs], owned: true };
+		const workspaces = observableValue<readonly IRecentSessionWorkspace[]>('workspaces', [product, other]);
+		const picker = createTestPicker(store, providersService, undefined, undefined, DispatchingWorkspacePicker, undefined, undefined, undefined, {
+			restoreFromSessions: false,
+			configuration: { [SESSIONS_WORKSPACES_ENABLED_SETTING]: true },
+			sessionWorkspacesService: {
+				workspaces,
+				getWorkspace: uri => workspaces.get().find(workspace => extUri.isEqual(workspace.uri, uri)),
+				touchWorkspace: () => { },
+			},
+		});
+		assert.ok(picker instanceof DispatchingWorkspacePicker);
+		const changed: string[] = [];
+		store.add(picker.onDidChangeSelectedWorkspaceFolders(folder => changed.push(folder.path)));
+		await picker.dispatchItem({ folderUri: app, providerId: 'local-agent-host', sessionWorkspaceUri: product.uri });
+		const edit = (workspace: IRecentSessionWorkspace, folders: URI[]) => workspaces.set(workspaces.get().map(candidate => candidate === workspace || extUri.isEqual(candidate.uri, workspace.uri) ? { ...candidate, folders } : candidate), undefined);
+		// Another workspace, and the selected one with the same folders
+		edit(other, [docs, lib]);
+		edit(product, [app, docs]);
+		const unchanged = [...changed];
+		// A folder removed from the selected workspace, then one added
+		edit(product, [app]);
+		edit(product, [app, lib]);
+		assert.deepStrictEqual({ unchanged, changed, folders: picker.selectedWorkspaceConfig?.folders.map(folder => folder.path) }, {
+			unchanged: [],
+			changed: ['/agent-host/app', '/agent-host/app'],
+			folders: ['/agent-host/app', '/agent-host/lib'],
+		});
+	});
+
 	test('adds only folders on this computer, also when the window is connected to a remote', async () => {
 		const { picker, state, dialogs } = setupPicker({ picked: [lib, URI.from({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+box', path: '/remote/lib' })] });
 		await picker.dispatchFolder(app, 'local-agent-host');

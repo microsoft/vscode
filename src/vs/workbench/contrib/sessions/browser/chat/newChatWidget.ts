@@ -831,6 +831,7 @@ export class NewChatWidget extends Disposable {
 		}));
 
 		this._register(this._workspacePicker.onDidSelectWorkspace(folderUri => this._handleWorkspaceSelection(folderUri, this._workspacePicker.selectionSnapshot.origin !== WorkspaceSelectionOrigin.User)));
+		this._register(this._workspacePicker.onDidChangeSelectedWorkspaceFolders(folderUri => this._handleSelectedWorkspaceFoldersChange(folderUri).catch(onUnexpectedError)));
 		this._register(this._workspacePicker.onDidSelectWorkspaceMode(({ folderUri, preferDevContainer }) => {
 			const environment = this._environment.get();
 			this._preferredDevContainerFolderUri = preferDevContainer || environment?.kind === 'container' ? folderUri : undefined;
@@ -3865,6 +3866,18 @@ export class NewChatWidget extends Disposable {
 		}
 		if ((folderUri || !this._workspaceOptOutEnabled.get()) && !(notByUser && isTypingInEditableElement())) {
 			this._newChatInput.focus();
+		}
+	}
+
+	/**
+	 * A draft works in its workspace's folders as they are: a draft not yet sent, in a workspace whose folders changed, is
+	 * replaced, as when the user adds or removes a folder, without moving focus. Nothing changes while a draft is being
+	 * created or for a session that started.
+	 */
+	private async _handleSelectedWorkspaceFoldersChange(folderUri: URI): Promise<void> {
+		const session = this._session.get();
+		if (session && !isSessionCreated(session) && !this._pendingWorkspaceCreation && !this._isCurrentWorkspaceSelection(folderUri)) {
+			await this._onWorkspaceSelected(folderUri);
 		}
 	}
 

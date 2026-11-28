@@ -4498,6 +4498,36 @@ suite('NewChatWidget', () => {
 		assert.deepStrictEqual(results, cases.map(({ name, reuse }) => ({ name, reuse })));
 	});
 
+	test('replaces a draft not yet sent when its workspace\'s folders change, but not while it is created, once it started, or when it still matches', async () => {
+		const handleFoldersChange = Reflect.get(NewChatWidget.prototype, '_handleSelectedWorkspaceFoldersChange') as (this: object, folderUri: URI) => Promise<void>;
+		const folder = URI.file('/project');
+		const cases: { name: string; noDraft?: boolean; isCreated?: boolean; pending?: boolean; current?: boolean }[] = [
+			{ name: 'draft in other folders' },
+			{ name: 'draft still matching', current: true },
+			{ name: 'draft being created', pending: true },
+			{ name: 'started session', isCreated: true },
+			{ name: 'no draft', noDraft: true },
+		];
+		const results = [];
+		for (const options of cases) {
+			const replaced: string[] = [];
+			await handleFoldersChange.call({
+				_session: constObservable(options.noDraft ? undefined : upcastPartial<ITestSessionWithChat>({ sessionId: 'draft', ...withCreatedStatus(constObservable(!!options.isCreated)) })),
+				_pendingWorkspaceCreation: options.pending ? Promise.resolve({ session: undefined, trustDeclined: false }) : undefined,
+				_isCurrentWorkspaceSelection: () => !!options.current,
+				_onWorkspaceSelected: async (folderUri: URI) => { replaced.push(folderUri.path); },
+			}, folder);
+			results.push({ name: options.name, replaced });
+		}
+		assert.deepStrictEqual(results, [
+			{ name: 'draft in other folders', replaced: ['/project'] },
+			{ name: 'draft still matching', replaced: [] },
+			{ name: 'draft being created', replaced: [] },
+			{ name: 'started session', replaced: [] },
+			{ name: 'no draft', replaced: [] },
+		]);
+	});
+
 	test('cancels an in-flight creation and keeps the newer draft ownership', async () => {
 		const sessionTypesChanged = disposables.add(new Emitter<void>());
 		const pendingPreferredUpgrade = disposables.add(new MutableDisposable<IDisposable>());
