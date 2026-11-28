@@ -19,7 +19,8 @@ import { IVSCodeExtensionContext } from '../../../extContext/common/extensionCon
 import { ILogService } from '../../../log/common/logService';
 import { IFetcherService, Response } from '../../../networking/common/fetcherService';
 import { MockExtensionContext } from '../../../test/node/extensionContext';
-import { ITelemetryService } from '../../common/telemetry';
+import { EXPOSURE_GATE_TREATMENTS } from '../../common/experimentExposure';
+import { ITelemetryService, TelemetryDestination, TelemetryEventProperties, TelemetryTrustedValue } from '../../common/telemetry';
 import { UserInfoStore } from '../../node/baseExperimentationService';
 import { MicrosoftExperimentationService } from '../microsoftExperimentationService';
 
@@ -35,9 +36,14 @@ vi.mock('vscode-tas-client', () => ({
 	getExperimentationServiceFromConfig: vi.fn(),
 }));
 
+const treatments = new Map<string, boolean | number | string>();
+
 class MockTASClient extends mock<IExperimentationService>() {
 	override readonly initializePromise = Promise.resolve();
 	override readonly initialFetch = Promise.resolve();
+	override getTreatmentVariable<T extends boolean | number | string>(_configId: string, name: string): T | undefined {
+		return treatments.get(name) as T | undefined;
+	}
 	override readonly getTreatmentVariableAsync = vi.fn(async () => undefined);
 	override readonly dispose = vi.fn();
 }
@@ -73,6 +79,7 @@ describe('MicrosoftExperimentationService endpoint routing', () => {
 
 	beforeEach(() => {
 		clients.length = 0;
+		treatments.clear();
 		vi.mocked(getExperimentationServiceFromConfig).mockClear();
 		vi.mocked(getExperimentationServiceFromConfig).mockImplementation(() => {
 			const client = new MockTASClient();
@@ -86,7 +93,7 @@ describe('MicrosoftExperimentationService endpoint routing', () => {
 		vi.useRealTimers();
 	});
 
-	function createService(token?: CopilotToken, state: ICopilotTokenStore['authenticationState'] = token ? 'signedIn' : 'signedOut', provider = AuthProviderId.GitHub, context = new ExperimentationExtensionContext()) {
+	function createService(token?: CopilotToken, state: ICopilotTokenStore['authenticationState'] = token ? 'signedIn' : 'signedOut', provider = AuthProviderId.GitHub, context = new ExperimentationExtensionContext(), telemetry: ITelemetryService = new class extends mock<ITelemetryService>() { }()) {
 		const tokens = store.add(new CopilotTokenStore());
 		tokens.authenticationState = state;
 		tokens.copilotToken = token;
@@ -96,6 +103,7 @@ describe('MicrosoftExperimentationService endpoint routing', () => {
 		));
 		const env = new class extends mock<IEnvService>() {
 			override isPreRelease() { return false; }
+			override getVersion() { return '1.0.0'; }
 		}();
 		const log = new class extends mock<ILogService>() {
 			override trace(): void { }
@@ -106,7 +114,7 @@ describe('MicrosoftExperimentationService endpoint routing', () => {
 			override makeAbortController() { return new AbortController(); }
 		}();
 		const service = store.add(new MicrosoftExperimentationService(
-			new class extends mock<ITelemetryService>() { }(),
+			telemetry,
 			context,
 			env,
 			tokens,
@@ -432,5 +440,88 @@ describe('MicrosoftExperimentationService endpoint routing', () => {
 		await expect(pending).rejects.toThrow('Canceled');
 		await fetchAssignments();
 		expect(fetcher.fetch.mock.calls.map(([url]) => url)).toEqual([endpoints[0], endpoints[2]]);
+	});
+
+	it('re-exposes after sign-out to Microsoft only, without the previous account\'s tracking ID', async () => {
+		treatments.set(`/vscode/${EXPOSURE_GATE_TREATMENTS.vscode}`, true);
+		treatments.set('/vscode/copilotchat.a', 'treatment');
+		const sendTelemetryEvent = vi.fn<(eventName: string, destination: TelemetryDestination, properties?: TelemetryEventProperties) => void>();
+		const telemetry = new class extends mock<ITelemetryService>() {
+			override sendTelemetryEvent = sendTelemetryEvent;
+		}();
+		const token = new CopilotToken(createTestExtendedTokenInfo({ token: 'tid=user', endpoints: { exp: 'https://exp.individual.githubcopilot.com' } }));
+		const { service, tokens } = createService(token, 'signedIn', AuthProviderId.GitHub, new ExperimentationExtensionContext(), telemetry);
+
+		service.getTreatmentVariable('copilotchat.a');
+		service.getTreatmentVariable('copilotchat.a');
+		tokens.authenticationState = 'unknown';
+		tokens.copilotToken = undefined;
+		tokens.authenticationState = 'signedOut';
+		service.getTreatmentVariable('copilotchat.a');
+
+		expect(sendTelemetryEvent.mock.calls.map(([eventName, destination, properties]) => ({
+			eventName,
+			destination,
+			tid: properties?.['common.tid'],
+		}))).toEqual([
+			{ eventName: 'exp_exposure', destination: { github: true, microsoft: true }, tid: undefined },
+			{ eventName: 'exp_exposure', destination: { github: false, microsoft: true }, tid: '' },
+		]);
+	});
+
+
+	function exposingService(token: CopilotToken | undefined, state: ICopilotTokenStore['authenticationState']) {
+		treatments.set(`/vscode/${EXPOSURE_GATE_TREATMENTS.vscode}`, true);
+		const sendTelemetryEvent = vi.fn<(eventName: string, destination: TelemetryDestination, properties?: TelemetryEventProperties) => void>();
+		const telemetry = new class extends mock<ITelemetryService>() {
+			override sendTelemetryEvent = sendTelemetryEvent;
+		}();
+		const created = createService(token, state, AuthProviderId.GitHub, new ExperimentationExtensionContext(), telemetry);
+		const config = () => vi.mocked(getExperimentationServiceFromConfig).mock.calls.at(-1)![0];
+		const read = (flag: string, value: string) => {
+			treatments.set(`/vscode/${flag}`, value);
+			created.service.getTreatmentVariable(flag);
+		};
+		const exposures = () => sendTelemetryEvent.mock.calls.map(([, , properties]) => (properties?.['ABExp.queriedFeature'] as TelemetryTrustedValue<string>).value);
+		return { ...created, config, read, exposures };
+	}
+
+	const userToken = (tid: string) => new CopilotToken(createTestExtendedTokenInfo({ token: `tid=${tid}`, endpoints: { exp: 'https://exp.individual.githubcopilot.com' } }));
+
+	it('does not expose reads until sign-in settles', () => {
+		const { tokens, read, exposures } = exposingService(undefined, 'unknown');
+
+		read('copilotchat.a', 'a');
+		tokens.copilotToken = userToken('user');
+		tokens.authenticationState = 'signedIn';
+		read('copilotchat.a', 'a');
+
+		expect(exposures()).toEqual(['vscode.copilotchat.a']);
+	});
+
+	it('exposes a read made before sign-in settled once it does, without another read', () => {
+		const { tokens, read, exposures } = exposingService(undefined, 'unknown');
+
+		read('copilotchat.a', 'a');
+		expect(exposures()).toEqual([]);
+		tokens.copilotToken = userToken('user');
+		tokens.authenticationState = 'signedIn';
+
+		expect(exposures()).toEqual(['vscode.copilotchat.a']);
+	});
+
+	it('does not load assignments cached for another account', () => {
+		const { tokens, config } = exposingService(userToken('a'), 'signedIn');
+		const cacheA = config().memento;
+		cacheA.update('features', { assignmentContext: 'a;' });
+		expect(cacheA.get('features')).toEqual({ assignmentContext: 'a;' });
+
+		tokens.copilotToken = userToken('b');
+		expect(config().memento).not.toBe(cacheA);
+		expect(config().memento.get('features')).toBeUndefined();
+
+		tokens.copilotToken = undefined;
+		tokens.authenticationState = 'signedOut';
+		expect(config().memento.get('features')).toBeUndefined();
 	});
 });

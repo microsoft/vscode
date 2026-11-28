@@ -47,7 +47,8 @@ export class BaseMsftTelemetrySender implements IMSFTTelemetrySender {
 		// __GDPR__COMMON__ "common.tid" : { "endPoint": "GoogleAnalyticsId", "classification": "EndUserPseudonymizedInformation", "purpose": "BusinessInsight" }
 		// __GDPR__COMMON__ "common.sku" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		// __GDPR__COMMON__ "common.internal" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-		properties = { ...properties, 'common.tid': this._tid ?? '', 'common.sku': this._sku ?? 'undefined' };
+		// An event may set its own `common.tid`, e.g. to omit the cached ID of a signed-out account.
+		properties = { 'common.tid': this._tid ?? '', ...properties, 'common.sku': this._sku ?? 'undefined' };
 		if (this._isInternal) {
 			measurements = { ...measurements, 'common.internal': 1 };
 		}
@@ -64,7 +65,7 @@ export class BaseMsftTelemetrySender implements IMSFTTelemetrySender {
 		// __GDPR__COMMON__ "common.tid" : { "endPoint": "GoogleAnalyticsId", "classification": "EndUserPseudonymizedInformation", "purpose": "BusinessInsight" }
 		// __GDPR__COMMON__ "common.sku" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		// __GDPR__COMMON__ "common.internal" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-		properties = { ...properties, 'common.tid': this._tid ?? '', 'common.sku': this._sku ?? 'undefined' };
+		properties = { 'common.tid': this._tid ?? '', ...properties, 'common.sku': this._sku ?? 'undefined' };
 		if (this._isInternal) {
 			measurements = { ...measurements, 'common.internal': 1 };
 		}

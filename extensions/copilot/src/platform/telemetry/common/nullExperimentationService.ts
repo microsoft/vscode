@@ -48,6 +48,17 @@ export interface IExperimentationService {
 	getTreatmentVariable<T extends boolean | number | string>(name: string): T | undefined;
 
 	/**
+	 * Like {@link getTreatmentVariable}, but doesn't record an experiment exposure. Use it to collect
+	 * assignments in bulk; call {@link recordTreatmentExposure} where the value controls behavior.
+	 */
+	peekTreatmentVariable<T extends boolean | number | string>(name: string): T | undefined;
+
+	/**
+	 * Records an experiment exposure for a value read earlier with {@link peekTreatmentVariable}.
+	 */
+	recordTreatmentExposure(name: string, value: boolean | number | string): void;
+
+	/**
 	 * Sets the filters for the completions experiments.
 	 * @param filters Map of filter names to their values.
 	 * @deprecated This will be removed once we have fully migrated to the new completions implementation.
@@ -68,6 +79,12 @@ export class NullExperimentationService implements IExperimentationService {
 	getTreatmentVariable<T extends boolean | number | string>(_name: string): T | undefined {
 		return undefined;
 	}
+
+	peekTreatmentVariable<T extends boolean | number | string>(name: string): T | undefined {
+		return this.getTreatmentVariable<T>(name);
+	}
+
+	recordTreatmentExposure(_name: string, _value: boolean | number | string): void { }
 
 	async setCompletionsFilters(filters: Map<string, string>): Promise<void> { }
 }

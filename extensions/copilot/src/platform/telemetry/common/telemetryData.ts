@@ -198,11 +198,7 @@ export function eventPropertiesToSimpleObject(properties?: TelemetryEventPropert
 		if (!value) {
 			continue;
 		}
-		if ((value as TelemetryTrustedValue<string>).value) {
-			simpleObject[key] = (value as TelemetryTrustedValue<string>).value;
-		} else {
-			simpleObject[key] = value as string;
-		}
+		simpleObject[key] = typeof value === 'string' ? value : (value as TelemetryTrustedValue<string>).value;
 	}
 	return simpleObject;
 }
