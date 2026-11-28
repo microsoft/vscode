@@ -132,10 +132,13 @@ function makeRepoConfig(branchValue?: string, isolation: 'folder' | 'worktree' =
 
 /** A workspace whose folders are in the given Git repositories, or in no repository for `undefined`. */
 /**
- * A workspace of one folder per entry, each in the Git repository at the given root as the host reports it, or in no
- * repository for `undefined`. Like the provider's, each folder's own repository is the folder itself.
+ * A workspace of one folder per entry, each in the Git repository at the given root, or in no repository for
+ * `undefined`. Like the provider's, each folder's own repository is the folder itself, until the host reads it:
+ * - `reported`: the host lists the repositories it found, by their roots;
+ * - `ownRoots`: the host read each folder's Git state and lists no repositories, as each folder is its own root;
+ * - `unread`: the host has not read the folders yet.
  */
-function makeMultiFolderWorkspace(repositories: readonly (string | undefined)[], reported = true): ISessionWorkspace {
+function makeMultiFolderWorkspace(repositories: readonly (string | undefined)[], state: 'reported' | 'ownRoots' | 'unread' = 'reported'): ISessionWorkspace {
 	const workspace = makeWorkspace(undefined);
 	const folders = repositories.map((repository, index) => {
 		const root = URI.file(`/folder${index}`);
@@ -144,13 +147,13 @@ function makeMultiFolderWorkspace(repositories: readonly (string | undefined)[],
 			workingDirectory: root,
 			name: `folder${index}`,
 			description: undefined,
-			gitRepository: repository === undefined ? undefined : { ...workspace.folders[0].gitRepository!, uri: root },
+			gitRepository: repository === undefined ? undefined : { ...workspace.folders[0].gitRepository!, uri: root, isRepository: constObservable(state !== 'unread') },
 		};
 	});
 	return {
 		...workspace,
 		folders,
-		...(reported ? {
+		...(state === 'reported' ? {
 			repositories: repositories.flatMap((repository, index) => repository === undefined ? [] : [{ root: URI.file(repository), folder: folders[index].root, kind: SessionRepositoryKind.Folder }]),
 		} : {}),
 	};
@@ -769,7 +772,9 @@ suite('Agent Host Session Config Picker', () => {
 		const labels = [isolationSlot(container)?.textContent];
 		for (const workspace of [
 			// A second folder the host has not looked into yet
-			makeMultiFolderWorkspace(['/repo', '/other'], false),
+			makeMultiFolderWorkspace(['/repo', '/other'], 'unread'),
+			// Each folder is its own repository, which the host does not list
+			makeMultiFolderWorkspace(['/repo', '/other'], 'ownRoots'),
 			makeMultiFolderWorkspace(['/repo', '/other']),
 			// The second folder is a subfolder of the first's repository
 			makeMultiFolderWorkspace(['/repo', '/repo']),
@@ -778,7 +783,7 @@ suite('Agent Host Session Config Picker', () => {
 			labels.push(isolationSlot(container)?.textContent);
 		}
 		assert.deepStrictEqual({ labels, writes: services.provider.setSessionConfigValueArguments }, {
-			labels: ['New Worktree', 'New Worktree', 'New Worktree for All Folders', 'New Worktree'],
+			labels: ['New Worktree', 'New Worktree', 'New Worktree for All Folders', 'New Worktree for All Folders', 'New Worktree'],
 			writes: [],
 		});
 	});

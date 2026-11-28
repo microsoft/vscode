@@ -1086,8 +1086,8 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	/**
 	 * Lists each folder's own repository (every folder that is in one, also when another folder is in the same repository),
 	 * or, for a folder that is not in one, the repositories in its immediate subfolders, once across the session. Returns
-	 * `undefined` when no folder has such nested repositories, as each folder is then its own repository. See
-	 * {@link _refreshSessionRepositories} for the bounds.
+	 * `undefined` when each folder is its own repository or in none, and no folder has nested repositories: clients then
+	 * take each folder in a repository as its root. See {@link _refreshSessionRepositories} for the bounds.
 	 */
 	private async _discoverRepositories(folders: readonly string[], fresh: boolean, refreshedRoots: ReadonlySet<string>): Promise<Readonly<Record<string, readonly ISessionRepositoryEntry[]>> | undefined> {
 		const result: Record<string, ISessionRepositoryEntry[]> = {};
@@ -1121,7 +1121,12 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				}
 			}
 		}
-		return nested ? result : undefined;
+		// A folder in a repository whose root is above it, which another folder can share
+		const rootAboveFolder = discovered.some((folder, index) => {
+			const ownRoot = ownRoots[index];
+			return !!ownRoot && getWorkingDirectoryScopeId([ownRoot.toString()]) !== getWorkingDirectoryScopeId([folder]);
+		});
+		return nested || rootAboveFolder ? result : undefined;
 	}
 
 	/**
