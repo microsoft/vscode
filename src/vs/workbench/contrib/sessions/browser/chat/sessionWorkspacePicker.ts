@@ -537,8 +537,11 @@ export class WorkspacePicker extends Disposable {
 	 * what was sent for one selection is not sent for another.
 	 */
 	get selectionId(): number {
-		return this._selectionGeneration;
+		return this._selectionGeneration - this._workspaceFollowingSelections;
 	}
+
+	/** The selections that followed the selected workspace's file, which {@link selectionId} leaves out. */
+	private _workspaceFollowingSelections = 0;
 
 	/** Removes a folder the user added to the session of the selected folder. */
 	removeSessionFolder(folder: URI): void {
@@ -731,14 +734,12 @@ export class WorkspacePicker extends Disposable {
 						// The workspace starts with another folder now: it stays selected, in that folder, where a composer can work in it.
 						// Its file changed, not the user's pick.
 						const source = this._preselectionSource === NewSessionWorkspacePreselectionSource.User ? NewSessionWorkspacePreselectionSource.ProvidedWorkspace : this._preselectionSource;
-						const userHasPicked = this._userHasPicked;
 						const selectionGeneration = this._selectionGeneration;
 						this._selectFolder(folders[0], false, this._selectedResolved?.providerId, false, source, this._selectionOrigin, workspaceUri, this._addedSessionFolders);
 						if (this.uriIdentityService.extUri.isEqual(this._selectedFolderUri, folders[0])) {
-							// The same selection, which followed its workspace
-							this._selectionGeneration = selectionGeneration;
+							// The same selection, which followed its workspace. Its generation still changes, for what checked its former folder.
+							this._workspaceFollowingSelections += this._selectionGeneration - selectionGeneration;
 						}
-						this._userHasPicked = userHasPicked;
 					} else {
 						this._onDidChangeSelection.fire();
 					}

@@ -425,6 +425,7 @@ interface ISendHarness {
 	_getComparisonBranch?(session: ISession): string | undefined;
 	_getWorkspaceRoots(session: ISession): readonly URI[];
 	_reconcileDraftBeforeSend(session: ISession, selectionId: number): Promise<ISession | undefined>;
+	_isCurrentSendTarget(session: ISession, selectionId: number): boolean;
 	_createNewSession?(folderUri: URI, pick?: IPreferredSessionType): Promise<void>;
 	_openQuickChat?(): void;
 	_backgroundReseedTarget?(session: ISession, folderUri: URI | undefined): INewSessionTarget;
@@ -4598,7 +4599,7 @@ suite('NewChatWidget', () => {
 		const composer = (options: { current?: string[]; inProgress?: DeferredPromise<void>; replacement?: ITestSessionWithChat; otherSelection?: boolean }) => {
 			const session = observableValue<ITestSessionWithChat | undefined>('session', stale);
 			const picker = { selectionId: 1 };
-			const replacements = new Map<string, string>();
+			const replacements = new WeakMap<ITestSessionWithChat, ITestSessionWithChat>();
 			const replace = () => {
 				if (!options.replacement) {
 					return;
@@ -4608,7 +4609,7 @@ suite('NewChatWidget', () => {
 					// The user picks another workspace meanwhile, whose draft is not a replacement
 					picker.selectionId++;
 				} else {
-					replacements.set('stale', options.replacement.sessionId);
+					replacements.set(stale, options.replacement);
 				}
 			};
 			const harness: { _workspaceFoldersReconciliation: Promise<void> | undefined;[key: string]: unknown } = {
@@ -4666,9 +4667,10 @@ suite('NewChatWidget', () => {
 			logService: upcastPartial<ISendHarness['logService']>({ error: () => { } }),
 			sessionsManagementService: upcastPartial<ISendHarness['sessionsManagementService']>({ onDidSendRequest: Event.None, sendNewChatRequest: async (sentTo: ISession) => { sent.push(sentTo.sessionId); } }),
 			_reconcileDraftBeforeSend: reconcileDraftBeforeSend,
+			_isCurrentSendTarget: Reflect.get(NewChatWidget.prototype, '_isCurrentSendTarget') as ISendHarness['_isCurrentSendTarget'],
 		});
 		Object.assign(composer, {
-			_workspaceFoldersReplacements: new Map<string, string>(),
+			_workspaceFoldersReplacements: new WeakMap<ISession, ISession>(),
 			_isDraftInSelectedWorkspaceFolders: () => true,
 			_handleSelectedWorkspaceFoldersChange: async () => { },
 		});
@@ -4680,6 +4682,57 @@ suite('NewChatWidget', () => {
 		composer._workspaceFoldersReconciliation = undefined;
 		replacing.complete();
 		assert.deepStrictEqual({ result: await sending, sent }, { result: false, sent: [] });
+	});
+
+	test('a send validates the workspace again for a draft that replaced its own while it was validated', async () => {
+		const reconcileDraftBeforeSend = Reflect.get(NewChatWidget.prototype, '_reconcileDraftBeforeSend') as ISendHarness['_reconcileDraftBeforeSend'];
+		const draft = (sessionId: string) => upcastPartial<ISession>({ sessionId, ...withCreatedStatus(constObservable(false)) });
+		const alpha = draft('alpha');
+		const beta = draft('beta');
+		const session = observableValue<ISession | undefined>('session', alpha);
+		const firstValidation = new DeferredPromise<boolean>();
+		const validated: string[] = [];
+		const sent: string[] = [];
+		const replacements = new WeakMap<ISession, ISession>();
+		const picker = {
+			selectionId: 1,
+			// Validates the folder the picker selects as it starts
+			validateSelectedWorkspace: () => {
+				validated.push(session.get()!.sessionId);
+				return validated.length === 1 ? firstValidation.p : Promise.resolve(true);
+			},
+			showPicker: () => { },
+			clearAttachedContext: () => { },
+		};
+		const composer = upcastPartial<ISendHarness>({
+			_session: session,
+			_workspacePicker: upcastPartial<ISendHarness['_workspacePicker']>(picker),
+			notificationService: upcastPartial<ISendHarness['notificationService']>({ error: () => { }, warn: () => { } }),
+			logService: upcastPartial<ISendHarness['logService']>({ error: () => { } }),
+			_isQuickChatComposer: constObservable(false),
+			_comparisonSelection: { enabled: constObservable(false) },
+			_feedbackItems: constObservable([]),
+			agentFeedbackService: { removeFeedback: () => { } },
+			newSessionComposerService: { notifyWillSendRequest: () => { } },
+			recentWorkspacesService: { restoreDismissedWorkspace: () => { } },
+			_pendingBackgroundSends: { set: () => { }, deleteAndDispose: () => { } },
+			_getWorkspaceRoots: () => [],
+			sessionsManagementService: upcastPartial<ISendHarness['sessionsManagementService']>({ onDidSendRequest: Event.None, sendNewChatRequest: async (sentTo: ISession) => { sent.push(sentTo.sessionId); } }),
+			_reconcileDraftBeforeSend: reconcileDraftBeforeSend,
+			_isCurrentSendTarget: Reflect.get(NewChatWidget.prototype, '_isCurrentSendTarget') as ISendHarness['_isCurrentSendTarget'],
+		});
+		Object.assign(composer, {
+			_workspaceFoldersReplacements: replacements,
+			_isDraftInSelectedWorkspaceFolders: (candidate: ISession) => candidate === session.get(),
+			_handleSelectedWorkspaceFoldersChange: async () => { },
+		});
+		const sending = send.call(composer, 'fix the bug');
+		await timeout(0);
+		// The workspace's first folder is replaced while the old one is validated: its draft is replaced
+		replacements.set(alpha, beta);
+		session.set(beta, undefined);
+		firstValidation.complete(true);
+		assert.deepStrictEqual({ result: await sending, validated, sent }, { result: true, validated: ['alpha', 'beta'], sent: ['beta'] });
 	});
 
 	test('cancels an in-flight creation and keeps the newer draft ownership', async () => {
@@ -5276,6 +5329,7 @@ suite('NewChatWidget', () => {
 			logService: { error: () => { } },
 			_getWorkspaceRoots: () => [primaryFolder],
 			_reconcileDraftBeforeSend: async (session: ISession) => session,
+			_isCurrentSendTarget: () => true,
 		}, 'work across contexts', [
 			composerAttachment,
 			duplicateRepositoryAttachment,
@@ -5340,6 +5394,7 @@ suite('NewChatWidget', () => {
 			logService: { error: () => { } },
 			_getWorkspaceRoots: () => [],
 			_reconcileDraftBeforeSend: async (session: ISession) => session,
+			_isCurrentSendTarget: () => true,
 		}, 'work across contexts');
 
 		assert.deepStrictEqual({ result, pickerOpenCount, sendCount }, {
@@ -5387,6 +5442,7 @@ suite('NewChatWidget', () => {
 				},
 				_getWorkspaceRoots: () => [],
 				_reconcileDraftBeforeSend: async (session: ISession) => session,
+				_isCurrentSendTarget: () => true,
 			}, 'keep this prompt');
 
 			assert.deepStrictEqual({ result, calls }, { result: false, calls: outcome === 'error' ? ['validate', 'log', 'error'] : ['validate'] });
@@ -5504,6 +5560,7 @@ suite('NewChatWidget', () => {
 				logService: { error: (_message, error) => errors.push(error) },
 				_getWorkspaceRoots: () => [],
 				_reconcileDraftBeforeSend: async (session: ISession) => session,
+				_isCurrentSendTarget: () => true,
 			};
 			results.push(await harness.send('hello'));
 		}
@@ -5568,6 +5625,7 @@ suite('NewChatWidget', () => {
 				logService: { error: () => assert.fail('Unexpected error') },
 				_getWorkspaceRoots: () => [folderUri],
 				_reconcileDraftBeforeSend: async (session: ISession) => session,
+				_isCurrentSendTarget: () => true,
 				_createNewSession: async () => { picker.selectedFolderUri = URI.file('/different-workspace'); },
 			};
 			await send.call(harness, 'hello', undefined, true);
@@ -5630,6 +5688,7 @@ suite('NewChatWidget', () => {
 				logService: { error: () => { } },
 				_getWorkspaceRoots: () => [],
 				_reconcileDraftBeforeSend: async (session: ISession) => session,
+				_isCurrentSendTarget: () => true,
 				_createNewSession: async () => { },
 			};
 			const result = await send.call(harness, 'hello', undefined, true);
@@ -5861,6 +5920,7 @@ suite('NewChatWidget', () => {
 				logService: { error: () => { } },
 				_getWorkspaceRoots: () => [],
 				_reconcileDraftBeforeSend: async (session: ISession) => session,
+				_isCurrentSendTarget: () => true,
 			} satisfies ISendHarness, 'hello');
 
 			assert.deepStrictEqual({ shown, result, sent, infos }, {
@@ -5913,6 +5973,7 @@ suite('NewChatWidget', () => {
 					logService: { error: () => { } },
 					_getWorkspaceRoots: () => [],
 					_reconcileDraftBeforeSend: async (session: ISession) => session,
+					_isCurrentSendTarget: () => true,
 					_createNewSession: async () => { },
 					_clearBackgroundSendOnFailure: (...args) => clearBackgroundSendOnFailure.apply(harness, args),
 				};
@@ -5998,6 +6059,7 @@ suite('NewChatWidget', () => {
 				logService: { error: () => assert.fail('Unexpected error') },
 				_getWorkspaceRoots: () => [],
 				_reconcileDraftBeforeSend: async (session: ISession) => session,
+				_isCurrentSendTarget: () => true,
 				_createNewSession: async () => { },
 				_clearBackgroundSendOnFailure: (...args) => clearBackgroundSendOnFailure.apply(harness, args),
 			};
@@ -6094,6 +6156,7 @@ suite('NewChatWidget', () => {
 				logService: { error: () => { } },
 				_getWorkspaceRoots: () => [],
 				_reconcileDraftBeforeSend: async (session: ISession) => session,
+				_isCurrentSendTarget: () => true,
 				_createNewSession: async () => { },
 				_clearBackgroundSendOnFailure: (...args) => clearBackgroundSendOnFailure.apply(harness, args),
 			};
@@ -7949,6 +8012,7 @@ suite('NewChatWidget', () => {
 					logService: { error: () => { } },
 					_getWorkspaceRoots: () => [],
 					_reconcileDraftBeforeSend: async (session: ISession) => session,
+					_isCurrentSendTarget: () => true,
 					_createNewSession: async (folderUri: URI, pick?: IPreferredSessionType) => { created.push({ folder: folderUri.path, pick }); },
 					_clearBackgroundSendOnFailure: (...args) => clearBackgroundSendOnFailure.apply(harness, args),
 					_backgroundReseedTarget: (session, folderUri) => backgroundReseedTarget.call({ _environment: constObservable(undefined), _requestsDevContainer: () => false }, session, folderUri),
@@ -8827,6 +8891,7 @@ suite('NewChatWidget', () => {
 			logService: { error: () => assert.fail('Unexpected send failure') },
 			_getWorkspaceRoots: () => [folder],
 			_reconcileDraftBeforeSend: async (session: ISession) => session,
+			_isCurrentSendTarget: () => true,
 		}, 'hello');
 		assert.deepStrictEqual({
 			result,

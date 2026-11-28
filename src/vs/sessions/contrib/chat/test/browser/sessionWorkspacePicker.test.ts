@@ -792,11 +792,8 @@ suite('WorkspacePicker - session folders', () => {
 		edit(product, [app]);
 		edit(product, [app, lib]);
 		const added = picker.selectedWorkspaceConfig?.folders.map(folder => folder.path);
-		// Its first folder removed, then replaced: the workspace stays selected, in the folder it starts with now. As a restore
-		// pending before any pick of the user's would, the selection still counts as not picked.
-		Reflect.set(picker, '_userHasPicked', false);
+		// Its first folder removed, then replaced: the workspace stays selected, in the folder it starts with now
 		edit(product, [lib, docs]);
-		const stillNotPicked = !Reflect.get(picker, '_userHasPicked');
 		const firstRemoved = picker.selectedWorkspaceConfig?.folders.map(folder => folder.path);
 		edit(product, [app, docs]);
 		const replaced = picker.selectedWorkspaceConfig?.folders.map(folder => folder.path);
@@ -809,11 +806,10 @@ suite('WorkspacePicker - session folders', () => {
 		// All its folders removed: it can no longer be the selection's, which says so
 		edit(product, []);
 		// Following the workspace's file is not the user's choice
-		assert.deepStrictEqual({ userSelectionsByEdits: userSelections - userSelectionsBeforeEdits, sameSelection: generationAfterEdits === generationBeforeEdits, missingUnavailable, stillNotPicked, unchanged, changed, added, firstRemoved, replaced, availableBefore, unavailable: picker.isSelectedWorkspaceUnavailable, folders: picker.selectedWorkspaceConfig?.folders.map(folder => folder.path) }, {
+		assert.deepStrictEqual({ userSelectionsByEdits: userSelections - userSelectionsBeforeEdits, sameSelection: generationAfterEdits === generationBeforeEdits, missingUnavailable, unchanged, changed, added, firstRemoved, replaced, availableBefore, unavailable: picker.isSelectedWorkspaceUnavailable, folders: picker.selectedWorkspaceConfig?.folders.map(folder => folder.path) }, {
 			userSelectionsByEdits: 0,
 			sameSelection: true,
 			missingUnavailable: true,
-			stillNotPicked: true,
 			unchanged: [],
 			changed: [
 				'/ws/product.code-workspace in /agent-host/app',

@@ -130,6 +130,7 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 			agentFeedbackService: { removeFeedback: () => { } },
 			_getWorkspaceRoots: () => [],
 			_reconcileDraftBeforeSend: async (session: ISession) => session,
+			_isCurrentSendTarget: () => true,
 			newSessionComposerService: { notifyWillSendRequest: () => { } },
 			sessionsManagementService: {
 				sendNewChatRequest: (_session: ISession, options: ISendRequestOptions) => dispatch(options),
