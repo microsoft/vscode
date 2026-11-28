@@ -18,11 +18,18 @@ export function parseEnvFile(src: string) {
 	const normalizedSrc = src.replace(/\r\n?/g, '\n');
 	const lines = normalizedSrc.split('\n');
 
-	for (let line of lines) {
+	for (let i = 0; i < lines.length; i++) {
 		// Skip empty lines and comments
-		line = line.trim();
+		let line = lines[i].trim();
 		if (!line || line.startsWith('#')) {
 			continue;
+		}
+
+		// A quoted value may span multiple lines, join them back together
+		const endLine = findMultilineValueEnd(line, i);
+		if (endLine !== -1) {
+			line = [line, ...lines.slice(i + 1, endLine + 1)].join('\n');
+			i = endLine;
 		}
 
 		// Parse the line into key and value
@@ -33,6 +40,45 @@ export function parseEnvFile(src: string) {
 	}
 
 	return result;
+
+	/**
+	 * If the value on `line` opens a quote that is not closed on the same
+	 * line, returns the index of the line that closes it. Otherwise -1.
+	 */
+	function findMultilineValueEnd(line: string, lineIndex: number): number {
+		const separatorIndex = findIndexOutsideQuotes(line, c => c === '=' || c === ':');
+		if (separatorIndex === -1) {
+			return -1;
+		}
+
+		const value = line.substring(separatorIndex + 1).trimStart();
+		const quote = value[0];
+		if (quote !== '"' && quote !== '\'' && quote !== '`') {
+			return -1;
+		}
+
+		if (findClosingQuote(value, quote, 1) !== -1) {
+			return -1;
+		}
+
+		for (let j = lineIndex + 1; j < lines.length; j++) {
+			if (findClosingQuote(lines[j], quote, 0) !== -1) {
+				return j;
+			}
+		}
+
+		// Unterminated, leave the line as is
+		return -1;
+	}
+
+	function findClosingQuote(text: string, quote: string, start: number): number {
+		for (let i = start; i < text.length; i++) {
+			if (text[i] === quote && text[i - 1] !== '\\') {
+				return i;
+			}
+		}
+		return -1;
+	}
 
 	function parseLine(line: string): [string, string] | [null, null] {
 		// Handle export prefix
