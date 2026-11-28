@@ -21,9 +21,26 @@ const windowsTerminalEncodings = {
 	'865': 'cp865', // Nordic
 	'866': 'cp866', // Russian
 	'869': 'cp869', // Modern Greek
+	'932': 'cp932', // Japanese
 	'936': 'cp936', // Simplified Chinese
+	'949': 'cp949', // Korean
+	'950': 'cp950', // Traditional Chinese
 	'1252': 'cp1252' // West European Latin
 };
+
+/**
+ * Maps the output of the Windows `chcp` command to an encoding name.
+ */
+export function getWindowsTerminalEncoding(chcpOutput: string): string | undefined {
+	const windowsTerminalEncodingKeys = Object.keys(windowsTerminalEncodings) as Array<keyof typeof windowsTerminalEncodings>;
+	for (const key of windowsTerminalEncodingKeys) {
+		if (chcpOutput.indexOf(key) >= 0) {
+			return windowsTerminalEncodings[key];
+		}
+	}
+
+	return undefined;
+}
 
 function toIconvLiteEncoding(encodingName: string): string {
 	const normalizedEncodingName = encodingName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
@@ -65,12 +82,7 @@ export async function resolveTerminalEncoding(verbose?: boolean): Promise<string
 						console.log(`Output from "chcp" command is: ${stdout}`);
 					}
 
-					const windowsTerminalEncodingKeys = Object.keys(windowsTerminalEncodings) as Array<keyof typeof windowsTerminalEncodings>;
-					for (const key of windowsTerminalEncodingKeys) {
-						if (stdout.indexOf(key) >= 0) {
-							return resolve(windowsTerminalEncodings[key]);
-						}
-					}
+					return resolve(getWindowsTerminalEncoding(stdout));
 				}
 
 				return resolve(undefined);
