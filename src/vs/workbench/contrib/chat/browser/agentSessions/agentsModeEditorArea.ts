@@ -122,7 +122,13 @@ export class AgentsModeEditorArea extends Disposable {
 			return;
 		}
 		if (this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+			// Unlike the chat part taking its place, hiding it for the panel leaves the focus it had nowhere: it goes to
+			// the Chat view in the secondary side bar, or else to the panel taking its place
+			const hadFocus = this.layoutService.hasFocus(Parts.EDITOR_PART);
 			this.layoutService.setPartHidden(true, Parts.EDITOR_PART);
+			if (hadFocus) {
+				this.layoutService.focusPart(this.layoutService.isVisible(Parts.AUXILIARYBAR_PART) ? Parts.AUXILIARYBAR_PART : Parts.PANEL_PART);
+			}
 		}
 
 		// Remembered in the window's storage, so leaving after a restart in the mode shows it again too

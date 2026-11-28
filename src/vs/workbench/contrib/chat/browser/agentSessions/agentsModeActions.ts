@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -89,5 +90,9 @@ export class ToggleAgentsModeAction extends Action2 {
 				restoreOutsideMode();
 			}
 		}
+		// Switching moves and hides parts of the window without a visible cue for screen readers
+		alert(agentsModeService.isActive
+			? localize('agentsModeOn', "Agents mode on")
+			: localize('agentsModeOff', "Agents mode off"));
 	}
 }

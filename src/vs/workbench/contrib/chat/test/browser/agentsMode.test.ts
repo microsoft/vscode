@@ -280,6 +280,8 @@ suite('Agents mode actions', () => {
 			readonly auxiliaryWelcome?: boolean;
 			readonly chatPartVisible?: boolean;
 			readonly panelVisible?: boolean;
+			/** Whether the editor area has focus when entering */
+			readonly editorFocused?: boolean;
 			/** What happens in the mode before leaving it */
 			readonly inMode?: 'openEditor' | 'restart' | 'restartWithWelcome' | 'restartWithoutMode' | 'showChatPart' | 'reopenChatPart';
 		}
@@ -320,7 +322,9 @@ suite('Agents mode actions', () => {
 			instantiation.stub(IWorkbenchLayoutService, {
 				onDidChangePartVisibility: partVisibilityChange.event,
 				isAuxiliaryBarMaximized: () => false,
-				isVisible: (part: Parts) => part === Parts.EDITOR_PART ? editorVisible : part === Parts.CHAT_PART ? chatPartVisible : part === Parts.PANEL_PART && panelVisible,
+				isVisible: (part: Parts) => part === Parts.EDITOR_PART ? editorVisible : part === Parts.CHAT_PART ? chatPartVisible : part === Parts.AUXILIARYBAR_PART || (part === Parts.PANEL_PART && panelVisible),
+				hasFocus: (part: Parts) => part === Parts.EDITOR_PART && !!scenario.editorFocused && editorVisible,
+				focusPart: (part: Parts) => { calls.push(`focus ${part}`); },
 				setPartHidden: (hidden: boolean, part: Parts) => {
 					if (!laidOut) {
 						throw new Error('not laid out');
@@ -409,6 +413,7 @@ suite('Agents mode actions', () => {
 				welcomeInAuxiliaryWindowWithChatPart: await run({ auxiliaryWelcome: true, chatPartVisible: true }),
 				welcomeAndEditorWithChatPart: await run({ welcome: true, editors: 1, chatPartVisible: true }),
 				emptyWithPanel: await run({ panelVisible: true }),
+				focusedEmptyWithPanel: await run({ panelVisible: true, editorFocused: true }),
 				emptyNothingElseVisible: await run({}),
 				emptyChatPartShownInMode: await run({ inMode: 'showChatPart' }),
 				emptyRestartedInMode: await run({ chatPartVisible: true, inMode: 'restart' }),
@@ -425,6 +430,8 @@ suite('Agents mode actions', () => {
 				welcomeInAuxiliaryWindowWithChatPart: { afterEnter: hiddenByChat, afterLeave: shownOnLeave },
 				welcomeAndEditorWithChatPart: { afterEnter: { ...untouched, calls: [`close ${gettingStartedInputTypeId}`] }, afterLeave: untouched },
 				emptyWithPanel: { afterEnter: { editorVisible: false, panelVisible: true, calls: [`hide ${Parts.EDITOR_PART}`] }, afterLeave: { ...shownOnLeave, panelVisible: true } },
+				// The focus the hidden editor area had goes to the Chat view in the secondary side bar
+				focusedEmptyWithPanel: { afterEnter: { editorVisible: false, panelVisible: true, calls: [`hide ${Parts.EDITOR_PART}`, `focus ${Parts.AUXILIARYBAR_PART}`] }, afterLeave: { ...shownOnLeave, panelVisible: true } },
 				emptyNothingElseVisible: { afterEnter: untouched, afterLeave: untouched },
 				// Hidden as the chat part shows, so the layout doesn't squeeze the side bars to keep room for the editor area
 				emptyChatPartShownInMode: { afterEnter: untouched, inMode: hiddenByChat, afterLeave: shownOnLeave },
