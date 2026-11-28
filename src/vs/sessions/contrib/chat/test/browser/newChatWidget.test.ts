@@ -1206,6 +1206,9 @@ suite('NewChatWidget', () => {
 			{ name: 'workspace folders reordered since saving', resolved: 'file', created: true, pickerFolders: [requested, savedFolders[2], savedFolders[1]], restored: true },
 			// The folders added to the draft were added to its workspace since: the picker no longer has added folders
 			{ name: 'added folders added to the workspace since saving', resolved: 'fileWithAddedFolders', created: true, pickerFolders: null, restored: true },
+			// Its agent works in one folder now: the provider creates the draft in its folder alone
+			{ name: 'added folders added to the workspace since saving, for an agent of one folder', resolved: 'fileWithAddedFolders', created: true, pickerFolders: null, draftFolders: [requested], restored: false },
+			{ name: 'added folders, for an agent of one folder', resolved: 'file', created: true, draftFolders: [requested], restored: false },
 			{ name: 'existing draft of the same session', resolved: 'file', created: false, restored: true },
 			// The same folders, its folder still first
 			{ name: 'existing draft with the same folders in another order', resolved: 'file', created: false, draftFolders: [requested, savedFolders[2], savedFolders[1]], restored: true },

@@ -1762,6 +1762,8 @@ export class NewChatWidget extends Disposable {
 				|| !extUri.isEqual(existing.workspaceConfig?.uri, workspaceConfig?.uri);
 			if (target.folderUri
 				? !workspace || !this._workspacePicker.isWorkspaceOfFolder(workspace, target.folderUri) || (restoresSession && !opened?.created && isOtherSession(workspace))
+				// A created draft whose agent no longer works in all of the draft's folders
+				|| (!!opened?.created && !!target.sessionFolders?.length && !isSameFolderSet(workspace.folders.map(folder => folder.root), target.sessionFolders))
 				: !session.isQuickChat?.get()) {
 				throw workspaceUnavailable();
 			}
