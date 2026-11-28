@@ -4156,6 +4156,26 @@ suite('ActionListWidget', () => {
 		assert.strictEqual(widget.getFocusedElement()?.item?.id, 'first');
 	});
 
+	test('shows focus on a disabled row that is focusable to explain why it is unavailable, and not on other disabled rows', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [
+				{ ...action('disabled'), disabled: true },
+				{ ...action('saved'), item: { id: 'saved', checked: true }, disabled: true, focusableWhenDisabled: true },
+				action('last'),
+			],
+		});
+		widget.focus();
+		const rows = Array.from(widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row'));
+
+		assert.deepStrictEqual({
+			focused: widget.getFocusedElement()?.item?.id,
+			focusableDisabled: rows.map(row => row.classList.contains('option-focusable-disabled')),
+		}, {
+			focused: 'saved',
+			focusableDisabled: [false, true, false],
+		});
+	});
+
 	test('opening the checked hover reveals a model in a collapsed section', () => {
 		const widget = createActionListWidget(disposables, {
 			items: [

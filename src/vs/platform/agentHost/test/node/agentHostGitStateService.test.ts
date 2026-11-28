@@ -3184,7 +3184,29 @@ suite('AgentHostGitStateService', () => {
 		await h.service.refreshSessionGitState(SESSION, undefined, { force: true });
 		await timeout(1_000);
 
-		assert.deepStrictEqual({ scans, repositories: readSessionRepositories(h.stateManager.getSessionState(SESSION)?._meta) }, { scans: 0, repositories: undefined });
+		// Both folders share the repository's root, which the session lists, as it is not either folder's own
+		assert.deepStrictEqual({ scans, repositories: readSessionRepositories(h.stateManager.getSessionState(SESSION)?._meta) }, {
+			scans: 0,
+			repositories: { [getWorkingDirectoryKey(sub)]: [{ root: 'file:///repo', kind: 'folder' }], [getWorkingDirectoryKey(other)]: [{ root: 'file:///repo', kind: 'folder' }] },
+		});
+	}));
+
+	test('two folders that are each their own repository list their roots, so that clients know they are not one', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		const app = 'file:///app';
+		const lib = 'file:///lib';
+		h.gitService.getRepositoryRoot = async folder => URI.parse(`file://${folder.path}`);
+		h.setGitResult({ branchName: 'main' });
+		seedSession(h.stateManager, { workingDirectory: app, gitState: { branchName: 'main' } });
+		h.stateManager.dispatchServerAction(SESSION, { type: ActionType.SessionWorkingDirectorySet, directory: lib });
+
+		await h.service.refreshSessionGitState(SESSION, undefined, { force: true });
+		await timeout(1_000);
+
+		assert.deepStrictEqual(readSessionRepositories(h.stateManager.getSessionState(SESSION)?._meta), {
+			[getWorkingDirectoryKey(app)]: [{ root: app, kind: 'folder' }],
+			[getWorkingDirectoryKey(lib)]: [{ root: lib, kind: 'folder' }],
+		});
 	}));
 
 	test('a scan that finishes after the session\'s folders changed records nothing, and the latest folders are found once it settles', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -3344,17 +3366,18 @@ suite('AgentHostGitStateService', () => {
 			return { inRepository, repositoryRemoved, repositoryCreated };
 		};
 
-		const expected = (target: string) => ({
-			inRepository: { scans: 0, repositories: undefined },
+		// With two folders in repositories, the session lists each folder's own repository
+		const expected = (target: string, listsOwnRoots: boolean) => ({
+			inRepository: { scans: 0, repositories: listsOwnRoots ? [target] : undefined },
 			repositoryRemoved: { scans: 1, repositories: [`${target}/app`] },
-			repositoryCreated: { scans: 1, repositories: undefined },
+			repositoryCreated: { scans: 1, repositories: listsOwnRoots ? [target] : undefined },
 		});
 		assert.deepStrictEqual({
 			first: await transitions(WORKING_DIRECTORY),
 			chatFolder: await transitions('file:///other'),
 		}, {
-			first: expected(WORKING_DIRECTORY),
-			chatFolder: expected('file:///other'),
+			first: expected(WORKING_DIRECTORY, false),
+			chatFolder: expected('file:///other', true),
 		});
 	}));
 
@@ -3783,8 +3806,11 @@ suite('AgentHostGitStateService', () => {
 		await timeout(1_000);
 
 		const repositories = readSessionRepositories(h.stateManager.getSessionState(SESSION)?._meta);
-		// lib is src's own repository, so it is not nested in work, which then has none
-		assert.deepStrictEqual({ repositories, libScopeRead: h.gitCalls.includes(lib) }, { repositories: undefined, libScopeRead: false });
+		// lib is src's own repository, so it is not nested in work, which then has none; src lists lib, its root above it
+		assert.deepStrictEqual({ repositories, libScopeRead: h.gitCalls.includes(lib) }, {
+			repositories: { [getWorkingDirectoryKey(work)]: [], [getWorkingDirectoryKey(src)]: [{ root: lib, kind: 'folder' }] },
+			libScopeRead: false,
+		});
 	}));
 
 	test('a repository read that finishes after the folders changed records nothing, even before the next refresh', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

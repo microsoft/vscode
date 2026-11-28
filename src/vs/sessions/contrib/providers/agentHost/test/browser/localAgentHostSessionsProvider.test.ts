@@ -23,7 +23,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError, errorHandler } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, ImmortalReference, MutableDisposable, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, ISettableObservable, observableFromEvent, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, ISettableObservable, observableFromEvent, observableValue, runOnChange, type IObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { basename, extUriIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
@@ -15097,6 +15097,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				readonly windowSessions = constObservable<readonly ITestSessionWithChat[]>([]);
 			});
 			instantiationService.stub(IPullRequestIconCache, new class extends mock<IPullRequestIconCache>() { });
+			instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri: extUriIgnorePathCase }));
 			const options: IAgentHostAdapterOptions = {
 				environment: 'local',
 				icon: Codicon.copilot,
@@ -20021,6 +20022,54 @@ suite('LocalAgentHostSessionsProvider', () => {
 			const withAgent = supported();
 			setAgentWorkingDirectories(false);
 			assert.deepStrictEqual({ withAgent, withoutAgent: supported() }, { withAgent: [true, false, false], withoutAgent: [false, false, false] });
+		});
+
+		test('a draft reports the Git state of its other folders as the host reads them', async () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = provider.createNewSession(api, provider.sessionTypes[0].id, { folders: [api, web] });
+			await timeout(0);
+			const webRepository = () => session.workspace.get()?.folders[1]?.gitRepository;
+			const before = webRepository()?.isRepository?.get();
+			let workspaceUpdates = 0;
+			disposables.add(runOnChange(session.workspace, () => workspaceUpdates++));
+			agentHost.setSessionState(AgentSession.id(agentHost.createdSessionUris.at(-1)!), provider.sessionTypes[0].id, {
+				provider: provider.sessionTypes[0].id,
+				title: '',
+				status: ProtocolSessionStatus.Idle,
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
+				chats: [],
+				// The Git state of both folders in one update
+				_meta: withFolderScopeGitState(withSessionGitState(undefined, { branchName: 'feature' }), getWorkingDirectoryScopeId([web.toString()]), { branchName: 'main' }, [web.toString()]),
+			});
+			await timeout(0);
+			const updatesForGitState = workspaceUpdates;
+			const afterGitState = { isRepository: webRepository()?.isRepository?.get(), branchName: webRepository()?.branchName };
+			// The host finds that both folders are in one repository, without a change of their Git state
+			agentHost.setSessionState(AgentSession.id(agentHost.createdSessionUris.at(-1)!), provider.sessionTypes[0].id, {
+				provider: provider.sessionTypes[0].id,
+				title: '',
+				status: ProtocolSessionStatus.Idle,
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
+				chats: [],
+				_meta: withSessionRepositories(withFolderScopeGitState(undefined, getWorkingDirectoryScopeId([web.toString()]), { branchName: 'main' }, [web.toString()]), {
+					[getWorkingDirectoryKey(api.toString())]: [{ root: api.toString(), kind: 'folder' }],
+					[getWorkingDirectoryKey(web.toString())]: [{ root: api.toString(), kind: 'folder' }],
+				}),
+			});
+			await timeout(0);
+			assert.deepStrictEqual({
+				before,
+				afterGitState,
+				updatesForGitState,
+				repositories: session.workspace.get()?.repositories?.map(repository => [repository.root.toString(), repository.kind]),
+			}, {
+				before: false,
+				afterGitState: { isRepository: true, branchName: 'main' },
+				updatesForGitState: 1,
+				repositories: [[api.toString(), 'folder']],
+			});
 		});
 
 		test('does not create a draft whose other folder is untrusted', async () => {

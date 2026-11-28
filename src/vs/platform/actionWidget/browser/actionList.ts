@@ -626,6 +626,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		const actionTitle = this._keybindingService.lookupKeybinding(acceptSelectedActionCommand)?.getLabel();
 		const previewTitle = this._keybindingService.lookupKeybinding(previewSelectedActionCommand)?.getLabel();
 		data.container.classList.toggle('option-disabled', !!element.disabled);
+		data.container.classList.toggle('option-focusable-disabled', !!element.disabled && element.focusableWhenDisabled === true);
 		data.container.ariaDisabled = element.disabled || element.standaloneToggle?.disabled ? 'true' : null;
 		if (element.hover !== undefined) {
 			// Don't show tooltip when hover content is configured - the rich hover will show instead

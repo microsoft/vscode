@@ -1697,6 +1697,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		@IGitHubService private readonly _gitHubService: IGitHubService,
 		@ISessionHostService private readonly _sessionHostService: ISessionHostService,
 		@IPullRequestIconCache private readonly _pullRequestIconCache: IPullRequestIconCache,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
 		const rawId = AgentSession.id(metadata.session);
@@ -3159,7 +3160,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	private _withFolders(built: ISessionWorkspace | undefined): ISessionWorkspace | undefined {
 		const toHost = (uri: URI) => this._options.mapWorkingDirectoryToHost?.(uri) ?? uri;
 		const toClient = (uri: URI) => this._mapWorkingDirectory(uri);
-		const workspace = withSessionFolderState(built, this._meta, toHost, toClient);
+		const workspace = withSessionFolderState(built, this._meta, toHost, toClient, this._uriIdentityService.extUri);
 		// A configuration without folders takes the session's: its default folder (the repository a worktree belongs to), then the others
 		const workspaceConfig = workspace && readSessionWorkspaceConfig(this._meta, toClient, workspace.folders.map((folder, index) => index === 0 ? folder.root : folder.workingDirectory));
 		return workspaceConfig ? { ...workspace, workspaceConfig } : workspace;
@@ -3762,6 +3763,7 @@ class NewSession extends Disposable {
 		@IFocusedSessionHostService focusedSessionHostService: IFocusedSessionHostService,
 		@ILanguageModelsService languageModelsService: ILanguageModelsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
 		const initialSessionTemplate = ctx.initialSessionTemplate;
@@ -3978,7 +3980,7 @@ class NewSession extends Disposable {
 	}
 
 	/** Applies the session's Git and GitHub state; `sessionWorkingDirectory` is the backend URI of its first folder. */
-	applySessionMeta(meta: SessionMeta | undefined, sessionWorkingDirectory: string | undefined): boolean {
+	applySessionMeta(meta: SessionMeta | undefined, sessionWorkingDirectory: string | undefined, tx?: ITransaction): boolean {
 		const workspace = this._workspace.get();
 		const primaryFolder = workspace?.folders[0];
 		if (!workspace || !primaryFolder) {
@@ -4025,8 +4027,26 @@ class NewSession extends Disposable {
 		if (sessionWorkspaceEqual(workspace, nextWorkspace)) {
 			return false;
 		}
-		this._workspace.set(nextWorkspace, undefined);
+		this._workspace.set(nextWorkspace, tx);
 		return true;
+	}
+
+	/**
+	 * Applies what the host reports about the draft's other folders: their own Git state, or that they are not
+	 * repositories, as for a running session (see {@link withSessionFolderState}).
+	 */
+	applyFolderState(meta: SessionMeta | undefined, toHost: (uri: URI) => URI, toClient: (uri: URI) => URI, tx?: ITransaction): void {
+		const workspace = this._workspace.get();
+		const next = withSessionFolderState(workspace, meta, toHost, toClient, this._uriIdentityService.extUri);
+		// The workspace's equality leaves out its repositories, which can change alone
+		const sameRepositories = (workspace?.repositories ?? []).length === (next?.repositories ?? []).length
+			&& (workspace?.repositories ?? []).every((repository, index) => {
+				const other = next?.repositories?.[index];
+				return !!other && other.kind === repository.kind && isEqual(other.root, repository.root) && isEqual(other.folder, repository.folder);
+			});
+		if (next && next !== workspace && (!sessionWorkspaceEqual(workspace, next) || !sameRepositories)) {
+			this._workspace.set(next, tx);
+		}
 	}
 
 	// -- Config --------------------------------------------------------------
@@ -10669,7 +10689,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._backendSessionsChanged.trigger(undefined);
 		const newSession = this._newSessions.get(sessionId);
 		const previousRepository = newSession?.session.workspace.get()?.folders[0]?.gitRepository;
-		newSession?.applySessionMeta(state._meta, state.workingDirectories?.[0]);
+		// One update of the draft's workspace for its first folder and the others
+		transaction(tx => {
+			newSession?.applySessionMeta(state._meta, state.workingDirectories?.[0], tx);
+			newSession?.applyFolderState(state._meta, uri => this.mapWorkingDirectoryToHost(uri), uri => this.mapWorkingDirectoryUri(uri), tx);
+		});
 		const repository = newSession?.session.workspace.get()?.folders[0]?.gitRepository;
 		const previousDefaultBranchName = previousRepository?.defaultRemoteBranchName ?? previousRepository?.defaultBranchName;
 		const defaultBranchName = repository?.defaultRemoteBranchName ?? repository?.defaultBranchName;
