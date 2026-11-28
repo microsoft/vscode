@@ -37,7 +37,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isChatTreeItem, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { IChatWidgetService, isChatContextMenuActionContext, unwrapChatContextMenuActionContext } from '../chat.js';
 import { CHAT_CATEGORY, stringifyItem } from './chatActions.js';
-import { toPortableMarkdown } from '../widget/chatClipboard.js';
+import { getMathAwareSelectionText, toPortableMarkdown } from '../widget/chatClipboard.js';
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { isUntitledChatSession } from '../../common/model/chatUri.js';
@@ -326,8 +326,8 @@ export function registerChatCopyActions() {
 			// Otherwise, context menu with no selection -> copy the full item
 			const nativeSelection = dom.getActiveWindow().getSelection();
 			const selectedText = nativeSelection?.toString();
-			if (widget && selectedText && selectedText.length > 0 && dom.isAncestor(dom.getActiveElement(), widget.domNode)) {
-				await clipboardService.writeText(selectedText);
+			if (widget && nativeSelection && selectedText && selectedText.length > 0 && dom.isAncestor(dom.getActiveElement(), widget.domNode)) {
+				await clipboardService.writeText(getMathAwareSelectionText(nativeSelection, widget.domNode) ?? selectedText);
 				return;
 			}
 

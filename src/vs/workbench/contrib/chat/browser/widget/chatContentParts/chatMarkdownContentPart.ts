@@ -269,7 +269,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			const hasMath = renderMath && content.value.includes('$');
 			const markedExtensions: MarkedExtension[] = hasMath
 				? coalesce([MarkedKatexSupport.getExtension(dom.getWindow(context.container), {
-					throwOnError: false
+					throwOnError: false,
+					includeRawSource: true,
 				})])
 				: [];
 			if (hasMath && markedExtensions.length === 0) {

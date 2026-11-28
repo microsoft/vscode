@@ -401,6 +401,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 	}
 	if (type !== 'inlineChat') {
 		content.push(localize('chat.linkContextMenu', "Focus a link in the chat transcript and press Shift+F10 to open its context menu. Use Copy Link to copy its target. File links with additional editor choices also provide Open With."));
+		content.push(localize('chat.copyMathSource', "Copying selected equations copies their original LaTeX source instead of their visual layout. Selecting part of an equation copies its entire source. Ordinary response text keeps its selected text."));
 	}
 	if (!isSessionsWindow && (type === 'panelChat' || type === 'editsView' || type === 'agentView')) {
 		content.push(localize('chat.editorCopySessionLink', "For an Agent Host chat editor, open the editor tab context menu and choose Copy Link to copy a session URL that renders as a session link in Markdown. Selecting multiple chat tabs copies one link per line."));

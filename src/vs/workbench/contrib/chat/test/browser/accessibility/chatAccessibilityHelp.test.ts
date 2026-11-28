@@ -14,6 +14,11 @@ import { isResponseSelectionSupported } from '../../../browser/chat.js';
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('documents LaTeX copying and whole-equation partial selections', () => {
+		const help = getAccessibilityHelpText('panelChat', new MockKeybindingService(), false);
+		assert.ok(help.includes('Selecting part of an equation copies its entire source.'));
+	});
+
 	test('keeps confirmation and reading guidance without implementation guarantees', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({
