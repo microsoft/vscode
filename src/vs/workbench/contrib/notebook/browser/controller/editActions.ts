@@ -690,7 +690,7 @@ registerAction2(class CommentSelectedCellsAction extends NotebookMultiCellAction
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCommandContext): Promise<void> {
 		const languageConfigurationService = accessor.get(ILanguageConfigurationService);
 
-		context.selectedCells.forEach(async cellViewModel => {
+		for (const cellViewModel of context.selectedCells) {
 			const textModel = await cellViewModel.resolveTextModel();
 
 			const commentsOptions = cellViewModel.commentOptions;
@@ -718,7 +718,7 @@ registerAction2(class CommentSelectedCellsAction extends NotebookMultiCellAction
 				return new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
 			});
 			cellViewModel.setSelections(newTrackedSelections ?? []);
-		}); // end of cells forEach
+		}
 	}
 
 });
