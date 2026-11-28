@@ -99,6 +99,7 @@ export class NewSplitButtonActionViewItem extends ActionWithDropdownActionViewIt
 			menuActionsOrProvider: { getActions: () => menu.actions },
 			menuActionClassNames: [NewSplitButtonActionViewItem.FILLED_LABEL_CLASS],
 			menuActionRunner,
+			keybindingProvider: action => _keybindingService.lookupKeybinding(action.id),
 			filledSplitButton: true,
 		}, contextMenuService);
 		this._register(menuActionRunner);

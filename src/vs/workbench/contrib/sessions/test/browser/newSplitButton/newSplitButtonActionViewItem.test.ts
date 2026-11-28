@@ -160,4 +160,12 @@ suite('Sessions - New split button', () => {
 			menus: [true],
 		});
 	});
+
+	test('shows the keybindings of the menu actions in the ▾ menu', () => {
+		const cmdO = new USLayoutResolvedKeybinding([new KeyCodeChord(true, false, false, false, KeyCode.KeyO)], OS);
+		const inFolder = store.add(new Action('newInFolder', 'New in Folder...'));
+		const { openMenu, menus } = render(true, { [PRIMARY_ID]: cmdN, newInFolder: cmdO }, [inFolder]);
+		openMenu();
+		assert.deepStrictEqual(menus[0].getActions().map(action => menus[0].getKeyBinding?.(action)?.getLabel() ?? null), [cmdN.getLabel(), null, null, cmdO.getLabel()]);
+	});
 });
