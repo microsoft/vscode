@@ -74,6 +74,8 @@ export interface IDiffComputeService {
 
 	/**
 	 * Computes whitespace-insensitive line counts and whitespace-sensitive character edits between two text strings.
+	 * An empty text has no lines: against it, the counts are the lines of the other text, whose final line break
+	 * ends its last line.
 	 * @param original - The original text.
 	 * @param modified - The modified text to compare against the original.
 	 * @param timeoutMs - Maximum time in milliseconds before aborting. Defaults to {@link DEFAULT_DIFF_TIMEOUT_MS}.

@@ -111,6 +111,28 @@ suite('Agent Host Diff Worker', () => {
 		});
 	});
 
+	test('line counts give an empty text no lines and end the last line of the other text at its final line break', () => {
+		const cases: [original: string, modified: string, added: number, removed: number][] = [
+			['', 'one line\n', 1, 0],
+			['', 'one line', 1, 0],
+			['', 'first\r\nsecond\r\n', 2, 0],
+			['', '\n', 1, 0],
+			['one line\n', '', 0, 1],
+			['one line', '', 0, 1],
+			// Texts that both have content keep their line diff.
+			['one line\n', 'one line\nsecond line\n', 1, 0],
+			['first\nsecond\n', 'first\nchanged\n', 1, 1],
+		];
+
+		assert.deepStrictEqual(
+			cases.map(([original, modified]) => {
+				const result = computeDiffCounts(original, modified, 5000);
+				return [original, modified, result.added, result.removed, applyChanges(original, result.changes)];
+			}),
+			cases.map(([original, modified, added, removed]) => [original, modified, added, removed, modified]),
+		);
+	});
+
 	for (const eol of ['\n', '\r\n']) {
 		test(`character edits preserve separated indentation changes with ${JSON.stringify(eol)}`, () => {
 			const original = ['const first = 1;', '// unchanged \u{1f600}', 'const last = 2;'].join(eol);

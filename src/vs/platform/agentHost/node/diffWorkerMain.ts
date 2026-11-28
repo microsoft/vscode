@@ -25,9 +25,16 @@ export function computeDiffCounts(originalText: string, modifiedText: string, ti
 
 	let added = 0;
 	let removed = 0;
-	for (const change of result.diff.changes) {
-		removed += change.original.length;
-		added += change.modified.length;
+	if (originalText.length === 0 || modifiedText.length === 0) {
+		// An empty text has no lines, so the lines of the other text are all added or removed. The line diff
+		// would count a line for the empty text, and another one after a final line break of the other text.
+		added = getLineCount(modifiedLines);
+		removed = getLineCount(originalLines);
+	} else {
+		for (const change of result.diff.changes) {
+			removed += change.original.length;
+			added += change.modified.length;
+		}
 	}
 
 	const originalLineStarts = getLineStarts(originalText);
@@ -60,6 +67,11 @@ export function computeDiffCounts(originalText: string, modifiedText: string, ti
 		hitTimeout = characterResult.diff.hitTimeout;
 	}
 	return { added, removed, changes, hitTimeout };
+}
+
+/** The number of lines of a text split at its line breaks, where a final line break ends the last line and starts no other. */
+function getLineCount(lines: readonly string[]): number {
+	return lines[lines.length - 1].length === 0 ? lines.length - 1 : lines.length;
 }
 
 function getLineStarts(content: string): number[] {
