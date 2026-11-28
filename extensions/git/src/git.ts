@@ -3231,9 +3231,26 @@ export class Repository {
 					const gitdirPath = path.join(worktreesPath, dirent.name, 'gitdir');
 					const gitdirContent = (await fs.readFile(gitdirPath, 'utf8')).trim();
 
+					const worktreePath = getWorktreePathFromGitdir(path.dirname(gitdirPath), gitdirContent);
+
+					// Skip prunable worktrees whose directory does not exist
+					try {
+						const stat = await fs.stat(worktreePath);
+						if (!stat.isDirectory()) {
+							continue;
+						}
+					} catch (err) {
+						if (/ENOENT|ENOTDIR/.test(err.message)) {
+							continue;
+						}
+
+						// On other filesystem errors (e.g. EACCES, EPERM), retain the worktree entry
+						// rather than failing the repository's status refresh.
+					}
+
 					result.push({
 						name: dirent.name,
-						path: getWorktreePathFromGitdir(path.dirname(gitdirPath), gitdirContent),
+						path: worktreePath,
 						// Remove 'ref: ' prefix
 						ref: headContent.replace(/^ref: /, ''),
 						// Detached if HEAD does not start with 'ref: '

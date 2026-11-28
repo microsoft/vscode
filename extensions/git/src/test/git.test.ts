@@ -56,6 +56,34 @@ suite('git', () => {
 			}
 		});
 
+		test('ignores prunable worktrees whose directory does not exist on disk', async () => {
+			const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'vscode-git-worktree-prune-'));
+			const worktreePath = path.join(directory, 'feature');
+			try {
+				await git.init(directory, { defaultBranch: 'main' });
+				await git.exec(directory, ['config', 'user.name', 'Worktree Tester']);
+				await git.exec(directory, ['config', 'user.email', 'worktree@example.com']);
+				await git.exec(directory, ['config', 'commit.gpgsign', 'false']);
+				await git.exec(directory, ['commit', '--allow-empty', '-m', 'initial']);
+				await git.exec(directory, ['worktree', 'add', '-b', 'feature', worktreePath]);
+
+				const dotGit = await git.getRepositoryDotGit(directory);
+				const repository = git.open(directory, undefined, dotGit, logger);
+
+				let worktrees = await repository.getWorktrees();
+				assert.strictEqual(worktrees.length, 2);
+
+				// Delete the worktree folder on disk without running git worktree prune
+				await fs.promises.rm(worktreePath, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+
+				worktrees = await repository.getWorktrees();
+				assert.strictEqual(worktrees.length, 1);
+				assert.strictEqual(worktrees[0].main, true);
+			} finally {
+				await fs.promises.rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+			}
+		});
+
 		test('stages and unstages a file whose name contains glob characters without matching other files', async () => {
 			const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'vscode-git-pathspec-'));
 			try {
