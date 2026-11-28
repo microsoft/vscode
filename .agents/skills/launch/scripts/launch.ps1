@@ -204,16 +204,20 @@ function Copy-ProfileDirectory([string]$source, [string]$destination, [bool]$use
 	}
 }
 
-function Assert-AuthCriticalProfileFiles([string]$destination) {
+function Get-MissingAuthCriticalPaths([string]$userDataDir) {
 	$requiredPaths = @(
 		'Local State',
 		'machineid',
 		'User\globalStorage\state.vscdb',
 		'Network'
 	)
-	$missingPaths = @($requiredPaths | Where-Object {
-		-not (Test-Path -LiteralPath (Join-Path $destination $_))
+	return @($requiredPaths | Where-Object {
+		-not (Test-Path -LiteralPath (Join-Path $userDataDir $_))
 	})
+}
+
+function Assert-AuthCriticalProfileFiles([string]$destination) {
+	$missingPaths = @(Get-MissingAuthCriticalPaths $destination)
 	if ($missingPaths.Count -gt 0) {
 		throw "Profile copy is missing auth-critical path(s): $($missingPaths -join ', '). Refusing to launch a profile that cannot preserve Windows authentication."
 	}
@@ -317,27 +321,13 @@ function Start-Code([string]$codeBat, [string[]]$arguments, [string]$logFile) {
 		$quotedCodeBat = "`"$quotedCodeBat`""
 	}
 	$commandLine = ((@($quotedCodeBat) + @($arguments | ForEach-Object { Quote-CmdArgument $_ })) -join ' ') + " >> $(Quote-CmdArgument $logFile) 2>&1"
-	$processInfo = [Diagnostics.ProcessStartInfo]::new()
-	$processInfo.FileName = $env:ComSpec
-	$processInfo.UseShellExecute = $false
-	$processInfo.CreateNoWindow = $true
-	$processInfo.WindowStyle = [Diagnostics.ProcessWindowStyle]::Hidden
-	$processInfo.Arguments = '/d /s /c "' + $commandLine + '"'
-	# `EnvironmentVariables` (not `Environment`) so this works on Windows
-	# PowerShell 5.1 as well as PowerShell 7+ — the latter property is .NET
-	# Core only, and `powershell.exe` is still the built-in Windows shell.
-	[void]($processInfo.EnvironmentVariables['VSCODE_SKIP_PRELAUNCH'] = '1')
-	[void]$processInfo.EnvironmentVariables.Remove('ELECTRON_RUN_AS_NODE')
-	[void]$processInfo.EnvironmentVariables.Remove('GIT_CONFIG_COUNT')
-	[void]$processInfo.EnvironmentVariables.Remove('GIT_CONFIG_PARAMETERS')
-
-	$process = [Diagnostics.Process]::new()
-	$process.StartInfo = $processInfo
-	if (-not $process.Start()) {
-		throw "Failed to start $codeBat."
-	}
-
-	return $process
+	# Start through ShellExecute (Start-Process without -NoNewWindow) rather than
+	# Process.Start with UseShellExecute=false: the latter makes Code OSS inherit
+	# this script's stdout/stderr, so a caller reading the JSON result to the end
+	# of the stream waits until Code OSS exits. ShellExecute cannot take a custom
+	# environment, so the variables are set and cleared by cmd itself.
+	$environment = 'set "VSCODE_SKIP_PRELAUNCH=1"&& set "ELECTRON_RUN_AS_NODE="&& set "GIT_CONFIG_COUNT="&& set "GIT_CONFIG_PARAMETERS="&& '
+	return Start-Process -FilePath $env:ComSpec -ArgumentList ('/d /s /c "' + $environment + $commandLine + '"') -WindowStyle Hidden -PassThru
 }
 
 $extraArgs = [System.Collections.Generic.List[string]]::new()
@@ -468,8 +458,19 @@ try {
 	} else {
 		$false
 	}
+	$missingSourceAuthPaths = @(if ($sourceProfileExists) { Get-MissingAuthCriticalPaths $sourceUserDataDir })
+	$needsSignIn = $true
 	if ($hasGitHubAuthenticationSecret -eq $false) {
 		Write-LaunchError "[launch.ps1] WARNING: source profile $sourceUserDataDir has no stored GitHub session; the launched instance will prompt you to sign in."
+	} elseif ($missingSourceAuthPaths.Count -gt 0) {
+		# Typical when the shared-data-dir holds a session written by another
+		# profile: its decryption key lives in that profile's `Local State`, so
+		# Code OSS discards the secret and asks for a sign-in instead.
+		Write-LaunchError "[launch.ps1] WARNING: source profile $sourceUserDataDir is missing auth-critical path(s): $($missingSourceAuthPaths -join ', '). A stored GitHub session cannot be carried over without them, so the launched instance will prompt you to sign in."
+	} else {
+		$needsSignIn = $false
+	}
+	if ($needsSignIn) {
 		Write-LaunchError 'To pre-authenticate future launches, use .agents\skills\launch\scripts\bootstrap\bootstrap-profile.ps1 after the user chooses the bootstrap option.'
 		Write-LaunchError 'Every future launch copies that profile and inherits the session.'
 	}
@@ -483,7 +484,7 @@ try {
 		Write-LaunchError "[launch.ps1] slim copy: $sourceUserDataDir -> $destinationUdd"
 		Copy-ProfileDirectory $sourceUserDataDir $destinationUdd $true
 	}
-	if ($sourceProfileExists -and $hasGitHubAuthenticationSecret -ne $false) {
+	if ($sourceProfileExists -and -not $needsSignIn) {
 		Assert-AuthCriticalProfileFiles $destinationUdd
 	}
 
