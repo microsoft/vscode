@@ -55,9 +55,9 @@ export class MarkdownEditorImagePaste implements vscode.Disposable {
 			if (vscode.workspace.getConfiguration('editor', this.document).get<boolean>('pasteAs.enabled') === false) {
 				throw new Error(vscode.l10n.t('Media paste is disabled by editor.pasteAs.enabled.'));
 			}
-			const enabled = config.get<boolean | string>('editor.paste.enabled', true);
+			const enabled = config.get<boolean | string>('editor.filePaste.enabled', true);
 			if (enabled === false || enabled === 'never') {
-				throw new Error(vscode.l10n.t('Markdown media paste is disabled by markdown.editor.paste.enabled.'));
+				throw new Error(vscode.l10n.t('Markdown media paste is disabled by markdown.editor.filePaste.enabled.'));
 			}
 			const transfer = new vscode.DataTransfer();
 			const ids = new Set<string>();
@@ -75,11 +75,11 @@ export class MarkdownEditorImagePaste implements vscode.Disposable {
 				transfer.set(`${image.mime};index=${index}`, item);
 			});
 			const edit = await ResourcePasteOrDropProvider.createEditForMediaFiles(this.document, transfer,
-				config.get<CopyFilesSettings>('editor.paste.copyIntoWorkspace', CopyFilesSettings.MediaFiles), pending.token, true);
+				config.get<CopyFilesSettings>('editor.filePaste.copyIntoWorkspace', CopyFilesSettings.MediaFiles), pending.token, true);
 			await this.#text.drain();
 			checkCurrent();
 			if (!edit?.additionalEdits) {
-				throw new Error(vscode.l10n.t('Media paste requires markdown.editor.paste.copyIntoWorkspace to be mediaFiles.'));
+				throw new Error(vscode.l10n.t('Media paste requires markdown.editor.filePaste.copyIntoWorkspace to be mediaFiles.'));
 			}
 			const range = new vscode.Range(this.document.positionAt(start.offset), this.document.positionAt(end.offset));
 			const oldLength = this.document.getText().length;

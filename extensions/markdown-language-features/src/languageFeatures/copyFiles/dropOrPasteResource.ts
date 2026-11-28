@@ -80,8 +80,8 @@ export class ResourcePasteOrDropProvider implements vscode.DocumentPasteEditProv
 		token: vscode.CancellationToken,
 	): Promise<vscode.DocumentPasteEdit[] | undefined> {
 		const edit = await this.#createEdit(document, ranges, dataTransfer, {
-			insert: this.#getEnabled(document, 'editor.paste.enabled'),
-			copyIntoWorkspace: vscode.workspace.getConfiguration('markdown', document).get<CopyFilesSettings>('editor.paste.copyIntoWorkspace', CopyFilesSettings.MediaFiles)
+			insert: this.#getEnabled(document, 'editor.filePaste.enabled'),
+			copyIntoWorkspace: vscode.workspace.getConfiguration('markdown', document).get<CopyFilesSettings>('editor.filePaste.copyIntoWorkspace', CopyFilesSettings.MediaFiles)
 		}, context, token);
 
 		if (!edit || token.isCancellationRequested) {
