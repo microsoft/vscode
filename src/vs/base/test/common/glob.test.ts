@@ -710,6 +710,11 @@ suite('Glob', () => {
 		assert.deepStrictEqual(glob.splitGlobAware('[foo,bar]', ','), ['[foo,bar]']);
 		assert.deepStrictEqual(glob.splitGlobAware('foo,bar,[foo,bar]', ','), ['foo', 'bar', '[foo,bar]']);
 		assert.deepStrictEqual(glob.splitGlobAware('[foo,bar],foo,bar,[foo,bar]', ','), ['[foo,bar]', 'foo', 'bar', '[foo,bar]']);
+
+		// a brace in a character class is a literal character
+		assert.deepStrictEqual(glob.splitGlobAware('a[{]b/c', '/'), ['a[{]b', 'c']);
+		assert.deepStrictEqual(glob.splitGlobAware('a[{]b,c', ','), ['a[{]b', 'c']);
+		assert.deepStrictEqual(glob.splitGlobAware('{a,[}]b},c', ','), ['{a,[}]b}', 'c']);
 	});
 
 	test('expression with disabled glob', function () {
