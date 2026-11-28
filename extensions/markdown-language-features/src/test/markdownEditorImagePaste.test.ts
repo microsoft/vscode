@@ -10,6 +10,7 @@ import { MarkdownEditorImagePaste } from '../preview/markdownEditorImagePaste';
 import { CopyFilesSettings, ResourcePasteOrDropProvider } from '../languageFeatures/copyFiles/dropOrPasteResource';
 import type { MarkdownEditorRenderer } from '../preview/markdownEditorProtocol';
 import { clipboardMediaChunkSize } from '../preview/markdownEditorMediaTransfer';
+import { createNewMarkdownEngine } from './engine';
 import { TestEditorText } from './testEditorText';
 
 suite('Markdown editor image paste', () => {
@@ -166,6 +167,33 @@ suite('Markdown editor image paste', () => {
 			await config.update('copyFiles.destination', destination, vscode.ConfigurationTarget.Global);
 			await config.update('copyFiles.overwriteBehavior', overwrite, vscode.ConfigurationTarget.Global);
 		}
+	});
+
+	test('honors the markdown.editor.filePaste settings in text and Markdown editors', async () => {
+		const config = vscode.workspace.getConfiguration('markdown', document);
+		const provider = new ResourcePasteOrDropProvider(createNewMarkdownEngine());
+		const data = new vscode.DataTransfer();
+		const item = new vscode.DataTransferItem('');
+		item.asFile = () => ({ name: 'image.png', uri: undefined, data: async () => Uint8Array.from(atob(base64), c => c.charCodeAt(0)) });
+		data.set('image/png', item);
+		const token = new vscode.CancellationTokenSource();
+		const results = [];
+		try {
+			for (const setting of ['editor.filePaste.enabled', 'editor.filePaste.copyIntoWorkspace']) {
+				const previous = config.inspect(setting)?.globalValue;
+				await config.update(setting, 'never', vscode.ConfigurationTarget.Global);
+				try {
+					results.push({
+						textEditor: await provider.provideDocumentPasteEdits(document, [new vscode.Range(2, 0, 2, 4)], data, { only: undefined, triggerKind: vscode.DocumentPasteTriggerKind.Automatic }, token.token),
+						markdownEditor: await paste.paste(request()).then(() => 'pasted', (error: Error) => error.message),
+					});
+				} finally { await config.update(setting, previous, vscode.ConfigurationTarget.Global); }
+			}
+		} finally { token.dispose(); }
+		assert.deepStrictEqual(results, [
+			{ textEditor: undefined, markdownEditor: 'Markdown media paste is disabled by markdown.editor.filePaste.enabled.' },
+			{ textEditor: undefined, markdownEditor: 'Media paste requires markdown.editor.filePaste.copyIntoWorkspace to be mediaFiles.' },
+		]);
 	});
 
 	test('rejects invalid input, stale versions, and locked editors before creating files', async () => {
