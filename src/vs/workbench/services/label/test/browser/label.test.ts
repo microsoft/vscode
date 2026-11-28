@@ -9,7 +9,7 @@ import { TestEnvironmentService, TestLifecycleService, TestPathService, TestRemo
 import { URI } from '../../../../../base/common/uri.js';
 import { LabelService } from '../../common/labelService.js';
 import { TestContextService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
-import { WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { Workspace as BaseWorkspace, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { TestWorkspace, Workspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -979,6 +979,22 @@ suite('workspace label decorator', () => {
 		const withDecorator = [render(undefined), render(true)];
 
 		assert.deepStrictEqual(withDecorator, withoutDecorator);
+	});
+
+	test('an empty workspace is labeled by its name, if it has one', () => {
+		const named = new BaseWorkspace('id', [], false, null, () => false, 'Agents Window');
+		const namedWithFolders = new BaseWorkspace('id', [new WorkspaceFolder({ uri: folder, index: 0, name: 'repo' }), new WorkspaceFolder({ uri: alternate, index: 1, name: 'alt' })], false, null, () => false, 'Agents Window');
+		const verbosities = [undefined, Verbosity.SHORT, Verbosity.MEDIUM, Verbosity.LONG];
+
+		assert.deepStrictEqual({
+			named: verbosities.map(verbose => labelService.getWorkspaceLabel(named, { verbose })),
+			namedWithFolders: labelService.getWorkspaceLabel(namedWithFolders),
+			unnamed: labelService.getWorkspaceLabel(new Workspace('id', [])),
+		}, {
+			named: ['Agents Window', 'Agents Window', 'Agents Window', 'Agents Window'],
+			namedWithFolders: 'Agents Window',
+			unnamed: '',
+		});
 	});
 
 	test('a decorator change fires the formatters change event', () => {

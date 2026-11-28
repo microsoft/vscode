@@ -411,7 +411,8 @@ export class LabelService extends Disposable implements ILabelService {
 				return this.getWorkspaceLabel(identifier, options);
 			}
 
-			return '';
+			// A workspace without a folder or a workspace file is labeled by its name, if it has one (e.g. the Agents workspace)
+			return workspace.name ?? '';
 		}
 
 		// Workspace: Single Folder (as URI)
