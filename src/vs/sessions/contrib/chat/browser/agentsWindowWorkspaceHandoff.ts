@@ -356,18 +356,22 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 	}
 
 	/**
-	 * What to select for the editor window's workspace where workspaces are enabled: the workspace of its file, added to
-	 * the known workspaces when it isn't one yet, with its first folder as the selected one; the folders of an untitled
-	 * workspace, or of a workspace file that can't be added.
+	 * What to select for the editor window's workspace where workspaces are enabled: the workspace of its file, also of
+	 * one folder, added to the known workspaces when it isn't one yet, with its first folder as the selected one; the
+	 * folders of an untitled workspace, or of a workspace file that can't be added.
 	 */
 	private async _resolveWorkspaceSelection(workspace: IAgentsWindowWorkspaceFolders, token: CancellationToken): Promise<IWorkspaceSelection | undefined> {
 		if (!this.sessionWorkspacesService.enabled.get() || workspace.folders.length === 0) {
 			return undefined;
 		}
 		const folders: IWorkspaceSelection | undefined = workspace.folders.length > 1 ? { folderUri: workspace.folders[0], folders: workspace.folders } : undefined;
-		// A workspace of one folder selects the folder, without adding a workspace for it
-		if (!workspace.file || workspace.folders.length === 1) {
+		if (!workspace.file) {
 			return folders;
+		}
+		// The known workspaces as their files are now, which may have changed while the Agents window was closed
+		await this.sessionWorkspacesService.refresh();
+		if (token.isCancellationRequested) {
+			return undefined;
 		}
 		let known = this.sessionWorkspacesService.getWorkspace(workspace.file);
 		if (!known || known.missing) {

@@ -82,6 +82,16 @@ suite('Agents window reveal intent', () => {
 		});
 	}
 
+	test('sends the editor window\'s multi-root workspace after the other arguments', () => {
+		const harness = createHarness();
+		const workspace = { file: URI.file('/work/app.code-workspace').toJSON(), folders: [URI.file('/work/client').toJSON(), URI.file('/work/server').toJSON()] };
+		sendAgentsWindowOpenIntent(harness.window, false, { context: OpenContext.API, cli }, { folderUri: folder, source: AgentsWindowOpenSource.TitleBar, workspace });
+		assert.deepStrictEqual(harness.messages, [{
+			channel: 'vscode:selectAgentsFolder',
+			args: [folder.toJSON(), undefined, AgentsWindowOpenSource.TitleBar, false, undefined, undefined, undefined, workspace],
+		}]);
+	});
+
 	test('preserves a new-session deep link draft without a separate reveal argument', () => {
 		const harness = createHarness();
 		const draft = { inputText: 'Linked draft', attachments: '[]' };

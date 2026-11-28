@@ -78,9 +78,11 @@ suite('Agents Window workspace handoff', () => {
 		const knownWorkspaces: IRecentSessionWorkspace[] = [];
 		const openedWorkspaceFiles: URI[] = [];
 		let openWorkspace = async (file: URI): Promise<IRecentSessionWorkspace> => { throw new Error(`Cannot read ${file.path}`); };
+		let refreshWorkspaces = async () => { };
 		instantiationService.stub(ISessionWorkspacesService, upcastPartial<ISessionWorkspacesService>({
 			enabled: workspacesEnabled,
 			getWorkspace: uri => knownWorkspaces.find(workspace => workspace.uri.toString() === uri.toString()),
+			refresh: () => refreshWorkspaces(),
 			openWorkspace: file => {
 				openedWorkspaceFiles.push(file);
 				return openWorkspace(file);
@@ -177,6 +179,7 @@ suite('Agents Window workspace handoff', () => {
 			handoff, composerService, sessionsService, sessionsPartService, activeSession, initialRestoreComplete, onWillSend, states, selections, notifications, openingOptions, storage, drafts,
 			draftOptions, noWorkspaceSelections, notificationMessages, remoteRequests, workspacesEnabled, knownWorkspaces, openedWorkspaceFiles,
 			set openWorkspaceResult(value: (file: URI) => Promise<IRecentSessionWorkspace>) { openWorkspace = value; },
+			set refreshWorkspaces(value: () => Promise<void>) { refreshWorkspaces = value; },
 			set providerReady(value: boolean) { providerReady = value; },
 			set providerId(value: string) { providerId = value; },
 			set acceptsWorkspace(value: (folder: URI) => boolean) { acceptsWorkspace = value; },
@@ -808,7 +811,12 @@ suite('Agents Window workspace handoff', () => {
 			}, { file, folders }),
 			await run('unreadable file selects its folders', () => { }, { file, folders }),
 			await run('untitled workspace selects its folders', () => { }, { folders }),
-			await run('workspace file of one folder selects the folder', () => { }, { file, folders: [folders[1]] }),
+			await run('known workspace file of one folder', harness => harness.knownWorkspaces.push({ uri: file, name: 'App', folders: [folders[1]], owned: false }), { file, folders: [folders[1]] }),
+			await run('known workspace whose folders changed while the Agents window was closed', harness => {
+				harness.knownWorkspaces.push(workspace);
+				// The startup refresh reads the file as it is now
+				harness.refreshWorkspaces = async () => { harness.knownWorkspaces[0] = { ...workspace, folders: [folders[1], folders[0]] }; };
+			}, { file, folders: [folders[1], folders[0]] }),
 			await run('workspaces disabled', harness => harness.workspacesEnabled.set(false, undefined), { file, folders }),
 			await run('draft keeps its folder', harness => harness.knownWorkspaces.push(workspace), { file, folders }, { inputText: 'Continue here', attachments: [] }),
 		];
@@ -818,7 +826,8 @@ suite('Agents Window workspace handoff', () => {
 			{ name: 'missing file is read again', state: 'applied', opened: ['/work/app.code-workspace'], folder: '/work/client', workspaceConfig: appConfig, folders: undefined },
 			{ name: 'unreadable file selects its folders', state: 'applied', opened: ['/work/app.code-workspace'], folder: '/work/client', workspaceConfig: undefined, folders: ['/work/client', '/work/server'] },
 			{ name: 'untitled workspace selects its folders', state: 'applied', opened: [], folder: '/work/client', workspaceConfig: undefined, folders: ['/work/client', '/work/server'] },
-			{ name: 'workspace file of one folder selects the folder', state: 'applied', opened: [], folder: '/private/from-editor', workspaceConfig: undefined, folders: undefined },
+			{ name: 'known workspace file of one folder', state: 'applied', opened: [], folder: '/work/server', workspaceConfig: { uri: '/work/app.code-workspace', name: 'App', folders: ['/work/server'] }, folders: undefined },
+			{ name: 'known workspace whose folders changed while the Agents window was closed', state: 'applied', opened: [], folder: '/work/server', workspaceConfig: { uri: '/work/app.code-workspace', name: 'App', folders: ['/work/server', '/work/client'] }, folders: undefined },
 			{ name: 'workspaces disabled', state: 'applied', opened: [], folder: '/private/from-editor', workspaceConfig: undefined, folders: undefined },
 			{ name: 'draft keeps its folder', state: 'applied', opened: [], folder: '/private/from-editor', workspaceConfig: undefined, folders: undefined },
 		]);
