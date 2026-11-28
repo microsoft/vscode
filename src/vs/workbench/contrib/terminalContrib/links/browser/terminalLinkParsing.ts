@@ -345,15 +345,16 @@ function detectLinksViaSuffix(line: string): IParsedLink[] {
 enum RegexPathConstants {
 	PathPrefix = '(?:\\.\\.?|\\~|file:\/\/)',
 	PathSeparatorClause = '\\/',
-	// '":; are allowed in paths but they are often separators so ignore them
+	// '":; are allowed in paths but they are often separators so ignore them, and so is CJK
+	// sentence and list punctuation (U+3001, U+3002 and fullwidth ! , : ; ?)
 	// Also disallow \\ to prevent a catastropic backtracking case #24795
-	ExcludedPathCharactersClause = '[^\\0<>\\?\\s!`&*()\'":;\\\\]',
-	ExcludedStartPathCharactersClause = '[^\\0<>\\?\\s!`&*()\\[\\]\'":;\\\\]',
+	ExcludedPathCharactersClause = '[^\\0<>\\?\\s!`&*()\'":;\\\\\\u3001\\u3002\\uFF01\\uFF0C\\uFF1A\\uFF1B\\uFF1F]',
+	ExcludedStartPathCharactersClause = '[^\\0<>\\?\\s!`&*()\\[\\]\'":;\\\\\\u3001\\u3002\\uFF01\\uFF0C\\uFF1A\\uFF1B\\uFF1F]',
 
 	WinOtherPathPrefix = '\\.\\.?|\\~',
 	WinPathSeparatorClause = '(?:\\\\|\\/)',
-	WinExcludedPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!`&*()\'":;]',
-	WinExcludedStartPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!`&*()\\[\\]\'":;]',
+	WinExcludedPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!`&*()\'":;\\u3001\\u3002\\uFF01\\uFF0C\\uFF1A\\uFF1B\\uFF1F]',
+	WinExcludedStartPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!`&*()\\[\\]\'":;\\u3001\\u3002\\uFF01\\uFF0C\\uFF1A\\uFF1B\\uFF1F]',
 }
 
 /**
