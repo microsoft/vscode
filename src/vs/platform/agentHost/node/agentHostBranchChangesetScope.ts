@@ -254,7 +254,7 @@ export function getFolderOnlyAgentMergeRoots(stateManager: AgentHostStateManager
 	const chatFolderKeys = new Set([
 		...sessionFolders.slice(0, 1),
 		...state?.chats.map(chat => chat.workingDirectories?.[0]).filter(directory => directory !== undefined) ?? [],
-	].map(getWorkingDirectoryKey));
+	].map(directory => getWorkingDirectoryKey(directory)));
 	const candidates = [
 		...(sessionFolders.length > 1 ? sessionFolders.slice(1) : []),
 		...Object.values(readSessionRepositories(state?._meta) ?? {}).flat().filter(repository => repository.kind !== 'folder').map(repository => repository.root),

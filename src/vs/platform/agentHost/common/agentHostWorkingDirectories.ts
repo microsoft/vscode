@@ -21,9 +21,9 @@ export function isMultiRootSession(workingDirectories: readonly string[] | undef
 	return (workingDirectories?.length ?? 0) > 1;
 }
 
-/** Returns a stable identity for a single working directory, used to key per-folder state. */
-export function getWorkingDirectoryKey(workingDirectory: string): string {
-	return extUriBiasedIgnorePathCase.getComparisonKey(URI.parse(workingDirectory));
+/** Returns a stable identity for a single working directory, used to key per-folder state, using OS-biased path casing unless a comparison strategy is supplied. */
+export function getWorkingDirectoryKey(workingDirectory: string, uriComparer: IExtUri = extUriBiasedIgnorePathCase): string {
+	return uriComparer.getComparisonKey(URI.parse(workingDirectory));
 }
 
 /** Returns a stable identity for an effective folder/worktree set, using OS-biased path casing unless a comparison strategy is supplied. */

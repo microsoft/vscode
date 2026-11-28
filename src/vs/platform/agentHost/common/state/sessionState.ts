@@ -12,6 +12,8 @@
 
 import { distinct } from '../../../../base/common/arrays.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { ExtUri, extUriBiasedIgnorePathCase, extUriIgnorePathCase, type IExtUri } from '../../../../base/common/resources.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { isUUID } from '../../../../base/common/uuid.js';
 import { URI as ResourceURI } from '../../../../base/common/uri.js';
@@ -1126,6 +1128,27 @@ export const SESSION_META_GIT_DATA_KEY = 'gitData';
 export const SESSION_META_WORKING_DIRECTORY_SCOPE_IDS_KEY = 'workingDirectoryScopeIds';
 
 /**
+ * Host-authored path-case policy of the host's working-directory keys and
+ * scope ids for `file:` folders: `'ignoreCase'` when the host folds path case,
+ * `'matchCase'` when it keeps it. Other schemes always fold. Clients derive the
+ * keys of folders the host has not recorded with this policy instead of their
+ * own OS. Older and non-VS Code hosts omit it; clients then keep OS-biased keys.
+ * Namespaced so that an unrelated field of another host cannot change them.
+ */
+export const SESSION_META_WORKING_DIRECTORY_KEY_POLICY_KEY = 'vscode.workingDirectoryKeyPolicy';
+
+const fileMatchCaseUriComparer = new ExtUri(uri => uri.scheme !== Schemas.file);
+
+/** The comparer that derives working-directory keys the way the session's host does. */
+function getHostWorkingDirectoryUriComparer(meta: SessionSummaryMeta | undefined): IExtUri {
+	switch (meta?.[SESSION_META_WORKING_DIRECTORY_KEY_POLICY_KEY]) {
+		case 'ignoreCase': return extUriIgnorePathCase;
+		case 'matchCase': return fileMatchCaseUriComparer;
+		default: return extUriBiasedIgnorePathCase;
+	}
+}
+
+/**
  * Reserved key under {@link SessionMeta} for a single {@link ISessionGitHubState}
  * describing the session folder. It is never written to session state: clients
  * pass it in a new session's configuration to seed the session folder's state
@@ -1655,7 +1678,7 @@ function workingDirectoryScopeKey(workingDirectories: readonly string[]): string
 }
 
 export function readWorkingDirectoryScopeId(meta: SessionSummaryMeta | undefined, workingDirectories: readonly string[]): string {
-	return readWorkingDirectoryScopeIds(meta).get(workingDirectoryScopeKey(workingDirectories)) ?? getWorkingDirectoryScopeId(workingDirectories);
+	return readWorkingDirectoryScopeIds(meta).get(workingDirectoryScopeKey(workingDirectories)) ?? getWorkingDirectoryScopeId(workingDirectories, getHostWorkingDirectoryUriComparer(meta));
 }
 
 export function withWorkingDirectoryScopeId(meta: SessionSummaryMeta | undefined, workingDirectories: readonly string[], scopeId = getWorkingDirectoryScopeId(workingDirectories)): SessionSummaryMeta | undefined {
@@ -1785,7 +1808,7 @@ export function readWorkingDirectoryKeys(meta: SessionSummaryMeta | undefined): 
 }
 
 export function readWorkingDirectoryKey(meta: SessionSummaryMeta | undefined, workingDirectory: string): string {
-	return readWorkingDirectoryKeys(meta).get(workingDirectory) ?? getWorkingDirectoryKey(workingDirectory);
+	return readWorkingDirectoryKeys(meta).get(workingDirectory) ?? getWorkingDirectoryKey(workingDirectory, getHostWorkingDirectoryUriComparer(meta));
 }
 
 export function withWorkingDirectoryKey(meta: SessionSummaryMeta | undefined, workingDirectory: string, folderKey = getWorkingDirectoryKey(workingDirectory)): SessionSummaryMeta | undefined {
