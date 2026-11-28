@@ -32,7 +32,7 @@ suite('WindowsFinder', () => {
 	const testWorkspaceFolders = toWorkspaceFolders([{ path: join(fixturesFolder, 'vscode_workspace_1_folder') }, { path: join(fixturesFolder, 'vscode_workspace_2_folder') }], testWorkspace.configPath, extUriBiasedIgnorePathCase);
 	const localWorkspaceResolver = async (workspace: IWorkspaceIdentifier) => { return workspace === testWorkspace ? { id: testWorkspace.id, configPath: workspace.configPath, folders: testWorkspaceFolders } : undefined; };
 
-	function createTestCodeWindow(options: { lastFocusTime: number; openedFolderUri?: URI; openedWorkspace?: IWorkspaceIdentifier }): ICodeWindow {
+	function createTestCodeWindow(options: { lastFocusTime: number; openedFolderUri?: URI; openedWorkspace?: IWorkspaceIdentifier; isSessionsWindow?: boolean }): ICodeWindow {
 		return new class implements ICodeWindow {
 			readonly onWillLoad: Event<ILoadEvent> = Event.None;
 			onDidMaximize = Event.None;
@@ -46,7 +46,7 @@ suite('WindowsFinder', () => {
 			whenClosedOrLoaded: Promise<void> = Promise.resolve();
 			id: number = -1;
 			win: Electron.BrowserWindow = null!;
-			config: INativeWindowConfiguration | undefined;
+			config: INativeWindowConfiguration | undefined = options.isSessionsWindow !== undefined ? { isSessionsWindow: options.isSessionsWindow } as INativeWindowConfiguration : undefined;
 			openedWorkspace = options.openedFolderUri ? { id: '', uri: options.openedFolderUri } : options.openedWorkspace;
 			backupPath?: string | undefined;
 			remoteAuthority?: string | undefined;
@@ -115,6 +115,21 @@ suite('WindowsFinder', () => {
 	test('Workspace folder wins', async () => {
 		const window: ICodeWindow = createTestCodeWindow({ lastFocusTime: 1, openedWorkspace: testWorkspace });
 		assert.strictEqual(await findWindowOnFile([window], URI.file(join(fixturesFolder, 'vscode_workspace_2_folder', 'nested_vscode_folder', 'subfolder', 'file.txt')), localWorkspaceResolver), window);
+	});
+
+	test('Agents sessions window is ignored by findWindowOnFile', async () => {
+		const agentsFolderWindow = createTestCodeWindow({ lastFocusTime: 10, openedFolderUri: URI.file(join(fixturesFolder, 'vscode_folder')), isSessionsWindow: true });
+		const regularFolderWindow = createTestCodeWindow({ lastFocusTime: 1, openedFolderUri: URI.file(join(fixturesFolder, 'vscode_folder')) });
+
+		// When only the agents window is open on the folder, findWindowOnFile returns undefined
+		assert.strictEqual(await findWindowOnFile([agentsFolderWindow], URI.file(join(fixturesFolder, 'vscode_folder', 'file.txt')), localWorkspaceResolver), undefined);
+
+		// When both exist, findWindowOnFile returns the regular window, even if agents window was more recently focused
+		assert.strictEqual(await findWindowOnFile([agentsFolderWindow, regularFolderWindow], URI.file(join(fixturesFolder, 'vscode_folder', 'file.txt')), localWorkspaceResolver), regularFolderWindow);
+
+		// Same for workspace
+		const agentsWorkspaceWindow = createTestCodeWindow({ lastFocusTime: 10, openedWorkspace: testWorkspace, isSessionsWindow: true });
+		assert.strictEqual(await findWindowOnFile([agentsWorkspaceWindow], URI.file(join(fixturesFolder, 'vscode_workspace_2_folder', 'nested_vscode_folder', 'subfolder', 'file.txt')), localWorkspaceResolver), undefined);
 	});
 
 	test('Window on the requested path, not a restored one', () => {
