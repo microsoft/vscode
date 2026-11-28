@@ -5,6 +5,8 @@
 
 import assert from 'assert';
 import * as dom from '../../../../../../../base/browser/dom.js';
+import { IHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegate.js';
+import { getDefaultHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { autorun, constObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../../../base/common/platform.js';
@@ -175,6 +177,7 @@ suite('AgentHostModePicker', () => {
 		instantiationService.set(ILogService, store.add(new NullLogService()));
 		const settingsRequests: IOpenSettingsOptions[] = [];
 		const hoverTargets: HTMLElement[] = [];
+		const hoverDelegates: IHoverDelegate[] = [];
 		instantiationService.set(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 			override readonly onDidChangeProviders = Event.None;
 			override getProviders() { return [...providers.values()]; }
@@ -185,6 +188,11 @@ suite('AgentHostModePicker', () => {
 		instantiationService.set(IDialogService, new TestDialogService(undefined, { result: confirmPermissions }));
 		instantiationService.stub(IHoverService, {
 			setupDelayedHover: target => {
+				hoverTargets.push(target);
+				return { dispose: () => { } };
+			},
+			setupManagedHover: (delegate, target) => {
+				hoverDelegates.push(delegate);
 				hoverTargets.push(target);
 				return { dispose: () => { } };
 			},
@@ -210,7 +218,7 @@ suite('AgentHostModePicker', () => {
 		const container = dom.append(document.body, dom.$('div'));
 		store.add({ dispose: () => container.remove() });
 		const trigger = picker.render(container);
-		return { picker, trigger, config, configChanged, configuration, actionWidget, writes, session, phone, resolving, permissionDelegate, managedSandboxEnforced, settingsRequests, hoverTargets, devContainer, chatValues, chatWrites, activeChat };
+		return { picker, trigger, config, configChanged, configuration, actionWidget, writes, session, phone, resolving, permissionDelegate, managedSandboxEnforced, settingsRequests, hoverTargets, hoverDelegates, devContainer, chatValues, chatWrites, activeChat };
 	}
 
 	test('reuses mode and permission controls for a cloud draft without an agent host connection', async () => {
@@ -264,8 +272,10 @@ suite('AgentHostModePicker', () => {
 	});
 
 	test('uses one shared tooltip for the combined label', () => {
-		const { trigger, hoverTargets } = setup();
+		const { trigger, hoverTargets, hoverDelegates } = setup();
 		assert.deepStrictEqual(hoverTargets.map(target => target === trigger), [true]);
+		assert.strictEqual(hoverDelegates.length, 1);
+		assert.strictEqual(hoverDelegates[0], getDefaultHoverDelegate('element'));
 	});
 
 	test('reconciles external sandbox changes without refreshing matching session echoes', async () => {
