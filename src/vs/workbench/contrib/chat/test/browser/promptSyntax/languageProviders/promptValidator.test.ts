@@ -1830,6 +1830,22 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(markers.map(m => m.message), [`When 'agents' and 'tools' are specified, the 'agent' tool must be included in the 'tools' attribute.`]);
 		});
 
+		test('agents attribute accepts the runSubagent tool by its full name', async () => {
+			const toolService = instaService.get(ILanguageModelToolsService);
+			const runSubagentTool = { id: 'runSubagent', toolReferenceName: 'runSubagent', displayName: 'Run Subagent', canBeReferencedInPrompt: true, modelDescription: 'Runs a subagent', source: ToolDataSource.Internal, inputSchema: {} } satisfies IToolData;
+			disposables.add(toolService.registerToolData(runSubagentTool));
+			disposables.add(toolService.agentToolSet.addTool(runSubagentTool));
+			const content = [
+				'---',
+				'description: "Test"',
+				`agents: ['agent', 'Plan']`,
+				`tools: ['agent/runSubagent', 'shell']`,
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(markers.map(m => m.message), []);
+		});
+
 		test('agents attribute with empty array does not require agent tool', async () => {
 			const content = [
 				'---',
