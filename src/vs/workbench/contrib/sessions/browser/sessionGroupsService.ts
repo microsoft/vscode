@@ -247,6 +247,13 @@ export interface ISessionGroupsService {
 	moveSection(sectionId: string, parentId: string | undefined, placement?: ISessionGroupPlacement): void;
 
 	/**
+	 * Gives a grouping section's placement in a custom group, and its place among the group's rows, to the section's new id,
+	 * such as a workspace's after its file was renamed. A placement the new id has already stays. The groups themselves do not
+	 * change, so the change notes none.
+	 */
+	renameSection(sectionId: string, newSectionId: string): void;
+
+	/**
 	 * Delete a group and its subgroups at any depth, removing their sessions'
 	 * membership and returning their grouping sections to the top level. Returns
 	 * what was deleted so that {@link restoreGroups} can bring it back, or
@@ -807,6 +814,27 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		}
 		this.save();
 		this._onDidChange.fire({ groupsChanged: true, membershipChanged: new Set() });
+	}
+
+	renameSection(sectionId: string, newSectionId: string): void {
+		const parentId = this._sectionMembership.get(sectionId);
+		if (parentId === undefined || sectionId === newSectionId) {
+			return;
+		}
+		this._sectionMembership.delete(sectionId);
+		const order = this._childOrders.get(parentId);
+		if (this._sectionMembership.has(newSectionId)) {
+			if (order) {
+				this._childOrders.set(parentId, order.filter(id => id !== sectionId));
+			}
+		} else {
+			this._sectionMembership.set(newSectionId, parentId);
+			if (order) {
+				this._childOrders.set(parentId, order.map(id => id === sectionId ? newSectionId : id));
+			}
+		}
+		this.save();
+		this._onDidChange.fire({ groupsChanged: false, membershipChanged: new Set() });
 	}
 
 	private reorderChild(childId: string, parentId: string, placement: ISessionGroupPlacement | undefined): boolean {

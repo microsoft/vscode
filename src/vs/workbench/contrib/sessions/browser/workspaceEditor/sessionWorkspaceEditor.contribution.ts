@@ -38,6 +38,7 @@ import { SessionWorkspaceEditor } from './sessionWorkspaceEditor.js';
 import { SessionGroupEditorAccessibilityHelp, SessionWorkspaceEditorAccessibilityHelp } from './sessionWorkspaceEditorAccessibilityHelp.js';
 import { EDIT_SESSION_GROUP_COMMAND_ID, EDIT_SESSION_WORKSPACE_COMMAND_ID, NEW_SESSION_WORKSPACE_COMMAND_ID, REMOVE_SESSION_WORKSPACE_COMMAND_ID, SESSION_WORKSPACE_EDITOR_WHEN, SessionWorkspaceEditorAvailableContext } from './sessionWorkspaceEditorCommands.js';
 import { SessionWorkspaceEditorInput } from './sessionWorkspaceEditorInput.js';
+import { SessionWorkspaceRenamePlacementContribution } from './sessionWorkspaceRenamePlacement.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 
@@ -50,6 +51,8 @@ class SessionWorkspaceEditorAvailableContribution implements IWorkbenchContribut
 	}
 }
 registerWorkbenchContribution2(SessionWorkspaceEditorAvailableContribution.ID, SessionWorkspaceEditorAvailableContribution, WorkbenchPhase.BlockStartup);
+// The Workspace editor renames workspaces, so the windows that have it keep a renamed workspace's place in its group
+registerWorkbenchContribution2(SessionWorkspaceRenamePlacementContribution.ID, SessionWorkspaceRenamePlacementContribution, WorkbenchPhase.AfterRestored);
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(SessionWorkspaceEditor, SessionWorkspaceEditor.ID, localize('workspaceEditor.label', "Workspace Editor")),

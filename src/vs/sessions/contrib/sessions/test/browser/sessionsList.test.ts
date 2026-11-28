@@ -90,7 +90,7 @@ import { IsPhoneLayoutContext, SessionIsArchivedContext, SessionSupportsMultiple
 import { WorkbenchScopeContext } from '../../../../../workbench/common/contextkeys.js';
 import { ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID, ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSION_GROUP_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { getSessionApplication } from '../../../../../workbench/services/sessions/common/sessionApplication.js';
-import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING, SESSIONS_WORKSPACES_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { ICustomViewService, type ICustomViewDescriptor } from '../../../../../workbench/contrib/sessions/browser/customView.js';
@@ -4340,20 +4340,23 @@ suite('Sessions - SessionsList', () => {
 		const usersAgents: IRecentSessionWorkspace = { uri: URI.file('/work/agents.code-workspace'), name: 'Agents', folders: [docs], owned: false };
 		const release: ISessionGroup = { id: 'release', name: 'Release', createdAt: 1 };
 		const comparisonGroup: ISessionGroup = { id: 'comparison-group', name: 'Compare: Fix', createdAt: 2 };
+		// A workspace's row id, comparing its file as the list does: with or without case, as the file system has it
+		const rowId = (harness: ReturnType<typeof createListHarness>, uri: URI) => `workspace:${harness.instantiationService.get(IUriIdentityService).extUri.getComparisonKey(uri)}`;
 
-		function render(configure?: (harness: ReturnType<typeof createListHarness>) => void, separateNavigation?: boolean, separate: () => boolean = () => true) {
+		function render(configure?: (harness: ReturnType<typeof createListHarness>) => void, separateNavigation?: boolean, separate: () => boolean = () => true, options: { readonly usersAgentsLabel?: string; readonly pinnedTitles?: readonly string[] } = {}) {
 			// Each session a minute older than the one before, so that the order does not depend on the clock's resolution
 			const now = Date.now();
 			let age = 0;
 			const createdAt = () => new Date(now - (age++) * 60_000);
 			const sessions = [
-				createTestSession('in agents', { folders: [vscode, docs], workspaceFile: agents.uri, createdAt: createdAt() }).session,
-				createTestSession('in agents before rename', { folders: [vscode], workspaceFile: oldAgentsFile, createdAt: createdAt() }).session,
-				createTestSession('in the user\'s agents', { folders: [docs], workspaceFile: usersAgents.uri, createdAt: createdAt() }).session,
-				createTestSession('in a folder', { folders: [URI.file('/work/tools')], createdAt: createdAt() }).session,
-				createTestSession('in release', { folders: [vscode], workspaceFile: agents.uri, createdAt: createdAt() }).session,
+				// Not separate, the sessions list by their workspace's label, which the two Agents workspaces share
+				createTestSession('in agents', { folders: [vscode, docs], workspaceFile: agents.uri, workspaceLabel: 'Agents', createdAt: createdAt() }).session,
+				createTestSession('in agents before rename', { folders: [vscode], workspaceFile: oldAgentsFile, workspaceLabel: 'Agents', createdAt: createdAt() }).session,
+				createTestSession('in the user\'s agents', { folders: [docs], workspaceFile: usersAgents.uri, workspaceLabel: options.usersAgentsLabel ?? 'Agents', createdAt: createdAt() }).session,
+				createTestSession('in a folder', { folders: [URI.file('/work/tools')], workspaceLabel: 'tools', createdAt: createdAt() }).session,
+				createTestSession('in release', { folders: [vscode], workspaceFile: agents.uri, workspaceLabel: 'Agents', createdAt: createdAt() }).session,
 			];
-			const attempts = ['attempt-1', 'attempt-2'].map(id => createTestSession(id, { folders: [vscode, docs], workspaceFile: agents.uri, createdAt: createdAt() }).session);
+			const attempts = ['attempt-1', 'attempt-2'].map(id => createTestSession(id, { folders: [vscode, docs], workspaceFile: agents.uri, workspaceLabel: 'Agents', createdAt: createdAt() }).session);
 			const comparison: ISessionComparison = {
 				id: 'comparison-1',
 				groupId: comparisonGroup.id,
@@ -4373,6 +4376,7 @@ suite('Sessions - SessionsList', () => {
 				memberships: new Map([[sessions[4].sessionId, release.id], ...attempts.map(session => [session.sessionId, comparisonGroup.id] as const)]),
 				comparisons: [comparison],
 				workspaces: [agents, usersAgents],
+				pinnedSessionIds: new Set(sessions.filter(session => options.pinnedTitles?.includes(session.title.get())).map(session => session.sessionId)),
 			});
 			configure?.(harness);
 			const container = harness.createContainer(400, 1400);
@@ -4531,6 +4535,146 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual(menus.map(menu => menu.filter(label => label.startsWith('Open'))), [['Open in Editor Window']]);
 		});
 
+		test('a workspace pinned in one layout stays pinned in the other, but a label that several workspaces share pins none of them and none pins it', () => {
+			let separate = false;
+			const { list, harness } = render(undefined, undefined, () => separate);
+			const pinned = () => list.getTreeSnapshot().flatMap(node => node.type !== 'session' && node.id === 'pinned' ? node.children.flatMap(child => child.type !== 'session' ? [child.label] : []) : []);
+			const toolsRow = rowId(harness, URI.file('/work/tools'));
+			const toggle = (on: boolean) => { separate = on; list.update(); return pinned(); };
+			// Not separate: tools by its own label, Agents by a label that the user's Agents workspace shares
+			list.setHeaderPinned('workspace:tools', true);
+			list.setHeaderPinned('workspace:Agents', true);
+			const pinnedOff = pinned();
+			const pinnedOn = toggle(true);
+			// Separate: unpinning tools unpins it in both; pinning a row of a shared label does not pin the label
+			list.setHeaderPinned(toolsRow, false);
+			list.setHeaderPinned(rowId(harness, agents.uri), true);
+			const changedOn = pinned();
+			const changedOff = toggle(false);
+
+			assert.deepStrictEqual({ pinnedOff, pinnedOn, changedOn, changedOff }, {
+				pinnedOff: ['tools', 'Agents'],
+				pinnedOn: ['tools'],
+				changedOn: ['Agents'],
+				changedOff: ['Agents'],
+			});
+		});
+
+		test('a workspace keeps its pin and collapse state after its file is renamed, and unpinning or expanding it clears its former state', () => {
+			let formerKey = '';
+			const { list, harness } = render(harness => {
+				formerKey = rowId(harness, oldAgentsFile);
+				harness.instantiationService.get(ISessionsListModelService).pinSection(formerKey);
+				harness.instantiationService.get(IStorageService).store('sessionsListControl.sectionCollapseState', JSON.stringify({ [formerKey]: true }), StorageScope.PROFILE, StorageTarget.USER);
+			});
+			const pinnedRows = () => list.getTreeSnapshot().flatMap(node => node.type !== 'session' && node.id === 'pinned' ? node.children.flatMap(child => child.type !== 'session' ? [`${child.label}${child.collapsed ? ' (collapsed)' : ''}`] : []) : []);
+			const pinned = pinnedRows();
+			const agentsRow = list.getTreeSnapshot().flatMap(node => node.type !== 'session' && node.id === 'pinned' ? node.children : []).find(child => child.type !== 'session' && child.label === 'Agents');
+			const agentsRowId = agentsRow && agentsRow.type !== 'session' ? agentsRow.id : '';
+			list.setHeaderPinned(agentsRowId, false);
+			const unpinned = pinnedRows();
+			// Expanding the row stores its state under its own key, in place of the former one
+			list.setHeaderCollapsed(agentsRowId, false);
+			const collapseState = JSON.parse(harness.instantiationService.get(IStorageService).get('sessionsListControl.sectionCollapseState', StorageScope.PROFILE) ?? '{}');
+
+			assert.deepStrictEqual({ pinned, unpinned, formerPinned: harness.instantiationService.get(ISessionsListModelService).pinnedSectionIds.get().includes(formerKey), collapseState }, {
+				pinned: ['Agents (collapsed)'],
+				unpinned: [],
+				formerPinned: false,
+				collapseState: { [agentsRowId]: false },
+			});
+		});
+
+		test('a former file that two workspaces were renamed from carries its pin and collapse state to neither', () => {
+			let formerKey = '';
+			const { list } = render(harness => {
+				formerKey = rowId(harness, oldAgentsFile);
+				harness.instantiationService.get(ISessionsListModelService).pinSection(formerKey);
+				harness.instantiationService.get(IStorageService).store('sessionsListControl.sectionCollapseState', JSON.stringify({ [formerKey]: true }), StorageScope.PROFILE, StorageTarget.USER);
+				// Another workspace was later created at the former file and renamed too
+				const workspacesService = harness.instantiationService.get(ISessionWorkspacesService) as TestSessionWorkspacesService;
+				workspacesService.managedWorkspaces.set([...workspacesService.managedWorkspaces.get(), { uri: URI.file('/user/AgentsWorkspaces/Other.code-workspace'), name: 'Other', folders: [], owned: true, previousUris: [oldAgentsFile] }], undefined);
+			});
+			const rows = list.getTreeSnapshot().flatMap(node => node.type !== 'session' && (node.id === 'pinned' || node.id === 'workspaces') ? node.children.flatMap(child => child.type !== 'session' && (child.label === 'Agents' || child.label === 'Other') ? [`${node.id}: ${child.label}${child.collapsed ? ' (collapsed)' : ''}`] : []) : []);
+
+			// Neither row is pinned or collapsed; the user's own Agents workspace has a row of that name too
+			assert.deepStrictEqual(rows, ['workspaces: Agents', 'workspaces: Agents', 'workspaces: Other']);
+		});
+
+		test('a pin from before a workspace\'s rename shows on its label while not separate, and unpinning it there clears it', () => {
+			let formerKey = '';
+			// The user's workspace has a label of its own, so that Agents is the renamed workspace's alone
+			const { list, harness } = render(harness => {
+				formerKey = rowId(harness, oldAgentsFile);
+				harness.instantiationService.get(ISessionsListModelService).pinSection(formerKey);
+				// Workspaces are enabled, with groups and workspaces not separate
+				void (harness.instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_WORKSPACES_ENABLED_SETTING, true);
+			}, undefined, () => false, { usersAgentsLabel: 'Agents (mine)' });
+			const pinned = () => list.getTreeSnapshot().flatMap(node => node.type !== 'session' && node.id === 'pinned' ? node.children.flatMap(child => child.type !== 'session' ? [child.label] : []) : []);
+			const pinnedOff = pinned();
+			list.setHeaderPinned('workspace:Agents', false);
+
+			assert.deepStrictEqual({ pinnedOff, unpinned: pinned(), formerPinned: harness.instantiationService.get(ISessionsListModelService).pinnedSectionIds.get().includes(formerKey) }, {
+				pinnedOff: ['Agents'],
+				unpinned: [],
+				formerPinned: false,
+			});
+		});
+
+		test('a pin from before a workspace\'s rename shows on its label while not separate once the workspace learns of the rename, without another change', async () => {
+			let formerKey = '';
+			const { list, harness } = render(harness => {
+				formerKey = rowId(harness, oldAgentsFile);
+				harness.instantiationService.get(ISessionsListModelService).pinSection(formerKey);
+				// The workspace does not know its former file yet, so that the Agents label has two files' sessions
+				(harness.instantiationService.get(ISessionWorkspacesService) as TestSessionWorkspacesService).managedWorkspaces.set([{ ...agents, previousUris: undefined }], undefined);
+				void (harness.instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_WORKSPACES_ENABLED_SETTING, true);
+			}, undefined, () => false, { usersAgentsLabel: 'Agents (mine)' });
+			list.setVisible(true);
+			const pinned = () => list.getTreeSnapshot().flatMap(node => node.type !== 'session' && node.id === 'pinned' ? node.children.flatMap(child => child.type !== 'session' ? [child.label] : []) : []);
+			const before = pinned();
+			(harness.instantiationService.get(ISessionWorkspacesService) as TestSessionWorkspacesService).managedWorkspaces.set([agents], undefined);
+			await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve(), -1000)));
+
+			assert.deepStrictEqual({ before, after: pinned() }, { before: [], after: ['Agents'] });
+		});
+
+		test('a session whose workspace changes in place, so that its label is shared, no longer pins one workspace by that label', () => {
+			const mine = createTestSession('mine', { folders: [URI.file('/work/mine')], workspaceLabel: 'Mine' }).session;
+			const loading = createTestSession('loading', { folders: [URI.file('/work/other')], workspaceLabel: 'Other' }).session;
+			// The session's workspace as it loads: first another label, then the one the first workspace has
+			const workspace = observableValue<ISessionWorkspace | undefined>('workspace', loading.workspace.get());
+			const harness = createListHarness(disposables, [mine, { ...loading, workspace }]);
+			let separate = false;
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, harness.createContainer(400, 800), {
+				grouping: () => SessionsGrouping.Workspace,
+				separateGroupsAndWorkspaces: () => separate,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(800, 400);
+			const pinned = () => list.getTreeSnapshot().flatMap(node => node.type !== 'session' && node.id === 'pinned' ? node.children.flatMap(child => child.type !== 'session' ? [child.label] : []) : []);
+			list.setHeaderPinned('workspace:Mine', true);
+			separate = true;
+			list.update();
+			const before = pinned();
+			workspace.set(createTestSession('other', { folders: [URI.file('/work/other')], workspaceLabel: 'Mine' }).session.workspace.get(), undefined);
+			list.update();
+
+			assert.deepStrictEqual({ before, after: pinned() }, { before: ['mine'], after: [] });
+		});
+
+		test('a label that a hidden session shares with another workspace still pins no row', () => {
+			let separate = false;
+			// The user's Agents workspace's only session is pinned, so the Agents label lists one workspace's sessions
+			const { list } = render(undefined, undefined, () => separate, { pinnedTitles: ['in the user\'s agents'] });
+			list.setHeaderPinned('workspace:Agents', true);
+			separate = true;
+			list.update();
+
+			assert.deepStrictEqual(list.getTreeSnapshot().flatMap(node => node.type !== 'session' && node.id === 'pinned' ? node.children.flatMap(child => child.type !== 'session' ? [child.label] : []) : []), []);
+		});
+
 		test('the top-level headers, and only those, take the compact twistie while groups and workspaces are separate', () => {
 			let separate = true;
 			const { list, container } = render(undefined, undefined, () => separate);
@@ -4617,10 +4761,10 @@ suite('Sessions - SessionsList', () => {
 					{ 'Workspaces': [{ 'Agents': ['in agents', 'in agents before rename', { 'Compare: Fix': ['attempt-1', 'attempt-2'] }] }, { 'Agents': ['in the user\'s agents'] }, { 'tools (collapsed)': ['in a folder'] }] },
 				],
 				// Group by Workspace lists by the sessions' workspace label, with the custom group among the sections
-				byWorkspace: ['Release', 'Workspace'],
+				byWorkspace: ['Release', 'Agents', 'tools'],
 				back: collapsed,
 				separateHeaders: ['Groups 1 false', 'Workspaces 1 true'],
-				byWorkspaceHeaders: ['Release 1 true', 'Workspace 1 true'],
+				byWorkspaceHeaders: ['Release 1 true', 'Agents 1 true', 'tools 1 true'],
 				sameTree: true,
 			});
 		});

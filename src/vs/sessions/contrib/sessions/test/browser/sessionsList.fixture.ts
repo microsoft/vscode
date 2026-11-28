@@ -370,6 +370,22 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		header: { navigationShortcuts: true },
 		interaction: { hovered: { workspace: new ExtUri(() => true).getComparisonKey(getTestWorkspaceFile('Empty')) } },
 	}),
+	// The Docs site workspace pinned by its label while not separate, which lists only its sessions: pinned with groups and
+	// workspaces separate too
+	SessionsList_SeparateGroupsAndWorkspaces_PinnedByLabel: defineSessionsListFixture({
+		...SEPARATE_GROUPS_AND_WORKSPACES_STATE,
+		header: { navigationShortcuts: true },
+		pinnedSections: ['workspace:Docs site'],
+		view: { ...SEPARATE_GROUPS_AND_WORKSPACES_STATE.view, expanded: [{ section: 'pinned' }] },
+	}),
+	// The Agents workspace pinned under the file it had before a rename: pinned under its new file
+	SessionsList_SeparateGroupsAndWorkspaces_PinnedBeforeRename: defineSessionsListFixture({
+		...SEPARATE_GROUPS_AND_WORKSPACES_STATE,
+		workspaces: SEPARATE_GROUPS_AND_WORKSPACES_STATE.workspaces!.map(workspace => workspace.name === 'Agents' ? { ...workspace, previousUris: [getTestWorkspaceFile('Agents (old)')] } : workspace),
+		header: { navigationShortcuts: true },
+		pinnedSections: [`workspace:${new ExtUri(() => true).getComparisonKey(getTestWorkspaceFile('Agents (old)'))}`],
+		view: { ...SEPARATE_GROUPS_AND_WORKSPACES_STATE.view, expanded: [{ section: 'pinned' }] },
+	}),
 	// The keyboard on a workspace row
 	SessionsList_SeparateGroupsAndWorkspaces_FocusedWorkspace: defineSessionsListFixture({
 		...SEPARATE_GROUPS_AND_WORKSPACES_STATE,

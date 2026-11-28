@@ -256,6 +256,8 @@ export interface ISessionsListFixtureState {
 	readonly frame?: { readonly width: number; readonly height: number };
 	/** The Agents window's workspaces, which Group by Workspace lists while it separates groups and workspaces. */
 	readonly workspaces?: readonly IRecentSessionWorkspace[];
+	/** Section ids pinned as headers, such as `workspace:<label>`, in pin order. */
+	readonly pinnedSections?: readonly string[];
 }
 
 /** A rendered sessions list fixture. */
@@ -986,6 +988,9 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 /** Seeds pins, groups, and group order through the list-state services, returning real group ids by fixture id. */
 function seedListState(instantiationService: TestInstantiationService, state: ISessionsListFixtureState, getSession: (id: string) => ITestSession): Map<string, string> {
 	const listModelService = instantiationService.get(ISessionsListModelService);
+	for (const sectionId of state.pinnedSections ?? []) {
+		listModelService.pinSection(sectionId);
+	}
 	for (const spec of state.sessions) {
 		if (spec.pinned) {
 			listModelService.pinSession(getSession(spec.id).session);
