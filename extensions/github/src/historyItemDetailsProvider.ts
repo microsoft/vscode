@@ -13,7 +13,8 @@ const ISSUE_EXPRESSION = /(([A-Za-z0-9_.\-]+)\/([A-Za-z0-9_.\-]+))?(#|GH-)([1-9]
 
 interface GitHubRepositoryStore {
 	readonly users: GitHubUser[];
-	readonly commits: Set<string>;
+	/** A null entry marks a commit with incomplete author information */
+	readonly avatarsByCommit: Map<string, string | null>;
 }
 
 interface GitHubUser {
@@ -30,10 +31,16 @@ function getUserIdFromNoReplyEmail(email: string | undefined): string | undefine
 }
 
 function compareAvatarQuery(a: AvatarQueryCommit, b: AvatarQueryCommit): number {
-	// Email
-	const emailComparison = (a.authorEmail ?? '').localeCompare(b.authorEmail ?? '');
-	if (emailComparison !== 0) {
-		return emailComparison;
+	// Use the same exact email match as the avatar cache
+	const emailA = a.authorEmail ?? '';
+	const emailB = b.authorEmail ?? '';
+	if (emailA !== emailB) {
+		return emailA < emailB ? -1 : 1;
+	}
+
+	// Without an email, resolve each commit by its hash
+	if (!emailA) {
+		return a.hash.localeCompare(b.hash);
 	}
 
 	// Name
@@ -105,9 +112,20 @@ export class GitHubSourceControlHistoryItemDetailsProvider implements SourceCont
 					return;
 				}
 
-				// Query the in-memory cache for the user
-				const avatarUrl = repositoryStore.users.find(
-					user => user.email === commits[0].authorEmail || user.name === commits[0].authorName)?.avatarUrl;
+				const { hash, authorEmail } = commits[0];
+
+				// Try to extract the user identifier from GitHub no-reply emails
+				const userIdFromEmail = getUserIdFromNoReplyEmail(authorEmail);
+				if (userIdFromEmail) {
+					logs.email += commits.length;
+					const avatarUrl = getAvatarLink(userIdFromEmail, query.size);
+					commits.forEach(({ hash }) => results.set(hash, avatarUrl));
+					return;
+				}
+
+				// Display names can be shared, so only reuse a cached avatar for the same commit or email
+				const avatarUrl = repositoryStore.avatarsByCommit.get(hash)
+					?? (authorEmail && repositoryStore.users.find(user => user.email === authorEmail)?.avatarUrl);
 
 				// Cache hit
 				if (avatarUrl) {
@@ -119,28 +137,19 @@ export class GitHubSourceControlHistoryItemDetailsProvider implements SourceCont
 
 				// Check if any of the commit are being tracked in the list
 				// of known commits that have incomplte author information
-				if (commits.some(({ hash }) => repositoryStore.commits.has(hash))) {
+				if (commits.some(({ hash }) => repositoryStore.avatarsByCommit.get(hash) === null)) {
 					commits.forEach(({ hash }) => results.set(hash, undefined));
 					return;
 				}
 
-				// Try to extract the user identifier from GitHub no-reply emails
-				const userIdFromEmail = getUserIdFromNoReplyEmail(commits[0].authorEmail);
-				if (userIdFromEmail) {
-					logs.email += commits.length;
-					const avatarUrl = getAvatarLink(userIdFromEmail, query.size);
-					commits.forEach(({ hash }) => results.set(hash, avatarUrl));
-					return;
-				}
-
 				// Get the commit details
-				const commitAuthor = await this._getCommitAuthor(descriptor, commits[0].hash);
+				const commitAuthor = await this._getCommitAuthor(descriptor, hash);
 				if (!commitAuthor) {
 					// The commit has incomplete author information, so
 					// we should not try to query the authors details again
 					logs.incomplete += commits.length;
 					for (const { hash } of commits) {
-						repositoryStore.commits.add(hash);
+						repositoryStore.avatarsByCommit.set(hash, null);
 						results.set(hash, undefined);
 					}
 					return;
@@ -148,6 +157,7 @@ export class GitHubSourceControlHistoryItemDetailsProvider implements SourceCont
 
 				// Save the user to the cache
 				repositoryStore.users.push(commitAuthor);
+				repositoryStore.avatarsByCommit.set(hash, commitAuthor.avatarUrl);
 
 				// Add avatar for each commit
 				logs.github += commits.length;
@@ -254,7 +264,7 @@ export class GitHubSourceControlHistoryItemDetailsProvider implements SourceCont
 				} satisfies GitHubUser);
 			}
 
-			this._store.set(this._getRepositoryKey(descriptor), { users, commits: new Set() });
+			this._store.set(this._getRepositoryKey(descriptor), { users, avatarsByCommit: new Map() });
 			this._logger.trace(`[GitHubSourceControlHistoryItemDetailsProvider][_loadAssignableUsers] Successfully queried assignable user(s) for ${descriptor.owner}/${descriptor.repo}: ${users.length} user(s).`);
 		} catch (err) {
 			this._logger.warn(`[GitHubSourceControlHistoryItemDetailsProvider][_loadAssignableUsers] Failed to load assignable user(s) for ${descriptor.owner}/${descriptor.repo}: ${err}`);
