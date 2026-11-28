@@ -29,6 +29,7 @@ import { IChatWidgetService } from '../chat.js';
 import { ChatSpeechToTextState, DictationSettingId, IChatSpeechToTextService } from '../speechToText/chatSpeechToTextService.js';
 import { buildMicrophoneOptions, IDictationOnboardingService, RESET_DICTATION_ONBOARDING_COMMAND, SHOW_DICTATION_ONBOARDING_COMMAND } from '../speechToText/dictationOnboarding.js';
 import { cancelDictation, isDictating, startDictation, stopDictation } from '../speechToText/dictationSession.js';
+import { focusChatInputIfElsewhere } from '../voiceClient/voiceInputUtils.js';
 
 // Gate on `ChatContextKeys.enabled` so the dictation UI and its commands are
 // hidden (not just disabled) when the user has turned AI features off; without
@@ -180,6 +181,9 @@ export class ToggleChatSpeechToTextAction extends Action2 {
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
 		if (!widget || widget.isTranscriptProgressActive) {
 			return;
+		}
+		if (context?.widget) {
+			focusChatInputIfElsewhere(context.widget);
 		}
 
 		await runDictationShortcut({

@@ -411,6 +411,8 @@ export interface IChatWidgetViewOptions {
 	 * has not created yet. Without it, such a session belongs to no chat input.
 	 */
 	ownsDraftVoiceSession?: IObservable<boolean>;
+	/** Select a host-owned Voice Mode target instead of the widget's backing model. Undefined refuses capture. */
+	resolveVoiceTarget?: () => URI | undefined;
 	/**
 	 * Submitting that a host sending through {@link submitHandler} takes part in;
 	 * see {@link IChatInputHostSubmit}. The host, not the widget's chat model,
@@ -551,6 +553,8 @@ export interface IChatWidget {
 	readonly location: ChatAgentLocation;
 	readonly viewContext: IChatWidgetViewContext;
 	readonly viewModel: IChatViewModel | undefined;
+	/** Resolve this input's live Voice Mode destination, selecting its host-owned draft when applicable. */
+	resolveVoiceTarget(): URI | undefined;
 	readonly inputEditor: ICodeEditor;
 	readonly supportsFileReferences: boolean;
 	/** Whether this widget can host question and confirmation controls. Defaults to true. */

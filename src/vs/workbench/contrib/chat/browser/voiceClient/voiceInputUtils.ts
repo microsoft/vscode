@@ -6,6 +6,44 @@
 import { IChatResponseModel } from '../../common/model/chatModel.js';
 import { IChatWidget } from '../chat.js';
 import { ChatRequestQueueKind } from '../../common/chatService/chatService.js';
+import { isAncestorOfActiveElement } from '../../../../../base/browser/dom.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IVoiceSessionController } from './voiceSessionController.js';
+
+/**
+ * An explicit input wins over focus and never falls back to another chat; only
+ * context-free invocations consult the host's current session. Returns `false`
+ * when the explicit input cannot take Voice Mode.
+ */
+export async function retargetVoiceToInput(widget: IChatWidget | undefined, commandService: ICommandService, controller: IVoiceSessionController): Promise<boolean> {
+	let resource = widget?.resolveVoiceTarget();
+	if (!widget) {
+		const currentSession = await commandService.executeCommand<string | undefined>('_chat.voice.getCurrentSession');
+		resource = currentSession ? URI.parse(currentSession) : undefined;
+	}
+	if (!resource) {
+		return !widget;
+	}
+	if (resource.scheme === 'sessions-voice') {
+		controller.setDraftTarget();
+	} else {
+		controller.setTargetSession(resource);
+		controller.activateSession(resource);
+	}
+	return true;
+}
+
+/**
+ * Toolbar items keep focus where it was on mousedown, so clicking another input's
+ * microphone or Voice Mode button would leave focus behind. Move it into that input,
+ * where capture and its first-run card go; keyboard activation is already inside it.
+ */
+export function focusChatInputIfElsewhere(widget: IChatWidget): void {
+	if (!isAncestorOfActiveElement(widget.input.element)) {
+		widget.focusInput();
+	}
+}
 
 /** Submit through the owning widget, preserving its input state and normal request options. */
 export function acceptVoiceInput(widget: IChatWidget | undefined, text: string, isVoiceModeInput: boolean): boolean | Promise<IChatResponseModel | undefined> {

@@ -355,6 +355,18 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 				hostModelSelection: this._createHostModelSelection(),
 				deferredNotificationsEnabled: this.options.deferredNotificationsEnabled,
 				ownsDraftVoiceSession,
+				resolveVoiceTarget: () => {
+					if (this.options.voiceTarget === false) {
+						return undefined;
+					}
+					const transition = this.newChatVoiceTargetService.beginVoiceTransition();
+					try {
+						this.newChatVoiceTargetService.setActive(this);
+					} finally {
+						transition.dispose();
+					}
+					return NEW_CHAT_VOICE_SENTINEL;
+				},
 				hostSubmit: {
 					canSubmit: derived(this, reader => this._canSendRequest.read(reader) && !this._sending.read(reader)),
 					hasContent: this.options.hasAdditionalSendContent,

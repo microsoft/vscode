@@ -16,12 +16,13 @@ import { IWorkbenchEnvironmentService } from '../../../../services/environment/c
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
 import { IVoiceSessionController } from '../../../chat/browser/voiceClient/voiceSessionController.js';
+import { ChatInputPart } from '../../../chat/browser/widget/input/chatInputPart.js';
 import '../../browser/agentsVoice.contribution.js';
 
 suite('Voice Mode input ownership', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	for (const source of ['toolbar', 'keybinding', 'agents-chat', 'agents-draft']) {
+	for (const source of ['toolbar', 'keybinding', 'agents-chat', 'agents-draft', 'agents-keybinding', 'agents-draft-keybinding']) {
 		test(`starts Voice Mode in the originating input (${source})`, async () => {
 			const targets: string[] = [];
 			const commands: string[] = [];
@@ -31,11 +32,19 @@ suite('Voice Mode input ownership', () => {
 				override readonly viewModel = new class extends mock<NonNullable<IChatWidget['viewModel']>>() {
 					override readonly sessionResource = URI.parse('vscode-chat:/editor');
 				}();
+				override readonly input = new class extends mock<ChatInputPart>() {
+					override get element() { return document.createElement('div'); }
+				}();
+				override resolveVoiceTarget() {
+					return source === 'agents-draft' ? URI.parse('sessions-voice://new-chat/composer') : this.viewModel.sessionResource;
+				}
+				override focusInput(): void { targets.push('focus'); }
 			}();
 			const focusedWidget = new class extends mock<IChatWidget>() {
 				override readonly viewModel = new class extends mock<NonNullable<IChatWidget['viewModel']>>() {
 					override readonly sessionResource = URI.parse('vscode-chat:/focused');
 				}();
+				override resolveVoiceTarget() { return this.viewModel.sessionResource; }
 			}();
 			service.stub(IWorkbenchEnvironmentService, new class extends mock<IWorkbenchEnvironmentService>() {
 				override readonly isSessionsWindow = windowIsAgents;
@@ -50,7 +59,7 @@ suite('Voice Mode input ownership', () => {
 			service.stub(ICommandService, new class extends mock<ICommandService>() {
 				override async executeCommand<T>(id: string): Promise<T> {
 					commands.push(id);
-					return (source === 'agents-draft' ? 'sessions-voice://new-chat/composer' : 'agent-host-copilotcli:/agents') as T;
+					return (source === 'agents-draft-keybinding' ? 'sessions-voice://new-chat/composer' : 'agent-host-copilotcli:/agents') as T;
 				}
 			}());
 			service.stub(IVoiceSessionController, new class extends mock<IVoiceSessionController>() {
@@ -63,12 +72,14 @@ suite('Voice Mode input ownership', () => {
 			}());
 			const command = CommandsRegistry.getCommand('agentsVoice.startVoiceInChat');
 			assert.ok(command);
-			await service.invokeFunction(accessor => command.handler(accessor, source === 'keybinding' ? undefined : { widget: contextWidget }));
+			await service.invokeFunction(accessor => command.handler(accessor, source.endsWith('keybinding') ? undefined : { widget: contextWidget }));
+			// A toolbar press focuses its input after retargeting; a keybinding leaves focus alone.
 			assert.deepStrictEqual({ targets, commands }, {
-				targets: [source === 'toolbar' ? 'vscode-chat:/editor'
+				targets: [source === 'toolbar' || source === 'agents-chat' ? 'vscode-chat:/editor'
 					: source === 'keybinding' ? 'vscode-chat:/focused'
-						: source === 'agents-draft' ? 'draft' : 'agent-host-copilotcli:/agents', 'connect'],
-				commands: windowIsAgents ? ['_chat.voice.getCurrentSession'] : [],
+						: source.includes('draft') ? 'draft' : 'agent-host-copilotcli:/agents',
+				...source.endsWith('keybinding') ? [] : ['focus'], 'connect'],
+				commands: windowIsAgents && source.endsWith('keybinding') ? ['_chat.voice.getCurrentSession'] : [],
 			});
 		});
 	}

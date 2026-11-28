@@ -31,9 +31,13 @@ import { ITtsPlaybackService } from '../../browser/voiceClient/ttsPlaybackServic
 import { IVoiceSessionController } from '../../browser/voiceClient/voiceSessionController.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../browser/speechToText/chatSpeechToTextService.js';
 import { IVoiceInputModeService, VoiceInputModeService } from '../../browser/voiceInputMode/voiceInputMode.js';
-import { VoiceInputModeActionViewItem } from '../../browser/voiceInputMode/voiceInputModeActionViewItem.js';
+import { IVoiceInputModePillOptions, VoiceInputModeActionViewItem } from '../../browser/voiceInputMode/voiceInputModeActionViewItem.js';
 import { SegmentedVoiceInputModePillActive, SegmentedVoiceInputModePillInactive } from '../../browser/voiceInputMode/voiceInputModeContextKeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { IChatWidget } from '../../browser/chat.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { createChatInputToolbarContext } from '../../browser/actions/chatExecuteActions.js';
+import { ChatInputPart } from '../../browser/widget/input/chatInputPart.js';
 
 suite('VoiceInputModeService', () => {
 
@@ -173,21 +177,7 @@ suite('VoiceInputModeActionViewItem', () => {
 
 	teardown(() => sinon.restore());
 
-	test('touch activates Voice power and mute exactly once and context menus configure the current action', () => {
-		const ignoredTargets = new Set<HTMLElement>();
-		sinon.stub(Gesture, 'ignoreTarget').callsFake(element => {
-			ignoredTargets.add(element);
-			return { dispose: () => ignoredTargets.delete(element) };
-		});
-		sinon.stub(Gesture, 'addTarget').callsFake(element => dom.addDisposableListener(element, 'touchend', event => {
-			const target = event.target;
-			if (target instanceof Node && [...ignoredTargets].some(ignoredTarget => ignoredTarget.contains(target))) {
-				return;
-			}
-			element.dispatchEvent(new CustomEvent(TouchEventType.Tap));
-			event.preventDefault();
-		}));
-
+	function createPill(options?: IVoiceInputModePillOptions, commandService = upcastPartial<ICommandService>({ executeCommand: async () => undefined })) {
 		const selectedMode = observableValue<'dictation' | 'voice'>('selectedMode', 'voice');
 		const voiceInputModeService = upcastPartial<IVoiceInputModeService>({
 			selectedMode,
@@ -202,8 +192,7 @@ suite('VoiceInputModeActionViewItem', () => {
 		});
 		const isConnected = observableValue('isConnected', true);
 		const isMuted = observableValue('isMuted', false);
-		let voicePowerCount = 0;
-		let muteCount = 0;
+		const events: string[] = [];
 		let contextMenuActionIds: string[] = [];
 		const voiceSessionController = upcastPartial<IVoiceSessionController>({
 			isConnected,
@@ -211,8 +200,12 @@ suite('VoiceInputModeActionViewItem', () => {
 			isReconnecting: observableValue('isReconnecting', false),
 			isMuted,
 			voiceState: observableValue('voiceState', 'idle'),
-			disconnect: () => voicePowerCount++,
-			setMuted: () => muteCount++,
+			disconnect: () => events.push('disconnect'),
+			setMuted: () => events.push('mute'),
+			setTargetSession: resource => events.push(`target:${resource}`),
+			setDraftTarget: () => events.push('draft'),
+			activateSession: resource => events.push(`activate:${resource}`),
+			connect: async () => { events.push('connect'); isConnected.set(true, undefined); },
 		});
 		const chatSpeechToTextService = upcastPartial<IChatSpeechToTextService>({
 			onDidChangeState: Event.None,
@@ -226,10 +219,10 @@ suite('VoiceInputModeActionViewItem', () => {
 		const action = store.add(new Action('voiceInputMode', 'Voice Input Mode'));
 		const viewItem = store.add(new VoiceInputModeActionViewItem(
 			action,
-			undefined,
+			options,
 			voiceInputModeService,
 			voiceSessionController,
-			upcastPartial<ICommandService>({ executeCommand: async () => undefined }),
+			commandService,
 			new TestConfigurationService(),
 			new MockKeybindingService() as IKeybindingService,
 			upcastPartial<IContextMenuService>({
@@ -247,6 +240,80 @@ suite('VoiceInputModeActionViewItem', () => {
 		const container = dom.append(document.body, dom.$('.action-item'));
 		store.add({ dispose: () => container.remove() });
 		viewItem.render(container);
+		return { container, viewItem, isConnected, events, get contextMenuActionIds() { return contextMenuActionIds; } };
+	}
+
+	for (const activation of ['click', 'Enter', 'Space']) {
+		test(`dictation and voice use the owning toolbar, not the focused input (${activation})`, async () => {
+			const commands: { id: string; args: unknown[] }[] = [];
+			const commandService = upcastPartial<ICommandService>({
+				executeCommand: async <T>(id: string, ...args: unknown[]): Promise<T> => {
+					commands.push({ id, args });
+					return 'vscode-chat:/focused' as T;
+				},
+			});
+			const ownsVoice = observableValue('ownsVoice', false);
+			const pill = createPill({ isVoiceActive: ownsVoice }, commandService);
+			pill.isConnected.set(false, undefined);
+			let resource = URI.parse('vscode-chat:/clicked');
+			const widget = upcastPartial<IChatWidget>({
+				resolveVoiceTarget: () => resource,
+				input: upcastPartial<ChatInputPart>({ element: pill.container }),
+				focusInput: () => pill.events.push('focus'),
+			});
+			const context = createChatInputToolbarContext(widget);
+			pill.viewItem.setActionContext(context);
+			const activate = async (selector: string) => {
+				const button = pill.container.querySelector<HTMLButtonElement>(selector)!;
+				if (activation === 'click') {
+					button.click();
+				} else {
+					button.focus();
+					for (const type of ['keydown', 'keyup']) {
+						button.dispatchEvent(new KeyboardEvent(type, { bubbles: true, keyCode: activation === 'Enter' ? 13 : 32 }));
+					}
+				}
+				await Promise.resolve();
+			};
+
+			await activate('.dictation');
+			await activate('.voice');
+			// A reused input resolves its current model, including while voice is already connected elsewhere.
+			resource = URI.parse('vscode-chat:/rebound');
+			await activate('.voice');
+			ownsVoice.set(true, undefined);
+			await activate('.voice');
+
+			// A click leaves focus outside the input and moves it there after retargeting;
+			// keyboard activation is already inside. Dictation's command focuses on its own.
+			const focus = activation === 'click' ? ['focus'] : [];
+			assert.deepStrictEqual({ commands, events: pill.events }, {
+				commands: [{ id: 'workbench.action.chat.toggleSpeechToText', args: [context] }],
+				events: [
+					'target:vscode-chat:/clicked', 'activate:vscode-chat:/clicked', ...focus, 'connect',
+					'target:vscode-chat:/rebound', 'activate:vscode-chat:/rebound', ...focus,
+					'disconnect',
+				],
+			});
+		});
+	}
+
+	test('touch activates Voice power and mute exactly once and context menus configure the current action', () => {
+		const ignoredTargets = new Set<HTMLElement>();
+		sinon.stub(Gesture, 'ignoreTarget').callsFake(element => {
+			ignoredTargets.add(element);
+			return { dispose: () => ignoredTargets.delete(element) };
+		});
+		sinon.stub(Gesture, 'addTarget').callsFake(element => dom.addDisposableListener(element, 'touchend', event => {
+			const target = event.target;
+			if (target instanceof Node && [...ignoredTargets].some(ignoredTarget => ignoredTarget.contains(target))) {
+				return;
+			}
+			element.dispatchEvent(new CustomEvent(TouchEventType.Tap));
+			event.preventDefault();
+		}));
+		const pill = createPill();
+		const { container, isConnected } = pill;
 		// The fake touch events below must not reach a global `Gesture` instance that other tests may have created
 		store.add(dom.addDisposableListener(container, 'touchend', event => event.stopPropagation()));
 
@@ -260,7 +327,7 @@ suite('VoiceInputModeActionViewItem', () => {
 		};
 		const configureKeybindingAction = (selector: string) => {
 			container.querySelector<HTMLButtonElement>(selector)!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
-			return contextMenuActionIds[0];
+			return pill.contextMenuActionIds[0];
 		};
 
 		const connectedVoiceAction = configureKeybindingAction('.chat-voice-input-mode-cell.voice');
@@ -274,10 +341,9 @@ suite('VoiceInputModeActionViewItem', () => {
 		touch('.chat-voice-input-mode-cell.mute');
 
 		assert.deepStrictEqual(
-			{ voicePowerCount, muteCount, connectedVoiceAction, disconnectedVoiceAction, listenAction, muteAction },
+			{ events: pill.events, connectedVoiceAction, disconnectedVoiceAction, listenAction, muteAction },
 			{
-				voicePowerCount: 1,
-				muteCount: 1,
+				events: ['disconnect', 'mute'],
 				connectedVoiceAction: 'configureKeybinding/agentsVoice.disconnect',
 				disconnectedVoiceAction: 'configureKeybinding/agentsVoice.startVoiceInChat',
 				listenAction: 'configureKeybinding/workbench.action.chat.voiceInputMode.holdToTalk',

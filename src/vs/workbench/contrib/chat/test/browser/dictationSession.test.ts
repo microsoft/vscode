@@ -5,9 +5,11 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
+import * as dom from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { EditorOption } from '../../../../../editor/common/config/editorOptions.js';
 import { Position } from '../../../../../editor/common/core/position.js';
@@ -130,6 +132,26 @@ suite('DictationSession', () => {
 		await stopDictation();
 
 		assert.deepStrictEqual([interimValue, editor.getValue()], ['', transcript]);
+	});
+
+	test('stopping does not pull focus back from another editor or chat input the user moved into', async () => {
+		const { service } = createService('hello', true);
+		const editor = store.add(createTestCodeEditor(store.add(createTextModel(''))));
+		const focus = sinon.spy(editor, 'focus');
+		// Another chat input: its editor, and a toolbar button activated from the keyboard.
+		const otherInput = mainWindow.document.body.appendChild(dom.$('.interactive-input-part', undefined, dom.$('.monaco-editor', undefined, dom.$('textarea')), dom.$('button')));
+		store.add(toDisposable(() => otherInput.remove()));
+
+		for (const target of [otherInput.querySelector('textarea')!, otherInput.querySelector('button')!]) {
+			await startDictation(service, editor, mainWindow, new NullLogService());
+			target.focus();
+			await stopDictation();
+		}
+		otherInput.remove();
+		await startDictation(service, editor, mainWindow, new NullLogService());
+		await stopDictation();
+
+		assert.strictEqual(focus.callCount, 1);
 	});
 
 	test('stops and inserts the final transcript after 20 minutes', async () => {

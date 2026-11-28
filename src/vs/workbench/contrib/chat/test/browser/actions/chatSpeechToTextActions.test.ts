@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as dom from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -13,11 +15,12 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
-import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { getDictationShortcutOperation, registerChatSpeechToTextActions, runDictationShortcut, ToggleChatSpeechToTextAction } from '../../../browser/actions/chatSpeechToTextActions.js';
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../browser/speechToText/chatSpeechToTextService.js';
 import { IDictationOnboardingService } from '../../../browser/speechToText/dictationOnboarding.js';
+import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 
 suite('Chat Speech to Text Actions', () => {
@@ -55,6 +58,39 @@ suite('Chat Speech to Text Actions', () => {
 			await command.handler(instantiationService);
 			await command.handler(instantiationService, { widget });
 		}
+	});
+
+	test('a toolbar click focuses the clicked input; keyboard activation stays on its button', async () => {
+		store.add(registerChatSpeechToTextActions());
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IChatWidgetService, new class extends mock<IChatWidgetService>() { });
+		// Mid-transcription, so the toggle itself is a no-op and only focus is observed.
+		instantiationService.stub(IChatSpeechToTextService, new class extends mock<IChatSpeechToTextService>() {
+			override readonly state = ChatSpeechToTextState.Transcribing;
+			override readonly isPreparingModel = false;
+		});
+		instantiationService.stub(IKeybindingService, new class extends mock<IKeybindingService>() { });
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IDictationOnboardingService, new class extends mock<IDictationOnboardingService>() { });
+		const inputElement = mainWindow.document.body.appendChild(dom.$('div'));
+		store.add(toDisposable(() => inputElement.remove()));
+		const button = inputElement.appendChild(dom.$('button'));
+		let focusCount = 0;
+		const widget = new class extends mock<IChatWidget>() {
+			override readonly isTranscriptProgressActive = false;
+			override readonly input = new class extends mock<ChatInputPart>() {
+				override get element() { return inputElement; }
+			};
+			override readonly inputEditor = new class extends mock<ICodeEditor>() { };
+			override focusInput(): void { focusCount++; }
+		};
+		const command = CommandsRegistry.getCommand(ToggleChatSpeechToTextAction.ID)!;
+
+		await command.handler(instantiationService, { widget });
+		button.focus();
+		await command.handler(instantiationService, { widget });
+
+		assert.strictEqual(focusCount, 1);
 	});
 
 	test('resolves the dictation toggle operation', () => {

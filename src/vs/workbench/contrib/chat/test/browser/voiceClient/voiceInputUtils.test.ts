@@ -7,10 +7,29 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { IChatWidget } from '../../../browser/chat.js';
-import { acceptVoiceInput, combineVoiceInput } from '../../../browser/voiceClient/voiceInputUtils.js';
+import { acceptVoiceInput, combineVoiceInput, retargetVoiceToInput } from '../../../browser/voiceClient/voiceInputUtils.js';
 import { ChatRequestQueueKind } from '../../../common/chatService/chatService.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IVoiceSessionController } from '../../../browser/voiceClient/voiceSessionController.js';
+
+suite('retargetVoiceToInput', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('an unavailable explicit input cannot capture in the ambient chat or its placeholder model', async () => {
+		const calls: string[] = [];
+		const widget = upcastPartial<IChatWidget>({ resolveVoiceTarget: () => undefined });
+		const commandService = upcastPartial<ICommandService>({
+			executeCommand: async <T>(): Promise<T> => { calls.push('ambient'); return 'vscode-chat:/focused' as T; },
+		});
+		const controller = upcastPartial<IVoiceSessionController>({
+			setTargetSession: () => calls.push('target'),
+			setDraftTarget: () => calls.push('draft'),
+		});
+		assert.deepStrictEqual({ result: await retargetVoiceToInput(widget, commandService, controller), calls }, { result: false, calls: [] });
+	});
+});
 
 suite('combineVoiceInput', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
