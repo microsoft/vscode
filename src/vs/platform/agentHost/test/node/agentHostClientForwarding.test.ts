@@ -14,13 +14,19 @@ import { Emitter } from '../../../../base/common/event.js';
 import type { IDisposable } from '../../../../base/common/lifecycle.js';
 import { join } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { AGENT_HOST_CLIENT_FORWARDING_ENV, AgentHostClientForwardingService, IAgentHostForwardingClient } from '../../node/agentHostClientForwarding.js';
+import { AgentHostClientForwardingMainService } from '../../node/agentHostClientForwardingMainService.js';
+import { categorizeGitHost, categorizeProtocol, parseGitCredentialRequest } from '../../node/agentHostClientForwardingTelemetry.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
-import { parseWindowsSocketFile } from '../../node/clientForwardingHost.js';
+import { IClientForwardingHost, IClientForwardingHostCommandResult, parseWindowsSocketFile } from '../../node/clientForwardingHost.js';
 import { canCopyGitConfig, getCommandName } from '../../node/clientGitConfig.js';
+import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
+import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 
 suite('AgentHostClientForwarding', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -64,6 +70,58 @@ suite('AgentHostClientForwarding', () => {
 		]);
 	});
 
+	test('reports only fixed protocol and host categories of Git credential requests', () => {
+		assert.deepStrictEqual([
+			'protocol=https\nhost=octo.ghe.com\npath=org/repo.git\nusername=octocat\n\n',
+			'url=http://GitHub.com:8080/org/repo\n\n',
+			'protocol=ssh\r\nhost=dev.azure.com\r\n\r\n',
+			'protocol=https\nhost=notgithub.com\n\n',
+			'protocol=https\nhost=github.com.example.net\n\n',
+			'protocol=https\nhost=[::1]:8080\n\n',
+			'url=not a url\n\n',
+		].map(input => {
+			const { protocol, host } = parseGitCredentialRequest(input);
+			return [categorizeProtocol(protocol), categorizeGitHost(host)];
+		}), [
+			['https', 'ghe'],
+			['http', 'github'],
+			['other', 'azureDevOps'],
+			['https', 'other'],
+			['https', 'other'],
+			['https', 'other'],
+			['none', 'none'],
+		]);
+	});
+
+	test('rejects Git credential requests that fail on the client for reasons other than a missing credential', async () => {
+		const results: (IClientForwardingHostCommandResult | undefined)[] = [
+			{ code: 0, stdout: Buffer.from('password=secret\n'), stderr: Buffer.alloc(0) },
+			{ code: 128, stdout: Buffer.alloc(0), stderr: Buffer.from('fatal: could not read Username for \'https://example.com\': terminal prompts disabled\n') },
+			{ code: 128, stdout: Buffer.alloc(0), stderr: Buffer.from('fatal: bad config line 1 in file /home/user/.gitconfig\n') },
+			undefined,
+		];
+		const host = new class extends mock<IClientForwardingHost>() {
+			override async run() {
+				return results.shift();
+			}
+		}();
+		const service = store.add(new class extends AgentHostClientForwardingMainService {
+			protected override _getHost() {
+				return Promise.resolve(host);
+			}
+		}(new TestConfigurationService(), new class extends mock<INativeEnvironmentService>() { }(), new NullLogService()));
+		const outcomes: string[] = [];
+		for (let i = 0; i < 4; i++) {
+			outcomes.push(await service.gitCredential('get', 'protocol=https\nhost=example.com\n\n').then(output => `output: ${output}`, error => `error: ${error.message}`));
+		}
+		assert.deepStrictEqual(outcomes, [
+			'output: password=secret\n',
+			'output: ',
+			'error: git credential fill failed with exit code 128',
+			'error: Git is not installed',
+		]);
+	});
+
 	test('forwards what clients offer to the processes the agent host starts, which get the environment before a client connects', async () => {
 		const folder = await mkdtemp(join(tmpdir(), 'vscode-ah-fwd-test-'));
 		// Isolated from the machine's Git configuration, whose helpers could prompt.
@@ -82,13 +140,21 @@ suite('AgentHostClientForwarding', () => {
 		delete environment.GIT_CONFIG_GLOBAL;
 		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
 		const configuration = store.add(new AgentConfigurationService(stateManager, new NullLogService()));
-		const service = store.add(new AgentHostClientForwardingService(environment, process.execPath, new NullLogService(), stateManager, configuration));
+		const events: { eventName: string; data: ITelemetryData | undefined }[] = [];
+		const telemetryService = new class extends mock<ITelemetryService>() {
+			override readonly telemetryLevel = TelemetryLevel.USAGE;
+			override publicLog2(eventName: string, data?: ITelemetryData): void {
+				events.push({ eventName, data });
+			}
+		}();
+		const service = store.add(new AgentHostClientForwardingService(environment, process.execPath, new NullLogService(), stateManager, configuration, telemetryService));
 		const onDidReceiveData = store.add(new Emitter<{ readonly connection: number; readonly data: VSBuffer }>());
 		const onDidReceiveClose = store.add(new Emitter<number>());
 		const requests: unknown[] = [];
 		const closed = new DeferredPromise<void>();
 		let duringCredentialLookup: (() => void) | undefined;
 		const client: IAgentHostForwardingClient = {
+			clientId: 'client',
 			onDidReceiveData: onDidReceiveData.event,
 			onDidReceiveClose: onDidReceiveClose.event,
 			// Like a sandboxed container's client, it supplies only its identity, which works on any platform.
@@ -137,6 +203,10 @@ suite('AgentHostClientForwarding', () => {
 
 			registration = service.registerClient(client);
 			await service.settled();
+			// A reconnecting client registers again, which neither copies its Git configuration nor reports its setup again.
+			registration.dispose();
+			registration = service.registerClient(client);
+			await service.settled();
 			const agentReply = (await request(Buffer.from('request'))).toString();
 			// Closing the connection closes the client's.
 			await closed.p;
@@ -171,6 +241,8 @@ suite('AgentHostClientForwarding', () => {
 
 			registration.dispose();
 			await service.settled();
+			const afterClient = { sshAuthSock: environment.SSH_AUTH_SOCK === sshAuthSock, reply: [...await request(requestIdentities)] };
+			const use = (clientId: string | undefined, forwarded: string, operation: string, outcome: string, protocol?: string, hostCategory?: string) => ({ eventName: 'agentHost.forwardingUse', data: { clientId, service: forwarded, operation, outcome, protocol, hostCategory } });
 			assert.deepStrictEqual({
 				launcherVariable: environment[AGENT_HOST_CLIENT_FORWARDING_ENV],
 				gitConfig: [environment.GIT_CONFIG_KEY_0, environment.GIT_CONFIG_VALUE_0, environment.GIT_CONFIG_KEY_1],
@@ -180,7 +252,8 @@ suite('AgentHostClientForwarding', () => {
 				identity,
 				sandboxed,
 				requests,
-				afterClient: { sshAuthSock: environment.SSH_AUTH_SOCK === sshAuthSock, reply: [...await request(requestIdentities)] },
+				afterClient,
+				events,
 			}, {
 				launcherVariable: undefined,
 				gitConfig: ['core.autocrlf', 'false', 'credential.helper'],
@@ -192,6 +265,19 @@ suite('AgentHostClientForwarding', () => {
 				sandboxed: { gitOutput: '', heldReply: 'agent:held', heldClosed: true, reply: [0, 0, 0, 5, 12, 0, 0, 0, 0] },
 				requests: [['gitConfig'], ['open', 'ssh-agent'], ['gitCredential', 'get', true], ['open', 'ssh-agent'], ['gitCredential', 'get', true]],
 				afterClient: { sshAuthSock: true, reply: [0, 0, 0, 5, 12, 0, 0, 0, 0] },
+				// The second connection to the client's SSH agent is the same use.
+				events: [
+					use(undefined, 'ssh-agent', 'connect', 'emptyAgent'),
+					{
+						eventName: 'agentHost.forwardingSetup',
+						data: { clientId: 'client', forwardSshAgent: 'local', forwardGpgAgent: 'none', forwardKeyboxd: 'none', forwardGitCredentialHelper: 'environment', forwardGitConfig: 'withheld', forwardGitIdentity: 'set' },
+					},
+					use('client', 'ssh-agent', 'connect', 'success'),
+					use('client', 'git-credential-helper', 'get', 'credential', 'https', 'other'),
+					use('client', 'git-credential-helper', 'get', 'sandboxed', 'https', 'other'),
+					use('client', 'ssh-agent', 'connect', 'sandboxed'),
+					use(undefined, 'ssh-agent', 'connect', 'sandboxed'),
+				],
 			});
 		} finally {
 			registration?.dispose();

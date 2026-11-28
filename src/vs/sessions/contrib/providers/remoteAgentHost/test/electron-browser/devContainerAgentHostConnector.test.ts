@@ -37,7 +37,7 @@ import { Registry } from '../../../../../../platform/registry/common/platform.js
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IOutputChannel, IOutputService } from '../../../../../../workbench/services/output/common/output.js';
-import { DevContainerAgentHostEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, DevContainerIdleTimeoutSettingId, DevContainerSamplesEnabledSettingId, DevContainerStateVolumeEnabledSettingId, DevContainerWorktreeEnabledSettingId } from '../../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
+import { DevContainerAgentHostEnabledSettingId, DevContainerCredentialForwardingEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, DevContainerIdleTimeoutSettingId, DevContainerSamplesEnabledSettingId, DevContainerStateVolumeEnabledSettingId, DevContainerWorktreeEnabledSettingId } from '../../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { WorkspaceHistoryLoadState } from '../../../../../../workbench/services/sessions/common/workspaceSelection.js';
 import { ISessionFolder, ISessionWorkspace } from '../../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
@@ -118,10 +118,11 @@ suite('Dev Container Agent Host Connector', () => {
 			await first.connect();
 			// A container created on reconnect follows the current setting.
 			await configuration.setUserConfiguration(DevContainerStateVolumeEnabledSettingId, true);
+			await configuration.setUserConfiguration(DevContainerCredentialForwardingEnabledSettingId, false);
 			const reconnected = store.add(target.transportFactory());
 			assert.ok(isClientTransport(reconnected));
 			await reconnected.connect();
-			const connected = { success: true, cancelled: false, sample: true, remote: false, failureStage: undefined };
+			const connected = { success: true, cancelled: false, sandboxed: sandboxEnabled, sample: true, remote: false, failureStage: undefined };
 			assert.deepStrictEqual({
 				configs: configs.map(config => ({ resume: config.resume, sandboxEnabled: config.sandboxEnabled, persistUserState: config.persistUserState })),
 				events,
@@ -131,8 +132,8 @@ suite('Dev Container Agent Host Connector', () => {
 					{ resume: false, sandboxEnabled, persistUserState: true },
 				],
 				events: [
-					{ eventName: 'vscodeAgents.devContainer/connect', data: { ...connected, reconnect: false, stateVolume: false } },
-					{ eventName: 'vscodeAgents.devContainer/connect', data: { ...connected, reconnect: true, stateVolume: true } },
+					{ eventName: 'vscodeAgents.devContainer/connect', data: { ...connected, reconnect: false, stateVolume: false, credentialForwarding: true } },
+					{ eventName: 'vscodeAgents.devContainer/connect', data: { ...connected, reconnect: true, stateVolume: true, credentialForwarding: false } },
 				],
 			});
 		});
@@ -561,7 +562,7 @@ suite('Dev Container Agent Host Connector', () => {
 					{ eventName: 'vscodeAgents.devContainer/stateVolume', data: { ...unset, stage: 'mount', outcome: 'added', target: 'workspaces' } },
 					{ eventName: 'vscodeAgents.devContainer/stateVolume', data: { ...unset, stage: 'up', outcome: 'failed', reason: 'exitCode', exitCode: 1, errorCause: 'duplicateMount', lifecycleInUp: false } },
 					{ eventName: 'vscodeAgents.devContainer/stateVolume', data: { ...unset, stage: 'link', outcome: 'failed', reason: 'script', step: 'folders', exitCode: 1, target: 'workspaces', movedFolders: 1, skippedFolders: 2, skipReasons: 'mounted,symlink', scriptUser: 'root', capChown: true, capDacReadSearch: false, stateOwner: 'user', capDropChown: false, runtime: 'runc', errorMessage: 'Cannot link user state (exit 1):' } },
-					{ eventName: 'vscodeAgents.devContainer/connect', data: { success: false, cancelled: false, reconnect: false, stateVolume: true, sample: false, remote: false, failureStage: 'link' } },
+					{ eventName: 'vscodeAgents.devContainer/connect', data: { success: false, cancelled: false, reconnect: false, stateVolume: true, credentialForwarding: true, sandboxed: false, sample: false, remote: false, failureStage: 'link' } },
 				],
 			});
 		});

@@ -123,7 +123,15 @@ export class AgentHostClientForwardingMainService extends Disposable implements 
 		const command = operation === 'get' ? 'fill' : operation === 'store' ? 'approve' : 'reject';
 		// Credential managers may still show their own sign-in, like for the Dev Containers credential helper.
 		const result = await host.run('git', ['credential', command], { stdin: input, environment: { GIT_TERMINAL_PROMPT: '0' } });
-		return result?.code === 0 ? result.stdout.toString() : '';
+		if (result?.code === 0) {
+			return result.stdout.toString();
+		}
+		// Git fails with this (non-localized) message when it found no credential, as it may not prompt.
+		if (operation === 'get' && result?.stderr.toString().includes('terminal prompts disabled')) {
+			return '';
+		}
+		// Without Git's output, which may name the repository. The agent host's Git asks its other helpers or the user.
+		throw new Error(result ? `git credential ${command} failed with exit code ${result.code}` : 'Git is not installed');
 	}
 
 	async gpgKeys(): Promise<ClientGpgKeys> {
