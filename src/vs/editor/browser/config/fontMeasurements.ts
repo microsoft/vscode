@@ -181,7 +181,9 @@ export class FontMeasurementsImpl extends Disposable {
 		const monospace: CharWidthRequest[] = [];
 
 		const typicalHalfwidthCharacter = this._createRequest('n', CharWidthRequestType.Regular, all, monospace);
-		const typicalFullwidthCharacter = this._createRequest('\uff4d', CharWidthRequestType.Regular, all, null);
+		// Measure a CJK ideograph: CJK monospace fonts often lack fullwidth Latin forms such as U+FF4D,
+		// which then render in a fallback font with a different width (#286283).
+		const typicalFullwidthCharacter = this._createRequest('\u4e00', CharWidthRequestType.Regular, all, null);
 		const space = this._createRequest(' ', CharWidthRequestType.Regular, all, monospace);
 		const digit0 = this._createRequest('0', CharWidthRequestType.Regular, all, monospace);
 		const digit1 = this._createRequest('1', CharWidthRequestType.Regular, all, monospace);
