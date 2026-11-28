@@ -42,7 +42,7 @@ import { SessionArtifactType, withSessionArtifacts } from '../../../../../../pla
 import { ResourceType, type ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatOriginKind, ChangesetStatus, CustomizationType, MessageKind, ResponsePartKind, SessionLifecycle, SessionOriginKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesetFile, type ChangesetState, type ChatState, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { buildDefaultChatUri, createActiveTurn, createChatState, isAhpAutomationCatalogChannel, readSessionWorkspaceless, SessionStatus as ProtocolSessionStatus, StateComponents, withSessionEhcliAdoptable, withSessionExternal, type ComponentToState, withFolderScopeGitState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildDefaultChatUri, createActiveTurn, createChatState, isAhpAutomationCatalogChannel, readSessionWorkspaceless, SessionStatus as ProtocolSessionStatus, StateComponents, withSessionEhcliAdoptable, withSessionExternal, type ComponentToState, withFolderScopeGitState, SESSION_META_WORKING_DIRECTORY_KEY_POLICY_KEY } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { RootStateSubscription, type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -626,6 +626,27 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			folders: folders.length,
 			changesets: folders.map(folder => session.getRepositoryChangeset?.(folder, BRANCH_CHANGES_CHANGESET_ID)),
 		}, { folders: 2, changesets: [undefined, undefined] });
+	});
+
+	test('matches a folder to the Git state the host recorded for a case-differing folder only when the host folds case', () => {
+		const api = URI.file('/w/api');
+		const repo = URI.file('/w/Repo');
+		const hostFolder = 'file:///w/repo';
+		const sessions = { matchCase: createSession('linux-host', { workingDirectory: api }), ignoreCase: createSession('mac-host', { workingDirectory: api }) };
+		connection.addSession(sessions.matchCase);
+		connection.addSession(sessions.ignoreCase);
+		const provider = createProvider(disposables, connection);
+		// The host recorded the Git state of a lowercase folder with its own comparer, and not under the client's casing
+		const hostMeta = (policy: 'matchCase' | 'ignoreCase') => ({
+			...withFolderScopeGitState(undefined, getWorkingDirectoryScopeId([hostFolder], policy === 'matchCase' ? extUri : extUriIgnorePathCase), { branchName: 'main' }, [hostFolder]),
+			[SESSION_META_WORKING_DIRECTORY_KEY_POLICY_KEY]: policy,
+		});
+		provider.seedSessions([
+			{ ...sessions.matchCase, workingDirectories: [api, repo], _meta: hostMeta('matchCase') },
+			{ ...sessions.ignoreCase, workingDirectories: [api, repo], _meta: hostMeta('ignoreCase') },
+		]);
+		const folderBranches = (name: string) => provider.getSessions().find(candidate => candidate.resource.path.endsWith(`/${name}`))?.workspace.get()?.folders.map(folder => folder.gitRepository?.branchName);
+		assert.deepStrictEqual({ linuxHost: folderBranches('linux-host'), macOrWindowsHost: folderBranches('mac-host') }, { linuxHost: [undefined, undefined], macOrWindowsHost: [undefined, 'main'] });
 	});
 
 	test('without a listing scope, a provider that lists its sessions its own way finds by lookup exactly the sessions it lists', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
