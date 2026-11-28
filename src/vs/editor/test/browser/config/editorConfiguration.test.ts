@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { IEnvConfiguration } from '../../../browser/config/editorConfiguration.js';
 import { migrateOptions } from '../../../browser/config/migrateOptions.js';
 import { TabFocus } from '../../../browser/config/tabFocus.js';
-import { ConfigurationChangedEvent, EditorOption, IEditorHoverOptions, IQuickSuggestionsOptions } from '../../../common/config/editorOptions.js';
+import { ConfigurationChangedEvent, EditorExperimentalGpuAcceleration, EditorOption, IEditorHoverOptions, IQuickSuggestionsOptions } from '../../../common/config/editorOptions.js';
 import { EditorZoom } from '../../../common/config/editorZoom.js';
 import { TestConfiguration } from './testConfiguration.js';
 import { AccessibilitySupport } from '../../../../platform/accessibility/common/accessibility.js';
@@ -21,6 +21,26 @@ suite('Common Editor Config', () => {
 	let zoomLevel: number;
 	setup(() => zoomLevel = EditorZoom.getZoomLevel());
 	teardown(() => EditorZoom.setZoomLevel(zoomLevel));
+
+	test('editor-view failure makes editorView validate to off, keeps the schema and notifies once', () => {
+		const option = disposables.add(new EditorExperimentalGpuAcceleration());
+		const before = ['off', 'on', 'editorView', 'invalid'].map(value => option.validate(value));
+		let changes = 0;
+		disposables.add(option.onDidChangeAvailability(() => changes++));
+		option.disableEditorView();
+		option.disableEditorView();
+		assert.deepStrictEqual({
+			before,
+			after: ['off', 'on', 'editorView', 'invalid'].map(value => option.validate(value)),
+			values: option.schema?.enum,
+			changes
+		}, {
+			before: ['off', 'on', 'editorView', 'off'],
+			after: ['off', 'on', 'off', 'off'],
+			values: ['off', 'on', 'editorView'],
+			changes: 1
+		});
+	});
 
 	test('Zoom Level', () => {
 
