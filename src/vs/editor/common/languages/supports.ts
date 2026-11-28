@@ -6,6 +6,24 @@
 import { IViewLineTokens, LineTokens } from '../tokens/lineTokens.js';
 import { StandardTokenType } from '../encodedTokenAttributes.js';
 import { ILanguageIdCodec } from '../languages.js';
+import { getWordAtText, IWordAtPosition } from '../core/wordHelper.js';
+import type { ILanguageConfigurationService } from './languageConfigurationRegistry.js';
+
+export interface ILineWordScope {
+	readonly offset: number;
+	readonly text: string;
+	readonly wordDefinition: RegExp;
+}
+
+/** At a language boundary prefer the word on the right, then try the language on the left. */
+export function getWordAtColumn(column: number, originalColumn: number, getScope: (offset: number) => ILineWordScope): IWordAtPosition | null {
+	const lookup = (scope: ILineWordScope) => {
+		const word = getWordAtText(column, scope.wordDefinition, scope.text, scope.offset);
+		return word && word.startColumn <= originalColumn && originalColumn <= word.endColumn ? word : null;
+	};
+	const right = getScope(column - 1);
+	return lookup(right) ?? (right.offset > 0 && right.offset === column - 1 ? lookup(getScope(right.offset - 1)) : null);
+}
 
 export function createScopedLineTokens(context: LineTokens, offset: number): ScopedLineTokens {
 	const tokenCount = context.getCount();
@@ -63,6 +81,14 @@ export class ScopedLineTokens {
 	public getLineContent(): string {
 		const actualLineContent = this._actual.getLineContent();
 		return actualLineContent.substring(this.firstCharOffset, this._lastCharOffset);
+	}
+
+	public getWordScope(languageConfigurationService: ILanguageConfigurationService): ILineWordScope {
+		return {
+			offset: this.firstCharOffset,
+			text: this.getLineContent(),
+			wordDefinition: languageConfigurationService.getLanguageConfiguration(this.languageId).getWordDefinition()
+		};
 	}
 
 	public getLineLength(): number {

@@ -95,6 +95,10 @@ export function setDefaultGetWordAtTextConfig(value: IGetWordAtTextConfig) {
 	return toDisposable(rm);
 }
 
+export function getWordAtTextMaxLength(): number {
+	return Iterable.first(_defaultConfig)!.maxLen;
+}
+
 export function getWordAtText(column: number, wordDefinition: RegExp, text: string, textOffset: number, config?: IGetWordAtTextConfig): IWordAtPosition | null {
 	// Ensure the regex has the 'g' flag, otherwise this will loop forever
 	wordDefinition = ensureValidWordDefinition(wordDefinition);

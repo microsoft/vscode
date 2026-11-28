@@ -10,7 +10,8 @@ import { IPosition, Position } from '../../../../../editor/common/core/position.
 import { createModelServices, instantiateTextModel } from '../../../../../editor/test/common/testTextModel.js';
 import { ISnippetsService } from '../../browser/snippets.js';
 import { Snippet, SnippetSource } from '../../browser/snippetsFile.js';
-import { CompletionContext, CompletionItemLabel, CompletionItemRanges, CompletionTriggerKind } from '../../../../../editor/common/languages.js';
+import { CompletionContext, CompletionItemLabel, CompletionItemRanges, CompletionTriggerKind, EncodedTokenizationResult, TokenizationRegistry } from '../../../../../editor/common/languages.js';
+import { NullState } from '../../../../../editor/common/languages/nullTokenize.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { TestLanguageConfigurationService } from '../../../../../editor/test/common/modes/testLanguageConfigurationService.js';
 import { ILanguageConfigurationService } from '../../../../../editor/common/languages/languageConfigurationRegistry.js';
@@ -25,6 +26,8 @@ import { CompletionItem } from '../../../../../editor/contrib/suggest/browser/su
 import { WordDistance } from '../../../../../editor/contrib/suggest/browser/wordDistance.js';
 import { EditorOptions } from '../../../../../editor/common/config/editorOptions.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 
 class SimpleSnippetService implements ISnippetsService {
 	declare readonly _serviceBrand: undefined;
@@ -572,45 +575,48 @@ suite('SnippetsService', function () {
 
 	test('Typing on a very long line does not look up the word at every column #350738', async function () {
 		snippetService = new SimpleSnippetService(['bar', '<<'].map(prefix => new Snippet(false, ['fooLang'], prefix, prefix, '', prefix, '', SnippetSource.User, generateUuid())));
-		const provider = new SnippetCompletionProvider(languageService, snippetService, disposables.add(new TestLanguageConfigurationService()));
-
-		const line = '{"a":1},'.repeat(10_000) + 'ba <';
-		const model = disposables.add(instantiateTextModel(instantiationService, line, 'fooLang'));
-		const getWordAtPosition = spy(model, 'getWordAtPosition');
-
-		const startColumns = async (column: number) => (await provider.provideCompletionItems(model, new Position(1, column), defaultCompletionContext))
-			.suggestions.map(s => [(s.label as CompletionItemLabel).label, (s.range as CompletionItemRanges).insert.startColumn]);
-
-		assert.deepStrictEqual({
-			afterWord: await startColumns(line.length - 1),
-			afterNonWord: await startColumns(line.length + 1),
-		}, {
-			afterWord: [['bar', line.length - 3]],
-			afterNonWord: [['<<', line.length]],
-		});
-		assert.ok(getWordAtPosition.callCount < 10, `getWordAtPosition was called ${getWordAtPosition.callCount} times`);
+		const config = instantiationService.get(ILanguageConfigurationService);
+		const wordPattern = /[a-z]+/g;
+		disposables.add(config.register('fooLang', { wordPattern }));
+		const provider = new SnippetCompletionProvider(languageService, snippetService, config);
+		const model = disposables.add(instantiateTextModel(instantiationService, '', 'fooLang'));
+		const exec = spy(wordPattern, 'exec');
+		try {
+			const measure = async (repeats: number) => {
+				const line = '{"a":1},'.repeat(repeats) + 'ba <';
+				model.setValue(line);
+				exec.resetHistory();
+				const startColumns = async (column: number) => (await provider.provideCompletionItems(model, new Position(1, column), defaultCompletionContext))
+					.suggestions.map(s => [(s.label as CompletionItemLabel).label, (s.range as CompletionItemRanges).insert.startColumn - line.length]);
+				const ranges = [await startColumns(line.length - 1), await startColumns(line.length + 1)];
+				assert.deepStrictEqual(ranges, [[['bar', -3]], [['<<', 0]]]);
+				return exec.callCount;
+			};
+			const shorter = await measure(1000);
+			assert.ok(shorter > 0);
+			assert.strictEqual(await measure(10_000), shorter);
+		} finally {
+			exec.restore();
+		}
 	});
 
 	test('Skipping anchors beyond the longest snippet prefix does not change suggestions #350738', async function () {
 		disposables.add(languageService.registerLanguage({ id: 'cssLikeLang' }));
-		disposables.add(instantiationService.get(ILanguageConfigurationService).register('cssLikeLang', {
+		const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+		disposables.add(languageConfigurationService.register('cssLikeLang', {
 			wordPattern: /(#?-?\d*\.\d\w*%?)|(::?[\w-]*(?=[^,{;]*[,{]))|(([@#.!])?[\w\-?]+%?|[@#!.])/g
 		}));
 
 		const prefixes = ['bar', 'oo.b', '<<', 'p-a', '-a-bug', '#region', ' leading', '{}'];
 		const lines = ['xzoo.b yy', 'foo.bar ba', 'x<< a <', 'zp-a p-', 'x-a-b .-a-bu', '##region #reg', 'a  leading lea', 'x{} {'];
-		// longer than every line, so that the provider computes the anchors from the start of the line
-		const longPrefix = '~'.repeat(100);
 		const createSnippet = (prefix: string) => new Snippet(false, ['fooLang'], prefix, prefix, '', prefix, '', SnippetSource.User, generateUuid());
-		const languageConfigurationService = disposables.add(new TestLanguageConfigurationService());
-
 		const mismatches: string[] = [];
 		for (const languageId of ['fooLang', 'cssLikeLang']) {
 			for (const line of lines) {
 				const model = disposables.add(instantiateTextModel(instantiationService, line, languageId));
 				for (const prefix of prefixes) {
 					const provider = new SnippetCompletionProvider(languageService, new SimpleSnippetService([createSnippet(prefix)]), languageConfigurationService);
-					const fullLineProvider = new SnippetCompletionProvider(languageService, new SimpleSnippetService([createSnippet(prefix), createSnippet(longPrefix)]), languageConfigurationService);
+					const fullLineProvider = new SnippetCompletionProvider(languageService, new SimpleSnippetService([createSnippet(prefix), createSnippet(`~${line}~`)]), languageConfigurationService);
 					for (let column = 1; column <= line.length + 1; column++) {
 						const ranges = async (provider: SnippetCompletionProvider) => JSON.stringify((await provider.provideCompletionItems(model, new Position(1, column), defaultCompletionContext))
 							.suggestions.filter(s => (s.label as CompletionItemLabel).label === prefix).map(s => s.range));
@@ -624,6 +630,76 @@ suite('SnippetsService', function () {
 			}
 		}
 		assert.deepStrictEqual(mismatches, []);
+	});
+
+	test('bounded snippet acceptance preserves adjacent, interior and clipped word anchors', async function () {
+		const config = instantiationService.get(ILanguageConfigurationService);
+		for (const { text, prefix, start, wordPattern } of [
+			{ text: 'foo.12.b', prefix: '12.b', start: 5 },
+			{ text: 'xzoo.b', prefix: 'oo.b', start: 5 },
+			{ text: ':'.repeat(600) + 'a', prefix: ':'.repeat(600) + 'abc', start: 1 },
+			{ text: 'a'.repeat(2000), prefix: 'a'.repeat(800), start: 1506 },
+			{ text: ':'.repeat(2000) + '\'a\'xx$', prefix: 'x$', start: 2005, wordPattern: /'[^']+'(?=x)|\w+/g },
+		]) {
+			disposables.add(config.register('fooLang', { wordPattern }));
+			const snippet = new Snippet(false, [], prefix, prefix, '', prefix, '', SnippetSource.User, generateUuid());
+			const provider = new SnippetCompletionProvider(languageService, new SimpleSnippetService([snippet]), config);
+			const model = disposables.add(instantiateTextModel(instantiationService, text, 'fooLang'));
+			const { suggestions } = await provider.provideCompletionItems(model, new Position(1, text.length + 1), defaultCompletionContext);
+			const [item] = suggestions;
+			const { replace } = item.range as CompletionItemRanges;
+			model.applyEdits([{ range: replace, text: item.insertText }]);
+			assert.deepStrictEqual([replace.startColumn, model.getValue()], [start, text.slice(0, start - 1) + prefix]);
+		}
+	});
+
+	test('bounded snippet matching uses the triggering line while snippets load', async function () {
+		const deferred = new DeferredPromise<Snippet[]>();
+		const service = new class extends SimpleSnippetService {
+			override getSnippets(): Promise<Snippet[]> { return deferred.p; }
+		}([]);
+		const provider = new SnippetCompletionProvider(languageService, service, instantiationService.get(ILanguageConfigurationService));
+		const number = disposables.add(instantiateTextModel(instantiationService, '1.', 'fooLang'));
+		const name = disposables.add(instantiateTextModel(instantiationService, 'xx:foo.ba', 'fooLang'));
+		const first = provider.provideCompletionItems(number, new Position(1, 3), defaultCompletionContext);
+		const second = provider.provideCompletionItems(name, new Position(1, 10), defaultCompletionContext);
+		const cts = disposables.add(new CancellationTokenSource());
+		const canceled = provider.provideCompletionItems(name, new Position(1, 10), defaultCompletionContext, cts.token);
+		cts.cancel();
+		number.applyEdits([EditOperation.insert(new Position(1, 3), '2')]);
+		name.setValue('xxxxxxxxx');
+		await deferred.complete(['region', 'foo.bar'].map(prefix => new Snippet(false, [], prefix, prefix, '', prefix, '', SnippetSource.User, generateUuid())));
+		const ranges = (await Promise.all([first, second, canceled])).map(list => list.suggestions.map(item => [item.insertText, (item.range as CompletionItemRanges).insert.startColumn]));
+		assert.deepStrictEqual(ranges, [[['foo.bar', 2]], [['foo.bar', 4]], []]);
+	});
+
+	test('bounded snippet matching uses the word pattern on each side of a language boundary', async function () {
+		const config = instantiationService.get(ILanguageConfigurationService);
+		const inner = 'snippetInner';
+		disposables.add(languageService.registerLanguage({ id: inner }));
+		disposables.add(config.register(inner, { wordPattern: /[a-z:]+/g }));
+		const outerId = languageService.languageIdCodec.encodeLanguageId('fooLang');
+		const innerId = languageService.languageIdCodec.encodeLanguageId(inner);
+		disposables.add(TokenizationRegistry.register('fooLang', {
+			getInitialState: () => NullState,
+			tokenize: () => { throw new Error('Unencoded tokenization not supported'); },
+			tokenizeEncoded: (_line, _hasEOL, state) => new EncodedTokenizationResult(new Uint32Array([0, outerId, 4, innerId, 13, outerId]), [], state)
+		}));
+		const snippets = new SimpleSnippetService([':three!z', 'two:three!z'].map(prefix => new Snippet(false, [], prefix, prefix, '', prefix, '', SnippetSource.User, generateUuid())));
+		const provider = new SnippetCompletionProvider(languageService, snippets, config);
+		const model = disposables.add(instantiateTextModel(instantiationService, 'one:two:three!z;', 'fooLang'));
+		model.tokenization.forceTokenization(1);
+		const requests = [5, 14, 16].map(column => provider.provideCompletionItems(model, new Position(1, column), defaultCompletionContext));
+		model.applyEdits([EditOperation.insert(new Position(1, 1), 'shift')]);
+		const ranges = (await Promise.all(requests)).map(list => list.suggestions.map(item => {
+			const { insert, replace } = item.range as CompletionItemRanges;
+			return [item.insertText, insert.startColumn, insert.endColumn, replace.endColumn];
+		}));
+		assert.deepStrictEqual(ranges, [
+			[['two:three!z', 5, 5, 16]],
+			[['two:three!z', 5, 14, 16]],
+			[[':three!z', 14, 16, 16], ['two:three!z', 5, 16, 16]]
+		]);
 	});
 
 	test('issue #61296: VS code freezes when editing CSS fi`le with emoji', async function () {
