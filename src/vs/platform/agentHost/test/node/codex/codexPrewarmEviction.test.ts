@@ -4089,6 +4089,45 @@ suite('CodexAgent prewarm eviction', () => {
 		}
 	});
 
+	test('workspace folders of non-file schemes are not sent to codex as paths', async () => {
+		const agent = await createAgent(disposables);
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		const virtualA = URI.from({ scheme: 'abap', authority: 'repotree-v1', path: '/example' });
+		const repo = URI.file('/repo');
+		const virtualB = URI.from({ scheme: 'abap', authority: 'repotree-v1', path: '/other' });
+
+		try {
+			const workingDirectories = [virtualA, repo, virtualB];
+			const { session } = await createSession(agent, { session: AgentSession.uri('codex', 'non-file-roots'), workingDirectories, model: { id: COPILOT_TEST_MODEL } });
+			const entry = agent['_sessions'].get(AgentSession.id(session))!;
+			const start = await readNextRequest(peer.outbound);
+			peer.push({ id: start.id, result: { thread: { id: 'thread' } } });
+			await entry.materializePromise;
+
+			const send = agent.chats.sendMessage(URI.parse(buildDefaultChatUri(session)), 'hello', workingDirectories, undefined, 'turn-1');
+			const turn = await readNextRequest(peer.outbound);
+			peer.push({ id: turn.id, result: {} });
+			await send;
+
+			assert.deepStrictEqual({
+				start: { cwd: start.params.cwd, runtimeWorkspaceRoots: start.params.runtimeWorkspaceRoots },
+				turn: { runtimeWorkspaceRoots: turn.params.runtimeWorkspaceRoots },
+			}, {
+				start: { cwd: repo.fsPath, runtimeWorkspaceRoots: [repo.fsPath] },
+				turn: { runtimeWorkspaceRoots: [repo.fsPath] },
+			});
+		} finally {
+			peer.exit();
+		}
+	});
+
 	test('consecutive sends replace and remove workspace roots on the existing thread', async () => {
 		const agent = await createAgent(disposables);
 		const peer = disposables.add(createTestPeer());
@@ -4151,6 +4190,56 @@ suite('CodexAgent prewarm eviction', () => {
 					runtimeWorkspaceRoots: [repoA.fsPath],
 					permissions: 'vscode-workspace',
 				},
+			});
+		} finally {
+			peer.exit();
+		}
+	});
+
+	test('a send without local workspace folders removes the previous roots from the existing thread', async () => {
+		const agent = await createAgent(disposables);
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		const repoA = URI.file('/repo-a');
+		const repoB = URI.file('/repo-b');
+		const virtual = URI.from({ scheme: 'abap', authority: 'repotree-v1', path: '/example' });
+
+		try {
+			const created = await createSession(agent, { workingDirectories: [repoA, repoB], model: { id: COPILOT_TEST_MODEL } });
+			const entry = agent['_sessions'].get(AgentSession.id(created.session))!;
+			const start = await readNextRequest(peer.outbound);
+			peer.push({ id: start.id, result: { thread: { id: 'thread' } } });
+			await entry.materializePromise;
+
+			const firstSend = agent.chats.sendMessage(URI.parse(buildDefaultChatUri(created.session)), 'first', [repoA, repoB], undefined, 'turn-1');
+			const firstTurn = await readNextRequest(peer.outbound);
+			peer.push({ id: firstTurn.id, result: {} });
+			await firstSend;
+
+			const secondSend = agent.chats.sendMessage(URI.parse(buildDefaultChatUri(created.session)), 'second', [virtual], undefined, 'turn-2');
+			const secondTurn = await readNextRequest(peer.outbound);
+			peer.push({ id: secondTurn.id, result: {} });
+			await secondSend;
+
+			const thirdSend = agent.chats.sendMessage(URI.parse(buildDefaultChatUri(created.session)), 'third', [], undefined, 'turn-3');
+			const thirdTurn = await readNextRequest(peer.outbound);
+			peer.push({ id: thirdTurn.id, result: {} });
+			await thirdSend;
+
+			assert.deepStrictEqual({
+				first: firstTurn.params.runtimeWorkspaceRoots,
+				onlyNonFileFolders: secondTurn.params.runtimeWorkspaceRoots,
+				noFolders: thirdTurn.params.runtimeWorkspaceRoots,
+			}, {
+				first: [repoA.fsPath, repoB.fsPath],
+				onlyNonFileFolders: [repoA.fsPath],
+				noFolders: [repoA.fsPath],
 			});
 		} finally {
 			peer.exit();
