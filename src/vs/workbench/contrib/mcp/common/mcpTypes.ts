@@ -1090,6 +1090,8 @@ export interface IEditableMcpServerConfiguration {
 	readonly format: McpResourceFormat;
 	/** Writes {@link config} over {@link previous}, the configuration that was edited. */
 	save(previous: IMcpServerConfiguration, config: IMcpServerConfiguration): Promise<void>;
+	/** Removes the server from the file. */
+	remove(): Promise<void>;
 }
 export interface IMcpWorkbenchService {
 	readonly _serviceBrand: undefined;

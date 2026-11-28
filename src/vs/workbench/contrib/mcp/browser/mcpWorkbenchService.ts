@@ -864,6 +864,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 				config: root.config,
 				format: McpResourceFormat.WorkspaceRoot,
 				save: (previous, next) => this.mcpResourceScannerService.updateMcpServer(name, previous, next, root.mcpResource, ConfigurationTarget.WORKSPACE_FOLDER, McpResourceFormat.WorkspaceRoot),
+				remove: () => this.mcpResourceScannerService.removeMcpServers([name], root.mcpResource, ConfigurationTarget.WORKSPACE_FOLDER, McpResourceFormat.WorkspaceRoot),
 			};
 		}
 
@@ -880,6 +881,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			config,
 			format: McpResourceFormat.CopilotGlobal,
 			save: (previous, next) => this.mcpResourceScannerService.updateMcpServer(name, previous, next, resource, undefined, McpResourceFormat.CopilotGlobal),
+			remove: () => this.mcpResourceScannerService.removeMcpServers([name], resource, undefined, McpResourceFormat.CopilotGlobal),
 		};
 	}
 
