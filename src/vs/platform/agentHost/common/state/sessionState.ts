@@ -1133,8 +1133,9 @@ export const SESSION_META_WORKING_DIRECTORY_SCOPE_IDS_KEY = 'workingDirectorySco
  * `'matchCase'` when it keeps it. Other schemes always fold. Clients derive the
  * keys of folders the host has not recorded with this policy instead of their
  * own OS. Older and non-VS Code hosts omit it; clients then keep OS-biased keys.
+ * Namespaced so that an unrelated field of another host cannot change them.
  */
-export const SESSION_META_WORKING_DIRECTORY_KEY_POLICY_KEY = 'workingDirectoryKeyPolicy';
+export const SESSION_META_WORKING_DIRECTORY_KEY_POLICY_KEY = 'vscode.workingDirectoryKeyPolicy';
 
 const fileMatchCaseUriComparer = new ExtUri(uri => uri.scheme !== Schemas.file);
 

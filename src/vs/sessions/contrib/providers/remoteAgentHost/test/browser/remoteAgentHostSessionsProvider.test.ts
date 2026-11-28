@@ -99,6 +99,7 @@ import { ISessionsRecentWorkspacesService } from '../../../../../../workbench/co
 import { MockLabelService } from '../../../../../../workbench/services/label/test/common/mockLabelService.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { extUri, extUriIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
+import { isLinux } from '../../../../../../base/common/platform.js';
 import { INewSessionComposerService, NewSessionComposerService } from '../../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { isIChatSessionFileChange2 } from '../../../../../../workbench/common/chatSessionFileChange.js';
 import { SessionsManagementService } from '../../../../../../workbench/contrib/sessions/browser/sessionsManagementService.js';
@@ -632,21 +633,28 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const api = URI.file('/w/api');
 		const repo = URI.file('/w/Repo');
 		const hostFolder = 'file:///w/repo';
-		const sessions = { matchCase: createSession('linux-host', { workingDirectory: api }), ignoreCase: createSession('mac-host', { workingDirectory: api }) };
+		const sessions = { matchCase: createSession('linux-host', { workingDirectory: api }), ignoreCase: createSession('mac-host', { workingDirectory: api }), lookalike: createSession('lookalike-host', { workingDirectory: api }) };
 		connection.addSession(sessions.matchCase);
 		connection.addSession(sessions.ignoreCase);
+		connection.addSession(sessions.lookalike);
 		const provider = createProvider(disposables, connection);
 		// The host recorded the Git state of a lowercase folder with its own comparer, and not under the client's casing
-		const hostMeta = (policy: 'matchCase' | 'ignoreCase') => ({
+		const hostMeta = (policy: 'matchCase' | 'ignoreCase', policyKey = SESSION_META_WORKING_DIRECTORY_KEY_POLICY_KEY) => ({
 			...withFolderScopeGitState(undefined, getWorkingDirectoryScopeId([hostFolder], policy === 'matchCase' ? extUri : extUriIgnorePathCase), { branchName: 'main' }, [hostFolder]),
-			[SESSION_META_WORKING_DIRECTORY_KEY_POLICY_KEY]: policy,
+			[policyKey]: policy,
 		});
 		provider.seedSessions([
 			{ ...sessions.matchCase, workingDirectories: [api, repo], _meta: hostMeta('matchCase') },
 			{ ...sessions.ignoreCase, workingDirectories: [api, repo], _meta: hostMeta('ignoreCase') },
+			// Another host's unnamespaced field of the same name, opposite to the client's own casing, must not set the policy: the client keeps its OS-biased keys
+			{ ...sessions.lookalike, workingDirectories: [api, repo], _meta: hostMeta(isLinux ? 'ignoreCase' : 'matchCase', 'workingDirectoryKeyPolicy') },
 		]);
 		const folderBranches = (name: string) => provider.getSessions().find(candidate => candidate.resource.path.endsWith(`/${name}`))?.workspace.get()?.folders.map(folder => folder.gitRepository?.branchName);
-		assert.deepStrictEqual({ linuxHost: folderBranches('linux-host'), macOrWindowsHost: folderBranches('mac-host') }, { linuxHost: [undefined, undefined], macOrWindowsHost: [undefined, 'main'] });
+		assert.deepStrictEqual({
+			linuxHost: folderBranches('linux-host'),
+			macOrWindowsHost: folderBranches('mac-host'),
+			unnamespacedLookalike: folderBranches('lookalike-host'),
+		}, { linuxHost: [undefined, undefined], macOrWindowsHost: [undefined, 'main'], unnamespacedLookalike: [undefined, isLinux ? undefined : 'main'] });
 	});
 
 	test('without a listing scope, a provider that lists its sessions its own way finds by lookup exactly the sessions it lists', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
