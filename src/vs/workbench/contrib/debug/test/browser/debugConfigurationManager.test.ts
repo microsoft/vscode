@@ -204,7 +204,6 @@ suite('debugConfigurationManager', () => {
 	suite('workspace launch', () => {
 		const folderUri = URI.file('/project');
 		const folderLaunch = URI.joinPath(folderUri, '.vscode', 'launch.json').toString();
-		const userLaunch = preferencesService.userSettingsResource.toString();
 
 		// Like an editor window entering Agents mode: the workbench state turns to WORKSPACE, with or without a workspace file
 		class AgentsModeContextService extends TestContextService {
@@ -221,6 +220,7 @@ suite('debugConfigurationManager', () => {
 		function getLaunchState() {
 			return {
 				launches: _debugConfigurationManager.getLaunches().map(launch => launch.uri?.toString()),
+				workspaceLaunch: _debugConfigurationManager.getWorkspaceLaunch()?.uri.toString(),
 				selected: _debugConfigurationManager.selectedConfiguration.launch?.uri?.toString()
 			};
 		}
@@ -235,9 +235,15 @@ suite('debugConfigurationManager', () => {
 			disposables.delete(_debugConfigurationManager);
 			_debugConfigurationManager = createConfigurationManager();
 
+			const userLaunch = preferencesService.userSettingsResource.toString();
+
 			agentsModeContextService.enterAgentsMode();
 
-			assert.deepStrictEqual(_debugConfigurationManager.getLaunches().map(launch => launch.uri.toString()), [folderLaunch, workspaceUri.toString(), userLaunch]);
+			const { launches, workspaceLaunch } = getLaunchState();
+			assert.deepStrictEqual({ launches, workspaceLaunch }, {
+				launches: [folderLaunch, workspaceUri.toString(), userLaunch],
+				workspaceLaunch: workspaceUri.toString()
+			});
 		});
 
 		test('has only the folder and user launches in a workspace without a workspace file', async () => {
@@ -248,6 +254,7 @@ suite('debugConfigurationManager', () => {
 			});
 			disposables.delete(_debugConfigurationManager);
 			_debugConfigurationManager = createConfigurationManager();
+			const userLaunch = preferencesService.userSettingsResource.toString();
 
 			agentsModeContextService.enterAgentsMode();
 			await _debugConfigurationManager.selectConfiguration(undefined);
@@ -260,8 +267,8 @@ suite('debugConfigurationManager', () => {
 			const afterReload = getLaunchState();
 
 			assert.deepStrictEqual({ afterSwitch, afterReload }, {
-				afterSwitch: { launches: [folderLaunch, userLaunch], selected: userLaunch },
-				afterReload: { launches: [folderLaunch, userLaunch], selected: userLaunch }
+				afterSwitch: { launches: [folderLaunch, userLaunch], workspaceLaunch: undefined, selected: userLaunch },
+				afterReload: { launches: [folderLaunch, userLaunch], workspaceLaunch: undefined, selected: userLaunch }
 			});
 		});
 	});
