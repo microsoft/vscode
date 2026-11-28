@@ -3,4 +3,4 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export { AgentHostDevContainerEnvironmentsCapabilityMetaKey, AgentHostDevContainerFolderContainersCapabilityMetaKey, AgentHostDevContainersCapabilityMetaKey, supportsAgentHostDevContainerEnvironments, supportsAgentHostDevContainerFolderContainers, supportsAgentHostDevContainers } from './vscode/agentHostDevContainersMeta.js';
+export { AgentHostDevContainerEnginesCapabilityMetaKey, AgentHostDevContainerEnvironmentsCapabilityMetaKey, AgentHostDevContainerFolderContainersCapabilityMetaKey, AgentHostDevContainersCapabilityMetaKey, supportsAgentHostDevContainerEngines, supportsAgentHostDevContainerEnvironments, supportsAgentHostDevContainerFolderContainers, supportsAgentHostDevContainers } from './vscode/agentHostDevContainersMeta.js';

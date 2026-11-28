@@ -26,10 +26,10 @@ import { AhpJsonlLogger } from '../../../../../platform/agentHost/common/ahpJson
 import { AgentHostClientProxy } from '../../../../../platform/agentHost/browser/agentHostClientProxy.js';
 import { AgentHostClientForwarding } from '../../../../../platform/agentHost/browser/agentHostClientForwarding.js';
 import { AGENT_HOST_CLIENT_FORWARDING_CHANNEL, IAgentHostClientForwardingMainService } from '../../../../../platform/agentHost/common/agentHostClientForwardingMainService.js';
-import { DEV_CONTAINER_AGENT_HOST_CHANNEL, DevContainerAgentHostSource, DevContainerConnectStage, DevContainerEnvironmentVolumeLookupTimeoutMs, IDevContainerAgentHostConfig, IDevContainerAgentHostConnectFailure, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport, IDevContainerHostFolderContainer, isValidDevContainerConnectionName } from '../../../../../platform/agentHost/common/devContainerAgentHost.js';
+import { DEV_CONTAINER_AGENT_HOST_CHANNEL, DevContainerAgentHostSource, DevContainerConnectStage, DevContainerEngine, DevContainerEnvironmentVolumeLookupTimeoutMs, getDevContainerEngines, IDevContainerAgentHostConfig, IDevContainerAgentHostConnectFailure, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport, IDevContainerEngines, IDevContainerHostFolderContainer, isDevContainerEngineAvailable, isValidDevContainerConnectionName } from '../../../../../platform/agentHost/common/devContainerAgentHost.js';
 import { findDevContainerSample } from '../../../../../platform/agentHost/common/devContainerSamples.js';
 import { devContainerEnvironmentImage, findDevContainerEnvironment, isLocalDevContainerEnvironment } from '../../../../../platform/agentHost/common/devContainerEnvironments.js';
-import { areDevContainerEnvironmentsEnabled, areDevContainerSamplesEnabled, DevContainerAgentHostEnabledSettingId, DevContainerCredentialForwardingEnabledSettingId, DevContainerDiscoveryEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, DevContainerHandoffEnabledSettingId, DevContainerIdleTimeoutSettingId, DevContainerSamplesEnabledSettingId, DevContainerStateVolumeEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostConnection, IDevContainerAgentHostConnectionOptions, IDevContainerAgentHostConnector, IDevContainerAgentHostService } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
+import { areDevContainerEnvironmentsEnabled, areDevContainerSamplesEnabled, DevContainerAgentHostEnabledSettingId, DevContainerCredentialForwardingEnabledSettingId, DevContainerDiscoveryEnabledSettingId, DevContainerEngineSettingId, DevContainerEnvironmentsEnabledSettingId, DevContainerHandoffEnabledSettingId, DevContainerIdleTimeoutSettingId, DevContainerSamplesEnabledSettingId, DevContainerStateVolumeEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostConnection, IDevContainerAgentHostConnectionOptions, IDevContainerAgentHostConnector, IDevContainerAgentHostService, IDevContainerEngineOptions } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { ReconnectingRelayTransport, type IRelayConnectionHandle, type IRelayMessage } from '../../../../../platform/agentHost/common/relayTransport.js';
 import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { NonReconnectableTransportError } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
@@ -41,6 +41,7 @@ import { IRequestService } from '../../../../../platform/request/common/request.
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ITelemetryService, TelemetryLevel } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
@@ -54,14 +55,16 @@ import { CreateDevContainerTool } from '../browser/createDevContainerTool.js';
 
 type DevContainerEnvironmentEvent = {
 	dockerAvailable: boolean;
+	wslcAvailable: boolean;
 	devContainerFolderCount: number;
 	devContainerEnabled: boolean;
 };
 
 type DevContainerEnvironmentClassification = {
 	owner: 'chrmarti';
-	comment: 'Reports whether the Agents window can resolve Docker and how many recent local folders contain a default Dev Container configuration.';
+	comment: 'Reports whether the Agents window can resolve Docker and WSL containers, and how many recent local folders contain a default Dev Container configuration.';
 	dockerAvailable: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the Docker executable can be resolved from the user shell environment.' };
+	wslcAvailable: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the WSL containers executable (wslc) can be resolved from the user shell environment.' };
 	devContainerFolderCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of unique recent local folders containing .devcontainer/devcontainer.json or .devcontainer.json.' };
 	devContainerEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Value of the chat.agentHost.devContainer.enabled setting when the event was emitted.' };
 };
@@ -180,6 +183,7 @@ type DevContainerConnectEvent = {
 	sandboxed: boolean;
 	sample: boolean;
 	remote: boolean;
+	engine: DevContainerEngine;
 	failureStage: DevContainerConnectStage | 'other' | undefined;
 	durationMs: number;
 };
@@ -195,6 +199,7 @@ type DevContainerConnectClassification = {
 	sandboxed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the connection is for sandboxed sessions, which get only the Git identity forwarded.' };
 	sample: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the container is for a Dev Container sample.' };
 	remote: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the container runs on a remote Docker host through SSH, Tunnel or WSL.' };
+	engine: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The container engine that runs the Dev Container: docker or wslc (WSL containers).' };
 	failureStage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Fixed identifier of the stage a failed attempt that was not cancelled failed in: readConfig, prepare, mount, up, link, userCommands, agentHostStart, connect, timeout or other.' };
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Duration of the attempt in milliseconds.' };
 };
@@ -212,12 +217,13 @@ export async function getDevContainerEnvironment(
 	fileService: IFileService,
 	mainService: IDevContainerAgentHostMainService,
 ): Promise<DevContainerEnvironment> {
-	const [dockerAvailable, configurations] = await Promise.all([
-		mainService.isDockerAvailable(),
+	const [{ available }, configurations] = await Promise.all([
+		getDevContainerEngines(mainService),
 		Promise.all(workspaceUris.map(workspaceUri => hasDevContainerConfiguration(workspaceUri, fileService))),
 	]);
 	return {
-		dockerAvailable,
+		dockerAvailable: available.includes('docker'),
+		wslcAvailable: available.includes('wslc'),
 		devContainerFolderCount: configurations.filter(Boolean).length,
 	};
 }
@@ -283,12 +289,46 @@ export async function isDevContainerWorkspaceAvailable(
 		return false;
 	}
 	if (findDevContainerSample(workspaceUri)) {
-		return areDevContainerSamplesEnabled(configurationService) && await mainService.isDockerAvailable();
+		return areDevContainerSamplesEnabled(configurationService) && await isDevContainerEngineAvailable(mainService);
 	}
 	if (workspaceUri.scheme !== Schemas.file && workspaceUri.scheme !== AGENT_HOST_SCHEME) {
 		return false;
 	}
-	return await hasDevContainerConfiguration(workspaceUri, fileService) && await mainService.isDockerAvailable();
+	return await hasDevContainerConfiguration(workspaceUri, fileService) && await isDevContainerEngineAvailable(mainService);
+}
+
+/**
+ * Selects the container engine of a Dev Container. Its existing container keeps its engine. A new one gets the
+ * `requested` engine, which must be available, or else the engine of {@link DevContainerEngineSettingId}, or the other
+ * engine when that is not available. With `ask`, `pick` lets the user choose when more than one engine is available,
+ * and dismissing it cancels; without `pick`, `ask` prefers Docker.
+ */
+export async function resolveDevContainerEngine(engines: IDevContainerEngines, setting: unknown, pick: ((engines: readonly DevContainerEngine[]) => Promise<DevContainerEngine | undefined>) | undefined, requested?: DevContainerEngine): Promise<DevContainerEngine> {
+	if (engines.existing) {
+		return engines.existing;
+	}
+	if (requested) {
+		if (!engines.available.includes(requested)) {
+			throw new Error(requested === 'wslc'
+				? localize('devContainerEngine.wslcUnavailable', "WSL containers (wslc) are not available on the machine that runs this Dev Container.")
+				: localize('devContainerEngine.dockerUnavailable', "Docker is not available on the machine that runs this Dev Container."));
+		}
+		return requested;
+	}
+	const [first] = engines.available;
+	if (!first) {
+		// Connecting reports that Docker is not available.
+		return 'docker';
+	}
+	if (setting === 'ask' && pick && engines.available.length > 1) {
+		const picked = await pick(engines.available);
+		if (!picked) {
+			throw new CancellationError();
+		}
+		return picked;
+	}
+	const preferred: DevContainerEngine = setting === 'wslc' ? 'wslc' : 'docker';
+	return engines.available.includes(preferred) ? preferred : first;
 }
 
 export class RemoteDevContainerService extends Disposable implements IDevContainerAgentHostMainService {
@@ -321,6 +361,10 @@ export class RemoteDevContainerService extends Disposable implements IDevContain
 
 	async isDockerAvailable(): Promise<boolean> {
 		return (await this._resolveService(CancellationToken.None)).isDockerAvailable();
+	}
+
+	async getEngines(source?: DevContainerAgentHostSource): Promise<IDevContainerEngines> {
+		return getDevContainerEngines(await this._resolveService(CancellationToken.None), source);
 	}
 
 	async connect(config: IDevContainerAgentHostConfig) {
@@ -484,6 +528,7 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IRequestService private readonly _requestService: IRequestService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 	) {
 		super();
 		this._mainService = ProxyChannel.toService<IDevContainerAgentHostMainService>(
@@ -497,20 +542,20 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 			return isDevContainerWorkspaceAvailable(workspaceUri, this._fileService, this._mainService, this._configurationService);
 		}
 		if (isLocalDevContainerEnvironment(workspaceUri)) {
-			return areDevContainerEnvironmentsEnabled(this._configurationService) && await this._mainService.isDockerAvailable();
+			return areDevContainerEnvironmentsEnabled(this._configurationService) && await isDevContainerEngineAvailable(this._mainService);
 		}
 		const entry = getDevContainerSourceEntry(workspaceUri, this._remoteAgentHostService);
 		const connection = entry && this._remoteAgentHostService.getConnection(getEntryAddress(entry));
 		if (findDevContainerEnvironment(workspaceUri)) {
 			return !!connection && areDevContainerEnvironmentsEnabled(this._configurationService) && supportsAgentHostDevContainerEnvironments(connection.initializeResult.get())
-				&& !!connection.devContainerService && await connection.devContainerService.isDockerAvailable();
+				&& !!connection.devContainerService && await isDevContainerEngineAvailable(connection.devContainerService);
 		}
 		return !!connection && supportsAgentHostDevContainers(connection.initializeResult.get()) && !!connection.devContainerService
 			&& await isDevContainerWorkspaceAvailable(workspaceUri, this._fileService, connection.devContainerService, this._configurationService);
 	}
 
-	isLocalDockerAvailable(): Promise<boolean> {
-		return this._mainService.isDockerAvailable();
+	isLocalContainerEngineAvailable(): Promise<boolean> {
+		return isDevContainerEngineAvailable(this._mainService);
 	}
 
 	async listLocalFolderContainers(): Promise<readonly IDevContainerHostFolderContainer[]> {
@@ -617,6 +662,21 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 		}
 	}
 
+	private async _resolveEngine(service: IDevContainerAgentHostMainService, source: DevContainerAgentHostSource, name: string, token: CancellationToken, options: IDevContainerEngineOptions | undefined): Promise<DevContainerEngine> {
+		const engines = await raceCancellationError(getDevContainerEngines(service, source), token);
+		const pick = options?.promptForEngine === false ? undefined : async (available: readonly DevContainerEngine[]) => {
+			const items = available.map((engine): IQuickPickItem & { readonly engine: DevContainerEngine } => engine === 'wslc'
+				? { engine, label: 'WSLc', description: localize('devContainerEngine.wslcDescription', "WSL containers") }
+				: { engine, label: 'Docker' });
+			const picked = await this._quickInputService.pick(items, {
+				placeHolder: localize('devContainerEngine.pick', "Select the container engine for '{0}'", name),
+				ignoreFocusLost: true,
+			}, token);
+			return picked?.engine;
+		};
+		return resolveDevContainerEngine(engines, this._configurationService.getValue(DevContainerEngineSettingId), pick, options?.engine);
+	}
+
 	async createConnection(workspaceUri: URI, address: string, token: CancellationToken, options?: IDevContainerAgentHostConnectionOptions): Promise<IDevContainerAgentHostConnection> {
 		const sample = findDevContainerSample(workspaceUri);
 		const environment = findDevContainerEnvironment(workspaceUri);
@@ -663,6 +723,8 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 				this._logService.warn('[DevContainerAgentHostConnector] Failed to cancel connection', error);
 			});
 		});
+		// The engine of the first connection, which reconnections keep, since the container holds the Agent Host's sessions.
+		let engine: DevContainerEngine = 'docker';
 		const connect = async (config: IDevContainerAgentHostConfig, reconnect: boolean) => {
 			// Read on every connect, so a container created on reconnect follows the current setting.
 			const persistUserState = this._configurationService.getValue<boolean>(DevContainerStateVolumeEnabledSettingId) === true;
@@ -677,12 +739,14 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 				sandboxed: !!options?.sandboxEnabled,
 				sample: !!sample,
 				remote: !!sourceEntry,
+				engine,
 				// Hosts without the failure event, e.g., older remote hosts, and failures before the attempt starts report other.
 				failureStage: success || cancelled ? undefined : failureStages.get(config.connectionId) ?? 'other',
 				durationMs: stopWatch.elapsed(),
 			});
 			try {
-				const connected = await mainService.connect(persistUserState ? { ...config, persistUserState } : config);
+				// Docker is omitted for hosts that predate other engines.
+				const connected = await mainService.connect({ ...config, ...(persistUserState ? { persistUserState } : {}), ...(engine !== 'docker' ? { engine } : {}) });
 				report(true, false);
 				return connected;
 			} catch (error) {
@@ -715,6 +779,8 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 					}
 				}));
 			}
+			// Connections without user action are to folder containers that the Docker engine listed as running, see `_isFolderContainerRunning`.
+			engine = requireRunning ? 'docker' : await this._resolveEngine(mainService, this._getSource(workspaceUri), hostName(), token, options);
 			let result = await connect({
 				connectionId,
 				...source,
@@ -805,6 +871,7 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 				name,
 				hostWorkspaceFolder: result.hostWorkspaceFolder,
 				repository: result.repository,
+				engine,
 				volumeOnLocalDockerEngine,
 				sandboxSupported: result.sandboxSupported,
 				clientCertificates: remoteService ? undefined : {
@@ -932,7 +999,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		[DevContainerEnvironmentsEnabledSettingId]: {
 			type: 'boolean',
-			description: localize('chat.agentHost.devContainer.environments.enabled', "Enable creating Dev Container environments on this computer and on SSH, Tunnel, and WSL hosts that have Docker, from Remote Environments in the Agents window. An environment is a container from a base Linux image that keeps its files in a Docker volume and can be chosen in the Environment picker. One on a remote host connects and disconnects with that host. One on this computer starts when you first use it. Requires Dev Container Agent Host sessions to be enabled."),
+			description: localize('chat.agentHost.devContainer.environments.enabled', "Enable creating Dev Container environments on this computer and on SSH, Tunnel, and WSL hosts that have Docker or WSL containers (wslc), from Remote Environments in the Agents window. An environment is a container from a base Linux image that keeps its files in a container volume and can be chosen in the Environment picker. One on a remote host connects and disconnects with that host. One on this computer starts when you first use it. Requires Dev Container Agent Host sessions to be enabled."),
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
@@ -959,6 +1026,19 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: 300,
 			minimum: 0,
 			scope: ConfigurationScope.APPLICATION,
+		},
+		[DevContainerEngineSettingId]: {
+			type: 'string',
+			enum: ['docker', 'wslc', 'ask'],
+			markdownEnumDescriptions: [
+				localize('chat.agentHost.devContainer.containerEngine.docker', "Use Docker."),
+				localize('chat.agentHost.devContainer.containerEngine.wslc', "Use WSL containers (`wslc`), which are available on Windows."),
+				localize('chat.agentHost.devContainer.containerEngine.ask', "Ask which engine to use when creating a Dev Container and both are available."),
+			],
+			description: localize('chat.agentHost.devContainer.containerEngine', "Controls the container engine for new Dev Containers in the Agents window. When the selected engine is not available on the machine that runs the Dev Container, the other engine is used. Existing Dev Containers keep their engine."),
+			default: 'docker',
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
 		},
 	},
 });

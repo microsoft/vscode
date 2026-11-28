@@ -20,7 +20,7 @@ import { ISessionsProvidersService } from '../../../../../../workbench/contrib/s
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionsManagementService } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { DevContainerAgentHostEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, DevContainerHandoffEnabledSettingId, ICreatedDevContainerEnvironment, IDevContainerAgentHostService, IDevContainerEnvironment, LocalDevContainerEnvironmentHost } from '../../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
+import { DevContainerAgentHostEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, DevContainerHandoffEnabledSettingId, ICreatedDevContainerEnvironment, IDevContainerAgentHostService, IDevContainerEngineOptions, IDevContainerEnvironment, LocalDevContainerEnvironmentHost } from '../../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { IChat, ISession } from '../../../../../../workbench/services/sessions/common/session.js';
 import { IRemoteSessionService } from '../../../../remoteSessions/common/remoteSessions.js';
 import { CreateDevContainerTool, ShowDevContainerEnvironmentLogCommandId } from '../../browser/createDevContainerTool.js';
@@ -60,17 +60,20 @@ suite('CreateDevContainerTool', () => {
 			upcastPartial<IAgentHostSessionsProvider>({ id: 'agenthost-local-folder', label: 'app Dev Container', remoteAddress: 'devcontainer:3', devContainerSourceWorkspace: URI.file('/src/app') }),
 		];
 		const created: string[] = [];
+		const createdEngines: { readonly engine?: string; readonly promptForEngine?: boolean }[] = [];
 		const trusted: string[] = [];
 		const readinessChecks: string[] = [];
 		let rejections: readonly string[] = ['No usable agents have been advertised.'];
 		const environmentHosts = observableValue<ReadonlySet<string>>('hosts', new Set(options.hosts ?? [LocalDevContainerEnvironmentHost, 'ssh:build']));
 		const devContainerService = upcastPartial<IDevContainerAgentHostService>({
 			environmentHosts,
-			createEnvironment: async (sourceAddress: string, createOptions?: { readonly onWillConnect?: (environment: IDevContainerEnvironment) => void }): Promise<ICreatedDevContainerEnvironment> => {
+			createEnvironment: async (sourceAddress: string, createOptions?: IDevContainerEngineOptions & { readonly onWillConnect?: (environment: IDevContainerEnvironment) => void }): Promise<ICreatedDevContainerEnvironment> => {
 				created.push(sourceAddress);
+				createdEngines.push({ engine: createOptions?.engine, promptForEngine: createOptions?.promptForEngine });
 				const environment = { address: 'devcontainer:1', sourceAddress, providerId: container.id };
 				createOptions?.onWillConnect?.(environment);
-				return { ...environment, workspaceUri };
+				// Without a requested engine, the user's setting or a fallback chooses one, here WSLc.
+				return { ...environment, workspaceUri, engine: createOptions?.engine ?? 'wslc' };
 			},
 		});
 		const tool = new CreateDevContainerTool(
@@ -97,7 +100,7 @@ suite('CreateDevContainerTool', () => {
 		);
 		const becomeReady = () => { rejections = []; };
 		const disconnect = (address: string) => environmentHosts.set(new Set([...environmentHosts.get()].filter(host => host !== address)), undefined);
-		return { tool, created, trusted, readinessChecks, becomeReady, disconnect };
+		return { tool, created, createdEngines, trusted, readinessChecks, becomeReady, disconnect };
 	}
 
 	async function prepare(tool: CreateDevContainerTool, parameters: unknown, originatingChatResource?: URI) {
@@ -133,12 +136,12 @@ suite('CreateDevContainerTool', () => {
 			local: 'Creating Dev Container on This Computer',
 			remote: 'Creating Dev Container on Build',
 			unavailable: { error: 'Dev Containers cannot be created on agenthost-other now. Available hosts: [{"id":"local","label":"This Computer"},{"id":"agenthost-build","label":"Build"}]' },
-			ambiguous: { error: 'Docker is not available on this computer. Choose a host: [{"id":"agenthost-build","label":"Build"},{"id":"agenthost-other","label":"Other"}]' },
+			ambiguous: { error: 'Neither Docker nor WSL containers are available on this computer. Choose a host: [{"id":"agenthost-build","label":"Build"},{"id":"agenthost-other","label":"Other"}]' },
 			// A remote host is only used when requested or when the session runs there.
-			onlyRemote: { error: 'Docker is not available on this computer. Choose a host: [{"id":"agenthost-build","label":"Build"}]' },
-			noHosts: { error: 'No Docker host is available. Start Docker on this computer, or connect to an SSH, Tunnel, or WSL host that has Docker.' },
+			onlyRemote: { error: 'Neither Docker nor WSL containers are available on this computer. Choose a host: [{"id":"agenthost-build","label":"Build"}]' },
+			noHosts: { error: 'No host can run Dev Containers. Start Docker or install WSL containers on this computer, or connect to an SSH, Tunnel, or WSL host that has Docker.' },
 			disabled: { error: 'Creating Dev Containers is disabled.' },
-			invalid: { error: 'The input must be an object with an optional host string.' },
+			invalid: { error: 'The input must be an object with optional host and engine strings.' },
 		});
 	});
 
@@ -214,6 +217,7 @@ suite('CreateDevContainerTool', () => {
 					label: 'Dev Container',
 					workspace: workspaceUri.toString(),
 					createdOn: { id: 'agenthost-build', label: 'Build' },
+					engine: 'wslc',
 				}),
 			}],
 			message: logLink('Created Dev Container on Build'),
@@ -231,12 +235,41 @@ suite('CreateDevContainerTool', () => {
 				label: 'Dev Container',
 				workspace: workspaceUri.toString(),
 				createdOn: { id: 'local', label: 'This Computer' },
+				engine: 'wslc',
 				reasons: ['No usable agents have been advertised.'],
 				guidance: 'The container exists and is listed in Remote Environments, but cannot start sessions yet. Do not create another container. Wait briefly, then call create_remote_session with this hostId and workspace; if it still fails, report the reasons to the user.',
 			},
 			message: logLink('Created Dev Container on This Computer, not yet ready for sessions'),
 		});
 	}));
+
+	test('creates containers without asking for the engine, with the engine the user asked for, which the confirmation names', async () => {
+		const { tool, createdEngines, becomeReady } = setup();
+		becomeReady();
+		const confirmation = async (parameters: Record<string, unknown>) => {
+			try {
+				const prepared = await tool.prepareToolInvocation({ toolCallId: 'confirm', parameters, chatSessionResource: undefined, originatingChatResource: undefined }, CancellationToken.None);
+				const message = prepared.confirmationMessages?.message;
+				// appendText escapes spaces.
+				return (typeof message === 'string' ? message : message?.value)?.replace(/&nbsp;/g, ' ');
+			} catch (error) {
+				return { error: (error as Error).message };
+			}
+		};
+		assert.deepStrictEqual({
+			configured: await confirmation({}),
+			requested: await confirmation({ engine: 'wslc' }),
+			invalid: await confirmation({ engine: 'podman' }),
+		}, {
+			configured: 'Create a Dev Container from the Ubuntu base image on This Computer? It keeps its files in a container volume until you delete it in Remote Environments.',
+			requested: 'Create a Dev Container from the Ubuntu base image on This Computer with WSL containers? It keeps its files in a container volume until you delete it in Remote Environments.',
+			invalid: { error: 'engine must be docker or wslc.' },
+		});
+		await confirmAndInvoke(tool, {}, undefined);
+		await confirmAndInvoke(tool, { engine: 'wslc' }, undefined);
+		// The pick of `ask` could interrupt the user while the agent's chat runs in the background.
+		assert.deepStrictEqual(createdEngines, [{ engine: undefined, promptForEngine: false }, { engine: 'wslc', promptForEngine: false }]);
+	});
 
 	test('guides the agent to continue with create_remote_session and not to retry blindly', () => {
 		const { tool } = setup();

@@ -14,7 +14,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IProtocolTransport } from '../../../../platform/agentHost/common/state/sessionTransport.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { findDevContainerSample, IDevContainerRepository } from '../../../../platform/agentHost/common/devContainerSamples.js';
-import type { IDevContainerHostFolderContainer } from '../../../../platform/agentHost/common/devContainerAgentHost.js';
+import type { DevContainerEngine, IDevContainerHostFolderContainer } from '../../../../platform/agentHost/common/devContainerAgentHost.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
@@ -42,6 +42,9 @@ export const DevContainerHandoffEnabledSettingId = 'chat.agentHost.devContainer.
 
 /** Experimental setting that lists and connects the running Dev Containers of folders, such as those opened in editor windows. */
 export const DevContainerDiscoveryEnabledSettingId = 'chat.agentHost.devContainer.discovery.enabled';
+
+/** Experimental setting that selects the container engine of new Dev Containers: `docker`, `wslc` (WSL containers), or `ask`. */
+export const DevContainerEngineSettingId = 'chat.agentHost.devContainer.containerEngine';
 
 /** {@link IDevContainerEnvironment.sourceAddress} of Dev Container environments on this computer. No SSH, Tunnel, or WSL host address equals it. */
 export const LocalDevContainerEnvironmentHost = 'local';
@@ -95,6 +98,8 @@ export interface IDevContainerAgentHostConnection {
 	/** Native source path reported by the host that launched the container. */
 	readonly hostWorkspaceFolder?: string;
 	readonly repository?: IDevContainerRepository;
+	/** The container engine that runs the container. */
+	readonly engine?: DevContainerEngine;
 	/**
 	 * Whether this computer's Docker engine has the volume of a Dev Container environment on a WSL host, so the Dev
 	 * Containers extension, which cannot address the distribution for a volume, opens it there.
@@ -109,7 +114,7 @@ export interface IDevContainerAgentHostConnection {
 }
 
 /** Options for {@link IDevContainerAgentHostConnector.createConnection}. */
-export interface IDevContainerAgentHostConnectionOptions {
+export interface IDevContainerAgentHostConnectionOptions extends IDevContainerEngineOptions {
 	readonly resume: boolean;
 	readonly sandboxEnabled?: boolean;
 	/** Names the connection of a Dev Container environment, which otherwise gets a name for its host. */
@@ -121,13 +126,24 @@ export interface IDevContainerAgentHostConnectionOptions {
 	readonly requireRunning?: boolean;
 }
 
+/** How the container engine of a new Dev Container is chosen. An existing container keeps its engine. */
+export interface IDevContainerEngineOptions {
+	/** The engine, e.g., one that the user asked an agent for, which must be available on the container's host. */
+	readonly engine?: DevContainerEngine;
+	/**
+	 * Whether `ask` in {@link DevContainerEngineSettingId} may show a pick, true by default. Agents' containers prefer
+	 * Docker instead, so a pick does not interrupt the user.
+	 */
+	readonly promptForEngine?: boolean;
+}
+
 /** Creates a Dev Container and connects to its Agent Host. */
 export interface IDevContainerAgentHostConnector {
 	readonly onDidChangeSandboxSupport?: Event<{ readonly workspaceUri: URI; readonly supported: boolean }>;
-	/** Whether the workspace has a supported configuration and Docker is available on its host. */
+	/** Whether the workspace has a supported configuration and a container engine is available on its host. */
 	isAvailable(workspaceUri: URI): Promise<boolean>;
-	/** Whether Docker is available on this computer, regardless of settings. */
-	isLocalDockerAvailable?(): Promise<boolean>;
+	/** Whether a container engine, Docker or WSLc, is available on this computer, regardless of settings. */
+	isLocalContainerEngineAvailable?(): Promise<boolean>;
 	/** The folder Dev Containers on this computer's Docker engine, regardless of settings. */
 	listLocalFolderContainers?(): Promise<readonly IDevContainerHostFolderContainer[]>;
 	createConnection(workspaceUri: URI, address: string, token: CancellationToken, options?: IDevContainerAgentHostConnectionOptions): Promise<IDevContainerAgentHostConnection>;
@@ -160,6 +176,8 @@ export interface IDevContainerEnvironment {
 export interface ICreatedDevContainerEnvironment extends IDevContainerEnvironment {
 	/** The container's workspace folder on its Agent Host connection, if the connection reported it. */
 	readonly workspaceUri: URI | undefined;
+	/** The container engine that runs the container, if the connector reported it. */
+	readonly engine?: DevContainerEngine;
 }
 
 /**
@@ -203,8 +221,8 @@ export interface IDevContainerAgentHostService {
 	/** Dev Container environments, empty while {@link areDevContainerEnvironmentsEnabled} is false. */
 	readonly environments: IObservable<readonly IDevContainerEnvironment[]>;
 	/**
-	 * {@link LocalDevContainerEnvironmentHost} while Docker is available on this computer, and the addresses of connected
-	 * SSH, Tunnel, and WSL hosts that support Dev Container environments and have Docker. Computed while
+	 * {@link LocalDevContainerEnvironmentHost} while a container engine is available on this computer, and the addresses of
+	 * connected SSH, Tunnel, and WSL hosts that support Dev Container environments and have a container engine. Computed while
 	 * {@link canUseDevContainerEnvironments} is true, regardless of the experiment-controlled setting.
 	 */
 	readonly environmentHosts: IObservable<ReadonlySet<string>>;
@@ -212,7 +230,7 @@ export interface IDevContainerAgentHostService {
 	 * Creates a Dev Container environment on a host from {@link environmentHosts} and connects to it.
 	 * `onWillConnect` receives the environment once it is listed, before its container starts, e.g. to show its log.
 	 */
-	createEnvironment(sourceAddress: string, options?: { readonly onWillConnect?: (environment: IDevContainerEnvironment) => void }): Promise<ICreatedDevContainerEnvironment>;
+	createEnvironment(sourceAddress: string, options?: IDevContainerEngineOptions & { readonly onWillConnect?: (environment: IDevContainerEnvironment) => void }): Promise<ICreatedDevContainerEnvironment>;
 	/** Removes an environment's container and workspace volume, or only forgets it when its host is no longer configured. */
 	deleteEnvironment(address: string): Promise<void>;
 

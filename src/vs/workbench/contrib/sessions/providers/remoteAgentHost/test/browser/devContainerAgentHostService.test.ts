@@ -324,16 +324,18 @@ suite('Dev Container Agent Host Service', () => {
 		const createdUris: URI[] = [];
 		const removedUris: URI[] = [];
 		const requestedNames: (string | undefined)[] = [];
+		const requestedEngines: { readonly engine?: string; readonly promptForEngine?: boolean }[] = [];
 		store.add(service.registerConnector({
 			isAvailable: async () => true,
-			isLocalDockerAvailable: async () => !!options.localDocker,
+			isLocalContainerEngineAvailable: async () => !!options.localDocker,
 			showLog: async () => { },
 			createConnection: async (workspaceUri, address, _token, requested) => {
 				createdUris.push(workspaceUri);
 				requestedNames.push(requested?.name);
+				requestedEngines.push({ engine: requested?.engine, promptForEngine: requested?.promptForEngine });
 				await options.beforeConnect?.();
-				// The host names the connection as requested, as the real connector does.
-				return { address, name: requested?.name ?? 'Dev Container on Build', workspaceUri: URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority(address), path: '/workspaces/ubuntu-2' }), transportFactory: () => undefined as never, defaultDirectory: '/workspaces/ubuntu-2' };
+				// The host names the connection as requested, as the real connector does, and reports the engine it chose.
+				return { address, name: requested?.name ?? 'Dev Container on Build', workspaceUri: URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority(address), path: '/workspaces/ubuntu-2' }), transportFactory: () => undefined as never, defaultDirectory: '/workspaces/ubuntu-2', engine: requested?.engine ?? 'docker' };
 			},
 			removeContainer: async workspaceUri => {
 				removedUris.push(workspaceUri);
@@ -347,8 +349,40 @@ suite('Dev Container Agent Host Service', () => {
 				override async isDockerAvailable() { dockerChecks.push('checked'); return true; }
 			}();
 		}();
-		return { service, remoteService, storage, createdUris, removedUris, requestedNames, createHostConnection, providersService, dockerChecks, configurationService };
+		return { service, remoteService, storage, createdUris, removedUris, requestedNames, requestedEngines, createHostConnection, providersService, dockerChecks, configurationService };
 	}
+
+	test('passes the engine choice only to the connection that creates an environment, which then keeps and remembers its engine', async () => {
+		const { service, requestedEngines, storage } = setupEnvironments(undefined, { localDocker: true });
+		await waitForState(service.environmentHosts, hosts => hosts.has(LocalDevContainerEnvironmentHost));
+		const created = await service.createEnvironment(LocalDevContainerEnvironmentHost, { engine: 'wslc', promptForEngine: false });
+		const stored = JSON.parse(storage.get('devContainerAgentHost.environments', StorageScope.APPLICATION)!);
+		const provider = service.provider!;
+		await provider.config.disconnectOnDemand!();
+		await provider.config.connectOnDemand!();
+		await service.deleteEnvironment(created.address);
+		assert.deepStrictEqual({ createdEngine: created.engine, storedEngines: stored.map((environment: { engine?: string }) => environment.engine), requestedEngines }, {
+			createdEngine: 'wslc',
+			storedEngines: ['wslc'],
+			// Later connections request the remembered engine without asking, so a failed lookup cannot recreate the environment in Docker.
+			requestedEngines: [{ engine: 'wslc', promptForEngine: false }, { engine: 'wslc', promptForEngine: undefined }],
+		});
+	});
+
+	test('connects restored environments with their remembered engine, and others with the engine their lookup finds', async () => {
+		const { service, providersService, requestedEngines } = setupEnvironments(undefined, {
+			localDocker: true,
+			stored: [
+				{ id: 'wslc', sourceAddress: LocalDevContainerEnvironmentHost, name: 'WSLc Dev Container', engine: 'wslc' },
+				{ id: 'unknown', sourceAddress: LocalDevContainerEnvironmentHost, name: 'Dev Container', engine: 'podman' },
+			],
+		});
+		await waitForState(service.environmentHosts, hosts => hosts.has(LocalDevContainerEnvironmentHost));
+		for (const provider of providersService.getProviders().filter((provider): provider is TestProvider => provider instanceof TestProvider)) {
+			await provider.config.connectOnDemand!();
+		}
+		assert.deepStrictEqual(requestedEngines, [{ engine: 'wslc', promptForEngine: undefined }, { engine: undefined, promptForEngine: undefined }]);
+	});
 
 	test('checks Docker again on a host that was removed and configured again', async () => {
 		const { service, remoteService, createHostConnection, dockerChecks } = setupEnvironments();
@@ -1060,6 +1094,42 @@ suite('Dev Container Agent Host Service', () => {
 			reusedProvider: true,
 			providerDisposed: false,
 			registeredProviders: [`agenthost-${agentHostAuthority(address)}`],
+		});
+	});
+
+	test('connects a restored workspace, and rebuilds its connection, with its remembered engine until its container is removed', async () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const sourceWorkspace = URI.file('/source');
+		const address = devContainerAddress(sourceWorkspace);
+		storageService.store('devContainerAgentHost.connections', JSON.stringify([{ workspaceUri: sourceWorkspace.toString(), name: 'Source Dev Container', engine: 'wslc' }]), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const instantiationService = store.add(new TestInstantiationService());
+		const remoteService = store.add(new TestRemoteAgentHostService());
+		const service = store.add(new TestDevContainerAgentHostService(instantiationService, remoteService, store.add(new TestSessionsProvidersService()), storageService));
+		const provider = service.provider!;
+		const lifecycle = provider.config.devContainerLifecycle!;
+		instantiationService.stubInstance(AgentHostProtocolClient, new TestAgentConnection());
+		const requestedEngines: (string | undefined)[] = [];
+		store.add(service.registerConnector({
+			isAvailable: async () => true,
+			showLog: async () => { },
+			createConnection: async (_workspaceUri, stagedAddress, _token, options) => {
+				requestedEngines.push(options?.engine);
+				return { address: stagedAddress, name: 'Source Dev Container', transportFactory: () => undefined as never, workspaceUri: URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority(address), path: '/workspaces/source' }), engine: options?.engine ?? 'docker' };
+			},
+			removeContainer: async () => true,
+		}));
+		await lifecycle.connect();
+		provider.publishSession();
+		// The connection factory rebuilds the connection without user action, e.g., after the source host restarted.
+		remoteService.reconnect(address, false);
+		await remoteService.waitForConnection(address);
+		await lifecycle.remove();
+		const storedAfterRemoval = JSON.parse(storageService.get('devContainerAgentHost.connections', StorageScope.APPLICATION)!);
+		await lifecycle.connect();
+		assert.deepStrictEqual({ requestedEngines, storedAfterRemoval }, {
+			// A failed lookup of the WSLc container can neither pick Docker nor ask; a new container gets the setting's engine.
+			requestedEngines: ['wslc', 'wslc', undefined],
+			storedAfterRemoval: [{ workspaceUri: sourceWorkspace.toString(), name: 'Source Dev Container' }],
 		});
 	});
 
