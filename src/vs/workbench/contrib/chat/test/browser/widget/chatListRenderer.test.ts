@@ -8450,13 +8450,17 @@ suite('ChatListRenderer', () => {
 	for (const kind of ['subagents', 'backgroundShells', 'combined'] as const) {
 		for (const fontSize of [13, 18]) {
 			test(`persistent ${kind} label matches ordinary working progress typography and alignment (fontSize=${fontSize})`, () => {
-				const { disposables, instantiationService, response, container } = createPersistentProgressRenderer();
+				const { disposables, instantiationService, configurationService, model, request, response, container } = createPersistentProgressRenderer();
+				configurationService.setUserConfiguration(ChatConfiguration.ResponseStats, ChatResponseStats.ProgressWithMessage);
+				// A timed model call adds its speed to the stats, and so a separator between them.
+				model.acceptResponseProgress(request, { kind: 'usage', promptTokens: 900, completionTokens: 40, latestModelCall: { duration: 5000, outputTokens: 300 } });
 				container.classList.add('monaco-workbench');
 				container.style.fontSize = `${fontSize}px`;
 				container.style.width = '760px';
 				container.style.setProperty('--vscode-codiconFontSize-compact', '12px');
 				container.style.setProperty('--vscode-spacing-size20', '2px');
 				container.style.setProperty('--vscode-spacing-size40', '4px');
+				container.style.setProperty('--vscode-spacing-size120', '12px');
 				container.style.setProperty('--vscode-spacing-size160', '16px');
 				container.style.setProperty('--vscode-spacing-size240', '24px');
 				const sections = observableValue<readonly IChatPillSection[]>(kind, [{
@@ -8490,6 +8494,30 @@ suite('ChatListRenderer', () => {
 					range.selectNodeContents(text);
 					const textBounds = range.getBoundingClientRect();
 					const iconBounds = icon.getBoundingClientRect();
+					const stats = part.domNode.querySelector('.chat-working-progress-trailing-stats');
+					const statsSeparator = stats?.querySelector('.chat-live-response-stats-separator');
+					assert.ok(stats && statsSeparator);
+					range.selectNodeContents(stats);
+					const statsBounds = range.getBoundingClientRect();
+					const separatorWidth = statsSeparator.getBoundingClientRect().width;
+					const disclosureAlignment = [];
+					if (interactive) {
+						const button = part.domNode.querySelector('.chat-pill-button');
+						const chevron = part.domNode.querySelector('.chat-pill-chevron');
+						assert.ok(button && chevron);
+						for (const state of ['resting', 'hovered', 'expanded']) {
+							button.classList.toggle('hovered', state === 'hovered');
+							button.setAttribute('aria-expanded', String(state === 'expanded'));
+							range.selectNodeContents(stats);
+							const currentStatsBounds = range.getBoundingClientRect();
+							const chevronBounds = chevron.getBoundingClientRect();
+							disclosureAlignment.push({
+								state,
+								stable: Math.abs(currentStatsBounds.left - statsBounds.left) < 1 / 64,
+								centered: Math.abs((chevronBounds.left + chevronBounds.right) / 2 - (statsBounds.left - separatorWidth / 2)) < 1 / 64,
+							});
+						}
+					}
 					return {
 						typography: {
 							fontSize: style.fontSize,
@@ -8506,19 +8534,27 @@ suite('ChatListRenderer', () => {
 							textHeight: textBounds.height,
 							textWidth: textBounds.width,
 							lineBoxHeight: text.getBoundingClientRect().height,
+							statsOffset: statsBounds.left - textBounds.right,
 						},
+						separatorWidth,
+						disclosureAlignment,
 					};
 				};
 				const ordinary = createProgress(false);
 				const interactive = createProgress(true);
-				const geometryKeys = ['textOffset', 'textTop', 'textHeight', 'textWidth', 'lineBoxHeight'] as const;
+				const geometryKeys = ['textOffset', 'textTop', 'textHeight', 'textWidth', 'lineBoxHeight', 'statsOffset'] as const;
 				// Browser engines can differ by a fractional layout unit when measuring text ranges.
 				assert.deepStrictEqual({
 					typography: interactive.typography,
 					geometry: geometryKeys.map(key => ({ key, aligned: Math.abs(interactive.geometry[key] - ordinary.geometry[key]) < 1 / 64 })),
+					// The separator before the stats and the one between them.
+					separatorWidths: [ordinary.geometry.statsOffset, ordinary.separatorWidth].map(width => Math.round(width * 64) / 64),
+					disclosureAlignment: interactive.disclosureAlignment,
 				}, {
 					typography: ordinary.typography,
 					geometry: geometryKeys.map(key => ({ key, aligned: true })),
+					separatorWidths: [12, 12],
+					disclosureAlignment: ['resting', 'hovered', 'expanded'].map(state => ({ state, stable: true, centered: true })),
 				});
 			});
 		}

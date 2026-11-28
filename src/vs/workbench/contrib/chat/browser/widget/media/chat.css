@@ -3902,9 +3902,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-working-progress:not(.chat-working-progress-generic-label) > .chat-working-progress-leading-stats::after {
-	/* The separator between the stats themselves. */
-	content: ' \00b7  ';
-	white-space: pre;
+	content: '\00b7';
 }
 
 /* Trailing stats follow the phrase, label or activities, after the same separator. Those keep their width and the stats
@@ -3919,36 +3917,51 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-working-progress > .chat-working-progress-trailing-stats::before {
-	content: ' \00b7  ';
-	white-space: pre;
+	content: '\00b7';
 }
 
-/* After activities, the separator rests in the slot of their chevron instead, so that slot leaves no gap. */
+/* Every separator in the row is a dot centered in a slot of the same width: around the stats and between them. */
+.chat-working-progress > .chat-working-progress-leading-stats::after,
+.chat-working-progress > .chat-working-progress-trailing-stats::before,
+.chat-working-progress > .chat-live-response-stats > .chat-live-response-stats-separator {
+	display: inline-block;
+	width: var(--vscode-spacing-size120);
+	text-align: center;
+}
+
+/* After activities, the button draws the separator instead, sharing that slot with its chevron so they can swap in place. */
 .chat-working-progress-has-activities > .chat-working-progress-trailing-stats::before {
 	content: none;
 }
 
-/* The same space follows the slot as leads it, so what the slot shows sits midway between the label and the stats. */
-.chat-working-progress-has-activities > .chat-working-progress-trailing-stats {
-	margin-inline-start: var(--vscode-spacing-size20);
-}
+.chat-working-progress-has-trailing-stats .chat-working-activities .chat-pill-item .monaco-button.chat-pill-button.secondary {
+	display: grid;
+	grid-template-columns: auto minmax(0, auto) auto;
+	align-items: center;
+	gap: 0;
 
-.chat-working-progress-has-trailing-stats .chat-working-activities .chat-pill-button {
-	position: relative;
+	> .chat-pill-icon {
+		grid-area: 1 / 1;
+	}
+
+	> .chat-pill-label {
+		grid-area: 1 / 2;
+	}
 }
 
 .chat-working-progress-has-trailing-stats .chat-working-activities .chat-pill-button::after {
 	content: '\00b7';
-	position: absolute;
-	inset-block: 0;
-	inset-inline-end: 0;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: var(--vscode-codiconFontSize-compact);
+	grid-area: 1 / 3;
+	width: var(--vscode-spacing-size120);
+	text-align: center;
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-chat-font-size-body-s);
 	transition: opacity 100ms ease-in-out;
+}
+
+.chat-working-progress-has-trailing-stats .chat-working-activities .chat-pill-button .chat-pill-chevron.codicon {
+	grid-area: 1 / 3;
+	justify-self: center;
 }
 
 /* The chevron takes the separator's place in the states that show it, so nothing moves. */

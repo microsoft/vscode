@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatLiveResponseStats.css';
-import { $ } from '../../../../../base/browser/dom.js';
+import { $, reset } from '../../../../../base/browser/dom.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
@@ -77,7 +77,8 @@ export class ChatLiveResponseStats extends Disposable {
 			const update = () => {
 				const elapsedMs = Math.max(0, (waitingSince ?? Date.now()) - startedAt);
 				const stats = formatChatResponseStats(formatElapsedTime(elapsedMs), tokensPerSecond, outputTokens);
-				this.element.textContent = stats?.parts.join(' \u00b7 ') ?? '';
+				// Each separator is an element, so a host can size it.
+				reset(this.element, ...(stats?.parts ?? []).flatMap((part, index) => index === 0 ? [part] : [$('span.chat-live-response-stats-separator', undefined, ' \u00b7 '), part]));
 				this.element.ariaLabel = stats?.ariaLabel ?? null;
 				// The time stands still while the response waits for a confirmation.
 				if (waitingSince === undefined) {
