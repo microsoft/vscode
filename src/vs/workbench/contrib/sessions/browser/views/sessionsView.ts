@@ -417,6 +417,7 @@ export function renderSessionsHeader(
 	disposables: DisposableStore,
 	onDidShowFilters?: () => void,
 	getGrouping: () => SessionsGrouping = () => SessionsGrouping.Workspace,
+	onDidChangeActionsFit?: () => void,
 ): ISessionsHeaderElements {
 	const row = DOM.append(parent, $('.agent-sessions-header-row'));
 	const label = DOM.append(row, $('.agent-sessions-header-label'));
@@ -428,7 +429,7 @@ export function renderSessionsHeader(
 		row.classList.toggle('inbox-layout', inbox);
 		label.textContent = inbox ? localize('inboxHeader', "Inbox") : localize('sessionsHeader', "Sessions");
 		const scopedInstantiationService = disposables.add(instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
-		const actionsFit = scopedInstantiationService.createInstance(SessionsHeaderActionsFit, row);
+		const actionsFit = scopedInstantiationService.createInstance(SessionsHeaderActionsFit, row, onDidChangeActionsFit);
 		toolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actions, Menus.SidebarSessionsHeader, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			telemetrySource: 'sessionsView.header',
@@ -461,10 +462,18 @@ class SessionsHeaderActionsFit {
 	/** The width the New split button needs without its keybinding, kept for while it is in the overflow menu. */
 	private compactNewButtonWidth: number | undefined;
 
+	/** Whether the New split button hid its keybinding and whether actions moved into the overflow menu, as of the last fit. */
+	private lastFit: { compact: boolean; overflowed: boolean } | undefined;
+
 	readonly responsiveBehavior: IToolBarResponsiveBehaviorOptions;
 
+	/**
+	 * @param onDidChangeFit Called when a fit hides or shows the keybinding of the New split button or moves actions into or
+	 * out of the overflow menu, which changes the width left for the rest of the row.
+	 */
 	constructor(
 		private readonly row: HTMLElement,
+		private readonly onDidChangeFit: (() => void) | undefined,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		this.responsiveBehavior = {
@@ -522,8 +531,14 @@ class SessionsHeaderActionsFit {
 		}
 		toolbar.relayout();
 		const newButton = this.getNewButton();
-		const compact = !!newButton && (toolbar.hasOverflowedPrimaryActions() || this.getWidthWithKeybinding(newButton) > this.getAvailableWidth());
+		const overflowed = toolbar.hasOverflowedPrimaryActions();
+		const compact = !!newButton && (overflowed || this.getWidthWithKeybinding(newButton) > this.getAvailableWidth());
 		this.row.classList.toggle(SessionsHeaderActionsFit.COMPACT_NEW_BUTTON_CLASS, compact);
+		const lastFit = this.lastFit;
+		this.lastFit = { compact, overflowed };
+		if (!lastFit || lastFit.compact !== compact || lastFit.overflowed !== overflowed) {
+			this.onDidChangeFit?.();
+		}
 	}
 
 	private getAvailableWidth(): number {
@@ -1204,7 +1219,7 @@ export class SessionsView extends ViewPane {
 	}
 
 	private createSessionsHeader(parent: HTMLElement, phoneLayout: boolean, disposables: DisposableStore): ISessionsHeaderElements {
-		const header = renderSessionsHeader(parent, phoneLayout || this.headerInTitle, this.instantiationService, this.scopedContextKeyService, disposables, () => this.sessionsControl?.reportFilterMenuShown(), () => this.grouping);
+		const header = renderSessionsHeader(parent, phoneLayout || this.headerInTitle, this.instantiationService, this.scopedContextKeyService, disposables, () => this.sessionsControl?.reportFilterMenuShown(), () => this.grouping, () => this.updateHeaderLayout());
 		this.sessionsHeaders.add(header);
 		disposables.add(toDisposable(() => this.sessionsHeaders.delete(header)));
 		this.updateHeaderLayout();

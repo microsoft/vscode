@@ -2199,7 +2199,8 @@ suite('Sessions - Actions', () => {
 		disposables.add(toDisposable(() => pane.remove()));
 		// The height of the row as in the workbench, so that it does not follow its content
 		pane.style.setProperty('--vscode-spacing-size320', '32px');
-		const { row } = renderSessionsHeader(pane, false, instantiationService, contextKeyService, disposables.add(new DisposableStore()));
+		let fitChanges = 0;
+		const { row } = renderSessionsHeader(pane, false, instantiationService, contextKeyService, disposables.add(new DisposableStore()), undefined, undefined, () => fitChanges++);
 		const actions = row.querySelector<HTMLElement>('.agent-sessions-header-actions')!;
 		const shown = () => [...actions.querySelectorAll<HTMLElement>('.actions-container > .action-item')].filter(item => item.style.display !== 'none').map(item => item.querySelector('.action-label')?.getAttribute('aria-label'));
 		const fitAt = async (width: number) => {
@@ -2211,8 +2212,11 @@ suite('Sessions - Actions', () => {
 		await fitAt(1000);
 		const all = shown();
 		const widthWithKeybinding = Math.ceil(actions.getBoundingClientRect().width);
+		const fitChangesAtFirstFit = fitChanges;
 		const withKeybinding = await fitAt(widthWithKeybinding + 1);
+		const fitChangesWithKeybinding = fitChanges;
 		const justNarrower = await fitAt(widthWithKeybinding - 1);
+		const fitChangesJustNarrower = fitChanges;
 		newSessionKeybinding = undefined;
 		onDidUpdateKeybindings.fire();
 		const withoutKeybinding = await fitAt(widthWithKeybinding - 1);
@@ -2224,7 +2228,7 @@ suite('Sessions - Actions', () => {
 		}));
 		const narrowest = await fitAt(60);
 
-		assert.deepStrictEqual({ all, withKeybinding, justNarrower, withoutKeybinding, narrow, narrowest }, {
+		assert.deepStrictEqual({ all, withKeybinding, justNarrower, withoutKeybinding, narrow, narrowest, fitChanges: [fitChangesAtFirstFit, fitChangesWithKeybinding, fitChangesJustNarrower] }, {
 			all: ['New Session (Control+K Control+N)', 'first', 'second', 'third', 'Filter Sessions', 'Find Session'],
 			withKeybinding: { compact: false, shown: all, fits: true },
 			// Hiding the keybinding is enough for all actions to fit
@@ -2237,6 +2241,8 @@ suite('Sessions - Actions', () => {
 			],
 			// New moves into the overflow menu last
 			narrowest: { compact: false, shown: ['More Actions...'], fits: true },
+			// The row hears of the first fit, and of a fit only when it hides or shows the keybinding or overflows actions, so it can give its label the width left
+			fitChanges: [1, 1, 2],
 		});
 	});
 
