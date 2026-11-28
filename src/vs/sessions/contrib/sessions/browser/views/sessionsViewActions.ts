@@ -360,15 +360,19 @@ registerAction2(class NewQuickChatAction extends Action2 {
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyN),
 				when: ContextKeyExpr.and(QuickChatEnabledContext, IsSessionsWindowContext, EditorAreaFocusContext.negate()),
 			},
-			menu: [SessionSectionToolbarMenuId, Menus.SessionSectionContext].map(id => ({
-				// Sole create affordance for quick chats: the "+" on the
-				// always-visible in-list "Chats" section header. Opens the
-				// composer; the session type is chosen via its inline picker.
+			menu: [...[SessionSectionToolbarMenuId, Menus.SessionSectionContext].map(id => ({
+				// The "+" on the always-visible in-list "Chats" section header.
+				// Opens the composer; the session type is chosen via its inline picker.
 				id,
 				group: 'navigation',
 				order: 0,
 				when: ContextKeyExpr.and(QuickChatEnabledContext, ContextKeyExpr.equals(SessionSectionTypeContext.key, 'quickchats')),
-			}))
+			})), {
+				id: Menus.SidebarSessionsNew,
+				group: '1_new',
+				order: 10,
+				when: QuickChatEnabledContext,
+			}]
 		});
 	}
 	override run(accessor: ServicesAccessor): void {

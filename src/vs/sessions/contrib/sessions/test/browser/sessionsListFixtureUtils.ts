@@ -417,10 +417,15 @@ class SessionsListFixtureMenuService extends MenuService {
 
 	override createMenu(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuCreateOptions): IMenu {
 		if (id === Menus.SidebarSessionsHeader) {
-			const newSession = new MenuItemAction({ id: NEW_SESSION_ACTION_ID, title: 'New Session', icon: Codicon.add }, undefined, undefined, undefined, undefined, contextKeyService, this.commandService);
+			const newMenuActions = [
+				{ id: NEW_SESSION_ACTION_ID, title: 'New Session', icon: Codicon.add },
+				{ id: 'sessionsView.newQuickChat', title: 'New Quick Chat' },
+				{ id: 'workbench.action.sessions.newSession.pickFolderQuickPick', title: 'New Session in Folder...' },
+			].map(command => new MenuItemAction(command, undefined, undefined, undefined, undefined, contextKeyService, this.commandService));
+			const newMenu = new SubmenuItemAction({ submenu: Menus.SidebarSessionsNew, title: 'New', icon: Codicon.add }, undefined, newMenuActions);
 			return {
 				onDidChange: Event.None,
-				getActions: () => SessionsListRearrangeContext.getValue(contextKeyService) ? [] : [['navigation', [newSession]]],
+				getActions: () => SessionsListRearrangeContext.getValue(contextKeyService) ? [] : [['navigation', [newMenu]]],
 				dispose: () => { },
 			};
 		}

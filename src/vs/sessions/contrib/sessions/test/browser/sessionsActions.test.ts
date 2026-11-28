@@ -20,7 +20,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import '../../../../../editor/contrib/wordOperations/browser/wordOperations.js';
 import { isICommandActionToggleInfo } from '../../../../../platform/action/common/action.js';
-import { isIMenuItem, isISubmenuItem, MenuId, MenuItemAction, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { isIMenuItem, isISubmenuItem, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -60,7 +60,7 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 
 import { Action } from '../../../../../base/common/actions.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
-import { getSessionsPickerChatWindow, MOVE_CHAT_TO_SESSION_ACTION_ID, MOVE_SESSION_INTO_SESSION_ACTION_ID, NewSessionActionViewItem, openPickedNewSession, openPickedSessionInChatWindow, type NewSessionButtonStyle, PROMOTE_CHAT_TO_SESSION_ACTION_ID, SessionConversationActionsContribution, SessionListActionsExperimentContribution } from '../../browser/sessionsActions.js';
+import { getSessionsPickerChatWindow, MOVE_CHAT_TO_SESSION_ACTION_ID, MOVE_SESSION_INTO_SESSION_ACTION_ID, NewSessionActionViewItem, NewSessionSplitButtonActionViewItem, openPickedNewSession, openPickedSessionInChatWindow, type NewSessionButtonStyle, PROMOTE_CHAT_TO_SESSION_ACTION_ID, SessionConversationActionsContribution, SessionListActionsExperimentContribution } from '../../browser/sessionsActions.js';
 import '../../../chat/browser/chat.contribution.js';
 import { NEW_SESSION_ACTION_ID, NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { ArchiveChatAction, ArchiveSessionAction } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
@@ -70,7 +70,7 @@ import { ISessionDraftsService } from '../../../../../workbench/contrib/sessions
 import { ISessionSection, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SessionItemIsCloudContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { WorkspaceSelectionOrigin, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../../workbench/services/sessions/common/workspaceSelection.js';
 import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARRANGE_SESSIONS_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, DETACH_CHAT_COMMAND_ID, EVEN_SESSION_SIZES_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SESSION_GRID_DOCK_COMMANDS, SESSION_GRID_FOCUS_COMMANDS, SESSION_GRID_MOVE_COMMANDS, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, TOGGLE_MAXIMIZE_SESSION_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
-import { SessionInChatEditorContext, IsPhoneLayoutContext, MultipleSessionsVisibleContext, SessionHasSplitChatsContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatResourceContext, SessionIdContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionsFocusContext, SessionsListPromoteNewChatActionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { SessionInChatEditorContext, IsPhoneLayoutContext, MultipleSessionsVisibleContext, SessionHasSplitChatsContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatResourceContext, SessionIdContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionsFocusContext, SessionsListPromoteNewChatActionContext, SessionsListRearrangeContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
@@ -83,6 +83,7 @@ import { ISessionEditorWorkingSetService, SessionEditorWorkingSetService } from 
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ChatHostOpenerService, IChatHostOpenerService } from '../../../../../workbench/services/sessions/browser/chatHostOpener.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { resolveOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { ICustomViewService, ICustomViewDescriptor } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { WindowCanvasInput, IWindowCanvasService } from '../../../../../workbench/contrib/sessions/browser/windowCanvas.js';
@@ -2090,6 +2091,78 @@ suite('Sessions - Actions', () => {
 			}, { lightweight: false, keybindingBackground: false });
 		});
 	}
+
+	test('New split button of the sessions header starts a session, to the side with Alt, by mouse and keyboard, and offers the New menu', () => {
+		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+		const commandService = new TestCommandService();
+		instantiationService.stub(ICommandService, commandService);
+		const logged: unknown[] = [];
+		instantiationService.stub(ITelemetryService, new class extends mock<ITelemetryService>() {
+			override publicLog2(eventName: string, data?: unknown) { logged.push({ eventName, data }); }
+		}());
+		const contextKeyService = instantiationService.get(IContextKeyService);
+		const [newSession, newQuickChat] = [NEW_SESSION_ACTION_ID, 'sessionsView.newQuickChat'].map(id =>
+			new MenuItemAction({ id, title: id }, undefined, undefined, undefined, undefined, contextKeyService, commandService));
+		const menu = new SubmenuItemAction({ submenu: Menus.SidebarSessionsNew, title: 'New' }, undefined, [newSession, newQuickChat]);
+		const style = observableValue<NewSessionButtonStyle>('newButtonStyle', 'default');
+		const container = document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		// As the sessions header's toolbar shows it
+		const actionBar = disposables.add(new ActionBar(container, {
+			actionViewItemProvider: (candidate, options) => candidate === menu ? instantiationService.createInstance(NewSessionSplitButtonActionViewItem, menu, newSession, options, style) : undefined,
+		}));
+		actionBar.push(menu);
+		const element = container.querySelector<HTMLElement>('.action-item.new-split-button')!;
+		const label = element.querySelector<HTMLElement>('.action-label.filled-label')!;
+		const target = resolveOnboardingTarget(mainWindow, 'sessions.newSession.button');
+		let activations = 0;
+		disposables.add(target!.onDidActivate!(() => activations++));
+
+		label.click();
+		label.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, altKey: true }));
+		actionBar.focus(0);
+		const focused = mainWindow.document.activeElement!;
+		focused.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+		focused.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+		style.set('lightweightWithKeybindingBackground', undefined);
+
+		assert.deepStrictEqual({
+			label: label.textContent,
+			hasDropdown: !!element.querySelector('.monaco-dropdown'),
+			onboardingTargetIsLabel: target?.element === label,
+			commands: commandService.calls,
+			logged,
+			activations,
+			classes: ['lightweight', 'lightweight-keybinding-background'].filter(name => element.classList.contains(name)),
+		}, {
+			label: 'New',
+			hasDropdown: true,
+			onboardingTargetIsLabel: true,
+			// Click, Alt-click, Enter
+			commands: [
+				{ commandId: NEW_SESSION_ACTION_ID, args: [] },
+				{ commandId: NEW_SESSION_ACTION_ID, args: [{ toSide: true }] },
+				{ commandId: NEW_SESSION_ACTION_ID, args: [] },
+			],
+			logged: Array.from({ length: 3 }, () => ({ eventName: 'vscodeAgents.interaction', data: { button: 'newSession', source: 'sidebar' } })),
+			activations: 3,
+			classes: ['lightweight', 'lightweight-keybinding-background'],
+		});
+	});
+
+	test('sessions header shows New as a menu of New Session, New Quick Chat and New Session in Folder, outside rearranging', () => {
+		const header = MenuRegistry.getMenuItems(Menus.SidebarSessionsHeader).filter(isISubmenuItem).find(item => item.submenu === Menus.SidebarSessionsNew);
+		assert.deepStrictEqual({
+			header: header && { group: header.group, order: header.order, when: header.when?.serialize() },
+			newSessionInHeader: MenuRegistry.getMenuItems(Menus.SidebarSessionsHeader).filter(isIMenuItem).some(item => item.command.id === NEW_SESSION_ACTION_ID),
+			menu: MenuRegistry.getMenuItems(Menus.SidebarSessionsNew).filter(isIMenuItem).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map(item => item.command.id),
+		}, {
+			header: { group: 'navigation', order: 0, when: SessionsListRearrangeContext.negate().serialize() },
+			newSessionInHeader: false,
+			menu: [NEW_SESSION_ACTION_ID, 'sessionsView.newQuickChat', 'workbench.action.sessions.newSession.pickFolderQuickPick'],
+		});
+	});
 
 	test('New button of a chat window\'s title bar starts the session in the window it is in also as its toolbar runs it by the keyboard, once', () => {
 		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Compact "New" session button — rendered by NewSessionActionViewItem and shared
-between the sessions sidebar header and the titlebar. Selectors are intentionally
-unscoped so the widget renders identically wherever it is mounted. */
+/* Compact "New" session button — rendered by NewSessionActionViewItem in the titlebar,
+and its lightweight styles for the New split button of the sessions sidebar header.
+Selectors are intentionally unscoped so the widget renders identically wherever it is mounted. */
 
 .agent-sessions-compact-new-button.monaco-button {
 	display: inline-flex;
@@ -59,7 +59,8 @@ unscoped so the widget renders identically wherever it is mounted. */
 	box-shadow: none;
 }
 
-.agent-sessions-compact-new-button.lightweight .new-session-keybinding-hint {
+.agent-sessions-compact-new-button.lightweight .new-session-keybinding-hint,
+.monaco-action-bar .action-item.new-split-button.lightweight .action-label > .new-split-button-keybinding {
 	display: inline-flex;
 	align-items: center;
 	font-family: inherit;
@@ -72,18 +73,21 @@ unscoped so the widget renders identically wherever it is mounted. */
 	color: inherit;
 }
 
-.agent-sessions-compact-new-button.lightweight .new-session-keybinding-hint .monaco-keybinding {
+.agent-sessions-compact-new-button.lightweight .new-session-keybinding-hint .monaco-keybinding,
+.monaco-action-bar .action-item.new-split-button.lightweight .action-label > .new-split-button-keybinding .monaco-keybinding {
 	gap: 0;
 	line-height: inherit;
 }
 
-.agent-sessions-compact-new-button.lightweight .new-session-keybinding-hint .monaco-keybinding > .monaco-keybinding-key {
+.agent-sessions-compact-new-button.lightweight .new-session-keybinding-hint .monaco-keybinding > .monaco-keybinding-key,
+.monaco-action-bar .action-item.new-split-button.lightweight .action-label > .new-split-button-keybinding .monaco-keybinding > .monaco-keybinding-key {
 	margin: 0;
 	font-family: inherit;
 	font-size: inherit;
 }
 
-.agent-sessions-compact-new-button.lightweight-keybinding-background .new-session-keybinding-hint {
+.agent-sessions-compact-new-button.lightweight-keybinding-background .new-session-keybinding-hint,
+.monaco-action-bar .action-item.new-split-button.lightweight-keybinding-background .action-label > .new-split-button-keybinding {
 	padding: 0 var(--vscode-spacing-size20);
 	border-radius: var(--vscode-cornerRadius-xSmall);
 	background-color: var(--vscode-keybindingLabel-background);

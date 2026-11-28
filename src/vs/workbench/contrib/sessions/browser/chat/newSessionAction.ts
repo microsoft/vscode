@@ -17,7 +17,6 @@ import { INewSessionInAgentsWindowOptions } from '../../../chat/common/chatSessi
 import { Menus } from '../menus.js';
 import { resolveDevContainerSourceWorkspace } from '../openInVSCodeUtils.js';
 import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../common/agentHostSessionsProvider.js';
-import { SessionsListRearrangeContext } from '../../common/contextkeys.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { ISessionsRecentWorkspacesService } from '../sessionsRecentWorkspacesService.js';
@@ -87,10 +86,9 @@ export class NewChatInSessionsWindowAction extends Action2 {
 			},
 			menu: [
 				{
-					id: Menus.SidebarSessionsHeader,
-					group: 'navigation',
+					id: Menus.SidebarSessionsNew,
+					group: '1_new',
 					order: 0,
-					when: SessionsListRearrangeContext.negate(),
 				},
 			]
 		});

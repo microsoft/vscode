@@ -26,6 +26,8 @@ export const Menus = {
 	BlockedSessionsHeader: new MenuId('SessionsBlockedSessionsHeader'),
 	BlockedSessionsItem: new MenuId('SessionsBlockedSessionsItem'),
 	SidebarSessionsHeader: new MenuId('SessionsSidebarSessionsHeader'),
+	/** The New menu of the sessions header of the Agents window, which the dropdown of the New split button opens. */
+	SidebarSessionsNew: new MenuId('SessionsSidebarSessionsNew'),
 	SessionSectionNewSession: new MenuId('SessionsSessionSectionNewSession'),
 	SessionsViewFilter: new MenuId('SessionsViewPaneFilterSubMenu'),
 	SessionsViewOrdering: new MenuId('SessionsViewOrdering'),

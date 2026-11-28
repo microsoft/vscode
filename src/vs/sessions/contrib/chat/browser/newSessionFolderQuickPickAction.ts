@@ -17,6 +17,7 @@ import { IsSessionsWindowContext } from '../../../../workbench/common/contextkey
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { resolveChatWindow } from '../../../../workbench/contrib/chatWindow/browser/chatWindowLayoutActions.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { ISessionsRecentWorkspacesService } from '../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { INewSessionComposerService } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
@@ -78,6 +79,11 @@ class NewSessionPickFolderQuickPickAction extends Action2 {
 				weight: KeybindingWeight.SessionsContrib,
 				when: IsSessionsWindowContext,
 				primary: KeyMod.CtrlCmd | KeyCode.KeyO,
+			},
+			menu: {
+				id: Menus.SidebarSessionsNew,
+				group: '1_new',
+				order: 20,
 			},
 		});
 	}

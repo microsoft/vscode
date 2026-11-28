@@ -248,7 +248,7 @@
 		justify-content: center;
 	}
 
-	/* Compact "New" button in header — styled in media/newSessionActionViewItem.css so the same widget can also render in the titlebar. */
+	/* "New" split button in header — styled in newSplitButton/media/newSplitButton.css, as in the Chat view's sessions list. */
 
 	.agent-sessions-control-container {
 		flex: 1;
