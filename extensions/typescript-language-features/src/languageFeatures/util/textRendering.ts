@@ -111,7 +111,7 @@ function getTagBody(tag: Proto.JSDocTagInfo, filePathConverter: IFilePathToResou
 		const parts = tag.text;
 		if (parts && typeof (parts) !== 'string') {
 			const params = parts.filter(p => p.kind === 'typeParameterName').map(p => p.text).join(', ');
-			const docs = parts.filter(p => p.kind === 'text').map(p => convertLinkTags(p.text.replace(/^\s*-?\s*/, ''), filePathConverter)).join(' ');
+			const docs = convertLinkTags(parts.slice(parts.findLastIndex(p => p.kind === 'typeParameterName') + 1), filePathConverter).replace(/^\s*-?\s*/, '');
 			return params ? ['', params, docs] : undefined;
 		}
 	}
