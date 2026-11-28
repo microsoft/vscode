@@ -138,8 +138,9 @@ export class ApplicationConfiguration extends UserSettings {
 		fileService: IFileService,
 		uriIdentityService: IUriIdentityService,
 		logService: ILogService,
+		exclude?: string[],
 	) {
-		super(userDataProfilesService.defaultProfile.settingsResource, { scopes: APPLICATION_SCOPES, skipUnregistered: true }, uriIdentityService.extUri, fileService, logService);
+		super(userDataProfilesService.defaultProfile.settingsResource, { scopes: APPLICATION_SCOPES, skipUnregistered: true, exclude }, uriIdentityService.extUri, fileService, logService);
 		this._register(this.onDidChange(() => this.reloadConfigurationScheduler.schedule()));
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.loadConfiguration().then(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)), 50));
 	}
@@ -155,6 +156,13 @@ export class ApplicationConfiguration extends UserSettings {
 		return this.parseOptions.include || allProfilesSettings.length
 			? this.reparse({ ...this.parseOptions, include: allProfilesSettings })
 			: model;
+	}
+
+	/**
+	 * Parses the settings again without the given settings.
+	 */
+	reparseExcluding(exclude: string[]): ConfigurationModel {
+		return this.reparse({ ...this.parseOptions, exclude });
 	}
 }
 
@@ -1031,13 +1039,14 @@ export class FolderConfiguration extends Disposable {
 		fileService: IFileService,
 		uriIdentityService: IUriIdentityService,
 		logService: ILogService,
-		private readonly configurationCache: IConfigurationCache
+		private readonly configurationCache: IConfigurationCache,
+		private exclude: string[] = [],
 	) {
 		super();
 
 		this.scopes = WorkbenchState.WORKSPACE === this.workbenchState ? FOLDER_SCOPES : WORKSPACE_SCOPES;
 		this.configurationFolder = uriIdentityService.extUri.joinPath(workspaceFolder.uri, configFolderRelativePath);
-		this.cachedFolderConfiguration = new CachedFolderConfiguration(workspaceFolder.uri, configFolderRelativePath, { scopes: this.scopes, skipRestricted: this.isUntrusted(), skipUnregistered: this.isUntrusted() }, configurationCache, logService);
+		this.cachedFolderConfiguration = new CachedFolderConfiguration(workspaceFolder.uri, configFolderRelativePath, this.getParseOptions(), configurationCache, logService);
 		if (useCache && this.configurationCache.needsCaching(workspaceFolder.uri)) {
 			this.folderConfiguration = this.cachedFolderConfiguration;
 			whenProviderRegistered(workspaceFolder.uri, fileService)
@@ -1062,13 +1071,25 @@ export class FolderConfiguration extends Disposable {
 	}
 
 	reparse(): ConfigurationModel {
-		const configurationModel = this.folderConfiguration.reparse({ scopes: this.scopes, skipRestricted: this.isUntrusted(), skipUnregistered: this.isUntrusted() });
+		const configurationModel = this.folderConfiguration.reparse(this.getParseOptions());
 		this.updateCache();
 		return configurationModel;
 	}
 
+	/**
+	 * Parses the settings again without the given settings. Later loads keep excluding them.
+	 */
+	reparseExcluding(exclude: string[]): ConfigurationModel {
+		this.exclude = exclude;
+		return this.reparse();
+	}
+
 	getRestrictedSettings(): string[] {
 		return this.folderConfiguration.getRestrictedSettings();
+	}
+
+	private getParseOptions(): ConfigurationParseOptions {
+		return { scopes: this.scopes, skipRestricted: this.isUntrusted(), skipUnregistered: this.isUntrusted(), exclude: this.exclude };
 	}
 
 	private isUntrusted(): boolean {
@@ -1083,7 +1104,7 @@ export class FolderConfiguration extends Disposable {
 	private createFileServiceBasedConfiguration(fileService: IFileService, uriIdentityService: IUriIdentityService, logService: ILogService) {
 		const settingsResource = uriIdentityService.extUri.joinPath(this.configurationFolder, `${FOLDER_SETTINGS_NAME}.json`);
 		const standAloneConfigurationResources: [string, URI][] = [TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY, MCP_CONFIGURATION_KEY].map(name => ([name, uriIdentityService.extUri.joinPath(this.configurationFolder, `${name}.json`)]));
-		return new FileServiceBasedConfiguration(this.configurationFolder.toString(), settingsResource, standAloneConfigurationResources, { scopes: this.scopes, skipRestricted: this.isUntrusted(), skipUnregistered: this.isUntrusted() }, fileService, uriIdentityService, logService);
+		return new FileServiceBasedConfiguration(this.configurationFolder.toString(), settingsResource, standAloneConfigurationResources, this.getParseOptions(), fileService, uriIdentityService, logService);
 	}
 
 	private async updateCache(): Promise<void> {

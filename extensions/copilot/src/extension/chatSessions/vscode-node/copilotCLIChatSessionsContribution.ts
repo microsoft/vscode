@@ -254,7 +254,7 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 			.filter(repository => repository.kind !== 'worktree');
 
 		return vscode.workspace.workspaceFolders === undefined || // empty window
-			vscode.workspace.isAgentSessionsWorkspace ||          // agent sessions workspace
+			vscode.workspace.isAgentManaged ||                    // agent-managed workspace
 			repositories.length > 1;                              // multiple repositories
 	}
 

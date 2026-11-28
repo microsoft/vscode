@@ -6,14 +6,17 @@
 import assert from 'assert';
 import { $, append, Dimension } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, observableValue, waitForState } from '../../../../../base/common/observable.js';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { constObservable, derivedObservableWithWritableCache, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { MultiDiffEditorViewModel } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
+import { DocumentDiffItemViewModel, MultiDiffEditorViewModel } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
 import { MultiDiffEditorWidget } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
 import { DiffEditorViewMode } from '../../../../../editor/common/config/editorOptions.js';
-import { IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { IMenuService, isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { REPOSITORY_PICKER_ACTION_ID } from '../../../../../workbench/contrib/sessionChanges/browser/changesRepositoryPicker.js';
+import { VERSIONS_PICKER_ACTION_ID } from '../../../../../workbench/contrib/sessionChanges/browser/changesView.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -64,12 +67,14 @@ import '../../../../../editor/browser/widget/multiDiffEditor/style.css';
 import '../../../../../workbench/contrib/sessionChanges/browser/media/sessionChangesEditor.css';
 // The changeset picker, as the Agents window registers it; the editor window registers the same
 import '../../browser/changesView.contribution.js';
+import '../../browser/changesRepositoryPicker.contribution.js';
 import '../../../../../workbench/contrib/sessionChanges/browser/changesEditorActions.js';
 import { ActiveEditorContext } from '../../../../../workbench/common/contextkeys.js';
 import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { DiffEditorWidget } from '../../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { ISCMViewService } from '../../../../../workbench/contrib/scm/common/scm.js';
 
 suite('SessionChangesEditor empty state layout', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -119,6 +124,7 @@ suite('SessionChangesEditor empty state layout', () => {
 		instantiationService.stubInstance(MultiDiffEditorWithFileListWidget, {
 			multiDiffEditorWidget: diffWidget as unknown as MultiDiffEditorWidget,
 			isFileListVisible: observableValue('fileListVisible', false),
+			hasFileListFocus() { return false; },
 			layout() { },
 			dispose() { },
 		});
@@ -338,6 +344,88 @@ suite('SessionChangesEditor changed files list', () => {
 			host: true,
 		});
 	});
+
+	test('hides the changed files list while it shows its empty state, as Toggle Details keeps the choice of the user', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const parent = append(mainWindow.document.body, $('.editor-instance'));
+		store.add(toDisposable(() => parent.remove()));
+		const hostContextKeyService = store.add(store.add(new ContextKeyService(instantiationService.get(IConfigurationService))).createScoped(parent));
+		instantiationService.stub(IContextKeyService, hostContextKeyService);
+		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+		const activeSession = constObservable<ITestSessionWithChat | undefined>(undefined);
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			readonly activeSession = activeSession;
+			readonly mainWindowActiveSession = activeSession;
+			readonly windowSessions = constObservable<readonly ITestSessionWithChat[]>([]);
+		}());
+		stubSessionHosts(instantiationService, store, { session: activeSession });
+		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
+			override readonly activeSessionHasGitRepositoryObs = constObservable(false);
+		}());
+		instantiationService.stub(IAgentWorkbenchLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop });
+		instantiationService.stub(ISessionsHostLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop });
+		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() { }());
+		instantiationService.stub(IDiffEditorOptionsService, new class extends mock<IDiffEditorOptionsService>() {
+			override readonly viewMode = constObservable<DiffEditorViewMode>('automatic');
+			override readonly diffEditorWordWrap = constObservable<SessionsWordWrap>('off');
+		}());
+		instantiationService.stub(ISCMViewService, new class extends mock<ISCMViewService>() {
+			override readonly showStructuralDiff = constObservable(false);
+		}());
+		const items = observableValue<readonly DocumentDiffItemViewModel[]>('items', []);
+		const model = new class extends mock<MultiDiffEditorViewModel>() {
+			override readonly isLoading = observableValue('loading', false);
+			override readonly items = items;
+			override readonly activeDiffItem = derivedObservableWithWritableCache<DocumentDiffItemViewModel | undefined>(this, () => undefined);
+		}();
+		instantiationService.stubInstance(MultiDiffEditorWidget, {
+			viewModel: observableValue<MultiDiffEditorViewModel | undefined>('viewModel', model),
+			visibleDiffItems: constObservable<readonly DocumentDiffItemViewModel[]>([]),
+			onDidChangeActiveControl: Event.None,
+			setPaddingBottom() { },
+			setVariant() { },
+			setDiffLayoutOptions() { },
+			layout() { },
+			dispose() { },
+		});
+		SessionChangesEditorFileListContext.bindTo(hostContextKeyService).set(true);
+		const editor = store.add(instantiationService.createInstance(SessionChangesEditor, new TestEditorGroupView(1)));
+		editor.create(parent);
+		editor.setVisible(true);
+		editor.layout(new Dimension(800, 400));
+		const body = parent.querySelector<HTMLElement>('.session-changes-editor-body')!;
+		const read = () => ({
+			emptyState: body.classList.contains('has-empty-state'),
+			fileList: body.classList.contains('file-list-visible'),
+			toggleDetailsChecked: hostContextKeyService.getContextKeyValue(MultiDiffEditorFileListEnabledContext.key),
+		});
+
+		const item = upcastPartial<DocumentDiffItemViewModel>({ modifiedUri: URI.file('/test.txt'), getKey: () => 'test' });
+		const empty = read();
+		items.set([item], undefined);
+		const withChanges = read();
+		const listContainer = parent.querySelector<HTMLElement>('.multi-diff-editor-with-file-list-files')!;
+		editor.focusFileList();
+		assert.ok(listContainer.contains(mainWindow.document.activeElement));
+		items.set([], undefined);
+		const emptyAgain = read();
+		const emptyActions = parent.querySelector<HTMLElement>('.changes-empty-state-actions')!;
+		const focusedAction = mainWindow.document.activeElement === emptyActions.querySelector('a.action-label');
+
+		items.set([item], undefined);
+		const outsideFocus = append(parent, $('button'));
+		outsideFocus.focus();
+		items.set([], undefined);
+		const outsideFocusPreserved = mainWindow.document.activeElement === outsideFocus;
+
+		assert.deepStrictEqual({ empty, withChanges, emptyAgain, focusedAction, outsideFocusPreserved }, {
+			empty: { emptyState: true, fileList: false, toggleDetailsChecked: true },
+			withChanges: { emptyState: false, fileList: true, toggleDetailsChecked: true },
+			emptyAgain: { emptyState: true, fileList: false, toggleDetailsChecked: true },
+			focusedAction: true,
+			outsideFocusPreserved: true,
+		});
+	});
 });
 
 suite('SessionChangesEditor header', () => {
@@ -382,6 +470,7 @@ suite('SessionChangesEditor header', () => {
 					resourceObs: constObservable(undefined), changesObs: constObservable([]), changesetObs: constObservable(undefined), changesetsObs: constObservable(undefined),
 					changesetOperationsObs: constObservable([]), changesetsLoadingObs: constObservable(false), changesetLoadingObs: constObservable(false), loadingObs: constObservable(false),
 					stateObs: constObservable(undefined), changesSummaryObs: constObservable(undefined), hasGitRepositoryObs: constObservable(false),
+					operationsChangesetObs: constObservable(undefined), repositoriesObs: constObservable([]), repositoryObs: constObservable(undefined),
 				});
 			}
 		}());
@@ -390,6 +479,7 @@ suite('SessionChangesEditor header', () => {
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() { }());
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, getSession: () => undefined }));
 		instantiationService.stub(IGitHubService, upcastPartial<IGitHubService>({
+			keepSessionPullRequestCurrent: () => Disposable.None,
 			getSessionPullRequest: () => upcastPartial<ReturnType<IGitHubService['getSessionPullRequest']>>({ pullRequestCIObs: constObservable(undefined) }),
 		}));
 		instantiationService.stub(IDiffEditorOptionsService, new class extends mock<IDiffEditorOptionsService>() {
@@ -430,6 +520,17 @@ suite('SessionChangesEditor header', () => {
 			agentsWindow: 'none',
 			editorWindow: ['Versions'],
 			editorWindowWithoutAI: [],
+		});
+	});
+
+	test('the Agents window on desktop and web offers the changeset and repository pickers in the headers of the Changes editor and its files', () => {
+		const pickersIn = (menu: MenuId) => [...new Set(MenuRegistry.getMenuItems(menu).filter(isIMenuItem).map(item => item.command.id).filter(id => id === VERSIONS_PICKER_ACTION_ID || id === REPOSITORY_PICKER_ACTION_ID))].sort();
+		assert.deepStrictEqual({
+			editor: pickersIn(Menus.SessionsEditorHeaderPrimary),
+			file: pickersIn(MenuId.ChatEditingSessionChangesFileHeaderToolbar),
+		}, {
+			editor: [VERSIONS_PICKER_ACTION_ID, REPOSITORY_PICKER_ACTION_ID].sort(),
+			file: [VERSIONS_PICKER_ACTION_ID, REPOSITORY_PICKER_ACTION_ID].sort(),
 		});
 	});
 

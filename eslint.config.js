@@ -2621,6 +2621,7 @@ export default [
 			'extensions/markdown-language-features/preview-src/**/*.ts',
 			'extensions/mermaid-markdown-features/preview-src/chat/**/*.ts',
 			'extensions/mermaid-markdown-features/src/**/*.ts',
+			'extensions/pdf-preview/**/*.ts',
 			'extensions/simple-browser/**/*.ts',
 			'extensions/typescript-language-features/**/*.ts',
 		],

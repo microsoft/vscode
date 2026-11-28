@@ -15,7 +15,7 @@ import { CustomizationType, ResponsePartKind, ToolCallContributorKind, ToolCallS
 import { SessionCustomizationKind } from '../../../../../../services/sessions/common/session.js';
 import { autorun, observableValue } from '../../../../../../../base/common/observable.js';
 import { TestCustomizationJobScheduler } from '../../../../../chat/test/common/testCustomizationJobScheduler.js';
-import { createIncrementalChatCustomizationRefsParser, createProgressiveChatCustomizations, CustomizationIndex, type ICustomizationRefChatState, CustomizationRefKind, parseTurnCustomizationRefs, resolveChatCustomizations } from '../../../../../chat/common/agentHostSessionCustomizations.js';
+import { createProgressiveChatCustomizations, CustomizationIndex, type ICustomizationRefChatState, CustomizationRefKind, parseTurnCustomizationRefs, resolveChatCustomizations } from '../../../../../chat/common/agentHostSessionCustomizations.js';
 
 suite('Agent Host Session Customizations', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -299,30 +299,6 @@ suite('Agent Host Session Customizations', () => {
 		});
 	});
 
-	test('parses each completed turn once and re-parses only the active turn', () => {
-		const parsed: string[] = [];
-		const parse = createIncrementalChatCustomizationRefsParser(parts => {
-			parsed.push((parts[0] as { toolCall: { toolCallId: string } }).toolCall.toolCallId);
-			return parseTurnCustomizationRefs(parts);
-		});
-
-		const turnOne = { id: 't1', responseParts: [toolCall('view', '{"path":"/repo/.github/hooks/pre.md"}')] };
-		const turnTwo = { id: 't2', responseParts: [toolCall('Skill', '{"skill":"sessions"}')] };
-		parse({ turns: [turnOne], activeTurn: turnTwo });
-		parse({ turns: [turnOne], activeTurn: turnTwo });
-		const final = parse({ turns: [turnOne, turnTwo] });
-
-		assert.deepStrictEqual({
-			parsed,
-			refs: final.map(ref => ref.value),
-		}, {
-			// t1 parsed once and cached; the active t2 re-parsed per delta, then
-			// parsed once more when it completes.
-			parsed: ['view-{"path":"/repo/.github/hooks/pre.md"}', 'Skill-{"skill":"sessions"}', 'Skill-{"skill":"sessions"}', 'Skill-{"skill":"sessions"}'],
-			refs: ['/repo/.github/hooks/pre.md', 'sessions'],
-		});
-	});
-
 	test('a plugin folder under a dotted ancestor does not claim its siblings', () => {
 		const pluginIndex = new CustomizationIndex([
 			{ id: 'plugin-1', type: CustomizationType.Plugin, uri: URI.file('/home/.agents/plugins/foo').toString(), name: 'foo' },
@@ -356,6 +332,62 @@ suite('Agent Host Session Customizations', () => {
 			resolveChatCustomizations(parseTurnCustomizationRefs([toolCall('Skill', '{"skill":"sessions"}')]), new CustomizationIndex(undefined)),
 			[],
 		);
+	});
+
+	test('resolves a path token hundreds of kilobytes long without walking each of its folders', () => {
+		// A model stuck in a loop once wrote `tools/../` tens of thousands of times into one command (#345353).
+		const looped = 'tools/../'.repeat(43_651);
+		const longIndex = new CustomizationIndex(customizations, [root]);
+		const command = JSON.stringify({ command: `Get-ChildItem ${looped}x; Get-Content /repo/.github/skills/sessions/SKILL.md` });
+
+		assert.deepStrictEqual({
+			turn: resolveChatCustomizations(parseTurnCustomizationRefs([toolCall('powershell', command)]), longIndex).map(customization => customization.id),
+			insideSkill: longIndex.resolve({ kind: CustomizationRefKind.Path, value: `.github/skills/sessions/${looped}x` })?.id,
+			outsideSkill: longIndex.resolve({ kind: CustomizationRefKind.Path, value: `/repo/${looped}x` })?.id,
+		}, {
+			turn: ['skill-1'],
+			insideSkill: 'skill-1',
+			outsideSkill: undefined,
+		});
+	});
+
+	test('invalidates a cached miss when a skill folder deeper than any before it is added', () => {
+		// Lookups skip folders longer than the longest known container, so a cached miss must not depend on the folders looked up.
+		const ref = { kind: CustomizationRefKind.Path, value: '.github/skills/a-much-longer-skill-folder-name/reference.md' } as const;
+		const initial = new CountingCustomizationIndex(customizations, [root]);
+		const initialResult = initial.resolve(ref)?.id;
+		const updatedCustomizations: readonly Customization[] = customizations.map(customization => customization.type === CustomizationType.Directory
+			? {
+				...customization,
+				children: [
+					...(customization.children ?? []),
+					{ id: 'skill-2', type: CustomizationType.Skill, uri: URI.file('/repo/.github/skills/a-much-longer-skill-folder-name/SKILL.md').toString(), name: 'longer' },
+				],
+			}
+			: customization);
+		const updated = new CountingCustomizationIndex(updatedCustomizations, [root], undefined, initial);
+
+		assert.deepStrictEqual({
+			initialResult,
+			updatedResult: updated.resolve(ref)?.id,
+			initialPathResolutionCount: initial.pathResolutionCount,
+			updatedPathResolutionCount: updated.pathResolutionCount,
+		}, {
+			initialResult: undefined,
+			updatedResult: 'skill-2',
+			initialPathResolutionCount: 1,
+			updatedPathResolutionCount: 1,
+		});
+	});
+
+	test('scans a long run of path characters once', () => {
+		// Matching used to restart inside such a run at every offset, which froze the window (#350187).
+		const inputs = [
+			JSON.stringify({ command: `cat a/b ${'x'.repeat(200_000)}` }),
+			JSON.stringify({ command: `cat a/b ${'\\'.repeat(100_000)}` }),
+		];
+
+		assert.deepStrictEqual(inputs.map(input => parseTurnCustomizationRefs([toolCall('bash', input)]).map(ref => ref.value)), [['a/b'], ['a/b']]);
 	});
 });
 
@@ -445,7 +477,7 @@ suite('Progressive Chat Customizations', () => {
 		scheduler.flush();
 
 		const expected = resolveChatCustomizations(
-			createIncrementalChatCustomizationRefsParser()({ turns, activeTurn }),
+			parseTurnCustomizationRefs([...turns.flatMap(turn => turn.responseParts), ...activeTurn.responseParts]),
 			new CustomizationIndex(customizations, [root]),
 		).map(c => c.id);
 		assert.deepStrictEqual({ final: observed[observed.length - 1], expected, again: result.get().map(c => c.id) }, {
@@ -540,7 +572,7 @@ suite('Progressive Chat Customizations', () => {
 			scheduler.flush();
 
 			const expected = resolveChatCustomizations(
-				createIncrementalChatCustomizationRefsParser()({ turns: completed, activeTurn: withNewActiveTurn ? newActive : undefined }),
+				parseTurnCustomizationRefs([...completed.flatMap(turn => turn.responseParts), ...(withNewActiveTurn ? newActive.responseParts : [])]),
 				new CustomizationIndex(customizations, [root]),
 			).map(c => c.id);
 			assert.deepStrictEqual({ reads: [...new Set(observed.map(ids => ids.join()))], afterCompletion, final: result.get().map(c => c.id), expected }, {

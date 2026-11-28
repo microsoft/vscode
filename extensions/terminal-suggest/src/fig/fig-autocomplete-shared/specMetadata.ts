@@ -31,7 +31,7 @@ export type SubcommandMeta = Omit<Fig.Subcommand, SubcommandMetaExcludes> & {
 	loadSpec?: LoadSpec<ArgMeta, OptionMeta, SubcommandMeta>;
 };
 
-export function convertLoadSpec<ArgT, OptionT, SubcommandT>(
+function convertLoadSpec<ArgT, OptionT, SubcommandT>(
 	loadSpec: Fig.LoadSpec,
 	initialize: Initializer<ArgT, OptionT, SubcommandT>
 ): LoadSpec<ArgT, OptionT, SubcommandT> {

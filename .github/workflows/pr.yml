@@ -17,8 +17,7 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-permissions:
-  contents: read
+permissions: {}
 
 env:
   VSCODE_QUALITY: 'oss'
@@ -104,6 +103,7 @@ jobs:
           # first parent) with the merge result. ripple reads every file of both commits, so this
           # cannot be a sparse (blobless) checkout.
           fetch-depth: 2
+          persist-credentials: false
 
       # PLAN_BASE is the commit that the test plan compares with the changes. For a pull request, the
       # base branch, which is the first parent of its merge commit. For a merge group, the commit of
@@ -359,6 +359,7 @@ jobs:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           # With a workspace image, keeps its untracked files, such as node_modules, and reuses its .git
           clean: ${{ steps.image.outputs.used != 'true' }}
 
@@ -685,6 +686,8 @@ jobs:
     name: Linux
     needs: changes
     if: ${{ !cancelled() }}
+    permissions:
+      contents: read
     uses: ./.github/workflows/pr-linux-cli-test.yml
     with:
       rustup_toolchain: '1.97.0'
@@ -735,6 +738,8 @@ jobs:
   #   name: macOS
   #   needs: changes
   #   if: ${{ !cancelled() }}
+  #   permissions:
+  #     contents: read
   #   uses: ./.github/workflows/pr-darwin-test.yml
   #   with:
   #     electron_unit_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.selected-unit-tests == 'true' }}
@@ -802,6 +807,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
+          persist-credentials: false
           # With a workspace image, keeps its untracked files, such as node_modules, and reuses its .git
           clean: ${{ steps.image.outputs.used != 'true' }}
 
@@ -852,6 +858,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -884,6 +892,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
+          persist-credentials: false
           # With a workspace image, keeps its untracked files, such as node_modules, and reuses its .git
           clean: ${{ steps.image.outputs.used != 'true' }}
 
@@ -1001,6 +1010,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
+          persist-credentials: false
           # With a workspace image, keeps its untracked files, such as node_modules, and reuses its .git
           clean: ${{ steps.image.outputs.used != 'true' }}
 
@@ -1082,6 +1092,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           # With a workspace image, keeps its untracked files, such as node_modules, and reuses its .git
           clean: ${{ steps.image.outputs.used != 'true' }}
 
@@ -1131,6 +1142,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           # With a workspace image, keeps its untracked files, such as node_modules, and reuses its .git
           clean: ${{ steps.image.outputs.used != 'true' }}
 

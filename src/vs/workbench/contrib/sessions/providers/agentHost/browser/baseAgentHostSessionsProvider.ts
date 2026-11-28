@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { readSessionNonRepositoryFolders } from '../../../../../../platform/agentHost/common/meta/agentSessionNonRepositoryFoldersMeta.js';
+import { readSessionRepositories } from '../../../../../../platform/agentHost/common/meta/agentSessionRepositoriesMeta.js';
 import { disposableTimeout, Limiter, raceCancellation, raceCancellationError, RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -14,7 +16,7 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, Mu
 import { CounterSet, mapsStrictEqualIgnoreOrder, ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { deepClone, equals } from '../../../../../../base/common/objects.js';
 import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, mapObservableArrayCached, observableFromEvent, observableSignal, observableSignalFromEvent, observableValueOpts, recomputeInitiallyAndOnChange, runOnChange, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../../base/common/observable.js';
-import { basename, dirname, extUriIgnorePathCase, getComparisonKey, isEqual, isEqualOrParent, joinPath, relativePath } from '../../../../../../base/common/resources.js';
+import { basename, dirname, extUriBiasedIgnorePathCase, extUriIgnorePathCase, getComparisonKey, isEqual, isEqualOrParent, joinPath, relativePath } from '../../../../../../base/common/resources.js';
 import { themeColorFromId, ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { findDevContainerSample } from '../../../../../../platform/agentHost/common/devContainerSamples.js';
@@ -22,6 +24,7 @@ import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { chatUriFormatOf } from '../../../../../../platform/agentHost/common/agentHostChatMinting.js';
 import { newAgentHostChatUri, newAgentHostSessionUri } from '../../../../../../platform/agentHost/common/agentHostSessionIdentity.js';
 import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/agentHostChatIdentity.js';
+import { getWorkingDirectoryScopeId } from '../../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
 import { agentModelConfigurationReportKey } from '../../../../../../platform/agentHost/common/agentModelConfiguration.js';
 import { isAgentHostScheduledChatOrigin } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
 import { isNativeAgentHost } from '../../../../../../platform/agentHost/common/meta/agentHostSessionUrisMeta.js';
@@ -45,7 +48,7 @@ import { supportsAgentHostWorktreeDiskUsage } from '../../../../../../platform/a
 import { supportsAgentHostManagedWorktrees, supportsAgentHostWorktreeCleanup, supportsForceWorktreeCleanup, supportsPrepareSessionWorktreeCleanup } from '../../../../../../platform/agentHost/common/meta/agentHostWorktreeCleanupMeta.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { readCodexAccountInfo } from '../../../../../../platform/agentHost/common/codexAccount.js';
-import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
+import { buildBranchChangesetUri, buildFolderChangesetOwnerUri, ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { buildOpenSessionLinkForChat } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { parseGitHubIssueUrl, parseGitHubPullRequestUrl } from '../../../../../../platform/github/common/githubUrls.js';
 import { getEffectiveAgents } from '../../../../../../platform/agentHost/common/customAgents.js';
@@ -73,8 +76,8 @@ import { AgentCustomization, ChangesSummary, type ChatConfigState, ChatInteracti
 import { SessionOriginKind, type SessionOrigin } from '../../../../../../platform/agentHost/common/state/protocol/channels-session/state.js';
 import { isActionKnownToVersion } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType, type SessionSummaryChanges } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AHP_SESSION_NOT_FOUND, AhpErrorCodes, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { AgentCapabilities, AgentInfo, buildChatUri, buildSubagentChatUri, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isChatInSessionReadAggregate, isSessionChatArchived, isSessionStatusArchived, isSessionStatusRead, readSessionCreationReference, readSessionEhcliAdoptable, readFolderGitHubState, readFolderScopeGitState, readSessionExternal, parseSessionGitHubData, readSessionGitHubData, readSessionGitState, readWorkingDirectoryKey, readWorkingDirectoryKeys, readWorkingDirectoryScopeId, readWorkingDirectoryScopeIds, withMigratedSessionGitHubState, withSessionGitHubData, readSessionMultiRootMetadata, readSessionScratchFolders, readSessionSourceControlState, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, SessionSourceControlOutcome, StateComponents, withSessionCreationReference, withSessionExternal, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChatState, type ChatSummary, type ISessionCreationReference as IProtocolSessionCreationReference, type ISessionGitHubState, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { AHP_SESSION_NOT_FOUND, AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { AgentCapabilities, AgentInfo, buildChatUri, buildSubagentChatUri, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isChatInSessionReadAggregate, isSessionChatArchived, isSessionStatusArchived, isSessionStatusRead, readSessionCreationReference, readSessionEhcliAdoptable, readFolderGitHubState, readFolderScopeGitState, readSessionGitData, readSessionExternal, parseSessionGitHubData, readSessionGitHubData, readSessionGitState, readWorkingDirectoryKey, readWorkingDirectoryKeys, readWorkingDirectoryScopeId, readWorkingDirectoryScopeIds, withMigratedSessionGitHubState, withSessionGitHubData, readSessionMultiRootMetadata, readSessionScratchFolders, readSessionSourceControlState, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, SessionSourceControlOutcome, StateComponents, withSessionCreationReference, withSessionExternal, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChatState, type ChatSummary, type ISessionCreationReference as IProtocolSessionCreationReference, type ISessionGitHubState, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
@@ -86,6 +89,7 @@ import { IWorkspaceTrustManagementService } from '../../../../../../platform/wor
 import { AgentHostDownloadProgress } from '../../../../chat/browser/agentSessions/agentHost/agentHostDownloadProgress.js';
 import { composeSessionActiveClient, IAgentCustomizationScope, IAgentHostActiveClientService } from '../../../../chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostMcpAppToolsService } from '../../../../chat/browser/agentSessions/agentHost/agentHostMcpAppToolsService.js';
+import type { IAgentHostSessionCreation } from '../../../../chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { getAgentHostEffectiveChatConfig, hostAppliesSessionConfigToDefaultChat, hostPublishesCompleteChatConfig } from '../../../../chat/browser/agentSessions/agentHost/applyAgentHostSessionConfig.js';
 import { AgentHostBackgroundShellOutputs } from '../../../../chat/browser/agentSessions/agentHost/agentHostBackgroundShells.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
@@ -108,7 +112,7 @@ import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvid
 import { agentHostSessionWorkspaceKey, buildAgentHostChatWorkspaceWithScratchFolders, type IFolderGitHubInfoResolver, withoutScratchFolders } from '../../../common/agentHostSessionWorkspace.js';
 import { USE_WORKTREE_SETTING, isSessionConfigComplete } from '../../../common/sessionConfig.js';
 import { linkKey } from '../../../common/sessionLinks.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getNestedChatDefaultChangesetId, getSessionOwnedGitHubPullRequestRefs, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionApplication, ISessionEnvironment, ISessionArtifact, ISessionCanvas, ISessionCanvasDefinition, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionPreparationProgress, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, SessionArtifactKind, sessionFileChangesEqual, sessionWorkspaceEqual, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId, type SessionCanvasDefinitionSnapshot } from '../../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getNestedChatDefaultChangesetId, getSessionOwnedGitHubPullRequestRefs, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionApplication, ISessionEnvironment, ISessionArtifact, ISessionCanvas, ISessionCanvasDefinition, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionFolder, ISessionPreparationProgress, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, SessionArtifactKind, sessionFileChangesEqual, sessionWorkspaceEqual, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionRepositoryKind, SessionStatus, SessionTypeAuthRequirement, toSessionId, type SessionCanvasDefinitionSnapshot } from '../../../../../services/sessions/common/session.js';
 import { dedupeLinks, partitionSessionArtifacts, type IRecordedGitHubReference } from './agentHostSessionArtifacts.js';
 import { AgentHostArtifactIntegrations, mapArtifactModelChats } from './agentHostArtifactIntegrations.js';
 import { GitHubPullRequestArtifactWorkspaceConfiguration } from './githubPullRequestArtifactWorkspaceConfiguration.js';
@@ -129,6 +133,7 @@ import { IPullRequestIconCache } from '../../../browser/github/pullRequestIconCa
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../common/github/types.js';
 import { mapProtocolStatus } from './agentHostDiffs.js';
 import { createActiveSessionSubscriptionObs, createChangesets, createChatChangesets, type IAgentHostCurrentTurnChanges } from './agentHostSessionChangesets.js';
+import { getSessionWorkingDirectories, readSessionWorkspaceConfig, withSessionFolderState, withSessionWorkspaceConfig } from './agentHostSessionFolders.js';
 import { createSessionOutputObs, ISessionOutputObs } from './agentHostSessionFiles.js';
 import { AgentHostSessionSandbox } from './agentHostSessionSandbox.js';
 import { getAgentHostSessionPermissionConfig, getAgentHostSessionPermissionId, getAgentHostSessionPermissionOptions } from './agentHostSessionPermissions.js';
@@ -881,6 +886,8 @@ export interface IAgentHostAdapterOptions {
 	readonly mapDiffUri?: AgentHostUriMapper;
 	/** Optional URI mapping for host-side working directories. */
 	readonly mapWorkingDirectoryUri?: AgentHostUriMapper;
+	/** Optional URI mapping of a working directory into the host's URI space, the inverse of {@link mapWorkingDirectoryUri}. */
+	readonly mapWorkingDirectoryToHost?: AgentHostUriMapper;
 	/**
 	 * GitHub service used to resolve the pull request that targets the
 	 * session's branch and refresh its live state. Optional so tests / hosts
@@ -921,6 +928,17 @@ export interface IAgentHostAdapterOptions {
 	readonly chatProviders?: IObservable<readonly string[] | undefined>;
 	/** The resource scheme an agent's sessions and models are registered under on this host. */
 	readonly resourceSchemeForAgent?: (agentProvider: string) => string;
+	/**
+	 * Whether a chat can add and remove folders to work in (see `ISessionCapabilities.supportsChatFolders`): only a host
+	 * that accepts working-directory changes from the client.
+	 */
+	readonly supportsChatFolders?: boolean;
+	/**
+	 * Whether the host serves the scope of each folder of a session of several on its own, which hosts from before that
+	 * do not, although they record the folders: the local host, which is of this build. With any other host, the
+	 * changes of such a session are its chats' only.
+	 */
+	readonly servesFolderScopes?: boolean;
 	/** Whether this provider can present server-published canvas channels for the agent. */
 	readonly supportsCanvasPresentation?: (agentProvider: string, connection: IAgentConnection | undefined, reader: IReader) => boolean;
 	/**
@@ -1663,6 +1681,10 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	}
 
 	readonly isActiveSessionObs: IObservable<boolean>;
+	/** How many presentations outside a window, such as Changes editors, observe the changes of any of this session's chats. */
+	private readonly _externalChangesObservers = observableValue(this, 0);
+	/** The changesets of the session's repositories on their own, by working-directory scope id: created when first asked for. */
+	private readonly _repositoryChangesets = new Map<string, ISessionChangeset>();
 
 	constructor(
 		metadata: IAgentSessionMetadata,
@@ -1846,7 +1868,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				false,
 			);
 		});
-		const defaultChatChangesGate = this._createObservedSubscriptionGate();
+		const defaultChatChangesGate = this._createObservedSubscriptionGate(true);
 		const sessionStateObs = createActiveSessionSubscriptionObs<SessionState>(
 			this._options,
 			defaultChatChangesGate.subscribed,
@@ -1941,6 +1963,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				...(connection?.artifactIntegrationTransport ? { supportsArtifactIntegrations: true } : {}),
 				supportsCanvases: this._options.supportsCanvasPresentation?.(this.agentProvider, connection, reader) === true,
 				supportsMultipleChats,
+				// Only an agent of several working directories, and not a quick chat, which has no workspace and whose folders the host refuses
+				...(this._options.supportsChatFolders && agentCapabilities?.multipleWorkingDirectories !== undefined && !this._isQuickChat.read(reader) ? { supportsChatFolders: true } : {}),
 				...(chatProviders?.length ? { supportsChatHarnesses: chatProviders.map(toAgentHostChatHarness) } : {}),
 				supportsIndependentChatReadState: this._supportsChatReadState.read(reader),
 				supportsFork: agentCapabilities?.multipleChats?.fork ?? false,
@@ -1950,6 +1974,60 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			};
 		});
 		this.applyChatMetadata(metadata.chats);
+	}
+
+	/**
+	 * The host working directory of the scope of `repositoryRoot` when it is one of the repositories of a session of
+	 * several folders or repositories, each with its own scope; else `undefined`. A session of one folder and one repository
+	 * has no scope of its own for it: its changes are its chats'. The scope of a folder's own repository is the folder, which can be below the repository's
+	 * root; that of a repository found in a folder is its root. Only a host that serves folder scopes (see
+	 * {@link IAgentHostAdapterOptions.servesFolderScopes}) and records the session's folders on their own has them: with
+	 * any other, the session's changes are its chats' only.
+	 */
+	private _getRepositoryScopeRoot(repositoryRoot: URI, reader?: IReader): string | undefined {
+		const meta = reader ? this._metaObs.read(reader) : this._metaObs.get();
+		if (!this._options.servesFolderScopes || !this._recordsFolderScopes(meta)) {
+			return undefined;
+		}
+		const workspace = reader ? this.workspace.read(reader) : this.workspace.get();
+		// Without repository records, which a host has only for repositories found in folders, each folder is its own repository
+		const scopes = workspace?.repositories?.map(repository => ({ root: repository.root, scope: repository.kind === SessionRepositoryKind.Nested ? repository.root : repository.folder }))
+			?? workspace?.folders.map(folder => ({ root: folder.workingDirectory, scope: folder.workingDirectory }))
+			?? [];
+		// As the Changes list them: a session of several folders, also with one in no repository, or of several repositories
+		const isSeveral = scopes.length > 1 || (workspace?.folders.length ?? 0) > 1;
+		const scope = isSeveral ? scopes.find(candidate => extUriBiasedIgnorePathCase.isEqual(candidate.root, repositoryRoot))?.scope : undefined;
+		return scope ? (this._options.mapWorkingDirectoryToHost?.(scope) ?? scope).toString() : undefined;
+	}
+
+	/**
+	 * Whether the host records the folders of the session on their own: the Git state of a folder's scope, the
+	 * repositories found in its folders, or the folders in no repository. Such a host serves the scope of each.
+	 */
+	private _recordsFolderScopes(meta: SessionMeta | undefined): boolean {
+		return readSessionGitData(meta).size > 0 || readSessionRepositories(meta) !== undefined || readSessionNonRepositoryFolders(meta).length > 0;
+	}
+
+	getRepositoryChangeset(repositoryRoot: URI, changesetId: string): ISessionChangeset | undefined {
+		// A repository's own scope has its own Branch changeset only (its Git state, base branch and pull request)
+		const hostRoot = changesetId === BRANCH_CHANGES_CHANGESET_ID ? this._getRepositoryScopeRoot(repositoryRoot) : undefined;
+		if (hostRoot === undefined) {
+			return undefined;
+		}
+		const scopeId = getWorkingDirectoryScopeId([hostRoot]);
+		let changeset = this._repositoryChangesets.get(scopeId);
+		if (!changeset) {
+			const owner = buildFolderChangesetOwnerUri(this.backendUri.toString(), scopeId);
+			// As the chats' changes: while a window shows the session, or a presentation outside one observes its changes
+			const subscribed = derived(this, reader => this.isActiveSessionObs.read(reader) || this._externalChangesObservers.read(reader) > 0);
+			changeset = createChangesets(this.backendUri, this._options, subscribed, [{
+				changeKind: ChangesetKind.Branch,
+				label: localize('repositoryBranchChanges', "Branch Changes"),
+				uriTemplate: buildBranchChangesetUri(owner),
+			}])[0];
+			this._repositoryChangesets.set(scopeId, changeset);
+		}
+		return changeset;
 	}
 
 	private _withChatDetails<T>(observable: IObservable<T>): IObservable<T> {
@@ -2323,7 +2401,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	private _createAdditionalChat(chatId: string, summary: AgentHostChatSummary): AdditionalChat {
 		const resource = this.resource.with({ fragment: chatId });
 		const backendUri = URI.parse(summary.resource);
-		const changesGate = this._createObservedSubscriptionGate();
+		const changesGate = this._createObservedSubscriptionGate(true);
 		const output: IChatOutputObs = {
 			lastTurnChanges: this._sessionOutput.getLastTurnChanges(backendUri),
 			customizations: this._sessionOutput.getChatCustomizations(backendUri),
@@ -3074,7 +3152,17 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 */
 	private _computeWorkspace(): ISessionWorkspace | undefined {
 		const workingDirectories = this._workingDirectories && withoutScratchFolders(this._workingDirectories, this._scratchFolders.get());
-		return this._kind.computeWorkspace(() => this._options.buildWorkspace(this._project, workingDirectories, this.gitHubInfo, readSessionGitState(this._meta)));
+		return this._kind.computeWorkspace(() => this._withFolders(this._options.buildWorkspace(this._project, workingDirectories, this.gitHubInfo, readSessionGitState(this._meta))));
+	}
+
+	/** Adds the host's per-folder Git state and repositories, and the workspace configuration the session was created in. */
+	private _withFolders(built: ISessionWorkspace | undefined): ISessionWorkspace | undefined {
+		const toHost = (uri: URI) => this._options.mapWorkingDirectoryToHost?.(uri) ?? uri;
+		const toClient = (uri: URI) => this._mapWorkingDirectory(uri);
+		const workspace = withSessionFolderState(built, this._meta, toHost, toClient);
+		// A configuration without folders takes the session's: its default folder (the repository a worktree belongs to), then the others
+		const workspaceConfig = workspace && readSessionWorkspaceConfig(this._meta, toClient, workspace.folders.map((folder, index) => index === 0 ? folder.root : folder.workingDirectory));
+		return workspaceConfig ? { ...workspace, workspaceConfig } : workspace;
 	}
 
 	/** This session's working directories without its host scratch folders. */
@@ -3191,15 +3279,22 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 * The folder whose Agent Merge settings `chat` uses — its first folder, or
 	 * the session folder (the main chat's first folder) for the main chat or
 	 * when omitted. `undefined` while a peer chat's folders are still loading,
-	 * so its settings are never mistaken for the session folder's.
+	 * so its settings are never mistaken for the session folder's. With
+	 * `repository`, the folder of that repository of a session of several (see
+	 * {@link getRepositoryChangeset}), whatever folder `chat` works in;
+	 * `undefined` for a repository that is not one.
 	 */
-	getAgentMergeFolder(chat: URI | undefined, reader?: IReader): IAgentMergeFolder | undefined {
+	getAgentMergeFolder(chat: URI | undefined, reader?: IReader, repository?: URI): IAgentMergeFolder | undefined {
 		const meta = reader ? this._metaObs.read(reader) : this._metaObs.get();
 		const sessionWorkingDirectory = reader
 			? this._getSessionFolderWorkingDirectory(reader)
 			// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): non-observable Agent Merge folder fallback still bypasses the owning mapper
 			: this._defaultChatWorkingDirectories.get()?.[0] ?? (this._workingDirectories?.[0] ? fromAgentHostUri(this._workingDirectories[0]).toString() : undefined);
 		const sessionFolderKey = sessionWorkingDirectory ? readWorkingDirectoryKey(meta, sessionWorkingDirectory) : undefined;
+		if (repository) {
+			const workingDirectory = this._getRepositoryScopeRoot(repository, reader);
+			return workingDirectory !== undefined ? { folderKey: readWorkingDirectoryKey(meta, workingDirectory), sessionFolderKey, workingDirectory } : undefined;
+		}
 		if (!chat || isEqual(chat, this._defaultChat.resource)) {
 			return { folderKey: sessionFolderKey, sessionFolderKey, workingDirectory: sessionWorkingDirectory };
 		}
@@ -3244,13 +3339,20 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	}
 
 	/** Subscribed while a window shows this session, or while an external presentation observes it, until it disposes the observation. */
-	private _createObservedSubscriptionGate(): { readonly subscribed: IObservable<boolean>; observe(): IDisposable } {
+	/** @param changes Whether the gate is of a chat's changes, which also keeps the session's repository changesets observed. */
+	private _createObservedSubscriptionGate(changes = false): { readonly subscribed: IObservable<boolean>; observe(): IDisposable } {
 		const externalObservers = observableValue(this, 0);
 		return {
 			subscribed: derived(this, reader => this.isActiveSessionObs.read(reader) || externalObservers.read(reader) > 0),
 			observe: () => {
-				externalObservers.set(externalObservers.get() + 1, undefined);
-				return toDisposable(() => externalObservers.set(externalObservers.get() - 1, undefined));
+				const delta = (by: number) => transaction(tx => {
+					externalObservers.set(externalObservers.get() + by, tx);
+					if (changes) {
+						this._externalChangesObservers.set(this._externalChangesObservers.get() + by, tx);
+					}
+				});
+				delta(1);
+				return toDisposable(() => delta(-1));
 			},
 		};
 	}
@@ -3437,6 +3539,8 @@ interface INewSessionConstructionContext {
 	readonly providerId: string;
 	readonly icon: ThemeIcon;
 	readonly resourceScheme: string;
+	/** Whether the draft's chat can add and remove folders to work in (`ISessionCapabilities.supportsChatFolders`). */
+	readonly supportsChatFolders: IObservable<boolean>;
 	/**
 	 * The URI scheme used to reconstruct this draft's backend (wire) session URI,
 	 * when it differs from the agent provider ({@link sessionType}.id). Defaults to
@@ -3523,6 +3627,8 @@ class NewSession extends Disposable {
 	/** This draft's URI as the host's registry is keyed by it. */
 	readonly backendUri: URI;
 	readonly workspaceUri: URI | undefined;
+	/** The folders the session is created in, {@link workspaceUri} first; empty without one. */
+	readonly workingDirectories: readonly URI[];
 	readonly requiresWorkspaceTrust: boolean;
 	/** `true` when this is a workspace-less quick chat. */
 	readonly isQuickChat: boolean;
@@ -3675,6 +3781,7 @@ class NewSession extends Disposable {
 			throw new Error('Workspace has no repository URI');
 		}
 		this.workspaceUri = workspaceUri && findDevContainerSample(workspaceUri) ? undefined : workspaceUri;
+		this.workingDirectories = this.workspaceUri ? [this.workspaceUri, ...ctx.workspace?.folders.slice(1).map(folder => folder.root) ?? []] : [];
 		this.isQuickChat = this._kind.isQuickChat;
 		this.requiresWorkspaceTrust = !!ctx.workspace?.requiresWorkspaceTrust;
 		this.agentProvider = ctx.sessionType.id;
@@ -3763,7 +3870,12 @@ class NewSession extends Disposable {
 			lastTurnEnd,
 			mainChat: this._mainChat,
 			chats,
-			capabilities: constObservable({ supportsMultipleChats: false, supportsRename: true, supportsDelete: true }),
+			capabilities: derivedOpts<ISessionCapabilities>({ owner: this, equalsFn: structuralEquals }, reader => ({
+				supportsMultipleChats: false,
+				supportsRename: true,
+				supportsDelete: true,
+				...(ctx.supportsChatFolders.read(reader) ? { supportsChatFolders: true } : {}),
+			})),
 		};
 		this.sessionId = this.session.sessionId;
 
@@ -4264,7 +4376,7 @@ class NewSession extends Disposable {
 					provider: this.agentProvider,
 					session: backendUri,
 					...(this._selectedModelId ? { model: this.getSelectedModel() } : {}),
-					workingDirectories: this.workspaceUri ? [this.workspaceUri] : undefined,
+					workingDirectories: this.workingDirectories.length ? [...this.workingDirectories] : undefined,
 					config: this._getEagerCreateConfigValues(),
 					_meta: this._initialMetadata,
 					// MCP-style opt-in: offer to receive `progress` for any
@@ -5204,7 +5316,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * the bits that are uniform across hosts (`icon`, `loading`,
 	 * `mapDiffUri`) from the corresponding hooks.
 	 */
-	protected abstract _adapterOptions(agentProvider: string): Pick<IAgentHostAdapterOptions, 'buildWorkspace' | 'readOnly' | 'defaultChangesetKind' | 'preserveStatusWhenDisconnected' | 'externalSessionState' | 'useSessionTitleForDefaultChat' | 'isSessionTitlePlaceholder' | 'supportsCanvasPresentation'>;
+	protected abstract _adapterOptions(agentProvider: string): Pick<IAgentHostAdapterOptions, 'buildWorkspace' | 'readOnly' | 'defaultChangesetKind' | 'preserveStatusWhenDisconnected' | 'externalSessionState' | 'useSessionTitleForDefaultChat' | 'isSessionTitlePlaceholder' | 'supportsCanvasPresentation' | 'supportsChatFolders' | 'servesFolderScopes'>;
 
 	/**
 	 * Hook to normalize a session's metadata before it is cached, keyed, or
@@ -5273,6 +5385,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			loading: this.authenticationPending,
 			mapDiffUri: this._diffUriMapper(),
 			mapWorkingDirectoryUri: uri => this.mapWorkingDirectoryUri(uri),
+			mapWorkingDirectoryToHost: uri => this.mapWorkingDirectoryToHost(uri),
 			gitHubService: this._gitHubService,
 			instantiationService: this._instantiationService,
 			getConnection: reader => {
@@ -5550,6 +5663,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	/** Maps a host working-directory URI into the owning connection's client space. */
 	protected mapWorkingDirectoryUri(uri: URI): URI { return this.connection?.resourceUris.fromAgentHost(uri) ?? uri; }
+
+	/**
+	 * Whether a client resource is on this provider's host, so that it may be sent to it. A provider that cannot tell
+	 * owns none.
+	 */
+	protected _isResourceOfThisHost(_resource: URI): boolean { return false; }
+
+	/** Maps a client working-directory URI into the owning connection's host space. */
+	protected mapWorkingDirectoryToHost(uri: URI): URI { return this.connection?.resourceUris.toAgentHost(uri) ?? uri; }
 
 	/** Maps host filesystem projects into client space while retaining repository URLs. */
 	protected mapProjectUri(uri: URI): URI { return uri.scheme === Schemas.file ? this.mapWorkingDirectoryUri(uri) : uri; }
@@ -5977,22 +6099,24 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 		this._validateBeforeCreate(sessionType);
 
-		const workspace = this.resolveWorkspace(workspaceUri);
-		if (!workspace) {
+		const resolvedWorkspace = this.resolveWorkspace(workspaceUri);
+		if (!resolvedWorkspace) {
 			throw new Error(`Cannot resolve workspace for URI: ${workspaceUri.toString()}`);
 		}
+		const workspace = this._withCreateFolders(resolvedWorkspace, workspaceUri, sessionType.id, options);
+		const metadata = options?.createdBySession
+			? withSessionCreationReference(options.metadata, {
+				session: options.createdBySession.session.toString(),
+				chat: options.createdBySession.chat?.toString(),
+				turnId: options.createdBySession.turnId,
+			})
+			: options?.metadata;
 
 		return this._createDraftSession(
 			sessionType,
 			workspace,
 			false,
-			options?.createdBySession
-				? withSessionCreationReference(options.metadata, {
-					session: options.createdBySession.session.toString(),
-					chat: options.createdBySession.chat?.toString(),
-					turnId: options.createdBySession.turnId,
-				})
-				: options?.metadata,
+			workspace.workspaceConfig ? withSessionWorkspaceConfig(metadata, workspace.workspaceConfig, uri => this.mapWorkingDirectoryToHost(uri)) : metadata,
 			options?.draftConfiguration ?? options?.automationConfiguration,
 			options?.modelId,
 			options?.modelConfiguration,
@@ -6000,6 +6124,40 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			options?.modeId,
 			options?.pullRequestUrl,
 		);
+	}
+
+	/**
+	 * The workspace of a new session that works in several folders: the resolved workspace of its default folder, with
+	 * the other folders and the workspace configuration it is created in. A provider without chat folders creates the
+	 * session in its default folder only.
+	 */
+	private _withCreateFolders(workspace: ISessionWorkspace, workspaceUri: URI, sessionTypeId: string, options: ISessionsProviderCreateSessionOptions | undefined): ISessionWorkspace {
+		if (!options?.workspaceConfig && !options?.folders) {
+			return workspace;
+		}
+		const workspaceConfig = options.workspaceConfig;
+		const supportsFolders = this._supportsChatFolders(sessionTypeId, undefined);
+		const others = supportsFolders ? getSessionWorkingDirectories(workspaceUri, workspaceConfig, options.folders).slice(1) : [];
+		const folders = [...workspace.folders, ...others.flatMap(folder => this.resolveWorkspace(folder)?.folders.slice(0, 1) ?? [])];
+		return { ...workspace, folders, ...(workspaceConfig ? { workspaceConfig } : {}) };
+	}
+
+	/** Whether a session of `sessionTypeId` can work in several folders: its agent can, and so can the provider. */
+	private _supportsChatFolders(sessionTypeId: string, reader: IReader | undefined): boolean {
+		return this._adapterOptions(sessionTypeId).supportsChatFolders === true
+			&& this._agentCapabilities.read(reader)?.get(sessionTypeId)?.multipleWorkingDirectories !== undefined;
+	}
+
+	/**
+	 * How a draft of several folders, or of a workspace, is created when its first request creates it, rather than its
+	 * eager create (the chat handler's fallback). `undefined` for a draft of one folder outside a workspace.
+	 */
+	getNewSessionCreation(resource: URI): IAgentHostSessionCreation | undefined {
+		const draft = this._newSessions.get(toSessionId(this.id, resource));
+		if (!draft || (draft.workingDirectories.length < 2 && !readSessionMultiRootMetadata(draft.initialMetadata))) {
+			return undefined;
+		}
+		return { workingDirectories: draft.workingDirectories, metadata: draft.initialMetadata };
 	}
 
 	startNewSessionRequest(sessionId: string, activity?: string): IDisposable {
@@ -6099,6 +6257,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				providerId: this.id,
 				icon: sessionType.icon,
 				resourceScheme,
+				// A quick chat has no workspace, and the host refuses its folders
+				supportsChatFolders: quickChat ? constObservable(false) : derived(reader => this._supportsChatFolders(sessionType.id, reader)),
 				backendSessionScheme: this._backendSessionScheme(sessionType.id),
 				authenticationPending: this.authenticationPending,
 				logService: this._logService,
@@ -6130,6 +6290,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				loading: this.authenticationPending,
 				mapDiffUri: this._diffUriMapper(),
 				mapWorkingDirectoryUri: uri => this.mapWorkingDirectoryUri(uri),
+				mapWorkingDirectoryToHost: uri => this.mapWorkingDirectoryToHost(uri),
 				gitHubService: this._gitHubService,
 				instantiationService: this._instantiationService,
 				getConnection: reader => {
@@ -6239,14 +6400,16 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// (AgentHostSessionHandler), so in the normal flow the folder is
 		// already trusted here. This guards alternate entry points (e.g.
 		// delegation). No-op for providers that don't require trust (remote).
-		const workspaceUri = newSession.workspaceUri;
-		const canCreate = newSession.requiresWorkspaceTrust && workspaceUri ? async () => {
-			const { trusted } = await this._workspaceTrustManagementService.getUriTrustInfo(workspaceUri);
+		// A trusted default folder does not vouch for the session's other folders.
+		const folders = newSession.workingDirectories;
+		const canCreate = newSession.requiresWorkspaceTrust && folders.length ? async () => {
+			const trust = await Promise.all(folders.map(folder => this._workspaceTrustManagementService.getUriTrustInfo(folder)));
 			if (this._newSessions.get(newSession.sessionId) !== newSession) {
 				return false;
 			}
-			if (!trusted) {
-				this._logService.trace(`[${this.id}] Skipping eager createSession for untrusted folder ${workspaceUri.toString()}`);
+			const untrusted = folders.find((_, index) => !trust[index].trusted);
+			if (untrusted) {
+				this._logService.trace(`[${this.id}] Skipping eager createSession for untrusted folder ${untrusted.toString()}`);
 				newSession.setLoading(false);
 				return false;
 			}
@@ -6881,12 +7044,19 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
-	async resolveSessionConfigForCreation(workspace: URI, sessionTypeId: string, token: CancellationToken): Promise<ResolveSessionConfigResult> {
+	async resolveSessionConfigForCreation(workspace: URI | undefined, sessionTypeId: string, token: CancellationToken): Promise<ResolveSessionConfigResult> {
 		const connection = this.connection;
-		if (!connection || !this.getSessionTypes(workspace).some(type => type.id === sessionTypeId) || this._isAgentDisabledByPolicy(sessionTypeId)) {
+		const sessionTypes = workspace ? this.getSessionTypes(workspace) : this.sessionTypes;
+		if (!connection || !sessionTypes.some(type => type.id === sessionTypeId) || this._isAgentDisabledByPolicy(sessionTypeId)) {
 			throw new Error(localize('agentHost.sessionConfigUnavailable', "Could not resolve the Agent Host session configuration. Please try again."));
 		}
 		return raceCancellationError(connection.resolveSessionConfig({ provider: sessionTypeId, workingDirectory: workspace, config: undefined }), token);
+	}
+
+	getPermissionOptionsForCreation(sessionTypeId: string, config: ResolveSessionConfigResult): readonly ISessionPermissionOption[] {
+		const policyRestricted = isAutoApprovePolicyRestricted(this._baseConfigurationService, config.schema);
+		return getAgentHostSessionPermissionOptions(sessionTypeId, policyRestricted, true, config)
+			.filter(option => !option.locked && getAgentHostSessionPermissionConfig(sessionTypeId, option.id, policyRestricted, true, config) !== undefined);
 	}
 
 	getNewSessionCancellationToken(sessionId: string): CancellationToken {
@@ -7198,22 +7368,27 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
-	getAgentMergeSessionState(sessionId: string, chat?: URI): AgentMergeSessionState | undefined {
+	getAgentMergeSessionState(sessionId: string, chat?: URI, repository?: URI): AgentMergeSessionState | undefined {
 		const rawId = this._sessionKeyFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		if (!cached) {
-			const legacy = chat ? undefined : readAgentMergeFolderState(this._lastSessionStates.get(sessionId)?.config?.values, undefined, undefined);
+			const legacy = chat || repository ? undefined : readAgentMergeFolderState(this._lastSessionStates.get(sessionId)?.config?.values, undefined, undefined);
 			if (!legacy) {
 				return undefined;
 			}
 			const { chat: _chat, ...state } = legacy;
 			return state;
 		}
-		const folder = cached.getAgentMergeFolder(chat);
+		const folder = cached.getAgentMergeFolder(chat, undefined, repository);
 		if (!folder) {
 			return undefined;
 		}
 		return this._getAgentMergeSessionState(sessionId, folder);
+	}
+
+	supportsRepositoryAgentMerge(sessionId: string, repository: URI, reader?: IReader): boolean {
+		const rawId = this._sessionKeyFromChatId(sessionId);
+		return !!(rawId && this._sessionCache.get(rawId)?.getAgentMergeFolder(undefined, reader, repository));
 	}
 
 	private _getAgentMergeSessionState(sessionId: string, folder: IAgentMergeFolder | undefined): AgentMergeSessionState | undefined {
@@ -7251,9 +7426,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
-	getAgentMergeClientStateObservable(sessionId: string, chat?: URI): IObservable<IAgentMergeClientState | undefined> {
+	getAgentMergeClientStateObservable(sessionId: string, chat?: URI, repository?: URI): IObservable<IAgentMergeClientState | undefined> {
 		let byChat = this._agentMergeSessionStateObservables.get(sessionId);
-		const existing = byChat?.get(chat?.toString() ?? '');
+		const cacheKey = `${chat?.toString() ?? ''}\u0001${repository ? extUriBiasedIgnorePathCase.getComparisonKey(repository) : ''}`;
+		const existing = byChat?.get(cacheKey);
 		if (existing) {
 			return existing;
 		}
@@ -7280,26 +7456,26 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			const rawId = this._sessionKeyFromChatId(sessionId);
 			const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 			const state = cached
-				? this._getAgentMergeSessionState(sessionId, cached.getAgentMergeFolder(chat, reader))
-				: this.getAgentMergeSessionState(sessionId, chat);
+				? this._getAgentMergeSessionState(sessionId, cached.getAgentMergeFolder(chat, reader, repository))
+				: this.getAgentMergeSessionState(sessionId, chat, repository);
 			return state ? { enabled: state.enabled, overrides: state.overrides } : undefined;
 		});
 		if (!byChat) {
 			byChat = new Map();
 			this._agentMergeSessionStateObservables.set(sessionId, byChat);
 		}
-		byChat.set(chat?.toString() ?? '', observable);
+		byChat.set(cacheKey, observable);
 		return observable;
 	}
 
-	async setAgentMergeEnabled(sessionId: string, enabled: boolean, chat?: URI): Promise<void> {
-		const current = this.getAgentMergeSessionState(sessionId, chat);
-		await this._writeAgentMergeClientState(sessionId, enabled, current?.overrides, chat);
+	async setAgentMergeEnabled(sessionId: string, enabled: boolean, chat?: URI, repository?: URI): Promise<void> {
+		const current = this.getAgentMergeSessionState(sessionId, chat, repository);
+		await this._writeAgentMergeClientState(sessionId, enabled, current?.overrides, chat, false, repository);
 	}
 
-	async setAgentMergeOverrides(sessionId: string, overrides: AgentMergeSessionOverrides | undefined, chat?: URI): Promise<void> {
-		const current = this.getAgentMergeSessionState(sessionId, chat);
-		await this._writeAgentMergeClientState(sessionId, current?.enabled ?? false, overrides, chat);
+	async setAgentMergeOverrides(sessionId: string, overrides: AgentMergeSessionOverrides | undefined, chat?: URI, repository?: URI): Promise<void> {
+		const current = this.getAgentMergeSessionState(sessionId, chat, repository);
+		await this._writeAgentMergeClientState(sessionId, current?.enabled ?? false, overrides, chat, false, repository);
 	}
 
 	private _supportsPerFolderAgentMerge(sessionId: string, folder: IAgentMergeFolder): boolean {
@@ -7312,9 +7488,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * is ready for review, for the folder a chat's Agent Merge settings belong
 	 * to. The host already has the user's value, which applies without one.
 	 */
-	private _getAgentMergeReadyIgnoredChecks(session: AgentHostSessionAdapter, chat: URI | undefined): readonly string[] | undefined {
+	private _getAgentMergeReadyIgnoredChecks(session: AgentHostSessionAdapter, chat: URI | undefined, repository?: URI): readonly string[] | undefined {
 		const chatAdapter = chat ? session.chats.get().find(candidate => isEqual(candidate.resource, chat)) : undefined;
-		const resource = (chatAdapter ? chatAdapter.workspace.get() : session.workspace.get())?.folders[0]?.root;
+		// A repository's own folder's value: a repository found in a folder has that folder's
+		const workspace = session.workspace.get();
+		const resource = repository
+			? workspace?.repositories?.find(candidate => extUriBiasedIgnorePathCase.isEqual(candidate.root, repository))?.folder ?? repository
+			: (chatAdapter ? chatAdapter.workspace.get() : workspace)?.folders[0]?.root;
 		const inspected = resource ? this._baseConfigurationService.inspect<readonly string[]>(gitHubPullRequestMarkReadyIgnoredChecksSetting, { resource }) : undefined;
 		return inspected?.workspaceFolderValue ?? inspected?.workspaceValue;
 	}
@@ -7335,20 +7515,27 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				continue;
 			}
 			const folders = new Set<string | undefined>();
-			for (const chat of [undefined, ...session.chats.get().map(chat => chat.resource)]) {
-				const folder = session.getAgentMergeFolder(chat);
+			// Each chat's folder, then each repository of a session of several folders or repositories
+			const workspace = session.workspace.get();
+			const repositories = workspace?.repositories?.map(repository => repository.root) ?? workspace?.folders.map(folder => folder.workingDirectory) ?? [];
+			const targets = [
+				...[undefined, ...session.chats.get().map(chat => chat.resource)].map(chat => ({ chat, repository: undefined })),
+				...(repositories.length > 1 || (workspace?.folders.length ?? 0) > 1 ? repositories.map(repository => ({ chat: undefined, repository })) : []),
+			];
+			for (const { chat, repository } of targets) {
+				const folder = session.getAgentMergeFolder(chat, undefined, repository);
 				if (!folder || folders.has(folder.folderKey)) {
 					continue;
 				}
 				folders.add(folder.folderKey);
 				const state = this._getAgentMergeSessionState(session.sessionId, folder);
-				const readyIgnoredChecks = this._getAgentMergeReadyIgnoredChecks(session, chat);
+				const readyIgnoredChecks = this._getAgentMergeReadyIgnoredChecks(session, chat, repository);
 				if (!state?.enabled || structuralEquals(state.readyIgnoredChecks, readyIgnoredChecks)
 					|| (fillOnly && (state.readyIgnoredChecks !== undefined || readyIgnoredChecks === undefined))) {
 					continue;
 				}
 				try {
-					await this._writeAgentMergeClientState(session.sessionId, true, state.overrides, chat, true);
+					await this._writeAgentMergeClientState(session.sessionId, true, state.overrides, chat, true, repository);
 				} catch (error) {
 					this._logService.warn(`[${this.id}] Failed to update the Agent Merge check exclusions of session ${session.sessionId}`, error);
 				}
@@ -7359,8 +7546,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	/**
 	 * @param keepOwningChat Keeps the chat recorded as having turned Agent Merge
 	 * on, rather than recording `chat`, for an update the user did not make.
+	 * @param repository The repository of a session of several whose Agent Merge
+	 * to update, rather than that of the folder `chat` works in.
 	 */
-	private async _writeAgentMergeClientState(sessionId: string, enabled: boolean, overrides: AgentMergeSessionOverrides | undefined, chat: URI | undefined, keepOwningChat = false): Promise<void> {
+	private async _writeAgentMergeClientState(sessionId: string, enabled: boolean, overrides: AgentMergeSessionOverrides | undefined, chat: URI | undefined, keepOwningChat = false, repository?: URI): Promise<void> {
 		this._assertSessionAvailable(sessionId);
 		const rawId = this._sessionKeyFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
@@ -7368,14 +7557,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!rawId || !cached || !connection) {
 			throw new Error(`[${this.id}] Cannot update Agent Merge state without a running session connection`);
 		}
-		const folder = cached.getAgentMergeFolder(chat);
+		const folder = cached.getAgentMergeFolder(chat, undefined, repository);
 		if (!folder) {
 			throw new Error(`[${this.id}] Cannot update Agent Merge before the chat's folder is known`);
 		}
 		const values = this._lastSessionStates.get(sessionId)?.config?.values;
-		const readyIgnoredChecks = enabled ? this._getAgentMergeReadyIgnoredChecks(cached, chat) : undefined;
+		const readyIgnoredChecks = enabled ? this._getAgentMergeReadyIgnoredChecks(cached, chat, repository) : undefined;
 		const clientState = { enabled, ...(overrides ? { overrides } : {}), ...(readyIgnoredChecks ? { readyIgnoredChecks } : {}) };
-		if (!this._supportsPerFolderAgentMerge(sessionId, folder)) {
+		// A repository found in a folder has no published key until the host first records its settings: the session
+		// folder's tells that the host keeps them per folder.
+		const sessionFolder = repository ? cached.getAgentMergeFolder(undefined) : undefined;
+		if (!this._supportsPerFolderAgentMerge(sessionId, folder) && !(sessionFolder && this._supportsPerFolderAgentMerge(sessionId, sessionFolder))) {
 			if (folder.folderKey !== folder.sessionFolderKey) {
 				throw new Error(`[${this.id}] This Agent Host does not support Agent Merge in peer chat folders`);
 			}
@@ -8352,6 +8544,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		backendChat.catch(() => { /* surfaced through `canvases` or `open` */ });
 		canvases.catch(() => { /* surfaced to whoever reads the canvases */ });
 		return {
+			sessionId: draft.sessionId,
 			canvases,
 			open: async (canvas, instanceId) => {
 				if (state !== 'draft') {
@@ -8842,6 +9035,123 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				for (const cached of removed) {
 					cached.dispose();
 				}
+			}
+		}
+	}
+
+	/** Whether a chat's folder is `folder`, by the folder it opened or the working directory it works in. */
+	private _isChatFolder(candidate: ISessionFolder, folder: URI): boolean {
+		return isEqual(candidate.workingDirectory, folder) || isEqual(candidate.root, folder);
+	}
+
+	/** The folders a chat works in: its own, or else its session's. */
+	private _chatFolders(chat: IChat, session: ISession): readonly ISessionFolder[] {
+		return (chat.workspace.get() ?? session.workspace.get())?.folders ?? [];
+	}
+
+	async addChatFolder(sessionId: string, chatUri: URI, folder: URI): Promise<void> {
+		const { cached, connection, backendChat, chat } = this._resolveChatFolderTarget(sessionId, chatUri);
+		if (this._chatFolders(chat, cached).some(candidate => this._isChatFolder(candidate, folder))) {
+			return;
+		}
+		const inSession = !!cached.workspace.get()?.folders.some(candidate => this._isChatFolder(candidate, folder));
+		const directory = connection.resourceUris.toAgentHost(folder).toString();
+		// The session holds every folder its chats work in; the host gives this one to the chat only
+		await this._dispatchChatFolderAction(connection, cached.backendUri, StateComponents.Session, { type: ActionType.SessionWorkingDirectorySet, directory });
+		try {
+			await this._dispatchChatFolderAction(connection, backendChat, StateComponents.Chat, { type: ActionType.ChatWorkingDirectorySet, directory });
+		} catch (error) {
+			// Undo the session's half, unless the session had the folder before or another chat works in it now
+			if (!inSession && !this._isFolderUsedByOtherChat(cached, chat, folder)) {
+				await this._dispatchChatFolderAction(connection, cached.backendUri, StateComponents.Session, { type: ActionType.SessionWorkingDirectoryRemoved, directory })
+					.catch(rollbackError => this._logService.warn(`[${this.id}] Rolling back the session folder ${directory} failed: ${rollbackError}`));
+			}
+			throw error;
+		}
+	}
+
+	async removeChatFolder(sessionId: string, chatUri: URI, folder: URI): Promise<void> {
+		const { cached, connection, backendChat, chat } = this._resolveChatFolderTarget(sessionId, chatUri);
+		const folders = this._chatFolders(chat, cached);
+		const index = folders.findIndex(candidate => this._isChatFolder(candidate, folder));
+		if (index === 0) {
+			throw new Error(localize('chatFolder.default', "The chat's default folder can't be removed."));
+		}
+		if (index !== -1) {
+			await this._dispatchChatFolderAction(connection, backendChat, StateComponents.Chat, { type: ActionType.ChatWorkingDirectoryRemoved, directory: connection.resourceUris.toAgentHost(folders[index].workingDirectory).toString() });
+		}
+		// Also when the chat no longer has the folder: a previous removal may have left the session's half. The session's
+		// default folder (its first) stays.
+		const sessionFolders = cached.workspace.get()?.folders ?? [];
+		const sessionIndex = sessionFolders.findIndex(candidate => this._isChatFolder(candidate, folder));
+		if (sessionIndex > 0 && !this._isFolderUsedByOtherChat(cached, chat, folder)) {
+			const directory = connection.resourceUris.toAgentHost(sessionFolders[sessionIndex].workingDirectory).toString();
+			try {
+				await this._dispatchChatFolderAction(connection, cached.backendUri, StateComponents.Session, { type: ActionType.SessionWorkingDirectoryRemoved, directory });
+			} catch (error) {
+				// The chat no longer works in the folder, as asked; the host may still have a use for it in the session
+				this._logService.warn(`[${this.id}] Removing the unused session folder ${directory} failed: ${error}`);
+			}
+		}
+	}
+
+	/** A chat that has no folders of its own works in all of the session's, so it keeps every folder in the session. */
+	private _isFolderUsedByOtherChat(session: AgentHostSessionAdapter, chat: IChat, folder: URI): boolean {
+		return session.chats.get().some(other => !isEqual(other.resource, chat.resource) && this._chatFolders(other, session).some(candidate => this._isChatFolder(candidate, folder)));
+	}
+
+	private _resolveChatFolderTarget(sessionId: string, chatUri: URI): { cached: AgentHostSessionAdapter; connection: IAgentConnection; backendChat: URI; chat: IChat } {
+		this._assertSessionAvailable(sessionId);
+		const rawId = this._sessionKeyFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		const connection = this.connection;
+		const chat = cached?.chats.get().find(candidate => isEqual(candidate.resource, chatUri));
+		if (!cached || !connection || !chat) {
+			throw new Error(localize('chatNotFound', "The chat could not be found."));
+		}
+		if (!cached.capabilities.get().supportsChatFolders) {
+			throw new Error(localize('chatFolder.unsupported', "This chat can't work in more than one folder."));
+		}
+		const advertisedDefaultChat = !chatUri.fragment ? this._backendDefaultChat(cached.backendUri, undefined) : undefined;
+		const backendChat = this.getBackendChatResource(chatUri) ?? (advertisedDefaultChat !== undefined ? URI.parse(advertisedDefaultChat) : undefined);
+		if (!backendChat) {
+			throw new Error(localize('chatNotFound', "The chat could not be found."));
+		}
+		return { cached, connection, backendChat, chat };
+	}
+
+	/** Dispatches a working-directory action and settles with the host's answer, throwing its rejection. */
+	private async _dispatchChatFolderAction(connection: IAgentConnection, channel: URI, component: StateComponents.Session | StateComponents.Chat, action: Parameters<IAgentConnection['dispatchConfirmed']>[2]): Promise<void> {
+		const subscription: IReference<IAgentSubscription<unknown>> = component === StateComponents.Session
+			? connection.getSubscription(StateComponents.Session, channel, 'chatFolder')
+			: connection.getSubscription(StateComponents.Chat, channel, 'chatFolder');
+		try {
+			const result = await connection.dispatchConfirmed(channel.toString(), subscription.object, action, CancellationToken.None);
+			if (result.rejectionReason) {
+				throw new Error(localize('chatFolder.rejected', "The folder could not be changed: {0}", result.rejectionReason));
+			}
+		} finally {
+			subscription.dispose();
+		}
+	}
+
+	/**
+	 * Detaches this host's sessions created in one of the workspace configurations (`.code-workspace` files, in the
+	 * client's URI space), so they are listed by their folders. A host without the method has no such sessions.
+	 */
+	async detachSessionsFromWorkspace(workspaceFiles: readonly URI[]): Promise<void> {
+		// Another host's files are not this host's to detach, and it must not learn their paths: filter before mapping
+		const ownFiles = workspaceFiles.filter(file => this._isResourceOfThisHost(file));
+		const connection = this.connection;
+		if (!connection?.detachSessionsFromWorkspace || ownFiles.length === 0) {
+			return;
+		}
+		try {
+			// The host publishes each detached session's metadata, from which every client lists it again
+			await connection.detachSessionsFromWorkspace(ownFiles.map(file => connection.resourceUris.toAgentHost(file)));
+		} catch (error) {
+			if (!(error instanceof ProtocolError && error.code === JsonRpcErrorCodes.MethodNotFound)) {
+				throw error;
 			}
 		}
 	}

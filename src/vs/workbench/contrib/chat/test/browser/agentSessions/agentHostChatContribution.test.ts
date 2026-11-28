@@ -178,7 +178,7 @@ import { ChatSessionReviewPreferencesService, IChatSessionReviewPreferencesServi
 import { IAgentSubscription, RootStateSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ITerminalChatService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
-import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
+import { IAgentHostSessionCreation, IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostSessionWorkingDirectorySynchronizer } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectorySynchronizer.js';
 import { IAgentHostShellInitSynchronizer } from '../../../browser/agentSessions/agentHost/agentHostShellInitSynchronizer.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
@@ -977,7 +977,7 @@ class MockWorkingCopyService extends mock<IWorkingCopyService>() {
 
 // ---- Helpers ----------------------------------------------------------------
 
-function createTestServices(disposables: DisposableStore, workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }, authServiceOverride?: Partial<IAuthenticationService>, languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>, provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>, isSessionsWindow = false, languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>, configOverrides?: Record<string, unknown>, chatSessionsServiceOverride?: Partial<IChatSessionsService>, chatDebugServiceOverride?: Partial<IChatDebugService>, remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>, customizationServiceOverride?: IAgentHostCustomizationService, agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>, languageModelsServiceOverride?: Partial<ILanguageModelsService>, workspaceFolders: readonly URI[] = [], defaultAccountOverride?: Partial<IDefaultAccountService>) {
+function createTestServices(disposables: DisposableStore, workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean; resolveCreation?: (sessionResource: URI) => IAgentHostSessionCreation | undefined }, authServiceOverride?: Partial<IAuthenticationService>, languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>, provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>, isSessionsWindow = false, languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>, configOverrides?: Record<string, unknown>, chatSessionsServiceOverride?: Partial<IChatSessionsService>, chatDebugServiceOverride?: Partial<IChatDebugService>, remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>, customizationServiceOverride?: IAgentHostCustomizationService, agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>, languageModelsServiceOverride?: Partial<ILanguageModelsService>, workspaceFolders: readonly URI[] = [], defaultAccountOverride?: Partial<IDefaultAccountService>) {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 	instantiationService.stub(IContextKeyService, contextKeyService);
@@ -1271,13 +1271,14 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		createTerminalForEntry: async () => undefined,
 		profiles: observableValue('test', []),
 		getProfileForConnection: () => undefined,
-		registerEntry: () => ({ dispose() { } }),
+		registerEntry: () => ({ setName() { }, dispose() { } }),
 		...agentHostTerminalServiceOverride,
 	});
 	instantiationService.stub(IAgentHostSessionWorkingDirectoryResolver, {
 		registerResolver: () => toDisposable(() => { }),
 		resolve: sessionResource => workingDirectoryResolver?.resolve(sessionResource),
 		isNewSession: sessionResource => workingDirectoryResolver?.isNewSession?.(sessionResource) ?? sessionResource.path.substring(1).startsWith('new-'),
+		resolveCreation: sessionResource => workingDirectoryResolver?.resolveCreation?.(sessionResource),
 	});
 	instantiationService.stub(IAgentHostSessionWorkingDirectorySynchronizer, {
 		register: () => toDisposable(() => { }),
@@ -1422,7 +1423,7 @@ function createSessionListController(disposables: DisposableStore, instantiation
 	return disposables.add(instantiationService.createInstance(AgentHostSessionListController, sessionType, provider, sessionListStore, description, 'local', useSessionTitleForDefaultChat));
 }
 
-function createContribution(disposables: DisposableStore, opts?: { backendSessionScheme?: string; authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>; configOverrides?: Record<string, unknown>; provider?: string; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService>; remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>; customizationServiceOverride?: IAgentHostCustomizationService; agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>; languageModelsServiceOverride?: Partial<ILanguageModelsService>; workspaceFolders?: readonly URI[]; defaultAccountOverride?: Partial<IDefaultAccountService>; hideAutoExplainability?: boolean; pendingTreatment?: Promise<void>; requiresWorkspaceTrust?: boolean; retainConsumedSteeringMessages?: boolean; supportsComputerUseSetup?: boolean; canvasPresentationAvailable?: IObservable<boolean>; computerUseSetupService?: IComputerUseSetupService; useSessionTitleForDefaultChat?: boolean; mirrorsPermissionGrants?: boolean }) {
+function createContribution(disposables: DisposableStore, opts?: { backendSessionScheme?: string; authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean; resolveCreation?: (sessionResource: URI) => IAgentHostSessionCreation | undefined }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>; configOverrides?: Record<string, unknown>; provider?: string; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService>; remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>; customizationServiceOverride?: IAgentHostCustomizationService; agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>; languageModelsServiceOverride?: Partial<ILanguageModelsService>; workspaceFolders?: readonly URI[]; defaultAccountOverride?: Partial<IDefaultAccountService>; hideAutoExplainability?: boolean; pendingTreatment?: Promise<void>; requiresWorkspaceTrust?: boolean; retainConsumedSteeringMessages?: boolean; supportsComputerUseSetup?: boolean; canvasPresentationAvailable?: IObservable<boolean>; computerUseSetupService?: IComputerUseSetupService; useSessionTitleForDefaultChat?: boolean; mirrorsPermissionGrants?: boolean }) {
 	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, trustController, modelService, workingCopyService, accessibilitySignalCalls, editingSessionProviders, textFileRetention } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride, false, opts?.languageModelToolsServiceOverride, opts?.configOverrides, opts?.chatSessionsServiceOverride, opts?.chatDebugServiceOverride, opts?.remoteAgentHostServiceOverride, opts?.customizationServiceOverride, opts?.agentHostTerminalServiceOverride, opts?.languageModelsServiceOverride, opts?.workspaceFolders, opts?.defaultAccountOverride);
 
 	if (opts?.hideAutoExplainability || opts?.pendingTreatment) {
@@ -9518,7 +9519,7 @@ suite('AgentHostChatContribution', () => {
 
 		test('captures a multiline initial message from the actual source turn rather than the unsent composer selection', async () => {
 			const prompt = 'first line\nsecond line';
-			const prefix = '/fork prompt ';
+			const prefix = '/fork ';
 			const result = await forkSession('Ignored', 'Forked', {
 				text: prompt,
 				textOffset: prefix.length,
@@ -9857,6 +9858,37 @@ suite('AgentHostChatContribution', () => {
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 			assert.deepStrictEqual(records.map(record => ({ trustInteractionRequired: record.trustInteractionRequired, hasResponseText: record.hasResponseText })), [{ trustInteractionRequired: true, hasResponseText: true }]);
+		}));
+
+		test('a session created in several folders gates its first send on every folder and creates in all of them', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const main = URI.file('/repo-main');
+			const other = URI.file('/repo-other');
+			const metadata = { multiRoot: { workspaceFile: URI.file('/project.code-workspace').toString() } };
+			const workingDirectoryResolver = { resolve: () => main, resolveCreation: () => ({ workingDirectories: [main, other], metadata }) };
+
+			// Declined: the trusted default folder does not vouch for the other
+			const declined = createContribution(disposables, { workingDirectoryResolver });
+			declined.trustController.trustedUris.add(main.toString());
+			declined.trustController.result = false;
+			const declinedResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-several-declined' });
+			disposables.add(await declined.sessionHandler.provideChatSessionContent(declinedResource, CancellationToken.None));
+			const declinedResult = await declined.chatAgentService.registeredAgents.get('agent-host-copilot')!.impl.invoke(makeRequest({ message: 'Hi', sessionResource: declinedResource }), () => { }, [], CancellationToken.None);
+
+			// Trusted: created in both folders, with the creation's metadata
+			const trusted = createContribution(disposables, { workingDirectoryResolver });
+			trusted.trustController.trustedUris.add(main.toString());
+			trusted.trustController.trustedUris.add(other.toString());
+			const { turnPromise, session, turnId, fire } = await startTurn(trusted.sessionHandler, trusted.agentHostService, trusted.chatAgentService, disposables, { message: 'Hi' });
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.deepStrictEqual({
+				declined: { result: declinedResult, created: declined.agentHostService.createSessionCalls.length, prompted: declined.trustController.resourcesTrustUris.map(String) },
+				created: trusted.agentHostService.createSessionCalls.map(call => ({ workingDirectories: call.workingDirectories?.map(String), multiRoot: call._meta?.multiRoot })),
+			}, {
+				declined: { result: {}, created: 0, prompted: [other.toString()] },
+				created: [{ workingDirectories: [main.toString(), other.toString()], multiRoot: metadata.multiRoot }],
+			});
 		}));
 
 		test('sends without prompting when all session folders are already trusted', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

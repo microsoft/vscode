@@ -570,6 +570,9 @@ const _allApiProposals = {
 	workbenchMode: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.workbenchMode.d.ts',
 	},
+	workspaceEditUndoStops: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.workspaceEditUndoStops.d.ts',
+	},
 	workspaceFolderLocations: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.workspaceFolderLocations.d.ts',
 	},

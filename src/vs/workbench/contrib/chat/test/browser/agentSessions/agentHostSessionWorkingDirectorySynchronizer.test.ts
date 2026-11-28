@@ -382,6 +382,143 @@ suite('AgentHostSessionWorkingDirectorySynchronizer', () => {
 		assert.strictEqual(connection.dispatched.length, 2);
 	});
 
+	function withChatScope(state: SessionState, workingDirectories: URI[] | undefined): SessionState {
+		return { ...state, chats: [{ ...state.chats[0], workingDirectories: workingDirectories?.map(directory => directory.toString()) }] };
+	}
+
+	for (const kind of agentHostConnectionKinds) {
+		test(`keeps a folder a chat is scoped to until the chat drops it (${kind.name})`, async () => {
+			const synchronizer = createSynchronizer(true, [kind.toClient(retained)]);
+			const subscription = createSubscription();
+			const state = subscription.verifiedValue!;
+			subscription.refresh(withChatScope(state, [primary, stale]));
+			const connection = new TestConnection(subscription);
+			connection.resourceUris = kind.resourceUris;
+			disposables.add(synchronizer.register({ session, provider: 'claude', connection, subscription }));
+
+			await synchronizer.reconcile(session, CancellationToken.None);
+			const whileScoped = [...connection.dispatched];
+			subscription.refresh(withChatScope(state, [primary]));
+			await timeout(0);
+
+			assert.deepStrictEqual({ whileScoped, afterScopeDropped: connection.dispatched }, {
+				whileScoped: [],
+				afterScopeDropped: [{ type: ActionType.SessionWorkingDirectoryRemoved, directory: stale.toString() }],
+			});
+		});
+	}
+
+	test('does not redispatch a refused removal until an input changes', async () => {
+		const onDidChangeWorkspaceFolders = disposables.add(new Emitter<IWorkspaceFoldersChangeEvent>());
+		const onDidChangeTrustedFolders = disposables.add(new Emitter<void>());
+		const synchronizer = createSynchronizer(true, [retained], onDidChangeWorkspaceFolders.event, onDidChangeTrustedFolders.event);
+		const subscription = createSubscription();
+		const state = subscription.verifiedValue!;
+		const connection = new TestConnection(subscription);
+		disposables.add(synchronizer.register({ session, provider: 'claude', connection, subscription }));
+		const removeStale = { type: ActionType.SessionWorkingDirectoryRemoved, directory: stale.toString() };
+		const counts: number[] = [];
+		const settle = async () => { await timeout(0); counts.push(connection.dispatched.length); };
+
+		// Refused (a chat is being moved to it), then unrelated state changes
+		await settle();
+		subscription.reject(connection.dispatched[0]);
+		subscription.refresh(state);
+		subscription.refresh(state);
+		await settle();
+		// The move is released, which leaves the session's chats as they were: the next workspace change retries
+		subscription.refresh(state);
+		await settle();
+		onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [] });
+		await settle();
+		// Refused again; that move fails, which also leaves the chats as they were: the next trusted-folders change retries
+		subscription.reject(connection.dispatched[1]);
+		subscription.refresh(state);
+		await settle();
+		onDidChangeTrustedFolders.fire();
+		await settle();
+		// Refused again; the move lands, so the chat is scoped to it and it stays
+		subscription.reject(connection.dispatched[2]);
+		subscription.refresh(withChatScope(state, [primary, stale]));
+		await settle();
+		// The chat leaves it
+		subscription.refresh(withChatScope(state, [primary]));
+		await settle();
+
+		assert.deepStrictEqual({ counts, actions: connection.dispatched }, {
+			counts: [1, 1, 1, 2, 2, 3, 3, 4],
+			actions: [removeStale, removeStale, removeStale, removeStale],
+		});
+	});
+
+	test('retries a refused removal once per explicit reconcile, without an observable change', async () => {
+		const synchronizer = createSynchronizer(true, [retained]);
+		const subscription = createSubscription();
+		const state = subscription.verifiedValue!;
+		const connection = new TestConnection(subscription);
+		disposables.add(synchronizer.register({ session, provider: 'claude', connection, subscription }));
+		const removeStale = { type: ActionType.SessionWorkingDirectoryRemoved, directory: stale.toString() };
+		const counts: number[] = [];
+		const settle = async () => { await timeout(0); counts.push(connection.dispatched.length); };
+
+		// Refused (the host reserved it for a move); automatic runs leave it
+		await settle();
+		subscription.reject(connection.dispatched[0]);
+		subscription.refresh(state);
+		await settle();
+		// Before a send: tried once more, refused again, and automatic runs leave it again
+		await synchronizer.reconcile(session, CancellationToken.None);
+		subscription.reject(connection.dispatched[1]);
+		subscription.refresh(state);
+		await settle();
+		// The host released the folder without any observable change: the next send removes it
+		await synchronizer.reconcile(session, CancellationToken.None);
+		await settle();
+		const removed = !subscription.value!.workingDirectories!.includes(stale.toString());
+		// A folder a chat is scoped to is kept, even before a send
+		subscription.refresh(withChatScope(state, [primary, stale]));
+		await synchronizer.reconcile(session, CancellationToken.None);
+		await settle();
+
+		assert.deepStrictEqual({ counts, removed, actions: connection.dispatched }, {
+			counts: [1, 1, 2, 3, 3],
+			removed: true,
+			actions: [removeStale, removeStale, removeStale],
+		});
+	});
+
+	test('retries a refused removal when the session\'s folders change', async () => {
+		const synchronizer = createSynchronizer(true, [retained, added]);
+		const subscription = createSubscription();
+		const state = subscription.verifiedValue!;
+		const connection = new TestConnection(subscription);
+		disposables.add(synchronizer.register({ session, provider: 'claude', connection, subscription }));
+		const removeStale = { type: ActionType.SessionWorkingDirectoryRemoved, directory: stale.toString() };
+		const counts: number[] = [];
+		const settle = async () => { await timeout(0); counts.push(connection.dispatched.length); };
+
+		const folders = (...directories: URI[]) => ({ ...state, workingDirectories: directories.map(directory => directory.toString()) });
+
+		// Adds `added` and removes `stale`; the host takes the addition and refuses the removal, whose rollback is not a change
+		await settle();
+		subscription.reject(connection.dispatched[1]);
+		subscription.refresh(folders(primary, retained, stale, added));
+		await settle();
+		// Another client removes `retained` from the session: its folders changed, so the removal is tried again
+		subscription.refresh(folders(primary, stale, added));
+		await settle();
+
+		assert.deepStrictEqual({ counts, actions: connection.dispatched }, {
+			counts: [2, 2, 4],
+			actions: [
+				{ type: ActionType.SessionWorkingDirectorySet, directory: added.toString() },
+				removeStale,
+				{ type: ActionType.SessionWorkingDirectorySet, directory: retained.toString() },
+				removeStale,
+			],
+		});
+	});
+
 	test('reconciles Copilot sessions through the provider-neutral capability', async () => {
 		const synchronizer = createSynchronizer();
 		const subscription = createSubscription();

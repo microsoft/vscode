@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Disposable, EventEmitter, SourceControlHistoryItemRef, l10n, workspace, Uri, DiagnosticSeverity, env, SourceControlHistoryItem } from 'vscode';
-import { basename, dirname, normalize, sep, relative } from 'path';
+import { basename, dirname, normalize, parse, sep, relative } from 'path';
 import { Readable } from 'stream';
 import { promises as fs, createReadStream } from 'fs';
 import byline from 'byline';
@@ -312,14 +312,16 @@ function normalizePath(path: string): string {
 		path = path.toLowerCase();
 	}
 
-	// Trailing separator
-	if (/[/\\]$/.test(path)) {
-		// Remove trailing separator
+	// Normalize the path
+	path = normalize(path);
+
+	// Remove trailing separator, unless the path is a root (ex: "c:\", "/")
+	// where it is significant ("c:" is relative to the drive's current folder)
+	if (/[/\\]$/.test(path) && path !== parse(path).root) {
 		path = path.substring(0, path.length - 1);
 	}
 
-	// Normalize the path
-	return normalize(path);
+	return path;
 }
 
 export function isDescendant(parent: string, descendant: string): boolean {

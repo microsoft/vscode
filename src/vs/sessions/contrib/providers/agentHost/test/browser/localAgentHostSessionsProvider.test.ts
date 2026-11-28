@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { gitHubPullRequestMarkReadyIgnoredChecksSetting } from '../../../../../../platform/agentHost/common/githubPullRequestArtifact.js';
 import assert from 'assert';
 import { agentHostConnectionKinds } from '../../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
-import { identityAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { buildAnnotationsUri } from '../../../../../../platform/agentHost/common/annotationsUri.js';
 import { toAgentHostClientCustomization } from '../../../../../../workbench/contrib/chat/common/agentHostSessionCustomizations.js';
 import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/agentHostChatIdentity.js';
@@ -43,7 +45,7 @@ import { BackgroundWorkKind, type BackgroundShellWork, type BackgroundSubagentWo
 import { toCopilotBackgroundShellMeta } from '../../../../../../platform/agentHost/common/meta/copilotBackgroundWorkMeta.js';
 import { ResourceType, type ResolveSessionConfigResult, type SessionConfigCompletionsResult, type SessionConfigSchema } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AutomationRunOriginKind, AutomationRunStatus, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, SessionOriginKind, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesSummary, type ChatOrigin, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, isAhpAutomationCatalogChannel, ResponsePartKind, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, withMostRecentRelatedSessionPullRequest, withSessionCreationReference, withSessionExternal, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionScratchFolders, withSessionSourceControlState, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChangesetState, type ChatState, type ChatSummary, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, isAhpAutomationCatalogChannel, ResponsePartKind, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, withMostRecentRelatedSessionPullRequest, withSessionCreationReference, withSessionExternal, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, readSessionMultiRootMetadata, withSessionMultiRootMetadata, withSessionScratchFolders, withSessionSourceControlState, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChangesetState, type ChatState, type ChatSummary, type ComponentToState, withFolderScopeGitState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction, type SessionSummaryChangedParams } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { chatTurnComplete } from '../../../../../../platform/agentHost/test/common/chatActionBuilders.js';
@@ -51,6 +53,10 @@ import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../../.
 import type { AgentChatMoveDestination } from '../../../../../../platform/agentHost/common/agentHostChatMove.js';
 import { PROTOCOL_VERSION } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
+import { buildBranchChangesetUri, buildFolderChangesetOwnerUri } from '../../../../../../platform/agentHost/common/changesetUri.js';
+import { withSessionNonRepositoryFolders } from '../../../../../../platform/agentHost/common/meta/agentSessionNonRepositoryFoldersMeta.js';
+import { withSessionRepositories } from '../../../../../../platform/agentHost/common/meta/agentSessionRepositoriesMeta.js';
 import { toRemoteSessionMessageMetadata, withRemoteSessionOrigin } from '../../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { USE_WORKTREE_SETTING } from '../../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -344,6 +350,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	 * Each entry is `${op}:${uri}`.
 	 */
 	public wireOps: string[] = [];
+	/** Every `createSession` call's working directories. */
+	public createSessionWorkingDirectories: (readonly URI[] | undefined)[] = [];
 	override async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
 		const uri = config?.session ?? URI.parse('copilotcli:///auto-' + this._nextSeq);
 		this.createSessionConfigs.push({
@@ -353,6 +361,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			...(config?._meta ? { metadata: config._meta } : {}),
 			workingDirectory: config?.workingDirectories?.[0],
 		});
+		this.createSessionWorkingDirectories.push(config?.workingDirectories);
 		this.wireOps.push(`createSession:${uri.toString()}`);
 		this.createdSessionUris.push(uri);
 		const hook = this.onCreateSession;
@@ -784,7 +793,7 @@ class BackendSchemeTestProvider extends LocalAgentHostSessionsProvider {
 
 function createProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, contributions = [
 	{ type: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', description: 'test', icon: undefined },
-], options?: { chatSessionsService?: Partial<IChatSessionsService>; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelsService?: Partial<ILanguageModelsService>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; languageModelChanges?: Event<string>; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; getChatModel?: (resource: URI) => IChatModel | undefined; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<ITestSessionWithChat | undefined>; visibleSessions?: IObservable<readonly (ITestSessionWithChat | undefined)[]>; windowSessions?: IObservable<readonly ITestSessionWithChat[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; sessionTools?: (resource: URI) => readonly ToolDefinition[]; mcpAppTools?: (resource: URI) => readonly ToolDefinition[]; activeClientAgents?: IObservable<readonly AgentCustomization[]>; activeClientScope?: (sessionType: string, roots: readonly URI[]) => IAgentCustomizationScope; storageService?: IStorageService; recentWorkspacesService?: ISessionsRecentWorkspacesService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; requestWorkspaceTrust?: (uri: URI) => Promise<boolean>; workspaceTrustBarrier?: DeferredPromise<void>; workspaceTrustError?: Error; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; gitHubService?: IGitHubService; devContainerAgentHostService?: IDevContainerAgentHostService; sessionsProvidersService?: ISessionsProvidersService; pathService?: IPathService; labelService?: ILabelService; telemetryService?: ITelemetryService; providerCtor?: typeof LocalAgentHostSessionsProvider }): LocalAgentHostSessionsProvider {
+], options?: { chatSessionsService?: Partial<IChatSessionsService>; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelsService?: Partial<ILanguageModelsService>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; languageModelChanges?: Event<string>; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; getChatModel?: (resource: URI) => IChatModel | undefined; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<ITestSessionWithChat | undefined>; visibleSessions?: IObservable<readonly (ITestSessionWithChat | undefined)[]>; windowSessions?: IObservable<readonly ITestSessionWithChat[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; sessionTools?: (resource: URI) => readonly ToolDefinition[]; mcpAppTools?: (resource: URI) => readonly ToolDefinition[]; activeClientAgents?: IObservable<readonly AgentCustomization[]>; activeClientScope?: (sessionType: string, roots: readonly URI[]) => IAgentCustomizationScope; storageService?: IStorageService; recentWorkspacesService?: ISessionsRecentWorkspacesService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; untrustedUris?: readonly URI[]; requestWorkspaceTrust?: (uri: URI) => Promise<boolean>; workspaceTrustBarrier?: DeferredPromise<void>; workspaceTrustError?: Error; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; gitHubService?: IGitHubService; devContainerAgentHostService?: IDevContainerAgentHostService; sessionsProvidersService?: ISessionsProvidersService; pathService?: IPathService; labelService?: ILabelService; telemetryService?: ITelemetryService; providerCtor?: typeof LocalAgentHostSessionsProvider }): LocalAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stubInstance(AgentHostArtifactIntegrations, { setConnection: () => { }, dispose: () => { } });
@@ -830,7 +839,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 			if (options?.workspaceTrustError) {
 				throw options.workspaceTrustError;
 			}
-			return { uri, trusted: options?.workspaceTrusted ?? true };
+			return { uri, trusted: (options?.workspaceTrusted ?? true) && !options?.untrustedUris?.some(untrusted => untrusted.toString() === uri.toString()) };
 		}
 		override async setUrisTrust(uris: URI[], trusted: boolean): Promise<void> {
 			await options?.setUrisTrust?.(uris, trusted);
@@ -1407,6 +1416,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 			agentHost.canvasDefinitions = [{ canvasId: 'plan', extensionId: 'user:agent-plan', extensionSource: 'user', displayName: 'Agent Plan', description: 'Plans.', requiresInput: false, actionCount: 0 }];
 
 			const draft = provider.createCanvasDraft();
+			const replaced: string[] = [];
+			disposables.add(provider.onDidReplaceSession(({ from, to }) => replaced.push(`${from.sessionId === draft.sessionId ? 'draft' : from.sessionId} -> ${to.sessionId}`)));
 			const canvases = await draft.canvases;
 			const listedBeforeOpen = provider.getSessions().length;
 			const committed = await draft.open(canvas, 'plan-instance');
@@ -1420,6 +1431,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				opened: agentHost.canvasOpenRequests.map(open => ({ session: open.session.toString(), chat: open.chat.toString(), request: open.request })),
 				committed: { rawId: AgentSession.id(committed.resource), sessionType: committed.sessionType, title: committed.title.get() },
 				listed: provider.getSessions().map(session => session.sessionId),
+				replaced,
 				titles: agentHost.dispatchedActions.filter(dispatched => dispatched.action.type === ActionType.SessionTitleChanged).map(dispatched => ({ channel: dispatched.channel, action: dispatched.action })),
 			}, {
 				canvases: ['plan'],
@@ -1428,6 +1440,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				opened: [{ session: backend.toString(), chat: buildDefaultChatUri(backend), request: { canvasId: 'plan', extensionId: 'user:agent-plan', instanceId: 'plan-instance' } }],
 				committed: { rawId: AgentSession.id(backend), sessionType: 'copilotcli', title: 'Agent Plan' },
 				listed: [committed.sessionId],
+				replaced: [`draft -> ${committed.sessionId}`],
 				titles: [{ channel: backend.toString(), action: { type: ActionType.SessionTitleChanged, title: 'Agent Plan' } }],
 			});
 		});
@@ -11349,6 +11362,22 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('createNewSession with an empty draft configuration seeds no remembered or configured mode and approvals', async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({
+			[SessionConfigKey.Mode]: 'autopilot',
+			[SessionConfigKey.AutoApprove]: 'autoApprove',
+		}), StorageScope.PROFILE, StorageTarget.MACHINE);
+		const config = createSchemaDefaultConfigurationService();
+		await config.setUserConfiguration('chat.defaultConfiguration', { mode: 'plan', approvals: 'allowAll' });
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config, storageService });
+		provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id, { draftConfiguration: {} });
+		await timeout(0);
+
+		const seeded = agentHost.resolveSessionConfigRequests.at(-1)?.config;
+		assert.deepStrictEqual({ mode: seeded?.mode, autoApprove: seeded?.autoApprove }, { mode: undefined, autoApprove: undefined });
+	});
+
 	test('createNewSession keeps remembered picks over an ordinary configured chat.defaultConfiguration setting', async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({
@@ -13362,6 +13391,91 @@ suite('LocalAgentHostSessionsProvider', () => {
 				after: { session: false, mainChat: false, peerChat: true, peerChatObservable: true, loadingChat: undefined },
 				peerChatWhileAnotherFolderIsWritten: true,
 			});
+		});
+
+		test('Agent Merge settings are per repository: a repository found in a folder is written and read by its root', async () => {
+			const provider = createProvider(disposables, agentHost);
+			const primaryDirectory = URI.file('/workspace-primary');
+			const peerDirectory = URI.file('/workspace-peer');
+			const nested = URI.file('/workspace-primary/packages/lib');
+			const session = setupMultiChatSession(provider, 'repository-agent-merge', [primaryDirectory, peerDirectory]);
+			const sessionUri = AgentSession.uri('copilotcli', 'repository-agent-merge').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			// The host has published only its folders' keys: the repository gets one with its first settings.
+			let meta: SessionState['_meta'] = withWorkingDirectoryKey(withWorkingDirectoryKey(undefined, primaryDirectory.toString()), peerDirectory.toString());
+			meta = withSessionRepositories(meta, {
+				[getWorkingDirectoryKey(primaryDirectory.toString())]: [{ root: primaryDirectory.toString(), kind: 'folder' }, { root: nested.toString(), kind: 'nested' }],
+				[getWorkingDirectoryKey(peerDirectory.toString())]: [{ root: peerDirectory.toString(), kind: 'folder' }],
+			});
+			const setConfigValues = (values: Record<string, unknown>) => agentHost.setSessionState('repository-agent-merge', 'copilotcli', {
+				...makeState([makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle, [primaryDirectory.toString()])], { defaultChat, meta, workingDirectories: [primaryDirectory.toString(), peerDirectory.toString()] }),
+				config: { schema: { type: 'object', properties: {} }, values },
+			});
+			fireSessionMetaChanged(agentHost, 'repository-agent-merge', meta);
+			setConfigValues({});
+			const mainChat = session.mainChat.get().resource;
+
+			const dispatchCount = agentHost.dispatchedActions.length;
+			await provider.setAgentMergeEnabled(session.sessionId, true, mainChat, nested);
+			const unknownWrite = await provider.setAgentMergeEnabled(session.sessionId, true, mainChat, URI.file('/elsewhere')).then(() => 'written', () => 'rejected');
+			const writes = agentHost.dispatchedActions.slice(dispatchCount).map(({ action }) => action);
+			setConfigValues({ [SessionConfigKey.AgentMergeFolders]: { [getWorkingDirectoryKey(nested.toString())]: { enabled: true, chat: defaultChat } } });
+
+			assert.deepStrictEqual({
+				writes,
+				unknownWrite,
+				repository: provider.getAgentMergeSessionState(session.sessionId, mainChat, nested)?.enabled,
+				repositoryObservable: provider.getAgentMergeClientStateObservable(session.sessionId, mainChat, nested).get()?.enabled,
+				sessionFolder: provider.getAgentMergeSessionState(session.sessionId, mainChat)?.enabled,
+			}, {
+				writes: [{ type: ActionType.SessionConfigChanged, config: { [SessionConfigKey.AgentMergeFolders]: { [nested.toString()]: { enabled: true, chat: defaultChat } } } }],
+				unknownWrite: 'rejected',
+				repository: true,
+				repositoryObservable: true,
+				sessionFolder: undefined,
+			});
+		});
+
+		test('a repository\'s Agent Merge sends the check exclusions of its own folder', async () => {
+			const primaryDirectory = URI.file('/workspace-primary');
+			const peerDirectory = URI.file('/workspace-peer');
+			const nested = URI.file('/workspace-primary/packages/lib');
+			const configurationService = new class extends TestConfigurationService {
+				override inspect<T>(key: string, overrides?: { resource?: URI | null }) {
+					const value = key === gitHubPullRequestMarkReadyIgnoredChecksSetting && overrides?.resource
+						? [isEqual(overrides.resource, peerDirectory) ? 'peer-check' : isEqual(overrides.resource, primaryDirectory) ? 'primary-check' : 'other-check']
+						: undefined;
+					return { ...super.inspect<T>(key, overrides), ...(value ? { workspaceFolderValue: value as T } : {}) };
+				}
+			}();
+			const provider = createProvider(disposables, agentHost, undefined, { configurationService });
+			const session = setupMultiChatSession(provider, 'repository-ignored-checks', [primaryDirectory, peerDirectory]);
+			const sessionUri = AgentSession.uri('copilotcli', 'repository-ignored-checks').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			let meta: SessionState['_meta'] = withWorkingDirectoryKey(withWorkingDirectoryKey(undefined, primaryDirectory.toString()), peerDirectory.toString());
+			meta = withSessionRepositories(meta, {
+				[getWorkingDirectoryKey(primaryDirectory.toString())]: [{ root: primaryDirectory.toString(), kind: 'folder' }, { root: nested.toString(), kind: 'nested' }],
+				[getWorkingDirectoryKey(peerDirectory.toString())]: [{ root: peerDirectory.toString(), kind: 'folder' }],
+			});
+			fireSessionMetaChanged(agentHost, 'repository-ignored-checks', meta);
+			agentHost.setSessionState('repository-ignored-checks', 'copilotcli', {
+				...makeState([makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle, [primaryDirectory.toString()])], { defaultChat, meta, workingDirectories: [primaryDirectory.toString(), peerDirectory.toString()] }),
+				config: { schema: { type: 'object', properties: {} }, values: {} },
+			});
+			const mainChat = session.mainChat.get().resource;
+
+			const dispatchCount = agentHost.dispatchedActions.length;
+			await provider.setAgentMergeEnabled(session.sessionId, true, mainChat, nested);
+			await provider.setAgentMergeEnabled(session.sessionId, true, mainChat, peerDirectory);
+			const readyIgnoredChecks = agentHost.dispatchedActions.slice(dispatchCount).map(({ action }) => {
+				const folders = (action as { config?: Record<string, Record<string, { readyIgnoredChecks?: readonly string[] }>> }).config?.[SessionConfigKey.AgentMergeFolders] ?? {};
+				return Object.entries(folders).map(([folder, state]) => [folder, state.readyIgnoredChecks]);
+			});
+
+			assert.deepStrictEqual(readyIgnoredChecks, [
+				[[nested.toString(), ['primary-check']]],
+				[[peerDirectory.toString(), ['peer-check']]],
+			]);
 		});
 
 		test('a chat that moved away with its Agent Merge leaves its folder off for the chats that stay, at once', () => {
@@ -19050,6 +19164,26 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('offers only the creation permission choices a resolved configuration can apply and policy allows, also for a quick chat', async () => {
+		agentHost.setAgents([{ provider: 'claude', displayName: 'Claude', description: '', models: [] } as AgentInfo]);
+		const provider = createProvider(disposables, agentHost);
+		const restricted = createProvider(disposables, agentHost, undefined, { configurationService: createPolicyRestrictedConfigurationService() });
+		agentHost.resolveSessionConfigHandler = () => ({
+			schema: createVSCodeSessionConfigSchema({ permissionMode: { type: 'string', title: 'Permissions', enum: ['default', 'acceptEdits', 'plan', 'bypassPermissions'] } }),
+			values: {},
+		});
+		const config = await provider.resolveSessionConfigForCreation(undefined, 'claude', CancellationToken.None);
+		assert.deepStrictEqual({
+			workspace: agentHost.resolveSessionConfigRequests.map(request => request.workingDirectory?.toString()),
+			applicable: provider.getPermissionOptionsForCreation('claude', config).map(option => option.id),
+			policyRestricted: restricted.getPermissionOptionsForCreation('claude', config).map(option => option.id),
+		}, {
+			workspace: [undefined],
+			applicable: ['default', 'acceptEdits', 'plan', 'bypassPermissions'],
+			policyRestricted: ['default', 'plan'],
+		});
+	});
+
 	test('a failed leased chat does not inherit parent permissions and can be explicitly reacquired', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const { provider, peer, peerSummary } = perChatSession('leased-config-error', true);
 		await timeout(0);
@@ -19828,6 +19962,317 @@ suite('LocalAgentHostSessionsProvider', () => {
 			'both subagents should reach the catalog after the idle window while the session stays visible',
 		);
 	}));
+	suite('sessions of several folders', () => {
+		const api = URI.file('/work/api');
+		const web = URI.file('/work/web');
+		const projectFile = URI.file('/work/project.code-workspace');
+
+		function setAgentWorkingDirectories(multipleWorkingDirectories: boolean): void {
+			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true }, ...(multipleWorkingDirectories ? { multipleWorkingDirectories: {} } : {}) } } as AgentInfo]);
+		}
+
+		setup(() => setAgentWorkingDirectories(true));
+
+		test('creates a draft in all its folders, with its workspace configuration', async () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = provider.createNewSession(api, provider.sessionTypes[0].id, { workspaceConfig: { uri: projectFile, name: 'Project', folders: [api, web] } });
+			await timeout(0);
+			assert.deepStrictEqual({
+				folders: session.workspace.get()?.folders.map(folder => folder.root.toString()),
+				workspaceConfig: session.workspace.get()?.workspaceConfig?.name,
+				created: agentHost.createSessionWorkingDirectories.map(directories => directories?.map(String)),
+				multiRoot: readSessionMultiRootMetadata(agentHost.createSessionConfigs[0]?.metadata),
+				firstSend: provider.getNewSessionCreation(session.resource)?.workingDirectories.map(String),
+			}, {
+				folders: [api.toString(), web.toString()],
+				workspaceConfig: 'Project',
+				created: [[api.toString(), web.toString()]],
+				multiRoot: { workspaceFile: projectFile.toString() },
+				firstSend: [api.toString(), web.toString()],
+			});
+		});
+
+		test('an agent of one working directory gets no other folders, and its draft of a workspace keeps the workspace for its first request', async () => {
+			setAgentWorkingDirectories(false);
+			const provider = createProvider(disposables, agentHost);
+			const session = provider.createNewSession(api, provider.sessionTypes[0].id, { workspaceConfig: { uri: projectFile, name: 'Project', folders: [api, web] } });
+			await timeout(0);
+			fireSessionAdded(agentHost, 'project', { workingDirectories: [api.toString(), web.toString()] });
+			const creation = provider.getNewSessionCreation(session.resource);
+			assert.deepStrictEqual({
+				folders: session.workspace.get()?.folders.map(folder => folder.root.toString()),
+				firstSend: creation?.workingDirectories.map(String),
+				firstSendMultiRoot: readSessionMultiRootMetadata(creation?.metadata),
+				capabilities: provider.getSessions().find(candidate => candidate.resource.path.endsWith('/project'))?.capabilities.get().supportsChatFolders,
+			}, {
+				folders: [api.toString()],
+				firstSend: [api.toString()],
+				firstSendMultiRoot: { workspaceFile: projectFile.toString() },
+				capabilities: undefined,
+			});
+		});
+
+		test('a draft lets its chat add folders as its agent can, but not a quick chat or outside the Agents window', async () => {
+			const provider = createProvider(disposables, agentHost);
+			const draft = provider.createNewSession(api, provider.sessionTypes[0].id);
+			const quickChat = provider.createQuickChat(provider.sessionTypes[0].id);
+			const editorWindowDraft = createProvider(disposables, agentHost, undefined, { isSessionsWindow: false }).createNewSession(api, provider.sessionTypes[0].id);
+			const supported = () => [draft, quickChat, editorWindowDraft].map(session => session.capabilities.get().supportsChatFolders === true);
+			const withAgent = supported();
+			setAgentWorkingDirectories(false);
+			assert.deepStrictEqual({ withAgent, withoutAgent: supported() }, { withAgent: [true, false, false], withoutAgent: [false, false, false] });
+		});
+
+		test('does not create a draft whose other folder is untrusted', async () => {
+			const provider = createProvider(disposables, agentHost, undefined, { untrustedUris: [web] });
+			provider.createNewSession(api, provider.sessionTypes[0].id, { folders: [api, web] });
+			await timeout(0);
+			assert.deepStrictEqual(agentHost.createdSessionUris, []);
+		});
+
+		test('creates a draft in its default folder only outside the Agents window', async () => {
+			const provider = createProvider(disposables, agentHost, undefined, { isSessionsWindow: false });
+			const session = provider.createNewSession(api, provider.sessionTypes[0].id, { folders: [api, web] });
+			await timeout(0);
+			assert.deepStrictEqual({
+				folders: session.workspace.get()?.folders.map(folder => folder.root.toString()),
+				created: agentHost.createSessionWorkingDirectories.map(directories => directories?.map(String)),
+				firstSend: provider.getNewSessionCreation(session.resource),
+			}, { folders: [api.toString()], created: [[api.toString()]], firstSend: undefined });
+		});
+
+		test('reports the host\'s folder state and the workspace configuration of a session', async () => {
+			const provider = createProvider(disposables, agentHost);
+			await timeout(0);
+			fireSessionAdded(agentHost, 'project', { workingDirectories: [api.toString(), web.toString()] });
+			fireSessionAdded(agentHost, 'quick', { workingDirectories: [api.toString()], workspaceless: true });
+			let meta = withSessionMultiRootMetadata(undefined, { workspaceFile: projectFile.toString() });
+			meta = withSessionNonRepositoryFolders(meta, [getWorkingDirectoryKey(web.toString())]);
+			meta = withSessionRepositories(meta, { [getWorkingDirectoryKey(api.toString())]: [{ root: api.toString(), kind: 'folder' }] });
+			fireSessionMetaChanged(agentHost, 'project', meta);
+			const session = provider.getSessions().find(candidate => candidate.resource.path.endsWith('/project'))!;
+			const quickChat = provider.getSessions().find(candidate => candidate.resource.path.endsWith('/quick'))!;
+			const workspace = session.workspace.get();
+			assert.deepStrictEqual({
+				workspaceConfig: { name: workspace?.workspaceConfig?.name, folders: workspace?.workspaceConfig?.folders.map(String) },
+				webIsRepository: workspace?.folders[1].gitRepository?.isRepository?.get(),
+				repositories: workspace?.repositories?.map(repository => [repository.root.toString(), repository.kind]),
+				capabilities: session.capabilities.get().supportsChatFolders,
+				quickChatCapabilities: quickChat.capabilities.get().supportsChatFolders,
+			}, {
+				// Recorded without a name or folders, as an editor window records it
+				workspaceConfig: { name: 'project', folders: [api.toString(), web.toString()] },
+				webIsRepository: false,
+				repositories: [[api.toString(), 'folder']],
+				capabilities: true,
+				// The host refuses folders for a quick chat
+				quickChatCapabilities: undefined,
+			});
+		});
+
+		test('updates a found repository\'s Git state on the same branch', async () => {
+			const provider = createProvider(disposables, agentHost);
+			await timeout(0);
+			fireSessionAdded(agentHost, 'nested', { workingDirectories: [api.toString()] });
+			const lib = URI.file('/work/api/lib');
+			const meta = (uncommittedChanges: number) => withFolderScopeGitState(
+				withSessionRepositories(undefined, { [getWorkingDirectoryKey(api.toString())]: [{ root: api.toString(), kind: 'folder' }, { root: lib.toString(), kind: 'nested' }] }),
+				getWorkingDirectoryScopeId([lib.toString()]), { branchName: 'feature', uncommittedChanges }, [lib.toString()]);
+			const session = provider.getSessions().find(candidate => candidate.resource.path.endsWith('/nested'))!;
+			const libChanges = () => session.workspace.get()?.repositories?.find(repository => repository.root.toString() === lib.toString())?.gitRepository?.uncommittedChanges;
+			fireSessionMetaChanged(agentHost, 'nested', meta(1));
+			const before = libChanges();
+			fireSessionMetaChanged(agentHost, 'nested', meta(3));
+			assert.deepStrictEqual({ before, after: libChanges() }, { before: 1, after: 3 });
+		});
+
+		test('adds and removes a chat folder through the host', async () => {
+			const provider = createProvider(disposables, agentHost);
+			await timeout(0);
+			fireSessionAdded(agentHost, 'project', { workingDirectories: [api.toString(), web.toString()] });
+			const session = provider.getSessions()[0];
+			const chat = session.mainChat.get().resource;
+			const docs = URI.file('/work/docs');
+			const dispatched: string[] = [];
+			agentHost.dispatchConfirmed = async (channel, _subscription, action) => {
+				dispatched.push(`${action.type} ${channel === AgentSession.uri('copilotcli', 'project').toString() ? 'session' : 'chat'} ${(action as { directory?: string }).directory}`);
+				return { channel, action, serverSeq: 1, origin: undefined };
+			};
+			await provider.addChatFolder(session.sessionId, chat, docs);
+			await provider.removeChatFolder(session.sessionId, chat, web);
+			await assert.rejects(provider.removeChatFolder(session.sessionId, chat, api), /default folder/);
+			assert.deepStrictEqual(dispatched, [
+				`${ActionType.SessionWorkingDirectorySet} session ${docs.toString()}`,
+				`${ActionType.ChatWorkingDirectorySet} chat ${docs.toString()}`,
+				`${ActionType.ChatWorkingDirectoryRemoved} chat ${web.toString()}`,
+				// No other chat works in it
+				`${ActionType.SessionWorkingDirectoryRemoved} session ${web.toString()}`,
+			]);
+		});
+
+		function addProject(rawId: string, sessionFolders: readonly URI[], chatFolders: readonly URI[]): void {
+			const backend = AgentSession.uri('copilotcli', rawId);
+			agentHost.addSession(createSession(rawId, {
+				workingDirectories: sessionFolders,
+				chats: [{ chat: URI.parse(buildDefaultChatUri(backend)), kind: 'default', workingDirectories: chatFolders.map(String) }],
+			}));
+		}
+
+		test('rolls back the session\'s half of a chat folder the chat refused, and finishes a removal on retry', async () => {
+			// The state a removal leaves when it fails after the chat's half: the chat no longer works in `web`
+			addProject('retry', [api, web], [api]);
+			// A chat whose default folder is `web`, which also works in the session's default folder
+			addProject('primary', [api, web], [web, api]);
+			const provider = createProvider(disposables, agentHost);
+			await timeout(0);
+			const retry = provider.getSessions().find(candidate => candidate.resource.path.endsWith('/retry'))!;
+			const primary = provider.getSessions().find(candidate => candidate.resource.path.endsWith('/primary'))!;
+			const docs = URI.file('/work/docs');
+			const dispatched: string[] = [];
+			agentHost.dispatchConfirmed = async (channel, _subscription, action) => {
+				const directory = (action as { directory?: string }).directory;
+				dispatched.push(`${action.type} ${directory}`);
+				const rejected = action.type === ActionType.ChatWorkingDirectorySet || (action.type === ActionType.SessionWorkingDirectoryRemoved && directory === web.toString());
+				return { channel, action, serverSeq: 1, origin: undefined, ...(rejected ? { rejectionReason: 'Refused' } : {}) };
+			};
+			await assert.rejects(provider.addChatFolder(retry.sessionId, retry.mainChat.get().resource, docs), /Refused/);
+			// The session's half is refused: the chat's removal stands
+			await provider.removeChatFolder(retry.sessionId, retry.mainChat.get().resource, web);
+			await provider.removeChatFolder(primary.sessionId, primary.mainChat.get().resource, api);
+			assert.deepStrictEqual(dispatched, [
+				`${ActionType.SessionWorkingDirectorySet} ${docs.toString()}`,
+				`${ActionType.ChatWorkingDirectorySet} ${docs.toString()}`,
+				`${ActionType.SessionWorkingDirectoryRemoved} ${docs.toString()}`,
+				// The retry: only the session's half is left
+				`${ActionType.SessionWorkingDirectoryRemoved} ${web.toString()}`,
+				// The session keeps its default folder
+				`${ActionType.ChatWorkingDirectoryRemoved} ${api.toString()}`,
+			]);
+		});
+
+		test('surfaces the host\'s refusal of a chat folder', async () => {
+			const provider = createProvider(disposables, agentHost);
+			await timeout(0);
+			fireSessionAdded(agentHost, 'project', { workingDirectories: [api.toString()] });
+			const session = provider.getSessions()[0];
+			agentHost.dispatchConfirmed = async (channel, _subscription, action) => ({ channel, action, serverSeq: 1, origin: undefined, rejectionReason: 'Session is workspace-less' });
+			await assert.rejects(provider.addChatFolder(session.sessionId, session.mainChat.get().resource, web), /Session is workspace-less/);
+		});
+
+		test('does not support chat folders outside the Agents window', async () => {
+			const provider = createProvider(disposables, agentHost, undefined, { isSessionsWindow: false });
+			await timeout(0);
+			fireSessionAdded(agentHost, 'project', { workingDirectories: [api.toString()] });
+			const session = provider.getSessions()[0];
+			assert.strictEqual(session.capabilities.get().supportsChatFolders, undefined);
+			await assert.rejects(provider.addChatFolder(session.sessionId, session.mainChat.get().resource, web));
+		});
+
+		test('detaches only the workspace configurations on this host', async () => {
+			const calls: string[][] = [];
+			agentHost.detachSessionsFromWorkspace = async files => {
+				calls.push(files.map(String));
+				return [];
+			};
+			const provider = createProvider(disposables, agentHost);
+			await timeout(0);
+			await provider.detachSessionsFromWorkspace([projectFile, toAgentHostUri(projectFile, 'remote-a'), projectFile.with({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+box' })]);
+			// Another host's file alone is not sent
+			await provider.detachSessionsFromWorkspace([toAgentHostUri(projectFile, 'remote-a')]);
+			assert.deepStrictEqual(calls, [[projectFile.toString()]]);
+		});
+
+		for (const kind of agentHostConnectionKinds) {
+			test(`gives a repository of a session its own Branch changeset, observed only while its changes are (${kind.name})`, async () => {
+				agentHost.resourceUris = kind.resourceUris;
+				const provider = createProvider(disposables, agentHost);
+				await timeout(0);
+				fireSessionAdded(agentHost, 'repositories', { workingDirectories: [api.toString(), web.toString()] });
+				// As the host records two folders that are each a repository: the Git state of the second folder's scope, without repository records
+				fireSessionMetaChanged(agentHost, 'repositories', withFolderScopeGitState(undefined, getWorkingDirectoryScopeId([web.toString()]), { branchName: 'main' }, [web.toString()]));
+				const session = provider.getSessions()[0];
+				const owner = URI.parse(buildBranchChangesetUri(buildFolderChangesetOwnerUri(AgentSession.uri('copilotcli', 'repositories').toString(), getWorkingDirectoryScopeId([web.toString()])))).toString();
+				const changeset = session.getRepositoryChangeset?.(kind.toClient(web), BRANCH_CHANGES_CHANGESET_ID);
+				const subscriptions = () => agentHost.sessionSubscribeCounts.get(owner) ?? 0;
+				const before = subscriptions();
+				const observed = session.mainChat.get().observeChanges!();
+				const reader = autorun(r => changeset?.operations.read(r));
+				const during = subscriptions();
+				reader.dispose();
+				observed.dispose();
+				assert.deepStrictEqual({
+					resource: changeset?.resource?.toString(),
+					cached: session.getRepositoryChangeset?.(kind.toClient(web), BRANCH_CHANGES_CHANGESET_ID) === changeset,
+					notARepository: session.getRepositoryChangeset?.(kind.toClient(URI.file('/elsewhere')), BRANCH_CHANGES_CHANGESET_ID),
+					otherChangeset: session.getRepositoryChangeset?.(kind.toClient(web), 'uncommitted'),
+					before,
+					during,
+				}, { resource: owner, cached: true, notARepository: undefined, otherChangeset: undefined, before: 0, during: 1 });
+			});
+		}
+
+		test('scopes a folder\'s own repository by the folder, also below the repository\'s root', async () => {
+			const provider = createProvider(disposables, agentHost);
+			await timeout(0);
+			const apiSource = URI.file('/work/api/src');
+			fireSessionAdded(agentHost, 'subfolder', { workingDirectories: [apiSource.toString(), web.toString()] });
+			fireSessionMetaChanged(agentHost, 'subfolder', withSessionRepositories(undefined, {
+				[getWorkingDirectoryKey(apiSource.toString())]: [{ root: api.toString(), kind: 'folder' }],
+				[getWorkingDirectoryKey(web.toString())]: [{ root: web.toString(), kind: 'folder' }],
+			}));
+			const session = provider.getSessions()[0];
+			const ownerOf = (folder: URI) => URI.parse(buildBranchChangesetUri(buildFolderChangesetOwnerUri(AgentSession.uri('copilotcli', 'subfolder').toString(), getWorkingDirectoryScopeId([folder.toString()])))).toString();
+			assert.deepStrictEqual({
+				repositories: session.workspace.get()?.repositories?.map(repository => repository.root.toString()),
+				api: session.getRepositoryChangeset?.(api, BRANCH_CHANGES_CHANGESET_ID)?.resource?.toString(),
+			}, { repositories: [api.toString(), web.toString()], api: ownerOf(apiSource) });
+		});
+
+		test('gives the one repository of a session that also has a folder in no repository its own Branch changeset', async () => {
+			const provider = createProvider(disposables, agentHost);
+			await timeout(0);
+			const notes = URI.file('/work/notes');
+			fireSessionAdded(agentHost, 'mixed', { workingDirectories: [api.toString(), notes.toString()] });
+			fireSessionMetaChanged(agentHost, 'mixed', withSessionRepositories(undefined, {
+				[getWorkingDirectoryKey(api.toString())]: [{ root: api.toString(), kind: 'folder' }],
+			}));
+			const session = provider.getSessions()[0];
+			const owner = URI.parse(buildBranchChangesetUri(buildFolderChangesetOwnerUri(AgentSession.uri('copilotcli', 'mixed').toString(), getWorkingDirectoryScopeId([api.toString()])))).toString();
+			assert.deepStrictEqual({
+				repositories: session.workspace.get()?.repositories?.map(repository => repository.root.toString()),
+				api: session.getRepositoryChangeset?.(api, BRANCH_CHANGES_CHANGESET_ID)?.resource?.toString(),
+				notes: session.getRepositoryChangeset?.(notes, BRANCH_CHANGES_CHANGESET_ID),
+			}, { repositories: [api.toString()], api: owner, notes: undefined });
+		});
+
+		test('gives a session of several folders no repository changesets from a host that does not list their repositories', async () => {
+			const provider = createProvider(disposables, agentHost);
+			await timeout(0);
+			fireSessionAdded(agentHost, 'aggregate', { workingDirectories: [api.toString(), web.toString()] });
+			const session = provider.getSessions()[0];
+			assert.deepStrictEqual({
+				repositories: session.workspace.get()?.repositories,
+				api: session.getRepositoryChangeset?.(api, BRANCH_CHANGES_CHANGESET_ID),
+				web: session.getRepositoryChangeset?.(web, BRANCH_CHANGES_CHANGESET_ID),
+			}, { repositories: undefined, api: undefined, web: undefined });
+		});
+
+		test('gives a session of one folder no repository changesets', async () => {
+			const provider = createProvider(disposables, agentHost);
+			await timeout(0);
+			fireSessionAdded(agentHost, 'single', { workingDirectories: [api.toString()] });
+			assert.strictEqual(provider.getSessions()[0].getRepositoryChangeset?.(api, BRANCH_CHANGES_CHANGESET_ID), undefined);
+		});
+
+		test('treats a host without detach as having no sessions to detach', async () => {
+			const provider = createProvider(disposables, agentHost);
+			await timeout(0);
+			agentHost.detachSessionsFromWorkspace = async () => { throw new ProtocolError(JsonRpcErrorCodes.MethodNotFound, 'Method not found'); };
+			await provider.detachSessionsFromWorkspace([projectFile]);
+			agentHost.detachSessionsFromWorkspace = async () => { throw new Error('disk full'); };
+			await assert.rejects(provider.detachSessionsFromWorkspace([projectFile]), /disk full/);
+		});
+	});
 });
 
 suite.skip('LocalAgentHostSessionsProvider - active-session branch changeset subscription', () => {

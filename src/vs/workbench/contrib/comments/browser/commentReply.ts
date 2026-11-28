@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { DEFAULT_FONT_FAMILY } from '../../../../base/browser/fonts.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from '../../../../base/browser/ui/mouseCursor/mouseCursor.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
@@ -72,6 +73,8 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 	readonly whenInitialized: Promise<void>;
 	/** Whether the comment editor was to be focused while the reply wasn't in the document, where it can't take focus. */
 	private _isFocusPending = false;
+	/** The number of the comment editor's actions that are running, which can take focus from the reply, such as to show a file dialog. */
+	private _runningEditorActions = 0;
 
 	constructor(
 		readonly owner: string,
@@ -99,6 +102,18 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		this.commentEditor = this._register(this._scopedInstatiationService.createInstance(SimpleCommentEditor, this._form, SimpleCommentEditor.getEditorOptions(configurationService), _contextKeyService, this._parentThread));
 		this._progressBar = this._register(new ProgressBar(dom.append(this._container, dom.$('.comment-form-progress')), defaultProgressBarStyles));
 		this._progressBar.hide();
+		if (container.closest('.comment-thread-floating-widget')) {
+			this.commentEditor.updateOptions({
+				fontFamily: DEFAULT_FONT_FAMILY,
+				fontWeight: 'normal',
+				wrappingStrategy: 'advanced',
+				padding: { top: 4, bottom: 4 },
+				scrollbar: { vertical: 'auto' },
+				overviewRulerLanes: 0,
+				overviewRulerBorder: false,
+				hideCursorInOverviewRuler: true
+			});
+		}
 		this.commentEditorIsEmpty = CommentContextKeys.commentIsEmpty.bindTo(this._contextKeyService);
 		this.commentEditorIsEmpty.set(!this._pendingComment);
 
@@ -419,13 +434,19 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		this._commentEditorActions = new CommentFormActions(this.keybindingService, this._contextKeyService, this.contextMenuService, container, async (action: IAction) => {
 			this._actionRunDelegate?.();
 
-			action.run({
+			const result = action.run({
 				thread: this._commentThread,
 				text: this.commentEditor.getValue(),
 				$mid: MarshalledId.CommentThreadReply
 			});
 
 			this.focusCommentEditor();
+			this._runningEditorActions++;
+			try {
+				await result;
+			} finally {
+				this._runningEditorActions--;
+			}
 		});
 
 		this._register(this._commentEditorActions);
@@ -550,8 +571,10 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		this._register(dom.addDisposableListener(this._reviewThreadReplyButton, 'click', _ => this.clearAndExpandReplyArea()));
 		this._register(dom.addDisposableListener(this._reviewThreadReplyButton, 'focus', _ => this.clearAndExpandReplyArea()));
 
-		this._register(commentEditor.onDidBlurEditorWidget(() => {
-			if (this.isReply && commentEditor.getModel()!.getValueLength() === 0 && this.isReplyExpanded) {
+		// Focus moving to the reply's actions, or to a dialog that one of them shows, doesn't leave the reply.
+		const focusTracker = this._register(dom.trackFocus(this._container));
+		this._register(focusTracker.onDidBlur(() => {
+			if (this.isReply && !this._runningEditorActions && commentEditor.getModel()!.getValueLength() === 0 && this.isReplyExpanded) {
 				this._container.classList.remove('expand');
 			}
 		}));

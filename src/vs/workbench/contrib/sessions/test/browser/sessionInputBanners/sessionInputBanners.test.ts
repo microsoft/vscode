@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { SyncDescriptor } from '../../../../../../platform/instantiation/common/descriptors.js';
 import assert from 'assert';
 import { IManagedHover } from '../../../../../../base/browser/ui/hover/hover.js';
 import { IAction } from '../../../../../../base/common/actions.js';
@@ -33,6 +34,7 @@ import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../
 import { IChat, IGitHubPullRequestRef, ISessionWorkspace, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
+import { SessionAgentMergeService, ISessionAgentMergeService } from '../../../browser/sessionAgentMerge.js';
 import { ISessionHost, SessionHost, SessionHostKind } from '../../../../../services/sessions/browser/sessionHost.js';
 import { ITestSessionWithChat, stubSessionHosts } from '../sessionHostTestUtils.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
@@ -81,6 +83,8 @@ suite('SessionInputBanners', () => {
 		]);
 
 		const instantiationService = store.add(new TestInstantiationService());
+		// Created on first use, from the session providers stubbed by then
+		instantiationService.set(ISessionAgentMergeService, new SyncDescriptor(SessionAgentMergeService) as unknown as ISessionAgentMergeService);
 		// The chat window of session A has focus: it is the globally active session.
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			readonly activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', windowA);
@@ -254,6 +258,8 @@ suite('SessionInputBanners', () => {
 		}();
 		const storageService = store.add(new TestStorageService());
 		const instantiationService = store.add(new TestInstantiationService());
+		// Created on first use, from the session providers stubbed by then
+		instantiationService.set(ISessionAgentMergeService, new SyncDescriptor(SessionAgentMergeService) as unknown as ISessionAgentMergeService);
 		instantiationService.stub(IHoverService, upcastPartial<IHoverService>({
 			setupManagedHover: () => upcastPartial<IManagedHover>({ dispose() { } }),
 		}));
@@ -277,8 +283,8 @@ suite('SessionInputBanners', () => {
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const banners = store.add(new SessionInputBanners(
 			stubSessionHosts(instantiationService, store, { session: sessionsService.activeSession }).mainHost,
-			sessionsProvidersService,
 			configuration,
+			new SessionAgentMergeService(sessionsProvidersService, configuration),
 			gitHubService,
 			feedbackService,
 			commandService,

@@ -21,7 +21,7 @@ import { ISessionSectionOrderService, ISessionSectionPositions, resolveSectionOr
 export interface ISessionGroupAppearance {
 	/** Theme icon id chosen by the user. */
 	readonly icon?: string;
-	/** Theme color id applied to the group icon and name. */
+	/** Color applied to the group icon and name: a theme color id, or a custom `#rrggbb` that the Workspace editor picks. */
 	readonly color?: string;
 }
 
@@ -213,7 +213,7 @@ export interface ISessionGroupsService {
 	/** Set a group's icon, or restore the default with `undefined`. */
 	setGroupIcon(groupId: string, icon: string | undefined): void;
 
-	/** Set a group's icon and name color, or restore the default with `undefined`. */
+	/** Set a group's icon and name color, a theme color id or a custom `#rrggbb`, or restore the default with `undefined`. */
 	setGroupColor(groupId: string, color: string | undefined): void;
 
 	/** Appearance of a workspace, repository, or environment section, keyed by its stable section id. */
@@ -245,6 +245,13 @@ export interface ISessionGroupsService {
 
 	/** Nest a grouping section in a custom group, or return it to the top level. */
 	moveSection(sectionId: string, parentId: string | undefined, placement?: ISessionGroupPlacement): void;
+
+	/**
+	 * Gives a grouping section's placement in a custom group, and its place among the group's rows, to the section's new id,
+	 * such as a workspace's after its file was renamed. A placement the new id has already stays. The groups themselves do not
+	 * change, so the change notes none.
+	 */
+	renameSection(sectionId: string, newSectionId: string): void;
 
 	/**
 	 * Delete a group and its subgroups at any depth, removing their sessions'
@@ -807,6 +814,27 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		}
 		this.save();
 		this._onDidChange.fire({ groupsChanged: true, membershipChanged: new Set() });
+	}
+
+	renameSection(sectionId: string, newSectionId: string): void {
+		const parentId = this._sectionMembership.get(sectionId);
+		if (parentId === undefined || sectionId === newSectionId) {
+			return;
+		}
+		this._sectionMembership.delete(sectionId);
+		const order = this._childOrders.get(parentId);
+		if (this._sectionMembership.has(newSectionId)) {
+			if (order) {
+				this._childOrders.set(parentId, order.filter(id => id !== sectionId));
+			}
+		} else {
+			this._sectionMembership.set(newSectionId, parentId);
+			if (order) {
+				this._childOrders.set(parentId, order.map(id => id === sectionId ? newSectionId : id));
+			}
+		}
+		this.save();
+		this._onDidChange.fire({ groupsChanged: false, membershipChanged: new Set() });
 	}
 
 	private reorderChild(childId: string, parentId: string, placement: ISessionGroupPlacement | undefined): boolean {

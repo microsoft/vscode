@@ -5,6 +5,7 @@
 
 import electron from 'electron';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { basename } from '../../../base/common/path.js';
 import { isMacintosh } from '../../../base/common/platform.js';
 import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
@@ -23,6 +24,7 @@ export interface IWindowState {
 	folderUri?: URI;
 	backupPath?: string;
 	remoteAuthority?: string;
+	agentsMode?: boolean;
 	uiState: IWindowUIState;
 }
 
@@ -47,6 +49,7 @@ interface ISerializedWindowState {
 	readonly folder?: string;
 	readonly backupPath?: string;
 	readonly remoteAuthority?: string;
+	readonly agentsMode?: boolean;
 	readonly uiState: IWindowUIState;
 }
 
@@ -91,7 +94,8 @@ export class WindowsStateHandler extends Disposable {
 		@IStateService private readonly stateService: IStateService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@ILogService private readonly logService: ILogService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		private readonly app: { on(event: 'browser-window-blur', listener: () => void): unknown } = electron.app
 	) {
 		super();
 
@@ -99,6 +103,17 @@ export class WindowsStateHandler extends Disposable {
 		this.exactRestore = this.takeExactRestore();
 
 		this.registerListeners();
+	}
+
+	/**
+	 * Whether the empty window that backs up into `backupFolder` was in Agents mode
+	 * in the last session. Hot exit restores such a window from its backup, also
+	 * when the windows of the last session are not restored.
+	 */
+	wasEmptyWindowInAgentsMode(backupFolder: string): boolean {
+		return [this._state.lastActiveWindow, ...this._state.openedWindows].some(window =>
+			window?.agentsMode === true && !window.workspace && !window.folderUri && !!window.backupPath && basename(window.backupPath) === backupFolder
+		);
 	}
 
 	private takeExactRestore(): IExactRestoreState | undefined {
@@ -130,7 +145,7 @@ export class WindowsStateHandler extends Disposable {
 		// When a window looses focus, save all windows state. This allows to
 		// prevent loss of window-state data when OS is restarted without properly
 		// shutting down the application (https://github.com/microsoft/vscode/issues/87171)
-		electron.app.on('browser-window-blur', () => {
+		this.app.on('browser-window-blur', () => {
 			if (!this.shuttingDown) {
 				this.saveWindowsState();
 			}
@@ -319,6 +334,7 @@ export class WindowsStateHandler extends Disposable {
 			folderUri: isSingleFolderWorkspaceIdentifier(window.openedWorkspace) ? window.openedWorkspace.uri : undefined,
 			backupPath: window.backupPath,
 			remoteAuthority: window.remoteAuthority,
+			agentsMode: window.config?.agentsMode || undefined,
 			uiState: window.serializeWindowState({ exact })
 		};
 	}
@@ -514,6 +530,10 @@ function restoreWindowState(windowState: ISerializedWindowState): IWindowState {
 		result.remoteAuthority = windowState.remoteAuthority;
 	}
 
+	if (windowState.agentsMode === true) {
+		result.agentsMode = true;
+	}
+
 	if (windowState.folder) {
 		result.folderUri = URI.parse(windowState.folder);
 	}
@@ -539,6 +559,7 @@ function serializeWindowState(windowState: IWindowState): ISerializedWindowState
 		folder: windowState.folderUri?.toString(),
 		backupPath: windowState.backupPath,
 		remoteAuthority: windowState.remoteAuthority,
+		agentsMode: windowState.agentsMode,
 		uiState: windowState.uiState
 	};
 }

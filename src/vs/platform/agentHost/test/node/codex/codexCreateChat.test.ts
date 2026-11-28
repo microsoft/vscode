@@ -2371,6 +2371,35 @@ suite('CodexAgent workspace conversion', () => {
 		});
 	});
 
+	test('chat isolation keeps the other folders the host passes after the new working directory', async () => {
+		const harness = await createWorkspaceHarness();
+		const { agent, peer, session, folder } = harness;
+		const target = await addIsolationPeer(harness, 'multi-folder-peer');
+		const other = URI.file(`${folder.fsPath}-other`);
+		// A chat of several folders, as the host offers moving its main folder
+		target.entry.workingDirectories = [target.entry.workingDirectory!, other];
+		const context = { sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false, owner: fixedChatOwnerRef(session), resource: target.chat };
+		// Without keeping its other folders, a multi-root chat still cannot move
+		const withoutOthers = await agent.setChatWorkingDirectory(target.chat, context, folder).then(() => 'moved', error => String(error).includes('multi-root') ? 'rejected' : String(error));
+		// Nor can a session-wide move of a multi-root configuration
+		const sessionWide = await agent.setWorkingDirectory(target.chat, context, folder).then(() => 'moved', error => String(error).includes('multi-root') ? 'rejected' : String(error));
+		const changing = agent.setChatWorkingDirectory(target.chat, context, folder, { additionalDirectories: [other] });
+		const request = await readNextRequest(peer.outbound);
+		confirmIsolationUpdate(harness, request);
+		await changing;
+		assert.deepStrictEqual({
+			withoutOthers,
+			sessionWide,
+			live: target.entry.workingDirectories?.map(directory => directory.fsPath),
+			persisted: (await agent['_metadataStore'].read(target.entry.sessionUri)).workingDirectories?.map(directory => directory.fsPath),
+		}, {
+			withoutOthers: 'rejected',
+			sessionWide: 'rejected',
+			live: [folder.fsPath, other.fsPath],
+			persisted: [folder.fsPath, other.fsPath],
+		});
+	});
+
 	for (const disconnect of [false, true]) {
 		test(`chat isolation signals quarantine for ${disconnect ? 'disconnection' : 'timeout'} after an update request`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const harness = await createWorkspaceHarness();

@@ -37,13 +37,14 @@ import { IChatService } from '../../../../chat/common/chatService/chatService.js
 import { AgentsChatPartService, IAgentsChatPartService, restoreAgentsChatPart } from '../../../browser/agentsView/agentsChatPart.js';
 import { IAgentsChatPartFrame } from '../../../browser/agentsView/agentsChatPartFrame.js';
 import { EditorWindowMainSessionHost, EditorWindowShownChatService, IEditorWindowShownChatService } from '../../../browser/agentsView/editorWindowMainSessionHost.js';
-import { ChatEditorInput } from '../../../browser/chatEditor/chatEditor.js';
+import { ChatEditorInput, getSessionChatViewHost } from '../../../browser/chatEditor/chatEditor.js';
+import { fillSessionChatDragData } from '../../../browser/dnd.js';
 import { CHAT_WINDOW_COMPOSERS_STORAGE_KEY, createChatWindowComposerResource, isChatWindowComposerResource } from '../../../browser/chatEditor/chatWindowComposer.js';
 import { INewSessionTarget } from '../../../browser/parts/chatView.js';
 import { fromStoredChatDraft, toStoredChatDraft } from '../../../common/newChatDraftState.js';
 import { IChatViewFactory } from '../../../browser/chatViewFactory.js';
 import { ISessionGroupsService } from '../../../browser/sessionGroupsService.js';
-import { INewSessionDraftSlot, ISessionChange, ISessionsManagementService } from '../../../common/sessionsManagement.js';
+import { INewSessionDraftSlot, INewSessionRequestAcceptedEvent, ISessionChange, ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../common/sessionConfig.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { buildTestSession } from '../../common/testSessionBuilder.js';
@@ -299,10 +300,13 @@ suite('AgentsChatPartService', () => {
 		};
 		let liveSlots = 0;
 		let nextSlot = 0;
+		const slots: INewSessionDraftSlot[] = [];
+		const acceptedRequests = store.add(new Emitter<INewSessionRequestAcceptedEvent>());
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
 			onDidChangeSessions: counted(sessionsChanged),
 			onDidChangeSession: counted(allSessionsChanged),
-			onDidAcceptNewSessionRequest: Event.None,
+			onDidAcceptNewSessionRequest: acceptedRequests.event,
+			onDidEndNewSessionRequest: Event.None,
 			onDidReplaceSession: Event.None,
 			onDidReplaceNewDraftSession: Event.None,
 			getSessions: () => [],
@@ -318,7 +322,9 @@ suite('AgentsChatPartService', () => {
 			},
 			createNewSessionSlot: () => {
 				liveSlots++;
-				return upcastPartial<INewSessionDraftSlot & IDisposable>({ id: `slot-${nextSlot++}`, newSession: options?.newSession ?? constObservable(undefined), dispose: () => { liveSlots--; } });
+				const slot = upcastPartial<INewSessionDraftSlot & IDisposable>({ id: `slot-${nextSlot++}`, newSession: options?.newSession ?? constObservable(undefined), dispose: () => { liveSlots--; } });
+				slots.push(slot);
+				return slot;
 			},
 		}));
 		instantiationService.stub(ISessionsListModelService, upcastPartial<ISessionsListModelService>({ getStatusIcon: () => Codicon.circle }));
@@ -391,6 +397,8 @@ suite('AgentsChatPartService', () => {
 				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (candidate: string) => candidate === key }));
 			},
 			setChatEnabled: (enabled: boolean) => contextKeyService.setValue(ChatContextKeys.enabled.key, enabled),
+			/** Accepts the foreground send of the composer created last, whose session is then still being created. */
+			acceptSend: (session: ISession) => acceptedRequests.fire({ session, owner: slots.at(-1)!, background: false }),
 			fireSessionsChanged: (added: readonly ISession[], removed: readonly ISession[] = []) => {
 				sessionsChanged.fire({ added, removed, changed: [] } as never);
 				allSessionsChanged.fire(toSessionChanges(added, removed) as never);
@@ -439,6 +447,16 @@ suite('AgentsChatPartService', () => {
 		status.set(SessionStatus.InProgress, undefined);
 
 		assert.deepStrictEqual({ draft, untitled, firstTurn: active() }, { draft: 'none', untitled: 'none', firstTurn: { session: true, chat: true } });
+	});
+
+	test('a composer counts as a draft also while its send creates its session, after the send cleared what was typed', async () => {
+		const { service, acceptSend } = createService();
+
+		await service.openComposer(undefined);
+		const empty = service.hasDraftComposer();
+		acceptSend(sentSession('sending'));
+
+		assert.deepStrictEqual({ empty, sending: service.hasDraftComposer() }, { empty: false, sending: true });
 	});
 
 	test('the session a composer\'s first send made shows as committed, until the user picks its tab again', async () => {
@@ -822,6 +840,25 @@ suite('AgentsChatPartService', () => {
 			beside: { groups: [{ tabs: ['/a'], active: '/a' }, { tabs: ['/b'], active: '/b' }], activeGroup: 1, visible: true },
 			again: { groups: [{ tabs: ['/a'], active: '/a' }, { tabs: ['/b'], active: '/b' }], activeGroup: 0, visible: true },
 		});
+	});
+
+	test('a session dropped on a chat opens its chat in the group of that chat, also while another group is active', async () => {
+		const dropped = buildTestSession({ id: 'dropped', title: 'Dropped' });
+		const { service, part, layout, store } = createService({ sessions: () => [dropped.session] });
+
+		await service.openChat(session, chatA, { sideBySide: true });
+		await service.openChat(session, chatB, { sideBySide: true });
+		// The view of the chat of the first group, which takes what is dropped on it through its host
+		const element = document.createElement('div');
+		store.add(getSessionChatViewHost(part.groups[0].activeEditor as ChatEditorInput)!.createDropTarget!(element, () => chatA));
+		const dataTransfer = new DataTransfer();
+		fillSessionChatDragData(new DragEvent('dragstart', { dataTransfer }), dropped.session.sessionId, dropped.mainChat.chat.resource);
+		element.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer }));
+		element.querySelector('.session-chat-drop-overlay')?.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }));
+		await timeout(0);
+
+		const droppedTab = dropped.mainChat.chat.resource.path;
+		assert.deepStrictEqual(layout(), { groups: [{ tabs: ['/a', droppedTab], active: droppedTab }, { tabs: ['/b'], active: '/b' }], activeGroup: 0, visible: true });
 	});
 
 	test('closing a chat while its provider is released, which removes its session as its tab disposes, disposes its tab once, not from within its own dispose', async () => {

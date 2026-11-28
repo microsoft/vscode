@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { ISessionAgentMergeService, SessionAgentMergeService } from '../../../../../workbench/contrib/sessions/browser/sessionAgentMerge.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IChatSessionItemArchiveState } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { constObservable, IObservable, IReader, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
-import { isEqual } from '../../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -25,6 +27,8 @@ import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessio
 import { ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { ISessionAttentionService } from '../../../../../workbench/contrib/sessions/common/sessionAttentionService.js';
 import { IDeletedSessionGroups, ISessionGroup, ISessionGroupAppearance, ISessionGroupPlacement, ISessionGroupsChangeEvent, ISessionGroupsService, SessionGroupTree } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
+import { IRecentSessionWorkspace, ISessionWorkspacesService } from '../../../../../workbench/contrib/sessions/common/sessionWorkspaces.js';
+import { TestSessionWorkspacesService } from '../../../../../workbench/contrib/sessions/test/browser/testSessionWorkspacesService.js';
 import { ISessionListModelChangeEvent, ISessionsListModelService, SessionListModelChangeKind, SessionSortEntry, SessionSortMode } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionsListUndoService, SessionsListUndoService } from '../../../../../workbench/contrib/sessions/browser/sessionsListUndoService.js';
 import { ISessionsListPresentation } from '../../../../../workbench/contrib/sessions/browser/sessionsListPresentation.js';
@@ -183,6 +187,10 @@ export interface ITestSessionOptions {
 	readonly workspaceResource?: URI;
 	/** A GitHub repository, as `owner/name`, that the workspace's folder reports through its Git metadata. */
 	readonly repository?: string;
+	/** The workspace's folders, the default first. */
+	readonly folders?: readonly URI[];
+	/** The `.code-workspace` file the session was created in. */
+	readonly workspaceFile?: URI;
 	readonly status?: SessionStatus;
 	readonly isArchived?: boolean;
 	readonly isRead?: boolean;
@@ -209,6 +217,8 @@ export function createTestSession(title: string, options: ITestSessionOptions = 
 		override readonly description = constObservable(undefined);
 		override readonly changes = constObservable([]);
 		override readonly changesets = constObservable([]);
+		// The main chat works in the session's folders
+		override readonly workspace = constObservable(undefined);
 	}();
 	const isArchived = observableValue(`archived-${resourceId}`, options.isArchived ?? false);
 	const isExternal = observableValue(`external-${resourceId}`, options.isExternal ?? false);
@@ -241,7 +251,9 @@ export function createTestSession(title: string, options: ITestSessionOptions = 
 					baseBranchName: undefined,
 					gitHubInfo: constObservable({ owner: repositoryOwner, repo: repositoryName }),
 				},
-			}] : [],
+			}] : options.folders?.map(root => ({ root, workingDirectory: root, name: basename(root), description: undefined })) ?? [],
+			// The name and folders a session records are not what lists show: they come from the workspace file
+			workspaceConfig: options.workspaceFile ? { uri: options.workspaceFile, name: 'recorded name', folders: options.folders ?? [workspaceUri] } : undefined,
 			requiresWorkspaceTrust: false,
 			isVirtualWorkspace: false,
 		}),
@@ -304,9 +316,15 @@ export interface IListHarnessOptions {
 	readonly memberships?: ReadonlyMap<string, string>;
 	readonly sectionMemberships?: ReadonlyMap<string, string>;
 	readonly sectionAppearances?: ReadonlyMap<string, ISessionGroupAppearance>;
+	/** The Agents window's workspaces, which Group by Workspace lists while it separates groups and workspaces. */
+	readonly workspaces?: readonly IRecentSessionWorkspace[];
 	readonly pinnedSessionIds?: ReadonlySet<string>;
+	/** Pinned group (`group:<id>`) and grouping-section headers. The harness updates them as the real service does. */
+	readonly pinnedSectionIds?: readonly string[];
 	/** Automation sessions shown in the Sessions list. The harness updates the set as the real service does. */
 	readonly shownAutomationSessionIds?: ReadonlySet<string>;
+	/** Sessions left out of the Sessions list while their canvas is in the sidebar. */
+	readonly hiddenCanvasSessionIds?: ReadonlySet<string>;
 	/** Apply sort changes and fire change events, as the real service does. */
 	readonly liveListModel?: boolean;
 	/** Apply pin and unpin changes and fire change events, as the real service does. */
@@ -324,6 +342,8 @@ type ConfigureListHarness = (instantiationService: TestInstantiationService) => 
 export function createListHarness(disposables: Pick<DisposableStore, 'add'>, sessions: ISession[], optionsOrConfigure: IListHarnessOptions | ConfigureListHarness = {}): IListHarness {
 	const store = disposables.add(new DisposableStore());
 	const instantiationService = workbenchInstantiationService(undefined, store);
+	// Created on first use, from the session providers stubbed by then
+	instantiationService.set(ISessionAgentMergeService, new SyncDescriptor(SessionAgentMergeService) as unknown as ISessionAgentMergeService);
 	const managementService = new TestSessionsManagementService(sessions);
 	const commandService = new TestCommandService();
 	const configure = typeof optionsOrConfigure === 'function' ? optionsOrConfigure : undefined;
@@ -333,8 +353,10 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	const sectionMemberships = options.sectionMemberships ?? new Map();
 	const pinnedSessionIds = options.pinnedSessionIds ?? new Set();
 	const livePinnedSessionIds = new Set<string>();
+	const pinnedSectionIds = observableValue<readonly string[]>('pinnedSectionIds', options.pinnedSectionIds ?? []);
 	const liveUnpinnedSessionIds = new Set<string>();
 	const shownAutomationSessionIds = new Set(options.shownAutomationSessionIds);
+	const hiddenCanvasSessionIds = options.hiddenCanvasSessionIds ?? new Set();
 	const provisionallyHiddenSessionIds = new Map<string, number>();
 	const comparisons = options.comparisons ?? [];
 	const deletedGroupIds: string[] = [];
@@ -365,6 +387,15 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	});
 	instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
 		override readonly onDidChange = onDidChangeListModel.event;
+		override readonly pinnedSectionIds = pinnedSectionIds;
+		override pinSection(sectionId: string): void {
+			if (!pinnedSectionIds.get().includes(sectionId)) {
+				pinnedSectionIds.set([...pinnedSectionIds.get(), sectionId], undefined);
+			}
+		}
+		override unpinSection(sectionId: string): void {
+			pinnedSectionIds.set(pinnedSectionIds.get().filter(id => id !== sectionId), undefined);
+		}
 		override isSessionPinned(session: ISession): boolean {
 			return !liveUnpinnedSessionIds.has(session.sessionId) && (pinnedSessionIds.has(session.sessionId) || livePinnedSessionIds.has(session.sessionId));
 		}
@@ -394,7 +425,7 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		}
 		override migrateLegacyReadState(): void { }
 		override isSessionListed(session: ISession, reader?: IReader): boolean {
-			return !provisionallyHiddenSessionIds.has(session.sessionId) && (!session.isAutomation?.read(reader) || shownAutomationSessionIds.has(session.sessionId));
+			return !provisionallyHiddenSessionIds.has(session.sessionId) && (session.isAutomation?.read(reader) ? shownAutomationSessionIds.has(session.sessionId) : !hiddenCanvasSessionIds.has(session.sessionId));
 		}
 		override hideSessionsProvisionally(sessions: readonly ISession[]): IDisposable {
 			const update = (delta: number) => {
@@ -454,6 +485,7 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 			return status === SessionStatus.Error ? Codicon.error : isArchived ? Codicon.passFilled : completedStateIcon ?? Codicon.circleSmallFilled;
 		}
 	});
+	instantiationService.stub(ISessionWorkspacesService, new TestSessionWorkspacesService(options.workspaces));
 	const appearanceChanges = store.add(new Emitter<ISessionGroupsChangeEvent>());
 	const sectionAppearances = new Map(options.sectionAppearances);
 	instantiationService.stub(ISessionGroupsService, new class extends mock<ISessionGroupsService>() {

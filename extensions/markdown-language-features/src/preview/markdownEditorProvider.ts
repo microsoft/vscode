@@ -10,7 +10,7 @@ import { Disposable, disposeAll } from '../util/dispose';
 import { getRangeFromPositionOrRange, MdLinkOpener } from '../util/openDocumentLink';
 import { areUrisEqual, getMarkdownLocalResourceRoots } from '../util/resources';
 import { ChangedLineRange, MarkdownPreviewLineDiffProvider } from './lineDiff';
-import { TextDocumentSync, type SyncedTextDocument } from '@vscode/web-editors';
+import { TextDocumentSync, type DocumentTextChange, type SyncedTextDocument } from '@vscode/web-editors';
 import { vsCodeLineBreak, vsCodeTextDocument } from '@vscode/web-editors/vscode';
 import { encodeWebviewInitialState } from './webviewInitialState';
 import type { ILogger } from '../logging';
@@ -23,14 +23,16 @@ import {
 } from '../markdownExtensions';
 import { generateUuid } from '../util/uuid';
 import { MarkdownEditorRichLinkController } from './markdownEditorRichLinks';
-import { codeBlockEditorPresentation, markdownEditorHost, markdownEditorRenderer, mergeCodeBlockEditorPresentation, type CodeBlockEditorProviderDefinition, type MarkdownEditorConfiguration, type ResolvedCodeBlockEditor } from './markdownEditorProtocol';
+import { clampMarkdownEditorZoomPercent, codeBlockEditorPresentation, DEFAULT_MARKDOWN_EDITOR_ZOOM_PERCENT, MARKDOWN_EDITOR_ZOOM_STEP_PERCENT, markdownEditorHost, markdownEditorRenderer, mergeCodeBlockEditorPresentation, stepMarkdownEditorZoomDelta, type CodeBlockEditorProviderDefinition, type MarkdownEditorConfiguration, type ResolvedCodeBlockEditor } from './markdownEditorProtocol';
 import { createMarkdownEditorRpcConnection, MarkdownEditorRpcTransport } from './markdownEditorRpc';
 import { MarkdownEditorRename, renameApi } from './markdownEditorRename';
 import { completionApi, MarkdownEditorLanguageFeatures } from './markdownEditorLanguageFeatures';
 import { MarkdownEditorImagePaste } from './markdownEditorImagePaste';
 import { MarkdownEditorNavigation } from './markdownEditorNavigation';
+import { MarkdownEditorUndoGrouper } from './markdownEditorUndoGrouping';
 import { MarkdownEditorSessionTelemetry, type MarkdownEditorViewState } from './markdownEditorTelemetry';
 import { MAX_SCANNED_DOCUMENT_LENGTH, scanMarkdownFeatures } from './markdownDocumentFeatures';
+import { MarkdownPreviewConfiguration } from './previewConfig';
 
 /** Delay before a new Markdown editor's document is scanned for telemetry, to stay off the open path. */
 const FEATURE_SCAN_DELAY_MS = 2_000;
@@ -278,6 +280,8 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 	readonly #telemetryReporter: TelemetryReporter;
 	readonly #telemetrySessions = new Set<MarkdownEditorSessionTelemetry>();
 	readonly #webviewPanels = new Map<vscode.WebviewPanel, AuthenticatedWebview>();
+	readonly #configurationUpdaters = new Map<vscode.WebviewPanel, { readonly document: vscode.TextDocument; readonly post: () => void }>();
+	#zoomDelta = 0;
 	readonly #navigation = new Map<vscode.WebviewPanel, MarkdownEditorNavigation>();
 	readonly #focusedWebviewPanels = new Set<vscode.WebviewPanel>();
 	readonly #providerApis = new Map<string, Promise<MarkdownCodeBlockEditorProviderApi | undefined>>();
@@ -367,32 +371,110 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			return;
 		}
 		const vsCodeDocument = vsCodeTextDocument(document);
+		const undoGrouper = new MarkdownEditorUndoGrouper();
+		let applyingEditorEdit = false;
+		let bufferedChanges: { readonly text: string; readonly change: DocumentTextChange }[] | undefined;
+		let replayTextOverride: string | undefined;
+		const onDidChangeText = new vscode.EventEmitter<DocumentTextChange>();
+		const forwardDocumentChange = vsCodeDocument.onDidChangeText(change => {
+			if (bufferedChanges) {
+				bufferedChanges.push({ text: vsCodeDocument.getText(), change });
+				return;
+			}
+			onDidChangeText.fire(change);
+		});
+		const replayChange = (text: string, change: DocumentTextChange): void => {
+			replayTextOverride = text;
+			try {
+				onDidChangeText.fire(change);
+			} finally {
+				replayTextOverride = undefined;
+			}
+		};
 		// Counts the editor's own writes for telemetry
 		const editorWrites = new vscode.EventEmitter<void>();
 		const syncedDocument: SyncedTextDocument = {
 			get version() { return vsCodeDocument.version; },
-			getText: () => vsCodeDocument.getText(),
+			getText: () => replayTextOverride ?? vsCodeDocument.getText(),
 			applyEdits: async (version, edits) => {
-				if (document.isReadonly) {
+				if (document.isReadonly || document.version !== version) {
+					undoGrouper.reset();
 					return false;
 				}
-				const applied = await vsCodeDocument.applyEdits(version, edits);
-				if (applied) {
-					editorWrites.fire();
+				const deletedText = edits.length === 1 && edits[0].length > 0
+					? document.getText(new vscode.Range(document.positionAt(edits[0].offset), document.positionAt(edits[0].offset + edits[0].length)))
+					: '';
+				const steps = undoGrouper.planEdits(edits, deletedText);
+				const buffer: { readonly text: string; readonly change: DocumentTextChange }[] = [];
+				applyingEditorEdit = true;
+				bufferedChanges = buffer;
+				let applied = false;
+				try {
+					if (steps.length === 1) {
+						const edit = new vscode.WorkspaceEdit();
+						for (const { offset, length, newText } of steps[0].edits) {
+							edit.replace(document.uri, new vscode.Range(document.positionAt(offset), document.positionAt(offset + length)), newText);
+						}
+						applied = await vscode.workspace.applyEdit(edit, steps[0].metadata);
+					} else {
+						let pos = document.positionAt(edits[0].offset);
+						const workspaceSteps: vscode.WorkspaceEditUndoStep[] = steps.map(step => {
+							const edit = new vscode.WorkspaceEdit();
+							const insertion = step.edits[0];
+							edit.replace(document.uri, new vscode.Range(pos, pos), insertion.newText);
+							pos = advancePosition(pos, insertion.newText);
+							return { edit, metadata: step.metadata };
+						});
+						applied = await vscode.workspace.applyEditSequence(workspaceSteps);
+					}
+				} finally {
+					applyingEditorEdit = false;
+					bufferedChanges = undefined;
 				}
-				return applied;
+
+				if (!applied) {
+					undoGrouper.reset();
+					for (const entry of buffer) {
+						replayChange(entry.text, entry.change);
+					}
+					return false;
+				}
+
+				for (const step of steps) {
+					step.commit();
+				}
+				// Our atomic write applied `steps.length` segments starting from `version`, so
+				// the first `steps.length` buffered change events belong to this write; coalesce
+				// them into one event for TextDocumentSync and replay any subsequent external edits.
+				const ourCount = Math.min(steps.length, buffer.length);
+				if (ourCount === 1) {
+					replayChange(buffer[0].text, buffer[0].change);
+				} else if (ourCount > 1) {
+					replayChange(buffer[ourCount - 1].text, {});
+				}
+				if (buffer.length > ourCount) {
+					undoGrouper.reset();
+					for (let i = ourCount; i < buffer.length; i++) {
+						replayChange(buffer[i].text, buffer[i].change);
+					}
+				}
+				editorWrites.fire();
+				return true;
 			},
-			onDidChangeText: vsCodeDocument.onDidChangeText,
+			onDidChangeText: onDidChangeText.event,
 		};
 		const sync = new TextDocumentSync(syncedDocument, { onError: (message, error) => this.#logger.trace('Markdown editor', message, error) });
 		webviewPanel.onDidDispose(() => {
+			undoGrouper.dispose();
+			forwardDocumentChange.dispose();
+			onDidChangeText.dispose();
 			vsCodeDocument.dispose();
 			editorWrites.dispose();
 		});
 		const webview = new AuthenticatedWebview(webviewPanel.webview, this.#logger, connection => sync.connect(connection));
 		this.#webviewPanels.set(webviewPanel, webview);
 		const codeBlockEditorProviders = this.#loadCodeBlockEditorProviders(webviewPanel.webview);
-		this.#wireSingle(document, webviewPanel, originalDocument, codeBlockEditorProviders, webview, sync, editorWrites.event);
+		this.#wireSingle(document, webviewPanel, originalDocument, codeBlockEditorProviders, webview, sync, editorWrites.event, undoGrouper, () => applyingEditorEdit);
 	}
 
 	/**
@@ -429,6 +511,8 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		editorWebview: AuthenticatedWebview,
 		sync: TextDocumentSync,
 		editorWrites: vscode.Event<void>,
+		undoGrouper: MarkdownEditorUndoGrouper,
+		isApplyingEditorEdit: () => boolean,
 	): void {
 		let webviewReady = false;
 		let documentReadonly = document.isReadonly;
@@ -488,8 +572,16 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			params => editorWebview.renderer.richLinkPresentations(params),
 		);
 		const postConfiguration = (): void => {
-			editorWebview.report('Update configuration', editorWebview.renderer.configurationChanged(this.#getEditorConfiguration(document, documentReadonly)));
+			editorWebview.report('Update configuration', editorWebview.renderer.configurationChanged(getMarkdownEditorConfiguration(document, documentReadonly, this.#zoomDelta)));
 		};
+		this.#configurationUpdaters.set(webviewPanel, {
+			document,
+			post: () => {
+				if (editorWebview.ready) {
+					postConfiguration();
+				}
+			},
+		});
 		const postCodeBlockEditorProviders = (): void => {
 			if (webviewReady && codeBlockEditorProviders) {
 				editorWebview.renderer.codeBlockEditorProviders({ codeBlockEditorProviders });
@@ -514,6 +606,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			if (documentReadonly) {
 				return false;
 			}
+			undoGrouper.reset();
 			const applied = await vscode.workspace.applyEdit(edit, metadata);
 			if (applied) {
 				telemetry?.session.recordEdit();
@@ -545,6 +638,11 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		});
 		editorWebview.setHandlers({
 			selectionChanged: message => navigation.acceptSelection(message),
+			undoEditHint: message => undoGrouper.acceptHint(
+				message,
+				(version, offset, assoc) => sync.trackFromEditor(version, offset, assoc),
+				sync.text !== document.getText(),
+			),
 			getDiagnostics: () => languageFeatures.diagnostics(),
 			completions: message => languageFeatures.completions(message),
 			acceptCompletion: message => languageFeatures.accept(message),
@@ -598,6 +696,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 					this.#focusedWebviewPanels.add(webviewPanel);
 				} else {
 					this.#focusedWebviewPanels.delete(webviewPanel);
+					undoGrouper.reset();
 				}
 				await this.#updateEditorFocusContext();
 			},
@@ -621,6 +720,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 				// editor's changes first and only act while this panel is active, so the
 				// chord cannot race a pending edit or land on a different document.
 				await sync.drain();
+				undoGrouper.reset(true);
 				signal.throwIfAborted();
 				if (!documentReadonly && webviewPanel.active && !resolveCancellation.token.isCancellationRequested) {
 					await vscode.commands.executeCommand(message.command);
@@ -655,6 +755,9 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		let lineBreak = vsCodeLineBreak(document);
 		const onDocumentChange = vscode.workspace.onDidChangeTextDocument((e) => {
 			if (e.document.uri.toString() === document.uri.toString() && e.contentChanges.length > 0) {
+				if (!isApplyingEditorEdit()) {
+					undoGrouper.reset();
+				}
 				diagnosticsChanged();
 				if (vsCodeLineBreak(document) !== lineBreak) {
 					lineBreak = vsCodeLineBreak(document);
@@ -670,6 +773,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			? this.#wireDocumentDiff(originalDocument, document, editorWebview, sync)
 			: this.#wireQuickDiff(document, editorWebview, sync);
 		const reloadWebview = (): void => {
+			undoGrouper.reset(true);
 			navigation.reset();
 			richLinks.clear();
 			imagePaste.dispose();
@@ -740,8 +844,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			if (event.affectsConfiguration('markdown.experimental.richLinks.enabled', document.uri)) {
 				reloadWebview();
 			}
-			if ((event.affectsConfiguration('markdown.editor.highlightActiveBlock', document.uri)
-				|| event.affectsConfiguration('markdown.editor.renderWhitespace', document.uri)) && editorWebview.ready) {
+			if (editorWebview.ready && markdownEditorConfigurationSettings.some(setting => event.affectsConfiguration(setting, document.uri))) {
 				postConfiguration();
 			}
 		});
@@ -765,6 +868,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			resolveCancellation.dispose();
 			disposeHostTransports();
 			this.#webviewPanels.delete(webviewPanel);
+			this.#configurationUpdaters.delete(webviewPanel);
 			this.#focusedWebviewPanels.delete(webviewPanel);
 			this.#updateEditorFocusContext();
 			editorWebview.dispose();
@@ -836,9 +940,29 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 	}
 
 	public async executeCommand(command: string): Promise<void> {
-		const activeWebview = Array.from(this.#webviewPanels).find(([panel]) => panel.active)?.[1];
-		if (!activeWebview) {
+		const activeEntry = Array.from(this.#webviewPanels).find(([panel]) => panel.active);
+		if (!activeEntry) {
 			this.#logger.trace('Markdown editor command', `Ignored ${command} because no Markdown editor is active`);
+			return;
+		}
+		const [activePanel, activeWebview] = activeEntry;
+		if (command === 'markdown.editor.zoomIn' || command === 'markdown.editor.zoomOut' || command === 'markdown.editor.resetZoom') {
+			const activeUri = this.#configurationUpdaters.get(activePanel)?.document.uri;
+			const configured = this.#getConfiguredZoom(activeUri);
+			const nextDelta = command === 'markdown.editor.resetZoom'
+				? 0
+				: stepMarkdownEditorZoomDelta(
+					configured,
+					this.#zoomDelta,
+					command === 'markdown.editor.zoomIn' ? MARKDOWN_EDITOR_ZOOM_STEP_PERCENT : -MARKDOWN_EDITOR_ZOOM_STEP_PERCENT,
+				);
+			if (nextDelta === this.#zoomDelta) {
+				return;
+			}
+			this.#zoomDelta = nextDelta;
+			for (const updater of this.#configurationUpdaters.values()) {
+				updater.post();
+			}
 			return;
 		}
 		await activeWebview.renderer.command({ command });
@@ -1227,7 +1351,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		const baseUri = webview.asWebviewUri(document.uri);
 		const nonce = getNonce();
 		const initialState = encodeWebviewInitialState({
-			...this.#getEditorConfiguration(document, documentReadonly),
+			...getMarkdownEditorConfiguration(document, documentReadonly, this.#zoomDelta),
 			taskProgressLabels: {
 				title: vscode.l10n.t("Task Progress"),
 				summary: vscode.l10n.t("{0} of {1} tasks completed"),
@@ -1267,16 +1391,49 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 </body>
 </html>`;
 	}
-
-	#getEditorConfiguration(document: vscode.TextDocument, documentReadonly: boolean): MarkdownEditorConfiguration {
-		const config = vscode.workspace.getConfiguration('markdown.editor', document.uri);
-		return {
-			highlightActiveBlock: config.get<boolean>('highlightActiveBlock', true),
-			renderWhitespace: config.get<boolean>('renderWhitespace', false),
-			lineBreak: vsCodeLineBreak(document),
-			documentReadonly,
-		};
+	#getConfiguredZoom(resource?: vscode.Uri): number {
+		const config = vscode.workspace.getConfiguration('markdown.editor', resource);
+		return clampMarkdownEditorZoomPercent(config.get<number>('zoom', DEFAULT_MARKDOWN_EDITOR_ZOOM_PERCENT));
 	}
+}
+
+const markdownEditorConfigurationSettings: readonly string[] = [
+	'markdown.editor.highlightActiveBlock',
+	'markdown.editor.renderWhitespace',
+	'markdown.editor.zoom',
+	'markdown.preview.fontFamily',
+	'markdown.preview.fontSize',
+	'markdown.preview.lineHeight',
+];
+
+export function getMarkdownEditorConfiguration(document: vscode.TextDocument, documentReadonly: boolean, zoomDelta = 0): MarkdownEditorConfiguration {
+	const config = vscode.workspace.getConfiguration('markdown.editor', document.uri);
+	const previewConfig = vscode.workspace.getConfiguration('markdown.preview', document.uri);
+	const rawFontSize = previewConfig.get<unknown>('fontSize');
+	const rawLineHeight = previewConfig.get<unknown>('lineHeight');
+	const { fontFamily, fontSize, lineHeight } = MarkdownPreviewConfiguration.getForResource(document.uri);
+	return {
+		highlightActiveBlock: config.get<boolean>('highlightActiveBlock', true),
+		renderWhitespace: config.get<boolean>('renderWhitespace', false),
+		lineBreak: vsCodeLineBreak(document),
+		zoomPercent: clampMarkdownEditorZoomPercent(config.get<number>('zoom', DEFAULT_MARKDOWN_EDITOR_ZOOM_PERCENT) + zoomDelta),
+		documentReadonly,
+		fontFamily: typeof fontFamily === 'string' && fontFamily.trim().length > 0 ? fontFamily : undefined,
+		fontSize: isFiniteNumber(rawFontSize) && Number.isFinite(fontSize) ? fontSize : undefined,
+		lineHeight: isFiniteNumber(rawLineHeight) && Number.isFinite(lineHeight) ? lineHeight : undefined,
+	};
+}
+
+function isFiniteNumber(value: unknown): value is number {
+	return typeof value === 'number' && Number.isFinite(value);
+}
+
+function advancePosition(pos: vscode.Position, text: string): vscode.Position {
+	const lines = text.split(/\r\n|\r|\n/);
+	if (lines.length === 1) {
+		return new vscode.Position(pos.line, pos.character + lines[0].length);
+	}
+	return new vscode.Position(pos.line + lines.length - 1, lines[lines.length - 1].length);
 }
 
 function codeBlockEditorDefinitionsEqual(

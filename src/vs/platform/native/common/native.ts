@@ -434,6 +434,11 @@ export interface ICommonNativeHostService {
 	setRepresentedFilename(path: string, options?: INativeHostOptions): Promise<void>;
 	setDocumentEdited(edited: boolean, options?: INativeHostOptions): Promise<void>;
 	/**
+	 * Remembers whether the window is in Agents mode, so that a reload
+	 * or a restart of the window comes back in the same mode.
+	 */
+	setWindowAgentsMode(active: boolean, options?: INativeHostOptions): Promise<void>;
+	/**
 	 * Renders a count badge on the application icon. Passing `undefined` or a
 	 * badge with a count of `0` clears it again.
 	 */

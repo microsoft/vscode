@@ -47,10 +47,6 @@ export class AgentHostSandboxNotification extends Disposable {
 	private static readonly _dismissedCertificateScopes = new WeakMap<IChatInputNotificationService, Set<string>>();
 	private static readonly _instances = new WeakMap<IChatInputNotificationService, ResourceMap<AgentHostSandboxNotification>>();
 
-	static hasCertificateController(sessionResource: URI, notificationService: IChatInputNotificationService): boolean {
-		return this._instances.get(notificationService)?.has(sessionResource) ?? false;
-	}
-
 	/** Reuses the live chat's consent flow. Returns false when no live controller is available. */
 	static async tryRunCertificateOperation(sessionResource: URI, notificationService: IChatInputNotificationService, operation: CertificateOperation): Promise<boolean> {
 		const instance = this._instances.get(notificationService)?.get(sessionResource);

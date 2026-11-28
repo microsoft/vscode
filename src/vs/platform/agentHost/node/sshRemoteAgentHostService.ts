@@ -39,6 +39,9 @@ import {
 	type SSHStrictHostKeyChecking,
 	SSHHostKeyDeniedError,
 	SSHAuthenticationFailedError,
+	SSHConnectFailureCode,
+	encodeSSHConnectFailureCode,
+	setSSHConnectFailureCode,
 } from '../common/sshRemoteAgentHost.js';
 import {
 	computeHostKeyFingerprint,
@@ -161,18 +164,75 @@ const HANDSHAKE_TIMEOUT_MS = 30_000;
 const INTERACTIVE_TIMEOUT_MS = 300_000;
 
 /**
+ * Classifies an ssh2 client error while its `level` is still available, which
+ * IPC drops. ssh2 gives handshake failures no structured reason, so this
+ * matches its fixed messages. Through a proxy, a lost connection can have any
+ * cause, so it is not reported as a network failure.
+ */
+function getSSHClientFailureCode(error: Error & ClientErrorExtensions, viaProxy: boolean): SSHConnectFailureCode {
+	switch (error.level) {
+		case 'handshake':
+			if (error.message.includes('no matching host key format')) {
+				return SSHConnectFailureCode.HostKeyFormat;
+			}
+			if (error.message.includes('no matching key exchange algorithm')) {
+				return SSHConnectFailureCode.KexAlgorithm;
+			}
+			return SSHConnectFailureCode.Handshake;
+		case 'protocol':
+			if (error.message !== 'Connection lost before handshake') {
+				return SSHConnectFailureCode.Handshake;
+			}
+			return viaProxy ? SSHConnectFailureCode.Connection : SSHConnectFailureCode.Network;
+		case 'client-socket':
+		case 'client-dns':
+		case 'client-timeout':
+			return viaProxy ? SSHConnectFailureCode.Connection : SSHConnectFailureCode.Network;
+		default:
+			return SSHConnectFailureCode.Connection;
+	}
+}
+
+/** Records `code` on a failure of `operation`, unless a more specific code was recorded first. */
+async function withSSHConnectFailureCode<T>(code: SSHConnectFailureCode, operation: Promise<T>): Promise<T> {
+	try {
+		return await operation;
+	} catch (error) {
+		setSSHConnectFailureCode(error, code);
+		throw error;
+	}
+}
+
+function createSSHConnectFailure(message: string, code: SSHConnectFailureCode): Error {
+	const error = new Error(message);
+	setSSHConnectFailureCode(error, code);
+	return error;
+}
+
+/** Encodes the failure code of a rejected connect for the renderer; see {@link encodeSSHConnectFailureCode}. */
+async function encodingSSHConnectFailureCode<T>(operation: Promise<T>): Promise<T> {
+	try {
+		return await operation;
+	} catch (error) {
+		encodeSSHConnectFailureCode(error);
+		throw error;
+	}
+}
+
+/**
  * One entry in the queue of authentication attempts handed to ssh2's
  * `authHandler`. Each attempt corresponds to one of the auth method shapes
  * documented at https://www.npmjs.com/package/ssh2#client-methods.
  *
  * `keyPath` is internal-only metadata for logging — it is stripped before the
- * attempt is returned to ssh2.
+ * attempt is returned to ssh2. A `password` attempt without a `password`
+ * prompts the user for one.
  */
 export type SSHAuthAttempt =
 	| { readonly type: 'none'; readonly username: string }
 	| { readonly type: 'publickey'; readonly username: string; readonly key: Buffer; readonly keyPath: string; readonly encrypted?: boolean }
 	| { readonly type: 'agent'; readonly username: string; readonly agent: string }
-	| { readonly type: 'password'; readonly username: string; readonly password: string }
+	| { readonly type: 'password'; readonly username: string; readonly password?: string }
 	| { readonly type: 'keyboard-interactive'; readonly username: string };
 
 function describeAuthAttempt(attempt: SSHAuthAttempt): string {
@@ -186,11 +246,12 @@ function describeAuthAttempt(attempt: SSHAuthAttempt): string {
 }
 
 /**
- * Whether SSH config allows public key authentication: `PubkeyAuthentication` is not disabled and, when set,
- * `PreferredAuthentications` lists `publickey`.
+ * Whether SSH config allows `publickey` or `password` authentication: `PubkeyAuthentication` or
+ * `PasswordAuthentication` is not disabled and, when set, `PreferredAuthentications` lists the method.
  */
-function allowsSSHPublicKeyAuthentication(resolved: ISSHResolvedConfig | undefined): boolean {
-	return resolved?.pubkeyAuthentication !== false && (!resolved?.preferredAuthentications || resolved.preferredAuthentications.includes('publickey'));
+function allowsSSHAuthentication(resolved: ISSHResolvedConfig | undefined, method: 'publickey' | 'password'): boolean {
+	const enabled = method === 'publickey' ? resolved?.pubkeyAuthentication : resolved?.passwordAuthentication;
+	return enabled !== false && (!resolved?.preferredAuthentications || resolved.preferredAuthentications.includes(method));
 }
 
 /**
@@ -211,9 +272,23 @@ export type SSHKeyPassphrasePromptHandler = (
 ) => void;
 
 /**
+ * Callback invoked when the SSH server accepts `password` authentication and
+ * no password was configured. `finish` receives `undefined` when the prompt
+ * was cancelled.
+ */
+export type SSHPasswordPromptHandler = (
+	finish: (password: string | undefined) => void,
+) => void;
+
+/** Returned by {@link toAuthMethod} when a prompt will supply the method to ssh2's callback later. */
+const PROMPTING = Symbol('prompting');
+
+/**
  * Translate a {@link SSHAuthAttempt} into the payload shape ssh2 expects in
  * its `authHandler` callback. Returns `undefined` when the attempt cannot be
- * realized (currently only `keyboard-interactive` without a prompt handler).
+ * realized because it needs a prompt handler that is not available, and
+ * {@link PROMPTING} when a prompt is collecting the credential and will
+ * invoke `callback` itself.
  *
  * The kbi case is the one place where we still need a callback-bridge: ssh2
  * calls our `prompt` with a `finish(string[])` and we hand the responses to
@@ -223,8 +298,9 @@ function toAuthMethod(
 	attempt: SSHAuthAttempt,
 	kbiHandler: SSHKeyboardInteractivePromptHandler | undefined,
 	keyPassphraseHandler: SSHKeyPassphrasePromptHandler | undefined,
+	passwordHandler: SSHPasswordPromptHandler | undefined,
 	callback: (next: AnyAuthMethod | false) => void,
-): AnyAuthMethod | undefined {
+): AnyAuthMethod | typeof PROMPTING | undefined {
 	switch (attempt.type) {
 		case 'publickey': {
 			// Strip our internal `keyPath` metadata before handing to ssh2.
@@ -240,12 +316,22 @@ function toAuthMethod(
 					}
 					callback({ ...payload, passphrase });
 				});
-				return undefined;
+				return PROMPTING;
 			}
 			return payload;
 		}
+		case 'password': {
+			const { username, password } = attempt;
+			if (password !== undefined) {
+				return { type: 'password', username, password };
+			}
+			if (!passwordHandler) {
+				return undefined;
+			}
+			passwordHandler(response => callback(response === undefined ? false : { type: 'password', username, password: response }));
+			return PROMPTING;
+		}
 		case 'agent':
-		case 'password':
 		case 'none':
 			return attempt;
 		case 'keyboard-interactive': {
@@ -285,13 +371,16 @@ function isMethodAllowedByServer(attempt: SSHAuthAttempt, methodsLeft: Authentic
  *
  * `kbiHandler` (when provided) is invoked by ssh2 if the server picks the
  * `keyboard-interactive` attempt, and is responsible for collecting
- * responses (e.g. by prompting the user).
+ * responses (e.g. by prompting the user). `keyPassphraseHandler` and
+ * `passwordHandler` collect the passphrase of an encrypted key and a
+ * password that was not configured, respectively.
  */
 export function makeAuthHandler(
 	attempts: readonly SSHAuthAttempt[],
 	logService: ILogService,
 	kbiHandler?: SSHKeyboardInteractivePromptHandler,
 	keyPassphraseHandler?: SSHKeyPassphrasePromptHandler,
+	passwordHandler?: SSHPasswordPromptHandler,
 ): (methodsLeft: AuthenticationType[] | null, partialSuccess: boolean, callback: (next: AnyAuthMethod | false) => void) => void {
 	let index = 0;
 	return (methodsLeft, _partialSuccess, callback) => {
@@ -301,17 +390,15 @@ export function makeAuthHandler(
 				logService.info(`${LOG_PREFIX} Skipping ${describeAuthAttempt(attempt)} — server only allows ${methodsLeft!.join(', ')}`);
 				continue;
 			}
-			const method = toAuthMethod(attempt, kbiHandler, keyPassphraseHandler, callback);
+			const method = toAuthMethod(attempt, kbiHandler, keyPassphraseHandler, passwordHandler, callback);
 			if (!method) {
-				if (attempt.type === 'publickey' && attempt.encrypted && keyPassphraseHandler) {
-					logService.info(`${LOG_PREFIX} Trying auth: ${describeAuthAttempt(attempt)}`);
-					return;
-				}
 				logService.warn(`${LOG_PREFIX} ${describeAuthAttempt(attempt)} skipped: no prompt handler available`);
 				continue;
 			}
 			logService.info(`${LOG_PREFIX} Trying auth: ${describeAuthAttempt(attempt)}`);
-			callback(method);
+			if (method !== PROMPTING) {
+				callback(method);
+			}
 			return;
 		}
 		logService.info(`${LOG_PREFIX} No more auth methods to try; giving up`);
@@ -855,7 +942,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	}
 
 	async connect(config: ISSHAgentHostConfig, expectedConnectionId?: string): Promise<ISSHConnectResult> {
-		return this._connectSession(computeSSHConnectionKey(config), () => this._connect(config), expectedConnectionId);
+		return encodingSSHConnectFailureCode(this._connectSession(computeSSHConnectionKey(config), () => this._connect(config), expectedConnectionId));
 	}
 
 	private async _connectSession(connectionKey: string, createSession: () => Promise<SSHConnection>, expectedConnectionId?: string): Promise<ISSHConnectResult> {
@@ -883,6 +970,8 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		this._logService.info(`${LOG_PREFIX} Connecting to ${connectionKey}`);
 		const displayHost = config.sshConfigHost ?? `${config.username}@${config.host}`;
 		let sshClient: SSHClient | undefined;
+		// The stage reached so far, recorded on a failure that has no more specific code.
+		let failureCode: SSHConnectFailureCode = SSHConnectFailureCode.Connection;
 
 		try {
 			const reportProgress = (message: string) => {
@@ -892,6 +981,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			// 1. Establish SSH connection
 			reportProgress(localize('sshProgressConnecting', "Establishing SSH connection..."));
 			sshClient = await this._connectSSH(config, connectionKey, resolvedConfig);
+			failureCode = SSHConnectFailureCode.AgentHost;
 
 			let endpoint: AgentHostEndpointAddress;
 			let connectionToken: string | undefined;
@@ -923,6 +1013,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			} else {
 				// 2. Resolve the remote CLI first — every registry command
 				// (`agent endpoints`/`agent host`/`agent relay`) needs it.
+				failureCode = SSHConnectFailureCode.CliInstall;
 				const { stdout: unameS } = await sshExec(sshClient, 'uname -s');
 				const { stdout: unameM } = await sshExec(sshClient, 'uname -m');
 				const platform = resolveRemotePlatform(unameS, unameM);
@@ -936,6 +1027,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				cliDataDir = getRemoteCLIDataDir(this._serverDataFolderName);
 
 				// 3. Discover every live endpoint on the remote via the shared registry.
+				failureCode = SSHConnectFailureCode.AgentHost;
 				reportProgress(localize('sshProgressCheckingAgent', "Checking for existing agent hosts..."));
 				const exec = bindSshExec(sshClient);
 				const initial = await runAgentEndpoints(exec, cliBin, cliDataDir);
@@ -1105,6 +1197,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			return conn;
 
 		} catch (err) {
+			setSSHConnectFailureCode(err, failureCode);
 			sshClient?.end();
 			if (sshClient) {
 				this._jumpProxies.deleteAndDispose(sshClient);
@@ -1271,7 +1364,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				}
 			}
 			session.dispose();
-			throw new Error(`${LOG_PREFIX} Failed to connect to the selected remote agent host: ${relayErrorMessage}. Please retry connecting.`);
+			throw createSSHConnectFailure(`${LOG_PREFIX} Failed to connect to the selected remote agent host: ${relayErrorMessage}. Please retry connecting.`, SSHConnectFailureCode.Relay);
 		} finally {
 			const remaining = (this._pendingRelayAcquisitions.get(session) ?? 1) - 1;
 			if (remaining > 0) {
@@ -1308,15 +1401,15 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 	async reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, agentForward?: boolean, userInitiated?: boolean, preferredAgentLocation?: RemoteAgentHostLocationPreference, expectedConnectionId?: string): Promise<ISSHConnectResult> {
 		this._logService.info(`${LOG_PREFIX} Reconnecting via SSH config host: ${sshConfigHost} (userInitiated=${userInitiated ?? true})`);
-		return this._connectSession(
+		return encodingSSHConnectFailureCode(this._connectSession(
 			computeSSHConnectionKey({ sshConfigHost }),
 			() => this._connectConfiguredHost(sshConfigHost, name, remoteAgentHostCommand, agentForward, userInitiated, preferredAgentLocation),
 			expectedConnectionId,
-		);
+		));
 	}
 
 	private async _connectConfiguredHost(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, agentForward?: boolean, userInitiated?: boolean, preferredAgentLocation?: RemoteAgentHostLocationPreference): Promise<SSHConnection> {
-		const resolved = await this.resolveSSHConfig(sshConfigHost);
+		const resolved = await withSSHConnectFailureCode(SSHConnectFailureCode.Configuration, this.resolveSSHConfig(sshConfigHost));
 
 		// Always use Agent auth — the auth handler will walk through the SSH
 		// agent and any default identities. If the user pinned a non-default
@@ -1500,6 +1593,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			resolved ??= await this.resolveSSHConfig(originalHost);
 		} catch (err) {
 			if (err instanceof SSHKnownHostsResolutionError) {
+				setSSHConnectFailureCode(err, SSHConnectFailureCode.Configuration);
 				throw err;
 			}
 			this._logService.warn(`${LOG_PREFIX} Could not resolve SSH config for ${originalHost}: ${err}`);
@@ -1524,7 +1618,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			keepaliveInterval: 15_000,
 		};
 
-		const attempts: SSHAuthAttempt[] = [{ type: 'none', username: config.username }, ...await this._buildAuthAttempts(config, resolved)];
+		const attempts: SSHAuthAttempt[] = [{ type: 'none', username: config.username }, ...await withSSHConnectFailureCode(SSHConnectFailureCode.Configuration, this._buildAuthAttempts(config, resolved))];
 		this._logService.info(`${LOG_PREFIX} Built ${attempts.length} auth attempt(s): ${attempts.map(a => describeAuthAttempt(a)).join(', ')}`);
 		// Track requestIds we created during this connect so we can fire
 		// onDidCancelKeyboardInteractive for any still-pending prompts when
@@ -1566,10 +1660,26 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				liveKbiRequests.add(requestId);
 			}
 			: undefined;
+		const passwordHandler: SSHPasswordPromptHandler | undefined = attempts.some(a => a.type === 'password' && a.password === undefined)
+			? finish => {
+				armDeadline?.(INTERACTIVE_TIMEOUT_MS);
+				const requestId = this._handleKeyboardInteractive(
+					connectionKey ?? displayHost,
+					displayHost,
+					config.username,
+					localize('sshPasswordName', "SSH Password"),
+					'',
+					[{ prompt: localize('sshPasswordAuthPrompt', "Enter the password for {0}@{1}.", config.username, config.host), echo: false }],
+					wrapPromptFinish((responses: readonly string[]) => finish(responses[0])),
+					() => cancelConnectFromKbi?.(),
+				);
+				liveKbiRequests.add(requestId);
+			}
+			: undefined;
 		// Cast: the ssh2 @types don't model `false` (give-up) for the
 		// callback nor `null` for the first invocation's `methodsLeft`,
 		// even though the runtime supports both per the ssh2 docs.
-		connectConfig.authHandler = makeAuthHandler(attempts, this._logService, kbiHandler, keyPassphraseHandler) as unknown as ConnectConfig['authHandler'];
+		connectConfig.authHandler = makeAuthHandler(attempts, this._logService, kbiHandler, keyPassphraseHandler, passwordHandler) as unknown as ConnectConfig['authHandler'];
 
 		const cancelLiveKbiRequests = () => {
 			for (const requestId of liveKbiRequests) {
@@ -1662,12 +1772,14 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			}, this._logService);
 		} catch (error) {
 			client.end();
+			setSSHConnectFailureCode(error, SSHConnectFailureCode.Configuration);
 			throw error;
 		}
 		if (jumpProxy) {
 			this._jumpProxies.set(client, jumpProxy);
 			connectConfig.sock = jumpProxy.stream;
 		}
+		const viaProxy = !!jumpProxy || !!resolved?.proxyCommand;
 		return new Promise<SSHClient>((resolve, reject) => {
 			let settled = false;
 			let connected = false;
@@ -1686,7 +1798,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				}
 				clearDeadline();
 				deadlineTimer = this._armHandshakeDeadline(ms, () => {
-					rejectConnect(new Error(`SSH handshake to ${config.host} timed out`), true);
+					rejectConnect(createSSHConnectFailure(`SSH handshake to ${config.host} timed out`, viaProxy ? SSHConnectFailureCode.Connection : SSHConnectFailureCode.Network), true);
 				});
 			};
 
@@ -1744,10 +1856,16 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			});
 
 			client.on('error', (err: Error & ClientErrorExtensions) => {
+				const failureCode = getSSHClientFailureCode(err, viaProxy);
+				setSSHConnectFailureCode(err, failureCode);
 				if (err instanceof AggregateError && !err.message) {
 					// Node's dual-stack connection errors have no message, and IPC drops their nested errors.
 					err.message = err.errors.filter((error: unknown): error is Error => error instanceof Error && !!error.message)
 						.map(error => error.message).join('\n') || getErrorCode(err) || err.message;
+				} else if (failureCode === SSHConnectFailureCode.HostKeyFormat) {
+					// ssh2 cannot negotiate OpenSSH host certificates, so a server that offers only
+					// those fails key exchange. Servers that also offer a plain key negotiate it instead.
+					err.message = localize('sshNoMatchingHostKeyFormat', "{0}. The server only offers host key types that are not supported here, such as OpenSSH host certificates. To connect, the server also needs to offer a plain host key, for example by adding ssh-ed25519 to HostKeyAlgorithms in its sshd_config.", err.message);
 				}
 				this._logService.error(`${LOG_PREFIX} SSH connection error: ${err.message}`);
 				// ssh2 reports a refused host key as "Host denied (verification
@@ -1773,7 +1891,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				rejectConnect(
 					hostKeyDenied
 						? new SSHHostKeyDeniedError(displayHost)
-						: new Error(`SSH connection to ${config.host} closed before the handshake completed`),
+						: createSSHConnectFailure(`SSH connection to ${config.host} closed before the handshake completed`, viaProxy ? SSHConnectFailureCode.Connection : SSHConnectFailureCode.Network),
 					false);
 			});
 
@@ -1800,7 +1918,10 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				}
 				client.connect(connectConfig);
 			} catch (error) {
-				rejectConnect(error instanceof Error ? error : new Error(String(error)), true);
+				// An invalid ProxyCommand or connection setting, such as an unparseable key.
+				const failure = error instanceof Error ? error : new Error(String(error));
+				setSSHConnectFailureCode(failure, SSHConnectFailureCode.Configuration);
+				rejectConnect(failure, true);
 			}
 		});
 	}
@@ -1843,7 +1964,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		switch (config.authMethod) {
 			case SSHAuthMethod.Agent: {
 				// Like OpenSSH, offer no agent or key when SSH config disables public key authentication.
-				if (allowsSSHPublicKeyAuthentication(resolved)) {
+				if (allowsSSHAuthentication(resolved, 'publickey')) {
 					// Try the agent first: if it has any of the configured identities
 					// loaded, auth succeeds without ever touching on-disk keys. This
 					// matches OpenSSH's IdentityAgent semantics and avoids an
@@ -1868,11 +1989,17 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 						}
 					}
 				}
-				// Final fallback: keyboard-interactive (typically a password prompt).
-				// Only meaningful if the server advertises it; the auth handler
-				// will skip it otherwise. The prompt is forwarded to the renderer
-				// via {@link onDidRequestKeyboardInteractive}.
+				// Final fallbacks, in OpenSSH's default order: keyboard-interactive
+				// (typically a password prompt), then password for servers that
+				// disable keyboard-interactive (e.g. Debian's default sshd_config).
+				// Keyboard-interactive is always offered because it is also how a
+				// `PreferredAuthentications password` host gets its prompt. The auth
+				// handler skips whichever the server doesn't advertise. Prompts are
+				// forwarded to the renderer via {@link onDidRequestKeyboardInteractive}.
 				attempts.push({ type: 'keyboard-interactive', username });
+				if (allowsSSHAuthentication(resolved, 'password')) {
+					attempts.push({ type: 'password', username });
+				}
 				break;
 			}
 			case SSHAuthMethod.KeyFile: {

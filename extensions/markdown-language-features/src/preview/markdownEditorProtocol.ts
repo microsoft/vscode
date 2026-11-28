@@ -14,13 +14,35 @@ const range = z.object({ start: offset, endExclusive: offset });
  * offsets into its current text, or ignores them if it cannot.
  */
 const version = z.object({ serverRevision: offset, clientRevision: offset });
+export const DEFAULT_MARKDOWN_EDITOR_ZOOM_PERCENT = 100;
+export const MIN_MARKDOWN_EDITOR_ZOOM_PERCENT = 25;
+export const MAX_MARKDOWN_EDITOR_ZOOM_PERCENT = 400;
+export const MARKDOWN_EDITOR_ZOOM_STEP_PERCENT = 10;
+
+export function clampMarkdownEditorZoomPercent(percent: number): number {
+	if (!Number.isFinite(percent)) {
+		return DEFAULT_MARKDOWN_EDITOR_ZOOM_PERCENT;
+	}
+	return Math.max(MIN_MARKDOWN_EDITOR_ZOOM_PERCENT, Math.min(MAX_MARKDOWN_EDITOR_ZOOM_PERCENT, Math.round(percent)));
+}
+
+export function stepMarkdownEditorZoomDelta(configured: number, currentDelta: number, step: number): number {
+	const current = clampMarkdownEditorZoomPercent(configured + currentDelta);
+	const next = clampMarkdownEditorZoomPercent(current + step);
+	return next === current ? currentDelta : next - configured;
+}
+
 const editorConfiguration = z.object({
 	highlightActiveBlock: z.boolean(),
 	renderWhitespace: z.boolean(),
 	/** The line break the document uses, which the editor should insert. */
 	lineBreak: z.enum(['\n', '\r\n']),
+	zoomPercent: z.number(),
 	/** Whether the underlying file or editor input is read-only. */
 	documentReadonly: z.boolean(),
+	fontFamily: z.optional(z.string()),
+	fontSize: z.optional(z.number()),
+	lineHeight: z.optional(z.number()),
 });
 const selection = z.object({ anchor: offset, active: offset });
 export const navigationState = z.object({
@@ -130,9 +152,17 @@ const runtime = z.object({ runtimeId: z.string() });
 // The nested editor owns its protocol. Only its routing and lifetime belong to this bridge.
 const runtimeMessage = z.extend(runtime, { message: z.unknown() });
 
+const undoEditHint = z.object({
+	kind: z.enum(['break', 'isolated', 'deleteBackward', 'deleteForward']),
+	version: z.optional(version),
+	offset: z.optional(offset),
+	length: z.optional(offset),
+});
+
 export const markdownEditorHost = defineInterface({ id: 'markdown.editor.host' }, {
 	ready: requestType(z.object({}), z.void()),
 	history: requestType(z.object({ command: z.enum(['undo', 'redo']) }), z.void()),
+	undoEditHint: notificationType(undoEditHint),
 	openLink: requestType(z.object({ href: z.string() }), z.void()),
 	setReadonly: requestType(z.object({ readonly: z.boolean() }), z.void()),
 	editorFocusChanged: requestType(z.object({ focused: z.boolean() }), z.void()),
@@ -200,4 +230,6 @@ export type RichLinkPresentationUpdate = z.infer<typeof richLinkPresentationUpda
 export type RichLinkSubscriptions = z.infer<typeof richLinkSubscriptions>;
 export type MarkdownDiagnostic = z.infer<typeof diagnostic>;
 export type MarkdownCompletion = z.infer<typeof completion>;
+export type UndoEditHintMessage = z.infer<typeof undoEditHint>;
+export type UndoEditHint = UndoEditHintMessage['kind'];
 export type MarkdownNavigationState = z.infer<typeof navigationState>;

@@ -41,6 +41,8 @@ export interface ITestSessionSpec {
 	/** Workspace label. Omit for a session without a workspace. */
 	readonly workspace?: string;
 	readonly workspaceFolders?: readonly [string, ...string[]];
+	/** The name of the `.code-workspace` file, under `/home/user/AgentsWorkspaces/`, that the session was created in. */
+	readonly workspaceFile?: string;
 	/** A GitHub repository, as `owner/name`, that the workspace's first folder reports through its Git metadata. */
 	readonly repository?: string;
 	/** The current branch of the workspace's first folder. */
@@ -104,7 +106,7 @@ export function getTestChatResource(sessionId: string, chatId: string): URI {
 	return URI.parse(`vscode-session://session/${sessionId}/chat/${chatId}`);
 }
 
-export function buildTestWorkspace(label: string, folderLabels: readonly [string, ...string[]] = [label], repository?: string, git: Pick<ITestSessionSpec, 'branch' | 'pullRequest'> = {}): ISessionWorkspace {
+export function buildTestWorkspace(label: string, folderLabels: readonly [string, ...string[]] = [label], repository?: string, git: Pick<ITestSessionSpec, 'branch' | 'pullRequest' | 'workspaceFile'> = {}): ISessionWorkspace {
 	const [owner, repo] = repository?.split('/') ?? [];
 	if (git.pullRequest && !repository) {
 		throw new Error(`Pull request #${git.pullRequest.number} needs the repository it belongs to.`);
@@ -128,9 +130,15 @@ export function buildTestWorkspace(label: string, folderLabels: readonly [string
 		label,
 		icon: Codicon.folder,
 		folders,
+		workspaceConfig: git.workspaceFile ? { uri: getTestWorkspaceFile(git.workspaceFile), name: label, folders: folders.map(folder => folder.root) } : undefined,
 		requiresWorkspaceTrust: false,
 		isVirtualWorkspace: false,
 	};
+}
+
+/** The `.code-workspace` file of {@link ITestSessionSpec.workspaceFile}. */
+export function getTestWorkspaceFile(name: string): URI {
+	return URI.file(`/home/user/AgentsWorkspaces/${name}.code-workspace`);
 }
 
 function buildTestChat(resource: URI, spec: Omit<ITestChatSpec, 'id'>, createdAt: Date, updatedAt: Date | undefined): ITestChat {

@@ -774,6 +774,13 @@ export interface ISessionsManagementService {
 	/** Removes a folder a chat works in; rejects for the chat's default folder. See {@link ISessionsProvider.removeChatFolder}. */
 	removeChatFolder(session: ISession, chatUri: URI, folder: URI): Promise<void>;
 
+	/**
+	 * Detaches the sessions of every provider that were created in one of the workspace configurations (`.code-workspace`
+	 * files), for example when the configurations are deleted, so the sessions are listed by their folders. Rejects
+	 * when a provider fails to; the others still detach theirs. See {@link ISessionsProvider.detachSessionsFromWorkspace}.
+	 */
+	detachSessionsFromWorkspace(workspaceFiles: readonly URI[]): Promise<void>;
+
 	/** Rename a session, independently of its chats. */
 	renameSession(session: ISession, title: string): Promise<void>;
 
@@ -846,6 +853,11 @@ export interface ISessionCanvasClosedEvent {
  * Disposing it before a canvas opens, or a canvas that does not open, leaves nothing behind.
  */
 export interface ICanvasSessionDraft extends IDisposable {
+	/**
+	 * The ID of the draft's session, so that list state can apply to the session before it is listed. The session that
+	 * opening a canvas starts replaces it under another ID; see {@link ISessionsManagementService.onDidReplaceSession}.
+	 */
+	readonly sessionId: string;
 	/** The canvas types the draft can open; `undefined` when its extensions did not settle in time. */
 	readonly canvases: Promise<SessionCanvasDefinitionSnapshot>;
 	/**

@@ -1991,13 +1991,22 @@ end;
 procedure DisableAppDirInheritance();
 var
   ResultCode: Integer;
+  AppContainerPermissions: string;
   Permissions: string;
 begin
-  Permissions := '/grant:r "*S-1-5-18:(OI)(CI)F" /grant:r "*S-1-5-32-544:(OI)(CI)F" /grant:r "*S-1-5-11:(OI)(CI)RX" /grant:r "*S-1-5-32-545:(OI)(CI)RX"';
+  // Grant read/execute to ALL APPLICATION PACKAGES (S-1-15-2-1) and ALL RESTRICTED APPLICATION PACKAGES (S-1-15-2-2)
+  // so sandboxed Electron child processes can read install assets even when stray AppContainer package SIDs exist in the DACL.
+  AppContainerPermissions := '/grant:r "*S-1-15-2-1:(OI)(CI)RX" /grant:r "*S-1-15-2-2:(OI)(CI)RX"';
+  Permissions := '/grant:r "*S-1-5-18:(OI)(CI)F" /grant:r "*S-1-5-32-544:(OI)(CI)F" /grant:r "*S-1-5-11:(OI)(CI)RX" /grant:r "*S-1-5-32-545:(OI)(CI)RX" ' + AppContainerPermissions;
 
   #if "user" == InstallTarget
     Permissions := Permissions + Format(' /grant:r "*S-1-3-0:(OI)(CI)F" /grant:r "%s:(OI)(CI)F"', [GetUserNameString()]);
   #endif
 
-  Exec(ExpandConstant('{sys}\icacls.exe'), ExpandConstant('"{app}" /inheritancelevel:r ') + Permissions, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  if (not Exec(ExpandConstant('{sys}\icacls.exe'), ExpandConstant('"{app}" /inheritancelevel:r ') + Permissions, '', SW_HIDE, ewWaitUntilTerminated, ResultCode)) or (ResultCode <> 0) then
+  begin
+    Log('DisableAppDirInheritance: icacls failed with result code ' + IntToStr(ResultCode) + ', falling back to granting AppContainer read permissions');
+    if (not Exec(ExpandConstant('{sys}\icacls.exe'), ExpandConstant('"{app}" ') + AppContainerPermissions, '', SW_HIDE, ewWaitUntilTerminated, ResultCode)) or (ResultCode <> 0) then
+      Log('DisableAppDirInheritance: fallback icacls failed with result code ' + IntToStr(ResultCode));
+  end;
 end;

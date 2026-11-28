@@ -13,7 +13,7 @@ import { TestColorTheme, TestThemeService } from '../../../../../platform/theme/
 import { TestContextService, TestStorageService } from '../../../common/workbenchTestServices.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { MainStatusbarPart } from '../../../../browser/parts/statusbar/statusbarPart.js';
-import { LayoutSettings } from '../../../../services/layout/browser/layoutService.js';
+import { ActivityBarPosition, LayoutSettings } from '../../../../services/layout/browser/layoutService.js';
 import { TestContextMenuService, TestHostService, TestLayoutService, workbenchInstantiationService } from '../../workbenchTestServices.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { MODERN_UI_INACTIVE_SHELL_BACKGROUND, MODERN_UI_SHELL_BACKGROUND, STATUS_BAR_BACKGROUND, STATUS_BAR_INACTIVE_BACKGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND } from '../../../../common/theme.js';
@@ -83,8 +83,7 @@ suite('StatusbarPart', () => {
 		});
 	}
 
-	function createFocusTestPart(hostService: TestHostService, windowHasFocus: boolean): { part: TestMainStatusbarPart; container: HTMLElement } {
-		const configurationService = new TestConfigurationService();
+	function createFocusTestPart(hostService: TestHostService, windowHasFocus: boolean, configurationService = new TestConfigurationService()): { part: TestMainStatusbarPart; container: HTMLElement } {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IHoverService, new class extends mock<IHoverService>() { });
@@ -107,6 +106,22 @@ suite('StatusbarPart', () => {
 		part.create(container);
 		return { part, container };
 	}
+
+	test('tracks whether the activity bar is positioned at the top or bottom', async () => {
+		const configurationService = new TestConfigurationService({
+			[LayoutSettings.ACTIVITY_BAR_LOCATION]: ActivityBarPosition.TOP,
+		});
+		const { container } = createFocusTestPart(new TestHostService(), true, configurationService);
+		const states = [container.classList.contains('activitybar-horizontal')];
+
+		for (const position of [ActivityBarPosition.BOTTOM, ActivityBarPosition.DEFAULT, ActivityBarPosition.HIDDEN, ActivityBarPosition.TOP]) {
+			await configurationService.setUserConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION, position);
+			fireConfigChange(configurationService, LayoutSettings.ACTIVITY_BAR_LOCATION);
+			states.push(container.classList.contains('activitybar-horizontal'));
+		}
+
+		assert.deepStrictEqual(states, [true, true, false, false, true]);
+	});
 
 	test('initializes the inactive background before receiving focus events', () => {
 		const hostService = new TestHostService();
@@ -156,7 +171,9 @@ suite('StatusbarPart', () => {
 	});
 
 	test('configuration changes update styles only after the part is created', () => {
-		const configurationService = new TestConfigurationService();
+		const configurationService = new TestConfigurationService({
+			[LayoutSettings.ACTIVITY_BAR_LOCATION]: ActivityBarPosition.TOP,
+		});
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IHoverService, new class extends mock<IHoverService>() { });
@@ -174,8 +191,10 @@ suite('StatusbarPart', () => {
 		));
 
 		fireConfigChange(configurationService, LayoutSettings.MODERN_UI);
+		fireConfigChange(configurationService, LayoutSettings.ACTIVITY_BAR_LOCATION);
 		const beforeCreate = part.updateStylesCalls;
-		part.create(document.createElement('div'));
+		const container = document.createElement('div');
+		part.create(container);
 		const afterCreate = part.updateStylesCalls;
 		fireConfigChange(configurationService, 'unrelated.setting');
 		const afterUnrelatedChange = part.updateStylesCalls;
@@ -184,11 +203,13 @@ suite('StatusbarPart', () => {
 		assert.deepStrictEqual({
 			beforeCreate,
 			afterCreate,
+			horizontalOnCreate: container.classList.contains('activitybar-horizontal'),
 			afterUnrelatedChange,
 			afterModernUIChange: part.updateStylesCalls,
 		}, {
 			beforeCreate: 0,
 			afterCreate: 1,
+			horizontalOnCreate: true,
 			afterUnrelatedChange: 1,
 			afterModernUIChange: 2,
 		});

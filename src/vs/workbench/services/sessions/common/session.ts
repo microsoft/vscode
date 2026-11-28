@@ -340,6 +340,11 @@ export interface ISessionWorkspace {
 	 */
 	readonly folders: ISessionFolder[];
 	/**
+	 * The Git repositories of the {@link folders}: each folder's own repository and the repositories in its subfolders.
+	 * `undefined` when the provider does not report them, in which case each folder is its own repository.
+	 */
+	readonly repositories?: readonly ISessionRepository[];
+	/**
 	 * The workspace configuration (a `.code-workspace` file) the session was created in, with its folders as they were then;
 	 * `undefined` for a session created for folders alone. Providers that do not record workspaces omit it.
 	 */
@@ -356,6 +361,25 @@ export interface ISessionWorkspace {
 	 * identifies the workspace in pickers, this is drawn inline in dense rows.
 	 */
 	readonly typeIcon?: ThemeIcon;
+}
+
+/** How a repository of a session folder was found. */
+export const enum SessionRepositoryKind {
+	/** The folder's own repository, whose root can be the folder or a folder above it. */
+	Folder = 'folder',
+	/** A repository in a subfolder of the folder. */
+	Nested = 'nested',
+}
+
+/** A Git repository of a session folder (see {@link ISessionWorkspace.repositories}). All URIs are in the client's URI space. */
+export interface ISessionRepository {
+	/** The repository's root folder. */
+	readonly root: URI;
+	/** The working directory of the session folder the repository was found in. */
+	readonly folder: URI;
+	readonly kind: SessionRepositoryKind;
+	/** The repository's Git state, when the provider knows it. */
+	readonly gitRepository?: ISessionGitRepository;
 }
 
 /**
@@ -733,6 +757,11 @@ export interface ISessionChangeset {
 	readonly capabilities?: ISessionChangesetCapabilities;
 	/** Present while the user can change the base branch this changeset compares against. */
 	readonly baseBranchSelection?: IObservable<ISessionChangesetBaseBranchSelection | undefined>;
+	/**
+	 * The folders of a session of several folders whose changes could not be computed, and so are absent from
+	 * {@link changes}, which has the changes of the other folders. Empty, or absent, when none failed.
+	 */
+	readonly folderFailures?: IObservable<readonly ISessionChangesetFolderFailure[]>;
 
 	/**
 	 * Invoke an operation declared in {@link operations}. `target` must be
@@ -745,6 +774,15 @@ export interface ISessionChangeset {
 	 * Sets the review state for a list of resources when the changeset supports review.
 	 */
 	setReviewState?(resources: readonly URI[], reviewed: boolean): void;
+}
+
+/** A folder whose changes a changeset could not compute (see {@link ISessionChangeset.folderFailures}). */
+export interface ISessionChangesetFolderFailure {
+	/** The folder's working directory, in the client's URI space. */
+	readonly workingDirectory: URI;
+	/** Why its changes could not be computed. */
+	readonly message: string;
+	readonly detail?: string;
 }
 
 export type ISessionChangesetOperationTarget =
@@ -1185,6 +1223,14 @@ export interface ISession {
 	 * arrives after the session's first state update).
 	 */
 	readonly capabilities: IObservable<ISessionCapabilities>;
+	/**
+	 * The changeset `changesetId` of one repository of the session's workspace (see
+	 * {@link ISessionWorkspace.repositories}) on its own: its changes, operations, base branch and pull request, which
+	 * follow that repository's Git state rather than the session's. Subscribed while it is observed. `undefined` when the
+	 * provider has none for that repository or changeset.
+	 * @param repositoryRoot The repository's root, in the client's URI space.
+	 */
+	getRepositoryChangeset?(repositoryRoot: URI, changesetId: string): ISessionChangeset | undefined;
 }
 
 export interface ISessionCreationReference {

@@ -349,16 +349,6 @@ export interface ICustomizationItem {
 	readonly actions?: readonly ICustomizationItemAction[];
 }
 
-export interface ICustomizationAgentRef {
-	readonly id: string;
-
-	readonly uri: URI;
-	/** Agent name (from frontmatter `name`, or file-derived) */
-	readonly name: string;
-	/** Optional short description for UI preview (from frontmatter `description`) */
-	readonly description?: string;
-}
-
 export type AgentFileToolAvailability = 'available' | 'unavailable' | 'disabled';
 
 export interface IAgentFileToolInventoryEntry {
@@ -618,18 +608,6 @@ export interface ICustomizationHarnessService {
 	 * given harness and fall back to an untitled session resource.
 	 */
 	getSessionResourceForHarness(harnessId: string): URI;
-}
-
-/**
- * Minimal slash-command metadata resolved from the active harness.
- */
-export interface ICustomizationSlashCommand {
-	readonly uri: URI;
-	readonly type: PromptsType.prompt | PromptsType.skill;
-	readonly name: string;
-	readonly description?: string;
-	readonly userInvocable: boolean;
-	readonly sessionTypes?: readonly string[];
 }
 
 // #region Shared descriptor constants

@@ -535,7 +535,7 @@ suite('ExtensionsActions', () => {
 						testObject.extension = paged.firstPage[0];
 						assert.ok(!testObject.enabled);
 						assert.strictEqual('Install', testObject.label);
-						assert.strictEqual('extension-action label prominent install hide', testObject.class);
+						assert.strictEqual('extension-action label filled-label prominent install hide', testObject.class);
 					});
 			});
 	});
@@ -553,7 +553,7 @@ suite('ExtensionsActions', () => {
 
 				assert.ok(!testObject.enabled);
 				assert.strictEqual('Installing', testObject.label);
-				assert.strictEqual('extension-action label install installing', testObject.class);
+				assert.strictEqual('extension-action label filled-label install installing', testObject.class);
 			});
 	});
 
@@ -657,7 +657,7 @@ suite('ExtensionsActions', () => {
 				uninstallEvent.fire({ identifier: local.identifier, profileLocation: null! });
 				assert.ok(!testObject.enabled);
 				assert.strictEqual('Uninstalling', testObject.label);
-				assert.strictEqual('extension-action label uninstall uninstalling', testObject.class);
+				assert.strictEqual('extension-action label filled-label uninstall uninstalling', testObject.class);
 			});
 	});
 
@@ -672,7 +672,7 @@ suite('ExtensionsActions', () => {
 				testObject.extension = extensions[0];
 				assert.ok(testObject.enabled);
 				assert.strictEqual('Uninstall', testObject.label);
-				assert.strictEqual('extension-action label uninstall', testObject.class);
+				assert.strictEqual('extension-action label filled-label uninstall', testObject.class);
 			});
 	});
 
@@ -687,7 +687,7 @@ suite('ExtensionsActions', () => {
 				testObject.extension = extensions[0];
 				assert.ok(!testObject.enabled);
 				assert.strictEqual('Uninstall', testObject.label);
-				assert.strictEqual('extension-action label uninstall', testObject.class);
+				assert.strictEqual('extension-action label filled-label uninstall', testObject.class);
 			});
 	});
 
@@ -725,7 +725,7 @@ suite('ExtensionsActions', () => {
 		await promise;
 		assert.ok(testObject.enabled);
 		assert.strictEqual('Uninstall', testObject.label);
-		assert.strictEqual('extension-action label uninstall', testObject.class);
+		assert.strictEqual('extension-action label filled-label uninstall', testObject.class);
 	});
 
 	test('Test UpdateAction when there is no extension', () => {
@@ -2177,7 +2177,7 @@ suite('RemoteInstallAction', () => {
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
 		assert.strictEqual('Install in remote', testObject.label);
-		assert.strictEqual('extension-action label prominent install-other-server', testObject.class);
+		assert.strictEqual('extension-action label filled-label prominent install-other-server', testObject.class);
 	});
 
 	test('Test remote install action when installing local workspace extension', async () => {
@@ -2203,12 +2203,12 @@ suite('RemoteInstallAction', () => {
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
 		assert.strictEqual('Install in remote', testObject.label);
-		assert.strictEqual('extension-action label prominent install-other-server', testObject.class);
+		assert.strictEqual('extension-action label filled-label prominent install-other-server', testObject.class);
 
 		onInstallExtension.fire({ identifier: localWorkspaceExtension.identifier, source: gallery, profileLocation: null! });
 		assert.ok(testObject.enabled);
 		assert.strictEqual('Installing', testObject.label);
-		assert.strictEqual('extension-action label install-other-server installing', testObject.class);
+		assert.strictEqual('extension-action label filled-label install-other-server installing', testObject.class);
 	});
 
 	test('Test remote install action when installing local workspace extension is finished', async () => {
@@ -2236,12 +2236,12 @@ suite('RemoteInstallAction', () => {
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
 		assert.strictEqual('Install in remote', testObject.label);
-		assert.strictEqual('extension-action label prominent install-other-server', testObject.class);
+		assert.strictEqual('extension-action label filled-label prominent install-other-server', testObject.class);
 
 		onInstallExtension.fire({ identifier: localWorkspaceExtension.identifier, source: gallery, profileLocation: null! });
 		assert.ok(testObject.enabled);
 		assert.strictEqual('Installing', testObject.label);
-		assert.strictEqual('extension-action label install-other-server installing', testObject.class);
+		assert.strictEqual('extension-action label filled-label install-other-server installing', testObject.class);
 
 		const installedExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		const promise = Event.toPromise(testObject.onDidChange);
@@ -2270,7 +2270,7 @@ suite('RemoteInstallAction', () => {
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
 		assert.strictEqual('Install in remote', testObject.label);
-		assert.strictEqual('extension-action label prominent install-other-server', testObject.class);
+		assert.strictEqual('extension-action label filled-label prominent install-other-server', testObject.class);
 	});
 
 	test('Test remote install action is enabled local workspace+ui extension', async () => {
@@ -2292,7 +2292,7 @@ suite('RemoteInstallAction', () => {
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
 		assert.strictEqual('Install in remote', testObject.label);
-		assert.strictEqual('extension-action label prominent install-other-server', testObject.class);
+		assert.strictEqual('extension-action label filled-label prominent install-other-server', testObject.class);
 	});
 
 	test('Test remote install action is enabled for local ui+workapace extension if can install is true', async () => {
@@ -2314,7 +2314,7 @@ suite('RemoteInstallAction', () => {
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
 		assert.strictEqual('Install in remote', testObject.label);
-		assert.strictEqual('extension-action label prominent install-other-server', testObject.class);
+		assert.strictEqual('extension-action label filled-label prominent install-other-server', testObject.class);
 	});
 
 	test('Test remote install action is disabled for local ui+workapace extension if can install is false', async () => {
@@ -2555,7 +2555,7 @@ suite('RemoteInstallAction', () => {
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
 		assert.strictEqual('Install in remote', testObject.label);
-		assert.strictEqual('extension-action label prominent install-other-server', testObject.class);
+		assert.strictEqual('extension-action label filled-label prominent install-other-server', testObject.class);
 	});
 
 	test('Test remote install action is disabled if local language pack extension is uninstalled', async () => {
@@ -2608,7 +2608,7 @@ suite('LocalInstallAction', () => {
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
 		assert.strictEqual('Install Locally', testObject.label);
-		assert.strictEqual('extension-action label prominent install-other-server', testObject.class);
+		assert.strictEqual('extension-action label filled-label prominent install-other-server', testObject.class);
 	});
 
 	test('Test local install action is enabled for remote ui+workspace extension', async () => {
@@ -2629,7 +2629,7 @@ suite('LocalInstallAction', () => {
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
 		assert.strictEqual('Install Locally', testObject.label);
-		assert.strictEqual('extension-action label prominent install-other-server', testObject.class);
+		assert.strictEqual('extension-action label filled-label prominent install-other-server', testObject.class);
 	});
 
 	test('Test local install action when installing remote ui extension', async () => {
@@ -2655,12 +2655,12 @@ suite('LocalInstallAction', () => {
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
 		assert.strictEqual('Install Locally', testObject.label);
-		assert.strictEqual('extension-action label prominent install-other-server', testObject.class);
+		assert.strictEqual('extension-action label filled-label prominent install-other-server', testObject.class);
 
 		onInstallExtension.fire({ identifier: remoteUIExtension.identifier, source: gallery, profileLocation: null! });
 		assert.ok(testObject.enabled);
 		assert.strictEqual('Installing', testObject.label);
-		assert.strictEqual('extension-action label install-other-server installing', testObject.class);
+		assert.strictEqual('extension-action label filled-label install-other-server installing', testObject.class);
 	});
 
 	test('Test local install action when installing remote ui extension is finished', async () => {
@@ -2688,12 +2688,12 @@ suite('LocalInstallAction', () => {
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
 		assert.strictEqual('Install Locally', testObject.label);
-		assert.strictEqual('extension-action label prominent install-other-server', testObject.class);
+		assert.strictEqual('extension-action label filled-label prominent install-other-server', testObject.class);
 
 		onInstallExtension.fire({ identifier: remoteUIExtension.identifier, source: gallery, profileLocation: null! });
 		assert.ok(testObject.enabled);
 		assert.strictEqual('Installing', testObject.label);
-		assert.strictEqual('extension-action label install-other-server installing', testObject.class);
+		assert.strictEqual('extension-action label filled-label install-other-server installing', testObject.class);
 
 		const installedExtension = aLocalExtension('a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`) });
 		const promise = Event.toPromise(testObject.onDidChange);
@@ -2722,7 +2722,7 @@ suite('LocalInstallAction', () => {
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
 		assert.strictEqual('Install Locally', testObject.label);
-		assert.strictEqual('extension-action label prominent install-other-server', testObject.class);
+		assert.strictEqual('extension-action label filled-label prominent install-other-server', testObject.class);
 	});
 
 	test('Test local install action is disabled when extension is not set', async () => {
@@ -2946,7 +2946,7 @@ suite('LocalInstallAction', () => {
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
 		assert.strictEqual('Install Locally', testObject.label);
-		assert.strictEqual('extension-action label prominent install-other-server', testObject.class);
+		assert.strictEqual('extension-action label filled-label prominent install-other-server', testObject.class);
 	});
 
 	test('Test local install action is disabled if remote language pack extension is uninstalled', async () => {

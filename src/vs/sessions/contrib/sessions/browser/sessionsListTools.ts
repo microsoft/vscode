@@ -27,7 +27,7 @@ import { ISessionsManagementService } from '../../../../workbench/contrib/sessio
 import { SESSIONS_LIST_UNGROUPED_PLACEMENT, SessionsList, SessionsListSessionPosition, SessionsListSnapshotNode } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { SessionsGrouping, SessionsSorting } from '../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { getSessionFilterOptions, SessionFilter, sessionFilterKey } from '../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
-import { SessionsView, SessionsViewId } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { LEGACY_WORKSPACES_AND_GROUPS_GROUPING, SessionsView, SessionsViewId } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 
 export const ReadSessionsListToolId = 'vscode_readSessionsList';
 export const OrganizeSessionsListToolId = 'vscode_organizeSessionsList';
@@ -178,13 +178,14 @@ export class ReadSessionsListTool implements IToolImpl {
 
 	private getViewState(view: SessionsView & { readonly sessionsControl: SessionsList }) {
 		const list = view.sessionsControl;
-		const filterOptions = getSessionFilterOptions(this.sessionsManagementService.getSessions(), this.sessionsProvidersService.getProviders().map(provider => provider.environment), session => list.isSessionListed(session), this.uriIdentityService.extUri);
+		const filterOptions = getSessionFilterOptions(this.sessionsManagementService.getSessions(), this.sessionsProvidersService.getProviders().map(provider => provider.environment), session => list.isSessionInScope(session), this.uriIdentityService.extUri);
 		return {
 			grouping: view.grouping,
 			sorting: view.sorting,
 			showArchived: !list.isExcludeArchived(),
 			sessionsPerSection: list.isWorkspaceGroupCapped() ? 'recent' : 'all',
 			compact: view.compact,
+			separateGroupsAndWorkspaces: view.separateGroupsAndWorkspaces,
 			externalSection: this.configurationService.getValue<boolean>(SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING) === true,
 			filters: filterOptions.map(option => ({ ...option.filter, label: option.label, included: !list.filters.isExcluded(option.filter) })),
 		};
@@ -359,7 +360,10 @@ Placement follows the list's precedence: archived > pinned > custom group > ungr
 
 	private async setView(view: SessionsView & { readonly sessionsControl: SessionsList }, operation: Record<string, unknown>): Promise<void> {
 		const list = view.sessionsControl;
-		const grouping = optionalEnum(operation, 'grouping', Object.values(SessionsGrouping));
+		// The former Workspaces & Groups grouping is Group by Workspace with groups and workspaces separate
+		const legacyGrouping = operation.grouping === LEGACY_WORKSPACES_AND_GROUPS_GROUPING;
+		const grouping = legacyGrouping ? SessionsGrouping.Workspace : optionalEnum(operation, 'grouping', Object.values(SessionsGrouping));
+		const separateGroupsAndWorkspaces = legacyGrouping || optionalBoolean(operation, 'separateGroupsAndWorkspaces');
 		const sorting = optionalEnum(operation, 'sorting', Object.values(SessionsSorting));
 		const sessionsPerSection = optionalEnum(operation, 'sessionsPerSection', ['recent', 'all'] as const);
 		const showArchived = optionalBoolean(operation, 'showArchived');
@@ -370,6 +374,9 @@ Placement follows the list's precedence: archived > pinned > custom group > ungr
 
 		if (grouping !== undefined) {
 			view.setGrouping(grouping);
+		}
+		if (separateGroupsAndWorkspaces !== undefined) {
+			view.setSeparateGroupsAndWorkspaces(separateGroupsAndWorkspaces);
 		}
 		if (resetFilters) {
 			view.resetFilters();
@@ -401,7 +408,7 @@ Placement follows the list's precedence: archived > pinned > custom group > ungr
 		if (!Array.isArray(operation.filters)) {
 			throw new SessionsListToolInputError('"filters" must be an array.');
 		}
-		const options = new Map(getSessionFilterOptions(this.sessionsManagementService.getSessions(), this.sessionsProvidersService.getProviders().map(provider => provider.environment), session => list.isSessionListed(session), this.uriIdentityService.extUri)
+		const options = new Map(getSessionFilterOptions(this.sessionsManagementService.getSessions(), this.sessionsProvidersService.getProviders().map(provider => provider.environment), session => list.isSessionInScope(session), this.uriIdentityService.extUri)
 			.map(option => [sessionFilterKey(option.filter), option.filter]));
 		return operation.filters.map((entry: unknown) => {
 			if (!isObject(entry)) {
@@ -485,7 +492,7 @@ const organizeInputSchema: IJSONSchema & { type: 'object' } = {
 						type: 'string',
 						enum: [...sessionsListActions],
 						description: [
-							'setView: change any of grouping, sorting, filters, resetFilters, showArchived, sessionsPerSection, compact, externalSection.',
+							'setView: change any of grouping, separateGroupsAndWorkspaces, sorting, filters, resetFilters, showArchived, sessionsPerSection, compact, externalSection.',
 							'createGroup: create a group named "name", optionally nested first in "parent" and holding "sessions"; returns its ID. "key" lets later operations refer to it.',
 							'renameGroup: rename group "id" to "name".',
 							'deleteGroup: delete group "id".',
@@ -505,6 +512,7 @@ const organizeInputSchema: IJSONSchema & { type: 'object' } = {
 					position: { type: 'string', enum: ['top', 'bottom'], description: 'Position first or last in the destination (moveSessions).' },
 					collapsed: { type: 'boolean', description: 'Whether to collapse (setCollapsed).' },
 					grouping: { type: 'string', enum: Object.values(SessionsGrouping), description: 'Section the list by workspace, repository, environment, or date, or use inbox triage categories (setView). Inbox mode preserves custom organization and presents attention-state categories as collapsible groups, with pinned sessions always visible.' },
+					separateGroupsAndWorkspaces: { type: 'boolean', description: 'Under workspace grouping, list custom groups under a Groups header and workspaces under a Workspaces header instead of together; applies while workspaces are enabled (setView).' },
 					sorting: { type: 'string', enum: Object.values(SessionsSorting), description: 'Sort sessions by creation or last update time (setView).' },
 					filters: {
 						type: 'array',

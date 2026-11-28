@@ -92,7 +92,9 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 	focusPaneInDirection(): void { }
 	movePaneInDirection(): void { }
 	resizePaneInDirection(): void { }
+	swapPanes(): void { }
 	arrangeSessions(): void { }
+	evenSessionSizes(): void { }
 	toggleSessionStickiness(): void { }
 	closeAllSessions(): void { }
 	attachChat(): void { }
@@ -296,7 +298,7 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 					}
 					provider.preferDevContainer(session.sessionId, { required: true });
 				}
-				return { session, trustDeclined: false };
+				return { session, trustDeclined: false, created: true };
 			} catch (error) {
 				this._logService.trace(`[AgentsView] openNewSession: could not create a draft for ${folderUri.toString()}`, error);
 			}

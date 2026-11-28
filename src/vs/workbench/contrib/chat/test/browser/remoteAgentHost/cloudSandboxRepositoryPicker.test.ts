@@ -7,6 +7,7 @@ import assert from 'assert';
 import sinon from 'sinon';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { matchesFuzzy } from '../../../../../../base/common/filters.js';
@@ -14,6 +15,7 @@ import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import Severity from '../../../../../../base/common/severity.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IGitHubAccountClient } from '../../../../../../platform/github/common/account/account.js';
 import { ApiRequestOptions } from '../../../../../../platform/github/common/client/request.js';
 import { OrganizationSummary } from '../../../../../../platform/github/common/core/organizations.js';
@@ -73,6 +75,7 @@ class TestQuickPick extends mock<IQuickPick<IQuickPickItem>>() {
 
 suite('CloudSandboxRepositoryPicker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const githubDefaultAccount = upcastPartial<IDefaultAccount>({ sessionId: 'github', authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false } });
 	let clock: sinon.SinonFakeTimers;
 
 	setup(() => { clock = sinon.useFakeTimers(); });
@@ -82,7 +85,7 @@ suite('CloudSandboxRepositoryPicker', () => {
 		return { items: [upcastPartial<RepositorySearchItem>({ full_name: fullName })], total_count: 1, incomplete_results: false };
 	}
 
-	function createPicker(options?: { readonly acquireClient?: (cancellationToken: CancellationToken) => Promise<IGitHubAccountClient> }) {
+	function createPicker(options?: { readonly acquireClient?: (cancellationToken: CancellationToken) => Promise<IGitHubAccountClient>; readonly defaultAccount?: IDefaultAccount | null; readonly resolvedDefaultAccount?: IDefaultAccount }) {
 		const quickPicks: TestQuickPick[] = [];
 		const requests: { readonly kind: string; readonly value: string; readonly options?: ApiRequestOptions; readonly cancellationToken: CancellationToken }[] = [];
 		const acquisitions: CancellationToken[] = [];
@@ -128,6 +131,10 @@ suite('CloudSandboxRepositoryPicker', () => {
 				return options?.acquireClient ? options.acquireClient(cancellationToken) : client;
 			},
 		}));
+		instantiationService.stub(IDefaultAccountService, upcastPartial<IDefaultAccountService>({
+			currentDefaultAccount: options?.defaultAccount === undefined ? githubDefaultAccount : options.defaultAccount,
+			getDefaultAccount: async () => options?.resolvedDefaultAccount ?? null,
+		}));
 		const picker = store.add(instantiationService.createInstance(CloudSandboxRepositoryPicker));
 		return { picker, quickPicks, requests, acquisitions, client, logService, disposed: () => disposeCount };
 	}
@@ -158,6 +165,27 @@ suite('CloudSandboxRepositoryPicker', () => {
 			],
 			result: 'microsoft/vscode', acquisitions: 1, disposed: 1,
 		});
+	});
+
+	test('rejects without calling the GitHub service when the default account is not a GitHub account', async () => {
+		const microsoft = upcastPartial<IDefaultAccount>({ sessionId: 'microsoft', authenticationProvider: { id: 'microsoft', name: 'Microsoft', enterprise: false } });
+		const results: { message: string | undefined; quickPicks: number; acquisitions: number }[] = [];
+		for (const pickerOptions of [{ defaultAccount: microsoft }, { defaultAccount: null, resolvedDefaultAccount: microsoft }]) {
+			const { picker, quickPicks, acquisitions } = createPicker(pickerOptions);
+			const error = await picker.pick().then(() => undefined, (e: Error) => e);
+			results.push({ message: error?.message, quickPicks: quickPicks.length, acquisitions: acquisitions.length });
+		}
+		const expected = { message: 'Sign in to Copilot with a GitHub account to use Copilot cloud sessions.', quickPicks: 0, acquisitions: 0 };
+		assert.deepStrictEqual(results, [expected, expected]);
+	});
+
+	test('keeps the GitHub service lookup when there is no default account', async () => {
+		const { picker, quickPicks, acquisitions } = createPicker({ defaultAccount: null });
+		const result = picker.pick();
+		await clock.tickAsync(0);
+		quickPicks[0].hide();
+		await result;
+		assert.strictEqual(acquisitions.length, 1);
 	});
 
 	test('rejects before showing a picker when no repository-scoped GitHub session exists', async () => {

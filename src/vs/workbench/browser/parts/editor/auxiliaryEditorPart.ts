@@ -22,6 +22,7 @@ import { IAuxiliaryTitlebarPart } from '../titlebar/titlebarPart.js';
 import { WindowTitle } from '../titlebar/windowTitle.js';
 import { IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { GroupsOrder, IAuxiliaryEditorPart, GroupActivationReason } from '../../../services/editor/common/editorGroupsService.js';
+import { EditorCloseContext } from '../../../common/editor.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts, shouldShowCustomTitleBar } from '../../../services/layout/browser/layoutService.js';
@@ -453,17 +454,17 @@ export class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEdi
 		return; // disabled, auxiliary editor part state is tracked outside
 	}
 
-	close(options?: { preserveFocus?: boolean }): boolean {
+	close(options?: { preserveFocus?: boolean; closeContext?: EditorCloseContext }): boolean {
 		return this.doClose(true /* merge all confirming editors to main part */, options);
 	}
 
-	private doClose(mergeConfirmingEditorsToMainPart: boolean, options?: { preserveFocus?: boolean }): boolean {
+	private doClose(mergeConfirmingEditorsToMainPart: boolean, options?: { preserveFocus?: boolean; closeContext?: EditorCloseContext }): boolean {
 		let result = true;
 		if (mergeConfirmingEditorsToMainPart) {
 
 			// First close all editors that are non-confirming
 			for (const group of this.groups) {
-				group.closeAllEditors({ excludeConfirming: true, force: true });
+				group.closeAllEditors({ excludeConfirming: true, force: true, context: options?.closeContext });
 			}
 
 			// Then merge remaining to main part

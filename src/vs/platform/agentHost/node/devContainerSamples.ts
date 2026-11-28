@@ -57,6 +57,11 @@ function getExtensionRepositoryUrl(sample: DevContainerSample): string {
 	return `https://github.com/Microsoft/${getDevContainerSampleFolder(sample)}`;
 }
 
+/** The label of the volumes that a sample is cloned into, by this host or the Dev Containers extension. */
+export function getDevContainerSampleVolumeLabel(sample: DevContainerSample): string {
+	return `vsch.local.repository=${getExtensionRepositoryUrl(sample)}`;
+}
+
 export function getDevContainerSampleLabels(repository: IDevContainerRepository): readonly string[] {
 	return [
 		`vsch.local.repository=${repository.repositoryPath}`,

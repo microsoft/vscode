@@ -924,10 +924,6 @@ export interface IChatTransfer {
 	timestampInMilliseconds: number;
 }
 
-export interface IChatTransfer2 extends IChatTransfer {
-	chat: ISerializableChatData;
-}
-
 type IChatTransferDto = Dto<IChatTransfer>;
 
 /**

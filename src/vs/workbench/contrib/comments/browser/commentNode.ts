@@ -51,6 +51,11 @@ import { MarshalledCommentThread } from '../../../common/comments.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { Position } from '../../../../editor/common/core/position.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+
+const defaultCommentAvatarIcon = registerIcon('review-comment-avatar', Codicon.account, nls.localize('commentAvatarIcon', "Icon for a comment author without an avatar."));
 
 class CommentsActionRunner extends ActionRunner {
 	protected override async runAction(action: IAction, context: unknown[]): Promise<void> {
@@ -63,10 +68,14 @@ class CommentsActionRunner extends ActionRunner {
  */
 const COMMENT_EDITOR_HORIZONTAL_INSET = 14;
 
+/** Sizes the reaction picker's menu to its emoji rather than to the width of a general menu. */
+const REACTION_PICKER_MENU_CLASS = 'comment-reaction-picker-menu';
+
 export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private _domNode: HTMLElement;
 	private _body: HTMLElement;
 	private _avatar: HTMLElement;
+	private readonly _avatarErrorListener = this._register(new MutableDisposable());
 	private readonly _md: MutableDisposable<IRenderedMarkdown> = this._register(new MutableDisposable());
 	private _plainText: HTMLElement | undefined;
 	private readonly _focusClearTimer = this._register(new TimeoutTimer());
@@ -114,6 +123,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		private resource: URI,
 		private parentThread: ICommentThreadWidget,
 		private readonly markdownRendererOptions: IMarkdownRendererExtraOptions,
+		private readonly reactionPickerInTitle: boolean,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ICommentService private commentService: ICommentService,
 		@INotificationService private notificationService: INotificationService,
@@ -137,6 +147,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 		this._domNode.tabIndex = -1;
 		this._avatar = dom.append(this._domNode, dom.$('div.avatar-container'));
+		this._avatar.setAttribute('aria-hidden', 'true');
 		this.updateCommentUserIcon(this.comment.userIconPath);
 
 		this._commentDetailsContainer = dom.append(this._domNode, dom.$('.review-comment-contents'));
@@ -181,8 +192,8 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			scheduleAtNextAnimationFrame: cb => dom.scheduleAtNextAnimationFrame(dom.getWindow(container), cb)
 		}));
 		this._scrollableElement = this._register(new SmoothScrollableElement(body, {
-			horizontal: ScrollbarVisibility.Visible,
-			vertical: ScrollbarVisibility.Visible
+			horizontal: ScrollbarVisibility.Auto,
+			vertical: ScrollbarVisibility.Auto
 		}, this._scrollable));
 
 		this._register(this._scrollableElement.onScroll(e => {
@@ -222,12 +233,24 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	}
 
 	private updateCommentUserIcon(userIconPath: UriComponents | undefined) {
+		this._avatarErrorListener.clear();
 		this._avatar.textContent = '';
 		if (userIconPath) {
 			const img = dom.append(this._avatar, dom.$('img.avatar')) as HTMLImageElement;
+			this._avatarErrorListener.value = dom.addDisposableListener(img, dom.EventType.ERROR, () => {
+				this._avatarErrorListener.clear();
+				img.remove();
+				this.showDefaultCommentAvatar();
+			});
 			img.src = FileAccess.uriToBrowserUri(URI.revive(userIconPath)).toString(true);
-			img.onerror = _ => img.remove();
+		} else {
+			this.showDefaultCommentAvatar();
 		}
+	}
+
+	private showDefaultCommentAvatar() {
+		const icon = dom.append(this._avatar, renderIcon(defaultCommentAvatarIcon));
+		icon.classList.add('comment-avatar-default');
 	}
 
 	public get onDidClick(): Event<CommentNode<T>> {
@@ -309,6 +332,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 							...options,
 							actionViewItemProvider: (action, options) => this.actionViewItemProvider(action as Action, options),
 							classNames: ['toolbar-toggle-pickReactions', ...ThemeIcon.asClassNameArray(Codicon.reactions)],
+							menuClassName: REACTION_PICKER_MENU_CLASS,
 							anchorAlignmentProvider: () => AnchorAlignment.RIGHT
 						}
 					);
@@ -406,6 +430,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 					return this.actionViewItemProvider(action as Action, options);
 				},
 				classNames: 'toolbar-toggle-pickReactions',
+				menuClassName: REACTION_PICKER_MENU_CLASS,
 				anchorAlignmentProvider: () => AnchorAlignment.RIGHT
 			}
 		));
@@ -426,9 +451,15 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			return;
 		}
 
-		this._reactionActionsContainer = dom.append(commentDetailsContainer, dom.$('div.comment-reactions'));
+		this._reactionActionsContainer = dom.$('div.comment-reactions');
 		// Without reactions to show, only the reaction picker is shown.
 		this._reactionActionsContainer.classList.toggle('picker-only', !reactions.length);
+		if (!reactions.length && this.reactionPickerInTitle) {
+			// Precede the comment's actions, so that the tab order matches the order in which they're shown.
+			this._actionsToolbarContainer.before(this._reactionActionsContainer);
+		} else {
+			commentDetailsContainer.appendChild(this._reactionActionsContainer);
+		}
 		this._reactionsActionBar.value = new ActionBar(this._reactionActionsContainer, {
 			actionViewItemProvider: (action, options) => {
 				if (action.id === ToggleReactionsAction.ID) {
@@ -439,6 +470,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 						{
 							actionViewItemProvider: (action, options) => this.actionViewItemProvider(action as Action, options),
 							classNames: ['toolbar-toggle-pickReactions', ...ThemeIcon.asClassNameArray(Codicon.reactions)],
+							menuClassName: REACTION_PICKER_MENU_CLASS,
 							anchorAlignmentProvider: () => AnchorAlignment.RIGHT
 						}
 					);
@@ -707,7 +739,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			this.updateCommentBody(newComment.body);
 		}
 
-		if (this.comment.userIconPath && newComment.userIconPath && (URI.from(this.comment.userIconPath).toString() !== URI.from(newComment.userIconPath).toString())) {
+		if (!isEqual(URI.revive(this.comment.userIconPath), URI.revive(newComment.userIconPath))) {
 			this.updateCommentUserIcon(newComment.userIconPath);
 		}
 

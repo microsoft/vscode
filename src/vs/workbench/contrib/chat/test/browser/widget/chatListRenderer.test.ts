@@ -872,6 +872,13 @@ suite('ChatListRenderer', () => {
 			]);
 		});
 
+		test('formats elapsed time of an hour or more with hours', () => {
+			assert.deepStrictEqual(
+				[59_999, 3_599_999, 3_600_000, 3_605_000, (12_349 * 60 + 8) * 1000].map(formatElapsedTime),
+				['59s', '59m 59s', '1h 0m 0s', '1h 0m 5s', '205h 49m 8s'],
+			);
+		});
+
 		test('renders completion time with elapsed-time alternate only in verbose mode', () => {
 			const container = document.createElement('div');
 			container.className = 'chat-footer-details';
@@ -7849,7 +7856,7 @@ suite('ChatListRenderer', () => {
 				model.acceptResponseProgress(request, restored ? tool.toJSON() : tool);
 				renderer.renderElement(node, 0, template);
 				assert.deepStrictEqual({
-					mcpIcons: template.value.querySelectorAll('.chat-tool-call-icon.codicon-mcp').length,
+					mcpIcons: template.value.querySelectorAll('.chat-tool-call-icon.codicon-mcp-compact').length,
 					searchIcons: template.value.querySelectorAll('.chat-tool-call-icon.codicon-search-compact').length,
 				}, { mcpIcons: 1, searchIcons: 0 });
 				request.response?.complete();
@@ -10472,7 +10479,7 @@ suite('ChatListRenderer', () => {
 				const reasoning = template.value.querySelector('.chat-persistent-reasoning');
 				const header = reasoning?.querySelector<HTMLElement>('.chat-used-context-label');
 				const button = header?.querySelector<HTMLElement>('.monaco-button');
-				const headerIcon = header?.querySelector('.codicon-thinking');
+				const headerIcon = header?.querySelector('.codicon-thinking-compact');
 				const thoughtRows = [...reasoning?.querySelectorAll('.chat-thinking-item.markdown-content') ?? []];
 				const toolRows = [...template.value.querySelectorAll('.chat-tool-chain .chat-thinking-tool-wrapper')];
 				const firstThoughtIcon = thoughtRows[0]?.querySelector('.chat-thinking-icon');
@@ -11163,7 +11170,7 @@ suite('ChatListRenderer', () => {
 						const labelBounds = label.getBoundingClientRect();
 						return {
 							standalone: !pill.closest('.chat-thinking-tool-wrapper'),
-							editIcon: icon?.classList.contains('codicon-pencil') && icon.getClientRects().length > 0,
+							editIcon: icon?.classList.contains('codicon-edit-compact') && icon.getClientRects().length > 0,
 							decorativeIcon: icon?.getAttribute('aria-hidden'),
 							iconCentered: !!iconBounds && Math.abs(iconBounds.top + iconBounds.height / 2 - labelBounds.top - labelBounds.height / 2) < 0.1,
 							textOffset: Math.round(labelBounds.left - pill.getBoundingClientRect().left),
@@ -13204,8 +13211,8 @@ suite('ChatListRenderer', () => {
 	}[] = [
 			{ toolId: 'read_file', expectedIcon: Codicon.book },
 			{ toolId: 'grep', expectedIcon: Codicon.search },
-			{ toolId: 'apply_patch', expectedIcon: Codicon.pencil },
-			{ toolId: 'create_file', expectedIcon: Codicon.pencil },
+			{ toolId: 'apply_patch', expectedIcon: Codicon.edit },
+			{ toolId: 'create_file', expectedIcon: Codicon.edit },
 			{ toolId: 'listComments', expectedIcon: Codicon.comment },
 			{ toolId: 'run_in_terminal', expectedIcon: Codicon.terminal },
 			{ toolId: 'custom_action', registeredIcon: Codicon.beaker, expectedIcon: Codicon.beaker },
@@ -14126,7 +14133,7 @@ suite('ChatListRenderer', () => {
 				const reasoning = template.value.querySelector<HTMLElement>('.chat-persistent-reasoning');
 				const button = reasoning?.querySelector<HTMLElement>(':scope > .chat-used-context-label .monaco-button');
 				const label = button?.querySelector('.monaco-button-mdlabel');
-				const icon = button?.querySelector('.codicon-thinking');
+				const icon = button?.querySelector('.codicon-thinking-compact');
 				const toolText = template.value.querySelector('.chat-tool-chain .progress-container p');
 				const prose = template.value.querySelector(':scope > .chat-markdown-part > p');
 				const secondParagraph = prose?.nextElementSibling;
@@ -14265,7 +14272,7 @@ suite('ChatListRenderer', () => {
 			const logo = template.value.querySelector('.chat-working-logo');
 			assert.ok(button && logo);
 			const snapshot = () => {
-				const icon = button.querySelector<HTMLElement>(':scope > .codicon-thinking');
+				const icon = button.querySelector<HTMLElement>(':scope > .codicon-thinking-compact');
 				return {
 					icon: !!icon,
 					decorative: icon?.getAttribute('aria-hidden'),

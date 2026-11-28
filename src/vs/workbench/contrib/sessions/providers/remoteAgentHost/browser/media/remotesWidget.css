@@ -153,7 +153,10 @@
 }
 
 .remotes-widget .remotes-header-actions {
+	display: flex;
 	flex-shrink: 0;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
 }
 
 .remotes-widget .remotes-header-actions > .monaco-button {

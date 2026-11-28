@@ -7,7 +7,9 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { buildBranchChangesetUri, buildCompareTurnsChangesetUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, ChangesetKind } from '../../common/changesetUri.js';
+import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
+import { buildBranchChangesetUri, buildCompareTurnsChangesetUri, buildFolderChangesetOwnerUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, ChangesetKind } from '../../common/changesetUri.js';
+import { withSessionRepositories } from '../../common/meta/agentSessionRepositoriesMeta.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { buildDefaultChatUri, SessionStatus, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostCommitOperationContribution } from '../../node/agentHostCommitOperationProvider.js';
@@ -26,7 +28,7 @@ const gitStateWithUncommittedChanges: ISessionGitState = {
 suite('AgentHostCommitOperationContribution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createContribution(isolation?: 'folder' | 'worktree', { workingDirectories = ['file:///repo'], used = false }: { readonly workingDirectories?: string[]; readonly used?: boolean } = {}): AgentHostCommitOperationContribution {
+	function createContribution(isolation?: 'folder' | 'worktree', { workingDirectories = ['file:///repo'], used = false, nestedRepository }: { readonly workingDirectories?: string[]; readonly used?: boolean; readonly nestedRepository?: string } = {}): AgentHostCommitOperationContribution {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		if (isolation) {
 			stateManager.createSession({
@@ -46,6 +48,11 @@ suite('AgentHostCommitOperationContribution', () => {
 			if (used) {
 				stateManager.markSessionUsed(sessionKey);
 			}
+			if (nestedRepository) {
+				stateManager.setSessionMeta(sessionKey, withSessionRepositories(undefined, {
+					[getWorkingDirectoryKey(workingDirectories[0])]: [{ root: nestedRepository, kind: 'nested' }],
+				}));
+			}
 		}
 		return disposables.add(new AgentHostCommitOperationContribution(
 			stateManager,
@@ -59,6 +66,26 @@ suite('AgentHostCommitOperationContribution', () => {
 		const operations = provider.getOperations({ sessionKey, changesetUri: uncommittedChangesetUri, changesetKind: ChangesetKind.Uncommitted, gitState: gitStateWithUncommittedChanges });
 
 		assert.deepStrictEqual(operations?.map(op => op.id), ['commit']);
+	});
+
+	test('advertises commit only on the changesets of one repository: not of several folders or a folder with repositories inside it, but of each folder on its own', () => {
+		const ids = (workingDirectories: string[], nested: boolean, ownerKey?: string) => {
+			const provider = createContribution('folder', { workingDirectories, used: true, nestedRepository: nested ? `${workingDirectories[0]}/docs` : undefined });
+			const changesetUri = ownerKey ? buildUncommittedChangesetUri(ownerKey) : uncommittedChangesetUri;
+			return provider.getOperations({ sessionKey, ownerKey, changesetUri, changesetKind: ChangesetKind.Uncommitted, gitState: gitStateWithUncommittedChanges }).map(op => op.id);
+		};
+
+		assert.deepStrictEqual({
+			oneFolder: ids(['file:///repo'], false),
+			severalFolders: ids(['file:///app', 'file:///api'], false),
+			nestedRepositories: ids(['file:///work'], true),
+			secondFolderOnItsOwn: ids(['file:///app', 'file:///api'], false, buildFolderChangesetOwnerUri(sessionKey, getWorkingDirectoryScopeId(['file:///api']))),
+		}, {
+			oneFolder: ['commit'],
+			severalFolders: [],
+			nestedRepositories: [],
+			secondFolderOnItsOwn: ['commit'],
+		});
 	});
 
 	test('does not advertise commit without uncommitted changes', () => {

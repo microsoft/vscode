@@ -346,6 +346,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 	/** Whether the layout hid the chat part, such as for a maximized panel, and shows it again with the editor. */
 	private chatPartHiddenByLayout = false;
+	/** The chat part's own width, without the editor area's, while it is hidden after it filled an editor area hidden for it. */
+	private chatPartOwnWidth: number | undefined;
+	/** The side bars a part squeezed as it showed beside the chat part filling the editor area, with their widths before and after, keyed by that part. */
+	private readonly squeezedBesideChatPart = new Map<ISerializableView, { readonly view: ISerializableView; readonly before: number; readonly after: number }[]>();
 	/** The view the chat part docks beside (see {@link setChatPartAnchor}). */
 	private chatPartAnchor: { readonly viewId: string } | undefined;
 	/** Follows {@link chatPartAnchor} while there is one. */
@@ -1802,32 +1806,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.mainContainer.setAttribute('role', 'application');
 		this.logStartupLayout();
 
-		for (const part of [titleBar, editorPart, activityBar, panelPart, sideBar, statusBar, auxiliaryBarPart, bannerPart]) {
-			this._register(part.onDidVisibilityChange(visible => {
-				if (!this.inMaximizedAuxiliaryBarTransition && !this.inPartsLayoutStateTransition) {
-
-					// skip reacting when we are transitioning
-					// in or out of maximised auxiliary bar or
-					// applying the state of the parts to prevent
-					// stepping on each other toes because this
-					// transition is already dealing with all parts
-					// visibility efficiently.
-
-					if (part === sideBar) {
-						this.setSideBarHidden(!visible);
-					} else if (part === panelPart && this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN) === visible) {
-						this.setPanelHidden(!visible, true);
-					} else if (part === auxiliaryBarPart) {
-						this.setAuxiliaryBarHidden(!visible, true);
-					} else if (part === editorPart) {
-						this.setEditorHidden(!visible);
-					}
-				}
-
-				this._onDidChangePartVisibility.fire({ partId: part.getId(), visible });
-				this.handleContainerDidLayout(this.mainContainer, this._mainContainerDimension);
-			}));
-		}
+		this.listenToGridPartVisibility();
 
 		if (chatPart) {
 			this._register(chatPart.onDidVisibilityChange(visible => {
@@ -2397,6 +2376,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const endsHiddenByChat = !hidden && this.isEditorHiddenByChat();
 		if (endsHiddenByChat) {
 			this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN_BY_CHAT, false);
+			// What parts squeezed beside the chat part filling the editor area no longer applies
+			this.squeezedBesideChatPart.clear();
 		}
 
 		this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, hidden);
@@ -2487,6 +2468,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	/** Shows or hides a part beside the chat part so that the chat part gives or takes its width, and the editor area keeps its own. */
 	private setViewVisibleKeepingEditorWidth(view: ISerializableView, visible: boolean): void {
 		const chatPartView = this.chatPartView;
+		if (this.initialized && chatPartView && !this.chatPartHidden && this.isEditorHiddenByChat()) {
+			this.setViewVisibleBesideChatPartFillingEditorArea(view, visible);
+			return;
+		}
+		// Widths it squeezed beside the chat part no longer apply once it shows or hides otherwise
+		this.squeezedBesideChatPart.delete(view);
 		if (!this.initialized || !chatPartView || this.chatPartHidden || !this.isVisible(Parts.EDITOR_PART, mainWindow)) {
 			this.workbenchGrid.setViewVisible(view, visible);
 			return;
@@ -2503,6 +2490,47 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			if (difference !== 0) {
 				const { width, height } = this.workbenchGrid.getViewSize(chatPartView);
 				this.workbenchGrid.resizeView(chatPartView, { width: width + difference, height });
+			}
+		}
+	}
+
+	/**
+	 * Shows or hides a part beside the chat part that fills the editor area. A part that shows takes the chat part's width
+	 * down to its minimum and then the other side bars'. The chat part gets all the width back as the part hides, so the
+	 * side bars it squeezed get back the width it took from them, unless the user widened them in between.
+	 */
+	private setViewVisibleBesideChatPartFillingEditorArea(view: ISerializableView, visible: boolean): void {
+		// Showing a visible part or hiding a hidden one squeezes nothing and keeps what an earlier show squeezed
+		if (this.workbenchGrid.isViewVisible(view) === visible) {
+			return;
+		}
+
+		const others = [this.sideBarPartView, this.auxiliaryBarPartView].filter(other => other !== view && this.workbenchGrid.isViewVisible(other));
+		const widthsBefore = others.map(other => this.workbenchGrid.getViewSize(other).width);
+
+		this.workbenchGrid.setViewVisible(view, visible);
+
+		if (visible) {
+			const squeezed = others
+				.map((other, index) => ({ view: other, before: widthsBefore[index], after: this.workbenchGrid.getViewSize(other).width }))
+				.filter(({ before, after }) => after < before);
+			if (squeezed.length) {
+				this.squeezedBesideChatPart.set(view, squeezed);
+			} else {
+				this.squeezedBesideChatPart.delete(view);
+			}
+			return;
+		}
+
+		const squeezed = this.squeezedBesideChatPart.get(view);
+		this.squeezedBesideChatPart.delete(view);
+		for (const { view: other, before, after } of squeezed ?? []) {
+			if (this.workbenchGrid.isViewVisible(other)) {
+				// Gives back what it took, also when a smaller window squeezed it more since; a side bar the user widened keeps its width
+				const { width, height } = this.workbenchGrid.getViewSize(other);
+				if (width <= after) {
+					this.workbenchGrid.resizeView(other, { width: width + before - after, height });
+				}
 			}
 		}
 	}
@@ -2750,6 +2778,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			};
 			this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED, true);
 
+			// Taken before a hidden secondary side bar shows, as it takes its room from a chat part that fills the editor area
+			const chatPartOwnWidth = this.getChatPartOwnWidth();
+
 			this.inMaximizedAuxiliaryBarTransition = true;
 			try {
 				if (!state.auxiliaryBarVisible) {
@@ -2761,9 +2792,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 				// Beside a visible editor area, the chat part hides before the parts beside it and shows again after them, so that it
 				// keeps its own width while hidden rather than taking theirs (see `setViewVisibleKeepingEditorWidth`). With the editor
-				// area hidden for it, it fills the room that they leave and give back, in the order as before
+				// area hidden for it, it fills the room that they leave and give back, in the order as before; its own width was
+				// taken before the secondary side bar shows
 				if (state.editorVisible) {
-					this.hideChatPartForLayout();
+					this.hideChatPartForLayout(chatPartOwnWidth);
 				}
 				if (state.sideBarVisible) {
 					this.setSideBarHidden(true);
@@ -2771,9 +2803,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				if (state.panelVisible) {
 					this.setPanelHidden(true);
 				}
-				this.hideChatPartForLayout();
 				if (state.editorVisible) {
 					this.setEditorHidden(true);
+				} else {
+					this.hideChatPartForLayout(chatPartOwnWidth);
 				}
 
 				this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_VISIBILITY, state);
@@ -2849,7 +2882,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				}
 			}
 
-			this.hideChatPartForLayout();
+			// The editor area is no longer hidden for the chat part (cleared above), so the chat part has no own width to keep
+			this.hideChatPartForLayout(undefined);
 			this.setEditorHidden(true);
 		} else {
 			this.setEditorHidden(false);
@@ -2935,6 +2969,56 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
+	/** Follows the parts of the grid as they show and hide. Called once, when the layout is created; protected for tests. */
+	protected listenToGridPartVisibility(): void {
+		for (const partId of [Parts.TITLEBAR_PART, Parts.EDITOR_PART, Parts.ACTIVITYBAR_PART, Parts.PANEL_PART, Parts.SIDEBAR_PART, Parts.STATUSBAR_PART, Parts.AUXILIARYBAR_PART, Parts.BANNER_PART]) {
+			const part = this.getPart(partId);
+			this._register(part.onDidVisibilityChange(visible => {
+				if (partId === Parts.SIDEBAR_PART || partId === Parts.PANEL_PART || partId === Parts.AUXILIARYBAR_PART || partId === Parts.EDITOR_PART) {
+					this.onDidChangeGridPartVisibility(partId, visible);
+				}
+
+				this._onDidChangePartVisibility.fire({ partId: part.getId(), visible });
+				this.handleContainerDidLayout(this.mainContainer, this._mainContainerDimension);
+			}));
+		}
+	}
+
+	/** Follows a part the grid shows or hides, for example with the branch it is in. */
+	private onDidChangeGridPartVisibility(part: Parts.SIDEBAR_PART | Parts.PANEL_PART | Parts.AUXILIARYBAR_PART | Parts.EDITOR_PART, visible: boolean): void {
+		if (this.inMaximizedAuxiliaryBarTransition || this.inPartsLayoutStateTransition) {
+
+			// skip reacting when we are transitioning
+			// in or out of maximised auxiliary bar or
+			// applying the state of the parts to prevent
+			// stepping on each other toes because this
+			// transition is already dealing with all parts
+			// visibility efficiently.
+
+			return;
+		}
+
+		// Only a change for the editor area and the panel: the grid hides a hidden editor area again with its branch, as when the chat part beside it hides
+		if ((part === Parts.EDITOR_PART || part === Parts.PANEL_PART) && this.isVisible(part) === visible) {
+			return;
+		}
+
+		switch (part) {
+			case Parts.SIDEBAR_PART:
+				this.setSideBarHidden(!visible);
+				break;
+			case Parts.PANEL_PART:
+				this.setPanelHidden(!visible, true);
+				break;
+			case Parts.AUXILIARYBAR_PART:
+				this.setAuxiliaryBarHidden(!visible, true);
+				break;
+			case Parts.EDITOR_PART:
+				this.setEditorHidden(!visible);
+				break;
+		}
+	}
+
 	//#region Chat part
 
 	private setChatPartHidden(hidden: boolean): void {
@@ -2942,9 +3026,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return;
 		}
 
-		// What the user chose wins over what the layout would show again
-		this.chatPartHiddenByLayout = false;
-
+		// Showing the chat part ends a maximized part first, which shows a chat part it hid again with the parts beside it, in the order the layout restores them
 		if (!hidden) {
 			this.setAuxiliaryBarMaximized(false);
 			if (this.isPanelMaximized() && this.isVisible(Parts.PANEL_PART)) {
@@ -2952,10 +3034,20 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 		}
 
+		// What the user chose wins over what the layout would show again
+		this.chatPartHiddenByLayout = false;
+
+		// Focus inside the chat part that hides moves to the panel or the editor, not to the body of the window
+		let hadFocus = false;
 		if (this.chatPartHidden !== hidden) {
-			// Focus inside the chat part that hides moves to the panel or the editor, not to the body of the window
-			const hadFocus = hidden && this.hasFocus(Parts.CHAT_PART);
-			const shownWidth = hidden ? undefined : this.workbenchGrid.getViewCachedVisibleSize(this.chatPartView);
+			hadFocus = hidden && this.hasFocus(Parts.CHAT_PART);
+			// The grid keeps the width the chat part had, which includes the editor area's where it filled it: it shows again at its own
+			let shownWidth: number | undefined;
+			if (!hidden) {
+				const cachedWidth = this.workbenchGrid.getViewCachedVisibleSize(this.chatPartView);
+				shownWidth = this.isEditorHiddenByChat() ? cachedWidth : this.chatPartOwnWidth ?? cachedWidth;
+			}
+			this.chatPartOwnWidth = hidden ? this.getChatPartOwnWidth() : undefined;
 			this.chatPartHidden = hidden;
 			this.workbenchGrid.setViewVisible(this.chatPartView, !hidden);
 			if (!hidden) {
@@ -2963,14 +3055,16 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 			// The sashes beside it move: where they meet the others changes too
 			this.updateSashEndpoints();
-			if (hadFocus) {
-				this.focusPanelOrEditor();
-			}
 		}
 
 		// Closing the chat part gives the editor area its width back, also when it was hidden, or hidden with the chat part by a maximized secondary side bar
 		if (hidden && !this.isVisible(Parts.EDITOR_PART) && (this.isEditorHiddenByChat() || (!this.isVisible(Parts.PANEL_PART) && !this.isAuxiliaryBarMaximized()))) {
 			this.setEditorHidden(false);
+		}
+
+		// Only once the editor area shows again: while it is hidden, the focus would go to the panel's view, which may open the panel
+		if (hadFocus) {
+			this.focusPanelOrEditor();
 		}
 	}
 
@@ -3012,6 +3106,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private clearEditorHiddenByChat(): void {
 		if (this.isEditorHiddenByChat()) {
 			this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN_BY_CHAT, false);
+			this.squeezedBesideChatPart.clear();
 			this.mainContainer.classList.remove(LayoutClasses.EDITOR_AREA_HIDDEN_BY_CHAT);
 			const chatPart = this.getChatHostPart();
 			if (chatPart) {
@@ -3031,8 +3126,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	/** Hides a visible chat part with the editor, such as for a maximized panel, to show it again with the editor. */
-	private hideChatPartForLayout(): void {
+	private hideChatPartForLayout(ownWidth: number | undefined): void {
 		if (this.chatPartView && !this.chatPartHidden) {
+			// Saved, and shown again by the user, at its own width: the layout shows it again filling the editor area it still has
+			this.chatPartOwnWidth = ownWidth;
 			this.chatPartHidden = true;
 			this.chatPartHiddenByLayout = true;
 			this.workbenchGrid.setViewVisible(this.chatPartView, false);
@@ -3045,6 +3142,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.chatPartHiddenByLayout = false;
 			this.chatPartHidden = false;
 			const shownWidth = this.workbenchGrid.getViewCachedVisibleSize(this.chatPartView);
+			this.chatPartOwnWidth = undefined;
 			this.workbenchGrid.setViewVisible(this.chatPartView, true);
 			this.ensureChatPartFits(shownWidth);
 			this.updateSashEndpoints();
@@ -3118,19 +3216,23 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	/**
-	 * Makes room for a visible chat part where the editor's column is too narrow for the editor and the chat part at
-	 * `width` (its own width by default), so that neither overflows the column: the parts beyond the column on the chat
-	 * part's side, closest first, such as the secondary side bar that holds its anchor, give up width down to their
-	 * minimum, and then those on the other side. The chat part then takes its width, leaving the editor its minimum.
+	 * Makes room for a visible chat part where the editor's column is too narrow for the chat part at `width` (its own
+	 * width by default) and a visible editor area at its minimum, so that neither overflows the column: the parts beyond
+	 * the column on the chat part's side, closest first, such as the secondary side bar that holds its anchor, give up
+	 * width down to their minimum, and then those on the other side. The chat part then takes its width, leaving a visible
+	 * editor area its minimum; a hidden one, such as one hidden for the chat part, needs no room.
 	 */
 	private ensureChatPartFits(width?: number): void {
 		const grid = this.workbenchGrid;
-		if (!this.chatPartView || this.chatPartHidden || !grid) {
+		// A chat part that fills the place of an editor area hidden for it, such as one that hides as the chat part shows, takes its room from no one else
+		if (!this.chatPartView || this.chatPartHidden || !grid || this.isEditorHiddenByChat()) {
 			return;
 		}
 		const columnWidth = () => this.getChatPartColumnWidth();
 		const target = Math.max(this.chatPartView.minimumWidth, width ?? grid.getViewSize(this.chatPartView).width);
-		let missing = this.editorPartView.minimumWidth + target - columnWidth();
+		// A hidden editor area, such as one hidden for the chat part, needs no room in the column
+		const editorMinimumWidth = this.isVisible(Parts.EDITOR_PART, mainWindow) ? this.editorPartView.minimumWidth : 0;
+		let missing = editorMinimumWidth + target - columnWidth();
 		// Closest first on the chat part's side, then on the other side, where those on its side are at their minimum
 		const side = this.getChatPartPosition();
 		const otherSide = side === Position.LEFT ? Position.RIGHT : Position.LEFT;
@@ -3142,10 +3244,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			const given = Math.min(missing, size.width - neighbour.minimumWidth);
 			if (given > 0) {
 				grid.resizeView(neighbour, { width: size.width - given, height: size.height });
-				missing = this.editorPartView.minimumWidth + target - columnWidth();
+				missing = editorMinimumWidth + target - columnWidth();
 			}
 		}
-		const chatWidth = Math.min(target, columnWidth() - this.editorPartView.minimumWidth);
+		const chatWidth = Math.min(target, columnWidth() - editorMinimumWidth);
 		if (chatWidth !== grid.getViewSize(this.chatPartView).width) {
 			grid.resizeView(this.chatPartView, { width: chatWidth, height: grid.getViewSize(this.chatPartView).height });
 		}
@@ -3251,17 +3353,22 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Hidden only by the layout, such as for a maximized panel, it shows again after a reload
 		const visible = !this.chatPartHidden || this.chatPartHiddenByLayout;
-		let size = this.chatPartHidden
-			? this.workbenchGrid.getViewCachedVisibleSize(this.chatPartView)
-			: this.workbenchGrid.getViewSize(this.chatPartView).width;
 		// With the editor area hidden for it, the chat part fills the editor area's width too. It keeps its own width, so that
 		// the hidden editor area keeps its width in a grid that is created from it (see `createGridDescriptor`)
-		const editorWidth = !this.chatPartHidden && this.isEditorHiddenByChat() ? this.workbenchGrid.getViewCachedVisibleSize(this.editorPartView) : undefined;
-		if (size !== undefined && editorWidth !== undefined) {
-			size = Math.max(this.chatPartView.minimumWidth, size - editorWidth);
-		}
+		const size = this.chatPartHidden
+			? this.chatPartOwnWidth ?? this.workbenchGrid.getViewCachedVisibleSize(this.chatPartView)
+			: this.getChatPartOwnWidth() ?? this.workbenchGrid.getViewSize(this.chatPartView).width;
 		const value: IChatPartLayout = { version: CHAT_PART_LAYOUT_VERSION, visible, size: size ?? this.chatPartView.minimumWidth, hiddenByLayout: visible && hiddenByLayout };
 		this.storageService.store(CHAT_PART_LAYOUT_STORAGE_KEY, JSON.stringify(value), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+	}
+
+	/** The width of a visible chat part that fills the editor area hidden for it, less the width the editor area had. */
+	private getChatPartOwnWidth(): number | undefined {
+		if (!this.chatPartView || this.chatPartHidden || !this.isEditorHiddenByChat()) {
+			return undefined;
+		}
+		const editorWidth = this.workbenchGrid.getViewCachedVisibleSize(this.editorPartView);
+		return editorWidth === undefined ? undefined : Math.max(this.chatPartView.minimumWidth, this.workbenchGrid.getViewSize(this.chatPartView).width - editorWidth);
 	}
 
 	//#endregion

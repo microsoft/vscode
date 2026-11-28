@@ -220,7 +220,7 @@ class WindowKindFilterProvider implements IExperimentationFilterProvider {
 		const filters = new Map<string, string>();
 
 		// Mirrors the core `X-VSCode-WindowKind` filter (`editor` or `agents`).
-		const windowKind = vscode.workspace.isAgentSessionsWorkspace ? 'agents' : 'editor';
+		const windowKind = vscode.workspace.isAgentManaged ? 'agents' : 'editor';
 		filters.set('X-VSCode-WindowKind', windowKind);
 
 		this._logService.trace(`[WindowKindFilterProvider]::getFilters Filters: ${JSON.stringify(Array.from(filters.entries()))}`);
@@ -254,11 +254,12 @@ export class CopilotAssignmentsFilterProvider implements IExperimentationFilterP
 		if (this._releaseDate) {
 			filters.set('vscode_core_releasedate', this._releaseDate);
 		}
-		filters.set('vscode_core_windowkind', vscode.workspace.isAgentSessionsWorkspace ? 'agents' : 'editor');
+		filters.set('vscode_core_windowkind', vscode.workspace.isAgentManaged ? 'agents' : 'editor');
 		filters.set('devdeviceid', vscode.env.devDeviceId);
 		filters.set('copilottrackingid', token?.getTokenValue('tid'));
 		filters.set('github_core_organizationid', token?.organizationList.join(','));
 		filters.set('github_core_businessid', token?.enterpriseList.join(','));
+		filters.set('github_core_copilotbillableentityid', token?.billableOwnerUniversalKey);
 		filters.set('github_core_isghormsftstaff', internalOrg ? '1' : '0');
 		filters.set('github_core_ghmsftorexternal', internalOrg ?? 'external');
 		filters.set('github_core_userkind', token?.userKind || undefined);

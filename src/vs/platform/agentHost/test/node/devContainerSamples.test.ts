@@ -229,7 +229,8 @@ suite('Dev Container samples', () => {
 				const stdout = args[0] === 'volume'
 					? args[1] === 'inspect' ? JSON.stringify({ 'vsch.local.repository': repositoryPath }) : ''
 					: args[0] === 'inspect' ? JSON.stringify(containerMetadata)
-						: args.includes('cat') ? JSON.stringify(config) : '';
+						: args.includes('cat') ? JSON.stringify(config)
+							: args[0] === 'exec' && args[1] === '--user' ? localCommand(args) : '';
 				return { stdout, stderr: '', code: 0 };
 			}
 			protected override async _runDevContainer(_connectionId: string, args: readonly string[]) {
@@ -240,9 +241,6 @@ suite('Dev Container samples', () => {
 			}
 			protected override async _resolveShellEnvironment() {
 				return {};
-			}
-			protected override async _runLocalCommand(_command: string, args: readonly string[]) {
-				return { stdout: localCommand(args), stderr: '', code: 0 };
 			}
 		}(
 			new NullLogService(), new class extends mock<IProductService>() { }(), NullTelemetryService,

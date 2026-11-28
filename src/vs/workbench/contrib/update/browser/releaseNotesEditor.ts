@@ -227,6 +227,7 @@ export class ReleaseNotesManager extends Disposable {
 						tryRestoreScrollPosition: true,
 						enableFindWidget: true,
 						disableServiceWorker: useCurrentFile ? false : true,
+						allowFullscreen: true,
 					},
 					contentOptions: {
 						localResourceRoots: useCurrentFile ? [base] : [],
@@ -735,34 +736,61 @@ export class ReleaseNotesManager extends Disposable {
 						margin-bottom: 0;
 					}
 
-					.release-highlights-video {
-						border-top: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-textSeparator-foreground));
+					.release-highlights-layout {
+						container: release-highlights / inline-size;
+						display: grid;
+						grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+						gap: var(--vscode-spacing-size240);
+						align-items: start;
+					}
+
+					.release-highlights-layout > * {
+						min-width: 0;
+					}
+
+					.release-highlights-intro > :first-child,
+					.release-highlights-text > :first-child,
+					.release-highlights-text > :first-child > li:first-child > :first-child,
+					.release-highlights-body > :first-child {
+						margin-top: 0;
+					}
+
+					.release-highlights-intro > :last-child,
+					.release-highlights-text > :last-child,
+					.release-highlights-text > :last-child > li:last-child > :last-child,
+					.release-highlights-body > :last-child {
+						margin-bottom: 0;
+					}
+
+					.release-highlights-intro + .release-highlights-layout {
 						margin-top: var(--vscode-spacing-size160);
-						padding-top: var(--vscode-spacing-size80);
 					}
 
-					.release-highlights-video > summary {
-						cursor: pointer;
-						border-radius: var(--vscode-cornerRadius-small);
-						padding: var(--vscode-spacing-size80) var(--vscode-spacing-size40);
-						font-weight: var(--vscode-fontWeight-semiBold);
+					.release-highlights-text > ul,
+					.release-highlights-text > ol {
+						padding-inline-start: var(--vscode-spacing-size200);
 					}
 
-					.release-highlights-video > summary:hover {
-						background-color: var(--vscode-list-hoverBackground);
+					.release-highlights-body {
+						margin-top: var(--vscode-spacing-size240);
 					}
 
-					body:is(.vscode-high-contrast, .vscode-high-contrast-light) .release-highlights-video > summary:hover:not(:focus-visible) {
-						outline: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder);
-						outline-offset: calc(-1 * var(--vscode-strokeThickness));
+					.release-highlights-video {
+						position: relative;
+						display: grid;
+						gap: var(--vscode-spacing-size100);
+						margin: 0;
 					}
 
-					body:is(.vscode-high-contrast, .vscode-high-contrast-light) .release-highlights-video[open] > summary:not(:focus-visible) {
-						outline: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
-						outline-offset: calc(-1 * var(--vscode-strokeThickness));
+					.release-highlights-video-caption {
+						position: absolute;
+						width: 1px;
+						height: 1px;
+						overflow: hidden;
+						clip-path: inset(50%);
+						white-space: nowrap;
 					}
 
-					.release-highlights-video > summary:focus-visible,
 					.release-highlights-video video:focus-visible {
 						outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 						outline-offset: calc(-1 * var(--vscode-strokeThickness));
@@ -772,15 +800,46 @@ export class ReleaseNotesManager extends Disposable {
 						display: block;
 						width: 100%;
 						height: auto;
+						aspect-ratio: 16 / 9;
+						object-fit: contain;
 						border-radius: var(--vscode-cornerRadius-small);
-						margin-top: var(--vscode-spacing-size80);
+						margin: 0;
+						cursor: pointer;
 					}
 
 					.release-highlights-video > p {
 						color: var(--vscode-descriptionForeground);
 						font-size: var(--vscode-fontSize-label1);
-						margin-top: var(--vscode-spacing-size80);
+						margin: 0;
 						overflow-wrap: anywhere;
+					}
+
+					@container release-highlights (min-width: 664px) {
+						.release-highlights-layout > .release-highlights-video {
+							align-self: stretch;
+							align-content: start;
+							/* Reserve a usable 280px-wide player without letting it size the text row. */
+							grid-template-rows: minmax(calc(280px * 9 / 16), 1fr);
+						}
+
+						.release-highlights-player {
+							container-type: size;
+						}
+
+						.release-highlights-player > video {
+							width: min(100%, calc(100cqh * 16 / 9));
+							margin-left: auto;
+						}
+					}
+
+					@media print {
+						.release-highlights-layout {
+							display: block;
+						}
+
+						.release-highlights-video {
+							display: none;
+						}
 					}
 
 					.highlights-table {
@@ -970,6 +1029,7 @@ export class ReleaseNotesManager extends Disposable {
 					${telemetry ? `(${initializeReleaseNotesTelemetry.toString()})(document, window, documentId, ${JSON.stringify(telemetry.manifest.regions)}, vscode, ${JSON.stringify(telemetry.manifest.tryouts.map(tryout => tryout.index))}, ${!!telemetry.manifest.highlightsVideo});` : ''}
 					vscode.postMessage({ type: 'releaseNotesReady', documentId });
 					(${initializeReleaseNotesNavigation.toString()})(document, window);
+					(${initializeReleaseNotesHighlightsVideo.toString()})(document, window);
 				</script>
 				<script nonce="${nonce}">
 					${tryouts.getScript()}
@@ -1081,31 +1141,31 @@ export async function renderReleaseNotesMarkdown(
 			return '';
 		}
 		videoAvailable = true;
-		let disclosure = video.closest('details');
-		if (!disclosure) {
-			const content = Array.from(candidate.childNodes);
-			disclosure = $<HTMLDetailsElement>('details');
-			candidate.appendChild(disclosure);
-			disclosure.append(...content);
+		const authored = video.closest('details') ?? candidate;
+		const summary = authored.querySelector(':scope > summary');
+		const caption = candidate.ownerDocument.createElement('figcaption');
+		caption.className = 'release-highlights-video-caption';
+		if (summary?.textContent?.trim()) {
+			caption.append(...Array.from(summary.childNodes));
+		} else {
+			caption.textContent = nls.localize('releaseNotes.highlightsVideoSummary', "Watch release highlights");
 		}
-		disclosure.classList.add('release-highlights-video');
-		let summary = disclosure.querySelector('summary');
-		if (!summary) {
-			summary = $('summary');
-			disclosure.prepend(summary);
-		}
-		if (!summary.textContent?.trim()) {
-			summary.textContent = nls.localize('releaseNotes.highlightsVideoSummary', "Watch release highlights");
-		}
+		summary?.remove();
+		const media = candidate.ownerDocument.createElement('figure');
+		media.className = 'release-highlights-video';
+		media.append(caption, ...Array.from(authored.childNodes).filter(node => node.nodeType !== node.TEXT_NODE || !!node.textContent?.trim()));
+		const player = candidate.ownerDocument.createElement('div');
+		player.className = 'release-highlights-player';
+		video.replaceWith(player);
+		player.append(video);
 		if (!video.getAttribute('title')?.trim() && !video.getAttribute('aria-label')?.trim()) {
 			video.setAttribute('aria-label', nls.localize('releaseNotes.highlightsVideoLabel', "Release highlights video"));
 		}
-		disclosure.setAttribute('open', '');
 		video.setAttribute('controls', '');
 		video.setAttribute('preload', 'none');
 		video.setAttribute('playsinline', '');
 		highlightsVideo?.onDidResolve?.(true);
-		return highlightsVideo?.enabled ? disclosure.outerHTML : '';
+		return highlightsVideo?.enabled ? `\n\n${media.outerHTML}\n\n` : '';
 	});
 	/* eslint-enable eslint-js/no-restricted-syntax */
 	if (!videoAvailable) {
@@ -1169,7 +1229,8 @@ export async function renderReleaseNotesMarkdown(
 			}
 		}]
 	});
-	if (!mediaBaseUrl && !telemetry && (!tryouts || !tryouts.needsRender(content))) {
+	const hasHighlightsVideo = videoAvailable && highlightsVideo?.enabled === true;
+	if (!hasHighlightsVideo && !mediaBaseUrl && !telemetry && (!tryouts || !tryouts.needsRender(content))) {
 		return content;
 	}
 	const tryoutSanitizerConfig = {
@@ -1182,6 +1243,9 @@ export async function renderReleaseNotesMarkdown(
 	};
 	const container = $('div');
 	safeSetInnerHtml(container, content.toString(), tryoutSanitizerConfig);
+	if (hasHighlightsVideo) {
+		layoutReleaseHighlights(container);
+	}
 	if (mediaBaseUrl) {
 		// eslint-disable-next-line eslint-js/no-restricted-syntax -- These media elements are authored in the release note Markdown.
 		for (const element of container.querySelectorAll('img, video, source, track')) {
@@ -1199,6 +1263,64 @@ export async function renderReleaseNotesMarkdown(
 	}
 	return sanitizeHtml(container.innerHTML, tryoutSanitizerConfig);
 }
+
+/* eslint-disable eslint-js/no-restricted-syntax -- Inspect only sanitized release-note HTML. */
+function layoutReleaseHighlights(container: HTMLElement): void {
+	for (const highlights of container.querySelectorAll<HTMLElement>('.release-notes-highlights')) {
+		const media = highlights.querySelector(':scope > .release-highlights-video');
+		if (!media) {
+			continue;
+		}
+		const list = highlights.querySelector(':scope > ul, :scope > ol');
+		if (!list) {
+			const heading = highlights.querySelector(':scope > h2');
+			if (!heading) {
+				continue;
+			}
+			const introduction = $('div.release-highlights-text');
+			let node = heading.nextSibling;
+			introduction.append(heading);
+			while (node && (node.nodeType !== node.ELEMENT_NODE || node.nodeName === 'P')) {
+				const next = node.nextSibling;
+				introduction.append(node);
+				node = next;
+			}
+			const layout = $('div.release-highlights-layout');
+			layout.append(introduction, media);
+			const body = $('div.release-highlights-body');
+			body.append(...Array.from(highlights.childNodes));
+			highlights.append(layout);
+			if (body.children.length || body.textContent?.trim()) {
+				highlights.append(body);
+			}
+			continue;
+		}
+
+		const introduction = $('div.release-highlights-intro');
+		let node = highlights.firstChild;
+		while (node && node !== list) {
+			const next = node.nextSibling;
+			if (node !== media) {
+				introduction.append(node);
+			}
+			node = next;
+		}
+		const listColumn = $('div.release-highlights-text');
+		listColumn.append(list);
+		const layout = $('div.release-highlights-layout');
+		layout.append(listColumn, media);
+		const body = $('div.release-highlights-body');
+		body.append(...Array.from(highlights.childNodes));
+		if (introduction.children.length || introduction.textContent?.trim()) {
+			highlights.append(introduction);
+		}
+		highlights.append(layout);
+		if (body.children.length || body.textContent?.trim()) {
+			highlights.append(body);
+		}
+	}
+}
+/* eslint-enable eslint-js/no-restricted-syntax */
 
 /* eslint-disable eslint-js/no-restricted-syntax -- These serialized functions access IDs owned by the isolated release notes webview. */
 export function initializeReleaseNotesNavigation(targetDocument: Document, targetWindow: Window & typeof globalThis): () => void {
@@ -1286,6 +1408,31 @@ export function initializeReleaseNotesNavigation(targetDocument: Document, targe
 	};
 	targetWindow.addEventListener('pagehide', dispose, { once: true });
 	scheduleUpdate();
+	return dispose;
+}
+
+export function initializeReleaseNotesHighlightsVideo(targetDocument: Document, targetWindow: Window & typeof globalThis): () => void {
+	const video = targetDocument.querySelector('.release-highlights-video video');
+	if (!(video instanceof targetWindow.HTMLVideoElement)) {
+		return () => { };
+	}
+	const onClick = (event: MouseEvent) => {
+		if (event.button !== 0 || event.detail === 0 || event.defaultPrevented) {
+			return;
+		}
+		event.preventDefault();
+		if (video.paused) {
+			void video.play().catch(() => { });
+		} else {
+			video.pause();
+		}
+	};
+	video.addEventListener('click', onClick);
+	const dispose = () => {
+		video.removeEventListener('click', onClick);
+		targetWindow.removeEventListener('pagehide', dispose);
+	};
+	targetWindow.addEventListener('pagehide', dispose, { once: true });
 	return dispose;
 }
 

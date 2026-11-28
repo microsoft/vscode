@@ -31,13 +31,14 @@ function escapeScript(value: string): string {
 	return value.replaceAll('</script', '<\\/script');
 }
 
-it('does not run content scripts that carry the preview script nonce', async () => {
-	const nonce = 'a1b2c3d4-0000-4000-8000-000000000000';
-	const source = 'file:///workspace/README.md';
+const nonce = 'a1b2c3d4-0000-4000-8000-000000000000';
+const source = 'file:///workspace/README.md';
+
+/** A preview page like the one `MdDocumentRenderer` renders, showing `initialContent`. */
+async function previewHtml(initialContent: string): Promise<string> {
 	const settings = { source, scrollEditorWithPreview: false, disableSecurityWarnings: true, doubleClickToSwitchToEditor: false, webviewResourceRoot: 'https://example.invalid/' };
 	const csp = `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline';`;
-	const injected = (marker: string) => `<p>${marker}</p><script nonce="${nonce}">window.injected = (window.injected || []).concat(${JSON.stringify(marker)});</script>`;
-	const html = `<!DOCTYPE html>
+	return `<!DOCTYPE html>
 		<html>
 		<head>
 			<meta http-equiv="Content-Security-Policy" content="${escapeAttribute(csp)}">
@@ -45,7 +46,7 @@ it('does not run content scripts that carry the preview script nonce', async () 
 				data-settings="${escapeAttribute(JSON.stringify(settings))}"
 				data-strings="{}"
 				data-state="{}"
-				data-initial-md-content="${escapeAttribute(`<div class="markdown-body" dir="auto">${injected('initial')}</div>`)}">
+				data-initial-md-content="${escapeAttribute(initialContent)}">
 			<script nonce="${nonce}">
 				window.acquireVsCodeApi = () => ({ getState: () => undefined, setState: () => { }, postMessage: () => { } });
 			</script>
@@ -55,6 +56,11 @@ it('does not run content scripts that carry the preview script nonce', async () 
 			<script async nonce="${nonce}">${escapeScript(await bundle('index.ts'))}</script>
 		</body>
 		</html>`;
+}
+
+it('does not run content scripts that carry the preview script nonce', async () => {
+	const injected = (marker: string) => `<p>${marker}</p><script nonce="${nonce}">window.injected = (window.injected || []).concat(${JSON.stringify(marker)});</script>`;
+	const html = await previewHtml(`<div class="markdown-body">${injected('initial')}</div>`);
 
 	const browser = await chromium.launch();
 	try {
@@ -63,13 +69,40 @@ it('does not run content scripts that carry the preview script nonce', async () 
 		await page.waitForFunction(() => document.body.textContent?.includes('initial'));
 
 		// Same document: content is reconciled into the existing page.
-		await page.evaluate(([source, content]) => window.postMessage({ type: 'updateContent', source, content }, '*'), [source, `<div class="markdown-body" dir="auto">${injected('same document')}</div>`]);
+		await page.evaluate(([source, content]) => window.postMessage({ type: 'updateContent', source, content }, '*'), [source, `<div class="markdown-body">${injected('same document')}</div>`]);
 		await page.waitForFunction(() => document.body.textContent?.includes('same document'));
 		// Another document: the body is replaced.
-		await page.evaluate(([content]) => window.postMessage({ type: 'updateContent', source: 'file:///workspace/other.md', content }, '*'), [`<div class="markdown-body" dir="auto">${injected('other document')}</div>`]);
+		await page.evaluate(([content]) => window.postMessage({ type: 'updateContent', source: 'file:///workspace/other.md', content }, '*'), [`<div class="markdown-body">${injected('other document')}</div>`]);
 		await page.waitForFunction(() => document.body.textContent?.includes('other document'));
 
 		assert.deepStrictEqual(await page.evaluate(() => (window as unknown as { injected?: string[] }).injected ?? []), []);
+	} finally {
+		await browser.close();
+	}
+});
+
+it('takes the direction of the preview root from its content', async () => {
+	// allow-any-unicode-next-line
+	const rightToLeft = (marker: string) => `<div class="markdown-body"><p>שלום ${marker}</p></div>`;
+
+	const browser = await chromium.launch();
+	try {
+		const page = await browser.newPage();
+		await page.setContent(await previewHtml(rightToLeft('initial')));
+		await page.waitForFunction(() => document.body.textContent?.includes('initial'));
+		const rootDirection = () => page.evaluate(() => document.querySelector('.markdown-body')!.matches(':dir(rtl)') ? 'rtl' : 'ltr');
+		const directions = [await rootDirection()];
+
+		// Same document: content is reconciled into the existing page.
+		await page.evaluate(([source, content]) => window.postMessage({ type: 'updateContent', source, content }, '*'), [source, rightToLeft('same document')]);
+		await page.waitForFunction(() => document.body.textContent?.includes('same document'));
+		directions.push(await rootDirection());
+		// Another document: the body is replaced.
+		await page.evaluate(([content]) => window.postMessage({ type: 'updateContent', source: 'file:///workspace/other.md', content }, '*'), [rightToLeft('other document')]);
+		await page.waitForFunction(() => document.body.textContent?.includes('other document'));
+		directions.push(await rootDirection());
+
+		assert.deepStrictEqual(directions, ['rtl', 'rtl', 'rtl']);
 	} finally {
 		await browser.close();
 	}

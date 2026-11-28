@@ -12,6 +12,22 @@ import { IDevContainerEnvironmentReference, IDevContainerEnvironmentSource } fro
 export const DEV_CONTAINER_AGENT_HOST_CHANNEL = 'devContainerAgentHost';
 export const VSCODE_REMOTE_CONTAINERS_SESSION_ENV = 'VSCODE_REMOTE_CONTAINERS_SESSION';
 
+/** Container engine that runs a Dev Container: Docker, or WSL containers (`wslc.exe`) on Windows. */
+export type DevContainerEngine = 'docker' | 'wslc';
+
+export const devContainerEngines: readonly DevContainerEngine[] = ['docker', 'wslc'];
+
+export function isDevContainerEngine(value: unknown): value is DevContainerEngine {
+	return devContainerEngines.includes(value as DevContainerEngine);
+}
+
+/** The container engines of a host, and the engine that already has a container or volume of a source. */
+export interface IDevContainerEngines {
+	readonly available: readonly DevContainerEngine[];
+	/** Reconnecting must use this engine, which holds the source's container and its Agent Host sessions. */
+	readonly existing?: DevContainerEngine;
+}
+
 /** Inputs required to start or reuse a workspace's Dev Container Agent Host. */
 export interface IDevContainerAgentHostWorkspaceConfig {
 	readonly connectionId: string;
@@ -24,11 +40,27 @@ export interface IDevContainerAgentHostWorkspaceConfig {
 	readonly sandboxEnabled?: boolean;
 	/** Mount a per-container volume that keeps user and agent state across rebuilds. */
 	readonly persistUserState?: boolean;
+	/** Fail rather than start or create the folder's container when it is not running, e.g. when connecting without user action. */
+	readonly requireRunning?: boolean;
+	/** The container engine, Docker when omitted. */
+	readonly engine?: DevContainerEngine;
 }
 
 export type IDevContainerAgentHostConfig = IDevContainerAgentHostWorkspaceConfig
-	| (Omit<IDevContainerAgentHostWorkspaceConfig, 'workspaceFolder'> & IDevContainerSampleSource)
-	| (Omit<IDevContainerAgentHostWorkspaceConfig, 'workspaceFolder'> & IDevContainerEnvironmentSource);
+	| (Omit<IDevContainerAgentHostWorkspaceConfig, 'workspaceFolder' | 'requireRunning'> & IDevContainerSampleSource)
+	| (Omit<IDevContainerAgentHostWorkspaceConfig, 'workspaceFolder' | 'requireRunning'> & IDevContainerEnvironmentSource);
+
+/**
+ * A folder's Dev Container on a Docker engine, such as one the Dev Containers extension opened for an editor window.
+ * Only containers that a connection with the folder's path reuses are listed: their id labels are the defaults for the
+ * folder and its default configuration file.
+ */
+export interface IDevContainerHostFolderContainer {
+	/** The folder's `file` URI on the Docker host, as the host creates it from the folder's path. */
+	readonly folder: string;
+	/** Whether a container of the folder is running, rather than created, paused, or stopped. */
+	readonly running: boolean;
+}
 
 /** Identifies the container of a native workspace folder, a sample, or an environment. */
 export type DevContainerAgentHostSource = string | IDevContainerSampleSource | IDevContainerEnvironmentReference;
@@ -133,6 +165,11 @@ export interface IDevContainerAgentHostMainService extends IRelayChannel {
 
 	/** Whether Docker can be resolved from the user's shell environment. */
 	isDockerAvailable(): Promise<boolean>;
+	/**
+	 * The container engines that can be resolved from the user's shell environment and, for a source, the engine that
+	 * already has its container or volume. Optional for the services of older remote hosts, which only support Docker.
+	 */
+	getEngines?(source?: DevContainerAgentHostSource): Promise<IDevContainerEngines>;
 	connect(config: IDevContainerAgentHostConfig): Promise<IDevContainerAgentHostConnectResult>;
 	disconnect(connectionId: string): Promise<void>;
 	stopContainer(source: DevContainerAgentHostSource): Promise<boolean>;
@@ -143,10 +180,31 @@ export interface IDevContainerAgentHostMainService extends IRelayChannel {
 	 * the service on their own computer, so it is optional for the services of remote hosts.
 	 */
 	hasEnvironmentVolume?(environmentId: string): Promise<boolean>;
+	/**
+	 * The folder Dev Containers on this service's Docker engine, running or not, empty without Docker. Rejects when Docker
+	 * fails or stalls. Optional for the services of remote hosts that predate it, see `supportsAgentHostDevContainerFolderContainers`.
+	 */
+	listFolderContainers?(): Promise<readonly IDevContainerHostFolderContainer[]>;
+}
+
+/** The container engines of a service's host, only Docker for hosts that predate other engines. */
+export async function getDevContainerEngines(service: IDevContainerAgentHostMainService, source?: DevContainerAgentHostSource): Promise<IDevContainerEngines> {
+	if (service.getEngines) {
+		return service.getEngines(source);
+	}
+	return { available: await service.isDockerAvailable() ? ['docker'] : [] };
+}
+
+/** Whether a service's host has any container engine for Dev Containers. */
+export async function isDevContainerEngineAvailable(service: IDevContainerAgentHostMainService): Promise<boolean> {
+	return (await getDevContainerEngines(service)).available.length > 0;
 }
 
 /** How long {@link IDevContainerAgentHostMainService.hasEnvironmentVolume} may take before a stalled Docker engine counts as not having the volume. */
 export const DevContainerEnvironmentVolumeLookupTimeoutMs = 10_000;
+
+/** How long {@link IDevContainerAgentHostMainService.listFolderContainers} may take before a stalled Docker engine fails it. */
+export const DevContainerFolderContainersLookupTimeoutMs = 10_000;
 
 /** Whether a host accepts the name of a Dev Container connection, which its messages and log show. */
 export function isValidDevContainerConnectionName(name: string): boolean {

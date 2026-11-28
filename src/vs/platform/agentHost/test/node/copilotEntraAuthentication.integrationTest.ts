@@ -36,6 +36,7 @@ import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { CopilotEntraAuthentication } from '../../node/copilot/copilotEntraAuthentication.js';
 import { createCopilotCliEnvironment } from '../../node/copilot/copilotCliEnvironment.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
+import { NullAgentHostClientForwardingService } from '../../node/agentHostClientForwarding.js';
 import { WebSocketProtocolServer } from '../../node/webSocketTransport.js';
 import { createTestAgentHostProxyResolver } from './agentServiceTestUtils.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
@@ -78,7 +79,7 @@ suite('Copilot Entra authentication transport', () => {
 			store.add(new AgentHostManagedSettingsService()), connections,
 			new class extends mock<IDevContainerAgentHostMainService>() { }(),
 			NullAgentHostOTelService, createTestChatOwnershipService(state),
-			createTestAgentHostProxyResolver(),
+			createTestAgentHostProxyResolver(), NullAgentHostClientForwardingService,
 		));
 		store.add(autorun(reader => {
 			const requirement = bridge.authenticationRequired.read(reader);

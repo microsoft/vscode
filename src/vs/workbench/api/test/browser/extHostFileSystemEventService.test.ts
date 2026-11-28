@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { ExtHostFileSystemEventService } from '../../common/extHostFileSystemEventService.js';
+import { ExtHostFileSystemEventService, FileSystemEventDispatcher } from '../../common/extHostFileSystemEventService.js';
 import { IMainContext } from '../../common/extHost.protocol.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -13,11 +13,10 @@ import { FileSystemProviderCapabilities } from '../../../../platform/files/commo
 import { IExtHostWorkspace } from '../../common/extHostWorkspace.js';
 import { RelativePattern } from '../../common/extHostTypes.js';
 import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
-import { ExtHostConfigProvider } from '../../common/extHostConfiguration.js';
 
 suite('ExtHostFileSystemEventService', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const protocol: IMainContext = {
 		getProxy: () => { return undefined!; },
@@ -118,36 +117,109 @@ suite('ExtHostFileSystemEventService', () => {
 		watcher.dispose();
 	});
 
-	test('FileSystemWatcher matches relative pattern case-insensitively via pre-lowercasing', function () {
-		const fileSystemInfo = new ExtHostFileSystemInfo();
-		fileSystemInfo.$acceptProviderInfos(URI.file('/'), FileSystemProviderCapabilities.FileReadWrite); // no PathCaseSensitive → ignoreCase=true
+	for (const caseSensitive of [true, false]) {
+		test(`relative watcher preserves event path casing on a case-${caseSensitive ? 'sensitive' : 'insensitive'} filesystem`, () => {
+			const fileSystemInfo = new ExtHostFileSystemInfo();
+			fileSystemInfo.$acceptProviderInfos(URI.file('/'), caseSensitive ? FileSystemProviderCapabilities.PathCaseSensitive : FileSystemProviderCapabilities.FileReadWrite);
+			const workspace: Pick<IExtHostWorkspace, 'getWorkspaceFolder'> = { getWorkspaceFolder: () => undefined };
+			const service = new ExtHostFileSystemEventService(protocolWithProxy, new NullLogService(), undefined!);
+			const watcher = disposables.add(service.createFileSystemWatcher(workspace as IExtHostWorkspace, undefined!, fileSystemInfo, nullExtensionDescription, new RelativePattern('/Workspace', '*.TXT'), {}));
+			const created: string[] = [];
+			disposables.add(watcher.onDidCreate(uri => created.push(uri.path)));
 
-		const workspace: Pick<IExtHostWorkspace, 'getWorkspaceFolder'> = {
-			getWorkspaceFolder: () => ({ uri: URI.file('/workspace'), name: 'test', index: 0 })
+			const mixed = URI.file('/Workspace/Mixed.TXT');
+			const upper = URI.file('/WORKSPACE/UPPER.TXT');
+			const lowerExtension = URI.file('/Workspace/file.txt');
+			service.$onFileEvent({ session: undefined, created: [mixed, upper, lowerExtension], changed: [], deleted: [] });
+
+			assert.deepStrictEqual(created, caseSensitive ? [mixed.path] : [mixed.path, upper.path, lowerExtension.path]);
+		});
+	}
+
+	test('dispatch visits only the exact file and its ancestor bases', () => {
+		const dispatcher = new FileSystemEventDispatcher();
+		const calls: string[] = [];
+		for (const path of ['/', '/src', '/src/a.ts', '/src/b.ts', '/src/a', '/other']) {
+			disposables.add(dispatcher.subscribe(new RelativePattern(path, '*'), ['changed'], () => calls.push(path)));
+		}
+
+		dispatcher.dispatch({ session: undefined, created: [], changed: [URI.file('/src/a.ts')], deleted: [] });
+		assert.deepStrictEqual(calls, ['/', '/src', '/src/a.ts']);
+	});
+
+	test('dispatch prunes unrelated bases for a literal double dot without losing non-normalized bases', () => {
+		const dispatcher = new FileSystemEventDispatcher();
+		const calls: string[] = [];
+		for (const base of ['/src/nested', '/unrelated', '/src/./nested']) {
+			disposables.add(dispatcher.subscribe(new RelativePattern(base, '*.ts'), ['changed'], () => calls.push(base)));
+		}
+
+		dispatcher.dispatch({ session: undefined, created: [], changed: [URI.file('/src/nested/report..v1.ts')], deleted: [] });
+		assert.deepStrictEqual(calls, ['/src/nested', '/src/./nested']);
+	});
+
+	test('dispatch stops reading changed paths when the last interested watcher is disposed', () => {
+		const service = new ExtHostFileSystemEventService(protocol, new NullLogService(), undefined!);
+		const info = new ExtHostFileSystemInfo();
+		disposables.add(service.createFileSystemWatcher(undefined!, undefined!, info, undefined!, '**/*.ts', { ignoreChangeEvents: true }));
+		const interested = disposables.add(service.createFileSystemWatcher(undefined!, undefined!, info, undefined!, '**/*.ts', {}));
+		const dispatch = () => {
+			let pathRead = false;
+			service.$onFileEvent({
+				session: undefined, created: [], deleted: [],
+				changed: [{ ...URI.file('/note.txt').toJSON(), get path() { pathRead = true; return '/note.txt'; } }]
+			});
+			return pathRead;
 		};
 
-		const configProvider = {
-			getConfiguration: () => ({ get: () => ({}) })
-		} as unknown as ExtHostConfigProvider;
+		const before = dispatch();
+		interested.dispose();
+		assert.deepStrictEqual([before, dispatch()], [true, false]);
+	});
 
-		const service = new ExtHostFileSystemEventService(protocolWithProxy, new NullLogService(), undefined!);
-		const watcher = service.createFileSystemWatcher(workspace as IExtHostWorkspace, configProvider, fileSystemInfo, nullExtensionDescription, new RelativePattern('/Workspace', '**/*.TXT'), {});
+	for (const { name, base, path } of [
+		{ name: 'watcher base', base: '/other/../src', path: '/src/nested/file.ts' },
+		{ name: 'event path', base: '/src', path: '/other/../src/nested/file.ts' },
+	]) {
+		test(`dispatch routes changes with '..' in the ${name}`, () => {
+			const dispatcher = new FileSystemEventDispatcher();
+			const changed: string[] = [];
+			disposables.add(dispatcher.subscribe(new RelativePattern(base, '**/*.ts'), ['changed'], (_session, batch) => {
+				changed.push(...batch.changed.map(event => event.uri.path));
+			}));
 
-		const created: URI[] = [];
-		const sub = watcher.onDidCreate(uri => created.push(uri));
-
-		// lowercase path should match mixed-case base + uppercase extension on case-insensitive fs
-		service.$onFileEvent({
-			session: undefined,
-			created: [URI.file('/workspace/file.txt')],
-			changed: [],
-			deleted: []
+			dispatcher.dispatch({ session: undefined, created: [], changed: [URI.file(path)], deleted: [] });
+			assert.deepStrictEqual(changed, [path]);
 		});
+	}
 
-		assert.strictEqual(created.length, 1);
+	test('routes a batch to overlapping watcher bases in registration order', () => {
+		const service = new ExtHostFileSystemEventService(protocolWithProxy, new NullLogService(), undefined!);
+		const workspace: Pick<IExtHostWorkspace, 'getWorkspaceFolder'> = { getWorkspaceFolder: () => undefined };
+		const fileSystemInfo = new ExtHostFileSystemInfo();
+		const calls: string[] = [];
+		const watch = (base: string, label: string) => {
+			const watcher = disposables.add(service.createFileSystemWatcher(workspace as IExtHostWorkspace, undefined!, fileSystemInfo, nullExtensionDescription, new RelativePattern(base, '*'), {}));
+			disposables.add(watcher.onDidChange(uri => calls.push(`${label}: ${uri.path}`)));
+			return watcher;
+		};
+		const file = URI.file('/workspace/src/a.ts');
+		const sibling = URI.file('/workspace/src/b.ts');
+		const first = watch(file.fsPath, 'file');
+		watch('/workspace/src/', 'folder');
+		const later = watch('/workspace/src', 'disposed');
+		disposables.add(first.onDidChange(() => later.dispose()));
+		watch(file.fsPath, 'second file watcher');
+		watch('/workspace/s', 'non-parent');
 
-		sub.dispose();
-		watcher.dispose();
+		service.$onFileEvent({ session: undefined, created: [], changed: [sibling, file], deleted: [] });
+
+		assert.deepStrictEqual(calls, [
+			'file: /workspace/src/a.ts',
+			'folder: /workspace/src/b.ts',
+			'folder: /workspace/src/a.ts',
+			'second file watcher: /workspace/src/a.ts',
+		]);
 	});
 
 });

@@ -20,7 +20,7 @@ import { ILabelService, type ResourceLabelFormatter } from '../../../label/commo
 import { AgentsWindowRemoteAgentHostService, EditorWindowRemoteAgentHostService, RemoteAgentHostService } from '../../browser/remoteAgentHostServiceImpl.js';
 import { WebSocketConnectionFactory } from '../../browser/webSocketConnectionFactory.js';
 import { InitialAuthenticationError, type IAgentHostProtocolClientOptions } from '../../browser/agentHostProtocolClient.js';
-import { addSSHRemoteAgentHostEntry, addWebSocketRemoteAgentHostEntry, getEntryAddress, getEntryTypeConfig, removeWebSocketRemoteAgentHostEntry, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, WorkspaceRemoteAgentHostsSettingId, type IRawRemoteAgentHostEntry, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostConnectOptions, type IRemoteAgentHostCreatedConnection, type IRemoteAgentHostEntry, type IRemoteAgentHostProtocolClient, type RemoteAgentHostConnectionObserver } from '../../common/remoteAgentHostService.js';
+import { addSSHRemoteAgentHostEntry, addWebSocketRemoteAgentHostEntry, getEntryAddress, getEntryTypeConfig, removeWebSocketRemoteAgentHostEntry, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, WorkspaceRemoteAgentHostsSettingId, type IRawRemoteAgentHostEntry, type IRemoteAgentHostConnectionAttempt, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostConnectOptions, type IRemoteAgentHostCreatedConnection, type IRemoteAgentHostEntry, type IRemoteAgentHostProtocolClient, type RemoteAgentHostConnectionObserver } from '../../common/remoteAgentHostService.js';
 import { parseRemoteAgentHostInput } from '../../common/remoteAgentHostAddress.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../common/agentHostUri.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
@@ -152,10 +152,15 @@ class TestConnectionFactory extends Disposable implements IRemoteAgentHostConnec
 	createdConnectionCount = 0;
 	reconnectManagedByClient = false;
 	readonly observations: { state: Parameters<RemoteAgentHostConnectionObserver>[0]; time: number }[] = [];
+	readonly attempts: { userInitiated: boolean; attempt: number; failure?: { duringHandshake: boolean; willRetry: boolean } }[] = [];
 
 	constructor(readonly kind: RemoteAgentHostEntryType) {
 		super();
 		this.entries = this._entries;
+	}
+
+	reportConnectionAttempt(_entry: IRemoteAgentHostEntry, { userInitiated, attempt, failure }: IRemoteAgentHostConnectionAttempt): void {
+		this.attempts.push({ userInitiated, attempt, ...(failure ? { failure: { duringHandshake: failure.duringHandshake, willRetry: failure.willRetry } } : {}) });
 	}
 
 	publishEntry(entry: IRemoteAgentHostEntry): void {
@@ -171,6 +176,12 @@ class TestConnectionFactory extends Disposable implements IRemoteAgentHostConnec
 	}
 
 	stage(entry: IRemoteAgentHostEntry, connection: MockProtocolClient, transportDisposable?: IDisposable, reconnectTransfersTransportOwnership = false): void {
+		this.stageConnection(entry, connection, transportDisposable, reconnectTransfersTransportOwnership);
+		this.publishEntry(entry);
+	}
+
+	/** Queues the next connection for an entry without republishing it, as an automatic reconnect of an unchanged entry does. */
+	stageConnection(entry: IRemoteAgentHostEntry, connection: MockProtocolClient, transportDisposable?: IDisposable, reconnectTransfersTransportOwnership = false): void {
 		const address = getEntryAddress(entry);
 		const createdConnections = this._createdConnections.get(address) ?? [];
 		createdConnections.push({
@@ -180,7 +191,6 @@ class TestConnectionFactory extends Disposable implements IRemoteAgentHostConnec
 			reconnectManagedByClient: this.reconnectManagedByClient,
 		});
 		this._createdConnections.set(address, createdConnections);
-		this.publishEntry(entry);
 	}
 
 	/** Stages a factory-level rejection, as a failed precondition check would produce. */
@@ -1518,6 +1528,32 @@ suite('RemoteAgentHostService', () => {
 			}, { dials: 11, outcomes: [{ state: 'failed', time: 181_000 }] });
 		}));
 
+		test('numbers dials per retry cycle, restarting after an established connection drops', () => runWithFakedTimers({}, async () => {
+			const factory = createFactory();
+			const entry = cloudSandboxEntry('Sandbox', 'cloudsandbox:dials');
+			const address = getEntryAddress(entry);
+			const first = disposables.add(new MockProtocolClient(address));
+			factory.stageFailure(entry, new Error('factory failed'));
+			factory.stage(entry, first);
+			service.reconnect(address);
+			await waitForFactoryConnection(factory, 1);
+			first.connectDeferred.complete();
+			await service.waitForConnection(address);
+			const second = disposables.add(new MockProtocolClient(address));
+			factory.stage(entry, second);
+			first.fireClose();
+			await waitForFactoryConnection(factory, 2);
+			second.connectDeferred.complete();
+			await service.waitForConnection(address);
+			service.dispose();
+
+			assert.deepStrictEqual(factory.attempts, [
+				{ userInitiated: true, attempt: 1, failure: { duringHandshake: false, willRetry: true } },
+				{ userInitiated: false, attempt: 2 },
+				{ userInitiated: false, attempt: 1 },
+			]);
+		}));
+
 		test('an explicit redial during recovery keeps the original operation alive', () => runWithFakedTimers({}, async () => {
 			const factory = createFactory();
 			const entry = cloudSandboxEntry('Sandbox', 'cloudsandbox:redial');
@@ -2231,6 +2267,27 @@ suite('RemoteAgentHostService', () => {
 			assert.deepStrictEqual(
 				service.connections.find(connection => connection.address === 'cloud:name')?.name,
 				'My Cloud Sandbox');
+		});
+
+		test('keeps the name of a host that is disconnected but still configured when it reconnects', async () => {
+			const factory = createFactory(RemoteAgentHostEntryType.Tunnel);
+			const entry: IRemoteAgentHostEntry = { name: 'agents-3', connection: { type: RemoteAgentHostEntryType.Tunnel, tunnelId: 'quick-ocean-0ns5qbp', clusterId: 'test' } };
+			const address = getEntryAddress(entry);
+			await reconnectStagedConnection(factory, entry, new MockProtocolClient(address));
+			await service.removeRemoteAgentHost(address);
+
+			const client = new MockProtocolClient(address);
+			factory.stageConnection(entry, client);
+			service.reconnect(address, false);
+			const wait = service.waitForConnection(address);
+			await waitForFactoryConnection(factory, 2);
+			client.connectDeferred.complete();
+			const connection = await wait;
+
+			assert.deepStrictEqual({
+				name: connection.name,
+				label: registeredFormatters.find(formatter => formatter.authority === agentHostAuthority(address))?.formatting.workspaceSuffix,
+			}, { name: 'agents-3', label: 'agents-3' });
 		});
 	});
 

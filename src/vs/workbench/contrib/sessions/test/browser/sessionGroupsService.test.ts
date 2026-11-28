@@ -15,7 +15,7 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { INewSessionDraftSlot, INewSessionRequestAcceptedEvent, INewSessionRequestEndedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { IChatMovedEvent } from '../../common/sessionsProvider.js';
-import { getSessionGroupSectionId, SessionGroupsService, SessionGroupTree } from '../../browser/sessionGroupsService.js';
+import { getSessionGroupSectionId, SessionGroupsService, SessionGroupTree, ISessionGroupsChangeEvent } from '../../browser/sessionGroupsService.js';
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 
 function createSession(id: string, isArchived = false, creatorSession?: URI): ISession {
@@ -985,6 +985,33 @@ suite('SessionGroupsService', () => {
 		};
 
 		assert.deepStrictEqual({ current: state(service), reloaded: state(reloaded) }, { current: expected, reloaded: expected });
+	});
+
+	test('a renamed grouping section keeps its group and its place in one change that changes no group, and a placement its new id has stays', () => {
+		const parent = service.createGroup('Parent');
+		const other = service.createGroup('Other');
+		service.moveSection('workspace:a', parent.id);
+		service.moveSection('workspace:old', parent.id);
+		service.moveSection('workspace:z', parent.id);
+		service.moveSection('workspace:placed', other.id);
+		service.moveSection('workspace:former', parent.id);
+		const events: ISessionGroupsChangeEvent[] = [];
+		disposables.add(service.onDidChange(e => events.push(e)));
+		service.renameSection('workspace:old', 'workspace:new');
+		service.renameSection('workspace:former', 'workspace:placed');
+		service.renameSection('workspace:unplaced', 'workspace:other');
+		const reloaded = disposables.add(instantiationService.createInstance(SessionGroupsService));
+
+		assert.deepStrictEqual({
+			children: reloaded.getChildIds(parent.id),
+			parents: ['workspace:old', 'workspace:new', 'workspace:former', 'workspace:placed'].map(id => reloaded.getGroupOfSection(id)),
+			events: events.map(e => e.groupsChanged),
+		}, {
+			// In the place the former id had
+			children: ['workspace:z', 'workspace:new', 'workspace:a'],
+			parents: [undefined, parent.id, undefined, other.id],
+			events: [false, false],
+		});
 	});
 
 	test('refreshes indexed child lookups after group and section changes', () => {

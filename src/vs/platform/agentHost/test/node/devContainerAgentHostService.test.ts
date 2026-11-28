@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { X509Certificate } from 'crypto';
 import { rootCertificates } from 'tls';
-import { EventEmitter as NodeEventEmitter } from 'events';
+import { EventEmitter as NodeEventEmitter, once } from 'events';
 import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'child_process';
 import { existsSync } from 'fs';
 import { lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'fs/promises';
@@ -14,7 +14,9 @@ import { tmpdir } from 'os';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
-import { delimiter, join } from '../../../../base/common/path.js';
+import { basename, delimiter, dirname, join, resolve } from '../../../../base/common/path.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { isLinux, isWindows } from '../../../../base/common/platform.js';
 import { getCaseInsensitive } from '../../../../base/common/objects.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -24,8 +26,12 @@ import { IProductService } from '../../../product/common/productService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
+import { IConfigurationService } from '../../../configuration/common/configuration.js';
+import { ConfigurationService } from '../../../configuration/common/configurationService.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
-import { IDevContainerAgentHostUserStateReport, VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../../common/devContainerAgentHost.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
+import { NullPolicyService } from '../../../policy/common/policy.js';
+import { DevContainerEngine, IDevContainerAgentHostUserStateReport, VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../../common/devContainerAgentHost.js';
 import { devContainerEnvironmentImage, IDevContainerEnvironmentSource } from '../../common/devContainerEnvironments.js';
 import { IPreparedDevContainerEnvironment } from '../../node/devContainerEnvironments.js';
 import { IAgentHostEndpointMetadata } from '../../common/agentHostEndpointRegistry.js';
@@ -33,9 +39,10 @@ import { IRequestService } from '../../../request/common/request.js';
 import { writeUserDataCertificatesFile } from '../../../request/node/certificates.js';
 import { IGitHubService } from '../../../github/common/githubService.js';
 import { URI } from '../../../../base/common/uri.js';
-import { DevContainerAgentHostMainService, getDevContainerCliPath, getDevContainerExecArgs, IDevContainerRelay, IDevContainerShellExec, parseDevContainerMounts, parseDevContainerUpResult, RemoteDevContainerAgentHostService, waitForDevContainerRelayConnection } from '../../node/devContainerAgentHostService.js';
-import { getDevContainerSecurityOptions, IDevContainerSecurityOptions } from '../../node/devContainerState.js';
+import { DevContainerAgentHostMainService, getDevContainerCliPath, getDevContainerExecArgs, IDevContainerRelay, IDevContainerShellExec, parseDevContainerFolderContainers, parseDevContainerMounts, parseDevContainerUpResult, RemoteDevContainerAgentHostService, waitForDevContainerRelayConnection } from '../../node/devContainerAgentHostService.js';
+import { getDefaultDevContainerIdLabels, getDevContainerSecurityOptions, getDevContainerStateVolumeLabels, IDevContainerSecurityOptions } from '../../node/devContainerState.js';
 import { ISshExec, shellEscape } from '../../node/sshRemoteAgentHostHelpers.js';
+import { AGENT_HOST_CLIENT_FORWARDING_ENV } from '../../node/agentHostClientForwarding.js';
 import { devContainerServerCacheMount } from '../../node/devContainerServerCache.js';
 import { DevContainerSample } from '../../common/devContainerSamples.js';
 import { IPreparedDevContainerSample } from '../../node/devContainerSamples.js';
@@ -73,6 +80,10 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	relayResult: Promise<IDevContainerRelay> | undefined;
 	readonly execCommands: string[] = [];
 	readonly dockerCommands: string[][] = [];
+	/** The engine of each of {@link dockerCommands}. */
+	readonly dockerEngines: DevContainerEngine[] = [];
+	/** The engines' resolved executables. Without them, Docker resolves as on a host, and the test machine's WSLc is never used. */
+	engineExecutables: Partial<Record<DevContainerEngine, string>> | undefined;
 	dockerEndpoint = 'unix:///var/run/docker.sock';
 	dockerContextExitCode = 0;
 	dockerContextError: Error | undefined;
@@ -128,6 +139,10 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	containerHostConfig: unknown;
 	/** States of existing containers, see `docker ps --format {{.State}}`. */
 	existingContainerStates: readonly string[] = [];
+	/** Folder containers listed with `docker ps --all`, as their folder, configuration file and state. */
+	folderContainers: readonly (readonly [string, string, string])[] = [];
+	/** Whether `up` must not create a container. */
+	expectExistingContainer = false;
 	/** Docker volumes and their labels. */
 	readonly volumes = new Map<string, Record<string, string>>();
 	volumeCreateExitCode = 0;
@@ -142,8 +157,6 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	cacheMountConfigured = false;
 	hostDirectoryOwnedByCurrentUser = true;
 	readonly checkedHostDirectories: string[] = [];
-	readonly hostGitConfig = new Map<string, string>();
-	readonly containerGitConfig = new Map<string, string>();
 
 	constructor(
 		private readonly _libc = '',
@@ -156,8 +169,8 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		testTmpDir = '/tmp',
 		logService: NullLogService = new NullLogService(),
 		commit?: string,
+		configurationService: IConfigurationService = new TestConfigurationService({ 'http.systemCertificates': systemCertificates }),
 	) {
-		const configurationService = new TestConfigurationService({ 'http.systemCertificates': systemCertificates });
 		super(
 			logService,
 			new class extends mock<IProductService>() {
@@ -196,8 +209,19 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		return this._resolveShellEnvironment();
 	}
 
-	protected override _runDocker(args: readonly string[]): Promise<{ stdout: string; stderr: string; code: number }> {
+	protected override _resolveEngineExecutable(engine: DevContainerEngine): Promise<string | undefined> {
+		if (this.engineExecutables) {
+			return Promise.resolve(this.engineExecutables[engine]);
+		}
+		return engine === 'docker' ? super._resolveEngineExecutable(engine) : Promise.resolve(undefined);
+	}
+
+	protected override _runDocker(args: readonly string[], _token?: CancellationToken, engine: DevContainerEngine = 'docker'): Promise<{ stdout: string; stderr: string; code: number }> {
+		if (args[0] === 'exec' && args[1] === '--user') {
+			return this._runLocalCommand(engine, args);
+		}
 		this.dockerCommands.push([...args]);
+		this.dockerEngines.push(engine);
 		if (args[0] === 'context') {
 			if (this.dockerContextError) {
 				return Promise.reject(this.dockerContextError);
@@ -206,6 +230,9 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		}
 		if (args[0] === 'exec') {
 			return Promise.resolve({ stdout: `${this.containerSessionIds.join('\n')}\n`, stderr: '', code: 0 });
+		}
+		if (args[0] === 'ps' && args[1] === '--all') {
+			return Promise.resolve({ stdout: this.folderContainers.map(container => `${JSON.stringify(container)}\n`).join(''), stderr: '', code: 0 });
 		}
 		if (args[0] === 'ps') {
 			return Promise.resolve({ stdout: this.existingContainerStates.map(state => `${state}\n`).join(''), stderr: '', code: 0 });
@@ -224,6 +251,19 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 			this.volumes.set(args.at(-1)!, Object.fromEntries(labels.map(label => [label.substring(0, label.indexOf('=')), label.substring(label.indexOf('=') + 1)])));
 		}
 		return Promise.resolve({ stdout: `${args.at(-1)}\n`, stderr: '', code: 0 });
+	}
+
+	runDocker(args: readonly string[]): Promise<{ stdout: string; stderr: string; code: number }> {
+		return super._runDocker(args);
+	}
+
+	async spawnDevContainer(args: readonly string[]): Promise<readonly string[]> {
+		const child = super._spawnDevContainer(args, { ...process.env });
+		child.stdout.resume();
+		child.stderr.resume();
+		const [code] = await once(child, 'close');
+		assert.strictEqual(code, 0);
+		return child.spawnargs.slice(1);
 	}
 
 	resolveDevContainerEnvironment(): Promise<typeof process.env> {
@@ -276,7 +316,7 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 			this.linkedBeforeLifecycle = this.localCommands.some(command => command.args[2] === 'root' && !!command.args.at(-1)?.includes('link_state'));
 			return Promise.resolve({ stdout: `${JSON.stringify(this.userCommandsExitCode ? { outcome: 'error', description: 'postCreateCommand from devcontainer.json failed.', message: 'npm ERR! Your cache folder contains root-owned files: /home/node/.npm, run: sudo chown -R node /home/node/.npm' } : { outcome: 'success' })}\n`, stderr: '', code: this.userCommandsExitCode });
 		}
-		const expectedUpArgs = ['up', '--log-level', 'debug', '--workspace-folder', '/workspace', ...this.sandboxConfigurationPrepared ? ['--config', '/workspace/.devcontainer/devcontainer.json', '--override-config', '/sandbox/devcontainer.json'] : [], ...this.cacheMountConfigured ? [] : ['--mount', devContainerServerCacheMount]];
+		const expectedUpArgs = ['up', '--log-level', 'debug', '--workspace-folder', '/workspace', ...this.sandboxConfigurationPrepared ? ['--config', '/workspace/.devcontainer/devcontainer.json', '--override-config', '/sandbox/devcontainer.json'] : [], ...this.cacheMountConfigured ? [] : ['--mount', devContainerServerCacheMount], ...this.expectExistingContainer ? ['--expect-existing-container'] : []];
 		if (args.includes('--skip-post-create')) {
 			assert.deepStrictEqual(args.slice(0, expectedUpArgs.length), expectedUpArgs);
 			this.userStateUpArgs = args.slice(expectedUpArgs.length);
@@ -339,15 +379,9 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 
 	protected override _runLocalCommand(command: string, args: readonly string[]): Promise<{ stdout: string; stderr: string; code: number }> {
 		this.localCommands.push({ command, args });
-		if (command === 'git' && args[0] === 'config' && args[1] === '--global' && args[2] === '--get') {
-			const value = this.hostGitConfig.get(args[3]);
-			return Promise.resolve({
-				stdout: value === undefined ? '' : `${value}\n`,
-				stderr: '',
-				code: value === undefined ? 1 : 0,
-			});
-		}
-		if (command === 'docker' && args[0] === 'exec' && args[1] === '--user' && args[2] === 'root') {
+		// `_runDocker` runs `exec --user` here, named after its engine.
+		const engine = command === 'docker' || command === 'wslc';
+		if (engine && args[0] === 'exec' && args[1] === '--user' && args[2] === 'root') {
 			if (args.at(-1)?.includes('/cli/bin/') && this.cliCacheSetupError) {
 				throw this.cliCacheSetupError;
 			}
@@ -356,7 +390,7 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 			}
 			return Promise.resolve({ stdout: '', stderr: '', code: 0 });
 		}
-		if (command === 'docker' && args[0] === 'exec' && args[1] === '--user' && args[2] === 'node') {
+		if (engine && args[0] === 'exec' && args[1] === '--user' && args[2] === 'node') {
 			return Promise.resolve({ stdout: '1000\n1000\n/home/node\n', stderr: '', code: 0 });
 		}
 		throw new Error(`Unexpected local command: ${command} ${args.join(' ')}`);
@@ -405,11 +439,6 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 			}
 			if (command === 'git config --global --get-all safe.directory') {
 				return { stdout: this.safeDirectories.join('\n'), stderr: '', code: this.safeDirectories.length ? 0 : 1 };
-			}
-			const gitIdentityMatch = /^git config --get (?<key>user\.(?:name|email))$/.exec(command);
-			if (gitIdentityMatch?.groups) {
-				const value = this.containerGitConfig.get(gitIdentityMatch.groups.key);
-				return { stdout: value === undefined ? '' : `${value}\n`, stderr: '', code: value === undefined ? 1 : 0 };
 			}
 			if (command === 'uname -s') {
 				return { stdout: 'Linux\n', stderr: '', code: 0 };
@@ -475,6 +504,52 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 suite('Dev Container Agent Host Main Service', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const dockerPath of [process.execPath, basename(process.execPath)]) {
+		test(`uses an unregistered Docker executable setting (${dockerPath}) and refreshes discovery after changes`, async () => {
+			const fileService = createInMemoryFileService(store, Schemas.file);
+			const settingsResource = URI.file('/settings.json');
+			await fileService.writeFile(settingsResource, VSBuffer.fromString(JSON.stringify({ 'dev.containers.dockerPath': dockerPath })));
+			const configurationService = store.add(new ConfigurationService(settingsResource, fileService, new NullPolicyService(), new NullLogService()));
+			await configurationService.initialize();
+			const commands: { command: string; args: readonly string[] }[] = [];
+			const service = store.add(new class extends TestDevContainerAgentHostMainService {
+				protected override async _runLocalCommand(command: string, args: readonly string[]) {
+					commands.push({ command, args });
+					return { stdout: '', stderr: '', code: 0 };
+				}
+			}('', false, undefined, { PATH: dirname(process.execPath) }, false, [], new Set(), '/tmp', new NullLogService(), undefined, configurationService));
+			service.inheritedEnvironment = {};
+
+			const available = await service.isDockerAvailable();
+			await service.runDocker(['inspect', 'container-id']);
+			const cliArgs = await service.spawnDevContainer(['exec', '--help']);
+			const missingPath = join(dirname(process.execPath), 'missing-docker-executable');
+			await configurationService.updateValue('dev.containers.dockerPath', missingPath);
+			const missing = await service.isDockerAvailable();
+			await assert.rejects(service.runDocker(['version']), /Docker is not available/);
+			await fileService.writeFile(settingsResource, VSBuffer.fromString(JSON.stringify({ 'dev.containers.dockerPath': dockerPath })));
+			const cachedPath = configurationService.getValue<string>('dev.containers.dockerPath');
+			const recovered = await service.isDockerAvailable();
+
+			assert.deepStrictEqual({ available, commands, cliArgs, missing, cachedPath, recovered }, {
+				available: true,
+				commands: [{ command: process.execPath, args: ['inspect', 'container-id'] }],
+				cliArgs: [getDevContainerCliPath(), 'exec', '--docker-path', dockerPath, '--help'],
+				missing: false,
+				cachedPath: missingPath,
+				recovered: true,
+			});
+		});
+	}
+
+	for (const dockerPath of [undefined, '']) {
+		test(`keeps the default Docker CLI arguments when dockerPath is ${JSON.stringify(dockerPath)}`, async () => {
+			const configurationService = new TestConfigurationService({ 'dev.containers.dockerPath': dockerPath });
+			const service = store.add(new TestDevContainerAgentHostMainService('', false, undefined, {}, false, [], new Set(), '/tmp', new NullLogService(), undefined, configurationService));
+			assert.deepStrictEqual(await service.spawnDevContainer(['exec', '--help']), [getDevContainerCliPath(), 'exec', '--help']);
+		});
+	}
+
 	for (const enabled of [true, false]) {
 		test(`reports local certificate eligibility without injecting the AH environment (system certificates: ${enabled})`, async () => {
 			const service = store.add(new TestDevContainerAgentHostMainService('', false, undefined, {}, enabled, ['LOCAL CA']));
@@ -535,7 +610,7 @@ suite('Dev Container Agent Host Main Service', () => {
 	test('a remote launcher never shares its host network with containers', async () => {
 		const service = store.add(new class extends RemoteDevContainerAgentHostService {
 			sharesClientNetwork(): Promise<boolean> {
-				return this._sharesClientNetwork(CancellationToken.None);
+				return this._sharesClientNetwork(CancellationToken.None, 'wslc');
 			}
 		}(
 			new NullLogService(),
@@ -610,6 +685,69 @@ suite('Dev Container Agent Host Main Service', () => {
 			/Docker returned invalid mount information: Error in element 0: Error in property 'Destination': Expected string/,
 		);
 		assert.throws(() => parseDevContainerMounts('not json'), /Unable to parse Docker mount information/);
+	});
+
+	test('lists the folder containers that a connection with the folder reuses, running if any of its containers runs', () => {
+		const list = (containers: readonly (readonly [string, string, string])[], platform: string) => parseDevContainerFolderContainers([...containers.map(container => JSON.stringify(container)), 'not json', ''].join('\r\n'), platform);
+		assert.deepStrictEqual({
+			linux: list([
+				['/home/me/project', '/home/me/project/.devcontainer/devcontainer.json', 'running'],
+				['/home/me/other', '/home/me/other/.devcontainer.json', 'exited'],
+				['/home/me/other', '/home/me/other/.devcontainer.json', 'running'],
+				['/home/me/stopped', '/home/me/stopped/.devcontainer.json', 'paused'],
+				// Another configuration of the folder gets a container of its own.
+				['/home/me/named', '/home/me/named/.devcontainer/node/devcontainer.json', 'running'],
+				// Dev Containers labels a WSL folder's container with its Windows path.
+				['\\\\wsl.localhost\\Ubuntu\\home\\me\\project', '/home/me/project/.devcontainer/devcontainer.json', 'running'],
+			], 'linux'),
+			windows: list([
+				['c:\\Users\\me\\project', 'c:\\Users\\me\\project\\.devcontainer\\devcontainer.json', 'running'],
+				['\\\\wsl.localhost\\Ubuntu\\home\\me\\project', '/home/me/project/.devcontainer/devcontainer.json', 'running'],
+				['/home/me/project', '/home/me/project/.devcontainer/devcontainer.json', 'running'],
+			], 'win32'),
+		}, {
+			linux: [
+				{ workspaceFolder: '/home/me/project', running: true },
+				{ workspaceFolder: '/home/me/other', running: true },
+				{ workspaceFolder: '/home/me/stopped', running: false },
+			],
+			windows: [{ workspaceFolder: 'c:\\Users\\me\\project', running: true }],
+		});
+	});
+
+	test('connects to a folder container that must run only while the container of its configuration runs, without starting it', async () => {
+		const service = store.add(new class extends TestDevContainerAgentHostMainService {
+			override async isDockerAvailable() { return true; }
+		}());
+		// The Dev Containers CLI labels a folder with its resolved path, on Windows with a lowercase drive letter.
+		const workspaceFolder = '/workspace';
+		const labelFolder = isWindows ? resolve(workspaceFolder).replace(/^[A-Z]:/, drive => drive.toLowerCase()) : workspaceFolder;
+		const configFile = join(labelFolder, '.devcontainer', 'devcontainer.json');
+		const config = { workspaceFolder, name: 'Project', requireRunning: true };
+		// A container removed after the check is not created again.
+		service.expectExistingContainer = true;
+		service.sandboxConfigurationOutput = JSON.stringify({ configuration: { configFilePath: URI.file(configFile).toJSON() }, mergedConfiguration: { mounts: [] } });
+		// The container of another configuration file runs, while `up` would start the stopped one of the selected file.
+		service.folderContainers = [[labelFolder, join(labelFolder, '.devcontainer.json'), 'running'], [labelFolder, configFile, 'exited']];
+		service.existingContainerStates = ['exited'];
+		const stopped = await service.connect({ ...config, connectionId: 'stopped' }).then(() => 'connected', (error: Error) => error.message);
+		const upCallsWhileStopped = service.devContainerArgs.filter(args => args[0] === 'up').length;
+		service.existingContainerStates = ['running'];
+		await service.connect({ ...config, connectionId: 'running' });
+		const selectedLabels = [`label=devcontainer.local_folder=${labelFolder}`, `label=devcontainer.config_file=${configFile}`];
+		assert.deepStrictEqual({
+			stopped,
+			upCallsWhileStopped,
+			upCalls: service.devContainerArgs.filter(args => args[0] === 'up').length,
+			checkedLabels: service.dockerCommands.filter(args => args[0] === 'ps' && args[1] === '-a').map(args => args.filter(arg => arg.startsWith('label='))),
+			listed: (await service.listFolderContainers()).map(container => ({ folder: URI.parse(container.folder).fsPath, running: container.running })),
+		}, {
+			stopped: 'The Dev Container for \'Project\' is not running.',
+			upCallsWhileStopped: 0,
+			upCalls: 1,
+			checkedLabels: [selectedLabels, selectedLabels],
+			listed: [{ folder: URI.file(labelFolder).fsPath, running: true }],
+		});
 	});
 
 	test('resolves the bundled Dev Container CLI', () => {
@@ -1459,56 +1597,11 @@ suite('Dev Container Agent Host Main Service', () => {
 		}, { sharedServer: true, warning: true, cacheCommands: 0, privateDownloads: 1 });
 	});
 
-	test('forwards missing host Git identity without overwriting container identity', async () => {
-		const forwarded = store.add(new TestDevContainerAgentHostMainService());
-		forwarded.hostGitConfig.set('user.name', 'Host User');
-		forwarded.hostGitConfig.set('user.email', 'host@example.com');
-		await forwarded.connect({
-			connectionId: 'forwarded',
-			workspaceFolder: '/workspace',
-			name: 'Project Dev Container',
-		});
-
-		const preserved = store.add(new TestDevContainerAgentHostMainService());
-		preserved.hostGitConfig.set('user.name', 'Host User');
-		preserved.hostGitConfig.set('user.email', 'host@example.com');
-		preserved.containerGitConfig.set('user.name', 'Container User');
-		await preserved.connect({
-			connectionId: 'preserved',
-			workspaceFolder: '/workspace',
-			name: 'Project Dev Container',
-		});
-
-		const absent = store.add(new TestDevContainerAgentHostMainService());
-		await absent.connect({
-			connectionId: 'absent',
-			workspaceFolder: '/workspace',
-			name: 'Project Dev Container',
-		});
-
-		assert.deepStrictEqual({
-			hostCommands: forwarded.localCommands.filter(command => command.command === 'git'),
-			forwardedCommands: forwarded.execCommands.filter(command => command.includes('user.')),
-			preservedCommands: preserved.execCommands.filter(command => command.includes('user.')),
-			absentCommands: absent.execCommands.filter(command => command.includes('user.')),
-		}, {
-			hostCommands: [
-				{ command: 'git', args: ['config', '--global', '--get', 'user.name'] },
-				{ command: 'git', args: ['config', '--global', '--get', 'user.email'] },
-			],
-			forwardedCommands: [
-				'git config --get user.name',
-				'git config --global --replace-all user.name \'Host User\'',
-				'git config --get user.email',
-				'git config --global --replace-all user.email \'host@example.com\'',
-			],
-			preservedCommands: [
-				'git config --get user.name',
-				'git config --get user.email',
-				'git config --global --replace-all user.email \'host@example.com\'',
-			],
-			absentCommands: [],
-		});
+	test('starts a new Agent Host that forwards what its clients offer, e.g., their Git identity', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService());
+		service.endpointPollsBeforeAvailable = 1;
+		await service.connect({ connectionId: 'forwarding', workspaceFolder: '/workspace', name: 'Project Dev Container' });
+		assert.deepStrictEqual(service.separateExecs.map(({ command }) => command.includes(` ${AGENT_HOST_CLIENT_FORWARDING_ENV}=1 `)), [true]);
 	});
 
 	test('adds the exact bind-mounted repository root to Git safe.directory only when host-owned', async () => {
@@ -1685,6 +1778,111 @@ suite('Dev Container Agent Host Main Service', () => {
 			'-c',
 			'printf test',
 		]]);
+	});
+
+	test('runs a WSLc Dev Container and its lifecycle with WSLc, without nested sandboxing', async () => {
+		const service = store.add(new class extends TestDevContainerAgentHostMainService {
+			readonly cliDockerPaths: string[] = [];
+			protected override async _runDevContainer(connectionId: string, args: readonly string[], token: CancellationToken, environment?: NodeJS.ProcessEnv) {
+				this.cliDockerPaths.push(`${args[0]} ${await this._getDevContainerDockerPath(connectionId)}`);
+				return super._runDevContainer(connectionId, args, token, environment);
+			}
+		}());
+		service.engineExecutables = { docker: 'docker', wslc: 'C:\\WSL\\wslc.exe' };
+		service.sandboxSupported = true;
+		const output: string[] = [];
+		store.add(service.onDidOutput(event => output.push(event.data)));
+		const result = await service.connect({ connectionId: 'wslc', workspaceFolder: '/workspace', name: 'Project Dev Container', engine: 'wslc', sandboxEnabled: true });
+		await service.stopContainer('/workspace');
+		assert.deepStrictEqual({
+			cliDockerPaths: service.cliDockerPaths,
+			dockerCommands: service.dockerCommands.map((args, i) => `${service.dockerEngines[i]} ${args[0]}`),
+			engineExecs: service.localCommands.filter(command => command.args[0] === 'exec').map(command => `${command.command} ${command.args.slice(0, 3).join(' ')}`),
+			sandboxPrepared: service.sandboxConfigurationPrepared,
+			sandboxSupported: result.sandboxSupported,
+			sharesClientNetwork: result.sharesClientNetwork,
+			sandboxNotice: output.some(text => text.includes('Terminal sandboxing is not supported in WSL containers')),
+		}, {
+			// The Dev Containers CLI runs WSLc, see `_spawnDevContainer`.
+			cliDockerPaths: ['read-configuration C:\\WSL\\wslc.exe', 'up C:\\WSL\\wslc.exe'],
+			// The container is checked for other sessions and stopped with WSLc.
+			dockerCommands: ['wslc exec', 'wslc stop'],
+			// The shared server cache is prepared with WSLc.
+			engineExecs: ['wslc exec --user root'],
+			sandboxPrepared: false,
+			sandboxSupported: false,
+			sharesClientNetwork: true,
+			sandboxNotice: true,
+		});
+	});
+
+	test('reports the engine that has a source\'s container, so that its connections keep using it', async () => {
+		// Labels of the configuration that `up --workspace-folder` selects when there is no `.devcontainer` folder.
+		const idLabels = (folder: string, configFile = join(folder, '.devcontainer.json')) => getDefaultDevContainerIdLabels(process.platform, folder, configFile);
+		const containers: Record<DevContainerEngine, readonly (readonly string[])[]> = {
+			// Another configuration's container of the folder, which `up` does not reuse.
+			docker: [idLabels('/workspace', join('/workspace', '.devcontainer', 'other', 'devcontainer.json'))],
+			wslc: [idLabels('/workspace')],
+		};
+		const volumes: Record<DevContainerEngine, readonly (readonly string[])[]> = {
+			docker: [],
+			// A workspace's state volume outlives its removed container.
+			wslc: [getDevContainerStateVolumeLabels(idLabels('/state-workspace')), ['vscode.agents.environment=environment']],
+		};
+		const service = store.add(new class extends TestDevContainerAgentHostMainService {
+			protected override _runDocker(args: readonly string[], _token?: CancellationToken, engine: DevContainerEngine = 'docker') {
+				const filters = args.flatMap((arg, i) => args[i - 1] === '--filter' ? [arg.replace(/^label=/, '')] : []);
+				const found = (args[0] === 'ps' ? containers : volumes)[engine].some(labels => filters.every(filter => labels.includes(filter)));
+				return Promise.resolve({ stdout: found ? 'found\n' : '', stderr: '', code: 0 });
+			}
+		}());
+		service.engineExecutables = { docker: 'docker' };
+		const before = await service.getEngines('/workspace');
+		service.engineExecutables = { docker: 'docker', wslc: 'C:\\WSL\\wslc.exe' };
+		assert.deepStrictEqual({
+			dockerOnly: before,
+			available: await service.getEngines(),
+			workspace: await service.getEngines('/workspace'),
+			stateOnlyWorkspace: await service.getEngines('/state-workspace'),
+			otherWorkspace: await service.getEngines('/other-workspace'),
+			environment: await service.getEngines({ environmentId: 'environment' }),
+			otherEnvironment: await service.getEngines({ environmentId: 'other' }),
+			sample: await service.getEngines({ sampleId: 'node' }),
+		}, {
+			dockerOnly: { available: ['docker'] },
+			available: { available: ['docker', 'wslc'] },
+			workspace: { available: ['docker', 'wslc'], existing: 'wslc' },
+			stateOnlyWorkspace: { available: ['docker', 'wslc'], existing: 'wslc' },
+			otherWorkspace: { available: ['docker', 'wslc'] },
+			environment: { available: ['docker', 'wslc'], existing: 'wslc' },
+			otherEnvironment: { available: ['docker', 'wslc'] },
+			sample: { available: ['docker', 'wslc'] },
+		});
+	});
+
+	test('removes an environment with the engine that has its volume, but not while another engine could not be checked', async () => {
+		const service = store.add(new class extends TestDevContainerAgentHostMainService {
+			protected override _runDocker(args: readonly string[], token?: CancellationToken, engine: DevContainerEngine = 'docker') {
+				if (args[0] === 'volume' && args[1] === 'ls') {
+					if (engine === 'docker') {
+						// A Docker engine that is not running cannot tell whether it has the environment's volume.
+						return Promise.resolve({ stdout: '', stderr: 'Cannot connect to the Docker daemon', code: 1 });
+					}
+					return Promise.resolve({ stdout: args.includes('label=vscode.agents.environment=environment') ? 'ubuntu\n' : '', stderr: '', code: 0 });
+				}
+				return super._runDocker(args, token, engine);
+			}
+		}());
+		service.engineExecutables = { docker: 'docker', wslc: 'C:\\WSL\\wslc.exe' };
+		await service.removeContainer({ environmentId: 'environment' });
+		const unchecked = await service.removeContainer({ environmentId: 'other' }).then(() => 'removed', (error: Error) => error.message);
+		assert.deepStrictEqual({
+			removals: service.dockerCommands.flatMap((args, i) => args.includes('rm') ? [`${service.dockerEngines[i]} ${args.join(' ')}`] : []),
+			unchecked,
+		}, {
+			removals: ['wslc volume rm ubuntu'],
+			unchecked: 'Could not check the container engines for the environment\'s volume: docker volume ls failed (exit 1): Cannot connect to the Docker daemon',
+		});
 	});
 
 	for (const failure of ['clone', 'lifecycle', 'cancellation'] as const) {

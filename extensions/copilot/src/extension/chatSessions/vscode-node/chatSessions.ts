@@ -116,7 +116,7 @@ export class ChatSessionsContrib extends Disposable implements IExtensionContrib
 			[IPullRequestFileChangesService, new SyncDescriptor(PullRequestFileChangesService)],
 		));
 
-		const configKey = vscode.workspace.isAgentSessionsWorkspace
+		const configKey = vscode.workspace.isAgentManaged
 			? ConfigKey.Advanced.CLISessionControllerForSessionsApp
 			: ConfigKey.Advanced.CLISessionController;
 		const useController = configurationService.getConfig(configKey);

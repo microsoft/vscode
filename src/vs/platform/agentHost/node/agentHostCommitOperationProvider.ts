@@ -9,6 +9,8 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
 import { ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetOperation, type ISessionGitState } from '../common/state/sessionState.js';
+import { getWorkingDirectoryKey } from '../common/agentHostWorkingDirectories.js';
+import { readSessionRepositories } from '../common/meta/agentSessionRepositoriesMeta.js';
 import { resolveChangesetOwnerScope } from './agentHostBranchChangesetScope.js';
 import { AgentHostCommitOperationHandler } from './agentHostCommitOperationHandler.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
@@ -33,14 +35,13 @@ export class AgentHostCommitOperationContribution extends Disposable implements 
 	getOperations({ sessionKey, ownerKey, changesetUri, changesetKind, gitState }: IChangesetOperationContext): ChangesetOperation[] {
 		// Commit always commits every uncommitted change in the working directory,
 		// so it is only advertised on changesets that show exactly those changes:
-		// the uncommitted changeset, and the branch changeset of a single-repository
-		// owner that works directly on its base branch without outgoing commits.
-		// A multi-repository branch changeset shows the changes of every repository,
-		// while Commit, like the git state, covers only the first one.
-		const isCommittableBranchChangeset = changesetKind === ChangesetKind.Branch
-			&& isOnBaseBranchWithoutOutgoingCommits(gitState)
-			&& resolveChangesetOwnerScope(this._stateManager, ownerKey ?? parseChangesetUri(changesetUri)?.ownerUri ?? sessionKey).workingDirectories.length === 1;
-		if (changesetKind !== ChangesetKind.Uncommitted && !isCommittableBranchChangeset) {
+		// the uncommitted changeset, and the branch changeset of an owner that works
+		// directly on its base branch without outgoing commits, both of an owner of
+		// one repository. The changesets of several repositories show the changes of
+		// every repository, while Commit, like the git state, covers only the first.
+		const isCommittableBranchChangeset = changesetKind === ChangesetKind.Branch && isOnBaseBranchWithoutOutgoingCommits(gitState);
+		if ((changesetKind !== ChangesetKind.Uncommitted && !isCommittableBranchChangeset)
+			|| !this._hasSingleRepository(ownerKey ?? parseChangesetUri(changesetUri)?.ownerUri ?? sessionKey)) {
 			return [];
 		}
 
@@ -57,6 +58,17 @@ export class AgentHostCommitOperationContribution extends Disposable implements 
 			scopes: [ChangesetOperationScope.Changeset],
 			status: ChangesetOperationStatus.Idle,
 		} satisfies ChangesetOperation];
+	}
+
+	/** Whether the changesets of `owner` show one repository: one folder, with no repositories found inside it. */
+	private _hasSingleRepository(owner: string): boolean {
+		const { sessionUri, workingDirectories } = resolveChangesetOwnerScope(this._stateManager, owner);
+		if (workingDirectories.length > 1) {
+			return false;
+		}
+		const folder = workingDirectories[0];
+		const repositories = folder === undefined ? undefined : readSessionRepositories(this._stateManager.getSessionState(sessionUri)?._meta)?.[getWorkingDirectoryKey(folder)];
+		return !repositories?.some(repository => repository.kind !== 'folder');
 	}
 }
 

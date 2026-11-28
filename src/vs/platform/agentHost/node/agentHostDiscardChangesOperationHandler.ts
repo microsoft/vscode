@@ -24,7 +24,7 @@ import { resolveChangesetOwnerScope } from './agentHostBranchChangesetScope.js';
 import { AgentHostFileEditRevert, FileEditRevertConflictError, FileEditRevertConflictReason, type IFileEditRevert, type IFileEditRevertStep } from './agentHostFileEditRevert.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { ILogService } from '../../log/common/log.js';
-import { resolveSessionRepositories } from './agentHostSessionRepositories.js';
+import { readNestedRepositoryRoots, resolveSessionRepositories } from './agentHostSessionRepositories.js';
 import { parseGitBlobUri } from './gitDiffContent.js';
 import { createFileEditDiscardRecord, createSessionFileEditDiscardRecords, getUndiscardedFileEditRevertSteps, readFileEditRevertSteps, spanFileEditRevertSteps } from './fileEditDiscard.js';
 import { createFileEditAcceptRecord, createFileEditAcceptRecordAfter, getUnacceptedFileEditRecords, isFileEditAcceptRecord, readFileEditEndContent, storeFileEditAcceptRecord } from './fileEditAccept.js';
@@ -171,7 +171,7 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 		}
 
 		try {
-			const repositoryRoot = await this._resolveRepositoryRoot(scope.workingDirectories, resource);
+			const repositoryRoot = await this._resolveRepositoryRoot(sessionUri, scope.workingDirectories, resource);
 			if (!repositoryRoot) {
 				throw new Error(`No changeset repository contains '${resource.fsPath}'.`);
 			}
@@ -201,15 +201,20 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 			[file.edit.after?.uri, file.edit.before?.uri].some(uri => uri !== undefined && extUriBiasedIgnorePathCase.isEqual(URI.parse(uri), resource)));
 	}
 
-	private async _resolveRepositoryRoot(workingDirectories: readonly string[], resource: URI): Promise<URI | undefined> {
+	/**
+	 * The repository of `resource` among the folders' repositories and those found in their immediate subfolders, which a
+	 * changeset lists too: the deepest one that contains it, or the folders' only repository when none was found inside.
+	 */
+	private async _resolveRepositoryRoot(sessionUri: string, workingDirectories: readonly string[], resource: URI): Promise<URI | undefined> {
 		const { gitRepositories } = await resolveSessionRepositories(
 			workingDirectories.map(workingDirectory => URI.parse(workingDirectory)),
 			this._agentHostGitService,
 		);
-		if (gitRepositories.length === 1) {
-			return gitRepositories[0];
+		const repositories = [...gitRepositories, ...readNestedRepositoryRoots(this._stateManager.getSessionState(sessionUri)?._meta, workingDirectories)];
+		if (repositories.length === 1) {
+			return repositories[0];
 		}
-		return findDeepestContainingWorkingDirectory(resource, gitRepositories);
+		return findDeepestContainingWorkingDirectory(resource, repositories);
 	}
 
 	private async _discardUncommittedChange(repositoryRoot: URI, resource: URI, sessionUri: string, token: CancellationToken): Promise<void> {

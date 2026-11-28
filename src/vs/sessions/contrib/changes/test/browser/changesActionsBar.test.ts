@@ -48,11 +48,14 @@ suite('ChangesActionsBar', () => {
 	const barHostContext = { sessionHostId: 'bar-window' };
 
 	function describeArg(arg: unknown, session: ITestSessionWithChat): unknown {
+		// The session with the chat whose changes the bar shows
+		const isSessionWithChat = !!arg && typeof arg === 'object' && (arg as { session?: unknown }).session === session && (arg as { chat?: unknown }).chat === session.activeChat.get();
 		return Array.isArray(arg) ? arg.map(item => describeArg(item, session))
 			: arg === session ? 'session'
-				: arg === session.resource ? 'resource'
-					: arg === barHostContext ? 'bar window host'
-						: arg;
+				: isSessionWithChat ? 'session with its chat'
+					: arg === session.resource ? 'resource'
+						: arg === barHostContext ? 'bar window host'
+							: arg;
 	}
 
 	function createBar(providerId: string, getActionsOptions: Map<MenuId, IMenuActionOptions | undefined> = new Map(), { isMainWindowSession = false, operations = [] as ISessionChangesetOperation[], artifactIntegrationsEnabled = false, toolbar = [] as [string, Array<MenuItemAction | SubmenuItemAction>][], invokeOperation = (_operationId: string): Promise<void> => Promise.resolve() } = {}) {
@@ -92,6 +95,7 @@ suite('ChangesActionsBar', () => {
 		const sessionObs = constObservable(session);
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, getWorkspace: () => ({ folders: [] }) as never }));
 
+		const changesetObs = constObservable(operations.length > 0 ? upcastPartial<ISessionChangeset>({ id: 'branch', operations: constObservable(operations), invokeOperation }) : undefined);
 		const source: IChangesSessionScope = {
 			session: sessionObs,
 			chat: constObservable(session.activeChat.get()),
@@ -100,7 +104,10 @@ suite('ChangesActionsBar', () => {
 			changes: upcastPartial<IChangesSessionObservables>({
 				stateObs: constObservable(undefined),
 				resourceObs: constObservable(undefined),
-				changesetObs: constObservable(operations.length > 0 ? upcastPartial<ISessionChangeset>({ id: 'branch', operations: constObservable(operations), invokeOperation }) : undefined),
+				changesetObs,
+				operationsChangesetObs: changesetObs,
+				repositoriesObs: constObservable([]),
+				repositoryObs: constObservable(undefined),
 				changesetOperationsObs: constObservable(operations),
 				loadingObs: constObservable(false),
 			}),
@@ -127,7 +134,7 @@ suite('ChangesActionsBar', () => {
 			// The session itself, for its own actions, and its resource, for those of extensions.
 			otherSession: toolbarArgs.map(arg => describeArg(arg, session)),
 			mainWindow: ofMainWindowSession.get(MenuId.AgentsChangesToolbar),
-		}, { otherSession: [['session', undefined, 'bar window host'], 'resource'], mainWindow: { shouldForwardArgs: true } });
+		}, { otherSession: [['session with its chat', undefined, 'bar window host'], 'resource'], mainWindow: { shouldForwardArgs: true } });
 	});
 
 	test('its own actions get the session, which names it whichever window has focus, and those of extensions its resource, as the API gives them', () => {
@@ -189,7 +196,7 @@ suite('ChangesActionsBar', () => {
 		const { session } = createBar('local-agent-host', getActionsOptions);
 		const options = getActionsOptions.get(Menus.ChangesOperationsDropdown);
 
-		assert.deepStrictEqual({ args: describeArg(options?.args, session), shouldForwardArgs: options?.shouldForwardArgs }, { args: ['session', undefined, 'bar window host'], shouldForwardArgs: true });
+		assert.deepStrictEqual({ args: describeArg(options?.args, session), shouldForwardArgs: options?.shouldForwardArgs }, { args: ['session with its chat', undefined, 'bar window host'], shouldForwardArgs: true });
 	});
 
 	test('leaves the pull request operations, such as Mark Ready and Merge, to the pull request artifact while artifact integrations apply to the session', () => {

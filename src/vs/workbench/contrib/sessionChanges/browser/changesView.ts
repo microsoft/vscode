@@ -40,6 +40,8 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { WorkbenchCompressibleObjectTree } from '../../../../platform/list/browser/listService.js';
+import type { ICompressedTreeElement } from '../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
@@ -91,7 +93,8 @@ import { AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, isAgentHostSkillButtonId } from '
 import { AGENT_HOST_AUTO_MERGE_OPERATION_IDS, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, AGENT_HOST_PULL_REQUEST_OPERATION_IDS } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { getBaseBranchLabel } from '../../../../platform/agentHost/common/agentHostGitService.js';
 import { ActiveSessionContextKeys, CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, IsolationMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../../sessions/common/changes.js';
-import { buildTreeChildren, ChangesTreeElement, ChangesTreeRenderer, IChangesFileItem, IChangesTreeRootInfo, isChangesFileItem, isChangesFileResource, toIChangesFileItem } from './changesViewRenderer.js';
+import { buildTreeChildren, ChangesTreeElement, ChangesTreeRenderer, IChangesFileItem, IChangesRootItem, IChangesTreeRootInfo, isChangesFileItem, isChangesRootItem, isChangesFileResource, toIChangesFileItem } from './changesViewRenderer.js';
+import type { IChangesRepositoryGroup } from '../../sessions/common/changesRepositories.js';
 import { ResourceTree } from '../../../../base/common/resourceTree.js';
 import { compareFileNames, comparePaths } from '../../../../base/common/comparers.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
@@ -467,8 +470,10 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 			if (!session) {
 				return getActionBarActions(menu.getActions({ shouldForwardArgs: true }));
 			}
+			// Of the chat whose changes these are, which a Changes editor can name while its window shows another
+			const chat = chatObs.read(reader);
 			return getActionBarActions(actionsNamingSession(
-				menu.getActions({ args: [session, undefined, hostCommandContext], shouldForwardArgs: true }),
+				menu.getActions({ args: [chat ? { session, chat } : session, undefined, hostCommandContext], shouldForwardArgs: true }),
 				menu.getActions({ arg: session.resource, shouldForwardArgs: true }),
 			));
 		});
@@ -495,7 +500,9 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 			dropdownMenuChanged.read(reader);
 			// Its actions, such as those of Agent Merge, act on the session of this bar, such as that of a chat window,
 			// rather than on whichever session is active.
-			const groups = dropdownMenu.getActions({ args: [sessionObs.read(reader), undefined, hostCommandContext], shouldForwardArgs: true });
+			const dropdownSession = sessionObs.read(reader);
+			const dropdownChat = !isMainWindow ? chatObs.read(reader) : undefined;
+			const groups = dropdownMenu.getActions({ args: [dropdownSession && dropdownChat ? { session: dropdownSession, chat: dropdownChat } : dropdownSession, undefined, hostCommandContext], shouldForwardArgs: true });
 			const primaryGroup = groups.find(([group]) => group === CHANGES_OPERATIONS_DROPDOWN_PRIMARY_GROUP)?.[1] ?? [];
 			const rest = groups.filter(([group]) => group !== CHANGES_OPERATIONS_DROPDOWN_PRIMARY_GROUP).map(([, actions]) => actions);
 			const contributed = primaryGroup[0];
@@ -517,7 +524,8 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 		});
 
 		const operationActionGroupsObs = derived<{ readonly groups: IAction[][]; readonly hasRunning: boolean }>(reader => {
-			const changeset = changes.changesetObs.read(reader);
+			// Of one repository shown on its own, its own changeset
+			const changeset = changes.operationsChangesetObs.read(reader);
 			if (!changeset) {
 				return { groups: [], hasRunning: false };
 			}
@@ -847,12 +855,19 @@ export function createChangesPickerLabelObservable(owner: object, changes: IChan
 		}
 		const defaultChangeset = findDefaultChangeset(changes.changesetsObs.read(reader) ?? [], reader);
 		const baseBranchRef = changeset.id === BRANCH_CHANGES_CHANGESET_ID ? changes.baseBranchRefObs.read(reader) : undefined;
+		// What describes the changes shown: the picked repository's own changeset, else the chat's, but not the chat's of a
+		// session of several repositories, which describes its first folder only
+		const repository = changes.repositoryObs.read(reader);
+		const repositoryChangeset = repository ? changes.operationsChangesetObs.read(reader) : undefined;
+		const describedChangeset = repository
+			? repositoryChangeset !== changeset ? repositoryChangeset : undefined
+			: changes.repositoriesObs.read(reader).length > 1 ? undefined : changeset;
 		return {
 			label: baseBranchRef
 				? localize({ key: 'changesView.picker.branchLabel', comment: ['{0} is the changeset label, for example Branch. {1} is the base branch the host compares the changes against, as shown in the Branch row, for example origin/main.'] }, "{0} → {1}", changeset.label, getBaseBranchLabel(baseBranchRef))
 				: changeset.label,
 			changesetLabel: changeset.label,
-			tooltip: changeset.id === BRANCH_CHANGES_CHANGESET_ID ? changeset.description : undefined,
+			tooltip: changeset.id === BRANCH_CHANGES_CHANGESET_ID ? describedChangeset?.description : undefined,
 			isNonDefault: changeset.id !== defaultChangeset?.id,
 		};
 	});
@@ -861,6 +876,9 @@ export function createChangesPickerLabelObservable(owner: object, changes: IChan
 // --- View Pane
 
 export class ChangesViewPane extends ViewPane {
+
+	/** The root row of the changes outside every repository, which has no resource. */
+	private static readonly OUTSIDE_REPOSITORIES_ROOT = URI.from({ scheme: 'changes-outside-repositories', path: '/' });
 
 	private bodyContainer: HTMLElement | undefined;
 	private welcomeContainer: HTMLElement | undefined;
@@ -1208,7 +1226,12 @@ export class ChangesViewPane extends ViewPane {
 			}
 
 			const stats = topLevelStats.read(reader);
-			const hasEntries = stats !== undefined && stats.files > 0;
+			// A repository whose changes failed shows why, also without files
+			const repositories = this.scope.changes.repositoriesObs.read(reader);
+			const picked = this.scope.changes.repositoryObs.read(reader);
+			const failures = repositories.length ? this.scope.changes.changesetObs.read(reader)?.folderFailures?.read(reader) ?? [] : [];
+			const hasFailedRepository = failures.length > 0 && (picked ? [picked] : repositories).some(repository => this.changesViewService.findRepositoryFailure(repository, failures));
+			const hasEntries = (stats !== undefined && stats.files > 0) || hasFailedRepository;
 
 			// Files header visibility (original layout only; absent in desktop redesign).
 			if (this.filesHeaderNode) {
@@ -1271,7 +1294,7 @@ export class ChangesViewPane extends ViewPane {
 
 		// Checks
 		if (this.ciStatusWidget) {
-			const checksViewModel = this.scopedInstantiationService.createInstance(ChecksViewModel);
+			const checksViewModel = this.scopedInstantiationService.createInstance(ChecksViewModel, this.scope.session, this.scope.changes.repositoryObs);
 			this.renderDisposables.add(checksViewModel);
 
 			this.renderDisposables.add(this.ciStatusWidget.setInput(checksViewModel));
@@ -1319,7 +1342,10 @@ export class ChangesViewPane extends ViewPane {
 			// Toggle list-mode class to remove tree indentation in list mode
 			this.listContainer?.classList.toggle('list-mode', viewMode === ChangesViewMode.List);
 
-			if (viewMode === ChangesViewMode.Tree) {
+			const repositoryChildren = this.getRepositoryChildren(changes, viewMode, reader);
+			if (repositoryChildren) {
+				this.setDetailsTreeChildren(sessionResource, viewMode, detailsViewState, repositoryChildren);
+			} else if (viewMode === ChangesViewMode.Tree) {
 				// Tree mode: build hierarchical tree from file entries
 				const treeRootInfo = this.getTreeRootInfo(changes, folder);
 				const treeChildren = buildTreeChildren(changes, treeRootInfo);
@@ -1601,6 +1627,50 @@ export class ChangesViewPane extends ViewPane {
 		return this.scope.chat.read(reader)?.workspace.read(reader);
 	}
 
+	/**
+	 * The rows of the changes of a chat in several repositories: grouped under a row for each repository, or, for one
+	 * repository shown on its own, under its row. `undefined` for a chat in one repository, whose rows are as before.
+	 */
+	private getRepositoryChildren(items: IChangesFileItem[], viewMode: ChangesViewMode, reader: IReader | undefined): ICompressedTreeElement<ChangesTreeElement>[] | undefined {
+		const repositories = this.scope.changes.repositoriesObs.read(reader);
+		if (!repositories.length) {
+			return undefined;
+		}
+		const failures = this.scope.changes.changesetObs.read(reader)?.folderFailures?.read(reader) ?? [];
+		const repository = this.scope.changes.repositoryObs.read(reader);
+		if (repository) {
+			// The changes are of that repository already; one that failed shows why, also without changes
+			const failure = this.changesViewService.findRepositoryFailure(repository, failures);
+			return items.length || failure ? this.buildRepositoryChildren([{ repository, items, failure }], viewMode) : [];
+		}
+		return this.buildRepositoryChildren(this.changesViewService.groupByRepository(items, item => item.uri, repositories, failures), viewMode);
+	}
+
+	/**
+	 * The rows of changes grouped by repository: a root row for each repository, then one for the changes outside every
+	 * repository, with the files of each in a tree or flat.
+	 */
+	private buildRepositoryChildren(groups: readonly IChangesRepositoryGroup<IChangesFileItem>[], viewMode: ChangesViewMode): ICompressedTreeElement<ChangesTreeElement>[] {
+		return groups.map(group => {
+			const root: IChangesRootItem = group.repository
+				? {
+					type: 'root',
+					uri: group.repository.root,
+					name: group.repository.description ?? group.repository.name,
+					description: group.repository.gitRepository?.branchName,
+					...(group.failure ? { failure: group.failure } : {}),
+				}
+				: { type: 'root', uri: ChangesViewPane.OUTSIDE_REPOSITORIES_ROOT, name: localize('changesOutsideRepositories', "Other Changes") };
+			// With the repository's root, which their rows show their paths relative to; navigation finds them by their URI
+			const items = group.repository ? group.items.map(item => ({ ...item, root: group.repository!.root })) : group.items;
+			// The tree of a repository's files under its own root row, which takes the place of the one the tree builds
+			const children: ICompressedTreeElement<ChangesTreeElement>[] = viewMode === ChangesViewMode.Tree && group.repository
+				? Array.from(buildTreeChildren(items, { root, resourceTreeRootUri: group.repository.root })[0]?.children ?? [])
+				: items.map(item => ({ element: item, collapsible: false, incompressible: true }));
+			return { element: root, children, collapsible: true, collapsed: false, incompressible: true };
+		});
+	}
+
 	private getTreeRootFolder(workspace: ISessionWorkspace | undefined): ISessionFolder | undefined {
 		return workspace?.folders.length === 1 ? workspace.folders[0] : undefined;
 	}
@@ -1680,11 +1750,25 @@ export class ChangesViewPane extends ViewPane {
 
 		const tree = this.createChangesTree(container, Event.None, disposables, () => tree.getSelection().filter(item => !!item && isChangesFileItem(item)), contextKeyService);
 
-		if (viewMode === ChangesViewMode.Tree) {
-			tree.setChildren(null, buildTreeChildren(items, this.getTreeRootInfo(items, this.getTreeRootFolder(this.getActiveChangesetWorkspace(undefined)))));
-		} else {
-			tree.setChildren(null, items.map(item => ({ element: item as ChangesTreeElement, collapsible: false })));
-		}
+		const repositoryChildren = this.getRepositoryChildren(items, viewMode, undefined);
+		const children: ICompressedTreeElement<ChangesTreeElement>[] = repositoryChildren
+			?? (viewMode === ChangesViewMode.Tree
+				? buildTreeChildren(items, this.getTreeRootInfo(items, this.getTreeRootFolder(this.getActiveChangesetWorkspace(undefined))))
+				: items.map(item => ({ element: item as ChangesTreeElement, collapsible: false })));
+		tree.setChildren(null, children);
+		// The rows' own items by URI: those of a repository's files are copies of the items, with its root
+		const rowItems = new ResourceMap<IChangesFileItem>();
+		const collectRowItems = (elements: Iterable<ICompressedTreeElement<ChangesTreeElement>>) => {
+			for (const element of elements) {
+				if (isChangesFileItem(element.element)) {
+					rowItems.set(element.element.uri, element.element);
+				}
+				if (element.children) {
+					collectRowItems(element.children);
+				}
+			}
+		};
+		collectRowItems(children);
 
 		// Open file on selection. The `updatingSelection` guard relies on
 		// `tree.setFocus`/`setSelection` firing events synchronously.
@@ -1712,9 +1796,10 @@ export class ChangesViewPane extends ViewPane {
 			if (index >= 0) {
 				updatingSelection = true;
 				try {
-					tree.setFocus([items[index]]);
-					tree.setSelection([items[index]]);
-					tree.reveal(items[index]);
+					const row = rowItems.get(items[index].uri) ?? items[index];
+					tree.setFocus([row]);
+					tree.setSelection([row]);
+					tree.reveal(row);
 				} finally {
 					updatingSelection = false;
 				}
@@ -1768,7 +1853,11 @@ export class ChangesViewPane extends ViewPane {
 			{
 				alwaysConsumeMouseWheel: false,
 				accessibilityProvider: {
-					getAriaLabel: (element: ChangesTreeElement) => isChangesFileItem(element) ? basename(element.uri) : element.name,
+					getAriaLabel: (element: ChangesTreeElement) => isChangesFileItem(element)
+						? basename(element.uri)
+						: isChangesRootItem(element) && element.failure
+							? localize('changesRepositoryFailedAria', "{0}, its changes could not be loaded: {1}", element.name, element.failure.message)
+							: isChangesRootItem(element) && element.description ? `${element.name}, ${element.description}` : element.name,
 					getWidgetAriaLabel: () => localize('changesViewTree', "Changes Tree")
 				},
 				dnd: {
@@ -1923,7 +2012,8 @@ export class ChangesViewPane extends ViewPane {
 
 	private async _openFileItem(item: IChangesFileItem, items: IChangesFileItem[], sideBySide: boolean, preserveFocus: boolean, pinned: boolean, includeSidebar: boolean): Promise<void> {
 		const { uri: modifiedFileUri, originalUri, isDeletion } = item;
-		const currentIndex = items.indexOf(item);
+		// By URI: the rows of a repository's files are copies of the items, with its root
+		const currentIndex = items.findIndex(candidate => isEqual(candidate.uri, item.uri));
 
 		const sidebar = includeSidebar ? {
 			render: (container: unknown, onDidLayout: Event<{ readonly height: number; readonly width: number }>, contextKeyService: IContextKeyService) => {
@@ -2154,6 +2244,10 @@ class ChangesTreeSorter implements ITreeSorter<ChangesTreeElement> {
 	constructor(private readonly viewMode: () => ChangesViewMode) { }
 
 	compare(a: ChangesTreeElement, b: ChangesTreeElement): number {
+		// Repository rows keep their order: the folders', with changes outside every repository last
+		if (isChangesRootItem(a) && isChangesRootItem(b)) {
+			return 0;
+		}
 		if (this.viewMode() === ChangesViewMode.List) {
 			// List
 			const aPath = (a as IChangesFileItem).uri.fsPath;
@@ -2555,6 +2649,10 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 	}
 
 	private _getBaseBranchSelection(reader?: IReader): ISessionChangesetBaseBranchSelection | undefined {
+		// One repository shown on its own compares against its own base branch, which the host does not yet change per repository
+		if (this._changes.repositoryObs.read(reader)) {
+			return undefined;
+		}
 		return this._changes.changesetsObs.read(reader)?.find(changeset => changeset.id === BRANCH_CHANGES_CHANGESET_ID)?.baseBranchSelection?.read(reader);
 	}
 

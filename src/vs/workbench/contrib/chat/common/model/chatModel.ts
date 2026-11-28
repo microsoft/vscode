@@ -3854,11 +3854,6 @@ export class ChatModel extends Disposable implements IChatModel {
 		request.response.setFollowups(followups);
 	}
 
-	setResponseModel(request: ChatRequestModel, response: ChatResponseModel): void {
-		request.response = response;
-		this._onDidChange.fire({ kind: 'addResponse', response });
-	}
-
 	toExport(): IExportableChatData {
 		return {
 			responderUsername: this.responderUsername,

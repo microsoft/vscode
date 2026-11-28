@@ -7,7 +7,7 @@ import { ValidatorBase, vArray, vBoolean, vEnum, vNumber, vObj, vOptionalProp, v
 import { LoadClientCertificatesExtensionMethod, loadClientCertificatesResultValidator } from './clientCertificatesProtocol.js';
 import { ClientProxyChangedExtensionMethod, LookupClientProxyBasicAuthorizationExtensionMethod, lookupClientProxyBasicAuthorizationParamsValidator, lookupClientProxyBasicAuthorizationResultValidator, LookupClientProxyKerberosAuthorizationExtensionMethod, lookupClientProxyKerberosAuthorizationParamsValidator, lookupClientProxyKerberosAuthorizationResultValidator, ResolveClientProxyExtensionMethod, resolveClientProxyParamsValidator, resolveClientProxyResultValidator } from './clientProxyProtocol.js';
 import type { IJSONSchema } from '../../../base/common/jsonSchema.js';
-import type { IDevContainerAgentHostConnectResult } from './devContainerAgentHost.js';
+import type { IDevContainerAgentHostConnectResult, IDevContainerHostFolderContainer } from './devContainerAgentHost.js';
 import type { AgentExtensionMode, AgentExtensionSource, AgentExtensionStatus } from './agent.js';
 import type { AgentHostDebugLogsArtifactKind, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult } from './agentService.js';
 import type { McpServerAuthenticateTarget } from './state/sessionProtocol.js';
@@ -17,8 +17,10 @@ import { AgentHostArtifactRemovalCapabilityMetaKey } from './meta/agentHostArtif
 import { AgentHostSessionImportCapabilityMetaKey } from './meta/agentHostSessionImportMeta.js';
 import { AgentHostSessionMoveCapabilityMetaKey } from './meta/agentHostSessionMoveMeta.js';
 import { AgentHostSavedChatCapabilityMetaKey, AgentHostSavedChatContinuationCapabilityMetaKey } from './meta/agentHostSavedChatMeta.js';
-import { AgentHostDevContainerEnvironmentsCapabilityMetaKey, AgentHostDevContainersCapabilityMetaKey } from './meta/agentHostDevContainersMeta.js';
+import { AgentHostDevContainerEnginesCapabilityMetaKey, AgentHostDevContainerEnvironmentsCapabilityMetaKey, AgentHostDevContainerFolderContainersCapabilityMetaKey, AgentHostDevContainersCapabilityMetaKey } from './meta/agentHostDevContainersMeta.js';
 import { AgentHostClientProxyCapabilityMetaKey } from './meta/agentHostClientProxyMeta.js';
+import { AgentHostClientForwardingCapabilityMetaKey } from './meta/agentHostClientForwardingMeta.js';
+import { ClientForwardingCloseNotification, clientForwardingCloseParamsValidator, ClientForwardingDataNotification, clientForwardingDataParamsValidator, ClientGitConfigExtensionMethod, clientGitConfigResultValidator, ClientGitCredentialExtensionMethod, clientGitCredentialParamsValidator, clientGitCredentialResultValidator, ClientGpgKeysExtensionMethod, clientGpgKeysResultValidator, DescribeClientForwardingExtensionMethod, describeClientForwardingResultValidator, OpenClientForwardingExtensionMethod, openClientForwardingParamsValidator } from './clientForwardingProtocol.js';
 import { AgentHostTimingCapabilityMetaKey, ChatUserInteractionCapability } from './meta/agentHostTimingMeta.js';
 import type { IAgentHostFirstResponseDiagnostic } from './otel/agentHostTiming.js';
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
@@ -42,16 +44,19 @@ import { AgentHostBuildMetaKey, AgentHostUpgradeMethodCapabilityMetaKey, type IA
 
 export { supportsAgentHostArtifactRemoval } from './meta/agentHostArtifactRemovalMeta.js';
 export { StageCreateSessionImportChunkExtensionMethod, stageCreateSessionImportChunkParamsValidator, supportsAgentHostCreateSessionImport };
-export { supportsAgentHostDevContainerEnvironments, supportsAgentHostDevContainers } from './meta/agentHostDevContainersMeta.js';
+export { supportsAgentHostDevContainerEngines, supportsAgentHostDevContainerEnvironments, supportsAgentHostDevContainerFolderContainers, supportsAgentHostDevContainers } from './meta/agentHostDevContainersMeta.js';
 export { supportsAgentHostSessionMove } from './meta/agentHostSessionMoveMeta.js';
 
 export const DevContainerIsDockerAvailableExtensionMethod = 'vscode/devContainers/isDockerAvailable';
+/** Requires {@link supportsAgentHostDevContainerEngines}; hosts without it only support Docker. */
+export const DevContainerGetEnginesExtensionMethod = 'vscode/devContainers/getEngines';
 export const DevContainerConnectExtensionMethod = 'vscode/devContainers/connect';
 export const DevContainerDisconnectExtensionMethod = 'vscode/devContainers/disconnect';
 export const DevContainerStopExtensionMethod = 'vscode/devContainers/stop';
 export const DevContainerRemoveExtensionMethod = 'vscode/devContainers/remove';
 export const DevContainerConnectEnvironmentExtensionMethod = 'vscode/devContainers/connectEnvironment';
 export const DevContainerRemoveEnvironmentExtensionMethod = 'vscode/devContainers/removeEnvironment';
+export const DevContainerListFolderContainersExtensionMethod = 'vscode/devContainers/listFolderContainers';
 export const DevContainerRelaySendExtensionMethod = 'vscode/devContainers/relaySend';
 export const DevContainerRelayMessageNotification = 'vscode/devContainers/relayMessage';
 export const DevContainerRelayCloseNotification = 'vscode/devContainers/relayClose';
@@ -62,12 +67,18 @@ export const DevContainerUserStateNotification = 'vscode/devContainers/userState
 export const DevContainerConnectFailureNotification = 'vscode/devContainers/connectFailure';
 
 export const devContainerConnectionParamsValidator = vObj({ connectionId: vString() });
-export const devContainerConnectParamsValidator = vObj({ connectionId: vString(), workspaceFolder: vString(), name: vString(), resume: vOptionalProp(vBoolean()), sandboxEnabled: vOptionalProp(vBoolean()), persistUserState: vOptionalProp(vBoolean()) });
-export const devContainerConnectEnvironmentParamsValidator = vObj({ connectionId: vString(), environmentId: vString(), image: vString(), name: vString(), resume: vOptionalProp(vBoolean()), sandboxEnabled: vOptionalProp(vBoolean()), persistUserState: vOptionalProp(vBoolean()) });
+const devContainerEngineValidator = vEnum('docker', 'wslc');
+export const devContainerConnectParamsValidator = vObj({ connectionId: vString(), workspaceFolder: vString(), name: vString(), resume: vOptionalProp(vBoolean()), sandboxEnabled: vOptionalProp(vBoolean()), persistUserState: vOptionalProp(vBoolean()), requireRunning: vOptionalProp(vBoolean()), engine: vOptionalProp(devContainerEngineValidator) });
+export const devContainerConnectEnvironmentParamsValidator = vObj({ connectionId: vString(), environmentId: vString(), image: vString(), name: vString(), resume: vOptionalProp(vBoolean()), sandboxEnabled: vOptionalProp(vBoolean()), persistUserState: vOptionalProp(vBoolean()), engine: vOptionalProp(devContainerEngineValidator) });
+/** Selects the workspace or the environment whose existing engine to report; without either, only the available engines are reported. */
+export const devContainerGetEnginesParamsValidator = vObj({ workspaceFolder: vOptionalProp(vString()), environmentId: vOptionalProp(vString()) });
+/** Engine names are not validated, so clients can ignore engines that newer hosts add. */
+export const devContainerEnginesResultValidator = vObj({ available: vArray(vString()), existing: vOptionalProp(vString()) });
 export const devContainerEnvironmentParamsValidator = vObj({ environmentId: vString() });
 export const devContainerWorkspaceParamsValidator = vObj({ workspaceFolder: vString() });
 export const devContainerRelayMessageValidator = vObj({ connectionId: vString(), data: vString() });
 export const devContainerSandboxSupportValidator = vObj({ connectionId: vString(), supported: vBoolean() });
+export const devContainerFolderContainersValidator = vArray(vObj({ folder: vString(), running: vBoolean() }));
 export const devContainerUserStateValidator = vObj({
 	connectionId: vString(),
 	stage: vEnum('mount', 'up', 'link', 'userCommands'),
@@ -124,6 +135,7 @@ export const RequestAgentHostWorkspaceTrustExtensionMethod = 'vscode/requestWork
 export const RequestAgentHostMcpAuthenticationExtensionMethod = 'vscode/requestMcpAuthentication';
 export const RemoveSessionArtifactExtensionMethod = 'vscode/removeSessionArtifact';
 export const StopBackgroundWorkExtensionMethod = 'vscode/stopBackgroundWork';
+export const DetachSessionsFromWorkspaceExtensionMethod = 'vscode/detachSessionsFromWorkspace';
 export const AnswerShellAuthenticationExtensionMethod = 'vscode/answerShellAuthentication';
 export const MeasureWorktreeDiskUsageExtensionMethod = 'vscode/measureWorktreeDiskUsage';
 export const CancelWorktreeDiskUsageExtensionMethod = 'vscode/cancelWorktreeDiskUsage';
@@ -202,10 +214,16 @@ export interface IAgentHostExtensionInitializeResultMeta extends Record<string, 
 	readonly [AgentHostDevContainersCapabilityMetaKey]?: true;
 	/** Present when the host accepts `vscode/devContainers/connectEnvironment` and `vscode/devContainers/removeEnvironment`. */
 	readonly [AgentHostDevContainerEnvironmentsCapabilityMetaKey]?: true;
+	/** Present when the host accepts `vscode/devContainers/listFolderContainers` and `requireRunning` in `vscode/devContainers/connect`. */
+	readonly [AgentHostDevContainerFolderContainersCapabilityMetaKey]?: true;
+	/** Present when the host accepts `vscode/devContainers/getEngines` and an `engine` when connecting. */
+	readonly [AgentHostDevContainerEnginesCapabilityMetaKey]?: true;
 	readonly [AgentHostTimingCapabilityMetaKey]?: true;
 	readonly [ChatUserInteractionCapability]?: true;
 	/** Present when the host serves the client's proxy support and accepts `vscode/clientProxyChanged`. */
 	readonly [AgentHostClientProxyCapabilityMetaKey]?: true;
+	/** Present when the host forwards the client's agents and Git credentials to the processes it runs. */
+	readonly [AgentHostClientForwardingCapabilityMetaKey]?: true;
 	readonly [AgentHostCopilotExtensionsCapabilityMetaKey]?: true;
 	/** Present when this direct client may register the host as a GitHub environment; the host's current status. */
 	readonly [AgentHostGitHubEnvironmentCapabilityMetaKey]?: IAgentHostGitHubEnvironmentStatus;
@@ -250,7 +268,7 @@ export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true
 		...(savedChatContinuation ? { [AgentHostSavedChatContinuationCapabilityMetaKey]: true as const } : {}),
 		...(sessionImport ? { [AgentHostSessionImportCapabilityMetaKey]: true as const } : {}),
 		...(sessionMove ? { [AgentHostSessionMoveCapabilityMetaKey]: true as const } : {}),
-		...(devContainers ? { [AgentHostDevContainersCapabilityMetaKey]: true as const, [AgentHostDevContainerEnvironmentsCapabilityMetaKey]: true as const } : {}),
+		...(devContainers ? { [AgentHostDevContainersCapabilityMetaKey]: true as const, [AgentHostDevContainerEnvironmentsCapabilityMetaKey]: true as const, [AgentHostDevContainerFolderContainersCapabilityMetaKey]: true as const, [AgentHostDevContainerEnginesCapabilityMetaKey]: true as const } : {}),
 		...(timing ? { [AgentHostTimingCapabilityMetaKey]: true as const } : {}),
 		...(timing ? { [ChatUserInteractionCapability]: true as const } : {}),
 		...(artifactIntegrations ? { [AgentHostArtifactIntegrationsCapabilityMetaKey]: 1 as const, [AgentHostArtifactNoticesCapabilityMetaKey]: 1 as const } : {}),
@@ -286,6 +304,14 @@ export type CollectAgentHostDebugLogsParams = ValidatorType<typeof collectAgentH
 export const removeSessionArtifactParamsValidator = vObj({
 	session: vString(),
 	artifactId: vString(),
+});
+
+/**
+ * Detaches every session that records one of `workspaceFiles` (host URI space) as its multi-root workspace, loaded or
+ * stored, by removing that record from its `_meta`. The sessions keep their working directories.
+ */
+export const detachSessionsFromWorkspaceParamsValidator = vObj({
+	workspaceFiles: vArray(vString()),
 });
 
 /** Stops a chat's background work entry that the host marked stoppable in its `_meta`. */
@@ -426,16 +452,23 @@ export interface IAgentHostExtensionCommandMap {
 	[ListAgentExtensionsExtensionMethod]: { params: ValidatorType<typeof listAgentExtensionsParamsValidator> | undefined; result: IAgentHostAgentExtensionInventoryResult };
 	[SetAgentExtensionEnabledExtensionMethod]: { params: ValidatorType<typeof setAgentExtensionEnabledParamsValidator>; result: void };
 	[DevContainerIsDockerAvailableExtensionMethod]: { params: undefined; result: boolean };
+	[DevContainerGetEnginesExtensionMethod]: { params: ValidatorType<typeof devContainerGetEnginesParamsValidator>; result: ValidatorType<typeof devContainerEnginesResultValidator> };
 	[DevContainerConnectExtensionMethod]: { params: ValidatorType<typeof devContainerConnectParamsValidator>; result: IDevContainerAgentHostConnectResult };
 	[DevContainerDisconnectExtensionMethod]: { params: ValidatorType<typeof devContainerConnectionParamsValidator>; result: void };
 	[DevContainerStopExtensionMethod]: { params: ValidatorType<typeof devContainerWorkspaceParamsValidator>; result: boolean };
 	[DevContainerRemoveExtensionMethod]: { params: ValidatorType<typeof devContainerWorkspaceParamsValidator>; result: boolean };
 	[DevContainerConnectEnvironmentExtensionMethod]: { params: ValidatorType<typeof devContainerConnectEnvironmentParamsValidator>; result: IDevContainerAgentHostConnectResult };
 	[DevContainerRemoveEnvironmentExtensionMethod]: { params: ValidatorType<typeof devContainerEnvironmentParamsValidator>; result: boolean };
+	[DevContainerListFolderContainersExtensionMethod]: { params: undefined; result: readonly IDevContainerHostFolderContainer[] };
 	[DevContainerRelaySendExtensionMethod]: { params: ValidatorType<typeof devContainerRelayMessageValidator>; result: void };
 	[RemoveSessionArtifactExtensionMethod]: {
 		params: ValidatorType<typeof removeSessionArtifactParamsValidator>;
 		result: void;
+	};
+	[DetachSessionsFromWorkspaceExtensionMethod]: {
+		params: ValidatorType<typeof detachSessionsFromWorkspaceParamsValidator>;
+		/** The sessions that were detached. */
+		result: { sessions: string[] };
 	};
 	[StopBackgroundWorkExtensionMethod]: {
 		params: ValidatorType<typeof stopBackgroundWorkParamsValidator>;
@@ -500,6 +533,8 @@ export interface IAgentHostExtensionNotificationMap {
 	[DevContainerSandboxSupportNotification]: ValidatorType<typeof devContainerSandboxSupportValidator>;
 	[DevContainerUserStateNotification]: ValidatorType<typeof devContainerUserStateValidator>;
 	[DevContainerConnectFailureNotification]: ValidatorType<typeof devContainerConnectFailureValidator>;
+	[ClientForwardingDataNotification]: ValidatorType<typeof clientForwardingDataParamsValidator>;
+	[ClientForwardingCloseNotification]: ValidatorType<typeof clientForwardingCloseParamsValidator>;
 }
 
 export interface IAgentHostWorkspaceTrustRequest {
@@ -543,4 +578,9 @@ export interface IAgentHostExtensionServerCommandMap {
 		params: IAgentHostMcpAuthenticationRequest;
 		result: { authenticated: boolean };
 	};
+	[DescribeClientForwardingExtensionMethod]: { params: Record<string, never>; result: ValidatorType<typeof describeClientForwardingResultValidator> };
+	[OpenClientForwardingExtensionMethod]: { params: ValidatorType<typeof openClientForwardingParamsValidator>; result: Record<string, never> };
+	[ClientGitCredentialExtensionMethod]: { params: ValidatorType<typeof clientGitCredentialParamsValidator>; result: ValidatorType<typeof clientGitCredentialResultValidator> };
+	[ClientGpgKeysExtensionMethod]: { params: Record<string, never>; result: ValidatorType<typeof clientGpgKeysResultValidator> };
+	[ClientGitConfigExtensionMethod]: { params: Record<string, never>; result: ValidatorType<typeof clientGitConfigResultValidator> };
 }

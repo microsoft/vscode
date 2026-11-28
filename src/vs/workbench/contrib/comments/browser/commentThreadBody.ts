@@ -117,6 +117,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		private _scopedInstatiationService: IInstantiationService,
 		private _parentCommentThreadWidget: ICommentThreadWidget,
 		private readonly _scrollableComments: boolean,
+		private readonly _reactionPickerInTitle: boolean,
 		@ICommentService private readonly commentService: ICommentService,
 	) {
 		super();
@@ -396,7 +397,8 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 			this.owner,
 			this.parentResourceUri,
 			this._parentCommentThreadWidget,
-			this._markdownRendererOptions) as unknown as CommentNode<T>;
+			this._markdownRendererOptions,
+			this._reactionPickerInTitle) as unknown as CommentNode<T>;
 
 		const disposables: DisposableStore = new DisposableStore();
 		disposables.add(newCommentNode.onDidClick(clickedNode =>

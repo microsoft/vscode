@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ISessionAgentMergeService, SessionAgentMergeService } from '../../../../../workbench/contrib/sessions/browser/sessionAgentMerge.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DataTransfers } from '../../../../../base/browser/dnd.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -537,6 +538,7 @@ async function renderAutomations(ctx: ComponentFixtureContext, options: IAutomat
 				override isSessionPinned(): boolean { return false; }
 				override getStatusIcon() { return Codicon.circleSmallFilled; }
 			}());
+			reg.define(ISessionAgentMergeService, SessionAgentMergeService);
 			reg.defineInstance(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 				override readonly onDidChangeProviders = Event.None;
 				override getProviders() { return []; }

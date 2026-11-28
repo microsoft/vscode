@@ -167,6 +167,15 @@ suite('Sessions - Bulk archive undo', () => {
 		return { run, instantiationService, sessions, sessionsChanged, membership, groupsService, group, comparisonService, listModel, managementService, storageService, archived, restored, state };
 	}
 
+	test('marking Pinned done covers the sessions of the groups and folders pinned in it', async () => {
+		const test = setup();
+		const action = getSessionsArchiveActionConstructors(ChatSessionArchiveActionWording.MarkAsDone).map(ctor => new ctor()).find(action => action.desc.id === 'sessionsView.sectionArchive')!;
+		const pinned: ISessionSection = { id: 'pinned', label: 'Pinned', sessions: [], summarySessions: test.sessions.map(entry => entry.session) };
+		await test.instantiationService.invokeFunction(accessor => action.run(accessor, pinned));
+
+		assert.deepStrictEqual({ archived: test.archived, message: test.state.message }, { archived: ['first', 'second'], message: '2 marked done' });
+	});
+
 	test('marking a single session done offers Undo, which restores it to its group', async () => {
 		const test = setup();
 		const action = getSessionsArchiveActionConstructors(ChatSessionArchiveActionWording.MarkAsDone).map(ctor => new ctor()).find(action => action.desc.id === ARCHIVE_SESSION_COMMAND_ID)!;

@@ -174,6 +174,7 @@ overrides:
   '@vscode/web-editors@0.0.2-104>@vscode/hubrpc': 0.0.2-54
   '@vscode/web-editors@0.0.2-41>@vscode/hubrpc': 0.0.2-15
   '@azure/msal-node-extensions@5.3.2>keytar': file:extensions/microsoft-authentication/packageMocks/keytar
+  pdfjs-dist>@napi-rs/canvas: '-'
 
 packageExtensionsChecksum: sha256-hEMMTAFgGzw4mGnzRRe054b9j0b0pAas190lwXAci5s=
 
@@ -186,9 +187,6 @@ importers:
 
   .:
     dependencies:
-      '@anthropic-ai/sdk':
-        specifier: ^0.82.0
-        version: 0.82.0(zod@4.4.3)
       '@devcontainers/cli':
         specifier: 0.88.0
         version: 0.88.0
@@ -222,12 +220,9 @@ importers:
       '@parcel/watcher':
         specifier: ^2.5.6
         version: 2.5.6
-      '@types/semver':
-        specifier: ^7.5.8
-        version: 7.5.8
       '@vscode/codicons':
-        specifier: ^0.0.46-51
-        version: 0.0.46-51
+        specifier: ^0.0.46-53
+        version: 0.0.46-53
       '@vscode/copilot-api':
         specifier: ^0.5.2
         version: 0.5.2
@@ -397,6 +392,9 @@ importers:
       '@anthropic-ai/claude-agent-sdk':
         specifier: 0.3.304
         version: 0.3.304(@anthropic-ai/sdk@0.82.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(zod@4.4.3)
+      '@anthropic-ai/sdk':
+        specifier: ^0.82.0
+        version: 0.82.0(zod@4.4.3)
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.29.0(zod@4.4.3)
@@ -430,6 +428,9 @@ importers:
       '@types/node':
         specifier: 24.x
         version: 24.12.4
+      '@types/semver':
+        specifier: ^7.5.8
+        version: 7.5.8
       '@types/sinon':
         specifier: ^10.0.2
         version: 10.0.2
@@ -1073,9 +1074,6 @@ importers:
       vscode-languageserver-textdocument:
         specifier: ^1.0.12
         version: 1.0.12
-      vscode-languageserver-types:
-        specifier: ^3.17.5
-        version: 3.17.5
       yaml:
         specifier: ^2.8.0
         version: 2.8.3
@@ -1124,9 +1122,6 @@ importers:
       vscode-languageserver-textdocument:
         specifier: ^1.0.12
         version: 1.0.12
-      vscode-languageserver-types:
-        specifier: ^3.17.5
-        version: 3.17.5
       web-tree-sitter:
         specifier: ^0.23.0
         version: 0.23.2
@@ -1513,8 +1508,8 @@ importers:
         specifier: ^0.9.8
         version: 0.9.8(tslib@2.8.1)
       '@vscode/markdown-editor':
-        specifier: 0.0.2-184
-        version: 0.0.2-184
+        specifier: 0.0.2-185
+        version: 0.0.2-185
       '@vscode/observables':
         specifier: ^0.1.1-0
         version: 0.1.1-0
@@ -1795,6 +1790,19 @@ importers:
       sinon:
         specifier: ^12.0.1
         version: 12.0.1
+
+  extensions/pdf-preview:
+    dependencies:
+      pdfjs-dist:
+        specifier: 6.4.299
+        version: 6.4.299
+    devDependencies:
+      '@types/node':
+        specifier: 24.x
+        version: 24.12.4
+      '@types/vscode-webview':
+        specifier: ^1.57.0
+        version: 1.57.0
 
   extensions/php-language-features:
     dependencies:
@@ -5607,8 +5615,8 @@ packages:
   '@vscode/codicons@0.0.46-36':
     resolution: {integrity: sha512-K030Z2AGo4P1gIZfT8X6dNyjficRhA3mDbBfuTObHY4M8+QdyIocc7c2nLfLhZC629oUVVPflJery0CjSfrrUw==}
 
-  '@vscode/codicons@0.0.46-51':
-    resolution: {integrity: sha512-TqjsO8e2miThsSriFpEulLriv8cFJui9ZFP6kGD/Hagx7LgEw8YkU5Cspqd+Om1WfXz/aJMWGfXkNq3VRQXgoQ==}
+  '@vscode/codicons@0.0.46-53':
+    resolution: {integrity: sha512-EpPY8eLYskXO1rSo25nTGa4/7274JM5EMEmqtR8OF4qVbr/CXlPWGjQ0xxNNfjzvc+OW7K//zFmZqsMzi4ru5g==}
 
   '@vscode/component-explorer-cli@0.2.1-163':
     resolution: {integrity: sha512-tfyMKIcLBNAFtGIeIO7dbkTtPbBdPmJIVx8+7q4qgcKUK5CW4XFgbgTbJdl9JOCSEYP8NvqSdx2PtqX0+y33EQ==}
@@ -5686,8 +5694,8 @@ packages:
   '@vscode/l10n@0.0.18':
     resolution: {integrity: sha512-KYSIHVmslkaCDyw013pphY+d7x1qV8IZupYfeIfzNA+nsaWHbn5uPuQRvdRFsa9zFzGeudPuoGoZ1Op4jrJXIQ==}
 
-  '@vscode/markdown-editor@0.0.2-184':
-    resolution: {integrity: sha512-MCoEVhbmi/p6cueeUqoZtYfjAY0xjwIzuThYRQglCLz5JWLvFdb9NWcpDl0bGQROIw4nTZSW8D6uaVQfkpgEoQ==}
+  '@vscode/markdown-editor@0.0.2-185':
+    resolution: {integrity: sha512-umt709Oe+YVGkEYRFlRD5J4paY2r5KrA/UklmEib2xX5tR2kS2bwO17CgZwyfDy+UMFdZyr70DME0JsPivGNHQ==}
 
   '@vscode/markdown-it-katex@1.1.1':
     resolution: {integrity: sha512-3KTlbsRBPJQLE2YmLL7K6nunTlU+W9T5+FjfNdWuIUKgxSS6HWLQHaO3L4MkJi7z7MpIPpY+g4N+cWNBPE/MSA==}
@@ -10084,6 +10092,10 @@ packages:
 
   pause-stream@0.0.11:
     resolution: {integrity: sha512-e3FBlXLmN/D1S+zHzanP4E/4Z60oFAa3O051qt1pxa7DEJWKAyil6upYVXCWadEnuoqa4Pkc9oUx9zsxYeRv8A==}
+
+  pdfjs-dist@6.4.299:
+    resolution: {integrity: sha512-AVl138zALtfaAPvADulE0PZThbYzCBS79nL4pOSL/6Sm/4AH5A21BD9VHt97OlCuzJuCpmeZtAtkinisF4Vb1g==}
+    engines: {node: '>=22.13.0 || >=24'}
 
   peek-stream@1.1.3:
     resolution: {integrity: sha512-FhJ+YbOSBb9/rIl2ZeE/QHEsWn7PqNYt8ARAY3kIgNGOk13g9FGyIY6JIl/xB/3TFRVoTv5as0l11weORrTekA==}
@@ -16136,7 +16148,7 @@ snapshots:
 
   '@vscode/codicons@0.0.46-36': {}
 
-  '@vscode/codicons@0.0.46-51': {}
+  '@vscode/codicons@0.0.46-53': {}
 
   '@vscode/component-explorer-cli@0.2.1-163(playwright@1.61.1)(typanion@3.14.0)':
     dependencies:
@@ -16295,7 +16307,7 @@ snapshots:
 
   '@vscode/l10n@0.0.18': {}
 
-  '@vscode/markdown-editor@0.0.2-184':
+  '@vscode/markdown-editor@0.0.2-185':
     dependencies:
       '@vscode/codicons': 0.0.46-36
       '@vscode/diff': 0.0.2-0
@@ -21361,6 +21373,8 @@ snapshots:
   pause-stream@0.0.11:
     dependencies:
       through: 2.3.8
+
+  pdfjs-dist@6.4.299: {}
 
   peek-stream@1.1.3:
     dependencies:

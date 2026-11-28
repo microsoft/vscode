@@ -25,7 +25,7 @@ import { UriIdentityService } from '../../../../../../platform/uriIdentity/commo
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, extUriIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { getInboxWorkspaceFilter, getInboxWorkspaceOptions, getSessionFilterActionId, getSessionFilterOptions, getWorktreeFilterKeys, listsQuickChatsIn, SessionFilter, sessionFilterKey, SessionsListFilters, SessionsWorktreeOpener } from '../../../browser/views/sessionsListFilters.js';
 import { AutomationSessionsListMode, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../../../common/sessionConfig.js';
 
@@ -324,6 +324,26 @@ suite('SessionsListFilters', () => {
 		assert.deepStrictEqual({ persisted, reset, undone: restored.isScheduledOnly() }, { persisted: true, reset: false, undone: true });
 	});
 
+	test('reloads the filters that storage holds, such as of the profile the window switches to, without storing them', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const filters = createFilters(storage);
+		filters.setScheduledOnly(true);
+		// Another profile's values, as the storage switches to them
+		storage.store('sessionsListControl.filters', JSON.stringify([[sessionFilterKey({ kind: 'harness', id: 'claude' }), true]]), StorageScope.PROFILE, StorageTarget.USER);
+		let changes = 0;
+		store.add(filters.onDidChange(() => changes++));
+		const written: string[] = [];
+		store.add(storage.onDidChangeValue(StorageScope.PROFILE, undefined, store.add(new DisposableStore()))(e => written.push(e.key)));
+		filters.reload();
+
+		assert.deepStrictEqual({ scheduledOnly: filters.isScheduledOnly(), claude: filters.isExcluded({ kind: 'harness', id: 'claude' }), changes, written }, {
+			scheduledOnly: false,
+			claude: true,
+			changes: 1,
+			written: [],
+		});
+	});
+
 	test('Inbox scope distinguishes exact workspaces and environments without separating harnesses', () => {
 		const filters = createFilters();
 		const sessions = [
@@ -344,7 +364,7 @@ suite('SessionsListFilters', () => {
 		const resetWorkspace = filters.setInboxEnvironment({ id: 'ssh:work', label: 'Work' });
 		assert.deepStrictEqual({
 			all, environmentOnly, workspaceOnly, combined, resetWorkspace, afterEnvironmentChange: visible(),
-			options: getInboxWorkspaceOptions(sessions).map(option => [option.environment, option.resource]),
+			options: getInboxWorkspaceOptions(sessions, extUriBiasedIgnorePathCase).map(option => [option.environment, option.resource]),
 		}, {
 			all: ['local', 'claude', 'other-folder', 'remote'],
 			environmentOnly: ['remote'],
@@ -358,6 +378,24 @@ suite('SessionsListFilters', () => {
 				['local', 'file:///home/user/projects/other/app'],
 			],
 		});
+
+	});
+
+	test('workspace scope matches case-insensitive paths without mixing environments', () => {
+		const filters = store.add(new SessionsListFilters(store.add(new InMemoryStorageService()), store.add(new NullLogService()), new TestConfigurationService(), upcastPartial<IUriIdentityService>({ extUri: extUriIgnorePathCase })));
+		const local = buildTestSession({ id: 'local', workspace: 'repo', title: 'Local' }).session;
+		const remote = buildTestSession({ id: 'remote', workspace: 'repo', title: 'Remote', environment: 'ssh:other' }).session;
+		const pick = getInboxWorkspaceFilter(local)!;
+		filters.setInboxWorkspace({ ...pick, resource: pick.resource.replace('/repo', '/REPO') });
+		assert.deepStrictEqual([local, remote].filter(session => filters.matchesInboxScope(session)).map(session => session.sessionId), ['local']);
+	});
+
+	test('workspace options deduplicate case-insensitive resource identities only within the same environment', () => {
+		const local = buildTestSession({ id: 'local', workspace: 'repo', title: 'Local' }).session;
+		const workspace = local.workspace.get()!;
+		const same = { ...local, sessionId: 'same', workspace: constObservable({ ...workspace, uri: workspace.uri.with({ path: workspace.uri.path.replace('/repo', '/REPO') }) }) };
+		const remote = { ...local, sessionId: 'remote', environment: 'ssh:other' };
+		assert.deepStrictEqual(getInboxWorkspaceOptions([local, same, remote], extUriIgnorePathCase).map(option => option.environment).sort(), ['local', 'ssh:other']);
 	});
 
 	test('Inbox scope persists, resets and restores independently of ordinary environment filters', () => {
@@ -386,6 +424,48 @@ suite('SessionsListFilters', () => {
 		});
 	});
 
+	test('each window keeps its own workspace pick while sharing the profile\'s other filters', () => {
+		const firstWindow = store.add(new InMemoryStorageService());
+		const secondWindow = store.add(new InMemoryStorageService());
+		const shareProfile = (from: InMemoryStorageService, to: InMemoryStorageService) => {
+			for (const target of [StorageTarget.USER, StorageTarget.MACHINE]) {
+				for (const key of from.keys(StorageScope.PROFILE, target)) {
+					to.store(key, from.get(key, StorageScope.PROFILE), StorageScope.PROFILE, target);
+				}
+			}
+		};
+		const first = createFilters(firstWindow);
+		first.setExcluded({ kind: 'environment', id: 'local' }, true);
+		first.setInboxWorkspace({ environment: 'local', resource: 'file:///first', label: 'first' });
+		shareProfile(firstWindow, secondWindow);
+		const secondOpened = createFilters(secondWindow);
+		const opened = { scope: secondOpened.inboxScope, excluded: secondOpened.isExcluded({ kind: 'environment', id: 'local' }) };
+		secondOpened.setInboxWorkspace({ environment: 'local', resource: 'file:///second', label: 'second' });
+		shareProfile(secondWindow, firstWindow);
+		assert.deepStrictEqual({
+			opened,
+			first: createFilters(firstWindow).inboxScope.workspace,
+			second: createFilters(secondWindow).inboxScope.workspace,
+		}, {
+			opened: { scope: {}, excluded: true },
+			first: { environment: 'local', resource: 'file:///first', label: 'first' },
+			second: { environment: 'local', resource: 'file:///second', label: 'second' },
+		});
+	});
+
+	test('drops the workspace pick that earlier builds stored for the whole profile', () => {
+		const storage = store.add(new InMemoryStorageService());
+		storage.store('sessionsListControl.inboxScope', JSON.stringify({ workspace: { environment: 'local', resource: 'file:///other', label: 'other' } }), StorageScope.PROFILE, StorageTarget.MACHINE);
+		const filters = createFilters(storage);
+		assert.deepStrictEqual({
+			scope: filters.inboxScope,
+			profileValue: storage.get('sessionsListControl.inboxScope', StorageScope.PROFILE),
+		}, {
+			scope: {},
+			profileValue: undefined,
+		});
+	});
+
 	test('No Workspace excludes hydrating sessions and workspace options react to metadata', () => {
 		const filters = createFilters();
 		const workspace = observableValue<ISessionWorkspace | undefined>('workspace', undefined);
@@ -393,7 +473,7 @@ suite('SessionsListFilters', () => {
 		const quick = buildTestSession({ id: 'quick', title: 'Quick', isQuickChat: true }).session;
 		const options: string[][] = [];
 		store.add(autorun(reader => {
-			options.push(getInboxWorkspaceOptions([pending, quick], undefined, reader).map(option => option.label));
+			options.push(getInboxWorkspaceOptions([pending, quick], extUriBiasedIgnorePathCase, undefined, reader).map(option => option.label));
 		}));
 		filters.setInboxWorkspace('none');
 		const before = [pending, quick].filter(session => filters.matchesInboxScope(session)).map(session => session.sessionId);

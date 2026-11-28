@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getChangesOfSession, IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
+import { mainWindowChangesOwner } from '../../../../workbench/contrib/sessionChanges/browser/changesViewService.js';
+import { ISessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -43,18 +46,23 @@ class FixCIChecksAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, sessionArg?: unknown): Promise<void> {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const gitHubService = accessor.get(IGitHubService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const logService = accessor.get(ILogService);
+		const changesViewService = accessor.get(IChangesViewService);
+		const sessionHostService = accessor.get(ISessionHostService);
 
-		const target = resolveSessionCommandTarget(accessor, [sessionArg]);
+		// Of the host the arguments name, such as that of the Changes header the action runs from, else the focused one
+		const target = resolveSessionCommandTarget(accessor, args);
 		const session = target?.session;
 		if (!session) {
 			return;
 		}
 
-		const ciModel = gitHubService.getSessionPullRequest(constObservable(session)).pullRequestCIObs.get();
+		// The checks of the repository the session's Changes show, as its context keys are
+		const repository = getChangesOfSession(changesViewService, mainWindowChangesOwner(sessionHostService), session, target.chat).repositoryObs.get();
+		const ciModel = gitHubService.getSessionPullRequest(constObservable(session), constObservable(repository)).pullRequestCIObs.get();
 		if (!ciModel) {
 			return;
 		}

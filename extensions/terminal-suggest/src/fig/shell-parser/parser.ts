@@ -85,11 +85,6 @@ export interface BaseNode<Type extends NodeType = NodeType> {
 	children: BaseNode[];
 }
 
-export interface ListNode extends BaseNode {
-	type: NodeType.List;
-	operator: '||' | '&&' | '|' | '|&';
-}
-
 export interface AssignmentListNode extends BaseNode {
 	type: NodeType.AssignmentList;
 	children:
@@ -708,24 +703,6 @@ function parseStatement(
 	}
 	return statement;
 }
-
-export const printTree = (root: BaseNode) => {
-	const getNodeText = (node: BaseNode, level = 0) => {
-		const indent = ' '.repeat(level);
-		let nodeText = `${indent}${node.type} [${node.startIndex},  ${node.endIndex}] - ${node.text}`;
-		const childrenText = node.children
-			.map((child) => getNodeText(child, level + 1))
-			.join('\n');
-		if (childrenText) {
-			nodeText += `\n${childrenText}`;
-		}
-		if (!node.complete) {
-			nodeText += `\n${indent}INCOMPLETE`;
-		}
-		return nodeText;
-	};
-	console.log(getNodeText(root));
-};
 
 export const parse = (str: string): BaseNode =>
 	createNode<BaseNode<NodeType.Program>>(str, {

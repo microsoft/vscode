@@ -397,7 +397,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 			: localize('chat.archiveNestedSession', "In the Sessions list, nested Agent Host chats, including /btw side chats, offer Archive in their row toolbar and context menu when supported by the host. This archives only the targeted chats, not their parent session. Enable Archived in the Sessions list filter to show them again, then choose Unarchive."));
 	}
 	if (type === 'panelChat' || type === 'editsView' || type === 'agentView') {
-		content.push(localize('chat.forkSession', "In an Agent Host chat that supports forking, type /fork to create a forked chat beside the current one. Add a title after /fork to name it, or type /fork prompt followed by a prompt to also send that prompt in the new chat."));
+		content.push(localize('chat.forkSession', "In an Agent Host chat that supports forking, type /fork to create a forked chat beside the current one. Type a prompt after /fork to also send that prompt in the new chat."));
 	}
 	if (type !== 'inlineChat') {
 		content.push(localize('chat.linkContextMenu', "Focus a link in the chat transcript and press Shift+F10 to open its context menu. Use Copy Link to copy its target. File links with additional editor choices also provide Open With."));
