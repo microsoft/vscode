@@ -11,7 +11,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
-import { basename } from '../../../../base/common/resources.js';
+import { basename, joinPath } from '../../../../base/common/resources.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { IFileService } from '../../../files/common/files.js';
@@ -1542,6 +1542,55 @@ suite('SessionCustomizationDiscovery', () => {
 				{ uri: secondWorkspace.toString(), children: [secondFile.toString()] },
 			].sort((a, b) => a.uri.localeCompare(b.uri)),
 		});
+	});
+
+	test('discover resolves parent-repository instructions against the repository root', async () => {
+		// The workspace folder is nested in a git repository; the SDK reports parent-repository
+		// sources relative to the repository root and local ones relative to the workspace folder.
+		const nestedWorkspace = URI.from({ scheme: Schemas.inMemory, path: '/repo/extensions' });
+		await seed('/repo/.git/HEAD', 'ref: refs/heads/main');
+		const parentRule = await seed('/repo/.github/instructions/general.instructions.md', 'parent');
+		const parentAgents = await seed('/repo/AGENTS.md', 'parent agents');
+		const nestedAgents = await seed('/repo/extensions/AGENTS.md', 'nested agents');
+		const localRule = await seed('/repo/extensions/.github/instructions/local.instructions.md', 'local');
+		await seed('/outside/.github/instructions/missing.instructions.md', 'outside the repository');
+
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [nestedWorkspace], userHome, inMemoryPathToUri));
+		const client = {
+			rpc: {
+				hooks: { discover: async () => ({ hooks: [], warnings: [], errors: [] }) },
+				mcp: { discover: async () => ({ servers: [] }) },
+				agents: { getDiscoveryPaths: async () => ({ paths: [] }), discover: async () => ({ agents: [] }) },
+				instructions: {
+					getDiscoveryPaths: async () => ({ paths: [] }),
+					discover: async () => ({
+						sources: [
+							{ id: 'parentRule', label: 'General', sourcePath: '.github/instructions/general.instructions.md', applyTo: ['**'], type: 'vscode', location: 'repository', projectPath: nestedWorkspace.fsPath },
+							{ id: 'parentAgents', label: 'AGENTS.md', sourcePath: 'AGENTS.md', type: 'repo', location: 'repository', projectPath: nestedWorkspace.fsPath },
+							{ id: 'nestedAgents', label: 'extensions/AGENTS.md', sourcePath: 'extensions/AGENTS.md', type: 'repo', location: 'working-directory', projectPath: nestedWorkspace.fsPath },
+							{ id: 'localRule', label: 'Local', sourcePath: '.github/instructions/local.instructions.md', applyTo: ['**'], type: 'vscode', location: 'working-directory', projectPath: nestedWorkspace.fsPath },
+							{ id: 'missing', label: 'Missing', sourcePath: '.github/instructions/missing.instructions.md', applyTo: ['**'], type: 'vscode', location: 'repository', projectPath: nestedWorkspace.fsPath },
+						],
+					}),
+				},
+				skills: { getDiscoveryPaths: async () => ({ paths: [] }), discover: async () => ({ skills: [] }) },
+			},
+		} as unknown as CopilotClient;
+
+		const customizations = await discovery.discover(client, CancellationToken.None);
+		const ruleUris = customizations
+			.filter(customization => customization.contents === 'rule')
+			.flatMap(customization => (customization.children ?? []).map(child => child.uri))
+			.sort();
+
+		assert.deepStrictEqual(ruleUris, [
+			parentRule.toString(),
+			parentAgents.toString(),
+			nestedAgents.toString(),
+			localRule.toString(),
+			// Never resolved past the repository root: falls back to the workspace folder.
+			joinPath(nestedWorkspace, '.github/instructions/missing.instructions.md').toString(),
+		].sort());
 	});
 
 	test('discover surfaces agents and skills from every working directory in one call', async () => {

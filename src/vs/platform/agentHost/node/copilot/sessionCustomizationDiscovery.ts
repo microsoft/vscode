@@ -709,7 +709,8 @@ export class SessionCustomizationDiscovery extends Disposable {
 				// it to (`projectPath` disambiguates same-named files across multiple roots).
 				// Fall back to the primary root for sources without an attributed project.
 				const anchor = this._rootForProjectPath(instruction.projectPath) ?? this._workingDirectories[0] ?? this._userHome;
-				uri = joinPath(anchor, instruction.sourcePath);
+				uri = await this._resolveRelativeInstructionPath(anchor, instruction);
+				throwIfCancelled(token);
 			}
 			const isPlugin = instruction.type === 'plugin' || instruction.location === 'plugin';
 			const uriString = uri.toString();
@@ -749,6 +750,41 @@ export class SessionCustomizationDiscovery extends Disposable {
 		}
 
 		return rules;
+	}
+
+	/**
+	 * Resolves an SDK-relative instruction path. The SDK reports sources it found in
+	 * the repository that contains the workspace folder (`location: 'repository'`,
+	 * as with `chat.useCustomizationsInParentRepositories`) relative to the repository
+	 * root, and other sources relative to the workspace folder, except for nested
+	 * agent files such as `extensions/AGENTS.md`, which stay relative to the repository
+	 * root. Falls back to the workspace folder when no candidate exists.
+	 */
+	private async _resolveRelativeInstructionPath(anchor: URI, instruction: InstructionSource): Promise<URI> {
+		const fallback = joinPath(anchor, instruction.sourcePath);
+		const folders: URI[] = [];
+		let repositoryRoot: URI | undefined;
+		for (let folder = anchor; ; folder = uriDirname(folder)) {
+			folders.push(folder);
+			if (await this._fileService.exists(joinPath(folder, '.git'))) {
+				repositoryRoot = folder;
+				break;
+			}
+			if (extUriBiasedIgnorePathCase.isEqual(uriDirname(folder), folder) || extUriBiasedIgnorePathCase.isEqual(folder, this._osUserHome)) {
+				break;
+			}
+		}
+		if (!repositoryRoot) {
+			return fallback;
+		}
+		const candidates = instruction.location === 'repository' ? [repositoryRoot] : folders;
+		for (const folder of candidates) {
+			const candidate = joinPath(folder, instruction.sourcePath);
+			if (await this._fileService.exists(candidate)) {
+				return candidate;
+			}
+		}
+		return fallback;
 	}
 
 	private _isAgentInstructionSource(instruction: InstructionSource): boolean {
