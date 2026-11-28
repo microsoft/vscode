@@ -167,7 +167,6 @@ export function buildAgentHostChatWorkspace(sessionWorkspace: ISessionWorkspace 
 	};
 }
 
-
 /** Membership test over a session's host scratch folders (`vscode.scratchFolders`). */
 export interface IAgentHostScratchFolders {
 	has(folder: URI): boolean;
