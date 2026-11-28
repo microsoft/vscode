@@ -7,6 +7,8 @@ import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { autorun, constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { ExtUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -14,6 +16,7 @@ import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID } from '../../../../../platf
 import { readSessionGitState, SESSION_META_GIT_KEY } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IChatDeletedEvent, ISessionsManagementService } from '../../../sessions/common/sessionsManagement.js';
 import { BRANCH_CHANGES_CHANGESET_ID, IChat, IGitHubInfo, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionRepository, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionRepositoryKind, SessionChangesetOperationScope, SessionChangesetOperationStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { IAgentFeedbackService } from '../../../sessions/browser/agentFeedback.js';
@@ -179,6 +182,8 @@ suite('ChangesViewService', () => {
 			sessionHostServiceOf(disposables, { mainWindowActiveSession: activeSession, gridShown: constObservable([]), windowSessions: constObservable(windowSessions) }),
 			storageService,
 			sessionsManagementService,
+			// Local paths ignore case, as on macOS and Windows; those of an agent host, as on Linux, do not
+			new class extends mock<IUriIdentityService>() { override readonly extUri = new ExtUri(uri => uri.scheme === Schemas.file); }(),
 		));
 
 		return { activeSession, contextKeyService, feedbackByResource, onDidDeleteChat, onDidDeleteSession, onDidDiscardNewSession, onDidReplaceNewDraftSession, onDidReplaceSession, service, storageService };
@@ -1445,6 +1450,59 @@ suite('ChangesViewService', () => {
 				{ repository: 'web', items: [resourceOf(remoteChange).toString()] },
 				{ repository: undefined, items: [resourceOf(otherHostChange).toString(), URI.file('/work/web/local.ts').toString()] },
 			]);
+		});
+
+		const summarize = (repositories: readonly IChangesRepository[]) => repositories.map(repository => ({ root: repository.root.toString(), name: repository.name, description: repository.description, folders: repository.folders.map(folder => folder.toString()) }));
+
+		test('lists a repository several folders are in once, with all of them, named by its root when it is above them', () => {
+			const mono = URI.file('/work/mono');
+			const [monoA, monoB] = [URI.file('/work/mono/a'), URI.file('/work/mono/b')];
+			const apiSub = URI.file('/work/api/sub');
+			// The host lists a repository once, under the first of its folders
+			const foldersOfOneRepository = repositoriesOf(
+				[folder(monoA, gitRepository(monoA, 'm')), folder(monoB, gitRepository(monoB, 'm')), folder(web, gitRepository(web, 'w'))],
+				[{ root: mono, folder: monoA, kind: SessionRepositoryKind.Folder }, { root: web, folder: web, kind: SessionRepositoryKind.Folder }],
+			);
+			const folderAndSubfolder = repositoriesOf(
+				[folder(api, gitRepository(api, 'a')), folder(apiSub, gitRepository(apiSub, 'a')), folder(web, gitRepository(web, 'w'))],
+				[{ root: api, folder: api, kind: SessionRepositoryKind.Folder }, { root: web, folder: web, kind: SessionRepositoryKind.Folder }],
+			);
+			const groups = folderAndSubfolder.service.groupByRepository([change('/work/api/sub/x.ts'), change('/work/api/y.ts')], resourceOf, folderAndSubfolder.repositories);
+			assert.deepStrictEqual({
+				foldersOfOneRepository: summarize(foldersOfOneRepository.repositories),
+				failureOfSecondFolder: foldersOfOneRepository.service.findRepositoryFailure(foldersOfOneRepository.repositories[0], [{ workingDirectory: monoB, message: 'Not loaded' }])?.message,
+				folderAndSubfolder: summarize(folderAndSubfolder.repositories),
+				groups: groups.map(group => ({ repository: group.repository?.name, items: group.items.map(item => resourceOf(item).path) })),
+				// Folders of one repository only are not grouped
+				oneRepository: repositoriesOf([folder(api, gitRepository(api, 'a')), folder(apiSub, gitRepository(apiSub, 'a'))], [{ root: api, folder: api, kind: SessionRepositoryKind.Folder }]).repositories,
+			}, {
+				foldersOfOneRepository: [
+					{ root: mono.toString(), name: 'mono', description: undefined, folders: [monoA.toString(), monoB.toString()] },
+					{ root: web.toString(), name: 'web', description: undefined, folders: [web.toString()] },
+				],
+				failureOfSecondFolder: 'Not loaded',
+				folderAndSubfolder: [
+					{ root: api.toString(), name: 'api', description: undefined, folders: [api.toString(), apiSub.toString()] },
+					{ root: web.toString(), name: 'web', description: undefined, folders: [web.toString()] },
+				],
+				groups: [{ repository: 'api', items: ['/work/api/sub/x.ts', '/work/api/y.ts'] }],
+				oneRepository: [],
+			});
+		});
+
+		test('compares a folder with a repository root by the case rules of its file system', () => {
+			const remote = (uri: URI) => uri.with({ scheme: 'vscode-agent-host', authority: 'remote' });
+			const [upper, lowerSub] = [URI.file('/work/Mono'), URI.file('/work/mono/sub')];
+			const of = (map: (uri: URI) => URI) => summarize(repositoriesOf(
+				[folder(map(upper), gitRepository(map(upper), 'm')), folder(map(lowerSub), gitRepository(map(lowerSub), 'm')), folder(map(web), gitRepository(map(web), 'w'))],
+				[{ root: map(upper), folder: map(upper), kind: SessionRepositoryKind.Folder }, { root: map(web), folder: map(web), kind: SessionRepositoryKind.Folder }],
+			).repositories).map(repository => repository.name);
+			assert.deepStrictEqual({ local: of(uri => uri), remote: of(remote) }, {
+				// Local paths ignore case: the subfolder is in the repository
+				local: ['Mono', 'web'],
+				// An agent host's paths do not: it is another folder
+				remote: ['Mono', 'sub', 'web'],
+			});
 		});
 	});
 

@@ -28,8 +28,8 @@ const VSCODE = URI.file('/workspace/vscode');
 const DOCS = URI.file('/workspace/vscode-docs');
 
 const REPOSITORIES: readonly IChangesRepository[] = [
-	{ root: VSCODE, folder: VSCODE, name: 'vscode', description: undefined, kind: SessionRepositoryKind.Folder, gitRepository: { uri: VSCODE, workTreeUri: undefined, branchName: 'feature/projects', baseBranchName: 'main', gitHubInfo: constObservable<IGitHubInfo | undefined>(undefined) } },
-	{ root: DOCS, folder: DOCS, name: 'vscode-docs', description: undefined, kind: SessionRepositoryKind.Folder, gitRepository: { uri: DOCS, workTreeUri: undefined, branchName: 'docs/projects', baseBranchName: 'main', gitHubInfo: constObservable<IGitHubInfo | undefined>(undefined) } },
+	{ root: VSCODE, folder: VSCODE, folders: [VSCODE], name: 'vscode', description: undefined, kind: SessionRepositoryKind.Folder, gitRepository: { uri: VSCODE, workTreeUri: undefined, branchName: 'feature/projects', baseBranchName: 'main', gitHubInfo: constObservable<IGitHubInfo | undefined>(undefined) } },
+	{ root: DOCS, folder: DOCS, folders: [DOCS], name: 'vscode-docs', description: undefined, kind: SessionRepositoryKind.Folder, gitRepository: { uri: DOCS, workTreeUri: undefined, branchName: 'docs/projects', baseBranchName: 'main', gitHubInfo: constObservable<IGitHubInfo | undefined>(undefined) } },
 ];
 
 /** Renders the Repository picker of a Changes header, as it shows all repositories or one, or open with its list. */

@@ -12,6 +12,8 @@ import { constObservable, derived, IObservable, observableValue } from '../../..
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { localize2 } from '../../../../../nls.js';
 import { IMenuService } from '../../../../../platform/actions/common/actions.js';
 import { IFileContent, IFileService } from '../../../../../platform/files/common/files.js';
@@ -154,6 +156,7 @@ class FixtureChangesViewService extends Disposable implements IChangesViewServic
 				override readonly onDidDiscardNewSession = Event.None;
 				override readonly onDidReplaceNewDraftSession = Event.None;
 			}(),
+			new class extends mock<IUriIdentityService>() { override readonly extUri = extUriBiasedIgnorePathCase; }(),
 		));
 		this._repositories.setRepository(options.repositories?.selected);
 		const repositories = this._repositories.activeSessionRepositoriesObs.get();
