@@ -1057,18 +1057,20 @@ suite('NewChatWidget', () => {
 			]);
 		});
 
-		test('captures the folders the user adds to and removes from the draft\'s session', () => {
+		test('captures the folders the user adds to and removes from the draft\'s session, but not another folder before its draft replaces it', () => {
 			const selectionChanged = disposables.add(new Emitter<void>());
 			const session = upcastPartial<ISession>({
 				sessionId: 'draft', providerId: 'provider', sessionType: 'agent',
 				status: constObservable(SessionStatus.Untitled), isQuickChat: constObservable(false),
 				modelId: constObservable('model'), mode: constObservable(undefined),
-				workspace: constObservable(undefined), application: constObservable({ id: 'test', label: 'Test' }),
+				workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [{ root: requested, workingDirectory: requested, name: 'folder', description: undefined }] })),
+				application: constObservable({ id: 'test', label: 'Test' }),
 			});
-			const captured: (readonly URI[] | undefined)[] = [];
-			const composer = { target: {}, updateTarget: (target: ISavedSessionDraftTarget) => { captured.push(target.sessionFolders); } };
+			const captured: { folder: string | undefined; sessionFolders: string[] | undefined }[] = [];
+			const composer = { target: {}, updateTarget: (target: ISavedSessionDraftTarget) => { captured.push({ folder: target.folderUri?.path, sessionFolders: target.sessionFolders?.map(folder => folder.path) }); } };
 			const added = URI.file('/added');
-			const picker = { selectedFolderUri: requested, sessionFolderUris: undefined as readonly URI[] | undefined, onDidChangeSelection: selectionChanged.event };
+			const other = URI.file('/other');
+			const picker = { selectedFolderUri: requested, selectedSessionWorkspace: undefined, sessionFolderUris: undefined as readonly URI[] | undefined, onDidChangeSelection: selectionChanged.event };
 			const harness = {
 				_session: constObservable(session),
 				_environment: constObservable(undefined),
@@ -1076,17 +1078,32 @@ suite('NewChatWidget', () => {
 				_restoringSavedDraft: constObservable(false),
 				_savedDraftTargetUnavailable: constObservable(false),
 				_workspacePicker: picker,
+				_requestedWorkspaceConfig: undefined,
+				uriIdentityService: { extUri },
 				sessionsProvidersService: { getProvider: () => undefined },
 				_captureSavedDraftTarget: () => capture.call(harness),
+				_isDraftSelection: () => isDraftSelection.call(harness),
+				_getDraftWorkspaceConfig: (sessionId: string, workspace: ISessionWorkspace | undefined) => getDraftWorkspaceConfig.call(harness, sessionId, workspace),
 			};
 			const capture = Reflect.get(NewChatWidget.prototype, '_captureSavedDraftTarget') as (this: typeof harness) => void;
+			const isDraftSelection = Reflect.get(NewChatWidget.prototype, '_isDraftSelection') as (this: typeof harness) => boolean;
+			const getDraftWorkspaceConfig = Reflect.get(NewChatWidget.prototype, '_getDraftWorkspaceConfig') as (this: typeof harness, sessionId: string, workspace: ISessionWorkspace | undefined) => unknown;
 			const track = Reflect.get(NewChatWidget.prototype, '_trackSavedDraftTarget') as (this: typeof harness) => IDisposable;
 			disposables.add(track.call(harness));
 			picker.sessionFolderUris = [requested, added];
 			selectionChanged.fire();
 			picker.sessionFolderUris = undefined;
 			selectionChanged.fire();
-			assert.deepStrictEqual(captured, [undefined, [requested, added], undefined]);
+			// Another folder whose draft is not created yet, such as while its trust is pending or after it is declined
+			picker.selectedFolderUri = other;
+			selectionChanged.fire();
+			picker.sessionFolderUris = [other, added];
+			selectionChanged.fire();
+			assert.deepStrictEqual(captured, [
+				{ folder: requested.path, sessionFolders: undefined },
+				{ folder: requested.path, sessionFolders: [requested.path, added.path] },
+				{ folder: requested.path, sessionFolders: undefined },
+			]);
 		});
 
 		test('restoring the singleton backup does not move focus', async () => {

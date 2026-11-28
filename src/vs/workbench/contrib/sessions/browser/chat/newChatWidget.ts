@@ -1618,10 +1618,15 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private _trackSavedDraftTarget(): IDisposable {
-		// The folders the user adds or removes change the picker's selection before, or without, a change of the draft
-		const pickerSelectionChanged = observableSignalFromEvent(this, this._workspacePicker.onDidChangeSelection);
-		return autorun(reader => {
-			pickerSelectionChanged.read(reader);
+		const store = new DisposableStore();
+		// The folders the user adds to or removes from the draft's session change the picker's selection before, or
+		// without, a change of the draft. Another folder or workspace is captured once its draft replaces this one.
+		store.add(this._workspacePicker.onDidChangeSelection(() => {
+			if (this._isDraftSelection()) {
+				this._captureSavedDraftTarget();
+			}
+		}));
+		store.add(autorun(reader => {
 			this._restoringSavedDraft.read(reader);
 			this._savedDraftTargetUnavailable.read(reader);
 			const session = this._session.read(reader);
@@ -1645,7 +1650,17 @@ export class NewChatWidget extends Disposable {
 				}
 			}
 			this._captureSavedDraftTarget();
-		});
+		}));
+		return store;
+	}
+
+	/** Whether the picker selects the folder and workspace of the draft it shows, as opposed to one it will create. */
+	private _isDraftSelection(): boolean {
+		const session = this._session.get();
+		const workspace = session?.workspace.get();
+		const extUri = this.uriIdentityService.extUri;
+		return !!session && extUri.isEqual(this._workspacePicker.selectedFolderUri, workspace?.folders[0]?.root)
+			&& extUri.isEqual(this._workspacePicker.selectedSessionWorkspace?.uri, this._getDraftWorkspaceConfig(session.sessionId, workspace)?.uri);
 	}
 
 	private async _restoreSavedDraft(draft: ISavedSessionDraft, token: CancellationToken = CancellationToken.None, preserveFocus = false): Promise<void> {
