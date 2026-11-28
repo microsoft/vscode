@@ -525,12 +525,9 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	private async createSettingsIfNotExists(target: ConfigurationTarget, resource: URI): Promise<void> {
-		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && target === ConfigurationTarget.WORKSPACE) {
-			const workspaceConfig = this.contextService.getWorkspace().configuration;
-			if (!workspaceConfig) {
-				return;
-			}
-
+		// A workspace without a workspace file (Agents mode) keeps its settings in the folder settings file
+		const workspaceConfig = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && target === ConfigurationTarget.WORKSPACE ? this.contextService.getWorkspace().configuration : undefined;
+		if (workspaceConfig) {
 			const content = await this.textFileService.read(workspaceConfig);
 			if (Object.keys(parse(content.value)).indexOf('settings') === -1) {
 				await this.jsonEditingService.write(resource, [{ path: ['settings'], value: {} }], true);

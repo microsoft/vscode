@@ -8,12 +8,13 @@ import * as sinon from 'sinon';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { Workspace, WorkspaceFolder, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
+import { testWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 import { AbstractTaskService } from '../../browser/abstractTaskService.js';
 import { ProblemMatcherRegistry } from '../../common/problemMatcher.js';
 import { ITaskProvider, IWorkspaceFolderTaskResult } from '../../common/taskService.js';
 import { ITaskSummary, TaskExecuteKind } from '../../common/taskSystem.js';
-import { ContributedTask, ITaskSet, JsonSchemaVersion, Task, TaskRunSource, TaskScope, TaskSourceKind } from '../../common/tasks.js';
+import { ContributedTask, ITaskSet, JsonSchemaVersion, Task, TaskRunSource, TaskScope, TaskSourceKind, USER_TASKS_GROUP_KEY } from '../../common/tasks.js';
 import { TestWorkspaceTrustManagementService } from '../../../../test/common/workbenchTestServices.js';
 
 suite('AbstractTaskService', () => {
@@ -156,4 +157,30 @@ suite('AbstractTaskService', () => {
 			}
 		});
 	}
+
+	test('resolves a task by identifier in the folders and user tasks of a workspace without a workspace file', async () => {
+		const folderUri = URI.file('/project');
+		const resolved: string[] = [];
+		// Like an editor window in Agents mode: the workbench state is WORKSPACE, without a workspace file
+		const service = Object.assign(Object.create(AbstractTaskService.prototype), {
+			_tasksReconnected: true,
+			_contextService: {
+				getWorkbenchState: () => WorkbenchState.WORKSPACE,
+				getWorkspace: () => new Workspace('agents', testWorkspace(folderUri).folders, false, null, () => false)
+			},
+			_getGroupedTasks: async () => ({ all: () => [] }),
+			_getTaskIdentifier: () => 'build',
+			_createResolver: () => ({
+				resolve: async (uri: URI | string) => {
+					resolved.push(typeof uri === 'string' ? uri : uri.toString());
+					return undefined;
+				}
+			}),
+			_doRunTaskCommand: async () => { }
+		}) as { _runTaskCommand(filter: string): Promise<void> };
+
+		await service._runTaskCommand('build');
+
+		assert.deepStrictEqual(resolved, [folderUri.toString(), USER_TASKS_GROUP_KEY]);
+	});
 });

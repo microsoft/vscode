@@ -3150,8 +3150,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const tasks = grouped.all();
 		const resolver = this._createResolver(grouped);
 		const folderURIs: (URI | string)[] = this._contextService.getWorkspace().folders.map(folder => folder.uri);
-		if (this._contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
-			folderURIs.push(this._contextService.getWorkspace().configuration!);
+		const workspaceFile = this._contextService.getWorkspace().configuration;
+		if (this._contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && workspaceFile) {
+			folderURIs.push(workspaceFile);
 		}
 		folderURIs.push(USER_TASKS_GROUP_KEY);
 		if (identifier) {
