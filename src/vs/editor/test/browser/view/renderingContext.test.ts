@@ -77,4 +77,17 @@ suite('RenderingContext', () => {
 			domOnly: [['1@10'], null, ['3@10']],
 		});
 	});
+
+	test('linesVisibleRangesForRanges asks ViewLines for every range in one call when it can', () => {
+		// ViewLines can while another renderer paints the text.
+		const viewLines = new BatchTestLines(10, [2]);
+		const ctx = new RenderingContext(viewLayout, viewportData, viewLines);
+		assert.deepStrictEqual({
+			ranges: summarize(ctx.linesVisibleRangesForRanges(requests)),
+			batches: viewLines.batches,
+		}, {
+			ranges: [['1@10'], null, ['3@10']],
+			batches: 1,
+		});
+	});
 });

@@ -1670,7 +1670,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 
 	// --- horizontal metrics (IEditorViewLineWidthProvider) -------------------
 	//
-	// `ViewLines.renderTextInEditorView` runs in the render phase *before* our
+	// `ViewLines.renderText` runs in the render phase *before* our
 	// `render()` → `_present()`, so ensure the model mirror is current before
 	// measuring. `_syncModel` reads the final view-model state and is idempotent
 	// (a subsequent `_present` in the same frame takes an empty plan), so calling

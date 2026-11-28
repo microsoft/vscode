@@ -103,14 +103,16 @@ export class RenderingContext extends RestrictedRenderingContext {
 	}
 
 	/**
-	 * {@link linesVisibleRangesForRange} for each request. GPU lines that can
-	 * measure the ranges together do, in one call.
+	 * {@link linesVisibleRangesForRange} for each request. Lines that can
+	 * measure the ranges together do, in one call: GPU lines, and `ViewLines`
+	 * while another renderer paints the text.
 	 */
 	public linesVisibleRangesForRanges(requests: readonly ILinesVisibleRangesRequest[]): (LineVisibleRanges[] | null)[] {
 		const viewLinesGpu = this._viewLinesGpu;
+		const domBatch = this._viewLines.linesVisibleRangesForRanges?.(requests);
 		const gpuRanges = viewLinesGpu?.linesVisibleRangesForRanges?.(requests);
 		return requests.map((request, i) => {
-			const domRanges = this._viewLines.linesVisibleRangesForRange(request.range, request.includeNewLines);
+			const domRanges = domBatch ? domBatch[i] : this._viewLines.linesVisibleRangesForRange(request.range, request.includeNewLines);
 			if (!viewLinesGpu) {
 				return domRanges;
 			}

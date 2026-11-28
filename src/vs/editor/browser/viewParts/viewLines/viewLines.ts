@@ -10,7 +10,7 @@ import * as platform from '../../../../base/common/platform.js';
 import { Constants } from '../../../../base/common/uint.js';
 import './viewLines.css';
 import { applyFontInfo } from '../../config/domFontInfo.js';
-import { HorizontalPosition, HorizontalRange, IViewLines, LineVisibleRanges, VisibleRanges } from '../../view/renderingContext.js';
+import { HorizontalPosition, HorizontalRange, ILinesVisibleRangesRequest, IViewLines, LineVisibleRanges, VisibleRanges } from '../../view/renderingContext.js';
 import { VisibleLinesCollection } from '../../view/viewLayer.js';
 import { PartFingerprint, PartFingerprints, ViewPart } from '../../view/viewPart.js';
 import { DomReadingContext } from './domReadingContext.js';
@@ -42,6 +42,15 @@ export interface IEditorViewLineWidthProvider {
 	getMaxLineWidth(startLineNumber: number, endLineNumber: number): number | undefined;
 	/** Horizontal offset of a 1-based `column` on a 1-based `lineNumber`, or `undefined`. */
 	getColumnOffset(lineNumber: number, column: number): number | undefined;
+}
+
+/**
+ * A renderer that paints the text instead of `ViewLines`, such as the
+ * `editorView` one. `ViewLines` then measures the text through it.
+ */
+export interface IViewLinesTextRenderer extends IViewLines, IEditorViewLineWidthProvider {
+	/** The width of a 1-based `lineNumber`, or `undefined` while it can't measure it. */
+	getLineWidth(lineNumber: number): number | undefined;
 }
 
 class LastRenderedData {
@@ -121,6 +130,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 	private readonly _visibleLines: VisibleLinesCollection<ViewLine>;
 	private readonly domNode: FastDomNode<HTMLElement>;
 	private _viewGpuContext: ViewGpuContext | undefined;
+	private _textRenderer: IViewLinesTextRenderer | undefined;
 
 	// --- config
 	private _lineHeight: number;
@@ -209,6 +219,21 @@ export class ViewLines extends ViewPart implements IViewLines {
 		this._viewGpuContext = viewGpuContext;
 		this._visibleLines.onFlushed(new viewEvents.ViewFlushedEvent(), true);
 		this.forceShouldRender();
+	}
+
+	/**
+	 * Let `textRenderer` paint the text, or the DOM again with `undefined`.
+	 * While it paints, no DOM lines are rendered: the scroll width and the
+	 * horizontal reveal use its measurements, and so does everything that
+	 * measures text through `ViewLines`. The lines rendered so far, and their
+	 * DOM nodes, are discarded.
+	 */
+	public setTextRenderer(textRenderer: IViewLinesTextRenderer | undefined): void {
+		if (this._textRenderer !== textRenderer) {
+			this._textRenderer = textRenderer;
+			this._visibleLines.onFlushed(new viewEvents.ViewFlushedEvent(), true);
+			this.forceShouldRender();
+		}
 	}
 
 	// ---- begin view event handlers
@@ -426,6 +451,9 @@ export class ViewLines extends ViewPart implements IViewLines {
 	}
 
 	public getLineWidth(lineNumber: number): number {
+		if (this._textRenderer) {
+			return this._textRenderer.getLineWidth(lineNumber) ?? -1;
+		}
 		const rendStartLineNumber = this._visibleLines.getStartLineNumber();
 		const rendEndLineNumber = this._visibleLines.getEndLineNumber();
 		if (lineNumber < rendStartLineNumber || lineNumber > rendEndLineNumber) {
@@ -449,6 +477,9 @@ export class ViewLines extends ViewPart implements IViewLines {
 	}
 
 	public linesVisibleRangesForRange(_range: Range, includeNewLines: boolean): LineVisibleRanges[] | null {
+		if (this._textRenderer) {
+			return this._textRenderer.linesVisibleRangesForRange(_range, includeNewLines);
+		}
 		const originalEndLineNumber = _range.endLineNumber;
 		const range = Range.intersectRanges(_range, this._lastRenderedData.getCurrentVisibleRange());
 		if (!range) {
@@ -528,11 +559,25 @@ export class ViewLines extends ViewPart implements IViewLines {
 	}
 
 	public visibleRangeForPosition(position: Position): HorizontalPosition | null {
+		if (this._textRenderer) {
+			return this._textRenderer.visibleRangeForPosition(position);
+		}
 		const visibleRanges = this._visibleRangesForLineRange(position.lineNumber, position.column, position.column);
 		if (!visibleRanges) {
 			return null;
 		}
 		return new HorizontalPosition(visibleRanges.outsideRenderedLine, visibleRanges.ranges[0].left);
+	}
+
+	/**
+	 * {@link linesVisibleRangesForRange} for each request: in one call to the
+	 * text renderer if it can, else one range at a time.
+	 */
+	public linesVisibleRangesForRanges(requests: readonly ILinesVisibleRangesRequest[]): (LineVisibleRanges[] | null)[] {
+		if (this._textRenderer?.linesVisibleRangesForRanges) {
+			return this._textRenderer.linesVisibleRangesForRanges(requests);
+		}
+		return requests.map(request => this.linesVisibleRangesForRange(request.range, request.includeNewLines));
 	}
 
 	// --- implementation
@@ -639,6 +684,10 @@ export class ViewLines extends ViewPart implements IViewLines {
 	}
 
 	public renderText(viewportData: ViewportData): void {
+		if (this._textRenderer) {
+			this._renderTextInEditorView(viewportData, this._textRenderer);
+			return;
+		}
 		// (1) render lines - ensures lines are in the DOM
 		this._visibleLines.renderLines(viewportData);
 		this._lastRenderedData.setCurrentVisibleRange(viewportData.visibleRange);
@@ -704,7 +753,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 		this._linesContent.setLeft(-this._context.viewLayout.getCurrentScrollLeft());
 	}
 
-	public renderTextInEditorView(viewportData: ViewportData, widthProvider?: IEditorViewLineWidthProvider): void {
+	private _renderTextInEditorView(viewportData: ViewportData, widthProvider?: IEditorViewLineWidthProvider): void {
 		// In `editorView` mode, text is painted by the GPU renderer. Keep only the
 		// non-DOM bookkeeping that ViewLines historically performed. Horizontal
 		// metrics come from the renderer (`widthProvider`), which measures the
