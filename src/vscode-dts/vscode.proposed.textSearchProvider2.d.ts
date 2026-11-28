@@ -13,42 +13,34 @@ declare module 'vscode' {
 	export interface TextSearchQuery2 {
 		/**
 		 * The text pattern to search for.
-		 *
-		 * If pattern contains a newline character (`\n`), the default search behavior
-		 * will automatically enable {@link isMultiline}.
 		 */
 		pattern: string;
 
 		/**
 		 * Whether or not {@link pattern} should match multiple lines of text.
 		 *
-		 * If using the default search provider, this will be interpreted as `true` if
-		 * {@link pattern} contains a newline character (`\n`).
+		 * Providers that do not handle multiline patterns themselves can fall back
+		 * to single-line matching; the built-in provider treats {@link pattern} as
+		 * multiline whenever it contains a newline character (`\n`).
 		 */
 		isMultiline?: boolean;
 
 		/**
 		 * Whether or not `pattern` should be interpreted as a regular expression.
-		 *
-		 * If using the default search provider, this will be interpreted case-insensitively
-		 * if {@link isCaseSensitive} is `false` or not set.
 		 */
 		isRegExp?: boolean;
 
 		/**
 		 * Whether or not the search should be case-sensitive.
 		 *
-		 * If using the default search provider, this can be affected by the `search.smartCase` setting.
-		 * See the setting description for more information.
+		 * Note: when this is `false`, the built-in search provider may still apply
+		 * case-sensitive matching based on the user's `search.smartCase` setting.
 		 */
 		isCaseSensitive?: boolean;
 
 		/**
-		 * Whether or not to search for whole word matches only.
-		 *
-		 * If enabled, the default search provider will check for boundary characters
-		 * (regex pattern `\b`) surrounding the {@link pattern} to see whether something
-		 * is a word match.
+		 * Whether or not to search for whole word matches only — matches surrounded
+		 * by word-boundary characters (regex pattern `\b`).
 		 */
 		isWordMatch?: boolean;
 	}
