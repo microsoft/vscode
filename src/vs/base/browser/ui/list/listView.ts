@@ -310,6 +310,8 @@ export class ListView<T> implements IListView<T> {
 	private renderers = new Map<string, IListRenderer<any /* TODO@joao */, any>>();
 	protected lastRenderTop: number;
 	protected lastRenderHeight: number;
+	private isRendering = false;
+	private queuedScrollEvent: ScrollEvent | undefined;
 	private renderWidth = 0;
 	private rowsContainer: HTMLElement;
 	private scrollable: Scrollable;
@@ -961,72 +963,87 @@ export class ListView<T> implements IListView<T> {
 	// Render
 
 	protected render(previousRenderRange: IRange, renderTop: number, renderHeight: number, renderLeft: number | undefined, scrollWidth: number | undefined, updateItemsInDOM: boolean = false, onScroll: boolean = false): void {
-		const renderRange = this.getRenderRange(renderTop, renderHeight);
+		this.isRendering = true;
 
-		const rangesToInsert = Range.relativeComplement(renderRange, previousRenderRange).reverse();
-		const rangesToRemove = Range.relativeComplement(previousRenderRange, renderRange);
+		try {
+			const renderRange = this.getRenderRange(renderTop, renderHeight);
 
-		if (updateItemsInDOM) {
-			const rangesToUpdate = Range.intersect(previousRenderRange, renderRange);
+			const rangesToInsert = Range.relativeComplement(renderRange, previousRenderRange).reverse();
+			const rangesToRemove = Range.relativeComplement(previousRenderRange, renderRange);
 
-			for (let i = rangesToUpdate.start; i < rangesToUpdate.end; i++) {
-				this.updateItemInDOM(this.items[i], i);
+			if (updateItemsInDOM) {
+				const rangesToUpdate = Range.intersect(previousRenderRange, renderRange);
+
+				for (let i = rangesToUpdate.start; i < rangesToUpdate.end; i++) {
+					this.updateItemInDOM(this.items[i], i);
+				}
 			}
-		}
 
-		const insertedItems: IItem<T>[] = [];
-		const insertRows = () => {
-			for (const range of rangesToInsert) {
-				for (let i = range.end - 1; i >= range.start; i--) {
-					// Dynamic height changes can move an already-rendered row outside previousRenderRange.
-					if (this.items[i].row) {
-						this.updateItemInDOM(this.items[i], i);
-						continue;
+			const insertedItems: IItem<T>[] = [];
+			const insertRows = () => {
+				for (const range of rangesToInsert) {
+					for (let i = range.end - 1; i >= range.start; i--) {
+						// Dynamic height changes can move an already-rendered row outside previousRenderRange.
+						if (this.items[i].row) {
+							this.updateItemInDOM(this.items[i], i);
+							continue;
+						}
+						this.insertItemInDOM(i);
+						insertedItems.push(this.items[i]);
 					}
-					this.insertItemInDOM(i);
-					insertedItems.push(this.items[i]);
 				}
-			}
-		};
-		// Measuring new rows can reveal a row that the estimated scroll position would otherwise recycle.
-		const insertBeforeRemove = this.supportDynamicHeights && rangesToInsert.some(range =>
-			this.items.slice(range.start, range.end).some(item => this.shouldProbeDynamicHeight(item)));
+			};
+			// Measuring new rows can reveal a row that the estimated scroll position would otherwise recycle.
+			const insertBeforeRemove = this.supportDynamicHeights && rangesToInsert.some(range =>
+				this.items.slice(range.start, range.end).some(item => this.shouldProbeDynamicHeight(item)));
 
-		this.cache.transact(() => {
-			if (insertBeforeRemove) {
-				insertRows();
-			}
-
-			for (const range of rangesToRemove) {
-				for (let i = range.start; i < range.end; i++) {
-					this.removeItemFromDOM(i, onScroll);
+			this.cache.transact(() => {
+				if (insertBeforeRemove) {
+					insertRows();
 				}
+
+				for (const range of rangesToRemove) {
+					for (let i = range.start; i < range.end; i++) {
+						this.removeItemFromDOM(i, onScroll);
+					}
+				}
+
+				if (!insertBeforeRemove) {
+					insertRows();
+				}
+			});
+
+			if (this.horizontalScrolling && insertedItems.length > 0) {
+				this.measureItemWidths(insertedItems);
+				this.eventuallyUpdateScrollWidth();
 			}
 
-			if (!insertBeforeRemove) {
-				insertRows();
+			if (renderLeft !== undefined) {
+				this.rowsContainer.style.left = `-${renderLeft}px`;
 			}
-		});
 
-		if (this.horizontalScrolling && insertedItems.length > 0) {
-			this.measureItemWidths(insertedItems);
-			this.eventuallyUpdateScrollWidth();
+			this.rowsContainer.style.top = `-${renderTop}px`;
+
+			if (this.horizontalScrolling && scrollWidth !== undefined) {
+				this.rowsContainer.style.width = `${Math.max(scrollWidth, this.renderWidth)}px`;
+				const rightOffset = Math.max(0, scrollWidth - (renderLeft ?? 0) - this.renderWidth);
+				this.domNode.style.setProperty('--list-scroll-right-offset', `${Math.max(rightOffset - 12, 0)}px`);
+			}
+
+			this.lastRenderTop = renderTop;
+			this.lastRenderHeight = renderHeight;
+		} finally {
+			this.isRendering = false;
 		}
 
-		if (renderLeft !== undefined) {
-			this.rowsContainer.style.left = `-${renderLeft}px`;
+		// A scroll event reported while this render ran is queued in `onScroll`, so render it now with the fresh
+		// bookkeeping, otherwise the rows and offsets above would not match the latest scroll position.
+		const queuedScrollEvent = this.queuedScrollEvent;
+		this.queuedScrollEvent = undefined;
+
+		if (queuedScrollEvent) {
+			this.onScroll(queuedScrollEvent);
 		}
-
-		this.rowsContainer.style.top = `-${renderTop}px`;
-
-		if (this.horizontalScrolling && scrollWidth !== undefined) {
-			this.rowsContainer.style.width = `${Math.max(scrollWidth, this.renderWidth)}px`;
-			const rightOffset = Math.max(0, scrollWidth - (renderLeft ?? 0) - this.renderWidth);
-			this.domNode.style.setProperty('--list-scroll-right-offset', `${Math.max(rightOffset - 12, 0)}px`);
-		}
-
-		this.lastRenderTop = renderTop;
-		this.lastRenderHeight = renderHeight;
 	}
 
 	// DOM operations
@@ -1257,6 +1274,15 @@ export class ListView<T> implements IListView<T> {
 	}
 
 	private onScroll(e: ScrollEvent): void {
+		if (this.isRendering) {
+			// DOM changes while rendering can update the scroll position synchronously, and rendering from inside the
+			// running render would recycle rows for its own viewport with the new scroll position applied, leaving
+			// rows and render bookkeeping for the wrong viewport (see https://github.com/microsoft/vscode/issues/205597).
+			// Remember the latest event and render once the running render finished.
+			this.queuedScrollEvent = e;
+			return;
+		}
+
 		try {
 			// An anchored list with dynamic heights re-anchors to its bottom right after rendering (see `_rerender`), and applying a
 			// deferred scroll height reports the stale scroll position: render the bottom directly instead of rows it would discard.
