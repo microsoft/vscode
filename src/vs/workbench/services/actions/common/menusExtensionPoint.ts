@@ -32,6 +32,11 @@ interface IAPIMenu {
 	readonly description: string;
 	readonly proposed?: ApiProposalName;
 	readonly supportsSubmenus?: boolean; // defaults to true
+	/**
+	 * Groups to suggest for the `group` of an item contributed to this menu, in the order
+	 * the menu sorts them. Defaults to `navigation`, which every menu sorts first.
+	 */
+	readonly groups?: readonly string[];
 }
 
 const apiMenus: IAPIMenu[] = [
@@ -39,7 +44,8 @@ const apiMenus: IAPIMenu[] = [
 		key: 'commandPalette',
 		id: MenuId.CommandPalette,
 		description: localize('menus.commandPalette', "The Command Palette"),
-		supportsSubmenus: false
+		supportsSubmenus: false,
+		groups: [] // the Command Palette is not grouped
 	},
 	{
 		key: 'touchBar',
@@ -50,7 +56,8 @@ const apiMenus: IAPIMenu[] = [
 	{
 		key: 'editor/title',
 		id: MenuId.EditorTitle,
-		description: localize('menus.editorTitle', "The editor title menu")
+		description: localize('menus.editorTitle', "The editor title menu"),
+		groups: ['navigation', '1_run', '1_diff', '3_open', '5_close']
 	},
 	{
 		key: 'modalEditor/editorTitle',
@@ -65,7 +72,8 @@ const apiMenus: IAPIMenu[] = [
 	{
 		key: 'editor/context',
 		id: MenuId.EditorContext,
-		description: localize('menus.editorContext', "The editor context menu")
+		description: localize('menus.editorContext', "The editor context menu"),
+		groups: ['navigation', '1_modification', '9_cutcopypaste', 'z_commands']
 	},
 	{
 		key: 'editor/context/copy',
@@ -81,7 +89,8 @@ const apiMenus: IAPIMenu[] = [
 	{
 		key: 'explorer/context',
 		id: MenuId.ExplorerContext,
-		description: localize('menus.explorerContext', "The file explorer context menu")
+		description: localize('menus.explorerContext', "The file explorer context menu"),
+		groups: ['navigation', '2_workspace', '3_compare', '4_search', '5_cutcopypaste', '6_copypath', '7_modification']
 	},
 	{
 		key: 'explorer/context/share',
@@ -92,7 +101,8 @@ const apiMenus: IAPIMenu[] = [
 	{
 		key: 'editor/title/context',
 		id: MenuId.EditorTitleContext,
-		description: localize('menus.editorTabContext', "The editor tabs context menu")
+		description: localize('menus.editorTabContext', "The editor tabs context menu"),
+		groups: ['1_close', '3_preview']
 	},
 	{
 		key: 'editor/title/context/share',
@@ -103,7 +113,8 @@ const apiMenus: IAPIMenu[] = [
 	{
 		key: 'debug/callstack/context',
 		id: MenuId.DebugCallStackContext,
-		description: localize('menus.debugCallstackContext', "The debug callstack view context menu")
+		description: localize('menus.debugCallstackContext', "The debug callstack view context menu"),
+		groups: ['navigation', 'inline']
 	},
 	{
 		key: 'debug/variables/context',
@@ -169,21 +180,25 @@ const apiMenus: IAPIMenu[] = [
 		key: 'scm/repository',
 		id: MenuId.SCMSourceControlInline,
 		description: localize('menus.scmSourceControlInline', "The Source Control repository menu"),
+		groups: ['navigation', 'inline']
 	},
 	{
 		key: 'scm/resourceState/context',
 		id: MenuId.SCMResourceContext,
-		description: localize('menus.resourceStateContext', "The Source Control resource state context menu")
+		description: localize('menus.resourceStateContext', "The Source Control resource state context menu"),
+		groups: ['navigation', 'inline']
 	},
 	{
 		key: 'scm/resourceFolder/context',
 		id: MenuId.SCMResourceFolderContext,
-		description: localize('menus.resourceFolderContext', "The Source Control resource folder context menu")
+		description: localize('menus.resourceFolderContext', "The Source Control resource folder context menu"),
+		groups: ['navigation', 'inline']
 	},
 	{
 		key: 'scm/resourceGroup/context',
 		id: MenuId.SCMResourceGroupContext,
-		description: localize('menus.resourceGroupContext', "The Source Control resource group context menu")
+		description: localize('menus.resourceGroupContext', "The Source Control resource group context menu"),
+		groups: ['navigation', 'inline']
 	},
 	{
 		key: 'scm/change/title',
@@ -235,12 +250,14 @@ const apiMenus: IAPIMenu[] = [
 	{
 		key: 'terminal/context',
 		id: MenuId.TerminalInstanceContext,
-		description: localize('menus.terminalContext', "The terminal context menu")
+		description: localize('menus.terminalContext', "The terminal context menu"),
+		groups: ['1_create', '3_edit', '5_clear', '7_kill', '9_config']
 	},
 	{
 		key: 'terminal/title/context',
 		id: MenuId.TerminalTabContext,
-		description: localize('menus.terminalTabContext', "The terminal tabs context menu")
+		description: localize('menus.terminalTabContext', "The terminal tabs context menu"),
+		groups: ['1_create', '3_run', '5_manage', '7_configure']
 	},
 	{
 		key: 'view/title',
@@ -256,7 +273,8 @@ const apiMenus: IAPIMenu[] = [
 	{
 		key: 'view/item/context',
 		id: MenuId.ViewItemContext,
-		description: localize('view.itemContext', "The contributed view item context menu")
+		description: localize('view.itemContext', "The contributed view item context menu"),
+		groups: ['navigation', 'inline']
 	},
 	{
 		key: 'comments/comment/editorActions',
@@ -351,6 +369,7 @@ const apiMenus: IAPIMenu[] = [
 		key: 'testing/item/context',
 		id: MenuId.TestItem,
 		description: localize('testing.item.context', "The contributed test item menu"),
+		groups: ['navigation', 'inline']
 	},
 	{
 		key: 'testing/item/gutter',
@@ -380,7 +399,8 @@ const apiMenus: IAPIMenu[] = [
 	{
 		key: 'extension/context',
 		id: MenuId.ExtensionContext,
-		description: localize('menus.extensionContext', "The extension context menu")
+		description: localize('menus.extensionContext', "The extension context menu"),
+		groups: ['1_copy', '2_configure']
 	},
 	{
 		key: 'timeline/title',
@@ -390,7 +410,8 @@ const apiMenus: IAPIMenu[] = [
 	{
 		key: 'timeline/item/context',
 		id: MenuId.TimelineItemContext,
-		description: localize('view.timelineContext', "The Timeline view item context menu")
+		description: localize('view.timelineContext', "The Timeline view item context menu"),
+		groups: ['inline', '1_actions', '5_copy']
 	},
 	{
 		key: 'ports/item/context',
@@ -694,6 +715,11 @@ namespace schema {
 		return true;
 	}
 
+	const group: IJSONSchema = {
+		markdownDescription: localize('vscode.extension.contributes.menuItem.group', "Group into which this item belongs. Any name can be used. Groups are sorted by name, with `navigation` always first. Append `@<number>` to set the position of the item inside its group, for example `navigation@1`."),
+		type: 'string'
+	};
+
 	const menuItem: IJSONSchema = {
 		type: 'object',
 		required: ['command'],
@@ -710,10 +736,7 @@ namespace schema {
 				description: localize('vscode.extension.contributes.menuItem.when', 'Condition which must be true to show this item'),
 				type: 'string'
 			},
-			group: {
-				description: localize('vscode.extension.contributes.menuItem.group', 'Group into which this item belongs'),
-				type: 'string'
-			}
+			group
 		}
 	};
 
@@ -729,12 +752,18 @@ namespace schema {
 				description: localize('vscode.extension.contributes.menuItem.when', 'Condition which must be true to show this item'),
 				type: 'string'
 			},
-			group: {
-				description: localize('vscode.extension.contributes.menuItem.group', 'Group into which this item belongs'),
-				type: 'string'
-			}
+			group
 		}
 	};
+
+	/**
+	 * The schema for the items of a menu, with `group` suggesting the groups of that menu.
+	 */
+	function menuItems(menu?: IAPIMenu): IJSONSchema {
+		const examples = [...menu?.groups ?? ['navigation']];
+		const withGroups = (item: IJSONSchema): IJSONSchema => ({ ...item, properties: { ...item.properties, group: { ...group, examples } } });
+		return menu?.supportsSubmenus === false ? withGroups(menuItem) : { oneOf: [withGroups(menuItem), withGroups(submenuItem)] };
+	}
 
 	const submenu: IJSONSchema = {
 		type: 'object',
@@ -776,12 +805,12 @@ namespace schema {
 		properties: index(apiMenus, menu => menu.key, menu => ({
 			markdownDescription: menu.proposed ? localize('proposed', "Proposed API, requires `enabledApiProposal: [\"{0}\"]` - {1}", menu.proposed, menu.description) : menu.description,
 			type: 'array',
-			items: menu.supportsSubmenus === false ? menuItem : { oneOf: [menuItem, submenuItem] }
+			items: menuItems(menu)
 		})),
 		additionalProperties: {
 			description: 'Submenu',
 			type: 'array',
-			items: { oneOf: [menuItem, submenuItem] }
+			items: menuItems()
 		}
 	};
 
