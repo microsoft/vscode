@@ -17,6 +17,10 @@ import { ISessionDraftConfiguration } from './sessionsProvider.js';
 
 export interface ISavedSessionDraftTarget {
 	readonly folderUri?: URI;
+	/** The workspace the draft's session was picked in, of the Workspaces group. */
+	readonly sessionWorkspaceUri?: URI;
+	/** The folders of the draft's session, its folder first, when the user added folders to it. */
+	readonly sessionFolders?: readonly URI[];
 	readonly providerId?: string;
 	readonly sessionTypeId?: string;
 	readonly configuration?: ISessionDraftConfiguration;
@@ -89,6 +93,8 @@ export class SavedSessionDrafts extends Disposable {
 		return data.drafts.map(draft => {
 			if (!draft || typeof draft.id !== 'string' || typeof draft.revision !== 'string' || !Number.isFinite(draft.createdAt) || !Number.isFinite(draft.updatedAt) || !draft.target || typeof draft.target !== 'object'
 				|| (draft.target.folderUri !== undefined && !URI.isUri(draft.target.folderUri))
+				|| (draft.target.sessionWorkspaceUri !== undefined && !URI.isUri(draft.target.sessionWorkspaceUri))
+				|| (draft.target.sessionFolders !== undefined && (!Array.isArray(draft.target.sessionFolders) || !draft.target.sessionFolders.every(folder => URI.isUri(folder))))
 				|| (draft.target.providerId !== undefined && typeof draft.target.providerId !== 'string')
 				|| (draft.target.sessionTypeId !== undefined && typeof draft.target.sessionTypeId !== 'string')) {
 				throw new Error('Invalid saved session draft.');

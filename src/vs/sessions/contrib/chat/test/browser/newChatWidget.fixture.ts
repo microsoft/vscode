@@ -14,6 +14,9 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { ISessionWorkspacesService } from '../../../../../workbench/contrib/sessions/common/sessionWorkspaces.js';
+import { IChatContextPickService, IChatContextValueItem } from '../../../../../workbench/contrib/chat/browser/attachments/chatContextPickService.js';
+import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -56,7 +59,7 @@ import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../../
 import { IMicCaptureService } from '../../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
-import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IVoiceInputModeService, VoiceInputMode } from '../../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputMode.js';
 import { IAICustomizationWorkspaceService } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
@@ -225,6 +228,10 @@ export interface INewChatWidgetFixtureOptions {
 	readonly openComparisonSetup?: boolean;
 	readonly comparisonPrompt?: string;
 	readonly withAttachedContext?: boolean;
+	/** Folders the user adds to the session with Add Context's Folder..., whose agent can work in several folders. */
+	readonly addedSessionFolders?: readonly URI[];
+	/** Gives the last added folder's pill keyboard focus. */
+	readonly focusSessionFolderPill?: boolean;
 	readonly withControlPickers?: boolean;
 	readonly expandSessionOptions?: boolean;
 	readonly withAutoModel?: boolean;
@@ -445,6 +452,8 @@ export async function renderNewChatWidget(context: ComponentFixtureContext, opti
 		openComparisonSetup = false,
 		comparisonPrompt,
 		withAttachedContext = false,
+		addedSessionFolders,
+		focusSessionFolderPill = false,
 		withControlPickers = false,
 		expandSessionOptions = true,
 		withAutoModel = false,
@@ -492,7 +501,8 @@ export async function renderNewChatWidget(context: ComponentFixtureContext, opti
 	const sessionTypes = createFixtureSessionTypes();
 	const models = withConfiguredModel ? [createFixtureConfiguredModel()] : withAutoModel ? [createFixtureAutoModel()] : [];
 	const provider = createFixtureProvider(workspace, sessionTypes, models, disposableStore, withControlPickers || mobileWorkbench, mobileHost);
-	const activeSession = promptOptions || withWorkspace || withRemoteWorkspace || withAttachedContext ? createFixtureActiveSession(workspace, sessionTypes[0], migrationCount > 0, provider.id) : undefined;
+	const activeSession = promptOptions || withWorkspace || withRemoteWorkspace || withAttachedContext ? createFixtureActiveSession(workspace, sessionTypes[0], migrationCount > 0, provider.id, !!addedSessionFolders) : undefined;
+	const contextPicks: IChatContextValueItem[] = [];
 	const activeSessionObservable = observableValue<ITestSessionWithChat | undefined>('activeSession', activeSession);
 	const composerService = disposableStore.add(new NewSessionComposerService());
 	const sessionsService = new class extends mock<ISessionsService>() {
@@ -542,6 +552,18 @@ export async function renderNewChatWidget(context: ComponentFixtureContext, opti
 		colorTheme: context.theme,
 		additionalServices: reg => {
 			registerChatFixtureServices(reg);
+			if (addedSessionFolders) {
+				reg.defineInstance(IChatContextPickService, new class extends mock<IChatContextPickService>() {
+					override readonly items = contextPicks;
+					override registerChatContextItem(item: IChatContextValueItem) {
+						contextPicks.push(item);
+						return toDisposable(() => contextPicks.splice(contextPicks.indexOf(item), 1));
+					}
+				}());
+				reg.defineInstance(IFileDialogService, new class extends mock<IFileDialogService>() {
+					override async showOpenDialog() { return [...addedSessionFolders]; }
+				}());
+			}
 			if (mobileWorkbench) {
 				const presenter = getSingletonServiceDescriptors().find(([id]) => id === IChatPhoneInputPresenter)?.[1];
 				assert(!!presenter, 'The mobile fixture must use the registered phone presenter service.');
@@ -698,6 +720,9 @@ export async function renderNewChatWidget(context: ComponentFixtureContext, opti
 				override getProvider<T extends ISessionsProvider>(providerId: string): T | undefined {
 					return (providerId === provider.id ? provider : undefined) as T | undefined;
 				}
+			}());
+			reg.defineInstance(ISessionWorkspacesService, new class extends mock<ISessionWorkspacesService>() {
+				override readonly workspaces = constObservable([]);
 			}());
 			reg.defineInstance(ISessionsRecentWorkspacesService, new class extends mock<ISessionsRecentWorkspacesService>() {
 				override readonly onDidChangeRecentWorkspaces = Event.None;
@@ -1388,6 +1413,18 @@ export async function renderNewChatWidget(context: ComponentFixtureContext, opti
 			&& repositoryConfigContainer.classList.contains('has-no-actions')
 			&& targetWindow.getComputedStyle(repositoryConfigContainer).display === 'none');
 	}
+	if (addedSessionFolders) {
+		// As the user picks Add Context's Folder..., whose dialog returns the folders
+		const addFolder = contextPicks.find(pick => pick.label === 'Folder...');
+		assert(!!addFolder, 'The composer must offer Add Context\'s Folder... while its session can work in more folders.');
+		await addFolder.asAttachment(new class extends mock<IChatWidget>() { }());
+		await nextFrame();
+		const pills = [...promptBox.querySelectorAll<HTMLElement>('.chat-attached-context-attachment')];
+		assert(pills.length === addedSessionFolders.length, 'Each added folder must show as a pill.');
+		if (focusSessionFolderPill) {
+			pills[pills.length - 1].focus();
+		}
+	}
 	if (withAttachedContext) {
 		assert(promptBox.querySelectorAll('.chat-attached-context-attachment').length === createFixtureAttachments().length,
 			'The host\'s initial attachments must render in the composer.');
@@ -1857,6 +1894,16 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 		expectedVisualDescriptions: ['The new-session composer shows Copilot, microsoft/vscode, and Issue/PR pills. The microsoft/vscode workspace pill has the active treatment after opening the workspace picker. Pill and dropdown labels use the same body text size, and their leading icons use the same base icon size.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, openWorkspacePicker: true }),
 	}),
+	NewSessionAddedFolders: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['After adding two folders with Add Context\'s Folder..., the composer shows a folder pill for each, website and docs, above the input, each with a remove button.'],
+		render: context => renderNewChatWidget(context, { withWorkspace: true, addedSessionFolders: FIXTURE_ADDED_SESSION_FOLDERS }),
+	}),
+	NewSessionAddedFolderFocused: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The docs folder pill has keyboard focus, with its remove button, next to the website folder pill.'],
+		render: context => renderNewChatWidget(context, { withWorkspace: true, addedSessionFolders: FIXTURE_ADDED_SESSION_FOLDERS, focusSessionFolderPill: true }),
+	}),
 	NewSessionComparisonSetup: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		virtualTime: { enabled: false },
@@ -1949,6 +1996,8 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 		}),
 	}),
 });
+
+const FIXTURE_ADDED_SESSION_FOLDERS: readonly URI[] = [URI.file('/Users/me/code/website'), URI.file('/Users/me/code/docs')];
 
 function createFixtureWorkspace(remote: boolean): ISessionWorkspace {
 	const resource = remote
@@ -2212,7 +2261,7 @@ function createAttachedRepositoryWorkspace(): ISessionWorkspace {
 	};
 }
 
-function createFixtureActiveSession(workspace: ISessionWorkspace, sessionType: ISessionType, withMigrations = false, providerId = 'fixture-provider'): ITestSessionWithChat {
+function createFixtureActiveSession(workspace: ISessionWorkspace, sessionType: ISessionType, withMigrations = false, providerId = 'fixture-provider', supportsChatFolders = false): ITestSessionWithChat {
 	const activeChat = new class extends mock<IChat>() {
 		override readonly resource = URI.parse('fixture-chat://new-session');
 		// Read by model selection: an untitled chat with no model of its own.
@@ -2237,6 +2286,7 @@ function createFixtureActiveSession(workspace: ISessionWorkspace, sessionType: I
 		override readonly mode = constObservable(undefined);
 		override readonly mainChat = constObservable(activeChat);
 		override readonly activeChat = constObservable(activeChat);
+		override readonly capabilities = constObservable({ supportsMultipleChats: false, supportsChatFolders });
 	}();
 }
 
