@@ -550,7 +550,11 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		const stateObs = this._getSessionState(sessionObs, chatOf, loadingObs, hasGitRepositoryObs, repositoryObs, repositoriesObs);
 		const baseBranchRefObs = derived(reader => {
 			const repository = repositoryObs.read(reader);
-			return repository ? repository.gitRepository?.baseBranchRef : chatOf(reader)?.workspace.read(reader)?.folders[0]?.gitRepository?.baseBranchRef;
+			if (repository) {
+				return repository.gitRepository?.baseBranchRef;
+			}
+			// The changes of several repositories have no one base branch; the first folder's is only its own
+			return repositoriesObs.read(reader).length > 1 ? undefined : chatOf(reader)?.workspace.read(reader)?.folders[0]?.gitRepository?.baseBranchRef;
 		});
 
 		return {

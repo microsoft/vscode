@@ -1498,6 +1498,31 @@ suite('ChangesViewService', () => {
 		});
 	});
 
+	test('labels the changes of several repositories without a base branch, and those of a picked repository with its own', () => {
+		const repository = (path: string, baseBranchRef: string) => {
+			const uri = URI.file(path);
+			return upcastPartial<ISessionFolder>({ root: uri, workingDirectory: uri, name: path.split('/').pop(), gitRepository: upcastPartial<ISessionGitRepository>({ uri, branchName: `feature${path}`, baseBranchName: 'main', baseBranchRef, gitHubInfo: constObservable(undefined) }) });
+		};
+		const workspace = upcastPartial<ISessionWorkspace>({ uri: URI.file('/work/api'), folders: [repository('/work/api', 'refs/remotes/origin/api-base'), repository('/work/web', 'refs/remotes/origin/web-base')] });
+		// The chat's changeset describes its first folder, as a host's does
+		const changeset = { ...createChangeset([]), description: 'feature/work/api → origin/api-base' };
+		const webChangeset = { ...createChangeset([]), description: 'feature/work/web → origin/web-base' };
+		const session = createSession('repositories', { workspace, changesets: [changeset] });
+		const { service } = createHarness({ ...session, getRepositoryChangeset: () => webChangeset });
+		const label = createChangesPickerLabelObservable({}, getActiveSessionChanges(service));
+		const snapshot = () => ({ label: label.get()?.label, tooltip: label.get()?.tooltip });
+
+		const all = snapshot();
+		service.setRepository(URI.file('/work/web'));
+		const web = snapshot();
+		service.setRepository(undefined);
+
+		assert.deepStrictEqual({ all, web }, {
+			all: { label: 'Branch Changes', tooltip: undefined },
+			web: { label: 'Branch Changes → origin/web-base', tooltip: 'feature/work/web → origin/web-base' },
+		});
+	});
+
 	test('reconciles host pull request state with the live icon', () => {
 		const openSession = createSession('open', { pullRequestState: 'open' });
 		const mergedSession = createSession('merged', { pullRequestState: 'merged', livePullRequestState: 'open' });

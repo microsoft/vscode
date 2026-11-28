@@ -850,12 +850,19 @@ export function createChangesPickerLabelObservable(owner: object, changes: IChan
 		}
 		const defaultChangeset = findDefaultChangeset(changes.changesetsObs.read(reader) ?? [], reader);
 		const baseBranchRef = changeset.id === BRANCH_CHANGES_CHANGESET_ID ? changes.baseBranchRefObs.read(reader) : undefined;
+		// What describes the changes shown: the picked repository's own changeset, else the chat's, but not the chat's of a
+		// session of several repositories, which describes its first folder only
+		const repository = changes.repositoryObs.read(reader);
+		const repositoryChangeset = repository ? changes.operationsChangesetObs.read(reader) : undefined;
+		const describedChangeset = repository
+			? repositoryChangeset !== changeset ? repositoryChangeset : undefined
+			: changes.repositoriesObs.read(reader).length > 1 ? undefined : changeset;
 		return {
 			label: baseBranchRef
 				? localize({ key: 'changesView.picker.branchLabel', comment: ['{0} is the changeset label, for example Branch. {1} is the base branch the host compares the changes against, as shown in the Branch row, for example origin/main.'] }, "{0} → {1}", changeset.label, getBaseBranchLabel(baseBranchRef))
 				: changeset.label,
 			changesetLabel: changeset.label,
-			tooltip: changeset.id === BRANCH_CHANGES_CHANGESET_ID ? changeset.description : undefined,
+			tooltip: changeset.id === BRANCH_CHANGES_CHANGESET_ID ? describedChangeset?.description : undefined,
 			isNonDefault: changeset.id !== defaultChangeset?.id,
 		};
 	});
