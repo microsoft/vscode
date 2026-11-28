@@ -48,7 +48,6 @@ import { isDark } from '../../../../../../platform/theme/common/theme.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { IViewPaneOptions, ViewPane } from '../../../../../browser/parts/views/viewPane.js';
 import { Memento } from '../../../../../common/memento.js';
-import { SIDE_BAR_FOREGROUND } from '../../../../../common/theme.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../../common/views.js';
 import { ILifecycleService, StartupKind } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { IChatViewTitleActionContext } from '../../../common/actions/chatActions.js';
@@ -1288,7 +1287,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				dndContainer: parent,
 			},
 			{
-				listForeground: SIDE_BAR_FOREGROUND,
+				listForeground: locationBasedColors.foreground,
 				listBackground: locationBasedColors.background,
 				listShadow: locationBasedColors.listOverrideStyles.treeStickyScrollShadow,
 				overlayBackground: locationBasedColors.overlayBackground,
