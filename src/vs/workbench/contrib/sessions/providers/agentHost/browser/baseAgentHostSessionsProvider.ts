@@ -4029,6 +4029,18 @@ class NewSession extends Disposable {
 		return true;
 	}
 
+	/**
+	 * Applies what the host reports about the draft's other folders: their own Git state, or that they are not
+	 * repositories, as for a running session (see {@link withSessionFolderState}).
+	 */
+	applyFolderState(meta: SessionMeta | undefined, toHost: (uri: URI) => URI, toClient: (uri: URI) => URI): void {
+		const workspace = this._workspace.get();
+		const next = withSessionFolderState(workspace, meta, toHost, toClient);
+		if (next && next !== workspace && !sessionWorkspaceEqual(workspace, next)) {
+			this._workspace.set(next, undefined);
+		}
+	}
+
 	// -- Config --------------------------------------------------------------
 
 	getConfig(): ResolveSessionConfigResult | undefined { return this._config; }
@@ -10670,6 +10682,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const newSession = this._newSessions.get(sessionId);
 		const previousRepository = newSession?.session.workspace.get()?.folders[0]?.gitRepository;
 		newSession?.applySessionMeta(state._meta, state.workingDirectories?.[0]);
+		newSession?.applyFolderState(state._meta, uri => this.mapWorkingDirectoryToHost(uri), uri => this.mapWorkingDirectoryUri(uri));
 		const repository = newSession?.session.workspace.get()?.folders[0]?.gitRepository;
 		const previousDefaultBranchName = previousRepository?.defaultRemoteBranchName ?? previousRepository?.defaultBranchName;
 		const defaultBranchName = repository?.defaultRemoteBranchName ?? repository?.defaultBranchName;

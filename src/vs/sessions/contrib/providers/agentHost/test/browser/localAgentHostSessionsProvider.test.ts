@@ -20023,6 +20023,25 @@ suite('LocalAgentHostSessionsProvider', () => {
 			assert.deepStrictEqual({ withAgent, withoutAgent: supported() }, { withAgent: [true, false, false], withoutAgent: [false, false, false] });
 		});
 
+		test('a draft reports the Git state of its other folders as the host reads them', async () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = provider.createNewSession(api, provider.sessionTypes[0].id, { folders: [api, web] });
+			await timeout(0);
+			const webRepository = () => session.workspace.get()?.folders[1]?.gitRepository;
+			const before = webRepository()?.isRepository?.get();
+			agentHost.setSessionState(AgentSession.id(agentHost.createdSessionUris.at(-1)!), provider.sessionTypes[0].id, {
+				provider: provider.sessionTypes[0].id,
+				title: '',
+				status: ProtocolSessionStatus.Idle,
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
+				chats: [],
+				_meta: withFolderScopeGitState(undefined, getWorkingDirectoryScopeId([web.toString()]), { branchName: 'main' }, [web.toString()]),
+			});
+			await timeout(0);
+			assert.deepStrictEqual({ before, after: webRepository()?.isRepository?.get(), branchName: webRepository()?.branchName }, { before: false, after: true, branchName: 'main' });
+		});
+
 		test('does not create a draft whose other folder is untrusted', async () => {
 			const provider = createProvider(disposables, agentHost, undefined, { untrustedUris: [web] });
 			provider.createNewSession(api, provider.sessionTypes[0].id, { folders: [api, web] });

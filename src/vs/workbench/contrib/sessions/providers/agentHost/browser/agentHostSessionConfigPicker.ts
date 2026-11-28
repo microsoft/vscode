@@ -1774,8 +1774,9 @@ export class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPi
 						return MOBILE_PICKER_SHEET_CONFIRM;
 					}
 					const selection = idToConfig.get(id);
+					// Close the sheet rather than show a choice it can no longer make as selected
 					if (selection?.property === isolationProperty && !this._canSelectIsolation(provider, sessionId, selection.value)) {
-						return undefined;
+						return MOBILE_PICKER_SHEET_CONFIRM;
 					}
 					if (selection) {
 						const beforeValue = this._getSessionConfig(provider, sessionId)?.values[selection.property];

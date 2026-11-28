@@ -852,10 +852,12 @@ suite('Agent Host Session Config Picker', () => {
 			...config,
 			schema: { ...config.schema, properties: { ...config.schema.properties, [SessionConfigKey.Isolation]: { title: 'Isolation', type: 'string', enum: ['folder', 'worktree', 'sandbox'] } } },
 		};
-		Array.from(mainContainer.querySelectorAll<HTMLElement>('.mobile-picker-sheet-item')).find(row => row.textContent?.includes('New Worktree for All Folders'))!.click();
+		const row = Array.from(mainContainer.querySelectorAll<HTMLElement>('.mobile-picker-sheet-item')).find(row => row.textContent?.includes('New Worktree for All Folders'))!;
+		row.click();
 		await timeout(0);
+		const checked = row.classList.contains('checked');
 		mainContainer.querySelector<HTMLButtonElement>('.mobile-picker-sheet-done')?.click();
-		assert.deepStrictEqual({ writes: services.provider.setSessionConfigValueArguments, errors: services.notificationErrors }, { writes: [], errors: [] });
+		assert.deepStrictEqual({ writes: services.provider.setSessionConfigValueArguments, errors: services.notificationErrors, checked }, { writes: [], errors: [], checked: false });
 	});
 
 	test('does not select New Worktree for All Folders once Dev Container execution is on', async () => {
