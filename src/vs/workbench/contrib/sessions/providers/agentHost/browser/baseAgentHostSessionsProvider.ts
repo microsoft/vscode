@@ -933,6 +933,12 @@ export interface IAgentHostAdapterOptions {
 	 * that accepts working-directory changes from the client.
 	 */
 	readonly supportsChatFolders?: boolean;
+	/**
+	 * Whether the host serves the scope of each folder of a session of several on its own, which hosts from before that
+	 * do not, although they record the folders: the local host, which is of this build. With any other host, the
+	 * changes of such a session are its chats' only.
+	 */
+	readonly servesFolderScopes?: boolean;
 	/** Whether this provider can present server-published canvas channels for the agent. */
 	readonly supportsCanvasPresentation?: (agentProvider: string, connection: IAgentConnection | undefined, reader: IReader) => boolean;
 	/**
@@ -1974,12 +1980,13 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 * The host working directory of the scope of `repositoryRoot` when it is one of the repositories of a session of
 	 * several folders or repositories, each with its own scope; else `undefined`. A session of one folder and one repository
 	 * has no scope of its own for it: its changes are its chats'. The scope of a folder's own repository is the folder, which can be below the repository's
-	 * root; that of a repository found in a folder is its root. Only a host that records its session's folders on their
-	 * own serves their scopes: with any other, such as an older host, the session's changes are its chats' only.
+	 * root; that of a repository found in a folder is its root. Only a host that serves folder scopes (see
+	 * {@link IAgentHostAdapterOptions.servesFolderScopes}) and records the session's folders on their own has them: with
+	 * any other, the session's changes are its chats' only.
 	 */
 	private _getRepositoryScopeRoot(repositoryRoot: URI, reader?: IReader): string | undefined {
 		const meta = reader ? this._metaObs.read(reader) : this._metaObs.get();
-		if (!this._recordsFolderScopes(meta)) {
+		if (!this._options.servesFolderScopes || !this._recordsFolderScopes(meta)) {
 			return undefined;
 		}
 		const workspace = reader ? this.workspace.read(reader) : this.workspace.get();
@@ -5302,7 +5309,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * the bits that are uniform across hosts (`icon`, `loading`,
 	 * `mapDiffUri`) from the corresponding hooks.
 	 */
-	protected abstract _adapterOptions(agentProvider: string): Pick<IAgentHostAdapterOptions, 'buildWorkspace' | 'readOnly' | 'defaultChangesetKind' | 'preserveStatusWhenDisconnected' | 'externalSessionState' | 'useSessionTitleForDefaultChat' | 'isSessionTitlePlaceholder' | 'supportsCanvasPresentation' | 'supportsChatFolders'>;
+	protected abstract _adapterOptions(agentProvider: string): Pick<IAgentHostAdapterOptions, 'buildWorkspace' | 'readOnly' | 'defaultChangesetKind' | 'preserveStatusWhenDisconnected' | 'externalSessionState' | 'useSessionTitleForDefaultChat' | 'isSessionTitlePlaceholder' | 'supportsCanvasPresentation' | 'supportsChatFolders' | 'servesFolderScopes'>;
 
 	/**
 	 * Hook to normalize a session's metadata before it is cached, keyed, or
