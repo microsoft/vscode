@@ -729,7 +729,10 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 				accessor.removeZone(this._viewZoneId);
 				this._viewZoneId = undefined;
 				if (this._viewZone) {
-					this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() - this._viewZone.heightInPx);
+					// An immediate adjustment would cancel an in-progress scroll to the match.
+					if (!this._codeEditor.hasPendingScrollAnimation()) {
+						this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() - this._viewZone.heightInPx);
+					}
 					this._viewZone = undefined;
 				}
 			}
