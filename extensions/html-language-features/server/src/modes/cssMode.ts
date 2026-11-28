@@ -33,9 +33,10 @@ export function getCSSMode(cssLanguageService: CSSLanguageService, documentRegio
 			const embedded = embeddedCSSDocuments.get(document);
 			return cssLanguageService.findDocumentHighlights(embedded, position, cssStylesheets.get(embedded));
 		},
-		async findDocumentSymbols(document: TextDocument) {
+		async findDocumentSymbols(document: TextDocument, limit?: number) {
 			const embedded = embeddedCSSDocuments.get(document);
-			return cssLanguageService.findDocumentSymbols(embedded, cssStylesheets.get(embedded)).filter(s => s.name !== CSS_STYLE_RULE);
+			const symbols = cssLanguageService.findDocumentSymbols(embedded, cssStylesheets.get(embedded)).filter(s => s.name !== CSS_STYLE_RULE);
+			return typeof limit === 'number' && symbols.length > limit ? symbols.slice(0, limit) : symbols;
 		},
 		async findDefinition(document: TextDocument, position: Position) {
 			const embedded = embeddedCSSDocuments.get(document);

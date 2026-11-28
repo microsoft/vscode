@@ -259,9 +259,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		diagnosticsSupport?.requestRefresh();
 
 		const limitSetting = globalSettings?.html?.maxItemsComputed ?? globalSettings?.html?.resultLimit;
-		if (typeof limitSetting === 'number') {
-			resultLimit = sanitizeLimitSetting(limitSetting);
-		}
+		resultLimit = typeof limitSetting === 'number' ? sanitizeLimitSetting(limitSetting) : 5000;
 
 		// dynamically enable & disable the formatter
 		if (dynamicFormatterRegistration) {
