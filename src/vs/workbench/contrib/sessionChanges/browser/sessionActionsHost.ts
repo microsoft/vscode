@@ -57,7 +57,8 @@ export class SessionScopeContextKeys extends Disposable {
 			session: scope.session,
 			chat: scope.chat,
 			changes: scope.changes,
-			pullRequest: gitHubService.getSessionPullRequest(scope.session),
+			// Of the repository the Changes show, as their actions are
+			pullRequest: gitHubService.getSessionPullRequest(scope.session, scope.changes.repositoryObs),
 		}, contextKeyService));
 	}
 }

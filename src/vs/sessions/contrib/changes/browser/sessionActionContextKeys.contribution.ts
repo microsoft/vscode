@@ -39,7 +39,8 @@ class ActiveSessionActionContextKeysContribution extends Disposable implements I
 				operationsChangesetObs: changesViewService.activeSessionOperationsChangesetObs,
 				repositoryObs: changesViewService.activeSessionRepositoryObs,
 			},
-			pullRequest: { pullRequestCIObs: gitHubService.activeSessionPullRequestCIObs },
+			// Of the repository the Changes show, as their actions are
+			pullRequest: gitHubService.getSessionPullRequest(mainWindowHost.session, changesViewService.activeSessionRepositoryObs),
 		}, contextKeyService));
 	}
 }

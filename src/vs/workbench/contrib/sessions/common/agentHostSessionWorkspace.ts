@@ -12,7 +12,7 @@ import { URI } from '../../../../base/common/uri.js';
 import type { ISessionGitState } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { getRepositoryRootFromWorktree } from '../../../../platform/agentHost/common/worktreePaths.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IGitHubInfo, ISessionFolder, ISessionGitRepository, ISessionWorkspace } from '../../../services/sessions/common/session.js';
+import { IGitHubInfo, ISessionFolder, ISessionGitRepository, ISessionRepository, ISessionWorkspace, SessionRepositoryKind } from '../../../services/sessions/common/session.js';
 
 export interface IAgentHostSessionProjectSummary {
 	readonly uri: URI;
@@ -144,7 +144,15 @@ export function buildAgentHostChatWorkspace(sessionWorkspace: ISessionWorkspace 
 	if (folders.length === 0) {
 		return undefined;
 	}
-	if (folders.length === sessionWorkspace.folders.length && folders.every((folder, index) => folder === sessionWorkspace.folders[index])) {
+	// Each repository reports the GitHub info the host records for it: that of its folder, or of its root when found in one
+	const repositories = getFolderGitHubInfo && sessionWorkspace.repositories?.map((repository): ISessionRepository => {
+		const gitHubInfo = getFolderGitHubInfo(repository.kind === SessionRepositoryKind.Nested ? repository.root : repository.folder);
+		return gitHubInfo && repository.gitRepository && repository.gitRepository.gitHubInfo !== gitHubInfo
+			? { ...repository, gitRepository: { ...repository.gitRepository, gitHubInfo } }
+			: repository;
+	});
+	const repositoriesChanged = !!repositories && repositories.some((repository, index) => repository !== sessionWorkspace.repositories![index]);
+	if (!repositoriesChanged && folders.length === sessionWorkspace.folders.length && folders.every((folder, index) => folder === sessionWorkspace.folders[index])) {
 		return sessionWorkspace;
 	}
 
@@ -155,8 +163,10 @@ export function buildAgentHostChatWorkspace(sessionWorkspace: ISessionWorkspace 
 		uri: usesSessionPrimary ? sessionWorkspace.uri : primaryFolder.root,
 		label: usesSessionPrimary ? sessionWorkspace.label : primaryFolder.name,
 		folders,
+		...(repositoriesChanged ? { repositories } : {}),
 	};
 }
+
 
 /** Membership test over a session's host scratch folders (`vscode.scratchFolders`). */
 export interface IAgentHostScratchFolders {

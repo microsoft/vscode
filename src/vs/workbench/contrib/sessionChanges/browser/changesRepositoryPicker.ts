@@ -134,6 +134,8 @@ export class ChangesRepositoryPickerActionItem extends ActionWidgetDropdownActio
 		this._register(autorun(reader => {
 			changes.repositoriesObs.read(reader);
 			changes.repositoryObs.read(reader);
+			// A repository's row shows why its changes could not be loaded
+			changes.changesetObs.read(reader)?.folderFailures?.read(reader);
 			onDidChangeActions.fire();
 			this._updateLabel();
 		}));

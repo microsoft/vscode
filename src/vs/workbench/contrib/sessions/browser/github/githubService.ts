@@ -27,6 +27,7 @@ import { structuralEquals } from '../../../../../base/common/equals.js';
 import { decodeBase64 } from '../../../../../base/common/buffer.js';
 import { ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
+import type { IChangesRepository } from '../../common/changesRepositories.js';
 import { GitHubCommit } from '../../../../../platform/github/common/githubQueryService.js';
 import { GitHubRequestError } from '../../../../../platform/github/common/githubTypes.js';
 import { ApiRequestOptions } from '../../../../../platform/github/common/client/request.js';
@@ -55,8 +56,12 @@ export interface IGitHubService {
 	readonly _serviceBrand: undefined;
 	readonly enterpriseHost: string | undefined;
 
-	/** Creates the pull request observables for the given session; the `activeSession*` observables are this over the active session. */
-	getSessionPullRequest(sessionObs: IObservable<ISession | undefined>): IGitHubSessionPullRequestObservables;
+	/**
+	 * Creates the pull request observables for the given session; the `activeSession*` observables are this over the active
+	 * session. They are of the session folder's pull request, or, while `repositoryObs` has a repository, such as the one
+	 * the Changes show of a session of several, of that repository's.
+	 */
+	getSessionPullRequest(sessionObs: IObservable<ISession | undefined>, repositoryObs?: IObservable<IChangesRepository | undefined>): IGitHubSessionPullRequestObservables;
 
 	activeSessionPullRequestObs: IObservable<GitHubPullRequestModel | undefined>;
 	activeSessionPullRequestCIObs: IObservable<GitHubPullRequestCIModel | undefined>;
@@ -190,10 +195,12 @@ export class GitHubService extends Disposable implements IGitHubService {
 		this.activeSessionPullRequestReviewThreadsObs = active.pullRequestReviewThreadsObs;
 	}
 
-	getSessionPullRequest(sessionObs: IObservable<ISession | undefined>): IGitHubSessionPullRequestObservables {
+	getSessionPullRequest(sessionObs: IObservable<ISession | undefined>, repositoryObs?: IObservable<IChangesRepository | undefined>): IGitHubSessionPullRequestObservables {
 		const gitHubInfoObs = derivedOpts<{ owner: string; repo: string; pullRequestNumber: number } | undefined>({ equalsFn: structuralEquals },
 			reader => {
-				const gitHubInfo = sessionObs.read(reader)?.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
+				const repository = repositoryObs?.read(reader);
+				const gitRepository = repository ? repository.gitRepository : sessionObs.read(reader)?.workspace.read(reader)?.folders[0]?.gitRepository;
+				const gitHubInfo = gitRepository?.gitHubInfo.read(reader);
 
 				if (!gitHubInfo?.pullRequest || !isGitHubReferenceSupported(gitHubInfo.pullRequest.uri, this.enterpriseHost)) {
 					return undefined;
