@@ -18,6 +18,7 @@ import { getSessionComparisonChat, getSessionComparisonHarnessDisplayLabel, getS
 import { compareSessionEnvironments, getSessionEnvironments } from './sessionsListFilters.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { InboxNotificationPriority } from '../../common/sessionAttentionService.js';
+import { InboxPriorityOrder } from '../../common/sessionConfig.js';
 import { IRecentSessionWorkspace } from '../../common/sessionWorkspaces.js';
 import { getSessionInboxPriority, getSessionInboxSection, SessionInboxSection, sessionInboxSections } from '../../common/sessionInbox.js';
 
@@ -449,6 +450,7 @@ export function groupSessionsForList(
 	quickChatsInTimeGrouping = false,
 	quickChatsSection = true,
 	workspaces?: ISessionListWorkspaces,
+	inboxPriorityOrder = InboxPriorityOrder.HeadStart,
 ): ISessionSection[] {
 	const sorted = sortSessions(sessions, sorting, getSortKey);
 
@@ -488,7 +490,7 @@ export function groupSessionsForList(
 		if (grouping === SessionsGrouping.Workspace && workspaces) {
 			return groupByWorkspaces(regular, workspaces);
 		} else if (grouping === SessionsGrouping.Inbox) {
-			return groupByInboxSection(regular, sorting, getInboxSection, getInboxPriority);
+			return groupByInboxSection(regular, sorting, getInboxSection, getInboxPriority, inboxPriorityOrder);
 		} else if (grouping === SessionsGrouping.Workspace) {
 			return groupByWorkspace(regular);
 		} else if (grouping === SessionsGrouping.Repository) {
@@ -513,8 +515,18 @@ export function groupSessionsForList(
 	return sections;
 }
 
-/** Buckets sessions into the Inbox sections the list renders, classifying each session once. */
-function groupByInboxSection(sessions: ISession[], sorting: SessionsSorting, getInboxSection: (session: ISession) => SessionInboxSection, getInboxPriority: (session: ISession) => InboxNotificationPriority): ISessionSection[] {
+/** How much later than its update time a session of each attention priority sorts with {@link InboxPriorityOrder.HeadStart}. */
+const INBOX_PRIORITY_HEAD_START_MS: Record<InboxNotificationPriority, number> = {
+	[InboxNotificationPriority.Now]: 24 * 60 * 60 * 1000,
+	[InboxNotificationPriority.Next]: 2 * 60 * 60 * 1000,
+	[InboxNotificationPriority.Later]: 0,
+};
+
+/**
+ * Buckets sessions into the Inbox sections the list renders, classifying each session once. Sorted by update time with
+ * {@link InboxPriorityOrder.HeadStart}, a higher priority counts as extra recency; otherwise it always sorts first.
+ */
+function groupByInboxSection(sessions: ISession[], sorting: SessionsSorting, getInboxSection: (session: ISession) => SessionInboxSection, getInboxPriority: (session: ISession) => InboxNotificationPriority, priorityOrder: InboxPriorityOrder): ISessionSection[] {
 	const buckets = new Map<SessionInboxSection, ISession[]>(sessionInboxSections.map(id => [id, []]));
 	const priorities = new Map<ISession, InboxNotificationPriority>();
 	for (const session of sessions) {
@@ -524,10 +536,13 @@ function groupByInboxSection(sessions: ISession[], sorting: SessionsSorting, get
 			priorities.set(session, getInboxPriority(session));
 		}
 	}
+	const headStart = sorting === SessionsSorting.Updated && priorityOrder === InboxPriorityOrder.HeadStart;
 	return sessionInboxSections.map(id => ({
 		id,
 		label: getSessionInboxSectionLabel(id),
-		sessions: sortSessions(buckets.get(id)!, sorting).sort((a, b) => priorities.get(a)! - priorities.get(b)!),
+		sessions: headStart
+			? sortSessions(buckets.get(id)!, sorting, (session, sorting) => defaultSortKey(session, sorting) + INBOX_PRIORITY_HEAD_START_MS[priorities.get(session)!])
+			: sortSessions(buckets.get(id)!, sorting).sort((a, b) => priorities.get(a)! - priorities.get(b)!),
 	}));
 }
 
