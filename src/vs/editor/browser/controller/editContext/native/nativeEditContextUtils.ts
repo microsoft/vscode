@@ -67,12 +67,15 @@ export class FocusTracker extends Disposable {
 
 	public refreshFocusState(): void {
 		const shadowRoot = getShadowRoot(this._domNode);
-		const activeElement = shadowRoot ? shadowRoot.activeElement : this._domNode.ownerDocument.activeElement;
-		const focused = this._domNode === activeElement;
+		const activeElement = shadowRoot ? shadowRoot.activeElement : this._domNode.ownerDocument?.activeElement;
+		const focused = Boolean(this._domNode.isConnected && this._domNode === activeElement);
 		this._handleFocusedChanged(focused);
 	}
 
 	get isFocused(): boolean {
+		if (this._isFocused && !this._isPaused) {
+			this.refreshFocusState();
+		}
 		return this._isFocused;
 	}
 }

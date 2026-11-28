@@ -38,4 +38,33 @@ suite('NativeEditContextUtils', () => {
 			trackerFocused: true,
 		});
 	});
+
+	test('clears focus when activeElement moves to another element without blur event', () => {
+		const iframe = document.createElement('iframe');
+		document.body.appendChild(iframe);
+		disposables.add(toDisposable(() => iframe.remove()));
+		disposables.add(registerTestIframe(iframe));
+
+		const target1 = iframe.contentDocument!.createElement('div');
+		target1.tabIndex = 0;
+		iframe.contentDocument!.body.appendChild(target1);
+
+		const target2 = iframe.contentDocument!.createElement('div');
+		target2.tabIndex = 0;
+		iframe.contentDocument!.body.appendChild(target2);
+
+		let focused1 = false;
+		const tracker1 = disposables.add(new FocusTracker(new NullLogService(), target1, value => focused1 = value));
+		tracker1.focus();
+
+		assert.strictEqual(tracker1.isFocused, true);
+		assert.strictEqual(focused1, true);
+
+		// Move focus directly to target2 without dispatching blur on target1 (simulating window lacking OS focus)
+		target2.focus();
+
+		assert.strictEqual(iframe.contentDocument!.activeElement === target2, true);
+		assert.strictEqual(tracker1.isFocused, false);
+		assert.strictEqual(focused1, false);
+	});
 });
