@@ -78,7 +78,7 @@ export interface LanguageMode {
 	doRename?: (document: TextDocument, position: Position, newName: string) => Promise<WorkspaceEdit | null>;
 	doLinkedEditing?: (document: TextDocument, position: Position) => Promise<Range[] | null>;
 	findDocumentHighlight?: (document: TextDocument, position: Position) => Promise<DocumentHighlight[]>;
-	findDocumentSymbols?: (document: TextDocument) => Promise<SymbolInformation[]>;
+	findDocumentSymbols?: (document: TextDocument, limit?: number) => Promise<SymbolInformation[]>;
 	findDocumentLinks?: (document: TextDocument, documentContext: DocumentContext) => Promise<DocumentLink[]>;
 	findDefinition?: (document: TextDocument, position: Position) => Promise<Definition | null>;
 	findReferences?: (document: TextDocument, position: Position) => Promise<Location[]>;

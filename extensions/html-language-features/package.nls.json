@@ -34,5 +34,6 @@
 	"html.completion.attributeDefaultValue.singlequotes": "Attribute value is set to ''.",
 	"html.completion.attributeDefaultValue.empty": "Attribute value is not set.",
 	"html.hover.documentation": "Show tag and attribute documentation in hover.",
-	"html.hover.references": "Show references to MDN in hover."
+	"html.hover.references": "Show references to MDN in hover.",
+	"html.maxItemsComputed.desc": "The maximum number of outline symbols and folding regions computed (limited for performance reasons)."
 }

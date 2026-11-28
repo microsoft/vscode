@@ -234,6 +234,13 @@
           ],
           "default": "off",
           "description": "%html.trace.server.desc%"
+        },
+        "html.maxItemsComputed": {
+          "type": "number",
+          "scope": "resource",
+          "default": 5000,
+          "minimum": 0,
+          "description": "%html.maxItemsComputed.desc%"
         }
       }
     },

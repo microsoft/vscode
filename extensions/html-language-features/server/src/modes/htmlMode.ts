@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getLanguageModelCache } from '../languageModelCache.js';
+import { findHTMLDocumentSymbols } from './htmlSymbols.js';
 import {
 	LanguageService as HTMLLanguageService, HTMLDocument, DocumentContext, FormattingOptions,
 	HTMLFormatConfiguration, SelectionRange,
@@ -39,8 +40,12 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 		async findDocumentLinks(document: TextDocument, documentContext: DocumentContext) {
 			return htmlLanguageService.findDocumentLinks(document, documentContext);
 		},
-		async findDocumentSymbols(document: TextDocument) {
-			return htmlLanguageService.findDocumentSymbols(document, htmlDocuments.get(document));
+		async findDocumentSymbols(document: TextDocument, limit?: number) {
+			const htmlDocument = htmlDocuments.get(document);
+			if (typeof limit === 'number') {
+				return findHTMLDocumentSymbols(document, htmlDocument, limit);
+			}
+			return htmlLanguageService.findDocumentSymbols(document, htmlDocument);
 		},
 		async format(document: TextDocument, range: Range, formatParams: FormattingOptions, settings = workspace.settings) {
 			const formatSettings: HTMLFormatConfiguration = merge(settings?.html?.format, {});

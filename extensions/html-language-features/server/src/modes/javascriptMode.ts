@@ -288,7 +288,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			}
 			return out;
 		},
-		async findDocumentSymbols(document: TextDocument): Promise<SymbolInformation[]> {
+		async findDocumentSymbols(document: TextDocument, limit?: number): Promise<SymbolInformation[]> {
 			const jsDocument = jsDocuments.get(document);
 			const jsLanguageService = await host.getLanguageService(jsDocument);
 			const items = jsLanguageService.getNavigationBarItems(jsDocument.uri);
@@ -296,6 +296,9 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 				const result: SymbolInformation[] = [];
 				const existing = Object.create(null);
 				const collectSymbols = (item: ts.NavigationBarItem, containerLabel?: string) => {
+					if (typeof limit === 'number' && result.length >= limit) {
+						return;
+					}
 					const sig = item.text + item.kind + item.spans[0].start;
 					if (item.kind !== 'script' && !existing[sig]) {
 						const symbol: SymbolInformation = {
@@ -314,13 +317,21 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 
 					if (item.childItems && item.childItems.length > 0) {
 						for (const child of item.childItems) {
+							if (typeof limit === 'number' && result.length >= limit) {
+								return;
+							}
 							collectSymbols(child, containerLabel);
 						}
 					}
 
 				};
 
-				items.forEach(item => collectSymbols(item));
+				for (const item of items) {
+					if (typeof limit === 'number' && result.length >= limit) {
+						break;
+					}
+					collectSymbols(item);
+				}
 				return result;
 			}
 			return [];

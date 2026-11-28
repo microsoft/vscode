@@ -15,7 +15,7 @@ import {
 } from 'vscode-languageserver';
 import {
 	getLanguageModes, LanguageModes, Settings, TextDocument, Position, Diagnostic, WorkspaceFolder, ColorInformation,
-	Range, DocumentLink, SymbolInformation, TextDocumentIdentifier, isCompletionItemData, FILE_PROTOCOL
+	Range, DocumentLink, TextDocumentIdentifier, isCompletionItemData, FILE_PROTOCOL
 } from './modes/languageModes.js';
 
 import { format } from './modes/formatting.js';
@@ -26,6 +26,7 @@ import { formatError, runSafe } from './utils/runner.js';
 import { DiagnosticsSupport, registerDiagnosticsPullSupport, registerDiagnosticsPushSupport } from './utils/validation.js';
 
 import { getFoldingRanges } from './modes/htmlFolding.js';
+import { findDocumentSymbols } from './modes/htmlSymbols.js';
 import { fetchHTMLDataProviders } from './customData.js';
 import { getSelectionRanges } from './modes/selectionRanges.js';
 import { SemanticTokenProvider, newSemanticTokenProvider } from './modes/semanticTokens.js';
@@ -105,6 +106,8 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	let workspaceFoldersSupport = false;
 	let foldingRangeLimit = Number.MAX_VALUE;
 	let formatterMaxNumberOfEdits = Number.MAX_VALUE;
+	const sanitizeLimitSetting = (settingValue: any) => Math.trunc(Math.max(settingValue, 0));
+	let resultLimit = 5000;
 
 	const customDataRequestService: CustomDataRequestService = {
 		getContent(uri: string) {
@@ -254,6 +257,9 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		globalSettings = change.settings as Settings;
 		documentSettings = {}; // reset all document settings
 		diagnosticsSupport?.requestRefresh();
+
+		const limitSetting = globalSettings?.html?.maxItemsComputed ?? globalSettings?.html?.resultLimit;
+		resultLimit = typeof limitSetting === 'number' ? sanitizeLimitSetting(limitSetting) : 5000;
 
 		// dynamically enable & disable the formatter
 		if (dynamicFormatterRegistration) {
@@ -451,15 +457,16 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	connection.onDocumentSymbol((documentSymbolParms, token) => {
 		return runSafe(runtime, async () => {
 			const document = documents.get(documentSymbolParms.textDocument.uri);
-			const symbols: SymbolInformation[] = [];
 			if (document) {
-				for (const m of languageModes.getAllModesInDocument(document)) {
-					if (m.findDocumentSymbols) {
-						pushAll(symbols, await m.findDocumentSymbols(document));
-					}
+				let limit = resultLimit;
+				const settings = await getDocumentSettings(document, () => true);
+				const limitSetting = settings?.html?.maxItemsComputed ?? settings?.html?.resultLimit;
+				if (typeof limitSetting === 'number') {
+					limit = sanitizeLimitSetting(limitSetting);
 				}
+				return findDocumentSymbols(languageModes, document, limit);
 			}
-			return symbols;
+			return [];
 		}, [], `Error while computing document symbols for ${documentSymbolParms.textDocument.uri}`, token);
 	});
 
