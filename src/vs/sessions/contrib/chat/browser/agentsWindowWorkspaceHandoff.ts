@@ -382,7 +382,8 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 			this.logService.warn('[AgentsHandoff] Could not add the editor window\'s workspace; selecting its folders', error);
 			return folders;
 		}
-		if (known.folders.length === 0) {
+		// A file it can't read the folders of now leaves the workspace as it last read it, marked missing
+		if (known.missing || known.folders.length === 0) {
 			return folders;
 		}
 		return { folderUri: known.folders[0], workspaceConfig: { uri: known.uri, name: known.name, folders: known.folders } };
