@@ -4,12 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { Event } from '../../../../../base/common/event.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { DebugSession, ThreadStatusScheduler } from '../../browser/debugSession.js';
 import { RawDebugSession } from '../../browser/rawDebugSession.js';
-import { MockDebugAdapter } from '../common/mockDebug.js';
+import { IDebugModel, IDebugService, IDebugSession, IThread, IViewModel, State } from '../../common/debug.js';
 import { ExceptionBreakpoint } from '../../common/debugModel.js';
+import { MockDebugAdapter } from '../common/mockDebug.js';
 import { createTestSession } from './callStack.test.js';
 import { createMockDebugModel } from './mockDebugModel.js';
 
@@ -125,9 +128,8 @@ suite('DebugSession - continued events', () => {
 
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createSession() {
-		const model = createMockDebugModel(ds);
-		session = ds.add(createTestSession(model));
+	function createSession(model = createMockDebugModel(ds), debugService?: IDebugService, emitContinuedBeforeNextResponse = false) {
+		session = ds.add(createTestSession(model, 'mockSession', undefined, debugService));
 		model.addSession(session);
 		const adapter = ds.add(new class extends MockDebugAdapter {
 			override sendMessage(message: DebugProtocol.ProtocolMessage): void {
@@ -141,6 +143,13 @@ suite('DebugSession - continued events', () => {
 						this.sendResponseBody(request, { stackFrames: [], totalFrames: 0 });
 						return;
 					}
+					if (request.command === 'next') {
+						if (emitContinuedBeforeNextResponse) {
+							this.sendEventBody('continued', { threadId: 1, allThreadsContinued: false });
+						}
+						this.sendResponseBody(request, {});
+						return;
+					}
 				}
 				super.sendMessage(message);
 			}
@@ -148,6 +157,139 @@ suite('DebugSession - continued events', () => {
 		const raw = ds.add(new RawDebugSession(adapter, undefined!, '', '', undefined!, undefined!, undefined!, undefined!));
 		session.initializeForTest(raw);
 		return { session, adapter };
+	}
+
+	test('keeps focus in the session while duplicate continued events arrive during a step', async () => {
+		const model = createMockDebugModel(ds);
+		let focusStackFrameCalls = 0;
+		const debugService = upcastPartial<IDebugService>({
+			getModel: () => upcastPartial<IDebugModel>({
+				getSessions: () => [upcastPartial<IDebugSession>({ state: State.Stopped })]
+			}),
+			getViewModel: () => upcastPartial<IViewModel>({
+				get focusedThread() {
+					return session?.getThread(1);
+				},
+				get focusedSession() {
+					return session;
+				},
+				focusedStackFrame: undefined
+			}),
+			focusStackFrame: async () => {
+				focusStackFrameCalls++;
+			}
+		});
+		const { session: currentSession } = createSession(model, debugService, true);
+		model.rawUpdate({
+			sessionId: currentSession.getId(),
+			threads: [{ id: 1, name: 'stepping' }]
+		});
+
+		let continuedEventCount = 0;
+		ds.add(currentSession.raw!.onDidContinued(() => continuedEventCount++));
+		const clock = sinon.useFakeTimers();
+		const continued = Event.toPromise(currentSession.onDidChangeState);
+		try {
+			const nextPromise = currentSession.next(1);
+			await clock.tickAsync(1000);
+			await nextPromise;
+			await continued;
+			assert.strictEqual(continuedEventCount, 2);
+			await clock.tickAsync(1000);
+
+			assert.strictEqual(focusStackFrameCalls, 0);
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('keeps focus on a resumed thread when another thread in the session is stopped', async () => {
+		const model = createMockDebugModel(ds);
+		let currentSession: DebugSession | undefined;
+		let focusedSession: IDebugSession | undefined;
+		let focusedThread: IThread | undefined;
+		const debugService = upcastPartial<IDebugService>({
+			getModel: () => upcastPartial<IDebugModel>({
+				getSessions: () => [currentSession!]
+			}),
+			getViewModel: () => upcastPartial<IViewModel>({
+				get focusedThread() {
+					return currentSession?.getThread(2);
+				},
+				get focusedSession() {
+					return currentSession;
+				},
+				focusedStackFrame: undefined
+			}),
+			focusStackFrame: async (_stackFrame, thread, session) => {
+				focusedSession = session;
+				focusedThread = thread;
+			}
+		});
+		const { session, adapter } = createSession(model, debugService);
+		currentSession = session;
+		model.rawUpdate({
+			sessionId: session.getId(),
+			threads: [{ id: 1, name: 'stopped' }, { id: 2, name: 'resumed' }]
+		});
+		const stopped = Event.toPromise(session.onDidChangeState);
+		adapter.sendEventBody('stopped', { reason: 'breakpoint', threadId: 1, allThreadsStopped: false });
+		await stopped;
+
+		const clock = sinon.useFakeTimers();
+		try {
+			const continued = Event.toPromise(session.onDidChangeState);
+			adapter.sendEventBody('continued', { threadId: 2, allThreadsContinued: false });
+			await clock.tickAsync(1000);
+			await continued;
+
+			assert.strictEqual(focusedSession, session);
+			assert.strictEqual(focusedThread, session.getThread(2));
+		} finally {
+			clock.restore();
+		}
+	});
+
+	for (const allThreadsContinued of [true, undefined]) {
+		test(`keeps focus in the resumed session when all threads continue (${allThreadsContinued ?? 'omitted'})`, async () => {
+			const model = createMockDebugModel(ds);
+			let currentSession: DebugSession | undefined;
+			let focusedSession: IDebugSession | undefined;
+			const stoppedSession = upcastPartial<IDebugSession>({ state: State.Stopped });
+			const debugService = upcastPartial<IDebugService>({
+				getModel: () => upcastPartial<IDebugModel>({
+					getSessions: () => [currentSession!, stoppedSession]
+				}),
+				getViewModel: () => upcastPartial<IViewModel>({
+					get focusedThread() {
+						return currentSession?.getThread(1);
+					},
+					get focusedSession() {
+						return currentSession;
+					},
+					focusedStackFrame: undefined
+				}),
+				focusStackFrame: async (_stackFrame, _thread, session) => {
+					focusedSession = session;
+				}
+			});
+			const { session, adapter } = createSession(model, debugService);
+			currentSession = session;
+			model.rawUpdate({
+				sessionId: session.getId(),
+				threads: [{ id: 1, name: 'resumed' }]
+			});
+
+			const clock = sinon.useFakeTimers();
+			try {
+				adapter.sendEventBody('continued', { threadId: 1, allThreadsContinued });
+				await clock.tickAsync(1000);
+
+				assert.strictEqual(focusedSession, session);
+			} finally {
+				clock.restore();
+			}
+		});
 	}
 
 	for (const allThreadsContinued of [false, true]) {

@@ -75,6 +75,7 @@ export class DebugSession implements IDebugSession {
 	});
 	private passFocusScheduler: RunOnceScheduler;
 	private lastContinuedThreadId: number | undefined;
+	private readonly steppingThreadIds = new Set<number>();
 	private repl: ReplModel;
 	private stoppedDetails: IRawStoppedDetails[] = [];
 	private readonly statusQueue = this.rawListeners.add(new ThreadStatusScheduler());
@@ -166,15 +167,13 @@ export class DebugSession implements IDebugSession {
 			if (this.debugService.getModel().getSessions().some(s => s.state === State.Stopped) || this.getAllThreads().some(t => t.stopped)) {
 				if (typeof this.lastContinuedThreadId === 'number') {
 					const thread = this.debugService.getViewModel().focusedThread;
-					if (thread && thread.threadId === this.lastContinuedThreadId && !thread.stopped) {
-						const toFocusThreadId = this.getStoppedDetails()?.threadId;
-						const toFocusThread = typeof toFocusThreadId === 'number' ? this.getThread(toFocusThreadId) : undefined;
-						this.debugService.focusStackFrame(undefined, toFocusThread);
+					if (thread?.session === this && thread.threadId === this.lastContinuedThreadId && !thread.stopped) {
+						this.debugService.focusStackFrame(undefined, thread, this);
 					}
 				} else {
 					const session = this.debugService.getViewModel().focusedSession;
 					if (session && session.getId() === this.getId() && session.state !== State.Stopped) {
-						this.debugService.focusStackFrame(undefined);
+						this.debugService.focusStackFrame(undefined, undefined, session);
 					}
 				}
 			}
@@ -723,11 +722,12 @@ export class DebugSession implements IDebugSession {
 
 	async restartFrame(frameId: number, threadId: number): Promise<void> {
 		await this.waitForTriggeredBreakpoints();
-		if (!this.raw) {
+		const raw = this.raw;
+		if (!raw) {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'restartFrame'));
 		}
 
-		await this.raw.restartFrame({ frameId }, threadId);
+		await this.trackStep(threadId, () => raw.restartFrame({ frameId }, threadId));
 	}
 
 	private setLastSteppingGranularity(threadId: number, granularity?: DebugProtocol.SteppingGranularity) {
@@ -737,44 +737,58 @@ export class DebugSession implements IDebugSession {
 		}
 	}
 
+	private async trackStep<T>(threadId: number, step: () => Promise<T>): Promise<T> {
+		this.steppingThreadIds.add(threadId);
+		try {
+			return await step();
+		} catch (error) {
+			this.steppingThreadIds.delete(threadId);
+			throw error;
+		}
+	}
+
 	async next(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
 		await this.waitForTriggeredBreakpoints();
-		if (!this.raw) {
+		const raw = this.raw;
+		if (!raw) {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'next'));
 		}
 
 		this.setLastSteppingGranularity(threadId, granularity);
-		await this.raw.next({ threadId, granularity });
+		await this.trackStep(threadId, () => raw.next({ threadId, granularity }));
 	}
 
 	async stepIn(threadId: number, targetId?: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
 		await this.waitForTriggeredBreakpoints();
-		if (!this.raw) {
+		const raw = this.raw;
+		if (!raw) {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'stepIn'));
 		}
 
 		this.setLastSteppingGranularity(threadId, granularity);
-		await this.raw.stepIn({ threadId, targetId, granularity });
+		await this.trackStep(threadId, () => raw.stepIn({ threadId, targetId, granularity }));
 	}
 
 	async stepOut(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
 		await this.waitForTriggeredBreakpoints();
-		if (!this.raw) {
+		const raw = this.raw;
+		if (!raw) {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'stepOut'));
 		}
 
 		this.setLastSteppingGranularity(threadId, granularity);
-		await this.raw.stepOut({ threadId, granularity });
+		await this.trackStep(threadId, () => raw.stepOut({ threadId, granularity }));
 	}
 
 	async stepBack(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
 		await this.waitForTriggeredBreakpoints();
-		if (!this.raw) {
+		const raw = this.raw;
+		if (!raw) {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'stepBack'));
 		}
 
 		this.setLastSteppingGranularity(threadId, granularity);
-		await this.raw.stepBack({ threadId, granularity });
+		await this.trackStep(threadId, () => raw.stepBack({ threadId, granularity }));
 	}
 
 	async continue(threadId: number): Promise<void> {
@@ -783,6 +797,7 @@ export class DebugSession implements IDebugSession {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'continue'));
 		}
 
+		this.steppingThreadIds.delete(threadId);
 		await this.raw.continue({ threadId });
 	}
 
@@ -792,6 +807,7 @@ export class DebugSession implements IDebugSession {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'reverse continue'));
 		}
 
+		this.steppingThreadIds.delete(threadId);
 		await this.raw.reverseContinue({ threadId });
 	}
 
@@ -1113,6 +1129,7 @@ export class DebugSession implements IDebugSession {
 					this.fetchThreadsScheduler.value.schedule();
 				}
 			} else if (event.body.reason === 'exited') {
+				this.steppingThreadIds.delete(event.body.threadId);
 				this.model.clearThreads(this.getId(), true, event.body.threadId);
 				const viewModel = this.debugService.getViewModel();
 				const focusedThread = viewModel.focusedThread;
@@ -1135,6 +1152,7 @@ export class DebugSession implements IDebugSession {
 
 		this.rawListeners.add(this.raw.onDidContinued(async event => {
 			const allThreads = event.body.allThreadsContinued !== false;
+			const isStep = this.steppingThreadIds.has(event.body.threadId);
 			this.stoppedDetails = allThreads ? [] : this.stoppedDetails.filter(sd => sd.threadId !== event.body.threadId);
 
 			let affectedThreads: number[] | Promise<number[]>;
@@ -1162,9 +1180,13 @@ export class DebugSession implements IDebugSession {
 				return Promise.resolve();
 			});
 
-			// We need to pass focus to other sessions / threads with a timeout in case a quick stop event occurs #130321
+			// Reassert focus after continuation settles, unless a stop event arrives first. #130321
 			this.lastContinuedThreadId = allThreads ? undefined : event.body.threadId;
-			this.passFocusScheduler.schedule();
+			if (isStep) {
+				this.passFocusScheduler.cancel();
+			} else {
+				this.passFocusScheduler.schedule();
+			}
 			this._onDidChangeState.fire();
 		}));
 
@@ -1356,6 +1378,11 @@ export class DebugSession implements IDebugSession {
 
 	private async handleStop(event: IRawStoppedDetails) {
 		this.passFocusScheduler.cancel();
+		if (typeof event.threadId === 'number') {
+			this.steppingThreadIds.delete(event.threadId);
+		} else {
+			this.steppingThreadIds.clear();
+		}
 		this.stoppedDetails.push(event);
 
 		// do this very eagerly if we have hitBreakpointIds, since it may take a
