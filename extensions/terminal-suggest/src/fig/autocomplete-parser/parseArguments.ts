@@ -140,21 +140,6 @@ export const createArgState = (args?: Internal.Arg[]): ArgArrayState => {
 	};
 };
 
-export const flattenAnnotations = (
-	annotations: Annotation[],
-): BasicAnnotation[] => {
-	const result: BasicAnnotation[] = [];
-	for (let i = 0; i < annotations.length; i += 1) {
-		const annotation = annotations[i];
-		if (annotation.type === TokenType.Composite) {
-			result.push(...annotation.subtokens);
-		} else {
-			result.push(annotation);
-		}
-	}
-	return result;
-};
-
 export const optionsAreEqual = (a: Internal.Option, b: Internal.Option) =>
 	a.name.some((name) => b.name.includes(name));
 
@@ -759,17 +744,6 @@ export const getResultFromState = (
 		suggestionFlags,
 	};
 };
-
-export const initialParserState = getResultFromState(
-	getInitialState({
-		name: [''],
-		subcommands: {},
-		options: {},
-		persistentOptions: {},
-		parserDirectives: {},
-		args: [],
-	}),
-);
 
 // const parseArgumentsCache = createCache<ArgumentParserState>();
 // const parseArgumentsGenerateSpecCache = createCache<ArgumentParserState>();
