@@ -1792,6 +1792,11 @@ export interface IEditorFindOptions {
 	 * Controls how the replace widget search history should be stored
 	 */
 	replaceHistory?: 'never' | 'workspace';
+	/**
+	 * @internal
+	 * Controls whether find should skip matches in hidden areas
+	 */
+	skipHiddenAreas?: boolean;
 }
 
 /**
@@ -1813,6 +1818,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 			closeOnResult: false,
 			history: 'workspace',
 			replaceHistory: 'workspace',
+			skipHiddenAreas: false,
 		};
 		super(
 			EditorOption.find, 'find', defaults,
@@ -1914,6 +1920,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 			closeOnResult: boolean(input.closeOnResult, this.defaultValue.closeOnResult),
 			history: stringSet<'never' | 'workspace'>(input.history, this.defaultValue.history, ['never', 'workspace']),
 			replaceHistory: stringSet<'never' | 'workspace'>(input.replaceHistory, this.defaultValue.replaceHistory, ['never', 'workspace']),
+			skipHiddenAreas: boolean(input.skipHiddenAreas, this.defaultValue.skipHiddenAreas),
 		};
 	}
 }
