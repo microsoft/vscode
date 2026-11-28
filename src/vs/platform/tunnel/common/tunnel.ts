@@ -378,11 +378,9 @@ export abstract class AbstractTunnelService extends Disposable implements ITunne
 		return resolvedTunnel.then(tunnel => {
 			if (!tunnel) {
 				this.logService.trace('ForwardedPorts: (TunnelService) New tunnel is undefined.');
-				this.removeEmptyOrErrorTunnelFromMap(remoteHost, remotePort);
 				return undefined;
 			} else if (typeof tunnel === 'string') {
-				this.logService.trace('ForwardedPorts: (TunnelService) The tunnel provider returned an error when creating the tunnel.');
-				this.removeEmptyOrErrorTunnelFromMap(remoteHost, remotePort);
+				this.logService.trace('ForwardedPorts: (TunnelService) There was an error when creating the tunnel.');
 				return tunnel;
 			}
 			this.logService.trace('ForwardedPorts: (TunnelService) New tunnel established.');
@@ -446,21 +444,34 @@ export abstract class AbstractTunnelService extends Disposable implements ITunne
 		}
 	}
 
-	protected addTunnelToMap(remoteHost: string, remotePort: number, tunnel: Promise<RemoteTunnel | string | undefined>) {
+	/**
+	 * Adds a tunnel that is being created, and returns the promise that everything waiting for it must use.
+	 * That promise does not reject: a failure is reported as an error message instead. A tunnel that could not
+	 * be created is removed before anything waiting for it sees that, so that the port can be forwarded again.
+	 */
+	protected addTunnelToMap(remoteHost: string, remotePort: number, tunnel: Promise<RemoteTunnel | string | undefined>): Promise<RemoteTunnel | string | undefined> {
+		const value: Promise<RemoteTunnel | string | undefined> = tunnel.then(result => {
+			if (!result || (typeof result === 'string')) {
+				this.removeTunnelFromMap(remoteHost, remotePort, value);
+			}
+			return result;
+		}, error => {
+			this.logService.error(`ForwardedPorts: (TunnelService) Failed to create the tunnel for ${remoteHost}:${remotePort}.`, error);
+			this.removeTunnelFromMap(remoteHost, remotePort, value);
+			return error instanceof Error ? error.message : undefined;
+		});
 		if (!this._tunnels.has(remoteHost)) {
 			this._tunnels.set(remoteHost, new Map());
 		}
-		this._tunnels.get(remoteHost)!.set(remotePort, { refcount: 1, value: tunnel });
+		this._tunnels.get(remoteHost)!.set(remotePort, { refcount: 1, value });
+		return value;
 	}
 
-	private async removeEmptyOrErrorTunnelFromMap(remoteHost: string, remotePort: number) {
+	private removeTunnelFromMap(remoteHost: string, remotePort: number, value: Promise<RemoteTunnel | string | undefined>): void {
 		const hostMap = this._tunnels.get(remoteHost);
-		if (hostMap) {
-			const tunnel = hostMap.get(remotePort);
-			const tunnelResult = tunnel ? await tunnel.value : undefined;
-			if (!tunnelResult || (typeof tunnelResult === 'string')) {
-				hostMap.delete(remotePort);
-			}
+		// The tunnel may have been closed in the meantime, and another one opened for the same address.
+		if (hostMap?.get(remotePort)?.value === value) {
+			hostMap.delete(remotePort);
 			if (hostMap.size === 0) {
 				this._tunnels.delete(remoteHost);
 			}
@@ -506,14 +517,14 @@ export abstract class AbstractTunnelService extends Disposable implements ITunne
 		const tunnelOptions: TunnelOptions = { remoteAddress: { host: remoteHost, port: remotePort }, localAddressPort: localPort, privacy, public: privacy ? (privacy !== TunnelPrivacyId.Private) : undefined, protocol };
 		const tunnel = tunnelProvider.forwardPort(tunnelOptions, creationInfo);
 		if (tunnel) {
-			this.addTunnelToMap(remoteHost, remotePort, tunnel);
-			tunnel.finally(() => {
+			const value = this.addTunnelToMap(remoteHost, remotePort, tunnel);
+			value.finally(() => {
 				this.logService.trace('ForwardedPorts: (TunnelService) Tunnel created by provider.');
 				this._factoryInProgress.delete(key);
 			});
-		} else {
-			this._factoryInProgress.delete(key);
+			return value;
 		}
+		this._factoryInProgress.delete(key);
 		return tunnel;
 	}
 }

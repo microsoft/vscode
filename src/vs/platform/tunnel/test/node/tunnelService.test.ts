@@ -12,7 +12,9 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { ISocket, SocketCloseEvent, SocketCloseEventType } from '../../../../base/parts/ipc/common/ipc.net.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IConnectionOptions } from '../../../remote/common/remoteAgentConnection.js';
 import { NodeRemoteTunnel } from '../../node/tunnelService.js';
 
 suite('TunnelService connections', () => {
@@ -129,5 +131,25 @@ suite('NodeRemoteTunnel', () => {
 		onClose.fire({ type: SocketCloseEventType.NodeSocketCloseEvent, hadError: true, error: new Error('remote failure') });
 
 		assert.strictEqual(localSocket.destroyed, true);
+	});
+
+	test('fails to become ready when the local port cannot be listened on', async () => {
+		// 192.0.2.1 is reserved for documentation, so it is not an address of this machine.
+		const tunnel = store.add(new NodeRemoteTunnel(new class extends mock<IConnectionOptions>() { }(), '192.0.2.1', 'localhost', 3000));
+
+		await assert.rejects(tunnel.waitForReady());
+	});
+
+	test('listens on another local port when the free port that was found is taken', async () => {
+		const server = net.createServer();
+		store.add(toDisposable(() => server.close()));
+		server.listen(0, '127.0.0.1');
+		await once(server, 'listening');
+		const takenPort = (server.address() as net.AddressInfo).port;
+		const tunnel = store.add(new NodeRemoteTunnel(new class extends mock<IConnectionOptions>() { }(), '127.0.0.1', 'localhost', 3000, undefined, async () => takenPort));
+
+		await tunnel.waitForReady();
+
+		assert.ok(tunnel.tunnelLocalPort > 0 && tunnel.tunnelLocalPort !== takenPort, `Listening on ${tunnel.tunnelLocalPort}, the taken port is ${takenPort}`);
 	});
 });

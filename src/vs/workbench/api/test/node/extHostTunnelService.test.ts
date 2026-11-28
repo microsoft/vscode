@@ -4,8 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { findPorts, getRootProcesses, getSockets, loadConnectionTable, loadListeningPorts, parseIpAddress, tryFindRootPorts } from '../../node/extHostTunnelService.js';
+import { once } from 'events';
+import * as net from 'net';
+import { findPorts, getRootProcesses, getSockets, loadConnectionTable, loadListeningPorts, NodeExtHostTunnelService, parseIpAddress, tryFindRootPorts } from '../../node/extHostTunnelService.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { NullLogService } from '../../../../platform/log/common/log.js';
+import { ISignService } from '../../../../platform/sign/common/sign.js';
+import { MainThreadTunnelServiceShape } from '../../common/extHost.protocol.js';
+import { ExtHostConfigProvider, IExtHostConfiguration } from '../../common/extHostConfiguration.js';
+import { IExtHostInitDataService } from '../../common/extHostInitDataService.js';
+import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
+import type * as vscode from 'vscode';
 
 const tcp =
 	`  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode
@@ -284,5 +295,103 @@ suite('ExtHostTunnelService', () => {
 	test('parseIpAddress', function () {
 		assert.strictEqual(parseIpAddress('00000000000000000000000001000000'), '0:0:0:0:0:0:0:1');
 		assert.strictEqual(parseIpAddress('0000000000000000FFFF0000040510AC'), '0:0:0:0:0:ffff:ac10:504');
+	});
+});
+
+suite('NodeExtHostTunnelService', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const resolver: vscode.RemoteAuthorityResolver = { resolve: () => { throw new Error('Not used'); } };
+
+	function createService(): NodeExtHostTunnelService {
+		const configuration = new class extends mock<vscode.WorkspaceConfiguration>() {
+			override get<T>(section: string): T | undefined;
+			override get<T>(section: string, defaultValue: T): T;
+			override get<T>(_section: string, defaultValue?: T): T | undefined {
+				return defaultValue;
+			}
+		}();
+		return store.add(new NodeExtHostTunnelService(
+			SingleProxyRPCProtocol(new class extends mock<MainThreadTunnelServiceShape>() {
+				override async $setTunnelProvider() { }
+			}()),
+			new class extends mock<IExtHostInitDataService>() { override remote = { isRemote: false, authority: undefined, connectionData: null }; }(),
+			new NullLogService(),
+			new class extends mock<ISignService>() { }(),
+			new class extends mock<IExtHostConfiguration>() {
+				override async getConfigProvider(): Promise<ExtHostConfigProvider> {
+					return new class extends mock<ExtHostConfigProvider>() {
+						override getConfiguration() {
+							return configuration;
+						}
+					}();
+				}
+			}()
+		));
+	}
+
+	/**
+	 * Forwards a port and returns its local port.
+	 */
+	async function forwardPort(service: NodeExtHostTunnelService): Promise<number> {
+		const tunnel = await service.$forwardPort({ remoteAddress: { host: 'localhost', port: 3000 } }, { elevationRequired: false });
+		store.add(toDisposable(() => service.$closeTunnel({ host: 'localhost', port: 3000 }, true)));
+		assert.ok(tunnel && typeof tunnel !== 'string' && typeof tunnel.localAddress !== 'string');
+		return tunnel.localAddress.port;
+	}
+
+	/**
+	 * Connects to a forwarded port, and waits for the connection to be closed because the remote cannot be reached.
+	 */
+	async function connectToUnreachableRemote(localPort: number): Promise<void> {
+		const client = net.createConnection({ host: '127.0.0.1', port: localPort });
+		store.add(toDisposable(() => client.destroy()));
+		client.on('error', () => { });
+		await once(client, 'close');
+	}
+
+	test('connects a forwarded port through the authority resolved after a reconnect', async () => {
+		const service = createService();
+		const connections: string[] = [];
+		const authority = (name: string): vscode.ManagedResolvedAuthority => ({
+			makeConnection: () => {
+				connections.push(name);
+				return Promise.reject(new Error(`${name} is disconnected`));
+			},
+			connectionToken: undefined
+		});
+
+		store.add(await service.setTunnelFactory(resolver, authority('before reconnect')));
+		const localPort = await forwardPort(service);
+		store.add(await service.setTunnelFactory(resolver, authority('after reconnect')));
+		await connectToUnreachableRemote(localPort);
+
+		assert.deepStrictEqual(connections, ['after reconnect']);
+	});
+
+	test('connects through the authority whose connection token it sends when the remote reconnects meanwhile', async () => {
+		const service = createService();
+		const events: string[] = [];
+		let reconnected: Promise<IDisposable> | undefined;
+		const authority = (name: string): vscode.ManagedResolvedAuthority => ({
+			makeConnection: () => {
+				events.push(`connect through ${name}`);
+				return Promise.reject(new Error(`${name} is disconnected`));
+			},
+			get connectionToken() {
+				events.push(`token of ${name}`);
+				// The remote reconnects right after the token is read for the connection.
+				reconnected ??= service.setTunnelFactory(resolver, authority('after reconnect'));
+				return undefined;
+			}
+		});
+
+		store.add(await service.setTunnelFactory(resolver, authority('before reconnect')));
+		const localPort = await forwardPort(service);
+		await connectToUnreachableRemote(localPort);
+		if (reconnected) {
+			store.add(await reconnected);
+		}
+
+		assert.deepStrictEqual(events, ['token of before reconnect', 'connect through before reconnect']);
 	});
 });
