@@ -131,6 +131,7 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 			_getWorkspaceRoots: () => [],
 			_reconcileDraftBeforeSend: async (session: ISession) => session,
 			_isCurrentSendTarget: () => true,
+			_hasSelectionFollowedFrom: () => false,
 			newSessionComposerService: { notifyWillSendRequest: () => { } },
 			sessionsManagementService: {
 				sendNewChatRequest: (_session: ISession, options: ISendRequestOptions) => dispatch(options),

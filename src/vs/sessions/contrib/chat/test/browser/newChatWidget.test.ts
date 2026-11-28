@@ -373,6 +373,7 @@ interface ISessionOptionsPersistenceHarness {
 }
 
 interface ISendHarness {
+	readonly uriIdentityService?: { readonly extUri: typeof extUri };
 	readonly configurationService?: IConfigurationService;
 	readonly viewsService?: Pick<IViewsService, 'getViewWithId'>;
 	readonly _backgroundSend?: boolean;
@@ -425,7 +426,8 @@ interface ISendHarness {
 	_getComparisonBranch?(session: ISession): string | undefined;
 	_getWorkspaceRoots(session: ISession): readonly URI[];
 	_reconcileDraftBeforeSend(session: ISession, selectionId: number): Promise<ISession | undefined>;
-	_isCurrentSendTarget(session: ISession, selectionId: number): boolean;
+	_isCurrentSendTarget(session: ISession, selectionId: number, validatedFolderUri: URI | undefined): boolean;
+	_hasSelectionFollowedFrom(folderUri: URI | undefined, selectionId: number): boolean;
 	_createNewSession?(folderUri: URI, pick?: IPreferredSessionType): Promise<void>;
 	_openQuickChat?(): void;
 	_backgroundReseedTarget?(session: ISession, folderUri: URI | undefined): INewSessionTarget;
@@ -4668,6 +4670,7 @@ suite('NewChatWidget', () => {
 			sessionsManagementService: upcastPartial<ISendHarness['sessionsManagementService']>({ onDidSendRequest: Event.None, sendNewChatRequest: async (sentTo: ISession) => { sent.push(sentTo.sessionId); } }),
 			_reconcileDraftBeforeSend: reconcileDraftBeforeSend,
 			_isCurrentSendTarget: Reflect.get(NewChatWidget.prototype, '_isCurrentSendTarget') as ISendHarness['_isCurrentSendTarget'],
+			_hasSelectionFollowedFrom: () => false,
 		});
 		Object.assign(composer, {
 			_workspaceFoldersReplacements: new WeakMap<ISession, ISession>(),
@@ -4684,56 +4687,67 @@ suite('NewChatWidget', () => {
 		assert.deepStrictEqual({ result: await sending, sent }, { result: false, sent: [] });
 	});
 
-	test('a send validates the workspace again for a draft that replaced its own while it was validated', async () => {
-		const reconcileDraftBeforeSend = Reflect.get(NewChatWidget.prototype, '_reconcileDraftBeforeSend') as ISendHarness['_reconcileDraftBeforeSend'];
-		const draft = (sessionId: string) => upcastPartial<ISession>({ sessionId, ...withCreatedStatus(constObservable(false)) });
-		const alpha = draft('alpha');
-		const beta = draft('beta');
-		const session = observableValue<ISession | undefined>('session', alpha);
-		const firstValidation = new DeferredPromise<boolean>();
-		const validated: string[] = [];
-		const sent: string[] = [];
-		const replacements = new WeakMap<ISession, ISession>();
-		const picker = {
-			selectionId: 1,
-			// Validates the folder the picker selects as it starts
-			validateSelectedWorkspace: () => {
-				validated.push(session.get()!.sessionId);
-				return validated.length === 1 ? firstValidation.p : Promise.resolve(true);
-			},
-			showPicker: () => { },
-			clearAttachedContext: () => { },
-		};
-		const composer = upcastPartial<ISendHarness>({
-			_session: session,
-			_workspacePicker: upcastPartial<ISendHarness['_workspacePicker']>(picker),
-			notificationService: upcastPartial<ISendHarness['notificationService']>({ error: () => { }, warn: () => { } }),
-			logService: upcastPartial<ISendHarness['logService']>({ error: () => { } }),
-			_isQuickChatComposer: constObservable(false),
-			_comparisonSelection: { enabled: constObservable(false) },
-			_feedbackItems: constObservable([]),
-			agentFeedbackService: { removeFeedback: () => { } },
-			newSessionComposerService: { notifyWillSendRequest: () => { } },
-			recentWorkspacesService: { restoreDismissedWorkspace: () => { } },
-			_pendingBackgroundSends: { set: () => { }, deleteAndDispose: () => { } },
-			_getWorkspaceRoots: () => [],
-			sessionsManagementService: upcastPartial<ISendHarness['sessionsManagementService']>({ onDidSendRequest: Event.None, sendNewChatRequest: async (sentTo: ISession) => { sent.push(sentTo.sessionId); } }),
-			_reconcileDraftBeforeSend: reconcileDraftBeforeSend,
-			_isCurrentSendTarget: Reflect.get(NewChatWidget.prototype, '_isCurrentSendTarget') as ISendHarness['_isCurrentSendTarget'],
+	for (const followed of [true, false]) {
+		test(`a send ${followed ? 'validates the folder its workspace follows to when the former one went stale' : 'is refused when its unchanged folder is not valid'}`, async () => {
+			const reconcileDraftBeforeSend = Reflect.get(NewChatWidget.prototype, '_reconcileDraftBeforeSend') as ISendHarness['_reconcileDraftBeforeSend'];
+			const isCurrentSendTarget = Reflect.get(NewChatWidget.prototype, '_isCurrentSendTarget') as ISendHarness['_isCurrentSendTarget'];
+			const draft = (sessionId: string) => upcastPartial<ISession>({ sessionId, ...withCreatedStatus(constObservable(false)) });
+			const alpha = draft('alpha');
+			const beta = draft('beta');
+			const session = observableValue<ISession | undefined>('session', alpha);
+			const firstValidation = new DeferredPromise<boolean>();
+			const validated: string[] = [];
+			const sent: string[] = [];
+			const replacements = new WeakMap<ISession, ISession>();
+			const picker = {
+				selectionId: 1,
+				selectedFolderUri: URI.file('/alpha'),
+				// As the picker validates the folder selected as it starts, and reports one the selection left meanwhile as not valid
+				validateSelectedWorkspace: () => {
+					validated.push(picker.selectedFolderUri.path);
+					return validated.length === 1 ? firstValidation.p : Promise.resolve(true);
+				},
+				showPicker: () => { },
+				clearAttachedContext: () => { },
+			};
+			const composer = upcastPartial<ISendHarness>({
+				_session: session,
+				_workspacePicker: upcastPartial<ISendHarness['_workspacePicker']>(picker),
+				uriIdentityService: { extUri },
+				notificationService: upcastPartial<ISendHarness['notificationService']>({ error: () => { }, warn: () => { } }),
+				logService: upcastPartial<ISendHarness['logService']>({ error: () => { } }),
+				_isQuickChatComposer: constObservable(false),
+				_comparisonSelection: { enabled: constObservable(false) },
+				_feedbackItems: constObservable([]),
+				agentFeedbackService: { removeFeedback: () => { } },
+				newSessionComposerService: { notifyWillSendRequest: () => { } },
+				recentWorkspacesService: { restoreDismissedWorkspace: () => { } },
+				_pendingBackgroundSends: { set: () => { }, deleteAndDispose: () => { } },
+				_getWorkspaceRoots: () => [],
+				sessionsManagementService: upcastPartial<ISendHarness['sessionsManagementService']>({ onDidSendRequest: Event.None, sendNewChatRequest: async (sentTo: ISession) => { sent.push(sentTo.sessionId); } }),
+				_reconcileDraftBeforeSend: reconcileDraftBeforeSend,
+				_isCurrentSendTarget: isCurrentSendTarget,
+				_hasSelectionFollowedFrom: Reflect.get(NewChatWidget.prototype, '_hasSelectionFollowedFrom') as ISendHarness['_hasSelectionFollowedFrom'],
+			});
+			Object.assign(composer, {
+				_workspaceFoldersReplacements: replacements,
+				_isDraftInSelectedWorkspaceFolders: (candidate: ISession) => candidate === session.get(),
+				_handleSelectedWorkspaceFoldersChange: async () => { },
+			});
+			const sending = send.call(composer, 'fix the bug');
+			await timeout(0);
+			if (followed) {
+				// The workspace's first folder is replaced while the former one is validated: the selection follows, and its draft is replaced
+				picker.selectedFolderUri = URI.file('/beta');
+				replacements.set(alpha, beta);
+				session.set(beta, undefined);
+			}
+			firstValidation.complete(false);
+			assert.deepStrictEqual({ result: await sending, validated, sent }, followed
+				? { result: true, validated: ['/alpha', '/beta'], sent: ['beta'] }
+				: { result: false, validated: ['/alpha'], sent: [] });
 		});
-		Object.assign(composer, {
-			_workspaceFoldersReplacements: replacements,
-			_isDraftInSelectedWorkspaceFolders: (candidate: ISession) => candidate === session.get(),
-			_handleSelectedWorkspaceFoldersChange: async () => { },
-		});
-		const sending = send.call(composer, 'fix the bug');
-		await timeout(0);
-		// The workspace's first folder is replaced while the old one is validated: its draft is replaced
-		replacements.set(alpha, beta);
-		session.set(beta, undefined);
-		firstValidation.complete(true);
-		assert.deepStrictEqual({ result: await sending, validated, sent }, { result: true, validated: ['alpha', 'beta'], sent: ['beta'] });
-	});
+	}
 
 	test('cancels an in-flight creation and keeps the newer draft ownership', async () => {
 		const sessionTypesChanged = disposables.add(new Emitter<void>());
@@ -5330,6 +5344,7 @@ suite('NewChatWidget', () => {
 			_getWorkspaceRoots: () => [primaryFolder],
 			_reconcileDraftBeforeSend: async (session: ISession) => session,
 			_isCurrentSendTarget: () => true,
+			_hasSelectionFollowedFrom: () => false,
 		}, 'work across contexts', [
 			composerAttachment,
 			duplicateRepositoryAttachment,
@@ -5395,6 +5410,7 @@ suite('NewChatWidget', () => {
 			_getWorkspaceRoots: () => [],
 			_reconcileDraftBeforeSend: async (session: ISession) => session,
 			_isCurrentSendTarget: () => true,
+			_hasSelectionFollowedFrom: () => false,
 		}, 'work across contexts');
 
 		assert.deepStrictEqual({ result, pickerOpenCount, sendCount }, {
@@ -5443,6 +5459,7 @@ suite('NewChatWidget', () => {
 				_getWorkspaceRoots: () => [],
 				_reconcileDraftBeforeSend: async (session: ISession) => session,
 				_isCurrentSendTarget: () => true,
+				_hasSelectionFollowedFrom: () => false,
 			}, 'keep this prompt');
 
 			assert.deepStrictEqual({ result, calls }, { result: false, calls: outcome === 'error' ? ['validate', 'log', 'error'] : ['validate'] });
@@ -5561,6 +5578,7 @@ suite('NewChatWidget', () => {
 				_getWorkspaceRoots: () => [],
 				_reconcileDraftBeforeSend: async (session: ISession) => session,
 				_isCurrentSendTarget: () => true,
+				_hasSelectionFollowedFrom: () => false,
 			};
 			results.push(await harness.send('hello'));
 		}
@@ -5626,6 +5644,7 @@ suite('NewChatWidget', () => {
 				_getWorkspaceRoots: () => [folderUri],
 				_reconcileDraftBeforeSend: async (session: ISession) => session,
 				_isCurrentSendTarget: () => true,
+				_hasSelectionFollowedFrom: () => false,
 				_createNewSession: async () => { picker.selectedFolderUri = URI.file('/different-workspace'); },
 			};
 			await send.call(harness, 'hello', undefined, true);
@@ -5689,6 +5708,7 @@ suite('NewChatWidget', () => {
 				_getWorkspaceRoots: () => [],
 				_reconcileDraftBeforeSend: async (session: ISession) => session,
 				_isCurrentSendTarget: () => true,
+				_hasSelectionFollowedFrom: () => false,
 				_createNewSession: async () => { },
 			};
 			const result = await send.call(harness, 'hello', undefined, true);
@@ -5921,6 +5941,7 @@ suite('NewChatWidget', () => {
 				_getWorkspaceRoots: () => [],
 				_reconcileDraftBeforeSend: async (session: ISession) => session,
 				_isCurrentSendTarget: () => true,
+				_hasSelectionFollowedFrom: () => false,
 			} satisfies ISendHarness, 'hello');
 
 			assert.deepStrictEqual({ shown, result, sent, infos }, {
@@ -5974,6 +5995,7 @@ suite('NewChatWidget', () => {
 					_getWorkspaceRoots: () => [],
 					_reconcileDraftBeforeSend: async (session: ISession) => session,
 					_isCurrentSendTarget: () => true,
+					_hasSelectionFollowedFrom: () => false,
 					_createNewSession: async () => { },
 					_clearBackgroundSendOnFailure: (...args) => clearBackgroundSendOnFailure.apply(harness, args),
 				};
@@ -6060,6 +6082,7 @@ suite('NewChatWidget', () => {
 				_getWorkspaceRoots: () => [],
 				_reconcileDraftBeforeSend: async (session: ISession) => session,
 				_isCurrentSendTarget: () => true,
+				_hasSelectionFollowedFrom: () => false,
 				_createNewSession: async () => { },
 				_clearBackgroundSendOnFailure: (...args) => clearBackgroundSendOnFailure.apply(harness, args),
 			};
@@ -6157,6 +6180,7 @@ suite('NewChatWidget', () => {
 				_getWorkspaceRoots: () => [],
 				_reconcileDraftBeforeSend: async (session: ISession) => session,
 				_isCurrentSendTarget: () => true,
+				_hasSelectionFollowedFrom: () => false,
 				_createNewSession: async () => { },
 				_clearBackgroundSendOnFailure: (...args) => clearBackgroundSendOnFailure.apply(harness, args),
 			};
@@ -7858,7 +7882,7 @@ suite('NewChatWidget', () => {
 						},
 						openSession: async () => assert.fail('A hosted composer must not change the grid'),
 					},
-				}), ['_createNewSession', '_createSessionNow', '_applyPreferredDevContainer', '_seedRequestedTarget', '_reseedAfterFailedSend', '_isPreferredServable', '_scheduleRecreateOnProviderChange', '_recreateOnProviderChange', '_send']);
+				}), ['_createNewSession', '_createSessionNow', '_applyPreferredDevContainer', '_seedRequestedTarget', '_reseedAfterFailedSend', '_isPreferredServable', '_scheduleRecreateOnProviderChange', '_recreateOnProviderChange', '_send', '_hasSelectionFollowedFrom']);
 				const reseeding = composer._reseedAfterFailedSend(composer._draftHost) as IDisposable;
 				await composer._createNewSession(folder, { providerId: 'p', sessionTypeId: 't' });
 
@@ -8013,6 +8037,7 @@ suite('NewChatWidget', () => {
 					_getWorkspaceRoots: () => [],
 					_reconcileDraftBeforeSend: async (session: ISession) => session,
 					_isCurrentSendTarget: () => true,
+					_hasSelectionFollowedFrom: () => false,
 					_createNewSession: async (folderUri: URI, pick?: IPreferredSessionType) => { created.push({ folder: folderUri.path, pick }); },
 					_clearBackgroundSendOnFailure: (...args) => clearBackgroundSendOnFailure.apply(harness, args),
 					_backgroundReseedTarget: (session, folderUri) => backgroundReseedTarget.call({ _environment: constObservable(undefined), _requestsDevContainer: () => false }, session, folderUri),
@@ -8892,6 +8917,7 @@ suite('NewChatWidget', () => {
 			_getWorkspaceRoots: () => [folder],
 			_reconcileDraftBeforeSend: async (session: ISession) => session,
 			_isCurrentSendTarget: () => true,
+			_hasSelectionFollowedFrom: () => false,
 		}, 'hello');
 		assert.deepStrictEqual({
 			result,

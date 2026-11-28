@@ -3497,11 +3497,23 @@ export class NewChatWidget extends Disposable {
 		}
 		// The workspace is validated for the draft that is sent: again for a draft that replaced it meanwhile
 		for (let attempt = 0; ; attempt++) {
+			const folderUri = this._workspacePicker.selectedFolderUri;
 			const workspaceValid = await this._workspacePicker.validateSelectedWorkspace().catch(error => {
 				this.logService.error('Failed to validate workspace:', error);
 				this.notificationService.error(localize('newSession.workspaceValidationFailed', "Could not check the session's workspace: {0}", toErrorMessage(error)));
 				return false;
 			});
+			// The selection followed its workspace to another folder while the former one was validated, which the picker
+			// reports as not valid: the folder it is in now is validated
+			const followedToOtherFolder = !workspaceValid && this._hasSelectionFollowedFrom(folderUri, selectionId);
+			if (followedToOtherFolder && attempt < 2) {
+				session = this._session.get() ?? session;
+				continue;
+			}
+			if (followedToOtherFolder) {
+				this.notificationService.warn(localize('newChatWidget.workspaceFoldersChanged', "The folders of this session's workspace changed. Check the workspace and send again."));
+				return false;
+			}
 			if (!workspaceValid || !this._session.get()) {
 				return false;
 			}
@@ -3510,7 +3522,7 @@ export class NewChatWidget extends Disposable {
 				return false;
 			}
 			// Checked once more after the last wait, with nothing awaited until it is sent
-			if (reconciled === session && this._isCurrentSendTarget(session, selectionId)) {
+			if (reconciled === session && this._isCurrentSendTarget(session, selectionId, folderUri)) {
 				break;
 			}
 			if (attempt >= 2) {
@@ -3974,9 +3986,18 @@ export class NewChatWidget extends Disposable {
 		return undefined;
 	}
 
-	/** Whether `session` is still what a send for `selectionId` goes to: the current draft, in its workspace's folders as they are. */
-	private _isCurrentSendTarget(session: ISession, selectionId: number): boolean {
+	/** Whether the selection a send for `selectionId` is for is the same, but in another folder than `folderUri` now. */
+	private _hasSelectionFollowedFrom(folderUri: URI | undefined, selectionId: number): boolean {
+		return this._workspacePicker.selectionId === selectionId && !this.uriIdentityService.extUri.isEqual(this._workspacePicker.selectedFolderUri, folderUri);
+	}
+
+	/**
+	 * Whether `session` is still what a send for `selectionId` goes to: the current draft, in its workspace's folders as
+	 * they are, with the picker on the folder it validated.
+	 */
+	private _isCurrentSendTarget(session: ISession, selectionId: number, validatedFolderUri: URI | undefined): boolean {
 		return this._session.get() === session && this._workspacePicker.selectionId === selectionId && !this._workspaceFoldersReconciliation
+			&& this.uriIdentityService.extUri.isEqual(this._workspacePicker.selectedFolderUri, validatedFolderUri)
 			&& (isSessionCreated(session) || this._isDraftInSelectedWorkspaceFolders(session));
 	}
 
