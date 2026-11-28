@@ -793,4 +793,16 @@ suite('ExtHostTypes', function () {
 		const error = types.LanguageModelError.tryDeserialize(types.serializeLanguageModelError(types.LanguageModelError.RateLimited('Too many requests', 1500)));
 		assert.deepStrictEqual({ name: error?.name, code: error?.code, retryAfter: error?.retryAfter }, { name: 'LanguageModelError', code: 'RateLimited', retryAfter: 1500 });
 	});
+
+	test('LanguageModelTextPart sets audience parameter (#349104)', function () {
+		const audience = [types.LanguageModelPartAudience.Assistant, types.LanguageModelPartAudience.User];
+		const part = new types.LanguageModelTextPart('hello', audience);
+		assert.strictEqual(part.value, 'hello');
+		assert.deepStrictEqual(part.audience, audience);
+		assert.deepStrictEqual(part.toJSON(), {
+			$mid: MarshalledId.LanguageModelTextPart,
+			value: 'hello',
+			audience,
+		});
+	});
 });

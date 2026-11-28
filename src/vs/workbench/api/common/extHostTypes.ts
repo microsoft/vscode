@@ -4067,7 +4067,7 @@ export class LanguageModelTextPart implements vscode.LanguageModelTextPart2 {
 
 	constructor(value: string, audience?: vscode.LanguageModelPartAudience[]) {
 		this.value = value;
-		audience = audience;
+		this.audience = audience;
 	}
 
 	toJSON() {
