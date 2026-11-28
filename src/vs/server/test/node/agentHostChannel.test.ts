@@ -6,11 +6,15 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
+import { upcastPartial } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import type { Client, IPCServer } from '../../../base/parts/ipc/common/ipc.js';
 import { NullLogService } from '../../../platform/log/common/log.js';
 import type { IAgentHostIpcConnectionOptions } from '../../../platform/agentHost/common/agentService.js';
+import { createAgentHostCustomizationManagementChannel, type IAgentHostCustomizationManagementService } from '../../../platform/agentHost/common/agentHostCustomizationManagement.js';
+import { WebSocketProtocolServer } from '../../../platform/agentHost/node/webSocketTransport.js';
 import { AgentHostChannel, IAgentHostUpstreamEndpoint, IUpstreamConnection, UnavailableAgentHostChannel } from '../../node/agentHostChannel.js';
 
 class TestLogService extends NullLogService {
@@ -22,6 +26,7 @@ class TestLogService extends NullLogService {
 }
 
 class FakeUpstream extends Disposable implements IUpstreamConnection {
+	readonly pluginManagementSupported = false;
 	private readonly _onFrame = this._register(new Emitter<string>());
 	readonly onFrame: Event<string> = this._onFrame.event;
 
@@ -42,6 +47,10 @@ class FakeUpstream extends Disposable implements IUpstreamConnection {
 
 	send(frame: string): void {
 		this.sentFrames.push(frame);
+	}
+
+	async callCustomizationManagement<T>(): Promise<T> {
+		throw new Error('Plugin management is unavailable in this test upstream');
 	}
 
 	fireFrame(text: string): void {
@@ -316,6 +325,157 @@ suite('AgentHostChannel', () => {
 		// Resolution is `ensureStarted()` in the lazy server path, so a later
 		// connection must be able to restart a host that has since died.
 		assert.strictEqual(resolveCount, 2);
+	});
+
+	test('routes plugin management to the same authenticated shared host as the data connection', async () => {
+		const calls: unknown[] = [];
+		const backendSession = URI.parse('vendor-session:/opaque');
+		const backendChat = URI.parse('vendor-chat:/opaque');
+		const resource = URI.file('/plugins/sample');
+		const management = upcastPartial<IAgentHostCustomizationManagementService>({
+			installPlugin: async (...args) => { calls.push(['installPlugin', ...args]); },
+			listPluginInstallations: async (...args) => {
+				calls.push(['listPluginInstallations', ...args]);
+				return [{ name: 'sample', marketplace: 'test', resource, enabled: true }];
+			},
+			uninstallPlugin: async (...args) => { calls.push(['uninstallPlugin', ...args]); },
+			setPluginEnabled: async (...args) => { calls.push(['setPluginEnabled', ...args]); },
+			listPluginMarketplaces: async (...args) => { calls.push(['listPluginMarketplaces', ...args]); return []; },
+			addPluginMarketplace: async (...args) => {
+				calls.push(['addPluginMarketplace', ...args]);
+				return { name: 'test', source: 'owner/repo', isDefault: false, managed: false, available: true };
+			},
+			browsePluginMarketplace: async (...args) => { calls.push(['browsePluginMarketplace', ...args]); return []; },
+			removePluginMarketplace: async (...args) => { calls.push(['removePluginMarketplace', ...args]); return { removed: true }; },
+			refreshPluginMarketplaces: async (...args) => { calls.push(['refreshPluginMarketplaces', ...args]); return []; },
+		});
+		const server = ds.add(await WebSocketProtocolServer.create({
+			port: 0,
+			connectionTokenValidate: token => token === 'shared-token',
+			customizationManagementChannel: createAgentHostCustomizationManagementChannel(management, ds.add(new DisposableStore())),
+		}, new NullLogService()));
+		ds.add(server.onConnection(transport => ds.add(transport)));
+		await server.whenListening;
+		const ipc = ds.add(new FakeIPCServer());
+		let resolutions = 0;
+		const channel = ds.add(new AgentHostChannel<string>(
+			ipc as unknown as IPCServer<string>,
+			async () => {
+				if (++resolutions > 1) {
+					throw new Error('Management must not rediscover a different host');
+				}
+				return { host: '127.0.0.1', port: String(server.boundPort), connectionToken: 'shared-token' };
+			},
+			new NullLogService(),
+		));
+		await channel.call('renderer', 'connect');
+		const install = { source: 'sample@test' };
+		const uninstall = { name: 'sample', marketplace: 'test' };
+		await channel.call('renderer', 'installPlugin', ['copilotcli', install, backendSession, backendChat]);
+		const inventory = await channel.call('renderer', 'listPluginInstallations', ['copilotcli', backendSession, backendChat]);
+		await channel.call('renderer', 'setPluginEnabled', ['copilotcli', 'sample@test', null, 'repository', backendSession, backendChat]);
+		await channel.call('renderer', 'uninstallPlugin', ['copilotcli', uninstall, backendSession, backendChat]);
+		await channel.call('renderer', 'listPluginMarketplaces', ['copilotcli', backendSession, backendChat]);
+		await channel.call('renderer', 'addPluginMarketplace', ['copilotcli', backendSession, 'owner/repo', backendChat]);
+		await channel.call('renderer', 'browsePluginMarketplace', ['copilotcli', backendSession, 'test', backendChat]);
+		await channel.call('renderer', 'removePluginMarketplace', ['copilotcli', backendSession, 'test', true, backendChat]);
+		await channel.call('renderer', 'refreshPluginMarketplaces', ['copilotcli', backendSession, 'test', backendChat]);
+
+		assert.deepStrictEqual({ calls, inventory, resolutions }, {
+			calls: [
+				['installPlugin', 'copilotcli', install, backendSession, backendChat],
+				['listPluginInstallations', 'copilotcli', backendSession, backendChat],
+				['setPluginEnabled', 'copilotcli', 'sample@test', null, 'repository', backendSession, backendChat],
+				['uninstallPlugin', 'copilotcli', uninstall, backendSession, backendChat],
+				['listPluginMarketplaces', 'copilotcli', backendSession, backendChat],
+				['addPluginMarketplace', 'copilotcli', backendSession, 'owner/repo', backendChat],
+				['browsePluginMarketplace', 'copilotcli', backendSession, 'test', backendChat],
+				['removePluginMarketplace', 'copilotcli', backendSession, 'test', true, backendChat],
+				['refreshPluginMarketplaces', 'copilotcli', backendSession, 'test', backendChat],
+			],
+			inventory: [{ name: 'sample', marketplace: 'test', resource: resource.toJSON(), enabled: true }],
+			resolutions: 1,
+		});
+	});
+
+	test('rejects unrelated management methods at both sides of the bridge', async () => {
+		const { channel, upstreams } = createChannel();
+		const management = createAgentHostCustomizationManagementChannel(upcastPartial<IAgentHostCustomizationManagementService>({
+			installPlugin: async () => { throw new Error('Disabled by runtime policy'); },
+		}), ds.add(new DisposableStore()));
+		for (const command of ['shutdown', 'authenticate', 'setHostExecutionCredentials', 'constructor', 'toString']) {
+			await assert.rejects(() => channel.call('renderer', command, []), /Invalid call/);
+			assert.throws(() => management.call('remote', command, []), /Invalid customization management call/);
+		}
+		assert.throws(() => management.listen('remote', 'onAnything'), /Invalid customization management event/);
+		await assert.rejects(() => management.call('remote', 'installPlugin', ['copilotcli', { source: 'sample@test' }]), /Disabled by runtime policy/);
+		assert.deepStrictEqual([...upstreams.values()], []);
+	});
+
+	test('requires a connected data endpoint before plugin management', async () => {
+		const { channel } = createChannel();
+		await assert.rejects(() => channel.call('renderer', 'installPlugin', []), /Connect to the agent host/);
+		await assert.rejects(() => channel.call('renderer', 'installPlugin', {}), /Invalid customization management arguments/);
+	});
+
+	test('reports an older host without plugin management explicitly', async () => {
+		const server = ds.add(await WebSocketProtocolServer.create({ port: 0 }, new NullLogService()));
+		ds.add(server.onConnection(transport => ds.add(transport)));
+		await server.whenListening;
+		const ipc = ds.add(new FakeIPCServer());
+		const channel = ds.add(new AgentHostChannel<string>(
+			ipc as unknown as IPCServer<string>,
+			{ host: '127.0.0.1', port: String(server.boundPort) },
+			new NullLogService(),
+		));
+		await channel.call('renderer', 'connect');
+		await assert.rejects(() => channel.call('renderer', 'listPluginMarketplaces', ['copilotcli']), /does not support plugin management/);
+	});
+
+	test('rejects pending management calls on disconnect and reconnects to the newly selected host', async () => {
+		const requested = new DeferredPromise<void>();
+		const finish = new DeferredPromise<void>();
+		const closed = new DeferredPromise<void>();
+		const transports = ds.add(new DisposableStore());
+		const server = ds.add(await WebSocketProtocolServer.create({
+			port: 0,
+			connectionTokenValidate: token => token === 'token',
+			customizationManagementChannel: createAgentHostCustomizationManagementChannel(upcastPartial<IAgentHostCustomizationManagementService>({
+				installPlugin: async () => {
+					await requested.complete();
+					await finish.p;
+				},
+			}), ds.add(new DisposableStore())),
+		}, new NullLogService()));
+		ds.add(server.onConnection(transport => {
+			transports.add(transport);
+			transports.add(transport.onClose(() => closed.complete()));
+		}));
+		await server.whenListening;
+		const replacement = ds.add(await WebSocketProtocolServer.create({
+			port: 0,
+			connectionTokenValidate: token => token === 'replacement-token',
+			customizationManagementChannel: createAgentHostCustomizationManagementChannel(upcastPartial<IAgentHostCustomizationManagementService>({
+				listPluginMarketplaces: async () => [{ name: 'replacement', source: 'owner/repo', isDefault: false, managed: false, available: true }],
+			}), ds.add(new DisposableStore())),
+		}, new NullLogService()));
+		ds.add(replacement.onConnection(transport => transports.add(transport)));
+		await replacement.whenListening;
+		const ipc = ds.add(new FakeIPCServer());
+		let endpoint: IAgentHostUpstreamEndpoint = { host: '127.0.0.1', port: String(server.boundPort), connectionToken: 'token' };
+		const channel = ds.add(new AgentHostChannel<string>(ipc as unknown as IPCServer<string>, async () => endpoint, new NullLogService()));
+		await channel.call('renderer', 'connect');
+		const installing = channel.call('renderer', 'installPlugin', ['copilotcli', { source: 'sample@test' }]);
+		await requested.p;
+		const rejected = assert.rejects(installing, /Canceled|closed/);
+		await channel.call('renderer', 'close');
+		await rejected;
+		await finish.complete();
+		await closed.p;
+		endpoint = { host: '127.0.0.1', port: String(replacement.boundPort), connectionToken: 'replacement-token' };
+		await channel.call('renderer', 'connect');
+		const marketplaces = await channel.call('renderer', 'listPluginMarketplaces', ['copilotcli']);
+		assert.deepStrictEqual(marketplaces, [{ name: 'replacement', source: 'owner/repo', isDefault: false, managed: false, available: true }]);
 	});
 });
 
