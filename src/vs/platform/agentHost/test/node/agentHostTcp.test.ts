@@ -35,6 +35,7 @@ import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
+import { NullAgentHostClientForwardingService } from '../../node/agentHostClientForwarding.js';
 import { MockDevContainerService } from '../common/mockDevContainerService.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { AgentHostClientConnectionKind } from '../../common/agentHostTelemetry.js';
@@ -132,7 +133,7 @@ suite('AHP windowed TCP', function () {
 			const connections = store.add(new Emitter<IProtocolTransport>());
 			store.add(new ProtocolServerHandler(service, state, { onConnection: connections.event, address: 'test', dispose() { } }, {},
 				store.add(new AgentHostFileSystemProvider()), log, NullTelemetryService,
-				managedSettings, clientConnections, devContainers, NullAgentHostOTelService, createTestChatOwnershipService(state), createTestAgentHostProxyResolver()));
+				managedSettings, clientConnections, devContainers, NullAgentHostOTelService, createTestChatOwnershipService(state), createTestAgentHostProxyResolver(), NullAgentHostClientForwardingService));
 			return connections;
 		}
 		const primaryListener = listener();
