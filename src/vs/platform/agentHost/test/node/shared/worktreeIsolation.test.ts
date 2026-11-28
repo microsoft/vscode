@@ -14,7 +14,7 @@ import { basename, getComparisonKey } from '../../../../../base/common/resources
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
-import { GitRefType, IAgentHostGitService, META_DIFF_BASE_BRANCH, WorktreeAddError, type IAddWorktreeOptions, type IBranch, type ICommitOptions } from '../../../common/agentHostGitService.js';
+import { GitRefType, IAgentHostGitService, META_DIFF_BASE_BRANCH, WorktreeAddError, type IAddWorktreeOptions, type IBranch, type ICommitOptions, type IRemoteBranch } from '../../../common/agentHostGitService.js';
 import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, MessageKind, ResponsePartKind, TurnState, type ISessionGitState, type Turn } from '../../../common/state/sessionState.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from '../../../node/shared/agentBranchNameGenerator.js';
@@ -2472,6 +2472,27 @@ suite('WorktreeIsolation', () => {
 			repositoryRoot: repoRoot.toString(),
 			diffBaseBranch: 'refs/remotes/origin/main',
 			project: { uri: repoRoot.toString(), displayName: basename(repoRoot) },
+		});
+	});
+
+	test('resolveExternalWorktreeProject records the linked worktree branch base instead of the default branch', async () => {
+		const worktreeCheckout = URI.joinPath(worktreesRoot, 'external');
+		const gitService = createGitService();
+		gitService.getRepositoryRoot = async () => worktreeCheckout;
+		gitService.getWorktreeRoots = async () => [repoRoot, worktreeCheckout];
+		gitService.getDefaultBranch2 = async () => localBranch('main', 'origin/main');
+		const isolation = createIsolation(disposables, { gitService });
+		const resolveBase = async (branchBase: IRemoteBranch | undefined) => {
+			gitService.getBranchBase = async () => branchBase;
+			return (await isolation.resolveExternalWorktreeProject(worktreeCheckout))?.metadata[META_DIFF_BASE_BRANCH];
+		};
+
+		assert.deepStrictEqual({
+			branchBase: await resolveBase({ ref: 'refs/remotes/upstream/dev', name: 'upstream/dev', remote: 'upstream', kind: GitRefType.RemoteHead }),
+			none: await resolveBase(undefined),
+		}, {
+			branchBase: 'refs/remotes/upstream/dev',
+			none: 'refs/remotes/origin/main',
 		});
 	});
 

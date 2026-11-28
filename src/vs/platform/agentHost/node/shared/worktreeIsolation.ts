@@ -2056,8 +2056,10 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		if (!primaryRoot || isEqual(primaryRoot, worktreeRoot)) {
 			return undefined;
 		}
-		// The base is the default branch's upstream when it has one, like the base a new worktree records.
-		const baseBranch = await resolveDefaultBaseBranchRef(this._gitService, primaryRoot, undefined).catch(() => undefined);
+		// A user-created worktree's branch usually starts from, and tracks, a branch other than the default (#337971).
+		// Without one, the base is the default branch's upstream when it has one, like the base a new worktree records.
+		const branchBase = await this._gitService.getBranchBase(worktreeRoot).catch(() => undefined);
+		const baseBranch = branchBase?.ref ?? await resolveDefaultBaseBranchRef(this._gitService, primaryRoot, undefined).catch(() => undefined);
 		return { worktreeRoot, primaryRoot, baseBranch };
 	}
 

@@ -332,6 +332,13 @@ export interface IAgentHostGitService {
 	getCurrentBranchName?(workingDirectory: URI, options?: { readonly throwOnError?: boolean }): Promise<string | undefined>;
 	getDefaultBranch(workingDirectory: URI): Promise<IDefaultBranch | undefined>;
 	getDefaultBranch2(workingDirectory: URI, remote?: string): Promise<Branch | undefined>;
+	/**
+	 * Returns the checked-out branch's upstream when it is a differently named remote
+	 * branch (e.g. `origin/dev` for `feat/test`), i.e. the branch it was started from.
+	 * A same-named upstream is the branch's own remote copy, not its base. Undefined
+	 * when the upstream is missing or same-named, or HEAD is detached.
+	 */
+	getBranchBase(workingDirectory: URI): Promise<IRemoteBranch | undefined>;
 	getRefs(workingDirectory: URI, query?: IRefQuery): Promise<GitRef[]>;
 	getBranches(workingDirectory: URI, query?: IRefQuery): Promise<Branch[]>;
 	getBranch(workingDirectory: URI, name: string): Promise<Branch | undefined>;
@@ -486,10 +493,11 @@ export interface IAgentHostGitService {
 	 */
 	resolveBaseBranch(workingDirectory: URI, baseBranch: string): Promise<BaseBranch | undefined>;
 	/**
-	 * Returns the local branch Merge merges into for `baseBranch`: a local base itself; for a remote base, the local
-	 * branch tracking it, else the local branch of the same name. `undefined` when there is none.
+	 * Returns the local branch Merge merges `sourceBranch` into for `baseBranch`: a local base itself; for a remote base,
+	 * the local branch other than `sourceBranch` tracking it, else the local branch of the same name. `undefined` when
+	 * there is none.
 	 */
-	resolveMergeTargetBranch(workingDirectory: URI, baseBranch: BaseBranch): Promise<string | undefined>;
+	resolveMergeTargetBranch(workingDirectory: URI, baseBranch: BaseBranch, sourceBranch: string): Promise<string | undefined>;
 	/** Returns fetch remote URLs with the preferred remote, then `origin`, first. */
 	getFetchRemoteUrls(workingDirectory: URI, preferredRemote?: string): Promise<readonly string[] | undefined>;
 	/** Returns the repository's fetch remotes in `git remote -v` order. */

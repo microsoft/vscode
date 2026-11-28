@@ -194,6 +194,18 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 		return remoteBranch?.kind === GitRefType.RemoteHead ? remoteBranch : undefined;
 	}
 
+	async getBranchBase(workingDirectory: URI): Promise<IRemoteBranch | undefined> {
+		const head = await this.getHEAD(workingDirectory);
+		if (head?.kind !== GitRefType.Head) {
+			return undefined;
+		}
+		if (!head.upstream) {
+			return undefined;
+		}
+		const branch = await this.getBranch(workingDirectory, head.upstream.ref);
+		return branch?.kind === GitRefType.RemoteHead && branch.name.substring(branch.remote.length + 1) !== head.name ? branch : undefined;
+	}
+
 	async getRefs(workingDirectory: URI, query?: IRefQuery): Promise<GitRef[]> {
 		const args = ['for-each-ref', '--format=%(refname)%00%(upstream)'];
 
@@ -1435,12 +1447,12 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 		return this._parseBaseBranch(repositoryRoot, baseBranch, await this._runGit(repositoryRoot, ['remote', '-v']));
 	}
 
-	async resolveMergeTargetBranch(workingDirectory: URI, baseBranch: BaseBranch): Promise<string | undefined> {
+	async resolveMergeTargetBranch(workingDirectory: URI, baseBranch: BaseBranch, sourceBranch: string): Promise<string | undefined> {
 		if (baseBranch.kind === 'local') {
 			return baseBranch.branch;
 		}
 		const repositoryRoot = await this.getRepositoryRoot(workingDirectory);
-		return repositoryRoot ? (await this._resolveMergeTarget(repositoryRoot, baseBranch))?.branch : undefined;
+		return repositoryRoot ? (await this._resolveMergeTarget(repositoryRoot, baseBranch, sourceBranch))?.branch : undefined;
 	}
 
 	/** Parses a recorded base branch with the remotes `git remote -v` reported; see {@link resolveBaseBranch}. */
@@ -1471,9 +1483,10 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 
 	/**
 	 * Resolves the local branch Merge merges into for a remote base, see {@link resolveMergeTargetBranch}: preferring
-	 * the branch of the same name when several track it. `undefined` when the local branches cannot be read.
+	 * the branch of the same name when several track it. `sourceBranch`, the branch being merged, is never a tracking
+	 * candidate: it tracks its base when it was started from it. `undefined` when the local branches cannot be read.
 	 */
-	private async _resolveMergeTarget(repositoryRoot: URI, baseBranch: Extract<BaseBranch, { readonly kind: 'remote' }>): Promise<{ readonly branch: string | undefined } | undefined> {
+	private async _resolveMergeTarget(repositoryRoot: URI, baseBranch: Extract<BaseBranch, { readonly kind: 'remote' }>, sourceBranch: string): Promise<{ readonly branch: string | undefined } | undefined> {
 		const output = await this._runGit(repositoryRoot, ['for-each-ref', '--format=%(refname)%00%(upstream)', 'refs/heads']);
 		if (output === undefined) {
 			return undefined;
@@ -1486,7 +1499,7 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 			if (ref.startsWith(localPrefix)) {
 				const branch = ref.substring(localPrefix.length);
 				branches.add(branch);
-				if (upstream === baseBranch.ref) {
+				if (upstream === baseBranch.ref && branch !== sourceBranch) {
 					tracking.push(branch);
 				}
 			}
@@ -1815,7 +1828,7 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 				? this._getPushRemote(repositoryRoot, status.branchName)
 				: undefined,
 			parsedBaseBranch && status.branchName && status.branchName !== parsedBaseBranch.branch
-				? this._computeBaseBranchDivergence(repositoryRoot, parsedBaseBranch, status.outgoingChanges === undefined)
+				? this._computeBaseBranchDivergence(repositoryRoot, parsedBaseBranch, status.branchName, status.outgoingChanges === undefined)
 				: undefined,
 			hasDefaultRemoteBranch,
 		]);
@@ -1869,8 +1882,8 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 	 * lacks, the ref Branch Changes compares against. Whether `HEAD` has changes is relative to the local branch Merge
 	 * merges into when there is one: an upstream still lacks the commits a local merge added.
 	 */
-	private async _computeBaseBranchDivergence(repositoryRoot: URI, baseBranch: BaseBranch, countCommits: boolean): Promise<{ readonly hasChanges: boolean; readonly count?: number } | undefined> {
-		const mergeTarget = baseBranch.kind === 'local' ? { branch: baseBranch.branch } : await this._resolveMergeTarget(repositoryRoot, baseBranch);
+	private async _computeBaseBranchDivergence(repositoryRoot: URI, baseBranch: BaseBranch, branchName: string, countCommits: boolean): Promise<{ readonly hasChanges: boolean; readonly count?: number } | undefined> {
+		const mergeTarget = baseBranch.kind === 'local' ? { branch: baseBranch.branch } : await this._resolveMergeTarget(repositoryRoot, baseBranch, branchName);
 		if (!mergeTarget) {
 			return undefined;
 		}
