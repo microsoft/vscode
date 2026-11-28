@@ -15,10 +15,13 @@ import { getCodeEditor, ICodeEditor } from '../../../../../editor/browser/editor
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { isLocation, Location } from '../../../../../editor/common/languages.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { SideBySideEditor as SideBySideEditorPane } from '../../../../browser/parts/editor/sideBySideEditor.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
-import { EditorsOrder } from '../../../../common/editor.js';
+import { EditorsOrder, SideBySideEditor } from '../../../../common/editor.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { getNotebookEditorFromEditorPane, INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
+import { CellUri } from '../../../notebook/common/notebookCommon.js';
 import { WebviewEditor } from '../../../webviewPanel/browser/webviewEditor.js';
 import { WebviewInput } from '../../../webviewPanel/browser/webviewEditorInput.js';
 import { IChatEditingService } from '../../common/editing/chatEditingService.js';
@@ -40,6 +43,12 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 	private readonly _currentCancelTokenSource: MutableDisposable<CancellationTokenSource>;
 
 	private _implicitContextEnablement: { [mode: string]: string };
+
+	/** The editor the implicit context was last taken from, or another open editor of its document. */
+	private _contextEditor: EditorInput | undefined;
+
+	/** The document the implicit context was last taken from. */
+	private _contextResource: URI | undefined;
 
 	constructor(
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
@@ -132,6 +141,11 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 
 				this.updateImplicitContext();
 			})));
+		this._register(this.editorService.onDidCloseEditor(() => {
+			if (this._contextEditor?.isDisposed()) {
+				this.updateImplicitContext();
+			}
+		}));
 		this._register(autorun((reader) => {
 			this.chatEditingService.editingSessionsObs.read(reader);
 			this.updateImplicitContext();
@@ -193,6 +207,19 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 		return undefined;
 	}
 
+	/**
+	 * Returns the editor showing the code editor, which can be visible in another group than the active one,
+	 * or else the editor of the active pane. While an editor closes, that pane still shows it although the
+	 * next editor is already the active one.
+	 */
+	private findEditorShowing(codeEditor: ICodeEditor | undefined): EditorInput | undefined {
+		const editorPane = codeEditor && this.editorService.visibleEditorPanes.find(pane => {
+			const sides = pane instanceof SideBySideEditorPane ? [pane.getPrimaryEditorPane(), pane.getSecondaryEditorPane()] : [pane];
+			return sides.some(side => getCodeEditor(side?.getControl()) === codeEditor);
+		});
+		return (editorPane ?? this.editorService.activeEditorPane)?.input;
+	}
+
 	private findActiveCustomEditor(): CustomEditorInput | undefined {
 		const input = this.editorService.activeEditorPane?.input;
 		return input instanceof CustomEditorInput ? input : undefined;
@@ -224,6 +251,7 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 		const customEditor = this.findActiveCustomEditor();
 		const navigation = customEditor?.navigation;
 		const codeEditor = this.findActiveCodeEditor();
+		let contextEditor = this.findEditorShowing(codeEditor);
 		const model = navigation?.model ?? codeEditor?.getModel();
 		const selection = navigation ? navigation.selection && Selection.liftSelection(navigation.selection) : codeEditor?.getSelection();
 		const useSuggestedContext = this.configurationService.getValue<boolean>('chat.implicitContext.suggestedContext');
@@ -264,6 +292,7 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 			// The chat APIs don't work well with Interactive Windows
 			newValue = undefined;
 		} else if (notebookEditor) {
+			contextEditor = this.editorService.activeEditorPane?.input;
 			const activeCell = notebookEditor.getActiveCell();
 			if (activeCell) {
 				const codeEditor = this.codeEditorService.getActiveCodeEditor();
@@ -298,12 +327,14 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 			const webviewContext = await this.chatContextService.contextForResource(webviewEditor.input.resource, undefined, webviewEditor.input.viewType);
 			if (webviewContext) {
 				newValue = webviewContext;
+				contextEditor = webviewEditor.input;
 			}
 		}
 
 		const browser = this.findActiveBrowserEditor();
 		if (browser?.isSharingAvailable && useSuggestedContext) {
 			newValue = browser.resource;
+			contextEditor = browser;
 		}
 
 		const uri = newValue instanceof URI ? newValue : (isStringImplicitContextValue(newValue) ? undefined : newValue?.uri);
@@ -316,6 +347,21 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 
 		if (cancelTokenSource.token.isCancellationRequested) {
 			return;
+		}
+
+		if (newValue !== undefined) {
+			this._contextEditor = contextEditor;
+			const resource = uri ?? contextEditor?.resource;
+			this._contextResource = resource && (CellUri.parse(resource)?.notebook ?? resource);
+		}
+		if (this._contextEditor?.isDisposed()) {
+			// The document can still be open in another editor.
+			this._contextEditor = this._contextResource && this.editorService.findEditors(this._contextResource, { supportSideBySide: SideBySideEditor.ANY }).find(({ editor }) => !editor.isDisposed())?.editor;
+		}
+		if (contextEditor?.isDisposed() && !this._contextEditor) {
+			// The editor was closed while its context was computed.
+			newValue = undefined;
+			providerContext = undefined;
 		}
 
 		const widgets = new Set([
@@ -331,10 +377,10 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 			const isFirstInteraction = widget.viewModel?.getItems().length === 0;
 			if ((setting === 'always' || setting === 'first' && isFirstInteraction)) {
 				// When there's a non-code active editor (e.g. Settings is open), preserve
-				// existing values so the attachment bar stays visible.
-				// But when there's no active editor at all, clear the values.
+				// existing values so the attachment bar stays visible, unless there's no
+				// active editor at all or their document is no longer open in an editor.
 				const hasActiveEditor = !!this.editorService.activeEditor;
-				if (newValue !== undefined || !widget.input.implicitContext.hasValue || !hasActiveEditor || browser || customEditor) {
+				if (newValue !== undefined || !widget.input.implicitContext.hasValue || !hasActiveEditor || !this._contextEditor || browser || customEditor) {
 					widget.input.implicitContext.setValues([{ value: newValue, isSelection }, { value: providerContext, isSelection: false }]);
 				}
 			} else {
