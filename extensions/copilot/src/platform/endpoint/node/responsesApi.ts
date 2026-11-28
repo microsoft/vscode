@@ -51,9 +51,19 @@ export function getVerbosityForModelSyncBasedOnExp(configService: IConfiguration
 	return getVerbosityForModelSync(endpoint, configService.getExperimentBasedConfig(ConfigKey.EnableGpt56Verbosity, expService));
 }
 
+/**
+ * DeepSeek's Responses API only supports plaintext reasoning (`reasoning.content`).
+ * It does not support `summary` or `encrypted_content`, even when the thinking part
+ * also carries an opaque continuation.
+ */
+function usesPlaintextReasoning(model: string, endpoint: IChatEndpoint): boolean {
+	return model.toLowerCase().includes('deepseek') || endpoint.family.toLowerCase().includes('deepseek');
+}
+
 export function createResponsesRequestBody(accessor: ServicesAccessor, options: ICreateEndpointBodyOptions, model: string, endpoint: IChatEndpoint): IEndpointBody {
 	const configService = accessor.get(IConfigurationService);
 	const expService = accessor.get(IExperimentationService);
+	const preferPlaintextReasoning = usesPlaintextReasoning(model, endpoint);
 	const verbosity = getVerbosityForModelSyncBasedOnExp(configService, expService, endpoint);
 	const compactThreshold = getResponsesApiCompactionThreshold(configService, expService, endpoint);
 	// compaction supported for all the models but works well for codex models and any future models after 5.3
@@ -143,6 +153,7 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 			shouldLoadToolFromToolSearch,
 			modeChanged,
 			supportsCacheBreakpoints,
+			preferPlaintextReasoning,
 		}),
 		stream: true,
 		tools: finalTools.length > 0 ? finalTools : undefined,
@@ -314,10 +325,11 @@ interface RawMessagesToResponseAPIOptions {
 	readonly shouldLoadToolFromToolSearch?: (name: string) => boolean;
 	readonly modeChanged?: boolean;
 	readonly supportsCacheBreakpoints?: boolean;
+	readonly preferPlaintextReasoning?: boolean;
 }
 
 function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMessage[], ignoreStatefulMarker: boolean, webSocketStatefulMarker: string | undefined, options: RawMessagesToResponseAPIOptions = {}): { input: OpenAI.Responses.ResponseInputItem[]; previous_response_id?: string } {
-	const { toolsMap, shouldLoadToolFromToolSearch, modeChanged = false, supportsCacheBreakpoints = false } = options;
+	const { toolsMap, shouldLoadToolFromToolSearch, modeChanged = false, supportsCacheBreakpoints = false, preferPlaintextReasoning = false } = options;
 	const latestCompactionMessageIndex = getLatestCompactionMessageIndex(messages);
 	const latestCompactionMessage = latestCompactionMessageIndex !== undefined ? createCompactionRoundTripMessage(messages[latestCompactionMessageIndex]) : undefined;
 
@@ -421,12 +433,35 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 			});
 		}
 	}
+	let lastReasoningText: string | undefined;
 	for (const message of messages) {
 		switch (message.role) {
-			case Raw.ChatRole.Assistant:
+			case Raw.ChatRole.Assistant: {
+				const thinkingTexts = message.content
+					.filter(part => part.type === Raw.ChatCompletionContentPartKind.Opaque)
+					.map(part => rawPartAsThinkingEnvelope(part)?.thinking.text)
+					.flatMap(text => Array.isArray(text) ? text : text ? [text] : [])
+					.filter(t => t.length > 0);
+				if (thinkingTexts.length) {
+					lastReasoningText = thinkingTexts.join('\n');
+				}
+				// DeepSeek requires a reasoning item for every tool-call message in the
+				// history. Reuse the most recent real reasoning when available. For
+				// historical turns that predate reasoning capture, emit a neutral
+				// compatibility item instead of leaving the request invalid.
+				if (preferPlaintextReasoning && message.toolCalls?.length && thinkingTexts.length === 0) {
+					const reasoningText = lastReasoningText ?? 'Reasoning is unavailable for this historical tool call.';
+					const reasoningId = lastReasoningText ? `rs_byok_reused_${message.toolCalls[0].id}` : `rs_byok_compat_${message.toolCalls[0].id}`;
+					input.push({
+						type: 'reasoning',
+						id: reasoningId,
+						summary: [],
+						content: [{ type: 'reasoning_text', text: reasoningText }],
+					} satisfies OpenAI.Responses.ResponseReasoningItem);
+				}
 				if (message.content.length) {
 					input.push(...extractCompactionData(message.content));
-					input.push(...extractThinkingData(message.content));
+					input.push(...extractThinkingData(message.content, preferPlaintextReasoning));
 					const asstContent = message.content.map(rawContentToResponsesAssistantContent).filter(isDefined);
 					if (asstContent.length) {
 						const assistantMessage: ResponseInputAssistantMessageWithPhase = {
@@ -462,6 +497,7 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 					}
 				}
 				break;
+			}
 			case Raw.ChatRole.Tool:
 				if (message.toolCallId) {
 					if (toolSearchCallIds.has(message.toolCallId)) {
@@ -658,7 +694,7 @@ function rawContentToResponsesContentList(parts: readonly Raw.ChatCompletionCont
 	return content;
 }
 
-function extractThinkingData(content: Raw.ChatCompletionContentPart[]): OpenAI.Responses.ResponseReasoningItem[] {
+function extractThinkingData(content: Raw.ChatCompletionContentPart[], preferPlaintextReasoning = false): OpenAI.Responses.ResponseReasoningItem[] {
 	return coalesce(content.map(part => {
 		if (part.type === Raw.ChatCompletionContentPartKind.Opaque) {
 			const envelope = rawPartAsThinkingEnvelope(part);
@@ -666,12 +702,37 @@ function extractThinkingData(content: Raw.ChatCompletionContentPart[]): OpenAI.R
 			const isResponsesReasoning = envelope?.originApi === undefined
 				? typeof envelope?.thinking.id === 'string' && envelope.thinking.id.startsWith('rs')
 				: envelope.originApi === 'responses';
-			if (isResponsesReasoning && envelope?.thinking.encrypted) {
+			if (!isResponsesReasoning) {
+				return;
+			}
+			const text = envelope?.thinking.text;
+			const texts = (Array.isArray(text) ? text : text ? [text] : []).filter(t => t.length > 0);
+			// DeepSeek only accepts plaintext reasoning; prefer it even when the thinking
+			// part also carries an opaque encrypted continuation.
+			if (preferPlaintextReasoning && texts.length) {
+				return {
+					type: 'reasoning',
+					id: envelope!.thinking.id,
+					summary: [],
+					content: texts.map(t => ({ type: 'reasoning_text', text: t })),
+				} satisfies OpenAI.Responses.ResponseReasoningItem;
+			}
+			if (envelope?.thinking.encrypted) {
 				return {
 					type: 'reasoning',
 					id: envelope.thinking.id,
 					summary: [],
 					encrypted_content: envelope.thinking.encrypted,
+				} satisfies OpenAI.Responses.ResponseReasoningItem;
+			}
+			// Providers that only expose plaintext reasoning (without an opaque
+			// continuation) still receive it as `reasoning.content`.
+			if (texts.length) {
+				return {
+					type: 'reasoning',
+					id: envelope!.thinking.id,
+					summary: [],
+					content: texts.map(t => ({ type: 'reasoning_text', text: t })),
 				} satisfies OpenAI.Responses.ResponseReasoningItem;
 			}
 		}
@@ -1221,7 +1282,8 @@ function mapResponsesApiError(err: OpenAI.Responses.ResponseError | null | undef
 
 export class OpenAIResponsesProcessor {
 	private textAccumulator: string = '';
-	private hasReceivedReasoningSummary = false;
+	private readonly receivedReasoningTextParts = new Map<string, Set<number>>();
+	private readonly receivedReasoningSummaryParts = new Map<string, Set<number>>();
 	private sawCompactionMessage = false;
 	private latestCompactionOutputIndex: number | undefined;
 	private latestCompactionItem: OpenAIContextManagementResponse | undefined;
@@ -1245,6 +1307,19 @@ export class OpenAIResponsesProcessor {
 		private readonly compactionThreshold: number | undefined,
 		@ILogService private readonly logService: ILogService,
 	) { }
+
+	private _markReasoningPart(partsByItem: Map<string, Set<number>>, itemId: string, index: number): void {
+		let parts = partsByItem.get(itemId);
+		if (!parts) {
+			parts = new Set<number>();
+			partsByItem.set(itemId, parts);
+		}
+		parts.add(index);
+	}
+
+	private _hasReasoningPart(partsByItem: Map<string, Set<number>>, itemId: string, index: number): boolean {
+		return partsByItem.get(itemId)?.has(index) ?? false;
+	}
 
 	private getCompactionItemsInChunk(chunk: OpenAI.Responses.ResponseStreamEvent): CompactionItemInChunk[] {
 		const compactionItems: CompactionItemInChunk[] = [];
@@ -1394,17 +1469,31 @@ export class OpenAIResponsesProcessor {
 						});
 					}
 				} else if (chunk.item.type === 'reasoning') {
-					onProgress({
-						text: '',
-						thinking: chunk.item.encrypted_content ? {
-							id: chunk.item.id,
-							// CAPI models don't stream the reasoning summary for some reason, byok do, so don't duplicate it
-							text: this.hasReceivedReasoningSummary ?
-								undefined :
-								chunk.item.summary.map(s => s.text),
-							encrypted: chunk.item.encrypted_content,
-						} : undefined
-					});
+					// Providers differ in what they return for reasoning:
+					// - OpenAI/CAPI: opaque `encrypted_content` (plus an optional streamed summary).
+					// - DeepSeek: plaintext `content`; `summary` / `encrypted_content` are unsupported.
+					// Capture whichever form is present so it can be replayed later. Parts are tracked
+					// by index because one item may contain several reasoning parts.
+					const reasoningItem = chunk.item;
+					const unreceivedText = (reasoningItem.content ?? [])
+						.map((part, index) => ({ part, index }))
+						.filter(({ part, index }) => part.type === 'reasoning_text' && !this._hasReasoningPart(this.receivedReasoningTextParts, reasoningItem.id, index))
+						.map(({ part }) => part.text);
+					const unreceivedSummary = (reasoningItem.summary ?? [])
+						.map((part, index) => ({ part, index }))
+						.filter(({ index }) => !this._hasReasoningPart(this.receivedReasoningSummaryParts, reasoningItem.id, index))
+						.map(({ part }) => part.text);
+					const plainText = [...unreceivedText, ...unreceivedSummary].filter(t => !!t);
+					const thinking = reasoningItem.encrypted_content
+						? {
+							id: reasoningItem.id,
+							text: plainText.length ? plainText : undefined,
+							encrypted: reasoningItem.encrypted_content,
+						}
+						: (plainText.length ? { id: reasoningItem.id, text: plainText } : undefined);
+					this.receivedReasoningTextParts.delete(reasoningItem.id);
+					this.receivedReasoningSummaryParts.delete(reasoningItem.id);
+					onProgress({ text: '', thinking });
 				} else if (chunk.item.type === 'message') {
 					onProgress({
 						text: '',
@@ -1413,7 +1502,7 @@ export class OpenAIResponsesProcessor {
 				}
 				return;
 			case 'response.reasoning_summary_text.delta':
-				this.hasReceivedReasoningSummary = true;
+				this._markReasoningPart(this.receivedReasoningSummaryParts, chunk.item_id, chunk.summary_index);
 				return onProgress({
 					text: '',
 					thinking: {
@@ -1422,7 +1511,7 @@ export class OpenAIResponsesProcessor {
 					}
 				});
 			case 'response.reasoning_summary_part.done':
-				this.hasReceivedReasoningSummary = true;
+				this._markReasoningPart(this.receivedReasoningSummaryParts, chunk.item_id, chunk.summary_index);
 				return onProgress({
 					text: '',
 					thinking: {
@@ -1430,6 +1519,31 @@ export class OpenAIResponsesProcessor {
 						metadata: { vscode_reasoning_summary_part_done: true },
 					}
 				});
+			case 'response.reasoning_text.delta':
+				// DeepSeek streams its chain of thought as `reasoning_text` (OpenAI uses the
+				// `reasoning_summary_text` events above).
+				this._markReasoningPart(this.receivedReasoningTextParts, chunk.item_id, chunk.content_index);
+				return onProgress({
+					text: '',
+					thinking: {
+						id: chunk.item_id,
+						text: chunk.delta,
+					}
+				});
+			case 'response.reasoning_text.done':
+				// The done event carries the full text; only use it when no deltas were streamed
+				// for this content part.
+				if (!this._hasReasoningPart(this.receivedReasoningTextParts, chunk.item_id, chunk.content_index)) {
+					onProgress({
+						text: '',
+						thinking: {
+							id: chunk.item_id,
+							text: chunk.text,
+						}
+					});
+				}
+				this._markReasoningPart(this.receivedReasoningTextParts, chunk.item_id, chunk.content_index);
+				return;
 			case 'response.completed': {
 				const capiChunk = chunk as CapiResponseCompletedEvent;
 				const normalizedOutput = keepLatestCompactionOutput(capiChunk.response.output, this.latestCompactionOutputIndex);
