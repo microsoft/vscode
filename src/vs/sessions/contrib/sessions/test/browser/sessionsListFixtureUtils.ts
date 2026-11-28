@@ -1046,7 +1046,7 @@ async function renderHeaderState(container: HTMLElement, instantiationService: T
 			affectsConfiguration: configuration => configuration === NEW_SESSION_BUTTON_STYLE_SETTING,
 		});
 	}
-	const newSessionButton = container.querySelector('.agent-sessions-compact-new-button, .agent-sessions-header-row.inbox-layout .action-label.codicon-add');
+	const newSessionButton = container.querySelector('.agent-sessions-header-row .action-item.new-split-button, .agent-sessions-header-row.inbox-layout .action-label.codicon-add');
 	if (header.navigationShortcuts && newSessionButton) {
 		throw new Error('Expected the experimental navigation to replace the Sessions header New Session action.');
 	}
@@ -1054,10 +1054,10 @@ async function renderHeaderState(container: HTMLElement, instantiationService: T
 		throw new Error('Expected the production New Session action in the Sessions header.');
 	}
 	const style = header.newSessionButtonStyle ?? header.newSessionButtonTreatment;
-	if (style === 'lightweight' && !container.querySelector('.agent-sessions-compact-new-button.lightweight:not(.lightweight-keybinding-background)')) {
+	if (style === 'lightweight' && !container.querySelector('.agent-sessions-header-row .action-item.new-split-button.lightweight:not(.lightweight-keybinding-background)')) {
 		throw new Error('Expected the New Session action to render the lightweight style.');
 	}
-	if (style === 'lightweightWithKeybindingBackground' && !container.querySelector('.agent-sessions-compact-new-button.lightweight.lightweight-keybinding-background')) {
+	if (style === 'lightweightWithKeybindingBackground' && !container.querySelector('.agent-sessions-header-row .action-item.new-split-button.lightweight.lightweight-keybinding-background')) {
 		throw new Error('Expected the New Session action to render the lightweight keybinding-background style.');
 	}
 }
