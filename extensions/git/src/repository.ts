@@ -2408,6 +2408,7 @@ export class Repository implements Disposable {
 
 	async pullFrom(rebase?: boolean, remote?: string, branch?: string, unshallow?: boolean): Promise<void> {
 		await this.run(Operation.Pull, async () => {
+			await this.waitForPendingFetch();
 			await this.maybeAutoStash(async () => {
 				const config = workspace.getConfiguration('git', Uri.file(this.root));
 				const autoStash = config.get<boolean>('autoStash');
@@ -2500,6 +2501,7 @@ export class Repository implements Disposable {
 		}
 
 		await this.run(Operation.Sync, async () => {
+			await this.waitForPendingFetch();
 			await this.maybeAutoStash(async () => {
 				const config = workspace.getConfiguration('git', Uri.file(this.root));
 				const autoStash = config.get<boolean>('autoStash');
@@ -3285,6 +3287,12 @@ export class Repository implements Disposable {
 		await this.whenIdleAndFocused();
 		await this.status();
 		await timeout(5000);
+	}
+
+	private async waitForPendingFetch(): Promise<void> {
+		while (this._operations.isRunning(OperationKind.Fetch)) {
+			await eventToPromise(this.onDidRunOperation);
+		}
 	}
 
 	/**
