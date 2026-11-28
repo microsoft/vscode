@@ -229,7 +229,7 @@ suite('NativeWorkspaceEditingService - extension host recovery', () => {
 	test('leaves the new workspace with the history from before Agents mode, like entering it outside the mode, and without the saved history', async () => {
 		const enter = async (inAgentsMode: boolean) => {
 			const { service, storageService, leftWorkspaceStorage, historyService } = setupServices(undefined, true, undefined, inAgentsMode, undefined, ['/old/a.txt']);
-			const savedKeysIn = (get: (key: string) => string | undefined) => ['history.entries.saved', 'history.entries.saved.cleared'].filter(key => get(key) !== undefined);
+			const savedKeysIn = (get: (key: string) => string | undefined) => ['history.entries.saved'].filter(key => get(key) !== undefined);
 			const savedKeys = () => savedKeysIn(key => storageService.get(key, StorageScope.WORKSPACE));
 			historyService!.getHistory(); // load
 			if (inAgentsMode) {
@@ -254,7 +254,7 @@ suite('NativeWorkspaceEditingService - extension host recovery', () => {
 		};
 
 		assert.deepStrictEqual({ fromMode: await enter(true), outsideMode: await enter(false) }, {
-			fromMode: { savedKeysBefore: ['history.entries.saved', 'history.entries.saved.cleared'], history: ['/old/a.txt'], newWorkspaceHistory: ['/old/a.txt'], savedKeysAfter: [], savedKeysLeft: [] },
+			fromMode: { savedKeysBefore: ['history.entries.saved'], history: ['/old/a.txt'], newWorkspaceHistory: ['/old/a.txt'], savedKeysAfter: [], savedKeysLeft: [] },
 			outsideMode: { savedKeysBefore: [], history: ['/old/a.txt'], newWorkspaceHistory: ['/old/a.txt'], savedKeysAfter: [], savedKeysLeft: [] },
 		});
 	});

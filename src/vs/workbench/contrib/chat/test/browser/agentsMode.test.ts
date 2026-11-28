@@ -97,7 +97,7 @@ suite('Agents mode actions', () => {
 		await command.handler(instantiation);
 
 		// The history is saved before entering, as sessions can switch as soon as the mode is entered. Whenever the
-		// window ends up outside the mode, the saved history is restored, which also drops it when nothing cleared it.
+		// window ends up outside the mode, the saved history is restored.
 		const runFailing = async (setActive: (active: boolean) => Promise<void>, isActive: boolean) => {
 			agentsMode.isActive = isActive;
 			agentsMode.setActive = setActive;

@@ -1453,7 +1453,7 @@ suite('HistoryService', function () {
 			return workbenchTeardown(instantiationService);
 		});
 
-		test('a saved history comes back after a clear, also after a restart, and stays as it is without a clear', async () => {
+		test('a saved history comes back as it was saved, with or without a clear, also after a restart', async () => {
 			const { contextService, historyService, instantiationService, open, closeAll, reload } = await createFolderServices(folder);
 
 			// The window's own history, with a list put away for another folder
@@ -1462,7 +1462,7 @@ suite('HistoryService', function () {
 			await closeAll();
 			await open('/worktree/b.txt');
 
-			// Without a clear, restoring keeps what was opened since
+			// Without a clear, what was opened since does not stay
 			historyService.saveRecentlyOpened();
 			await open('/worktree/c.txt');
 			historyService.restoreRecentlyOpened();
@@ -1475,10 +1475,16 @@ suite('HistoryService', function () {
 			historyService.restoreRecentlyOpened();
 			const afterClear = paths(historyService);
 
-			// Restarting in between: the saved history and the clear survive the restart
+			// Restarting in between: the saved history survives the restart, with or without a clear
 			historyService.saveRecentlyOpened();
-			historyService.clearRecentlyOpened({ keepSaved: true });
-			const restarted = reload();
+			let restarted = reload();
+			await open('/worktree/e.txt');
+			restarted.restoreRecentlyOpened();
+			const afterRestartWithoutClear = paths(restarted);
+
+			restarted.saveRecentlyOpened();
+			restarted.clearRecentlyOpened({ keepSaved: true });
+			restarted = reload();
 			restarted.restoreRecentlyOpened();
 			const afterRestart = paths(restarted);
 
@@ -1491,10 +1497,11 @@ suite('HistoryService', function () {
 			restarted.restoreRecentlyOpened();
 			const restoredTwice = paths(restarted);
 
-			assert.deepStrictEqual({ withoutClear, afterClear, afterRestart, restoredTwice, putAway }, {
-				withoutClear: ['/worktree/c.txt', '/worktree/b.txt'],
-				afterClear: ['/worktree/c.txt', '/worktree/b.txt'],
-				afterRestart: ['/worktree/c.txt', '/worktree/b.txt'],
+			assert.deepStrictEqual({ withoutClear, afterClear, afterRestartWithoutClear, afterRestart, restoredTwice, putAway }, {
+				withoutClear: ['/worktree/b.txt'],
+				afterClear: ['/worktree/b.txt'],
+				afterRestartWithoutClear: ['/worktree/b.txt'],
+				afterRestart: ['/worktree/b.txt'],
 				restoredTwice: [],
 				putAway: ['/repo/a.txt'],
 			});
@@ -1532,7 +1539,7 @@ suite('HistoryService', function () {
 		test('leaving Agents mode by entering a workspace restores the history from before the mode before the storage switches, and the entered workspace keeps it across a restart', async () => {
 			const { contextService, historyService, instantiationService, open, closeAll, reload } = await createFolderServices(folder);
 			const storageService = instantiationService.invokeFunction(accessor => accessor.get(IStorageService));
-			const savedKeysIn = (get: (key: string) => string | undefined) => ['history.entries.saved', 'history.entries.saved.cleared'].filter(key => get(key) !== undefined);
+			const savedKeysIn = (get: (key: string) => string | undefined) => ['history.entries.saved'].filter(key => get(key) !== undefined);
 			const savedKeys = () => savedKeysIn(key => storageService.get(key, StorageScope.WORKSPACE));
 
 			// Entering the mode saves the window's history, and switching sessions in it clears it
@@ -1571,7 +1578,7 @@ suite('HistoryService', function () {
 			return workbenchTeardown(instantiationService);
 		});
 
-		test('clearing the history as the user does in the mode keeps only what is opened after the clear on leaving, also after more session switches and across a restart', async () => {
+		test('clearing the history as the user does in the mode leaves an empty history on leaving, also after more session switches and across a restart', async () => {
 			const clearAndRestore = async ({ restart = false, switchAgain = true }: { restart?: boolean; switchAgain?: boolean } = {}) => {
 				const { historyService, instantiationService, open, closeAll, reload } = await createFolderServices(folder);
 				const storageService = instantiationService.invokeFunction(accessor => accessor.get(IStorageService));
@@ -1598,18 +1605,18 @@ suite('HistoryService', function () {
 				restored.restoreRecentlyOpened();
 				const result = {
 					paths: paths(restored),
-					savedKeys: ['history.entries.saved', 'history.entries.saved.cleared'].filter(key => storageService.get(key, StorageScope.WORKSPACE) !== undefined)
+					savedKeys: ['history.entries.saved'].filter(key => storageService.get(key, StorageScope.WORKSPACE) !== undefined)
 				};
 
 				await workbenchTeardown(instantiationService);
 				return result;
 			};
 
-			// The history from before the mode does not come back. Files opened after the clear stay, unless a session switch cleared them.
+			// The history from before the mode does not come back, and nothing opened in the mode stays
 			assert.deepStrictEqual({ onLeave: await clearAndRestore(), afterRestart: await clearAndRestore({ restart: true }), withoutSwitch: await clearAndRestore({ switchAgain: false }) }, {
 				onLeave: { paths: [], savedKeys: [] },
 				afterRestart: { paths: [], savedKeys: [] },
-				withoutSwitch: { paths: ['/repo/b.txt'], savedKeys: [] },
+				withoutSwitch: { paths: [], savedKeys: [] },
 			});
 		});
 

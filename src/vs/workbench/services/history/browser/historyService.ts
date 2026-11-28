@@ -1034,8 +1034,6 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private static readonly HISTORY_FOLDERS_STORAGE_KEY = 'history.entries.folders';
 	private static readonly PUT_AWAY_HISTORY_STORAGE_KEY = 'history.entries.putAway';
 	private static readonly SAVED_HISTORY_STORAGE_KEY = 'history.entries.saved';
-	/** Whether the list was cleared since it was saved. Kept apart, so clearing does not read the saved list. */
-	private static readonly SAVED_HISTORY_CLEARED_STORAGE_KEY = 'history.entries.saved.cleared';
 	private static readonly MAX_PUT_AWAY_FOLDERS = 20;
 
 	private history: Array<EditorInput | IResourceEditorInput> | undefined = undefined;
@@ -1379,19 +1377,10 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// Also clear the lists of the folders that left the window
 		this.putAwayHistory = new Map();
 
-		if (!options?.keepSaved) {
-			// The user cleared the history: the saved list must not bring it back. What the user opens from now on is
-			// the window's own history, which restoring keeps unless a clear with `keepSaved` replaces it again.
-			if (this.storageService.get(HistoryService.SAVED_HISTORY_STORAGE_KEY, StorageScope.WORKSPACE) !== undefined) {
-				const saved: ISerializedSavedHistory = { version: 1, entries: [], putAway: [] };
-				this.storageService.store(HistoryService.SAVED_HISTORY_STORAGE_KEY, JSON.stringify(saved), StorageScope.WORKSPACE, StorageTarget.MACHINE);
-				this.storageService.remove(HistoryService.SAVED_HISTORY_CLEARED_STORAGE_KEY, StorageScope.WORKSPACE);
-			}
-		} else if (
-			this.storageService.get(HistoryService.SAVED_HISTORY_STORAGE_KEY, StorageScope.WORKSPACE) !== undefined &&
-			!this.storageService.getBoolean(HistoryService.SAVED_HISTORY_CLEARED_STORAGE_KEY, StorageScope.WORKSPACE, false)
-		) {
-			this.storageService.store(HistoryService.SAVED_HISTORY_CLEARED_STORAGE_KEY, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		// The user cleared the history: the saved list must not bring it back, so restoring brings back an empty list
+		if (!options?.keepSaved && this.storageService.get(HistoryService.SAVED_HISTORY_STORAGE_KEY, StorageScope.WORKSPACE) !== undefined) {
+			const saved: ISerializedSavedHistory = { version: 1, entries: [], putAway: [] };
+			this.storageService.store(HistoryService.SAVED_HISTORY_STORAGE_KEY, JSON.stringify(saved), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}
 	}
 
@@ -1403,7 +1392,6 @@ export class HistoryService extends Disposable implements IHistoryService {
 		const putAway = [...this.ensurePutAwayHistoryLoaded()].map(([folder, folderEntries]) => ({ folder, entries: this.serializeHistory(folderEntries) }));
 		const saved: ISerializedSavedHistory = { version: 1, entries: this.serializeHistory(entries), putAway };
 		this.storageService.store(HistoryService.SAVED_HISTORY_STORAGE_KEY, JSON.stringify(saved), StorageScope.WORKSPACE, StorageTarget.MACHINE);
-		this.storageService.remove(HistoryService.SAVED_HISTORY_CLEARED_STORAGE_KEY, StorageScope.WORKSPACE);
 	}
 
 	restoreRecentlyOpened(): void {
@@ -1411,12 +1399,11 @@ export class HistoryService extends Disposable implements IHistoryService {
 			return;
 		}
 
-		// Everything is read and checked before the saved list is forgotten
+		// The saved list is read and checked before it is forgotten. It replaces the current list, cleared or not, so
+		// nothing opened since it was saved stays.
 		const saved = this.readSavedHistory();
-		const cleared = this.storageService.getBoolean(HistoryService.SAVED_HISTORY_CLEARED_STORAGE_KEY, StorageScope.WORKSPACE, false);
 		this.storageService.remove(HistoryService.SAVED_HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
-		this.storageService.remove(HistoryService.SAVED_HISTORY_CLEARED_STORAGE_KEY, StorageScope.WORKSPACE);
-		if (!saved || !cleared) {
+		if (!saved) {
 			return;
 		}
 

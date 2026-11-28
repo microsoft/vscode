@@ -74,8 +74,7 @@ export class ToggleAgentsModeAction extends Action2 {
 			}
 		};
 		// Saved before entering, as the mode can switch sessions as soon as it is entered. Whenever the window ends up
-		// outside the mode, also when switching fails after the switch, the saved history comes back, or is dropped
-		// when nothing cleared it.
+		// outside the mode, also when switching fails after the switch, the saved history comes back.
 		if (agentsModeService.isActive) {
 			try {
 				await agentsModeService.setActive(false);
