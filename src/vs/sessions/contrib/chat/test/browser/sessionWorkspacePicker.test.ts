@@ -541,12 +541,11 @@ suite('WorkspacePicker - Workspaces group', () => {
 	const formerProductUri = URI.file('/ws/old-product.code-workspace');
 	const gone: IRecentSessionWorkspace = { uri: URI.file('/ws/gone.code-workspace'), name: 'Gone', folders: [docs], owned: true, missing: true };
 
-	function setupPicker(enabled = true, allowedFolders?: IObservable<readonly URI[]>, quality?: string) {
+	function setupPicker(enabled = true, allowedFolders?: IObservable<readonly URI[]>, quality?: string, workspaces = [product, gone]) {
 		const touched: URI[] = [];
 		const commands: [string, unknown][] = [];
 		const providersService = store.add(new MockSessionsProvidersService());
 		providersService.setProviders([{ ...createMockProvider('local-agent-host', { group: SESSION_WORKSPACE_GROUP_LOCAL }), supportsLocalWorkspaces: true }]);
-		const workspaces = [product, gone];
 		const picker = createTestPicker(store, providersService, undefined, undefined, DispatchingWorkspacePicker, undefined, undefined, undefined, {
 			restoreFromSessions: false,
 			allowedFolders,
@@ -585,6 +584,15 @@ suite('WorkspacePicker - Workspaces group', () => {
 		assert.deepStrictEqual(workspaceRows().map(row => ({ label: row.label, description: row.description, disabled: !!row.disabled, aria: row.item?.ariaLabel, folder: row.item?.folderUri?.path, actions: row.toolbarActions?.map(action => action.id) })), [
 			{ label: 'Product', description: 'app, work/app-lib, other/app-lib', disabled: false, aria: 'Workspace Product, app, work/app-lib, other/app-lib', folder: '/work/app', actions: ['workspacePicker.sessionWorkspace.openInEditor', 'workspacePicker.sessionWorkspace.edit', 'workspacePicker.sessionWorkspace.remove'] },
 			{ label: 'Gone', description: 'Workspace file missing', disabled: false, aria: 'Workspace Gone, Workspace file missing, activate to open Edit Workspace', folder: undefined, actions: ['workspacePicker.sessionWorkspace.edit', 'workspacePicker.sessionWorkspace.remove'] },
+		]);
+	});
+
+	test('offers to open in an editor window only a workspace on this computer', () => {
+		const remote: IRecentSessionWorkspace = { uri: URI.from({ scheme: 'vscode-remote', authority: 'ssh-remote+host', path: '/ws/remote.code-workspace' }), name: 'Remote', folders: [URI.from({ scheme: 'vscode-remote', authority: 'ssh-remote+host', path: '/work/remote' })], owned: true };
+		const { workspaceRows } = setupPicker(true, undefined, undefined, [product, remote]);
+		assert.deepStrictEqual(workspaceRows().map(row => ({ label: row.label, actions: row.toolbarActions?.map(action => action.id) })), [
+			{ label: 'Product', actions: ['workspacePicker.sessionWorkspace.openInEditor', 'workspacePicker.sessionWorkspace.edit', 'workspacePicker.sessionWorkspace.remove'] },
+			{ label: 'Remote', actions: ['workspacePicker.sessionWorkspace.edit', 'workspacePicker.sessionWorkspace.remove'] },
 		]);
 	});
 

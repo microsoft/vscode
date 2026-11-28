@@ -3410,8 +3410,9 @@ export class WorkspacePicker extends Disposable {
 						checked: (!!selectedWorkspaceUri && extUri.isEqual(selectedWorkspaceUri, workspace.uri)) || undefined,
 					},
 				toolbarActions: [
-					// A missing workspace's file can't be opened: it is there to repair or remove
-					...(workspace.missing ? [] : [toAction({
+					// A missing workspace's file can't be opened: it is there to repair or remove; an editor window opens only
+					// a workspace on this computer
+					...(workspace.missing || workspace.uri.scheme !== Schemas.file ? [] : [toAction({
 						id: 'workspacePicker.sessionWorkspace.openInEditor',
 						label: localize('workspacePicker.sessionWorkspace.openInEditor', "Open in Editor Window"),
 						class: ThemeIcon.asClassName(Codicon.window),

@@ -13,7 +13,7 @@ import { extUriIgnorePathCase } from '../../../../../../base/common/resources.js
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IDialogService, IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IListService, ListService } from '../../../../../../platform/list/browser/listService.js';
@@ -480,15 +480,18 @@ suite('SessionWorkspaceEditor', () => {
 		});
 	});
 
-	test('Open in Editor Window opens a workspace file as a workspace and a folder as a folder, in a new window', async () => {
+	test('Open in Editor Window of a row opens a workspace file as a workspace and a folder as a folder, in a new window, through Open in Editor', async () => {
 		const opened: unknown[] = [];
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		// The rows' workspaces are not known to the workspaces service: they open as themselves
+		instantiationService.stub(ISessionWorkspacesService, upcastPartial<ISessionWorkspacesService>({ getWorkspace: () => undefined }));
+		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({ executeCommand: async <R>(id: string, ...args: unknown[]) => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor, ...args)) as R }));
 		instantiationService.stub(IHostService, upcastPartial<IHostService>({
 			openWindow: async (toOpen?: IOpenEmptyWindowOptions | IWindowOpenable[], options?: IOpenWindowOptions) => {
 				opened.push({ toOpen: (Array.isArray(toOpen) ? toOpen : []).map(item => isWorkspaceToOpen(item) ? { workspace: item.workspaceUri.toString(true) } : isFolderToOpen(item) ? { folder: item.folderUri.toString(true) } : item), forceNewWindow: options?.forceNewWindow });
 			},
 		}));
-		const open = (uri: URI) => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('sessionsView.openWorkspaceInEditorWindow')!.handler(accessor, { workspace: { uri, known: true } }));
+		const open = (uri: URI) => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('sessionsView.openWorkspaceInEditorWindow')!.handler(accessor, { workspace: { uri, known: false } }));
 
 		await open(URI.file('/Users/me/AgentsWorkspaces/Agents.code-workspace'));
 		await open(URI.parse('file:///c:/Users/me/Agents.code-workspace'));
@@ -522,21 +525,28 @@ suite('SessionWorkspaceEditor', () => {
 			return opened;
 		};
 
+		const remoteFolder = URI.from({ scheme: 'vscode-remote', authority: 'ssh-remote+host', path: '/work/remote' });
 		assert.deepStrictEqual({
 			file: await open(agents),
 			folder: await open({ ...agents, uri: vscode, folders: [vscode], owned: false }),
 			missingFile: await open({ ...agents, missing: true }),
+			// An editor window opens only a workspace on this computer
+			remoteFile: await open({ ...agents, uri: URI.from({ scheme: 'vscode-remote', authority: 'ssh-remote+host', path: '/ws/remote.code-workspace' }), folders: [remoteFolder] }),
+			remoteFolder: await open({ ...agents, uri: remoteFolder, folders: [remoteFolder], owned: false }),
 		}, {
 			file: [{ toOpen: ['workspace /user/AgentsWorkspaces/Agents.code-workspace'], forceNewWindow: true }],
 			folder: [{ toOpen: ['folder /work/vscode'], forceNewWindow: true }],
 			missingFile: ['info The workspace file of \'Agents\' is missing. Edit the workspace to repair it, or remove it.'],
+			remoteFile: [],
+			remoteFolder: [],
 		});
 	});
 
-	test('Open in Editor offers only workspaces whose file is not missing', async () => {
+	test('Open in Editor offers only workspaces on this computer whose file is not missing', async () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const offered: string[] = [];
-		instantiationService.stub(ISessionWorkspacesService, upcastPartial<ISessionWorkspacesService>({ workspaces: constObservable([agents, { ...agents, uri: URI.file('/work/gone.code-workspace'), name: 'Gone', missing: true }]) }));
+		const remoteFolder = URI.from({ scheme: 'vscode-remote', authority: 'ssh-remote+host', path: '/work/remote' });
+		instantiationService.stub(ISessionWorkspacesService, upcastPartial<ISessionWorkspacesService>({ workspaces: constObservable([agents, { ...agents, uri: URI.file('/work/gone.code-workspace'), name: 'Gone', missing: true }, { ...agents, uri: remoteFolder, folders: [remoteFolder], name: 'Remote', owned: false }]) }));
 		instantiationService.stub(IQuickInputService, upcastPartial<IQuickInputService>({
 			pick: (async (items: readonly IQuickPickItem[]) => {
 				offered.push(...items.map(item => item.label));

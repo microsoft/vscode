@@ -25,6 +25,8 @@ import { CHAT_CATEGORY } from '../../../chat/browser/actions/chatActions.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { hasWorkspaceFileExtension } from '../../../../../platform/workspace/common/workspace.js';
+import { IWindowOpenable } from '../../../../../platform/window/common/window.js';
+import { IExtUri } from '../../../../../base/common/resources.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { Menus } from '../menus.js';
 import { ISessionGroupsService } from '../sessionGroupsService.js';
@@ -138,26 +140,38 @@ registerAction2(class OpenSessionWorkspaceInEditorAction extends SessionWorkspac
 
 	/**
 	 * Opens a new editor window on the workspace's `.code-workspace` file, or on the folder of a workspace that has no
-	 * file. A workspace whose file is missing can't be opened: it is there to repair or remove.
+	 * file; a URI the workspaces service doesn't know, such as a folder's row, opens as itself. A workspace whose file is
+	 * missing can't be opened: it is there to repair or remove. An editor window opens only what is on this computer.
 	 */
 	override async run(accessor: ServicesAccessor, uri?: URI): Promise<void> {
 		const hostService = accessor.get(IHostService);
 		const notificationService = accessor.get(INotificationService);
 		const extUri = accessor.get(IUriIdentityService).extUri;
-		const workspace = await this.resolveWorkspace(uri, localize('openWorkspaceInEditor.pick', "Select a workspace to open in an editor window"), accessor.get(ISessionWorkspacesService), accessor.get(ILabelService), accessor.get(IQuickInputService), candidate => !candidate.missing);
-		if (!workspace) {
-			return;
-		}
-		if (workspace.missing) {
+		const workspace = await this.resolveWorkspace(uri, localize('openWorkspaceInEditor.pick', "Select a workspace to open in an editor window"), accessor.get(ISessionWorkspacesService), accessor.get(ILabelService), accessor.get(IQuickInputService), candidate => !candidate.missing && !!this._getWindowToOpen(extUri, candidate));
+		if (workspace?.missing) {
 			notificationService.info(localize('openWorkspaceInEditor.missing', "The workspace file of '{0}' is missing. Edit the workspace to repair it, or remove it.", workspace.name));
 			return;
 		}
-		if (SessionWorkspaceEditorInput.hasWorkspaceFile(extUri, workspace)) {
-			await hostService.openWindow([{ workspaceUri: workspace.uri }], { forceNewWindow: true });
-		} else if (workspace.folders.length) {
-			// Without a file, the workspace is a standalone folder
-			await hostService.openWindow([{ folderUri: workspace.folders[0] }], { forceNewWindow: true });
+		const toOpen = workspace ? this._getWindowToOpen(extUri, workspace) : URI.isUri(uri) ? this._getWindowToOpenOfUri(uri) : undefined;
+		if (toOpen) {
+			await hostService.openWindow([toOpen], { forceNewWindow: true });
 		}
+	}
+
+	/** The workspace file of the workspace, else its standalone folder; `undefined` when it is not on this computer. */
+	private _getWindowToOpen(extUri: IExtUri, workspace: IRecentSessionWorkspace): IWindowOpenable | undefined {
+		if (SessionWorkspaceEditorInput.hasWorkspaceFile(extUri, workspace)) {
+			return this._getWindowToOpenOfUri(workspace.uri);
+		}
+		return workspace.folders.length ? this._getWindowToOpenOfUri(workspace.folders[0]) : undefined;
+	}
+
+	/** A `.code-workspace` file as a workspace, anything else as a folder; `undefined` when it is not on this computer. */
+	private _getWindowToOpenOfUri(uri: URI): IWindowOpenable | undefined {
+		if (uri.scheme !== Schemas.file) {
+			return undefined;
+		}
+		return hasWorkspaceFileExtension(uri) ? { workspaceUri: uri } : { folderUri: uri };
 	}
 });
 
@@ -261,13 +275,9 @@ registerAction2(class OpenWorkspaceRowInEditorWindowAction extends SessionWorksp
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, section?: ISessionSection): Promise<void> {
+	override run(accessor: ServicesAccessor, section?: ISessionSection): Promise<void> | undefined {
 		const workspace = this.getRowWorkspace(section);
-		if (!workspace || workspace.uri.scheme !== Schemas.file) {
-			return;
-		}
-		const toOpen = hasWorkspaceFileExtension(workspace.uri) ? { workspaceUri: workspace.uri } : { folderUri: workspace.uri };
-		await accessor.get(IHostService).openWindow([toOpen], { forceNewWindow: true });
+		return workspace ? accessor.get(ICommandService).executeCommand(OPEN_SESSION_WORKSPACE_IN_EDITOR_COMMAND_ID, workspace.uri) : undefined;
 	}
 });
 
