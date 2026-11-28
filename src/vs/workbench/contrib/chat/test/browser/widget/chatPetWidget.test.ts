@@ -2251,10 +2251,13 @@ suite('ChatPetWidget', () => {
 		const resetSizeAction = contextMenuDelegate.getActions().find(action => action.id === 'chat.pet.resetSize');
 		assert.ok(resetSizeAction);
 		const enabledBeforeReset = resetSizeAction.enabled;
+		assert.strictEqual(contextMenuDelegate.getActions().find(action => action.id === 'chat.pet.grow')?.enabled, false);
+		assert.strictEqual(button.style.height, '96px');
 		await resetSizeAction.run();
 		button.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
 		assert.ok(contextMenuDelegate);
 		const resetSizeActionAtDefault = contextMenuDelegate.getActions().find(action => action.id === 'chat.pet.resetSize');
+		assert.strictEqual(contextMenuDelegate.getActions().find(action => action.id === 'chat.pet.grow')?.enabled, true);
 
 		assert.deepStrictEqual({
 			label: resetSizeAction.label,
@@ -3414,6 +3417,23 @@ suite('ChatPetWidget', () => {
 		});
 	});
 
+	for (const [scale, expectedScale] of [[10, 2], [0.2, 0.4]]) {
+		test(`clamps pet scale ${scale} when restored, synchronized, and updated`, () => {
+			const storageService = disposables.add(new TestStorageService());
+			storageService.store('chat.vscodePet.scale', scale, StorageScope.APPLICATION, StorageTarget.USER);
+			const service = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
+			assert.strictEqual(service.scale.get(), expectedScale);
+
+			service.resetScale();
+			storageService.store('chat.vscodePet.scale', scale, StorageScope.APPLICATION, StorageTarget.USER);
+			assert.strictEqual(service.scale.get(), expectedScale);
+
+			service.setScale(scale);
+			assert.strictEqual(service.scale.get(), expectedScale);
+			assert.strictEqual(storageService.get('chat.vscodePet.scale', StorageScope.APPLICATION), String(expectedScale));
+		});
+	}
+
 	test('reads legacy proportional pet positions and migrates them when anchored', () => {
 		const storageService = disposables.add(new TestStorageService());
 		storageService.store('chat.vscodePet.horizontalPosition', 0.3, StorageScope.APPLICATION, StorageTarget.MACHINE);
@@ -4564,17 +4584,21 @@ suite('ChatPetWidget', () => {
 		]);
 	});
 
-	test('changes size in twenty-percent steps with only a minimum', () => {
+	test('changes size in twenty-percent steps within minimum and maximum bounds', () => {
 		assert.deepStrictEqual([
 			getChatPetScale(1, 0.2),
 			getChatPetScale(1, -0.2),
 			getChatPetScale(0.4, -0.2),
+			getChatPetScale(1.8, 0.2),
+			getChatPetScale(2, 0.2),
 			getChatPetScale(10, 0.2),
 		], [
 			1.2,
 			0.8,
 			0.4,
-			10.2,
+			2,
+			2,
+			2,
 		]);
 	});
 

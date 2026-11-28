@@ -56,6 +56,8 @@ const CHAT_PET_LOCAL_ACHIEVEMENT_MIGRATION_VERSION = 1;
 const CHAT_PET_SCALE_STORAGE_KEY = 'chat.vscodePet.scale';
 const CHAT_PET_HORIZONTAL_POSITION_STORAGE_KEY = 'chat.vscodePet.horizontalPosition';
 export const CHAT_PET_DEFAULT_SCALE = 1;
+export const CHAT_PET_MIN_SCALE = 0.4;
+export const CHAT_PET_MAX_SCALE = 2;
 
 export const ChatPetContextKeys = {
 	enabled: new RawContextKey<boolean>('chatPetEnabled', false, localize('chatPet.context.enabled', "Whether the VS Code pet is enabled")),
@@ -82,7 +84,7 @@ export function getChatPetVariant(configuredVariant: string | undefined, product
 
 function getChatPetScale(storedScale: string | undefined): number {
 	const scale = storedScale === undefined ? Number.NaN : Number.parseFloat(storedScale);
-	return Number.isFinite(scale) && scale > 0 ? scale : CHAT_PET_DEFAULT_SCALE;
+	return Number.isFinite(scale) && scale > 0 ? Math.min(CHAT_PET_MAX_SCALE, Math.max(CHAT_PET_MIN_SCALE, scale)) : CHAT_PET_DEFAULT_SCALE;
 }
 
 function getChatPetHorizontalPosition(storedPosition: string | undefined): ChatPetHorizontalPosition | undefined {
@@ -309,6 +311,7 @@ export class ChatPetService extends Disposable implements IChatPetService {
 	}
 
 	setScale(scale: number): void {
+		scale = Math.min(CHAT_PET_MAX_SCALE, Math.max(CHAT_PET_MIN_SCALE, scale));
 		this._scale.set(scale, undefined);
 		this.storageService.store(CHAT_PET_SCALE_STORAGE_KEY, scale, StorageScope.APPLICATION, StorageTarget.USER);
 	}

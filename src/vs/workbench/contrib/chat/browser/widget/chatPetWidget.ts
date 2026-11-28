@@ -29,7 +29,7 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { ChatPetJumpGameModel } from '../../common/chatPetJumpGame.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID, ChatPetAccessoryId, getChatPetAccessory, getChatPetAchievement } from '../chatPetAchievements.js';
-import { CHAT_PET_DEFAULT_SCALE, ChatPetHorizontalAnchor, ChatPetHorizontalPosition, ChatPetVariant, IChatPetService } from '../chatPetService.js';
+import { CHAT_PET_DEFAULT_SCALE, CHAT_PET_MAX_SCALE, CHAT_PET_MIN_SCALE, ChatPetHorizontalAnchor, ChatPetHorizontalPosition, ChatPetVariant, IChatPetService } from '../chatPetService.js';
 import { CHAT_PET_CHANGE_COLOR_COMMAND_ID, ChatPetColor, getChatPetBodyColor, getChatPetColoredSprite, getChatPetColorVariant, getChatPetEyeColor, setChatPetImageSource } from '../chatPetColors.js';
 import { drawChatPetComposite, drawChatPetEyeAccessory, drawChatPetPropeller, getChatPetAccessoryImageSource, getChatPetPropellerBounds, hasChatPetAccessoryImageDimensions, hasChatPetBodyImageDimensions, IChatPetAccessoryImageSource, IChatPetFixedOrientationDecoration } from './chatPetAccessoryRenderer.js';
 import { getChatPetAccessoryRigFrame, getChatPetReducedMotionRigFrame } from './chatPetAccessoryRig.js';
@@ -157,7 +157,6 @@ const CHAT_PET_SING_SOURCE_HEIGHT = 124;
 const CHAT_PET_DIZZY_SOURCE_HEIGHT = 128;
 const CHAT_PET_MAX_VERTICAL_OFFSET = 10;
 const CHAT_PET_DEFAULT_RIGHT_INSET = 32;
-const CHAT_PET_MIN_SCALE = 0.4;
 const CHAT_PET_SCALE_STEP = 0.2;
 const CHAT_PET_SPEECH_BUBBLE_RIGHT_OVERHANG = 20;
 /** Source bounds `[left, top, right, bottom]` of the dots, which are horizontally centered in the speech bubble. */
@@ -894,7 +893,7 @@ export function getChatPetAnchoredHorizontalPosition(anchor: ChatPetHorizontalAn
 }
 
 export function getChatPetScale(scale: number, delta: number): number {
-	return Math.max(CHAT_PET_MIN_SCALE, Math.round((scale + delta) * 10) / 10);
+	return Math.min(CHAT_PET_MAX_SCALE, Math.max(CHAT_PET_MIN_SCALE, Math.round((scale + delta) * 10) / 10));
 }
 
 export function getChatPetDragPosition(left: number, top: number, minimumLeft: number, maximumLeft: number, minimumTop: number, maximumTop: number): readonly [number, number] {
@@ -2798,7 +2797,7 @@ export class ChatPetWidget extends Disposable {
 			true,
 			() => this.commandService.executeCommand(CHAT_PET_CHANGE_COLOR_COMMAND_ID),
 		));
-		const grow = actions.add(new Action('chat.pet.grow', localize('chatPet.grow.action', "Grow"), undefined, true, () => {
+		const grow = actions.add(new Action('chat.pet.grow', localize('chatPet.grow.action', "Grow"), undefined, this._scale < CHAT_PET_MAX_SCALE, () => {
 			const scale = getChatPetScale(this._scale, CHAT_PET_SCALE_STEP);
 			this.chatPetService.setScale(scale);
 			status(localize('chatPet.grew', "VS Code pet size: {0} percent", Math.round(scale * 100)));
