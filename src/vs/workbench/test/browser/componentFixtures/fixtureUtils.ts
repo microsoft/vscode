@@ -799,6 +799,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		removeFeedback: () => { },
 		updateFeedback: () => { },
 		updateFeedbackSourcePullRequest: () => { },
+		applyPRReviewFeedbackChanges: () => { },
 		acceptFeedback: () => { },
 		addReply: () => { },
 		getFeedback: () => [],
