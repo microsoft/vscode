@@ -94,7 +94,7 @@ import { WindowCanvasInput, IWindowCanvasService } from '../../../../../workbenc
 import { ITestSessionsService, ITestSessionWithChat, ITestShownChat, stubMissingSessionHostsFromSessionsService, stubPaneHost, testGridPane, testGridPanes, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionGridPane, SessionGridPaneKind } from '../../../../../workbench/services/sessions/browser/sessionGridPane.js';
 import '../../browser/views/sessionsViewActions.js';
-import { renderSessionsHeader } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { ISessionsHeaderElements, renderSessionsHeader, SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 
 suite('Sessions - Actions', () => {
 
@@ -2169,11 +2169,12 @@ suite('Sessions - Actions', () => {
 		});
 	});
 
-	test('sessions header fits its actions by their widths: the New split button hides its keybinding first, then the other actions move into the overflow menu from the end, and New last', async () => {
+	test('sessions header fits its actions by their widths: the New split button hides its keybinding first, then the other actions move into the overflow menu from the end, and New last; the row gives its label the width left', async () => {
 		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
 		instantiationService.stub(ICommandService, new TestCommandService());
 		instantiationService.stub(IMenuService, disposables.add(instantiationService.createInstance(MenuService)));
 		const twoChords = new USLayoutResolvedKeybinding([new KeyCodeChord(true, false, false, false, KeyCode.KeyK), new KeyCodeChord(true, false, false, false, KeyCode.KeyN)], OperatingSystem.Linux);
+		const oneChord = new USLayoutResolvedKeybinding([new KeyCodeChord(true, false, false, false, KeyCode.KeyN)], OperatingSystem.Linux);
 		let newSessionKeybinding: USLayoutResolvedKeybinding | undefined = twoChords;
 		const onDidUpdateKeybindings = disposables.add(new Emitter<void>());
 		instantiationService.stub(IKeybindingService, new class extends MockKeybindingService {
@@ -2199,8 +2200,16 @@ suite('Sessions - Actions', () => {
 		disposables.add(toDisposable(() => pane.remove()));
 		// The height of the row as in the workbench, so that it does not follow its content
 		pane.style.setProperty('--vscode-spacing-size320', '32px');
+		// The row gives its label the width the actions leave, as the view does
+		const updateHeaderLayout = Reflect.get(SessionsView.prototype, 'updateHeaderLayout') as (this: { readonly sessionsHeaders: ReadonlySet<ISessionsHeaderElements>; readonly layoutService: { readonly mainContainer: HTMLElement }; readonly isFindWidgetOpen: boolean }) => void;
+		const sessionsHeaders = new Set<ISessionsHeaderElements>();
 		let fitChanges = 0;
-		const { row } = renderSessionsHeader(pane, false, instantiationService, contextKeyService, disposables.add(new DisposableStore()), undefined, undefined, () => fitChanges++);
+		const header = renderSessionsHeader(pane, false, instantiationService, contextKeyService, disposables.add(new DisposableStore()), undefined, undefined, () => {
+			fitChanges++;
+			updateHeaderLayout.call({ sessionsHeaders, layoutService: { mainContainer: mainWindow.document.createElement('div') }, isFindWidgetOpen: false });
+		});
+		sessionsHeaders.add(header);
+		const { row, label } = header;
 		const actions = row.querySelector<HTMLElement>('.agent-sessions-header-actions')!;
 		const shown = () => [...actions.querySelectorAll<HTMLElement>('.actions-container > .action-item')].filter(item => item.style.display !== 'none').map(item => item.querySelector('.action-label')?.getAttribute('aria-label'));
 		const fitAt = async (width: number) => {
@@ -2212,11 +2221,8 @@ suite('Sessions - Actions', () => {
 		await fitAt(1000);
 		const all = shown();
 		const widthWithKeybinding = Math.ceil(actions.getBoundingClientRect().width);
-		const fitChangesAtFirstFit = fitChanges;
 		const withKeybinding = await fitAt(widthWithKeybinding + 1);
-		const fitChangesWithKeybinding = fitChanges;
 		const justNarrower = await fitAt(widthWithKeybinding - 1);
-		const fitChangesJustNarrower = fitChanges;
 		newSessionKeybinding = undefined;
 		onDidUpdateKeybindings.fire();
 		const withoutKeybinding = await fitAt(widthWithKeybinding - 1);
@@ -2228,7 +2234,19 @@ suite('Sessions - Actions', () => {
 		}));
 		const narrowest = await fitAt(60);
 
-		assert.deepStrictEqual({ all, withKeybinding, justNarrower, withoutKeybinding, narrow, narrowest, fitChanges: [fitChangesAtFirstFit, fitChangesWithKeybinding, fitChangesJustNarrower] }, {
+		// At a fixed width that leaves the label too little room with the long keybinding, a shorter keybinding gives it room
+		// without hiding the keybinding or overflowing actions
+		const labelAt = async (keybinding: USLayoutResolvedKeybinding) => {
+			const fitChangesBefore = fitChanges;
+			newSessionKeybinding = keybinding;
+			onDidUpdateKeybindings.fire();
+			await timeout(50);
+			return { compact: row.classList.contains('compact-new-button'), overflows: shown().length !== all.length, labelShown: label.style.display !== 'none', fitChanges: fitChanges - fitChangesBefore };
+		};
+		await fitAt(widthWithKeybinding + 4);
+		const labels = [{ compact: row.classList.contains('compact-new-button'), overflows: shown().length !== all.length, labelShown: label.style.display !== 'none' }, await labelAt(oneChord), await labelAt(oneChord), await labelAt(twoChords)];
+
+		assert.deepStrictEqual({ all, withKeybinding, justNarrower, withoutKeybinding, narrow, narrowest, labels }, {
 			all: ['New Session (Control+K Control+N)', 'first', 'second', 'third', 'Filter Sessions', 'Find Session'],
 			withKeybinding: { compact: false, shown: all, fits: true },
 			// Hiding the keybinding is enough for all actions to fit
@@ -2241,8 +2259,13 @@ suite('Sessions - Actions', () => {
 			],
 			// New moves into the overflow menu last
 			narrowest: { compact: false, shown: ['More Actions...'], fits: true },
-			// The row hears of the first fit, and of a fit only when it hides or shows the keybinding or overflows actions, so it can give its label the width left
-			fitChanges: [1, 1, 2],
+			// The row hears of each fit that changes the width left for its label, once
+			labels: [
+				{ compact: false, overflows: false, labelShown: false },
+				{ compact: false, overflows: false, labelShown: true, fitChanges: 1 },
+				{ compact: false, overflows: false, labelShown: true, fitChanges: 0 },
+				{ compact: false, overflows: false, labelShown: false, fitChanges: 1 },
+			],
 		});
 	});
 

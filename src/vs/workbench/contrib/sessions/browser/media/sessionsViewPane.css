@@ -249,7 +249,7 @@
 	}
 
 	/* "New" split button in header — styled in newSplitButton/media/newSplitButton.css, as in the Chat view's sessions list.
-	It hides its keybinding in a narrow header row (agent-sessions-header-row container below). */
+	It hides its keybinding in a narrow header row (compact-new-button below). */
 
 	.agent-sessions-control-container {
 		flex: 1;

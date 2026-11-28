@@ -462,14 +462,14 @@ class SessionsHeaderActionsFit {
 	/** The width the New split button needs without its keybinding, kept for while it is in the overflow menu. */
 	private compactNewButtonWidth: number | undefined;
 
-	/** Whether the New split button hid its keybinding and whether actions moved into the overflow menu, as of the last fit. */
-	private lastFit: { compact: boolean; overflowed: boolean } | undefined;
+	/** The width the actions left for the rest of the row, as of the last fit. */
+	private lastRemainingWidth: number | undefined;
 
 	readonly responsiveBehavior: IToolBarResponsiveBehaviorOptions;
 
 	/**
-	 * @param onDidChangeFit Called when a fit hides or shows the keybinding of the New split button or moves actions into or
-	 * out of the overflow menu, which changes the width left for the rest of the row.
+	 * @param onDidChangeFit Called when a fit changes the width the actions leave for the rest of the row, such as when the
+	 * New split button hides or shows its keybinding, its keybinding changes, or actions move into or out of the overflow menu.
 	 */
 	constructor(
 		private readonly row: HTMLElement,
@@ -534,9 +534,9 @@ class SessionsHeaderActionsFit {
 		const overflowed = toolbar.hasOverflowedPrimaryActions();
 		const compact = !!newButton && (overflowed || this.getWidthWithKeybinding(newButton) > this.getAvailableWidth());
 		this.row.classList.toggle(SessionsHeaderActionsFit.COMPACT_NEW_BUTTON_CLASS, compact);
-		const lastFit = this.lastFit;
-		this.lastFit = { compact, overflowed };
-		if (!lastFit || lastFit.compact !== compact || lastFit.overflowed !== overflowed) {
+		const remainingWidth = Math.floor(this.getAvailableWidth()) - toolbar.getElement().offsetWidth;
+		if (remainingWidth !== this.lastRemainingWidth) {
+			this.lastRemainingWidth = remainingWidth;
 			this.onDidChangeFit?.();
 		}
 	}
