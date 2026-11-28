@@ -5,14 +5,21 @@
 
 import * as assert from 'assert';
 import * as sinon from 'sinon';
+import { isIP } from 'net';
+import { Duplex } from 'stream';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Event } from '../../../../base/common/event.js';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { upcastDeepPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
+import { ConfigurationTarget } from '../../../configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../networkFilter/common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../../networkFilter/common/settings.js';
+import { ITunnelStream } from '../../../tunnel/node/tunnelStream.js';
 import { isURLDomainTrusted } from '../../../url/common/trustedDomains.js';
 import { AXNode } from '../../electron-main/cdpAccessibilityDomain.js';
 import { WebPageLoader } from '../../electron-main/webPageLoader.js';
@@ -51,6 +58,10 @@ class MockWebContents {
 			onBeforeSendHeaders: sinon.stub(),
 			onHeadersReceived: sinon.stub()
 		},
+		resolveHost: sinon.stub(),
+		setProxy: sinon.stub().resolves(),
+		closeAllConnections: sinon.stub().resolves(),
+		setCertificateVerifyProc: sinon.stub(),
 		on: sinon.stub()
 	};
 
@@ -145,6 +156,7 @@ suite('WebPageLoader', () => {
 			onDidChange: Event.None,
 			isEnabled: () => true,
 			isUriAllowed: isDomainAllowed ?? (() => true),
+			getDeniedIpAddresses: () => [],
 			formatError: (u) => `Access to ${u.authority} is blocked by network domain policy.`,
 		};
 		const loader = new WebPageLoader((options) => {
@@ -154,6 +166,124 @@ suite('WebPageLoader', () => {
 		}, new NullLogService(), uri, options, isTrustedDomain ?? (() => false), agentNetworkFilterService);
 		disposables.add(loader);
 		return loader;
+	}
+
+	function createAddressFilteredLoader(options: {
+		resolve?: (host: string) => Promise<string[]>;
+		resolveProxy?: (url: string) => Promise<string>;
+		allowed?: string[];
+		denied?: string[];
+		enabled?: boolean;
+	} = {}) {
+		const configuration = new TestConfigurationService();
+		configuration.setUserConfiguration(AgentNetworkDomainSettingId.NetworkFilter, options.enabled ?? true);
+		configuration.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, options.allowed ?? []);
+		configuration.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, options.denied ?? ['localhost', '127.0.0.1', '[::1]', '169.254.169.254']);
+		const filter = disposables.add(new AgentNetworkFilterService(configuration));
+		const connections: { requestedHost: string; address: string; port: number; hostHeader: string; path: string }[] = [];
+		let proxyUrl: URL | undefined;
+
+		const connect = async (host: string, port: number): Promise<ITunnelStream> => {
+			const address = isIP(host) ? host : host.includes('169.254.169.254') ? '169.254.169.254' : '127.0.0.1';
+			const connection = { requestedHost: host, address, port, hostHeader: '', path: '' };
+			connections.push(connection);
+			let received = '';
+			const stream = new Duplex({
+				read() { },
+				write(chunk: Buffer, _encoding, callback) {
+					received += chunk.toString();
+					if (received.includes('\r\n\r\n')) {
+						connection.path = received.split('\r\n')[0].split(' ')[1];
+						connection.hostHeader = /^host: (?<host>[^\r\n]+)/im.exec(received)?.groups?.host ?? '';
+						const body = ['127.0.0.1', '169.254.169.254'].includes(connection.address) ? 'DENIED DESTINATION' : 'ALLOWED DESTINATION';
+						stream.push(`HTTP/1.1 200 OK\r\nContent-Length: ${body.length}\r\nConnection: close\r\n\r\n${body}`);
+						stream.push(null);
+					}
+					callback();
+				},
+			});
+			disposables.add(toDisposable(() => stream.destroy()));
+			return { stream, leftover: VSBuffer.alloc(0) };
+		};
+
+		const loader = disposables.add(new WebPageLoader(
+			browserOptions => {
+				window = new MockBrowserWindow(browserOptions);
+				window.webContents.session.resolveHost.callsFake(async (host: string) => ({
+					endpoints: (await (options.resolve ?? (async () => ['127.0.0.1']))(host)).map(address => ({
+						address,
+						family: isIP(address) === 6 ? 'ipv6' : 'ipv4',
+					})),
+				}));
+				window.webContents.session.setProxy.callsFake(async (config: Electron.ProxyConfig) => {
+					proxyUrl = config.proxyRules ? new URL(config.proxyRules) : undefined;
+				});
+				return upcastDeepPartial<Electron.BrowserWindow>({
+					webContents: window.webContents,
+					destroy: () => window.destroy(),
+					loadURL: (url: string) => window.loadURL(url),
+				});
+			},
+			disposables.add(new NullLogService()),
+			URI.parse('http://allowed.example/page'),
+			undefined,
+			() => true,
+			filter,
+			{ resolveProxy: options.resolveProxy ?? (async () => 'DIRECT'), connect },
+		));
+		const targetWindow = window;
+		const listener: (details: Pick<Electron.OnBeforeRequestListenerDetails, 'url' | 'resourceType'>, callback: (response: Electron.CallbackResponse) => void) => void =
+			targetWindow.webContents.session.webRequest.onBeforeRequest.firstCall.args[0];
+
+		return {
+			loader,
+			configuration,
+			connections,
+			window: targetWindow,
+			async request(url: string): Promise<{ cancelled: boolean; body?: string }> {
+				const response = await new Promise<Electron.CallbackResponse>(resolve => listener({ url, resourceType: 'subFrame' }, resolve));
+				if (response.cancel) {
+					return { cancelled: true };
+				}
+				const target = new URL(url);
+				if (!proxyUrl) {
+					const { stream } = await connect(target.hostname, Number(target.port) || 80);
+					const body = new Promise<string>((resolve, reject) => {
+						let data = '';
+						stream.on('data', chunk => { data += chunk.toString(); });
+						stream.on('end', () => resolve(data.slice(data.indexOf('\r\n\r\n') + 4)));
+						stream.on('error', reject);
+					});
+					stream.write(`GET ${target.pathname}${target.search} HTTP/1.1\r\nHost: ${target.host}\r\n\r\n`);
+					return { cancelled: false, body: await body };
+				}
+
+				let credentials: { username: string; password: string } | undefined;
+				targetWindow.webContents.emit('login', { preventDefault() { } }, {}, {
+					isProxy: true, host: proxyUrl.hostname, port: Number(proxyUrl.port),
+				}, (username: string, password: string) => { credentials = { username, password }; });
+				assert.ok(credentials, 'The browser must authenticate only to its own filtering proxy');
+				const authorization = Buffer.from(`${credentials.username}:${credentials.password}`).toString('base64');
+				const { request } = await import('https');
+				const body = await new Promise<string>((resolve, reject) => {
+					const req = request(proxyUrl!, {
+						path: url,
+						headers: { Host: target.host, 'Proxy-Authorization': `Basic ${authorization}` },
+						rejectUnauthorized: false,
+						agent: false,
+					}, res => {
+						let data = '';
+						res.on('data', chunk => { data += chunk.toString(); });
+						res.on('end', () => resolve(data));
+						res.on('error', reject);
+					});
+					req.on('error', reject);
+					req.setTimeout(3000, () => req.destroy(new Error('Filtering proxy request timed out')));
+					req.end();
+				});
+				return { cancelled: false, body };
+			},
+		};
 	}
 
 	function createMockAXNodes(): AXNode[] {
@@ -668,6 +798,107 @@ suite('WebPageLoader', () => {
 		}, {
 			denied: { cancel: true },
 			allowed: { cancel: false },
+		});
+	});
+
+	test('blocks reported DNS aliases before the destination receives a request', async () => {
+		const fixture = createAddressFilteredLoader({
+			resolve: async host => [host === 'ipv6-alias.example.test' ? '::1'
+				: host === 'mapped-alias.example.test' ? '::ffff:127.0.0.1'
+					: host.includes('169.254.169.254') ? '169.254.169.254' : '127.0.0.1'],
+		});
+		const urls = [
+			'http://127.0.0.1:8080/',
+			'http://localhost:8080/',
+			'http://localhost:8971/prodpath-control-localhost',
+			'http://127.0.0.1:8971/prodpath-control-127',
+			'http://169.254.169.254/',
+			'http://127.0.0.1.nip.io:8080/',
+			'http://169.254.169.254.nip.io/',
+			'http://ssrf.127.0.0.1.nip.io:8080/',
+			'http://metadata.169.254.169.254.nip.io/latest/meta-data/',
+			'http://metadata.169.254.169.254.nip.io/latest/meta-data/iam/security-credentials/',
+			'http://localtest.me/',
+			'http://127-0-0-1.nip.io:8971/prodpath-alias-nip-dash',
+			'http://127.0.0.1.sslip.io/',
+			'http://arbitrary-alias.example.test/',
+			'http://ipv6-alias.example.test/',
+			'http://mapped-alias.example.test/',
+		];
+		const results = [];
+		for (const url of urls) {
+			results.push(await fixture.request(url));
+		}
+		assert.deepStrictEqual({ results, connections: fixture.connections }, {
+			results: urls.map(() => ({ cancelled: true })),
+			connections: [],
+		});
+	});
+
+	test('pins an allowed connection address without changing the requested origin', async () => {
+		const fixture = createAddressFilteredLoader({
+			allowed: ['allowed.example'],
+			resolve: async () => ['127.0.0.2'],
+		});
+		const result = await fixture.request('http://allowed.example:8080/original?query=1');
+		assert.deepStrictEqual({ result, connections: fixture.connections }, {
+			result: { cancelled: false, body: 'ALLOWED DESTINATION' },
+			connections: [{
+				requestedHost: '127.0.0.2',
+				address: '127.0.0.2',
+				port: 8080,
+				hostHeader: 'allowed.example:8080',
+				path: '/original?query=1',
+			}],
+		});
+	});
+
+	test('fails closed on unavailable address enforcement without changing hostname-only or disabled policies', async () => {
+		const results = [];
+		for (const options of [
+			{ resolveProxy: async () => 'PROXY proxy.example:8080' },
+			{ resolve: async () => [] },
+			{ resolve: async () => { throw new Error('test resolver failure'); } },
+			{ resolve: async () => ['not-an-address'] },
+			{ denied: ['blocked.example'], resolveProxy: async () => 'PROXY proxy.example:8080' },
+			{ enabled: false, resolveProxy: async () => 'PROXY proxy.example:8080' },
+		]) {
+			const fixture = createAddressFilteredLoader({ resolve: async () => ['127.0.0.2'], ...options });
+			const result = await fixture.request('http://allowed.example:8080/');
+			results.push({
+				cancelled: result.cancelled,
+				connections: fixture.connections.length,
+				proxyChanged: fixture.window.webContents.session.setProxy.called,
+			});
+		}
+		assert.deepStrictEqual(results, [
+			{ cancelled: true, connections: 0, proxyChanged: false },
+			{ cancelled: true, connections: 0, proxyChanged: false },
+			{ cancelled: true, connections: 0, proxyChanged: false },
+			{ cancelled: true, connections: 0, proxyChanged: false },
+			{ cancelled: false, connections: 1, proxyChanged: false },
+			{ cancelled: false, connections: 1, proxyChanged: false },
+		]);
+	});
+
+	test('rechecks denied addresses after policy changes instead of reusing an approved connection', async () => {
+		const fixture = createAddressFilteredLoader({ resolve: async () => ['127.0.0.2'] });
+		const before = await fixture.request('http://allowed.example:8080/before');
+		fixture.configuration.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['127.0.0.1', '127.0.0.2']);
+		fixture.configuration.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([AgentNetworkDomainSettingId.DeniedNetworkDomains]),
+			change: { keys: [AgentNetworkDomainSettingId.DeniedNetworkDomains], overrides: [] },
+			affectsConfiguration: key => key === AgentNetworkDomainSettingId.DeniedNetworkDomains,
+		});
+		const after = await fixture.request('http://allowed.example:8080/after');
+		assert.deepStrictEqual({
+			before, after,
+			destinations: fixture.connections.map(connection => connection.address),
+		}, {
+			before: { cancelled: false, body: 'ALLOWED DESTINATION' },
+			after: { cancelled: true },
+			destinations: ['127.0.0.2'],
 		});
 	});
 

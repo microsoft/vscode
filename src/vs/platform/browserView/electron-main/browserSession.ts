@@ -23,8 +23,12 @@ import { authorizeRemoteFilePath, type IRemoteFileAccess } from './browserSessio
 import { FileAccess, Schemas } from '../../../base/common/network.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { localize } from '../../../nls.js';
-import { IAgentNetworkFilterService } from '../../networkFilter/common/networkFilterService.js';
+import { IAgentNetworkFilterService, isFilteredNetworkScheme } from '../../networkFilter/common/networkFilterService.js';
 import { ISandboxNetworkRestrictions } from '../../sandbox/common/sandboxSettingsResolutionHelper.js';
+import { Disposable, IDisposable, ReferenceCollection } from '../../../base/common/lifecycle.js';
+import { ILogService } from '../../log/common/log.js';
+import { AgentNetworkFilterSession, IAgentNetworkFilterSessionOptions } from '../../networkFilter/electron-main/networkFilterSession.js';
+import { ITunnelProxyInfo } from '../../tunnel/common/tunnelProxy.js';
 
 /**
  * Holds an Electron session along with its storage scope and unique browser
@@ -294,6 +298,8 @@ export class BrowserSession {
 	private readonly _permissions: BrowserSessionPermissions;
 	private _networkFilterEnabled = false;
 	private _sandboxNetworkRestrictions?: ISandboxNetworkRestrictions;
+	private _networkFilter: AgentNetworkFilterSession | undefined;
+	private readonly _networkFilterReferences: ReferenceCollection<AgentNetworkFilterSession>;
 	sandboxSessionId?: string;
 
 	setSandboxNetworkRestrictions(sessionId: string, restrictions: ISandboxNetworkRestrictions): void {
@@ -327,7 +333,22 @@ export class BrowserSession {
 		@IAgentNetworkFilterService private readonly agentNetworkFilterService: IAgentNetworkFilterService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
+		@ILogService private readonly logService: ILogService,
 	) {
+		const owner = this;
+		this._networkFilterReferences = new class extends ReferenceCollection<AgentNetworkFilterSession> {
+			protected createReferencedObject(_key: string, options?: IAgentNetworkFilterSessionOptions): AgentNetworkFilterSession {
+				return owner._networkFilter = new AgentNetworkFilterSession(electronSession, {
+					...options,
+					getRestrictions: () => owner._sandboxNetworkRestrictions,
+					isRemote: () => owner.network !== undefined || owner.remote.proxy !== undefined,
+				}, agentNetworkFilterService, logService);
+			}
+			protected destroyReferencedObject(_key: string, filter: AgentNetworkFilterSession): void {
+				filter.dispose();
+				owner._networkFilter = undefined;
+			}
+		};
 		this._trust = new BrowserSessionTrust(this);
 		this._history = new BrowserSessionHistory(this);
 		this._remote = new BrowserSessionRemote(this);
@@ -383,6 +404,17 @@ export class BrowserSession {
 		return this._permissions;
 	}
 
+	/** Retains connection-bound filtering while a view uses this agent session. */
+	acquireNetworkFilter(options?: IAgentNetworkFilterSessionOptions): IDisposable {
+		return this.storageScope === BrowserViewStorageScope.Agent
+			? this._networkFilterReferences.acquire('network', options)
+			: Disposable.None;
+	}
+
+	get networkFilterProxy(): ITunnelProxyInfo | undefined {
+		return this._networkFilter?.proxy;
+	}
+
 	/**
 	 * Connect application storage to this session so that preferences
 	 * (trusted certificates, history, etc.) are persisted across restarts.
@@ -402,8 +434,11 @@ export class BrowserSession {
 		if (this.storageScope !== BrowserViewStorageScope.Agent) {
 			return;
 		}
+		if (force) {
+			this._networkFilter?.update();
+		}
 
-		const enabled = this.agentNetworkFilterService.isEnabled(this._sandboxNetworkRestrictions);
+		const enabled = this.agentNetworkFilterService.isEnabled(this._sandboxNetworkRestrictions) || this._networkFilter?.isActive === true;
 		if (!force && this._networkFilterEnabled === enabled) {
 			return;
 		}
@@ -416,7 +451,19 @@ export class BrowserSession {
 				callback({ cancel: true });
 				return;
 			}
-			callback({ cancel: !this.agentNetworkFilterService.isUriAllowed(uri, this._sandboxNetworkRestrictions) });
+			if (!this.agentNetworkFilterService.isUriAllowed(uri, this._sandboxNetworkRestrictions)) {
+				callback({ cancel: true });
+			} else if (this._networkFilter?.isActive) {
+				void this._networkFilter.checkRequest(uri).then(() => callback({ cancel: false }), error => {
+					this.logService.warn('[BrowserSession] Blocking request by network address policy', error);
+					callback({ cancel: true });
+				});
+			} else if (!this._networkFilter && isFilteredNetworkScheme(uri) && this.agentNetworkFilterService.getDeniedIpAddresses(this._sandboxNetworkRestrictions).length > 0) {
+				this.logService.warn('[BrowserSession] Blocking request without an active network address guard');
+				callback({ cancel: true });
+			} else {
+				callback({ cancel: false });
+			}
 		} : null);
 	}
 

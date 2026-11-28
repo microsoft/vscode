@@ -84,6 +84,7 @@ class MockAgentNetworkFilterService implements IAgentNetworkFilterService {
 	onDidChange = Event.None;
 	isEnabled(): boolean { return true; }
 	isUriAllowed(_uri: URI): boolean { return true; }
+	getDeniedIpAddresses(): readonly string[] { return []; }
 	formatError(uri: URI): string { return `Access to ${uri.authority} is blocked by network domain policy.`; }
 }
 
