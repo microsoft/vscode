@@ -139,14 +139,27 @@ async function measure(cdp, page) {
 }
 
 /**
+ * Dismiss any transient modal dialogs (setup dialogs, spotlights, etc.).
+ * @param {import('@playwright/test').Page} page
+ */
+async function dismissDialog(page) {
+	for (const sel of ['.chat-setup-dialog', '.dialog-shadow', '.monaco-dialog-box']) {
+		const el = await page.$(sel);
+		if (el) { await page.keyboard.press('Escape'); await new Promise(r => setTimeout(r, 500)); break; }
+	}
+}
+
+/**
  * Open a new chat session via the command palette.
  * @param {import('@playwright/test').Page} page
  */
 async function openNewChat(page) {
+	await dismissDialog(page);
 	// Use keyboard shortcut to open a new chat (clears previous session)
 	const newChatShortcut = process.platform === 'darwin' ? 'Meta+KeyL' : 'Control+KeyL';
 	await page.keyboard.press(newChatShortcut);
 	await new Promise(r => setTimeout(r, 1000));
+	await dismissDialog(page);
 
 	// Verify the chat view is visible and ready
 	await page.waitForSelector(CHAT_VIEW, { timeout: 15_000 });
@@ -168,6 +181,7 @@ async function openNewChat(page) {
  * @param {number} [modelTurns=1] - number of model completions to wait for
  */
 async function sendMessage(page, mockServer, text, modelTurns = 1) {
+	await dismissDialog(page);
 	await page.click(CHAT_EDITOR_SEL);
 	await new Promise(r => setTimeout(r, 200));
 
@@ -292,6 +306,7 @@ async function runLeakCheck(electronPath, mockServer, opts) {
 		const reqsBefore = mockServer.requestCount();
 		try { await mockServer.waitForRequests(reqsBefore + 4, 30_000); } catch { }
 		await new Promise(r => setTimeout(r, 3000));
+		await dismissDialog(page);
 
 		const scenarioIds = getScenarioIds();
 
