@@ -486,6 +486,43 @@ flakySuite('SQLite Storage Library', function () {
 		strictEqual(recoveryCalled, false);
 	});
 
+	test('basics (DB with a corrupt page restores from previous backup)', async () => {
+		const storagePath = join(testdir, 'storage.db');
+		let storage = new SQLiteStorageDatabase(storagePath);
+
+		const items = new Map<string, string>();
+		items.set('foo', 'bar');
+		items.set('some/foo/path', 'some/bar/path');
+		items.set(JSON.stringify({ foo: 'bar' }), JSON.stringify({ bar: 'foo' }));
+
+		await storage.updateItems({ insert: items });
+		await storage.close();
+
+		// Break the page with the table rows but keep the header and schema page intact,
+		// so the DB still opens and only fails when it is read (e.g. a torn page after power loss)
+		const data = await fs.promises.readFile(storagePath);
+		const pageSize = data.readUInt16BE(16);
+		data.fill(0xff, pageSize, pageSize * 2);
+		await fs.promises.writeFile(storagePath, data);
+
+		storage = new SQLiteStorageDatabase(storagePath);
+
+		const storedItems = await storage.getItems();
+		strictEqual(storedItems.size, items.size);
+		strictEqual(storedItems.get('foo'), 'bar');
+		strictEqual(storedItems.get('some/foo/path'), 'some/bar/path');
+		strictEqual(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
+
+		let recoveryCalled = false;
+		await storage.close(() => {
+			recoveryCalled = true;
+
+			return new Map();
+		});
+
+		strictEqual(recoveryCalled, false);
+	});
+
 	test('basics (corrupt DB falls back to empty DB if backup is corrupt)', async () => {
 		const storagePath = join(testdir, 'storage.db');
 		let storage = new SQLiteStorageDatabase(storagePath);
