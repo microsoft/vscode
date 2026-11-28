@@ -158,10 +158,14 @@ export async function defaultNonStreamChatResponseProcessor(response: Response, 
 		};
 		const functionCall: ICopilotToolCall[] = [];
 		for (const tool of message.toolCalls ?? []) {
+			const extraContent = (tool as { extra_content?: unknown }).extra_content;
 			functionCall.push({
 				name: tool.function?.name ?? '',
 				arguments: tool.function?.arguments ?? '',
 				id: tool.id ?? '',
+				...(extraContent && typeof extraContent === 'object' && !Array.isArray(extraContent)
+					? { extra_content: extraContent as Record<string, unknown> }
+					: {}),
 			});
 		}
 		await finishCallback(messageText, i, {

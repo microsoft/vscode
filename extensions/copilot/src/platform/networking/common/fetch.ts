@@ -142,6 +142,7 @@ export interface ICopilotToolCall {
 	name: string;
 	arguments: string;
 	id: string;
+	extra_content?: Record<string, unknown>;
 }
 
 export interface ICopilotToolCallStreamUpdate {

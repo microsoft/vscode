@@ -912,6 +912,15 @@ export class CopilotLanguageModelWrapper extends Disposable {
 				progress.report(new vscode.LanguageModelTextPart(delta.text));
 			}
 			if (delta.copilotToolCalls) {
+				const toolExtraContent: Record<string, Record<string, unknown>> = {};
+				for (const call of delta.copilotToolCalls) {
+					if (call.id && call.extra_content && typeof call.extra_content === 'object' && !Array.isArray(call.extra_content)) {
+						toolExtraContent[call.id] = call.extra_content;
+					}
+				}
+				if (Object.keys(toolExtraContent).length > 0) {
+					progress.report(new vscode.LanguageModelThinkingPart('', undefined, { toolExtraContent, ...originMetadata }));
+				}
 				for (const call of delta.copilotToolCalls) {
 					// Anthropic models send "" (empty string) for tools with no parameters.
 					let parameters: object;

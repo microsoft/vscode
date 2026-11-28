@@ -61,14 +61,22 @@ class APIJsonDataStreaming {
 }
 
 class StreamingToolCall {
+	public index: number | undefined;
 	public id: string | undefined;
 	public name: string | undefined;
 	public arguments: string = '';
+	public extra_content: Record<string, unknown> | undefined;
 
-	constructor() { }
+	constructor(index?: number) {
+		this.index = index;
+	}
 
 	update(toolCall: IToolCall): boolean {
 		let argumentsChanged = false;
+
+		if (typeof toolCall.index === 'number') {
+			this.index = toolCall.index;
+		}
 
 		if (toolCall.id) {
 			this.id = toolCall.id;
@@ -81,6 +89,20 @@ class StreamingToolCall {
 		if (toolCall.function?.arguments) {
 			this.arguments += toolCall.function.arguments;
 			argumentsChanged = true;
+		}
+
+		if (toolCall.extra_content && typeof toolCall.extra_content === 'object' && !Array.isArray(toolCall.extra_content)) {
+			const prevGoogle = typeof this.extra_content?.google === 'object' && this.extra_content.google !== null && !Array.isArray(this.extra_content.google)
+				? this.extra_content.google as Record<string, unknown>
+				: undefined;
+			const nextGoogle = typeof toolCall.extra_content.google === 'object' && toolCall.extra_content.google !== null && !Array.isArray(toolCall.extra_content.google)
+				? toolCall.extra_content.google as Record<string, unknown>
+				: undefined;
+			this.extra_content = {
+				...this.extra_content,
+				...toolCall.extra_content,
+				...(prevGoogle || nextGoogle ? { google: { ...prevGoogle, ...nextGoogle } } : {}),
+			};
 		}
 
 		return argumentsChanged;
@@ -98,12 +120,22 @@ class StreamingToolCalls {
 				name: call.name!,
 				arguments: call.arguments,
 				id: call.id!,
+				...(call.extra_content ? { extra_content: call.extra_content } : {}),
 			};
 		});
 	}
 
 	hasToolCalls(): boolean {
 		return this.toolCalls.length > 0;
+	}
+
+	private findLastByIndex(index: number): StreamingToolCall | undefined {
+		for (let i = this.toolCalls.length - 1; i >= 0; i--) {
+			if (this.toolCalls[i].index === index) {
+				return this.toolCalls[i];
+			}
+		}
+		return undefined;
 	}
 
 	update(choice: ExtendedChoiceJSON): ICopilotToolCallStreamUpdate[] {
@@ -113,11 +145,14 @@ class StreamingToolCalls {
 			if (toolCall.id) {
 				currentCall = this.toolCalls.find(call => call.id === toolCall.id);
 			}
-			if (!currentCall) {
+			if (!currentCall && typeof toolCall.index === 'number') {
+				currentCall = this.findLastByIndex(toolCall.index);
+			}
+			if (!currentCall && typeof toolCall.index !== 'number') {
 				currentCall = this.toolCalls.at(-1);
 			}
 			if (!currentCall || (toolCall.id && currentCall.id && currentCall.id !== toolCall.id)) {
-				currentCall = new StreamingToolCall();
+				currentCall = new StreamingToolCall(toolCall.index);
 				this.toolCalls.push(currentCall);
 			}
 

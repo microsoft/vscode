@@ -66,6 +66,7 @@ export function sendEngineMessagesLengthTelemetry(telemetryService: ITelemetrySe
 		if ('tool_calls' in msg && msg.tool_calls && Array.isArray(msg.tool_calls)) {
 			processedMsg.tool_calls = msg.tool_calls.map((toolCall: any) => ({
 				...toolCall,
+				...(toolCall.extra_content !== undefined ? { extra_content: JSON.stringify(toolCall.extra_content).length } : {}),
 				function: toolCall.function ? {
 					...toolCall.function,
 					arguments: typeof toolCall.function.arguments === 'string'

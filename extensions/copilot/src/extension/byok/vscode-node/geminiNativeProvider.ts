@@ -379,6 +379,7 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 			const stream = await client.models.generateContentStream(params);
 
 			let pendingThinkingSignature: string | undefined;
+			let hasUnsignedFunctionCall = false;
 
 			for await (const chunk of stream) {
 				if (token.isCancellationRequested) {
@@ -421,6 +422,8 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 									const thinkingPart = new LanguageModelThinkingPart('', undefined, { signature: pendingThinkingSignature });
 									progress.report(thinkingPart);
 									pendingThinkingSignature = undefined;
+								} else {
+									hasUnsignedFunctionCall = true;
 								}
 
 								if (ttfte === undefined) {
@@ -477,6 +480,11 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 						}
 					}
 				}
+			}
+
+			if (!token.isCancellationRequested && hasUnsignedFunctionCall && pendingThinkingSignature) {
+				progress.report(new LanguageModelThinkingPart('', undefined, { signature: pendingThinkingSignature }));
+				pendingThinkingSignature = undefined;
 			}
 
 			return { ttft, ttfte, usage };

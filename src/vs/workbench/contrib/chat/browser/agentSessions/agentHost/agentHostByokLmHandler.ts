@@ -422,10 +422,12 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 		if (encryptedContent) {
 			return encryptedContent;
 		}
+		const toolExtraContent = this._recordMetadata(metadata, 'toolExtraContent');
 		const continuationMetadata = {
 			...(this._stringMetadata(metadata, 'signature') ? { signature: this._stringMetadata(metadata, 'signature') } : {}),
 			...(this._stringMetadata(metadata, '_completeThinking') ? { _completeThinking: this._stringMetadata(metadata, '_completeThinking') } : {}),
 			...(this._stringMetadata(metadata, 'redactedData') ? { redactedData: this._stringMetadata(metadata, 'redactedData') } : {}),
+			...(toolExtraContent ? { toolExtraContent } : {}),
 		};
 		return Object.keys(continuationMetadata).length > 0
 			? `${REASONING_METADATA_PREFIX}${JSON.stringify(continuationMetadata)}`
@@ -502,6 +504,13 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 	private _stringMetadata(metadata: Readonly<Record<string, unknown>> | undefined, key: string): string | undefined {
 		const value = metadata?.[key];
 		return typeof value === 'string' ? value : undefined;
+	}
+
+	private _recordMetadata(metadata: Readonly<Record<string, unknown>> | undefined, key: string): Record<string, unknown> | undefined {
+		const value = metadata?.[key];
+		return typeof value === 'object' && value !== null && !Array.isArray(value) && Object.keys(value).length > 0
+			? value as Record<string, unknown>
+			: undefined;
 	}
 
 	private _toChatRole(role: Extract<IByokLmInputItem, { type: 'message' }>['role']): ChatMessageRole {

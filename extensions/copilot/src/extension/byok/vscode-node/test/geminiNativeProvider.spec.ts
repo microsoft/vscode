@@ -303,6 +303,69 @@ describe('GeminiNativeBYOKLMProvider', () => {
 		}
 	});
 
+	it('flushes trailing thoughtSignature chunks arriving after an unsigned functionCall', async () => {
+		const { GeminiNativeBYOKLMProvider } = await import('../geminiNativeProvider');
+		const genai = await import('@google/genai');
+		const MockGoogleGenAI = genai.GoogleGenAI as unknown as { streamChunks: any[] };
+		MockGoogleGenAI.streamChunks.length = 0;
+		MockGoogleGenAI.streamChunks.push(
+			{
+				candidates: [{
+					content: {
+						parts: [{ functionCall: { name: 'read_agent', args: { agent_id: 'a1' } } }]
+					}
+				}]
+			},
+			{
+				candidates: [{
+					content: {
+						parts: [{ text: '', thoughtSignature: 'trailing-fc-sig' }]
+					}
+				}],
+				usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 4, totalTokenCount: 14 }
+			},
+		);
+
+		const provider = new GeminiNativeBYOKLMProvider(
+			undefined,
+			createStorageService(),
+			new TestLogService(),
+			createRequestLogger(),
+			new NullTelemetryService(),
+			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '1.0.0', sessionId: 'test' })),
+		);
+		const model = {
+			id: 'gemini-3.5-pro',
+			name: 'Gemini 3.5 Pro',
+			family: 'Gemini',
+			version: '1.0.0',
+			maxInputTokens: 1000,
+			maxOutputTokens: 1000,
+			capabilities: { toolCalling: true, imageInput: false },
+			configuration: { apiKey: 'k_test' }
+		} as any;
+		const progress = new TestProgress();
+		const tokenSource = new vscode.CancellationTokenSource();
+		try {
+			await provider.provideLanguageModelChatResponse(
+				model,
+				[new vscode.LanguageModelChatMessage(vscode.LanguageModelChatMessageRole.User, 'check agent')],
+				{ requestInitiator: 'test', tools: [], toolMode: vscode.LanguageModelChatToolMode.Auto } as any,
+				progress,
+				tokenSource.token
+			);
+		} finally {
+			tokenSource.dispose();
+		}
+
+		const toolCallParts = progress.items.filter((p): p is vscode.LanguageModelToolCallPart => p instanceof vscode.LanguageModelToolCallPart);
+		const thinkingParts = progress.items.filter((p): p is vscode.LanguageModelThinkingPart => p instanceof vscode.LanguageModelThinkingPart);
+		expect(toolCallParts).toHaveLength(1);
+		expect(toolCallParts[0].name).toBe('read_agent');
+		expect(thinkingParts).toHaveLength(1);
+		expect(thinkingParts[0].metadata).toEqual({ signature: 'trailing-fc-sig' });
+	});
+
 	it.skip('throws a clear error when no API key is configured (no silent return)', async () => {
 		const { GeminiNativeBYOKLMProvider } = await import('../geminiNativeProvider');
 		const storage = createStorageService({ getAPIKey: vi.fn().mockResolvedValue(undefined) });
