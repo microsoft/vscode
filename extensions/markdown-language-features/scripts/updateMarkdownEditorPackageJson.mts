@@ -40,7 +40,7 @@ interface KeybindingContribution extends GeneratedItem {
 
 interface CommandPaletteContribution extends GeneratedItem {
 	readonly command: string;
-	readonly when: 'false';
+	readonly when: string;
 }
 
 interface PackageJson {
@@ -93,7 +93,7 @@ export function updatePackageJson(
 	);
 	const generatedCommandPaletteEntries: readonly CommandPaletteContribution[] = commandDefinitions.map(command => ({
 		command: command.id,
-		when: 'false',
+		when: command.routing !== 'local' && command.keybindings.length === 0 ? MARKDOWN_EDITOR_ACTIVE : 'false',
 		$generated: true,
 	}));
 
