@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { CopilotAgentStartupConfig } from '../../node/copilot/copilotAgentStartupConfig.js';
+import type { CopilotPolicyHelperFailureMode } from '../../common/copilotCliConfig.js';
 
 suite('CopilotAgentStartupConfig', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -49,6 +50,28 @@ suite('CopilotAgentStartupConfig', () => {
 			same: true,
 			changes: Array.from({ length: 4 }, () => ({ equal: false, proxyChanged: false, description: 'policyHelper' })),
 		});
+	});
+
+	test('compares policy helper failure mode additions, changes and removal', () => {
+		const config = (mode?: CopilotPolicyHelperFailureMode) => new CopilotAgentStartupConfig(
+			true, false, false, 30_000, 'info', undefined, undefined, true, true, false, {}, true,
+			false, '', false, false, undefined, false, undefined, false, false, mode,
+		);
+		assert.deepStrictEqual([
+			[config('failClosed'), config()],
+			[config('ignore'), config('failClosed')],
+			[config(), config('ignore')],
+			[config('failClosed'), config('failClosed')],
+		].map(([current, previous]) => ({
+			equal: current.equals(previous),
+			proxyChanged: current.proxyTargetChangedFrom(previous),
+			description: current.describeChangesFrom(previous),
+		})), [
+			{ equal: false, proxyChanged: false, description: 'policyHelperFailureMode=failClosed' },
+			{ equal: false, proxyChanged: false, description: 'policyHelperFailureMode=ignore' },
+			{ equal: false, proxyChanged: false, description: 'policyHelperFailureMode=undefined' },
+			{ equal: true, proxyChanged: false, description: '' },
+		]);
 	});
 
 });

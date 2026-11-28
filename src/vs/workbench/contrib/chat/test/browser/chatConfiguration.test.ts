@@ -17,7 +17,7 @@ import { CustomizationMarketplaceConfiguration } from '../../../../../platform/c
 import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { chatProgressConfigurationProperties, legacyChatThinkingConfigurationProperties } from '../../browser/chatProgressConfiguration.js';
 import { customizationMarketplaceConfigurationProperties, isAgentFinderPublicFeedAvailable, isCustomizationMarketplaceValueFromDefault } from '../../browser/aiCustomization/customizationMarketplaceConfiguration.js';
-import { AgentHostCopilotPolicyHelperSettingId, CopilotCliConfigKey, CopilotImageGenerationEnabledSettingId, CopilotImageGenerationModelSettingId } from '../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotPolicyHelperFailureModeSettingId, AgentHostCopilotPolicyHelperSettingId, CopilotCliConfigKey, CopilotImageGenerationEnabledSettingId, CopilotImageGenerationModelSettingId } from '../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { AgentHostConfigurationSyncTarget, resolveAgentHostConfigurationSyncPatch } from '../../../../../platform/agentHost/common/agentHostConfigurationSync.js';
 import { AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING, AgentHostCopilotM365EnabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -59,10 +59,11 @@ suite('Chat configuration', () => {
 			included: setting.included,
 			additionalProperties: setting.additionalProperties,
 			required: setting.required,
+			timeout: setting.properties?.timeoutMs,
 			key: setting.agentHost?.key,
 			hostScope: setting.agentHost?.scope,
 			transformed: [null, undefined, { path: '' }, { path: '   ' }, { path: 42 }, { path: 'helper', args: [42] },
-				{ path: 'helper' }, { path: 'helper', args: ['--mode'] }]
+				{ path: 'helper' }, { path: 'helper', args: ['--mode'], timeoutMs: 30_000 }, { path: 'helper', timeoutMs: 30_001 }]
 				.map(value => JSON.parse(JSON.stringify(setting.agentHost?.transform?.(value)))),
 		}, {
 			type: ['object', 'null'],
@@ -74,13 +75,91 @@ suite('Chat configuration', () => {
 			included: undefined,
 			additionalProperties: false,
 			required: ['path'],
+			timeout: {
+				type: 'integer',
+				minimum: 1,
+				maximum: 30_000,
+				description: 'Timeout for one helper run in milliseconds. If omitted, the runtime uses 5000 milliseconds.',
+			},
 			key: CopilotCliConfigKey.PolicyHelper,
 			hostScope: AgentHostConfigurationSyncScope.Local,
 			transformed: [
 				{ path: '' }, { path: '' }, { path: '' }, { path: '' }, { path: '' }, { path: '' },
-				{ path: 'helper', args: [] }, { path: 'helper', args: ['--mode'] },
+				{ path: 'helper', args: [] }, { path: 'helper', args: ['--mode'], timeoutMs: 30_000 }, { path: '' },
 			],
 		});
+	});
+
+	test('transports a hidden local policy helper failure mode and serializes its removal', () => {
+		const setting = copilotPolicyHelperConfigurationProperties[AgentHostCopilotPolicyHelperFailureModeSettingId];
+		assert.deepStrictEqual({
+			type: setting.type,
+			enum: setting.enum,
+			default: setting.default,
+			scope: setting.scope,
+			ignoreSync: setting.ignoreSync,
+			tags: setting.tags,
+			doNotSuggest: setting.doNotSuggest,
+			key: setting.agentHost?.key,
+			hostScope: setting.agentHost?.scope,
+			transformed: ['failClosed', 'ignore', null, undefined, 'invalid', '']
+				.map(value => JSON.parse(JSON.stringify(setting.agentHost?.transform?.(value)))),
+		}, {
+			type: ['string', 'null'],
+			enum: [null, 'ignore', 'failClosed'],
+			default: null,
+			scope: ConfigurationScope.APPLICATION,
+			ignoreSync: true,
+			tags: ['experimental', 'advanced'],
+			doNotSuggest: true,
+			key: CopilotCliConfigKey.PolicyHelperFailureMode,
+			hostScope: AgentHostConfigurationSyncScope.Local,
+			transformed: ['failClosed', 'ignore', '', '', '', ''],
+		});
+	});
+
+	test('mirrors policy helper settings only to the local host with serializable resets', async () => {
+		const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+		const configuration = {
+			id: 'test.policyHelper',
+			properties: Object.fromEntries(Object.entries(copilotPolicyHelperConfigurationProperties).filter(([key]) => !configurationProperties[key])),
+		};
+		registry.registerConfiguration(configuration);
+		try {
+			const targets = [
+				AgentHostConfigurationSyncTarget.Local,
+				AgentHostConfigurationSyncTarget.RemoteExtensionHost,
+				AgentHostConfigurationSyncTarget.Remote,
+			];
+			const service = new TestConfigurationService({
+				[AgentHostCopilotPolicyHelperSettingId]: { path: 'helper', timeoutMs: 30_000 },
+				[AgentHostCopilotPolicyHelperFailureModeSettingId]: 'failClosed',
+			});
+			const snapshot = () => targets.map(target => {
+				const patch = JSON.parse(JSON.stringify(resolveAgentHostConfigurationSyncPatch(service, target)));
+				return {
+					helper: patch[CopilotCliConfigKey.PolicyHelper],
+					mode: patch[CopilotCliConfigKey.PolicyHelperFailureMode],
+				};
+			});
+			const configured = snapshot();
+			await service.setUserConfiguration(AgentHostCopilotPolicyHelperSettingId, null);
+			await service.setUserConfiguration(AgentHostCopilotPolicyHelperFailureModeSettingId, null);
+			assert.deepStrictEqual({ configured, removed: snapshot() }, {
+				configured: [
+					{ helper: { path: 'helper', args: [], timeoutMs: 30_000 }, mode: 'failClosed' },
+					{ helper: undefined, mode: undefined },
+					{ helper: undefined, mode: undefined },
+				],
+				removed: [
+					{ helper: { path: '' }, mode: '' },
+					{ helper: undefined, mode: undefined },
+					{ helper: undefined, mode: undefined },
+				],
+			});
+		} finally {
+			registry.deregisterConfigurations([configuration]);
+		}
 	});
 
 	test('defaults to sticky progress instead of the input progress border', () => {

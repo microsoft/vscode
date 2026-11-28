@@ -16,7 +16,8 @@ import { classifyCopilotClientOperationFailure } from './copilotFailureTelemetry
 
 export const AGENT_HOST_COPILOT_CLIENT_NAME = 'vscode-agent-host';
 const COPILOT_MANAGED_SETTINGS_PROGRESS_DELAY_MS = 3500;
-const COPILOT_MANAGED_SETTINGS_TIMEOUT_MS = 30_000;
+/** Leaves headroom around the runtime's maximum 30-second policy-helper timeout. */
+export const COPILOT_MANAGED_SETTINGS_TIMEOUT_MS = 45_000;
 
 type ManagedSettingsRpc = Pick<CopilotClient['rpc']['managedSettings'], 'resolve'>;
 type ManagedSettingsResult = Awaited<ReturnType<ManagedSettingsRpc['resolve']>>;
