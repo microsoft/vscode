@@ -109,6 +109,7 @@ export const AICustomizationManagementCommands = {
 	ShowPlugin: 'aiCustomizationManagement.showPlugin',
 	CreateCanvas: 'aiCustomizationManagement.createCanvas',
 	OpenMarketplace: 'aiCustomization.openMarketplace',
+	UpgradeToConnector: 'aiCustomization.upgradeToConnector',
 	CreateNewAgent: 'aiCustomization.createNewAgent',
 	CreateNewSkill: 'aiCustomization.createNewSkill',
 	CreateNewInstructions: 'aiCustomization.createNewInstructions',

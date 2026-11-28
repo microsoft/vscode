@@ -202,6 +202,7 @@ export interface IProductConfiguration {
 		readonly description: string;
 		readonly iconUrl: string;
 		readonly urls?: readonly string[];
+		readonly mcpServerNames?: readonly string[];
 	}>;
 	readonly configBasedExtensionTips?: IStringDictionary<IConfigBasedExtensionTip>;
 	readonly exeBasedExtensionTips?: IStringDictionary<IExeBasedExtensionTip>;
