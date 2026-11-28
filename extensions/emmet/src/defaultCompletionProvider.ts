@@ -115,7 +115,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 						validateLocation = false;
 					} else {
 						const styleNode = foundNode.attributes.find(attr => attr.name.toString() === 'style');
-						if (styleNode && styleNode.value.start <= positionOffset && positionOffset <= styleNode.value.end) {
+						if (styleNode && styleNode.value && styleNode.value.start <= positionOffset && positionOffset <= styleNode.value.end) {
 							syntax = 'css';
 							validateLocation = false;
 						}

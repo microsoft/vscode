@@ -304,6 +304,27 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 		});
 	});
 
+	test('Expand html when parent style attribute has spaces around equals sign (HTML)', () => {
+		return withRandomFileEditor('<div style = "color: red">.container</div>', 'html', async (editor, _doc) => {
+			editor.selection = new Selection(0, 36, 0, 36);
+			await expandEmmetAbbreviation(null);
+			assert.strictEqual(editor.document.getText(), '<div style = "color: red"><div class="container"></div></div>');
+		});
+	});
+
+	test('Expand html when parent style attribute has spaces around equals sign in completion list (HTML)', () => {
+		return withRandomFileEditor('<div style = "color: red">.container</div>', 'html', async (editor, _doc) => {
+			editor.selection = new Selection(0, 36, 0, 36);
+			const cancelSrc = new CancellationTokenSource();
+			const completionList = await completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, invokeCompletionContext);
+			const emmetCompletionItem = completionList?.items[0];
+			assert.deepStrictEqual(
+				{ label: emmetCompletionItem?.label, documentation: ((<string>emmetCompletionItem?.documentation) || '').replace(/\|/g, '') },
+				{ label: '.container', documentation: '<div class="container"></div>' }
+			);
+		});
+	});
+
 	test('Expand html when inside script tag with html type (HTML)', () => {
 		return withRandomFileEditor(htmlContents, 'html', async (editor, _doc) => {
 			editor.selection = new Selection(21, 12, 21, 12);
