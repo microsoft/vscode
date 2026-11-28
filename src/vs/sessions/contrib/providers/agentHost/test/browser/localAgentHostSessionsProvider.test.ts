@@ -20177,10 +20177,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 				const provider = createProvider(disposables, agentHost);
 				await timeout(0);
 				fireSessionAdded(agentHost, 'repositories', { workingDirectories: [api.toString(), web.toString()] });
-				fireSessionMetaChanged(agentHost, 'repositories', withSessionRepositories(undefined, {
-					[getWorkingDirectoryKey(api.toString())]: [{ root: api.toString(), kind: 'folder' }],
-					[getWorkingDirectoryKey(web.toString())]: [{ root: web.toString(), kind: 'folder' }],
-				}));
+				// As the host records two folders that are each a repository: the Git state of the second folder's scope, without repository records
+				fireSessionMetaChanged(agentHost, 'repositories', withFolderScopeGitState(undefined, getWorkingDirectoryScopeId([web.toString()]), { branchName: 'main' }, [web.toString()]));
 				const session = provider.getSessions()[0];
 				const owner = URI.parse(buildBranchChangesetUri(buildFolderChangesetOwnerUri(AgentSession.uri('copilotcli', 'repositories').toString(), getWorkingDirectoryScopeId([web.toString()])))).toString();
 				const changeset = session.getRepositoryChangeset?.(kind.toClient(web), BRANCH_CHANGES_CHANGESET_ID);

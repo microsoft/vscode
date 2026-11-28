@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { readSessionNonRepositoryFolders } from '../../../../../../platform/agentHost/common/meta/agentSessionNonRepositoryFoldersMeta.js';
+import { readSessionRepositories } from '../../../../../../platform/agentHost/common/meta/agentSessionRepositoriesMeta.js';
 import { disposableTimeout, Limiter, raceCancellation, raceCancellationError, RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -75,7 +77,7 @@ import { SessionOriginKind, type SessionOrigin } from '../../../../../../platfor
 import { isActionKnownToVersion } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType, type SessionSummaryChanges } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_SESSION_NOT_FOUND, AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { AgentCapabilities, AgentInfo, buildChatUri, buildSubagentChatUri, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isChatInSessionReadAggregate, isSessionChatArchived, isSessionStatusArchived, isSessionStatusRead, readSessionCreationReference, readSessionEhcliAdoptable, readFolderGitHubState, readFolderScopeGitState, readSessionExternal, parseSessionGitHubData, readSessionGitHubData, readSessionGitState, readWorkingDirectoryKey, readWorkingDirectoryKeys, readWorkingDirectoryScopeId, readWorkingDirectoryScopeIds, withMigratedSessionGitHubState, withSessionGitHubData, readSessionMultiRootMetadata, readSessionScratchFolders, readSessionSourceControlState, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, SessionSourceControlOutcome, StateComponents, withSessionCreationReference, withSessionExternal, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChatState, type ChatSummary, type ISessionCreationReference as IProtocolSessionCreationReference, type ISessionGitHubState, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { AgentCapabilities, AgentInfo, buildChatUri, buildSubagentChatUri, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isChatInSessionReadAggregate, isSessionChatArchived, isSessionStatusArchived, isSessionStatusRead, readSessionCreationReference, readSessionEhcliAdoptable, readFolderGitHubState, readFolderScopeGitState, readSessionGitData, readSessionExternal, parseSessionGitHubData, readSessionGitHubData, readSessionGitState, readWorkingDirectoryKey, readWorkingDirectoryKeys, readWorkingDirectoryScopeId, readWorkingDirectoryScopeIds, withMigratedSessionGitHubState, withSessionGitHubData, readSessionMultiRootMetadata, readSessionScratchFolders, readSessionSourceControlState, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, SessionSourceControlOutcome, StateComponents, withSessionCreationReference, withSessionExternal, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChatState, type ChatSummary, type ISessionCreationReference as IProtocolSessionCreationReference, type ISessionGitHubState, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
@@ -1972,19 +1974,31 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 * The host working directory of the scope of `repositoryRoot` when it is one of the repositories of a session of
 	 * several folders or repositories, each with its own scope; else `undefined`. A session of one folder and one repository
 	 * has no scope of its own for it: its changes are its chats'. The scope of a folder's own repository is the folder, which can be below the repository's
-	 * root; that of a repository found in a folder is its root. Only a host that lists the repositories of the session's
-	 * folders serves their scopes: with any other, such as an older host, the session's changes are its chats' only.
+	 * root; that of a repository found in a folder is its root. Only a host that records its session's folders on their
+	 * own serves their scopes: with any other, such as an older host, the session's changes are its chats' only.
 	 */
 	private _getRepositoryScopeRoot(repositoryRoot: URI, reader?: IReader): string | undefined {
-		const workspace = reader ? this.workspace.read(reader) : this.workspace.get();
-		if (!workspace?.repositories) {
+		const meta = reader ? this._metaObs.read(reader) : this._metaObs.get();
+		if (!this._recordsFolderScopes(meta)) {
 			return undefined;
 		}
-		const scopes = workspace.repositories.map(repository => ({ root: repository.root, scope: repository.kind === SessionRepositoryKind.Nested ? repository.root : repository.folder }));
+		const workspace = reader ? this.workspace.read(reader) : this.workspace.get();
+		// Without repository records, which a host has only for repositories found in folders, each folder is its own repository
+		const scopes = workspace?.repositories?.map(repository => ({ root: repository.root, scope: repository.kind === SessionRepositoryKind.Nested ? repository.root : repository.folder }))
+			?? workspace?.folders.map(folder => ({ root: folder.workingDirectory, scope: folder.workingDirectory }))
+			?? [];
 		// As the Changes list them: a session of several folders, also with one in no repository, or of several repositories
 		const isSeveral = scopes.length > 1 || (workspace?.folders.length ?? 0) > 1;
 		const scope = isSeveral ? scopes.find(candidate => extUriBiasedIgnorePathCase.isEqual(candidate.root, repositoryRoot))?.scope : undefined;
 		return scope ? (this._options.mapWorkingDirectoryToHost?.(scope) ?? scope).toString() : undefined;
+	}
+
+	/**
+	 * Whether the host records the folders of the session on their own: the Git state of a folder's scope, the
+	 * repositories found in its folders, or the folders in no repository. Such a host serves the scope of each.
+	 */
+	private _recordsFolderScopes(meta: SessionMeta | undefined): boolean {
+		return readSessionGitData(meta).size > 0 || readSessionRepositories(meta) !== undefined || readSessionNonRepositoryFolders(meta).length > 0;
 	}
 
 	getRepositoryChangeset(repositoryRoot: URI, changesetId: string): ISessionChangeset | undefined {
