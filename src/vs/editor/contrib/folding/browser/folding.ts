@@ -448,11 +448,14 @@ export class FoldingController extends Disposable implements IEditorContribution
 
 	private onEditorMouseUp(e: IEditorMouseEvent): void {
 		const foldingModel = this.foldingModel;
-		if (!foldingModel || !this.mouseDownInfo || !e.target) {
+		const mouseDownInfo = this.mouseDownInfo;
+		// A touch tap emits two mouse up events, see https://github.com/microsoft/vscode/issues/121203
+		this.mouseDownInfo = null;
+		if (!foldingModel || !mouseDownInfo || !e.target) {
 			return;
 		}
-		const lineNumber = this.mouseDownInfo.lineNumber;
-		const iconClicked = this.mouseDownInfo.iconClicked;
+		const lineNumber = mouseDownInfo.lineNumber;
+		const iconClicked = mouseDownInfo.iconClicked;
 
 		const range = e.target.range;
 		if (!range || range.startLineNumber !== lineNumber) {
