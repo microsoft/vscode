@@ -29,7 +29,7 @@ import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../.
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from '../../../browser/actions/workspaceCommands.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { resolveCommandsContext } from '../../../browser/parts/editor/editorCommandsContext.js';
-import { RemoteNameContext, ResourceContextKey, WorkbenchStateContext } from '../../../common/contextkeys.js';
+import { RemoteNameContext, ResourceContextKey, WorkbenchStateContext, WorkspaceFolderCountContext } from '../../../common/contextkeys.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
@@ -408,7 +408,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					category,
 					menu: {
 						id: MenuId.CommandPalette,
-						when: WorkbenchStateContext.isEqualTo('workspace')
+						when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('workspace'), WorkspaceFolderCountContext.notEqualsTo(0))
 					}
 				});
 			}
@@ -430,7 +430,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					category,
 					menu: {
 						id: MenuId.CommandPalette,
-						when: WorkbenchStateContext.isEqualTo('workspace')
+						when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('workspace'), WorkspaceFolderCountContext.notEqualsTo(0))
 					}
 				});
 			}
