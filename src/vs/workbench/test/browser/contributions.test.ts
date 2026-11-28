@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../base/common/async.js';
-import { DisposableStore } from '../../../base/common/lifecycle.js';
+import sinon from 'sinon';
+import { DeferredPromise, IDLE_FALLBACK_BUDGET_MS, IdleDeadline, installFakeRunWhenIdle } from '../../../base/common/async.js';
+import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { isCI } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
@@ -172,6 +173,90 @@ suite('Contributions', () => {
 		accessor.lifecycleService.phase = LifecyclePhase.Eventually;
 		await bCreatedPromise.p;
 		assert.ok(bCreated);
+	});
+
+	suite('idle instantiation', () => {
+
+		function setupIdleTest(count: number, onCreate?: () => void) {
+			const registry = disposables.add(new WorkbenchContributionsRegistry());
+
+			const instantiationService = workbenchInstantiationService(undefined, disposables);
+			const accessor = instantiationService.createInstance(TestServiceAccessor);
+			accessor.lifecycleService.usePhases = true;
+			accessor.lifecycleService.phase = LifecyclePhase.Restored;
+
+			const created: string[] = [];
+			for (let i = 0; i < count; i++) {
+				const id = `idle${i}`;
+				registry.registerWorkbenchContribution2(id, class {
+					constructor() {
+						created.push(id);
+						onCreate?.();
+					}
+				}, WorkbenchPhase.AfterRestored);
+			}
+
+			const runners: ((idle: IdleDeadline) => void)[] = [];
+			disposables.add(installFakeRunWhenIdle((_targetWindow, runner) => {
+				runners.push(runner);
+				return Disposable.None;
+			}));
+
+			registry.start(instantiationService);
+
+			return { registry, created, runners };
+		}
+
+		test('creates more than one contribution per callback when the idle callback timed out', async () => {
+			const clock = sinon.useFakeTimers({ toFake: ['Date'] });
+			try {
+				const { registry, created, runners } = setupIdleTest(3);
+				assert.strictEqual(runners.length, 1);
+
+				runners.shift()!({ didTimeout: true, timeRemaining: () => 0 });
+
+				assert.deepStrictEqual(created, ['idle0', 'idle1', 'idle2']);
+				assert.strictEqual(runners.length, 0);
+				await registry.whenRestored;
+			} finally {
+				clock.restore();
+			}
+		});
+
+		test('reschedules when the budget of a timed out idle callback is used up', async () => {
+			// Each contribution takes a bit more than half of the budget, so
+			// a timed out callback runs out of budget after two contributions.
+			const clock = sinon.useFakeTimers({ toFake: ['Date'] });
+			try {
+				const step = Math.ceil(IDLE_FALLBACK_BUDGET_MS * 0.6);
+				const { registry, created, runners } = setupIdleTest(3, () => clock.tick(step));
+				assert.strictEqual(runners.length, 1);
+
+				runners.shift()!({ didTimeout: true, timeRemaining: () => 0 });
+				assert.deepStrictEqual(created, ['idle0', 'idle1']);
+				assert.strictEqual(runners.length, 1);
+
+				runners.shift()!({ didTimeout: true, timeRemaining: () => 0 });
+				assert.deepStrictEqual(created, ['idle0', 'idle1', 'idle2']);
+				assert.strictEqual(runners.length, 0);
+
+				await registry.whenRestored;
+			} finally {
+				clock.restore();
+			}
+		});
+
+		test('creates one contribution per callback when the idle callback did not time out', async () => {
+			const { registry, created, runners } = setupIdleTest(3);
+
+			for (let i = 1; i <= 3; i++) {
+				assert.strictEqual(runners.length, 1);
+				runners.shift()!({ didTimeout: false, timeRemaining: () => 0 });
+				assert.strictEqual(created.length, i);
+			}
+
+			await registry.whenRestored;
+		});
 	});
 
 	test('contribution on editor - editor exists before start', async function () {

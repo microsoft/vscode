@@ -6,7 +6,7 @@
 import { IInstantiationService, IConstructorSignature, ServicesAccessor, BrandedService } from '../../platform/instantiation/common/instantiation.js';
 import { ILifecycleService, LifecyclePhase } from '../services/lifecycle/common/lifecycle.js';
 import { Registry } from '../../platform/registry/common/platform.js';
-import { IdleDeadline, DeferredPromise, runWhenGlobalIdle } from '../../base/common/async.js';
+import { IdleDeadline, DeferredPromise, runWhenGlobalIdle, IDLE_FALLBACK_BUDGET_MS } from '../../base/common/async.js';
 import { mark } from '../../base/common/performance.js';
 import { ILogService } from '../../platform/log/common/log.js';
 import { IEnvironmentService } from '../../platform/environment/common/environment.js';
@@ -344,10 +344,17 @@ export class WorkbenchContributionsRegistry extends Disposable implements IWorkb
 		const forcedTimeout = phase === LifecyclePhase.Eventually ? 3000 : 500;
 
 		const instantiateSome = (idle: IdleDeadline) => {
+			// When the idle callback timed out, the browser reports no idle
+			// time, so without a budget only one contribution would be created
+			// per timeout. This matters for windows that never get idle
+			// periods, such as windows that are never shown.
+			const forcedDeadline = idle.didTimeout ? Date.now() + IDLE_FALLBACK_BUDGET_MS : 0;
+			const timeRemaining = () => Math.max(idle.timeRemaining(), forcedDeadline - Date.now());
+
 			while (i < contributions.length) {
 				const contribution = contributions[i++];
 				this.safeCreateContribution(instantiationService, logService, environmentService, contribution, phase);
-				if (idle.timeRemaining() < 1) {
+				if (timeRemaining() < 1) {
 					// time is up -> reschedule
 					runWhenGlobalIdle(instantiateSome, forcedTimeout);
 					break;
