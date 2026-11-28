@@ -356,6 +356,24 @@ suite('AgentsModeWorkspaceService', () => {
 		});
 	}));
 
+	test('a folder window that mounts its own folder in the mode hears the workspace name change on entering and leaving', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const folderUri = joinPath(ROOT, 'folder');
+		const folderObject = await createWindowWithFolderSetting({ id: 'folder-window', uri: folderUri }, folderUri);
+		const events: string[] = [];
+		disposables.add(folderObject.onDidChangeWorkspaceName(() => events.push(`name:${folderObject.getWorkbenchState()}`)));
+		disposables.add(folderObject.onDidChangeWorkspaceFolders(e => events.push(`folders:+${e.added.length}-${e.removed.length}`)));
+
+		await folderObject.setAgentsMode(true);
+		await folderObject.addFolders([{ uri: folderUri }]);
+		await folderObject.setAgentsMode(false);
+
+		assert.deepStrictEqual(events, [
+			`name:${WorkbenchState.WORKSPACE}`, 'folders:+0-1',
+			'folders:+1-0',
+			`name:${WorkbenchState.FOLDER}`,
+		]);
+	}));
+
 	test('editors open in a folder of a multi-root window hear that its folder settings stop and start applying', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const [first, second] = [joinPath(ROOT, 'first'), joinPath(ROOT, 'second')];
 		await fileService.createFolder(second);

@@ -336,7 +336,10 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			setHeader();
 			this.updateWorkspaceTitleCase();
 		}));
-		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateWorkspaceTitleCase()));
+		this._register(this.contextService.onDidChangeWorkbenchState(() => {
+			setHeader();
+			this.updateWorkspaceTitleCase();
+		}));
 		this._register(this.labelService.onDidChangeFormatters(setHeader));
 		setHeader();
 	}
@@ -388,6 +391,9 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 		// Also handle configuration updates
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
+
+		// The tree shows the single folder or the roots depending on the state, also when the folders stay the same
+		this._register(this.contextService.onDidChangeWorkbenchState(() => this.setTreeInput()));
 
 		this._register(this.onDidChangeBodyVisibility(async visible => {
 			if (visible) {

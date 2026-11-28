@@ -269,7 +269,8 @@ export class AgentsModeWorkspaceService extends Disposable implements IEditableW
 		if (fromMode !== to.getWorkbenchMode()) {
 			this._onDidChangeWorkbenchMode.fire(to.getWorkbenchMode());
 		}
-		if (fromWorkspace.configuration?.toString() !== toWorkspace.configuration?.toString()) {
+		// A folder window and the mode both have no workspace file, but their names differ by the workbench state and id
+		if (fromState !== to.getWorkbenchState() || fromWorkspace.id !== toWorkspace.id || fromWorkspace.configuration?.toString() !== toWorkspace.configuration?.toString()) {
 			this._onDidChangeWorkspaceName.fire();
 		}
 		if (folderChanges) {
