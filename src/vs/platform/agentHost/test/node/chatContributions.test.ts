@@ -4514,6 +4514,35 @@ suite('AgentHostChatContributions', () => {
 		assert.deepStrictEqual(turns.map(turn => turn.id), ['side-turn']);
 	});
 
+	test('hides an inherited-only history refresh without marking the side chat as seeded', async () => {
+		const sideChat = createSideChatContributions(disposables, 'inherited');
+		const turns = await sideChat.service.hydrateTurns(
+			{ session: sideChat.session, chat: sideChat.sideChat, isDefaultChat: false, storageResource: creationTimeChatStorageResource(sideChat.session, sideChat.sideChat, buildDefaultChatUri(sideChat.session)) },
+			[hydrationTurn('earlier-source-turn'), hydrationTurn('inherited')],
+		);
+		const firstMessage = await sideChat.service.outgoingTurn({
+			session: sideChat.session,
+			chat: sideChat.sideChat,
+			message: { text: 'side question', origin: { kind: MessageKind.User } },
+			turnId: 'side-turn',
+		});
+
+		assert.deepStrictEqual({
+			visibleTurns: turns.map(turn => turn.id),
+			firstMessage: firstMessage.message.text,
+		}, {
+			visibleTurns: [],
+			firstMessage: injectSideChatContext('side question'),
+		});
+	});
+
+	test('preserves a partial history refresh that does not contain the inherited boundary', async () => {
+		const sideChat = createSideChatContributions(disposables, 'inherited');
+		const input = [hydrationTurn('external-side-turn')];
+
+		assert.strictEqual(await sideChat.service.hydrateTurns({ session: sideChat.session, chat: sideChat.sideChat, isDefaultChat: false, storageResource: creationTimeChatStorageResource(sideChat.session, sideChat.sideChat, buildDefaultChatUri(sideChat.session)) }, input), input);
+	});
+
 	test('does not re-inject context after hydration finds a completed side-chat turn', async () => {
 		const sideChat = createSideChatContributions(disposables, 'inherited');
 		await sideChat.service.hydrateTurns(

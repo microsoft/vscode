@@ -83,6 +83,7 @@ interface ITestWireRequest {
 	readonly params: {
 		readonly cwd?: string;
 		readonly threadId?: string;
+		readonly lastTurnId?: string;
 		readonly includeTurns?: boolean;
 		readonly cursor?: string | null;
 		readonly limit?: number;
@@ -4283,6 +4284,54 @@ suite('CodexAgent prewarm eviction', () => {
 			peer.exit();
 		}
 	});
+
+	for (const forkedTurnIds of [[], ['source-turn'], ['forked-turn']]) {
+		test(`fork reports its inherited boundary with returned turns ${JSON.stringify(forkedTurnIds)}`, async () => {
+			const agent = await createAgent(disposables);
+			const peer = disposables.add(createTestPeer());
+			const client = new CodexAppServerClient(peer.transport);
+			agent['_connection'] = {
+				kind: 'ready',
+				client,
+				usageSource: 'github',
+				child: { kill: () => true },
+			} as never;
+			agent['_refreshSkillHookCustomizations'] = async () => { };
+			const repo = URI.file('/repo');
+
+			try {
+				const source = await createSession(agent, { workingDirectories: [repo], model: { id: COPILOT_TEST_MODEL } });
+				const sourceEntry = agent['_sessions'].get(AgentSession.id(source.session))!;
+				const start = await readNextRequest(peer.outbound);
+				peer.push({ id: start.id, result: { thread: { id: 'source-thread' }, cwd: repo.fsPath } });
+				await sourceEntry.materializePromise;
+				sourceEntry.codexTurnIdByHostTurnId.set('host-turn', 'source-turn');
+
+				const forkPromise = agent.chats.createChat(chatOf(source.session, 'side-chat'), chatContext(source.session, chatOf(source.session, 'side-chat')), {
+					fork: { source: defaultChatOf(source.session), turnId: 'host-turn', independentQueue: true },
+				});
+				const read = await readNextRequest(peer.outbound);
+				peer.push({ id: read.id, result: { thread: { id: 'source-thread', cwd: repo.fsPath, historyMode: 'paginated', turns: [] } } });
+				const historyPage = await readNextRequest(peer.outbound);
+				peer.push({ id: historyPage.id, result: { data: [{ id: 'source-turn' }, { id: 'later-source-turn' }], nextCursor: null, backwardsCursor: null } });
+				const fork = await readNextRequest(peer.outbound);
+				peer.push({ id: fork.id, result: { thread: { id: 'fork-thread', cwd: repo.fsPath, turns: forkedTurnIds.map(id => ({ id })) }, cwd: repo.fsPath } });
+				const result = await forkPromise;
+
+				assert.deepStrictEqual({
+					method: fork.method,
+					lastTurnId: fork.params.lastTurnId,
+					inheritedTurnId: result.inheritedTurnId,
+				}, {
+					method: 'thread/fork',
+					lastTurnId: 'source-turn',
+					inheritedTurnId: forkedTurnIds.at(-1) ?? 'source-turn',
+				});
+			} finally {
+				peer.exit();
+			}
+		});
+	}
 
 	test('fork inherits the source workspace roots instead of requested replacements', async () => {
 		const agent = await createAgent(disposables);

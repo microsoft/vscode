@@ -661,6 +661,8 @@ interface ICodexSession {
 	 * when the workbench rebinds a provisional URI after a chip-selection.
 	 */
 	threadId: string | undefined;
+	/** Last provider turn inherited when this thread was forked. */
+	inheritedTurnId?: string;
 	/**
 	 * This runtime's own address, and the single source of truth for reaching
 	 * it: `AgentSession.id(sessionUri)` is always the {@link CodexAgent}
@@ -5398,6 +5400,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		const backingSession = AgentSession.uri(this.id, session.threadId ?? session.sessionId);
 		const managedWorkingDirectory = session.managedWorkingDirectory ?? this._releasedManagedWorkingDirectories.get(session.sessionId);
 		return {
+			...(session.inheritedTurnId !== undefined ? { inheritedTurnId: session.inheritedTurnId } : {}),
 			...(session.workingDirectory ? { resolvedWorkingDirectory: session.workingDirectory } : {}),
 			...(session.threadId === undefined ? { provisional: true } : {}),
 			...(isEqual(backingSession, context.owner.get()) ? {} : { backingSession }),
@@ -5993,6 +5996,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			options?.agent ?? sourceSession?.agent,
 			forkResult.thread.modelProvider ?? resolvedModel?.modelProvider ?? sourceRead.thread.modelProvider,
 		);
+		session.inheritedTurnId = forkResult.thread.turns?.at(-1)?.id ?? lastTurnId;
 		session.hasNativeHistory ||= hasNativeHistory;
 		session.managedWorkingDirectory = forkManagedWorkingDirectory;
 		this._sessions.set(sessionId, session);
@@ -6017,6 +6021,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			try {
 				const forkedRead = await this._readSession(session.sessionUri);
 				const forkedTurns = forkedRead?.thread.turns ?? [];
+				session.inheritedTurnId = forkedTurns.at(-1)?.id ?? session.inheritedTurnId;
 				const entries = planForkedTurnIdMap(
 					sourceTurns.map(t => t.id),
 					forkedTurns.map(t => t.id),
