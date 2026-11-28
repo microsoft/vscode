@@ -453,7 +453,7 @@ class TfIdfSearchProvider implements IRemoteSearchProvider {
 
 	private _currentPreferencesModel: ISettingsEditorModel | undefined;
 	private _filter: string = '';
-	private _documents: TfIdfDocument[] = [];
+	private _tfIdfCalculator = new TfIdfCalculator();
 	private _settingsRecord: IStringDictionary<ISetting> = {};
 
 	constructor() {
@@ -486,9 +486,9 @@ class TfIdfSearchProvider implements IRemoteSearchProvider {
 		}
 
 		if (this._currentPreferencesModel !== preferencesModel) {
-			// Refresh the documents and settings record
+			// Rebuild the index and settings record only when the model changes, not on every query
 			this._currentPreferencesModel = preferencesModel;
-			this._documents = [];
+			const documents: TfIdfDocument[] = [];
 			this._settingsRecord = {};
 			for (const group of preferencesModel.settingsGroups) {
 				if (group.id === 'mostCommonlyUsed') {
@@ -496,7 +496,7 @@ class TfIdfSearchProvider implements IRemoteSearchProvider {
 				}
 				for (const section of group.sections) {
 					for (const setting of section.settings) {
-						this._documents.push({
+						documents.push({
 							key: setting.key,
 							textChunks: [this.settingItemToEmbeddingString(setting)]
 						});
@@ -504,6 +504,7 @@ class TfIdfSearchProvider implements IRemoteSearchProvider {
 					}
 				}
 			}
+			this._tfIdfCalculator = new TfIdfCalculator().updateDocuments(documents);
 		}
 
 		return {
@@ -514,9 +515,7 @@ class TfIdfSearchProvider implements IRemoteSearchProvider {
 
 	private async getTfIdfItems(token: CancellationToken): Promise<ISettingMatch[]> {
 		const filterMatches: ISettingMatch[] = [];
-		const tfIdfCalculator = new TfIdfCalculator();
-		tfIdfCalculator.updateDocuments(this._documents);
-		const tfIdfRankings = tfIdfCalculator.calculateScores(this._filter, token);
+		const tfIdfRankings = this._tfIdfCalculator.calculateScores(this._filter, token);
 		tfIdfRankings.sort((a, b) => b.score - a.score);
 		const maxScore = tfIdfRankings[0].score;
 
