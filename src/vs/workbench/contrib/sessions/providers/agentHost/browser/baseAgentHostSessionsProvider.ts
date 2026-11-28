@@ -1958,6 +1958,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			const supportsMultipleChats = agentCapabilities?.multipleChats !== undefined;
 			const chatProviders = supportsMultipleChats ? this._options.chatProviders?.read(reader) : undefined;
 			return {
+				supportsBackgroundDispatch: true,
 				supportsRemoveArtifacts: !!connection?.removeSessionArtifact && supportsAgentHostArtifactRemoval(connection.initializeResult.read(reader)),
 				supportsImport: this.isExternal.read(reader) && !!connection?.importSession && supportsAgentHostSessionImport(connection.initializeResult.read(reader)),
 				...(connection?.artifactIntegrationTransport ? { supportsArtifactIntegrations: true } : {}),
@@ -9803,14 +9804,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 		try {
 			this._assertSendConnectionAvailable(options);
-			this._applyChatSessionState(modelRef, selectedModelId, selectedAgentUri, { modelConfiguration: selectedModelConfiguration });
+			if (!options.preserveDraft) {
+				this._applyChatSessionState(modelRef, selectedModelId, selectedAgentUri, { modelConfiguration: selectedModelConfiguration });
+			}
 
 			const result = await this._chatService.sendRequest(chatResource, query, sendOptions);
 			if (result.kind === 'rejected') {
 				throw new Error(`[${this.id}] sendRequest rejected: ${result.reason}`);
 			}
 
-			this._applyChatSessionState(modelRef, selectedModelId, selectedAgentUri, { clearDraft: true, modelConfiguration: selectedModelConfiguration });
+			if (!options.preserveDraft) {
+				this._applyChatSessionState(modelRef, selectedModelId, selectedAgentUri, { clearDraft: true, modelConfiguration: selectedModelConfiguration });
+			}
 		} finally {
 			modelRef.dispose();
 		}

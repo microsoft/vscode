@@ -205,6 +205,8 @@ export interface IPreparedNewSession {
  * Options for sending a request to a session.
  */
 export interface ISendRequestOptions {
+	/** Keep unsent composer text, attachments, and selections when dispatching a separate instruction. */
+	readonly preserveDraft?: boolean;
 	/** Reject an unavailable connection instead of retaining the request for reconnection. */
 	readonly requireConnected?: boolean;
 	/** Initial configuration resolved by the target provider before its first turn. */
