@@ -244,6 +244,14 @@ suite('git smoke test', function () {
 		}
 	});
 
+	test('setConfig replaces the existing value', async function () {
+		await repository.setConfig('smoketest.setconfig', 'first');
+		await repository.setConfig('smoketest.setconfig', 'second');
+
+		const values = cp.execSync('git config --local --get-all smoketest.setconfig', { cwd, encoding: 'utf8' }).trim().split('\n');
+		assert.deepStrictEqual(values, ['second']);
+	});
+
 	test('stages the resource of the active custom editor', async function () {
 		const imageFileName = 'image.png';
 		const image = uri(imageFileName);
