@@ -5,7 +5,6 @@
 
 import * as fs from 'fs';
 import * as cp from 'child_process';
-import { userInfo } from 'os';
 import { distinct } from '../../../base/common/arrays.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { basename, delimiter, normalize, dirname, resolve, isAbsolute } from '../../../base/common/path.js';
@@ -28,7 +27,7 @@ const enum Constants {
 let profileSources: Map<string, IPotentialTerminalProfile> | undefined;
 let logIfWslNotInstalled: boolean = true;
 
-export function detectAvailableProfiles(
+export async function detectAvailableProfiles(
 	profiles: unknown,
 	defaultProfile: unknown,
 	includeDetectedProfiles: boolean,
@@ -66,7 +65,7 @@ export function detectAvailableProfiles(
 		testPwshSourcePaths,
 		variableResolver,
 		shellEnv,
-		testLoginShells ?? getLoginShells(shellEnv)
+		testLoginShells ?? await getLoginShells(shellEnv, logService)
 	);
 }
 
@@ -245,8 +244,12 @@ async function getValidatedProfile(
 	}
 
 	// The login shell may be missing from the resolved PATH (stale $SHELL or failed shell env resolution)
-	const bareNames = paths.filter((e): e is string => isString(e) && basename(e) === e);
-	paths.push(...bareNames.flatMap(name => (loginShells ?? []).filter(e => basename(e) === name)));
+	paths = paths.flatMap(path => {
+		if (!isString(path) || basename(path) !== path) {
+			return [path];
+		}
+		return [path, ...(loginShells ?? []).filter(shell => basename(shell) === path)];
+	});
 
 	let requiresUnsafePath: string | undefined;
 	if (profile.requiresPath) {
@@ -454,14 +457,36 @@ async function detectAvailableUnixProfiles(
  * Gets the absolute paths of the user's login shell, from both $SHELL and the user database since
  * $SHELL can be stale, for example in apps launched from the macOS Dock after `chsh`.
  */
-function getLoginShells(shellEnv: typeof process.env): string[] {
-	const shells = [shellEnv.SHELL, process.env.SHELL];
-	try {
-		shells.push(userInfo().shell ?? undefined);
-	} catch {
-		// userInfo throws when the user has no username or home directory
-	}
+async function getLoginShells(shellEnv: typeof process.env, logService?: ILogService): Promise<string[]> {
+	const shells = [shellEnv.SHELL, process.env.SHELL, await getAccountLoginShell(logService)];
 	return distinct(shells.filter((e): e is string => !!e && isAbsolute(e)));
+}
+
+async function getAccountLoginShell(logService?: ILogService): Promise<string | undefined> {
+	const uid = process.getuid?.();
+	if (isLinux && uid === undefined) {
+		return undefined;
+	}
+	const command = isLinux ? '/usr/bin/getent' : '/usr/bin/id';
+	const args = isLinux ? ['passwd', String(uid)] : ['-P'];
+	return await new Promise(resolve => {
+		cp.execFile(command, args, { encoding: 'utf8', timeout: 1000 }, (error, stdout) => {
+			if (error) {
+				logService?.trace('Could not resolve user shell from account database');
+				resolve(undefined);
+				return;
+			}
+			resolve(parseAccountLoginShell(stdout, isLinux ? 'linux' : 'macOS'));
+		});
+	});
+}
+
+/**
+ * Parses the account record's shell path for Linux or macOS.
+ */
+export function parseAccountLoginShell(stdout: string, platform: 'linux' | 'macOS'): string | undefined {
+	const shell = stdout.trim().split(':')[platform === 'linux' ? 6 : 9];
+	return shell && isAbsolute(shell) ? shell : undefined;
 }
 
 function applyConfigProfilesToMap(configProfiles: { [key: string]: IUnresolvedTerminalProfile } | undefined, profilesMap: Map<string, IUnresolvedTerminalProfile>) {
