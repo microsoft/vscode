@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable, IReference, MutableDisposable, dispose } from '../../../../../base/common/lifecycle.js';
 import { Mimes } from '../../../../../base/common/mime.js';
@@ -680,18 +681,30 @@ export abstract class BaseCellViewModel extends Disposable {
 	 * Text model is used for editing.
 	 */
 	async resolveTextModel(): Promise<model.ITextModel> {
-		if (!this._textModelRef || !this.textModel) {
-			this._textModelRef = await this._modelService.createModelReference(this.uri);
-			if (this._isDisposed) {
-				return this.textModel!;
-			}
-
-			if (!this._textModelRef) {
-				throw new Error(`Cannot resolve text model for ${this.uri}`);
-			}
-			this._textModelRefChangeDisposable.value = this.textModel!.onDidChangeContent(() => this.onDidChangeTextModelContent());
+		if (this._isDisposed) {
+			throw new CancellationError();
 		}
 
+		if (this._textModelRef && this.textModel) {
+			return this.textModel;
+		}
+
+		const reference = await this._modelService.createModelReference(this.uri);
+		if (this._isDisposed) {
+			reference.dispose();
+			throw new CancellationError();
+		}
+
+		const textModel = this.textModel;
+		if (textModel && this._textModelRef?.object.textEditorModel === textModel) {
+			reference.dispose();
+			return textModel;
+		}
+
+		const previousReference = this._textModelRef;
+		this._textModelRef = reference;
+		previousReference?.dispose();
+		this._textModelRefChangeDisposable.value = this.textModel!.onDidChangeContent(() => this.onDidChangeTextModelContent());
 		return this.textModel!;
 	}
 
