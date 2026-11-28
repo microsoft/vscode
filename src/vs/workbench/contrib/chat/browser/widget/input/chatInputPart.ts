@@ -337,6 +337,8 @@ export interface IChatInputPartOptions {
 	enableImplicitContext?: boolean;
 	supportsChangingModes?: boolean;
 	dndContainer?: HTMLElement;
+	/** See {@link IChatWidgetViewOptions.dndChat}. */
+	dndChat?: HTMLElement;
 	inputEditorMinLines?: number;
 	inputEditorOptions?: Pick<IEditorOptions, 'fontSize' | 'lineHeight'>;
 	/** Vertical padding of the input editor. Defaults to the render style's padding. */
@@ -4100,7 +4102,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.renderChatEditingSessionState(null);
 
 		// Only the input itself takes drags ahead of the pane around it, not the widgets stacked on it, such as notices.
-		this.dnd.addOverlay(this.options.dndContainer ?? container, this.options.dndContainer ?? container, this.inputContainer);
+		const dndTarget = this.options.dndContainer ?? container;
+		this.dnd.addOverlay(dndTarget, dndTarget, this.inputContainer, this.options.dndChat ?? dndTarget);
 
 		const inputScopedContextKeyService = this._register(this.contextKeyService.createScoped(inputContainer));
 		ChatContextKeys.inChatInput.bindTo(inputScopedContextKeyService).set(true);

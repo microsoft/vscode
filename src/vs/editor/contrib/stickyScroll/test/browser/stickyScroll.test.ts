@@ -23,6 +23,8 @@ import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelSc
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { IOutlineModelService, OutlineModelService } from '../../../documentSymbols/browser/outlineModel.js';
 
 suite('Sticky Scroll Tests', () => {
 
@@ -59,8 +61,13 @@ suite('Sticky Scroll Tests', () => {
 
 	setup(() => {
 		disposables.clear();
+		serviceCollection.set(IOutlineModelService, new SyncDescriptor(OutlineModelService));
 	});
 	teardown(() => {
+		const outlineModelService = serviceCollection.get(IOutlineModelService);
+		if (outlineModelService instanceof OutlineModelService) {
+			outlineModelService.dispose();
+		}
 		disposables.clear();
 	});
 
@@ -146,11 +153,55 @@ suite('Sticky Scroll Tests', () => {
 				const languageService = instantiationService.get(ILanguageFeaturesService);
 				const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
 				disposables.add(languageService.documentSymbolProvider.register('*', documentSymbolProviderForTestModel()));
-				const provider: StickyLineCandidateProvider = new StickyLineCandidateProvider(editor, languageService, languageConfigurationService);
+				const provider: StickyLineCandidateProvider = new StickyLineCandidateProvider(editor, languageService, languageConfigurationService, instantiationService.get(IOutlineModelService));
 				await provider.update();
 				assert.deepStrictEqual(provider.getCandidateStickyLinesIntersecting({ startLineNumber: 1, endLineNumber: 4 }), [new StickyLineCandidate(1, 2, 0, 19)]);
 				assert.deepStrictEqual(provider.getCandidateStickyLinesIntersecting({ startLineNumber: 8, endLineNumber: 10 }), [new StickyLineCandidate(7, 11, 0, 19), new StickyLineCandidate(9, 11, 19, 19)]);
 				assert.deepStrictEqual(provider.getCandidateStickyLinesIntersecting({ startLineNumber: 10, endLineNumber: 13 }), [new StickyLineCandidate(7, 11, 0, 19), new StickyLineCandidate(9, 11, 19, 19)]);
+
+				provider.dispose();
+				model.dispose();
+			});
+		});
+	});
+
+	test('issue #350683: reuses the document symbols that other consumers requested for the same version', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const model = createTextModel(text);
+			await withAsyncTestCodeEditor(model, {
+				stickyScroll: {
+					enabled: true,
+					maxLineCount: 5,
+					defaultModel: 'outlineModel'
+				},
+				envConfig: {
+					outerHeight: 500
+				},
+				serviceCollection
+			}, async (editor, _viewModel, instantiationService) => {
+				const languageService = instantiationService.get(ILanguageFeaturesService);
+				const outlineModelService = instantiationService.get(IOutlineModelService);
+				const symbols = documentSymbolProviderForTestModel();
+				let requests = 0;
+				disposables.add(languageService.documentSymbolProvider.register('*', {
+					provideDocumentSymbols() {
+						requests++;
+						return symbols.provideDocumentSymbols();
+					}
+				}));
+
+				// e.g. breadcrumbs
+				await outlineModelService.getOrCreate(model, CancellationToken.None);
+
+				const provider = new StickyLineCandidateProvider(editor, languageService, instantiationService.get(ILanguageConfigurationService), outlineModelService);
+				await provider.update();
+				assert.deepStrictEqual({
+					requests,
+					candidates: provider.getCandidateStickyLinesIntersecting({ startLineNumber: 1, endLineNumber: 4 })
+				}, {
+					requests: 1,
+					candidates: [new StickyLineCandidate(1, 2, 0, 19)]
+				});
 
 				provider.dispose();
 				model.dispose();

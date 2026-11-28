@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { InstantiationType } from '../../../../../platform/instantiation/common/extensions.js';
-import { registerWorkbenchContribution2 } from '../../../../common/contributions.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { EditorWindowWorktreeCleanup } from './editorWindowWorktreeCleanup.js';
 import { registerEditorWindowSessionsSingleton } from './editorWindowSessionsServices.js';
 import { ChatHostOpenerService, IChatHostOpenerService } from '../../../../services/sessions/browser/chatHostOpener.js';
@@ -30,6 +30,9 @@ import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { EditorWindowSessionsProvidersService } from './editorWindowSessionsProvidersService.js';
 import { IWorkspaceFolderRepositories, WorkspaceFolderRepositories } from '../workspaceFolderRepositories.js';
 import { ISessionsRecentWorkspacesService, SessionsRecentWorkspacesService } from '../sessionsRecentWorkspacesService.js';
+import { SessionWorkspacesContextKeys } from '../sessionWorkspacesContextKeys.js';
+import { SessionWorkspacesService } from '../sessionWorkspacesService.js';
+import { ISessionWorkspacesService } from '../../common/sessionWorkspaces.js';
 import { IAgentHostFilterService } from '../../common/agentHostFilter.js';
 import { ISessionComparisonService } from '../../common/sessionComparison.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
@@ -48,6 +51,7 @@ import { EditorWindowSessionsHostLayout } from './editorWindowSessionsHostLayout
 import { IFocusedSessionHostService, ISessionHost, ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
 import { GitHubService, IGitHubService } from '../github/githubService.js';
 import '../sessionAttentionService.js';
+import '../workspaceEditor/sessionWorkspaceEditor.contribution.js';
 import { FocusedSessionHostService, SessionHostService } from '../sessionHostService.js';
 import { ISessionWorktreeCleanupService, SessionWorktreeCleanupService } from '../sessionInputBanners/sessionWorktreeCleanupService.js';
 import { SessionWorktreeCleanupEditor } from '../sessionInputBanners/sessionWorktreeCleanupEditor.js';
@@ -95,6 +99,8 @@ registerEditorWindowSessionsSingleton(ISessionOpenTelemetryService, SessionOpenT
 registerEditorWindowSessionsSingleton(ISessionSectionOrderService, SessionSectionOrderService, InstantiationType.Delayed);
 registerEditorWindowSessionsSingleton(ISessionGroupsService, SessionGroupsService, InstantiationType.Delayed);
 registerEditorWindowSessionsSingleton(ISessionsRecentWorkspacesService, SessionsRecentWorkspacesService, InstantiationType.Delayed);
+registerEditorWindowSessionsSingleton(ISessionWorkspacesService, SessionWorkspacesService, InstantiationType.Delayed);
+registerWorkbenchContribution2(SessionWorkspacesContextKeys.ID, SessionWorkspacesContextKeys, WorkbenchPhase.AfterRestored);
 registerEditorWindowSessionsSingleton(ISessionComparisonService, SessionComparisonService, InstantiationType.Delayed);
 registerEditorWindowSessionsSingleton(IAgentHostFilterService, AgentHostFilterService, InstantiationType.Delayed);
 registerEditorWindowSessionsSingleton(ISessionRepositoryPicker, DefaultSessionRepositoryPicker, InstantiationType.Delayed);

@@ -1273,6 +1273,14 @@ export class RemotesWidget extends Disposable {
 				throw new Error(localize('remotes.newSessionUnavailable', "Connect to this environment before starting a session."));
 			}
 			await this.commandService.executeCommand('workbench.action.closeModalEditor');
+			if (remote.devContainerFolder) {
+				// Sessions in a folder's Dev Container start in the folder, as the Environment picker's Dev Container for Folder does.
+				const { session, trustDeclined } = await this.sessionsService.openNewSession({ folderUri: remote.devContainerFolder.workspaceUri, requireDevContainer: true, cancelRestore: true });
+				if (!session && !trustDeclined) {
+					throw new Error(localize('remotes.composerUnavailable', "Couldn't open the new session composer."));
+				}
+				return;
+			}
 			await this.sessionsService.openNewSession();
 			const composer = this.composerService.activeComposer.get();
 			if (!composer?.selectEnvironment) {

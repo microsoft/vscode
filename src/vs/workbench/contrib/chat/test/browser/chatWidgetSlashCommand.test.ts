@@ -28,6 +28,7 @@ import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { ChatAgentService, IChatAgentService } from '../../common/participants/chatAgents.js';
 import { IChatSlashCommandService } from '../../common/participants/chatSlashCommands.js';
 import { ChatRequestSlashCommandPart, IParsedChatRequest } from '../../common/requestParser/chatParserTypes.js';
+import { ChatRequestParser } from '../../common/requestParser/chatRequestParser.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { MockChatService } from '../common/chatService/mockChatService.js';
 import { MockChatVariablesService } from '../common/mockChatVariables.js';
@@ -197,6 +198,7 @@ suite('ChatWidget Slash Commands', () => {
 				},
 			},
 			instantiationService,
+			requestParser: instantiationService.createInstance(ChatRequestParser),
 			location: ChatAgentLocation.Chat,
 			_lastSelectedAgent: undefined,
 			_lockedAgent: undefined,

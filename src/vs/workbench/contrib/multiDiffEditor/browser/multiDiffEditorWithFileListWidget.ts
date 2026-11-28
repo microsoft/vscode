@@ -162,6 +162,11 @@ export class MultiDiffEditorWithFileListWidget extends Disposable {
 		this._fileList.value?.focus();
 	}
 
+	/** Whether keyboard focus is inside the file list. */
+	hasFileListFocus(): boolean {
+		return !!this._fileList.value && this._fileListContainer.contains(getActiveElement());
+	}
+
 	/**
 	 * Called when the editor that shows the widget is shown or hidden. Like the Source Control view, a hidden file list
 	 * keeps no structural changes.

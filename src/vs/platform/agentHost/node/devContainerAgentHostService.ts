@@ -10,11 +10,12 @@ import { mkdtemp, rm, stat } from 'fs/promises';
 import { Duplex } from 'stream';
 import type WebSocket from 'ws';
 import { SequencerByKey } from '../../../base/common/async.js';
+import { equals } from '../../../base/common/arrays.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { CancellationError, getErrorMessage, isCancellationError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { join, posix } from '../../../base/common/path.js';
+import { join, posix, win32 } from '../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { hasKey } from '../../../base/common/types.js';
@@ -33,7 +34,7 @@ import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { type AgentHostEndpointAddress, selectAgentHostEndpoint } from '../common/agentHostEndpointRegistry.js';
 import { telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
-import { DevContainerConnectStage, DevContainerEnvironmentVolumeLookupTimeoutMs, IDevContainerAgentHostConfig, IDevContainerAgentHostConnectFailure, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport, VSCODE_REMOTE_CONTAINERS_SESSION_ENV, type DevContainerAgentHostSource } from '../common/devContainerAgentHost.js';
+import { DevContainerConnectStage, DevContainerEnvironmentVolumeLookupTimeoutMs, DevContainerFolderContainersLookupTimeoutMs, IDevContainerAgentHostConfig, IDevContainerAgentHostConnectFailure, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport, IDevContainerHostFolderContainer, VSCODE_REMOTE_CONTAINERS_SESSION_ENV, type DevContainerAgentHostSource } from '../common/devContainerAgentHost.js';
 import { devContainerEnvironmentScheme, IDevContainerEnvironmentSource } from '../common/devContainerEnvironments.js';
 import { DevContainerSample, IDevContainerRepository, devContainerSampleUri, devContainerSamples, getDevContainerSampleFolder } from '../common/devContainerSamples.js';
 import { IRelayMessage } from '../common/relayTransport.js';
@@ -64,6 +65,8 @@ import {
 const LOG_PREFIX = '[DevContainerAgentHost]';
 const DEV_CONTAINER_LOG_ARGS = ['--log-level', 'debug'] as const;
 const DEV_CONTAINER_RELAY_CONNECTION_TIMEOUT_MS = 30_000;
+/** `docker ps` format that prints a container's folder and configuration file id labels and its state as a JSON array. */
+const devContainerFolderContainerFormat = '[{{json (.Label "devcontainer.local_folder")}},{{json (.Label "devcontainer.config_file")}},{{json .State}}]';
 
 function getDevContainerShellArgs(workspaceFolder: string | readonly string[]): readonly string[] {
 	return ['exec', ...DEV_CONTAINER_LOG_ARGS, ...typeof workspaceFolder === 'string' ? ['--workspace-folder', workspaceFolder] : workspaceFolder, '/bin/sh'];
@@ -374,12 +377,16 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				}
 				const userStateMount = config.persistUserState ? await this._getUserStateMountArgs(config.connectionId, configuration, config.workspaceFolder, tokenSource.token) : { args: [], keepExistingFolders: true };
 				const selectorArgs = typeof workspaceSelector === 'string' ? ['--workspace-folder', workspaceSelector] : workspaceSelector;
+				// `up` starts a stopped container, which a connection without user action must not do, so this checks right before it.
+				if (config.requireRunning && !await this._isFolderContainerRunning(config.workspaceFolder, configuration, tokenSource.token)) {
+					throw new Error(localize('devContainerAgentHost.containerNotRunning', "The Dev Container for '{0}' is not running.", config.name));
+				}
 				const up = await this._runDevContainerStage(
 					config.connectionId,
 					'up',
 					!!config.persistUserState,
 					// Lifecycle commands run after linking user state, so their changes to it persist.
-					['up', ...DEV_CONTAINER_LOG_ARGS, ...selectorArgs, ...cacheMountArgs, ...userStateMount.args, ...config.persistUserState ? ['--skip-post-create'] : []],
+					['up', ...DEV_CONTAINER_LOG_ARGS, ...selectorArgs, ...cacheMountArgs, ...userStateMount.args, ...config.persistUserState ? ['--skip-post-create'] : [], ...config.requireRunning ? ['--expect-existing-container'] : []],
 					tokenSource.token,
 					sandboxEnvironment,
 					parseDevContainerUpResult,
@@ -1356,6 +1363,44 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		return this._resolveDockerExecutable().then(executable => executable !== undefined);
 	}
 
+	async listFolderContainers(): Promise<readonly IDevContainerHostFolderContainer[]> {
+		return (await this._listFolderContainers()).map(container => ({ folder: URI.file(container.workspaceFolder).toString(), running: container.running }));
+	}
+
+	private async _listFolderContainers(): Promise<readonly { readonly workspaceFolder: string; readonly running: boolean }[]> {
+		if (!await this.isDockerAvailable()) {
+			return [];
+		}
+		// A stalled Docker engine must not keep the caller waiting.
+		const tokenSource = new CancellationTokenSource();
+		const timer = setTimeout(() => tokenSource.cancel(), DevContainerFolderContainersLookupTimeoutMs);
+		try {
+			const result = await this._runDocker(['ps', '--all', '--filter', 'label=devcontainer.local_folder', '--filter', 'label=devcontainer.config_file', '--format', devContainerFolderContainerFormat], tokenSource.token);
+			if (result.code !== 0) {
+				throw new Error(`Cannot list Docker containers (exit ${result.code}): ${result.stderr}`);
+			}
+			return parseDevContainerFolderContainers(result.stdout, process.platform);
+		} finally {
+			clearTimeout(timer);
+			tokenSource.dispose();
+		}
+	}
+
+	/**
+	 * Whether the container that `up` reuses for the folder and its selected configuration file runs. Another
+	 * configuration file's container may run while that one is stopped, and `up` would start it.
+	 */
+	private async _isFolderContainerRunning(workspaceFolder: string, configuration: Promise<string>, token: CancellationToken): Promise<boolean> {
+		const { configPath } = parseDevContainerSandboxConfiguration(await configuration);
+		const idLabels = getDefaultDevContainerIdLabels(process.platform, workspaceFolder, configPath);
+		const result = await this._runDocker(['ps', '-a', '--format', '{{.State}}', ...idLabels.flatMap(label => ['--filter', `label=${label}`])], token);
+		if (result.code !== 0) {
+			throw new Error(`Cannot list Docker containers (exit ${result.code}): ${result.stderr}`);
+		}
+		const states = result.stdout.split(/\r?\n/).filter(state => state.trim());
+		return states.length > 0 && states.every(isDevContainerRunning);
+	}
+
 	async stopContainer(source: DevContainerAgentHostSource): Promise<boolean> {
 		return this._containerOperations.queue(getSourceKey(source), () => this._changeContainerState(source, 'stop'));
 	}
@@ -1691,6 +1736,37 @@ export function parseDevContainerMounts(output: string): readonly IDevContainerM
 		throw new Error(localize('devContainerAgentHost.invalidMounts', "Docker returned invalid mount information: {0}", error.message));
 	}
 	return content;
+}
+
+/**
+ * Reads the containers listed with {@link devContainerFolderContainerFormat} and keeps those whose id labels are the
+ * defaults for their folder and one of its default configuration files, which a connection with the folder's path
+ * reuses. Others would get a container of their own: for example, Dev Containers labels a WSL folder's container with
+ * the folder's Windows UNC path and its configuration file's Linux path. A folder runs if any of its containers runs.
+ */
+export function parseDevContainerFolderContainers(output: string, platform: string): { readonly workspaceFolder: string; readonly running: boolean }[] {
+	const path = platform === 'win32' ? win32 : posix;
+	const folders = new Map<string, boolean>();
+	for (const line of output.split(/\r?\n/)) {
+		let value: unknown;
+		try {
+			value = JSON.parse(line);
+		} catch {
+			continue;
+		}
+		if (!Array.isArray(value) || value.length !== 3 || !value.every(item => typeof item === 'string')) {
+			continue;
+		}
+		const [workspaceFolder, configFile, state]: string[] = value;
+		const labels = [`devcontainer.local_folder=${workspaceFolder}`, `devcontainer.config_file=${configFile}`];
+		const usesDefaults = !!workspaceFolder && path.isAbsolute(workspaceFolder)
+			&& [path.join(workspaceFolder, '.devcontainer', 'devcontainer.json'), path.join(workspaceFolder, '.devcontainer.json')]
+				.some(defaultConfigFile => equals(getDefaultDevContainerIdLabels(platform, workspaceFolder, defaultConfigFile), labels));
+		if (usesDefaults) {
+			folders.set(workspaceFolder, folders.get(workspaceFolder) || state.trim().toLowerCase() === 'running');
+		}
+	}
+	return [...folders].map(([workspaceFolder, running]) => ({ workspaceFolder, running }));
 }
 
 function findContainingBindMount(mounts: readonly IDevContainerMount[], path: string): IDevContainerMount | undefined {

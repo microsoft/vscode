@@ -37,7 +37,8 @@ import { IChatService } from '../../../../chat/common/chatService/chatService.js
 import { AgentsChatPartService, IAgentsChatPartService, restoreAgentsChatPart } from '../../../browser/agentsView/agentsChatPart.js';
 import { IAgentsChatPartFrame } from '../../../browser/agentsView/agentsChatPartFrame.js';
 import { EditorWindowMainSessionHost, EditorWindowShownChatService, IEditorWindowShownChatService } from '../../../browser/agentsView/editorWindowMainSessionHost.js';
-import { ChatEditorInput } from '../../../browser/chatEditor/chatEditor.js';
+import { ChatEditorInput, getSessionChatViewHost } from '../../../browser/chatEditor/chatEditor.js';
+import { fillSessionChatDragData } from '../../../browser/dnd.js';
 import { CHAT_WINDOW_COMPOSERS_STORAGE_KEY, createChatWindowComposerResource, isChatWindowComposerResource } from '../../../browser/chatEditor/chatWindowComposer.js';
 import { INewSessionTarget } from '../../../browser/parts/chatView.js';
 import { fromStoredChatDraft, toStoredChatDraft } from '../../../common/newChatDraftState.js';
@@ -822,6 +823,25 @@ suite('AgentsChatPartService', () => {
 			beside: { groups: [{ tabs: ['/a'], active: '/a' }, { tabs: ['/b'], active: '/b' }], activeGroup: 1, visible: true },
 			again: { groups: [{ tabs: ['/a'], active: '/a' }, { tabs: ['/b'], active: '/b' }], activeGroup: 0, visible: true },
 		});
+	});
+
+	test('a session dropped on a chat opens its chat in the group of that chat, also while another group is active', async () => {
+		const dropped = buildTestSession({ id: 'dropped', title: 'Dropped' });
+		const { service, part, layout, store } = createService({ sessions: () => [dropped.session] });
+
+		await service.openChat(session, chatA, { sideBySide: true });
+		await service.openChat(session, chatB, { sideBySide: true });
+		// The view of the chat of the first group, which takes what is dropped on it through its host
+		const element = document.createElement('div');
+		store.add(getSessionChatViewHost(part.groups[0].activeEditor as ChatEditorInput)!.createDropTarget!(element, () => chatA));
+		const dataTransfer = new DataTransfer();
+		fillSessionChatDragData(new DragEvent('dragstart', { dataTransfer }), dropped.session.sessionId, dropped.mainChat.chat.resource);
+		element.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer }));
+		element.querySelector('.session-chat-drop-overlay')?.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }));
+		await timeout(0);
+
+		const droppedTab = dropped.mainChat.chat.resource.path;
+		assert.deepStrictEqual(layout(), { groups: [{ tabs: ['/a', droppedTab], active: droppedTab }, { tabs: ['/b'], active: '/b' }], activeGroup: 0, visible: true });
 	});
 
 	test('closing a chat while its provider is released, which removes its session as its tab disposes, disposes its tab once, not from within its own dispose', async () => {

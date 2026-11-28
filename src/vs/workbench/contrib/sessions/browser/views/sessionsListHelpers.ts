@@ -6,7 +6,7 @@
 import { SessionsGrouping, SessionsSorting, ISessionSection, ISessionRepository, ISessionShowMore } from './sessionsListCommon.js';
 import { IReader } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { isEqual } from '../../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { localize } from '../../../../../nls.js';
 import { isSideChat } from '../sideChatPlacement.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
@@ -18,6 +18,7 @@ import { getSessionComparisonChat, getSessionComparisonHarnessDisplayLabel, getS
 import { compareSessionEnvironments, getSessionEnvironments } from './sessionsListFilters.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { InboxNotificationPriority } from '../../common/sessionAttentionService.js';
+import { IRecentSessionWorkspace } from '../../common/sessionWorkspaces.js';
 import { getSessionInboxPriority, getSessionInboxSection, SessionInboxSection, sessionInboxSections } from '../../common/sessionInbox.js';
 
 export const NEW_SESSION_SECTION_ID = 'newSession';
@@ -28,6 +29,10 @@ export const PINNED_CANVAS_SECTION_PREFIX = 'pinnedCanvas:';
 export const EXTERNAL_SESSIONS_SECTION_ID = 'external';
 /** Ungrouped sessions sectioned by date share one sort order across these sections, in display order. */
 export const DATE_SECTION_IDS: readonly string[] = ['recent', 'older'];
+/** The header whose rows are the custom groups, while Group by Workspace separates groups and workspaces. */
+export const GROUPS_SECTION_ID = 'groups';
+/** The header whose rows are the workspaces, while Group by Workspace separates groups and workspaces. */
+export const WORKSPACES_SECTION_ID = 'workspaces';
 
 export function getChatTitle(chat: IChat, reader?: IReader): string {
 	if (chat.status.read(reader) === SessionStatus.Untitled) {
@@ -443,6 +448,7 @@ export function groupSessionsForList(
 	getInboxPriority: (session: ISession) => InboxNotificationPriority = getSessionInboxPriority,
 	quickChatsInTimeGrouping = false,
 	quickChatsSection = true,
+	workspaces?: ISessionListWorkspaces,
 	nowMs?: number,
 ): ISessionSection[] {
 	const sorted = sortSessions(sessions, sorting, getSortKey);
@@ -479,15 +485,21 @@ export function groupSessionsForList(
 		sections.push({ id: QUICK_CHATS_SECTION_ID, label: localize('chatsSection', "Chats"), sessions: quickChats });
 	}
 
-	sections.push(...(grouping === SessionsGrouping.Inbox
-		? groupByInboxSection(regular, sorting, getInboxSection, getInboxPriority)
-		: grouping === SessionsGrouping.Workspace
-			? groupByWorkspace(regular)
-			: grouping === SessionsGrouping.Repository
-				? groupByRepository(regular)
-				: grouping === SessionsGrouping.Environment
-					? groupByEnvironment(regular, normalizedEnvironments)
-					: groupByDate(regular, sorting, getSortKey, nowMs)));
+	const groupRegular = (): ISessionSection[] => {
+		if (grouping === SessionsGrouping.Workspace && workspaces) {
+			return groupByWorkspaces(regular, workspaces);
+		} else if (grouping === SessionsGrouping.Inbox) {
+			return groupByInboxSection(regular, sorting, getInboxSection, getInboxPriority);
+		} else if (grouping === SessionsGrouping.Workspace) {
+			return groupByWorkspace(regular);
+		} else if (grouping === SessionsGrouping.Repository) {
+			return groupByRepository(regular);
+		} else if (grouping === SessionsGrouping.Environment) {
+			return groupByEnvironment(regular, normalizedEnvironments);
+		}
+		return groupByDate(regular, sorting, getSortKey, nowMs);
+	};
+	sections.push(...groupRegular());
 
 	if (external.length > 0) {
 		sections.push({ id: EXTERNAL_SESSIONS_SECTION_ID, label: localize('externalSessionsSection', "External"), sessions: external });
@@ -592,6 +604,90 @@ export function groupByWorkspace(sessions: ISession[]): ISessionSection[] {
 	return result;
 }
 
+/** The workspaces that the separate Workspaces header lists sessions under, as the workspaces service knows them. */
+export interface ISessionListWorkspaces {
+	/** The workspace of a `.code-workspace` file or of a folder, also under a file it had before a rename. */
+	getWorkspace(uri: URI): IRecentSessionWorkspace | undefined;
+	/** The key that identifies a workspace's file or folder, as the URI identity service compares them. */
+	getKey(uri: URI): string;
+	/** The workspaces listed even without sessions. */
+	readonly listed: readonly IRecentSessionWorkspace[];
+}
+
+/**
+ * The workspace rows of the separate Workspaces header: a session lists under its workspace file, else
+ * under its default folder, by name; sessions without a folder list under Unknown, last. The name, icon and color come
+ * from the workspaces service, never from the session; a folder that the service does not know shows its name.
+ */
+export function groupByWorkspaces(sessions: readonly ISession[], workspaces: ISessionListWorkspaces): ISessionSection[] {
+	const rows = new Map<string, ISessionSection & { readonly sessions: ISession[] }>();
+	const add = (uri: URI): ISession[] => {
+		const row = createWorkspaceRow(uri, workspaces);
+		const existing = rows.get(row.id);
+		if (existing) {
+			return existing.sessions;
+		}
+		rows.set(row.id, row);
+		return row.sessions;
+	};
+	for (const workspace of workspaces.listed) {
+		add(workspace.uri);
+	}
+	const unknown: ISession[] = [];
+	for (const session of sessions) {
+		const uri = getSessionWorkspaceUri(session);
+		if (uri) {
+			add(uri).push(session);
+		} else {
+			unknown.push(session);
+		}
+	}
+	const result: ISessionSection[] = [...rows.values()];
+	if (unknown.length > 0) {
+		const label = localize('unknown', "Unknown");
+		result.push({ id: `workspace:${label}`, label, sessions: unknown });
+	}
+	return result.sort(compareWorkspaceRows);
+}
+
+/**
+ * A workspace row of {@link groupByWorkspaces}, without sessions: the workspace of a `.code-workspace` file or folder, as
+ * the workspaces service knows it, else the folder by its name.
+ */
+export function createWorkspaceRow(uri: URI, workspaces: ISessionListWorkspaces): ISessionSection & { readonly sessions: ISession[] } {
+	const workspace = workspaces.getWorkspace(uri);
+	const id = getWorkspaceRowId(uri, workspaces);
+	return {
+		id,
+		collapseStateId: id,
+		label: workspace?.name ?? basename(uri),
+		sessions: [],
+		workspace: { uri: workspace?.uri ?? uri, icon: workspace?.icon, color: workspace?.color, known: !!workspace },
+	};
+}
+
+/** The order of the workspace rows of {@link groupByWorkspaces}: by name, Unknown last. */
+export function compareWorkspaceRows(a: ISessionSection, b: ISessionSection): number {
+	return Number(!a.workspace) - Number(!b.workspace) || a.label.localeCompare(b.label);
+}
+
+/** The workspace file a session was created in, else its default folder. */
+export function getSessionWorkspaceUri(session: ISession): URI | undefined {
+	const workspace = session.workspace.get();
+	return workspace?.workspaceConfig?.uri ?? workspace?.folders[0]?.root;
+}
+
+/** The id of the workspace row of {@link groupByWorkspaces} for a workspace file or folder, also under a former file. */
+function getWorkspaceRowId(uri: URI, workspaces: ISessionListWorkspaces): string {
+	return `workspace:${workspaces.getKey(workspaces.getWorkspace(uri)?.uri ?? uri)}`;
+}
+
+/** The id of the workspace row of {@link groupByWorkspaces} that a session lists under. */
+function getSessionWorkspaceRowId(session: ISession, workspaces: ISessionListWorkspaces): string {
+	const uri = getSessionWorkspaceUri(session);
+	return uri ? getWorkspaceRowId(uri, workspaces) : `workspace:${localize('unknown', "Unknown")}`;
+}
+
 /** Whether a persisted collapse state id belongs to a grouping-specific section. */
 export function isGroupingSpecificCollapseStateId(id: string): boolean {
 	return id.startsWith('workspace:') || id.startsWith(ENVIRONMENT_SECTION_PREFIX) || id === 'recent' || id === 'older';
@@ -616,7 +712,10 @@ export function getRepositorySectionId(repository: ISessionRepository): string {
 }
 
 /** The grouping section a session renders in when nothing with higher precedence places it. */
-export function getSessionGroupingSectionId(session: ISession, grouping: SessionsGrouping): string {
+export function getSessionGroupingSectionId(session: ISession, grouping: SessionsGrouping, workspaces?: ISessionListWorkspaces): string {
+	if (grouping === SessionsGrouping.Workspace && workspaces) {
+		return getSessionWorkspaceRowId(session, workspaces);
+	}
 	if (grouping === SessionsGrouping.Environment) {
 		return `${ENVIRONMENT_SECTION_PREFIX}${session.environment}`;
 	}

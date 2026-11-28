@@ -8,6 +8,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Iterable } from '../../../../../base/common/iterator.js';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { getOrSet } from '../../../../../base/common/map.js';
 import { autorun, derived, derivedOpts, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
@@ -23,6 +24,7 @@ import { FocusedViewContext, IsAuxiliaryWindowContext, IsSessionsWindowContext }
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { createDecorator, IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
+import { SyncDescriptor0 } from '../../../../../platform/instantiation/common/descriptors.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -35,7 +37,7 @@ import { observableConfigValue } from '../../../../../platform/observable/common
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { localize } from '../../../../../nls.js';
+import { localize, localize2 } from '../../../../../nls.js';
 import { SessionsList } from './sessionsList.js';
 import { IPendingSessionItem } from './pendingSessions.js';
 import { SessionsGrouping, SessionsSorting } from './sessionsListCommon.js';
@@ -48,8 +50,8 @@ import { SessionsWindowScopeController } from './sessionsWindowScopeController.j
 import { getSessionFilterActionId, getSessionFilterEnvironments, getSessionFilterOptions, ISessionFilterOption, listsQuickChatsIn, sessionFilterKey, SessionsWorktreeOpener } from './sessionsListFilters.js';
 import { AICustomizationShortcutsWidget } from '../aiCustomizationShortcutsWidget.js';
 import { AgentHostShortcutsWidget } from '../agentHostShortcutsWidget.js';
-import { Action2, IMenuService, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
-import { getFlatContextMenuActions, SubmenuEntryActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { Action2, IMenuService, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { getFlatContextMenuActions, MenuEntryActionViewItem, SubmenuEntryActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IDropdownMenuActionViewItemOptions } from '../../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { IActionViewItem } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { IAction } from '../../../../../base/common/actions.js';
@@ -71,7 +73,7 @@ import { Menus, SessionsViewShowGroup } from '../menus.js';
 import { MobileSessionFilterChips } from '../mobile/mobileSessionFilterChips.js';
 import { IMobileSortGroupSheetItem, showMobileSortGroupSheet } from '../mobile/mobileSortGroupSheet.js';
 import { isPhoneLayout } from '../../../../browser/parts/sessions/mobileLayout.js';
-import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionsListRearrangeContext, SessionWorkspacesEnabledContext } from '../../common/contextkeys.js';
 import { ISessionsHostLayoutService } from '../../../../services/sessions/browser/sessionsHostLayoutService.js';
 import { ISessionsListPresentation } from '../sessionsListPresentation.js';
 import { logSessionsListCompactViewState } from '../../common/sessionsTelemetry.js';
@@ -85,13 +87,151 @@ import { SessionsListNotification } from './sessionsListNotification.js';
 import { ISessionsListUndoService } from '../sessionsListUndoService.js';
 import { SessionsInboxScope } from './sessionsInboxScope.js';
 import { readPaneSessions } from '../../../../services/sessions/browser/sessionGridPane.js';
+import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
 import { ChatCustomizationsLocation, resolveChatCustomizationsLocation } from '../../../chat/common/customizationsLocation.js';
 import { ChatConfiguration } from '../../../chat/common/constants.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'sessions.workbench.view.sessionsView';
-const GROUPING_STORAGE_KEY = 'sessionsViewPane.grouping';
-const NON_INBOX_GROUPING_STORAGE_KEY = 'sessionsViewPane.nonInboxGrouping';
+
+/** The storage keys under which a Sessions view remembers its grouping and the grouping Inbox returns to. */
+export interface ISessionsViewGroupingStorageKeys {
+	readonly grouping: string;
+	readonly nonInboxGrouping: string;
+	/** Where the grouping and the grouping Inbox returns to are stored, such as only on this machine; by default, for the user. */
+	readonly target?: StorageTarget;
+	/**
+	 * A key whose grouping the view starts with while it has not stored its own, such as the one it stored before it had its own
+	 * keys, which the view then stores as its own once. Only a grouping other than Inbox is taken, and the key is only read.
+	 */
+	readonly fallbackGrouping?: string;
+	/**
+	 * Where it is remembered that Inbox was left while the view was not there to leave it, such as as `keptBy` turned off, and
+	 * the view went: the view then opens at the grouping Inbox returns to, unless the window's workspace keeps `keptBy` on. The
+	 * stored grouping stays Inbox for such a window until the view stores a grouping again, which forgets this.
+	 */
+	readonly inboxLeft?: { readonly key: string; readonly keptBy: string };
+}
+
+const SEPARATE_GROUPS_AND_WORKSPACES_STORAGE_KEY = 'sessionsViewPane.separateGroupsAndWorkspaces';
+/** Whether Group by Workspace separates groups and workspaces for a user who has not chosen. */
+const DEFAULT_SEPARATE_GROUPS_AND_WORKSPACES = false;
+/** The grouping that listed custom groups and workspaces under headers of their own, which Group by Workspace now does as an option. */
+export const LEGACY_WORKSPACES_AND_GROUPS_GROUPING = 'workspacesAndGroups';
+/** The phone sheet's row that turns {@link SEPARATE_GROUPS_AND_WORKSPACES_LABEL} on or off. */
+const SEPARATE_GROUPS_AND_WORKSPACES_SHEET_ITEM = 'separateGroupsAndWorkspaces';
+
+const DEFAULT_GROUPING_STORAGE_KEYS: ISessionsViewGroupingStorageKeys = {
+	grouping: 'sessionsViewPane.grouping',
+	nonInboxGrouping: 'sessionsViewPane.nonInboxGrouping',
+};
+
+/**
+ * The grouping a Sessions view remembers and the grouping Inbox returns to, under its {@link ISessionsViewGroupingStorageKeys keys}
+ * (by default, those of the Agents window): the one owner of how they are stored, which the view reads and writes them through,
+ * and which can leave Inbox for the view while it is not there.
+ */
+export class SessionsViewGroupingState {
+
+	private readonly keys: ISessionsViewGroupingStorageKeys;
+
+	constructor(
+		keys: ISessionsViewGroupingStorageKeys | undefined,
+		@IStorageService private readonly storageService: IStorageService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+	) {
+		this.keys = keys ?? DEFAULT_GROUPING_STORAGE_KEYS;
+	}
+
+	/** The grouping Inbox returns to, of those `offered`, else `fallback`. */
+	readNonInboxGrouping(offered: readonly SessionsGrouping[], fallback: SessionsGrouping): SessionsGrouping {
+		return getStoredSessionsGrouping(this.storageService.get(this.keys.nonInboxGrouping, StorageScope.PROFILE), offered.filter(grouping => grouping !== SessionsGrouping.Inbox)) ?? fallback;
+	}
+
+	/**
+	 * The grouping the view opens with, of those `offered`: the one stored, else, where none is stored and there is a fallback
+	 * key, the grouping other than Inbox stored there (or `fallback`), which `seed` says the view is to store as its own. Inbox
+	 * left while the view was not there opens at the grouping Inbox returns to.
+	 */
+	readGrouping(offered: readonly SessionsGrouping[], fallback: SessionsGrouping): { readonly grouping: SessionsGrouping | undefined; readonly seed: boolean } {
+		const stored = this.storageService.get(this.keys.grouping, StorageScope.PROFILE);
+		if (stored === undefined && this.keys.fallbackGrouping) {
+			const seeded = getStoredSessionsGrouping(this.storageService.get(this.keys.fallbackGrouping, StorageScope.PROFILE), offered.filter(grouping => grouping !== SessionsGrouping.Inbox));
+			return { grouping: seeded ?? fallback, seed: true };
+		}
+		const grouping = getStoredSessionsGrouping(stored, offered);
+		const inboxLeft = this.keys.inboxLeft;
+		if (grouping === SessionsGrouping.Inbox && inboxLeft && this.storageService.getBoolean(inboxLeft.key, StorageScope.PROFILE, false)
+			&& this.configurationService.inspect<boolean>(inboxLeft.keptBy).workspaceValue !== true) {
+			return { grouping: this.readNonInboxGrouping(offered, fallback), seed: false };
+		}
+		return { grouping, seed: false };
+	}
+
+	/**
+	 * Whether Group by Workspace lists the custom groups and the workspaces under headers of their own, as the user chose, else
+	 * by default. It takes effect only while workspaces are enabled.
+	 */
+	get separateGroupsAndWorkspaces(): boolean {
+		const stored = this.storageService.get(SEPARATE_GROUPS_AND_WORKSPACES_STORAGE_KEY, StorageScope.PROFILE);
+		return stored === 'true' || stored === 'false' ? stored === 'true' : DEFAULT_SEPARATE_GROUPS_AND_WORKSPACES;
+	}
+
+	/** Fires as the choice whether to separate groups and workspaces is stored, by any view of the profile, until `disposables` is disposed. */
+	onDidChangeSeparateGroupsAndWorkspaces(disposables: DisposableStore): Event<void> {
+		return Event.signal(this.storageService.onDidChangeValue(StorageScope.PROFILE, SEPARATE_GROUPS_AND_WORKSPACES_STORAGE_KEY, disposables));
+	}
+
+	setSeparateGroupsAndWorkspaces(separate: boolean): void {
+		// One choice for every view of the profile, whichever view's keys stay on the machine
+		this.storageService.store(SEPARATE_GROUPS_AND_WORKSPACES_STORAGE_KEY, separate, StorageScope.PROFILE, StorageTarget.USER);
+	}
+
+	/**
+	 * Stores a stored choice of the former Workspaces & Groups grouping, as the grouping or as the one Inbox returns to, as
+	 * Group by Workspace with groups and workspaces separate, whether or not workspaces are enabled.
+	 */
+	migrateWorkspacesAndGroupsGrouping(): void {
+		let migrated = false;
+		for (const key of [this.keys.grouping, this.keys.nonInboxGrouping]) {
+			if (this.storageService.get(key, StorageScope.PROFILE) === LEGACY_WORKSPACES_AND_GROUPS_GROUPING) {
+				this.storageService.store(key, SessionsGrouping.Workspace, StorageScope.PROFILE, this.keys.target ?? StorageTarget.USER);
+				migrated = true;
+			}
+		}
+		if (migrated) {
+			this.setSeparateGroupsAndWorkspaces(true);
+		}
+	}
+
+	/** Stores the grouping the view opens with, without forgetting that Inbox was left. */
+	seedGrouping(grouping: SessionsGrouping): void {
+		this.storageService.store(this.keys.grouping, grouping, StorageScope.PROFILE, this.keys.target ?? StorageTarget.USER);
+	}
+
+	/** Stores the grouping the view changed to and, where it left a grouping other than Inbox, that one as the one Inbox returns to. */
+	storeGrouping(grouping: SessionsGrouping, left: SessionsGrouping | undefined): void {
+		const target = this.keys.target ?? StorageTarget.USER;
+		if (left !== undefined && left !== SessionsGrouping.Inbox) {
+			this.storageService.store(this.keys.nonInboxGrouping, left, StorageScope.PROFILE, target);
+		}
+		this.storageService.store(this.keys.grouping, grouping, StorageScope.PROFILE, target);
+		if (this.keys.inboxLeft) {
+			this.storageService.remove(this.keys.inboxLeft.key, StorageScope.PROFILE);
+		}
+	}
+
+	/**
+	 * Leaves the stored Inbox while the view is not there to leave it: the view then opens at the grouping Inbox returns to,
+	 * except in a window whose workspace keeps the setting the keys name on, for which the stored Inbox stays.
+	 */
+	leaveInbox(): void {
+		if (this.keys.inboxLeft && this.storageService.get(this.keys.grouping, StorageScope.PROFILE) === SessionsGrouping.Inbox) {
+			this.storageService.store(this.keys.inboxLeft.key, true, StorageScope.PROFILE, this.keys.target ?? StorageTarget.USER);
+		}
+	}
+}
+
 const SORTING_STORAGE_KEY = 'sessionsViewPane.sorting';
 const COMPACT_STORAGE_KEY = 'sessionsViewPane.compact';
 const CUSTOMIZATIONS_MIN_HEIGHT = 129;
@@ -107,11 +247,45 @@ export function getCustomizationsPresentation(phoneLayout: boolean, aiEnabled: b
 	return resolved === 'sidebar' ? 'control' : resolved === 'sessionsHeader' ? 'treatment' : 'hidden';
 }
 
+/** The Toggle Inbox action, which the view's title shows. */
+const INBOX_MODE_ACTION_ID = 'sessionsViewPane.inboxMode';
+
+/**
+ * Toggle Inbox in a host's title, such as the Chat view's, which shows as pressed while Inbox is on. Toggling rebuilds the
+ * title's actions, so the view hands the focus of a toggle that goes on to the one that replaces it.
+ */
+class InboxToggleActionViewItem extends MenuEntryActionViewItem {
+
+	onDispose: ((hadFocus: boolean) => void) | undefined;
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		// The title's toolbar does not show toggled actions as pressed; this one does
+		this.element?.classList.add('sessions-inbox-toggle');
+	}
+
+	hasFocus(): boolean {
+		return !!this.element && DOM.isAncestorOfActiveElement(this.element);
+	}
+
+	isShown(): boolean {
+		return !!this.element?.isConnected && this.element.getClientRects().length > 0;
+	}
+
+	override dispose(): void {
+		this.onDispose?.(this.hasFocus());
+		super.dispose();
+	}
+}
+
 export const ISessionsViewLocator = createDecorator<ISessionsViewLocator>('sessionsViewLocator');
 
 /** Knows the Sessions views that a host, such as another view, embeds instead of registering them with {@link SessionsViewId}. */
 export interface ISessionsViewLocator {
 	readonly _serviceBrand: undefined;
+
+	/** Fires as an embedded Sessions view registers or goes. */
+	readonly onDidChange: Event<void>;
 
 	/** Registers an embedded Sessions view; the latest registered view is the active one. */
 	register(view: SessionsView): IDisposable;
@@ -125,12 +299,17 @@ export class SessionsViewLocator implements ISessionsViewLocator {
 
 	private readonly views: SessionsView[] = [];
 
+	private readonly _onDidChange = new Emitter<void>();
+	readonly onDidChange = this._onDidChange.event;
+
 	register(view: SessionsView): IDisposable {
 		this.views.push(view);
+		this._onDidChange.fire();
 		return toDisposable(() => {
 			const index = this.views.indexOf(view);
 			if (index >= 0) {
 				this.views.splice(index, 1);
+				this._onDidChange.fire();
 			}
 		});
 	}
@@ -167,6 +346,12 @@ export function getActiveSessionsView(accessor: ServicesAccessor): SessionsView 
 /** Whether the window shows the Sessions view of an editor window, wherever it shows: in the Agents view or in the Chat view. */
 export const EditorWindowSessionsContext = new RawContextKey<boolean>('editorWindowSessions', false);
 
+/**
+ * Whether the editor window has a Sessions view that offers Inbox, such as the one the Chat view embeds: the window-wide state,
+ * as the Command Palette needs it wherever the focus is, which the view's own groupings do not tell outside the view.
+ */
+export const EditorWindowSessionsViewOffersInboxContext = new RawContextKey<boolean>('editorWindowSessionsViewOffersInbox', false);
+
 /** Whether the focus is inside a Sessions view: set on the view's own scope, so it holds wherever the view is embedded. */
 export const InSessionsViewContext = new RawContextKey<boolean>('inSessionsView', false);
 
@@ -180,6 +365,10 @@ export const ChatViewSessionsListContext = new RawContextKey<boolean>('chatViewS
 /** The `when` of the actions of the shared sessions list in the title of the Chat view. */
 export const ChatViewSessionsListTitleContext = ContextKeyExpr.and(ContextKeyExpr.equals('view', ChatViewId), ChatViewSessionsListContext, ChatContextKeys.enabled, ChatContextKeys.agentSessionsViewerVisible)!;
 export const SessionsViewCompactContext = new RawContextKey<boolean>('sessionsViewPane.compact', false);
+/** Whether Group by Workspace lists the custom groups and the workspaces under headers of their own, as the user chose. */
+export const SessionsViewSeparateGroupsAndWorkspacesContext = new RawContextKey<boolean>('sessionsViewPane.separateGroupsAndWorkspaces', DEFAULT_SEPARATE_GROUPS_AND_WORKSPACES);
+/** The label of the option of Group by Workspace that lists the custom groups and the workspaces under headers of their own. */
+export const SEPARATE_GROUPS_AND_WORKSPACES_LABEL = localize2('separateGroupsAndWorkspaces', "Separate Groups and Workspaces");
 export const IsWorkspaceGroupCappedContext = new RawContextKey<boolean>('sessionsViewPane.workspaceGroupCapped', true);
 /** The groupings a Sessions view offers by default, as the Agents window's does: all of them. */
 export const DEFAULT_SESSIONS_GROUPINGS: readonly SessionsGrouping[] = Object.values(SessionsGrouping);
@@ -294,6 +483,21 @@ export interface ISessionsViewOptions extends IViewPaneOptions {
 
 	/** Whether grouping by time lists the sessions without a workspace in the "Chats" section. See the sessions list's option. */
 	readonly quickChatsInTimeGrouping?: boolean;
+
+	/**
+	 * What remembers its grouping and the grouping Inbox returns to, so that a view in another window, such as the Chat view
+	 * of an editor window, remembers its own; by default, under the keys of the Agents window.
+	 */
+	readonly groupingState?: SyncDescriptor0<SessionsViewGroupingState>;
+
+	/** Whether Inbox opens the next session that needs input after a reply or approval; it does by default. */
+	readonly inboxAutoAdvance?: boolean;
+
+	/**
+	 * Whether the view leaves Inbox as Chat becomes unavailable, as its participant goes, so that Inbox does not stay on while its
+	 * controls are hidden, nor come back stale; by default it stays in Inbox and only hides the controls until Chat is back.
+	 */
+	readonly leaveInboxWithoutChat?: boolean;
 }
 
 export class SessionsView extends ViewPane {
@@ -323,6 +527,7 @@ export class SessionsView extends ViewPane {
 	private groupingContextKey: IContextKey | undefined;
 	private sortingContextKey: IContextKey | undefined;
 	private compactContextKey: IContextKey<boolean> | undefined;
+	private separateGroupsAndWorkspacesContextKey: IContextKey<boolean> | undefined;
 	private workspaceGroupCappedContextKey: IContextKey<boolean> | undefined;
 	/** Context keys of filter menu toggles, each with a reader of the list state it mirrors. */
 	private readonly filterContextKeys = new Map<string, { key: IContextKey<boolean>; read: () => boolean }>();
@@ -334,8 +539,22 @@ export class SessionsView extends ViewPane {
 	private readonly _mainWindowHost: ISessionHost;
 
 	private readonly headerInTitle: boolean;
+	private readonly inboxToggles = new Set<InboxToggleActionViewItem>();
 	private readonly hideCustomizations: boolean;
 	private readonly groupings: ISessionsViewOptions['groupings'];
+	private readonly groupingState: SessionsViewGroupingState;
+	private readonly inboxAutoAdvance: boolean | undefined;
+	private readonly leaveInboxWithoutChat: boolean | undefined;
+	/**
+	 * The grouping Inbox returns to in the Chat view ({@link ISessionsViewOptions.leaveInboxWithoutChat}): read as it opens or
+	 * switches profile, so that another window entering Inbox from another grouping does not change where this one returns.
+	 */
+	private mountedNonInboxGrouping: SessionsGrouping | undefined;
+	/**
+	 * Whether the window switches to another profile, until Chat is back ({@link ISessionsViewOptions.leaveInboxWithoutChat}):
+	 * meanwhile, its storage and its settings arrive in any order, and the view only shows what they hold, storing nothing.
+	 */
+	private inProfileTransition = false;
 	private readonly quickChatsInTimeGrouping: boolean;
 	private readonly scoped: IObservable<boolean> | undefined;
 	private readonly windowScope: SessionsWindowScopeController;
@@ -371,6 +590,7 @@ export class SessionsView extends ViewPane {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ISessionsListUndoService private readonly undoService: ISessionsListUndoService,
 		@IWorkspaceFolderRepositories private readonly workspaceFolderRepositories: IWorkspaceFolderRepositories,
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 	) {
 		super(options.headerInTitle ? { ...options, titleMenuId: Menus.SidebarSessionsHeader } : options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this.headerInTitle = !!options.headerInTitle;
@@ -384,12 +604,17 @@ export class SessionsView extends ViewPane {
 		this.customizationsNavigationState = this._register(instantiationService.createInstance(CustomizationsNavigationState, this.customizationsNavigationVisible));
 		this.sessionsListRearrangeContext = SessionsListRearrangeContext.bindTo(this.scopedContextKeyService);
 		InSessionsViewContext.bindTo(this.scopedContextKeyService).set(true);
-		this._register(sessionsViewLocator.register(this));
 
 		// Restore persisted grouping
 		this.groupings = options.groupings;
+		this.groupingState = options.groupingState ? instantiationService.createInstance(options.groupingState) : instantiationService.createInstance(SessionsViewGroupingState, undefined);
+		this.inboxAutoAdvance = options.inboxAutoAdvance;
+		this.leaveInboxWithoutChat = options.leaveInboxWithoutChat;
 		this.quickChatsInTimeGrouping = !!options.quickChatsInTimeGrouping;
 		this.initializeGrouping();
+		this.followProfileSwitches();
+		// Registered once it knows its groupings, which whoever locates it asks about
+		this._register(sessionsViewLocator.register(this));
 
 		// Restore persisted sorting
 		const storedSorting = this.storageService.get(SORTING_STORAGE_KEY, StorageScope.PROFILE);
@@ -403,10 +628,19 @@ export class SessionsView extends ViewPane {
 		bindSessionsViewGroupings(contextKeyService, this.offeredGroupings);
 		this.groupingContextKey = SessionsViewGroupingContext.bindTo(contextKeyService);
 		this.groupingContextKey.set(this.grouping);
+		// Group by Workspace separates groups and workspaces only while workspaces are on
+		this._register(contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(new Set([SessionWorkspacesEnabledContext.key, ChatContextKeys.enabled.key])) && this.grouping === SessionsGrouping.Workspace) {
+				this.sessionsControl?.update(true);
+			}
+		}));
 		this.sortingContextKey = SessionsViewSortingContext.bindTo(contextKeyService);
 		this.sortingContextKey.set(this.currentSorting);
 		this.compactContextKey = SessionsViewCompactContext.bindTo(contextKeyService);
 		this.compactContextKey.set(this.currentCompact);
+		this.separateGroupsAndWorkspacesContextKey = SessionsViewSeparateGroupsAndWorkspacesContext.bindTo(contextKeyService);
+		this.separateGroupsAndWorkspacesContextKey.set(this.groupingState.separateGroupsAndWorkspaces);
+		this.followSeparateGroupsAndWorkspaces();
 
 		// Bind workspace group capped context key (will be synced with persisted state in renderBody)
 		this.workspaceGroupCappedContextKey = IsWorkspaceGroupCappedContext.bindTo(contextKeyService);
@@ -530,6 +764,7 @@ export class SessionsView extends ViewPane {
 			grouping: () => this.grouping,
 			sorting: () => this.currentSorting,
 			compact: () => this.currentCompact,
+			separateGroupsAndWorkspaces: () => this.separateGroupsAndWorkspaces,
 			showNavigationShortcuts: () => this.navigationShortcutsVisible,
 			showCustomizations: () => this.customizationsPresentation === 'treatment',
 			customizationsCount: this.customizationsNavigationState.totalCount,
@@ -545,6 +780,7 @@ export class SessionsView extends ViewPane {
 			scopeBar: barEnabled,
 			findWidgetContainer,
 			quickChatsInTimeGrouping: this.quickChatsInTimeGrouping,
+			inboxAutoAdvance: this.inboxAutoAdvance,
 			onSessionOpen: (resource, preserveFocus, sideBySide) => {
 				const session = this.sessionsManagementService.getSession(resource);
 				if (!session) {
@@ -597,7 +833,9 @@ export class SessionsView extends ViewPane {
 		this._register(autorun(reader => {
 			scopeChanged.read(reader);
 			const hidden = this.chatEntitlementService.sentimentObs.read(reader).hidden;
-			inboxScope.setVisible(barEnabled.read(reader) || (this.grouping === SessionsGrouping.Inbox && this.windowScope.isScopeBarWindow.read(reader) && !hidden && this.scopedContextKeyService.contextMatchesRules(ChatContextKeys.enabled)));
+			if (inboxScope.setVisible(barEnabled.read(reader) || (this.grouping === SessionsGrouping.Inbox && this.windowScope.isScopeBarWindow.read(reader) && !hidden && this.scopedContextKeyService.contextMatchesRules(ChatContextKeys.enabled)))) {
+				sessionsControl.focus();
+			}
 		}));
 		let scopeHeight = -1;
 		const scopeResizeObserver = this._register(new DOM.DisposableResizeObserver('SessionsView.inboxScope', entries => {
@@ -772,11 +1010,52 @@ export class SessionsView extends ViewPane {
 		this._register(DOM.scheduleAtNextAnimationFrame(DOM.getWindow(parent), () => this.layoutSidebarSplitView()));
 	}
 
+	/**
+	 * Gives the focus that Toggle Inbox in the host's title lost as it went to the toggle that replaces it, or where none shows,
+	 * such as where Inbox is no longer offered, to the view's list. Focus that moved elsewhere stays.
+	 */
+	private handOverInboxToggleFocus(): void {
+		// The title renders the toggle that replaces it right away, if at all
+		queueMicrotask(() => {
+			const activeElement = DOM.getActiveElement();
+			if (DOM.isHTMLElement(activeElement) && activeElement.isConnected && activeElement !== activeElement.ownerDocument.body) {
+				return;
+			}
+			const toggle = Iterable.find(this.inboxToggles, item => item.isShown());
+			if (toggle) {
+				toggle.focus();
+			} else if (!this._store.isDisposed && this.isBodyVisible()) {
+				this.sessionsControl?.focus();
+			}
+		});
+	}
+
 	override createActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {
 		if (this.headerInTitle && action instanceof SubmenuItemAction && action.item.submenu === Menus.SessionsViewFilter) {
 			return this.instantiationService.createInstance(SessionsFilterActionViewItem, action, options, () => this.sessionsControl?.reportFilterMenuShown());
 		}
+		if (this.headerInTitle && action instanceof MenuItemAction && action.id === INBOX_MODE_ACTION_ID) {
+			const item = this.instantiationService.createInstance(InboxToggleActionViewItem, action, options);
+			this.inboxToggles.add(item);
+			item.onDispose = hadFocus => {
+				this.inboxToggles.delete(item);
+				if (hadFocus) {
+					this.handOverInboxToggleFocus();
+				}
+			};
+			return item;
+		}
 		return super.createActionViewItem(action, options);
+	}
+
+	/** Whether the focus is on Toggle Inbox in the host's title, which tells its checked state itself. */
+	isInboxToggleFocused(): boolean {
+		return Iterable.some(this.inboxToggles, item => item.hasFocus());
+	}
+
+	/** Whether the view's header is in the title of a host view, such as the Chat view. */
+	get isHeaderInTitle(): boolean {
+		return this.headerInTitle;
 	}
 
 	private createSessionsHeader(parent: HTMLElement, phoneLayout: boolean, disposables: DisposableStore): ISessionsHeaderElements {
@@ -1363,6 +1642,12 @@ export class SessionsView extends ViewPane {
 				checked: this.grouping === SessionsGrouping.Date,
 				group: 'group',
 			},
+			...(this.grouping === SessionsGrouping.Workspace && this.workspacesEnabled ? [{
+				id: SEPARATE_GROUPS_AND_WORKSPACES_SHEET_ITEM,
+				label: SEPARATE_GROUPS_AND_WORKSPACES_LABEL.value,
+				checked: this.groupingState.separateGroupsAndWorkspaces,
+				group: 'layout',
+			}] : []),
 		];
 		showMobileSortGroupSheet(this.layoutService.mainContainer, localize('sortGroupSheet.title', "Sort"), items).then(selectedId => {
 			if (!selectedId) {
@@ -1370,23 +1655,45 @@ export class SessionsView extends ViewPane {
 			}
 			if (selectedId === SessionsSorting.Created || selectedId === SessionsSorting.Updated) {
 				this.setSorting(selectedId);
+			} else if (selectedId === SEPARATE_GROUPS_AND_WORKSPACES_SHEET_ITEM) {
+				this.toggleSeparateGroupsAndWorkspaces();
 			} else if (selectedId === SessionsGrouping.Workspace || selectedId === SessionsGrouping.Repository || selectedId === SessionsGrouping.Environment || selectedId === SessionsGrouping.Date) {
 				this.setGrouping(selectedId);
 			}
 		}).catch(onUnexpectedError);
 	}
 
+	/** Whether workspaces and chat are on, which separating groups and workspaces needs. */
+	private get workspacesEnabled(): boolean {
+		return !!this.scopedContextKeyService.getContextKeyValue<boolean>(SessionWorkspacesEnabledContext.key)
+			&& !!this.scopedContextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key);
+	}
+
 	get grouping(): SessionsGrouping {
 		return this.currentGrouping ?? this.groupings?.default ?? SessionsGrouping.Workspace;
+	}
+
+	/** Whether Group by Workspace lists the custom groups and the workspaces under headers of their own: as the user chose, while workspaces are on. */
+	get separateGroupsAndWorkspaces(): boolean {
+		return this.groupingState.separateGroupsAndWorkspaces && this.workspacesEnabled;
 	}
 
 	private get offeredGroupings(): readonly SessionsGrouping[] {
 		return this.groupings?.offered ?? DEFAULT_SESSIONS_GROUPINGS;
 	}
 
+	/** Whether the view offers `grouping`, such as Inbox, which only some views do. */
+	offersGrouping(grouping: SessionsGrouping): boolean {
+		return this.offeredGroupings.includes(grouping);
+	}
+
+	/** The grouping Inbox returns to: in the Chat view, the one this view left for Inbox, else the one stored. */
 	private get nonInboxGrouping(): SessionsGrouping {
-		return getStoredSessionsGrouping(this.storageService.get(NON_INBOX_GROUPING_STORAGE_KEY, StorageScope.PROFILE),
-			this.offeredGroupings.filter(grouping => grouping !== SessionsGrouping.Inbox)) ?? this.groupings?.default ?? SessionsGrouping.Workspace;
+		return this.mountedNonInboxGrouping ?? this.storedNonInboxGrouping;
+	}
+
+	private get storedNonInboxGrouping(): SessionsGrouping {
+		return this.groupingState.readNonInboxGrouping(this.offeredGroupings, this.groupings?.default ?? SessionsGrouping.Workspace);
 	}
 
 	private get inboxAvailable(): boolean {
@@ -1395,8 +1702,21 @@ export class SessionsView extends ViewPane {
 			&& !this.chatEntitlementService.sentiment.hidden;
 	}
 
+	private readStoredGrouping(): { readonly grouping: SessionsGrouping | undefined; readonly seed: boolean } {
+		return this.groupingState.readGrouping(this.offeredGroupings, this.groupings?.default ?? SessionsGrouping.Workspace);
+	}
+
 	private initializeGrouping(): void {
-		this.currentGrouping = getStoredSessionsGrouping(this.storageService.get(GROUPING_STORAGE_KEY, StorageScope.PROFILE), this.offeredGroupings);
+		this.groupingState.migrateWorkspacesAndGroupsGrouping();
+		const { grouping, seed } = this.readStoredGrouping();
+		this.currentGrouping = grouping;
+		if (this.leaveInboxWithoutChat) {
+			this.mountedNonInboxGrouping = this.storedNonInboxGrouping;
+		}
+		if (seed) {
+			// Seeds the view's own key once, so that a later change to the fallback key does not change the view as it reopens
+			this.groupingState.seedGrouping(this.grouping);
+		}
 		this.updateInboxAvailability();
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(SESSIONS_LIST_INBOX_ENABLED_SETTING) || e.affectsConfiguration('chat.disableAIFeatures')) {
@@ -1404,14 +1724,103 @@ export class SessionsView extends ViewPane {
 			}
 		}));
 		this._register(this.chatEntitlementService.onDidChangeSentiment(() => this.updateInboxAvailability()));
+		if (this.leaveInboxWithoutChat) {
+			// Only as Chat goes: while the window starts, Chat is unavailable until its participant activates, and the view keeps
+			// the Inbox it restored
+			const chatEnabledKeys = new Set([ChatContextKeys.enabled.key]);
+			let chatEnabled = this.scopedContextKeyService.contextMatchesRules(ChatContextKeys.enabled);
+			this._register(this.scopedContextKeyService.onDidChangeContext(e => {
+				if (!e.affectsSome(chatEnabledKeys)) {
+					return;
+				}
+				const enabled = this.scopedContextKeyService.contextMatchesRules(ChatContextKeys.enabled);
+				if (chatEnabled && !enabled && !this.inProfileTransition) {
+					this.leaveInbox();
+				}
+				chatEnabled = enabled;
+			}));
+		}
+	}
+
+	/**
+	 * In the Chat view ({@link ISessionsViewOptions.leaveInboxWithoutChat}), as the window switches to another profile, shows
+	 * the grouping and the filters that profile remembers, as the view would open in it, without storing anything: what the
+	 * view remembered in the previous profile stays there. Until Chat is back after the switch restarts the extension host,
+	 * whose stopping, before the switch, left Inbox in the previous profile, it reads them again as the new profile's storage
+	 * tells the values that differ, if any, and as its settings arrive, in either order, and then once more.
+	 */
+	private followProfileSwitches(): void {
+		if (!this.leaveInboxWithoutChat) {
+			return;
+		}
+		let pendingStorage = false;
+		this._register(this.userDataProfileService.onDidChangeCurrentProfile(e => {
+			// Not as the current profile only changes, such as its name
+			if (e.previous.id !== e.profile.id) {
+				pendingStorage = this.inProfileTransition = true;
+			}
+		}));
+		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._store)(e => {
+			if (pendingStorage && e.external && this.storageService.hasScope(this.userDataProfileService.currentProfile)) {
+				pendingStorage = false;
+				this.restoreStoredGrouping();
+			}
+		}));
+		const chatEnabledKeys = new Set([ChatContextKeys.enabled.key]);
+		this._register(this.scopedContextKeyService.onDidChangeContext(e => {
+			if (this.inProfileTransition && e.affectsSome(chatEnabledKeys) && this.scopedContextKeyService.contextMatchesRules(ChatContextKeys.enabled)) {
+				pendingStorage = this.inProfileTransition = false;
+				this.restoreStoredGrouping();
+			}
+		}));
+	}
+
+	/**
+	 * Shows the grouping and the filters stored now, as the view restores them as it opens, without storing them: Inbox even
+	 * while Chat starts, but not where Inbox is unavailable.
+	 */
+	private restoreStoredGrouping(): void {
+		this.sessionsControl?.filters.reload();
+		this.groupingState.migrateWorkspacesAndGroupsGrouping();
+		this.mountedNonInboxGrouping = this.storedNonInboxGrouping;
+		const stored = this.readStoredGrouping().grouping;
+		const grouping = stored === SessionsGrouping.Inbox && !this.inboxAvailable ? this.nonInboxGrouping : stored;
+		if (this.currentGrouping === grouping) {
+			this.showSeparateGroupsAndWorkspaces();
+			return;
+		}
+		this.separateGroupsAndWorkspacesContextKey?.set(this.groupingState.separateGroupsAndWorkspaces);
+		// Read only: the sections show the collapse state the profile stores, which a reset would change, in either profile
+		this.currentGrouping = grouping;
+		this.groupingContextKey?.set(this.grouping);
+		this.sessionsControl?.update(true);
+		this.updateHeaderLayout();
+	}
+
+	/**
+	 * Whether the view can enter Inbox now: where it leaves Inbox as Chat goes ({@link ISessionsViewOptions.leaveInboxWithoutChat}),
+	 * such as as the extension host restarts, entering it also needs Chat.
+	 */
+	private get canEnterInbox(): boolean {
+		return this.inboxAvailable && (!this.leaveInboxWithoutChat || this.scopedContextKeyService.contextMatchesRules(ChatContextKeys.enabled));
 	}
 
 	private updateInboxAvailability(): void {
-		if (this.inboxAvailable) {
-			return;
+		if (this.inProfileTransition) {
+			// The settings may be the new profile's while the storage is still the previous one's, or the other way around
+			this.restoreStoredGrouping();
+		} else if (!this.inboxAvailable) {
+			this.leaveInbox();
 		}
+	}
+
+	/** Leaves Inbox for the grouping it returns to, keeping the focus in the view if it was on the Inbox toggle. */
+	private leaveInbox(): void {
+		// Where the view's header is in the title of a host view, such as the Chat view, the toggle is in the host's title
 		const activeElement = DOM.getActiveElement();
-		const restoreFocus = DOM.isHTMLElement(activeElement) && activeElement.classList.contains('codicon-inbox') && this.element?.contains(activeElement);
+		const restoreFocus = this.headerInTitle
+			? this.isInboxToggleFocused()
+			: DOM.isHTMLElement(activeElement) && activeElement.classList.contains('codicon-inbox') && !!this.element?.contains(activeElement);
 		if (this.grouping === SessionsGrouping.Inbox) {
 			this.setGrouping(this.nonInboxGrouping);
 		}
@@ -1420,8 +1829,11 @@ export class SessionsView extends ViewPane {
 		}
 	}
 
-	toggleInbox(): void {
-		this.setGrouping(this.grouping === SessionsGrouping.Inbox ? this.nonInboxGrouping : SessionsGrouping.Inbox);
+	/** Toggles Inbox, and returns whether the grouping changed. */
+	toggleInbox(): boolean {
+		const grouping = this.grouping;
+		this.setGrouping(grouping === SessionsGrouping.Inbox ? this.nonInboxGrouping : SessionsGrouping.Inbox);
+		return this.grouping !== grouping;
 	}
 
 	get sorting(): SessionsSorting {
@@ -1436,7 +1848,7 @@ export class SessionsView extends ViewPane {
 		if (!this.offeredGroupings.includes(grouping)) {
 			return;
 		}
-		if (grouping === SessionsGrouping.Inbox && !this.inboxAvailable) {
+		if (grouping === SessionsGrouping.Inbox && !this.canEnterInbox) {
 			throw new Error(localize('inboxUnavailable', "Enable {0} and AI features to use Inbox Mode.", SESSIONS_LIST_INBOX_ENABLED_SETTING));
 		}
 		if (this.currentGrouping === grouping) {
@@ -1444,11 +1856,13 @@ export class SessionsView extends ViewPane {
 		}
 
 		const preserveCollapseState = this.grouping === SessionsGrouping.Inbox || grouping === SessionsGrouping.Inbox;
-		if (this.grouping !== SessionsGrouping.Inbox) {
-			this.storageService.store(NON_INBOX_GROUPING_STORAGE_KEY, this.grouping, StorageScope.PROFILE, StorageTarget.USER);
+		const left = this.grouping;
+		if (left !== SessionsGrouping.Inbox && this.mountedNonInboxGrouping !== undefined) {
+			this.mountedNonInboxGrouping = left;
 		}
 		this.currentGrouping = grouping;
-		this.storageService.store(GROUPING_STORAGE_KEY, this.currentGrouping, StorageScope.PROFILE, StorageTarget.USER);
+		this.inProfileTransition = false;
+		this.groupingState.storeGrouping(grouping, left);
 		this.groupingContextKey?.set(this.currentGrouping);
 		if (!preserveCollapseState) {
 			this.sessionsControl?.resetSectionCollapseState();
@@ -1481,5 +1895,38 @@ export class SessionsView extends ViewPane {
 
 	toggleCompact(): void {
 		this.setCompact(!this.currentCompact);
+	}
+
+	setSeparateGroupsAndWorkspaces(separate: boolean): void {
+		if (this.groupingState.separateGroupsAndWorkspaces === separate) {
+			return;
+		}
+
+		this.groupingState.setSeparateGroupsAndWorkspaces(separate);
+		this.showSeparateGroupsAndWorkspaces();
+	}
+
+	/**
+	 * Shows the stored choice whether to separate groups and workspaces, as this view or another, such as one in another window,
+	 * made it: its checkmark and, while grouped by workspace, the list.
+	 */
+	private showSeparateGroupsAndWorkspaces(): void {
+		const separate = this.groupingState.separateGroupsAndWorkspaces;
+		if (!this.separateGroupsAndWorkspacesContextKey || this.separateGroupsAndWorkspacesContextKey.get() === separate) {
+			return;
+		}
+		this.separateGroupsAndWorkspacesContextKey.set(separate);
+		if (this.grouping === SessionsGrouping.Workspace) {
+			this.sessionsControl?.update(true);
+		}
+	}
+
+	/** Shows the choice whether to separate groups and workspaces as another view, such as one in another window, stores it. */
+	private followSeparateGroupsAndWorkspaces(): void {
+		this._register(this.groupingState.onDidChangeSeparateGroupsAndWorkspaces(this._store)(() => this.showSeparateGroupsAndWorkspaces()));
+	}
+
+	toggleSeparateGroupsAndWorkspaces(): void {
+		this.setSeparateGroupsAndWorkspaces(!this.groupingState.separateGroupsAndWorkspaces);
 	}
 }

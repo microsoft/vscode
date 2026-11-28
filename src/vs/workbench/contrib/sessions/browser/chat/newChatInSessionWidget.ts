@@ -288,7 +288,8 @@ export class NewChatInSessionWidget extends Disposable {
 			workspacePresentation.layout?.();
 		}));
 
-		this._newChatInput.render(chatWidgetContent, parent);
+		// Files and other attachments can be dropped anywhere on the view, not only on the input.
+		this._newChatInput.render(chatWidgetContent, parent, { dropTarget: element });
 		this._newChatInput.placeRepositoryControls(workspacePresentation.repositoryControlsHost);
 		workspacePresentation.layout?.();
 		// Rendered after the composer: the tip docks inside the composer's stack,

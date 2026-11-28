@@ -7,7 +7,7 @@ import { ValidatorBase, vArray, vBoolean, vEnum, vNumber, vObj, vOptionalProp, v
 import { LoadClientCertificatesExtensionMethod, loadClientCertificatesResultValidator } from './clientCertificatesProtocol.js';
 import { ClientProxyChangedExtensionMethod, LookupClientProxyBasicAuthorizationExtensionMethod, lookupClientProxyBasicAuthorizationParamsValidator, lookupClientProxyBasicAuthorizationResultValidator, LookupClientProxyKerberosAuthorizationExtensionMethod, lookupClientProxyKerberosAuthorizationParamsValidator, lookupClientProxyKerberosAuthorizationResultValidator, ResolveClientProxyExtensionMethod, resolveClientProxyParamsValidator, resolveClientProxyResultValidator } from './clientProxyProtocol.js';
 import type { IJSONSchema } from '../../../base/common/jsonSchema.js';
-import type { IDevContainerAgentHostConnectResult } from './devContainerAgentHost.js';
+import type { IDevContainerAgentHostConnectResult, IDevContainerHostFolderContainer } from './devContainerAgentHost.js';
 import type { AgentExtensionMode, AgentExtensionSource, AgentExtensionStatus } from './agent.js';
 import type { AgentHostDebugLogsArtifactKind, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult } from './agentService.js';
 import type { McpServerAuthenticateTarget } from './state/sessionProtocol.js';
@@ -17,7 +17,7 @@ import { AgentHostArtifactRemovalCapabilityMetaKey } from './meta/agentHostArtif
 import { AgentHostSessionImportCapabilityMetaKey } from './meta/agentHostSessionImportMeta.js';
 import { AgentHostSessionMoveCapabilityMetaKey } from './meta/agentHostSessionMoveMeta.js';
 import { AgentHostSavedChatCapabilityMetaKey, AgentHostSavedChatContinuationCapabilityMetaKey } from './meta/agentHostSavedChatMeta.js';
-import { AgentHostDevContainerEnvironmentsCapabilityMetaKey, AgentHostDevContainersCapabilityMetaKey } from './meta/agentHostDevContainersMeta.js';
+import { AgentHostDevContainerEnvironmentsCapabilityMetaKey, AgentHostDevContainerFolderContainersCapabilityMetaKey, AgentHostDevContainersCapabilityMetaKey } from './meta/agentHostDevContainersMeta.js';
 import { AgentHostClientProxyCapabilityMetaKey } from './meta/agentHostClientProxyMeta.js';
 import { AgentHostTimingCapabilityMetaKey, ChatUserInteractionCapability } from './meta/agentHostTimingMeta.js';
 import type { IAgentHostFirstResponseDiagnostic } from './otel/agentHostTiming.js';
@@ -42,7 +42,7 @@ import { AgentHostBuildMetaKey, AgentHostUpgradeMethodCapabilityMetaKey, type IA
 
 export { supportsAgentHostArtifactRemoval } from './meta/agentHostArtifactRemovalMeta.js';
 export { StageCreateSessionImportChunkExtensionMethod, stageCreateSessionImportChunkParamsValidator, supportsAgentHostCreateSessionImport };
-export { supportsAgentHostDevContainerEnvironments, supportsAgentHostDevContainers } from './meta/agentHostDevContainersMeta.js';
+export { supportsAgentHostDevContainerEnvironments, supportsAgentHostDevContainerFolderContainers, supportsAgentHostDevContainers } from './meta/agentHostDevContainersMeta.js';
 export { supportsAgentHostSessionMove } from './meta/agentHostSessionMoveMeta.js';
 
 export const DevContainerIsDockerAvailableExtensionMethod = 'vscode/devContainers/isDockerAvailable';
@@ -52,6 +52,7 @@ export const DevContainerStopExtensionMethod = 'vscode/devContainers/stop';
 export const DevContainerRemoveExtensionMethod = 'vscode/devContainers/remove';
 export const DevContainerConnectEnvironmentExtensionMethod = 'vscode/devContainers/connectEnvironment';
 export const DevContainerRemoveEnvironmentExtensionMethod = 'vscode/devContainers/removeEnvironment';
+export const DevContainerListFolderContainersExtensionMethod = 'vscode/devContainers/listFolderContainers';
 export const DevContainerRelaySendExtensionMethod = 'vscode/devContainers/relaySend';
 export const DevContainerRelayMessageNotification = 'vscode/devContainers/relayMessage';
 export const DevContainerRelayCloseNotification = 'vscode/devContainers/relayClose';
@@ -62,12 +63,13 @@ export const DevContainerUserStateNotification = 'vscode/devContainers/userState
 export const DevContainerConnectFailureNotification = 'vscode/devContainers/connectFailure';
 
 export const devContainerConnectionParamsValidator = vObj({ connectionId: vString() });
-export const devContainerConnectParamsValidator = vObj({ connectionId: vString(), workspaceFolder: vString(), name: vString(), resume: vOptionalProp(vBoolean()), sandboxEnabled: vOptionalProp(vBoolean()), persistUserState: vOptionalProp(vBoolean()) });
+export const devContainerConnectParamsValidator = vObj({ connectionId: vString(), workspaceFolder: vString(), name: vString(), resume: vOptionalProp(vBoolean()), sandboxEnabled: vOptionalProp(vBoolean()), persistUserState: vOptionalProp(vBoolean()), requireRunning: vOptionalProp(vBoolean()) });
 export const devContainerConnectEnvironmentParamsValidator = vObj({ connectionId: vString(), environmentId: vString(), image: vString(), name: vString(), resume: vOptionalProp(vBoolean()), sandboxEnabled: vOptionalProp(vBoolean()), persistUserState: vOptionalProp(vBoolean()) });
 export const devContainerEnvironmentParamsValidator = vObj({ environmentId: vString() });
 export const devContainerWorkspaceParamsValidator = vObj({ workspaceFolder: vString() });
 export const devContainerRelayMessageValidator = vObj({ connectionId: vString(), data: vString() });
 export const devContainerSandboxSupportValidator = vObj({ connectionId: vString(), supported: vBoolean() });
+export const devContainerFolderContainersValidator = vArray(vObj({ folder: vString(), running: vBoolean() }));
 export const devContainerUserStateValidator = vObj({
 	connectionId: vString(),
 	stage: vEnum('mount', 'up', 'link', 'userCommands'),
@@ -124,6 +126,7 @@ export const RequestAgentHostWorkspaceTrustExtensionMethod = 'vscode/requestWork
 export const RequestAgentHostMcpAuthenticationExtensionMethod = 'vscode/requestMcpAuthentication';
 export const RemoveSessionArtifactExtensionMethod = 'vscode/removeSessionArtifact';
 export const StopBackgroundWorkExtensionMethod = 'vscode/stopBackgroundWork';
+export const DetachSessionsFromWorkspaceExtensionMethod = 'vscode/detachSessionsFromWorkspace';
 export const AnswerShellAuthenticationExtensionMethod = 'vscode/answerShellAuthentication';
 export const MeasureWorktreeDiskUsageExtensionMethod = 'vscode/measureWorktreeDiskUsage';
 export const CancelWorktreeDiskUsageExtensionMethod = 'vscode/cancelWorktreeDiskUsage';
@@ -202,6 +205,8 @@ export interface IAgentHostExtensionInitializeResultMeta extends Record<string, 
 	readonly [AgentHostDevContainersCapabilityMetaKey]?: true;
 	/** Present when the host accepts `vscode/devContainers/connectEnvironment` and `vscode/devContainers/removeEnvironment`. */
 	readonly [AgentHostDevContainerEnvironmentsCapabilityMetaKey]?: true;
+	/** Present when the host accepts `vscode/devContainers/listFolderContainers` and `requireRunning` in `vscode/devContainers/connect`. */
+	readonly [AgentHostDevContainerFolderContainersCapabilityMetaKey]?: true;
 	readonly [AgentHostTimingCapabilityMetaKey]?: true;
 	readonly [ChatUserInteractionCapability]?: true;
 	/** Present when the host serves the client's proxy support and accepts `vscode/clientProxyChanged`. */
@@ -250,7 +255,7 @@ export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true
 		...(savedChatContinuation ? { [AgentHostSavedChatContinuationCapabilityMetaKey]: true as const } : {}),
 		...(sessionImport ? { [AgentHostSessionImportCapabilityMetaKey]: true as const } : {}),
 		...(sessionMove ? { [AgentHostSessionMoveCapabilityMetaKey]: true as const } : {}),
-		...(devContainers ? { [AgentHostDevContainersCapabilityMetaKey]: true as const, [AgentHostDevContainerEnvironmentsCapabilityMetaKey]: true as const } : {}),
+		...(devContainers ? { [AgentHostDevContainersCapabilityMetaKey]: true as const, [AgentHostDevContainerEnvironmentsCapabilityMetaKey]: true as const, [AgentHostDevContainerFolderContainersCapabilityMetaKey]: true as const } : {}),
 		...(timing ? { [AgentHostTimingCapabilityMetaKey]: true as const } : {}),
 		...(timing ? { [ChatUserInteractionCapability]: true as const } : {}),
 		...(artifactIntegrations ? { [AgentHostArtifactIntegrationsCapabilityMetaKey]: 1 as const, [AgentHostArtifactNoticesCapabilityMetaKey]: 1 as const } : {}),
@@ -286,6 +291,14 @@ export type CollectAgentHostDebugLogsParams = ValidatorType<typeof collectAgentH
 export const removeSessionArtifactParamsValidator = vObj({
 	session: vString(),
 	artifactId: vString(),
+});
+
+/**
+ * Detaches every session that records one of `workspaceFiles` (host URI space) as its multi-root workspace, loaded or
+ * stored, by removing that record from its `_meta`. The sessions keep their working directories.
+ */
+export const detachSessionsFromWorkspaceParamsValidator = vObj({
+	workspaceFiles: vArray(vString()),
 });
 
 /** Stops a chat's background work entry that the host marked stoppable in its `_meta`. */
@@ -432,10 +445,16 @@ export interface IAgentHostExtensionCommandMap {
 	[DevContainerRemoveExtensionMethod]: { params: ValidatorType<typeof devContainerWorkspaceParamsValidator>; result: boolean };
 	[DevContainerConnectEnvironmentExtensionMethod]: { params: ValidatorType<typeof devContainerConnectEnvironmentParamsValidator>; result: IDevContainerAgentHostConnectResult };
 	[DevContainerRemoveEnvironmentExtensionMethod]: { params: ValidatorType<typeof devContainerEnvironmentParamsValidator>; result: boolean };
+	[DevContainerListFolderContainersExtensionMethod]: { params: undefined; result: readonly IDevContainerHostFolderContainer[] };
 	[DevContainerRelaySendExtensionMethod]: { params: ValidatorType<typeof devContainerRelayMessageValidator>; result: void };
 	[RemoveSessionArtifactExtensionMethod]: {
 		params: ValidatorType<typeof removeSessionArtifactParamsValidator>;
 		result: void;
+	};
+	[DetachSessionsFromWorkspaceExtensionMethod]: {
+		params: ValidatorType<typeof detachSessionsFromWorkspaceParamsValidator>;
+		/** The sessions that were detached. */
+		result: { sessions: string[] };
 	};
 	[StopBackgroundWorkExtensionMethod]: {
 		params: ValidatorType<typeof stopBackgroundWorkParamsValidator>;

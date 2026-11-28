@@ -9,10 +9,10 @@ import '../media/disclosure.css';
 import { SessionGroupAppearancePicker } from './sessionGroupAppearancePicker.js';
 import { findSearchWords, getSessionSearchHint, ISessionSearchDocument, ISessionSearchField, ISessionSearchHint, ISessionSearchMatch, ISessionsListSearchResults, matchSessionSearch, SessionsListFindController, SessionsListSearchQuery, SessionsListSearchTelemetry, SessionSearchFieldKind, toSearchFilterData } from './sessionsListSearch.js';
 import { ISessionRowIndent, SessionRowIndent, SessionsListIndentGuides } from './sessionsListIndentGuides.js';
-import { CANVASES_SECTION_ID, SessionItemContextMenuId, SessionItemOrganizeMenuGroup, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_CANVASES_SECTION_SETTING, IsSessionPinnedContext, SessionItemInboxStateContext, SessionItemCanAcknowledgeContext, SessionItemCanMergePullRequestContext, SessionItemHasUnreadNestedSessionsContext, SessionChatItemCanRenameContext, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemCanMoveContext, SessionChatItemHasMoveDestinationContext, SessionItemHasMoveDestinationContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionChatItemCanSetReadStateContext, SessionChatItemIsUntitledContext, SessionChatItemIsStandaloneContext, SessionChatItemCanMoveUpContext, SessionChatItemCanMoveDownContext, SessionsListFocusedChatItemContext, SessionItemInGroupContext, SessionItemInExternalSectionContext, SessionItemCanImportContext, SessionItemHasPinnedCanvasContext, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionSectionHasRootFolderContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, ISessionShowMore, ISessionPlaceholder, ISessionChatItem, SessionListItem, isSessionChatItem, isSessionGroupItem, isSessionSection, isSessionShowMore, isSessionPlaceholder, isSessionItem, SessionsListSearchOpenContext } from './sessionsListCommon.js';
-import { NEW_SESSION_SECTION_ID, AUTOMATIONS_SECTION_ID, CUSTOMIZATIONS_SECTION_ID, PINNED_CANVAS_SECTION_PREFIX, EXTERNAL_SESSIONS_SECTION_ID, DATE_SECTION_IDS, getChatTitle, getSessionListChats, isShortcutSection, REPOSITORY_SECTION_PREFIX, ENVIRONMENT_SECTION_PREFIX, isSessionGroupingSection, getSessionSectionType, computeReorderSortChanges, QUICK_CHATS_SECTION_ID, isQuickChatSession, groupingHasQuickChatsSection, isAutomationSession, IInboxPlacement, inboxPlacementsEqual, sessionWorkspaceLabel, isGroupingSpecificCollapseStateId, getSessionRepository, getRepositorySectionId, getSessionGroupingSectionId, getNewSessionSources, partitionByDate, getComparisonGroupConfiguration } from './sessionsListHelpers.js';
+import { CANVASES_SECTION_ID, SessionItemContextMenuId, SessionItemOrganizeMenuGroup, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_CANVASES_SECTION_SETTING, IsSessionPinnedContext, SessionItemInboxStateContext, SessionItemCanAcknowledgeContext, SessionItemCanMergePullRequestContext, SessionItemHasUnreadNestedSessionsContext, SessionChatItemCanRenameContext, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemCanMoveContext, SessionChatItemHasMoveDestinationContext, SessionItemHasMoveDestinationContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionChatItemCanSetReadStateContext, SessionChatItemIsUntitledContext, SessionChatItemIsStandaloneContext, SessionChatItemCanMoveUpContext, SessionChatItemCanMoveDownContext, SessionsListFocusedChatItemContext, SessionItemInGroupContext, SessionItemInExternalSectionContext, SessionItemCanImportContext, SessionItemHasPinnedCanvasContext, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionSectionHasRootFolderContext, SessionSectionHasSessionsContext, SessionSectionWorkspaceKindContext, SessionSectionWorkspaceIsLocalContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, ISessionShowMore, ISessionPlaceholder, ISessionChatItem, SessionListItem, isSessionChatItem, isSessionGroupItem, isSessionSection, isSessionShowMore, isSessionPlaceholder, isSessionItem, SessionsListSearchOpenContext } from './sessionsListCommon.js';
+import { NEW_SESSION_SECTION_ID, AUTOMATIONS_SECTION_ID, CUSTOMIZATIONS_SECTION_ID, PINNED_CANVAS_SECTION_PREFIX, EXTERNAL_SESSIONS_SECTION_ID, DATE_SECTION_IDS, getChatTitle, getSessionListChats, isShortcutSection, REPOSITORY_SECTION_PREFIX, ENVIRONMENT_SECTION_PREFIX, isSessionGroupingSection, getSessionSectionType, computeReorderSortChanges, QUICK_CHATS_SECTION_ID, isQuickChatSession, groupingHasQuickChatsSection, isAutomationSession, IInboxPlacement, inboxPlacementsEqual, sessionWorkspaceLabel, isGroupingSpecificCollapseStateId, getSessionRepository, getRepositorySectionId, getSessionGroupingSectionId, getNewSessionSources, partitionByDate, getComparisonGroupConfiguration, ISessionListWorkspaces } from './sessionsListHelpers.js';
 import { buildSessionsListModel, computeInboxPlacements, EMPTY_SESSIONS_LIST_RENDER_SNAPSHOT, filterSessionsForList, getComparisonSessions, getComparisonSortEntry, getSessionListItemId, IPrecomputedInboxFilter, ISessionsListModelInput, ISessionsListRenderSnapshot, ISessionsListSearchContext, SHOW_MORE_FOLDERS_LABEL, sortingToMode } from './sessionsListModel.js';
-import { SESSION_SHORTCUT_SECTION_TEMPLATE_ID, SESSION_SHORTCUT_ROW_HEIGHT, EMPTY_GUIDE_SESSION_IDS, isOpenChat, getSessionRowStatus, INSET_ROW_GAP, DEFAULT_APPROVAL_ROW_MAX_LINES, SessionsTreeDelegate, withSessionsListHoverPresentation, getCreatorHoverData, SessionChatItemRenderer, SessionItemActionRunner, ISessionOnboardingTarget, SessionItemRenderer, getSessionArchiveOnboardingTargetId, getSessionOnboardingTargetId, getWorkspaceSectionOnboardingTargetId, logDefaultSettingExperimentTrigger, ISessionHeaderStatusTrigger, SessionSectionRenderer, SessionShortcutListDelegate, SessionShortcutListRenderer, SessionGroupRenderer, SessionShowMoreRenderer, SessionPlaceholderRenderer, SessionsAccessibilityProvider } from './sessionsListRenderers.js';
+import { SESSION_SHORTCUT_SECTION_TEMPLATE_ID, SESSION_HEADER_GAP, SESSION_SHORTCUT_ROW_HEIGHT, EMPTY_GUIDE_SESSION_IDS, isOpenChat, getSessionRowStatus, INSET_ROW_GAP, DEFAULT_APPROVAL_ROW_MAX_LINES, SessionsTreeDelegate, withSessionsListHoverPresentation, getCreatorHoverData, SessionChatItemRenderer, SessionItemActionRunner, ISessionOnboardingTarget, SessionItemRenderer, getSessionArchiveOnboardingTargetId, getSessionOnboardingTargetId, getWorkspaceSectionOnboardingTargetId, logDefaultSettingExperimentTrigger, ISessionHeaderStatusTrigger, SessionSectionRenderer, SessionShortcutListDelegate, SessionShortcutListRenderer, SessionGroupRenderer, SessionShowMoreRenderer, SessionPlaceholderRenderer, SessionsAccessibilityProvider } from './sessionsListRenderers.js';
 import { SessionListPlacement, getPlacementState, getSectionPlacement, isSamePlacement, getPlacementHeader, ISessionDropAnchor, ISessionDropDestination, SessionDropEffect, ISessionDropTargetHeader, IDraggedHeader, SessionHeaderDrop, SessionsListDragAndDrop, isDateSectionPlacement, sectorToPosition, findLastVisible } from './sessionsListDragAndDrop.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { NotSelectableGroupId } from '../../../../../base/browser/ui/list/list.js';
@@ -27,6 +27,8 @@ import { disposableTimeout } from '../../../../../base/common/async.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, IReader, autorun, derived, observableFromEvent, observableSignalFromEvent, observableValue, runOnChange } from '../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../base/common/types.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { localize } from '../../../../../nls.js';
@@ -36,7 +38,7 @@ import { IContextKey, IContextKeyService } from '../../../../../platform/context
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { SessionProviderIdContext, SessionSupportsDeleteContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionTypeContext, IsPhoneLayoutContext, IsQuickChatSessionContext, SessionIsArchivedContext, SessionIsReadContext, SessionHasPullRequestContext, SessionItemIsMultiSelectionContext } from '../../common/contextkeys.js';
 import { ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, HOLD_INBOX_SESSION_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, RESUME_INBOX_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
-import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING } from '../../common/sessionConfig.js';
+import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING, SESSIONS_WORKSPACES_ENABLED_SETTING } from '../../common/sessionConfig.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -76,6 +78,8 @@ import { getSessionComparisonChat, ISessionComparisonService, SessionComparisonP
 import { ISessionsNavigationService } from '../sessionsNavigationService.js';
 import { ISessionListModelChangeEvent, ISessionsListModelService, SessionListModelChangeKind, SessionSortEntry } from '../sessionsListModelService.js';
 import { getSessionGroupIdOfSection, getSessionGroupSectionId, ISessionGroup, ISessionGroupAppearance, ISessionGroupsService } from '../sessionGroupsService.js';
+import { IRecentSessionWorkspace, ISessionWorkspacesService } from '../../common/sessionWorkspaces.js';
+import { EDIT_SESSION_GROUP_COMMAND_ID, EDIT_SESSION_WORKSPACE_COMMAND_ID, SESSION_WORKSPACE_EDITOR_WHEN } from '../workspaceEditor/sessionWorkspaceEditorCommands.js';
 import { ISessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../common/sessionComparisonConstants.js';
@@ -299,6 +303,11 @@ interface ISessionsListControlOptions {
 	readonly grouping: () => SessionsGrouping;
 	readonly sorting: () => SessionsSorting;
 	readonly compact?: () => boolean;
+	/**
+	 * Whether Group by Workspace lists the custom groups under a Groups header and the workspaces under a Workspaces header,
+	 * rather than together as folder sections.
+	 */
+	readonly separateGroupsAndWorkspaces?: () => boolean;
 	readonly showNavigationShortcuts?: () => boolean;
 	readonly showCustomizations?: () => boolean;
 	readonly customizationsCount?: IObservable<number>;
@@ -327,6 +336,11 @@ interface ISessionsListControlOptions {
 	 * do, rather than among the time sections; it does not by default. A {@link scoped} list has no Chats section at all.
 	 */
 	readonly quickChatsInTimeGrouping?: boolean;
+	/**
+	 * Whether Inbox opens the next session that needs input after a reply or approval, as the
+	 * `sessions.list.inboxAutoAdvance` setting chooses; it does by default. Where it does not, replies stay in the current chat.
+	 */
+	readonly inboxAutoAdvance?: boolean;
 	onSessionOpen(resource: URI, preserveFocus: boolean, sideBySide: boolean): void | Promise<void>;
 
 	/**
@@ -713,6 +727,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IHoverService hoverService: IHoverService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IProductService productService: IProductService,
+		@ISessionWorkspacesService private readonly workspacesService: ISessionWorkspacesService,
 	) {
 		super();
 		this._hideSideChats = sideChatPlacementService.inSidePane;
@@ -720,11 +735,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this._mainWindowShown = derived(this, reader => shownChatOf(mainWindowHost, reader));
 		this.groupAppearancePicker = this._register(instantiationService.createInstance(SessionGroupAppearancePicker));
 		this.filters = this._register(instantiationService.createInstance(SessionsListFilters));
-		this._register(chatService.onDidAcceptRequest(event => {
-			if (!event.isNewSession && !event.agentHostMessageOrigin) {
-				this.advanceInboxAfterReplyOrApproval(event.chatSessionResource);
-			}
-		}));
+		// A list that keeps replies and approvals in the current chat does not watch for them
+		if (options.inboxAutoAdvance !== false) {
+			this._register(chatService.onDidAcceptRequest(event => {
+				if (!event.isNewSession && !event.agentHostMessageOrigin) {
+					this.advanceInboxAfterReplyOrApproval(event.chatSessionResource);
+				}
+			}));
+		}
 		for (const key of [SessionsList.EXCLUDED_TYPES_KEY, SessionsList.EXCLUDED_STATUSES_KEY, SessionsList.EXCLUDE_READ_KEY, SessionsList.SHOW_EMPTY_GROUPS_KEY]) {
 			this.storageService.remove(key, StorageScope.PROFILE);
 		}
@@ -1000,6 +1018,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 			(session, reader) => this.isSessionInScope(session, reader),
 			(entry, reader) => this.customViewService.activeCustomView.read(reader)?.id === PINNED_CANVAS_PAGE_ID
 				&& this.options.pinnedCanvases?.selected.read(reader) === entry,
+			section => this._renderSnapshot.spacedHeaderIds.has(section.id),
+			section => this._renderSnapshot.mutedHeaderIds.has(section.id),
 		);
 		const sectionRenderer = createSectionRenderer(undefined, 'session-list-section-row');
 		const shortcutSectionRenderer = createSectionRenderer(SESSION_SHORTCUT_SECTION_TEMPLATE_ID, 'session-list-shortcut-row');
@@ -1031,6 +1051,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.options.sectionRowHeight,
 			() => this.isInboxLayout(),
 			this.options.titleOnlyQuickChatRowHeight,
+			section => this._renderSnapshot.spacedHeaderIds.has(section.id) ? SESSION_HEADER_GAP : 0,
 		);
 		this._delegate = delegate;
 
@@ -1141,7 +1162,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					getSessionDropEffect: (sessions, destination) => this.getSessionDropEffect(sessions, destination),
 					moveSessions: (sessions, destination) => this.moveSessions(sessions, destination).catch(onUnexpectedError),
 					setDropTargetHeader: header => this.setDropTargetHeader(header),
-					getHeaderDrop: (header, target, sector) => this.options.grouping() === SessionsGrouping.Inbox ? undefined : this.getHeaderDrop(header, target, sector),
+					getHeaderDrop: (header, target, sector) => this.options.grouping() === SessionsGrouping.Inbox ? undefined : this.getSupportedHeaderDrop(header, target, sector),
 					getRenderedRowCount: element => this.tree.hasElement(element) ? this.tree.getListRenderCount(element) : 1,
 					getMoreFoldersDropIndex: () => this.getMoreFoldersDropIndex(),
 					moveHeader: (header, drop) => this.moveHeader(header, drop),
@@ -1357,6 +1378,18 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.focusedChatCanMoveDownContext.reset();
 		}));
 
+		// Double-clicking a workspace row edits its workspace, and a custom group's row the group
+		this._register(this.tree.onMouseDblClick(({ element, browserEvent }) => {
+			// A double-click on a header's inline action or its rename box is not one on the header
+			if (!element || DOM.isHTMLElement(browserEvent.target) && browserEvent.target.closest('.monaco-toolbar, .monaco-action-bar, input')) {
+				return;
+			}
+			if (isSessionSection(element) && element.workspace?.known && this.canOpenWorkspaceEditor()) {
+				this.commandService.executeCommand(EDIT_SESSION_WORKSPACE_COMMAND_ID, element.workspace.uri);
+			} else if (isSessionGroupItem(element) && !element.comparison && this.canOpenWorkspaceEditor()) {
+				this.commandService.executeCommand(EDIT_SESSION_GROUP_COMMAND_ID, element.group.id);
+			}
+		}));
 		this._register(this.tree.onDidOpen(async e => {
 			const element = e.element;
 			if (!element) {
@@ -1621,6 +1654,18 @@ export class SessionsList extends Disposable implements ISessionsList {
 				this.scheduleListUpdate();
 			}));
 		}
+		// The separate Workspaces header lists the workspaces as their files have them. The workspaces service is created
+		// only once workspaces are enabled.
+		const workspacesEnabled = observableConfigValue(SESSIONS_WORKSPACES_ENABLED_SETTING, false, this.configurationService);
+		this._register(autorun(reader => {
+			if (workspacesEnabled.read(reader)) {
+				reader.store.add(runOnChange(this.workspacesService.workspaces, () => {
+					if (this.isSeparateGroupsAndWorkspaces()) {
+						this.scheduleListUpdate();
+					}
+				}));
+			}
+		}));
 		const archivesAvailable = derived(this, reader => this._sessionsManagementService.archivedSessionItems.read(reader).available);
 		this._register(autorun(reader => {
 			archivesAvailable.read(reader);
@@ -1661,7 +1706,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		this.refresh();
 		this.syncActiveChatSelection(this._mainWindowShown.get());
-		this.observeInboxApprovals(chatService);
+		if (options.inboxAutoAdvance !== false) {
+			this.observeInboxApprovals(chatService);
+		}
 	}
 
 	/**
@@ -1749,7 +1796,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const grouping = this.options.grouping();
 		const sorting = this.options.sorting();
 		const inbox = grouping === SessionsGrouping.Inbox;
+		const separateGroupsAndWorkspaces = this.isSeparateGroupsAndWorkspaces(grouping);
+		const scoped = this.options.scoped?.get() === true;
+		const hasSessionScope = this.options.sessionScope?.get() !== undefined;
 		const scopeBar = this.options.scopeBar?.get() === true;
+		const listWorkspaces = separateGroupsAndWorkspaces ? this.createListWorkspaces(scoped || hasSessionScope || scopeBar) : undefined;
 		const scopedProviderIds = this._agentHostFilterService.selectedHost?.providerIds;
 		const scheduledOnly = !!(this.options.schedulingEnabled?.get() && this.filters.isScheduledOnly());
 		const draftsSection = this.options.pendingSections?.get().find(section => section.id === 'drafts');
@@ -1775,8 +1826,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 			previousSnapshot: this._renderSnapshot,
 			grouping,
 			sorting,
-			scoped: this.options.scoped?.get() === true,
-			hasSessionScope: this.options.sessionScope?.get() !== undefined,
+			separateGroupsAndWorkspaces,
+			listWorkspaces,
+			scoped,
+			hasSessionScope,
 			scopeBar,
 			listsQuickChats: this.options.listsQuickChats?.get() ?? true,
 			quickChatsInTimeGrouping: !!this.options.quickChatsInTimeGrouping,
@@ -1865,10 +1918,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const result = buildSessionsListModel(modelInput, precomputedInbox);
 
-		this.applyModelResult(result, inbox);
+		this.applyModelResult(result, inbox, separateGroupsAndWorkspaces);
 	}
 
-	private applyModelResult(result: ReturnType<typeof buildSessionsListModel>, inbox: boolean): void {
+	private applyModelResult(result: ReturnType<typeof buildSessionsListModel>, inbox: boolean, separateGroupsAndWorkspaces: boolean): void {
 		if (result.migratedCollapseStateKeys.length > 0) {
 			const state = this.readSectionCollapseState();
 			for (const migration of result.migratedCollapseStateKeys) {
@@ -1884,16 +1937,26 @@ export class SessionsList extends Disposable implements ISessionsList {
 			logSettingExperimentTrigger(this.telemetryService, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING);
 		}
 
-		this.setNavigationSections(result.navigationSections);
+		const previousSpacedHeaderIds = this._renderSnapshot.spacedHeaderIds;
+		const previousMutedHeaderIds = this._renderSnapshot.mutedHeaderIds;
 		this._renderSnapshot = result.snapshot;
+		this.setNavigationSections(result.navigationSections);
 
 		const inboxLayoutChanged = this.listContainer.classList.contains('inbox-layout') !== inbox;
 		this.listContainer.classList.toggle('inbox-layout', inbox);
+		this.listContainer.classList.toggle('separate-groups-and-workspaces', separateGroupsAndWorkspaces);
 		this.tree.getHTMLElement().setAttribute('aria-label', inbox ? localize('inboxHeader', "Inbox") : localize('sessionsList', "Sessions"));
 
 		const keyboardPosition = this.captureKeyboardPosition();
 		const visibleSelection = inbox ? this.tree.getSelection().filter((item): item is SessionListItem => !!item && this.isTreeItemVisible(item)) : [];
 		this.tree.setChildren(null, result.children);
+		// A header that keeps its identity keeps its height, so measure the headers again when the gaps move
+		for (const child of result.children) {
+			if (isSessionSection(child.element) && (previousSpacedHeaderIds.has(child.element.id) !== this._renderSnapshot.spacedHeaderIds.has(child.element.id) || previousMutedHeaderIds.has(child.element.id) !== this._renderSnapshot.mutedHeaderIds.has(child.element.id)) && this.tree.hasElement(child.element)) {
+				this.tree.updateElementHeight(child.element, this._delegate.getHeight(child.element));
+				this.tree.rerender(child.element);
+			}
+		}
 		this.restoreKeyboardPosition(keyboardPosition);
 		this.restoreVisibleInboxSelection(visibleSelection);
 		if (inboxLayoutChanged) {
@@ -2619,6 +2682,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.update();
 	}
 
+	/** Whether Group by Workspace separates the custom groups and the workspaces, each under a header of its own. */
+	private isSeparateGroupsAndWorkspaces(grouping = this.options.grouping()): boolean {
+		return grouping === SessionsGrouping.Workspace && !!this.options.separateGroupsAndWorkspaces?.();
+	}
+
 	private updateIndentItems(): void {
 		this.listContainer.classList.toggle('indent-items', this.configurationService.getValue<boolean>(SESSIONS_LIST_INDENT_ITEMS_SETTING) === true);
 	}
@@ -2731,7 +2799,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * placement precedence below custom groups. Date sections share one sort
 	 * order, so a session may render in either of them.
 	 */
-	private getUngroupedSectionIds(session: ISession): readonly string[] {
+	private getUngroupedSectionIds(session: ISession, listWorkspaces: ISessionListWorkspaces | undefined = this._renderSnapshot.listWorkspaces): readonly string[] {
 		if (this.options.grouping() === SessionsGrouping.Inbox) {
 			return [this.getInboxSection(session)];
 		}
@@ -2743,7 +2811,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			return [QUICK_CHATS_SECTION_ID];
 		}
 		if (grouping !== SessionsGrouping.Date) {
-			return [getSessionGroupingSectionId(session, grouping)];
+			return [getSessionGroupingSectionId(session, grouping, listWorkspaces)];
 		}
 		return DATE_SECTION_IDS;
 	}
@@ -3559,6 +3627,17 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	/**
+	 * A drop of a header that the list can carry out. With groups and workspaces separate, only the custom groups have an order,
+	 * and the workspace rows are listed by name: a workspace row neither moves among them nor takes the place of one.
+	 */
+	private getSupportedHeaderDrop(header: IDraggedHeader, target: SessionListItem, sector: ListViewTargetSector | undefined): SessionHeaderDrop | undefined {
+		const drop = this.getHeaderDrop(header, target, sector);
+		return drop?.kind === 'topLevel' && this.isSeparateGroupsAndWorkspaces() && (!header.group || isSessionGroupingSection(drop.targetId))
+			? undefined
+			: drop;
+	}
+
+	/**
 	 * Where a dragged header lands. A group lands inside another group when it is
 	 * dropped on the middle of that group's header, on the lower edge of its
 	 * expanded header (which shows the group's rows below it), or on one of its
@@ -3792,6 +3871,29 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	// -- Programmatic organization --
+
+	/** Whether the Workspace editor opens on a workspace or custom group: in a window that has it, while chat and workspaces are on. */
+	private canOpenWorkspaceEditor(): boolean {
+		return this.contextKeyService.contextMatchesRules(SESSION_WORKSPACE_EDITOR_WHEN);
+	}
+
+	/**
+	 * The workspaces that the separate Workspaces header lists sessions under, for one rebuild: each workspace is looked up once.
+	 * The Agents window's own workspaces list even without sessions, unless a search or scope narrows the list.
+	 */
+	private createListWorkspaces(scoped: boolean): ISessionListWorkspaces {
+		const workspaces = new ResourceMap<IRecentSessionWorkspace | undefined>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
+		return {
+			getWorkspace: uri => {
+				if (!workspaces.has(uri)) {
+					workspaces.set(uri, this.workspacesService.getWorkspace(uri));
+				}
+				return workspaces.get(uri);
+			},
+			getKey: uri => this.uriIdentityService.extUri.getComparisonKey(uri),
+			listed: this.hasFindPattern || scoped ? [] : this.workspacesService.managedWorkspaces.get(),
+		};
+	}
 
 	/**
 	 * The list as it is composed, independent of scrolling, collapsing, and the
@@ -4494,6 +4596,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[SessionSectionTypeContext.key, getSessionSectionType(section.id)],
 			[SessionSectionHasNonCloudRepositoryContext.key, section.sessions.some(session => session.workspace.get()?.folders.some(folder => folder.root.scheme !== GITHUB_REMOTE_FILE_SCHEME) ?? false)],
 			[SessionSectionHasRootFolderContext.key, !!section.rootFolder],
+			[SessionSectionHasSessionsContext.key, section.sessions.length > 0],
+			[SessionSectionWorkspaceKindContext.key, section.workspace ? section.workspace.known ? 'known' : 'folder' : ''],
+			[SessionSectionWorkspaceIsLocalContext.key, section.workspace?.uri.scheme === Schemas.file],
 		]);
 		const groups: [string, readonly IAction[]][] = [];
 		const organize: IAction[] = [];
@@ -4502,7 +4607,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			groups.push(['1_state', [this.getMarkAllSessionsReadAction(() => section.sessions)]]);
 		}
 		if (grouping !== SessionsGrouping.Date && isSessionGroupingSection(section.id)) {
-			groups.push(['1_state', [this.getMarkAllSessionsReadAction(() => this.sessions.filter(session => getSessionGroupingSectionId(session, grouping) === section.id))]]);
+			groups.push(['1_state', [this.getMarkAllSessionsReadAction(() => this.sessions.filter(session => getSessionGroupingSectionId(session, grouping, this._renderSnapshot.listWorkspaces) === section.id))]]);
 			if (grouping !== SessionsGrouping.Inbox) {
 				organize.push(this.getHeaderPinAction(section.id, section.label));
 			}
@@ -4524,11 +4629,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 					run: () => this.moveSectionToGroup(section, undefined),
 				}));
 			}
-			groups.push(['4_manage', this.getGroupAppearanceActions(
-				this._sessionGroupsService.getSectionAppearance(section.id),
-				icon => this._sessionGroupsService.setSectionIcon(section.id, icon),
-				color => this._sessionGroupsService.setSectionColor(section.id, color),
-			)]);
+			// A workspace row shows the icon and color of its workspace file, which Edit Workspace changes
+			if (!section.workspace) {
+				groups.push(['4_manage', this.getGroupAppearanceActions(
+					this._sessionGroupsService.getSectionAppearance(section.id),
+					icon => this._sessionGroupsService.setSectionIcon(section.id, icon),
+					color => this._sessionGroupsService.setSectionColor(section.id, color),
+				)]);
+			}
 		}
 		if (grouping !== SessionsGrouping.Inbox) {
 			organize.push(this.getCreateGroupAction());
@@ -4656,7 +4764,17 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 			groups.push(['2_organize', organize]);
 		}
-		if (!comparison) {
+		if (!comparison && this.canOpenWorkspaceEditor()) {
+			// The Workspace editor edits a group's name, icon and color together
+			groups.push(['4_manage', [
+				toAction({
+					id: 'sessions.editGroupAction',
+					label: localize('editGroupAction', "Edit Group..."),
+					run: () => this.commandService.executeCommand(EDIT_SESSION_GROUP_COMMAND_ID, groupItem.group.id),
+				}),
+				this.getDeleteGroupAction(groupItem),
+			]]);
+		} else if (!comparison) {
 			groups.push(['4_manage', [
 				...this.getGroupAppearanceActions(
 					groupItem.group,
@@ -4920,6 +5038,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private isInboxAutoAdvanceEnabled(): boolean {
+		if (this.options.inboxAutoAdvance === false) {
+			return false;
+		}
 		const mode = this.configurationService.getValue<'auto' | 'on' | 'off' | 'newSession'>(SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING) ?? 'auto';
 		return mode === 'newSession' || mode === 'on' || mode === 'auto' && !this.accessibilityService.isScreenReaderOptimized();
 	}
@@ -5263,7 +5384,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (repository) {
 			add('repository', `${repository.owner}/${repository.name}`);
 		}
-		for (const name of this.getSessionGroupSearchNames(session, searchContext.comparisonSectionIds)) {
+		for (const name of this.getSessionGroupSearchNames(session, searchContext.comparisonSectionIds, searchContext.listWorkspaces)) {
 			add('group', name);
 		}
 		for (const folder of workspace?.folders ?? []) {
@@ -5288,10 +5409,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * {@link getRowGroupDepth}, that is the group the session is a member of, or else the group that its workspace,
 	 * repository, or environment section is placed in, and their parents.
 	 */
-	private getSessionGroupSearchNames(session: ISession, comparisonSectionIds: ReadonlyMap<string, string> = this._renderSnapshot.comparisonSectionIds): string[] {
+	private getSessionGroupSearchNames(session: ISession, comparisonSectionIds: ReadonlyMap<string, string> = this._renderSnapshot.comparisonSectionIds, listWorkspaces: ISessionListWorkspaces | undefined = this._renderSnapshot.listWorkspaces): string[] {
 		let groupId = this.getRenderedSessionGroup(session)?.id;
 		if (groupId === undefined && !session.isArchived.get() && !this.isSessionPinned(session)) {
-			const [sectionId] = this.getUngroupedSectionIds(session);
+			const [sectionId] = this.getUngroupedSectionIds(session, listWorkspaces);
 			groupId = sectionId === undefined ? undefined : this.getSectionParentId(sectionId);
 		}
 		const names: string[] = [];

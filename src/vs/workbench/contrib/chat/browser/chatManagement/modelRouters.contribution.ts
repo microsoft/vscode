@@ -6,7 +6,7 @@
 import * as DOM from '../../../../../base/browser/dom.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { AccessibleViewRegistry, IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
@@ -24,6 +24,7 @@ import { IChatEntitlementService } from '../../../../services/chat/common/chatEn
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { ModelRouterLanguageFeatures } from './modelRouterLanguageFeatures.js';
 import { ModelRoutersEditor } from './modelRoutersEditor.js';
 import { ModelRoutersEditorInput } from './modelRoutersEditorInput.js';
 
@@ -34,9 +35,17 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	[new SyncDescriptor(ModelRoutersEditorInput)]
 );
 
-/** Whether the editor has a place in this window: model routers are turned on, and AI features are not hidden. */
-function isModelRoutersEditorOffered(configurationService: IConfigurationService, chatEntitlementService: IChatEntitlementService): boolean {
+/** Whether model routers have a place in this window: they are turned on, and AI features are not hidden. */
+function areModelRoutersOffered(configurationService: IConfigurationService, chatEntitlementService: IChatEntitlementService): boolean {
 	return configurationService.getValue(ModelRouterEnabledSettingId) === true && !chatEntitlementService.sentiment.hidden;
+}
+
+/** Fires when {@link areModelRoutersOffered} may have changed. */
+function onDidChangeModelRoutersOffered(configurationService: IConfigurationService, chatEntitlementService: IChatEntitlementService): Event<void> {
+	return Event.any(
+		Event.signal(Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ModelRouterEnabledSettingId))),
+		chatEntitlementService.onDidChangeSentiment,
+	);
 }
 
 class ModelRoutersEditorInputSerializer implements IEditorSerializer {
@@ -50,7 +59,7 @@ class ModelRoutersEditorInputSerializer implements IEditorSerializer {
 	}
 
 	deserialize(instantiationService: IInstantiationService): ModelRoutersEditorInput | undefined {
-		return instantiationService.invokeFunction(accessor => isModelRoutersEditorOffered(accessor.get(IConfigurationService), accessor.get(IChatEntitlementService))) ? new ModelRoutersEditorInput() : undefined;
+		return instantiationService.invokeFunction(accessor => areModelRoutersOffered(accessor.get(IConfigurationService), accessor.get(IChatEntitlementService))) ? new ModelRoutersEditorInput() : undefined;
 	}
 }
 
@@ -68,16 +77,41 @@ class ModelRoutersEditorEnablement extends Disposable implements IWorkbenchContr
 	) {
 		super();
 		const closeUnlessOffered = () => {
-			if (!isModelRoutersEditorOffered(configurationService, chatEntitlementService)) {
+			if (!areModelRoutersOffered(configurationService, chatEntitlementService)) {
 				editorService.closeEditors(editorService.getEditors(EditorsOrder.SEQUENTIAL).filter(({ editor }) => editor instanceof ModelRoutersEditorInput)).catch(onUnexpectedError);
 			}
 		};
-		this._register(Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ModelRouterEnabledSettingId))(closeUnlessOffered));
-		this._register(chatEntitlementService.onDidChangeSentiment(closeUnlessOffered));
+		this._register(onDidChangeModelRoutersOffered(configurationService, chatEntitlementService)(closeUnlessOffered));
 	}
 }
 
 registerWorkbenchContribution2(ModelRoutersEditorEnablement.ID, ModelRoutersEditorEnablement, WorkbenchPhase.AfterRestored);
+
+/** Completion and problems for router files, while model routers are offered. */
+class ModelRouterLanguageFeaturesEnablement extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.modelRouterLanguageFeaturesEnablement';
+
+	constructor(
+		@IConfigurationService configurationService: IConfigurationService,
+		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super();
+		const features = this._register(new MutableDisposable());
+		const update = () => {
+			if (!areModelRoutersOffered(configurationService, chatEntitlementService)) {
+				features.clear();
+			} else if (!features.value) {
+				features.value = instantiationService.createInstance(ModelRouterLanguageFeatures);
+			}
+		};
+		this._register(onDidChangeModelRoutersOffered(configurationService, chatEntitlementService)(update));
+		update();
+	}
+}
+
+registerWorkbenchContribution2(ModelRouterLanguageFeaturesEnablement.ID, ModelRouterLanguageFeaturesEnablement, WorkbenchPhase.AfterRestored);
 
 class ModelRoutersAccessibility implements IAccessibleViewImplementation {
 	readonly priority = 125;

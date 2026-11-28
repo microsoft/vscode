@@ -17,7 +17,7 @@ import { createBaseBranchCandidatesResult, LIST_BASE_BRANCHES_OPERATION_ID, read
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetOperation } from '../common/state/sessionState.js';
-import { resolveBranchChangesetScopeForSource, resolveChangesetOwnerScope, resolveGitHubStateFolder, type IBranchChangesetScope } from './agentHostBranchChangesetScope.js';
+import { isFolderOnlyScope, resolveBranchChangesetScopeForSource, resolveChangesetOwnerScope, resolveGitHubStateFolder, type IBranchChangesetScope } from './agentHostBranchChangesetScope.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 
@@ -51,8 +51,10 @@ export class AgentHostBaseBranchOperationContribution extends Disposable impleme
 		const scope = resolveChangesetOwnerScope(this._stateManager, ownerKey ?? parseChangesetUri(changesetUri)?.ownerUri ?? sessionKey);
 		// The diff of a multi-root scope compares every repository against one base, but only the first folder's branches are listed and validated.
 		// Like `AgentHostChangesetService._getBranchBaseBranch`, it also ignores the recorded base of a default chat outside the session folder.
+		// A folder of the session on its own compares against its own base, while the selection is recorded for its conversation's folder.
 		if (scope.workingDirectories.length === 0
 			|| isMultiRootSession(scope.workingDirectories)
+			|| isFolderOnlyScope(this._stateManager, scope)
 			|| (this._chatOwnership.isRegisteredDefaultChat(scope.sourceUri) && !resolveGitHubStateFolder(this._stateManager, scope.sourceUri).isSessionFolder)) {
 			return undefined;
 		}

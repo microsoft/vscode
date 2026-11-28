@@ -24,8 +24,11 @@ import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { MarshalledCommentThread } from '../../../common/comments.js';
 import { CommentCommandId } from '../common/commentCommandIds.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
 
 const collapseIcon = registerIcon('review-comment-collapse', Codicon.chevronUp, nls.localize('collapseIcon', 'Icon to collapse a review comment.'));
+const threadIcon = registerIcon('review-comment-thread', Codicon.comment, nls.localize('threadIcon', 'Icon for a comment thread.'));
 const COLLAPSE_ACTION_CLASS = 'expand-review-action ' + ThemeIcon.asClassName(collapseIcon);
 const DELETE_ACTION_CLASS = 'expand-review-action ' + ThemeIcon.asClassName(Codicon.trashcan);
 
@@ -59,9 +62,12 @@ export class CommentThreadHeader<T = IRange> extends Disposable {
 		private _delegate: { collapse: () => void; collapseAction?: ICommentThreadCollapseActionPresentation },
 		private _commentMenus: CommentMenus,
 		private _commentThread: languages.CommentThread<T>,
+		private readonly _defaultTitle: string | undefined,
+		private readonly _showTitleIcon: boolean | undefined,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IContextMenuService private readonly _contextMenuService: IContextMenuService
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IHoverService private readonly _hoverService: IHoverService
 	) {
 		super();
 		this._headElement = dom.$('.head');
@@ -73,8 +79,19 @@ export class CommentThreadHeader<T = IRange> extends Disposable {
 	protected _fillHead(): void {
 		this._titleElement = dom.append(this._headElement, dom.$('.review-title'));
 
+		if (this._showTitleIcon) {
+			const icon = dom.append(this._titleElement, dom.$('span.comment-thread-title-icon.codicon'));
+			icon.classList.add(...ThemeIcon.asClassNameArray(threadIcon));
+			icon.setAttribute('aria-hidden', 'true');
+		}
 		this._headingLabel = dom.append(this._titleElement, dom.$('span.filename'));
 		this.createThreadLabel();
+		if (this._showTitleIcon) {
+			this._register(this._hoverService.setupDelayedHover(this._headingLabel, () => ({
+				content: this._headingLabel.scrollWidth > this._headingLabel.clientWidth ? this._headingLabel.getAttribute('aria-label') ?? '' : '',
+				style: HoverStyle.Pointer,
+			})));
+		}
 
 		this._actionsContainer = dom.append(this._headElement, dom.$('.review-actions'));
 		this._actionbarWidget = new ActionBar(this._actionsContainer, {
@@ -85,7 +102,7 @@ export class CommentThreadHeader<T = IRange> extends Disposable {
 
 		const collapseActionClass = this._delegate.collapseAction ? 'expand-review-action ' + ThemeIcon.asClassName(this._delegate.collapseAction.icon) : COLLAPSE_ACTION_CLASS;
 		const collapseClass = threadHasComments(this._commentThread.comments) ? collapseActionClass : DELETE_ACTION_CLASS;
-		this._collapseAction = new Action(CommentCommandId.Hide, this._delegate.collapseAction?.label ?? nls.localize('label.collapse', "Collapse"), collapseClass, true, () => this._delegate.collapse());
+		this._collapseAction = this._register(new Action(CommentCommandId.Hide, this._delegate.collapseAction?.label ?? nls.localize('label.collapse', "Collapse"), collapseClass, true, () => this._delegate.collapse()));
 		if (!threadHasComments(this._commentThread.comments)) {
 			const commentsChanged: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 			commentsChanged.value = this._commentThread.onDidChangeComments(() => {
@@ -126,18 +143,16 @@ export class CommentThreadHeader<T = IRange> extends Disposable {
 	}
 
 	createThreadLabel() {
-		let label: string | undefined;
-		label = this._commentThread.label;
+		const hasComments = threadHasComments(this._commentThread.comments);
+		const label = this._commentThread.label || (hasComments
+			? this._defaultTitle
+			: nls.localize('startThread', "Start discussion"));
 
-		if (label === undefined) {
-			if (!(this._commentThread.comments && this._commentThread.comments.length)) {
-				label = nls.localize('startThread', "Start discussion");
-			}
-		}
-
+		this._headingLabel.textContent = label ? strings.escape(label) : '';
 		if (label) {
-			this._headingLabel.textContent = strings.escape(label);
 			this._headingLabel.setAttribute('aria-label', label);
+		} else {
+			this._headingLabel.removeAttribute('aria-label');
 		}
 	}
 
@@ -156,7 +171,8 @@ export class CommentThreadHeader<T = IRange> extends Disposable {
 		const minimum = (parseFloat(titleStyle.marginLeft) || 0) + (parseFloat(titleStyle.marginRight) || 0)
 			+ (parseFloat(actionsStyle.paddingLeft) || 0) + this._actionbarWidget.domNode.offsetWidth + (parseFloat(actionsStyle.paddingRight) || 0);
 		// The title is cut off with an ellipsis when it doesn't fit.
-		return { minimum, natural: minimum + this._titleElement.scrollWidth };
+		const clippedWidth = Math.max(0, this._headingLabel.scrollWidth - this._headingLabel.clientWidth);
+		return { minimum, natural: minimum + this._titleElement.scrollWidth + clippedWidth };
 	}
 
 	private onContextMenu(e: MouseEvent) {

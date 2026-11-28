@@ -13,7 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { ChatInteractivity, IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { ISessionGroup, SessionGroupTree } from '../../../browser/sessionGroupsService.js';
 import { isSessionGroupItem, isSessionItem, isSessionPlaceholder, isSessionSection, isSessionShowMore, SessionListItem, SessionsGrouping, SessionsSorting } from '../../../browser/views/sessionsListCommon.js';
-import { QUICK_CHATS_SECTION_ID, RECENTLY_UPDATED_SESSION_THRESHOLD_MS } from '../../../browser/views/sessionsListHelpers.js';
+import { GROUPS_SECTION_ID, QUICK_CHATS_SECTION_ID, RECENTLY_UPDATED_SESSION_THRESHOLD_MS, WORKSPACES_SECTION_ID } from '../../../browser/views/sessionsListHelpers.js';
 import { buildSessionsListModel, computeRenderValidUntil, EMPTY_SESSIONS_LIST_RENDER_SNAPSHOT, FOUR_DAYS_MS, ISessionsListModelGroups, ISessionsListModelInput, SCOPE_EMPTY_PLACEHOLDER_ID } from '../../../browser/views/sessionsListModel.js';
 import { IInboxSessionAttention, InboxNotificationPriority, InboxTab } from '../../../common/sessionAttentionService.js';
 import { ISessionComparison, SessionComparisonParticipantRole } from '../../../common/sessionComparison.js';
@@ -106,6 +106,8 @@ suite('Sessions - SessionsListModel', () => {
 			previousSnapshot: EMPTY_SESSIONS_LIST_RENDER_SNAPSHOT,
 			grouping: SessionsGrouping.Workspace,
 			sorting: SessionsSorting.Updated,
+			separateGroupsAndWorkspaces: false,
+			listWorkspaces: undefined,
 			scoped: false,
 			hasSessionScope: false,
 			scopeBar: false,
@@ -451,6 +453,54 @@ suite('Sessions - SessionsListModel', () => {
 			topLevelOrder: ['group:grp1', 'workspace:Beta'],
 			renderedPinned: ['group:grp1', 'workspace:Beta'],
 			summaryIds: ['g1', 'f1'],
+		});
+	});
+
+	test('separates Groups and Workspaces sections with muted/spaced header metadata', () => {
+		const grouped = createSession('g1', { workspaceLabel: 'Alpha', updatedAt: NOW - 2_000 });
+		const inWorkspace = createSession('w1', { workspaceLabel: 'Alpha', updatedAt: NOW - 1_000 });
+		const group: ISessionGroup = { id: 'grp1', name: 'Focus', createdAt: NOW };
+		const emptyWsUri = URI.parse('file:///workspaces/EmptyWs');
+		const alphaWsUri = URI.parse('file:///workspaces/Alpha');
+
+		const result = buildSessionsListModel(createInput({
+			grouping: SessionsGrouping.Workspace,
+			separateGroupsAndWorkspaces: true,
+			listWorkspaces: {
+				getWorkspace: uri => uri.toString() === emptyWsUri.toString()
+					? { uri: emptyWsUri, name: 'EmptyWs', folders: [], owned: true }
+					: uri.toString() === alphaWsUri.toString()
+						? { uri: alphaWsUri, name: 'Alpha', folders: [], owned: true }
+						: undefined,
+				getKey: uri => uri.toString(),
+				listed: [{ uri: emptyWsUri, name: 'EmptyWs', folders: [], owned: true }],
+			},
+			sessions: [grouped, inWorkspace],
+			groups: createGroups([group], new Map([['g1', 'grp1']])),
+		}));
+
+		assert.deepStrictEqual({
+			tree: describeNodes(result.children),
+			topLevelOrder: result.snapshot.topLevelOrder,
+			muted: [...result.snapshot.mutedHeaderIds],
+			spaced: [...result.snapshot.spacedHeaderIds],
+		}, {
+			tree: [
+				{
+					section: GROUPS_SECTION_ID,
+					children: [{ group: 'grp1', depth: 0, children: [{ session: 'g1' }] }],
+				},
+				{
+					section: WORKSPACES_SECTION_ID,
+					children: [
+						{ section: `workspace:${alphaWsUri.toString()}`, children: [{ session: 'w1' }] },
+						{ section: `workspace:${emptyWsUri.toString()}`, children: [{ placeholder: `workspace:${emptyWsUri.toString()}` }] },
+					],
+				},
+			],
+			topLevelOrder: ['group:grp1'],
+			muted: [GROUPS_SECTION_ID, WORKSPACES_SECTION_ID],
+			spaced: [WORKSPACES_SECTION_ID],
 		});
 	});
 });

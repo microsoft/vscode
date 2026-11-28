@@ -5,7 +5,7 @@
 
 import { IPendingSessionItem, isPendingSessionItem } from './pendingSessions.js';
 import { CANVASES_SECTION_ID, ISessionGroupItem, ISessionSection, SessionChatItem, SessionGroupConnectorPosition, SessionListItem, SessionsGrouping, SessionsSorting, isSessionChatItem, isSessionGroupItem, isSessionItem, isSessionPlaceholder, isSessionSection, isSessionShowMore } from './sessionsListCommon.js';
-import { AUTOMATIONS_SECTION_ID, CUSTOMIZATIONS_SECTION_ID, DATE_SECTION_IDS, ENVIRONMENT_SECTION_PREFIX, EXTERNAL_SESSIONS_SECTION_ID, NEW_SESSION_SECTION_ID, QUICK_CHATS_SECTION_ID, RECENTLY_UPDATED_SESSION_THRESHOLD_MS, REPOSITORY_SECTION_PREFIX, getComparisonGroupSummary, getRepositorySectionId, getSessionListChats, getSessionRepository, getSessionSectionType, getSessionsRootFolder, groupSessionsForList, groupingHasQuickChatsSection, isComparisonLaunchPending, isQuickChatSession, isSessionGroupingSection, isShortcutSection, keepDateSectionOrder, labelRepositorySections, limitSessionsForList, partitionByDate, sessionMatchesFolder, sessionWorkspaceLabel, sortComparisonGroupMembers, sortSessionListChats, sortSessions, IInboxPlacement } from './sessionsListHelpers.js';
+import { AUTOMATIONS_SECTION_ID, CUSTOMIZATIONS_SECTION_ID, DATE_SECTION_IDS, ENVIRONMENT_SECTION_PREFIX, EXTERNAL_SESSIONS_SECTION_ID, GROUPS_SECTION_ID, NEW_SESSION_SECTION_ID, QUICK_CHATS_SECTION_ID, RECENTLY_UPDATED_SESSION_THRESHOLD_MS, REPOSITORY_SECTION_PREFIX, WORKSPACES_SECTION_ID, ISessionListWorkspaces, compareWorkspaceRows, createWorkspaceRow, getComparisonGroupSummary, getRepositorySectionId, getSessionListChats, getSessionRepository, getSessionSectionType, getSessionWorkspaceUri, getSessionsRootFolder, groupSessionsForList, groupingHasQuickChatsSection, isComparisonLaunchPending, isQuickChatSession, isSessionGroupingSection, isShortcutSection, keepDateSectionOrder, labelRepositorySections, limitSessionsForList, partitionByDate, sessionMatchesFolder, sessionWorkspaceLabel, sortComparisonGroupMembers, sortSessionListChats, sortSessions, IInboxPlacement } from './sessionsListHelpers.js';
 import { compareSessionEnvironments, getWorktreeFilterKeys } from './sessionsListFilters.js';
 import { IObjectTreeElement, ObjectTreeElementCollapseState } from '../../../../../base/browser/ui/tree/tree.js';
 import { constObservable, IReader } from '../../../../../base/common/observable.js';
@@ -136,10 +136,11 @@ export interface ISessionsListModelGroups {
 	getSectionIdsInGroup(groupId: string): readonly string[];
 }
 
-/** Render-local comparison metadata passed to search matching during model construction. */
+/** Render-local comparison and workspace metadata passed to search matching during model construction. */
 export interface ISessionsListSearchContext {
 	readonly comparisonAttemptLabels: ReadonlyMap<string, string>;
 	readonly comparisonSectionIds: ReadonlyMap<string, string>;
+	readonly listWorkspaces: ISessionListWorkspaces | undefined;
 }
 
 /** Immutable render-output snapshot produced by each {@link buildSessionsListModel} call. */
@@ -164,6 +165,12 @@ export interface ISessionsListRenderSnapshot {
 	readonly hiddenGroupingSections: readonly ISessionSection[];
 	/** Pinned group and grouping-section headers rendered in Pinned, by their pin key. */
 	readonly renderedPinnedHeaderIds: ReadonlySet<string>;
+	/** Top-level headers with a gap above them, by id (in separate groups and workspaces mode, each but the first). */
+	readonly spacedHeaderIds: ReadonlySet<string>;
+	/** Top-level headers shown as muted labels with a compact twistie, by id. */
+	readonly mutedHeaderIds: ReadonlySet<string>;
+	/** Workspaces resolved during the last rebuild while Group by Workspace separates groups and workspaces. */
+	readonly listWorkspaces: ISessionListWorkspaces | undefined;
 	/** Resource strings of sessions with nested rows (chats or attached comparisons). */
 	readonly nestedSessionResources: ReadonlySet<string>;
 	/** Whether the Inbox "Ready for you" section had at least one session in this render. */
@@ -185,6 +192,9 @@ export const EMPTY_SESSIONS_LIST_RENDER_SNAPSHOT: ISessionsListRenderSnapshot = 
 	moreFolderSectionIds: new Set(),
 	hiddenGroupingSections: [],
 	renderedPinnedHeaderIds: new Set(),
+	spacedHeaderIds: new Set(),
+	mutedHeaderIds: new Set(),
+	listWorkspaces: undefined,
 	nestedSessionResources: new Set(),
 	hadInboxSessions: false,
 	inboxPlacements: undefined,
@@ -204,6 +214,8 @@ export interface ISessionsListModelInput {
 	readonly previousSnapshot: ISessionsListRenderSnapshot;
 	readonly grouping: SessionsGrouping;
 	readonly sorting: SessionsSorting;
+	readonly separateGroupsAndWorkspaces: boolean;
+	readonly listWorkspaces: ISessionListWorkspaces | undefined;
 	readonly scoped: boolean;
 	readonly hasSessionScope: boolean;
 	readonly scopeBar: boolean;
@@ -375,6 +387,8 @@ export function buildSessionsListModel(input: ISessionsListModelInput, precomput
 		previousSnapshot,
 		grouping,
 		sorting,
+		separateGroupsAndWorkspaces,
+		listWorkspaces,
 		scoped,
 		hasSessionScope,
 		scopeBar,
@@ -519,6 +533,7 @@ export function buildSessionsListModel(input: ISessionsListModelInput, precomput
 		getInboxPriority,
 		quickChatsInTimeGrouping,
 		hasQuickChatsSection,
+		listWorkspaces,
 		now,
 	);
 
@@ -597,11 +612,18 @@ export function buildSessionsListModel(input: ISessionsListModelInput, precomput
 				? comparisonSessions.map(sessionWorkspaceLabel).find(label => label !== localize('unknown', "Unknown"))
 				?? getWorkspaceLabel(comparison.workspace)
 				: localize('chatsSection', "Chats");
-			const sectionId = inbox
+			// Under the separate Workspaces header, a comparison lists in the row of its sessions' workspace, as they would
+			const workspaceRowUri = listWorkspaces && comparison.workspace
+				? comparisonSessions.map(getSessionWorkspaceUri).find(isDefined) ?? comparison.workspace
+				: undefined;
+			const workspaceRow = listWorkspaces && workspaceRowUri ? createWorkspaceRow(workspaceRowUri, listWorkspaces) : undefined;
+			const workspaceRowId = workspaceRow?.id;
+			const groupingSectionId = inbox
 				? sessionInboxSections.find(id => comparisonSessions.some(session => getInboxSection(session) === id)) ?? (comparisonSessions.length === 0 ? SessionInboxSection.Working : undefined)
 				: grouping === SessionsGrouping.Date && !(quickChatsInTimeGrouping && !comparison.workspace)
 					? dateSectionByEntryId.get(getSessionGroupSectionId(group.id))
 					: environment ? `${ENVIRONMENT_SECTION_PREFIX}${environment.id}` : !comparison.workspace ? QUICK_CHATS_SECTION_ID : repository ? getRepositorySectionId(repository) : `workspace:${workspaceLabel}`;
+			const sectionId = workspaceRowId ?? groupingSectionId;
 			if (!sectionId) {
 				continue;
 			}
@@ -617,7 +639,7 @@ export function buildSessionsListModel(input: ISessionsListModelInput, precomput
 			workspaceGroups.push(group);
 			let workspaceSection = sections.find(section => section.id === sectionId);
 			if (!workspaceSection) {
-				workspaceSection = grouping === SessionsGrouping.Date && sectionId !== QUICK_CHATS_SECTION_ID
+				workspaceSection = workspaceRow ?? (grouping === SessionsGrouping.Date && sectionId !== QUICK_CHATS_SECTION_ID
 					? { id: sectionId, label: sectionId === 'recent' ? localize('recent', "Recent") : localize('older', "Older"), sessions: [] }
 					: environment
 						? { id: sectionId, label: environment.label, environment, sessions: [] }
@@ -628,7 +650,7 @@ export function buildSessionsListModel(input: ISessionsListModelInput, precomput
 								collapseStateId: comparison.workspace ? `workspace:${comparison.workspace.toString()}` : QUICK_CHATS_SECTION_ID,
 								label: workspaceLabel,
 								sessions: [],
-							};
+							});
 				sections.push(workspaceSection);
 				addedRepositorySection ||= !!repository;
 			}
@@ -639,7 +661,7 @@ export function buildSessionsListModel(input: ISessionsListModelInput, precomput
 		for (let index = 0; index < sections.length; index++) {
 			const section = sections[index];
 			const type = getSessionSectionType(section.id);
-			if (sectionsWithComparisons.has(section.id) && (type === 'workspace' || type === 'repository')) {
+			if (sectionsWithComparisons.has(section.id) && !section.workspace && (type === 'workspace' || type === 'repository')) {
 				sections[index] = { ...section, rootFolder: getSessionsRootFolder(section.sessions) };
 			}
 		}
@@ -887,6 +909,10 @@ export function buildSessionsListModel(input: ISessionsListModelInput, precomput
 		if (section.id === QUICK_CHATS_SECTION_ID && section.sessions.length === 0) {
 			sectionChildren = [{ element: { placeholder: true as const, sectionId: section.id, label: localize('noChats', "No chats") } }];
 		}
+		// A workspace without sessions says so, as a custom group does
+		if (section.workspace && section.sessions.length === 0) {
+			sectionChildren = [{ element: { placeholder: true as const, sectionId: section.id, label: localize('noSessionsInWorkspace', "No sessions in this workspace") } }];
+		}
 
 		let defaultCollapsed: boolean | ObjectTreeElementCollapseState = ObjectTreeElementCollapseState.PreserveOrExpanded;
 		if (grouping === SessionsGrouping.Date && hasRecentSessions) {
@@ -1077,8 +1103,8 @@ export function buildSessionsListModel(input: ISessionsListModelInput, precomput
 		}
 	};
 
-	// Body layout: Inbox, Date, or workspace/repository/environment grouping
-	const searchContext: ISessionsListSearchContext = { comparisonAttemptLabels, comparisonSectionIds };
+	// Body layout: Inbox, Date, separate Groups & Workspaces, or workspace/repository/environment grouping
+	const searchContext: ISessionsListSearchContext = { comparisonAttemptLabels, comparisonSectionIds, listWorkspaces };
 	let topLevelOrder: string[] = [];
 	let hiddenGroupingSections: readonly ISessionSection[] = [];
 	let renderedMoreFolderSectionIds: ReadonlySet<string> = new Set();
@@ -1125,6 +1151,31 @@ export function buildSessionsListModel(input: ISessionsListModelInput, precomput
 				}
 			}
 		}
+	} else if (separateGroupsAndWorkspaces) {
+		// The custom groups are rows of a Groups section, in their user-managed order, and the workspaces rows of a
+		// Workspaces section, by name
+		const renderParentSection = (id: string, label: string, sectionSessions: readonly ISession[], sectionChildren: IObjectTreeElement<SessionListItem>[]): IObjectTreeElement<SessionListItem> => {
+			const section: ISessionSection = { id, label, sessions: [...sectionSessions] };
+			return {
+				element: section,
+				collapsible: true,
+				collapsed: resolveCollapsed(section, getSavedCollapseState(id) ?? ObjectTreeElementCollapseState.PreserveOrExpanded),
+				children: sectionChildren,
+			};
+		};
+		const comparisonGroupIds = new Set([...comparisonGroupsBySectionId.values()].flat().map(group => getSessionGroupSectionId(group.id)));
+		const groupIds = sectionOrder.resolveOrder(topLevelGroupIds.filter(id => !comparisonGroupIds.has(id)));
+		topLevelOrder = groupIds;
+		// A pinned row keeps its place in the order, to return to it when unpinned, but renders in Pinned.
+		const groupItems = groupIds.filter(id => !isPinnedHeader(id)).map(id => groupItemsById.get(getSessionGroupIdOfSection(id) ?? '')).filter(isDefined);
+		if (groupItems.length > 0) {
+			children.push(renderParentSection(GROUPS_SECTION_ID, localize('groupsSection', "Groups"), groupItems.flatMap(item => item.subtreeSessions), groupItems.map(renderGroup)));
+		}
+		// Rows that only a comparison added join the others in their order
+		const workspaceSections = sections.filter(s => isSessionGroupingSection(s.id) && getSectionParentId(s.id) === undefined && !isPinnedHeader(s.id)).sort(compareWorkspaceRows);
+		children.push(renderParentSection(WORKSPACES_SECTION_ID, localize('workspacesSection', "Workspaces"), workspaceSections.flatMap(section => section.sessions), workspaceSections.length > 0
+			? workspaceSections.map(renderWorkspaceSection)
+			: [{ element: { placeholder: true as const, sectionId: WORKSPACES_SECTION_ID, label: localize('noWorkspaces', "No workspaces") } }]));
 	} else {
 		const workspaceSections = sections.filter(s => isSessionGroupingSection(s.id) && getSectionParentId(s.id) === undefined);
 		if (comparisonGroupsBySectionId.size > 0) {
@@ -1217,6 +1268,15 @@ export function buildSessionsListModel(input: ISessionsListModelInput, precomput
 		}
 	}
 
+	// With groups and workspaces separate, the top-level headers are muted labels, each but the first with a gap above it.
+	const topLevelHeaderIds = separateGroupsAndWorkspaces
+		? attachedChildren.map(child => child.element).filter((element): element is ISessionSection => isSessionSection(element) && !isShortcutSection(element.id)).map(section => section.id)
+		: [];
+	const mutedHeaderIds = new Set(topLevelHeaderIds);
+	const spacedHeaderIds = new Set(separateGroupsAndWorkspaces
+		? attachedChildren.slice(1).map(child => child.element).filter((element): element is ISessionSection => isSessionSection(element) && !isShortcutSection(element.id)).map(section => section.id)
+		: []);
+
 	return {
 		children: attachedChildren,
 		navigationSections,
@@ -1232,6 +1292,9 @@ export function buildSessionsListModel(input: ISessionsListModelInput, precomput
 			moreFolderSectionIds: renderedMoreFolderSectionIds,
 			hiddenGroupingSections,
 			renderedPinnedHeaderIds: pinnedHeaders,
+			spacedHeaderIds,
+			mutedHeaderIds,
+			listWorkspaces,
 			nestedSessionResources: nextNestedSessionResources,
 			hadInboxSessions: hasInboxSessions,
 			inboxPlacements,

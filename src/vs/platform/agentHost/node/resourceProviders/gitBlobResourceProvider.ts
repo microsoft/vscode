@@ -15,7 +15,7 @@ import { getEffectiveWorkingDirectories } from '../agentConfigurationService.js'
 import { resolveChangesetOwnerScope } from '../agentHostBranchChangesetScope.js';
 import { IAgentHostChatOwnershipService } from '../agentHostChatOwnershipService.js';
 import type { IAgentHostResourceProvider } from '../agentHostResourceProviders.js';
-import { resolveSessionRepositories } from '../agentHostSessionRepositories.js';
+import { readNestedRepositoryRoots, resolveSessionRepositories } from '../agentHostSessionRepositories.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
 import { type IGitBlobUriFields, parseGitBlobUri } from '../gitDiffContent.js';
 
@@ -137,17 +137,21 @@ export class GitBlobResourceProvider implements IAgentHostResourceProvider {
 		// git-blob URI whose stored absolute path no longer sits under the
 		// current root (a remapped/relocated worktree) still resolves against the
 		// primary directory as it did before multi-root support.
-		if (!isMultiRootSession(workingDirectories)) {
+		// Repositories found in the folders' immediate subfolders are listed by the changesets too, so their files resolve
+		// against them, as in a multi-root session.
+		const nestedRepositories = readNestedRepositoryRoots(this._stateManager.getSessionState(owningSession.toString())?._meta, workingDirectories);
+		if (!isMultiRootSession(workingDirectories) && !nestedRepositories.length) {
 			return URI.parse(workingDirectories[0]);
 		}
 		const { gitRepositories } = await resolveSessionRepositories(workingDirectories.map(directory => URI.parse(directory)), gitService);
-		if (!gitRepositories.length) {
+		const repositories = [...gitRepositories, ...nestedRepositories];
+		if (!repositories.length) {
 			return undefined;
 		}
 		// The absolute path was stored as a bare path (its scheme/authority were
 		// dropped when the URI was built); rebuild it against the session roots'
 		// own scheme/authority so it lines up with the repository roots.
-		const blobResource = gitRepositories[0].with({ path: fields.absolutePath });
-		return findDeepestContainingWorkingDirectory(blobResource, gitRepositories);
+		const blobResource = repositories[0].with({ path: fields.absolutePath });
+		return findDeepestContainingWorkingDirectory(blobResource, repositories);
 	}
 }

@@ -40,6 +40,37 @@ import { SettingsTargetsWidget } from '../../browser/preferencesWidgets.js';
 import { IManagedSettingsPresentationService, ManagedSettingsPresentationService } from '../../../../services/configuration/common/managedSettingsPresentation.js';
 import { terminalContribConfiguration } from '../../../terminal/terminalContribExports.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { IAgentsModeService } from '../../../../services/agentsMode/common/agentsMode.js';
+
+suite('SettingsTargetsWidget Agents mode', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('keeps normal workspace targets until explicitly enabled, and restores them on exit', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const parent = DOM.append(document.body, DOM.$('div'));
+		store.add(toDisposable(() => parent.remove()));
+		const widget = store.add(instantiationService.createInstance(SettingsTargetsWidget, parent, undefined));
+		const targets: ConfigurationTarget[] = [];
+		store.add(widget.onDidTargetChange(target => {
+			if (typeof target === 'number') {
+				targets.push(target);
+			}
+		}));
+		await widget.updateTarget(ConfigurationTarget.WORKSPACE);
+		const initial = { target: widget.settingsTarget, empty: parent.querySelector('.monaco-action-bar')!.classList.contains('empty-workbench') };
+		widget.setAgentsMode(true);
+		widget.setAgentsMode(true);
+		const active = { target: widget.settingsTarget, empty: parent.querySelector('.monaco-action-bar')!.classList.contains('empty-workbench') };
+		widget.setAgentsMode(false);
+		const restored = { target: widget.settingsTarget, empty: parent.querySelector('.monaco-action-bar')!.classList.contains('empty-workbench') };
+		assert.deepStrictEqual({ initial, active, restored, targets }, {
+			initial: { target: ConfigurationTarget.WORKSPACE, empty: false },
+			active: { target: ConfigurationTarget.USER_LOCAL, empty: true },
+			restored: { target: ConfigurationTarget.USER_LOCAL, empty: false },
+			targets: [ConfigurationTarget.WORKSPACE, ConfigurationTarget.USER_LOCAL],
+		});
+	});
+});
 
 suite('SettingsEditor2', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -73,6 +104,7 @@ suite('SettingsEditor2', () => {
 			const managedSettings: Record<string, boolean | undefined> = {};
 			const instantiationService = workbenchInstantiationService({ configurationService: () => configuration }, store);
 			instantiationService.stub(IPreferencesService, {});
+			instantiationService.stub(IAgentsModeService, { isActive: false, onDidChange: Event.None });
 			instantiationService.stub(IPreferencesSearchService, {});
 			instantiationService.stub(IUserDataSyncWorkbenchService, {});
 			instantiationService.stub(IUserDataSyncEnablementService, {});

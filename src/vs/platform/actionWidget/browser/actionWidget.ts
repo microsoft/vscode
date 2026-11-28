@@ -72,6 +72,11 @@ export interface IActionWidgetService {
 
 	hide(didCancel?: boolean): void;
 
+	/**
+	 * Whether the widget shown by the given user has the keyboard focus.
+	 */
+	hasFocus(user: string): boolean;
+
 	readonly isVisible: boolean;
 }
 
@@ -85,6 +90,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 	private readonly _list = this._register(new MutableDisposable<ActionList<unknown>>());
 	private readonly _closeAnimation = this._register(new MutableDisposable<IDisposable>());
 	private _widgetElement: HTMLElement | undefined;
+	private _widgetUser: string | undefined;
 	private _closingList: ActionList<unknown> | undefined;
 
 	constructor(
@@ -102,6 +108,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 			getAnchor: () => anchor,
 			render: (container: HTMLElement) => {
 				visibleContext.set(true);
+				this._widgetUser = user;
 				return this._renderWidget(container, list, actionBarActions ?? [], listOptions);
 			},
 			onHide: (didCancel) => {
@@ -112,6 +119,10 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 			focus: () => list.focus(),
 			layer: contextViewLayer,
 		}, container, false);
+	}
+
+	hasFocus(user: string): boolean {
+		return this._widgetUser === user && !!this._widgetElement && dom.isAncestorOfActiveElement(this._widgetElement);
 	}
 
 	acceptSelected(preview?: boolean) {
@@ -195,6 +206,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		this._widgetElement?.style.removeProperty(ACTION_WIDGET_CLOSE_START_OPACITY_VARIABLE);
 		this._widgetElement?.style.removeProperty(ACTION_WIDGET_CLOSE_START_TRANSFORM_VARIABLE);
 		this._widgetElement = undefined;
+		this._widgetUser = undefined;
 		this._list.clear();
 	}
 

@@ -58,7 +58,7 @@ import { TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { CapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { AgentPolicyError, type IAgent, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentExtensionInventory, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentCreateChatInitialMessageContext, type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
-import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, ListAgentExtensionsExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, StopBackgroundWorkExtensionMethod, AnswerShellAuthenticationExtensionMethod, RegisterGitHubEnvironmentExtensionMethod, UnregisterGitHubEnvironmentExtensionMethod, GitHubEnvironmentChangedNotification, supportsAgentHostArtifactRemoval, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, ListAgentExtensionsExtensionMethod, RemoveSessionArtifactExtensionMethod, DetachSessionsFromWorkspaceExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, StopBackgroundWorkExtensionMethod, AnswerShellAuthenticationExtensionMethod, RegisterGitHubEnvironmentExtensionMethod, UnregisterGitHubEnvironmentExtensionMethod, GitHubEnvironmentChangedNotification, supportsAgentHostArtifactRemoval, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
 import { SessionArtifactType, type ISessionArtifact } from '../../common/sessionArtifacts.js';
 import { supportsAgentHostCopilotExtensions } from '../../common/meta/agentHostCopilotExtensionsMeta.js';
 import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../../common/meta/agentHostSavedChatMeta.js';
@@ -282,6 +282,7 @@ class MockAgentService extends Disposable implements IAgentService {
 	/** Entries `removeSessionArtifact` removes, each for the first request only. */
 	readonly removableArtifacts = new Map<string, ISessionArtifact>();
 	readonly stopBackgroundWorkCalls: { chat: string; id: string }[] = [];
+	readonly detachSessionsFromWorkspaceCalls: string[][] = [];
 	readonly answerShellAuthenticationCalls: { chat: string; requestId: string; answer: string | undefined }[] = [];
 	installSandboxCertificate: ((chat: string, scopeId: string) => Promise<void>) | undefined;
 	rotateSandboxCertificate: ((chat: string, scopeId: string) => Promise<void>) | undefined;
@@ -466,6 +467,14 @@ class MockAgentService extends Disposable implements IAgentService {
 	async stopBackgroundWork(chat: URI, id: string): Promise<boolean> {
 		this.stopBackgroundWorkCalls.push({ chat: chat.toString(), id });
 		return true;
+	}
+	detachSessionsFromWorkspaceError: Error | undefined;
+	async detachSessionsFromWorkspace(workspaceFiles: readonly URI[]): Promise<readonly URI[]> {
+		this.detachSessionsFromWorkspaceCalls.push(workspaceFiles.map(file => file.toString()));
+		if (this.detachSessionsFromWorkspaceError) {
+			throw this.detachSessionsFromWorkspaceError;
+		}
+		return [URI.parse('copilotcli:/session-1')];
 	}
 	async answerShellAuthentication(chat: URI, requestId: string, answer: string | undefined): Promise<boolean> {
 		this.answerShellAuthenticationCalls.push({ chat: chat.toString(), requestId, answer });
@@ -845,6 +854,7 @@ suite('ProtocolServerHandler', () => {
 				'vscode.automationHistoryDeletionState': true,
 				'vscode.devContainers': true,
 				'vscode.devContainerEnvironments': true,
+				'vscode.devContainerFolderContainers': true,
 				// Offered whether or not moving chats is enabled, so enabling it needs no reconnect.
 				'vscode.sessionMove': true,
 				'vscode.copilotExtensions': true,
@@ -3161,6 +3171,52 @@ suite('ProtocolServerHandler', () => {
 			response: { jsonrpc: '2.0', id: 20, result: { stopped: true } },
 			calls: [{ chat: URI.parse(chat).toString(), id: 'shell:3' }],
 		});
+	});
+
+	test('routes detaching sessions from workspaces to the agent service, and refuses it on relay connections', async () => {
+		const transport = connectClient('client-detach-workspace');
+		const workspaceFile = URI.file('/work/agents.code-workspace').toString();
+		const response = waitForResponse(transport, 20);
+		transport.simulateMessage(request(20, DetachSessionsFromWorkspaceExtensionMethod, { workspaceFiles: [workspaceFile] }));
+		const invalid = waitForResponse(transport, 21);
+		transport.simulateMessage(request(21, DetachSessionsFromWorkspaceExtensionMethod, { workspaceFiles: 'not-an-array' }));
+
+		const relay = disposables.add(new MockProtocolServer());
+		const relayHandler = disposables.add(new ProtocolServerHandler(
+			agentService, stateManager, relay,
+			{ allowExtensionMethods: true },
+			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+		));
+		const relayTransport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'relay-client', false));
+		relay.simulateConnection(relayTransport);
+		relayTransport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'relay-client' }));
+		const relayed = waitForResponse(relayTransport, 20);
+		relayTransport.simulateMessage(request(20, DetachSessionsFromWorkspaceExtensionMethod, { workspaceFiles: [workspaceFile] }));
+		await relayHandler.whenIdle();
+
+		const errorCode = (message: ProtocolMessage) => hasKey(message, { error: true }) ? message.error?.code : undefined;
+		assert.deepStrictEqual({
+			response: await response,
+			invalid: errorCode(await invalid),
+			relayed: errorCode(await relayed),
+			calls: agentService.detachSessionsFromWorkspaceCalls,
+		}, {
+			response: { jsonrpc: '2.0', id: 20, result: { sessions: ['copilotcli:/session-1'] } },
+			invalid: JsonRpcErrorCodes.InvalidParams,
+			relayed: JsonRpcErrorCodes.InvalidRequest,
+			calls: [[workspaceFile]],
+		});
+	});
+
+	test('answers a detach that failed for some sessions with an error the client does not take for an absent method', async () => {
+		const transport = connectClient('client-detach-workspace-failed');
+		agentService.detachSessionsFromWorkspaceError = new Error('Failed to detach 1 of 2 sessions from their workspace');
+		const response = waitForResponse(transport, 20);
+		transport.simulateMessage(request(20, DetachSessionsFromWorkspaceExtensionMethod, { workspaceFiles: [URI.file('/work/agents.code-workspace').toString()] }));
+		const message = await response;
+		const error = hasKey(message, { error: true }) ? message.error : undefined;
+		assert.deepStrictEqual({ code: error?.code === JsonRpcErrorCodes.MethodNotFound ? 'method-not-found' : typeof error?.code, failed: error?.message.includes('1 of 2') }, { code: 'number', failed: true });
 	});
 
 	test('rejects invalid background work stop params before routing', async () => {
@@ -8640,43 +8696,24 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
-	test('unsupported chat actions are rejected, not dispatched', async () => {
+	test('a client\'s chat working-directory actions reach the agent service, which validates them', () => {
 		stateManager.createSession(makeSessionSummary());
-		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
-
-		const cases: readonly { readonly action: ChatAction; readonly channel: string }[] = [
-			{ action: { type: ActionType.ChatWorkingDirectorySet, directory: 'file:///tmp/extra-root' }, channel: defaultChatUri },
-			{ action: { type: ActionType.ChatWorkingDirectoryRemoved, directory: 'file:///tmp/extra-root' }, channel: defaultChatUri },
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady });
+		const transport = connectClient('chat-folders-client', [sessionUri, defaultChatUri]);
+		transport.sent.length = 0;
+		const actions: ChatAction[] = [
+			{ type: ActionType.ChatWorkingDirectorySet, directory: 'file:///tmp/extra-root' },
+			{ type: ActionType.ChatWorkingDirectoryRemoved, directory: 'file:///tmp/extra-root' },
 		];
 
-		for (const [index, { action, channel }] of cases.entries()) {
-			const clientId = `unsupported-client-${index}`;
-			const clientSeq = 100 + index;
-			const transport = connectClient(clientId, [sessionUri, defaultChatUri]);
-			await waitForResponse(transport, 1);
-			transport.sent.length = 0;
-			agentService.handledActions.length = 0;
-
-			transport.simulateMessage(notification('dispatchAction', {
-				channel,
-				clientSeq,
-				action,
-			}));
-
-			// No dispatch: the gate intercepts before reaching the agent service,
-			// so the reducer never runs and synchronized state is untouched.
-			assert.deepStrictEqual(agentService.handledActions, [], `${action.type} must not be dispatched`);
-
-			// Exactly one rejection envelope, preserving the original origin so the
-			// client can reconcile its optimistic action.
-			const actionMsgs = findNotifications(transport.sent, 'action');
-			assert.strictEqual(actionMsgs.length, 1, `${action.type} should emit exactly one envelope`);
-			const envelope = actionMsgs[0].params as unknown as { action: { type: string }; origin: { clientId: string; clientSeq: number }; rejectionReason?: string };
-			assert.strictEqual(envelope.action.type, action.type);
-			assert.ok(envelope.rejectionReason, `${action.type} envelope should carry a rejectionReason`);
-			assert.strictEqual(envelope.origin.clientId, clientId);
-			assert.strictEqual(envelope.origin.clientSeq, clientSeq);
+		for (const [index, action] of actions.entries()) {
+			transport.simulateMessage(notification('dispatchAction', { channel: defaultChatUri, clientSeq: index + 1, action }));
 		}
+
+		assert.deepStrictEqual({
+			handled: agentService.handledActions.slice(-2),
+			rejections: findNotifications(transport.sent, 'action').map(message => (message.params as ActionEnvelope).rejectionReason).filter(reason => reason !== undefined),
+		}, { handled: actions, rejections: [] });
 	});
 
 	test('turn resume reaches the agent service', () => {

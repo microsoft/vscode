@@ -11,7 +11,9 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, IReader, observableSignal, observableSignalFromEvent, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { isWindows, OperatingSystem } from '../../../../../../base/common/platform.js';
+import { basename } from '../../../../../../base/common/resources.js';
 import { isDefined, isObject } from '../../../../../../base/common/types.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { cloudSandboxAddress } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { normalizeRemoteAgentHostAddress } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -40,12 +42,13 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../../
 import { logSettingExperimentTrigger } from '../../../../../../platform/telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider, isRemoteSessionCreationEnvironment } from '../../../common/agentHostSessionsProvider.js';
-import { areDevContainerEnvironmentsEnabled, DevContainerEnvironmentsEnabledSettingId, IDevContainerAgentHostService, IDevContainerEnvironment, LocalDevContainerEnvironmentHost } from '../../../common/devContainerAgentHostService.js';
+import { areDevContainerEnvironmentsEnabled, DevContainerEnvironmentsEnabledSettingId, IDevContainerAgentHostService, IDevContainerEnvironment, IDevContainerFolderContainer, isDevContainerDiscoveryEnabled, LocalDevContainerEnvironmentHost } from '../../../common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
 import { isActiveSessionStatus, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { IExtensionService } from '../../../../../services/extensions/common/extensions.js';
 import { applyRemoteAgentHostLocationPreference, changeRemoteAgentHostLocationPreference, confirmRemoteHostServerUpdate, confirmTunnelDeletion, disconnectSSHEntry, getCopyableRemoteAddress, getRemoteHostUpgradeMethod, reconnectRemoteHost, removeRemoteHost, renameRemoteHost, sshConnectionKey, upgradeRemoteHost } from './remoteHostOptions.js';
 import { getRemoteAgentHostPickerKey, RemoteAgentHostPickerVisibility } from './remoteAgentHostPickerVisibility.js';
+import { devContainerSourcePath } from './devContainerSource.js';
 
 export const remoteKinds = ['ssh', 'wsl', 'tunnel', 'environment', 'extension', 'devContainer'] as const;
 export type RemoteKind = typeof remoteKinds[number];
@@ -148,6 +151,11 @@ export interface ICustomizationRemote {
 	readonly canCreateDevContainer?: boolean;
 	/** Whether this remote connects and disconnects with its host, so it has no connect action of its own. */
 	readonly connectsWithHost?: boolean;
+	/**
+	 * Set for the Dev Container of a folder, such as one an editor window opened. It is no separate entry in the environment
+	 * picker: New Session starts in the folder with Dev Container execution required. It can't be renamed or deleted here.
+	 */
+	readonly devContainerFolder?: { readonly workspaceUri: URI };
 	/** Whether this remote's server can be updated from here, either to connect again or, while connected, because a newer version is available. */
 	readonly canUpdateServer?: boolean;
 }
@@ -267,7 +275,13 @@ type RemoteTarget =
 	| { readonly kind: 'tunnel'; readonly tunnel: ITunnelInfo; readonly authProvider?: 'github' | 'microsoft'; readonly source: 'discovered' | 'cached' }
 	| { readonly kind: 'environment'; readonly host: IMissionControlHost; readonly account: string }
 	| { readonly kind: 'extension'; readonly host: IExtensionRemoteAgentHost }
-	| { readonly kind: 'devContainer'; readonly environment: IDevContainerEnvironment };
+	| { readonly kind: 'devContainer'; readonly environment: IDevContainerEnvironment }
+	| { readonly kind: 'devContainerFolder'; readonly container: IDevContainerFolderContainer };
+
+/** Folder Dev Containers are listed with Dev Container environments. */
+function getRemoteKind(target: RemoteTarget): RemoteKind {
+	return target.kind === 'devContainerFolder' ? 'devContainer' : target.kind;
+}
 
 export class RemotesModel extends Disposable implements IRemotesModel {
 	private readonly targets = new Map<string, RemoteTarget>();
@@ -358,6 +372,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			remoteSharing.environmentIds.read(reader);
 			devContainerService.environments.read(reader);
 			devContainerService.environmentHosts.read(reader);
+			devContainerService.folderContainers.read(reader);
 			for (const provider of providersService.getProviders().filter(isAgentHostProvider)) {
 				provider.localRegistration?.read(reader);
 				provider.sessionListVersion?.read(reader);
@@ -500,6 +515,10 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 				}
 				return [];
 			}),
+			...(isDevContainerDiscoveryEnabled(this.configurationService) ? [discover('devContainer', async () => {
+				await this.devContainerService.refreshFolderContainers();
+				return [];
+			})] : []),
 		]);
 		return errors.filter((error): error is RemoteKind => error !== undefined);
 	}
@@ -608,6 +627,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 				break;
 			case 'environment':
 			case 'devContainer':
+			case 'devContainerFolder':
 				break;
 		}
 		this.update();
@@ -1011,6 +1031,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			case 'environment': return cloudSandboxAddress(target.host.id);
 			case 'extension': return target.host.address;
 			case 'devContainer': return target.environment.address;
+			case 'devContainerFolder': return target.container.address;
 		}
 	}
 
@@ -1067,8 +1088,9 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 				const extension = await this.extensionService.getExtension(target.host.extensionId);
 				return { ...common, extension: { ...(extension?.version ? { version: extension.version } : {}), ...(extension?.bugs?.url ? { issuesUrl: extension.bugs.url } : {}) } };
 			}
-			case 'devContainer': {
-				const source = target.environment.sourceAddress;
+			case 'devContainer':
+			case 'devContainerFolder': {
+				const source = target.kind === 'devContainer' ? target.environment.sourceAddress : target.container.sourceAddress;
 				const local = source === LocalDevContainerEnvironmentHost;
 				const host = local ? undefined : this._remotes.get().find(remote => remote.id === source);
 				const hostConnected = local || RemoteAgentHostConnectionStatus.isConnected(host?.connectionStatus);
@@ -1237,13 +1259,19 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 
 	private computeAvailability(id: string, target: RemoteTarget): Pick<ICustomizationRemote, 'availability' | 'unavailableReason' | 'startsOnConnect'> {
 		const unknown = (unavailableReason = localize('remotes.availabilityUnknown', "Couldn't check this environment's status. Select Connect to try.")) =>
-			this.checkingKinds.has(target.kind) || !this.checkedKinds.has(target.kind) ? { availability: 'pending' as const } : { availability: 'unknown' as const, unavailableReason };
+			this.checkingKinds.has(getRemoteKind(target)) || !this.checkedKinds.has(getRemoteKind(target)) ? { availability: 'pending' as const } : { availability: 'unknown' as const, unavailableReason };
 		switch (target.kind) {
 			// SSH hosts aren't probed: probing would open connections and leave entries in the server's logs.
 			case 'ssh':
 			case 'extension':
 			case 'devContainer':
 				return { availability: 'unknown' };
+			case 'devContainerFolder':
+				switch (target.container.running) {
+					case true: return { availability: 'online' };
+					case false: return { availability: 'offline', startsOnConnect: true, unavailableReason: localize('remotes.devContainerStopped', "This Dev Container is stopped. Select Connect to start it.") };
+					default: return { availability: 'unknown', unavailableReason: localize('remotes.devContainerUnknown', "Couldn't check whether this Dev Container is running. Select Connect to try.") };
+				}
 			case 'wsl':
 				if (!this.installedDistros) {
 					return unknown();
@@ -1428,7 +1456,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		const sharedEnvironmentIds = environmentsEnabled ? this.remoteSharing.environmentIds.read(reader) : new Set<string>();
 		const ownEnvironmentId = environmentsEnabled ? this.environmentService.ownEnvironmentId.read(reader) : undefined;
 		for (const [id, target] of this.targets) {
-			if (target.kind === 'environment' || target.kind === 'extension' || target.kind === 'devContainer') {
+			if (target.kind === 'environment' || target.kind === 'extension' || target.kind === 'devContainer' || target.kind === 'devContainerFolder') {
 				this.targets.delete(id);
 			}
 		}
@@ -1457,6 +1485,12 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		if (devContainersEnabled) {
 			for (const environment of this.devContainerService.environments.read(reader)) {
 				const target = { kind: 'devContainer' as const, environment };
+				this.targets.set(this.getId(target), target);
+			}
+		}
+		if (this.enabled) {
+			for (const container of this.devContainerService.folderContainers.read(reader)) {
+				const target = { kind: 'devContainerFolder' as const, container };
 				this.targets.set(this.getId(target), target);
 			}
 		}
@@ -1524,6 +1558,11 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 					description = detail;
 					break;
 				}
+				case 'devContainerFolder':
+					// Named like the folder's Dev Container sessions, e.g. `project [Dev Container on Ubuntu]`.
+					name = this.devContainerService.getWorkspaceLabel?.(target.container.workspaceUri) ?? basename(target.container.workspaceUri);
+					detail = devContainerSourcePath(target.container.workspaceUri);
+					break;
 			}
 			const connectionStatus = connectionStatuses.get(id) ?? RemoteAgentHostConnectionStatus.disconnected;
 			const failureKey = this.getPickerKey(target);
@@ -1553,7 +1592,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 				logSettingExperimentTrigger(this.telemetryService, DevContainerEnvironmentsEnabledSettingId);
 			}
 			remotes.push({
-				id, kind: target.kind, name, detail, canRemove, ...availability,
+				id, kind: getRemoteKind(target), name, detail, canRemove, ...availability,
 				...(requiresTunnelSignIn ? { requiresTunnelSignIn } : {}),
 				...(target.kind === 'environment' ? {
 					lastHeartbeatAt: target.host.lastHeartbeatAt, reportedSessionCount: target.host.reportedSessionCount,
@@ -1563,6 +1602,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 				...(description ? { description } : {}),
 				...(isDevContainerHost && devContainersEnabled ? { canCreateDevContainer: true } : {}),
 				...(target.kind === 'devContainer' ? { canDelete: true, ...(target.environment.sourceAddress !== LocalDevContainerEnvironmentHost ? { connectsWithHost: true } : {}) } : {}),
+				...(target.kind === 'devContainerFolder' ? { devContainerFolder: { workspaceUri: target.container.workspaceUri } } : {}),
 				...(target.kind === 'tunnel' ? {
 					canDelete: this.tunnelService.canDeleteTunnels && !!this.remoteTunnelStatus
 						&& !isTunnelHosted(this.remoteTunnelStatus.type === 'connected' ? this.remoteTunnelStatus.info : undefined, target.tunnel),

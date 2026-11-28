@@ -1140,7 +1140,8 @@ export class NewChatWidget extends Disposable {
 		this._renderFeedbackBanner(chatWidgetContent);
 		this._trackScheduledDraftLabel(chatWidgetContent);
 		const belowInputSurfaces = dom.$(`.new-session-below-input-surfaces.${chatInputSurfaceStackClass}`);
-		this._newChatInput.render(chatWidgetContent, parent, belowInputSurfaces);
+		// Files and other attachments can be dropped anywhere on the view, not only on the input.
+		this._newChatInput.render(chatWidgetContent, parent, { notices: belowInputSurfaces, dropTarget: element });
 		this._register(autorun(reader => {
 			const isQuickChat = this._isQuickChatComposer.read(reader);
 			const isWorkspacePickerQuickChat = this._isWorkspacePickerQuickChat.read(reader);
