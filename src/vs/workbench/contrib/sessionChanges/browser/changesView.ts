@@ -470,8 +470,10 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 			if (!session) {
 				return getActionBarActions(menu.getActions({ shouldForwardArgs: true }));
 			}
+			// Of the chat whose changes these are, which a Changes editor can name while its window shows another
+			const chat = chatObs.read(reader);
 			return getActionBarActions(actionsNamingSession(
-				menu.getActions({ args: [session, undefined, hostCommandContext], shouldForwardArgs: true }),
+				menu.getActions({ args: [chat ? { session, chat } : session, undefined, hostCommandContext], shouldForwardArgs: true }),
 				menu.getActions({ arg: session.resource, shouldForwardArgs: true }),
 			));
 		});
@@ -498,7 +500,9 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 			dropdownMenuChanged.read(reader);
 			// Its actions, such as those of Agent Merge, act on the session of this bar, such as that of a chat window,
 			// rather than on whichever session is active.
-			const groups = dropdownMenu.getActions({ args: [sessionObs.read(reader), undefined, hostCommandContext], shouldForwardArgs: true });
+			const dropdownSession = sessionObs.read(reader);
+			const dropdownChat = !isMainWindow ? chatObs.read(reader) : undefined;
+			const groups = dropdownMenu.getActions({ args: [dropdownSession && dropdownChat ? { session: dropdownSession, chat: dropdownChat } : dropdownSession, undefined, hostCommandContext], shouldForwardArgs: true });
 			const primaryGroup = groups.find(([group]) => group === CHANGES_OPERATIONS_DROPDOWN_PRIMARY_GROUP)?.[1] ?? [];
 			const rest = groups.filter(([group]) => group !== CHANGES_OPERATIONS_DROPDOWN_PRIMARY_GROUP).map(([, actions]) => actions);
 			const contributed = primaryGroup[0];
