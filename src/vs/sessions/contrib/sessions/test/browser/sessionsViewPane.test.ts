@@ -25,7 +25,7 @@ import { Workbench } from '../../../../browser/workbench.js';
 import { ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { AICustomizationShortcutsWidget } from '../../../../../workbench/contrib/sessions/browser/aiCustomizationShortcutsWidget.js';
-import { DEFAULT_SESSIONS_GROUPINGS, getCustomizationsPresentation, getStoredSessionsGrouping, SessionsView, SessionsViewGroupingContext, SessionsViewGroupingState, SessionsViewSeparateGroupsAndWorkspacesContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { DEFAULT_SESSIONS_GROUPINGS, getCustomizationsPresentation, getStoredSessionsGrouping, SessionsView, SessionsViewGroupingContext, SessionsViewGroupingState, SessionsViewSeparateGroupsAndWorkspacesContext, SessionsViewSortingContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatViewSessionsGroupingState, EDITOR_WINDOW_SESSIONS_GROUPINGS } from '../../../../../workbench/contrib/sessions/browser/agentsView/editorWindowSessionsList.js';
 import { SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
@@ -220,6 +220,13 @@ suite('Sessions - SessionsViewPane', () => {
 			chatEntitlementService: { sentiment: { hidden }, onDidChangeSentiment: sentimentChanged.event },
 			sentimentChanged,
 			groupingContextKey: SessionsViewGroupingContext.bindTo(contextKeyService),
+			currentSorting: SessionsSorting.Created,
+			currentInboxSorting: SessionsSorting.Updated,
+			sortingContextKey: SessionsViewSortingContext.bindTo(contextKeyService),
+			get sorting(): SessionsSorting { return Reflect.get(SessionsView.prototype, 'sorting', this); },
+			restoreSorting: Reflect.get(SessionsView.prototype, 'restoreSorting') as () => void,
+			readStoredSorting: Reflect.get(SessionsView.prototype, 'readStoredSorting') as (key: string) => SessionsSorting | undefined,
+			setSorting: SessionsView.prototype.setSorting,
 			_register: <T extends IDisposable>(disposable: T): T => disposables.add(disposable),
 			get grouping(): SessionsGrouping { return Reflect.get(SessionsView.prototype, 'grouping', this); },
 			get offeredGroupings(): readonly SessionsGrouping[] { return Reflect.get(SessionsView.prototype, 'offeredGroupings', this); },
@@ -245,9 +252,39 @@ suite('Sessions - SessionsViewPane', () => {
 			updateHeaderLayout: () => { },
 		};
 		host.initializeGrouping();
+		host.restoreSorting();
 		host.groupingContextKey.set(host.grouping);
+		host.sortingContextKey.set(host.sorting);
 		return host;
 	}
+
+	test('Inbox and the other groupings each remember their own sorting, Inbox by Updated unless chosen otherwise, across reloads', () => {
+		const configurationService = new TestConfigurationService({ [SESSIONS_LIST_INBOX_ENABLED_SETTING]: true });
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		const host = createGroupingHost(configurationService);
+		const shown = () => ({ grouping: host.grouping, sorting: host.sorting, checked: host.sortingContextKey.get() });
+		const defaults = [shown()];
+		host.toggleInbox();
+		defaults.push(shown());
+		host.setSorting(SessionsSorting.Created);
+		const inboxChosen = shown();
+		host.toggleInbox();
+		host.setSorting(SessionsSorting.Updated);
+		const ordinaryChosen = shown();
+		host.toggleInbox();
+		const backInInbox = shown();
+		const reloaded = createGroupingHost(configurationService, host.storageService);
+		assert.deepStrictEqual({ defaults, inboxChosen, ordinaryChosen, backInInbox, reloaded: { grouping: reloaded.grouping, sorting: reloaded.sorting } }, {
+			defaults: [
+				{ grouping: SessionsGrouping.Workspace, sorting: SessionsSorting.Created, checked: SessionsSorting.Created },
+				{ grouping: SessionsGrouping.Inbox, sorting: SessionsSorting.Updated, checked: SessionsSorting.Updated },
+			],
+			inboxChosen: { grouping: SessionsGrouping.Inbox, sorting: SessionsSorting.Created, checked: SessionsSorting.Created },
+			ordinaryChosen: { grouping: SessionsGrouping.Workspace, sorting: SessionsSorting.Updated, checked: SessionsSorting.Updated },
+			backInInbox: { grouping: SessionsGrouping.Inbox, sorting: SessionsSorting.Created, checked: SessionsSorting.Created },
+			reloaded: { grouping: SessionsGrouping.Inbox, sorting: SessionsSorting.Created },
+		});
+	});
 
 	test('enabling Inbox leaves the current mode unchanged and disabling it restores the previous grouping', async () => {
 		const configurationService = new TestConfigurationService();
