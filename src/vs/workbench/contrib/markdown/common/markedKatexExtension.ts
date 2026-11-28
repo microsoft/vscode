@@ -5,11 +5,15 @@
 import type * as marked from '../../../../base/common/marked/marked.js';
 import { escape, htmlAttributeEncodeValue } from '../../../../base/common/strings.js';
 
-export const mathInlineRegExp = /(?<![a-zA-Z0-9])(?<dollars>\${1,2})(?!\.|\(["'])((?:\\.|[^\\\n])*?(?:\\.|[^\\\n\$]))\k<dollars>(?![a-zA-Z0-9])/; // Non-standard, but ensure opening $ is not preceded and closing $ is not followed by word/number characters, opening $ not followed by ., (", ('
+export const mathDollarsInlineRegExp = /(?<![a-zA-Z0-9])(?<dollars>\${1,2})(?!\.|\(["'])((?:\\.|[^\\\n])*?(?:\\.|[^\\\n\$]))\k<dollars>(?![a-zA-Z0-9])/; // Non-standard, but ensure opening $ is not preceded and closing $ is not followed by word/number characters, opening $ not followed by ., (", ('
+export const mathParenthesesInlineRegExp = /(?<!\\)\\\(((?:\\.|[^\r\n\\]|\r?\n(?!\r?\n))+?)\\\)/;
+export const mathBracketsInlineRegExp = /(?<!\\)\\\[((?:\\.|[^\r\n\\]|\r?\n(?!\r?\n))+?)\\\]/;
+
+export const mathInlineRegExp = new RegExp(`(?:${mathDollarsInlineRegExp.source})|(?:${mathParenthesesInlineRegExp.source})|(?:${mathBracketsInlineRegExp.source})`);
 export const katexContainerClassName = 'vscode-katex-container';
 export const katexContainerLatexAttributeName = 'data-latex';
 
-const inlineRule = new RegExp('^' + mathInlineRegExp.source);
+const inlineRule = new RegExp(`^(?:${mathInlineRegExp.source})`);
 
 export namespace MarkedKatexExtension {
 	type KatexOptions = import('katex').KatexOptions;
@@ -18,7 +22,7 @@ export namespace MarkedKatexExtension {
 	// From https://github.com/UziTech/marked-katex-extension/blob/main/src/index.js
 	export interface MarkedKatexOptions extends KatexOptions { }
 
-	const blockRule = /^(\${1,2})\n((?:\\[^]|[^\\])+?)\n\1(?:\n|$)/;
+	const blockRule = /^(?:(\${1,2})\n((?:\\[^]|[^\\])+?)\n\1| {0,3}\\\[((?:\\[^]|[^\\])+?)\\\][ \t]*)(?:\n|$)/;
 
 	export function extension(katex: typeof import('katex').default, options: MarkedKatexOptions = {}): marked.MarkedExtension {
 		return {
@@ -58,33 +62,33 @@ export namespace MarkedKatexExtension {
 			name: 'inlineKatex',
 			level: 'inline',
 			start(src: string) {
-				let index;
-				let indexSrc = src;
-
-				while (indexSrc) {
-					index = indexSrc.indexOf('$');
-					if (index === -1) {
-						return;
-					}
-
-					const possibleKatex = indexSrc.substring(index);
-					if (possibleKatex.match(ruleReg)) {
-						return index;
-					}
-
-					indexSrc = indexSrc.substring(index + 1).replace(/^\$+/, '');
-				}
-				return;
+				return src.match(mathInlineRegExp)?.index;
 			},
 			tokenizer(src: string, tokens: marked.Token[]) {
 				const match = src.match(ruleReg);
 				if (match) {
-					return {
-						type: 'inlineKatex',
-						raw: match[0],
-						text: match[2].trim(),
-						displayMode: match[1].length === 2,
-					};
+					if (match[0].startsWith('\\(')) {
+						return {
+							type: 'inlineKatex',
+							raw: match[0],
+							text: match[0].slice(2, -2).trim(),
+							displayMode: false,
+						};
+					} else if (match[0].startsWith('\\[')) {
+						return {
+							type: 'inlineKatex',
+							raw: match[0],
+							text: match[0].slice(2, -2).trim(),
+							displayMode: true,
+						};
+					} else {
+						return {
+							type: 'inlineKatex',
+							raw: match[0],
+							text: match[2].trim(),
+							displayMode: match[1].length === 2,
+						};
+					}
 				}
 				return;
 			},
@@ -102,11 +106,12 @@ export namespace MarkedKatexExtension {
 			tokenizer(src: string, tokens: marked.Token[]) {
 				const match = src.match(blockRule);
 				if (match) {
+					const isLatexBlock = match[3] !== undefined;
 					return {
 						type: 'blockKatex',
 						raw: match[0],
-						text: match[2].trim(),
-						displayMode: match[1].length === 2,
+						text: (isLatexBlock ? match[3] : match[2]).trim(),
+						displayMode: isLatexBlock ? true : match[1].length === 2,
 					};
 				}
 				return;
