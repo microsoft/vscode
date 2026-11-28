@@ -8,6 +8,7 @@ import { IHighlight } from '../../../../base/browser/ui/highlightedlabel/highlig
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
+import { truncateLongLines } from '../../../../base/common/strings.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -29,6 +30,8 @@ export interface IValueHoverOptions {
 export interface IRenderValueOptions {
 	showChanged?: boolean;
 	maxValueLength?: number;
+	/** Truncates each line of the value that is longer than this, since rendering a huge line can run text shaping out of memory. Defaults to {@link MAX_LINE_RENDER_LENGTH}. Pass `0` to disable. */
+	maxLineLength?: number;
 	/** If not false, a rich hover will be shown on the element. */
 	hover?: false | IValueHoverOptions;
 	colorize?: boolean;
@@ -51,6 +54,11 @@ export interface IRenderVariableOptions {
 }
 
 
+/**
+ * Lines longer than this are truncated when rendered in debug views: a single huge
+ * line can run text shaping out of memory and crash the window. Copy and Copy All keep the full value.
+ */
+export const MAX_LINE_RENDER_LENGTH = 10_000;
 const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 const booleanRegex = /^(true|false)$/i;
 const stringRegex = /^(['"]).*\1$/;
@@ -168,8 +176,13 @@ export class DebugExpressionRenderer {
 			}
 		}
 
+		const maxLineLength = options.maxLineLength ?? MAX_LINE_RENDER_LENGTH;
 		if (options.maxValueLength && value && value.length > options.maxValueLength) {
 			value = value.substring(0, options.maxValueLength) + '...';
+		}
+		if (maxLineLength && value && !supportsANSI) {
+			// The ANSI path truncates while rendering, so that escape sequences are never cut.
+			value = truncateLongLines(value, maxLineLength);
 		}
 		if (!value) {
 			value = '';
@@ -187,7 +200,7 @@ export class DebugExpressionRenderer {
 		}
 
 		if (supportsANSI) {
-			container.appendChild(handleANSIOutput(value, linkDetector, session ? session.root : undefined, options.highlights, hoverBehavior));
+			container.appendChild(handleANSIOutput(value, linkDetector, session ? session.root : undefined, options.highlights, hoverBehavior, maxLineLength || undefined));
 		} else {
 			container.appendChild(linkDetector.linkify(value, hoverBehavior, false, session?.root, true, options.highlights));
 		}
@@ -202,7 +215,7 @@ export class DebugExpressionRenderer {
 				if (supportsANSI) {
 					// note: intentionally using `this.linkDetector` so we don't blindly linkify the
 					// entire contents and instead only link file paths that it contains.
-					hoverContentsPre.appendChild(handleANSIOutput(value, this.linkDetector, session ? session.root : undefined, options.highlights, hoverBehavior));
+					hoverContentsPre.appendChild(handleANSIOutput(value, this.linkDetector, session ? session.root : undefined, options.highlights, hoverBehavior, maxLineLength || undefined));
 				} else {
 					hoverContentsPre.textContent = value;
 				}

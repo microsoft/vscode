@@ -5,7 +5,8 @@
 
 import assert from 'assert';
 import { stub } from 'sinon';
-import { Barrier, timeout } from '../../../../../base/common/async.js';
+import { Barrier, DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -31,15 +32,15 @@ import { DocumentSymbolsOutline } from '../../browser/outline/documentSymbolsOut
 suite('DocumentSymbolsOutline adapters', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setupOutline() {
+	function setupOutline(onRequest?: (token: CancellationToken) => Promise<unknown>) {
 		const instantiation = createModelServices(store.add(new DisposableStore()));
 		const features = instantiation.get(ILanguageFeaturesService);
 		const model = store.add(instantiateTextModel(instantiation, '# Parent\n## Child\nbody\n# Other', 'plaintext'));
 		let providerCalls = 0;
 		store.add(features.documentSymbolProvider.register('*', {
-			provideDocumentSymbols(model): DocumentSymbol[] {
+			provideDocumentSymbols(model, token) {
 				providerCalls++;
-				return [
+				const symbols: DocumentSymbol[] = [
 					{
 						name: model.getLineContent(1), detail: '', kind: SymbolKind.String, tags: [],
 						range: new Range(1, 1, 3, 5), selectionRange: new Range(1, 1, 1, 9),
@@ -47,6 +48,7 @@ suite('DocumentSymbolsOutline adapters', () => {
 					},
 					{ name: 'Other', detail: '', kind: SymbolKind.String, tags: [], range: new Range(4, 1, 4, 8), selectionRange: new Range(4, 1, 4, 8) }
 				];
+				return onRequest ? onRequest(token).then(() => symbols) : symbols;
 			}
 		}));
 		const outlineService = store.add(instantiation.createInstance(OutlineModelService));
@@ -153,6 +155,28 @@ suite('DocumentSymbolsOutline adapters', () => {
 		await updated;
 		assert.strictEqual((outline.activeElement as OutlineElement).symbol.name, '# Renamed');
 		assert.strictEqual(fixture.providerCalls(), 2);
+	});
+
+	test('an edit cancels the request of the previous edit, so an outdated reply does not land while typing', async () => {
+		let requests = 0;
+		const pending = new DeferredPromise<CancellationToken>();
+		const fixture = setupOutline(token => {
+			if (requests++ === 0) {
+				return Promise.resolve();
+			}
+			pending.complete(token);
+			return new Promise<void>(resolve => {
+				const listener = token.onCancellationRequested(() => {
+					listener.dispose();
+					resolve();
+				});
+			});
+		});
+		await fixture.create('panel', new Selection(1, 1, 1, 1));
+		fixture.model.applyEdits([{ range: new Range(3, 1, 3, 1), text: 'a' }]);
+		const token = await pending.p;
+		fixture.model.applyEdits([{ range: new Range(3, 1, 3, 1), text: 'b' }]);
+		assert.strictEqual(token.isCancellationRequested, true);
 	});
 
 	test('preview scrolls without changing selection and disposal cancels cursor listeners', async () => {

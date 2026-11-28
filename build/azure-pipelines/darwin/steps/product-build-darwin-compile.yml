@@ -13,11 +13,10 @@ parameters:
     type: boolean
     default: false
   # Whether to include the steps and jobs that need a privileged service
-  # connection (signing, CDN uploads, Copilot test setup). Only
-  # sdk-validation-build.yml sets this to false.
+  # connection (signing, CDN uploads, Copilot test setup). Required: only
+  # builds of main and release/* branches pass true.
   - name: VSCODE_PRIVILEGED_CONNECTIONS
     type: boolean
-    default: true
   # What the job builds. The product and flaky-smoke builds build everything; a CI test job builds
   # only what its tests use (see product-build-darwin-ci.yml).
   - name: VSCODE_BUILD_CLIENT
@@ -107,7 +106,6 @@ steps:
         pnpm -C test/smoke run compile
         pnpm -C test/integration/browser run compile
       displayName: Compile test suites (non-OSS)
-      condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
     - script: pnpm -C build run copy-policy-dto && node build/lib/policies/policyGenerator.ts build/lib/policies/policyData.jsonc darwin
@@ -227,6 +225,8 @@ steps:
 
   - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_BUILD_ONLY, true)) }}:
     - template: product-build-darwin-package.yml@self
+      parameters:
+        VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
 
   - ${{ if gt(length(parameters.VSCODE_TEST_IDS), 0) }}:
     - template: product-build-darwin-test.yml@self

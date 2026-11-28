@@ -188,6 +188,7 @@ class ChatModes extends Disposable implements IChatModes {
 						reasoningEffort: cachedMode.reasoningEffort,
 						modelPolicy: cachedMode.modelPolicy,
 						argumentHint: cachedMode.argumentHint,
+						welcomeMessage: cachedMode.welcomeMessage,
 						agentInstructions: cachedMode.modeInstructions ?? { content: cachedMode.body ?? '', toolReferences: [] },
 						handOffs: cachedMode.handOffs,
 						target: cachedMode.target ?? Target.Undefined,
@@ -385,6 +386,7 @@ export interface IChatModeData {
 	readonly reasoningEffort?: string;
 	readonly modelPolicy?: 'preferred' | 'required';
 	readonly argumentHint?: string;
+	readonly welcomeMessage?: string;
 	readonly modeInstructions?: IChatModeInstructions;
 	readonly body?: string; /* deprecated */
 	readonly handOffs?: readonly IHandOff[];
@@ -411,6 +413,7 @@ export interface IChatMode {
 	readonly reasoningEffort?: IObservable<string | undefined>;
 	readonly modelPolicy?: IObservable<'preferred' | 'required' | undefined>;
 	readonly argumentHint?: IObservable<string | undefined>;
+	readonly welcomeMessage?: IObservable<string | undefined>;
 	readonly modeInstructions?: IObservable<IChatModeInstructions>;
 	readonly uri?: IObservable<URI>;
 	readonly source?: IAgentSource;
@@ -467,6 +470,7 @@ function isCachedChatModeData(data: unknown): data is IChatModeData {
 		(mode.reasoningEffort === undefined || typeof mode.reasoningEffort === 'string') &&
 		(mode.modelPolicy === undefined || mode.modelPolicy === 'preferred' || mode.modelPolicy === 'required') &&
 		(mode.argumentHint === undefined || typeof mode.argumentHint === 'string') &&
+		(mode.welcomeMessage === undefined || typeof mode.welcomeMessage === 'string') &&
 		(mode.handOffs === undefined || Array.isArray(mode.handOffs)) &&
 		(mode.uri === undefined || (typeof mode.uri === 'object' && mode.uri !== null)) &&
 		(mode.source === undefined || isChatModeSourceData(mode.source)) &&
@@ -486,6 +490,7 @@ export class CustomChatMode implements IChatMode {
 	readonly reasoningEffort: ISettableObservable<string | undefined>;
 	readonly modelPolicy: ISettableObservable<'preferred' | 'required' | undefined>;
 	private readonly _argumentHintObservable: ISettableObservable<string | undefined>;
+	readonly welcomeMessage: ISettableObservable<string | undefined>;
 	private readonly _handoffsObservable: ISettableObservable<readonly IHandOff[] | undefined>;
 	private readonly _targetObservable: ISettableObservable<Target>;
 	private readonly _visibilityObservable: ISettableObservable<ICustomAgentVisibility | undefined>;
@@ -572,6 +577,7 @@ export class CustomChatMode implements IChatMode {
 		this.reasoningEffort = observableValue('reasoningEffort', customChatMode.reasoningEffort);
 		this.modelPolicy = observableValue('modelPolicy', customChatMode.modelPolicy);
 		this._argumentHintObservable = observableValue('argumentHint', customChatMode.argumentHint);
+		this.welcomeMessage = observableValue('welcomeMessage', customChatMode.welcomeMessage);
 		this._handoffsObservable = observableValue('handOffs', customChatMode.handOffs);
 		this._targetObservable = observableValue('target', customChatMode.target);
 		this._visibilityObservable = observableValue('visibility', customChatMode.visibility);
@@ -602,6 +608,7 @@ export class CustomChatMode implements IChatMode {
 			update(this.reasoningEffort, newData.reasoningEffort);
 			update(this.modelPolicy, newData.modelPolicy);
 			update(this._argumentHintObservable, newData.argumentHint);
+			update(this.welcomeMessage, newData.welcomeMessage);
 			update(this._modeInstructions, newData.agentInstructions, IChatModeInstructions.isEquals);
 			update(this._uriObservable, newData.uri, isURLEquals);
 			update(this._handoffsObservable, newData.handOffs, objectEquals);
@@ -631,6 +638,7 @@ export class CustomChatMode implements IChatMode {
 			reasoningEffort: this.reasoningEffort.get(),
 			modelPolicy: this.modelPolicy.get(),
 			argumentHint: this.argumentHint.get(),
+			welcomeMessage: this.welcomeMessage.get(),
 			modeInstructions: this.modeInstructions.get(),
 			uri: this.uri.get(),
 			handOffs: this.handOffs.get(),

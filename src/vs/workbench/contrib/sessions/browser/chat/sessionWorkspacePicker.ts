@@ -18,6 +18,7 @@ import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../
 import { getOrSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { basename, dirname } from '../../../../../base/common/resources.js';
 import { autorun, IObservable, IReader, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -31,6 +32,8 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ContextKeyExpression, IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate.js';
@@ -42,13 +45,18 @@ import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IFolderLocation } from '../../../../../platform/workspace/common/folderLocations.js';
 import { FolderLocationKind, getCurrentFolderLocationDescription, getFolderLocationDetail, getNewWorktreeDetail, getNewWorktreeLabel, groupFolderLocations } from '../../../chat/browser/agentSessions/agentHost/agentHostFolderLocationSections.js';
-import { IGitHubInfo, isActiveSessionStatus, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
+import { IGitHubInfo, isActiveSessionStatus, ISessionWorkspace, ISessionWorkspaceConfig, ISessionWorkspaceBrowseAction, ISessionWorkspaceBrowseOptions, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { cloneRepository } from '../cloneRepository.js';
 import { IAgentHostFilterService } from '../../common/agentHostFilter.js';
 import { ISessionsRecentWorkspacesService, isWorktreeWorkspaceUri } from '../sessionsRecentWorkspacesService.js';
 import { IAgentHostSessionsProvider, isAgentHostEnvironmentAvailable, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../common/agentHostSessionsProvider.js';
 import { SessionWorkspacePickerGroupContext } from '../../common/contextkeys.js';
+import { IRecentSessionWorkspace, ISessionWorkspacesService } from '../../common/sessionWorkspaces.js';
+import { SESSIONS_WORKSPACES_ENABLED_SETTING } from '../../common/sessionConfig.js';
+import { getSessionWorkspaceIcon } from '../workspaceEditor/sessionWorkspaceAppearance.js';
+import { EDIT_SESSION_WORKSPACE_COMMAND_ID, REMOVE_SESSION_WORKSPACE_COMMAND_ID } from '../workspaceEditor/sessionWorkspaceEditorCommands.js';
+import { SessionWorkspaceEditorInput } from '../workspaceEditor/sessionWorkspaceEditorInput.js';
 // eslint-disable-next-line local/code-import-patterns -- TODO: move remote host options out of providers
 import { getStatusHover, getStatusLabel, removeRemoteHost, showRemoteHostOptions } from '../../providers/remoteAgentHost/browser/remoteHostOptions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -63,6 +71,7 @@ import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin, WorkspaceSession
 import { type IResolvedFolderWorkspace, SessionWorkspaceFallback } from './sessionWorkspaceFallback.js';
 import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
 import { ADDITIONAL_FOLDER_CONTEXT_ID_PREFIX, ADDITIONAL_REPOSITORY_CONTEXT_ID_PREFIX, getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
+import { getSessionsTelemetryProviderId } from '../../common/sessionsTelemetry.js';
 import { registerPickerKeybindingPresentation } from './newChatPickerKeybinding.js';
 import { getNoWorkspaceChoicePresentation } from './noWorkspaceChoice.js';
 import { createSessionPickerToolbar } from './sessionPickerToolbar.js';
@@ -84,7 +93,7 @@ const FILTER_THRESHOLD = 10;
 
 /**
  * The icon of a worktree in a composer's folder picker: New Worktree, each worktree of the window's folder, and the
- * picker's chip at one. The Sessions list keeps its own icon for its Worktree groups.
+ * picker's chip at one.
  */
 const WORKSPACE_PICKER_WORKTREE_ICON = Codicon.worktree;
 
@@ -142,9 +151,12 @@ export interface IWorkspacePickerItem {
 	readonly commandId?: string;
 	/** Inline action to run when this item is selected. */
 	readonly run?: () => void;
+	/** The workspace of the Workspaces group this item selects, whose default folder is {@link folderUri}. */
+	readonly sessionWorkspaceUri?: URI;
 }
 
 export interface IWorkspacePickerOptions {
+	readonly searchWorkspaceTargetDirectly?: boolean;
 	readonly environment?: IObservable<ISessionCreationEnvironment | undefined>;
 	readonly environmentPickerEnabled?: IObservable<boolean>;
 	readonly onUserSelection?: () => void;
@@ -166,6 +178,8 @@ export interface IWorkspacePickerOptions {
 	 * a single folder and nothing else to offer, the picker shows it read-only. Unset or empty, it offers any workspace.
 	 */
 	readonly allowedFolders?: IObservable<readonly URI[]>;
+	/** Whether the session of the selected folder can work in more folders, which the user then adds to it. */
+	readonly supportsSessionFolders?: IObservable<boolean>;
 	/** How the picker shows an allowed folder, such as a linked checkout of a window's folder: by its name and branch. */
 	readonly getAllowedFolderPresentation?: (folderUri: URI) => IAllowedFolderPresentation | undefined;
 	/** Offers New Worktree after the {@link allowedFolders}: a session that works in a new worktree of the selected folder. */
@@ -311,6 +325,10 @@ export class WorkspacePicker extends Disposable {
 	readonly onDidRemoveAttachedContext: Event<string> = this._onDidRemoveAttachedContext.event;
 
 	private _selectedFolderUri: URI | undefined;
+	/** The workspace picked from the Workspaces group, while its default folder stays selected. */
+	private _selectedSessionWorkspaceUri: URI | undefined;
+	/** The folders the user added to the session of the selection, besides its folder and its workspace's folders. */
+	private _addedSessionFolders: readonly URI[] = [];
 	/** Whether No Workspace is selected, with {@link IWorkspacePickerOptions.ownNoWorkspaceSelection} or {@link _noWorkspaceUnpersisted}. */
 	private _noWorkspaceSelected = false;
 	/** Whether No Workspace is selected without remembering it in the recent workspaces, such as an environment's only choice. */
@@ -361,6 +379,7 @@ export class WorkspacePicker extends Disposable {
 	private readonly _triggerContents = new Map<HTMLElement, IWorkspacePickerTriggerElements>();
 	private readonly _contextSelections = new Map<string, ISessionWorkspace[]>();
 	private readonly _workspaceItemIds = new Map<string, number>();
+	private readonly _remoteItemIds = new Map<string, number>();
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	private readonly _additionalRepositorySelections = new Map<string, IAttachedRepositorySelection>();
 	private readonly _additionalFolderSelections = new Map<string, IResolvedFolderWorkspace>();
@@ -386,6 +405,7 @@ export class WorkspacePicker extends Disposable {
 	 * provider, e.g. `"This Computer"` / `"Cloud"` / `"Remote"`).
 	 */
 	private _activeTab: string | undefined;
+	private readonly _workspacesEnabled: IObservable<boolean>;
 
 
 	get selectedFolderUri(): URI | undefined {
@@ -401,6 +421,111 @@ export class WorkspacePicker extends Disposable {
 	 */
 	get selectedResolved(): IResolvedFolderWorkspace | undefined {
 		return this._selectedResolved;
+	}
+
+	/** The workspace picked from the Workspaces group, while its default folder is the selected folder. */
+	get selectedSessionWorkspace(): IRecentSessionWorkspace | undefined {
+		const uri = this._selectedSessionWorkspaceUri;
+		const workspace = uri && this._workspacesEnabled.get() ? this.sessionWorkspacesService.getWorkspace(uri) : undefined;
+		return workspace && this._selectedFolderUri && workspace.folders.length > 0 && this.uriIdentityService.extUri.isEqual(workspace.folders[0], this._selectedFolderUri)
+			? workspace
+			: undefined;
+	}
+
+	/** The workspace configuration to create the session in: that of the picked workspace's file, when it has one that could be read. */
+	get selectedWorkspaceConfig(): ISessionWorkspaceConfig | undefined {
+		const workspace = this.selectedSessionWorkspace;
+		return workspace && !workspace.missing && SessionWorkspaceEditorInput.hasWorkspaceFile(this.uriIdentityService.extUri, workspace)
+			? { uri: workspace.uri, name: workspace.name, folders: workspace.folders }
+			: undefined;
+	}
+
+	/**
+	 * The folders the session of the selection works in, its folder first: its workspace's folders, or its folder, and
+	 * the folders the user added. `undefined` for the selected folder alone, or its workspace's folders alone.
+	 */
+	get sessionFolderUris(): readonly URI[] | undefined {
+		const folderUri = this._selectedFolderUri;
+		if (!folderUri || !this._addedSessionFolders.length) {
+			return undefined;
+		}
+		return [...(this.selectedSessionWorkspace?.folders ?? [folderUri]), ...this._addedSessionFolders];
+	}
+
+	/** The folders the user added to the session of the selection. */
+	get addedSessionFolderUris(): readonly URI[] {
+		return this._addedSessionFolders;
+	}
+
+	/** Whether the user can add folders to the session of the selected folder: as its agent can, on this computer. */
+	get canAddSessionFolders(): boolean {
+		const folderUri = this._selectedFolderUri;
+		return !!folderUri && this.options.supportsSessionFolders?.get() === true
+			&& this._getNoWorkspaceOption()?.isSelected !== true
+			&& this._resolveFolder(folderUri)?.workspace.group === SESSION_WORKSPACE_GROUP_LOCAL;
+	}
+
+	/** Lets the user pick folders and adds them to the session of the selected folder. */
+	async promptForSessionFolders(): Promise<void> {
+		if (!this.canAddSessionFolders) {
+			return;
+		}
+		const generation = this._selectionGeneration;
+		const picked = await this.fileDialogService.showOpenDialog({
+			title: localize('workspacePicker.addSessionFolders.title', "Add Folders to Session"),
+			canSelectFiles: false,
+			canSelectFolders: true,
+			canSelectMany: true,
+			openLabel: localize({ key: 'workspacePicker.addSessionFolders.open', comment: ['&& denotes a mnemonic'] }, "&&Add"),
+			// The session works on this computer, also in a window connected to a remote
+			availableFileSystems: [Schemas.file],
+		});
+		const folders = picked?.filter(folder => folder.scheme === Schemas.file);
+		// Folders picked for a selection that changed while picking do not apply to it
+		if (folders?.length && generation === this._selectionGeneration) {
+			this.addSessionFolders(folders);
+		}
+	}
+
+	/** Adds folders to the session of the selected folder, but none it already works in. */
+	addSessionFolders(folders: readonly URI[]): void {
+		const folderUri = this._selectedFolderUri;
+		if (!folderUri) {
+			return;
+		}
+		const extUri = this.uriIdentityService.extUri;
+		const sessionFolders = [...(this.sessionFolderUris ?? this.selectedSessionWorkspace?.folders ?? [folderUri])];
+		const added = [...this._addedSessionFolders];
+		for (const folder of folders) {
+			if (!sessionFolders.some(existing => extUri.isEqual(existing, folder))) {
+				sessionFolders.push(folder);
+				added.push(folder);
+			}
+		}
+		this._setAddedSessionFolders(added);
+	}
+
+	/** Removes a folder the user added to the session of the selected folder. */
+	removeSessionFolder(folder: URI): void {
+		const extUri = this.uriIdentityService.extUri;
+		this._setAddedSessionFolders(this._addedSessionFolders.filter(added => !extUri.isEqual(added, folder)));
+	}
+
+	/** Removes the folders the user added, for the next session of the selection. */
+	resetSessionFolders(): void {
+		this._setAddedSessionFolders([]);
+	}
+
+	private _setAddedSessionFolders(folders: readonly URI[]): void {
+		const extUri = this.uriIdentityService.extUri;
+		if (folders.length === this._addedSessionFolders.length && folders.every((folder, index) => extUri.isEqual(folder, this._addedSessionFolders[index]))) {
+			return;
+		}
+		this._addedSessionFolders = folders;
+		this._updateTriggerLabel();
+		this._onDidChangeSelection.fire();
+		// The session of the selection works in other folders now
+		this._onDidSelectWorkspace.fire(this._selectedFolderUri);
 	}
 
 	get additionalFolderUris(): readonly URI[] {
@@ -549,8 +674,22 @@ export class WorkspacePicker extends Disposable {
 		@IDialogService private readonly dialogService: IDialogService,
 		@IAgentHostFilterService private readonly agentHostFilterService: IAgentHostFilterService,
 		@IProgressService private readonly progressService: IProgressService,
+		@ISessionWorkspacesService private readonly sessionWorkspacesService: ISessionWorkspacesService,
+		@ILabelService private readonly labelService: ILabelService,
 	) {
 		super();
+		// Read from the setting, so that the workspaces service is only created while workspaces are on
+		this._workspacesEnabled = observableConfigValue(SESSIONS_WORKSPACES_ENABLED_SETTING, false, this.configurationService);
+		let initialized = false;
+		this._register(autorun(reader => {
+			if (this._workspacesEnabled.read(reader)) {
+				this.sessionWorkspacesService.workspaces.read(reader);
+			}
+			if (initialized) {
+				this._updateTriggerLabel();
+			}
+			initialized = true;
+		}));
 
 		this._pickerGroupContext = SessionWorkspacePickerGroupContext.bindTo(this.contextKeyService);
 		this._register(this._devContainerAvailabilityLimiter.onDrained(() => this._devContainerAvailabilityRefresh.schedule()));
@@ -1038,7 +1177,7 @@ export class WorkspacePicker extends Disposable {
 	 * subclass that opts to render a different UI but reuse the
 	 * selection semantics. Treats unavailable workspaces as a no-op.
 	 */
-	protected async _dispatchPickerItem(item: IWorkspacePickerItem): Promise<boolean> {
+	protected async _dispatchPickerItem(item: IWorkspacePickerItem, browseOptions?: ISessionWorkspaceBrowseOptions): Promise<boolean> {
 		const generation = ++this._selectionGeneration;
 		this._reportPickerClosed(item);
 		if (item.run) {
@@ -1052,7 +1191,7 @@ export class WorkspacePicker extends Disposable {
 			return false;
 		}
 		if (item.browseActionIndex !== undefined || item.browseAction) {
-			const selection = await this._executeBrowseAction(item.browseActionIndex, item.browseAction);
+			const selection = await this._executeBrowseAction(item.browseActionIndex, item.browseAction, browseOptions);
 			const folderUri = selection?.workspace.folders[0]?.root;
 			if (!folderUri || generation !== this._selectionGeneration) {
 				return false;
@@ -1147,7 +1286,11 @@ export class WorkspacePicker extends Disposable {
 			}
 			this._selectedDevContainerFolderUri = item.preferDevContainer ? item.folderUri : undefined;
 			this._onDidSelectWorkspaceMode.fire({ folderUri: item.folderUri, preferDevContainer: item.preferDevContainer === true });
-			this._selectFolder(item.folderUri, true, item.providerId);
+			this._selectFolder(item.folderUri, true, item.providerId, undefined, undefined, undefined, item.sessionWorkspaceUri);
+			const pickedWorkspace = item.sessionWorkspaceUri && this.selectedSessionWorkspace;
+			if (pickedWorkspace && this.uriIdentityService.extUri.isEqual(pickedWorkspace.uri, item.sessionWorkspaceUri)) {
+				this.sessionWorkspacesService.touchWorkspace(pickedWorkspace.uri);
+			}
 			const sample = findDevContainerSample(item.folderUri);
 			if (sample) {
 				this.telemetryService.publicLog2<DevContainerSampleSelectedEvent, DevContainerSampleSelectedClassification>('devContainerSampleSelected', { sampleId: sample.id });
@@ -1358,12 +1501,20 @@ export class WorkspacePicker extends Disposable {
 	 *        section in the sessions list, where the existing sessions for the
 	 *        workspace were created by a specific provider).
 	 * @param options.persist Whether to persist the selection as a recent workspace. Defaults to true.
+	 * @param options.sessionWorkspaceUri The workspace, of the Workspaces group, of the session the folder is selected for.
+	 * @param options.sessionFolders The folders of the session the folder is selected for, the folder first.
 	 */
-	setSelectedWorkspace(folderUri: URI, options?: { fireEvent?: boolean; providerId?: string; persist?: boolean; preferDevContainer?: boolean; origin?: WorkspaceSelectionOrigin }): void {
+	setSelectedWorkspace(folderUri: URI, options?: { fireEvent?: boolean; providerId?: string; persist?: boolean; preferDevContainer?: boolean; origin?: WorkspaceSelectionOrigin; sessionWorkspaceUri?: URI; sessionFolders?: readonly URI[] }): void {
 		this._selectedDevContainerFolderUri = options?.preferDevContainer ? folderUri : undefined;
 		const origin = options?.origin ?? WorkspaceSelectionOrigin.Programmatic;
 		const preserveOrigin = (origin === WorkspaceSelectionOrigin.RestoredDraft || origin === WorkspaceSelectionOrigin.SessionSync)
 			&& this._isSelectedFolder(folderUri);
+		// A session that syncs its folder before it has the workspace and folders it was requested in keeps the picked ones
+		const keepsSession = preserveOrigin && origin === WorkspaceSelectionOrigin.SessionSync;
+		const sessionWorkspaceUri = options?.sessionWorkspaceUri ?? (keepsSession ? this._selectedSessionWorkspaceUri : undefined);
+		const addedSessionFolders = keepsSession
+			? this._addedSessionFolders
+			: this._getAddedSessionFolders(folderUri, sessionWorkspaceUri, options?.sessionFolders);
 		this._selectFolder(
 			folderUri,
 			options?.fireEvent ?? true,
@@ -1371,7 +1522,21 @@ export class WorkspacePicker extends Disposable {
 			options?.persist ?? true,
 			NewSessionWorkspacePreselectionSource.ProvidedWorkspace,
 			preserveOrigin ? this._selectionOrigin : origin,
+			sessionWorkspaceUri,
+			// Before the selection's events, so that its pills never go away meanwhile
+			addedSessionFolders,
 		);
+	}
+
+	/** The folders of a session besides its folder and its workspace's folders. */
+	private _getAddedSessionFolders(folderUri: URI, sessionWorkspaceUri: URI | undefined, sessionFolders: readonly URI[] | undefined): readonly URI[] {
+		if (!sessionFolders?.length) {
+			return [];
+		}
+		const extUri = this.uriIdentityService.extUri;
+		const workspace = sessionWorkspaceUri && this._workspacesEnabled.get() ? this.sessionWorkspacesService.getWorkspace(sessionWorkspaceUri) : undefined;
+		const folders = workspace?.folders ?? [folderUri];
+		return sessionFolders.filter(folder => !folders.some(existing => extUri.isEqual(existing, folder)));
 	}
 
 	private _setTriggerExpanded(trigger: HTMLElement, expanded: boolean): void {
@@ -1464,6 +1629,8 @@ export class WorkspacePicker extends Disposable {
 		persist = true,
 		source = NewSessionWorkspacePreselectionSource.User,
 		origin = WorkspaceSelectionOrigin.User,
+		sessionWorkspaceUri?: URI,
+		addedSessionFolders: readonly URI[] = [],
 	): void {
 		if (!this._isAllowedFolder(folderUri)) {
 			return;
@@ -1496,6 +1663,8 @@ export class WorkspacePicker extends Disposable {
 			this._onDidRemoveAttachedContext.fire(additionalRepository.attachmentId);
 		}
 		this._selectedFolderUri = folderUri;
+		this._selectedSessionWorkspaceUri = sessionWorkspaceUri;
+		this._addedSessionFolders = addedSessionFolders;
 		this._selectedResolved = resolved;
 		this._noWorkspaceSelected = false;
 		this._noWorkspaceUnpersisted = false;
@@ -1521,6 +1690,8 @@ export class WorkspacePicker extends Disposable {
 	 * during construction and after provider list changes.
 	 */
 	private _applySelection(resolved: IResolvedFolderWorkspace | undefined, source = NewSessionWorkspacePreselectionSource.None, origin = WorkspaceSelectionOrigin.None): void {
+		this._selectedSessionWorkspaceUri = undefined;
+		this._addedSessionFolders = [];
 		this._selectedResolved = resolved;
 		this._selectedFolderUri = resolved?.workspace.folders[0]?.root;
 		if (resolved) {
@@ -1615,7 +1786,7 @@ export class WorkspacePicker extends Disposable {
 	/**
 	 * Executes a provider browse action referenced directly or by picker index.
 	 */
-	private async _executeBrowseAction(actionIndex: number | undefined, browseAction?: ISessionWorkspaceBrowseAction): Promise<IBrowsedWorkspaceSelection | undefined> {
+	private async _executeBrowseAction(actionIndex: number | undefined, browseAction?: ISessionWorkspaceBrowseAction, options?: ISessionWorkspaceBrowseOptions): Promise<IBrowsedWorkspaceSelection | undefined> {
 		const action = browseAction ?? (actionIndex !== undefined ? this._getAllBrowseActions()[actionIndex] : undefined);
 		if (!action) {
 			return undefined;
@@ -1623,7 +1794,7 @@ export class WorkspacePicker extends Disposable {
 
 		// Let the action-list widget hide before a browse action opens another picker.
 		await Promise.resolve();
-		if (action.providerId && !this._isWorkspaceProviderVisible(action.providerId)) {
+		if (options?.token.isCancellationRequested || action.providerId && !this._isWorkspaceProviderVisible(action.providerId)) {
 			return undefined;
 		}
 		try {
@@ -1635,8 +1806,8 @@ export class WorkspacePicker extends Disposable {
 			const currentWorkspace = action.attachesContext && this._selectedFolderUri
 				? (actionProvider?.resolveWorkspace(this._selectedFolderUri) ?? this._selectedResolved?.workspace)
 				: (this._getSelectedRepositoryWorkspace() ?? this._selectedResolved?.workspace);
-			const workspace = await action.run(currentWorkspace);
-			return workspace ? { workspace, providerId: action.providerId, action } : undefined;
+			const workspace = await action.run(currentWorkspace, options);
+			return workspace && !options?.token.isCancellationRequested ? { workspace, providerId: action.providerId, action } : undefined;
 		} catch {
 			// browse action was cancelled or failed
 		}
@@ -1927,7 +2098,7 @@ export class WorkspacePicker extends Disposable {
 				return undefined;
 			}
 			const usingDevContainer = !!this._selectedDevContainerFolderUri && this.uriIdentityService.extUri.isEqual(this._selectedDevContainerFolderUri, folderUri);
-			const actionId = `workspacePicker.devContainer.${providerId}.${devContainerActionIndex++}`;
+			const actionId = `workspacePicker.devContainer.${getSessionsTelemetryProviderId(providerId)}.${devContainerActionIndex++}`;
 			const selectMode = (preferDevContainer: boolean): void => {
 				item.preferDevContainer = preferDevContainer;
 			};
@@ -2003,6 +2174,14 @@ export class WorkspacePicker extends Disposable {
 			...orderByWorkspaceKind(recentWorkspaceEntries.filter(entry => entry.isSessionWorkspace)),
 		];
 
+		if (this._directPickerAttachesContext !== true && (!environment || environment.kind === 'local')
+			&& (activeGroup === undefined || activeGroup === SESSION_WORKSPACE_GROUP_LOCAL)) {
+			const workspaceItems = this._buildSessionWorkspaceItems(allProviders);
+			if (workspaceItems.length > 0) {
+				items.push(...workspaceItems, { kind: ActionListItemKind.Separator, label: '' });
+			}
+		}
+
 		let previousRecentWorkspaceIsRepository: boolean | undefined;
 		for (const { workspace, providerId, repositoryId } of orderedRecentWorkspaceEntries) {
 			const folderUri = workspace.folders[0]?.root;
@@ -2033,7 +2212,7 @@ export class WorkspacePicker extends Disposable {
 			previousRecentWorkspaceIsRepository = recentWorkspaceIsRepository;
 			const submenuActions = modeActions
 				? [new SubmenuAction(
-					`workspacePicker.devContainer.${providerId}.${devContainerActionIndex}.options`,
+					`workspacePicker.devContainer.${getSessionsTelemetryProviderId(providerId)}.${devContainerActionIndex}.options`,
 					'',
 					modeActions,
 				)]
@@ -2183,7 +2362,7 @@ export class WorkspacePicker extends Disposable {
 				const status = provider.connectionStatus!.get();
 				const statusDescription = getRemoteHostStatusDescription(provider, status);
 				const action = toAction({
-					id: `workspacePicker.remote.${provider.id}`,
+					id: `workspacePicker.remote.${getSessionsTelemetryProviderId(provider.id)}.${getOrSet(this._remoteItemIds, provider.id, this._remoteItemIds.size)}`,
 					label: provider.label,
 					tooltip: statusDescription,
 					enabled: true,
@@ -2434,7 +2613,7 @@ export class WorkspacePicker extends Disposable {
 	getEnvironmentActions(environment: ISessionCreationEnvironment): IAction[] {
 		const provider = environment.kind === 'remote' && this.sessionsProvidersService.getProvider(environment.providerIds[0]);
 		return provider && isAgentHostProvider(provider) ? [toAction({
-			id: `environmentPicker.manage.${provider.id}`,
+			id: `environmentPicker.manage.${getSessionsTelemetryProviderId(provider.id)}`,
 			label: localize('workspacePicker.manageRemoteHost', "Manage {0}", provider.label),
 			run: () => {
 				this.actionWidgetService.hide();
@@ -2508,7 +2687,7 @@ export class WorkspacePicker extends Disposable {
 				&& this._getCurrentRepositoryId() === undefined;
 			contents.slot.toggleAttribute('hidden', hideForSelectedWorkspace || hideForMissingWorkspace || hideForMissingGitHubRepository);
 			trigger.classList.toggle('selected', noWorkspaceSelected || (reflectsWorkspace && workspace !== undefined) || isSelectedCategory || badgeCount > 0 || relatedGitHubInfo !== undefined);
-			const chip = reflectsWorkspace && workspace ? this._getLocationChip(workspace, this._selectedResolved?.providerId) : undefined;
+			const chip = reflectsWorkspace && workspace ? this._getSessionWorkspaceChip() ?? this._getLocationChip(workspace, this._selectedResolved?.providerId) : undefined;
 			const workspaceIcon = chip?.icon ?? (workspace ? this._getWorkspaceIcon(workspace) : undefined);
 			const icon = noWorkspaceSelected
 				? getNoWorkspaceChoicePresentation(undefined).icon
@@ -2983,7 +3162,7 @@ export class WorkspacePicker extends Disposable {
 					group: { title: '', icon: this._getAllowedFolderIcon(presentation) ?? this._getWorkspaceIcon(resolved.workspace) },
 					disabled: this._isProviderUnavailable(resolved.providerId),
 					item: {
-						id: `workspacePicker.workspace.${this.uriIdentityService.extUri.getComparisonKey(folderUri)}`,
+						id: `workspacePicker.workspace.${getOrSet(this._workspaceItemIds, this.uriIdentityService.extUri.getComparisonKey(folderUri), this._workspaceItemIds.size)}`,
 						folderUri,
 						providerId: resolved.providerId,
 						checked: (!newWorktreeSelected && this._isSelectedFolder(folderUri)) || undefined,
@@ -3029,7 +3208,17 @@ export class WorkspacePicker extends Disposable {
 	/** What the chip of a picker restricted to a window's folder and its worktrees shows, by name: for its hover. */
 	getSelectedLocationDescription(): string | undefined {
 		const selected = this._getNoWorkspaceOption()?.isSelected ? undefined : this._selectedResolved;
-		return selected && this._getLocationChip(selected.workspace, selected.providerId)?.description;
+		return selected && (this._getSessionWorkspaceChip() ?? this._getLocationChip(selected.workspace, selected.providerId))?.description;
+	}
+
+	/** The chip of the workspace picked from the Workspaces group: its name and icon, described by its folders. */
+	private _getSessionWorkspaceChip(): { readonly icon: ThemeIcon; readonly label: string; readonly description: string } | undefined {
+		const workspace = this.selectedSessionWorkspace;
+		return workspace && {
+			icon: getSessionWorkspaceIcon(workspace.icon),
+			label: workspace.name,
+			description: localize('workspacePicker.sessionWorkspace.chipDescription', "Workspace {0}: {1}", workspace.name, workspace.folders.map(folder => this.labelService.getUriLabel(folder, { noPrefix: true })).join(', ')),
+		};
 	}
 
 	/**
@@ -3170,6 +3359,103 @@ export class WorkspacePicker extends Disposable {
 	// -- Recent workspaces (sessions' own history) --
 
 	protected _workspaceFilter = '';
+
+	/**
+	 * The Workspaces group: the user's workspaces, each selecting its default (first) folder, with
+	 * actions to edit and remove the workspace.
+	 */
+	private _buildSessionWorkspaceItems(providers: readonly { readonly id: string; readonly supportsLocalWorkspaces?: boolean }[]): IActionListItem<IWorkspacePickerItem>[] {
+		if (!this._workspacesEnabled.get()) {
+			return [];
+		}
+		const extUri = this.uriIdentityService.extUri;
+		const selectedWorkspaceUri = this.selectedSessionWorkspace?.uri;
+		const localProviderId = providers.find(provider => provider.supportsLocalWorkspaces)?.id;
+		const rows: IActionListItem<IWorkspacePickerItem>[] = [];
+		for (const workspace of this.sessionWorkspacesService.workspaces.get()) {
+			const folderUri = workspace.folders[0];
+			if (!folderUri || (this._workspaceFilter && !this._matchesSessionWorkspaceFilter(workspace))) {
+				continue;
+			}
+			const providerId = this._resolveFolder(folderUri)?.providerId ?? localProviderId;
+			if (!providerId) {
+				continue;
+			}
+			const name = workspace.name;
+			const description = workspace.missing
+				? localize('workspacePicker.sessionWorkspace.missing', "Workspace file missing")
+				: this._getSessionWorkspaceFoldersDescription(workspace);
+			const id = `workspacePicker.sessionWorkspace.${getOrSet(this._workspaceItemIds, `workspace:${extUri.getComparisonKey(workspace.uri)}`, this._workspaceItemIds.size)}`;
+			const ariaLabel = workspace.missing
+				? localize('workspacePicker.sessionWorkspace.missingAriaLabel', "Workspace {0}, {1}, activate to open Edit Workspace", name, description)
+				: localize('workspacePicker.sessionWorkspace.ariaLabel', "Workspace {0}, {1}", name, description);
+			rows.push({
+				kind: ActionListItemKind.Action,
+				label: name,
+				description,
+				group: { title: '', icon: workspace.missing ? Codicon.warning : getSessionWorkspaceIcon(workspace.icon) },
+				disabled: !workspace.missing && this._isProviderUnavailable(providerId),
+				hover: { content: this._getSessionWorkspaceFoldersHover(workspace), tabThroughPanel: true },
+				// A missing workspace cannot be picked: it opens for editing, to repair or remove it
+				item: workspace.missing
+					? { id, ariaLabel, run: () => void this._runSessionWorkspaceCommand(EDIT_SESSION_WORKSPACE_COMMAND_ID, workspace.uri) }
+					: {
+						id,
+						folderUri,
+						providerId,
+						sessionWorkspaceUri: workspace.uri,
+						ariaLabel,
+						checked: (!!selectedWorkspaceUri && extUri.isEqual(selectedWorkspaceUri, workspace.uri)) || undefined,
+					},
+				toolbarActions: [
+					toAction({
+						id: 'workspacePicker.sessionWorkspace.edit',
+						label: localize('workspacePicker.sessionWorkspace.edit', "Edit Workspace"),
+						class: ThemeIcon.asClassName(Codicon.gear),
+						run: () => this._runSessionWorkspaceCommand(EDIT_SESSION_WORKSPACE_COMMAND_ID, workspace.uri),
+					}),
+					toAction({
+						id: 'workspacePicker.sessionWorkspace.remove',
+						label: localize('workspacePicker.sessionWorkspace.remove', "Remove Workspace"),
+						class: ThemeIcon.asClassName(Codicon.close),
+						run: () => this._runSessionWorkspaceCommand(REMOVE_SESSION_WORKSPACE_COMMAND_ID, workspace.uri),
+					}),
+				],
+				toolbarDialogActionIds: ['workspacePicker.sessionWorkspace.edit', 'workspacePicker.sessionWorkspace.remove'],
+			});
+		}
+		return rows.length > 0
+			? [{ kind: ActionListItemKind.Header, label: localize('workspacePicker.sessionWorkspaces', "Workspaces") }, ...rows]
+			: [];
+	}
+
+	private _matchesSessionWorkspaceFilter(workspace: IRecentSessionWorkspace): boolean {
+		return workspace.name.toLocaleLowerCase().includes(this._workspaceFilter)
+			|| workspace.folders.some(folder => basename(folder).toLocaleLowerCase().includes(this._workspaceFilter));
+	}
+
+	/** The folder names of a workspace, with their parent folder when two share a name. */
+	private _getSessionWorkspaceFoldersDescription(workspace: IRecentSessionWorkspace): string {
+		const names = workspace.folders.map(folder => basename(folder));
+		return workspace.folders
+			.map((folder, index) => names.indexOf(names[index]) !== names.lastIndexOf(names[index])
+				? `${basename(dirname(folder))}/${names[index]}`
+				: names[index])
+			.join(', ');
+	}
+
+	private _getSessionWorkspaceFoldersHover(workspace: IRecentSessionWorkspace): string {
+		return workspace.folders.map(folder => this.labelService.getUriLabel(folder, { noPrefix: true })).join('\n');
+	}
+
+	private async _runSessionWorkspaceCommand(commandId: string, workspaceUri: URI): Promise<void> {
+		this.actionWidgetService.hide();
+		try {
+			await this.commandService.executeCommand(commandId, workspaceUri);
+		} catch (error) {
+			onUnexpectedError(error);
+		}
+	}
 
 	protected _matchesWorkspaceFilter(workspace: ISessionWorkspace): boolean {
 		return !this._workspaceFilter

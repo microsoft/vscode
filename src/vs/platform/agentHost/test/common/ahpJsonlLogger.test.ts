@@ -16,6 +16,7 @@ import { createInMemoryFileService } from '../../../files/test/common/inMemoryFi
 import { NullLogService } from '../../../log/common/log.js';
 import { AhpJsonlLogger, AhpJsonlLogRetention, getAhpLogByteLength, isAhpJsonlLoggingEnabled, isAhpLogFileFor, stringifyAhpLogEntry } from '../../common/ahpJsonlLogger.js';
 import { AnswerShellAuthenticationExtensionMethod, RegisterGitHubEnvironmentExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { ClientForwardingDataNotification, ClientGitCredentialExtensionMethod } from '../../common/clientForwardingProtocol.js';
 
 suite('AhpJsonlLogger', () => {
 
@@ -469,6 +470,25 @@ suite('AhpJsonlLogger', () => {
 		}, { logged: '<redacted>', live: ['PRIVATE CLIENT CA'] });
 	});
 
+	test('redacts forwarded Git credentials, Git configuration and agent data without modifying the live messages', () => {
+		const messages = [
+			{ jsonrpc: '2.0', id: 1, method: ClientGitCredentialExtensionMethod, params: { operation: 'store', input: 'password=secret\n' } },
+			{ jsonrpc: '2.0', id: 1, result: { gitCredential: 'password=secret\n' } },
+			{ jsonrpc: '2.0', id: 2, result: { user: { name: 'User' }, gitGlobalConfig: { config: 'W2h0dHBdIGV4dHJhaGVhZGVyID0gdG9rZW4=' } } },
+			{ jsonrpc: '2.0', method: ClientForwardingDataNotification, params: { connection: 3, data: 'c2lnbmF0dXJl' } },
+		];
+		const live = JSON.stringify(messages);
+		assert.deepStrictEqual({ logged: messages.map(message => JSON.parse(stringifyAhpLogEntry(message))), unchanged: JSON.stringify(messages) === live }, {
+			logged: [
+				{ jsonrpc: '2.0', id: 1, method: ClientGitCredentialExtensionMethod, params: { operation: 'store', input: '<redacted>' } },
+				{ jsonrpc: '2.0', id: 1, result: { gitCredential: '<redacted>' } },
+				{ jsonrpc: '2.0', id: 2, result: { user: { name: 'User' }, gitGlobalConfig: '<redacted>' } },
+				{ jsonrpc: '2.0', method: ClientForwardingDataNotification, params: { connection: 3, data: '<redacted channel payload>' } },
+			],
+			unchanged: true,
+		});
+	});
+
 	test('redacts Assisted permissions feedback in dispatched confirmations without modifying the live action', () => {
 		const action = { type: 'chat/toolCallConfirmed', turnId: 't', toolCallId: 'tc', approved: true, _meta: { 'agentHost.permissionDecisionSource': 'human_response', 'vscode.assistedApprovalFeedback': 'Private note' } };
 		const message = { jsonrpc: '2.0', method: 'dispatchAction', params: { channel: 'ahp-chat:/c', clientSeq: 1, action } };
@@ -485,6 +505,12 @@ suite('AhpJsonlLogger', () => {
 		assert.deepStrictEqual(['<redacted>', '[REDACTED]'].map(token => JSON.parse(stringifyAhpLogEntry({
 			method: 'authenticate', params: { token },
 		})).params.token), ['<redacted>', '[REDACTED]']);
+	});
+
+	test('redacts an authentication ID token, also when the access token was redacted upstream', () => {
+		assert.deepStrictEqual(['private-token', '[REDACTED]'].map(token => JSON.parse(stringifyAhpLogEntry({
+			method: 'authenticate', params: { token, idToken: 'private-id-token' },
+		})).params), [{ token: '<redacted>', idToken: '<redacted>' }, { token: '[REDACTED]', idToken: '<redacted>' }]);
 	});
 
 	test('coalesces synchronously queued log calls into a single write', async () => {

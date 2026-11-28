@@ -6,31 +6,83 @@
 import assert from 'assert';
 import { $ } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfirmation, IConfirmationResult, IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { IBrowserViewCaptureScreenshotOptions } from '../../../../../platform/browserView/common/browserView.js';
+import { IBrowserViewCaptureScreenshotOptions, IBrowserViewDialog, IBrowserViewDialogResponse } from '../../../../../platform/browserView/common/browserView.js';
 import { IBrowserViewModel } from '../../common/browserView.js';
 import { WebContentsViewHost } from '../../electron-browser/webContentsViewHost.js';
 
 suite('WebContentsViewHost', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHost(configurationService: IConfigurationService = new TestConfigurationService()): WebContentsViewHost {
+	function createHost(configurationService: IConfigurationService = new TestConfigurationService(), dialogService: IDialogService = new TestDialogService()): WebContentsViewHost {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IKeybindingService, new MockKeybindingService());
 		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IDialogService, dialogService);
 		return store.add(instantiationService.createInstance(WebContentsViewHost, mainWindow, () => { }));
 	}
+
+	test('shows a canvas dialog only while its host is visible and ignores cancelled UI answers', async () => {
+		const changes = store.add(new Emitter<IBrowserViewDialog | undefined>());
+		const answered = new DeferredPromise<void>();
+		const answers: { requestId: string; response: IBrowserViewDialogResponse }[] = [];
+		const dialogs: { options: IConfirmation; result: DeferredPromise<IConfirmationResult> }[] = [];
+		const service = new class extends TestDialogService {
+			override confirm(options: IConfirmation): Promise<IConfirmationResult> {
+				const result = new DeferredPromise<IConfirmationResult>();
+				dialogs.push({ options, result });
+				return result.p;
+			}
+		}();
+		const model = upcastPartial<IBrowserViewModel>({
+			url: 'https://example.test',
+			pendingDialog: { requestId: 'canvas-confirm', type: 'confirm', origin: 'https://example.test', message: 'Continue on the canvas?' },
+			onDidChangeDialog: changes.event,
+			onDidChangeVisibility: Event.None,
+			onDidKeyCommand: Event.None,
+			onDidNavigate: Event.None,
+			onDidChangeLoadingState: Event.None,
+			onWillDispose: Event.None,
+			setVisible: async () => { },
+			captureScreenshot: () => new Promise<VSBuffer>(() => { }),
+			respondToDialog: async (requestId, response) => {
+				answers.push({ requestId, response });
+				await answered.complete();
+			},
+		});
+		const host = createHost(undefined, service);
+		host.setModel(model);
+		const hiddenCount = dialogs.length;
+		host.setVisible(true);
+		changes.fire(model.pendingDialog);
+		const visibleCount = dialogs.length;
+		host.setVisible(false, true);
+		const cancelledOnHide = dialogs[0].options.token?.isCancellationRequested;
+		await dialogs[0].result.complete({ confirmed: false });
+		host.setVisible(true);
+		await dialogs[1].result.complete({ confirmed: true });
+		await answered.p;
+		host.setModel(undefined);
+		changes.fire(model.pendingDialog);
+		assert.deepStrictEqual({ hiddenCount, visibleCount, cancelledOnHide, shown: dialogs.length, answers }, {
+			hiddenCount: 0, visibleCount: 1, cancelledOnHide: true, shown: 2,
+			answers: [{ requestId: 'canvas-confirm', response: { accept: true } }],
+		});
+	});
 
 	test('hides the page a frame after its container, unless the container itself is hidden', async () => {
 		const calls: boolean[] = [];
@@ -43,6 +95,7 @@ suite('WebContentsViewHost', () => {
 			get visible() { return visible; },
 			onDidChangeVisibility: Event.None,
 			onDidKeyCommand: Event.None,
+			onDidChangeDialog: Event.None,
 			onDidNavigate: Event.None,
 			onDidChangeLoadingState: Event.None,
 			onWillDispose: Event.None,
@@ -82,6 +135,7 @@ suite('WebContentsViewHost', () => {
 			get visible() { return visible; },
 			onDidChangeVisibility: Event.None,
 			onDidKeyCommand: Event.None,
+			onDidChangeDialog: Event.None,
 			onDidNavigate: Event.None,
 			onDidChangeLoadingState: Event.None,
 			onWillDispose: Event.None,
@@ -116,6 +170,7 @@ suite('WebContentsViewHost', () => {
 			visible: true,
 			onDidChangeVisibility: Event.None,
 			onDidKeyCommand: Event.None,
+			onDidChangeDialog: Event.None,
 			onDidNavigate: Event.None,
 			onDidChangeLoadingState: Event.None,
 			onWillDispose: Event.None,
@@ -176,6 +231,7 @@ suite('WebContentsViewHost', () => {
 				get visible() { return visible; },
 				onDidChangeVisibility: Event.None,
 				onDidKeyCommand: Event.None,
+				onDidChangeDialog: Event.None,
 				onDidNavigate: Event.None,
 				onDidChangeLoadingState: Event.None,
 				onWillDispose: Event.None,
@@ -221,6 +277,7 @@ suite('WebContentsViewHost', () => {
 			visible: true,
 			onDidChangeVisibility: Event.None,
 			onDidKeyCommand: Event.None,
+			onDidChangeDialog: Event.None,
 			onDidNavigate: Event.None,
 			onDidChangeLoadingState: Event.None,
 			onWillDispose: Event.None,

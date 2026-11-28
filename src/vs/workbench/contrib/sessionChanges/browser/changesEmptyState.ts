@@ -13,6 +13,7 @@ import { SessionsEmptyStateLayout } from '../../../browser/parts/sessions/sessio
 
 export class ChangesEmptyState extends Disposable {
 	private readonly emptyStateLayout: SessionsEmptyStateLayout;
+	private readonly actions: SessionsEmptyStateActions;
 
 	constructor(
 		container: HTMLElement,
@@ -22,7 +23,7 @@ export class ChangesEmptyState extends Disposable {
 		const content = append(container, $('.sessions-empty-state-content'));
 		append(content, $('.sessions-empty-state-description')).textContent = localize('changes.empty', "No changed files");
 		const actions = append(content, $('.changes-empty-state-actions'));
-		this._register(instantiationService.createInstance(SessionsEmptyStateActions, actions, Menus.EmptyChangesActions, {
+		this.actions = this._register(instantiationService.createInstance(SessionsEmptyStateActions, actions, Menus.EmptyChangesActions, {
 			ariaLabel: localize('changes.emptyActions', "Changes actions"),
 			telemetrySource: 'changes.emptyState',
 		}));
@@ -31,5 +32,9 @@ export class ChangesEmptyState extends Disposable {
 
 	layout(): void {
 		this.emptyStateLayout.layout();
+	}
+
+	focus(): void {
+		this.actions.focus();
 	}
 }

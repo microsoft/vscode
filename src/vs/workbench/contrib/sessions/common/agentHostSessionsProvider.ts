@@ -21,7 +21,7 @@ import { AgentCustomization, Customization, McpServerStatus, RootConfigState, ty
 import { type CustomizationDisabledReason } from '../../../../platform/agentHost/common/customizationEnablement.js';
 import { type McpServerSource } from '../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import type { IMcpServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
-import { ISessionConfigProvider, ISessionsProvider } from './sessionsProvider.js';
+import { ISessionConfigProvider, ISessionPermissionOption, ISessionsProvider } from './sessionsProvider.js';
 import { ISession, ISessionAgentRef } from '../../../services/sessions/common/session.js';
 import type { AgentMergeSessionOverrides, AgentMergeSessionState } from '../../../../platform/agentHost/common/agentMerge.js';
 import type { ISessionSandboxPolicy } from '../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
@@ -190,6 +190,28 @@ export interface IAgentHostMcpServer {
 }
 
 /**
+ * Another provider that continues an agent host provider's host
+ * ({@link IAgentHostSessionsProvider.successor}).
+ */
+export interface IAgentHostSuccessor {
+	/** The provider new session selections move to. */
+	readonly providerId: string;
+	/** Maps a resource, such as a folder or file, of the replaced provider to the same resource on {@link providerId}, or `undefined` when it is not one. */
+	mapResource(resource: URI): URI | undefined;
+}
+
+/**
+ * Another provider whose host an agent host provider takes over
+ * ({@link IAgentHostSessionsProvider.predecessor}).
+ */
+export interface IAgentHostPredecessor {
+	/** The provider whose new session selections move to the provider taking over. */
+	readonly providerId: string;
+	/** Maps a resource, such as a folder or file, of {@link providerId} to the same resource on the provider taking over, or `undefined` when it is not one. */
+	mapResource(resource: URI): URI | undefined;
+}
+
+/**
  * Extended sessions provider for agent host providers (local and remote).
  * Adds remote connection properties and dynamic session configuration.
  */
@@ -276,6 +298,16 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	readonly isVisibleInEnvironmentPicker?: IObservable<boolean>;
 	/** Reveals this host after an explicit picker selection without changing its availability. */
 	showInEnvironmentPicker?(): void;
+	/**
+	 * Set while another provider continues this host, such as a shared remote's direct connection once it is connected
+	 * again: a new session selected on this provider moves to it.
+	 */
+	readonly successor?: IObservable<IAgentHostSuccessor | undefined>;
+	/**
+	 * Set while this provider takes over another provider's host, such as a shared remote's GitHub environment while
+	 * the remote is disconnected with Keep Sharing: a new session selected on that provider moves to this one.
+	 */
+	readonly predecessor?: IObservable<IAgentHostPredecessor | undefined>;
 	readonly removeLabel?: string;
 	readonly disconnectLabel?: string;
 
@@ -322,8 +354,10 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	whenSessionConfigResolved(sessionId: string, token: CancellationToken): Promise<ResolveSessionConfigResult>;
 	/** Retains and awaits the exact chat's configuration, rejecting unavailable state rather than using parent permissions. */
 	acquireSessionConfig(sessionId: string, chat: URI, token: CancellationToken): Promise<IDisposable>;
-	/** Resolves a harness's configuration for a new session in the target workspace, independently of existing sessions. */
-	resolveSessionConfigForCreation(workspace: URI, sessionTypeId: string, token: CancellationToken): Promise<ResolveSessionConfigResult>;
+	/** Resolves a harness's configuration for a new session in the target workspace, or for a quick chat without one, independently of existing sessions. */
+	resolveSessionConfigForCreation(workspace: URI | undefined, sessionTypeId: string, token: CancellationToken): Promise<ResolveSessionConfigResult>;
+	/** A harness's permission choices for a new session that a resolved configuration can apply and policy allows. */
+	getPermissionOptionsForCreation(sessionTypeId: string, config: ResolveSessionConfigResult): readonly ISessionPermissionOption[];
 	/** Canceled when the draft is disposed, including when its provider disconnects. */
 	getNewSessionCancellationToken(sessionId: string): CancellationToken;
 	/** Effective runtime sandbox policy, refreshed with session configuration notifications. */

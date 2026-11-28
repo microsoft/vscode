@@ -582,7 +582,7 @@ function parseSnapshot<T>(raw: string | undefined): T | undefined {
 }
 
 /** Prefer Electron's security origin over the document URL, preserving per-file permission keys. */
-function getPermissionOrigin(requestingUrl: string | undefined, securityOrigin: string | undefined): string {
+export function getPermissionOrigin(requestingUrl: string | undefined, securityOrigin: string | undefined): string {
 	const origin = toOriginKey(securityOrigin ?? requestingUrl);
 	if (origin === `${Schemas.file}:///`) {
 		const fileOrigin = toOriginKey(requestingUrl);

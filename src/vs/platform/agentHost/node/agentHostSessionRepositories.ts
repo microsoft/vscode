@@ -7,6 +7,8 @@ import { Limiter } from '../../../base/common/async.js';
 import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
+import { getWorkingDirectoryKey } from '../common/agentHostWorkingDirectories.js';
+import { readSessionRepositories } from '../common/meta/agentSessionRepositoriesMeta.js';
 
 /**
  * Upper bound on concurrent `git rev-parse --show-toplevel` probes when
@@ -92,4 +94,18 @@ export async function resolveSessionRepositories(workingDirectories: readonly UR
 		gitRepositories.push(repositoryRoot);
 	}
 	return { gitRepositories, nonGitDirectories };
+}
+
+/**
+ * The repositories the Git state service found in the immediate subfolders of `workingDirectories` (see
+ * `vscode.sessionRepositories` in the session's metadata `meta`), other than the folders' own. Empty when none is found.
+ */
+export function readNestedRepositoryRoots(meta: Record<string, unknown> | undefined, workingDirectories: readonly string[] | undefined): URI[] {
+	const repositories = readSessionRepositories(meta);
+	if (!repositories || !workingDirectories?.length) {
+		return [];
+	}
+	return workingDirectories.flatMap(directory => repositories[getWorkingDirectoryKey(directory)] ?? [])
+		.filter(repository => repository.kind !== 'folder')
+		.map(repository => URI.parse(repository.root));
 }

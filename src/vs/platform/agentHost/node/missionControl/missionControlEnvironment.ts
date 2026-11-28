@@ -61,6 +61,10 @@ export interface IMissionControlEnvironmentHost {
 	/** Applies an owner-validated credential choice and reports whether the effective mode changed. */
 	readonly configureExecutionAuthentication?: (useLocalCredentials: boolean) => boolean;
 	readonly updateProjects?: () => Promise<void>;
+	/** Resolves a shared root, project or default directory. Defaults to the native `realpath`. */
+	readonly realpath?: (path: string) => Promise<string>;
+	/** Reports a resolved root or project that is not shared because it is network-backed. */
+	readonly onExcludedDirectory?: (path: string) => void;
 	readonly onError: (error: unknown) => void;
 	readonly onDiagnostic?: ConnectionDiagnosticObserver;
 	readonly onPublishDiagnostic?: MissionControlPublishDiagnosticObserver;
@@ -100,6 +104,34 @@ async function withErrorCategory<T>(code: CategorizedConnectionErrorCode, messag
 	} catch (error) {
 		throw new CategorizedConnectionError(code, message, { cause: error });
 	}
+}
+
+type MissionControlDirectories = Pick<IMissionControlOptions, 'roots' | 'projects' | 'defaultDirectory'>;
+
+function isLocalDirectory(path: string): boolean {
+	return path.startsWith('/') || /^[A-Za-z]:\\/.test(path);
+}
+
+/**
+ * Keeps the resolved directories that are local. Network-backed (UNC) roots and projects are
+ * excluded instead of failing the configuration, but the default directory must be local and at
+ * least one requested root must remain.
+ */
+export function selectLocalMissionControlDirectories(directories: MissionControlDirectories): MissionControlDirectories & { readonly excluded: readonly string[] } {
+	const { roots, projects, defaultDirectory } = directories;
+	if (defaultDirectory !== undefined && !isLocalDirectory(defaultDirectory)) {
+		throw new CategorizedConnectionError('AgentHostInvalidConfiguration', 'Mission Control default directory must be a local directory');
+	}
+	const localRoots = roots.filter(isLocalDirectory);
+	if (roots.length && !localRoots.length) {
+		throw new CategorizedConnectionError('AgentHostInvalidConfiguration', 'Mission Control requires at least one local root directory');
+	}
+	return {
+		roots: localRoots,
+		projects: projects?.filter(isLocalDirectory),
+		defaultDirectory,
+		excluded: [...new Set([...roots, ...projects ?? []].filter(path => !isLocalDirectory(path)))],
+	};
 }
 
 function parseLane(name: string, uid: string, eid: string): ParsedGroup {
@@ -308,20 +340,23 @@ export class MissionControlEnvironment extends Disposable {
 		if (this._canonicalOwner && this._canonicalOwner !== owner) {
 			throw new MissionControlOwnerMismatchError('Credential does not match the Agent Host owner');
 		}
-		const resolveDirectory = (path: string) => withErrorCategory('AgentHostFileSystem', 'Mission Control could not resolve a shared directory', () => realpath(path));
-		const roots = await Promise.all(options.roots.map(resolveDirectory));
-		const projects = options.projects === undefined ? undefined : await Promise.all(options.projects.map(resolveDirectory));
-		const defaultDirectory = options.defaultDirectory === undefined ? undefined : await resolveDirectory(options.defaultDirectory);
-		options = { ...options, projects, defaultDirectory };
+		const resolveDirectory = (path: string) => withErrorCategory('AgentHostFileSystem', 'Mission Control could not resolve a shared directory', () => this._host.realpath ? this._host.realpath(path) : realpath(path));
+		const resolved = {
+			roots: await Promise.all(options.roots.map(resolveDirectory)),
+			projects: options.projects === undefined ? undefined : await Promise.all(options.projects.map(resolveDirectory)),
+			defaultDirectory: options.defaultDirectory === undefined ? undefined : await resolveDirectory(options.defaultDirectory),
+		};
 		if (epoch !== this._configurationEpoch || this._store.isDisposed) {
 			return;
 		}
 		if (options.live && identityApiBase !== this._getIdentityApiBase()) {
 			throw new CategorizedConnectionError('AgentHostConflict', 'GitHub identity authority changed during Mission Control configuration');
 		}
-		if (!roots.every(root => root.startsWith('/') || /^[A-Za-z]:\\/.test(root))) {
-			throw new CategorizedConnectionError('AgentHostInvalidConfiguration', 'Mission Control projects must be absolute local directories');
+		const { roots, projects, defaultDirectory, excluded } = selectLocalMissionControlDirectories(resolved);
+		for (const path of excluded) {
+			this._host.onExcludedDirectory?.(path);
 		}
+		options = { ...options, projects, defaultDirectory };
 		if (this._options && (this._options.baseUrl !== options.baseUrl || this._options.name !== options.name || this._options.live !== options.live || this._options.requireConnectionBinding !== options.requireConnectionBinding
 			|| (!options.live && JSON.stringify(this._roots) !== JSON.stringify(roots)))) {
 			throw new CategorizedConnectionError('AgentHostConflict', 'Mission Control is already configured; disable it before changing its scope');

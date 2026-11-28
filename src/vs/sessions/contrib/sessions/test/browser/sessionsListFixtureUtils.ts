@@ -70,7 +70,7 @@ import { ComponentFixtureContext, ComponentFixtureOptions, createEditorServices,
 import { TestProductService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { TestQuickInputService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
-import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionsListRearrangeContext, SessionWorkspacesEnabledContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { ISessionsListPresentation } from '../../../../../workbench/contrib/sessions/browser/sessionsListPresentation.js';
 import { DefaultSessionsListPresentation } from '../../../../../workbench/contrib/sessions/browser/defaultSessionsListPresentation.js';
@@ -78,7 +78,11 @@ import { IPinnedCanvasService } from '../../../../../workbench/contrib/sessions/
 import { ISideChatPlacementService } from '../../../../../workbench/contrib/sessions/browser/sideChatPlacement.js';
 import { ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { getSessionGroupSectionId, ISessionGroupsService, SessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
+import { IRecentSessionWorkspace, ISessionWorkspacesService } from '../../../../../workbench/contrib/sessions/common/sessionWorkspaces.js';
+import { TestSessionWorkspacesService } from '../../../../../workbench/contrib/sessions/test/browser/testSessionWorkspacesService.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
+import { IWorkspaceFolderRepositories } from '../../../../../workbench/contrib/sessions/browser/workspaceFolderRepositories.js';
+import { ISessionsListUndoService, SessionsListUndoService } from '../../../../../workbench/contrib/sessions/browser/sessionsListUndoService.js';
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../../workbench/services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
@@ -97,7 +101,8 @@ import { ISessionDraftsService } from '../../../../../workbench/contrib/sessions
 import { IScheduledChatsService } from '../../../../../workbench/contrib/sessions/browser/scheduledChatsService.js';
 import { SessionInboxAction } from '../../../../../workbench/contrib/sessions/common/sessionInbox.js';
 import { NEW_SESSION_BUTTON_STYLE_SETTING, NEW_SESSION_BUTTON_STYLE_TREATMENT, NewSessionActionViewItemContribution, type NewSessionButtonStyle } from '../../browser/sessionsActions.js';
-import { SessionChatItem, SessionsGrouping, SessionsList, SessionsListItemReference, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionsList, SessionsListItemReference } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionChatItem, SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { ISessionsHeaderElements, ISessionsViewLocator, ISessionsViewOptions, renderSessionsHeader, SessionsView, SessionsViewGroupingContext, SessionsViewId, SessionsViewLocator } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { SessionsArchiveActionsContribution, getSessionsArchiveActionConstructors } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
 import '../../browser/views/sessionsViewActions.js';
@@ -119,6 +124,7 @@ import { ISessionWorktreeCleanupService } from '../../../../../workbench/contrib
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { localize2 } from '../../../../../nls.js';
 import { ILifecycleService, LifecyclePhase, StartupKind } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
+import { SessionWorkspaceEditorAvailableContext } from '../../../../../workbench/contrib/sessions/browser/workspaceEditor/sessionWorkspaceEditorCommands.js';
 
 //#region State
 
@@ -171,6 +177,8 @@ export interface ISessionsListFixtureView {
 	readonly grouping?: SessionsGrouping;
 	readonly sorting?: SessionsSorting;
 	readonly compact?: boolean;
+	/** Whether Group by Workspace lists the custom groups and the workspaces under headers of their own. */
+	readonly separateGroupsAndWorkspaces?: boolean;
 	readonly phone?: boolean;
 	readonly width?: number;
 	readonly height?: number;
@@ -245,6 +253,8 @@ export interface ISessionsListFixtureState {
 	readonly environments?: readonly ISessionEnvironment[];
 	/** Room around the list, e.g. for an onboarding callout. */
 	readonly frame?: { readonly width: number; readonly height: number };
+	/** The Agents window's workspaces, which Group by Workspace lists while it separates groups and workspaces. */
+	readonly workspaces?: readonly IRecentSessionWorkspace[];
 }
 
 /** A rendered sessions list fixture. */
@@ -698,7 +708,9 @@ async function createSessionsListFixtureServices(context: ComponentFixtureContex
 			}());
 			reg.defineInstance(ISideChatPlacementService, { _serviceBrand: undefined, inSidePane: constObservable(false) });
 			reg.define(ISessionsListModelService, SessionsListModelService);
+			reg.define(ISessionsListUndoService, SessionsListUndoService);
 			reg.define(ISessionGroupsService, SessionGroupsService);
+			reg.defineInstance(ISessionWorkspacesService, new TestSessionWorkspacesService(state.workspaces));
 			reg.define(ISessionSectionOrderService, SessionSectionOrderService);
 			const reducedMotion = view.reducedMotion;
 			if (reducedMotion !== undefined) {
@@ -812,6 +824,8 @@ async function createSessionsListFixtureServices(context: ComponentFixtureContex
 
 	const contextKeyService = instantiationService.get(IContextKeyService);
 	ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+	SessionWorkspacesEnabledContext.bindTo(contextKeyService).set(!!state.workspaces);
+	SessionWorkspaceEditorAvailableContext.bindTo(contextKeyService).set(!!state.workspaces);
 	SessionsViewGroupingContext.bindTo(contextKeyService).set(view.grouping ?? SessionsGrouping.Workspace);
 	SessionsListRearrangeContext.bindTo(contextKeyService).set(header?.navigationShortcuts ?? false);
 	// Phone layout drives both the visual CSS class and the tree delegate's row heights.
@@ -913,6 +927,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 		grouping: () => view.grouping ?? SessionsGrouping.Workspace,
 		sorting: () => view.sorting ?? SessionsSorting.Created,
 		compact: () => view.compact ?? false,
+		separateGroupsAndWorkspaces: () => view.separateGroupsAndWorkspaces ?? false,
 		scheduledSessionResources: constObservable(new Set(state.sessions
 			.filter(spec => spec.hasScheduledMessages)
 			.map(spec => getSession(spec.id).session.resource.toString()))),
@@ -1271,6 +1286,11 @@ export async function renderSessionsViewFixture(context: ComponentFixtureContext
 		override readonly sentimentObs = constObservable<IChatSentiment>({});
 	}());
 	instantiationService.stub(IFocusedSessionHostService, new class extends mock<IFocusedSessionHostService>() { }());
+	instantiationService.stub(IWorkspaceFolderRepositories, new class extends mock<IWorkspaceFolderRepositories>() {
+		override readonly folders = constObservable([]);
+		override readonly repositories = constObservable([]);
+		override readonly gitHubRepositories = constObservable([]);
+	}());
 	instantiationService.stub(IAICustomizationMcpServerCountService, new class extends mock<IAICustomizationMcpServerCountService>() { }());
 	instantiationService.stub(ILanguageModelToolsService, new class extends mock<ILanguageModelToolsService>() { }());
 	instantiationService.stub(IAgentHostToolSetEnablementService, new class extends mock<IAgentHostToolSetEnablementService>() { }());

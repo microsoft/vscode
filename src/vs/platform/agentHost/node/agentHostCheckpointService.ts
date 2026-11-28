@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createHash } from 'crypto';
-import { DeferredPromise, SequencerByKey } from '../../../base/common/async.js';
+import { DeferredPromise, Limiter, SequencerByKey } from '../../../base/common/async.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../base/common/map.js';
 import { URI } from '../../../base/common/uri.js';
@@ -596,6 +596,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 			return;
 		}
 
+		const baselineLookups = new Limiter<void>(2);
 		try {
 			// The database's rows are its chat's refs (a session database's also older builds' rows of other
 			// chats). They are deleted where the chat recorded capturing them, never by listing a ref prefix.
@@ -608,16 +609,16 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 			}
 			// A session's current directories also locate its baseline and the refs of rows captured before
 			// repositories were recorded.
-			for (const workingDirectory of workingDirectories ?? []) {
+			await Promise.all((workingDirectories ?? []).map(workingDirectory => baselineLookups.queue(async () => {
 				try {
 					const repositoryRootUri = await this._gitService.getRepositoryRoot(URI.parse(workingDirectory));
 					if (!repositoryRootUri) {
-						continue;
+						return;
 					}
 
 					const baselineCheckpointRef = await this.getBaselineCheckpoint(storage, repositoryRootUri);
 					if (!baselineCheckpointRef) {
-						continue;
+						return;
 					}
 
 					// Dedup baseRef and turnRefs (a no-op turn may reuse its
@@ -629,7 +630,8 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 				} catch (err) {
 					this._logService.warn(`[AgentHostCheckpoint] Failed to resolve checkpoint refs of ${storage.toString()} in working directory ${workingDirectory}`, err);
 				}
-			}
+			})));
+			// Different worktrees can share their Git refs, so keep deletions serial.
 			for (const [repositoryRootUri, checkpointRefs] of refsByRepository) {
 				try {
 					await this._gitService.deleteRefs(repositoryRootUri, [...checkpointRefs]);
@@ -641,6 +643,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 		} catch (err) {
 			this._logService.warn(`[AgentHostCheckpoint] Failed to dispose checkpoint refs for ${storage.toString()}`, err);
 		} finally {
+			baselineLookups.dispose();
 			refHandle.dispose();
 		}
 	}

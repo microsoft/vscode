@@ -43,7 +43,8 @@ export class ExtHostDocumentData extends MirrorTextModel {
 		private _languageId: string,
 		private _isDirty: boolean,
 		private _encoding: string,
-		private readonly _strictInstanceofChecks = true // used for code reuse
+		private readonly _strictInstanceofChecks = true, // used for code reuse
+		private _isReadonly: boolean = false
 	) {
 		super(uri, lines, eol, versionId);
 	}
@@ -73,6 +74,7 @@ export class ExtHostDocumentData extends MirrorTextModel {
 				get version() { return that._versionId; },
 				get isClosed() { return that._isDisposed; },
 				get isDirty() { return that._isDirty; },
+				get isReadonly() { return that._isReadonly; },
 				get encoding() { return that._encoding; },
 				save() { return that._save(); },
 				getText(range?) { return range ? that._getTextInRange(range) : that.getText(); },
@@ -100,6 +102,11 @@ export class ExtHostDocumentData extends MirrorTextModel {
 	_acceptIsDirty(isDirty: boolean): void {
 		ok(!this._isDisposed);
 		this._isDirty = isDirty;
+	}
+
+	_acceptIsReadonly(isReadonly: boolean): void {
+		ok(!this._isDisposed);
+		this._isReadonly = isReadonly;
 	}
 
 	_acceptEncoding(encoding: string): void {

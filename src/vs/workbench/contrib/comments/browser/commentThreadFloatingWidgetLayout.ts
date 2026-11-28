@@ -7,6 +7,8 @@ import { clamp } from '../../../../base/common/numbers.js';
 
 /** Room kept between an automatically placed widget and the edges of the editor or other widgets. */
 export const EDGE_MARGIN = 8;
+/** How far from a widget beside the code the connector turns toward it. */
+const CONNECTOR_BEND_INSET = 2 * EDGE_MARGIN;
 /** Room kept between the commented code and a widget that is placed next to it. */
 const CODE_GAP = 24;
 export const MIN_WIDTH = 240;
@@ -28,6 +30,11 @@ const COVERABLE_LINES = 2;
 const MAX_WIDTH_BESIDE_LINES = 640;
 /** Portion of the editor height that a widget sizing itself to its content may take up. */
 const AUTO_HEIGHT_RATIO = 0.6;
+/**
+ * How many columns of code a floating widget leaves in view beside it, at least, which shows the start of most lines.
+ * In an editor that is too narrow for that, the widgets are docked below their code instead.
+ */
+const MIN_COLUMNS_BESIDE_WIDGET = 20;
 
 export interface IRect {
 	readonly top: number;
@@ -63,13 +70,68 @@ export interface ICommentThreadFloatingWidgetLayout {
 	/** Distance from the left edge of the editor to the left edge of the widget. */
 	readonly left: number;
 	readonly width: number;
-	/** The height chosen by the user, or `undefined` when the widget sizes itself to its content. */
+	/**
+	 * The height chosen by the user while the widget floats, or for another widget before this one was placed, or
+	 * `undefined` when it sizes itself to its content.
+	 */
 	readonly height: number | undefined;
+	/**
+	 * The height chosen by the user while the widget is docked below its code, or `undefined` when it sizes itself to its
+	 * content there. It's kept apart from the floating placement and size, which don't apply while the widget is docked.
+	 */
+	readonly dockedHeight?: number;
 	/**
 	 * Whether the user moved or resized the widget. Other widgets are placed around such a widget, rather than moving
 	 * it to keep the widgets in the order of their code.
 	 */
 	readonly isChosenByUser: boolean;
+}
+
+/**
+ * The size that the user last resized a floating comment thread widget to, in each dimension that the user resized a
+ * widget in. Widgets that are placed or docked after that start out at this size, rather than at one that suits the
+ * editor.
+ */
+export interface IFloatingWidgetChosenSize {
+	/** The width that the user last gave a floating widget. */
+	readonly width?: number;
+	/** The height that the user last gave a floating widget. */
+	readonly height?: number;
+	/** The height that the user last gave a widget that is docked below its code. */
+	readonly dockedHeight?: number;
+}
+
+/**
+ * Where the connector from the code meets a widget, and whether it enters the widget through a side edge
+ * (`horizontal`) or through its top or bottom edge (`vertical`).
+ */
+export interface IConnectorAnchor extends IPoint {
+	readonly direction: 'horizontal' | 'vertical';
+}
+
+/**
+ * Computes the rounded, right-angled SVG path connecting the commented code to the anchor point of a widget. The code is given as
+ * the areas of its lines. The path starts at the point of the code's outline that is closest to the anchor, turns
+ * close to a widget beside the code or halfway to a widget above or below it, and ends entering the widget in the
+ * anchor's direction. It is `undefined` when the anchor lies within the outline.
+ */
+export function getConnectorPath(codeLines: readonly IRect[], anchor: IConnectorAnchor, cornerRadius: number): string | undefined {
+	const points = getConnectorPoints(codeLines, anchor);
+	if (!points) {
+		return undefined;
+	}
+	const { from } = points;
+	const to: IPoint = { x: anchor.x, y: anchor.y };
+	if (from.x === to.x || from.y === to.y) {
+		return getRoundedPath([from, to], cornerRadius, false);
+	}
+	if (anchor.direction === 'horizontal') {
+		// Turn close to the widget, so that the long run of the connector is in the space beside the widget rather than over the code.
+		const middleX = Math.round(to.x - Math.sign(to.x - from.x) * Math.min(CONNECTOR_BEND_INSET, Math.abs(to.x - from.x) / 2));
+		return getRoundedPath([from, { x: middleX, y: from.y }, { x: middleX, y: to.y }, to], cornerRadius, false);
+	}
+	const middleY = Math.round(from.y + (to.y - from.y) / 2);
+	return getRoundedPath([from, { x: from.x, y: middleY }, { x: to.x, y: middleY }, to], cornerRadius, false);
 }
 
 /**
@@ -141,12 +203,17 @@ export function getRowsOutlinePath(rows: readonly IRect[], cornerRadius: number)
 		}
 	}
 
+	return getRoundedPath(corners, cornerRadius, true);
+}
+
+function getRoundedPath(corners: readonly IPoint[], cornerRadius: number, closed: boolean): string {
 	const commands: string[] = [];
 	for (let i = 0; i < corners.length; i++) {
 		const previous = corners[(i + corners.length - 1) % corners.length];
 		const current = corners[i];
 		const next = corners[(i + 1) % corners.length];
-		const radius = Math.min(cornerRadius, Math.hypot(current.x - previous.x, current.y - previous.y) / 2, Math.hypot(next.x - current.x, next.y - current.y) / 2);
+		const isEndpoint = !closed && (i === 0 || i === corners.length - 1);
+		const radius = isEndpoint ? 0 : Math.min(cornerRadius, Math.hypot(current.x - previous.x, current.y - previous.y) / 2, Math.hypot(next.x - current.x, next.y - current.y) / 2);
 		const command = i === 0 ? 'M' : 'L';
 		if (radius <= 0) {
 			commands.push(`${command} ${current.x} ${current.y}`);
@@ -163,7 +230,9 @@ export function getRowsOutlinePath(rows: readonly IRect[], cornerRadius: number)
 		const end = towards(next);
 		commands.push(`${command} ${start.x} ${start.y} Q ${current.x} ${current.y} ${end.x} ${end.y}`);
 	}
-	commands.push('Z');
+	if (closed) {
+		commands.push('Z');
+	}
 	return commands.join(' ');
 }
 
@@ -176,13 +245,58 @@ export function getCenteredTop(codeTop: number, codeBottom: number, height: numb
 }
 
 /**
- * The width a widget starts out with in an editor whose code area has the given width. A new comment starts out wider,
- * when the editor has room for it, so that it invites writing a long comment.
+ * The width a widget starts out with in an editor whose code area has the given width: the width that the user last
+ * gave a widget, as far as the editor has room for it, or else one that suits the editor. A new comment then starts out
+ * wider, when the editor has room for it, so that it invites writing a long comment.
+ * @param chosenWidth The width that the user last gave a widget, or `undefined` when the user hasn't resized one.
  */
-export function getDefaultFloatingWidgetWidth(editorContentWidth: number, availableWidth: number, isNewComment: boolean): number {
+export function getDefaultFloatingWidgetWidth(editorContentWidth: number, availableWidth: number, isNewComment: boolean, chosenWidth?: number): number {
+	if (chosenWidth !== undefined) {
+		return Math.min(chosenWidth, availableWidth);
+	}
 	const ratio = isNewComment ? NEW_COMMENT_WIDTH_RATIO : DEFAULT_WIDTH_RATIO;
 	const maxWidth = isNewComment ? NEW_COMMENT_MAX_WIDTH : DEFAULT_MAX_WIDTH;
 	return Math.min(clamp(Math.round(editorContentWidth * ratio), DEFAULT_MIN_WIDTH, maxWidth), availableWidth);
+}
+
+/**
+ * Whether the widgets of an editor are docked below their code, in space that the editor makes for them between its
+ * lines, rather than floating over the code. That's when the area that shows the code is too narrow for a widget at the
+ * narrowest width that widgets start out with to leave enough columns of code in view beside it, such as in a narrow
+ * diff editor, where a floating widget covers much of the code wherever it's placed.
+ * @param codeAreaWidth The width of the area that shows the code.
+ * @param characterWidth The width of a character of the code.
+ */
+export function shouldDockFloatingWidgets(codeAreaWidth: number, characterWidth: number): boolean {
+	return codeAreaWidth < MIN_COLUMNS_BESIDE_WIDGET * characterWidth + CODE_GAP + DEFAULT_MIN_WIDTH + EDGE_MARGIN;
+}
+
+/**
+ * A view zone of an editor, which takes up vertical space after a line.
+ */
+export interface IViewZoneSpace {
+	readonly id: string;
+	readonly afterLineNumber: number;
+	readonly height: number;
+}
+
+/**
+ * Where a view zone starts: the zones after a line are stacked below its end, in their order.
+ * @param zones The view zones of the editor, in their order.
+ * @returns The line that the zone is after, and the distance from the end of that line to the top of the zone, or
+ * `undefined` when there is no such zone.
+ */
+export function getViewZoneOffset(zones: readonly IViewZoneSpace[], id: string): { afterLineNumber: number; offset: number } | undefined {
+	const index = zones.findIndex(zone => zone.id === id);
+	if (index === -1) {
+		return undefined;
+	}
+	const { afterLineNumber } = zones[index];
+	let offset = 0;
+	for (let i = index - 1; i >= 0 && zones[i].afterLineNumber === afterLineNumber; i--) {
+		offset += zones[i].height;
+	}
+	return { afterLineNumber, offset };
 }
 
 /**
@@ -522,6 +636,15 @@ export class FloatingWidgetSizeModel {
 	 */
 	get maxAutoHeight(): number {
 		return Math.max(MIN_HEIGHT, Math.floor(this._editorSize.height * AUTO_HEIGHT_RATIO));
+	}
+
+	/**
+	 * The tallest that the widget is at the given height chosen by the user, as far as the editor has room for it, or
+	 * that it sizes itself to when the user didn't choose one, unless its title, reply and additional actions alone are
+	 * taller, and before they grow.
+	 */
+	getMaxHeight(chosenHeight: number | undefined): number {
+		return chosenHeight !== undefined ? Math.max(MIN_HEIGHT, Math.min(chosenHeight, this._editorSize.height - 2 * EDGE_MARGIN)) : this.maxAutoHeight;
 	}
 
 	/**

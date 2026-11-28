@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IListRenderer } from '../../../../../base/browser/ui/list/list.js';
-import { ITreeNode, ITreeRenderer } from '../../../../../base/browser/ui/tree/tree.js';
+import { ITreeRenderer } from '../../../../../base/browser/ui/tree/tree.js';
 import { localize } from '../../../../../nls.js';
 
 export interface ICustomizationTreeGroup<T> {
@@ -36,10 +36,6 @@ export function asTreeRenderer<T, TTemplateData>(renderer: IListRenderer<T, TTem
 			: undefined,
 		disposeTemplate: templateData => renderer.disposeTemplate(templateData),
 	};
-}
-
-export function getTreeNodeElement<T>(node: ITreeNode<T>): T {
-	return node.element;
 }
 
 /**

@@ -4,16 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../base/common/event.js';
+import { timeout } from '../../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { SyncStatus, IUserDataSyncService, IUserDataSyncEnablementService } from '../../../../../platform/userDataSync/common/userDataSync.js';
+import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, WorkbenchMode, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
+import { testWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 import { IUserDataSyncWorkbenchService } from '../../../../services/userDataSync/common/userDataSync.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
-import { SettingsChangeRelauncher } from '../../browser/relauncher.contribution.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
+import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
+import { SettingsChangeRelauncher, WorkspaceChangeExtHostRelauncher } from '../../browser/relauncher.contribution.js';
 
 suite('SettingsChangeRelauncher', () => {
 
@@ -157,4 +164,54 @@ suite('SettingsChangeRelauncher', () => {
 		assert.strictEqual(restartCount, 0);
 	});
 
+});
+
+suite('WorkspaceChangeExtHostRelauncher', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	async function createRelauncher() {
+		const state = { mode: WorkbenchMode.Editor, workbenchState: WorkbenchState.WORKSPACE, workspace: testWorkspace(URI.file('/first')), restarts: 0 };
+		const foldersChanged = store.add(new Emitter<IWorkspaceFoldersChangeEvent>());
+		const workbenchStateChanged = store.add(new Emitter<WorkbenchState>());
+		const contextService = {
+			getCompleteWorkspace: async () => state.workspace,
+			getWorkspace: () => state.workspace,
+			getWorkbenchState: () => state.workbenchState,
+			getWorkbenchMode: () => state.mode,
+			onDidChangeWorkbenchState: workbenchStateChanged.event,
+			onDidChangeWorkspaceFolders: foldersChanged.event,
+		} as Partial<IWorkspaceContextService> as IWorkspaceContextService;
+		const hostService = { reload: async () => { state.restarts++; } } as Partial<IHostService> as IHostService;
+		const environmentService = { remoteAuthority: 'test' } as Partial<IWorkbenchEnvironmentService> as IWorkbenchEnvironmentService;
+		store.add(new WorkspaceChangeExtHostRelauncher(contextService, {} as IExtensionService, hostService, environmentService));
+		await timeout(0);
+		const changeFolder = async (path: string | undefined, mode: WorkbenchMode, workbenchState = WorkbenchState.WORKSPACE) => {
+			state.mode = mode;
+			state.workbenchState = workbenchState;
+			state.workspace = path ? testWorkspace(URI.file(path)) : testWorkspace();
+			foldersChanged.fire({ added: [], removed: [], changed: [] });
+			await timeout(20);
+			return state.restarts;
+		};
+		return { state, changeFolder, foldersChanged };
+	}
+
+	test('preserves the editor folder through Agents mode and restarts only for a real editor folder change', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { changeFolder } = await createRelauncher();
+		const entering = await changeFolder('/session-one', WorkbenchMode.Agents);
+		const switching = await changeFolder('/session-two', WorkbenchMode.Agents);
+		const leaving = await changeFolder('/first', WorkbenchMode.Editor);
+		const editorChange = await changeFolder('/second', WorkbenchMode.Editor);
+		const leavingEmpty = await changeFolder(undefined, WorkbenchMode.Editor, WorkbenchState.EMPTY);
+		assert.deepStrictEqual({ entering, switching, leaving, editorChange, leavingEmpty }, { entering: 0, switching: 0, leaving: 0, editorChange: 1, leavingEmpty: 1 });
+	}));
+
+	test('does not run an already scheduled restart after entering Agents mode', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { state, foldersChanged } = await createRelauncher();
+		state.workspace = testWorkspace(URI.file('/second'));
+		foldersChanged.fire({ added: [], removed: [], changed: [] });
+		state.mode = WorkbenchMode.Agents;
+		await timeout(20);
+		assert.strictEqual(state.restarts, 0);
+	}));
 });

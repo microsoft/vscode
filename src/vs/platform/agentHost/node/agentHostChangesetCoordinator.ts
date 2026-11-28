@@ -6,7 +6,7 @@
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { IAgentSessionMetadata } from '../common/agent.js';
-import { buildBranchChangesetUri, buildSessionChangesetUri, buildUncommittedChangesetUri, changesetSession, ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
+import { buildBranchChangesetUri, buildFolderChangesetOwnerUri, buildSessionChangesetUri, buildUncommittedChangesetUri, changesetSession, ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
 import { ChangesetFileMonitorCoordinator } from './agentHostChangesetFileMonitorCoordinator.js';
 import { AgentHostStateManager, ChatRemovalReason, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
@@ -15,12 +15,13 @@ import { IAgentHostChangesetOperationService } from '../common/agentHostChangese
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { isAnyAgentMergeEnabled } from '../common/agentMerge.js';
-import { getWorkingDirectoryKey } from '../common/agentHostWorkingDirectories.js';
+import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../common/agentHostWorkingDirectories.js';
+import { readNestedRepositoryRoots } from './agentHostSessionRepositories.js';
 import { ChatOriginKind, isAhpChatChannel, isSessionChatArchived, parseSubagentSessionUri, type SessionConfigState } from '../common/state/sessionState.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { getSummaryChangesetKind } from './agentHostChangesetSummary.js';
 import { getSessionSummarySources } from './agentHostChatsInUse.js';
-import { resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource } from './agentHostBranchChangesetScope.js';
+import { resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource, resolveChangesetOwnerGitSource } from './agentHostBranchChangesetScope.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
 /**
@@ -186,16 +187,13 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		}
 	}
 
-	onSessionTurnActiveChanged(sessionStr: string, active: boolean): void {
-		this._changesetFileMonitor.onSessionTurnActiveChanged(sessionStr, active);
-
+	onSessionTurnActiveChanged(sessionStr: string): void {
 		// Advertised operations are disabled while a turn is active so the
 		// working tree / branch state can't be mutated mid-request; recompute
 		// them whenever the active-turn state flips.
 		this._changesetOperationService.updateOperations(sessionStr);
-		for (const chat of this._stateManager.getSessionState(sessionStr)?.chats ?? []) {
-			this._changesetFileMonitor.onSessionTurnActiveChanged(chat.resource, active);
-		}
+		// Agents write files during turns, so retry the root watchers that could not be acquired.
+		this._changesetFileMonitor.retryPendingWatches();
 	}
 
 	private onDidChangeSessionConfig(session: string, previous: SessionConfigState | undefined, current: SessionConfigState | undefined): void {
@@ -277,7 +275,8 @@ export class AgentHostChangesetCoordinator extends Disposable {
 				void this._changesets.computeUncommittedChangeset(parsed.ownerUri);
 				// Catch up Git state missed while the changeset was unobserved.
 				if (!this._isSubagentChat(parsed.ownerUri)) {
-					void this._gitStateService.refreshSessionGitState(parsed.ownerUri);
+					// A folder of the session on its own has no Git state of its own: the session's refresh refreshes it
+					void this._gitStateService.refreshSessionGitState(resolveChangesetOwnerGitSource(this._stateManager, parsed.ownerUri).refreshKey);
 				}
 			}
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.ownerUri);
@@ -691,13 +690,22 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			this._reconcileBranchSummaryResources(session);
 		}
 		const summaryOwners = session !== undefined ? this._branchSummaryOwners(session) : new Set<string>();
-		for (const owner of branchOwners) {
+		// The folders of the session on their own, and the repositories found in them, whose changesets a client observes
+		const folderOwners = !isChat && session !== undefined ? this._getFolderOwners(session) : [];
+		for (const owner of new Set([...branchOwners, ...folderOwners])) {
 			if (summaryOwners.has(owner) || this._changesetSubscriptions.getSessionSubscriptions(owner).size > 0) {
 				this._changesets.refreshBranchChangeset(owner);
 			}
 		}
-		if (this._changesetSubscriptions.getSessionSubscriptions(key).has(buildUncommittedChangesetUri(key))) {
-			void this._changesets.computeUncommittedChangeset(key);
+		// Also the folder owners that are the refreshed key's scopes, through which a client may observe its Uncommitted changes
+		for (const owner of new Set([key, ...branchOwners, ...folderOwners])) {
+			if (this._changesetSubscriptions.getSessionSubscriptions(owner).has(buildUncommittedChangesetUri(owner))) {
+				void this._changesets.computeUncommittedChangeset(owner);
+			}
+		}
+		if (!isChat && session !== undefined) {
+			// A refresh of the session's Git state also finds the repositories in its folders
+			this._changesetFileMonitor.onSessionRepositoriesChanged(session);
 		}
 		// Operations such as Sync follow Git state that no diff covers, like the commits ahead of or behind the upstream.
 		this._changesetOperationService.scheduleRelatedOperationsUpdate(key);
@@ -749,6 +757,10 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			return;
 		}
 		this._changesetOperationService.scheduleRelatedOperationsUpdate(sessionStr);
+		// Each folder of a session of several folders gets its own Git state.
+		if ((this._stateManager.getSessionSummary(sessionStr)?.workingDirectories?.length ?? 0) > 1) {
+			void this._gitStateService.refreshSessionGitState(sessionStr);
+		}
 		if (this._changesetSubscriptions.getSessionSubscriptions(sessionStr).has(sessionStr)
 			&& getSummaryChangesetKind(this._stateManager.getSessionState(sessionStr)?.config?.values) === ChangesetKind.Branch) {
 			const defaultChat = this._chatOwnership.getDefaultChat(sessionStr);
@@ -774,6 +786,13 @@ export class AgentHostChangesetCoordinator extends Disposable {
 				this._changesetFileMonitor.onSessionWorkingDirectoriesChanged(candidate);
 			}
 		}
+	}
+
+	/** The changeset owners of each folder of `session` on its own and of each repository found in its folders. */
+	private _getFolderOwners(session: string): string[] {
+		const folders = this._stateManager.getSessionSummary(session)?.workingDirectories ?? [];
+		const nested = readNestedRepositoryRoots(this._stateManager.getSessionState(session)?._meta, folders).map(root => root.toString());
+		return [...folders, ...nested].map(folder => buildFolderChangesetOwnerUri(session, getWorkingDirectoryScopeId([folder])));
 	}
 
 	private _getChatsAffectedBySessionWorkingDirectoryChange(session: string) {

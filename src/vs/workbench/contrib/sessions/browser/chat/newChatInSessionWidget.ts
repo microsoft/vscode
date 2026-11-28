@@ -187,6 +187,7 @@ export class NewChatInSessionWidget extends Disposable {
 
 		this._newChatInput = this._register(this.instantiationService.createInstance(SharedChatInputComposer, {
 			inputEditorOptions: options.inputEditorOptions,
+			separateSessionControls: options.newSessionPresentation.separateSessionControls,
 			session: this._session,
 			chat: this._chat,
 			sendRequest: async ({ query, attachments, background, userInteraction }) => this._send(query, attachments, background, userInteraction),
@@ -287,7 +288,8 @@ export class NewChatInSessionWidget extends Disposable {
 			workspacePresentation.layout?.();
 		}));
 
-		this._newChatInput.render(chatWidgetContent, parent);
+		// Files and other attachments can be dropped anywhere on the view, not only on the input.
+		this._newChatInput.render(chatWidgetContent, parent, { dropTarget: element });
 		this._newChatInput.placeRepositoryControls(workspacePresentation.repositoryControlsHost);
 		workspacePresentation.layout?.();
 		// Rendered after the composer: the tip docks inside the composer's stack,

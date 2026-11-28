@@ -367,7 +367,7 @@ export class ChatSessionWorktreeService extends Disposable implements IChatSessi
 			// the changes. For the Sessions app, we do want to provide updated changes
 			// while the session is in progress.
 			if (worktreeProperties.version === 2 && worktreeProperties.autoCommit === true) {
-				const properties = vscode.workspace.isAgentSessionsWorkspace
+				const properties = vscode.workspace.isAgentManaged
 					? await this._getWorktreeChanges(sessionId, worktreeProperties)
 					: await this._getWorktreeChangesFromCommits(worktreeProperties);
 
@@ -814,10 +814,10 @@ export class ChatSessionWorktreeService extends Disposable implements IChatSessi
 		let originalFileRef: string, modifiedFileRef: string | undefined;
 		if (worktreeProperties.version === 2) {
 			// Commit | Working tree
-			originalFileRef = vscode.workspace.isAgentSessionsWorkspace
+			originalFileRef = vscode.workspace.isAgentManaged
 				? worktreeProperties.mergeBaseCommit ?? worktreeProperties.baseCommit
 				: worktreeProperties.baseCommit;
-			modifiedFileRef = vscode.workspace.isAgentSessionsWorkspace
+			modifiedFileRef = vscode.workspace.isAgentManaged
 				? undefined
 				: worktreeProperties.branchName;
 		} else {

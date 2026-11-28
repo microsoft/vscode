@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
 import { NullGitExtensionService } from '../../../../platform/git/common/nullGitExtensionService';
 import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/documentId';
 import { MutableObservableWorkspace } from '../../../../platform/inlineEdits/common/observableWorkspace';
@@ -55,12 +56,21 @@ describe('ContinuousEnhancedTelemetrySender', () => {
 		vi.useRealTimers();
 	});
 
-	function makeSender(): ContinuousEnhancedTelemetrySender {
+	function makeAuthService(overrides?: Partial<IAuthenticationService>): IAuthenticationService {
+		return {
+			copilotToken: undefined,
+			getCopilotToken: vi.fn(),
+			...overrides,
+		} as unknown as IAuthenticationService;
+	}
+
+	function makeSender(authService: IAuthenticationService = makeAuthService()): ContinuousEnhancedTelemetrySender {
 		return new ContinuousEnhancedTelemetrySender(
 			recorder,
 			workspace,
 			telemetry,
 			new NullGitExtensionService(),
+			authService,
 		);
 	}
 
@@ -207,6 +217,7 @@ describe('ContinuousEnhancedTelemetrySender', () => {
 			workspace,
 			throwingTelemetry,
 			new NullGitExtensionService(),
+			makeAuthService(),
 		);
 
 		addDocAndEdit('a');
@@ -224,5 +235,35 @@ describe('ContinuousEnhancedTelemetrySender', () => {
 		// Second tick succeeded — loop kept ticking.
 		expect(calls).toBe(2);
 		expect(throwingTelemetry.enhancedEvents).toHaveLength(1);
+	});
+
+	test('refreshes the Copilot token before sending a slice', async () => {
+		const order: string[] = [];
+		const authService = makeAuthService({
+			copilotToken: {} as IAuthenticationService['copilotToken'],
+			getCopilotToken: vi.fn(async () => {
+				order.push('getCopilotToken');
+				return {} as Awaited<ReturnType<IAuthenticationService['getCopilotToken']>>;
+			}),
+		});
+		const orderedTelemetry = new (class extends RecordingTelemetryService {
+			override sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void {
+				order.push('sendEnhancedGHTelemetryEvent');
+				super.sendEnhancedGHTelemetryEvent(eventName, properties, measurements);
+			}
+		})();
+		sender = new ContinuousEnhancedTelemetrySender(
+			recorder,
+			workspace,
+			orderedTelemetry,
+			new NullGitExtensionService(),
+			authService,
+		);
+
+		addDocAndEdit('a');
+		await vi.advanceTimersByTimeAsync(INTERVAL_MS + IDLE_MS);
+
+		expect(authService.getCopilotToken).toHaveBeenCalledTimes(1);
+		expect(order).toEqual(['getCopilotToken', 'sendEnhancedGHTelemetryEvent']);
 	});
 });

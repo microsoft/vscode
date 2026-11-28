@@ -153,6 +153,8 @@ Test both directions because mirroring also changes where wide sprites overhang.
 
 Decorations that must retain their screen orientation—such as text, musical notation, or directional symbols—must not be baked into a layer that the runtime mirrors. Model them as fixed-orientation decorations or render them separately.
 
+The rendering speech bubble is flipped as a whole when it moves to the left of the pet so that its tail keeps pointing at the pet. Its dots are mirrored back on the canvas so they still appear from left to right; keep `CHAT_PET_SPEECH_BUBBLE_DOTS_BOUNDS` in `chatPetWidget.ts` aligned with the dots in the speech sprite, and keep the dots horizontally centered in the bubble.
+
 ## Static asset and sprite sheet
 
 Each animated state needs both variants of:

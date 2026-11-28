@@ -18,7 +18,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/runWithFakedTimers.js';
 import { IAccessibleViewService, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
-import { IBrowserViewBounds, IBrowserViewLoadError, IBrowserViewLoadingEvent } from '../../../../../platform/browserView/common/browserView.js';
+import { IBrowserViewBounds, IBrowserViewDialog, IBrowserViewLoadError, IBrowserViewLoadingEvent } from '../../../../../platform/browserView/common/browserView.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IOpenerService, OpenOptions } from '../../../../../platform/opener/common/opener.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
@@ -33,7 +33,7 @@ import { CanvasEditor } from '../../electron-browser/canvasEditor.js';
 suite('CanvasEditor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHarness(harnessOptions?: { readonly isSessionsWindow?: boolean; readonly openerResult?: boolean; readonly aiHidden?: boolean; readonly screenshot?: VSBuffer }) {
+	function createHarness(harnessOptions?: { readonly isSessionsWindow?: boolean; readonly openerResult?: boolean; readonly aiHidden?: boolean; readonly screenshot?: VSBuffer; readonly initialLoad?: DeferredPromise<void> }) {
 		const parent = $('.canvas-test-parent');
 		parent.style.width = '400px';
 		parent.style.height = '200px';
@@ -57,11 +57,15 @@ suite('CanvasEditor', () => {
 		const warningLogged = new DeferredPromise<string>();
 		const ownerVisible = observableValue('ownerVisible', true);
 		const loadingState = store.add(new Emitter<IBrowserViewLoadingEvent>());
+		const dialogChanged = store.add(new Emitter<IBrowserViewDialog | undefined>());
+		let pendingDialog: IBrowserViewDialog | undefined;
 		let modelError: IBrowserViewLoadError | undefined;
 		store.add(loadingState.event(event => { modelError = event.error; }));
 		const model = upcastPartial<IBrowserViewModel>({
 			url: 'https://example.test',
 			get error() { return modelError; },
+			get pendingDialog() { return pendingDialog; },
+			onDidChangeDialog: dialogChanged.event,
 			screenshot: harnessOptions?.screenshot,
 			onDidChangeFocus: Event.None,
 			onDidChangeLoadingState: loadingState.event,
@@ -81,13 +85,23 @@ suite('CanvasEditor', () => {
 			dispose: () => disposed++,
 		});
 		let view = Promise.resolve(model);
+		let initialLoad = harnessOptions?.initialLoad;
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(IEditorGroupsService, { mainPart: upcastPartial<IEditorPart>({ windowId: group.windowId }) });
 		instantiationService.stub(ICanvasService, {
 			enabled: observableValue('enabled', true),
 			isOwnerPresentable: (_reference, reader) => ownerVisible.read(reader),
 			isPresentable: (_reference, reader) => ownerVisible.read(reader),
-			resolveCanvasModel: async (_reference, source, reload = false) => { created++; requested.push(source.toString()); reloads.push(reload); return { model: await view, reused: false }; },
+			resolveCanvasModel: async (_reference, source, reload = false, onCreated) => {
+				created++;
+				requested.push(source.toString());
+				reloads.push(reload);
+				if (initialLoad) {
+					onCreated?.(await view);
+					await initialLoad.p;
+				}
+				return { model: await view, reused: false };
+			},
 		});
 		instantiationService.stub(IAccessibilityService, { isScreenReaderOptimized: () => false });
 		instantiationService.stub(IAccessibleViewService, {});
@@ -134,12 +148,17 @@ suite('CanvasEditor', () => {
 			get created() { return created; },
 			requested, reloads,
 			loadingState,
+			showDialog: () => {
+				pendingDialog = { requestId: 'load-dialog', type: 'alert', origin: 'https://example.test', message: 'Hello' };
+				dialogChanged.fire(pendingDialog);
+			},
 			failPage: () => loadingState.fire({ loading: false, error: { url: model.url, errorCode: -102, errorDescription: 'ERR_CONNECTION_REFUSED' } }),
 			reloadButton: () => parent.querySelector<HTMLAnchorElement>('.session-canvas-status [role="button"]')!,
 			frozenFrame: () => parent.querySelector<HTMLElement>('.session-canvas-frozen-frame')?.style.backgroundImage,
 			message: () => parent.querySelector('.session-canvas-message')?.textContent,
 			reconnecting: () => !!parent.querySelector('.session-canvas-editor.provider-reconnecting'),
 			setView: (value: Promise<IBrowserViewModel>) => view = value,
+			setLoad: (value: DeferredPromise<void>) => initialLoad = value,
 			open: () => editor.setInput(input, undefined, { newInGroup: true }, CancellationToken.None),
 			/** Native layouts stay pending until the returned promises are settled. */
 			deferLayouts: (): DeferredPromise<void>[] => {
@@ -152,6 +171,103 @@ suite('CanvasEditor', () => {
 				await new Promise<void>(resolve => store.add(scheduleAtNextAnimationFrame(getWindow(parent), () => resolve())));
 			},
 		};
+	}
+
+	for (const secondVisible of [false, true]) {
+		test(`recovers a load-blocking dialog after ${secondVisible ? 'yielding to another host' : 'a hidden host cannot claim it'}`, async () => {
+			const initialLoad = new DeferredPromise<void>();
+			const first = createHarness({ initialLoad });
+			const second = createHarness({ initialLoad });
+			second.setView(Promise.resolve(first.model));
+			first.showDialog();
+			await first.show();
+			await first.open();
+			await timeout(0);
+			if (secondVisible) {
+				await second.show();
+			}
+			await second.open();
+			await timeout(0);
+			const initiallyAttached = {
+				first: first.attached.at(-1) === first.model,
+				second: second.attached.at(-1) === first.model,
+			};
+			const returning = secondVisible ? first : second;
+			const leaving = secondVisible ? second : first;
+			leaving.editor.setVisible(false);
+			await returning.show();
+			await timeout(0);
+			const recovered = {
+				first: first.attached.at(-1) === first.model,
+				second: second.attached.at(-1) === first.model,
+			};
+			await initialLoad.complete();
+			await timeout(0);
+			assert.deepStrictEqual({ initiallyAttached, recovered }, {
+				initiallyAttached: { first: !secondVisible, second: secondVisible },
+				recovered: { first: secondVisible, second: !secondVisible },
+			});
+		});
+	}
+
+	for (const dialog of [false, true]) {
+		test(`keeps a reconnecting canvas hidden until ${dialog ? 'a dialog needs its host' : 'navigation finishes'}`, async () => {
+			const harness = createHarness();
+			await harness.show();
+			await harness.open();
+			await harness.modelAttached.p;
+			await timeout(0);
+			const canvas = harness.input.canvas.get()!;
+			harness.input.setCanvas({ ...canvas, source: undefined });
+			await timeout(0);
+			const initialLoad = new DeferredPromise<void>();
+			harness.setLoad(initialLoad);
+			harness.input.setCanvas({ ...canvas, source: URI.parse('https://example.test/returned') });
+			await timeout(0);
+			const before = { reconnecting: harness.reconnecting(), visible: harness.visible.at(-1) };
+			if (dialog) {
+				harness.showDialog();
+				await timeout(0);
+			}
+			const during = { reconnecting: harness.reconnecting(), visible: harness.visible.at(-1) };
+			await initialLoad.complete();
+			await timeout(0);
+			assert.deepStrictEqual({ before, during, after: { reconnecting: harness.reconnecting(), visible: harness.visible.at(-1) } }, {
+				before: { reconnecting: true, visible: false },
+				during: { reconnecting: !dialog, visible: dialog },
+				after: { reconnecting: false, visible: true },
+			});
+		});
+	}
+
+	for (const dialogTiming of ['none', 'pending', 'during load', 'stale load']) {
+		test(`keeps initial navigation hidden unless a current dialog needs its host: ${dialogTiming}`, async () => {
+			const initialLoad = new DeferredPromise<void>();
+			const harness = createHarness({ initialLoad });
+			if (dialogTiming === 'pending') {
+				harness.showDialog();
+			}
+			await harness.show();
+			await harness.open();
+			await timeout(0);
+			const attachedBeforeDialog = harness.attached.includes(harness.model);
+			if (dialogTiming === 'stale load') {
+				harness.editor.clearInput();
+			}
+			if (dialogTiming === 'during load' || dialogTiming === 'stale load') {
+				harness.showDialog();
+			}
+			const attachedBeforeCompletion = harness.attached.includes(harness.model);
+			await initialLoad.complete();
+			await timeout(0);
+			assert.deepStrictEqual({
+				attachedBeforeDialog, attachedBeforeCompletion, attachedAfterCompletion: harness.attached.includes(harness.model),
+			}, {
+				attachedBeforeDialog: dialogTiming === 'pending',
+				attachedBeforeCompletion: dialogTiming === 'pending' || dialogTiming === 'during load',
+				attachedAfterCompletion: dialogTiming !== 'stale load',
+			});
+		});
 	}
 
 	test('does not revive hidden native content when an old rectangle is laid out', async () => {

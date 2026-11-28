@@ -13,6 +13,10 @@ import { domContentLoaded } from '../../base/browser/dom.js';
 import { onUnexpectedError } from '../../base/common/errors.js';
 import { URI } from '../../base/common/uri.js';
 import { WorkspaceService } from '../services/configuration/browser/configurationService.js';
+import { AgentsModeWorkspaceService } from '../services/configuration/browser/agents/agentsModeWorkspaceService.js';
+import { AgentsModeService } from '../services/agentsMode/browser/agentsModeService.js';
+import { IAgentsModeService, NullAgentsModeService } from '../services/agentsMode/common/agentsMode.js';
+import '../services/configuration/electron-browser/agentsModeConfiguration.js';
 import { INativeWorkbenchEnvironmentService, NativeWorkbenchEnvironmentService } from '../services/environment/electron-browser/environmentService.js';
 import { ServiceCollection } from '../../platform/instantiation/common/serviceCollection.js';
 import { ILoggerService, ILogService, LogLevel } from '../../platform/log/common/log.js';
@@ -307,16 +311,19 @@ export class DesktopMain extends Disposable {
 
 		// Create services that require resolving in parallel
 		const workspace = this.resolveWorkspaceIdentifier(environmentService);
-		const [configurationService, storageService] = await Promise.all([
-			this.createWorkspaceService(workspace, environmentService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, logService, policyService).then(service => {
+		const [{ configurationService, agentsModeService }, storageService] = await Promise.all([
+			this.createWorkspaceService(workspace, environmentService, productService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, logService, policyService).then(services => {
 
 				// Workspace
-				serviceCollection.set(IWorkspaceContextService, service);
+				serviceCollection.set(IWorkspaceContextService, services.configurationService);
 
 				// Configuration
-				serviceCollection.set(IWorkbenchConfigurationService, service);
+				serviceCollection.set(IWorkbenchConfigurationService, services.configurationService);
 
-				return service;
+				// Agents mode: switches the workspace and configuration service, so it is created with it
+				serviceCollection.set(IAgentsModeService, services.agentsModeService);
+
+				return services;
 			}),
 
 			this.createStorageService(workspace, environmentService, userDataProfileService, userDataProfilesService, mainProcessService).then(service => {
@@ -335,6 +342,11 @@ export class DesktopMain extends Disposable {
 				return service;
 			})
 		]);
+
+		// Agents mode: restore the window's mode, which main remembers, before trust is evaluated
+		if (this.configuration.agentsMode) {
+			await agentsModeService.setActive(true);
+		}
 
 		// Workspace Trust Service
 		const canonicalUriService = this._register(new CanonicalUriService());
@@ -394,6 +406,7 @@ export class DesktopMain extends Disposable {
 	private async createWorkspaceService(
 		workspace: IAnyWorkspaceIdentifier,
 		environmentService: INativeWorkbenchEnvironmentService,
+		productService: IProductService,
 		userDataProfileService: IUserDataProfileService,
 		userDataProfilesService: IUserDataProfilesService,
 		fileService: FileService,
@@ -401,19 +414,23 @@ export class DesktopMain extends Disposable {
 		uriIdentityService: IUriIdentityService,
 		logService: ILogService,
 		policyService: IPolicyService
-	): Promise<WorkspaceService> {
+	): Promise<{ configurationService: WorkspaceService | AgentsModeWorkspaceService; agentsModeService: IAgentsModeService }> {
 		const configurationCache = new ConfigurationCache([Schemas.file, Schemas.vscodeUserData] /* Cache all non native resources */, environmentService, fileService);
 		const workspaceService = new WorkspaceService({ remoteAuthority: environmentService.remoteAuthority, configurationCache }, environmentService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, logService, policyService);
 
 		try {
 			await workspaceService.initialize(workspace, this.resolveFolderLocation(workspace, environmentService));
-
-			return workspaceService;
 		} catch (error) {
 			onUnexpectedError(error);
-
-			return workspaceService;
 		}
+
+		// Local editor windows can switch in place into Agents mode, when the user opted in
+		if (AgentsModeWorkspaceService.supportsAgentsMode(productService, environmentService, workspaceService, !!this.configuration.backupPath)) {
+			const agentsModeWorkspaceService = this._register(new AgentsModeWorkspaceService(workspaceService, { userDataProfileService, userDataProfilesService, uriIdentityService, fileService, policyService, logService, configurationCache, environmentService }));
+			return { configurationService: agentsModeWorkspaceService, agentsModeService: new AgentsModeService(agentsModeWorkspaceService) };
+		}
+
+		return { configurationService: workspaceService, agentsModeService: new NullAgentsModeService() };
 	}
 
 	private async createStorageService(workspace: IAnyWorkspaceIdentifier, environmentService: INativeWorkbenchEnvironmentService, userDataProfileService: IUserDataProfileService, userDataProfilesService: IUserDataProfilesService, mainProcessService: IMainProcessService): Promise<NativeWorkbenchStorageService> {

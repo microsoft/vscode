@@ -77,6 +77,7 @@ import { IActivityService, ProgressBadge } from '../../../../../services/activit
 import { DeferredPromise, disposableTimeout, raceCancellation, RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { AgentSessionsFilter, AgentSessionsGrouping } from '../../agentSessions/agentSessionsFilter.js';
 import { AgentSessionsWorktreeOpener } from '../../agentSessions/agentSessionsWorktreeOpener.js';
+import { AgentSessionsListDelegate } from '../../agentSessions/agentSessionsViewer.js';
 import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { requiresCopilotAgentHost, IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
@@ -366,6 +367,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this.updateContextKeys();
 			this.updateViewPaneClasses(true /* layout here */);
 		}));
+		this._register(Event.filter(this.viewDescriptorService.onDidChangeContainerLocation, e => e.viewContainer === this.viewDescriptorService.getViewContainerByViewId(this.id))(() => this.updateActions()));
 
 		// Settings changes
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => {
@@ -820,7 +822,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					transcriptOverlayNode.classList.remove('has-transcript');
 					transcriptOverlay.replaceChildren();
 					const hint = $('span.partial');
-					const kb = this.keybindingService.lookupKeybinding('agentsVoice.pushToTalk');
+					const kb = this.keybindingService.lookupKeybinding('workbench.action.chat.voiceInputMode.holdToTalk');
 					const kbLabel = kb?.getLabel();
 					hint.textContent = kbLabel
 						? localize('voiceMode.pttHint', "Hold {0} to talk", kbLabel)
@@ -1015,6 +1017,14 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				},
 			}));
 			store.add(toDisposable(() => this.sessionsControl = undefined));
+			// With content in the center of the empty chat, the Chat view's own list only takes the height of its rows
+			if (sessionsControl instanceof AgentSessionsControl) {
+				store.add(sessionsControl.onDidChangeContentHeight(() => {
+					if (this.sessionsViewerVisible && this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked && (this._widget?.welcomeContentHeight.get() ?? 0) > 0) {
+						this.relayoutForInputHeight();
+					}
+				}));
+			}
 			sessionsToolbar.context = sessionsControl;
 			return { sessionsControl, store };
 		};
@@ -1030,6 +1040,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}));
 		const sessionsList = this._register(new MutableDisposable<DisposableStore>());
 		sessionsList.value = createSessionsList().store;
+		if (this.chatViewHostService.sessionsList.get() && this.sessionsControl) {
+			this.updateActions();
+		}
 		// What the Chat view's list follows: the provided list, or while there is none, whether one is still to register
 		const sessionsListState = derived(this, reader => this.chatViewHostService.sessionsList.read(reader) ?? this.chatViewHostService.sessionsListExpected.read(reader));
 		this._register(runOnChange(sessionsListState, () => {
@@ -1039,6 +1052,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			sessionsList.clear();
 			const { sessionsControl, store } = createSessionsList();
 			sessionsList.value = store;
+			this.updateActions();
 			sessionsControl?.setVisible(this.isBodyVisible() && this.sessionsViewerVisible);
 			this.updateSessionsControlVisibility();
 			this.relayout();
@@ -1223,6 +1237,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	//#region Chat Control
 
 	private static readonly MIN_CHAT_WIDGET_HEIGHT = 116;
+	/** Room around the content in the center of the empty chat, for the welcome message and the controls floating above the input. */
+	private static readonly WELCOME_CONTENT_PADDING = 64;
+	private static readonly MIN_SESSIONS_HEIGHT_WITH_WELCOME_CONTENT = 2 * AgentSessionsListDelegate.ITEM_HEIGHT + AgentSessionsListDelegate.SECTION_HEIGHT;
 
 	private _widget!: ChatWidget;
 	get widget(): ChatWidget { return this._widget; }
@@ -1274,6 +1291,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				enableWorkingSet: 'explicit',
 				supportsChangingModes: true,
 				dndContainer: parent,
+				dndChat: chatControlsContainer,
 			},
 			{
 				listForeground: SIDE_BAR_FOREGROUND,
@@ -1285,6 +1303,16 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}));
 		this._widget = widget;
 		widget.render(chatControlsContainer, parent);
+		// What a feature drops on the chat, such as a session, opens here, in place of the chat it shows, as one picked in the
+		// sessions list does; ahead of the chat, whose input attaches what is dropped on it. Not the sessions list beside the
+		// chat, which takes what is dropped on it itself. Nor while a host replaces the Chat view, such as the chat area, where
+		// sessions open then, also one picked in the list: the chat here, such as a local chat the host leaves to it, only attaches.
+		this._register(autorun(reader => {
+			const dropTarget = this.chatViewHostService.dropTarget.read(reader);
+			if (dropTarget && !this.chatViewHostService.replaced.read(reader)) {
+				reader.store.add(dropTarget.create(chatControlsContainer, () => widget.viewModel?.sessionResource, chats => void this.chatViewHostService.openSession(chats[0]).catch(onUnexpectedError)));
+			}
+		}));
 		// What waits for the widget gets it once it is rendered, as the body renders, once
 		this._widgetCreated.complete(widget);
 		this._register(scopedInstantiationService.createInstance(AgentHostSessionInputPills, this._widget, 'auto'));
@@ -1313,7 +1341,27 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		if (action.id === AICustomizationManagementCommands.OpenEditor && action instanceof MenuItemAction) {
 			return this.instantiationService.createInstance(ChatCustomizationsActionViewItem, action, options, this.instantiationService.createInstance(ChatCustomizationsHover), 'chatToolbar', this.customizationMigrationsAvailable, false, undefined);
 		}
-		return this.sessionsControl?.createActionViewItem?.(action, options) ?? super.createActionViewItem(action, options);
+		return this.sessionsControl?.createActionViewItem?.(action, options, this.titleFitsWidths()) ?? super.createActionViewItem(action, options);
+	}
+
+	/**
+	 * Whether the title showing the view's actions fits them to its width by the widths they need: that of the secondary side
+	 * bar, which shows them while the view is merged with its container. The view's own header, shown otherwise, does not.
+	 */
+	private titleFitsWidths(): boolean {
+		return !this.headerVisible && this.viewDescriptorService.getViewLocationById(this.id) === ViewContainerLocation.AuxiliaryBar;
+	}
+
+	override get headerVisible(): boolean {
+		return super.headerVisible;
+	}
+
+	override set headerVisible(visible: boolean) {
+		const changed = visible !== super.headerVisible;
+		super.headerVisible = visible;
+		if (changed) {
+			this.updateActions();
+		}
 	}
 
 	/** Whether the title is that of the sessions list that a provider gives or is to give, such as "Sessions", rather than the Chat view's own. */
@@ -1442,8 +1490,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}));
 
 		// When showing sessions stacked, adjust the height of the sessions list to make room for chat input
+		// and for content in the center of the empty chat, which also depends on the height of the sessions
 		this._register(autorun(reader => {
 			chatWidget.inputPart.height.read(reader);
+			chatWidget.welcomeContentHeight.read(reader);
 			if (this.sessionsViewerVisible && this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
 				this.relayoutForInputHeight();
 			}
@@ -2054,6 +2104,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const inputMaxHeight = this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked ? remainingHeight : undefined;
 
 		// Chat Widget
+		this._widget.setWelcomeContentOffset(titleHeight + heightReduction);
 		if (layoutInput) {
 			this._widget.setInputPartMaxHeightOverride(inputMaxHeight);
 			this._widget.layout(remainingHeight - heightReduction, remainingWidth - widthReduction);
@@ -2139,6 +2190,19 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
 			reservedChatWidgetHeight = sessionsOnly ? 0 : Math.max(ChatViewPane.MIN_CHAT_WIDGET_HEIGHT, this._widget?.input?.height.get() ?? 0);
 			availableSessionsHeight -= reservedChatWidgetHeight;
+
+			// With content in the center of the empty chat, the Chat view's own list only takes the height of its rows,
+			// so the content centers on the whole view, but it keeps some rows when the view is short. A provided list
+			// takes the height it gets
+			const welcomeContentHeight = this._widget?.welcomeContentHeight.get() ?? 0;
+			const sessionsContentHeight = this.agentSessionsControl?.contentHeight ?? 0;
+			if (welcomeContentHeight > 0 && sessionsContentHeight > 0) {
+				availableSessionsHeight = Math.min(
+					availableSessionsHeight,
+					sessionsContentHeight,
+					Math.max(ChatViewPane.MIN_SESSIONS_HEIGHT_WITH_WELCOME_CONTENT, availableSessionsHeight - welcomeContentHeight - ChatViewPane.WELCOME_CONTENT_PADDING)
+				);
+			}
 		} else {
 			availableSessionsHeight -= this.sessionsNewButtonContainer?.offsetHeight ?? 0;
 		}

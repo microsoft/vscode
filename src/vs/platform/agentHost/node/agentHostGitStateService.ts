@@ -5,6 +5,7 @@
 
 import { equals as objectEquals } from '../../../base/common/objects.js';
 import { isEqual } from '../../../base/common/resources.js';
+import { isDefined } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { Emitter } from '../../../base/common/event.js';
 import { ILogService } from '../../log/common/log.js';
@@ -14,26 +15,28 @@ import { AgentHostAutoAttachPullRequestsSettingId } from '../common/agentService
 import { CopilotCliVSCodeAssignmentContextKey } from '../common/copilotCliConfig.js';
 import { logSettingExperimentTrigger } from '../../telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { getSessionRelatedPullRequestUrls, isAhpChatChannel, ISessionGitHubState, ISessionWithDefaultChat, readFolderGitHubState, readFolderScopeGitState, readSessionGitData, readSessionGitHubData, readSessionGitState, readSessionSourceControlState, SessionLifecycle, SessionSourceControlOutcome, withInitialSessionPullRequest, withMostRecentRelatedSessionPullRequest, withMostRecentSessionPullRequest, withFolderGitHubState, withFolderScopeGitState, withSessionGitState, withSessionSourceControlState, type ISessionGitState, type ISessionSourceControlState, type SessionSummaryMeta } from '../common/state/sessionState.js';
-import { IAgentHostGitService, resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
+import { getSessionRelatedPullRequestUrls, isAhpChatChannel, ISessionGitHubState, ISessionWithDefaultChat, parseSubagentSessionUri, readFolderGitHubState, readFolderScopeGitState, readSessionGitData, readSessionGitHubData, readSessionGitState, readSessionSourceControlState, SessionLifecycle, SessionSourceControlOutcome, withInitialSessionPullRequest, withMostRecentRelatedSessionPullRequest, withMostRecentSessionPullRequest, withFolderGitHubState, withFolderScopeGitState, withSessionGitState, withSessionSourceControlState, type ISessionGitState, type ISessionSourceControlState, type SessionSummaryMeta } from '../common/state/sessionState.js';
+import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../common/agentHostSessionStateStore.js';
-import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { getEffectiveWorkingDirectories, IAgentConfigurationService } from './agentConfigurationService.js';
 import { PullRequestSummary } from '../../github/common/core/pullRequests.js';
 import { getPullRequestUrlKey } from '../../github/common/githubUrls.js';
 import { GitHubRequestError } from '../../github/common/githubTypes.js';
 import { IAgentHostGitHubService } from './agentHostGitHubService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
-import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { CancellationTokenSource } from '../../../base/common/cancellation.js';
-import { ThrottlerByKey, SequencerByKey, timeout } from '../../../base/common/async.js';
+import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { DeferredPromise, SequencerByKey, disposableTimeout } from '../../../base/common/async.js';
 import { isCancellationError } from '../../../base/common/errors.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { AgentHostPullRequestAssociationResolver } from './agentHostPullRequestAssociationResolver.js';
-import { isSessionChatInFolder, resolveBranchChangesetScopeForSource, resolveGitHubStateFolder, type IGitHubStateFolder } from './agentHostBranchChangesetScope.js';
-import { getWorkingDirectoryScopeId } from '../common/agentHostWorkingDirectories.js';
+import { isFolderOnlyScope, isSessionChatInFolder, resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource, resolveGitHubStateFolder, type IGitHubStateFolder } from './agentHostBranchChangesetScope.js';
+import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../common/agentHostWorkingDirectories.js';
+import { parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
+import { readSessionNonRepositoryFolders, withSessionNonRepositoryFolders } from '../common/meta/agentSessionNonRepositoryFoldersMeta.js';
+import { readSessionRepositories, withSessionRepositories, type ISessionRepositoryEntry } from '../common/meta/agentSessionRepositoriesMeta.js';
 import { readSessionArtifacts, SessionArtifactType } from '../common/sessionArtifacts.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 import { isAuthRequiredError, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
@@ -42,9 +45,37 @@ interface IRepositoryCredentialContext {
 	readonly key: string;
 	readonly source: IAgentHostCredentialSource | undefined;
 	readonly sponsorUnavailable?: boolean;
+	/** The caller passed the credential source, rather than it being looked up for the key. */
+	readonly explicit?: boolean;
+}
+
+// We want to ensure that we refresh the git state at most every 5 seconds in
+// order to avoid excessive git operations and excessive traffic between the
+// server and the client(s).
+const GIT_STATE_REFRESH_COOLDOWN_MS = 5_000;
+
+/** Every refresh request of one key made since its lane's current read started, merged into the next read. */
+interface IPendingGitStateRefresh {
+	readonly credentials: IRepositoryCredentialContext;
+	/** Announce even when nothing changed, and never share a read that started before the request. */
+	readonly force: boolean;
+	/** Start as soon as no read of the key runs, without waiting out the cooldown. */
+	readonly immediate: boolean;
+	/** Completes once the read that serves these requests has published what it read. */
+	readonly done: DeferredPromise<void>;
+}
+
+/** The refreshes of one key: its current read or cooldown, and the requests waiting for the next read. A key without a lane is idle. */
+interface IGitStateRefreshLane {
+	phase: { readonly kind: 'reading' } | { readonly kind: 'coolingDown'; readonly timer: IDisposable };
+	pending: IPendingGitStateRefresh | undefined;
 }
 
 const PULL_REQUEST_CREATION_CLOCK_SKEW_MS = 5 * 60_000;
+/** The most Git state reads a refresh makes, in parallel, for a session's folders other than its first and the repositories found in its folders. */
+const MAX_ADDITIONAL_FOLDER_GIT_READS = 16;
+/** The most folders of a session whose repositories a discovery finds. */
+const MAX_DISCOVERED_FOLDERS = 16;
 interface IPendingRecordedPullRequest {
 	readonly chat: string;
 	readonly folderKey: string;
@@ -64,14 +95,12 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	private readonly _onDidChangeSessionGitHubState = this._register(new Emitter<string>());
 	readonly onDidChangeSessionGitHubState = this._onDidChangeSessionGitHubState.event;
 
-	private readonly _gitStateRefreshThrottler = this._register(new ThrottlerByKey<string>());
-	/** Keys with a queued refresh that must announce itself even when nothing it reads changed; consumed when the refresh starts. */
-	private readonly _forcedGitStateRefreshes = new Set<string>();
+	/** Refresh lanes of the keys whose Git state is being read or cooling down. */
+	private readonly _gitStateRefreshLanes = new Map<string, IGitStateRefreshLane>();
 	/** Reads of a folder's Git state in flight, by folder and base branch. */
 	private readonly _gitStateReads = new Map<string, Promise<ISessionGitState | undefined>>();
 	/** Keys whose first refresh has been announced, with their containing session. */
 	private readonly _announcedGitStateRefreshes = new Map<string, string>();
-	private readonly _gitStateRefreshCancellationTokenSource = new CancellationTokenSource();
 	private readonly _gitStateSaves = new SequencerByKey<string>();
 
 	/**
@@ -104,20 +133,32 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		super();
 
 		this._pullRequestAssociationResolver = this._register(new AgentHostPullRequestAssociationResolver(this._gitService, _gitHubService, this._logService));
-		this._register(toDisposable(() => this._gitStateRefreshCancellationTokenSource.dispose(true)));
+		// Reads in flight finish and complete their own requests; those waiting for a later read complete without one.
+		this._register(toDisposable(() => {
+			for (const lane of this._gitStateRefreshLanes.values()) {
+				if (lane.phase.kind === 'coolingDown') {
+					lane.phase.timer.dispose();
+				}
+				lane.pending?.done.complete();
+			}
+			this._gitStateRefreshLanes.clear();
+		}));
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
 			if (envelope.action.type === ActionType.SessionChatRemoved) {
 				this._announcedGitStateRefreshes.delete(envelope.action.chat);
-				this._forcedGitStateRefreshes.delete(envelope.action.chat);
 			}
 		}));
 		this._register(this._stateManager.onDidRemoveSession(sessionKey => {
 			this._pullRequestAssociationResolver.removeSession(sessionKey);
+			this._discoveredRepositories.delete(sessionKey);
+			this._repositoryDiscoveries.delete(sessionKey);
+			this._pendingRepositoryDiscoveries.delete(sessionKey);
+			this._recordedAdditionalFolders.delete(sessionKey);
+			this._repositoryGenerations.delete(sessionKey);
 			this._pendingPullRequests.delete(sessionKey);
 			for (const [key, session] of this._announcedGitStateRefreshes) {
 				if (key === sessionKey || session === sessionKey) {
 					this._announcedGitStateRefreshes.delete(key);
-					this._forcedGitStateRefreshes.delete(key);
 				}
 			}
 			for (const [key, session] of this._unavailableCredentialSessions) {
@@ -151,9 +192,13 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		}));
 	}
 
-	async attachSessionGitHubPullRequest(sessionKey: string, workingDirectory: URI | undefined, source?: IAgentHostCredentialSource): Promise<IPullRequestLookupFailure | void> {
+	async attachSessionGitHubPullRequest(sessionKey: string, source?: IAgentHostCredentialSource): Promise<IPullRequestLookupFailure | void> {
+		const folderOnly = this._resolveFolderOnlyOwner(sessionKey);
+		if (folderOnly) {
+			return this._attachFolderOnlyGitHubPullRequest(folderOnly, this._captureCredentials(folderOnly.sessionUri, source));
+		}
 		const credentials = this._captureCredentials(sessionKey, source);
-		await this._refreshSessionGitState(sessionKey, workingDirectory, credentials);
+		await this._refreshSessionGitState(sessionKey, credentials);
 		if (isAhpChatChannel(sessionKey) && !this._chatOwnership.isRegisteredDefaultChat(sessionKey)) {
 			const folder = resolveGitHubStateFolder(this._stateManager, sessionKey);
 			if (folder.folderKey !== undefined) {
@@ -293,6 +338,35 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		}
 	}
 
+	/**
+	 * The session and root of the folder-only scope (see `isFolderOnlyScope`) that a folder changeset owner URI names,
+	 * other than the session's first folder, or `undefined` for any other key. Its session's refresh records the
+	 * folder's Git state, GitHub repository and pull request, under the scope of the root alone.
+	 */
+	private _resolveFolderOnlyOwner(key: string): { readonly sessionUri: string; readonly root: string } | undefined {
+		const owner = parseFolderChangesetOwnerUri(key);
+		const scope = owner ? resolveBranchChangesetScopeForOwner(this._stateManager, key) : undefined;
+		const root = scope?.workingDirectories.length === 1 ? scope.workingDirectories[0] : undefined;
+		return owner && scope && root !== undefined && isFolderOnlyScope(this._stateManager, scope)
+			&& root !== this._stateManager.getSessionSummary(owner.sessionUri)?.workingDirectories?.[0]
+			? { sessionUri: owner.sessionUri, root }
+			: undefined;
+	}
+
+	/**
+	 * Refreshes a folder-only scope through its session, then looks up the pull request of the folder's branch.
+	 * @returns Why looking up the pull request failed, if it did, as for a chat's folder.
+	 */
+	private async _attachFolderOnlyGitHubPullRequest(folderOnly: { readonly sessionUri: string; readonly root: string }, credentials: IRepositoryCredentialContext): Promise<IPullRequestLookupFailure | void> {
+		await this._refreshSessionGitState(folderOnly.sessionUri, credentials);
+		const gitState = readFolderScopeGitState(this._stateManager.getSessionState(folderOnly.sessionUri)?._meta, getWorkingDirectoryScopeId([folderOnly.root]));
+		if (credentials.sponsorUnavailable || !gitState) {
+			return;
+		}
+		const folder = { sessionUri: folderOnly.sessionUri, sourceUri: folderOnly.sessionUri, folderKey: getWorkingDirectoryKey(folderOnly.root), isSessionFolder: false, workingDirectory: folderOnly.root };
+		return this._pullRequestSequencer.queue(`${folder.sessionUri}#${folder.folderKey}`, () => this._attachAdditionalFolderPullRequest(folder, gitState, credentials));
+	}
+
 	/** Queues a pull request lookup for a folder other than the session folder. */
 	private _queueFolderPullRequestLookup(folder: IGitHubStateFolder, credentials = this._captureCredentials(folder.sessionUri)): Promise<IPullRequestLookupFailure | void> {
 		return this._pullRequestSequencer.queue(`${folder.sessionUri}#${folder.folderKey}`, () => this._attachFolderGitHubPullRequest(folder, credentials));
@@ -382,7 +456,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		try {
 			const captured = this._gitHubService.captureSessionCredentialSource(key, source, session);
 			this._unavailableCredentialSessions.delete(key);
-			return { key, source: captured };
+			return { key, source: captured, explicit: source !== undefined };
 		} catch (error) {
 			if (source || !isAuthRequiredError(error)) {
 				this._logService.error(`[AgentHostGitStateService] Failed to capture credentials for ${key}`, error);
@@ -436,127 +510,657 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			: state;
 	}
 
-	async refreshSessionGitState(sessionKey: string, workingDirectory: URI | undefined, source?: IAgentHostCredentialSource, options?: IRefreshSessionGitStateOptions): Promise<void> {
-		return this._refreshSessionGitState(sessionKey, workingDirectory, this._captureCredentials(sessionKey, source), options?.force);
+	/**
+	 * The directory a refresh of a key reads: its primary working directory, or, for a subagent session without one
+	 * of its own, the one its parent session's default chat works in. A chat whose state is not restored yet reads the
+	 * folder its catalog entry records.
+	 */
+	private _resolveGitStateWorkingDirectory(key: string): string | undefined {
+		if (isAhpChatChannel(key)) {
+			// Before its state is restored, a chat's folders are those recorded in its catalog entry, not its session's.
+			return getEffectiveWorkingDirectories(this._stateManager, key)?.[0];
+		}
+		const workingDirectory = this._getStateForGitScope(key)?.workingDirectories?.[0];
+		if (workingDirectory !== undefined) {
+			return workingDirectory;
+		}
+		const subagent = parseSubagentSessionUri(key);
+		if (!subagent) {
+			return undefined;
+		}
+		// A subagent works where its parent's default chat does, which can be a worktree the parent's summary does not name.
+		const parent = subagent.parentSession.toString();
+		return getEffectiveWorkingDirectories(this._stateManager, parent)?.[0] ?? this._resolveGitStateWorkingDirectory(parent);
 	}
 
-	private async _refreshSessionGitState(sessionKey: string, workingDirectory: URI | undefined, credentials: IRepositoryCredentialContext, force = false): Promise<void> {
-		const sessionState = this._getStateForGitScope(sessionKey);
-		if (sessionState?.lifecycle === SessionLifecycle.Failed) {
+	async refreshSessionGitState(sessionKey: string, source?: IAgentHostCredentialSource, options?: IRefreshSessionGitStateOptions): Promise<void> {
+		const folderOnly = this._resolveFolderOnlyOwner(sessionKey);
+		if (folderOnly) {
+			return this._refreshSessionGitState(folderOnly.sessionUri, this._captureCredentials(folderOnly.sessionUri, source), options);
+		}
+		return this._refreshSessionGitState(sessionKey, this._captureCredentials(sessionKey, source), options);
+	}
+
+	private async _refreshSessionGitState(sessionKey: string, credentials: IRepositoryCredentialContext, options?: IRefreshSessionGitStateOptions): Promise<void> {
+		if (this._getStateForGitScope(sessionKey)?.lifecycle === SessionLifecycle.Failed) {
 			return;
 		}
-		const initialPrimaryWorkingDirectory = sessionState?.workingDirectories?.[0];
 
-		if (!workingDirectory) {
-			const workingDirectoryStr = initialPrimaryWorkingDirectory;
-			if (workingDirectoryStr) {
-				workingDirectory = URI.parse(workingDirectoryStr);
+		if (!this._resolveGitStateWorkingDirectory(sessionKey)) {
+			if (isAhpChatChannel(sessionKey) && this.getSessionGitState(sessionKey)) {
+				const sharedSession = await this._setChatGitState(sessionKey, undefined);
+				this._onDidRefreshSessionGitState.fire(sessionKey);
+				if (sharedSession) {
+					this._onDidRefreshSessionGitState.fire(sharedSession);
+				}
 			}
+			return;
 		}
 
+		return this._queueGitStateRefresh(sessionKey, {
+			credentials,
+			force: !!options?.force,
+			immediate: !!options?.immediate,
+		});
+	}
+
+	/**
+	 * Reads of a key run one at a time and at most once per {@link GIT_STATE_REFRESH_COOLDOWN_MS}, unless
+	 * a request is immediate. A request made while a read runs or cools down waits for the next read, which
+	 * serves every request merged into it until then.
+	 */
+	private _queueGitStateRefresh(sessionKey: string, request: Omit<IPendingGitStateRefresh, 'done'>): Promise<void> {
+		if (this._store.isDisposed) {
+			return Promise.resolve();
+		}
+		const lane = this._gitStateRefreshLanes.get(sessionKey);
+		if (!lane) {
+			const refresh: IPendingGitStateRefresh = { ...request, done: new DeferredPromise<void>() };
+			this._startGitStateRefresh(sessionKey, refresh);
+			return refresh.done.p;
+		}
+		const pending = lane.pending;
+		const merged: IPendingGitStateRefresh = pending ? {
+			// A background refresh must not replace the credentials an operation passed.
+			credentials: pending.credentials.explicit && !request.credentials.explicit ? pending.credentials : request.credentials,
+			force: pending.force || request.force,
+			immediate: pending.immediate || request.immediate,
+			done: pending.done,
+		} : { ...request, done: new DeferredPromise<void>() };
+		lane.pending = merged;
+		if (lane.phase.kind === 'coolingDown' && merged.immediate) {
+			this._endGitStateRefreshLane(sessionKey, lane);
+		}
+		return merged.done.p;
+	}
+
+	private _startGitStateRefresh(sessionKey: string, refresh: IPendingGitStateRefresh): void {
+		const lane: IGitStateRefreshLane = { phase: { kind: 'reading' }, pending: undefined };
+		this._gitStateRefreshLanes.set(sessionKey, lane);
+		void this._runGitStateRefresh(sessionKey, lane, refresh);
+	}
+
+	private async _runGitStateRefresh(sessionKey: string, lane: IGitStateRefreshLane, refresh: IPendingGitStateRefresh): Promise<void> {
+		let coolDown = true;
+		try {
+			coolDown = await this._readAndPublishGitState(sessionKey, refresh);
+		} finally {
+			refresh.done.complete();
+			if (!this._store.isDisposed) {
+				if (coolDown && !lane.pending?.immediate) {
+					const timer = disposableTimeout(() => this._endGitStateRefreshLane(sessionKey, lane), GIT_STATE_REFRESH_COOLDOWN_MS);
+					lane.phase = { kind: 'coolingDown', timer };
+				} else {
+					this._endGitStateRefreshLane(sessionKey, lane);
+				}
+			}
+		}
+	}
+
+	/** Makes the key idle, then starts the read its pending requests wait for, if any. */
+	private _endGitStateRefreshLane(sessionKey: string, lane: IGitStateRefreshLane): void {
+		if (lane.phase.kind === 'coolingDown') {
+			lane.phase.timer.dispose();
+		}
+		this._gitStateRefreshLanes.delete(sessionKey);
+		const pending = lane.pending;
+		lane.pending = undefined;
+		if (pending) {
+			this._startGitStateRefresh(sessionKey, pending);
+		}
+	}
+
+	/**
+	 * Reads the Git state of the directory a key resolves to when the read starts, and publishes what changed.
+	 * @returns Whether the key cools down before its next read; it does not when it resolved to no directory, or when
+	 * the result was dropped because the key moved to another directory during the read.
+	 */
+	private async _readAndPublishGitState(sessionKey: string, refresh: IPendingGitStateRefresh): Promise<boolean> {
+		const { credentials, force } = refresh;
+		const workingDirectory = this._resolveGitStateWorkingDirectory(sessionKey);
 		if (!workingDirectory) {
-			if (isAhpChatChannel(sessionKey) && this.getSessionGitState(sessionKey)) {
-				await this._setChatGitState(sessionKey, undefined);
+			return false;
+		}
+		// A refresh announces itself only when it observed something new, when it is the first one, or when its caller knows the checkout changed in ways the state does not describe.
+		let announce = force || !this._announcedGitStateRefreshes.has(sessionKey);
+		// The session whose Git state this chat's refresh changed, as the session's default chat in its first folder
+		let sharedSession: string | undefined;
+		try {
+			const workingDirectoryUri = URI.parse(workingDirectory);
+			this._logService.trace(`[AgentHostGitStateService][refreshSessionGitState] Refreshing git state for ${sessionKey}, ${workingDirectoryUri.fsPath}`);
+
+			const baseBranchRef = await this.resolveSessionBaseBranchRef(sessionKey);
+			const gitState = await this._readGitState(workingDirectoryUri, baseBranchRef, force);
+			const currentWorkingDirectory = this._resolveGitStateWorkingDirectory(sessionKey);
+			if (currentWorkingDirectory === undefined || !isEqual(workingDirectoryUri, URI.parse(currentWorkingDirectory))) {
+				// Not cooling down lets a refresh of the key's new working directory start right away.
+				return false;
+			}
+			// An `undefined` result is inconclusive: it is returned both when
+			// Git could not be queried (e.g. `git status` timed out) and when
+			// no repository was found. Keep the last known state so a
+			// transient failure does not drop the Git-backed changesets from
+			// the catalogue.
+			if (gitState) {
+				const previousGitState = this.getSessionGitState(sessionKey);
+				const gitStateChanged = !objectEquals(previousGitState, gitState);
+				if (gitStateChanged) {
+					announce = true;
+					if (isAhpChatChannel(sessionKey)) {
+						sharedSession = await this._setChatGitState(sessionKey, gitState);
+					} else {
+						await this._setSessionGitState(sessionKey, gitState);
+					}
+				}
+
+				const folder = isAhpChatChannel(sessionKey) ? resolveGitHubStateFolder(this._stateManager, sessionKey) : undefined;
+				// The session folder is refreshed and looked up through the session itself.
+				if (!credentials.sponsorUnavailable && folder && !folder.isSessionFolder && gitState.githubOwner && gitState.githubRepo) {
+					const currentGitHubState = this.getGitHubState(sessionKey);
+					if (currentGitHubState?.owner !== gitState.githubOwner || currentGitHubState.repo !== gitState.githubRepo) {
+						announce = true;
+						await this.setSessionGitHubState(sessionKey, {
+							owner: gitState.githubOwner,
+							repo: gitState.githubRepo
+						} satisfies ISessionGitHubState);
+					}
+					if (gitStateChanged && previousGitState?.branchName !== gitState.branchName) {
+						await this._queueFolderPullRequestLookup(folder, credentials);
+					}
+				}
+
+				if (!credentials.sponsorUnavailable && !isAhpChatChannel(sessionKey) && gitState.githubOwner && gitState.githubRepo) {
+					const currentGitHubState = this.getGitHubState(sessionKey);
+					if (currentGitHubState?.owner !== gitState.githubOwner || currentGitHubState.repo !== gitState.githubRepo) {
+						announce = true;
+						await this.setSessionGitHubState(sessionKey, {
+							owner: gitState.githubOwner,
+							repo: gitState.githubRepo
+						} satisfies ISessionGitHubState);
+					}
+
+					// The working copy switched to a different branch:
+					// look for a pull request that belongs to the new
+					// branch. The previously known pull request keeps
+					// being reported until a new one is found. Awaited
+					// so the refresh event below carries the pull
+					// request of the new branch rather than stale
+					// GitHub state.
+					if (gitStateChanged && previousGitState?.branchName !== gitState.branchName) {
+						await this._queuePullRequestLookup(sessionKey, credentials);
+					}
+				}
+			}
+
+			// The folders whose repository root this forced refresh asked Git about again, which discovery does not ask again
+			const refreshedRoots = new Set<string>();
+			if (!isAhpChatChannel(sessionKey) && await this._refreshAdditionalFolderGitStates(sessionKey, credentials, force, refreshedRoots)) {
+				announce = true;
+			}
+			if (!isAhpChatChannel(sessionKey) && await this._refreshSessionRepositories(sessionKey, credentials, force, refreshedRoots)) {
+				announce = true;
+			}
+
+			if (announce) {
+				this._announcedGitStateRefreshes.set(sessionKey, isAhpChatChannel(sessionKey) ? this._chatOwnership.getChatOwner(sessionKey) ?? sessionKey : sessionKey);
 				this._onDidRefreshSessionGitState.fire(sessionKey);
 			}
-			return;
-		}
-
-		if (force) {
-			this._forcedGitStateRefreshes.add(sessionKey);
-		}
-		await this._gitStateRefreshThrottler.queue(sessionKey, async () => {
-			// A refresh announces itself only when it observed something new, when it is the first one, or when its caller knows the checkout changed in ways the state does not describe.
-			const forced = this._forcedGitStateRefreshes.delete(sessionKey);
-			let announce = forced || !this._announcedGitStateRefreshes.has(sessionKey);
-			try {
-				this._logService.trace(`[AgentHostGitStateService][refreshSessionGitState] Refreshing git state for ${sessionKey}, ${workingDirectory?.fsPath}`);
-
-				const baseBranchName = await this.resolveSessionBaseBranchName(sessionKey);
-				const gitState = await this._readGitState(workingDirectory, baseBranchName, forced);
-				const currentWorkingDirectory = this._getStateForGitScope(sessionKey)?.workingDirectories?.[0];
-				const primaryWorkingDirectoryChanged = initialPrimaryWorkingDirectory === undefined
-					? currentWorkingDirectory !== undefined
-					: currentWorkingDirectory === undefined || !isEqual(URI.parse(initialPrimaryWorkingDirectory), URI.parse(currentWorkingDirectory));
-				if (primaryWorkingDirectoryChanged) {
-					return;
-				}
-				// An `undefined` result is inconclusive: it is returned both when
-				// Git could not be queried (e.g. `git status` timed out) and when
-				// no repository was found. Keep the last known state so a
-				// transient failure does not drop the Git-backed changesets from
-				// the catalogue.
-				if (gitState) {
-					const previousGitState = this.getSessionGitState(sessionKey);
-					const gitStateChanged = !objectEquals(previousGitState, gitState);
-					if (gitStateChanged) {
-						announce = true;
-						if (isAhpChatChannel(sessionKey)) {
-							await this._setChatGitState(sessionKey, gitState);
-						} else {
-							await this._setSessionGitState(sessionKey, gitState);
-						}
-					}
-
-					const folder = isAhpChatChannel(sessionKey) ? resolveGitHubStateFolder(this._stateManager, sessionKey) : undefined;
-					// The session folder is refreshed and looked up through the session itself.
-					if (!credentials.sponsorUnavailable && folder && !folder.isSessionFolder && gitState.githubOwner && gitState.githubRepo) {
-						const currentGitHubState = this.getGitHubState(sessionKey);
-						if (currentGitHubState?.owner !== gitState.githubOwner || currentGitHubState.repo !== gitState.githubRepo) {
-							announce = true;
-							await this.setSessionGitHubState(sessionKey, {
-								owner: gitState.githubOwner,
-								repo: gitState.githubRepo
-							} satisfies ISessionGitHubState);
-						}
-						if (gitStateChanged && previousGitState?.branchName !== gitState.branchName) {
-							await this._queueFolderPullRequestLookup(folder, credentials);
-						}
-					}
-
-					if (!credentials.sponsorUnavailable && !isAhpChatChannel(sessionKey) && gitState.githubOwner && gitState.githubRepo) {
-						const currentGitHubState = this.getGitHubState(sessionKey);
-						if (currentGitHubState?.owner !== gitState.githubOwner || currentGitHubState.repo !== gitState.githubRepo) {
-							announce = true;
-							await this.setSessionGitHubState(sessionKey, {
-								owner: gitState.githubOwner,
-								repo: gitState.githubRepo
-							} satisfies ISessionGitHubState);
-						}
-
-						// The working copy switched to a different branch:
-						// look for a pull request that belongs to the new
-						// branch. The previously known pull request keeps
-						// being reported until a new one is found. Awaited
-						// so the refresh event below carries the pull
-						// request of the new branch rather than stale
-						// GitHub state.
-						if (gitStateChanged && previousGitState?.branchName !== gitState.branchName) {
-							await this._queuePullRequestLookup(sessionKey, credentials);
-						}
-					}
-				}
-
-				if (announce) {
-					this._announcedGitStateRefreshes.set(sessionKey, isAhpChatChannel(sessionKey) ? this._chatOwnership.getChatOwner(sessionKey) ?? sessionKey : sessionKey);
-					this._onDidRefreshSessionGitState.fire(sessionKey);
-				}
-				void this.reconcilePendingRecordedPullRequests(sessionKey).catch(error =>
-					this._logService.warn(`[AgentHostGitStateService] Failed to reconcile pending pull requests for ${sessionKey}`, error));
-
-				// We want to ensure that we refresh the git state at
-				// most every 5 seconds in order to avoid excessive git
-				// operations and excessive traffic between the server
-				// and the client(s).
-				await timeout(5_000, this._gitStateRefreshCancellationTokenSource.token);
-			} catch (error) {
-				if (isCancellationError(error)) {
-					return;
-				}
-
+			if (sharedSession) {
+				// The session's own refresh would find its state unchanged and not announce it, so its changesets would
+				// keep operations computed from the previous state
+				this._onDidRefreshSessionGitState.fire(sharedSession);
+			}
+			void this.reconcilePendingRecordedPullRequests(sessionKey).catch(error =>
+				this._logService.warn(`[AgentHostGitStateService] Failed to reconcile pending pull requests for ${sessionKey}`, error));
+		} catch (error) {
+			if (!isCancellationError(error)) {
 				this._logService.warn(`[AgentHostGitStateService][refreshSessionGitState] Failed to compute git state for ${sessionKey}:`, error);
 			}
-		});
+		}
+		return true;
+	}
+
+	/** The folders of each session other than its first whose state {@link _refreshAdditionalFolderGitStates} recorded. */
+	private readonly _recordedAdditionalFolders = new Map<string, readonly string[]>();
+	/** How many times the found repositories of each session were applied; see {@link _isCurrentRepositoryRead}. */
+	private readonly _repositoryGenerations = new Map<string, number>();
+	/** The discovery of each session that is running; see {@link _discoverRepositoriesInBackground}. */
+	private readonly _repositoryDiscoveries = new Map<string, Promise<void>>();
+	/** A discovery asked for while another of the same session ran, which runs once that one settles. */
+	private readonly _pendingRepositoryDiscoveries = new Map<string, { readonly credentials: IRepositoryCredentialContext; readonly fresh: boolean }>();
+	/** The repositories found for each session, with the folders they were found for; `undefined` when none is nested. */
+	private readonly _discoveredRepositories = new Map<string, { readonly input: string; readonly repositories: Readonly<Record<string, readonly ISessionRepositoryEntry[]>> | undefined; readonly stale: boolean }>();
+
+	/**
+	 * Refreshes the Git and GitHub state of every folder of a session of several folders other than its first: each
+	 * folder's branch, remotes, upstream and base branch, under the scope of that one folder, its GitHub repository and
+	 * the pull request of its branch, under the folder's key. A folder found not to be a Git repository is recorded as
+	 * such (see `readSessionNonRepositoryFolders`); one Git could not read keeps its last known state. A folder a chat
+	 * works in alone is that chat's folder scope, which the chat refreshes. Adds to `refreshedRoots` each folder whose
+	 * repository root it asked Git about again. Returns whether anything changed.
+	 */
+	private async _refreshAdditionalFolderGitStates(sessionKey: string, credentials: IRepositoryCredentialContext, fresh: boolean, refreshedRoots: Set<string>): Promise<boolean> {
+		const sessionState = this._stateManager.getSessionState(sessionKey);
+		const additionalFolders = (this._stateManager.getSessionSummary(sessionKey)?.workingDirectories ?? []).slice(1)
+			.filter(folder => !this._stateManager.isScratchFolder(folder));
+		const recorded = this._recordedAdditionalFolders.get(sessionKey) ?? [];
+		if (!additionalFolders.length && !recorded.length && !readSessionNonRepositoryFolders(sessionState?._meta).length) {
+			return false;
+		}
+		const chatScopes = new Set((sessionState?.chats ?? []).map(chat => chat.workingDirectories).filter(isDefined).map(directories => getWorkingDirectoryScopeId(directories)));
+		const folders = additionalFolders.filter(folder => !chatScopes.has(getWorkingDirectoryScopeId([folder]))).slice(0, MAX_ADDITIONAL_FOLDER_GIT_READS);
+		const knownNonRepositories = new Set(readSessionNonRepositoryFolders(sessionState?._meta));
+		const reads = await Promise.all(folders.map(async workingDirectory => {
+			const folder = URI.parse(workingDirectory);
+			if (fresh && knownNonRepositories.has(getWorkingDirectoryKey(workingDirectory))) {
+				// A forced refresh, as after a Git operation, looks again at a folder known not to be a repository: one
+				// `git init` made a repository is not read from the cached answer
+				await this._gitService.getRepositoryRoot(folder, { refreshIfNone: true }).catch(() => undefined);
+				refreshedRoots.add(workingDirectory);
+			}
+			const gitState = await this._readGitState(folder, undefined, fresh);
+			if (gitState !== undefined) {
+				return { workingDirectory, gitState, isRepository: true };
+			}
+			// An inconclusive read is not proof that the folder is not a repository: only a lookup Git answered decides it,
+			// and a folder Git could not be asked about keeps its classification. A folder Git already said is not a
+			// repository stays one without asking again (a forced refresh asked above); otherwise the lookup reads the disk,
+			// so a root cached while the folder was a repository does not outlive its `.git`.
+			const isRepository = this._gitService.hasGitRoot(folder).get() === false
+				? false
+				: await this._gitService.getRepositoryRoot(folder, { fresh: true }).then(root => {
+					refreshedRoots.add(workingDirectory);
+					return root ? true : this._gitService.hasGitRoot(folder).get();
+				}, () => undefined);
+			return { workingDirectory, gitState, isRepository };
+		}));
+		if (!this._stateManager.getSessionState(sessionKey)) {
+			// Removed while its folders were read
+			return false;
+		}
+		let changed = false;
+		const currentFolders = this._stateManager.getSessionSummary(sessionKey)?.workingDirectories ?? [];
+		const nonRepositoryFolders = new Set(readSessionNonRepositoryFolders(this._stateManager.getSessionState(sessionKey)?._meta));
+		for (const { workingDirectory, gitState, isRepository } of reads) {
+			if (!currentFolders.includes(workingDirectory)) {
+				continue;
+			}
+			const folderKey = getWorkingDirectoryKey(workingDirectory);
+			if (isRepository !== undefined && isRepository === nonRepositoryFolders.has(folderKey)) {
+				changed = true;
+				if (isRepository) {
+					nonRepositoryFolders.delete(folderKey);
+				} else {
+					nonRepositoryFolders.add(folderKey);
+				}
+			}
+			// Git said it is not a repository: what was recorded while it was one no longer applies
+			if (isRepository === false && this._removeFolderState(sessionKey, workingDirectory)) {
+				changed = true;
+			}
+			if (gitState && this._applyAdditionalFolderGitState(sessionKey, workingDirectory, gitState, credentials)) {
+				changed = true;
+			}
+		}
+		// A folder that left the session loses the state recorded for it here
+		for (const folder of recorded) {
+			if (!currentFolders.slice(1).includes(folder) && this._clearFolderState(sessionKey, folder)) {
+				changed = true;
+			}
+		}
+		this._recordedAdditionalFolders.set(sessionKey, folders.filter(folder => currentFolders.includes(folder)));
+		const meta = this._stateManager.getSessionState(sessionKey)?._meta;
+		const nextNonRepositoryFolders = [...nonRepositoryFolders].filter(folderKey => currentFolders.slice(1).some(folder => getWorkingDirectoryKey(folder) === folderKey));
+		if (!objectEquals(readSessionNonRepositoryFolders(meta), nextNonRepositoryFolders)) {
+			changed = true;
+			this._stateManager.setSessionMeta(sessionKey, withSessionNonRepositoryFolders(meta, nextNonRepositoryFolders));
+		}
+		return changed;
+	}
+
+	/**
+	 * Records the Git state of a folder of a session other than its first, or of a repository found in a folder, under
+	 * the scope of `workingDirectory` alone, with its GitHub repository and the pull request of its branch, as for a
+	 * chat's folder. A different GitHub repository replaces the folder's GitHub state, so the previous repository's pull
+	 * request does not carry over. Returns whether the folder's state changed.
+	 */
+	private _applyAdditionalFolderGitState(sessionKey: string, workingDirectory: string, gitState: ISessionGitState, credentials: IRepositoryCredentialContext): boolean {
+		let changed = false;
+		const previousGitState = readFolderScopeGitState(this._stateManager.getSessionState(sessionKey)?._meta, getWorkingDirectoryScopeId([workingDirectory]));
+		if (!objectEquals(previousGitState, gitState)) {
+			changed = true;
+			this._persistInBackground(this.setFolderGitState(sessionKey, [workingDirectory], gitState));
+		}
+		if (gitState.hasGitHubRemote === false && !gitState.githubOwner) {
+			// Its remotes were read and none is on GitHub: the GitHub repository recorded before, and its pull request, are gone.
+			// A read that could not list them (`hasGitHubRemote` undefined) keeps them.
+			return this._removeFolderGitHubState(sessionKey, workingDirectory) || changed;
+		}
+		if (credentials.sponsorUnavailable || !gitState.githubOwner || !gitState.githubRepo) {
+			return changed;
+		}
+		const folder = { sessionUri: sessionKey, sourceUri: sessionKey, folderKey: getWorkingDirectoryKey(workingDirectory), isSessionFolder: false, workingDirectory };
+		const currentGitHubState = readFolderGitHubState(this._stateManager.getSessionState(sessionKey)?._meta, folder.folderKey);
+		const repositoryChanged = currentGitHubState?.owner !== gitState.githubOwner || currentGitHubState.repo !== gitState.githubRepo;
+		if (repositoryChanged) {
+			changed = true;
+			this._persistInBackground(this._applySessionGitHubState(folder, this._stateManager.getSessionState(sessionKey)?._meta, currentGitHubState, { owner: gitState.githubOwner, repo: gitState.githubRepo }, true));
+		}
+		if (repositoryChanged || previousGitState?.branchName !== gitState.branchName) {
+			// Not awaited, so a slow lookup does not hold the session's refresh; the folder's GitHub state announces the result
+			void this._pullRequestSequencer.queue(`${sessionKey}#${folder.folderKey}`, () => this._attachAdditionalFolderPullRequest(folder, gitState, credentials));
+		}
+		return changed;
+	}
+
+	/**
+	 * Finds the Git repositories of a session's folders and records them in the session's repositories metadata (see
+	 * `readSessionRepositories`): a folder in a repository has that repository, which the folder's own refresh reads;
+	 * a folder that is not in one has the repositories in its immediate subfolders (see
+	 * `IAgentHostGitService.findRepositories`), each with its own Git state under the scope of its root. Nothing deeper,
+	 * and no options: further ones can come when they are needed.
+	 *
+	 * Work is bounded: a discovery looks at most at {@link MAX_DISCOVERED_FOLDERS} folders (one Git call each, and for
+	 * those not in a repository one folder read and a probe of each subfolder that has a `.git` entry) and stops once it
+	 * found as many repositories as each refresh reads: {@link MAX_ADDITIONAL_FOLDER_GIT_READS} in all, the session's
+	 * other folders first. So every repository found is read on each refresh, which notices when it is gone. A forced
+	 * discovery asks Git again whether each folder is in a repository, except those in `refreshedRoots`, which the same
+	 * forced refresh just asked about. Discovery runs in the background (see {@link _discoverRepositoriesInBackground}); a
+	 * refresh records what the last discovery of the same folders found. A discovery runs again when the session's
+	 * folders change, on a forced refresh (as after a Git operation or a turn, which may have created a repository), and
+	 * when a recorded repository is gone. A repository that is no longer found loses the Git and GitHub state discovery
+	 * recorded for it, unless its root is now a folder of the session or of one of its chats. Returns whether anything
+	 * changed.
+	 */
+	private async _refreshSessionRepositories(sessionKey: string, credentials: IRepositoryCredentialContext, fresh: boolean, refreshedRoots: ReadonlySet<string>): Promise<boolean> {
+		const { folders, input } = this._repositoryDiscoveryInput(sessionKey);
+		const cached = this._discoveredRepositories.get(sessionKey);
+		const current = cached?.input === input ? cached : undefined;
+		if (!current || current.stale || fresh) {
+			this._discoverRepositoriesInBackground(sessionKey, input, folders, credentials, fresh, refreshedRoots);
+		}
+		// Until the first discovery of these folders finishes, what was recorded before stays
+		return current ? this._applyDiscoveredRepositories(sessionKey, input, current.repositories, folders, credentials, fresh) : false;
+	}
+
+	/**
+	 * Finds the repositories of a session's folders outside its refresh, so the scan never delays its Git state, and
+	 * announces them when they are recorded. At most one discovery of a session runs at a time; one whose folders
+	 * changed meanwhile records nothing, and the latest folders are found once it settles; a forced one asked for
+	 * meanwhile runs once it settles, as the running one may have read the folders before a repository was created.
+	 */
+	private _discoverRepositoriesInBackground(sessionKey: string, input: string, folders: readonly string[], credentials: IRepositoryCredentialContext, fresh: boolean, refreshedRoots: ReadonlySet<string>): void {
+		if (this._repositoryDiscoveries.has(sessionKey)) {
+			// One discovery of a session at a time: the latest folders are found once this one settles
+			this._pendingRepositoryDiscoveries.set(sessionKey, { credentials, fresh: fresh || !!this._pendingRepositoryDiscoveries.get(sessionKey)?.fresh });
+			return;
+		}
+		const discovery = (async () => {
+			const repositories = await this._discoverRepositories(folders, fresh, refreshedRoots);
+			if (this._store.isDisposed || !this._stateManager.getSessionState(sessionKey) || this._repositoryDiscoveryInput(sessionKey).input !== input) {
+				return;
+			}
+			this._discoveredRepositories.set(sessionKey, { input, repositories, stale: false });
+			if (await this._applyDiscoveredRepositories(sessionKey, input, repositories, folders, credentials, false)) {
+				this._onDidRefreshSessionGitState.fire(sessionKey);
+			}
+		})().catch(error => this._logService.warn(`[AgentHostGitStateService] Failed to find the repositories of ${sessionKey}`, error))
+			.finally(() => {
+				if (this._repositoryDiscoveries.get(sessionKey) === discovery) {
+					this._repositoryDiscoveries.delete(sessionKey);
+				}
+				this._runPendingRepositoryDiscovery(sessionKey, input);
+			});
+		this._repositoryDiscoveries.set(sessionKey, discovery);
+	}
+
+	/**
+	 * Runs the discovery asked for while the one of `settledInput` ran, if it was forced or the session's folders are
+	 * still not the ones that one found: as when they changed during a scan, whose result is then not recorded.
+	 */
+	private _runPendingRepositoryDiscovery(sessionKey: string, settledInput: string): void {
+		const pending = this._pendingRepositoryDiscoveries.get(sessionKey);
+		if (!pending || this._repositoryDiscoveries.has(sessionKey)) {
+			return;
+		}
+		this._pendingRepositoryDiscoveries.delete(sessionKey);
+		if (this._store.isDisposed || !this._stateManager.getSessionState(sessionKey)) {
+			return;
+		}
+		const { folders, input } = this._repositoryDiscoveryInput(sessionKey);
+		if (input !== settledInput || pending.fresh) {
+			// Later than the refresh that asked for it: a forced one asks Git again about every folder
+			this._discoverRepositoriesInBackground(sessionKey, input, folders, pending.credentials, pending.fresh, new Set());
+		}
+	}
+
+	/**
+	 * Records `repositories` as the session's repositories (removing them when `undefined`), removes the state of those no
+	 * longer found, and reads the Git state of each nested repository. Returns whether anything changed.
+	 */
+	private async _applyDiscoveredRepositories(sessionKey: string, input: string, repositories: Readonly<Record<string, readonly ISessionRepositoryEntry[]>> | undefined, folders: readonly string[], credentials: IRepositoryCredentialContext, fresh: boolean): Promise<boolean> {
+		// A later application, or a change of the recorded repositories, supersedes this one's reads
+		const generation = (this._repositoryGenerations.get(sessionKey) ?? 0) + 1;
+		this._repositoryGenerations.set(sessionKey, generation);
+		let changed = false;
+		const meta = this._stateManager.getSessionState(sessionKey)?._meta;
+		const previous = readSessionRepositories(meta);
+		if (!meta && !repositories) {
+			return false;
+		}
+		if (!objectEquals(previous, repositories)) {
+			changed = true;
+			this._stateManager.setSessionMeta(sessionKey, withSessionRepositories(meta, repositories));
+		}
+		const discovered = this._discoveredRoots(repositories, folders);
+		for (const root of this._discoveredRoots(previous, folders)) {
+			if (!discovered.includes(root) && this._clearFolderState(sessionKey, root)) {
+				changed = true;
+			}
+		}
+		const readable = discovered.slice(0, Math.max(0, MAX_ADDITIONAL_FOLDER_GIT_READS - Math.max(0, folders.length - 1)));
+		const reads = await Promise.all(readable.map(async root => ({ root, gitState: await this._readGitState(URI.parse(root), undefined, fresh) })));
+		for (const { root, gitState } of reads) {
+			if (!this._isCurrentRepositoryRead(sessionKey, input, generation, root)) {
+				continue;
+			}
+			if (gitState) {
+				if (this._applyAdditionalFolderGitState(sessionKey, root, gitState, credentials)) {
+					changed = true;
+				}
+			} else if (!await this._gitService.getRepositoryRoot(URI.parse(root), { fresh: true }).catch(() => URI.parse(root)) && this._isCurrentRepositoryRead(sessionKey, input, generation, root)) {
+				// Gone from disk: the next refresh finds the repositories again
+				const entry = this._discoveredRepositories.get(sessionKey);
+				if (entry) {
+					this._discoveredRepositories.set(sessionKey, { ...entry, stale: true });
+				}
+			}
+		}
+		return changed;
+	}
+
+	/**
+	 * Whether a read of `root` that application `generation` of the folders `input` started may still be
+	 * recorded: the service is not disposed, the session's folders are still `input`, no later
+	 * application started, the session still records `root` among its found repositories, and no chat works in it.
+	 */
+	private _isCurrentRepositoryRead(sessionKey: string, input: string, generation: number, root: string): boolean {
+		const state = this._stateManager.getSessionState(sessionKey);
+		if (this._store.isDisposed || !state || this._repositoryGenerations.get(sessionKey) !== generation || this._repositoryDiscoveryInput(sessionKey).input !== input) {
+			return false;
+		}
+		const folders = (this._stateManager.getSessionSummary(sessionKey)?.workingDirectories ?? []).filter(folder => !this._stateManager.isScratchFolder(folder));
+		// A root a chat now works in has that chat's state
+		const scope = getWorkingDirectoryScopeId([root]);
+		return this._discoveredRoots(readSessionRepositories(state._meta), folders).includes(root)
+			&& !state.chats.some(chat => chat.workingDirectories?.some(folder => getWorkingDirectoryScopeId([folder]) === scope));
+	}
+
+	/**
+	 * The roots of the nested repositories in `repositories`, without duplicates and without those that are
+	 * a folder of the session, whose Git state is the folder's.
+	 */
+	private _discoveredRoots(repositories: Readonly<Record<string, readonly ISessionRepositoryEntry[]>> | undefined, folders: readonly string[]): string[] {
+		const folderScopes = new Set(folders.map(folder => getWorkingDirectoryScopeId([folder])));
+		const roots = new Map<string, string>();
+		for (const { root, kind } of Object.values(repositories ?? {}).flat()) {
+			const scope = getWorkingDirectoryScopeId([root]);
+			if (kind !== 'folder' && !folderScopes.has(scope) && !roots.has(scope)) {
+				roots.set(scope, root);
+			}
+		}
+		return [...roots.values()];
+	}
+
+	/**
+	 * Waits for no state save of a folder other than a session's first: each updates the session's metadata at once, and
+	 * the saves, which a session state store may coalesce for a long time, must not hold its refresh or its discovery.
+	 */
+	private _persistInBackground(save: Promise<void>): void {
+		save.catch(error => this._logService.warn('[AgentHostGitStateService] Failed to persist the Git state of a folder', error));
+	}
+
+	/**
+	 * Removes the folder-scope Git state and the GitHub state recorded for a folder that left the session, or for a
+	 * repository root that is no longer found, unless it is a folder of the session or of one of its chats, whose state
+	 * is theirs. Returns whether anything was removed.
+	 */
+	private _clearFolderState(sessionKey: string, root: string): boolean {
+		const state = this._stateManager.getSessionState(sessionKey);
+		const scope = getWorkingDirectoryScopeId([root]);
+		const owned = (this._stateManager.getSessionSummary(sessionKey)?.workingDirectories ?? []).some(folder => getWorkingDirectoryScopeId([folder]) === scope)
+			|| (state?.chats ?? []).some(chat => chat.workingDirectories?.some(folder => getWorkingDirectoryScopeId([folder]) === scope));
+		if (!state || owned) {
+			return false;
+		}
+		return this._removeFolderState(sessionKey, root);
+	}
+
+	/** Removes the Git and GitHub state recorded under the scope of `root` alone. Returns whether there was any. */
+	private _removeFolderState(sessionKey: string, root: string): boolean {
+		let removed = false;
+		if (readFolderScopeGitState(this._stateManager.getSessionState(sessionKey)?._meta, getWorkingDirectoryScopeId([root]))) {
+			removed = true;
+			this._persistInBackground(this.setFolderGitState(sessionKey, [root], undefined));
+		}
+		return this._removeFolderGitHubState(sessionKey, root) || removed;
+	}
+
+	/** Removes the GitHub state, with its pull requests, recorded for `root`. Returns whether there was any. */
+	private _removeFolderGitHubState(sessionKey: string, root: string): boolean {
+		const folderKey = getWorkingDirectoryKey(root);
+		if (!readFolderGitHubState(this._stateManager.getSessionState(sessionKey)?._meta, folderKey)) {
+			return false;
+		}
+		this._stateManager.setSessionMeta(sessionKey, withFolderGitHubState(this._stateManager.getSessionState(sessionKey)?._meta, folderKey, undefined));
+		this._persistInBackground(this._saveGitHubState({ sessionUri: sessionKey, sourceUri: sessionKey, folderKey, isSessionFolder: false, workingDirectory: root }));
+		return true;
+	}
+
+	/** What the repositories of a session are found from: its folders. */
+	private _repositoryDiscoveryInput(sessionKey: string): { readonly folders: readonly string[]; readonly input: string } {
+		const folders = (this._stateManager.getSessionSummary(sessionKey)?.workingDirectories ?? []).filter(folder => !this._stateManager.isScratchFolder(folder));
+		return { folders, input: JSON.stringify(folders) };
+	}
+
+	/**
+	 * Lists each folder's own repository (every folder that is in one, also when another folder is in the same repository),
+	 * or, for a folder that is not in one, the repositories in its immediate subfolders, once across the session. Returns
+	 * `undefined` when no folder has such nested repositories, as each folder is then its own repository. See
+	 * {@link _refreshSessionRepositories} for the bounds.
+	 */
+	private async _discoverRepositories(folders: readonly string[], fresh: boolean, refreshedRoots: ReadonlySet<string>): Promise<Readonly<Record<string, readonly ISessionRepositoryEntry[]>> | undefined> {
+		const result: Record<string, ISessionRepositoryEntry[]> = {};
+		const discovered = folders.slice(0, MAX_DISCOVERED_FOLDERS);
+		// A forced refresh may follow a folder becoming a repository or stopping being one: the cached answer of each
+		// folder it did not already ask Git about again is replaced
+		const ownRoots = await Promise.all(discovered.map(folder => this._gitService.getRepositoryRoot(URI.parse(folder), fresh && !refreshedRoots.has(folder) ? { fresh: true } : undefined).catch(() => undefined)));
+		const seen = new Set<string>([...discovered, ...ownRoots.filter(isDefined).map(root => root.toString())].map(root => getWorkingDirectoryScopeId([root])));
+		// As many as each refresh reads (see _applyDiscoveredRepositories), so every repository found is read
+		let remaining = Math.max(0, MAX_ADDITIONAL_FOLDER_GIT_READS - Math.max(0, folders.length - 1));
+		let nested = false;
+		for (const [index, folder] of discovered.entries()) {
+			const ownRoot = ownRoots[index];
+			const entries: ISessionRepositoryEntry[] = ownRoot ? [{ root: ownRoot.toString(), kind: 'folder' }] : [];
+			result[getWorkingDirectoryKey(folder)] = entries;
+			// A folder in a repository is that repository; only one that is not is looked into, one level deep
+			if (ownRoot || remaining <= 0) {
+				continue;
+			}
+			const found = await this._gitService.findRepositories?.(URI.parse(folder), remaining).catch(error => {
+				this._logService.warn(`[AgentHostGitStateService] Failed to find the repositories of ${folder}`, error);
+				return [];
+			}) ?? [];
+			for (const root of found) {
+				const scope = getWorkingDirectoryScopeId([root.toString()]);
+				if (remaining > 0 && !seen.has(scope)) {
+					seen.add(scope);
+					remaining--;
+					nested = true;
+					entries.push({ root: root.toString(), kind: 'nested' });
+				}
+			}
+		}
+		return nested ? result : undefined;
+	}
+
+	/**
+	 * Associates the pull request of the current branch of a session folder other than its first, as for a chat's
+	 * folder. The result applies only while the folder is still on that branch of that GitHub repository.
+	 */
+	/** @returns Why looking up the pull request failed, if it did; a refresh in the background only logs it. */
+	private async _attachAdditionalFolderPullRequest(folder: IGitHubStateFolder & { readonly folderKey: string; readonly workingDirectory: string }, gitState: ISessionGitState, credentials: IRepositoryCredentialContext): Promise<IPullRequestLookupFailure | void> {
+		const state = this._stateManager.getSessionState(folder.sessionUri);
+		const branchName = gitState.branchName;
+		const currentGitHubState = readFolderGitHubState(state?._meta, folder.folderKey);
+		const owner = currentGitHubState?.owner;
+		const repo = currentGitHubState?.repo;
+		if (state?.lifecycle !== SessionLifecycle.Ready || !owner || !repo || owner !== gitState.githubOwner || repo !== gitState.githubRepo
+			|| !branchName || branchName === gitState.baseBranchName || currentGitHubState.pullRequestBranchName === branchName) {
+			return;
+		}
+		if (!this._isAutomaticPullRequestAttachmentEnabled() || !this._getGitHubAuthToken(credentials)) {
+			return;
+		}
+		try {
+			const pr = await this._pullRequestAssociationResolver.resolveForCheckout(state, owner, repo, gitState, branchName, undefined, folder.workingDirectory, false, credentials.source, credentials.source ? credentials.key : undefined);
+			const latestMeta = this._stateManager.getSessionState(folder.sessionUri)?._meta;
+			const latestGitHubState = readFolderGitHubState(latestMeta, folder.folderKey);
+			if (!pr?.html_url || latestGitHubState?.owner !== owner || latestGitHubState.repo !== repo
+				|| readFolderScopeGitState(latestMeta, getWorkingDirectoryScopeId([folder.workingDirectory]))?.branchName !== branchName) {
+				return;
+			}
+			// Like `setSessionGitHubState`, the pull request fields update the folder's state rather than replacing it
+			let nextGitHubState: ISessionGitHubState = { ...latestGitHubState, ...withMostRecentSessionPullRequest(latestGitHubState, pr.html_url, branchName) };
+			if (this._predatesSession(folder.sessionUri, pr)) {
+				nextGitHubState = { ...nextGitHubState, ...withInitialSessionPullRequest(latestGitHubState, pr.html_url) };
+			}
+			// Its save does not hold the folder's next lookup
+			this._persistInBackground(this._applySessionGitHubState(folder, latestMeta, latestGitHubState, nextGitHubState, true));
+		} catch (error) {
+			this._logService.warn(`[AgentHostGitStateService] Failed to find the pull request of folder ${folder.workingDirectory} of ${folder.sessionUri}`, error);
+			return toPullRequestLookupFailure(error);
+		}
 	}
 
 	/**
@@ -564,14 +1168,14 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	 * flight share it. A forced refresh knows the checkout just changed, which a read that started earlier may not
 	 * reflect, so it only shares a read another forced refresh started.
 	 */
-	private _readGitState(workingDirectory: URI, baseBranchName: string | undefined, fresh: boolean): Promise<ISessionGitState | undefined> {
-		const key = `${workingDirectory.toString()}\0${baseBranchName ?? ''}`;
+	private _readGitState(workingDirectory: URI, baseBranchRef: string | undefined, fresh: boolean): Promise<ISessionGitState | undefined> {
+		const key = `${workingDirectory.toString()}\0${baseBranchRef ?? ''}`;
 		const freshKey = `${key}\0fresh`;
 		const inFlight = this._gitStateReads.get(freshKey) ?? (fresh ? undefined : this._gitStateReads.get(key));
 		if (inFlight) {
 			return inFlight;
 		}
-		const read = this._gitService.getSessionGitState(workingDirectory, baseBranchName);
+		const read = this._gitService.getSessionGitState(workingDirectory, baseBranchRef);
 		const readKey = fresh ? freshKey : key;
 		this._gitStateReads.set(readKey, read);
 		const clear = () => {
@@ -584,6 +1188,10 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	}
 
 	getSessionGitState(sessionKey: string): ISessionGitState | undefined {
+		const folderOnly = this._resolveFolderOnlyOwner(sessionKey);
+		if (folderOnly) {
+			return readFolderScopeGitState(this._stateManager.getSessionState(folderOnly.sessionUri)?._meta, getWorkingDirectoryScopeId([folderOnly.root]));
+		}
 		if (!isAhpChatChannel(sessionKey)) {
 			return readSessionGitState(this._stateManager.getSessionState(sessionKey)?._meta);
 		}
@@ -604,6 +1212,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			...(currentGitState?.hasGitRemote !== undefined ? { hasGitRemote: currentGitState.hasGitRemote } : {}),
 			...(currentGitState?.hasGitHubRemote !== undefined ? { hasGitHubRemote: currentGitState.hasGitHubRemote } : {}),
 			...(currentGitState?.baseBranchName !== undefined ? { baseBranchName: currentGitState.baseBranchName } : {}),
+			...(currentGitState?.baseBranchRef !== undefined ? { baseBranchRef: currentGitState.baseBranchRef } : {}),
 			...(currentGitState?.defaultBranchName !== undefined ? { defaultBranchName: currentGitState.defaultBranchName } : {}),
 			...(currentGitState?.defaultRemoteBranchName !== undefined ? { defaultRemoteBranchName: currentGitState.defaultRemoteBranchName } : {}),
 			...(currentGitState?.githubOwner !== undefined ? { githubOwner: currentGitState.githubOwner } : {}),
@@ -633,10 +1242,10 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			return { pending: [], unmatched: [...urls] };
 		}
 		const workingDirectory = URI.parse(workingDirectoryString);
-		const baseBranchName = await this.resolveSessionBaseBranchName(chat);
+		const baseBranchRef = await this.resolveSessionBaseBranchRef(chat);
 		let gitState: ISessionGitState | undefined;
 		try {
-			gitState = await this._gitService.getSessionGitState(workingDirectory, baseBranchName);
+			gitState = await this._gitService.getSessionGitState(workingDirectory, baseBranchRef);
 		} catch (error) {
 			this._logService.warn(`[AgentHostGitStateService] Could not read the checkout while recording a pull request for ${folder.sessionUri}`, error);
 		}
@@ -744,10 +1353,10 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				const chatEntries = valid.filter(entry => entry.chat === chat);
 				const { workingDirectory, branchName, owner, repo } = chatEntries[0];
 				const directory = URI.parse(workingDirectory);
-				const baseBranchName = await this.resolveSessionBaseBranchName(chat);
+				const baseBranchRef = await this.resolveSessionBaseBranchRef(chat);
 				let gitState: ISessionGitState | undefined;
 				try {
-					gitState = await this._gitService.getSessionGitState(directory, baseBranchName);
+					gitState = await this._gitService.getSessionGitState(directory, baseBranchRef);
 				} catch (error) {
 					this._logService.warn(`[AgentHostGitStateService] Could not read the checkout for a pending pull request in ${session}`, error);
 					continue;
@@ -788,7 +1397,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				}
 				let latestGitState: ISessionGitState | undefined;
 				try {
-					latestGitState = await this._gitService.getSessionGitState(directory, baseBranchName);
+					latestGitState = await this._gitService.getSessionGitState(directory, baseBranchRef);
 				} catch (error) {
 					this._logService.warn(`[AgentHostGitStateService] Could not confirm the checkout for a pending pull request in ${session}`, error);
 					continue;
@@ -905,7 +1514,12 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		return true;
 	}
 
-	private async _applySessionGitHubState(folder: IGitHubStateFolder, currentMeta: SessionSummaryMeta | undefined, currentState: ISessionGitHubState | undefined, state: ISessionGitHubState): Promise<void> {
+	/**
+	 * @param passive whether the state was found without the user's source control action, as for a folder other than the
+	 * session's first or a repository found in one: it is recorded for the folder only, and never becomes the session's
+	 * latest outcome (which a session merge recorded, for example).
+	 */
+	private async _applySessionGitHubState(folder: IGitHubStateFolder, currentMeta: SessionSummaryMeta | undefined, currentState: ISessionGitHubState | undefined, state: ISessionGitHubState, passive = false): Promise<void> {
 		const sessionKey = folder.sessionUri;
 		let nextState = state;
 		const currentPullRequest = getSessionRelatedPullRequestUrls(currentState)[0];
@@ -919,7 +1533,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			nextState = stateWithoutPullRequestStatus;
 		}
 		const currentSourceControlState = readSessionSourceControlState(currentMeta);
-		const nextSourceControlState = nextPullRequest && nextPullRequest !== currentPullRequest
+		const nextSourceControlState = !passive && nextPullRequest && nextPullRequest !== currentPullRequest
 			? { ...currentSourceControlState, latestOutcome: SessionSourceControlOutcome.PullRequest } satisfies ISessionSourceControlState
 			: currentSourceControlState;
 		const sourceControlStateChanged = !objectEquals(currentSourceControlState, nextSourceControlState);
@@ -953,11 +1567,19 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		});
 	}
 
-	async resolveSessionBaseBranchName(sessionKey: string): Promise<string | undefined> {
+	/**
+	 * Resolves the base branch recorded for `sessionKey` exactly as recorded (e.g. `refs/remotes/origin/main`), falling
+	 * back to the full ref its Git state names. Without either, it is `undefined` and the git service derives the default
+	 * branch's ref.
+	 */
+	async resolveSessionBaseBranchRef(sessionKey: string): Promise<string | undefined> {
 		const state = this._getStateForGitScope(sessionKey);
-		const gitStateBaseBranch = this.getSessionGitState(sessionKey)?.baseBranchName;
-		const isSessionFolder = resolveGitHubStateFolder(this._stateManager, sessionKey).isSessionFolder;
-		if (!isSessionFolder && this._chatOwnership.isRegisteredDefaultChat(sessionKey)) {
+		const gitStateBaseBranch = this.getSessionGitState(sessionKey)?.baseBranchRef;
+		const isChat = isAhpChatChannel(sessionKey);
+		// Chats sharing a folder scope read the base of the chat representing it, which the Branch Changes diff reads and the base's writers record.
+		const source = isChat ? resolveBranchChangesetScopeForOwner(this._stateManager, resolveBranchChangesetScopeForSource(this._stateManager, sessionKey).ownerUri)?.sourceUri ?? sessionKey : sessionKey;
+		const isSessionFolder = resolveGitHubStateFolder(this._stateManager, source).isSessionFolder;
+		if (!isSessionFolder && this._chatOwnership.isRegisteredDefaultChat(source)) {
 			return gitStateBaseBranch;
 		}
 
@@ -966,14 +1588,13 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			return gitStateBaseBranch;
 		}
 		// `sessionKey` may be a chat: its base branch is the one recorded for its folder scope in its session's state.
-		const isChat = isAhpChatChannel(sessionKey);
 		const session = isChat ? this._chatOwnership.getChatOwner(sessionKey) : sessionKey;
 		if (session === undefined) {
 			return gitStateBaseBranch;
 		}
 		try {
-			const persisted = await this._sessionStateStore.readBaseBranchWithoutImport(URI.parse(session), isChat && !this._chatOwnership.isRegisteredDefaultChat(sessionKey) ? sessionKey : undefined);
-			return resolveDiffBaseBranchName(persisted, gitStateBaseBranch);
+			const persisted = await this._sessionStateStore.readBaseBranchWithoutImport(URI.parse(session), isChat && !this._chatOwnership.isRegisteredDefaultChat(source) ? source : undefined);
+			return persisted || gitStateBaseBranch;
 		} catch (error) {
 			this._logService.warn(`[AgentHostGitStateService] Failed to read the persisted base branch for ${sessionKey}`, error);
 			return gitStateBaseBranch;
@@ -1011,13 +1632,18 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		}
 	}
 
-	private async _setChatGitState(sessionKey: string, gitState: ISessionGitState | undefined): Promise<void> {
+	/**
+	 * Records a chat's Git state: the session's own, when the chat is the session's default chat working in its first
+	 * folder, otherwise the state of the chat's folders. Returns the session when it recorded the session's own state.
+	 */
+	private async _setChatGitState(sessionKey: string, gitState: ISessionGitState | undefined): Promise<string | undefined> {
 		const scope = resolveBranchChangesetScopeForSource(this._stateManager, sessionKey);
 		if (this._chatOwnership.isRegisteredDefaultChat(sessionKey) && scope.workingDirectories[0] === this._stateManager.getSessionSummary(scope.sessionUri)?.workingDirectories?.[0]) {
 			await this._setSessionGitState(scope.sessionUri, gitState);
-			return;
+			return scope.sessionUri;
 		}
 		await this.setFolderGitState(scope.sessionUri, scope.workingDirectories, gitState);
+		return undefined;
 	}
 
 	async setFolderGitState(sessionKey: string, workingDirectories: readonly string[], gitState: ISessionGitState | undefined): Promise<void> {

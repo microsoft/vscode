@@ -211,6 +211,11 @@ export interface ISessionViewHostOptions {
 	 * session is created; `false` by default.
 	 */
 	readonly showComposerHeader?: boolean;
+	/**
+	 * Whether the session header shows that the chat is working, as the tab of a chat editor does, in place of the working
+	 * indicator below the chat; `false` by default.
+	 */
+	readonly showTitleProgress?: boolean;
 	/** Whether the Session Activity Bar shows beside the chats; `true` by default. */
 	readonly showActivityBar?: boolean;
 	/** Options of the inputs of the chats. */

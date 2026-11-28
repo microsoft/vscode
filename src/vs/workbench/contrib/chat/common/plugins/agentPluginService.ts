@@ -72,8 +72,19 @@ export interface ICopilotCliPluginInstallation {
 	readonly source?: CopilotCliPluginInstallSource;
 }
 
+/**
+ * Which discovery found a plugin:
+ * - `configured`: a path in `chat.pluginLocations`.
+ * - `marketplace`: installed from a marketplace into VS Code's own plugin storage.
+ * - `extension`: contributed by an extension.
+ * - `harness`: an installation that an agent harness (the Copilot SDK) owns.
+ */
+export type AgentPluginDiscoveryKind = 'configured' | 'marketplace' | 'extension' | 'harness';
+
 export interface IAgentPlugin {
 	readonly uri: URI;
+	/** Which discovery found this plugin. Marketplace metadata alone ({@link fromMarketplace}) does not tell. */
+	readonly discovery: AgentPluginDiscoveryKind;
 	readonly format: PluginFormat;
 	/** Human-readable display name for the plugin. */
 	readonly label: string;

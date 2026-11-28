@@ -128,7 +128,8 @@ export class AgentPluginEditor extends EditorPane {
 		const description = append(details, $('.description'));
 
 		const subtitle = append(details, $('.subtitle'));
-		const marketplace = append(subtitle, $('span.subtitle-entry'));
+		// The marketplace is the only subtitle entry, so it must not draw the separator that precedes a following entry.
+		const marketplace = append(subtitle, $('span.subtitle-entry.last-non-empty'));
 
 		const actionsAndStatusContainer = append(details, $('.actions-status-container'));
 		const actionBar = this._register(new ActionBar(actionsAndStatusContainer, {
@@ -145,6 +146,7 @@ export class AgentPluginEditor extends EditorPane {
 							label: true,
 							menuActionsOrProvider: { getActions: () => action.menuActions },
 							menuActionClassNames: action.menuActionClassNames,
+							filledSplitButton: true,
 						},
 						this.contextMenuService,
 					);
@@ -596,7 +598,7 @@ class UpdatePluginEditorAction extends Action {
 		private readonly liveMarketplacePlugin: IMarketplacePlugin,
 		@IPluginInstallService private readonly pluginInstallService: IPluginInstallService,
 	) {
-		super(UpdatePluginEditorAction.ID, localize('update', "Update"), 'extension-action label prominent install');
+		super(UpdatePluginEditorAction.ID, localize('update', "Update"), 'extension-action label filled-label prominent install');
 	}
 
 	override async run(): Promise<void> {

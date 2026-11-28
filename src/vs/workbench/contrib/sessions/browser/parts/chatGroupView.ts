@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/chatGroupView.css';
 import { $, append, size, trackFocus } from '../../../../../base/browser/dom.js';
 import { ISerializableView, IViewSize } from '../../../../../base/browser/ui/grid/grid.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
@@ -25,7 +26,8 @@ import { IChatViewFactory } from '../chatViewFactory.js';
 import { ChatCompositeBar, IChatCompositeBarDelegate } from './chatCompositeBar.js';
 import { type IRemoteHostUnavailableEmptyStateContent, RemoteHostUnavailableEmptyState } from './remoteHostUnavailableEmptyState.js';
 import { SessionRemoteConnection } from './sessionRemoteConnection.js';
-import { getArchivedChatBannerContent, ISessionReadOnlyBannerContent, SessionReadOnlyBanner } from './sessionReadOnlyBanner.js';
+import { getArchivedChatBannerContent } from './sessionReadOnlyBanner.js';
+import { ChatReadOnlyBanner, IChatReadOnlyBannerContent } from '../../../chat/browser/widget/chatReadOnlyBanner.js';
 import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../services/sessions/common/workspaceSelection.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions, ISessionViewHostOptions } from './chatView.js';
 import { ChatViewSessionActivityBar } from './sessionActivityBar.js';
@@ -89,7 +91,7 @@ export interface IChatGroupContext {
 }
 
 interface IChatGroupSurface {
-	readonly banner: ISessionReadOnlyBannerContent | undefined;
+	readonly banner: IChatReadOnlyBannerContent | undefined;
 	readonly recovery: IRemoteHostUnavailableEmptyStateContent | undefined;
 }
 
@@ -127,7 +129,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 	private readonly _chatHeader: ChatHeader;
 	private readonly _surface: HTMLElement;
 	private readonly _barContainer: HTMLElement;
-	private readonly _readOnlyBanner: SessionReadOnlyBanner;
+	private readonly _readOnlyBanner: ChatReadOnlyBanner;
 	private readonly _contentContainer: HTMLElement;
 	private readonly _remoteHostUnavailableEmptyState: RemoteHostUnavailableEmptyState;
 
@@ -239,7 +241,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 		// Single status banner, shown flush below this group's tab bar when the
 		// active chat is non-interactive or its remote host is unavailable.
-		this._readOnlyBanner = this._register(this._instantiationService.createInstance(SessionReadOnlyBanner));
+		this._readOnlyBanner = this._register(this._instantiationService.createInstance(ChatReadOnlyBanner));
 		append(this._barContainer, this._readOnlyBanner.domNode);
 
 		this._contentContainer = append(this._surface, $('.chat-group-view-content'));
@@ -475,7 +477,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		}));
 	}
 
-	private _setReadOnlyBanner(content: ISessionReadOnlyBannerContent | undefined): void {
+	private _setReadOnlyBanner(content: IChatReadOnlyBannerContent | undefined): void {
 		if (content) {
 			this._readOnlyBanner.setContent(content);
 		}

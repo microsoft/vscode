@@ -33,7 +33,6 @@ suite('PromptTimelineGutterRail', () => {
 		return Array.from(rail.domNode.querySelectorAll<HTMLElement>('.prompt-timeline-gutter-row')).map(row => ({
 			row,
 			jump: row.querySelector<HTMLButtonElement>('.prompt-timeline-gutter-row-jump')!,
-			diff: row.querySelector<HTMLButtonElement>('.prompt-timeline-gutter-row-diff')!,
 		}));
 	}
 
@@ -148,9 +147,8 @@ suite('PromptTimelineGutterRail', () => {
 			{ busy: 'true', cycle: [1, 2, 3, 1], reduced: { dots: 3, animations: 0 }, retry: 'false', idle: 'false', chevron: true });
 	});
 
-	test('loads one older page at the gutter boundary and preserves the focused row and column', async () => {
-		const stat = { added: 1, removed: 0, fileCount: 1 };
-		const recent = [tick(90, stat), tick(91)];
+	test('loads one older page at the gutter boundary and preserves the focused prompt', async () => {
+		const recent = [tick(90), tick(91)];
 		const rail = createRail(recent);
 		const page = new DeferredPromise<void>();
 		let loads = 0;
@@ -158,21 +156,20 @@ suite('PromptTimelineGutterRail', () => {
 		const panel = rail.domNode.querySelector<HTMLElement>('.prompt-timeline-gutter-panel')!;
 		const selected: string[] = [];
 		store.add(rail.onDidSelect(id => selected.push(id)));
-		const first = rowParts(rail)[0].diff;
+		const first = rowParts(rail)[0].jump;
 		rail.domNode.querySelector<HTMLButtonElement>('.prompt-timeline-gutter-rest')!.click();
-		keydown(rowParts(rail)[0].jump, 'ArrowRight', 39);
 		const loadsBeforeGesture = loads;
 		keydown(first, 'ArrowUp', 38);
 		assert.strictEqual(loads, 1, 'Up at the first focused row must request a page');
 		panel.dispatchEvent(new WheelEvent('wheel', { deltaY: -10, bubbles: true }));
 		keydown(first, 'ArrowUp', 38);
-		rail.setTicks([tick(88), tick(89, stat), ...recent]);
+		rail.setTicks([tick(88), tick(89), ...recent]);
 		rail.setOlderHistoryLoader(undefined);
 		await page.complete();
 		const preserved = document.activeElement === first;
 		keydown(first, 'ArrowUp', 38);
 		const predecessor = rowParts(rail)[1];
-		const focusedPrevious = document.activeElement === predecessor.diff;
+		const focusedPrevious = document.activeElement === predecessor.jump;
 		predecessor.jump.click();
 		assert.deepStrictEqual({ loadsBeforeGesture, loads, preserved, focusedPrevious, selected, more: panel.classList.contains('has-older-prompts') },
 			{ loadsBeforeGesture: 0, loads: 1, preserved: true, focusedPrevious: true, selected: ['89'], more: false });
@@ -235,7 +232,7 @@ suite('PromptTimelineGutterRail', () => {
 			{ notified: true, afterMomentum: 1, error: false, attempts: 2, rows: ['89', '90', '91'] });
 	});
 
-	test('highlights a row previewed from a dot, but leaves a row under the pointer to its own halves', () => {
+	test('highlights a row previewed from a dot and pairs a hovered title with its dot', () => {
 		const rail = createRail(Array.from({ length: 3 }, (_, index) => tick(index)));
 
 		const rows = Array.from(rail.domNode.querySelectorAll<HTMLElement>('.prompt-timeline-gutter-row'));
@@ -255,7 +252,6 @@ suite('PromptTimelineGutterRail', () => {
 
 		assert.deepStrictEqual({ rowHover, dotHover }, {
 			rowHover: {
-				// The pointer is on the row, so its own half lights up instead. The dot still pairs.
 				rows: [false, false, false],
 				dots: [false, true, false],
 			},
@@ -322,149 +318,85 @@ suite('PromptTimelineGutterRail', () => {
 		});
 	});
 
-	test('splits a row into jump and review targets, hiding review when the prompt changed nothing', () => {
+	test('offers only a title button even for a prompt with edits', () => {
 		const edited = tick(1, { added: 3, removed: 1, fileCount: 2 });
 		const rail = createRail([tick(0), edited]);
 		const selected: string[] = [];
-		const reviewed: string[] = [];
 		store.add(rail.onDidSelect(id => selected.push(id)));
-		store.add(rail.onDidReview(t => reviewed.push(t.requestId)));
 
 		const rows = rowParts(rail);
 		rows[1].jump.click();
-		rows[1].diff.click();
-
-		assert.deepStrictEqual({
-			reviewable: rows.map(row => row.row.classList.contains('reviewable')),
-			selected,
-			reviewed,
-		}, {
-			// Only the prompt that edited files offers the review target.
-			reviewable: [false, true],
-			selected: ['1'],
-			reviewed: ['1'],
-		});
+		assert.deepStrictEqual({ buttons: rows.map(({ row }) => [...row.querySelectorAll('button')].map(button => button.textContent)), selected },
+			{ buttons: [['0'], ['1']], selected: ['1'] });
 	});
 
-	test('moves between rows with Up/Down and between a row\'s targets with Left/Right', () => {
-		const stat = { added: 1, removed: 0, fileCount: 1 };
-		// Row 1 has no changes, so it has no review target to land on.
-		const rail = createRail([tick(0, stat), tick(1), tick(2, stat)]);
+	test('moves between titles with Up/Down and Home/End, and returns to the handle on Escape', () => {
+		const rail = createRail([tick(0), tick(1), tick(2)]);
 		const rows = rowParts(rail);
 		const list = rail.domNode.querySelector<HTMLElement>('.prompt-timeline-gutter-panel')!;
+		const handle = rail.domNode.querySelector<HTMLButtonElement>('.prompt-timeline-gutter-rest')!;
 
-		/** Where focus sits, as `row:column`. */
-		const focus = () => {
-			const index = rows.findIndex(r => r.jump === document.activeElement || r.diff === document.activeElement);
-			return index < 0 ? 'none' : `${index}:${rows[index].diff === document.activeElement ? 'diff' : 'jump'}`;
-		};
+		const focus = () => rows.findIndex(r => r.jump === document.activeElement);
 
 		rows[0].jump.focus();
 		const path = [focus()];
-		keydown(list, 'ArrowRight', 39); path.push(focus());
-		keydown(list, 'ArrowDown', 40); path.push(focus());  // row 1 has no diff: falls back to the label
-		keydown(list, 'ArrowDown', 40); path.push(focus());  // row 2 has one: Down keeps the label column
-		keydown(list, 'ArrowRight', 39); path.push(focus());
-		keydown(list, 'ArrowLeft', 37); path.push(focus());
-		keydown(list, 'Home', 36); path.push(focus());
+		keydown(list, 'ArrowDown', 40); path.push(focus());
+		keydown(list, 'ArrowUp', 38); path.push(focus());
 		keydown(list, 'End', 35); path.push(focus());
+		keydown(list, 'Home', 36); path.push(focus());
+		keydown(list, 'Escape', 27);
 
 		assert.deepStrictEqual({
 			path,
+			dismissed: document.activeElement === handle && handle.ariaExpanded === 'false',
 			// Exactly one target across the whole flyout stays tabbable, so it is a single Tab stop.
-			tabbable: rows.flatMap(r => [r.jump, r.diff]).filter(b => b.tabIndex === 0).length,
+			tabbable: rows.filter(r => r.jump.tabIndex === 0).length,
 		}, {
-			path: ['0:jump', '0:diff', '1:jump', '2:jump', '2:diff', '2:jump', '0:jump', '2:jump'],
+			path: [0, 1, 0, 2, 0],
+			dismissed: true,
 			tabbable: 1,
 		});
 	});
 
 	test('activates the focused row target with Enter without letting chat keybindings see it', () => {
-		const rail = createRail([tick(0), tick(1, { added: 1, removed: 0, fileCount: 1 })]);
+		const rail = createRail([tick(0), tick(1)]);
 		const rows = rowParts(rail);
 		const selected: string[] = [];
-		const reviewed: string[] = [];
 		const escaped: string[] = [];
 		store.add(rail.onDidSelect(id => selected.push(id)));
-		store.add(rail.onDidReview(t => reviewed.push(t.requestId)));
 		store.add(addDisposableListener(document.body, 'keydown', e => escaped.push(e.key)));
 
 		rows[0].jump.focus();
 		keydown(rows[0].jump, 'Enter', 13);
-		rows[1].diff.focus();
-		keydown(rows[1].diff, 'Enter', 13);
-
-		assert.deepStrictEqual({ selected, reviewed, escaped }, { selected: ['0'], reviewed: ['1'], escaped: [] });
-	});
-
-	test('keeps focus in the flyout when a streaming update removes the focused review target', () => {
-		const stat = { added: 1, removed: 0, fileCount: 1 };
-		const rail = createRail([tick(0, stat)]);
-		const rows = rowParts(rail);
-		rows[0].diff.focus();
-
-		// The prompt's edits net back to zero mid-stream, so its review target goes away under focus.
-		rail.setTicks([tick(0)]);
-
-		assert.deepStrictEqual({
-			focused: document.activeElement === rows[0].jump ? 'jump' : document.activeElement === rows[0].diff ? 'diff' : 'lost',
-			reviewable: rows[0].row.classList.contains('reviewable'),
-			tabbable: [rows[0].jump, rows[0].diff].filter(b => b.tabIndex === 0).length,
-		}, {
-			focused: 'jump',
-			reviewable: false,
-			tabbable: 1,
-		});
+		assert.deepStrictEqual({ selected, escaped }, { selected: ['0'], escaped: [] });
 	});
 
 	test('preserves unchanged row content and focus while updating another prompt', () => {
-		const stat = { added: 3, removed: 1, fileCount: 1 };
-		const ticks = [tick(0, stat), tick(1, stat)];
+		const ticks = [tick(0), tick(1)];
 		const rail = createRail(ticks);
 		const rows = rowParts(rail);
 		const label = rows[0].jump.firstChild!.firstChild;
-		const added = rows[0].diff.querySelector('.added');
-		rows[0].diff.focus();
+		rows[0].jump.focus();
 
-		rail.setTicks(ticks.map(item => ({ ...item, allRequestIds: [...item.allRequestIds], stat: { ...stat } })));
-		const unchanged = { label: rows[0].jump.firstChild!.firstChild === label, stat: rows[0].diff.querySelector('.added') === added };
-		const updated = { ...ticks[1], text: 'Updated', ariaLabel: 'Updated prompt', stat: { added: 7, removed: 2, fileCount: 2 } };
+		const updated = { ...ticks[1], text: 'Updated', ariaLabel: 'Updated prompt' };
 		rail.setTicks([ticks[0], updated]);
 		rail.setActive(ticks[1].requestId);
 
 		assert.deepStrictEqual({
-			unchanged,
 			firstLabelPreserved: rows[0].jump.firstChild!.firstChild === label,
-			firstStatPreserved: rows[0].diff.querySelector('.added') === added,
-			focused: document.activeElement === rows[0].diff,
-			tabbable: rows.flatMap(row => [row.jump, row.diff]).filter(button => button.tabIndex === 0).length,
+			focused: document.activeElement === rows[0].jump,
+			tabbable: rows.filter(row => row.jump.tabIndex === 0).length,
 			label: rows[1].jump.textContent,
 			ariaLabel: rows[1].jump.getAttribute('aria-label'),
-			stat: rows[1].diff.textContent,
 			active: rows[1].jump.getAttribute('aria-current'),
 		}, {
-			unchanged: { label: true, stat: true },
 			firstLabelPreserved: true,
-			firstStatPreserved: true,
 			focused: true,
 			tabbable: 1,
 			label: 'Updated',
 			ariaLabel: 'Updated prompt',
-			stat: '+7\u22122',
 			active: 'location',
 		});
-	});
-
-	test('keeps review metadata current when only bucket membership or timestamp changes', () => {
-		const original = tick(0, { added: 3, removed: 1, fileCount: 1 });
-		const rail = createRail([original]);
-		const reviewed: PromptTick[] = [];
-		store.add(rail.onDidReview(value => reviewed.push(value)));
-		const updated = { ...original, allRequestIds: ['0', '1'], count: 2, timestamp: 42 };
-		rail.setTicks([updated]);
-		rowParts(rail)[0].diff.click();
-
-		assert.deepStrictEqual(reviewed, [updated]);
 	});
 
 	test('keeps the flyout above sticky scroll and the transcript scrollbar', () => {

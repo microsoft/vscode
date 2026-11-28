@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { structuralEquals } from '../../../../../base/common/equals.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableFromEvent, observableSignalFromEvent, runOnChange, waitForState } from '../../../../../base/common/observable.js';
+import { autorun, derived, derivedOpts, IObservable, observableFromEvent, observableSignalFromEvent, runOnChange, waitForState } from '../../../../../base/common/observable.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { extUri, isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -42,6 +43,7 @@ import { EditorsOrder } from '../../../../common/editor.js';
 import { ChatEditorInput } from '../../../chat/browser/widgetHosts/editor/chatEditorInput.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ShownChatReadMarker } from '../shownChatReadMarker.js';
+import { IAgentsModeService } from '../../../../services/agentsMode/common/agentsMode.js';
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'chat',
@@ -52,11 +54,12 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			enumDescriptions: [
 				localize('chat.viewSessions.openChatIn.chatPanel', "Open the chat of a session in the Chat view."),
 				localize('chat.viewSessions.openChatIn.chatArea', "Open the chat of a session in the chat area beside the Chat view, which then shows only its sessions. Applies while {0} is `sideBySide`.", '`#chat.viewSessions.orientation#`'),
-				localize('chat.viewSessions.openChatIn.editorArea', "Open the chat of a session as an editor in the editor area. A chat that is already open is revealed instead of opened again."),
+				localize('chat.viewSessions.openChatIn.editorArea', "Open the chat of a session as an editor in the editor area, also from a session link. A chat that is already open is revealed instead of opened again."),
 			],
 			default: ChatViewSessionsOpenChatIn.ChatPanel,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
+			agentsMode: { default: ChatViewSessionsOpenChatIn.ChatArea },
 			markdownDescription: localize('chat.viewSessions.openChatIn', "Controls where the chat of a session opens when it is selected in the sessions of the Chat view."),
 		},
 	},
@@ -138,6 +141,7 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 		@IEditorService private readonly _editorService: IEditorService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IEditorWindowSessionsPresenterService presenterService: IEditorWindowSessionsPresenterService,
+		@IAgentsModeService agentsModeService: IAgentsModeService,
 	) {
 		super();
 
@@ -147,12 +151,16 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 
 		const openChatIn = observableConfigValue<string>(ChatConfiguration.ChatViewSessionsOpenChatIn, ChatViewSessionsOpenChatIn.ChatPanel, configurationService);
 		const orientation = observableConfigValue<unknown>(ChatConfiguration.ChatViewSessionsOrientation, 'sideBySide', configurationService);
+		// Side by side as configured; in Agents mode always, as its layout is the sessions beside the chat part: a stacked
+		// orientation, such as one that hiding the sessions sidebar outside the mode wrote to the user settings, does not apply
+		const agentsMode = observableFromEvent(this, agentsModeService.onDidChange, () => agentsModeService.isActive);
+		const sideBySide = derived(this, reader => agentsMode.read(reader) || orientation.read(reader) !== 'stacked');
 		// What the chat part's host needs to show chats: not with AI features disabled, nor with agents disabled
 		const available = ContextKeyExpr.and(ChatContextKeys.enabled, AgentsViewAvailable)!;
 		const availableKeys = new Set(available.keys());
 		const chatAvailable = observableFromEvent(this, Event.filter(_contextKeyService.onDidChangeContext, e => e.affectsSome(availableKeys)), () => _contextKeyService.contextMatchesRules(available));
 		// As configured: its setting, with the sessions side by side (not the width-based layout)
-		const configured = derived(this, reader => openChatIn.read(reader) === ChatViewSessionsOpenChatIn.ChatArea && orientation.read(reader) !== 'stacked');
+		const configured = derived(this, reader => openChatIn.read(reader) === ChatViewSessionsOpenChatIn.ChatArea && sideBySide.read(reader));
 		const enabled = derived(this, reader => configured.read(reader) && chatAvailable.read(reader));
 		// The chat of the active chat editor, with its session
 		const activeEditor = observableFromEvent(this, this._editorService.onDidActiveEditorChange, () => this._editorService.activeEditor);
@@ -178,6 +186,13 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 					return shownSession && this._sessionsManagementService.getSessionForChatResource(shownSession.resource);
 				});
 				reader.store.add(this._shownChatService.bind(shown, { override: true, priority: 1 }));
+				// The chat that the first request of the Chat view's new chat commits moves to an editor that stays open, also of a new chat
+				// revealed before its request, such as by Run Prompt in New Chat
+				reader.store.add(runOnChange(this._chatViewHostService.shownSession, shownSession => {
+					if (shownSession?.reason === 'commit' && !isUntitledChatSession(shownSession.resource) && this._chatViewHostService.chatViewHosts.read(undefined)) {
+						this._chatWidgetService.openSession(shownSession.resource, ACTIVE_GROUP, { pinned: true }).catch(onUnexpectedError);
+					}
+				}));
 				// A chat that shows in an editor is read, as one that shows in the Chat view is
 				const readMarker = new ShownChatReadMarker(this._sessionsManagementService, extUri);
 				reader.store.add(autorun(reader => {
@@ -195,10 +210,18 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 		this._register(autorun(reader => {
 			if (enabled.read(reader)) {
 				reader.store.add(sessionsRuntime.enable({ viewIds: [ChatViewId] }));
-				// The chats show in the chat part, so the Chat view shows only its sessions, except while it hosts a chat that the chat
-				// part leaves to it, such as a local chat: the seam owns that rule.
-				reader.store.add(this._chatViewHostService.register({ sessionsOnly: true }));
-				// No local chats, which the chat part does not show: as with the sessions list of the Chat view, whose chats are those of sessions
+			}
+		}));
+		// The chats show in the chat part or in editors, so the Chat view shows only its sessions, except while it hosts a chat that the
+		// chat part leaves to it, such as a local chat: the seam owns that rule.
+		const sessionsOnly = derived(this, reader => {
+			const setting = openChatIn.read(reader);
+			return (setting === ChatViewSessionsOpenChatIn.ChatArea || setting === ChatViewSessionsOpenChatIn.EditorArea) && sideBySide.read(reader) && chatAvailable.read(reader);
+		});
+		this._register(autorun(reader => {
+			if (sessionsOnly.read(reader)) {
+				reader.store.add(this._chatViewHostService.register({ chatsOpenElsewhere: true }));
+				// No local chats, which the chat part and editors of sessions do not show: as with the sessions list of the Chat view, whose chats are those of sessions
 				reader.store.add(this._localChatAvailabilityService.hide());
 			}
 		}));
@@ -213,8 +236,25 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 		// As it is configured on or off while the window runs, the chat shown moves to the other host: not as the window starts,
 		// which restores each, nor as chat itself comes or goes
 		const handover = this._register(new MutableDisposable());
-		this._register(runOnChange(configured, toChatPart => {
-			if (!this._contextKeyService.contextMatchesRules(available)) {
+		// Whether chats moved to the chat part in Agents mode, such as by the mode's default of the setting. The mode's settings
+		// change before it reports the change, so this reads whether the window is in the mode, not its change event
+		let chatPartForAgentsMode = agentsModeService.isActive;
+		// Whether the chat stayed in the chat part as the window left Agents mode
+		let chatStayedForAgentsMode = false;
+		const moveChat = (toChatPart: boolean) => {
+			const leavingAgentsMode = !toChatPart && chatPartForAgentsMode && !agentsModeService.isActive;
+			const returningToAgentsMode = toChatPart && chatStayedForAgentsMode && agentsModeService.isActive;
+			chatPartForAgentsMode = toChatPart && agentsModeService.isActive;
+			chatStayedForAgentsMode = leavingAgentsMode;
+			// Leaving Agents mode, the chat stays in the chat part, which shows it as the mode returns: the Chat view taking it
+			// would open the secondary side bar that the mode hides as it leaves. So would a move into the chat part that is
+			// still on its way, as the window leaves the mode right after it entered it
+			if (leavingAgentsMode) {
+				handover.clear();
+				return;
+			}
+			// Returning to Agents mode, the chat part shows the chat that stayed in it, not the Chat view's: unless it no longer has one
+			if ((returningToAgentsMode && this._chatPartService.hasChat()) || !this._contextKeyService.contextMatchesRules(available)) {
 				return;
 			}
 			const taken = toChatPart ? this._takeFromChatView(chatViewShown) : this._takeFromChatPart();
@@ -226,6 +266,21 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 					onUnexpectedError(error);
 				}
 			});
+		};
+		// One state of both, so that a change of the mode is handled after the change of the setting it comes with, however late
+		// the setting turned on: the window can also enter or leave the mode with the setting as the user configured it, which then
+		// does not change, so the chats stay where they are, and what the window did in or for the mode no longer applies
+		const state = derivedOpts<{ configured: boolean; agentsMode: boolean }>({ owner: this, equalsFn: structuralEquals }, reader => ({ configured: configured.read(reader), agentsMode: agentsMode.read(reader) }));
+		this._register(runOnChange(state, (value, previous) => {
+			if (value.configured !== previous.configured) {
+				moveChat(value.configured);
+			}
+			if (value.agentsMode !== previous.agentsMode) {
+				chatPartForAgentsMode = value.agentsMode && value.configured;
+				if (value.agentsMode) {
+					chatStayedForAgentsMode = false;
+				}
+			}
 		}));
 		this._hideMaximizeWhileSessionsOnly();
 	}

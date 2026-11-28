@@ -162,12 +162,12 @@ suite('MobileRepositoryPicker', () => {
 			if (choices === 'multiple providers') {
 				browseActions.push({ label: 'Other', icon: Codicon.folder, providerId: 'second', run: async () => undefined });
 			}
-			let dispatched = 0;
+			const dispatched: (number | undefined)[] = [];
 			const result = showMobileWorkspacePickerSheet(
 				upcastPartial<IWorkbenchLayoutService>({ mainContainer: container }),
 				trigger,
 				[
-					...(choices === 'recent workspace' ? [{
+					...(choices !== 'inline folders' ? [{
 						kind: ActionListItemKind.Action, label: 'Recent',
 						item: { folderUri: URI.file('/recent'), providerId: 'first' },
 					}] : []),
@@ -176,21 +176,30 @@ suite('MobileRepositoryPicker', () => {
 						group: { title: '', icon: action.icon }, item: { browseActionIndex: index },
 					})),
 				],
-				() => { dispatched++; },
+				item => { dispatched.push(item.browseActionIndex); },
 				browseActions,
 				true,
 			);
 			await clock.tickAsync(0);
 			const title = container.querySelector('[role="dialog"]')?.ariaLabel;
 			const headers = container.querySelectorAll('.mobile-picker-sheet-header-action').length;
+			let filteredLabels: string[] = [];
+			if (choices === 'multiple providers') {
+				query(getInput(container), 'microsoft/vscode');
+				await clock.tickAsync(200);
+				const browseRows = getRows(container);
+				filteredLabels = browseRows.map(row => row.textContent ?? '');
+				browseRows[1]?.click();
+			}
 			container.querySelector<HTMLButtonElement>('.mobile-picker-sheet-done')?.click();
 			await clock.tickAsync(180);
 			await result;
 
-			assert.deepStrictEqual({ title, headers, dispatched }, {
+			assert.deepStrictEqual({ title, headers, filteredLabels, dispatched }, {
 				title: 'Choose Workspace',
-				headers: choices === 'multiple providers' ? 2 : choices === 'inline folders' ? 0 : 1,
-				dispatched: 0,
+				headers: choices === 'recent workspace' ? 1 : 0,
+				filteredLabels: choices === 'multiple providers' ? ['Browse', 'Other'] : [],
+				dispatched: choices === 'multiple providers' ? [1] : [],
 			});
 		});
 	}

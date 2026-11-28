@@ -11,6 +11,7 @@ import { constObservable, observableValue, runOnChange } from '../../../../../..
 import { URI } from '../../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IProgressService } from '../../../../../../../platform/progress/common/progress.js';
 import { stubChatViewHostServiceDependencies } from '../../../common/chatViewSessionsListServiceTestUtils.js';
@@ -22,6 +23,7 @@ import { ChatWidget } from '../../../../browser/widget/chatWidget.js';
 import { IChatViewHost, IChatViewHostNewChatOptions, IChatViewHostShownSession, IChatViewNewChatTarget } from '../../../../browser/chatViewHost.js';
 import { ChatViewHostEvent, ChatViewHostService, IChatViewHostState, stepChatViewHostState } from '../../../../browser/widgetHosts/viewPane/chatViewHostService.js';
 import { ChatViewPane } from '../../../../browser/widgetHosts/viewPane/chatViewPane.js';
+import { NewChatAction } from '../../../../browser/actions/chatNewActions.js';
 import { IChatViewSessionsListProvider } from '../../../../browser/widgetHosts/viewPane/chatViewSessionsList.js';
 
 suite('ChatViewHostService', () => {
@@ -538,7 +540,7 @@ suite('ChatViewHostService', () => {
 		assert.deepStrictEqual(changes, [a, b, a, undefined]);
 	});
 
-	test('the Chat view shows only its sessions while a contribution asks for it, a host replaces it, and it does not host the chat shown last', () => {
+	test('the Chat view shows only its sessions while a contribution asks for it and a host replaces it, unless it hosts the chat shown last', () => {
 		const { service, shownSession, showView } = createService();
 		showView();
 		const localChat = URI.parse('vscode-chat-session://local/session');
@@ -562,6 +564,85 @@ suite('ChatViewHostService', () => {
 		again.dispose();
 
 		assert.deepStrictEqual(steps, [false, false, true, false, true, false]);
+	});
+
+	test('the Chat view shows the composer of a new chat that it started while the chats open elsewhere, until a chat shows', async () => {
+		const { service, view, shownSession, showView } = createService();
+		showView();
+		Object.assign(view, { newChat: async () => true });
+		const elsewhere = service.register({ chatsOpenElsewhere: true });
+		const steps = [service.sessionsOnly.get()];
+		await service.newChat(undefined, { ownChat: true });
+		steps.push(service.sessionsOnly.get());
+		shownSession.set({ resource: URI.parse('vscode-chat-session://local/session'), reason: 'open' }, undefined);
+		await service.openSession(URI.parse('agent-host-copilot:/session-1'));
+		steps.push(service.sessionsOnly.get());
+		elsewhere.dispose();
+
+		assert.deepStrictEqual(steps, [true, false, true]);
+	});
+
+	test('while the chats open elsewhere, consecutive New Chats each start the Chat view\'s own new chat, which keeps showing its composer', async () => {
+		const { service, view, shownSession, showView } = createService();
+		showView();
+		const steps: string[] = [];
+		let drafts = 0;
+		// As the Chat view does: its new chat shows an untitled chat
+		Object.assign(view, { newChat: async (_target: unknown, options?: IChatViewHostNewChatOptions) => { steps.push(`view.newChat ownChat=${options?.ownChat}`); shownSession.set({ resource: URI.parse(`agent-host-copilot:/untitled-${++drafts}`), reason: 'open' }, undefined); return true; } });
+		const accessor = upcastPartial<ServicesAccessor>({
+			get: (<T>(id: unknown) => (id === IInstantiationService ? { invokeFunction: () => { steps.push('chat widget New Chat'); } } : service) as T) as ServicesAccessor['get'],
+		});
+		const elsewhere = service.register({ chatsOpenElsewhere: true });
+
+		await new NewChatAction().run(accessor);
+		steps.push(`sessionsOnly=${service.sessionsOnly.get()}`);
+		await new NewChatAction().run(accessor);
+		steps.push(`sessionsOnly=${service.sessionsOnly.get()}`);
+		elsewhere.dispose();
+
+		assert.deepStrictEqual(steps, ['view.newChat ownChat=true', 'sessionsOnly=false', 'view.newChat ownChat=true', 'sessionsOnly=false']);
+	});
+
+	test('while the chats open elsewhere, the commit of a new chat that was revealed before its request is reported as the Chat view\'s shown chat', async () => {
+		const { service, view, shownSession, showView } = createService({ chatVisible: true });
+		showView();
+		Object.assign(view, { newChat: async () => { shownSession.set({ resource: URI.parse('agent-host-copilot:/untitled-1'), reason: 'open' }, undefined); return true; } });
+		const elsewhere = service.register({ chatsOpenElsewhere: true });
+		const reported: string[] = [];
+		const listener = runOnChange(service.shownSession, shown => reported.push(`${shown?.resource.path} ${shown?.reason}`));
+
+		await service.newChat(undefined, { ownChat: true });
+		// Run Prompt in New Chat reveals the Chat view before it sends
+		await service.reveal(true);
+		const sessionsOnlyRevealed = service.sessionsOnly.get();
+		shownSession.set({ resource: URI.parse('agent-host-copilot:/session-1'), reason: 'commit' }, undefined);
+		listener.dispose();
+		elsewhere.dispose();
+
+		assert.deepStrictEqual({ sessionsOnlyRevealed, reported: reported.at(-1), chatViewHosts: service.chatViewHosts.get() }, {
+			sessionsOnlyRevealed: true,
+			reported: '/session-1 commit',
+			chatViewHosts: true,
+		});
+	});
+
+	test('the Chat view shows only its sessions while the chats open elsewhere, even with no host, unless it hosts the chat shown last of a host that replaces it', () => {
+		const { service, shownSession, showView } = createService();
+		showView();
+		const localChat = URI.parse('vscode-chat-session://local/session');
+		const steps = [service.sessionsOnly.get()];
+		const elsewhere = service.register({ chatsOpenElsewhere: true });
+		steps.push(service.sessionsOnly.get());
+		const host = service.register({ host: { ...upcastPartial<IChatViewHost>({}), canShow: resource => resource.scheme !== localChat.scheme } });
+		steps.push(service.sessionsOnly.get());
+		shownSession.set({ resource: localChat, reason: 'open' }, undefined);
+		steps.push(service.sessionsOnly.get());
+		shownSession.set(undefined, undefined);
+		host.dispose();
+		elsewhere.dispose();
+		steps.push(service.sessionsOnly.get());
+
+		assert.deepStrictEqual(steps, [false, true, true, false, false]);
 	});
 
 	test('what shows the chats steps: a request takes the host and supersedes a New Chat under way, a host shows a chat on its own, and a host that went changes nothing', () => {

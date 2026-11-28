@@ -203,7 +203,7 @@ suite('SessionEnvironmentPicker', () => {
 				picker: environments.map(environment => environment.id),
 				resolved: selected && getEnvironmentWorkspaceProvider(selected, [remote], folder)?.id,
 			}, {
-				selected: { id: containerRequested ? `container:${remote.id}` : remote.id, kind: containerRequested ? 'container' : 'remote', label: containerRequested ? 'Dev Container' : remote.label, providers: [remote.id] },
+				selected: { id: containerRequested ? `container:${remote.id}` : remote.id, kind: containerRequested ? 'container' : 'remote', label: containerRequested ? 'Dev Container for Folder' : remote.label, providers: [remote.id] },
 				picker: ['local'], resolved: remote.id,
 			});
 		});
@@ -320,7 +320,7 @@ suite('SessionEnvironmentPicker', () => {
 					.map(item => ({ hover: item.hover?.content, aria: accessibilityProvider?.getAriaLabel?.(item)?.toString() }));
 			},
 		}));
-		const container: ISessionCreationEnvironment = { id: 'container:local', kind: 'container', label: 'Dev Container', icon: Codicon.remote, providerIds: [LOCAL_AGENT_HOST_PROVIDER_ID] };
+		const container: ISessionCreationEnvironment = { id: 'container:local', kind: 'container', label: 'Dev Container for Folder', icon: Codicon.remote, providerIds: [LOCAL_AGENT_HOST_PROVIDER_ID] };
 		const picker = store.add(instantiation.createInstance(SessionEnvironmentPicker, constObservable([local, cloud, ...getSessionCreationEnvironments(providers), container]), observableValue<ISessionCreationEnvironment | undefined>(store, local), async () => { }, () => []));
 		store.add(picker.render(dom.$('div')));
 		picker.showPicker();
@@ -334,7 +334,7 @@ suite('SessionEnvironmentPicker', () => {
 			remote('desktop', 'Run this session on desktop, shared through GitHub Environments'),
 			remote('my_host*', 'Run this session on my_host*', 'Run this session on my\\_host\\*'),
 			remote('Jobs', 'Run this session on Jobs, registered by the Job_runner extension', 'Run this session on Jobs, registered by the Job\\_runner extension'),
-			{ hover: 'Run this session in a dev container for the selected folder', aria: 'Dev Container, Run this session in a dev container for the selected folder' },
+			{ hover: 'Run this session in a dev container for the selected folder', aria: 'Dev Container for Folder, Run this session in a dev container for the selected folder' },
 			{ hover: 'Connect over \\*SSH\\*', aria: 'SSH..., Connect over *SSH*' },
 			{ hover: undefined, aria: 'Other...' },
 			{ hover: 'Add, connect, and manage remote environments', aria: 'Manage Remote Environments..., Add, connect, and manage remote environments' },

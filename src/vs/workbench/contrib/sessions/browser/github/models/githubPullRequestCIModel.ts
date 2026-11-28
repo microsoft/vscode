@@ -19,6 +19,7 @@ import { GitHubCIOverallStatus, IGitHubCICheck } from '../../../common/github/ty
 import { GitHubApiClient } from '../../../../../services/github/browser/githubApiClient.js';
 import { GitHubPRCIFetcher } from '../fetchers/githubPRCIFetcher.js';
 import { IPullRequestChecksSource, IPullRequestChecksSubscription } from '../fetchers/githubPRChecksSource.js';
+import { getStaggeredPollDelay } from './pollDelay.js';
 
 const LOG_PREFIX = '[GitHubPullRequestCIModel]';
 const TRACE_PREFIX = '[PR-ICON-TRACE]';
@@ -300,7 +301,7 @@ export class GitHubPullRequestCIModel extends Disposable {
 	startPolling(intervalMs: number = DEFAULT_POLL_INTERVAL_MS): IDisposable {
 		if (this._pollingClientCount++ === 0) {
 			this._logService.trace(`${TRACE_PREFIX} [CIModel] Start polling ${this.owner}/${this.repo}#${this.prNumber}@${this.headSha} every ${intervalMs}ms`);
-			this._pollScheduler.schedule(intervalMs);
+			this._pollScheduler.schedule(getStaggeredPollDelay(`${this.owner}/${this.repo}#${this.prNumber}@${this.headSha}`, intervalMs));
 		}
 
 		return toDisposable(() => {
@@ -319,7 +320,8 @@ export class GitHubPullRequestCIModel extends Disposable {
 		await this.refresh(false, { priority: 'background' });
 		// Re-schedule if not disposed (RunOnceScheduler is one-shot)
 		if (!this._store.isDisposed && this._pollingClientCount > 0) {
-			this._pollScheduler.schedule();
+			// Keep the offset after every poll: timers that fire together (e.g. after sleep) spread out again.
+			this._pollScheduler.schedule(getStaggeredPollDelay(`${this.owner}/${this.repo}#${this.prNumber}@${this.headSha}`, DEFAULT_POLL_INTERVAL_MS));
 		}
 	}
 

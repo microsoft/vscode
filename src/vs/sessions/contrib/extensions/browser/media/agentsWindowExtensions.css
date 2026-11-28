@@ -307,6 +307,11 @@
 	height: var(--vscode-spacing-size240);
 }
 
+/* The joined Install button shows no divider line. */
+.agents-window-extension-marketplace-actions .monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator > div {
+	height: auto;
+}
+
 .agents-window-marketplace-message {
 	display: flex;
 	align-items: center;

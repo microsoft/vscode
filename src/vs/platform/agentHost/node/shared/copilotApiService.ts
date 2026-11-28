@@ -5,6 +5,7 @@
 
 import type Anthropic from '@anthropic-ai/sdk';
 import { CAPIClient, RequestType, type CCAModel, type IExtensionInformation } from '@vscode/copilot-api';
+import { Emitter, type Event } from '../../../../base/common/event.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { getDevDeviceId, getMachineId } from '../../../../base/node/id.js';
@@ -614,6 +615,9 @@ export interface ICopilotApiService {
 	/** Revalidates discovery when a client observes a different SKU for the same analytics account. */
 	refreshCopilotUser?(githubToken: string, trackingId: string, sku: string): Promise<void>;
 
+	/** Fires when `/copilot_internal/user` discovery publishes an updated context for a token. */
+	readonly onDidRefreshCopilotUser?: Event<{ readonly githubToken: string; readonly context: IRestrictedTelemetryContext }>;
+
 	/** Read the SKU only while its account discovery cache entry remains usable. */
 	getCachedCopilotSku?(githubToken: string): string | undefined;
 
@@ -624,6 +628,9 @@ export interface ICopilotApiService {
 export class CopilotApiService extends Disposable implements ICopilotApiService {
 
 	declare readonly _serviceBrand: undefined;
+
+	private readonly _onDidRefreshCopilotUser = this._register(new Emitter<{ readonly githubToken: string; readonly context: IRestrictedTelemetryContext }>());
+	readonly onDidRefreshCopilotUser = this._onDidRefreshCopilotUser.event;
 
 	private _capiBasePromise: Promise<ICapiBase> | null = null;
 	private readonly _clientsByToken = new Map<string, IClientRequest>();
@@ -989,6 +996,10 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 
 	async resolveRestrictedTelemetryContext(githubToken: string): Promise<IRestrictedTelemetryContext> {
 		const client = await this._getEntryForToken(githubToken);
+		return this._toRestrictedTelemetryContext(client);
+	}
+
+	private _toRestrictedTelemetryContext(client: ICachedClient): IRestrictedTelemetryContext {
 		const telemetryEndpoint = client.restrictedTelemetryEnabled
 			? client.telemetryEndpoint
 			: undefined;
@@ -1038,6 +1049,7 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 				request.skuCell.trackingId = refreshed.trackingId;
 				request.lastPublishedClient = refreshed.capiClient;
 				outcome = 'published';
+				this._onDidRefreshCopilotUser.fire({ githubToken, context: this._toRestrictedTelemetryContext(refreshed) });
 			}
 			this._reportDiscovery(attempt, outcome);
 		}).catch(error => {
@@ -1104,10 +1116,12 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 					request.skuCell.trackingId = entry.trackingId;
 					request.lastPublishedClient = entry.capiClient;
 					outcome = 'published';
+					this._onDidRefreshCopilotUser.fire({ githubToken, context: this._toRestrictedTelemetryContext(entry) });
 				}
 			}
 			this._reportDiscovery(attempt, outcome);
-			return entry;
+			// A superseding publication is authoritative; never hand out an expired entry.
+			return this._readCachedClient(request.skuCell) ?? entry;
 		}).catch(err => {
 			this._reportDiscovery(attempt, 'failed');
 			if (this._clientsByToken.get(githubToken) === request && request.skuCell.valid) {
@@ -1279,6 +1293,9 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 
 		this._logService.debug('[CopilotApiService] CAPI endpoint discovered, api=', envelope.endpoints?.api);
 
+		const isInternal = isInternalAccount(envelope.is_staff, envelope.organization_login_list);
+		const isVscodeTeamMember = internalOrganization === 'vscode';
+
 		return {
 			capiClient,
 			expiresAt: Date.now() / 1000 + CAPI_CONTEXT_TTL_SECONDS,
@@ -1288,10 +1305,10 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 			telemetryEndpoint: envelope.endpoints?.telemetry,
 			apiEndpoint: envelope.endpoints?.api,
 			copilotIgnoreEnabled: envelope.copilotignore_enabled,
-			restrictedTelemetryEnabled: envelope.restricted_telemetry === true,
+			restrictedTelemetryEnabled: envelope.restricted_telemetry === true && !isInternal && !isVscodeTeamMember,
 			trackingId: attempt.copilotTrackingId,
-			isInternal: isInternalAccount(envelope.is_staff, envelope.organization_login_list),
-			isVscodeTeamMember: internalOrganization === 'vscode',
+			isInternal,
+			isVscodeTeamMember,
 		};
 	}
 

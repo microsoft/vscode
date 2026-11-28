@@ -23,7 +23,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
-import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionAgentRef, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SessionStatus, SessionTypeAuthRequirement } from '../../../../../workbench/services/sessions/common/session.js';
+import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionAgentRef, ISessionFolder, ISessionGitRepository, ISessionWorkspace, ISessionWorkspaceConfig, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SessionStatus, SessionTypeAuthRequirement } from '../../../../../workbench/services/sessions/common/session.js';
 import { ICreateNewSessionOptions, INewSessionDraftSlot, INewSessionRequestDispatchedEvent, INewSessionRequestEndedEvent, ISendRequestOptions, ISendRequestSentEvent, ISessionChange, ISessionsManagementService, trackNewSessionRequestEnd, WorkspaceNotTrustedError } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { INewSessionBackgroundSend, INewSessionDraftHost, INewSessionTarget } from '../../../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import { ISessionModelsSnapshot, ISessionsProvider, ISessionsProviderCreateSessionOptions } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
@@ -31,7 +31,7 @@ import { IOpenNewSessionOptions, IOpenNewSessionResult, IOpenSessionOptions } fr
 import { SessionsManagementService } from '../../../../../workbench/contrib/sessions/browser/sessionsManagementService.js';
 import { ISessionsProvidersService, SessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IPickedSessionType, IPreferredSessionType } from '../../../../../workbench/contrib/sessions/browser/chat/sessionTypePicker.js';
-import { BackgroundSendStatus, NewChatWidget, shouldShowNewSessionChatTip } from '../../../../../workbench/contrib/sessions/browser/chat/newChatWidget.js';
+import { BackgroundSendStatus, composesForAllSessions, NewChatWidget, shouldShowNewSessionChatTip } from '../../../../../workbench/contrib/sessions/browser/chat/newChatWidget.js';
 import { INewSessionWorktreeSendChoiceProvider, NewSessionWorktreeSendChoiceService } from '../../../../../workbench/contrib/sessions/browser/chat/newSessionWorktreeSendChoice.js';
 import { findOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { OnboardingScenarioService } from '../../../../../workbench/contrib/onboarding/browser/onboardingService.js';
@@ -46,7 +46,7 @@ import { NullTelemetryService } from '../../../../../platform/telemetry/common/t
 import { NullWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/test/common/nullAssignmentService.js';
 import { DialogService } from '../../../../../workbench/services/dialogs/common/dialogService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
-import { TestHostService, TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { TestHostService, TestLayoutService, TestQuickInputService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { TestLifecycleService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { NewWorktreeChoice } from '../../../../../workbench/contrib/sessions/browser/chat/newWorktreeChoice.js';
 import { IChatSubmitRequest } from '../../../../../workbench/contrib/chat/browser/chatSubmitRequestHandlerService.js';
@@ -71,7 +71,7 @@ import { SessionInputPickerVisibility } from '../../../../../workbench/contrib/s
 import { IChatRequestVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../../../../workbench/contrib/sessions/common/newChatContextIds.js';
-import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { IAgentHostPredecessor, IAgentHostSessionsProvider, IAgentHostSuccessor, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { AgentCustomization } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { INewSessionTargetLabels, NewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { ComposerInputSnapshot } from '../../../../../workbench/contrib/sessions/common/newChatDraftState.js';
@@ -96,7 +96,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IWorktreeSendChoiceTargetService, WorktreeSendChoiceTargetService } from '../../../../../workbench/contrib/chat/browser/agentSessions/worktreeSendChoiceTarget.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
-import { SessionsGrouping } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionsGrouping } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
@@ -114,6 +114,7 @@ import '../../../../../base/browser/ui/codicons/codiconStyles.js';
 import '../../../../../workbench/browser/media/style.css';
 import '../../../../../workbench/contrib/chat/browser/widget/media/chat.css';
 import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionsGridContent.css';
+import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 
 /** The part of the active session `_recreateOnProviderChange` actually reads. */
 interface IActiveDraft {
@@ -140,6 +141,8 @@ interface IRecreateHarness {
 
 /** The collaborators `_createSessionNow` reads while assembling the `openNewSession` options. */
 interface ICreateSessionNowHarness {
+	readonly _session: IObservable<ISession | undefined>;
+	_requestedWorkspaceConfig?: { readonly sessionId: string; readonly config: ISessionWorkspaceConfig | undefined };
 	readonly _preserveCustomView?: boolean;
 	readonly _draftHost?: Partial<INewSessionDraftHost>;
 	_applyRequestedSelection?(session: ISession | undefined): void;
@@ -149,7 +152,8 @@ interface ICreateSessionNowHarness {
 			getPreferredSessionType(folderUri: URI): IPreferredSessionType | undefined;
 		};
 	};
-	readonly _workspacePicker: { readonly selectedResolved: { readonly providerId: string } | undefined };
+	readonly _workspacePicker: { readonly selectedResolved: { readonly providerId: string } | undefined; readonly selectedWorkspaceConfig?: ISessionWorkspaceConfig; readonly sessionFolderUris?: readonly URI[] };
+	readonly uriIdentityService?: { readonly extUri: typeof extUri };
 	readonly sessionsService: { openNewSession(options: IOpenNewSessionOptions, token: CancellationToken): Promise<IOpenNewSessionResult> };
 	readonly logService: { error(message: string, ...args: unknown[]): void };
 	_isPreferredServable(folderUri: URI, pick: IPreferredSessionType): boolean;
@@ -253,7 +257,8 @@ const recreateOnProviderChange = Reflect.get(NewChatWidget.prototype, '_recreate
 	created: { readonly sessionId: string } | undefined,
 ) => void;
 const handlePromptOptionsWorkspaceChange = Reflect.get(NewChatWidget.prototype, '_handlePromptOptionsWorkspaceChange') as (this: IPromptOptionsWorkspaceHarness, previousFolderUri: URI | undefined, folderUri: URI | undefined) => void;
-const syncWorkspacePickerFromSessionWorkspace = Reflect.get(NewChatWidget.prototype, '_syncWorkspacePickerFromSessionWorkspace') as (this: ISyncWorkspacePickerHarness, workspace: ISessionWorkspace | undefined) => void;
+const getDraftWorkspaceConfig = Reflect.get(NewChatWidget.prototype, '_getDraftWorkspaceConfig') as (sessionId: string, workspace: ISessionWorkspace | undefined) => ISessionWorkspaceConfig | undefined;
+const syncWorkspacePickerFromSessionWorkspace = Reflect.get(NewChatWidget.prototype, '_syncWorkspacePickerFromSessionWorkspace') as (this: ISyncWorkspacePickerHarness, session: ITestSessionWithChat | undefined, workspace: ISessionWorkspace | undefined) => void;
 const hasEnoughSessionsForFirstRunNotices = Reflect.get(NewChatWidget.prototype, '_hasEnoughSessionsForFirstRunNotices') as (this: ISessionCountHarness) => boolean;
 const prepareChatTipSession = Reflect.get(NewChatWidget.prototype, '_prepareChatTipSession') as (this: IChatTipSessionHarness) => void;
 const updateChatTip = Reflect.get(NewChatWidget.prototype, '_updateChatTip') as (this: { _renderChatTip(): void; focusInput(): void }, isShowing: boolean, container: HTMLElement) => void;
@@ -338,8 +343,9 @@ interface IPromptOptionsWorkspaceHarness {
 interface ISyncWorkspacePickerHarness {
 	readonly _workspacePicker: {
 		matchesSelectedWorkspace(workspace: ISessionWorkspace): boolean;
-		setSelectedWorkspace(folderUri: URI, options: { fireEvent: false; origin: WorkspaceSelectionOrigin }): void;
+		setSelectedWorkspace(folderUri: URI, options: { fireEvent: false; origin: WorkspaceSelectionOrigin; sessionWorkspaceUri?: URI }): void;
 	};
+	_getDraftWorkspaceConfig(sessionId: string, workspace: ISessionWorkspace | undefined): ISessionWorkspaceConfig | undefined;
 }
 
 interface ISessionCountHarness {
@@ -458,6 +464,8 @@ interface IRenderSessionTypePickerHarness {
 }
 
 interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness {
+	readonly _inEditorWindowHost?: boolean;
+	readonly _composesForAllSessions?: IObservable<boolean>;
 	readonly _environment: ReturnType<typeof observableValue<ISessionCreationEnvironment | undefined>>;
 	readonly _environmentPicker: { readonly isVisible: IObservable<boolean>; render(container: HTMLElement): IDisposable & { readonly element: HTMLElement } };
 	readonly agentHostFilterService: { readonly selectedHost: { readonly sessionCreationProviderId: string } };
@@ -940,6 +948,7 @@ suite('NewChatWidget', () => {
 				_environments: constObservable<readonly ISessionCreationEnvironment[]>([]),
 				_pickedEnvironment: observableValue<ISessionCreationEnvironment | undefined>('environment', undefined),
 				_workspacePicker: { ...workspaceIdentity(), setSelectedWorkspace: () => { } },
+				uriIdentityService: { extUri },
 				sessionsService: {
 					openNewSession: async () => ({ session }),
 					openQuickChat: () => session,
@@ -1131,6 +1140,73 @@ suite('NewChatWidget', () => {
 
 		}
 
+		const savedWorkspaceUri = URI.file('/product.code-workspace');
+		const savedFolders = [requested, URI.file('/added'), URI.file('/more')];
+		const restoreCases: { readonly name: string; readonly resolved: 'file' | 'folder' | 'renamed' | 'missing' | 'other' | undefined; readonly created: boolean; readonly draftFolders?: readonly URI[]; readonly draftWorkspaceFile?: URI; readonly pickerFolders?: readonly URI[]; readonly savesFolders?: false; readonly restored: boolean }[] = [
+			{ name: 'workspace file', resolved: 'file', created: true, restored: true },
+			// A workspace of one folder has no file, so no configuration
+			{ name: 'workspace of one folder', resolved: 'folder', created: true, restored: true },
+			// A renamed workspace resolves by its former URI
+			{ name: 'renamed workspace', resolved: 'renamed', created: true, restored: true },
+			{ name: 'unresolved workspace', resolved: undefined, created: true, restored: false },
+			// A workspace file that can no longer be read is known by its last folders only; with no added folders saved, only
+			// the workspace stands for the draft's session
+			{ name: 'workspace file that cannot be read', resolved: 'missing', created: true, savesFolders: false, restored: false },
+			{ name: 'another workspace', resolved: 'other', created: true, restored: false },
+			// The workspace's folders were reordered after the draft was saved
+			{ name: 'workspace folders reordered since saving', resolved: 'file', created: true, pickerFolders: [requested, savedFolders[2], savedFolders[1]], restored: true },
+			{ name: 'existing draft of the same session', resolved: 'file', created: false, restored: true },
+			// The same folders, its folder still first
+			{ name: 'existing draft with the same folders in another order', resolved: 'file', created: false, draftFolders: [requested, savedFolders[2], savedFolders[1]], restored: true },
+			{ name: 'existing draft with another folder', resolved: 'file', created: false, draftFolders: [...savedFolders, URI.file('/extra')], restored: false },
+			{ name: 'existing draft of another workspace file', resolved: 'file', created: false, draftWorkspaceFile: URI.file('/other.code-workspace'), restored: false },
+		];
+		for (const restoreCase of restoreCases) {
+			test(`restores the workspace and the added folders of a draft's session, or keeps its content when they are unavailable (${restoreCase.name})`, async () => {
+				const renamedWorkspaceUri = URI.file('/renamed.code-workspace');
+				const workspaceConfig = restoreCase.resolved === 'file' ? { uri: savedWorkspaceUri, name: 'Product', folders: [requested] }
+					: restoreCase.resolved === 'renamed' ? { uri: renamedWorkspaceUri, name: 'Product', folders: [requested] }
+						: undefined;
+				const draftFolders = restoreCase.draftFolders ?? savedFolders;
+				const session = upcastPartial<ISession>({
+					sessionId: 'restored', providerId: 'provider', sessionType: 'agent',
+					isQuickChat: constObservable(false),
+					workspace: constObservable(upcastPartial<ISessionWorkspace>({
+						folders: draftFolders.map(root => ({ root, workingDirectory: root, name: 'folder', description: undefined })),
+						workspaceConfig: restoreCase.draftWorkspaceFile ? { uri: restoreCase.draftWorkspaceFile, name: 'Other', folders: [requested] } : workspaceConfig,
+					})),
+				});
+				const fixture = createHarness(session);
+				const selected: { sessionWorkspaceUri?: URI; sessionFolders?: readonly URI[] }[] = [];
+				const opened: ICreateNewSessionOptions[] = [];
+				const picker = {
+					...workspaceIdentity(),
+					setSelectedWorkspace: (_folder: URI, options?: { sessionWorkspaceUri?: URI; sessionFolders?: readonly URI[] }) => { selected.push({ sessionWorkspaceUri: options?.sessionWorkspaceUri, sessionFolders: options?.sessionFolders }); },
+					get selectedSessionWorkspace() {
+						switch (restoreCase.resolved) {
+							case 'renamed': return { uri: renamedWorkspaceUri, previousUris: [savedWorkspaceUri], name: 'Product', folders: [requested] };
+							case 'missing': return { uri: savedWorkspaceUri, name: 'Product', folders: [requested], missing: true };
+							case 'other': return { uri: URI.file('/other.code-workspace'), name: 'Other', folders: [requested] };
+							case undefined: return undefined;
+							default: return { uri: savedWorkspaceUri, name: 'Product', folders: [requested] };
+						}
+					},
+					get selectedWorkspaceConfig() { return workspaceConfig; },
+					get sessionFolderUris() { return restoreCase.pickerFolders ?? selected.at(-1)?.sessionFolders; },
+				};
+				Reflect.set(fixture.harness, '_workspacePicker', picker);
+				Reflect.set(fixture.harness.sessionsService, 'openNewSession', async (options: ICreateNewSessionOptions) => { opened.push(options); return { session, created: restoreCase.created }; });
+
+				const error = await fixture.restore({ ...draft, target: { ...draft.target, sessionWorkspaceUri: savedWorkspaceUri, sessionFolders: restoreCase.savesFolders === false ? undefined : savedFolders } }).then(() => undefined, (error: Error) => error.message);
+
+				assert.deepStrictEqual({ error, configured: fixture.configured.length, opened: opened.map(options => ({ workspaceConfig: options.workspaceConfig, folders: options.folders })) }, {
+					error: restoreCase.restored ? undefined : 'The saved draft\'s workspace is unavailable. Its content has been kept.',
+					configured: restoreCase.restored ? 1 : 0,
+					opened: restoreCase.resolved === undefined || restoreCase.resolved === 'other' || restoreCase.resolved === 'missing' ? [] : [{ workspaceConfig, folders: restoreCase.pickerFolders ?? savedFolders }],
+				});
+			});
+		}
+
 		test('cancelling before target restoration preserves the previous input and Send availability', async () => {
 			const fixture = createHarness(upcastPartial<ISession>({}));
 			const pending = new DeferredPromise<void>();
@@ -1307,7 +1383,7 @@ suite('NewChatWidget', () => {
 			reconcile.call(widget, { providerId: LOCAL_AGENT_HOST_PROVIDER_ID, preferDevContainer: true });
 			assert.deepStrictEqual({ localSelection, containerSelection: picked.get() }, {
 				localSelection: first,
-				containerSelection: { ...first, id: 'container:first-local', kind: 'container', label: 'Dev Container', icon: Codicon.remote },
+				containerSelection: { ...first, id: 'container:first-local', kind: 'container', label: 'Dev Container for Folder', icon: Codicon.remote },
 			});
 		});
 
@@ -1527,6 +1603,109 @@ suite('NewChatWidget', () => {
 				announcements: calls.filter(call => call.startsWith('Environment:')),
 				openedPickers: calls.filter(call => call === 'openWorkspacePicker').length,
 			}, { environment: 'local', announcements: ['Environment: This Computer'], openedPickers: 0 });
+		});
+
+		for (const { devContainer, hosted, requested } of [
+			{ devContainer: false, hosted: true, requested: undefined },
+			{ devContainer: false, hosted: true, requested: 'claude' },
+			{ devContainer: true, hosted: false, requested: undefined },
+			{ devContainer: false, hosted: false, requested: 'claude' },
+		]) {
+			test(`follows the provider that continues the selected host in the background with the draft, its requested agent, Dev Container, requested target and selection origin (devContainer: ${devContainer}, hosted: ${hosted}, requested: ${requested})`, async () => {
+				const { harness, calls } = createHarness(true);
+				const environment: ISessionCreationEnvironment = { id: 'agenthost-env', kind: 'remote', label: 'GitHub Environment', icon: Codicon.github, providerIds: ['agenthost-env'] };
+				const direct: ISessionCreationEnvironment = { id: 'agenthost-wsl', kind: 'remote', label: 'WSL', icon: Codicon.remote, providerIds: ['agenthost-wsl'] };
+				const directFolder = URI.from({ scheme: 'vscode-agent-host', authority: 'wsl', path: '/file/-/project' });
+				const requestedType = requested ? { sessionTypeId: requested } : undefined;
+				const target = observableValue<INewSessionTarget | undefined>('target', { folderUri: folder, providerId: 'agenthost-env', modelId: 'model', ...requestedType });
+				const selections: { origin: WorkspaceSelectionOrigin; persist: boolean }[] = [];
+				const created: { pick: IPreferredSessionType | undefined; background: boolean | undefined }[] = [];
+				const { setSelectedWorkspace } = harness._workspacePicker;
+				const picker = Object.assign(harness._workspacePicker, {
+					selectionSnapshot: { origin: WorkspaceSelectionOrigin.User },
+					selectedResolved: undefined as { providerId: string } | undefined,
+					setSelectedWorkspace: (uri: URI, options: { providerId: string; preferDevContainer: boolean; persist: boolean; origin: WorkspaceSelectionOrigin }): void => {
+						selections.push({ origin: options.origin, persist: options.persist });
+						picker.selectedResolved = { providerId: options.providerId };
+						setSelectedWorkspace(uri, options);
+					},
+				});
+				if (devContainer) {
+					Object.assign(harness.sessionsProvidersService.getProvider(LOCAL_AGENT_HOST_PROVIDER_ID)!, { isDevContainerRequested: () => true });
+				}
+				harness._pickedEnvironment.set(environment, undefined);
+				// The main composer waits for the agent the user picked; a hosted composer, for the one its host requests. The
+				// picker returns only a pick for the composer's current provider.
+				const userPick: IPreferredSessionType = hosted ? { sessionTypeId: 'codex' } : requested ? { providerId: 'agenthost-env', sessionTypeId: requested } : { providerId: 'agenthost-wsl', sessionTypeId: 'codex' };
+				Object.assign(harness._newChatInput, {
+					sessionTypePicker: { getUserPickedSessionType: (): IPreferredSessionType | undefined => !userPick.providerId || harness._pickedEnvironment.get()?.providerIds.includes(userPick.providerId) ? userPick : undefined },
+					remapDraftResources: (mapResource: (resource: URI) => URI | undefined) => calls.push(`remapDraft:${mapResource(folder)?.authority}`),
+				});
+				if (hosted) {
+					harness._draftHost = { requestedTarget: target, setRequestedTarget: next => target.set(next, undefined) };
+				}
+				const follow = Reflect.get(NewChatWidget.prototype, '_followSuccessor') as (this: unknown, folderUri: URI, providerId: string, successorFolderUri: URI, successorProviderId: string, mapResource: (resource: URI) => URI | undefined) => Promise<void>;
+				const reconcile = Reflect.get(NewChatWidget.prototype, '_reconcileWorkspaceEnvironment') as (this: unknown, options: ISelectWorkspaceOptions) => void;
+				const getProviderEnvironment = Reflect.get(NewChatWidget.prototype, '_getProviderEnvironment') as (this: unknown, providerId: string) => ISessionCreationEnvironment | undefined;
+				const requestsDevContainer = Reflect.get(NewChatWidget.prototype, '_requestsDevContainer') as (this: unknown, folderUri: URI | undefined) => boolean;
+
+				await follow.call(Object.assign(harness, {
+					_environments: constObservable([local, environment, direct]),
+					uriIdentityService: { extUri },
+					options: {},
+					_store: { isDisposed: false },
+					_reconcileWorkspaceEnvironment(options: ISelectWorkspaceOptions) { reconcile.call(this, options); },
+					_getProviderEnvironment(providerId: string) { return getProviderEnvironment.call(this, providerId); },
+					_requestsDevContainer(folderUri: URI | undefined) { return requestsDevContainer.call(this, folderUri); },
+					_onWorkspaceSelected: async (_folderUri: URI, pick: IPreferredSessionType | undefined, background: boolean | undefined) => { created.push({ pick, background }); calls.push('createDraft'); },
+				}), folder, 'agenthost-env', directFolder, 'agenthost-wsl', resource => extUri.isEqual(resource, folder) ? directFolder : undefined);
+
+				assert.deepStrictEqual({
+					environment: harness._pickedEnvironment.get()?.id,
+					folder: harness._workspacePicker.selectedFolderUri,
+					devContainerFolder: harness._preferredDevContainerFolderUri,
+					target: target.get(),
+					selections,
+					created,
+					calls,
+				}, {
+					environment: devContainer ? 'container:agenthost-wsl' : 'agenthost-wsl',
+					folder: directFolder,
+					devContainerFolder: devContainer ? directFolder : undefined,
+					target: hosted ? { folderUri: directFolder, providerId: 'agenthost-wsl', modelId: 'model', ...requestedType } : { folderUri: folder, providerId: 'agenthost-env', modelId: 'model', ...requestedType },
+					selections: [{ origin: WorkspaceSelectionOrigin.User, persist: !hosted }],
+					created: [{ pick: { providerId: 'agenthost-wsl', sessionTypeId: requested ?? 'copilot' }, background: true }],
+					calls: ['remapDraft:wsl', 'saveDraft', 'cancelUpgrade', 'cancelCreation', `workspace:agenthost-wsl:${devContainer}`, 'createDraft', devContainer ? 'Environment: Dev Container for Folder' : 'Environment: WSL'],
+				});
+			});
+		}
+
+		test('continues the selected host with its successor first, otherwise with a provider that declares it its predecessor', () => {
+			const directFolder = URI.from({ scheme: 'vscode-agent-host', authority: 'wsl', path: '/file/-/project' });
+			const environmentFolder = URI.from({ scheme: 'vscode-agent-host', authority: 'env', path: '/file/-/project' });
+			const successor = observableValue<IAgentHostSuccessor | undefined>('successor', undefined);
+			const predecessors = new Map(['agenthost-env', 'agenthost-other'].map(id => [id, observableValue<IAgentHostPredecessor | undefined>(id, undefined)]));
+			const providers = ['agenthost-wsl', ...predecessors.keys()].map(id => upcastPartial<IAgentHostSessionsProvider>({ id, successor: id === 'agenthost-wsl' ? successor : undefined, predecessor: predecessors.get(id) }));
+			const selected = { providerId: 'agenthost-wsl' };
+			const read = () => {
+				const continuation = (Reflect.get(NewChatWidget.prototype, '_readContinuation') as (this: unknown, reader: IReader | undefined) => { successorFolderUri: URI; successorProviderId: string; mapResource(resource: URI): URI | undefined } | undefined).call({
+					_workspacePicker: { selectedFolderUri: directFolder, selectedResolved: selected },
+					sessionsProvidersService: { getProviders: () => providers, getProvider: (id: string) => providers.find(provider => provider.id === id) },
+				}, undefined);
+				const mapped = continuation?.mapResource(file);
+				return continuation && `${continuation.successorProviderId} ${continuation.successorFolderUri.authority} ${mapped?.authority}${mapped?.path}`;
+			};
+			const file = directFolder.with({ path: `${directFolder.path}/a.ts` });
+			const toEnvironment = (resource: URI) => resource.with({ authority: environmentFolder.authority });
+			const states = [read()];
+			predecessors.get('agenthost-other')!.set({ providerId: 'agenthost-ssh', mapResource: toEnvironment }, undefined);
+			predecessors.get('agenthost-env')!.set({ providerId: 'agenthost-wsl', mapResource: () => undefined }, undefined);
+			states.push(read());
+			predecessors.get('agenthost-env')!.set({ providerId: 'agenthost-wsl', mapResource: toEnvironment }, undefined);
+			states.push(read());
+			successor.set({ providerId: 'agenthost-other', mapResource: resource => resource }, undefined);
+			states.push(read());
+			assert.deepStrictEqual(states, [undefined, undefined, 'agenthost-env env env/file/-/project/a.ts', 'agenthost-other wsl wsl/file/-/project/a.ts']);
 		});
 
 		function createFolderlessHarness(quickChat = true, optOutEnabled = true) {
@@ -2010,7 +2189,7 @@ suite('NewChatWidget', () => {
 					_environment: environment,
 					_environments: constObservable([local, cloud, remote]),
 					_pickedEnvironment: picked,
-					_session: constObservable({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID }),
+					_session: constObservable(upcastPartial<ITestSessionWithChat>({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID })),
 					uriIdentityService: { extUri },
 					sessionsManagementService: {
 						getSessionTypesForFolder: () => [{ providerId: remote.providerIds[0], sessionType: { id: 'copilot' } }],
@@ -2133,18 +2312,27 @@ suite('NewChatWidget', () => {
 		});
 	});
 
-	test('workspace opt-out triggers in both experiment arms only for an eligible workspace and updates live', () => {
+	test('workspace opt-out follows composer scope and placement in both experiment arms and updates live', () => {
+		const composers = [
+			{ inEditorWindow: false, inChatArea: false, workbenchScope: undefined },
+			{ inEditorWindow: true, inChatArea: true, workbenchScope: undefined },
+			{ inEditorWindow: true, inChatArea: true, workbenchScope: URI.file('/workspace') },
+			{ inEditorWindow: true, inChatArea: false, workbenchScope: undefined },
+		];
 		const results = [];
-		for (const enabled of [false, true]) {
+		for (const { composer, enabled } of composers.flatMap(composer => [false, true].map(enabled => ({ composer, enabled })))) {
 			const container = append(mainWindow.document.body, $('div'));
 			disposables.add(toDisposable(() => container.remove()));
 			const selectionChanged = disposables.add(new Emitter<void>());
 			const target = observableValue<IPreferredSessionType | undefined>('target', undefined);
+			const scope = observableValue<URI | undefined>('scope', composer.workbenchScope);
 			let selectedFolderUri: URI | undefined;
 			let clearable: IObservable<boolean> | undefined;
 			const telemetryService = new TestExperimentTriggerTelemetryService();
 			const harness: IRenderWorkspacePickerHarness = {
 				...createDefaultPresentationHarness(disposables, telemetryService, true),
+				_inEditorWindowHost: composer.inEditorWindow,
+				_composesForAllSessions: derived(reader => composesForAllSessions({ ...composer, workbenchScope: scope.read(reader) })),
 				_environment: observableValue('environment', undefined),
 				_environmentPicker: { isVisible: constObservable(false), render: () => assert.fail('No environment picker expected') },
 				agentHostFilterService: { selectedHost: { sessionCreationProviderId: 'creation' } },
@@ -2182,19 +2370,28 @@ suite('NewChatWidget', () => {
 			harness._workspaceOptOutEnabled.set(!enabled, undefined);
 			selectionChanged.fire();
 			states.push(snapshot());
+			scope.set(URI.file('/scoped'), undefined);
+			states.push(snapshot());
+			scope.set(undefined, undefined);
+			states.push(snapshot());
 			selectedFolderUri = undefined;
 			selectionChanged.fire();
 			states.push(snapshot());
 			results.push(states);
 		}
 		const trigger = `config.${WORKSPACE_OPT_OUT_SETTING}`;
-		assert.deepStrictEqual(results, [false, true].map(enabled => [
-			{ clearable: false, triggers: [] },
-			{ clearable: false, triggers: [] },
-			{ clearable: enabled, triggers: [trigger] },
-			{ clearable: !enabled, triggers: [trigger] },
-			{ clearable: false, triggers: [trigger] },
-		]));
+		assert.deepStrictEqual(results, composers.flatMap((composer, index) => [false, true].map(enabled => {
+			const eligible = index < 2;
+			return [
+				{ clearable: false, triggers: [] },
+				{ clearable: false, triggers: [] },
+				{ clearable: eligible && enabled, triggers: eligible ? [trigger] : [] },
+				{ clearable: eligible && !enabled, triggers: eligible ? [trigger] : [] },
+				{ clearable: index === 0 && !enabled, triggers: eligible ? [trigger] : [] },
+				{ clearable: index < 3 && !enabled, triggers: index < 3 ? [trigger] : [] },
+				{ clearable: false, triggers: index < 3 ? [trigger] : [] },
+			];
+		})));
 	});
 
 	test('workspace remains visible while repository and harness controls expand without being recreated', () => {
@@ -2915,6 +3112,41 @@ suite('NewChatWidget', () => {
 			]);
 	});
 
+	test('offers Chat in an all-sessions chat area, but not a folder window or the Chat view, and follows scope changes', () => {
+		const cases = {
+			allSessionsChatArea: { inEditorWindow: true, inChatArea: true, workbenchScope: undefined },
+			folderWindowChatArea: { inEditorWindow: true, inChatArea: true, workbenchScope: URI.file('/workspace') },
+			allSessionsChatView: { inEditorWindow: true, inChatArea: false, workbenchScope: undefined },
+			agentsWindow: { inEditorWindow: false, inChatArea: false, workbenchScope: undefined },
+		};
+		const results = Object.fromEntries(Object.entries(cases).map(([name, composer]) => {
+			const scope = observableValue<URI | undefined>('scope', composer.workbenchScope);
+			const widget = Object.assign(Object.create(NewChatWidget.prototype), {
+				_inEditorWindowHost: composer.inEditorWindow,
+				_composesForAllSessions: derived(reader => composesForAllSessions({ ...composer, workbenchScope: scope.read(reader) })),
+				_environment: constObservable(undefined),
+				_isWorkspacePickerQuickChat: constObservable(false),
+				_session: constObservable(undefined),
+				sessionsProvidersService: { getProviders: () => [] },
+				sessionsManagementService: { isQuickChatTargetAvailable: () => true },
+			});
+			const offersChat = () => !!getNoWorkspaceOption.call(widget);
+			const states = [offersChat()];
+			scope.set(URI.file('/scoped'), undefined);
+			states.push(offersChat());
+			scope.set(undefined, undefined);
+			states.push(offersChat());
+			return [name, states];
+		}));
+
+		assert.deepStrictEqual(results, {
+			allSessionsChatArea: [!isWeb, false, !isWeb],
+			folderWindowChatArea: [false, false, !isWeb],
+			allSessionsChatView: [false, false, false],
+			agentsWindow: [!isWeb, !isWeb, !isWeb],
+		});
+	});
+
 	test('offers quick chat providers as a host submenu and forwards the selection', async () => {
 		const selections: Array<ICreateNewSessionOptions | undefined> = [];
 		const providers = [
@@ -3415,6 +3647,36 @@ suite('NewChatWidget', () => {
 		});
 	});
 
+	// Pins existing behaviour: the profile fetch already rejects a default account that is not a GitHub account.
+	test('does not fetch a GitHub profile for a Microsoft default account', async () => {
+		const profileRequests: string[] = [];
+		const githubProfileName = observableValue<string | undefined>('githubProfileName', 'stale');
+		const harness = {
+			_githubProfileAccountKey: 'github:stale',
+			_githubProfileName: githubProfileName,
+			enabled: { get: () => true },
+			_store: { isDisposed: false },
+			configurationService: { getValue: <T>(_key: string): T | undefined => undefined },
+			defaultAccountService: {
+				currentDefaultAccount: { authenticationProvider: { id: 'microsoft', enterprise: false }, sessionId: 's1' },
+				async getDefaultAccount() { return this.currentDefaultAccount; },
+			},
+			logService: { warn: () => assert.fail('Unexpected profile warning') },
+			async _fetchGitHubProfileName(providerId: string, _enterprise: boolean, sessionId: string) {
+				profileRequests.push(`${providerId}:${sessionId}`);
+				return 'Alice';
+			},
+		};
+
+		await refreshGitHubProfileName.call(harness);
+
+		assert.deepStrictEqual({
+			profileRequests,
+			accountKey: harness._githubProfileAccountKey,
+			profileName: githubProfileName.get(),
+		}, { profileRequests: [], accountKey: undefined, profileName: undefined });
+	});
+
 	test('distinguishes providers when profile requests complete out of order', async () => {
 		const githubProfile = new DeferredPromise<string | undefined>();
 		const enterpriseProfile = new DeferredPromise<string | undefined>();
@@ -3816,6 +4078,7 @@ suite('NewChatWidget', () => {
 		const calls: string[] = [];
 		const session = upcastPartial<ITestSessionWithChat>({ sessionId: 'draft', providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionType: 'copilot' });
 		const harness = {
+			_session: constObservable(undefined),
 			_environment: constObservable<ISessionCreationEnvironment>({ id: 'local', kind: 'local', label: 'This Computer', icon: Codicon.deviceDesktop, providerIds: [LOCAL_AGENT_HOST_PROVIDER_ID] }),
 			_newChatInput: { sessionTypePicker: { getPreferredSessionType: () => ({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionTypeId: 'copilot' }) } },
 			_workspacePicker: { selectedResolved: { providerId: LOCAL_AGENT_HOST_PROVIDER_ID } },
@@ -3834,12 +4097,166 @@ suite('NewChatWidget', () => {
 		assert.deepStrictEqual(calls, []);
 	});
 
+	test('creates a draft in the picked workspace and the added folders only for its default folder', async () => {
+		const folder = URI.file('/project');
+		const workspaceConfig: ISessionWorkspaceConfig = { uri: URI.file('/product.code-workspace'), name: 'Product', folders: [folder, URI.file('/docs')] };
+		const sessionFolderUris = [folder, URI.file('/docs'), URI.file('/lib')];
+		const requests: IOpenNewSessionOptions[] = [];
+		const harness: ICreateSessionNowHarness = {
+			_session: constObservable(undefined),
+			_environment: constObservable(undefined),
+			_newChatInput: { sessionTypePicker: { getPreferredSessionType: () => undefined } },
+			_workspacePicker: { selectedResolved: { providerId: 'local' }, selectedWorkspaceConfig: workspaceConfig, sessionFolderUris },
+			uriIdentityService: { extUri },
+			sessionsService: {
+				openNewSession: async options => {
+					requests.push(options);
+					return { session: undefined, trustDeclined: false };
+				},
+			},
+			_isPreferredServable: () => true,
+			_requestsDevContainer: () => false,
+			logService: { error: () => assert.fail('unexpected creation error') },
+		};
+		await createSessionNow.call(harness, folder, undefined, CancellationToken.None);
+		await createSessionNow.call(harness, URI.file('/other'), undefined, CancellationToken.None);
+		assert.deepStrictEqual(requests.map(request => ({ ...request, folderUri: request.folderUri?.path, workspaceConfig: request.workspaceConfig?.uri.path, folders: request.folders?.map(f => f.path) })), [
+			{ folderUri: '/project', preserveNavigation: true, workspaceConfig: '/product.code-workspace', folders: ['/project', '/docs', '/lib'], providerId: 'local' },
+			{ folderUri: '/other', preserveNavigation: true, workspaceConfig: undefined, folders: undefined, providerId: 'local' },
+		]);
+	});
+
+	test('offers more folders only once the draft says its agent works in them, never before there is a draft', () => {
+		const supportsSessionFolders = Reflect.get(NewChatWidget.prototype, '_supportsSessionFolders') as (this: object, reader: IReader) => boolean;
+		const draft = (supportsChatFolders: boolean | undefined) => upcastPartial<ISession>({ capabilities: constObservable({ supportsMultipleChats: false, supportsChatFolders }) });
+		assert.deepStrictEqual([undefined, draft(undefined), draft(false), draft(true)].map(session => derived(reader => supportsSessionFolders.call({ _session: constObservable(session) }, reader)).get()), [false, false, false, true]);
+	});
+
+	test('shows the folders the user added as pills, and keeps them while a send clears the input', () => {
+		const syncSessionFolderPills = Reflect.get(NewChatWidget.prototype, '_syncSessionFolderPills') as (this: object) => void;
+		const didSendSessionFolders = Reflect.get(NewChatWidget.prototype, '_didSendSessionFolders') as (this: object, accepted: boolean) => void;
+		let added: URI[] = [URI.file('/lib'), URI.file('/docs')];
+		let attachments: IChatRequestVariableEntry[] = [{ kind: 'file', id: 'file:/readme', name: 'readme', value: URI.file('/readme') }];
+		const harness = {
+			_syncingSessionFolderPills: false,
+			_sendingSessionFolders: false,
+			uriIdentityService: { extUri },
+			_workspacePicker: {
+				get addedSessionFolderUris() { return added; },
+				resetSessionFolders: () => { added = []; },
+			},
+			_newChatInput: {
+				get attachments() { return attachments; },
+				removeAttachment: (id: string) => { attachments = attachments.filter(attachment => attachment.id !== id); },
+				addAttachments: (...entries: IChatRequestVariableEntry[]) => { attachments = [...attachments, ...entries]; },
+			},
+			_syncSessionFolderPills: () => syncSessionFolderPills.call(harness),
+		};
+		const pills = () => attachments.map(attachment => `${attachment.kind}:${attachment.name}`);
+		syncSessionFolderPills.call(harness);
+		const shown = pills();
+		added = [URI.file('/docs')];
+		syncSessionFolderPills.call(harness);
+		const afterRemoval = pills();
+		// A send clears the input, which is restored if the send fails
+		harness._sendingSessionFolders = true;
+		attachments = [];
+		syncSessionFolderPills.call(harness);
+		const whileSending = { pills: pills(), added: added.map(folder => folder.path) };
+		didSendSessionFolders.call(harness, true);
+		assert.deepStrictEqual({ shown, afterRemoval, whileSending, afterSend: { pills: pills(), added: added.map(folder => folder.path) } }, {
+			shown: ['file:readme', 'directory:lib', 'directory:docs'],
+			afterRemoval: ['file:readme', 'directory:docs'],
+			whileSending: { pills: [], added: ['/docs'] },
+			afterSend: { pills: [], added: [] },
+		});
+	});
+
+	test('removing the last folder pill, as the input removes it before saying which, never shows it again', async () => {
+		const registerSessionFolders = Reflect.get(NewChatWidget.prototype, '_registerSessionFolders') as (this: object) => void;
+		const syncSessionFolderPills = Reflect.get(NewChatWidget.prototype, '_syncSessionFolderPills') as (this: object) => void;
+		const lib = URI.file('/lib');
+		let added: URI[] = [lib];
+		let attachments: IChatRequestVariableEntry[] = [];
+		const adds: string[] = [];
+		const selectionChanged = disposables.add(new Emitter<void>());
+		const attachmentsChanged = disposables.add(new Emitter<void>());
+		const attachmentsRemoved = disposables.add(new Emitter<readonly IChatRequestVariableEntry[]>());
+		const harness = {
+			_register: <T extends IDisposable>(disposable: T) => disposables.add(disposable),
+			_syncingSessionFolderPills: false,
+			_sendingSessionFolders: false,
+			uriIdentityService: { extUri },
+			chatContextPickService: { registerChatContextItem: () => Disposable.None },
+			_workspacePicker: {
+				onDidChangeSelection: selectionChanged.event,
+				get addedSessionFolderUris() { return added; },
+				removeSessionFolder: (folder: URI) => { added = added.filter(candidate => !extUri.isEqual(candidate, folder)); selectionChanged.fire(); },
+			},
+			_newChatInput: {
+				onDidChangeAttachments: attachmentsChanged.event,
+				onDidRemoveAttachments: attachmentsRemoved.event,
+				get attachments() { return attachments; },
+				removeAttachment: (id: string) => { attachments = attachments.filter(attachment => attachment.id !== id); attachmentsChanged.fire(); },
+				addAttachments: (...entries: IChatRequestVariableEntry[]) => { adds.push(...entries.map(entry => entry.name)); attachments = [...attachments, ...entries]; attachmentsChanged.fire(); },
+			},
+			_syncSessionFolderPills: () => syncSessionFolderPills.call(harness),
+		};
+		registerSessionFolders.call(harness);
+		await timeout(0);
+		const pill = attachments[0];
+		adds.length = 0;
+		// As the chat input removes the pill the user removed: from its attachments first, then it says which
+		attachments = [];
+		attachmentsChanged.fire();
+		const rightAfterRemoval = attachments.length;
+		attachmentsRemoved.fire([pill]);
+		await timeout(0);
+		assert.deepStrictEqual({ rightAfterRemoval, adds, pills: attachments.length, added }, { rightAfterRemoval: 0, adds: [], pills: 0, added: [] });
+	});
+
+	test('records the workspace configuration requested for a draft only for a draft created for it, so a failed creation is retried', async () => {
+		const folder = URI.file('/project');
+		const workspaceConfig: ISessionWorkspaceConfig = { uri: URI.file('/product.code-workspace'), name: 'Product', folders: [folder, URI.file('/docs')] };
+		const pending = upcastPartial<ITestSessionWithChat>({ sessionId: 'pending' });
+		const created = upcastPartial<ITestSessionWithChat>({ sessionId: 'created' });
+		let result: IOpenNewSessionResult = { session: pending, trustDeclined: false };
+		// An empty composer opened beside the pending draft (`toSide`): a failed creation shows that other draft
+		const shown = observableValue<ISession | undefined>('shown', undefined);
+		const harness: ICreateSessionNowHarness = {
+			_session: shown,
+			_environment: constObservable(undefined),
+			_newChatInput: { sessionTypePicker: { getPreferredSessionType: () => undefined } },
+			_workspacePicker: { selectedResolved: { providerId: 'local' }, selectedWorkspaceConfig: workspaceConfig },
+			uriIdentityService: { extUri },
+			sessionsService: { openNewSession: async () => result },
+			_isPreferredServable: () => true,
+			_requestsDevContainer: () => false,
+			logService: { error: () => assert.fail('unexpected creation error') },
+		};
+		const recorded = () => harness._requestedWorkspaceConfig && { sessionId: harness._requestedWorkspaceConfig.sessionId, config: harness._requestedWorkspaceConfig.config?.uri.path };
+		await createSessionNow.call(harness, folder, undefined, CancellationToken.None);
+		const afterOtherDraftShown = recorded();
+		// As a failed creation in the composer of that same draft
+		shown.set(pending, undefined);
+		await createSessionNow.call(harness, folder, undefined, CancellationToken.None);
+		const afterSameDraftShown = recorded();
+		result = { session: created, trustDeclined: false, created: true };
+		await createSessionNow.call(harness, folder, undefined, CancellationToken.None);
+		assert.deepStrictEqual({ afterOtherDraftShown, afterSameDraftShown, afterRetry: recorded() }, {
+			afterOtherDraftShown: undefined,
+			afterSameDraftShown: undefined,
+			afterRetry: { sessionId: 'created', config: '/product.code-workspace' },
+		});
+	});
+
 	test('a custom-view composer preserves its host when preparing workspace and quick-chat drafts', async () => {
 		const folder = URI.file('/project');
 		const requests: IOpenNewSessionOptions[] = [];
 		const prepared: (ICreateNewSessionOptions | undefined)[] = [];
 		const draft = upcastPartial<ITestSessionWithChat>({ sessionId: 'quick' });
 		const harness: ICreateSessionNowHarness = {
+			_session: constObservable(undefined),
 			_preserveCustomView: true,
 			_environment: constObservable(undefined),
 			_newChatInput: { sessionTypePicker: { getPreferredSessionType: () => undefined } },
@@ -3880,6 +4297,7 @@ suite('NewChatWidget', () => {
 		const folder = URI.file('/project');
 		const requests: IOpenNewSessionOptions[] = [];
 		const harness: ICreateSessionNowHarness = {
+			_session: constObservable(undefined),
 			_environment: constObservable<ISessionCreationEnvironment>({ id: 'container:local', kind: 'container', label: 'Dev Container', icon: Codicon.remote, providerIds: [LOCAL_AGENT_HOST_PROVIDER_ID] }),
 			_newChatInput: { sessionTypePicker: { getPreferredSessionType: () => ({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionTypeId: 'copilot' }) } },
 			_workspacePicker: { selectedResolved: { providerId: LOCAL_AGENT_HOST_PROVIDER_ID } },
@@ -3908,6 +4326,7 @@ suite('NewChatWidget', () => {
 		const selections: Array<{ readonly folderUri: string; readonly providerId: string; readonly persist: boolean; readonly preferDevContainer: boolean; readonly origin: WorkspaceSelectionOrigin }> = [];
 		const harness = {
 			_reconcileWorkspaceEnvironment: () => { },
+			_getDraftWorkspaceConfig: getDraftWorkspaceConfig,
 			uriIdentityService: { extUri },
 			sessionsProvidersService: {
 				getProvider: () => ({
@@ -3957,15 +4376,24 @@ suite('NewChatWidget', () => {
 		const isCurrentWorkspaceSelection = Reflect.get(NewChatWidget.prototype, '_isCurrentWorkspaceSelection') as (
 			this: {
 				readonly _session: IObservable<ITestSessionWithChat | undefined>;
-				readonly _workspacePicker: { readonly selectedResolved: { readonly providerId: string } };
+				readonly _workspacePicker: { readonly selectedResolved: { readonly providerId: string }; readonly selectedWorkspaceConfig: ISessionWorkspaceConfig | undefined; readonly addedSessionFolderUris: readonly URI[] };
 				readonly _preferredDevContainerFolderUri: URI | undefined;
 				readonly _pendingWorkspaceCreation?: Promise<IOpenNewSessionResult>;
 				readonly uriIdentityService: { readonly extUri: typeof extUri };
 				readonly sessionsProvidersService: { getProvider(): { readonly id: string; isDevContainerEnabled(): boolean } };
+				readonly _requestedWorkspaceConfig: { readonly sessionId: string; readonly config: ISessionWorkspaceConfig | undefined } | undefined;
+				_isSelectedWorkspaceConfig(session: ITestSessionWithChat, folderUri: URI): boolean;
+				_getDraftWorkspaceConfig(sessionId: string, workspace: ISessionWorkspace | undefined): ISessionWorkspaceConfig | undefined;
 			},
 			folderUri: URI | undefined,
 		) => boolean;
-		const cases = [
+		const isSelectedWorkspaceConfig = Reflect.get(NewChatWidget.prototype, '_isSelectedWorkspaceConfig') as (session: ITestSessionWithChat, folderUri: URI) => boolean;
+		const b = URI.file('/b');
+		const c = URI.file('/c');
+		const configAB: ISessionWorkspaceConfig = { uri: URI.file('/ab.code-workspace'), name: 'AB', folders: [folder, b] };
+		const configAC: ISessionWorkspaceConfig = { uri: URI.file('/ac.code-workspace'), name: 'AC', folders: [folder, c] };
+		const configABEdited: ISessionWorkspaceConfig = { ...configAB, folders: [folder, c] };
+		const cases: { name: string; folderUri: URI | undefined; reuse: boolean; providerId?: string; preferDevContainer?: boolean; devContainerEnabled?: boolean; pending?: boolean; isCreated?: boolean; noDraft?: boolean; draftConfig?: ISessionWorkspaceConfig; requestedConfig?: ISessionWorkspaceConfig; draftRoots?: URI[]; selectedConfig?: ISessionWorkspaceConfig; added?: URI[] }[] = [
 			{ name: 'same folder', folderUri: URI.file('/project'), reuse: true },
 			{ name: 'different folder', folderUri: URI.file('/other'), reuse: false },
 			{ name: 'cleared folder', folderUri: undefined, reuse: false },
@@ -3976,6 +4404,17 @@ suite('NewChatWidget', () => {
 			{ name: 'pending selection', folderUri: folder, pending: true, reuse: false },
 			{ name: 'created session', folderUri: folder, isCreated: true, reuse: false },
 			{ name: 'no draft', folderUri: folder, noDraft: true, reuse: false },
+			{ name: 'folder to workspace', folderUri: folder, selectedConfig: configAB, reuse: false },
+			{ name: 'workspace to another workspace', folderUri: folder, draftConfig: configAB, selectedConfig: configAC, reuse: false },
+			{ name: 'workspace to folder', folderUri: folder, draftConfig: configAB, reuse: false },
+			{ name: 'same workspace', folderUri: folder, draftConfig: configAB, selectedConfig: configAB, reuse: true },
+			{ name: 'same workspace, draft in its first folder only', folderUri: folder, draftConfig: configAB, draftRoots: [folder], selectedConfig: configAB, reuse: true },
+			{ name: 'same workspace, provider does not record it', folderUri: folder, requestedConfig: configAB, draftRoots: [folder], selectedConfig: configAB, reuse: true },
+			{ name: 'same workspace file with other folders', folderUri: folder, draftConfig: configAB, selectedConfig: configABEdited, reuse: false },
+			{ name: 'folder with an added folder', folderUri: folder, added: [c], reuse: false },
+			{ name: 'same folder and added folder', folderUri: folder, draftRoots: [folder, c], added: [c], reuse: true },
+			{ name: 'added folder removed', folderUri: folder, draftRoots: [folder, c], reuse: false },
+			{ name: 'workspace with an added folder', folderUri: folder, draftConfig: configAB, draftRoots: [folder, b, c], selectedConfig: configAB, added: [c], reuse: true },
 		];
 		const results = cases.map(options => ({
 			name: options.name,
@@ -3984,9 +4423,15 @@ suite('NewChatWidget', () => {
 					sessionId: 'draft',
 					providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 					...withCreatedStatus(constObservable(!!options.isCreated)),
-					workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [{ root: folder, workingDirectory: folder, name: 'project', description: undefined }] })),
+					workspace: constObservable(upcastPartial<ISessionWorkspace>({
+						workspaceConfig: options.draftConfig,
+						folders: (options.draftRoots ?? options.draftConfig?.folders ?? [folder]).map(root => ({ root, workingDirectory: root, name: 'project', description: undefined })),
+					})),
 				})),
-				_workspacePicker: { selectedResolved: { providerId: options.providerId ?? LOCAL_AGENT_HOST_PROVIDER_ID } },
+				_workspacePicker: { selectedResolved: { providerId: options.providerId ?? LOCAL_AGENT_HOST_PROVIDER_ID }, selectedWorkspaceConfig: options.selectedConfig, addedSessionFolderUris: options.added ?? [] },
+				_requestedWorkspaceConfig: options.requestedConfig && { sessionId: 'draft', config: options.requestedConfig },
+				_isSelectedWorkspaceConfig: isSelectedWorkspaceConfig,
+				_getDraftWorkspaceConfig: getDraftWorkspaceConfig,
 				_preferredDevContainerFolderUri: options.preferDevContainer ? folder : undefined,
 				_pendingWorkspaceCreation: options.pending ? Promise.resolve({ session: undefined, trustDeclined: false }) : undefined,
 				uriIdentityService: { extUri },
@@ -4057,6 +4502,7 @@ suite('NewChatWidget', () => {
 		const requested = await Promise.all(cases.map(async ({ pick, servable, preferred }) => {
 			let options: IOpenNewSessionOptions | undefined;
 			await createSessionNow.call({
+				_session: constObservable(undefined),
 				_environment: constObservable(undefined),
 				_newChatInput: { sessionTypePicker: { getPreferredSessionType: () => preferred } },
 				_workspacePicker: { selectedResolved: { providerId: 'workspace-provider' } },
@@ -4262,7 +4708,9 @@ suite('NewChatWidget', () => {
 				matchesSelectedWorkspace: workspace => workspace.folders[0].root.toString() === cloudFolder.toString(),
 				setSelectedWorkspace: (folderUri, options) => selected.push({ folder: folderUri.toString(), origin: options.origin }),
 			},
+			_getDraftWorkspaceConfig: getDraftWorkspaceConfig,
 		};
+		const session = upcastPartial<ITestSessionWithChat>({ sessionId: 'draft' });
 		const workspace = (root: URI): ISessionWorkspace => upcastPartial<ISessionWorkspace>({
 			uri: root,
 			folders: [{
@@ -4273,9 +4721,9 @@ suite('NewChatWidget', () => {
 			}],
 		});
 
-		syncWorkspacePickerFromSessionWorkspace.call(harness, workspace(cloudFolder));
-		syncWorkspacePickerFromSessionWorkspace.call(harness, workspace(otherCloudFolder));
-		syncWorkspacePickerFromSessionWorkspace.call(harness, workspace(localFolder));
+		syncWorkspacePickerFromSessionWorkspace.call(harness, session, workspace(cloudFolder));
+		syncWorkspacePickerFromSessionWorkspace.call(harness, session, workspace(otherCloudFolder));
+		syncWorkspacePickerFromSessionWorkspace.call(harness, session, workspace(localFolder));
 
 		assert.deepStrictEqual(selected, [
 			{ folder: otherCloudFolder.toString(), origin: WorkspaceSelectionOrigin.SessionSync },
@@ -5113,6 +5561,7 @@ suite('NewChatWidget', () => {
 			let discarded = 0;
 			const slot = upcastPartial<INewSessionDraftSlot>({ id: 'slot', discardNewSession: () => discarded++ });
 			const harness: ICreateSessionNowHarness = {
+				_session: constObservable(undefined),
 				_draftHost: host(slot),
 				_applyRequestedSelection: () => { },
 				_environment: constObservable(undefined),
@@ -5472,6 +5921,7 @@ suite('NewChatWidget', () => {
 			function seedHarness(target: INewSessionTarget | undefined) {
 				const calls: unknown[] = [];
 				const harness = {
+					configurationService: new TestConfigurationService({ 'chat.editorWindow.enableWorktree': true }),
 					_workspacePicker: {
 						selectedFolderUri: URI.file('/last'),
 						setSelectedWorkspace: (folderUri: URI, options: object) => calls.push({ select: folderUri.path, options }),
@@ -5490,13 +5940,13 @@ suite('NewChatWidget', () => {
 				return calls;
 			}
 
-			test('a composer restricted to folders without worktrees offers New Worktree as a checkbox instead of in its picker, only with AI features on, the old sessions list and a draft that can work in a new worktree', () => {
+			test('a composer restricted to folders without worktrees offers New Worktree as a checkbox instead of in its picker, only with worktree support and AI features on, the old sessions list and a draft that can work in a new worktree', () => {
 				const createVisible = Reflect.get(NewChatWidget.prototype, '_createNewWorktreeCheckboxVisible') as (this: object, newWorktree: object | undefined, allowedFolders: IObservable<readonly URI[]> | undefined) => IObservable<boolean>;
 				const getPickerNewWorktree = Reflect.get(NewChatWidget.prototype, '_getPickerNewWorktree') as (this: object, newWorktree: object) => { isAvailable(): boolean };
 				const repo = URI.file('/repo');
 				const worktree = URI.file('/repo.worktrees/feature');
-				function offers(options: { chatEnabled?: boolean; sessionsList?: boolean; available?: boolean; folders?: readonly URI[]; draftHost?: boolean } = {}) {
-					const configurationService = new TestConfigurationService(options.sessionsList ? { 'chat.viewSessions.sessionsList.enabled': true } : {});
+				function offers(options: { chatEnabled?: boolean; sessionsList?: boolean; worktreeSupport?: boolean; available?: boolean; folders?: readonly URI[]; draftHost?: boolean } = {}) {
+					const configurationService = new TestConfigurationService({ 'chat.editorWindow.enableWorktree': options.worktreeSupport ?? true, ...(options.sessionsList ? { 'chat.viewSessions.sessionsList.enabled': true } : {}) });
 					disposables.add(configurationService.onDidChangeConfigurationEmitter);
 					const newWorktree = { isAvailable: () => options.available ?? true };
 					const harness: Record<string, unknown> = {
@@ -5517,6 +5967,7 @@ suite('NewChatWidget', () => {
 					withWorktrees: offers({ folders: [repo, worktree] }),
 					newSessionsList: offers({ sessionsList: true }),
 					aiOff: offers({ chatEnabled: false }),
+					worktreeSupportOff: offers({ worktreeSupport: false }),
 					cannotWorkInNewWorktree: offers({ available: false }),
 					agentsWindow: offers({ draftHost: false }),
 				}, {
@@ -5524,6 +5975,7 @@ suite('NewChatWidget', () => {
 					withWorktrees: { checkbox: false, inPicker: true },
 					newSessionsList: { checkbox: false, inPicker: true },
 					aiOff: { checkbox: false, inPicker: true },
+					worktreeSupportOff: { checkbox: false, inPicker: false },
 					cannotWorkInNewWorktree: { checkbox: false, inPicker: false },
 					agentsWindow: { checkbox: false, inPicker: undefined },
 				});
@@ -5537,7 +5989,7 @@ suite('NewChatWidget', () => {
 				const folder = URI.file('/repo');
 
 				/** A composer of a draft of `/repo` that would work in it, whose provider answers with `answer` once asked. */
-				function harness(options: { aiOn?: boolean; quickChat?: boolean; available?: boolean; selected?: boolean; userChosen?: boolean; placement?: boolean; control?: boolean; provider?: boolean; availableOnAnswer?: boolean; applies?: Promise<boolean>; recent?: boolean | Error } = {}) {
+				function harness(options: { aiOn?: boolean; worktreeSupport?: boolean; quickChat?: boolean; available?: boolean; selected?: boolean; userChosen?: boolean; placement?: boolean; control?: boolean; provider?: boolean; availableOnAnswer?: boolean; applies?: Promise<boolean>; recent?: boolean | Error } = {}) {
 					const calls: string[] = [];
 					const answer = new DeferredPromise<'worktree' | 'folder' | undefined>();
 					let available = options.available ?? true;
@@ -5594,6 +6046,7 @@ suite('NewChatWidget', () => {
 							},
 						},
 						contextKeyService: { contextMatchesRules: () => options.aiOn ?? true },
+						configurationService: new TestConfigurationService({ 'chat.editorWindow.enableWorktree': options.worktreeSupport ?? true }),
 						_getWorktreeSendChoiceControl: () => options.control === false ? undefined : control,
 						_isRecentChatInFolder: Reflect.get(NewChatWidget.prototype, '_isRecentChatInFolder'),
 						_warnNewWorktreeUnavailable: () => calls.push('warning'),
@@ -5608,7 +6061,7 @@ suite('NewChatWidget', () => {
 					};
 				}
 
-				test('does not ask where the draft would not work in its folder, the user chose for it, or there is nothing to ask with', async () => {
+				test('does not ask without worktree support, where the draft would not work in its folder, the user chose for it, or there is nothing to ask with', async () => {
 					const asked = async (options: Parameters<typeof harness>[0], resource?: URI) => {
 						const { calls, send, unregister } = harness(options);
 						const taken = await send(resource);
@@ -5620,6 +6073,7 @@ suite('NewChatWidget', () => {
 					assert.deepStrictEqual({
 						noProvider: await asked({ provider: false }),
 						aiOff: await asked({ aiOn: false }),
+						worktreeSupportOff: await asked({ worktreeSupport: false }),
 						quickChat: await asked({ quickChat: true }),
 						noNewWorktree: await asked({ available: false }),
 						newWorktree: await asked({ selected: true }),
@@ -5628,7 +6082,7 @@ suite('NewChatWidget', () => {
 						noRecentChat: await asked({ recent: false }),
 						noControl: await asked({ control: false }),
 						anotherChat: await asked({}, URI.parse('agent-host-copilotcli:/untitled-other')),
-					}, { noProvider: none, aiOff: none, quickChat: none, noNewWorktree: none, newWorktree: none, userChose: none, requestedPlacement: none, noRecentChat: none, noControl: none, anotherChat: none });
+					}, { noProvider: none, aiOff: none, worktreeSupportOff: none, quickChat: none, noNewWorktree: none, newWorktree: none, userChose: none, requestedPlacement: none, noRecentChat: none, noControl: none, anotherChat: none });
 				});
 
 				test('marks only its control where it offers New Worktree now as the target of the provider\'s question, while the provider asks about its draft', () => {
@@ -5678,11 +6132,12 @@ suite('NewChatWidget', () => {
 							store.add(new InMemoryStorageService()), contextKeyService, configuration, store.add(new TestLifecycleService()),
 							new NullWorkbenchAssignmentService(), NullTelemetryService,
 							store.add(new DialogService(upcastPartial<IWorkbenchEnvironmentService>({}), new NullLogService())),
+							new TestQuickInputService(),
 						));
 						const layout = new class extends TestLayoutService {
 							override getContainer() { return mainWindow.document.body; }
 						}();
-						store.add(onboardingPresentationRegistry.register(store.add(new SpotlightPresentation(layout, new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService))));
+						store.add(onboardingPresentationRegistry.register(store.add(new SpotlightPresentation(layout, new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()))));
 						const provider = store.add(new CalloutSendChoiceProvider(onboarding));
 						const worktreeSendChoiceService = new NewSessionWorktreeSendChoiceService();
 						store.add(worktreeSendChoiceService.registerProvider(provider));
@@ -5780,11 +6235,12 @@ suite('NewChatWidget', () => {
 							store.add(new InMemoryStorageService()), contextKeyService, configuration, store.add(new TestLifecycleService()),
 							new NullWorkbenchAssignmentService(), NullTelemetryService,
 							store.add(new DialogService(upcastPartial<IWorkbenchEnvironmentService>({}), new NullLogService())),
+							new TestQuickInputService(),
 						));
 						const layout = new class extends TestLayoutService {
 							override getContainer() { return mainWindow.document.body; }
 						}();
-						store.add(onboardingPresentationRegistry.register(store.add(new SpotlightPresentation(layout, new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService))));
+						store.add(onboardingPresentationRegistry.register(store.add(new SpotlightPresentation(layout, new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()))));
 						const provider = store.add(new CalloutSendChoiceProvider(onboarding));
 						const worktreeSendChoiceService = new NewSessionWorktreeSendChoiceService();
 						store.add(worktreeSendChoiceService.registerProvider(provider));
@@ -6028,6 +6484,7 @@ suite('NewChatWidget', () => {
 								_pendingWorktreePlacement: observableValue<object | undefined>('pendingWorktreePlacement', undefined),
 								_newWorktree: newWorktree,
 								contextKeyService: { contextMatchesRules: () => true },
+								configurationService: new TestConfigurationService({ 'chat.editorWindow.enableWorktree': true }),
 								_getWorktreeSendChoiceControl: () => $('div'),
 								_isRecentChatInFolder: Reflect.get(NewChatWidget.prototype, '_isRecentChatInFolder'),
 								_warnNewWorktreeUnavailable: () => warnings.push('warning'),
@@ -6123,6 +6580,7 @@ suite('NewChatWidget', () => {
 					const b = draftOf('b', '/b');
 					const create = new DeferredPromise<IOpenNewSessionResult>();
 					const harness = {
+						configurationService: new TestConfigurationService({ 'chat.editorWindow.enableWorktree': true }),
 						_store: { isDisposed: false },
 						uriIdentityService: { extUri },
 						// The draft shown, of any folder, is of the folder the composer recreates it for

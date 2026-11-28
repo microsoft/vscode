@@ -16,12 +16,14 @@ import { IDiffProviderFactoryService } from '../../../browser/widget/diffEditor/
 import { DiffEditorOptions } from '../../../browser/widget/diffEditor/diffEditorOptions.js';
 import { DiffEditorWidget } from '../../../browser/widget/diffEditor/diffEditorWidget.js';
 import { DiffEditorViewModel, UnchangedRegion } from '../../../browser/widget/diffEditor/diffEditorViewModel.js';
+import { EditorGutter } from '../../../browser/widget/diffEditor/utils/editorGutter.js';
 import { RefCounted } from '../../../browser/widget/diffEditor/utils.js';
+import { CodeEditorWidget } from '../../../browser/widget/codeEditor/codeEditorWidget.js';
 import { LineRange } from '../../../common/core/ranges/lineRange.js';
 import { DetailedLineRangeMapping } from '../../../common/diff/rangeMapping.js';
 import { instantiateTextModel } from '../../common/testTextModel.js';
 import { TestDiffProviderFactoryService } from '../diff/testDiffProviderFactoryService.js';
-import { createCodeEditorServices } from '../testCodeEditor.js';
+import { createCodeEditorServices, instantiateTestCodeEditor } from '../testCodeEditor.js';
 
 suite('DiffEditorWidget2', () => {
 
@@ -216,6 +218,31 @@ suite('DiffEditorWidget2', () => {
 				3,
 				3,
 			)), (['[1,96) - [1,96)']));
+		});
+	});
+
+	suite('EditorGutter', () => {
+		test('lays out its items as the editor scrolls without reading its height', () => {
+			const instantiationService = createCodeEditorServices(disposables);
+			const model = disposables.add(instantiateTextModel(instantiationService, Array.from({ length: 300 }, (_, i) => `line ${i + 1}`).join('\n')));
+			const editor = disposables.add(instantiateTestCodeEditor(instantiationService, model, { envConfig: { outerWidth: 400, outerHeight: 200 } }));
+			assert.ok(editor instanceof CodeEditorWidget);
+			// Reading it would force a layout on every scroll event.
+			const domNode = document.createElement('div');
+			let heightReads = 0;
+			Object.defineProperty(domNode, 'clientHeight', { get: () => { heightReads++; return 200; } });
+			let layouts = 0;
+			disposables.add(new EditorGutter(editor, domNode, {
+				getIntersectingGutterItems: () => [{ id: 'all', range: new LineRange(1, 301) }],
+				createView: () => ({ layout: () => { layouts++; }, dispose: () => { } }),
+			}));
+
+			heightReads = 0;
+			layouts = 0;
+			for (let i = 1; i <= 10; i++) {
+				editor.setScrollTop(i * 40);
+			}
+			assert.deepStrictEqual({ layouts, heightReads }, { layouts: 10, heightReads: 0 });
 		});
 	});
 });

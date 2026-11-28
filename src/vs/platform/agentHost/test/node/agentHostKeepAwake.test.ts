@@ -52,11 +52,11 @@ suite('AgentHostKeepAwake', () => {
 		});
 	});
 
-	test('acquires for existing work without any connected client and releases after the grace period', async () => {
+	test('defaults to requiring external power for existing work without any connected client and releases after the grace period', async () => {
 		await runWithFakedTimers({}, async () => {
 			state.dispatchServerAction(chat, chatTurnStarted('turn', 'Work'));
 			startController();
-			assert.deepStrictEqual(acquired, [true]);
+			assert.deepStrictEqual(acquired, [false]);
 			state.dispatchServerAction(chat, chatTurnComplete('turn', 1));
 			await timeout(AgentHostKeepAwake.RELEASE_DELAY - 1);
 			assert.strictEqual(releases, 0);
@@ -74,7 +74,7 @@ suite('AgentHostKeepAwake', () => {
 			await timeout(AgentHostKeepAwake.RELEASE_DELAY / 2);
 			state.dispatchServerAction(chat, chatTurnStarted('second', 'More work'));
 			await timeout(AgentHostKeepAwake.RELEASE_DELAY);
-			assert.deepStrictEqual(acquired, [true]);
+			assert.deepStrictEqual(acquired, [false]);
 			assert.strictEqual(releases, 0);
 		});
 	});
@@ -95,7 +95,7 @@ suite('AgentHostKeepAwake', () => {
 			await timeout(AgentHostKeepAwake.RELEASE_DELAY);
 			assert.strictEqual(releases, 1);
 			state.dispatchServerAction(peer, { type: ActionType.ChatInputCompleted, requestId: 'input', response: ChatInputResponseKind.Accept });
-			assert.deepStrictEqual(acquired, [true, true]);
+			assert.deepStrictEqual(acquired, [false, false]);
 		});
 	});
 
@@ -127,11 +127,11 @@ suite('AgentHostKeepAwake', () => {
 		state.dispatchServerAction(chat, chatTurnStarted('turn', 'Work'));
 		config.updateRootConfig({ [AgentHostKeepAwakeConfigKey]: 'never' });
 		assert.strictEqual(releases, 1);
-		assert.deepStrictEqual(acquired, [true]);
+		assert.deepStrictEqual(acquired, [false]);
 		config.updateRootConfig({ [AgentHostKeepAwakeConfigKey]: 'whenPluggedIn' });
-		assert.deepStrictEqual(acquired, [true, false]);
+		assert.deepStrictEqual(acquired, [false, false]);
 		config.updateRootConfig({ [AgentHostKeepAwakeConfigKey]: 'always' });
-		assert.deepStrictEqual(acquired, [true, false, true]);
+		assert.deepStrictEqual(acquired, [false, false, true]);
 		assert.strictEqual(releases, 2);
 		controller.dispose();
 		assert.strictEqual(releases, 3);

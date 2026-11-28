@@ -5,6 +5,7 @@
 
 import type { Mutable } from '../../../../base/common/types.js';
 import { SequencerByKey } from '../../../../base/common/async.js';
+import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -25,6 +26,7 @@ import { PolicyState } from '../../common/state/protocol/channels-root/state.js'
 import { ChatInteractivity, ChatOriginKind, DEFAULT_CHAT_ID, getAgentHostChatId, getInlineToolInput, getSessionRelatedPullRequestUrls, isAhpChatChannel, isSessionStatusArchived, isSessionStatusRead, MessageKind, PendingMessageKind, readSessionGitState, readSessionGitHubState, getAllSessionRelatedPullRequestUrls, ResponsePartKind, ToolCallStatus, TurnState, withSessionCreationReference, type ConfigPropertySchema, type Message, type ModelSelection, type PendingMessage, type ResponsePart, type SessionActiveClient, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { AGENT_HOST_CHAT_LINK_PATTERN, buildOpenSessionLinkForChat, buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
+import { maxSentMessages, orchestrationLimitWindowMs, SessionActionLimiter } from '../../common/sessionActionLimiter.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -32,6 +34,7 @@ import { chatUriFormatOf, mintPeerChatUri } from '../../common/agentHostChatMint
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
 import type { AutomaticTitleGenerationStrategy } from '../agentHostSessionTitleController.js';
 import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } from './agentServerToolHost.js';
+import { OrchestrationLimitGate, OrchestrationLimitKind, type IOrchestrationLimitAdmission } from './orchestrationLimitGate.js';
 
 /**
  * Maximum `create_session` recursion depth. A user/top-level session is depth 0;
@@ -45,61 +48,6 @@ const maxSessionSpawnDepth = 3;
 /** Per-session backstops against runaway spawning (breadth) and `send_message` fan-out, independent of depth. */
 const maxCreatedSessions = 50;
 const maxCreatedChats = 50;
-const maxSentMessages = 100;
-
-/** Sliding window over which the per-session backstops count; capacity frees up as older actions leave it. */
-const orchestrationLimitWindowMs = 60 * 60 * 1000;
-
-/**
- * Counts actions per session over a sliding window, so one busy session cannot
- * starve another and a session that hit its limit recovers on its own.
- */
-class SessionActionLimiter {
-	private readonly timestamps = new Map<string, number[]>();
-	private lastSweep: number;
-
-	constructor(private readonly maxActions: number, private readonly windowMs: number, private readonly now: () => number) {
-		this.lastSweep = now();
-	}
-
-	record(session: string): void {
-		const recent = this.getRecentActions(session);
-		recent.push(this.now());
-		this.timestamps.set(session, recent);
-		this.sweepIdleSessions();
-	}
-
-	/** Once per window, drops sessions that stopped acting so the map does not grow with every session ever seen. */
-	private sweepIdleSessions(): void {
-		if (this.now() - this.lastSweep < this.windowMs) {
-			return;
-		}
-		this.lastSweep = this.now();
-		for (const session of [...this.timestamps.keys()]) {
-			const recent = this.getRecentActions(session);
-			if (recent.length === 0) {
-				this.timestamps.delete(session);
-			} else {
-				this.timestamps.set(session, recent);
-			}
-		}
-	}
-
-	private getRecentActions(session: string): number[] {
-		const cutoff = this.now() - this.windowMs;
-		return (this.timestamps.get(session) ?? []).filter(time => time > cutoff);
-	}
-
-	/** Returns an actionable error message when `session` has exhausted its allowance, or `undefined` when another action is allowed now. */
-	describeLimit(action: string, session: string): string | undefined {
-		const recent = this.getRecentActions(session);
-		if (recent.length < this.maxActions) {
-			return undefined;
-		}
-		const retryAfterSeconds = Math.max(1, Math.ceil((recent[0] + this.windowMs - this.now()) / 1000));
-		return `Refusing to ${action}: this session already used ${recent.length} of ${this.maxActions} allowed in the last ${Math.round(this.windowMs / 60000)} minutes. The limit applies to each session separately and frees up as older actions leave that window. Retry after ${retryAfterSeconds} seconds, or turn off agent orchestration limits in settings.`;
-	}
-}
 
 const sessionConfirmationToolNames: ReadonlySet<string> = new Set([SessionServerToolName.SetWorkspace, SessionServerToolName.CreateSession, SessionServerToolName.CreateChat, SessionServerToolName.SendMessage, SessionServerToolName.DeleteSession, SessionServerToolName.MoveSession, SessionServerToolName.ForkSession]);
 const createSessionRelationshipValues = ['currentSession', 'independent'] as const;
@@ -624,6 +572,8 @@ export interface ISessionServerToolAccessor extends IAgentServiceSessionServerTo
 	readonly getChatOwner: (chat: ProtocolURI) => ProtocolURI | undefined;
 	/** The recorded default chat of a session, if any. */
 	readonly getDefaultChat: (session: ProtocolURI) => ProtocolURI | undefined;
+	readonly canAskUser: (chat: ProtocolURI) => boolean;
+	readonly onDidChangeRootConfig: Event<void>;
 }
 
 /** Resolves the chat a link's chat id addresses against the session's recorded chats. */
@@ -2647,6 +2597,18 @@ function getSessionToolDisplay(toolName: string, args: unknown, result?: IServer
 	}
 }
 
+function recordAction(admission: IOrchestrationLimitAdmission | undefined, limiter: SessionActionLimiter, session: string): void {
+	if (admission?.reservation) {
+		admission.reservation.record();
+	} else {
+		limiter.record(session);
+	}
+}
+
+function withUserAllowedMore(result: string, admission: IOrchestrationLimitAdmission | undefined): string {
+	return admission?.userAllowedMore ? `${result}\n${admission.userAllowedMore}` : result;
+}
+
 /**
  * Creates the session server-tool group with configurable safety limits.
  *
@@ -2660,6 +2622,10 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 	const createdSessions = new SessionActionLimiter(maxCreatedSessions, orchestrationLimitWindowMs, now);
 	const createdChats = new SessionActionLimiter(maxCreatedChats, orchestrationLimitWindowMs, now);
 	const sentMessages = new SessionActionLimiter(maxSentMessages, orchestrationLimitWindowMs, now);
+	const sessionsLimit = { kind: OrchestrationLimitKind.Sessions, limiter: createdSessions, action: 'create more sessions' };
+	const chatsLimit = { kind: OrchestrationLimitKind.Chats, limiter: createdChats, action: 'create more chats' };
+	const messagesLimit = { kind: OrchestrationLimitKind.Messages, limiter: sentMessages, action: 'send more messages' };
+	const limitGate = new OrchestrationLimitGate(context => accessor?.canAskUser(context.chatUri) === true, areAgentOrchestrationLimitsEnabled, accessor?.onDidChangeRootConfig ?? Event.None);
 	const group: IServerToolGroup = {
 		definitions: sessionServerToolDefinitions,
 		// Remove after 2026-10-26; self-mapped because its arguments differ from create_session.
@@ -2770,24 +2736,26 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 					const sourceSessionUri = currentSessionUri(accessor, currentChannel);
 					const sourceSession = sourceSessionUri.toString();
 					const relationship = getCreateSessionRelationship(rawArgs, accessor.supportsChatWorkingDirectories(sourceSessionUri));
-					const limiter = relationship === 'currentSession' ? createdChats : createdSessions;
-					const limitMessage = enforceAgentOrchestrationLimits ? limiter.describeLimit(relationship === 'currentSession' ? 'create more chats' : 'create more sessions', sourceSession) : undefined;
-					if (limitMessage) {
-						throw new Error(limitMessage);
+					const limit = relationship === 'currentSession' ? chatsLimit : sessionsLimit;
+					const admission = enforceAgentOrchestrationLimits ? await limitGate.check(stateManager, context, limit, sourceSession) : undefined;
+					try {
+						const result = await applyCreateSessionTool(accessor, rawArgs, URI.parse(currentChannel), context.turnId, areAgentOrchestrationLimitsEnabled());
+						recordAction(admission, limit.limiter, sourceSession);
+						return withUserAllowedMore(formatCreateSessionResult(result), admission);
+					} finally {
+						admission?.reservation?.dispose();
 					}
-					const result = await applyCreateSessionTool(accessor, rawArgs, URI.parse(currentChannel), context.turnId, enforceAgentOrchestrationLimits);
-					limiter.record(sourceSession);
-					return formatCreateSessionResult(result);
 				}
 				case SessionServerToolName.CreateChat: {
 					const sourceSession = currentSessionUri(accessor, currentChannel).toString();
-					const limitMessage = enforceAgentOrchestrationLimits ? createdChats.describeLimit('create more chats', sourceSession) : undefined;
-					if (limitMessage) {
-						throw new Error(limitMessage);
+					const admission = enforceAgentOrchestrationLimits ? await limitGate.check(stateManager, context, chatsLimit, sourceSession) : undefined;
+					try {
+						const result = await applyCreateChatTool(accessor, rawArgs, URI.parse(currentChannel), context.turnId);
+						recordAction(admission, createdChats, sourceSession);
+						return withUserAllowedMore(formatCreateChatResult(result), admission);
+					} finally {
+						admission?.reservation?.dispose();
 					}
-					const result = await applyCreateChatTool(accessor, rawArgs, URI.parse(currentChannel), context.turnId);
-					createdChats.record(sourceSession);
-					return formatCreateChatResult(result);
 				}
 				case SessionServerToolName.RenameChat:
 					return applyRenameChatTool(accessor, rawArgs, currentChannel);
@@ -2796,15 +2764,16 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 				case SessionServerToolName.SendMessage: {
 					const operation = (rawArgs as ISendMessageArgs | undefined)?.operation ?? 'send';
 					const sendingSession = currentSessionUri(accessor, currentChannel).toString();
-					const limitMessage = operation === 'send' && enforceAgentOrchestrationLimits ? sentMessages.describeLimit('send more messages', sendingSession) : undefined;
-					if (limitMessage) {
-						throw new Error(limitMessage);
+					const admission = operation === 'send' && enforceAgentOrchestrationLimits ? await limitGate.check(stateManager, context, messagesLimit, sendingSession) : undefined;
+					try {
+						const result = await applySendMessageTool(accessor, rawArgs, currentChannel, context.turnId, stateManager);
+						if (operation === 'send') {
+							recordAction(admission, sentMessages, sendingSession);
+						}
+						return admission?.userAllowedMore ? JSON.stringify({ ...JSON.parse(result), userAllowedMore: admission.userAllowedMore }) : result;
+					} finally {
+						admission?.reservation?.dispose();
 					}
-					const result = await applySendMessageTool(accessor, rawArgs, currentChannel, context.turnId, stateManager);
-					if (operation === 'send') {
-						sentMessages.record(sendingSession);
-					}
-					return result;
 				}
 				case SessionServerToolName.GetSessionContext:
 					return applyGetSessionContextTool(accessor, rawArgs, currentChannel);

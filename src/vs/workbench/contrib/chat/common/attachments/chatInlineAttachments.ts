@@ -549,31 +549,63 @@ function getMarkdownLinkEnd(text: string, offset: number, endExclusive: number):
  * spans, in which a mention renders as its text rather than as a pill.
  */
 export function getMarkdownCodeRanges(text: string): OffsetRange[] {
+	return getMarkdownTokenRanges(text, token => token.type === 'code' || token.type === 'codespan');
+}
+
+/**
+ * The ranges of the Markdown tokens of `text` for which `include` holds,
+ * including those within lists, block quotes and table cells. The tokens
+ * within an included token are not visited. With `includeUntokenized`, the
+ * block text that the lexer leaves out of its tokens, such as link reference
+ * definitions, is included as well.
+ */
+export function getMarkdownTokenRanges(text: string, include: (token: marked.Token) => boolean, includeUntokenized = false): OffsetRange[] {
 	// The lexer normalizes line breaks, so its offsets are mapped back to those of the text.
 	const normalized = text.replace(/\r\n?/g, '\n');
 	const ranges: OffsetRange[] = [];
-	const visit = (tokens: readonly marked.Token[], within: OffsetRange) => {
+	const keepUntokenized = (range: OffsetRange) => {
+		if (includeUntokenized && /\S/.test(normalized.slice(range.start, range.endExclusive))) {
+			ranges.push(range);
+		}
+	};
+	const visit = (tokens: readonly marked.Token[], within: OffsetRange, inTable: boolean, isBlock = false): number => {
 		let cursor = within.start;
 		for (const token of tokens) {
-			const range = token.raw ? findTokenText(normalized, token.raw, new OffsetRange(cursor, within.endExclusive)) : undefined;
+			const searched = new OffsetRange(cursor, within.endExclusive);
+			// Table cells unescape their pipes, so their source is searched for with the pipes escaped again.
+			const range = token.raw ? findTokenText(normalized, token.raw, searched) ?? (inTable ? findTokenText(normalized, token.raw.split('|').join('\\|'), searched) : undefined) : undefined;
 			if (!range) {
 				continue;
 			}
+			if (isBlock) {
+				keepUntokenized(new OffsetRange(cursor, range.start));
+			}
 			cursor = range.endExclusive;
-			if (token.type === 'code' || token.type === 'codespan') {
+			if (include(token)) {
 				ranges.push(range);
 				continue;
 			}
 			const children = (token as marked.Tokens.Generic).tokens;
 			if (Array.isArray(children)) {
-				visit(children, range);
+				visit(children, range, inTable, token.type === 'blockquote' || token.type === 'list_item');
 			}
 			if (token.type === 'list') {
-				visit((token as marked.Tokens.List).items, range);
+				visit((token as marked.Tokens.List).items, range, inTable);
+			}
+			if (token.type === 'table') {
+				const table = token as marked.Tokens.Table;
+				let cellCursor = range.start;
+				for (const cell of [...table.header, ...table.rows.flat()]) {
+					cellCursor = visit(cell.tokens, new OffsetRange(cellCursor, range.endExclusive), true);
+				}
 			}
 		}
+		if (isBlock) {
+			keepUntokenized(new OffsetRange(cursor, within.endExclusive));
+		}
+		return cursor;
 	};
-	visit(marked.lexer(normalized), new OffsetRange(0, normalized.length));
+	visit(marked.lexer(normalized), new OffsetRange(0, normalized.length), false, true);
 	if (normalized.length === text.length) {
 		return ranges;
 	}

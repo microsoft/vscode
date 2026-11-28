@@ -186,6 +186,13 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'experiment': { mode: 'auto' },
 				'markdownDescription': localize("workbench.editor.experimental.emptyEditorHintActions", "Controls whether the empty editor hint of new untitled files shows a list of actions instead of a single line. Only applies when `#workbench.editor.empty.hint#` is `text`.")
 			},
+			'workbench.editor.experimental.emptyEditorHintOpenInMarkdownEditor': {
+				'type': 'boolean',
+				'default': false,
+				'tags': ['experimental', 'onExp'],
+				'experiment': { mode: 'auto' },
+				'markdownDescription': localize("workbench.editor.experimental.emptyEditorHintOpenInMarkdownEditor", "Controls whether the single line empty editor hint of new untitled files also offers to open the file in the Markdown Editor. Only applies when `#workbench.editor.empty.hint#` is `text`. The list of actions of `#workbench.editor.experimental.emptyEditorHintActions#` takes precedence.")
+			},
 			'workbench.editor.languageDetection': {
 				type: 'boolean',
 				default: true,
@@ -391,7 +398,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'string',
 				'enum': ['off', 'some', 'all'],
 				'enumDescriptions': [
-					localize('useModal.off', "Editors never open in a modal overlay."),
+					localize('useModal.off', "Editors only open in a modal overlay when they cannot open anywhere else."),
 					localize('useModal.some', "Certain editors such as Settings and Keyboard Shortcuts may open in a centered modal overlay."),
 					localize('useModal.all', "All editors open in a centered modal overlay."),
 				],
@@ -604,6 +611,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': 'left',
 				'description': localize('sideBarLocation', "Controls the location of the primary side bar and activity bar. They can either show on the left or right of the workbench. The secondary side bar will show on the opposite side of the workbench."),
 				agentsWindow: { default: 'left', readOnly: true },
+				agentsMode: { default: 'right' },
 			},
 			'workbench.panel.showLabels': {
 				'type': 'boolean',
@@ -705,12 +713,14 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': false,
 				'markdownDescription': localize({ comment: ['This is the description for a setting'], key: 'activityBarAutoHide' }, "Controls whether the Activity Bar is automatically hidden when there is only one view container to show. This applies to the Primary Side Bar when {0} is set to {1} or {2}, and to the Secondary Side Bar regardless of {0}.", '`#workbench.activityBar.location#`', '`top`', '`bottom`'),
 				agentsWindow: { default: false, readOnly: true },
+				agentsMode: { default: true },
 			},
 			[LayoutSettings.ACTIVITY_BAR_COMPACT]: {
 				'type': 'boolean',
 				'default': false,
 				'markdownDescription': localize({ comment: ['This is the description for a setting'], key: 'activityBarCompact' }, "Controls whether the Activity Bar uses a compact layout with smaller icons and reduced width. This setting only applies when {0} is set to {1}.", '`#workbench.activityBar.location#`', '`default`'),
 				agentsWindow: { default: false, readOnly: true },
+				agentsMode: { default: true },
 			},
 			'workbench.activityBar.iconClickBehavior': {
 				'type': 'string',

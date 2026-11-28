@@ -230,15 +230,6 @@
 	color: var(--vscode-descriptionForeground);
 }
 
-.host-picker-hint code {
-	padding: 1px var(--vscode-spacing-size40);
-	border-radius: var(--vscode-cornerRadius-xSmall);
-	background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
-	color: var(--vscode-foreground);
-	font-family: var(--monaco-monospace-font, monospace);
-	font-size: 12px;
-}
-
 @keyframes host-picker-blink {
 	0%, 100% { opacity: 1; }
 	50% { opacity: 0.35; }

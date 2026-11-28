@@ -14,6 +14,8 @@ import { extUri } from '../../../../../../base/common/resources.js';
 import { renderAsPlaintext, renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { getChatMarkdownRenderOptions } from '../../../browser/widget/chatContentMarkdownRenderer.js';
 import { getToolGroupSummary } from '../../../browser/widget/chatContentParts/chatToolGroupSummary.js';
+import { getToolInvocationIcon } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
+import { getCompactCodicon } from '../../../browser/chatIcons.js';
 import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
@@ -27,7 +29,7 @@ import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLi
 import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { AgentHostArtifactNoticeMetaKey, AgentHostArtifactRequestMetaKey, AgentHostArtifactRunMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactIntegrationMeta.js';
 import { createTestArtifactRequestPresentation } from '../../../../../../platform/artifactIntegrations/test/common/artifactIntegrationTestUtils.js';
-import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
+import { AgentHookOutcome, AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentWorkspaceContinuationMeta.js';
 import { getComputerUseActivationAnswers, withComputerUseActivationCard, withComputerUseSetupCard } from '../../../../../../platform/agentHost/common/meta/computerUse.js';
 import { createShellAuthenticationRequest } from '../../../../../../platform/agentHost/common/meta/agentShellAuthenticationMeta.js';
@@ -804,7 +806,7 @@ suite('stateToProgressAdapter', () => {
 				],
 			});
 			const parts = turnsToHistory(URI.parse('ahp-session:/opaque-host-identity'), [JSON.parse(JSON.stringify(turn))], 'participant').find(item => item.type === 'response')?.parts ?? [];
-			const explanation = 'Computer Use lets Copilot see and control apps on this computer. It stays on for Copilot, including the Copilot CLI, until you run `/computer off`.';
+			const explanation = 'Computer Use lets Copilot see and control apps on the machine running the agent host. In a remote session, this is the remote machine, not your client. It stays on for Copilot on that machine, including the Copilot CLI, until you run `/computer off`.';
 			assert.deepStrictEqual(parts.map(part => part.kind === 'elicitationSerialized' ? { kind: part.kind, title: part.title, message: typeof part.message === 'string' ? part.message : part.message.value, state: part.state } : { kind: part.kind }), [
 				{ kind: 'elicitationSerialized', title: 'Turn on Computer Use?', message: `Open \\*Calculator\\*\n\n${explanation}`, state: ElicitationState.Accepted },
 				{ kind: 'elicitationSerialized', title: 'Turn on Computer Use?', message: explanation, state: ElicitationState.Rejected },
@@ -2750,6 +2752,43 @@ suite('stateToProgressAdapter', () => {
 			]);
 		});
 
+		test('labels calls a hook denied with the hook, and keeps its reason beside the row, in live and restored transcripts', () => {
+			const deniedByHook = (source?: string) => ({ 'vscode.deniedByHook': source ? { hookType: 'preToolUse', source } : { hookType: 'preToolUse' } });
+			const cases: Record<string, { readonly toolName: string; readonly toolInput: string; readonly meta?: Record<string, unknown> }> = {
+				explicit: { toolName: 'view', toolInput: '{"path":"/workspace/notes.txt"}', meta: deniedByHook() },
+				crashed: { toolName: 'view', toolInput: '{"path":"/workspace/notes.txt"}', meta: deniedByHook('.github/hooks/policy.json') },
+				mcp: { toolName: 'view', toolInput: '{"path":"/workspace/notes.txt"}', meta: { ...deniedByHook(), mcpServerName: 'docs' } },
+				terminal: { toolName: 'bash', toolInput: '{"command":"rm -rf ./scratch"}', meta: { ...deniedByHook(), toolKind: 'terminal' } },
+				subagent: { toolName: 'task', toolInput: '{"description":"Read the notes","prompt":"Read notes.txt"}', meta: { ...deniedByHook(), toolKind: 'subagent' } },
+				failed: { toolName: 'view', toolInput: '{"path":"/workspace/notes.txt"}' },
+			};
+			const results = Object.fromEntries(Object.entries(cases).map(([name, { toolName, toolInput, meta }]) => {
+				const running = createToolCallState({ toolName, displayName: 'Read', toolInput });
+				const completed = createCompletedToolCall({
+					...running, status: ToolCallStatus.Completed, success: false, pastTenseMessage: '"Read" failed',
+					error: { message: 'Denied by preToolUse hook: not in this repo (policy R-17).', code: 'denied' }, _meta: meta,
+				});
+				const live = toolCallStateToInvocation(running);
+				finalizeToolInvocation(live, completed);
+				const restored = completedToolCallToSerialized(completed, undefined, URI.file('/'), 'local');
+				const views = [live, live.toJSON(), restored].map(tool => JSON.stringify({
+					title: name === 'failed' ? undefined : tool.pastTenseMessage && (typeof tool.pastTenseMessage === 'string' ? tool.pastTenseMessage : renderAsPlaintext(tool.pastTenseMessage)),
+					origin: tool.originMessage,
+					summary: getToolGroupSummary([tool], [], 1, extUri),
+				}));
+				return [name, new Set(views).size === 1 ? JSON.parse(views[0]) : views];
+			}));
+			const reason = 'Denied by preToolUse hook: not in this repo (policy R-17).';
+			assert.deepStrictEqual(results, {
+				explicit: { title: '"Read" blocked by Pre-Tool Use hook', origin: reason, summary: '1 tool call blocked by a hook' },
+				crashed: { title: '"Read" blocked because Pre-Tool Use hook .github/hooks/policy.json failed', summary: '1 tool call blocked by a hook' },
+				mcp: { title: '"Read" blocked by Pre-Tool Use hook', origin: `docs (MCP Server) · ${reason}`, summary: '1 tool call blocked by a hook' },
+				terminal: { origin: reason, summary: '1 tool call blocked by a hook' },
+				subagent: { title: '"Read" blocked by Pre-Tool Use hook', origin: reason, summary: '1 tool call blocked by a hook' },
+				failed: { summary: '1 tool call failed' },
+			});
+		});
+
 		test('distinguishes denied results from skipped calls in live and restored summaries', () => {
 			const summaries = [ToolCallCancellationReason.Skipped, ToolCallCancellationReason.Denied, ToolCallCancellationReason.ResultDenied].map(reason => {
 				const running = createToolCallState({ toolName: 'view', toolInput: '{"path":"/workspace/File.ts"}' });
@@ -2926,9 +2965,37 @@ suite('stateToProgressAdapter', () => {
 		});
 
 		test('does not invent an MCP origin without valid server metadata', () => {
-			assert.deepStrictEqual([undefined, {}, { mcpServerName: 123 }, { mcpServerName: '  ' }].map(_meta =>
-				toolCallStateToInvocation(createToolCallState({ _meta })).originMessage
-			), [undefined, undefined, undefined, undefined]);
+			assert.deepStrictEqual([undefined, {}, { mcpServerName: 123 }, { mcpServerName: '  ' }].map(_meta => {
+				const invocation = toolCallStateToInvocation(createToolCallState({ _meta }));
+				return [invocation.originMessage, invocation.icon];
+			}), Array(4).fill([undefined, undefined]));
+		});
+
+		test('uses MCP icons for metadata without changing tool source in live calls and history', () => {
+			const running = createToolCallState({ toolName: 'search_tools', _meta: { mcpServerName: 'Azure', toolKind: 'search' } });
+			const pending = { ...running, status: ToolCallStatus.PendingConfirmation as const, confirmationTitle: 'Allow?' };
+			const completed = createCompletedToolCall({ ...running, status: ToolCallStatus.Completed });
+			const invocations = [
+				toolCallStateToInvocation(running),
+				toolCallStateToInvocation(pending),
+				completedToolCallToSerialized(completed, undefined, URI.file('/'), 'local'),
+			];
+			assert.deepStrictEqual(invocations.map(invocation => ({
+				source: invocation.source,
+				icon: getCompactCodicon(getToolInvocationIcon(invocation.toolId, invocation)).id,
+			})), invocations.map(() => ({ source: ToolDataSource.Internal, icon: Codicon.mcpCompact.id })));
+		});
+
+		test('uses the protocol MCP contributor even without optional metadata', () => {
+			const running = createToolCallState({ toolName: 'search_tools', contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'opaque-server' } });
+			const completed = createCompletedToolCall({ ...running, status: ToolCallStatus.Completed });
+			assert.deepStrictEqual([
+				toolCallStateToInvocation(running),
+				completedToolCallToSerialized(completed, undefined, URI.file('/'), 'other-host'),
+			].map(invocation => [invocation.icon, invocation.source]), [
+				[Codicon.mcp, ToolDataSource.Internal],
+				[Codicon.mcp, ToolDataSource.Internal],
+			]);
 		});
 
 		test('MCP origin prefers the server display name and falls back to the server name', () => {
@@ -2967,6 +3034,20 @@ suite('stateToProgressAdapter', () => {
 				},
 				toolSpecificData: undefined,
 			});
+		});
+
+		test('isolate_session confirmation hides its raw input, as its message names the folders', () => {
+			const toolSpecificData = ['isolate_session', 'copilot_session__isolate_session'].map(toolName => toolCallStateToInvocation({
+				toolCallId: `tc-${toolName}`,
+				toolName,
+				displayName: toolName,
+				invocationMessage: 'Move /work/lib to a new worktree for this chat?',
+				status: ToolCallStatus.PendingConfirmation,
+				confirmationTitle: 'Move to a New Worktree?',
+				toolInput: '{"folders":["/work/lib"]}',
+			}).toolSpecificData);
+
+			assert.deepStrictEqual(toolSpecificData, [undefined, undefined]);
 		});
 
 		test('renders ask-user tools as waiting progress that hides after completion', () => {
@@ -3896,7 +3977,7 @@ suite('stateToProgressAdapter', () => {
 		});
 
 		test('keeps the MCP origin when metadata arrives after streaming starts', () => {
-			const toolName = 'io-github-github-github-mcp-server-issue_read';
+			const toolName = 'issue_read';
 			const invocation = toolCallStateToStreamingInvocation({
 				toolCallId: 'tc-mcp',
 				toolName,
@@ -3912,6 +3993,7 @@ suite('stateToProgressAdapter', () => {
 			});
 			invocation.transitionFromStreaming(toolCallStateToPreparedInvocation(running), undefined, undefined);
 			const runningOrigin = invocation.originMessage;
+			const runningIcon = getToolInvocationIcon(invocation.toolId, invocation);
 			invocation.requestConfirmation(toolCallStateToPreparedInvocation({
 				...running,
 				status: ToolCallStatus.PendingConfirmation,
@@ -3922,16 +4004,53 @@ suite('stateToProgressAdapter', () => {
 
 			assert.deepStrictEqual({
 				runningOrigin,
+				runningIcon,
 				pendingOrigin,
+				pendingIcon: getToolInvocationIcon(invocation.toolId, invocation),
 				completedOrigin: invocation.toJSON().originMessage,
+				completedIcon: invocation.toJSON().icon,
 				invocationMessage: invocation.invocationMessage,
 				pastTenseMessage: invocation.pastTenseMessage,
 			}, {
 				runningOrigin: 'GitHub (MCP Server)',
+				runningIcon: Codicon.mcp,
 				pendingOrigin: 'GitHub (MCP Server)',
+				pendingIcon: Codicon.mcp,
 				completedOrigin: 'GitHub (MCP Server)',
+				completedIcon: Codicon.mcp,
 				invocationMessage: 'Read issue',
 				pastTenseMessage: 'Read issue',
+			});
+		});
+
+		test('updates the MCP icon when metadata arrives during streaming, running or completion', () => {
+			const streamingCall = { toolCallId: 'late', toolName: 'search_tools', displayName: 'Search', status: ToolCallStatus.Streaming as const };
+			const metadata = { mcpServerName: 'Azure', toolKind: 'search' };
+			const streaming = toolCallStateToStreamingInvocation(streamingCall, undefined);
+			const icons: string[] = [];
+			store.add(autorun(reader => {
+				streaming.state.read(reader);
+				icons.push(getCompactCodicon(getToolInvocationIcon(streaming.toolId, streaming)).id);
+			}));
+			updateStreamingToolInvocation(streaming, { ...streamingCall, _meta: metadata }, 'local');
+			const running = createToolCallState({ toolCallId: 'late', toolName: 'search_tools' });
+			const runningInvocation = toolCallStateToInvocation(running);
+			updateRunningToolSpecificData(runningInvocation, { ...running, _meta: metadata });
+			const pending = { ...running, status: ToolCallStatus.PendingConfirmation as const, confirmationTitle: 'Allow?' };
+			const pendingInvocation = toolCallStateToInvocation(pending);
+			pendingInvocation.updatePreparedInvocation(toolCallStateToPreparedInvocation({ ...pending, _meta: metadata }), undefined);
+			const completedInvocation = toolCallStateToInvocation(running);
+			finalizeToolInvocation(completedInvocation, createCompletedToolCall({ ...running, _meta: metadata, status: ToolCallStatus.Completed }));
+			assert.deepStrictEqual({
+				streaming: icons,
+				running: getToolInvocationIcon(runningInvocation.toolId, runningInvocation),
+				pending: getToolInvocationIcon(pendingInvocation.toolId, pendingInvocation),
+				completed: completedInvocation.toJSON().icon,
+			}, {
+				streaming: [Codicon.searchCompact.id, Codicon.mcpCompact.id],
+				running: Codicon.mcp,
+				pending: Codicon.mcp,
+				completed: Codicon.mcp,
 			});
 		});
 
@@ -4660,6 +4779,23 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
+		test('produces a warning that stays visible for a worktree with Git LFS pointer files', () => {
+			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([{
+				kind: ResponsePartKind.SystemNotification,
+				content: 'Files stored with Git LFS are pointer files in this worktree.',
+				_meta: toAgentSystemNotificationMeta({
+					kind: AgentSystemNotificationKind.WorktreeGitLfsUnavailable,
+					severity: AgentSystemNotificationSeverity.Warning,
+				}),
+			}]), undefined);
+
+			assert.deepStrictEqual(result[0], {
+				kind: 'warning',
+				content: new MarkdownString('Files stored with Git LFS are pointer files in this worktree.'),
+				keepVisibleWhenCollapsed: true,
+			});
+		});
+
 		test('produces a warning with a Configure Tools link for active BYOK tool limit notification', () => {
 			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([{
 				kind: ResponsePartKind.SystemNotification,
@@ -4755,6 +4891,90 @@ suite('stateToProgressAdapter', () => {
 				links: [{ scheme: 'command', command: AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID, args: [target] }],
 				text: `${text} Retry`,
 			});
+		});
+
+		test('shows a failed Copilot hook as a warning with its Local label and a Disable Hook Warnings mute button, unless hook warnings are off', () => {
+			const hookFailure = (hook: Record<string, unknown>, showHookFailures?: boolean) => systemNotificationToChatPart('The host text.', 'local', {
+				...toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.Hook, severity: AgentSystemNotificationSeverity.Warning }),
+				hook,
+			}, undefined, showHookFailures);
+			const summarize = (part: IChatProgress | undefined) => {
+				if (part?.kind !== 'warning') {
+					return part;
+				}
+				const rendered = store.add(renderMarkdown(part.content));
+				return {
+					text: rendered.element.textContent,
+					links: rendered.element.querySelectorAll('a').length,
+					keepVisibleWhenCollapsed: part.keepVisibleWhenCollapsed,
+					mute: part.mute,
+				};
+			};
+			const crash = { type: 'preToolUse', outcome: AgentHookOutcome.Failed, source: '.github/hooks/policy.json', message: 'Error: Hook command failed with code 1 [x](command:evil)' };
+			const warning = (text: string) => ({
+				text,
+				links: 0,
+				keepVisibleWhenCollapsed: true,
+				mute: { commandId: 'workbench.action.chat.disableHookWarnings', tooltip: 'Disable Hook Warnings' },
+			});
+
+			assert.deepStrictEqual([
+				summarize(hookFailure(crash, true)),
+				// A hook event the client cannot label is shown with the host's text.
+				summarize(hookFailure({ ...crash, type: 'notAHook' }, true)),
+				summarize(hookFailure({ ...crash, type: 'constructor' }, true)),
+				hookFailure(crash, false),
+				hookFailure(crash),
+			], [
+				warning('The Pre-Tool Use hook from .github/hooks/policy.json failed: Error: Hook command failed with code 1 [x](command:evil)'),
+				warning('The host text.'),
+				warning('The host text.'),
+				undefined,
+				undefined,
+			]);
+		});
+
+		test('shows a Copilot hook warning with its Local label and a Disable Hook Warnings mute button, unless hook warnings are off', () => {
+			const hookWarning = (hook: Record<string, unknown>, showHookFailures?: boolean) => systemNotificationToChatPart('The host text.', 'local', {
+				...toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.Hook, severity: AgentSystemNotificationSeverity.Warning }),
+				hook,
+			}, undefined, showHookFailures);
+			const summarize = (part: IChatProgress | undefined) => part?.kind === 'warning'
+				? { text: store.add(renderMarkdown(part.content)).element.textContent, keepVisibleWhenCollapsed: part.keepVisibleWhenCollapsed, mute: part.mute?.commandId }
+				: part;
+			const exitCode2 = { type: 'userPromptSubmitted', outcome: AgentHookOutcome.Warned, message: 'This prompt mentions WARNME; check before continuing.' };
+			const shown = (text: string) => ({ text, keepVisibleWhenCollapsed: true, mute: 'workbench.action.chat.disableHookWarnings' });
+
+			assert.deepStrictEqual([
+				summarize(hookWarning(exitCode2, true)),
+				summarize(hookWarning({ ...exitCode2, type: 'notAHook' }, true)),
+				summarize(hookWarning({ outcome: AgentHookOutcome.Warned, message: 'Ignoring non-string modifiedPrompt returned by a hook (received number); the content is left unchanged.' }, true)),
+				hookWarning(exitCode2, false),
+			], [
+				shown('Warning from the User Prompt Submit hook: This prompt mentions WARNME; check before continuing.'),
+				shown('Warning from the notAHook hook: This prompt mentions WARNME; check before continuing.'),
+				// Without an event there is nothing to relabel, so the host's own text is shown.
+				shown('The host text.'),
+				undefined,
+			]);
+		});
+
+		test('shows a prompt a Copilot hook blocked as an error with the host\'s text, even with hook warnings off', () => {
+			const hostText = 'A hook blocked this prompt: Prompts containing BLOCKME are not allowed [x](command:evil)';
+			const blocked = (showHookFailures?: boolean) => systemNotificationToChatPart(hostText, 'local', {
+				...toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.Hook, severity: AgentSystemNotificationSeverity.Error }),
+				hook: { outcome: AgentHookOutcome.Blocked, message: 'Prompts containing BLOCKME are not allowed [x](command:evil)' },
+			}, undefined, showHookFailures);
+			const summarize = (part: IChatProgress | undefined) => {
+				if (part?.kind !== 'warning') {
+					return part;
+				}
+				const rendered = store.add(renderMarkdown(part.content));
+				return { text: rendered.element.textContent, links: rendered.element.querySelectorAll('a').length, keepVisibleWhenCollapsed: part.keepVisibleWhenCollapsed, mute: part.mute, isError: part.isError };
+			};
+			const shown = { text: hostText, links: 0, keepVisibleWhenCollapsed: true, mute: undefined, isError: true };
+
+			assert.deepStrictEqual([summarize(blocked(true)), summarize(blocked(false))], [shown, shown]);
 		});
 
 		test('styles workspace transitions as accessible transcript boundaries', () => {

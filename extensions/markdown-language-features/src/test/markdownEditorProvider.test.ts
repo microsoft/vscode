@@ -8,71 +8,11 @@ import 'mocha';
 import * as vscode from 'vscode';
 import { MarkdownContributions } from '../markdownExtensions';
 import { MarkdownPreviewLineDiffProvider } from '../preview/lineDiff';
-import { computeMarkdownEditorEdit, getInDocumentLinkTargetRange, getMarkdownCodeBlockEditorApiV1, getMarkdownCodeBlockEditorApiV2, isSupportedMarkdownCodeBlockEditorApiVersion, lineRangesToGutterMarkers, readMarkdownEditorEdit } from '../preview/markdownEditorProvider';
-import { mergeCodeBlockEditorPresentation } from '../preview/markdownEditorProtocol';
+import { getInDocumentLinkTargetRange, getMarkdownCodeBlockEditorApiV1, getMarkdownCodeBlockEditorApiV2, getMarkdownEditorConfiguration, isSupportedMarkdownCodeBlockEditorApiVersion, lineRangesToGutterMarkers } from '../preview/markdownEditorProvider';
+import { clampMarkdownEditorZoomPercent, MARKDOWN_EDITOR_ZOOM_STEP_PERCENT, mergeCodeBlockEditorPresentation, stepMarkdownEditorZoomDelta } from '../preview/markdownEditorProtocol';
 import { encodeWebviewInitialState } from '../preview/webviewInitialState';
 
 suite('Markdown editor links', () => {
-	test('validates edits from the webview', () => {
-		assert.deepStrictEqual({
-			valid: readMarkdownEditorEdit({ start: 1, endExclusive: 3, text: 'new', editEpoch: 2 }),
-			negativeStart: readMarkdownEditorEdit({ start: -1, endExclusive: 3, text: 'new', editEpoch: 2 }),
-			reversed: readMarkdownEditorEdit({ start: 3, endExclusive: 1, text: 'new', editEpoch: 2 }),
-			fractional: readMarkdownEditorEdit({ start: 1.5, endExclusive: 3, text: 'new', editEpoch: 2 }),
-			nonText: readMarkdownEditorEdit({ start: 1, endExclusive: 3, text: 4, editEpoch: 2 }),
-			staleShape: readMarkdownEditorEdit({ start: 1, endExclusive: 3, text: 'new' }),
-		}, {
-			valid: { start: 1, endExclusive: 3, text: 'new', editEpoch: 2 },
-			negativeStart: undefined,
-			reversed: undefined,
-			fractional: undefined,
-			nonText: undefined,
-			staleShape: undefined,
-		});
-	});
-
-	test('maps sequential LF webview edits onto a CRLF document', () => {
-		const resource = vscode.Uri.file('/workspace/readme.md');
-		const first = computeMarkdownEditorEdit(resource, 'ab\r\n', vscode.EndOfLine.CRLF, 'ab\r\n', {
-			start: 1,
-			endExclusive: 1,
-			text: '\n',
-			editEpoch: 0,
-		});
-		const second = first && computeMarkdownEditorEdit(resource, first.expectedDocumentText, vscode.EndOfLine.CRLF, first.nextWebviewText, {
-			start: 2,
-			endExclusive: 2,
-			text: 'x',
-			editEpoch: 0,
-		});
-
-		assert.deepStrictEqual({
-			first: first && {
-				range: [first.range.start.line, first.range.start.character, first.range.end.line, first.range.end.character],
-				replacementText: first.replacementText,
-				expectedDocumentText: first.expectedDocumentText,
-				nextWebviewText: first.nextWebviewText,
-			},
-			second: second && {
-				range: [second.range.start.line, second.range.start.character, second.range.end.line, second.range.end.character],
-				expectedDocumentText: second.expectedDocumentText,
-				nextWebviewText: second.nextWebviewText,
-			},
-		}, {
-			first: {
-				range: [0, 1, 0, 1],
-				replacementText: '\r\n',
-				expectedDocumentText: 'a\r\nb\r\n',
-				nextWebviewText: 'a\nb\r\n',
-			},
-			second: {
-				range: [1, 0, 1, 0],
-				expectedDocumentText: 'a\r\nxb\r\n',
-				nextWebviewText: 'a\nxb\r\n',
-			},
-		});
-	});
-
 	test('maps only positioned links within the current document to source ranges', async () => {
 		const document = await vscode.workspace.openTextDocument({ language: 'markdown', content: '# First\n\n## Target\n' });
 		const targetPosition = { line: 2, character: 0 };
@@ -242,12 +182,14 @@ suite('Markdown editor initial state', () => {
 				language: 'en',
 			},
 			content: '</meta><script>globalThis.modified = true</script><!--\n# Heading "quoted"',
-			documentVersion: 17,
-			editEpoch: 3,
 			readonly: true,
 			richLinksEnabled: true,
 			highlightActiveBlock: false,
 			renderWhitespace: true,
+			lineBreak: '\r\n' as const,
+			zoomPercent: 120,
+			documentReadonly: false,
+			readonlyMessage: 'Cannot edit in read-only editor',
 			linkPresentationRules: [],
 		};
 		const encoded = encodeWebviewInitialState(state);
@@ -259,6 +201,56 @@ suite('Markdown editor initial state', () => {
 			containsHtmlAttributeSyntax: false,
 			roundTrip: state,
 		});
+	});
+});
+
+suite('Markdown editor configuration', () => {
+	test('forwards Markdown preview typography settings with clamping and fallbacks', async () => {
+		const document = await vscode.workspace.openTextDocument({ language: 'markdown', content: '# Title' });
+		const previewConfig = vscode.workspace.getConfiguration('markdown.preview', document);
+		const keys = ['fontFamily', 'fontSize', 'lineHeight'] as const;
+		const previous = keys.map(key => previewConfig.inspect(key)?.globalValue);
+		const update = async (values: readonly unknown[]) => {
+			for (let i = 0; i < keys.length; i++) {
+				await previewConfig.update(keys[i], values[i], vscode.ConfigurationTarget.Global);
+			}
+		};
+		try {
+			await update(['Georgia', 22, 1.4]);
+			const configured = getMarkdownEditorConfiguration(document, false);
+
+			await update([undefined, 2, 0.1]);
+			const clamped = getMarkdownEditorConfiguration(document, false);
+
+			await update(['   ', 'not-a-number', 'not-a-number']);
+			const invalidString = getMarkdownEditorConfiguration(document, true);
+
+			await update(['', '', '   ']);
+			const emptyStrings = getMarkdownEditorConfiguration(document, false);
+
+			await update([null, null, false]);
+			const nullAndBoolean = getMarkdownEditorConfiguration(document, false);
+
+			const defaultFontFamily = previewConfig.inspect<string>('fontFamily')?.defaultValue;
+			assert.deepStrictEqual(
+				{
+					configured: { fontFamily: configured.fontFamily, fontSize: configured.fontSize, lineHeight: configured.lineHeight },
+					clamped: { fontFamily: clamped.fontFamily, fontSize: clamped.fontSize, lineHeight: clamped.lineHeight },
+					invalidString: { fontFamily: invalidString.fontFamily, fontSize: invalidString.fontSize, lineHeight: invalidString.lineHeight, documentReadonly: invalidString.documentReadonly },
+					emptyStrings: { fontFamily: emptyStrings.fontFamily, fontSize: emptyStrings.fontSize, lineHeight: emptyStrings.lineHeight },
+					nullAndBoolean: { fontFamily: nullAndBoolean.fontFamily, fontSize: nullAndBoolean.fontSize, lineHeight: nullAndBoolean.lineHeight },
+				},
+				{
+					configured: { fontFamily: 'Georgia', fontSize: 22, lineHeight: 1.4 },
+					clamped: { fontFamily: defaultFontFamily, fontSize: 8, lineHeight: 0.6 },
+					invalidString: { fontFamily: undefined, fontSize: undefined, lineHeight: undefined, documentReadonly: true },
+					emptyStrings: { fontFamily: undefined, fontSize: undefined, lineHeight: undefined },
+					nullAndBoolean: { fontFamily: undefined, fontSize: undefined, lineHeight: undefined },
+				},
+			);
+		} finally {
+			await update(previous);
+		}
 	});
 });
 
@@ -338,6 +330,26 @@ suite('Markdown code block editor API versioning', () => {
 		const contributions = (maxAutomaticHeight: number) => MarkdownContributions.fromExtension(contributingExtension(source, undefined, { maxAutomaticHeight }));
 		assert.strictEqual(MarkdownContributions.equal(contributions(400), contributions(400)), true);
 		assert.strictEqual(MarkdownContributions.equal(contributions(400), contributions(300)), false);
+	});
+});
+
+suite('Markdown editor zoom', () => {
+	test('preserves shared delta when stepping at the active editor clamp limits with differing defaults', () => {
+		let delta = stepMarkdownEditorZoomDelta(100, 0, MARKDOWN_EDITOR_ZOOM_STEP_PERCENT);
+		assert.strictEqual(delta, 10);
+		assert.strictEqual(clampMarkdownEditorZoomPercent(100 + delta), 110);
+
+		// Zooming in on an editor already configured to 400% must not reset the +10 delta.
+		delta = stepMarkdownEditorZoomDelta(400, delta, MARKDOWN_EDITOR_ZOOM_STEP_PERCENT);
+		assert.strictEqual(delta, 10);
+		assert.strictEqual(clampMarkdownEditorZoomPercent(100 + delta), 110);
+
+		// Symmetrically, zooming out on an editor configured to 25% must not reset a -10 delta.
+		delta = stepMarkdownEditorZoomDelta(100, 0, -MARKDOWN_EDITOR_ZOOM_STEP_PERCENT);
+		assert.strictEqual(delta, -10);
+		delta = stepMarkdownEditorZoomDelta(25, delta, -MARKDOWN_EDITOR_ZOOM_STEP_PERCENT);
+		assert.strictEqual(delta, -10);
+		assert.strictEqual(clampMarkdownEditorZoomPercent(100 + delta), 90);
 	});
 });
 

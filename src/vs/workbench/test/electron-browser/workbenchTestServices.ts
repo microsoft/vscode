@@ -164,6 +164,7 @@ export class TestNativeHostService implements INativeHostService {
 	async getProcessId(): Promise<number> { throw new Error('Method not implemented.'); }
 	async killProcess(): Promise<void> { }
 	async setDocumentEdited(edited: boolean): Promise<void> { }
+	async setWindowAgentsMode(active: boolean): Promise<void> { }
 	async setApplicationBadge(badge: IApplicationBadge | undefined): Promise<void> { }
 	async openExternal(url: string, defaultApplication?: string): Promise<boolean> { return false; }
 	async updateTouchBar(): Promise<void> { }

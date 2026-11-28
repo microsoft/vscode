@@ -11,7 +11,7 @@ import { raceTimeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, constObservable } from '../../../../base/common/observable.js';
+import { IObservable, autorun, constObservable } from '../../../../base/common/observable.js';
 import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -28,13 +28,13 @@ import { InQuickInputContextKey } from '../../../../platform/quickinput/browser/
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { editorBackground } from '../../../../platform/theme/common/colors/editorColors.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { AGENTS_LAUNCHER_IPC_CHANNEL, IPoint, IRectangle } from '../../../../platform/window/common/window.js';
+import { AGENTS_LAUNCHER_IPC_CHANNEL, IAgentsLauncherOptions, IPoint, IRectangle } from '../../../../platform/window/common/window.js';
 import { ipcRenderer } from '../../../../base/parts/sandbox/electron-browser/globals.js';
 import { IAuxiliaryWindow, IAuxiliaryWindowService } from '../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatWidget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { AGENTS_LAUNCHER_COMMAND_ID } from '../../../../workbench/contrib/chat/common/constants.js';
+import { AGENTS_LAUNCHER_COMMAND_ID, AGENTS_LAUNCHER_COMMAND_METADATA } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IChatViewFactory } from '../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
 import { AbstractChatView, INewSessionDraftHost } from '../../../../workbench/contrib/sessions/browser/parts/chatView.js';
@@ -42,6 +42,7 @@ import { ISessionsService } from '../../../../workbench/contrib/sessions/browser
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SharedChatInputComposer } from '../../../../workbench/contrib/sessions/browser/chat/sharedChatInputComposer.js';
 import { ChatInputSupportsBackgroundContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { setHostSessionContextKeys } from '../../../../workbench/contrib/sessions/common/sessionContextKeys.js';
 import { SessionsCategories } from '../../../../workbench/contrib/sessions/common/categories.js';
 import { ISession } from '../../../../workbench/services/sessions/common/session.js';
 import { createSessionHostServices, ISessionHostService, SessionHost, SessionHostKind } from '../../../../workbench/services/sessions/browser/sessionHost.js';
@@ -63,12 +64,12 @@ export const IAgentsLauncherService = createDecorator<IAgentsLauncherService>('a
 export interface IAgentsLauncherService {
 	readonly _serviceBrand: undefined;
 	readonly isVisible: IObservable<boolean>;
-	/** Shows and focuses the Agents Launcher. */
-	show(): Promise<void>;
+	/** Shows and focuses the Agents Launcher, with its composer aimed as `options` ask. */
+	show(options?: IAgentsLauncherOptions): Promise<void>;
 	/** Hides the Agents Launcher while preserving its draft. */
 	hide(): Promise<void>;
-	/** Shows or hides the Agents Launcher. */
-	toggle(): Promise<void>;
+	/** Hides the Agents Launcher, or shows it as {@link show} does. */
+	toggle(options?: IAgentsLauncherOptions): Promise<void>;
 	/** Starts the composer's session in the background and keeps the Agents Launcher open, with a status that can open the session. */
 	sendInBackground(): Promise<void>;
 }
@@ -197,6 +198,7 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 			input: composer.input,
 			requestedTarget: composer.requestedTarget,
 			setRequestedTarget: (target, reason) => composer.setRequestedTarget(target, reason),
+			onDidRetarget: composer.onDidRetarget,
 			openStartedSession: session => composer.openStartedSession(session),
 			trackBackgroundSend: send => {
 				const tracking = composer.trackBackgroundSend(send);
@@ -225,8 +227,26 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 	}
 
 	/** Shows, positions, and focuses the Agents Launcher. */
-	show(): Promise<void> {
+	show(options?: IAgentsLauncherOptions): Promise<void> {
+		if (options?.workspace === '') {
+			this._requestNoWorkspace();
+		} else if (options?.workspace !== undefined) {
+			this._logService.warn(`[AgentsLauncher] Ignoring unsupported workspace '${options.workspace}': only '' (no workspace) is supported`);
+		}
 		return this._presenter.show();
+	}
+
+	/**
+	 * Aims the composer at a chat without a workspace, keeping what was typed, and the requested agent, model and custom
+	 * agent where that agent has chats without one, as picking Chat in its workspace picker does. A draft without one stays.
+	 */
+	private _requestNoWorkspace(): void {
+		if (this._composer.session.get()?.isQuickChat?.get()) {
+			return;
+		}
+		const target = this._composer.requestedTarget.get();
+		const keepsAgent = !!target?.providerId && this._sessionsManagementService.isQuickChatTargetAvailable({ providerId: target.providerId, sessionTypeId: target.sessionTypeId });
+		this._composer.requestTarget(keepsAgent ? { providerId: target.providerId, sessionTypeId: target.sessionTypeId, modelId: target.modelId, modeId: target.modeId } : {});
 	}
 
 	/** Lays out the composer for a show, creating its window should there be none: resolves to the window to show, if any. */
@@ -380,8 +400,8 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 	}
 
 	/** Toggles the Agents Launcher while retaining the same composer and draft slot. */
-	toggle(): Promise<void> {
-		return this._presenter.visible.get() ? this.hide() : this.show();
+	toggle(options?: IAgentsLauncherOptions): Promise<void> {
+		return this._presenter.visible.get() ? this.hide() : this.show(options);
 	}
 
 	async sendInBackground(): Promise<void> {
@@ -471,6 +491,8 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 			contextKeyService: scopedContextKeyService,
 		});
 		this._windowDisposables.add(this._sessionHostService.registerHost(host));
+		// The composer's controls are scoped to its draft, such as its repository pickers, rather than to the Agents window's active session.
+		this._windowDisposables.add(autorun(reader => setHostSessionContextKeys(host.session.read(reader), host.chat.read(reader), undefined, scopedContextKeyService, reader)));
 		const scopedInstantiationService = this._windowDisposables.add(this._instantiationService.createChild(createSessionHostServices(scopedContextKeyService, host)));
 		const view = this._windowDisposables.add(this._chatViewFactory.createNewChatView(false, {
 			backgroundSend: true,
@@ -702,8 +724,8 @@ class AgentsLauncherContribution extends Disposable implements IWorkbenchContrib
 		@ILogService logService: ILogService,
 	) {
 		super();
-		const handleToggle = () => {
-			void agentsLauncherService.toggle().catch(error => logService.error('[AgentsLauncher] Failed to handle IPC toggle', error));
+		const handleToggle = (_event: unknown, ...argsRaw: unknown[]) => {
+			void agentsLauncherService.toggle(argsRaw[0] as IAgentsLauncherOptions | undefined).catch(error => logService.error('[AgentsLauncher] Failed to handle IPC toggle', error));
 		};
 		ipcRenderer.on(AGENTS_LAUNCHER_IPC_CHANNEL, handleToggle);
 		this._register(toDisposable(() => ipcRenderer.removeListener(AGENTS_LAUNCHER_IPC_CHANNEL, handleToggle)));
@@ -721,11 +743,12 @@ registerAction2(class ShowAgentsLauncherAction extends Action2 {
 			category: SessionsCategories.Sessions,
 			f1: true,
 			precondition: ChatContextKeys.enabled,
+			metadata: AGENTS_LAUNCHER_COMMAND_METADATA,
 		});
 	}
 
-	override run(accessor: ServicesAccessor): Promise<void> {
-		return accessor.get(IAgentsLauncherService).toggle();
+	override run(accessor: ServicesAccessor, options?: IAgentsLauncherOptions): Promise<void> {
+		return accessor.get(IAgentsLauncherService).toggle(options);
 	}
 });
 

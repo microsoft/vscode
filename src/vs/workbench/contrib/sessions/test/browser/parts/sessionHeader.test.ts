@@ -761,6 +761,27 @@ suite('Sessions - Headers', () => {
 		});
 	});
 
+	test('shows a spinning working indicator at the end of the header while its chat is in progress, only when asked to', () => {
+		const { header, mainChat } = createHarness(disposables);
+		const indicatorShows = () => {
+			const indicator = header.element.querySelector<HTMLElement>('.chat-composite-bar-working-progress');
+			return !!indicator && indicator.style.display !== 'none' && indicator.classList.contains('codicon-modifier-spin');
+		};
+		const states: Record<string, boolean> = {};
+
+		mainChat.status.set(SessionStatus.InProgress, undefined);
+		states.inProgressByDefault = indicatorShows();
+		header.setShowsWorkingProgress(true);
+		states.inProgress = indicatorShows();
+		mainChat.status.set(SessionStatus.Completed, undefined);
+		states.completed = indicatorShows();
+		mainChat.status.set(SessionStatus.InProgress, undefined);
+		header.setShowsWorkingProgress(false);
+		states.turnedOff = indicatorShows();
+
+		assert.deepStrictEqual(states, { inProgressByDefault: false, inProgress: true, completed: false, turnedOff: false });
+	});
+
 	for (const kind of [ChatOriginKind.User, ChatOriginKind.Fork, ChatOriginKind.SideChat, ChatOriginKind.Tool]) {
 		test(`keeps session and pane header status independent of a ${kind} chat`, () => {
 			const { store, instantiationService, header, session, activeChat, mainChat, secondChat } = createHarness(disposables);

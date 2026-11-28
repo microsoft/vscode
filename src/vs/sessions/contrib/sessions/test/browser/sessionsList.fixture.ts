@@ -10,10 +10,14 @@ import { ComponentFixtureContext, defineThemedFixtureGroup } from '../../../../.
 import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ISessionEnvironment, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
-import { getTestSessionResource } from '../../../../../workbench/contrib/sessions/test/common/testSessionBuilder.js';
+import { getTestSessionResource, getTestWorkspaceFile } from '../../../../../workbench/contrib/sessions/test/common/testSessionBuilder.js';
+import { URI } from '../../../../../base/common/uri.js';
+// Registers the workspace and group row actions
+import '../../../../../workbench/contrib/sessions/browser/workspaceEditor/sessionWorkspaceEditor.contribution.js';
+import { ExtUri } from '../../../../../base/common/resources.js';
 import { createSessionArchiveTour } from '../../../../../workbench/contrib/sessions/browser/tours/sessionArchiveTour.js';
-import { SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsGrouping } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
-import { defineSessionsListFixture, ISessionsListFixture, ISessionsListFixtureGroup, ISessionsListFixtureSession } from './sessionsListFixtureUtils.js';
+import { SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsGrouping } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
+import { defineSessionsListFixture, ISessionsListFixture, ISessionsListFixtureGroup, ISessionsListFixtureSession, ISessionsListFixtureState } from './sessionsListFixtureUtils.js';
 import { InboxNotificationPriority, InboxTab } from '../../../../../workbench/contrib/sessions/common/sessionAttentionService.js';
 import { SessionInboxSection } from '../../../../../workbench/contrib/sessions/common/sessionInbox.js';
 
@@ -293,9 +297,87 @@ const ONBOARDING_FRAME = { width: 760, height: 420 };
 /** Room beside and below the list for an open context menu. */
 const CONTEXT_MENU_FRAME = { width: 480, height: 320 };
 
+/** Group by Workspace with groups and workspaces separate: custom groups, workspaces with their icons and colors, and a session in a folder of its own. */
+const SEPARATE_GROUPS_AND_WORKSPACES_STATE: ISessionsListFixtureState = {
+	sessions: [
+		{ id: 'pinned', title: 'Pinned investigation', workspace: 'vscode', pinned: true },
+		{ id: 'chat', title: 'What does the agents window do?', isQuickChat: true, minutesAgo: 5 },
+		{ id: 'release-notes', title: 'Draft the release notes', workspace: 'vscode', minutesAgo: 8 },
+		{ id: 'triage', title: 'Triage new issues', workspace: 'vscode', status: SessionStatus.NeedsInput, minutesAgo: 12 },
+		{ id: 'agents', title: 'Add the Workspace editor', workspace: 'Agents', workspaceFolders: ['vscode', 'vscode-docs'], workspaceFile: 'Agents', status: SessionStatus.InProgress, minutesAgo: 2 },
+		{ id: 'agents-tests', title: 'Write the grouping tests', workspace: 'Agents', workspaceFolders: ['vscode', 'vscode-docs'], workspaceFile: 'Agents', minutesAgo: 20 },
+		{ id: 'site', title: 'Update the docs site', workspace: 'Docs site', workspaceFolders: ['vscode-docs'], workspaceFile: 'Docs site', minutesAgo: 30 },
+		{ id: 'tools', title: 'Fix the build script', workspace: 'vscode-tools', minutesAgo: 45 },
+	],
+	groups: [
+		{ id: 'release', name: 'Release work', color: 'terminal.ansiMagenta', sessions: ['release-notes'] },
+		{ id: 'triage', name: 'Triage', sessions: ['triage'] },
+	],
+	workspaces: [
+		{ uri: getTestWorkspaceFile('Agents'), name: 'Agents', folders: [URI.file('/home/user/projects/vscode'), URI.file('/home/user/projects/vscode-docs')], owned: true, icon: 'rocket', color: 'terminal.ansiGreen' },
+		{ uri: getTestWorkspaceFile('Docs site'), name: 'Docs site', folders: [URI.file('/home/user/projects/vscode-docs')], owned: true, icon: 'book', color: '#ff8800' },
+		{ uri: getTestWorkspaceFile('Empty'), name: 'Empty', folders: [URI.file('/home/user/projects/notes')], owned: true },
+	],
+	// Tall enough for every row, down to the Empty workspace's placeholder and the folder's row
+	view: { grouping: SessionsGrouping.Workspace, separateGroupsAndWorkspaces: true, height: 820 },
+};
+
 //#endregion
 
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
+	// Pinned, Chats, then the Groups and Workspaces sections, with the navigation rows above the list
+	SessionsList_SeparateGroupsAndWorkspaces: defineSessionsListFixture({
+		...SEPARATE_GROUPS_AND_WORKSPACES_STATE,
+		header: { navigationShortcuts: true },
+	}, { additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
+	// The same with the navigation rows as sections of the tree
+	SessionsList_SeparateGroupsAndWorkspaces_TreeNavigation: defineSessionsListFixture({
+		...SEPARATE_GROUPS_AND_WORKSPACES_STATE,
+		header: { navigationShortcuts: false },
+	}),
+	// Group by Workspace with the option off: the custom groups among the workspace sections, in both sidebar layouts
+	SessionsList_SeparateGroupsAndWorkspaces_Off: defineSessionsListFixture({
+		...SEPARATE_GROUPS_AND_WORKSPACES_STATE,
+		view: { ...SEPARATE_GROUPS_AND_WORKSPACES_STATE.view, separateGroupsAndWorkspaces: false },
+		header: { navigationShortcuts: true },
+	}),
+	SessionsList_SeparateGroupsAndWorkspaces_Off_TreeNavigation: defineSessionsListFixture({
+		...SEPARATE_GROUPS_AND_WORKSPACES_STATE,
+		view: { ...SEPARATE_GROUPS_AND_WORKSPACES_STATE.view, separateGroupsAndWorkspaces: false },
+		header: { navigationShortcuts: false },
+	}),
+	// A workspace row's context menu: Open in Editor Window, Edit Workspace... and Remove Workspace...
+	SessionsList_SeparateGroupsAndWorkspaces_WorkspaceContextMenu: defineSessionsListFixture({
+		...SEPARATE_GROUPS_AND_WORKSPACES_STATE,
+		frame: { ...CONTEXT_MENU_FRAME, height: 820 },
+		interaction: { contextMenu: { workspace: new ExtUri(() => true).getComparisonKey(getTestWorkspaceFile('Agents')) } },
+	}),
+	// A custom group's context menu: Edit Group... in place of Rename, Change Icon and Change Color
+	SessionsList_SeparateGroupsAndWorkspaces_GroupContextMenu: defineSessionsListFixture({
+		...SEPARATE_GROUPS_AND_WORKSPACES_STATE,
+		frame: { ...CONTEXT_MENU_FRAME, height: 820 },
+		interaction: { contextMenu: { group: 'release' } },
+	}),
+	// The pointer over the Workspaces header: its twistie after the label and its actions on the right
+	SessionsList_SeparateGroupsAndWorkspaces_HoveredWorkspacesHeader: defineSessionsListFixture({
+		...SEPARATE_GROUPS_AND_WORKSPACES_STATE,
+		header: { navigationShortcuts: true },
+		interaction: { hovered: { section: 'workspaces' } },
+	}),
+	// The pointer over a workspace without sessions: no New Session, which would have no session to start like
+	SessionsList_SeparateGroupsAndWorkspaces_HoveredEmptyWorkspace: defineSessionsListFixture({
+		...SEPARATE_GROUPS_AND_WORKSPACES_STATE,
+		header: { navigationShortcuts: true },
+		interaction: { hovered: { workspace: new ExtUri(() => true).getComparisonKey(getTestWorkspaceFile('Empty')) } },
+	}),
+	// The keyboard on a workspace row
+	SessionsList_SeparateGroupsAndWorkspaces_FocusedWorkspace: defineSessionsListFixture({
+		...SEPARATE_GROUPS_AND_WORKSPACES_STATE,
+		header: { navigationShortcuts: true },
+		// The fixtures compare paths without case, as the row ids do
+		interaction: { focused: { workspace: new ExtUri(() => true).getComparisonKey(getTestWorkspaceFile('Agents')) } },
+	}, { additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
+
 	SessionsList_Inbox: defineSessionsListFixture({
 		header: { navigationShortcuts: true },
 		settings: { [SESSIONS_LIST_INBOX_ENABLED_SETTING]: true },
@@ -670,7 +752,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		view: { height: 300 },
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['An empty Later group shows a muted "No session" placeholder row below its header, between the populated Release work group and the vscode-docs workspace section.'],
+		expectedVisualDescriptions: ['An empty Later group shows a muted "No sessions" placeholder row below its header, between the populated Release work group and the vscode-docs workspace section.'],
 	}),
 	SessionsList_Groups_EmptyHoveredHeader: defineSessionsListFixture({
 		sessions: GROUP_SESSIONS.filter(session => session.id !== 'flaky' && session.id !== 'guide'),
@@ -679,7 +761,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		interaction: { hovered: { group: 'later' } },
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The pointer is over the empty Later group header. The header shows its hover background, a chevron in place of the group icon, and New Session and Delete Group actions on the right. Its "No session" placeholder row remains below.'],
+		expectedVisualDescriptions: ['The pointer is over the empty Later group header. The header shows its hover background, a chevron in place of the group icon, and New Session and Delete Group actions on the right. Its "No sessions" placeholder row remains below.'],
 	}),
 	SessionsList_Groups_Rename: defineSessionsListFixture({
 		sessions: GROUP_SESSIONS,
@@ -780,7 +862,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}, {
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['Release work lists its subgroups Hotfixes and Docs, each stepped in one level, above its own session. Hotfixes lists its Urgent subgroup, stepped in another level, above its session, and each session lines up with its own group header. The empty Docs subgroup shows a stepped-in "No session" placeholder. Triage and the vscode-docs workspace section follow at the top level.'],
+		expectedVisualDescriptions: ['Release work lists its subgroups Hotfixes and Docs, each stepped in one level, above its own session. Hotfixes lists its Urgent subgroup, stepped in another level, above its session, and each session lines up with its own group header. The empty Docs subgroup shows a stepped-in "No sessions" placeholder. Triage and the vscode-docs workspace section follow at the top level.'],
 	}),
 	SessionsList_NestedGroups_IndentItems: defineSessionsListFixture({
 		sessions: NESTED_GROUP_SESSIONS,
@@ -789,7 +871,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		settings: { [SESSIONS_LIST_INDENT_ITEMS_SETTING]: true },
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['With indented items, every session and the "No session" placeholder starts one level to the right of its group or workspace section header. Subgroups Hotfixes and Docs start where the sessions of Release work start, and Urgent and its session step in one level further, so each level of the hierarchy is indented by the same amount.'],
+		expectedVisualDescriptions: ['With indented items, every session and the "No sessions" placeholder starts one level to the right of its group or workspace section header. Subgroups Hotfixes and Docs start where the sessions of Release work start, and Urgent and its session step in one level further, so each level of the hierarchy is indented by the same amount.'],
 	}),
 	SessionsList_NestedChatHierarchies_IndentItems: defineSessionsListFixture({
 		sessions: NESTED_CHAT_HIERARCHY_SESSIONS,
@@ -825,7 +907,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		interaction: { createSubgroupIn: 'hotfixes' },
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['A new subgroup shows its focused name editor, containing "New Group", as the first subgroup of Hotfixes, above Urgent and stepped in two levels, followed by a stepped-in "No session" placeholder.'],
+		expectedVisualDescriptions: ['A new subgroup shows its focused name editor, containing "New Group", as the first subgroup of Hotfixes, above Urgent and stepped in two levels, followed by a stepped-in "No sessions" placeholder.'],
 	}),
 	SessionsList_NestedGroups_HoveredSubgroupHeader: defineSessionsListFixture({
 		sessions: NESTED_GROUP_SESSIONS,

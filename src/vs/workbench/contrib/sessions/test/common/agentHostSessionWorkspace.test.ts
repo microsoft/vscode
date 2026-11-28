@@ -11,7 +11,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import type { ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { agentHostSessionWorkspaceKey, buildAgentHostChatWorkspace, buildAgentHostChatWorkspaceWithScratchFolders, buildAgentHostSessionWorkspace, type IFolderGitHubInfoResolver } from '../../common/agentHostSessionWorkspace.js';
-import { getSessionWorkspaceKind, IGitHubInfo, ISessionWorkspace, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
+import { getSessionWorkspaceKind, IGitHubInfo, ISessionWorkspace, SessionRepositoryKind, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
 
 suite('Agent Host Session Workspace', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -110,6 +110,23 @@ suite('Agent Host Session Workspace', () => {
 		});
 	});
 
+	test('a found repository\'s Git state changes the workspace key, also on the same branch', () => {
+		const nested = URI.file('/repo/lib');
+		const withNested = (uncommittedChanges: number, isRepository = true, defaults?: { defaultBranchName?: string; defaultRemoteBranchName?: string }): ISessionWorkspace => ({
+			...sessionWorkspace,
+			repositories: [{ root: nested, folder: primary, kind: SessionRepositoryKind.Nested, gitRepository: { uri: nested, workTreeUri: undefined, baseBranchName: 'main', branchName: 'feature', uncommittedChanges, isRepository: constObservable(isRepository), gitHubInfo: constObservable(undefined), ...defaults } }],
+		});
+
+		assert.deepStrictEqual({
+			same: agentHostSessionWorkspaceKey(withNested(1)) === agentHostSessionWorkspaceKey(withNested(1)),
+			uncommittedChanges: agentHostSessionWorkspaceKey(withNested(1)) === agentHostSessionWorkspaceKey(withNested(2)),
+			isRepository: agentHostSessionWorkspaceKey(withNested(1)) === agentHostSessionWorkspaceKey(withNested(1, false)),
+			// Only the default branches refresh
+			defaultBranch: agentHostSessionWorkspaceKey(withNested(1, true, { defaultBranchName: 'main' })) === agentHostSessionWorkspaceKey(withNested(1, true, { defaultBranchName: 'trunk' })),
+			defaultRemoteBranch: agentHostSessionWorkspaceKey(withNested(1, true, { defaultRemoteBranchName: 'origin/main' })) === agentHostSessionWorkspaceKey(withNested(1, true, { defaultRemoteBranchName: 'origin/trunk' })),
+		}, { same: true, uncommittedChanges: false, isRepository: false, defaultBranch: false, defaultRemoteBranch: false });
+	});
+
 	test('a chat in an additional worktree reports the worktree\'s repository as its project', () => {
 		const worktree = URI.file('/src/tools.worktrees/task');
 		const plainFolder = URI.file('/src/notes');
@@ -172,6 +189,7 @@ suite('Agent Host Session Workspace', () => {
 		const gitState: ISessionGitState = {
 			branchName: 'peer-feature',
 			baseBranchName: 'main',
+			baseBranchRef: 'origin/main',
 			defaultBranchName: 'main',
 			defaultRemoteBranchName: 'origin/main',
 			hasGitRemote: true,
@@ -188,6 +206,7 @@ suite('Agent Host Session Workspace', () => {
 				uri: folder.gitRepository.uri.toString(),
 				branchName: folder.gitRepository.branchName,
 				baseBranchName: folder.gitRepository.baseBranchName,
+				baseBranchRef: folder.gitRepository.baseBranchRef,
 				defaultBranchName: folder.gitRepository.defaultBranchName,
 				defaultRemoteBranchName: folder.gitRepository.defaultRemoteBranchName,
 				hasGitRemote: folder.gitRepository.hasGitRemote,
@@ -202,6 +221,7 @@ suite('Agent Host Session Workspace', () => {
 				uri: other.toString(),
 				branchName: 'peer-feature',
 				baseBranchName: 'main',
+				baseBranchRef: 'origin/main',
 				defaultBranchName: 'main',
 				defaultRemoteBranchName: 'origin/main',
 				hasGitRemote: true,
@@ -215,7 +235,7 @@ suite('Agent Host Session Workspace', () => {
 	test('a session whose project is the repository of its primary worktree folder presents as a worktree session, with the branch and base branch of its git state (a promoted worktree chat, Block 5)', () => {
 		const worktree = URI.file('/repo.worktrees/promoted');
 		const options = { providerLabel: undefined, fallbackIcon: Codicon.folder, requiresWorkspaceTrust: true, description: undefined, branchProtectionPatterns: [], group: undefined };
-		const gitState: ISessionGitState = { branchName: 'agents/promoted', baseBranchName: 'main' };
+		const gitState: ISessionGitState = { branchName: 'agents/promoted', baseBranchName: 'main', baseBranchRef: 'origin/main' };
 		const asWorktree = buildAgentHostSessionWorkspace({ uri: primary, displayName: 'repo' }, [worktree], options, constObservable(undefined), gitState);
 		const asFolder = buildAgentHostSessionWorkspace(undefined, [worktree], options, constObservable(undefined), gitState);
 		const summarize = (workspace: ISessionWorkspace | undefined) => ({
@@ -224,10 +244,11 @@ suite('Agent Host Session Workspace', () => {
 			workTree: workspace?.folders[0].gitRepository?.workTreeUri?.toString(),
 			branch: workspace?.folders[0].gitRepository?.branchName,
 			baseBranch: workspace?.folders[0].gitRepository?.baseBranchName,
+			baseBranchRef: workspace?.folders[0].gitRepository?.baseBranchRef,
 		});
 		assert.deepStrictEqual({ asWorktree: summarize(asWorktree), asFolder: summarize(asFolder) }, {
-			asWorktree: { kind: SessionWorkspaceKind.Worktree, label: 'repo', workTree: worktree.toString(), branch: 'agents/promoted', baseBranch: 'main' },
-			asFolder: { kind: SessionWorkspaceKind.Folder, label: 'promoted', workTree: undefined, branch: 'agents/promoted', baseBranch: 'main' },
+			asWorktree: { kind: SessionWorkspaceKind.Worktree, label: 'repo', workTree: worktree.toString(), branch: 'agents/promoted', baseBranch: 'main', baseBranchRef: 'origin/main' },
+			asFolder: { kind: SessionWorkspaceKind.Folder, label: 'promoted', workTree: undefined, branch: 'agents/promoted', baseBranch: 'main', baseBranchRef: 'origin/main' },
 		});
 	});
 });

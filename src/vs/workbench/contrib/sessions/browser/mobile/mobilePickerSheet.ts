@@ -149,6 +149,12 @@ export interface IMobilePickerSheetOptions {
 	 * a picker whose session is switched or closed underneath it.
 	 */
 	readonly dismissToken?: CancellationToken;
+
+	/**
+	 * Receives a check for whether the keyboard focus is in the open sheet.
+	 * The sheet does not trap Tab, so a hardware keyboard can move the focus out.
+	 */
+	readonly onDidCreateHasFocus?: (hasFocus: () => boolean) => void;
 }
 
 /**
@@ -318,6 +324,7 @@ export function showMobilePickerSheet(
 			onHeaderAction: actionId => finish(`${MOBILE_PICKER_SHEET_HEADER_ACTION_PREFIX}${actionId}`),
 		});
 		const { sheet, disposables } = shell;
+		options?.onDidCreateHasFocus?.(() => !resolved && DOM.isAncestorOfActiveElement(shell.overlay));
 		if (options?.cancellationToken) {
 			disposables.add(options.cancellationToken.onCancellationRequested(() => finish(undefined)));
 		}

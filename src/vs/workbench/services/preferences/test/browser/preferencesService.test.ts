@@ -25,6 +25,11 @@ import { TestRemoteAgentService, ITestInstantiationService, workbenchInstantiati
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { extUri } from '../../../../../base/common/resources.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { AgentsWorkspaceContextService } from '../../../configuration/browser/agents/agentsWorkspaceContextService.js';
 
 suite('PreferencesService', () => {
 	let lastOpenUntypedEditor: IUntypedEditorInput | undefined;
@@ -32,7 +37,7 @@ suite('PreferencesService', () => {
 	let lastOpenEditorGroup: PreferredGroup | undefined;
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createTestObject(editorGroupsService?: IEditorGroupsService, configurationService?: TestConfigurationService): PreferencesService {
+	function createTestObject(editorGroupsService?: IEditorGroupsService, configurationService?: TestConfigurationService, contextService?: IWorkspaceContextService): PreferencesService {
 		lastOpenUntypedEditor = undefined;
 		lastOpenEditorOptions = undefined;
 		lastOpenEditorGroup = undefined;
@@ -65,6 +70,9 @@ suite('PreferencesService', () => {
 		testInstantiationService.stub(IURLService, { registerHandler: () => { } });
 		if (editorGroupsService) {
 			testInstantiationService.stub(IEditorGroupsService, editorGroupsService);
+		}
+		if (contextService) {
+			testInstantiationService.stub(IWorkspaceContextService, contextService);
 		}
 
 		// PreferencesService creates a PreferencesEditorInput which depends on IPreferencesService, add the real one, not a stub
@@ -99,6 +107,12 @@ suite('PreferencesService', () => {
 			target: ConfigurationTarget.USER_LOCAL,
 			pinned: true
 		});
+	});
+
+	test('has no workspace settings for a workspace without a workspace file or folders, like the Agents mode workspace', () => {
+		// An editor window in Agents mode gives the Agents workspace its empty workspace identifier
+		const agentsWorkspace = disposables.add(new AgentsWorkspaceContextService({ id: 'agents-mode' }, upcastPartial<IUriIdentityService>({ extUri })));
+		assert.strictEqual(createTestObject(undefined, undefined, agentsWorkspace).workspaceSettingsResource, null);
 	});
 
 	test('opens the split settings JSON editor as an untyped editor resolved by its registration', async () => {

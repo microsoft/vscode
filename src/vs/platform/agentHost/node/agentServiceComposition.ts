@@ -18,7 +18,8 @@ import { IAgentHostCheckpointService } from '../common/agentHostCheckpointServic
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
-import { AgentHostAgentOrchestrationLimitsConfigKey, platformRootSchema, AgentHostArtifactIntegrationsConfigKey } from '../common/agentHostSchema.js';
+import { AgentHostAgentOrchestrationLimitsConfigKey, platformRootSchema, platformSessionSchema, AgentHostArtifactIntegrationsConfigKey, AgentHostAutoReplyEnabledConfigKey } from '../common/agentHostSchema.js';
+import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, ResponsePartKind } from '../common/state/sessionState.js';
 import { CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, type AgentProvider, type IAgent } from '../common/agent.js';
 import { IAgentHostSessionStateStore } from '../common/agentHostSessionStateStore.js';
@@ -51,6 +52,7 @@ import { IAgentHostWorktreeIsolation } from './shared/worktreeIsolation.js';
 import type { ISessionServerToolAccessor } from './shared/sessionServerTools.js';
 import { type IAgentServiceFoundation } from './agentServiceFoundation.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
+import { FolderIsolationService, IFolderIsolationService } from './chatContributions/folderIsolation/folderIsolation.js';
 import { ISessionWorkspaceConversionService, SessionWorkspaceConversionService } from './chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
 import { AgentHostScheduledChatMoves, IAgentHostScheduledChatMoves } from './chatContributions/scheduledChatMoves/scheduledChatMovesService.js';
 import { ChatMoveConfigKey, chatMoveRootConfigSchema } from '../common/agentHostChatMove.js';
@@ -59,6 +61,7 @@ import { IAgentHostTurnTracker } from './agentHostTurnTracker.js';
 import { IAgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
 import { AgentHostSessionLifecycle, type IAgentHostSessionLifecycleAccessor } from './agentHostSessionLifecycle.js';
 import { persistSessionMetadataValues } from './shared/persistSessionMetadata.js';
+import { AgentHostPullRequestAutopilotService, IAgentHostPullRequestAutopilotService } from './agentHostPullRequestAutopilot.js';
 import { IAgentHostPullRequestStatusService } from './agentHostPullRequestStatusService.js';
 import { AgentHostPeerChatStore, IAgentHostPeerChatPersistenceService } from './agentHostPeerChatStore.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
@@ -185,7 +188,7 @@ export function createAgentServiceComposition(
 		const reviewService = accessor.get(IAgentHostReviewService);
 		const changesets = accessor.get(IAgentHostChangesetService);
 		const changesetCoordinator = owned.add(instantiationService.createInstance(AgentHostChangesetCoordinator));
-		owned.add(stateManager.onDidChangeSessionActiveTurn(event => changesetCoordinator.onSessionTurnActiveChanged(event.session, event.active)));
+		owned.add(stateManager.onDidChangeSessionActiveTurn(event => changesetCoordinator.onSessionTurnActiveChanged(event.session)));
 
 		const completions = accessor.get(IAgentHostCompletions);
 
@@ -201,6 +204,7 @@ export function createAgentServiceComposition(
 				agents: providerService.agents,
 				hostLaunchKind: options.hostLaunchKind ?? AgentHostLaunchKind.Unknown,
 				resolveWorkingDirectoryBeforeSend: params => callbackAdapter.value.resolveWorkingDirectoryBeforeSend(params),
+				announceUnsentProvisionalSession: params => callbackAdapter.value.announceUnsentProvisionalSession(params),
 				resolveChatAttachmentTurns: resource => callbackAdapter.value.resolveChatAttachmentTurns(resource),
 			},
 		));
@@ -217,6 +221,7 @@ export function createAgentServiceComposition(
 			? { ...report, clientContext: turnTracker.getClientTelemetryContext(report.chat, report.turnId), telemetryContext: turnTracker.getTelemetryContext(report.chat, report.turnId) }
 			: report;
 		const artifactIntegrationDirectory = accessor.get(IAgentHostArtifactIntegrationDirectory);
+		const artifactEventService = accessor.get(IAgentHostArtifactEventService);
 		// The artifact runtime is created after the server-tool host, so its tools bind it late.
 		const hostArtifactIntegrations: { value: IArtifactIntegrationAccess | undefined } = { value: undefined };
 		const isArtifactIntegrationsEnabled = () => configurationService.getRootValue(platformRootSchema, AgentHostArtifactIntegrationsConfigKey) === true;
@@ -231,6 +236,7 @@ export function createAgentServiceComposition(
 			return acquireComposedArtifact(hostArtifactIntegrations.value, client && { access: client.integrations.access, startedTurn: client.startedTurn }, session, artifactId, logService);
 		};
 		const workspaceConversionService: { value: ISessionWorkspaceConversionService | undefined } = { value: undefined };
+		const folderIsolationService: { value: IFolderIsolationService | undefined } = { value: undefined };
 		const scheduledChatMoves = owned.add(instantiationService.createInstance(AgentHostScheduledChatMoves, {
 			applyChatMove: move => callbackAdapter.sessionServerToolAccessor.applyChatMove(move),
 		}));
@@ -239,6 +245,13 @@ export function createAgentServiceComposition(
 			...callbackAdapter.sessionServerToolAccessor,
 			getChatOwner: chat => chatOwnership.getChatOwner(chat),
 			getDefaultChat: session => chatOwnership.getDefaultChat(session),
+			canAskUser: chat => {
+				const session = chatOwnership.getChatOwner(chat);
+				return session !== undefined
+					&& configurationService.getRootValue(platformRootSchema, AgentHostAutoReplyEnabledConfigKey) !== true
+					&& configurationService.getChatEffectiveValue({ session, chat }, platformSessionSchema, SessionConfigKey.Mode) !== 'autopilot';
+			},
+			onDidChangeRootConfig: configurationService.onDidRootConfigChange,
 			scheduleChatMove: (chat, turnId, move) => scheduledChatMoves.schedule(chat, turnId, move),
 			requestSessionWorkspaceUpdate: (chat, turnId, workspaceFolder, isolation, credentials) => {
 				const initiatingClientId = turnTracker.getInitiatorClientId(chat.toString(), turnId);
@@ -267,18 +280,33 @@ export function createAgentServiceComposition(
 						}
 					},
 					reportArtifactRecorded: report => telemetryReporter.artifactRecorded(withTurnTelemetry(report)),
+					didRecordArtifacts: recorded => artifactEventService.acceptRecordedArtifacts(recorded),
 					reportArtifactRemoved: report => telemetryReporter.artifactRemoved(withTurnTelemetry(report)),
 				},
 				() => configurationService.getRootValue(platformRootSchema, AgentHostAgentOrchestrationLimitsConfigKey) !== 'off',
 				{
 					supportsChatIsolation: session => workspaceConversionService.value?.supportsChatIsolation(session) === true,
-					requestChatIsolation: (chat, turnId) => {
+					requestChatIsolation: (chat, turnId, primary, additionalFolders) => {
 						const initiatingClientId = turnTracker.getInitiatorClientId(chat.toString(), turnId);
 						if (!workspaceConversionService.value) {
 							throw new Error(localize('agentHost.chatIsolationClientRequired', "Moving a chat to a worktree with this tool requires a turn initiated by a connected client."));
 						}
-						workspaceConversionService.value.requestChatIsolation(chat, turnId, initiatingClientId);
+						workspaceConversionService.value.requestChatIsolation(chat, turnId, initiatingClientId, {
+							primary,
+							isolateFolders: additionalFolders,
+							credentials: callbackAdapter.sessionServerToolAccessor.getCredentialSource(chat),
+						});
 					},
+					supportsFolderIsolation: session => agentService?.supportsChatFolderIsolation(session) === true,
+					requestFolderIsolation: (session, chat, folders, turnId) => {
+						if (!folderIsolationService.value) {
+							throw new Error('Folder isolation is unavailable.');
+						}
+						folderIsolationService.value.request(session, chat, turnId, folders, callbackAdapter.sessionServerToolAccessor.getCredentialSource(chat));
+					},
+					getIsolatableFolders: async (session, chat) => agentService
+						? agentService.getIsolatableChatFolders(session, chat, workspaceConversionService.value?.canIsolateChat(chat) === true)
+						: { folders: [] },
 				},
 				{
 					isEnabled: () => isArtifactIntegrationsEnabled() && !!hostArtifactIntegrations.value,
@@ -304,9 +332,17 @@ export function createAgentServiceComposition(
 		workspaceConversionService.value = owned.add(instantiationService.createInstance(SessionWorkspaceConversionService, {
 			runWithChatCatalogLock: (session, operation) => agentService!.runWithChatCatalogLock(session, operation),
 			prepareChatWorkingDirectory: (session, directory, options) => agentService!.prepareChatWorkingDirectory(session, directory, options),
-			setChatWorkingDirectory: (session, chat, directory, replaceSessionWorkspace, expectedSessionDirectories) => agentService!.setChatWorkingDirectory(session, chat, directory, replaceSessionWorkspace, expectedSessionDirectories),
+			setChatWorkingDirectory: (session, chat, directory, replaceSessionWorkspace, expectedSessionDirectories, additionalDirectories) => agentService!.setChatWorkingDirectory(session, chat, directory, replaceSessionWorkspace, expectedSessionDirectories, additionalDirectories),
+			isolateChatFolder: (session, chat, folder, credentials) => agentService!.isolateChatFolder(session, chat, folder, credentials),
+			hasPendingFolderIsolation: chat => folderIsolationService.value?.isRequested(chat.toString()) === true,
 		}));
 		services.set(ISessionWorkspaceConversionService, workspaceConversionService.value);
+		folderIsolationService.value = owned.add(instantiationService.createInstance(FolderIsolationService, {
+			validateFolderIsolation: (session, chat, folder) => agentService!.validateFolderIsolation(session, chat, folder),
+			isolateChatFolder: (session, chat, folder, credentials) => agentService!.isolateChatFolder(session, chat, folder, credentials),
+			isChatMovePending: chat => workspaceConversionService.value?.isPending(chat.toString()) === true,
+		}));
+		services.set(IFolderIsolationService, folderIsolationService.value);
 		services.set(IAgentHostArchivedChatWorkspaceService, {
 			_serviceBrand: undefined,
 			setChatWorkspaceAttached: (session, chat, attached) => agentService!.setArchivedChatWorkspaceAttached(session, chat, attached),
@@ -348,9 +384,10 @@ export function createAgentServiceComposition(
 					}
 				},
 			},
-			accessor.get(IArtifactIntegrationRegistry), accessor.get(IAgentHostArtifactEventService), stateManager, configurationService, logService,
+			accessor.get(IArtifactIntegrationRegistry), artifactEventService, stateManager, configurationService, logService,
 		));
 		hostArtifactIntegrations.value = artifactRuntime.integrations;
+		services.set(IAgentHostPullRequestAutopilotService, new AgentHostPullRequestAutopilotService(artifactRuntime.integrations, isArtifactIntegrationsEnabled));
 		const collaborators: IAgentServiceCollaborators = {
 			artifactIntegrations: artifactRuntime.integrations,
 			artifactIntegrationClients: artifactIntegrationDirectory,

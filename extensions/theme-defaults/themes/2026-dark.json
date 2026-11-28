@@ -121,6 +121,7 @@
 		"editor.wordHighlightStrongBackground": "#27678280",
 		"editor.findMatchBackground": "#27678290",
 		"editor.findMatchHighlightBackground": "#27678280",
+		"editor.findMatchBorder": "#3994BC",
 		"editor.findRangeHighlightBackground": "#FFFFFF13",
 		"editor.hoverHighlightBackground": "#FFFFFF13",
 		"editor.lineHighlightBackground": "#242526",
@@ -191,6 +192,8 @@
 		"statusBarItem.hoverBackground": "#323233",
 		"statusBarItem.focusBorder": "#3994BCB3",
 		"statusBarItem.errorHoverBackground": "#9F250C",
+		"statusBarItem.remoteBackground": "#307E9F",
+		"statusBarItem.remoteHoverBackground": "#2B718F",
 		"statusBarItem.prominentBackground": "#3994BC",
 		"statusBarItem.prominentForeground": "#FFFFFF",
 		"statusBarItem.prominentHoverBackground": "#3994BC",
@@ -377,9 +380,12 @@
 			}
 		},
 		{
-			"scope": "keyword",
+			"scope": [
+				"keyword",
+				"keyword.control"
+			],
 			"settings": {
-				"foreground": "#ff7b72"
+				"foreground": "#569cd6"
 			}
 		},
 		{
@@ -388,7 +394,7 @@
 				"storage.type"
 			],
 			"settings": {
-				"foreground": "#ff7b72"
+				"foreground": "#569cd6"
 			}
 		},
 		{

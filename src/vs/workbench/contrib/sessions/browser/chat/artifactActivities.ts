@@ -8,6 +8,7 @@ import { IListRenderer } from '../../../../../base/browser/ui/list/list.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { equals } from '../../../../../base/common/arrays.js';
 import { structuralEquals } from '../../../../../base/common/equals.js';
+import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { renderArtifactIcon } from '../../../../../platform/artifactIntegrations/browser/artifactDetailsList.js';
@@ -15,7 +16,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
 import { ArtifactButtons } from './artifactButtons.js';
-import { ArtifactDetailsCard } from './artifactDetailsCard.js';
+import { ArtifactDetailsCard, IArtifactBounds, onDidFocusListRowByKeyboard } from './artifactDetailsCard.js';
 import { IArtifactActivitiesViewData, IArtifactActivityViewData } from './artifactDetailsView.js';
 import './media/artifactActivities.css';
 
@@ -61,6 +62,8 @@ export class ArtifactActivities extends ArtifactDetailsCard {
 	private readonly message = append(this.content, $('p.artifact-activities-message', { role: 'status', hidden: true }));
 	private readonly listContainer = append(this.content, $('.artifact-activities-list'));
 	private readonly list: WorkbenchList<IArtifactActivityViewData>;
+	/** Where the activity row that keyboard navigation focuses is. */
+	readonly onDidFocusRowByKeyboard: Event<IArtifactBounds>;
 	private readonly more: ArtifactButtons;
 	private data: IArtifactActivitiesViewData | undefined;
 	private maxHeight = 168;
@@ -82,6 +85,7 @@ export class ArtifactActivities extends ArtifactDetailsCard {
 			},
 		));
 		this._register(this.list.onDidOpen(event => this.data?.items.find(item => item.id === event.element?.id)?.reveal?.()));
+		this.onDidFocusRowByKeyboard = onDidFocusListRowByKeyboard(this.list);
 		this.more = this._register(new ArtifactButtons(append(this.content, $('.artifact-controls.artifact-activities-more')), hoverService, 'quiet'));
 	}
 
@@ -108,12 +112,23 @@ export class ArtifactActivities extends ArtifactDetailsCard {
 		}
 	}
 
+	/** The height of the list within `maxHeight`, or 0 while the list is not shown. */
+	listHeight(maxHeight: number): number {
+		if (this.content.hidden || this.element.hidden) {
+			return 0;
+		}
+		return Math.min((this.data?.items.length ?? 0) * 28, Math.max(28, Math.floor(maxHeight / 28) * 28));
+	}
+
+	/** The rendered height of the list. */
+	get renderedListHeight(): number { return this.listContainer.offsetHeight; }
+
 	layout(maxHeight: number): void {
 		this.maxHeight = maxHeight;
-		if (this.content.hidden || this.element.hidden) {
+		const height = this.listHeight(maxHeight);
+		if (!height) {
 			return;
 		}
-		const height = Math.min((this.data?.items.length ?? 0) * 28, Math.max(28, Math.floor(maxHeight / 28) * 28));
 		this.listContainer.style.height = `${height}px`;
 		this.list.layout(height, this.listContainer.clientWidth);
 	}

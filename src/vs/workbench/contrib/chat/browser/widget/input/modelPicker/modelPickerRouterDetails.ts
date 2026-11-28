@@ -119,7 +119,7 @@ export class ModelRouterDetails extends Disposable {
 }
 
 /** The settings a router gives a route, such as "High · 1M", written as the picker's list writes a model's. */
-function getRouteSettingsLabel(route: IAgentModelRouterRoute): string | undefined {
+export function getRouteSettingsLabel(route: IAgentModelRouterRoute): string | undefined {
 	const effort = route.effort === 'auto'
 		? localize('chat.modelPicker.routeEffortAuto', "Auto")
 		: route.effort ? getReasoningEffortLabel(route.effort) : undefined;

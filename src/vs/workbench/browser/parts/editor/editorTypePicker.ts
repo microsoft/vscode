@@ -146,7 +146,7 @@ export function createEditorTypeActions(
 		label: labelWithSource(editor),
 		checked: editor.id === defaultRule.editor.id,
 		run: () => {
-			editorResolverService.setDefaultEditor(available.resource, editor.id, available.isDiffEditor);
+			editorResolverService.setDefaultEditor(available.resource, editor.id, available.isDiffEditor, { source: 'editorTypePicker' });
 			return reopen(editor.id);
 		}
 	}));

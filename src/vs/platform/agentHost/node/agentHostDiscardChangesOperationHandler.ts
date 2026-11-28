@@ -24,7 +24,7 @@ import { resolveChangesetOwnerScope } from './agentHostBranchChangesetScope.js';
 import { AgentHostFileEditRevert, FileEditRevertConflictError, FileEditRevertConflictReason, type IFileEditRevert, type IFileEditRevertStep } from './agentHostFileEditRevert.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { ILogService } from '../../log/common/log.js';
-import { resolveSessionRepositories } from './agentHostSessionRepositories.js';
+import { readNestedRepositoryRoots, resolveSessionRepositories } from './agentHostSessionRepositories.js';
 import { parseGitBlobUri } from './gitDiffContent.js';
 import { createFileEditDiscardRecord, createSessionFileEditDiscardRecords, getUndiscardedFileEditRevertSteps, readFileEditRevertSteps, spanFileEditRevertSteps } from './fileEditDiscard.js';
 import { createFileEditAcceptRecord, createFileEditAcceptRecordAfter, getUnacceptedFileEditRecords, isFileEditAcceptRecord, readFileEditEndContent, storeFileEditAcceptRecord } from './fileEditAccept.js';
@@ -106,9 +106,10 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 
 	public static readonly OPERATION_DISCARD_CHANGES = AGENT_HOST_DISCARD_CHANGES_OPERATION_ID;
 
+	readonly changesGitState = true;
+
 	constructor(
 		private readonly _getSessionState: (sessionKey: string) => SessionState | undefined,
-		private readonly _onDiscarded: (sessionKey: string) => Promise<void>,
 		private readonly _fileEditRevert: AgentHostFileEditRevert,
 		@IAgentHostGitService private readonly _agentHostGitService: IAgentHostGitService,
 		@IFileService private readonly _fileService: IFileService,
@@ -170,14 +171,18 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 		}
 
 		try {
-			const repositoryRoot = await this._resolveRepositoryRoot(scope.workingDirectories, resource);
+			const repositoryRoot = await this._resolveRepositoryRoot(sessionUri, scope.workingDirectories, resource);
 			if (!repositoryRoot) {
 				throw new Error(`No changeset repository contains '${resource.fsPath}'.`);
 			}
+			const submoduleRoot = await this._agentHostGitService.getSubmoduleRoot?.(repositoryRoot, resource);
 			this._throwIfCancelled(token);
 
-			if (parsed.kind === ChangesetKind.Branch) {
-				await this._discardBranchChange(repositoryRoot, changesetFile, sessionUri, token);
+			// Both changesets diff a file inside a submodule against the commit
+			// that the repository records for the submodule, so restore it from
+			// that baseline in the submodule.
+			if (parsed.kind === ChangesetKind.Branch || submoduleRoot) {
+				await this._discardBranchChange(submoduleRoot ?? repositoryRoot, changesetFile, sessionUri, token);
 			} else {
 				await this._discardUncommittedChange(repositoryRoot, resource, sessionUri, token);
 			}
@@ -187,9 +192,6 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 				JsonRpcErrorCodes.InternalError,
 				`Failed to discard changes: ${err instanceof Error ? err.message : String(err)}`);
 		}
-		void this._onDiscarded(parsed.ownerUri).catch(err => {
-			this._logService.warn(`[AgentHostDiscardChangesOperationHandler] Post-discard refresh failed for ${parsed.ownerUri}: ${err instanceof Error ? err.message : String(err)}`);
-		});
 
 		return { message: { markdown: localize('agentHost.changeset.discardChanges.discarded', "Discarded changes to `{0}`.", basename(resource)) } };
 	}
@@ -199,15 +201,20 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 			[file.edit.after?.uri, file.edit.before?.uri].some(uri => uri !== undefined && extUriBiasedIgnorePathCase.isEqual(URI.parse(uri), resource)));
 	}
 
-	private async _resolveRepositoryRoot(workingDirectories: readonly string[], resource: URI): Promise<URI | undefined> {
+	/**
+	 * The repository of `resource` among the folders' repositories and those found in their immediate subfolders, which a
+	 * changeset lists too: the deepest one that contains it, or the folders' only repository when none was found inside.
+	 */
+	private async _resolveRepositoryRoot(sessionUri: string, workingDirectories: readonly string[], resource: URI): Promise<URI | undefined> {
 		const { gitRepositories } = await resolveSessionRepositories(
 			workingDirectories.map(workingDirectory => URI.parse(workingDirectory)),
 			this._agentHostGitService,
 		);
-		if (gitRepositories.length === 1) {
-			return gitRepositories[0];
+		const repositories = [...gitRepositories, ...readNestedRepositoryRoots(this._stateManager.getSessionState(sessionUri)?._meta, workingDirectories)];
+		if (repositories.length === 1) {
+			return repositories[0];
 		}
-		return findDeepestContainingWorkingDirectory(resource, gitRepositories);
+		return findDeepestContainingWorkingDirectory(resource, repositories);
 	}
 
 	private async _discardUncommittedChange(repositoryRoot: URI, resource: URI, sessionUri: string, token: CancellationToken): Promise<void> {
@@ -322,7 +329,6 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 		}
 
 		this._changesets.onFileEditsDiscarded(owner, [turnId]);
-		this._notifyDiscarded(owner);
 
 		return { message: { markdown: localize('agentHost.changeset.discardTurnChanges.discarded', "Discarded the last turn's changes to `{0}`.", basename(resource)) } };
 	}
@@ -514,7 +520,6 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 		}
 
 		this._onSessionFileEditsDiscarded(discardedChat);
-		this._notifyDiscarded(owner);
 
 		return { message: { markdown: discarded } };
 	}
@@ -693,12 +698,6 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 
 	private _getChangedDuringDiscardMessage(resource: URI): string {
 		return localize('agentHost.changeset.discardTurnChanges.changedDuringDiscard', "'{0}' changed while its changes were being discarded. Try again.", basename(resource));
-	}
-
-	private _notifyDiscarded(owner: ProtocolURI): void {
-		void this._onDiscarded(owner).catch(err => {
-			this._logService.warn(`[AgentHostDiscardChangesOperationHandler] Post-discard refresh failed for ${owner}: ${err instanceof Error ? err.message : String(err)}`);
-		});
 	}
 
 	/**

@@ -6,6 +6,7 @@
 import { EditorModel, EditorView, Selection, SuggestModel, SuggestWidget } from '@vscode/markdown-editor';
 import { Disposable, autorun } from '@vscode/observables';
 import type { MarkdownCompletion, MarkdownEditorHost } from '../src/preview/markdownEditorProtocol';
+import type { EditorTextVersions } from './editorTextVersions';
 import '@vscode/markdown-editor/suggest.css';
 import './languageFeatures.css';
 
@@ -13,7 +14,7 @@ export class CompletionController extends Disposable {
 	readonly #editor: EditorModel;
 	readonly #view: EditorView;
 	readonly #host: MarkdownEditorHost;
-	readonly #epoch: () => number;
+	readonly #versions: EditorTextVersions;
 	readonly #suggest: SuggestModel<MarkdownCompletion>;
 	#requestId = 0;
 	#active: number | undefined;
@@ -21,12 +22,12 @@ export class CompletionController extends Disposable {
 	#applying = false;
 	#disposed = false;
 
-	constructor(editor: EditorModel, view: EditorView, host: MarkdownEditorHost, epoch: () => number) {
+	constructor(editor: EditorModel, view: EditorView, host: MarkdownEditorHost, versions: EditorTextVersions) {
 		super();
 		this.#editor = editor;
 		this.#view = view;
 		this.#host = host;
-		this.#epoch = epoch;
+		this.#versions = versions;
 		this.#suggest = new SuggestModel({ onAccept: item => { void this.#accept(item); }, onCancel: () => this.cancel() });
 		const widget = this._register(new SuggestWidget({
 			model: this.#suggest, focusTarget: view.element, id: `markdown-suggest-${crypto.randomUUID()}`,
@@ -37,10 +38,10 @@ export class CompletionController extends Disposable {
 		const layout = (): void => {
 			const caret = view.caretRect.get();
 			if (!caret || this.#suggest.state.get().kind === 'closed') { return; }
-			const container = view.overlayContainer.getBoundingClientRect();
+			const transform = view.coordinateSpace.capture();
 			const editorBounds = view.element.getBoundingClientRect();
-			const top = Math.max(0, -container.top);
-			const bottom = Math.min(window.innerHeight, editorBounds.bottom) - container.top;
+			const top = Math.max(0, transform.toLocalPoint({ x: 0, y: 0 }).y);
+			const bottom = transform.toLocalPoint({ x: 0, y: Math.min(window.innerHeight, editorBounds.bottom) }).y;
 			const below = Math.max(0, bottom - caret.y - caret.height);
 			const above = Math.max(0, caret.y - top);
 			const flipped = below < widget.element.offsetHeight && above > below;
@@ -109,7 +110,7 @@ export class CompletionController extends Disposable {
 		this.#active = requestId;
 		if (!automatic) { this.#suggest.showLoading(); }
 		try {
-			const result = await this.#host.completions({ requestId, offset: selection.active, editEpoch: this.#epoch(), automatic });
+			const result = await this.#host.completions({ requestId, offset: selection.active, version: this.#versions.current, automatic });
 			if (this.#disposed || this.#active !== requestId) { return; }
 			if (automatic && !result.items.length) { this.cancel(); return; }
 			this.#suggest.show(result.items.map(item => item.unsupported ? { ...item, detail: item.unsupported } : item));
@@ -125,9 +126,10 @@ export class CompletionController extends Disposable {
 		this.#applying = true;
 		try {
 			const result = await this.#host.acceptCompletion({ requestId, id: item.id });
-			if (!this.#disposed && this.#active === requestId && result.editEpoch === this.#epoch()) {
+			const caret = this.#versions.fromHost(result.version, result.offset ?? 0);
+			if (!this.#disposed && this.#active === requestId && caret !== undefined) {
 				if (result.offset !== undefined) {
-					this.#editor.selection.set(Selection.collapsed(Math.min(result.offset, this.#editor.sourceText.get().value.length)), undefined);
+					this.#editor.selection.set(Selection.collapsed(Math.min(caret, this.#editor.sourceText.get().value.length)), undefined);
 					this.#view.focus();
 				}
 				this.#applying = false;

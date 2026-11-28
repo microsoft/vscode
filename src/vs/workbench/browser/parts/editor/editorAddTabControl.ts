@@ -60,7 +60,7 @@ export interface IEditorAddTabControlOptions {
 
 /**
  * The "Add Tab" (`+`) dropdown that lists the actions of a contributed menu.
- * The control element carries the `hidden` class while the menu has no actions.
+ * The control element is in the DOM only while the menu has actions.
  */
 export class EditorAddTabControl extends Disposable {
 
@@ -69,8 +69,9 @@ export class EditorAddTabControl extends Disposable {
 	private readonly _onDidChangeVisibility = this._register(new Emitter<void>());
 	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
 
+	private _visible = false;
 	get visible(): boolean {
-		return !this.element.classList.contains('hidden');
+		return this._visible;
 	}
 
 	constructor(
@@ -89,7 +90,6 @@ export class EditorAddTabControl extends Disposable {
 		super();
 
 		this.element = $('.tabs-bar-add-tab');
-		parent.insertBefore(this.element, options?.before ?? null);
 
 		const recentEntryStorageKey = `editor.addTabMenu.recentEntry.${menuId.id}`;
 		const recentDescription = localize('addTabRecentlyUsed', "recently used");
@@ -128,21 +128,27 @@ export class EditorAddTabControl extends Disposable {
 			}));
 		}
 		if (options?.defaultEntry) {
-			this._pickDefaultEntryOnSecondPress(dropdown, toolbar, () => getActions().find(action => !(action instanceof Separator)), contextViewService);
+			this._pickDefaultEntryOnSecondPress(dropdown, toolbar, options.context, () => getActions().find(action => !(action instanceof Separator)), contextViewService);
 		}
 		if (options?.defaultEntry || options?.recentFirst) {
 			this._decorateMenu(dropdown, !!options.defaultEntry, () => recentAction ? recentDescription : undefined);
 		}
 
-		const updateVisibility = () => this.element.classList.toggle('hidden', getActions().length === 0);
-		updateVisibility();
-		this._register(menu.onDidChange(() => {
-			const wasVisible = this.visible;
-			updateVisibility();
-			if (wasVisible !== this.visible) {
-				this._onDidChangeVisibility.fire();
+		const updateVisibility = () => {
+			const visible = getActions().length > 0;
+			if (visible === this._visible) {
+				return;
 			}
-		}));
+			this._visible = visible;
+			if (visible) {
+				parent.insertBefore(this.element, options?.before ?? null);
+			} else {
+				this.element.remove();
+			}
+			this._onDidChangeVisibility.fire();
+		};
+		updateVisibility();
+		this._register(menu.onDidChange(updateVisibility));
 	}
 
 	/**
@@ -163,7 +169,7 @@ export class EditorAddTabControl extends Disposable {
 	 * While the menu is open, pressing the button picks the default entry rather than only closing the menu. The menu
 	 * blocks the mouse in the rest of the window, so the press is recognized by its position before the block sees it.
 	 */
-	private _pickDefaultEntryOnSecondPress(dropdown: DropdownMenuActionViewItem, toolbar: WorkbenchToolBar, getDefaultEntry: () => IAction | undefined, contextViewService: IContextViewService): void {
+	private _pickDefaultEntryOnSecondPress(dropdown: DropdownMenuActionViewItem, toolbar: WorkbenchToolBar, context: IEditorCommandsContext | undefined, getDefaultEntry: () => IAction | undefined, contextViewService: IContextViewService): void {
 		const whileMenuVisible = this._register(new MutableDisposable());
 		this._register(dropdown.onDidChangeVisibility(visible => {
 			whileMenuVisible.value = visible ? addDisposableListener(getWindow(this.element), EventType.MOUSE_DOWN, e => {
@@ -173,7 +179,8 @@ export class EditorAddTabControl extends Disposable {
 				}
 				EventHelper.stop(e, true);
 				contextViewService.hideContextView();
-				toolbar.actionRunner.run(entry, toolbar.context);
+				// The toolbar has no getter for its context
+				toolbar.actionRunner.run(entry, context);
 			}, true) : undefined;
 		}));
 	}

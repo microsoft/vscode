@@ -97,6 +97,18 @@ Use the owning theme service for temporary palettes so CSS variables and program
 
 Verify enabling, disabling, replacement, disposal, and theme changes, including stale asynchronous results. Clearing an override must restore the original colors without persisting generated values or changing another window's theme or startup colors.
 
+### Color provenance and consumer coverage
+
+Before changing a color fallback, distinguish the registered default, an explicit theme value, a user customization, and a temporary overlay. They are not interchangeable:
+
+- Preserve the owning component's precedence contract. Adding a theme default can bypass an existing fallback to a user-customizable legacy token; test no customization, legacy-only customization, and both legacy and new tokens using the loaded theme.
+- Do not infer explicit theme intent from a resolved color alone: resolution may include registry defaults or transient overlays. A fix for an active-tab theme color must not automatically change inactive, hover, or transparent-action compositing.
+- Keep independent semantic roles independently customizable. For example, hiding editor diagnostic squiggles with transparent user colors must not hide Debug Console messages; preserve explicit console overrides and theme-defined diagnostic defaults.
+- Trace every paint path. A scoped CSS variable does not update a theme-service lookup, an inline concrete color, a terminal canvas, or a detached Test Results terminal. Use the owning shared resolver where appropriate and subscribe affected consumers to the real runtime invalidation.
+- For a new border color, check border presence, style, width, and layout reservation as well as color. A correctly resolved color cannot paint a border whose owner sets `none` or zero width. Include themes where the old border token is absent.
+- Validate moved views in both sidebars and the panel, preserving their location-specific and peek palettes. Use strongly contrasting test colors so an old-colored embedded surface cannot pass unnoticed.
+- Measure the actual painted state and token: a horizontal Activity Bar uses different foreground tokens from the vertical bar; opacity and underlying surfaces affect the result. A faint selection fill does not prove that its boundary remains distinguishable.
+
 ## 5. Focus Indicators
 
 Defined in `src/vs/workbench/browser/media/style.css`:
@@ -182,7 +194,7 @@ For a custom control whose expanded/pressed state uses ARIA, keep background and
 
 For controls with a selected/checked palette, exclude that state from the generic hover fill or provide its correctly paired selected-hover colors. Keep independent status markers distinct as well: attention-required, pinned, selected, and focused states can coexist. Test their combined placement and semantic foregrounds rather than letting a new marker cover an existing one.
 
-Validate a state matrix rather than isolated screenshots: rest, hover, keyboard focus, focus plus hover, open/expanded/pressed plus focus and hover, selected/checked plus hover, disabled plus hover, and nested-action focus/hover. Load all production styles that compete for the boundary and verify both HC Dark and HC Light, plus normal Dark/Light when selector exclusions can affect hover fills.
+Validate a state matrix rather than isolated screenshots: rest, hover, keyboard focus, focus plus hover, open/expanded/pressed plus focus and hover, selected/checked plus hover, disabled plus hover, intentionally focusable-disabled focus, and nested-action focus/hover. Load all production styles that compete for the boundary and verify both HC Dark and HC Light, plus normal Dark/Light when selector exclusions can affect hover fills.
 
 Test runtime theme changes and custom color overrides, including transitions where a previously defined token becomes absent. Clear stale inline colors or classes rather than leaving the previous theme's state behind. Render through production state-owning services so intentionally omitted decoration remains absent.
 
@@ -193,8 +205,9 @@ Test runtime theme changes and custom color overrides, including transitions whe
 - Do not assume `.focus()` or a synthetic key event makes `:focus-visible` true in every browser or Electron host. Control the fixture's supported focus state or drive actual keyboard input, isolate previous focus, and verify the state before asserting styles. Do not skip a failed focus assertion or weaken it to mere `activeElement` equality.
 - When exact theme colors are the contract, load and assert those tokens. When preserving platform styling is the contract, assert a visible nonzero focus boundary instead of an unrelated hardcoded color. Include the relevant production stylesheet cascade in either case.
 - Exercise both forced-focus and natural-focus fixture modes. Wait for a focus-triggered hover only when focus was actually requested. Check readiness, idle, and remount so an async tooltip is not captured accidentally or awaited forever.
-- In missing-token tests, distinguish local removal from inherited values. If an ancestor supplies the property, use a scoped guaranteed-invalid value such as a self-reference to exercise `var()` fallback without changing global theme state. A fallback does not repair a defined value with the wrong CSS type.
+- In missing-token tests, distinguish local removal from inherited values. If an ancestor supplies the property, use a scoped guaranteed-invalid value such as a self-reference to exercise `var()` fallback without changing global theme state. Verify computed behavior rather than accepting a reviewer's suggested CSS keyword untested. A fallback does not repair a defined value with the wrong CSS type.
 - Hit-test the intended action region, allowing the hit element to be the control or one of its descendants, then activate it and assert the behavior or ARIA change. Exact root equality is brittle; CSS styling alone does not prove that labels, chevrons, or edge padding remain clickable.
+- Follow the [fixture contract checks](../component-fixtures/SKILL.md#validating-fixtures) for readiness, idle, and remount. Keep production behavior tests at the owning production API.
 
 ## 7. No Hardcoded Visual Values
 

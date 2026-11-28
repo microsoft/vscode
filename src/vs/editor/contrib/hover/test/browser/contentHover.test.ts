@@ -4,16 +4,81 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
+import { Event } from '../../../../../base/common/event.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { NullOpenerService } from '../../../../../platform/opener/test/common/nullOpenerService.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { TestClipboardService } from '../../../../../platform/clipboard/test/common/testClipboardService.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
+import { HoverVerbosityAction, LinkProvider } from '../../../../common/languages.js';
+import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
+import { ITestCodeEditor, TestCodeEditorInstantiationOptions, withAsyncTestCodeEditor, withTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
+import { LinkDetector } from '../../../links/browser/links.js';
 import { RenderedContentHover } from '../../browser/contentHoverRendered.js';
-import { IHoverPart } from '../../browser/hoverTypes.js';
-import { TestCodeEditorInstantiationOptions, withTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
+import { ContentHoverResult } from '../../browser/contentHoverTypes.js';
+import { HoverStartSource } from '../../browser/hoverOperation.js';
+import { HoverRangeAnchor, IEditorHoverRenderContext, IHoverPart } from '../../browser/hoverTypes.js';
+import { MarkdownHoverParticipant } from '../../browser/markdownHoverParticipant.js';
+import { EditorHoverStatusBar } from '../../browser/contentHoverStatusBar.js';
+
+class RecordingClipboardService extends TestClipboardService {
+	readonly copied = new DeferredPromise<string>();
+
+	override async writeText(text: string): Promise<void> {
+		await super.writeText(text);
+		await this.copied.complete(text);
+	}
+}
 
 suite('Content Hover', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function renderHover(editor: ITestCodeEditor, instantiationService: TestInstantiationService, disposables: DisposableStore) {
+		const clipboard = new RecordingClipboardService();
+		instantiationService.set(IClipboardService, clipboard);
+		instantiationService.set(IMarkdownRendererService, instantiationService.createInstance(MarkdownRendererService));
+		const participant = instantiationService.createInstance(MarkdownHoverParticipant, editor);
+		const anchor = new HoverRangeAnchor(0, new Range(1, 1, 1, 1), undefined, undefined);
+		const hoverParts = participant.computeSync(anchor, editor.getLineDecorations(1));
+		const result = new ContentHoverResult(hoverParts, true, {
+			anchor,
+			shouldFocus: false,
+			source: HoverStartSource.Mouse,
+			insistOnKeepingHoverVisible: false
+		});
+		const hover = disposables.add(instantiationService.createInstance(RenderedContentHover, editor, result, [participant], {
+			onContentsChanged: () => { },
+			setMinimumDimensions: () => { },
+			hide: () => { },
+			focus: () => { }
+		}));
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		container.appendChild(hover.domNode);
+		const button = container.querySelector<HTMLElement>('.hover-copy-button');
+		assert.ok(button);
+		return { hover, button, clipboard };
+	}
+
+	async function renderLinkHover(editor: ITestCodeEditor, instantiationService: TestInstantiationService, disposables: DisposableStore, provider: LinkProvider) {
+		disposables.add(instantiationService.get(ILanguageFeaturesService).linkProvider.register('*', provider));
+		const model = editor.getModel();
+		const decorated = Event.toPromise(Event.filter(model.onDidChangeDecorations, () => model.getAllDecorations().some(decoration => decoration.options.description === 'detected-link')), disposables);
+		disposables.add(instantiationService.createInstance(LinkDetector, editor));
+		await decorated;
+		return renderHover(editor, instantiationService, disposables);
+	}
 
 	test('issue #151235: Gitlens hover shows up in the wrong place', () => {
 		const text = 'just some text';
@@ -49,6 +114,185 @@ suite('Content Hover', () => {
 					showAtSecondaryPosition: new Position(1, 6)
 				}
 			);
+		});
+	});
+
+	test('verbosity actions stay at the bottom of the hover row after the verbosity changes', async () => {
+		await withAsyncTestCodeEditor('some text', {}, async (editor, _viewModel, instantiationService) => {
+			const disposables = new DisposableStore();
+			try {
+				instantiationService.set(IMarkdownRendererService, new MarkdownRendererService(NullOpenerService));
+				const range = new Range(1, 1, 1, 5);
+				disposables.add(instantiationService.get(ILanguageFeaturesService).hoverProvider.register('*', {
+					provideHover: (_model, _position, _token, context) => {
+						const lineCount = context?.verbosityRequest ? 6 : 1;
+						return {
+							range,
+							contents: [{ value: Array.from({ length: lineCount }, (_, i) => `Line ${i}`).join('\n\n') }],
+							canIncreaseVerbosity: true,
+							canDecreaseVerbosity: !!context?.verbosityRequest
+						};
+					}
+				}));
+				const participant = instantiationService.createInstance(MarkdownHoverParticipant, editor);
+				const container = mainWindow.document.createElement('div');
+				container.className = 'monaco-editor';
+				const hover = mainWindow.document.createElement('div');
+				hover.className = 'monaco-hover';
+				const scroller = mainWindow.document.createElement('div');
+				scroller.style.overflow = 'hidden';
+				scroller.style.height = '400px';
+				hover.appendChild(scroller);
+				container.appendChild(hover);
+				mainWindow.document.body.appendChild(container);
+				disposables.add(toDisposable(() => container.remove()));
+
+				const parts = [];
+				for await (const part of participant.computeAsync(new HoverRangeAnchor(0, range, undefined, undefined), [], HoverStartSource.Keyboard, CancellationToken.None)) {
+					parts.push(part);
+				}
+				const context: IEditorHoverRenderContext = {
+					fragment: mainWindow.document.createDocumentFragment(),
+					statusBar: disposables.add(instantiationService.createInstance(EditorHoverStatusBar)),
+					onContentsChanged: () => { },
+					setMinimumDimensions: () => { },
+					hide: () => { },
+					focus: () => { }
+				};
+				disposables.add(participant.renderHoverParts(context, parts));
+				scroller.appendChild(context.fragment);
+
+				const actionsBottom = () => {
+					const row = scroller.querySelector('.hover-row')!.getBoundingClientRect();
+					const actions = scroller.querySelector('.verbosity-actions-inner')!.getBoundingClientRect();
+					const viewport = scroller.getBoundingClientRect();
+					return {
+						rowTaller: row.height > actions.height,
+						fromRowBottom: Math.round(row.bottom - actions.bottom),
+						fromViewportBottom: Math.round(viewport.bottom - actions.bottom)
+					};
+				};
+				const initial = actionsBottom();
+
+				await participant.updateMarkdownHoverVerbosityLevel(HoverVerbosityAction.Increase, 0);
+				const afterIncrease = actionsBottom();
+
+				scroller.style.height = '40px';
+				const scrolledToTop = actionsBottom();
+
+				scroller.scrollTop = scroller.scrollHeight;
+				const scrolledToBottom = actionsBottom();
+
+				assert.deepStrictEqual(
+					{ initial: initial.fromRowBottom, afterIncrease: { rowTaller: afterIncrease.rowTaller, fromRowBottom: afterIncrease.fromRowBottom }, scrolledToTop: scrolledToTop.fromViewportBottom, scrolledToBottom: scrolledToBottom.fromRowBottom },
+					{ initial: 0, afterIncrease: { rowTaller: true, fromRowBottom: 0 }, scrolledToTop: 0, scrolledToBottom: 0 }
+				);
+			} finally {
+				disposables.dispose();
+			}
+		});
+	});
+
+	test('copies the link destination instead of the follow-link label', async () => {
+		await withAsyncTestCodeEditor('link text', {}, async (editor, _viewModel, instantiationService) => {
+			const disposables = new DisposableStore();
+			editor.registerDisposable(disposables);
+			const destination = 'https://example.com/path?query=a%20b&other=1#fragment';
+			const { hover, button, clipboard } = await renderLinkHover(editor, instantiationService, disposables, {
+				provideLinks: () => ({ links: [{ range: new Range(1, 1, 1, 10), url: destination }] })
+			});
+			const accessibleContent = hover.getAccessibleWidgetContentAtIndex(0);
+
+			button.click();
+
+			assert.deepStrictEqual({
+				accessibleContentIncludesLabel: accessibleContent.includes('Follow link'),
+				accessibleContentIncludesDestination: accessibleContent.includes(destination),
+				copied: await clipboard.copied.p
+			}, {
+				accessibleContentIncludesLabel: true,
+				accessibleContentIncludesDestination: false,
+				copied: destination
+			});
+		});
+	});
+
+	test('copies a URI link destination with the keyboard', async () => {
+		await withAsyncTestCodeEditor('link text', {}, async (editor, _viewModel, instantiationService) => {
+			const disposables = new DisposableStore();
+			editor.registerDisposable(disposables);
+			const range = new Range(1, 1, 1, 10);
+			const destination = URI.parse('https://example.com/encoded%20path?q=a%26b');
+			const { hover, button, clipboard } = await renderLinkHover(editor, instantiationService, disposables, {
+				provideLinks: () => ({ links: [{ range, url: destination, tooltip: 'Open documentation' }] })
+			});
+			const accessibleContent = hover.getAccessibleWidgetContentAtIndex(0);
+			const event = new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true });
+			Object.defineProperty(event, 'keyCode', { get: () => 13 });
+
+			button.dispatchEvent(event);
+
+			assert.deepStrictEqual({
+				accessibleContentIncludesLabel: accessibleContent.includes('Open documentation'),
+				copied: await clipboard.copied.p
+			}, {
+				accessibleContentIncludesLabel: true,
+				copied: destination.toString()
+			});
+		});
+	});
+
+	test('copies displayed text for unresolved links without resolving them', async () => {
+		await withAsyncTestCodeEditor('link text', {}, async (editor, _viewModel, instantiationService) => {
+			const disposables = new DisposableStore();
+			editor.registerDisposable(disposables);
+			const range = new Range(1, 1, 1, 10);
+			let resolutions = 0;
+			const { hover, button, clipboard } = await renderLinkHover(editor, instantiationService, disposables, {
+				provideLinks: () => ({ links: [{ range, tooltip: 'Open documentation' }] }),
+				resolveLink: () => {
+					resolutions++;
+					return { range, url: 'https://example.com' };
+				}
+			});
+			const accessibleContent = hover.getAccessibleWidgetContentAtIndex(0);
+
+			button.click();
+
+			assert.deepStrictEqual({
+				copied: await clipboard.copied.p,
+				resolutions
+			}, {
+				copied: accessibleContent,
+				resolutions: 0
+			});
+		});
+	});
+
+	test('copies ordinary markdown hover text rather than its link destination', async () => {
+		await withAsyncTestCodeEditor('link text', {}, async (editor, _viewModel, instantiationService) => {
+			const disposables = new DisposableStore();
+			editor.registerDisposable(disposables);
+			const decorations = editor.createDecorationsCollection([{
+				range: new Range(1, 1, 1, 10),
+				options: {
+					description: 'test-markdown-hover',
+					hoverMessage: new MarkdownString().appendText('More information: ').appendLink('https://example.com', 'Documentation')
+				}
+			}]);
+			disposables.add(toDisposable(() => decorations.clear()));
+			const { hover, button, clipboard } = renderHover(editor, instantiationService, disposables);
+			const accessibleContent = hover.getAccessibleWidgetContentAtIndex(0);
+
+			button.click();
+
+			assert.deepStrictEqual({
+				accessibleContent,
+				copied: await clipboard.copied.p
+			}, {
+				accessibleContent: 'More information: Documentation',
+				copied: 'More information: Documentation'
+			});
 		});
 	});
 });

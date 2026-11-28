@@ -162,18 +162,18 @@ suite('AgentHostChannel', () => {
 
 	test('passes the resolver environment to the server-owned launch on each connection', async () => {
 		const ipc = ds.add(new FakeIPCServer());
-		const options: (IAgentHostIpcConnectionOptions | undefined)[] = [];
+		const options = new Map<string, IAgentHostIpcConnectionOptions | undefined>();
 		const channel = ds.add(new AgentHostChannel<string>(
 			ipc as unknown as IPCServer<string>,
-			async connectionOptions => {
-				options.push(connectionOptions);
+			async (connectionOptions, ctx) => {
+				options.set(ctx, connectionOptions);
 				return { socketPath: 'agent-host.sock' };
 			},
 			new NullLogService(),
 			() => ds.add(new FakeUpstream()),
 		));
 		channel.listen('first', 'frame');
-		const beforeConnect = options.length;
+		const beforeConnect = options.size;
 		await channel.call('first', 'connect', {
 			env: { GITHUB_TOKEN: 'codespace-token', GH_TOKEN: null, EMPTY: '' },
 			debugEnv: { Github_Token: 'debug-token' },
@@ -182,13 +182,13 @@ suite('AgentHostChannel', () => {
 		await channel.call('second', 'connect', { env: { GITHUB_TOKEN: 'refreshed-codespace-token' }, preferredAgentLocation: 'dedicated' });
 		await channel.call('third', 'connect');
 
-		assert.deepStrictEqual({ beforeConnect, options }, {
+		assert.deepStrictEqual({ beforeConnect, options: Object.fromEntries(options) }, {
 			beforeConnect: 0,
-			options: [
-				{ env: { GITHUB_TOKEN: 'codespace-token', GH_TOKEN: null, EMPTY: '' }, debugEnv: { Github_Token: 'debug-token' }, preferredAgentLocation: 'editor' },
-				{ env: { GITHUB_TOKEN: 'refreshed-codespace-token' }, preferredAgentLocation: 'dedicated' },
-				undefined,
-			],
+			options: {
+				first: { env: { GITHUB_TOKEN: 'codespace-token', GH_TOKEN: null, EMPTY: '' }, debugEnv: { Github_Token: 'debug-token' }, preferredAgentLocation: 'editor' },
+				second: { env: { GITHUB_TOKEN: 'refreshed-codespace-token' }, preferredAgentLocation: 'dedicated' },
+				third: undefined,
+			},
 		});
 	});
 

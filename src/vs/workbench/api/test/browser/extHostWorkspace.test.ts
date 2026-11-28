@@ -11,7 +11,7 @@ import { timeout } from '../../../../base/common/async.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { ILogService, NullLogService } from '../../../../platform/log/common/log.js';
-import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceFolderData, WorkbenchMode } from '../../../../platform/workspace/common/workspace.js';
 import { MainThreadWorkspace } from '../../browser/mainThreadWorkspace.js';
 import { IMainContext, IWorkspaceData, MainContext, ITextSearchComplete, MainThreadTelemetryShape, MainThreadWorkspaceShape } from '../../common/extHost.protocol.js';
 import { RelativePattern } from '../../common/extHostTypes.js';
@@ -30,18 +30,18 @@ import { IURITransformerService } from '../../common/extHostUriTransformerServic
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ExcludeSettingOptions } from '../../../services/search/common/searchExtTypes.js';
 
-function createExtHostWorkspace(mainContext: IMainContext, data: IWorkspaceData, logService: ILogService): ExtHostWorkspace {
+function createExtHostWorkspace(mainContext: IMainContext, data: IWorkspaceData, logService: ILogService, mode = WorkbenchMode.Editor): ExtHostWorkspace {
 	mainContext.set(MainContext.MainThreadTelemetry, new class extends mock<MainThreadTelemetryShape>() {
 		override $publicLog2(): void { }
 	});
 	const result = new ExtHostWorkspace(
 		new ExtHostRpcService(mainContext),
-		new class extends mock<IExtHostInitDataService>() { override workspace = data; },
+		new class extends mock<IExtHostInitDataService>() { override workspace = { ...data, mode }; },
 		new class extends mock<IExtHostFileSystemInfo>() { override getCapabilities() { return isLinux ? FileSystemProviderCapabilities.PathCaseSensitive : undefined; } },
 		logService,
 		new class extends mock<IURITransformerService>() { }
 	);
-	result.$initializeWorkspace(data, true);
+	result.$initializeWorkspace(data, mode, true);
 	return result;
 }
 
@@ -53,6 +53,92 @@ suite('ExtHostWorkspace', function () {
 		const actual = workspace.getRelativePath(input, includeWorkspace);
 		assert.strictEqual(actual, expected);
 	}
+
+	test('knows the workbench mode from its workspace data and follows its changes', () => {
+		const data: IWorkspaceData = { id: 'foo', folders: [], name: 'Test' };
+		const ws = createExtHostWorkspace(new TestRPCProtocol(), data, new NullLogService(), WorkbenchMode.Agents);
+		const events: WorkbenchMode[] = [];
+		store.add(ws.onDidChangeWorkbenchMode(mode => events.push(mode)));
+		const initial = ws.workbenchMode;
+
+		ws.$acceptWorkspaceData(data, WorkbenchMode.Agents);
+		ws.$acceptWorkspaceData(data, WorkbenchMode.Editor);
+		ws.$acceptWorkspaceData(data, WorkbenchMode.Agents);
+		ws.$acceptWorkspaceData(null, WorkbenchMode.Agents);
+
+		assert.deepStrictEqual({ initial, current: ws.workbenchMode, events }, { initial: WorkbenchMode.Agents, current: WorkbenchMode.Agents, events: [WorkbenchMode.Editor, WorkbenchMode.Agents] });
+	});
+
+	test('publishes the mode before folder events and suppresses only mode-only workspace updates', () => {
+		const folder = aWorkspaceFolderData(URI.file('/Coding/One'), 0);
+		const data: IWorkspaceData = { id: 'foo', name: 'Test', folders: [folder] };
+		const ws = createExtHostWorkspace(new TestRPCProtocol(), data, new NullLogService());
+		const events: { kind: string; mode: WorkbenchMode; added?: number; removed?: number }[] = [];
+		store.add(ws.onDidChangeWorkspace(event => events.push({ kind: 'folders', mode: ws.workbenchMode, added: event.added.length, removed: event.removed.length })));
+		store.add(ws.onDidChangeWorkbenchMode(mode => events.push({ kind: 'mode', mode })));
+		ws.$acceptWorkspaceData(data, WorkbenchMode.Agents);
+		ws.$acceptWorkspaceData({ ...data, folders: [{ ...folder, name: 'Renamed' }] }, WorkbenchMode.Editor);
+		ws.$acceptWorkspaceData({ ...data, folders: [aWorkspaceFolderData(URI.file('/Coding/Two'), 0)] }, WorkbenchMode.Editor);
+		ws.$acceptWorkspaceData(null, WorkbenchMode.Editor);
+		assert.deepStrictEqual({ events, folders: ws.getWorkspaceFolders() }, {
+			events: [
+				{ kind: 'mode', mode: WorkbenchMode.Agents },
+				{ kind: 'folders', mode: WorkbenchMode.Editor, added: 0, removed: 0 },
+				{ kind: 'mode', mode: WorkbenchMode.Editor },
+				{ kind: 'folders', mode: WorkbenchMode.Editor, added: 1, removed: 1 },
+				{ kind: 'folders', mode: WorkbenchMode.Editor, added: 0, removed: 1 },
+			],
+			folders: undefined,
+		});
+	});
+
+	test('fires the workspace event when a pending folder rename is confirmed together with a mode change', () => {
+		const data: IWorkspaceData = { id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar'), 0, 'One')] };
+		const rpc = new TestRPCProtocol();
+		rpc.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspaceShape>() {
+			override async $updateWorkspaceFolders(): Promise<void> { }
+		});
+		const ws = createExtHostWorkspace(rpc, data, new NullLogService());
+		const events: { kind: string; names?: string[] }[] = [];
+		store.add(ws.onDidChangeWorkspace(() => events.push({ kind: 'folders', names: ws.getWorkspaceFolders()!.map(folder => folder.name) })));
+		store.add(ws.onDidChangeWorkbenchMode(() => events.push({ kind: 'mode' })));
+		const updated = ws.updateWorkspaceFolders(extensionDescriptor, 0, 1, asUpdateWorkspaceFolderData(URI.parse('foo:bar'), 'Renamed'));
+		ws.$acceptWorkspaceData({ ...data, folders: [aWorkspaceFolderData(URI.parse('foo:bar'), 0, 'Renamed')] }, WorkbenchMode.Agents);
+		assert.deepStrictEqual({ updated, events }, { updated: true, events: [{ kind: 'folders', names: ['Renamed'] }, { kind: 'mode' }] });
+	});
+
+	test('refuses extension folder updates in Agents mode', () => {
+		const data: IWorkspaceData = { id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar'), 0, 'One')] };
+		const rpc = new TestRPCProtocol();
+		let requests = 0;
+		rpc.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspaceShape>() {
+			override async $updateWorkspaceFolders(): Promise<void> { requests++; }
+		});
+		const ws = createExtHostWorkspace(rpc, data, new NullLogService(), WorkbenchMode.Agents);
+		const updated = ws.updateWorkspaceFolders(extensionDescriptor, 0, 1, asUpdateWorkspaceFolderData(URI.parse('foo:bar'), 'Renamed'));
+		ws.$acceptWorkspaceData(null, WorkbenchMode.Agents);
+		const updatedWithoutFolders = ws.updateWorkspaceFolders(extensionDescriptor, 0, 0, asUpdateWorkspaceFolderData(URI.parse('foo:other')));
+		assert.deepStrictEqual({ updated, updatedWithoutFolders, requests, names: ws.getWorkspaceFolders()?.map(folder => folder.name) }, { updated: false, updatedWithoutFolders: false, requests: 0, names: undefined });
+	});
+
+	test('fires the workspace event when an untitled workspace is saved together with a mode change', () => {
+		const data: IWorkspaceData = { id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.file('/Coding/One'), 0)], isUntitled: true };
+		const ws = createExtHostWorkspace(new TestRPCProtocol(), data, new NullLogService());
+		let events = 0;
+		store.add(ws.onDidChangeWorkspace(() => events++));
+		ws.$acceptWorkspaceData({ ...data, isUntitled: false }, WorkbenchMode.Agents);
+		assert.strictEqual(events, 1);
+	});
+
+	test('reports removed folders when an Agents workspace becomes empty', () => {
+		const data: IWorkspaceData = { id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.file('/Coding/One'), 0)] };
+		const ws = createExtHostWorkspace(new TestRPCProtocol(), data, new NullLogService(), WorkbenchMode.Agents);
+		const removed: string[][] = [];
+		store.add(ws.onDidChangeWorkspace(event => removed.push(event.removed.map(folder => folder.name))));
+		ws.$acceptWorkspaceData(null, WorkbenchMode.Agents);
+		ws.$acceptWorkspaceData(null, WorkbenchMode.Agents);
+		assert.deepStrictEqual(removed, [['One'], []]);
+	});
 
 	test('asRelativePath', () => {
 
@@ -208,7 +294,7 @@ suite('ExtHostWorkspace', function () {
 				finish(error);
 			}
 		});
-		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [] });
+		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [] }, WorkbenchMode.Editor);
 		sub.dispose();
 
 		sub = ws.onDidChangeWorkspace(e => {
@@ -220,7 +306,7 @@ suite('ExtHostWorkspace', function () {
 				finish(error);
 			}
 		});
-		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar'), 0)] });
+		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar'), 0)] }, WorkbenchMode.Editor);
 		sub.dispose();
 
 		sub = ws.onDidChangeWorkspace(e => {
@@ -232,7 +318,7 @@ suite('ExtHostWorkspace', function () {
 				finish(error);
 			}
 		});
-		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar'), 0), aWorkspaceFolderData(URI.parse('foo:bar2'), 1)] });
+		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar'), 0), aWorkspaceFolderData(URI.parse('foo:bar2'), 1)] }, WorkbenchMode.Editor);
 		sub.dispose();
 
 		sub = ws.onDidChangeWorkspace(e => {
@@ -247,7 +333,7 @@ suite('ExtHostWorkspace', function () {
 				finish(error);
 			}
 		});
-		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar3'), 0)] });
+		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar3'), 0)] }, WorkbenchMode.Editor);
 		sub.dispose();
 		finish();
 	});
@@ -256,18 +342,18 @@ suite('ExtHostWorkspace', function () {
 		const ws = createExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar'), 0)] }, new NullLogService());
 
 		const firstFolder = ws.getWorkspaceFolders()![0];
-		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar2'), 0), aWorkspaceFolderData(URI.parse('foo:bar'), 1, 'renamed')] });
+		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar2'), 0), aWorkspaceFolderData(URI.parse('foo:bar'), 1, 'renamed')] }, WorkbenchMode.Editor);
 
 		assert.strictEqual(ws.getWorkspaceFolders()![1], firstFolder);
 		assert.strictEqual(firstFolder.index, 1);
 		assert.strictEqual(firstFolder.name, 'renamed');
 
-		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar3'), 0), aWorkspaceFolderData(URI.parse('foo:bar2'), 1), aWorkspaceFolderData(URI.parse('foo:bar'), 2)] });
+		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar3'), 0), aWorkspaceFolderData(URI.parse('foo:bar2'), 1), aWorkspaceFolderData(URI.parse('foo:bar'), 2)] }, WorkbenchMode.Editor);
 		assert.strictEqual(ws.getWorkspaceFolders()![2], firstFolder);
 		assert.strictEqual(firstFolder.index, 2);
 
-		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar3'), 0)] });
-		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar3'), 0), aWorkspaceFolderData(URI.parse('foo:bar'), 1)] });
+		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar3'), 0)] }, WorkbenchMode.Editor);
+		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar3'), 0), aWorkspaceFolderData(URI.parse('foo:bar'), 1)] }, WorkbenchMode.Editor);
 
 		assert.notStrictEqual(firstFolder, ws.workspace!.folders[0]);
 	});
@@ -321,7 +407,7 @@ suite('ExtHostWorkspace', function () {
 			const { ws } = create();
 			const folder = ws.getWorkspaceFolders()![0];
 			ws.$acceptWorkspaceFolderLocations([{ folder: URI.parse('foo:bar'), locations: [{ uri: URI.parse('foo:bar'), name: 'main' }] }]);
-			ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:other'), 0), aWorkspaceFolderData(URI.parse('foo:bar'), 1, 'bar')] });
+			ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:other'), 0), aWorkspaceFolderData(URI.parse('foo:bar'), 1, 'bar')] }, WorkbenchMode.Editor);
 
 			assert.deepStrictEqual({ same: ws.getWorkspaceFolders()![1] === folder, other: ws.getWorkspaceFolders()![0].locations, kept: view(folder) }, {
 				same: true, other: undefined, kept: [['foo:bar', 'main']]
@@ -397,7 +483,7 @@ suite('ExtHostWorkspace', function () {
 				finish(error);
 			}
 		});
-		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar'), 0)] }); // simulate acknowledgement from main side
+		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar'), 0)] }, WorkbenchMode.Editor); // simulate acknowledgement from main side
 		assert.strictEqual(gotEvent, true);
 		sub.dispose();
 		assert.strictEqual(ws.getWorkspaceFolders()![0], firstAddedFolder); // verify object is still live
@@ -429,7 +515,7 @@ suite('ExtHostWorkspace', function () {
 				finish(error);
 			}
 		});
-		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar'), 0), aWorkspaceFolderData(URI.parse('foo:bar1'), 1), aWorkspaceFolderData(URI.parse('foo:bar2'), 2)] }); // simulate acknowledgement from main side
+		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar'), 0), aWorkspaceFolderData(URI.parse('foo:bar1'), 1), aWorkspaceFolderData(URI.parse('foo:bar2'), 2)] }, WorkbenchMode.Editor); // simulate acknowledgement from main side
 		assert.strictEqual(gotEvent, true);
 		sub.dispose();
 		assert.strictEqual(ws.getWorkspaceFolders()![0], firstAddedFolder); // verify object is still live
@@ -456,7 +542,7 @@ suite('ExtHostWorkspace', function () {
 				finish(error);
 			}
 		});
-		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar'), 0), aWorkspaceFolderData(URI.parse('foo:bar1'), 1)] }); // simulate acknowledgement from main side
+		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar'), 0), aWorkspaceFolderData(URI.parse('foo:bar1'), 1)] }, WorkbenchMode.Editor); // simulate acknowledgement from main side
 		assert.strictEqual(gotEvent, true);
 		sub.dispose();
 		assert.strictEqual(ws.getWorkspaceFolders()![0], firstAddedFolder); // verify object is still live
@@ -485,7 +571,7 @@ suite('ExtHostWorkspace', function () {
 				finish(error);
 			}
 		});
-		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar'), 0, 'renamed 1'), aWorkspaceFolderData(URI.parse('foo:bar1'), 1, 'renamed 2')] }); // simulate acknowledgement from main side
+		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar'), 0, 'renamed 1'), aWorkspaceFolderData(URI.parse('foo:bar1'), 1, 'renamed 2')] }, WorkbenchMode.Editor); // simulate acknowledgement from main side
 		assert.strictEqual(gotEvent, true);
 		sub.dispose();
 		assert.strictEqual(ws.getWorkspaceFolders()![0], firstAddedFolder); // verify object is still live
@@ -521,7 +607,7 @@ suite('ExtHostWorkspace', function () {
 				finish(error);
 			}
 		});
-		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar3'), 0), aWorkspaceFolderData(URI.parse('foo:bar4'), 1)] }); // simulate acknowledgement from main side
+		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar3'), 0), aWorkspaceFolderData(URI.parse('foo:bar4'), 1)] }, WorkbenchMode.Editor); // simulate acknowledgement from main side
 		assert.strictEqual(gotEvent, true);
 		sub.dispose();
 		assert.strictEqual(ws.getWorkspaceFolders()![0], fourthAddedFolder); // verify object is still live
@@ -549,7 +635,7 @@ suite('ExtHostWorkspace', function () {
 				finish(error);
 			}
 		});
-		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar4'), 0), aWorkspaceFolderData(URI.parse('foo:bar3'), 1)] }); // simulate acknowledgement from main side
+		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar4'), 0), aWorkspaceFolderData(URI.parse('foo:bar3'), 1)] }, WorkbenchMode.Editor); // simulate acknowledgement from main side
 		assert.strictEqual(gotEvent, true);
 		sub.dispose();
 		assert.strictEqual(ws.getWorkspaceFolders()![0], fifthAddedFolder); // verify object is still live
@@ -586,7 +672,7 @@ suite('ExtHostWorkspace', function () {
 				aWorkspaceFolderData(URI.parse('foo:bar3'), 1),
 				aWorkspaceFolderData(URI.parse('foo:bar5'), 2)
 			]
-		}); // simulate acknowledgement from main side
+		}, WorkbenchMode.Editor); // simulate acknowledgement from main side
 		assert.strictEqual(gotEvent, true);
 		sub.dispose();
 
@@ -620,7 +706,7 @@ suite('ExtHostWorkspace', function () {
 				finish(error);
 			}
 		});
-		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [] });
+		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [] }, WorkbenchMode.Editor);
 		sub.dispose();
 		finish();
 	});

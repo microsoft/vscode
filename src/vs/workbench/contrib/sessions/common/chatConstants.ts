@@ -22,8 +22,13 @@ export const REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING = 'sessions.chat.experime
 export const REMOTE_ENVIRONMENTS_SHARING_SETUP_SETTING = 'sessions.chat.remoteEnvironments.sharingSetup';
 export const NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING = 'sessions.chat.experimental.newSessionComposerOptionsExpanded';
 export const AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING = ChatConfiguration.AgentsPickerInAttachContextMenu;
+export const SESSIONS_LIST_WORKSPACES_FILTER_SETTING = ChatConfiguration.SessionsListWorkspacesFilterEnabled;
 export const COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING = 'sessions.chat.experimental.collapsedSessionOptionsShowIcons';
 export const NEW_SESSION_WELCOME_PHRASES_SETTING = 'sessions.chat.experimental.welcomePhrases';
 export const NEW_SESSION_WELCOME_NAME_SETTING = 'sessions.chat.experimental.welcomeName';
 export const NEW_SESSION_WELCOME_MESSAGES_SETTING = 'sessions.chat.experimental.welcomeMessages';
+export const NEW_SESSION_WELCOME_GRAPHIC_SETTING = 'sessions.chat.welcomeGraphic';
+/** The graphics that {@link NEW_SESSION_WELCOME_GRAPHIC_SETTING} can show above the new-session welcome message. */
+export const NEW_SESSION_WELCOME_GRAPHICS = ['none', 'windowOverview', 'windowOverviewStatic', 'workingCopies', 'workingCopiesStatic', 'windowComparison'] as const;
+export type NewSessionWelcomeGraphicKind = typeof NEW_SESSION_WELCOME_GRAPHICS[number];
 export const NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING = 'sessions.chat.experimental.connectorRecommendations';

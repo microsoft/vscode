@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
+import { timeout } from '../../../../../base/common/async.js';
+import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { observableValue } from '../../../../../base/common/observable.js';
@@ -13,7 +16,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { ICodeEditor, IDiffEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
-import { Comment, CommentMode, CommentThreadChangedEvent, CommentThreadCollapsibleState } from '../../../../../editor/common/languages.js';
+import { IEditorContribution } from '../../../../../editor/common/editorCommon.js';
+import { Comment, CommentMode, CommentThread, CommentThreadChangedEvent, CommentThreadCollapsibleState } from '../../../../../editor/common/languages.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { createTextModel } from '../../../../../editor/test/common/testTextModel.js';
@@ -24,17 +28,24 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { IContext } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ICommentController, ICommentService } from '../../../../../workbench/contrib/comments/browser/commentService.js';
+import { CommentController } from '../../../../../workbench/contrib/comments/browser/commentsController.js';
 import { CommentContextKeys } from '../../../../../workbench/contrib/comments/common/commentContextKeys.js';
 import { AGENTS_WINDOW_EDITOR_COMMENTS_SETTING } from '../../../../../workbench/contrib/comments/common/commentsConfiguration.js';
 import { AgentFeedbackWorkbenchCommentsContribution, registerAgentFeedbackWorkbenchCommentActions } from '../../browser/agentFeedbackWorkbenchComments.js';
+import { AGENTS_WINDOW_PR_COMMENTS_SETTING } from '../../browser/agentFeedbackEditorUtils.js';
 import { IAgentFeedbackChangeEvent, IAgentFeedbackCommentRevealEvent, IAgentFeedbackContext, IAgentFeedbackService } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback } from '../../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
-import { ICodeReviewService, ICodeReviewSuggestion, IPRReviewState, PRReviewStateKind } from '../../../../../workbench/contrib/sessions/browser/codeReviewService.js';
+import { ICodeReviewService, ICodeReviewSuggestion, IPRReviewCommentTarget, IPRReviewState, PRReviewStateKind } from '../../../../../workbench/contrib/sessions/browser/codeReviewService.js';
+import { IGitHubPullRequestRef } from '../../../../../workbench/services/sessions/common/session.js';
 
 suite('Agent Feedback Workbench Comments', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	teardown(() => sinon.restore());
 
 	const resource = URI.parse('file:///file.ts');
 	const sessionResource = URI.parse('test://session/1');
@@ -74,6 +85,7 @@ suite('Agent Feedback Workbench Comments', () => {
 
 	function createFeedbackService(initialFeedback: readonly IAgentFeedback[] = [], visibleResolvedFeedbackIds: ReadonlySet<string> = new Set(), calls: string[] = []) {
 		let feedback = initialFeedback;
+		let isAgentHostSession = false;
 		let addedFeedbackText: string | undefined;
 		let addedFeedback: { readonly range: IRange; readonly context: IAgentFeedbackContext | undefined } | undefined;
 		const onDidChangeFeedback = store.add(new Emitter<IAgentFeedbackChangeEvent>());
@@ -93,7 +105,7 @@ suite('Agent Feedback Workbench Comments', () => {
 				return visibleResolvedFeedbackIds;
 			}
 			override isAgentHostSession(): boolean {
-				return false;
+				return isAgentHostSession;
 			}
 			override hasLoadedFeedback(): boolean {
 				return true;
@@ -128,14 +140,38 @@ suite('Agent Feedback Workbench Comments', () => {
 			onDidChangeFeedback.fire({ sessionResource, feedbackItems: newFeedback });
 		};
 		const reveal = (commentId: string) => onDidRevealSessionComment.fire({ sessionResource, commentId, resourceUri: resource });
-		return { feedbackService, setFeedback, reveal, getAddedFeedbackText: () => addedFeedbackText, getAddedFeedback: () => addedFeedback };
+		const setAgentHostSession = (value: boolean) => {
+			isAgentHostSession = value;
+		};
+		return { feedbackService, setFeedback, reveal, setAgentHostSession, getAddedFeedbackText: () => addedFeedbackText, getAddedFeedback: () => addedFeedback };
 	}
 
-	function createCodeReviewService(calls: string[] = []) {
+	function createCodeReviewService(calls: string[] = [], initialPullRequests: readonly IGitHubPullRequestRef[] = []) {
 		const prReviewState = observableValue<IPRReviewState>('prReviewState', { kind: PRReviewStateKind.None });
+		let pullRequests = initialPullRequests;
+		let isNextTargetsRequestCancelled = false;
 		const codeReviewService = new class extends mock<ICodeReviewService>() {
 			override getPRReviewState() {
 				return prReviewState;
+			}
+			override getPRReviewCommentPullRequests(): readonly IGitHubPullRequestRef[] {
+				return pullRequests;
+			}
+			override async getPRReviewCommentTargets(_sessionResource: URI, _resource: URI, range: IRange, _currentContent: string, pullRequest?: Pick<IGitHubPullRequestRef, 'owner' | 'repo' | 'number'>): Promise<readonly IPRReviewCommentTarget[]> {
+				calls.push(`getPRReviewCommentTargets:${Range.lift(range)}:#${pullRequest?.number ?? 'any'}`);
+				if (isNextTargetsRequestCancelled) {
+					isNextTargetsRequestCancelled = false;
+					throw new CancellationError();
+				}
+				// Only the second line is part of the pull request's diff.
+				return range.startLineNumber === 2
+					? pullRequests
+						.filter(candidate => !pullRequest || candidate.number === pullRequest.number)
+						.map(target => ({ pullRequest: target, commitId: 'commit', path: 'file.ts', startLine: undefined, line: 2, pendingReview: undefined }))
+					: [];
+			}
+			override async createPRReviewComment(target: IPRReviewCommentTarget, body: string): Promise<void> {
+				calls.push(`createPRReviewComment:#${target.pullRequest.number}:${target.line}:${body}`);
 			}
 			override async resolvePRReviewThread(_sessionResource: URI, commentId: string): Promise<void> {
 				calls.push(`resolvePRReviewThread:${commentId}`);
@@ -144,7 +180,13 @@ suite('Agent Feedback Workbench Comments', () => {
 				calls.push(`markPRReviewCommentConverted:${commentId}`);
 			}
 		}();
-		return { codeReviewService, prReviewState };
+		const cancelNextTargetsRequest = () => {
+			isNextTargetsRequestCancelled = true;
+		};
+		const setPullRequests = (value: readonly IGitHubPullRequestRef[]) => {
+			pullRequests = value;
+		};
+		return { codeReviewService, prReviewState, cancelNextTargetsRequest, setPullRequests };
 	}
 
 	const codeEditorService = new class extends mock<ICodeEditorService>() {
@@ -302,9 +344,11 @@ suite('Agent Feedback Workbench Comments', () => {
 
 	test('shows pull request review comments and expands revealed threads', async () => {
 		const { commentService, getCommentingRangesUpdates } = createCommentService();
-		const { feedbackService, reveal } = createFeedbackService([
+		const { feedbackService, reveal, setAgentHostSession } = createFeedbackService([
 			{ id: 'open', text: 'Please change this', resourceUri: resource, range: new Range(2, 1, 2, 5), sessionResource, kind: AgentFeedbackKind.UserReview, state: AgentFeedbackState.Accepted },
 			{ id: 'resolved', text: 'Done', resourceUri: resource, range: new Range(3, 1, 3, 5), sessionResource, kind: AgentFeedbackKind.UserReview, state: AgentFeedbackState.Resolved },
+			// An Agent Host mirrors pull request review comments as agent feedback.
+			{ id: 'mirrored', text: 'Use a helper', resourceUri: resource, range: new Range(5, 1, 5, 5), sessionResource, kind: AgentFeedbackKind.PRReview, sourcePRReviewCommentId: 'mirroredReview', sourcePRReviewCommentAuthor: 'reviewer', state: AgentFeedbackState.Created },
 		], new Set(['resolved']));
 		const { codeReviewService, prReviewState } = createCodeReviewService();
 		const configurationService = new TestConfigurationService({ [AGENTS_WINDOW_EDITOR_COMMENTS_SETTING]: true });
@@ -324,11 +368,15 @@ suite('Agent Feedback Workbench Comments', () => {
 		}, undefined);
 		const commentingRangesUpdates = getCommentingRangesUpdates();
 		const threads = (await contribution.getDocumentComments(resource)).threads;
+		// The editor doesn't show the review comments of an Agent Host session whose feedback has loaded, which mirrors them.
+		setAgentHostSession(true);
+		prReviewState.set({ kind: PRReviewStateKind.Loading }, undefined);
 
 		assert.deepStrictEqual({
 			revealedBeforeCreation,
 			revealedAfterCreation,
 			commentingRangesUpdates,
+			commentingRangesUpdatesInAgentHostSession: getCommentingRangesUpdates(),
 			threads: threads.map(thread => ({
 				threadId: thread.threadId,
 				label: thread.label,
@@ -340,10 +388,12 @@ suite('Agent Feedback Workbench Comments', () => {
 			revealedBeforeCreation: CommentThreadCollapsibleState.Expanded,
 			revealedAfterCreation: CommentThreadCollapsibleState.Expanded,
 			commentingRangesUpdates: 1,
+			commentingRangesUpdatesInAgentHostSession: 1,
 			threads: [
 				{ threadId: 'agentFeedback:open', label: 'Agent Feedback', canReply: true, collapsibleState: CommentThreadCollapsibleState.Expanded, comments: [{ body: new MarkdownString('Please change this'), userName: 'You' }] },
 				{ threadId: 'agentFeedback:resolved', label: 'Agent Feedback', canReply: false, collapsibleState: CommentThreadCollapsibleState.Expanded, comments: [{ body: new MarkdownString('Done'), userName: 'You' }] },
 				{ threadId: 'prReview:review', label: 'Pull Request Review', canReply: true, collapsibleState: CommentThreadCollapsibleState.Expanded, comments: [{ body: new MarkdownString('Use a constant'), userName: 'reviewer' }] },
+				{ threadId: 'agentFeedback:mirrored', label: 'Pull Request Review', canReply: true, collapsibleState: CommentThreadCollapsibleState.Expanded, comments: [{ body: new MarkdownString('Use a helper'), userName: 'reviewer' }] },
 			],
 		});
 	});
@@ -477,6 +527,154 @@ suite('Agent Feedback Workbench Comments', () => {
 		assert.deepStrictEqual(getAddedFeedback(), {
 			range: new Range(2, 1, 2, 18),
 			context: { codeSelection: 'const second = 2;', diffHunks: undefined },
+		});
+	});
+
+	test('offers adding a new comment to a pull request on the lines of its changes when the setting offers it and no other comment provider does', async () => {
+		store.add(registerAgentFeedbackWorkbenchCommentActions());
+		const calls: string[] = [];
+		const { commentService, commentChanges } = createCommentService();
+		const { feedbackService } = createFeedbackService([], new Set(), calls);
+		const pullRequest: IGitHubPullRequestRef = { owner: 'owner', repo: 'repo', number: 1, uri: URI.parse('https://github.com/owner/repo/pull/1') };
+		const { codeReviewService, prReviewState, cancelNextTargetsRequest, setPullRequests } = createCodeReviewService(calls, [pullRequest]);
+		const model = store.add(createTextModel('const first = 1;\nconst second = 2;\n', null, undefined, resource));
+		const textModelService = new class extends mock<IModelService>() {
+			override getModel(): ITextModel {
+				return model;
+			}
+		}();
+		let commentingOwners = ['vscode.agentFeedback'];
+		const editor = new class extends mock<ICodeEditor>() {
+			override getId(): string {
+				return 'editor';
+			}
+			override getModel(): ITextModel {
+				return model;
+			}
+			override getContribution<T extends IEditorContribution>(): T | null {
+				return null;
+			}
+		}();
+		sinon.stub(editor, 'getContribution').returns(new class extends mock<CommentController>() {
+			override getCommentingOwners(): string[] {
+				return commentingOwners;
+			}
+		}());
+		const editorService = new class extends mock<ICodeEditorService>() {
+			override getFocusedCodeEditor(): ICodeEditor | null {
+				return null;
+			}
+			override listCodeEditors(): readonly ICodeEditor[] {
+				return [editor];
+			}
+		}();
+		const configurationService = new TestConfigurationService({ [AGENTS_WINDOW_EDITOR_COMMENTS_SETTING]: true, [AGENTS_WINDOW_PR_COMMENTS_SETTING]: false });
+		const contribution = store.add(new AgentFeedbackWorkbenchCommentsContribution(commentService, feedbackService, codeReviewService, textModelService, editorService, configurationService));
+		const notificationService = new class extends mock<INotificationService>() {
+			override warn(message: string): void {
+				calls.push(`warn:${message}`);
+			}
+			override error(message: string): void {
+				calls.push(`error:${message}`);
+			}
+		}();
+		const instantiationService = store.add(new TestInstantiationService(new ServiceCollection(
+			[ICommentService, commentService],
+			[INotificationService, notificationService],
+			[IQuickInputService, new class extends mock<IQuickInputService>() { }()],
+		)));
+
+		const createTemplate = async (line: number) => {
+			const changeCount = commentChanges.length;
+			await contribution.createCommentThreadTemplate(resource, new Range(line, 1, line, 1));
+			// GitHub is asked whether the changes of the pull request include the line once the thread is shown.
+			await timeout(0);
+			return commentChanges[changeCount].added[0];
+		};
+		const isOffered = (thread: CommentThread) => {
+			const values: Record<string, unknown> = {
+				[ChatContextKeys.enabled.key]: true,
+				[CommentContextKeys.commentControllerContext.key]: 'vscode.agentFeedback',
+				[CommentContextKeys.commentThreadContext.key]: thread.contextValue,
+			};
+			const context: IContext = { getValue: <T>(key: string) => values[key] as T | undefined };
+			return MenuRegistry.getMenuItems(MenuId.CommentThreadActions)
+				.filter(isIMenuItem)
+				.some(item => item.command.id === 'agentFeedback.commentThread.addPullRequestComment' && (item.when?.evaluate(context) ?? true));
+		};
+		// The comment widget keeps what was written when the action is cancelled.
+		const addPRComment = async (thread: CommentThread, text: string) => {
+			try {
+				await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('agentFeedback.commentThread.addPullRequestComment')!.handler(accessor, { thread, text }));
+				return 'added';
+			} catch (error) {
+				return isCancellationError(error) ? 'kept' : String(error);
+			}
+		};
+
+		const getTemplateState = (thread: CommentThread) => ({ label: thread.label, isOffered: isOffered(thread) });
+
+		// The editor asks for the comments of the file before a new comment is written in it.
+		await contribution.getDocumentComments(resource);
+		const withoutSetting = await createTemplate(2);
+		const templateWithoutSetting = getTemplateState(withoutSetting);
+		contribution.deleteCommentThreadMain(withoutSetting.threadId);
+		configurationService.setUserConfiguration(AGENTS_WINDOW_PR_COMMENTS_SETTING, true);
+		// Right after the window loads, the session's pull request may not be known yet.
+		setPullRequests([]);
+		const inDiff = await createTemplate(2);
+		const outsideDiff = await createTemplate(1);
+		const templateBeforePullRequestIsKnown = getTemplateState(inDiff);
+		// Once it is, signing in to GitHub replaces its client, which cancels the requests that it was making.
+		setPullRequests([pullRequest]);
+		cancelNextTargetsRequest();
+		prReviewState.set({ kind: PRReviewStateKind.Loading }, undefined);
+		await timeout(0);
+		const templateWhileSigningIn = getTemplateState(inDiff);
+		// The review comments load once GitHub answers with its new client.
+		prReviewState.set({ kind: PRReviewStateKind.Loaded, comments: [], incompletePullRequests: [] }, undefined);
+		await timeout(0);
+		// The user picks between agent feedback and another comment provider, such as the GitHub Pull Requests extension.
+		commentingOwners = ['github', 'vscode.agentFeedback'];
+		const commentableByOthers = await createTemplate(2);
+		const templateCommentableByOthers = getTemplateState(commentableByOthers);
+		contribution.deleteCommentThreadMain(commentableByOthers.threadId);
+		commentingOwners = ['vscode.agentFeedback'];
+		// The comment widget updates the range of a new comment before each of its actions runs, even when it hasn't moved.
+		await contribution.updateCommentThreadTemplate(inDiff.commentThreadHandle, new Range(2, 1, 2, 1));
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			templateWithoutSetting,
+			templateBeforePullRequestIsKnown,
+			templateWhileSigningIn,
+			templateOutsideDiff: getTemplateState(outsideDiff),
+			templateInDiff: getTemplateState(inDiff),
+			templateCommentableByOthers,
+			changedTemplates: commentChanges.flatMap(change => change.changed).map(thread => thread.threadId),
+			inDiff: await addPRComment(inDiff, ' Use a constant '),
+			remainingTemplates: (await contribution.getDocumentComments(resource)).threads.filter(thread => thread.isTemplate).map(thread => thread.threadId),
+			calls,
+		}, {
+			templateWithoutSetting: { label: 'Agent Feedback', isOffered: false },
+			templateBeforePullRequestIsKnown: { label: 'Agent Feedback', isOffered: false },
+			templateWhileSigningIn: { label: 'Agent Feedback', isOffered: false },
+			templateOutsideDiff: { label: 'Agent Feedback', isOffered: false },
+			templateInDiff: { label: 'New Comment', isOffered: true },
+			templateCommentableByOthers: { label: 'Agent Feedback', isOffered: false },
+			changedTemplates: [inDiff.threadId, inDiff.threadId],
+			inDiff: 'added',
+			remainingTemplates: [outsideDiff.threadId],
+			calls: [
+				// The review comments load again after the client is replaced, which cancels the check of the comment in the diff.
+				'getPRReviewCommentTargets:[2,1 -> 2,18]:#any',
+				'getPRReviewCommentTargets:[1,1 -> 1,17]:#any',
+				// They have loaded.
+				'getPRReviewCommentTargets:[2,1 -> 2,18]:#any',
+				'getPRReviewCommentTargets:[1,1 -> 1,17]:#any',
+				'getPRReviewCommentTargets:[2,1 -> 2,18]:#1',
+				'createPRReviewComment:#1:2:Use a constant',
+			],
 		});
 	});
 });

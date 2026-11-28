@@ -130,6 +130,11 @@ export abstract class ChatThinkingStyleContentPart extends ChatCollapsibleConten
 
 export function createThinkingIcon(icon: ThemeIcon): HTMLElement {
 	const iconElement = $('span.chat-thinking-icon');
-	iconElement.classList.add(...ThemeIcon.asClassNameArray(getCompactCodicon(icon)));
+	setThinkingIcon(iconElement, icon);
 	return iconElement;
+}
+
+export function setThinkingIcon(iconElement: HTMLElement, icon: ThemeIcon): void {
+	iconElement.className = 'chat-thinking-icon';
+	iconElement.classList.add(...ThemeIcon.asClassNameArray(getCompactCodicon(icon)));
 }

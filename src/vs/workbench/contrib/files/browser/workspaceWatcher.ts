@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { IDisposable, Disposable, dispose, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService, IConfigurationChangeEvent } from '../../../../platform/configuration/common/configuration.js';
 import { IFileService, IFilesConfiguration } from '../../../../platform/files/common/files.js';
@@ -21,7 +21,7 @@ export class WorkspaceWatcher extends Disposable {
 
 	static readonly ID = 'workbench.contrib.workspaceWatcher';
 
-	private readonly watchedWorkspaces = new ResourceMap<IDisposable>(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
+	private readonly watchedWorkspaces = this._register(new DisposableMap<URI>(new ResourceMap(resource => this.uriIdentityService.extUri.getComparisonKey(resource))));
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
@@ -54,9 +54,14 @@ export class WorkspaceWatcher extends Disposable {
 			this.unwatchWorkspace(removed);
 		}
 
-		// Added workspace: Watch
+		// Added workspace: Watch, unless already watched. Entering a
+		// multi-root workspace from a single folder fires the workbench
+		// state change first, which refreshes all folders including the
+		// added ones.
 		for (const added of e.added) {
-			this.watchWorkspace(added);
+			if (!this.watchedWorkspaces.has(added.uri)) {
+				this.watchWorkspace(added);
+			}
 		}
 	}
 
@@ -180,33 +185,17 @@ export class WorkspaceWatcher extends Disposable {
 	}
 
 	private unwatchWorkspace(workspace: IWorkspaceFolder): void {
-		if (this.watchedWorkspaces.has(workspace.uri)) {
-			dispose(this.watchedWorkspaces.get(workspace.uri));
-			this.watchedWorkspaces.delete(workspace.uri);
-		}
+		this.watchedWorkspaces.deleteAndDispose(workspace.uri);
 	}
 
 	private refresh(): void {
 
 		// Unwatch all first
-		this.unwatchWorkspaces();
+		this.watchedWorkspaces.clearAndDisposeAll();
 
 		// Watch each workspace folder
 		for (const folder of this.contextService.getWorkspace().folders) {
 			this.watchWorkspace(folder);
 		}
-	}
-
-	private unwatchWorkspaces(): void {
-		for (const [, disposable] of this.watchedWorkspaces) {
-			disposable.dispose();
-		}
-		this.watchedWorkspaces.clear();
-	}
-
-	override dispose(): void {
-		super.dispose();
-
-		this.unwatchWorkspaces();
 	}
 }

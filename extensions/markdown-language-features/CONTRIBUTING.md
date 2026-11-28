@@ -116,11 +116,25 @@ background and glow, and defaults to enabled. Resource-specific changes are sent
 to the renderer without reloading the document or changing source-marker visibility.
 The webview reserves symmetric scrollbar gutters so the document remains centered.
 
+### Zooming the Markdown editor
+
+`markdown.editor.zoom` sets the default zoom percentage for the rich Markdown editor (25%–400%, default 100%). **Markdown Editor: Zoom In**, **Zoom Out**, and **Reset Zoom** adjust the zoom shared across all open Markdown editors in 10-percentage-point steps without changing window zoom or the Markdown file; **Reset Zoom** returns to the configured `markdown.editor.zoom` value. Zoom rendering and scroll anchoring live in `@vscode/markdown-editor`'s `EditorView.zoomPercent`.
+
+Run `node --test ./scripts/markdownEditorZoom.browser.test.mts` from this extension directory to check extension overlays (diagnostic hovers, comments, and completions) under zoomed `EditorView` in Chromium.
+
 ### Whitespace indicators
 
 `markdown.editor.renderWhitespace` controls the space and tab indicators shown
 where Markdown syntax is revealed, and defaults to disabled. Like active block
 highlighting, changes are sent to the renderer without reloading the document.
+
+### Typography
+
+The rich editor reuses `markdown.preview.fontFamily`, `markdown.preview.fontSize`,
+and `markdown.preview.lineHeight`, applying them as `--markdown-font-family`,
+`--markdown-font-size`, and `--markdown-line-height` on the webview document root.
+Changes apply live without reloading the editor, and invalid or empty values fall
+back to the theme defaults.
 
 ### Mermaid
 

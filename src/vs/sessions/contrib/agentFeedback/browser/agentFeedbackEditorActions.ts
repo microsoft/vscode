@@ -9,6 +9,7 @@ import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.j
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -23,7 +24,7 @@ import { AgentFeedbackState } from '../../../../workbench/contrib/sessions/brows
 import { getActiveResourceCandidates, getFeedbackSessionCandidates } from './agentFeedbackEditorUtils.js';
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { ICodeReviewService } from '../../../../workbench/contrib/sessions/browser/codeReviewService.js';
-import { getSessionEditorComments } from './sessionEditorComments.js';
+import { getSessionEditorComments, ISessionEditorComment, SessionEditorCommentSource } from './sessionEditorComments.js';
 import { IPlanReviewFeedbackService } from '../../../../workbench/contrib/chat/browser/planReviewFeedback/planReviewFeedbackService.js';
 export const submitFeedbackActionId = 'agentFeedbackEditor.action.submit';
 export const navigatePreviousFeedbackActionId = 'agentFeedbackEditor.action.navigatePrevious';
@@ -67,12 +68,12 @@ abstract class AgentFeedbackEditorAction extends Action2 {
 				shouldIncludeRawPRReviewComments(agentFeedbackService, sessionResource),
 			);
 			if (comments.length > 0) {
-				return this.runWithSession(accessor, sessionResource, resource);
+				return this.runWithSession(accessor, sessionResource, resource, comments);
 			}
 		}
 	}
 
-	abstract runWithSession(accessor: ServicesAccessor, sessionResource: URI, resource: URI): Promise<boolean | void> | boolean | void;
+	abstract runWithSession(accessor: ServicesAccessor, sessionResource: URI, resource: URI, comments: readonly ISessionEditorComment[]): Promise<boolean | void> | boolean | void;
 }
 
 class SubmitFeedbackAction extends AgentFeedbackEditorAction {
@@ -151,10 +152,12 @@ class NavigateFeedbackAction extends AgentFeedbackEditorAction {
 class ClearAllFeedbackAction extends AgentFeedbackEditorAction {
 
 	constructor() {
+		const title = localize2('agentFeedback.clearAll', 'Clear All Feedback');
 		super({
 			id: clearAllFeedbackActionId,
-			title: localize2('agentFeedback.clear', 'Clear'),
-			tooltip: localize2('agentFeedback.clearAllTooltip', 'Clear All Feedback'),
+			title,
+			shortTitle: localize2('agentFeedback.clearAllShort', 'Clear All'),
+			tooltip: title,
 			icon: Codicon.clearAll,
 			f1: true,
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled),
@@ -167,8 +170,26 @@ class ClearAllFeedbackAction extends AgentFeedbackEditorAction {
 		});
 	}
 
-	override runWithSession(accessor: ServicesAccessor, sessionResource: URI): void {
+	override async runWithSession(accessor: ServicesAccessor, sessionResource: URI, _resource: URI, comments: readonly ISessionEditorComment[]): Promise<void> {
 		const agentFeedbackService = accessor.get(IAgentFeedbackService);
+		const dialogService = accessor.get(IDialogService);
+
+		// Only feedback comments are cleared; pull request review comments stay.
+		const count = comments.filter(comment => comment.source === SessionEditorCommentSource.AgentFeedback).length;
+		if (count > 0) {
+			const { confirmed } = await dialogService.confirm({
+				type: 'warning',
+				message: count === 1
+					? localize('agentFeedback.clearAllConfirmSingle', "Clear 1 feedback comment?")
+					: localize('agentFeedback.clearAllConfirm', "Clear all {0} feedback comments?", count),
+				detail: localize('agentFeedback.clearAllConfirmDetail', "This removes the feedback comments from all files in this session. This action cannot be undone."),
+				primaryButton: localize({ key: 'agentFeedback.clearAllConfirmButton', comment: ['&& denotes a mnemonic'] }, "&&Clear All"),
+			});
+			if (!confirmed) {
+				return;
+			}
+		}
+
 		agentFeedbackService.clearFeedback(sessionResource);
 	}
 }

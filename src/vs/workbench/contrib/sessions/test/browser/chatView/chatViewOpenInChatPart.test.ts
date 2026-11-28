@@ -10,7 +10,7 @@ import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { constObservable, derived, IObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -54,9 +54,12 @@ import { IStorageService } from '../../../../../../platform/storage/common/stora
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IManagedSettingsService, NullManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { EditorWindowChatPartService, IEditorWindowChatPartOptions, IEditorWindowChatPartService } from '../../../browser/agentsView/agentsChatPartContribution.js';
-import { isIMenuItem, MenuRegistry, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
+import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
-import { agentSessionsOrientationSubmenu, SetAgentSessionsOrientationSideBySideAction, SetAgentSessionsOrientationStackedAction } from '../../../../chat/browser/agentSessions/agentSessionsActions.js';
+import { IAgentsModeService } from '../../../../../services/agentsMode/common/agentsMode.js';
+import { agentSessionsOrientationSubmenu, HideAgentSessionsSidebar, SetAgentSessionsOrientationSideBySideAction, SetAgentSessionsOrientationStackedAction, ShowAgentSessionsSidebar, ToggleAgentSessionsSidebar } from '../../../../chat/browser/agentSessions/agentSessionsActions.js';
+import { AgentsModeActive } from '../../../../chat/browser/agentSessions/agentsModeActions.js';
+import { AgentSessionsViewerOrientation } from '../../../../chat/browser/agentSessions/agentSessions.js';
 import { ChatViewOpenInChatPartContribution } from '../../../browser/chatView/chatViewOpenInChatPart.contribution.js';
 import { IEditorWindowSessionsRuntime, IEditorWindowSessionsRuntimeOptions } from '../../../browser/editorWindow/editorWindowSessionsRuntime.js';
 
@@ -90,7 +93,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(options: { remote?: boolean; sessionsWindow?: boolean; setting?: boolean; orientation?: string; chatEnabled?: boolean; agentEnabled?: boolean; chatViewShows?: URI; lateHost?: boolean; partDeclinesNewChat?: boolean; localChatsShown?: boolean; partComposerInput?: string; viewOpenShows?: URI | null; duringNewChat?: () => void; duringReveal?: () => void; partParks?: boolean; chatOpenIn?: string; chatPartEnabledByOther?: boolean } = {}) {
+	function setup(options: { remote?: boolean; sessionsWindow?: boolean; setting?: boolean; orientation?: string; chatEnabled?: boolean; agentEnabled?: boolean; chatViewShows?: URI; lateHost?: boolean; partDeclinesNewChat?: boolean; localChatsShown?: boolean; partComposerInput?: string; viewOpenShows?: URI | null; duringNewChat?: () => void; duringReveal?: () => void; partParks?: boolean; chatOpenIn?: string; chatPartEnabledByOther?: boolean; agentsMode?: boolean } = {}) {
 		const configurationService = new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsOpenChatIn]: options.chatOpenIn ?? openChatIn(options.setting ?? false), [ChatConfiguration.ChatViewSessionsOrientation]: options.orientation ?? 'sideBySide', [ChatConfiguration.AgentEnabled]: options.agentEnabled ?? true });
 		const contextKeyService = store.add(new ContextKeyService(configurationService));
 		ChatContextKeys.enabled.bindTo(contextKeyService).set(options.chatEnabled ?? true);
@@ -112,18 +115,23 @@ suite('ChatViewOpenInChatPartContribution', () => {
 				handovers.push(options.partParks === false ? 'part keeps its composer input' : 'part parks its composer input');
 				return options.partParks !== false;
 			},
+			hasChat: () => !!shown.part.get(),
 		}));
 		instantiationService.stub(IEditorWindowSessionsRuntime, upcastPartial<IEditorWindowSessionsRuntime>({
 			enable: (o: IEditorWindowSessionsRuntimeOptions): IDisposable => { runtimeOptions.push(o); runtimeHeld++; return toDisposable(() => runtimeHeld--); },
 		}));
 		// The seam owns the rule that the Chat view shows its chat while it hosts one: here, a registration is all that is asked for
 		const registrations = observableValue('registrations', 0);
-		const sessionsOnly = derived(reader => registrations.read(reader) > 0);
+		// While the Chat view hosts a new chat of its own, it shows its composer rather than only its sessions
+		const viewHostsNewChat = observableValue('viewHostsNewChat', false);
+		const sessionsOnly = derived(reader => registrations.read(reader) > 0 && !viewHostsNewChat.read(reader));
 		// The Chat view and, while it is registered, the chat part's host, each with the chat it shows and their chat widgets
 		const shown = { view: observableValue<URI | undefined>('view', options.chatViewShows), part: observableValue<URI | undefined>('part', undefined) };
+		// Why the Chat view shows its chat: `commit` once the first request of its new chat made it the session it became
+		const viewReason = observableValue<'open' | 'commit'>('viewReason', 'open');
 		// The chat part's host registers as chats open in the chat part, or later, where it is late
 		const hostReady = observableValue('hostReady', !options.lateHost);
-		const replaced = derived(reader => registrations.read(reader) > 0 && hostReady.read(reader));
+		const replaced = derived(reader => registrations.read(reader) > 0 && hostReady.read(reader) && chatPartOptions.some(o => o.enabled.read(reader)));
 		const hostInUse = () => replaced.get() ? 'part' : 'view';
 		// What asked the hosts to show something, as the seam counts it
 		const requests = observableValue('requests', 0);
@@ -132,10 +140,10 @@ suite('ChatViewOpenInChatPartContribution', () => {
 		const partComposer = options.partComposerInput !== undefined ? new FakeChatWidget(options.partComposerInput) : undefined;
 		const widgets = new Map<string, FakeChatWidget>();
 		const widgetOf = (resource: URI | undefined) => (resource && widgets.get(resource.toString())) as IChatWidget | undefined;
-		const editorOpens: { resource: URI; target: unknown; revealIfOpened: boolean | undefined }[] = [];
+		const editorOpens: { resource: URI; target: unknown; revealIfOpened: boolean | undefined; pinned?: boolean }[] = [];
 		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
 			getWidgetBySessionResource: resource => widgetOf(resource),
-			openSession: async (resource, target, openOptions) => { editorOpens.push({ resource, target, revealIfOpened: openOptions?.revealIfOpened }); return undefined; },
+			openSession: async (resource, target, openOptions) => { editorOpens.push({ resource, target, revealIfOpened: openOptions?.revealIfOpened, pinned: openOptions?.pinned }); return undefined; },
 		}));
 		const presenters: IEditorWindowSessionsPresenter[] = [];
 		instantiationService.stub(IEditorWindowSessionsPresenterService, upcastPartial<IEditorWindowSessionsPresenterService>({
@@ -160,8 +168,9 @@ suite('ChatViewOpenInChatPartContribution', () => {
 		const bindings: { shown: IObservable<IEditorWindowShownChat | undefined>; options: IEditorWindowShownChatBindOptions | undefined }[] = [];
 		instantiationService.stub(IEditorWindowShownChatService, upcastPartial<IEditorWindowShownChatService>({
 			bind: (shown, bindOptions) => { bindings.push({ shown, options: bindOptions }); return toDisposable(() => bindings.splice(bindings.findIndex(binding => binding.shown === shown), 1)); },
+			// The chat shown in the window: the chat part's, or else the Chat view's
 			shown: derived(reader => {
-				const resource = shown.part.read(reader);
+				const resource = shown.part.read(reader) ?? shown.view.read(reader);
 				return resource && upcastPartial<IEditorWindowShownChat>({ session: upcastPartial<ISession>({ status: constObservable(isUntitledChatSession(resource) ? SessionStatus.Untitled : SessionStatus.Completed) }), chat: upcastPartial<IChat>({ resource }) });
 			}),
 		}));
@@ -171,8 +180,9 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			requests,
 			chatViewHosts: derived(reader => !replaced.read(reader)),
 			shownSession: derived(reader => {
-				const resource = (replaced.read(reader) ? shown.part : shown.view).read(reader);
-				return resource && { resource, reason: 'open' as const };
+				const inPart = replaced.read(reader);
+				const resource = (inPart ? shown.part : shown.view).read(reader);
+				return resource && { resource, reason: inPart ? 'open' as const : viewReason.read(reader) };
 			}),
 			openSession: async resource => {
 				request();
@@ -228,6 +238,10 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			hideAuxiliaryBarMaximize: () => { maximizeClaims++; return toDisposable(() => maximizeClaims--); },
 		}));
 
+		const agentsModeChanged = store.add(new Emitter<boolean>());
+		let agentsModeActive = !!options.agentsMode;
+		instantiationService.stub(IAgentsModeService, upcastPartial<IAgentsModeService>({ get isActive() { return agentsModeActive; }, onDidChange: agentsModeChanged.event }));
+
 		store.add(instantiationService.createInstance(ChatViewOpenInChatPartContribution));
 		const state = () => ({
 			anchors: chatPartOptions.map(o => ({ anchorViewId: o.anchorViewId, anchorPriority: o.anchorPriority, enabled: o.enabled.get() })),
@@ -240,6 +254,14 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			// The handover runs once the hosts changed
 			await timeout(0);
 		};
+		// As the window enters or leaves the mode, the mode's default of the setting changes before the mode reports the change
+		const setAgentsMode = async (active: boolean, options?: { setting: boolean }) => {
+			agentsModeActive = active;
+			if (options) {
+				await setSetting(options.setting);
+			}
+			agentsModeChanged.fire(active);
+		};
 		const activateChatEditor = (resource: URI | undefined) => {
 			if (!resource) {
 				chatEditors.length = 0;
@@ -248,7 +270,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			}
 			activeEditorChanged.fire();
 		};
-		return { state, configurationService, contextKeyService, chatPartOptions, sessionsOnly, registered, localChatAvailability, moveChatView, maximizeClaims: () => maximizeClaims, shown, handovers, widgets, setSetting, hostReady, request, partComposer, presenters, editorOpens, bindings, closedEditors, activateChatEditor };
+		return { state, configurationService, contextKeyService, chatPartOptions, sessionsOnly, viewHostsNewChat, viewReason, registered, localChatAvailability, moveChatView, maximizeClaims: () => maximizeClaims, shown, handovers, widgets, setSetting, hostReady, request, partComposer, presenters, editorOpens, bindings, closedEditors, activateChatEditor, setAgentsMode };
 	}
 
 	test('editorArea opens the chats of sessions as editors, revealing one that is open, and does not use the chat part', async () => {
@@ -270,6 +292,55 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			editorArea: { presenters: 1, chatPartOn: false, opens: ['/session-1 active true', '/session-1 side false'] },
 			chatArea: { presenters: 0, chatPartOn: true, opens: [] },
 			chatPanel: { presenters: 0, chatPartOn: false, opens: [] },
+		});
+	});
+
+	test('editorArea shows the Chat view as chatArea does, only its sessions, and chatPanel keeps its chat', () => {
+		const shows = (chatOpenIn: string) => {
+			const fixture = setup({ chatOpenIn });
+			return { registered: fixture.registered, sessionsOnly: fixture.sessionsOnly.get(), localChatHidden: fixture.localChatAvailability.hidden.get() };
+		};
+		const chatArea = shows('chatArea');
+		assert.deepStrictEqual({ editorArea: shows('editorArea'), chatArea, chatPanel: shows('chatPanel') }, {
+			editorArea: chatArea,
+			chatArea: { registered: [{ chatsOpenElsewhere: true }], sessionsOnly: true, localChatHidden: true },
+			chatPanel: { registered: [], sessionsOnly: false, localChatHidden: false },
+		});
+	});
+
+	test('editorArea opens the chat that the first request of the Chat view\'s new chat commits as a pinned editor, also of a new chat revealed before its request', () => {
+		const run = (chatOpenIn: string) => {
+			const { shown, viewHostsNewChat, viewReason, editorOpens } = setup({ chatOpenIn });
+			// New Chat shows the composer, whose first request commits the chat
+			transaction(tx => {
+				viewHostsNewChat.set(true, tx);
+				shown.view.set(URI.parse('agent-host-copilot:/untitled-new'), tx);
+			});
+			transaction(tx => {
+				viewHostsNewChat.set(false, tx);
+				viewReason.set('commit', tx);
+				shown.view.set(URI.parse('agent-host-copilot:/session-1'), tx);
+			});
+			// Run Prompt in New Chat: the composer is revealed, the Chat view showing only its sessions already, before its request commits
+			transaction(tx => {
+				viewReason.set('open', tx);
+				shown.view.set(URI.parse('agent-host-copilot:/untitled-revealed'), tx);
+			});
+			transaction(tx => {
+				viewReason.set('commit', tx);
+				shown.view.set(URI.parse('agent-host-copilot:/session-2'), tx);
+			});
+			// A chat that the Chat view opens, rather than commits, stays where it shows
+			transaction(tx => {
+				viewReason.set('open', tx);
+				shown.view.set(URI.parse('agent-host-copilot:/session-3'), tx);
+			});
+			return editorOpens.map(open => `${open.resource.path} ${open.target === ACTIVE_GROUP ? 'active' : 'other'} pinned=${open.pinned}`);
+		};
+		assert.deepStrictEqual({ editorArea: run('editorArea'), chatArea: run('chatArea'), chatPanel: run('chatPanel') }, {
+			editorArea: ['/session-1 active pinned=true', '/session-2 active pinned=true'],
+			chatArea: [],
+			chatPanel: [],
 		});
 	});
 
@@ -325,6 +396,21 @@ suite('ChatViewOpenInChatPartContribution', () => {
 		assert.deepStrictEqual(steps, [true, false, true]);
 	});
 
+	test('in Agents mode it is on, with the Chat view showing only its sessions, also while the configured orientation is stacked', async () => {
+		const { chatPartOptions, sessionsOnly, setAgentsMode } = setup({ setting: true, orientation: 'stacked' });
+		const state = () => ({ enabled: chatPartOptions[0].enabled.get(), sessionsOnly: sessionsOnly.get() });
+		const steps = [state()];
+		await setAgentsMode(true);
+		steps.push(state());
+		await setAgentsMode(false);
+		steps.push(state());
+		assert.deepStrictEqual(steps, [
+			{ enabled: false, sessionsOnly: false },
+			{ enabled: true, sessionsOnly: true },
+			{ enabled: false, sessionsOnly: false },
+		]);
+	});
+
 	test('registers nothing in remote and Agents windows', () => {
 		assert.deepStrictEqual({ remote: setup({ remote: true, setting: true }).state(), sessions: setup({ sessionsWindow: true, setting: true }).state() }, {
 			remote: { anchors: [], runtime: [], runtimeHeld: 0 },
@@ -343,7 +429,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 
 	test('registers sessions only with the Chat view once, and holds it while on', () => {
 		const { registered, sessionsOnly } = setup({ setting: true });
-		assert.deepStrictEqual({ registered, sessionsOnly: sessionsOnly.get() }, { registered: [{ sessionsOnly: true }], sessionsOnly: true });
+		assert.deepStrictEqual({ registered, sessionsOnly: sessionsOnly.get() }, { registered: [{ chatsOpenElsewhere: true }], sessionsOnly: true });
 	});
 
 	test('takes New Chat of the Chat view into the chat part', () => {
@@ -450,6 +536,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			stub(IContextKeyService, contextKeyService);
 			stub(IConfigurationService, configurationService);
 			stub(IWorkbenchEnvironmentService, { remoteAuthority: undefined, isSessionsWindow: false });
+			stub(IAgentsModeService, { isActive: false, onDidChange: Event.None });
 			stub(ILifecycleService, { when: () => new Promise<void>(() => { }) });
 			stub(IEditorWindowSessionsRuntime, { enable: () => toDisposable(() => { }) });
 			stub(IEditorWindowSessionsPresenterService, { registerPresenter: () => toDisposable(() => { }), registerComposerHolder: () => toDisposable(() => { }) });
@@ -738,6 +825,104 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			});
 		});
 
+		test('leaving Agents mode, the chat stays in the chat part, so that the Chat view does not open the secondary side bar the mode hides; changing the setting in the mode still moves it', async () => {
+			const leaving = setup({ chatViewShows: session });
+			await leaving.setAgentsMode(true, { setting: true });
+			leaving.shown.part.set(URI.parse('agent-host-copilotcli:/session-b'), undefined);
+			await leaving.setAgentsMode(false, { setting: false });
+			await timeout(0);
+
+			const inMode = setup({ chatViewShows: session, agentsMode: true });
+			await inMode.setSetting(true);
+			inMode.shown.part.set(URI.parse('agent-host-copilotcli:/session-b'), undefined);
+			await inMode.setSetting(false);
+
+			assert.deepStrictEqual({ leaving: leaving.handovers, inMode: inMode.handovers }, {
+				leaving: ['part opens /session-a'],
+				inMode: ['part opens /session-a', 'view opens /session-b', 'part closes /session-b'],
+			});
+		});
+
+		test('entering or leaving Agents mode with the setting as the user configured it: leaving with the chat part keeps the chat in it, and a later change outside the mode moves it', async () => {
+			const setOrientation = async (fixture: ReturnType<typeof setup>, value: string) => {
+				await fixture.configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsOrientation, value);
+				fixture.configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([ChatConfiguration.ChatViewSessionsOrientation]), affectsConfiguration: key => key === ChatConfiguration.ChatViewSessionsOrientation }));
+				await timeout(0);
+			};
+
+			// Configured to the chat part before the mode; stacked in the mode, which ignores it until the window leaves
+			const stackedInMode = setup({ setting: true, chatViewShows: session });
+			await stackedInMode.setAgentsMode(true);
+			stackedInMode.shown.part.set(URI.parse('agent-host-copilotcli:/session-b'), undefined);
+			await setOrientation(stackedInMode, 'stacked');
+			await stackedInMode.setAgentsMode(false);
+			await timeout(0);
+
+			// Configured to the chat part in the mode, so leaving does not change it: turning it off later moves the chat
+			const configuredInMode = setup({ chatViewShows: session });
+			await configuredInMode.setAgentsMode(true, { setting: true });
+			await configuredInMode.setAgentsMode(false);
+			configuredInMode.shown.part.set(URI.parse('agent-host-copilotcli:/session-b'), undefined);
+			await configuredInMode.setSetting(false);
+
+			assert.deepStrictEqual({ stackedInMode: stackedInMode.handovers, configuredInMode: configuredInMode.handovers }, {
+				stackedInMode: [],
+				configuredInMode: ['part opens /session-a', 'view opens /session-b', 'part closes /session-b'],
+			});
+		});
+
+		test('leaving Agents mode with the chat part turned on after the window started, also with the configured orientation stacked: the chat stays in the chat part', async () => {
+			const lateChatArea = setup({ chatViewShows: session, orientation: 'stacked' });
+			await lateChatArea.setSetting(true);
+			await lateChatArea.setAgentsMode(true);
+			lateChatArea.shown.part.set(URI.parse('agent-host-copilotcli:/session-b'), undefined);
+			await lateChatArea.setAgentsMode(false);
+			await timeout(0);
+
+			assert.deepStrictEqual(lateChatArea.handovers, ['part opens /session-a']);
+		});
+
+		test('leaving Agents mode right after entering it, the move into the chat part that is still on its way stops; returning to the mode, the chat part keeps the chat that stayed in it', async () => {
+			// The window leaves the mode while the chat part starts the new chat the move takes the draft to: revealing the host in
+			// use then would open the Chat view, and with it the secondary side bar that leaving hides
+			let leaving: Promise<void> | undefined;
+			let reveals = 0;
+			const quick = setup({ chatViewShows: draft, duringNewChat: () => { leaving = quick.setAgentsMode(false, { setting: false }); }, duringReveal: () => reveals++ });
+			const source = new FakeChatWidget('hello', [attachment]);
+			quick.widgets.set(draft.toString(), source);
+			await quick.setAgentsMode(true, { setting: true });
+			await leaving;
+			await timeout(0);
+
+			const returning = setup({ chatViewShows: session });
+			await returning.setAgentsMode(true, { setting: true });
+			returning.shown.part.set(URI.parse('agent-host-copilotcli:/session-b'), undefined);
+			await returning.setAgentsMode(false, { setting: false });
+			returning.shown.view.set(URI.parse('agent-host-copilotcli:/session-c'), undefined);
+			await returning.setAgentsMode(true, { setting: true });
+			await timeout(0);
+
+			// The chat that stayed in the chat part was closed outside the mode: the chat part takes the Chat view's
+			const emptied = setup({ chatViewShows: session });
+			await emptied.setAgentsMode(true, { setting: true });
+			emptied.shown.part.set(URI.parse('agent-host-copilotcli:/session-b'), undefined);
+			await emptied.setAgentsMode(false, { setting: false });
+			emptied.shown.part.set(undefined, undefined);
+			emptied.shown.view.set(URI.parse('agent-host-copilotcli:/session-c'), undefined);
+			await emptied.setAgentsMode(true, { setting: true });
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				quick: { handovers: quick.handovers, reveals, source: source.state },
+				returning: { handovers: returning.handovers, part: returning.shown.part.get()?.path },
+				emptied: { handovers: emptied.handovers, part: emptied.shown.part.get()?.path },
+			}, {
+				quick: { handovers: ['part new chat'], reveals: 0, source: { input: 'hello', attachments: ['file-a'] } },
+				returning: { handovers: ['part opens /session-a'], part: '/session-b' },
+				emptied: { handovers: ['part opens /session-a', 'part opens /session-c'], part: '/session-c' },
+			});
+		});
+
 		test('as it turns off, the chat part keeps the chat that moves until the Chat view shows it: not when opening it failed or another chat shows', async () => {
 			const run = async (viewOpenShows: URI | null) => {
 				const fixture = setup({ setting: true, viewOpenShows });
@@ -798,6 +983,40 @@ suite('Sessions orientation submenu', () => {
 			stacked: [['Side by Side', false], ['Stacked', true]],
 			sideBySide: [['Side by Side', true], ['Stacked', false]],
 			legacy: [['Side by Side', false], ['Stacked', false]]
+		});
+	});
+
+	test('hides the orientation submenu and disables the commands that change the sessions layout in Agents mode, which ignores it', () => {
+		const actions = [SetAgentSessionsOrientationStackedAction, SetAgentSessionsOrientationSideBySideAction, ShowAgentSessionsSidebar, HideAgentSessionsSidebar, ToggleAgentSessionsSidebar];
+		const registrations = actions.map(action => registerAction2(action));
+		const ids = ['workbench.action.chat.setAgentSessionsOrientationStacked', 'workbench.action.chat.setAgentSessionsOrientationSideBySide', ShowAgentSessionsSidebar.ID, HideAgentSessionsSidebar.ID, ToggleAgentSessionsSidebar.ID];
+		// The orientation commands are only in their submenu, the sidebar commands in the Command Palette
+		const orientationItems = MenuRegistry.getMenuItems(agentSessionsOrientationSubmenu).filter(isIMenuItem);
+		const preconditions = ids.map(id => [id, (orientationItems.find(item => item.command.id === id)?.command ?? MenuRegistry.getCommand(id))?.precondition] as const);
+		registrations.forEach(registration => registration.dispose());
+		const submenu = MenuRegistry.getMenuItems(MenuId.ChatWelcomeContext).find(item => isISubmenuItem(item) && item.submenu === agentSessionsOrientationSubmenu);
+		const available = (agentsMode: boolean) => {
+			// Each command where it otherwise applies: the sidebar shows from stacked and hides from side by side
+			const enabled = Object.fromEntries(preconditions.map(([id, precondition]) => [id, [AgentSessionsViewerOrientation.Stacked, AgentSessionsViewerOrientation.SideBySide].some(orientation => {
+				const service = new ContextKeyService(new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsEnabled]: true }));
+				ChatContextKeys.enabled.bindTo(service).set(true);
+				ChatContextKeys.agentSessionsViewerOrientation.bindTo(service).set(orientation);
+				AgentsModeActive.bindTo(service).set(agentsMode);
+				const result = service.contextMatchesRules(precondition);
+				service.dispose();
+				return result;
+			})]));
+			const service = new ContextKeyService(new TestConfigurationService());
+			AgentsModeActive.bindTo(service).set(agentsMode);
+			const submenuShown = service.contextMatchesRules(submenu?.when);
+			service.dispose();
+			return { submenuShown, enabled };
+		};
+
+		const all = (value: boolean) => Object.fromEntries(ids.map(id => [id, value]));
+		assert.deepStrictEqual({ outside: available(false), agentsMode: available(true) }, {
+			outside: { submenuShown: true, enabled: all(true) },
+			agentsMode: { submenuShown: false, enabled: all(false) },
 		});
 	});
 

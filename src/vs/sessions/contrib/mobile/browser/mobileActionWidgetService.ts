@@ -19,11 +19,13 @@ import { IMobilePickerSheetItem, IMobilePickerSheetItemsChangeEvent, showMobileP
 
 /** What the phone needs to know about a shown widget until it closes. */
 interface IShownWidget {
+	readonly user: string;
 	readonly delegate: IActionListDelegate<unknown>;
 	readonly dismiss: CancellationTokenSource;
 	readonly updateItems: (items: readonly IActionListItem<unknown>[], focusItemId?: string, options?: IActionListUpdateOptions) => void;
 	hidden: boolean;
 	setFilter?: (value: string, focusItemId?: string) => void;
+	hasFocus?: () => boolean;
 }
 
 /**
@@ -57,7 +59,7 @@ export class MobileActionWidgetService extends Disposable implements IActionWidg
 	}
 
 	show<T>(
-		_user: string,
+		user: string,
 		_supportsPreview: boolean,
 		items: readonly IActionListItem<T>[],
 		delegate: IActionListDelegate<T>,
@@ -125,6 +127,7 @@ export class MobileActionWidgetService extends Disposable implements IActionWidg
 		this._shownStore.value = store;
 		const itemsChanged = store.add(new Emitter<IMobilePickerSheetItemsChangeEvent>());
 		const shown: IShownWidget = {
+			user,
 			delegate: delegate as IActionListDelegate<unknown>,
 			dismiss: store.add(new CancellationTokenSource()),
 			hidden: false,
@@ -164,6 +167,7 @@ export class MobileActionWidgetService extends Disposable implements IActionWidg
 			doneLabel: localize('mobileActionWidget.cancel', "Cancel"),
 			search,
 			dismissToken: shown.dismiss.token,
+			onDidCreateHasFocus: hasFocus => shown.hasFocus = hasFocus,
 			initialFocusItemId: listOptions?.initialFocusItemId ? `action-widget-item-${listOptions.initialFocusItemId}` : undefined,
 			itemProvider: { onDidChange: itemsChanged.event, getItems: () => toRows(currentItems) },
 		}).then(pickedId => {
@@ -216,6 +220,10 @@ export class MobileActionWidgetService extends Disposable implements IActionWidg
 	}
 
 	focusItemById(_itemId: string): void { }
+
+	hasFocus(user: string): boolean {
+		return this._shown?.user === user && !!this._shown.hasFocus?.();
+	}
 
 	collapseSection(): void { }
 

@@ -91,6 +91,17 @@ An administrator can disable identity capture while the runtime inherits an expl
     --grep "managed identity denial"
   ```
 
+### Copilot canvas consent retry cannot ask again after Not Now
+
+A user opens a canvas whose extension asks to read a sensitive environment variable, picks Not Now, then selects Try Again in the warning. Try Again replaces the chat's runtime so that the extension asks again. Since runtime 1.0.115, the runtime records the decline in the session and restores it on every resume, so the replacement runtime declines the extension without asking. The user cannot allow the extension again in that session, including after restarting VS Code; a new session asks again.
+
+- Tests: `asks before a canvas opened from the UI reads a sensitive variable, reports a decline the runtime keeps across a retry, and keeps the approval across the refresh` (default and peer chat) in `../providerIntegration/copilotExtensionEnvConsent.integrationTest.ts`, and `asks for sensitive environment consent without a tool call, keeps a denial across a resume, and forgets session approvals on resume` in `../copilotSdkCanvas.integrationTest.ts`.
+- Scope: runtimes `1.0.115` and `1.0.116`. Runtime `1.0.114` forgot the decline on resume, so Try Again asked again.
+- Expected: after a retry, the replacement runtime asks again and Allow opens the canvas.
+- Observed: the replacement runtime does not call the permission handler for the declined extension, and `canvas.open` fails with `extension did not become ready`. An in-place extension reload on `1.0.116` leaves the denied canvas unregistered. No host API clears the restored decline: `permissions.resetSessionApprovals` and `permissions.modifyRules` succeed but leave it in place.
+- Gate: the tests assert the current behavior. The Agent Host reports such a retry as a decline kept for the session, which tells the user that a new session asks again and offers no Try Again. When the runtime lets a retry ask again, restore the original assertions and remove that reporting.
+- Reproduce: `./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/providerIntegration/copilotExtensionEnvConsent.integrationTest.ts --run src/vs/platform/agentHost/test/node/copilotSdkCanvas.integrationTest.ts`.
+
 ### Historical binary Git changeset content loses non-UTF-8 bytes
 
 A user can inspect both sides of an agent's binary-file change through the changeset's content references. The current working file preserves its bytes, but reading the historical Git-blob reference converts invalid UTF-8 bytes into replacement characters, so binary content cannot be recovered exactly.

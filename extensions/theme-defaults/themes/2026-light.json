@@ -86,6 +86,7 @@
 		"activityBarBadge.background": "#0069CC",
 		"activityBarBadge.foreground": "#FFFFFF",
 		"activityBarTop.activeBorder": "#000000",
+		"activityBarTop.inactiveForeground": "#606060",
 		"sideBar.background": "#FAFAFD",
 		"sideBar.foreground": "#202020",
 		"sideBar.border": "#F0F1F2",
@@ -192,6 +193,9 @@
 		"statusBarItem.activeBackground": "#EEEEEE",
 		"statusBarItem.hoverBackground": "#E3E3E5",
 		"statusBarItem.focusBorder": "#0069CC",
+		"statusBarItem.remoteBackground": "#0069CC",
+		"statusBarItem.remoteHoverBackground": "#0063C1",
+		"statusBarItem.remoteHoverForeground": "#FFFFFF",
 		"statusBarItem.prominentBackground": "#0069CCDD",
 		"statusBarItem.prominentForeground": "#FFFFFF",
 		"statusBarItem.prominentHoverBackground": "#0069CC",
@@ -202,6 +206,7 @@
 		"tab.inactiveBackground": "#FAFAFD",
 		"tab.inactiveForeground": "#606060",
 		"tab.border": "#F0F1F2",
+		"tab.divider": "#CECECE",
 		"tab.lastPinnedBorder": "#F0F1F2",
 		"tab.activeBorderTop": "#000000",
 		"tab.hoverBackground": "#FFFFFF",
@@ -211,7 +216,7 @@
 		"tab.unfocusedInactiveBackground": "#FAFAFD",
 		"tab.unfocusedInactiveForeground": "#BBBBBB",
 		"editorGroupHeader.tabsBackground": "#FAFAFD",
-		"editorGroupHeader.connectedTabsBackground": "#EAEAEA",
+		"editorGroupHeader.connectedTabsBackground": "#F0F0F3",
 		"tab.activeBorder": "#FFFFFF",
 		"editorGroupHeader.tabsBorder": "#F0F1F2",
 		"breadcrumb.foreground": "#606060",
@@ -381,9 +386,12 @@
 			}
 		},
 		{
-			"scope": "keyword",
+			"scope": [
+				"keyword",
+				"keyword.control"
+			],
 			"settings": {
-				"foreground": "#cf222e"
+				"foreground": "#0550ae"
 			}
 		},
 		{
@@ -392,7 +400,7 @@
 				"storage.type"
 			],
 			"settings": {
-				"foreground": "#cf222e"
+				"foreground": "#0550ae"
 			}
 		},
 		{

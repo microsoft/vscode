@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, EventType, getActiveElement, isAncestorOfActiveElement, isHTMLElement } from '../../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventType, getActiveElement, isAncestorOfActiveElement, isHTMLElement, isKeyboardEvent } from '../../../../../base/browser/dom.js';
 import { ButtonWithIcon } from '../../../../../base/browser/ui/button/button.js';
+import { List } from '../../../../../base/browser/ui/list/listWidget.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { Event } from '../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
@@ -73,4 +75,27 @@ export function placeArtifactChildren(container: HTMLElement, elements: readonly
 		}
 		next = element.nextElementSibling;
 	}
+}
+
+/** Where an element or list row is vertically, in client coordinates. */
+export interface IArtifactBounds {
+	readonly top: number;
+	readonly bottom: number;
+}
+
+/**
+ * Fires with where the row that keyboard navigation focuses in `list` is. The list keeps DOM focus on itself, so moving its
+ * focus fires no `focusin` for the panel to reveal the row by.
+ */
+export function onDidFocusListRowByKeyboard<T>(list: List<T>): Event<IArtifactBounds> {
+	// Workbench lists reveal a focused row only after their focus command finishes, so measure the row afterwards.
+	const focused = Event.debounce(Event.filter(list.onDidChangeFocus, e => isKeyboardEvent(e.browserEvent)), () => undefined, 0);
+	return Event.filter<IArtifactBounds, undefined>(Event.map(focused, (): IArtifactBounds | undefined => {
+		const index = list.getFocus()[0];
+		if (index === undefined) {
+			return undefined;
+		}
+		const top = list.getHTMLElement().getBoundingClientRect().top + list.getElementTop(index) - list.scrollTop;
+		return { top, bottom: top + list.getElementHeight(index) };
+	}), (bounds): bounds is IArtifactBounds => !!bounds);
 }

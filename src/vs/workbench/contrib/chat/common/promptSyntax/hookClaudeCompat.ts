@@ -11,34 +11,10 @@ import { Target } from './promptTypes.js';
 export { extractHookCommandsFromItem };
 
 /**
- * Cached inverse mapping from HookType to Claude hook type name.
- * Lazily computed on first access.
- */
-let _hookTypeToClaudeName: Map<HookType, string> | undefined;
-
-function getHookTypeToClaudeNameMap(): Map<HookType, string> {
-	if (!_hookTypeToClaudeName) {
-		_hookTypeToClaudeName = new Map();
-		for (const [claudeName, hookType] of Object.entries(HOOKS_BY_TARGET[Target.Claude])) {
-			_hookTypeToClaudeName.set(hookType, claudeName);
-		}
-	}
-	return _hookTypeToClaudeName;
-}
-
-/**
  * Resolves a Claude hook type name to our abstract HookType.
  */
 export function resolveClaudeHookType(name: string): HookType | undefined {
 	return HOOKS_BY_TARGET[Target.Claude][name];
-}
-
-/**
- * Gets the Claude hook type name for a given abstract HookType.
- * Returns undefined if the hook type is not supported in Claude.
- */
-export function getClaudeHookTypeName(hookType: HookType): string | undefined {
-	return getHookTypeToClaudeNameMap().get(hookType);
 }
 
 /**

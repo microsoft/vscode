@@ -805,7 +805,7 @@ function renderNewTabButtonWrapped(modernUI: boolean, editorTabStyle: ModernUIEd
 		let previousLayout: string | undefined;
 		await waitForFixtureCondition(() => {
 			const tabs = Array.from(ctx.container.querySelectorAll<HTMLElement>('.tabs-container > .tab'));
-			const add = ctx.container.querySelector<HTMLElement>('.tabs-bar-add-tab:not(.hidden)');
+			const add = ctx.container.querySelector<HTMLElement>('.tabs-bar-add-tab');
 			const strip = ctx.container.querySelector<HTMLElement>('.tabs-and-actions-container.wrapping');
 			if (tabs.length !== 4 || !add || !strip || tabs.some(tab => tab.offsetHeight === 0)) {
 				return false;
@@ -868,7 +868,7 @@ export default defineThemedFixtureGroup({ path: 'editor/' }, {
 	Styles: defineThemedFixtureGroup({
 		Connected: defineComponentFixture({
 			render: render(true, {}),
-			additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+			additionalThemes: ['light2026', 'darkHighContrast', 'lightHighContrast'],
 			expectedVisualDescriptions: [
 				'Connected tabs use the dedicated connected strip color while the active tab remains joined to the editor surface.',
 			],

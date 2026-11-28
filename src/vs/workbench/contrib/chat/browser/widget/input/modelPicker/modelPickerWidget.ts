@@ -23,7 +23,7 @@ import { localize } from '../../../../../../../nls.js';
 import { IActionListHeaderLink } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IAgentConnection } from '../../../../../../../platform/agentHost/common/agentService.js';
 import { LocalModelEnabledSettingId } from '../../../../../../../platform/agentHost/common/localModel.js';
-import { ModelRouterEnabledSettingId, ModelRouterSkillName } from '../../../../../../../platform/agentHost/common/modelRouterConfig.js';
+import { ModelRouterEnabledSettingId } from '../../../../../../../platform/agentHost/common/modelRouterConfig.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
@@ -34,7 +34,7 @@ import { COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID, isCop
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { COPILOT_VENDOR_ID, getLanguageModelProviderDisplayName, IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { getAddModelsUnavailableReason, SessionType } from '../../../../common/chatSessionsService.js';
-import { ChatConfiguration } from '../../../../common/constants.js';
+import { ChatConfiguration, MANAGE_CHAT_COMMAND_ID, MODEL_ROUTERS_EDITOR_ID } from '../../../../common/constants.js';
 import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../../common/languageModelSourcePresentation.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
 import { IModelPickerDelegate } from './modelPickerActionItem.js';
@@ -47,7 +47,7 @@ import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 
 import { IWorkbenchEnvironmentService } from '../../../../../../services/environment/common/environmentService.js';
 import { getOrganizationSupportActionTooltip, openOrganizationSupport } from '../../../../../../services/policies/common/organizationSupport.js';
 import { getCompactCodicon } from '../../../chatIcons.js';
-import { renderChatInputPickerSplit } from '../chatInputPickerActionItem.js';
+import { renderChatInputPickerSplit, renderModelChipChevron } from '../chatInputPickerActionItem.js';
 import { createManageModelsAction, getModelPickerControlModels, shouldShowManageModelsAction } from './modelPickerItems.js';
 import { requiresNewerVSCode } from './modelPickerItemPrimitives.js';
 import { renderModelConfigurationButton } from './modelPickerConfiguration.js';
@@ -683,14 +683,14 @@ export class ModelPickerWidget extends Disposable {
 	}
 
 	/**
-	 * Hands the user to the skill that writes model routers, by starting the prompt with its command. Offered where
-	 * that skill is: a local Copilot chat with model routers turned on.
+	 * Opens the model routers in the Language Models editor, where a router is made. Offered where that editor lists
+	 * them: a local Copilot chat with model routers turned on.
 	 */
 	private _getCreateModelRouter(): (() => void) | undefined {
-		const applies = !!this._delegate.startPromptWith
-			&& this._configurationService.getValue<boolean>(ModelRouterEnabledSettingId) === true
-			&& this._delegate.getSessionType?.() === SessionType.AgentHostCopilot;
-		return applies ? () => this._delegate.startPromptWith?.(`/${ModelRouterSkillName}`) : undefined;
+		const sessionType = this._delegate.getSessionType?.();
+		const applies = this._configurationService.getValue<boolean>(ModelRouterEnabledSettingId) === true
+			&& sessionType === SessionType.AgentHostCopilot;
+		return applies ? () => { this._commandService.executeCommand(MANAGE_CHAT_COMMAND_ID, undefined, sessionType, MODEL_ROUTERS_EDITOR_ID); } : undefined;
 	}
 
 	/** Updates an open picker's on-device rows in place, keeping keyboard focus on the row, and an on-device model's readout. */
@@ -757,9 +757,12 @@ export class ModelPickerWidget extends Disposable {
 		if (!anchorElement || this._domNode?.classList.contains('disabled')) {
 			return;
 		}
-		if (!options && this._delegate.showPicker && !this.isRestrictedMode() && !this.isSetupRequired()
-			&& this._delegate.showPicker((showDetails ? this._configButton : this._nameButton) ?? anchorElement, showDetails)) {
-			return;
+		if (!options && this._delegate.showPicker && !this.isRestrictedMode() && !this.isSetupRequired()) {
+			const button = showDetails ? this._configButton : this._nameButton;
+			const focusTarget = anchorElement === this._domNode ? button ?? anchorElement : anchorElement;
+			if (this._delegate.showPicker(focusTarget, showDetails)) {
+				return;
+			}
 		}
 		if (this._tabbedPicker.value?.isVisible) {
 			if (options) {
@@ -937,12 +940,14 @@ export class ModelPickerWidget extends Disposable {
 		const nameChildren: (HTMLElement | string)[] = [];
 		const compact = this._compact?.get() ?? false;
 		const minimal = this._minimal?.get() ?? false;
+		const singleButton = presentation.singleButton === true && !comparisonSummary;
+		this._nameButton.classList.toggle('chat-phone-input-chip', singleButton);
 		const modelIcon = comparisonBusy ? Codicon.loadingCompact : comparisonSummary ? Codicon.compare : shownModel
 			? (presentation.showModelIcon
 				? getCompactModelPickerIcon(shownModel)
 				: shownModel.metadata.statusIcon ? getCompactCodicon(shownModel.metadata.statusIcon) : undefined)
 			: undefined;
-		if (modelIcon && !noModelsAvailable) {
+		if (modelIcon && !noModelsAvailable && !singleButton) {
 			nameChildren.push(renderIcon(modelIcon));
 		}
 		// A "Models" placeholder (no badge) beats a dead-end label while unavailable — the hover and
@@ -957,12 +962,15 @@ export class ModelPickerWidget extends Disposable {
 				: genericNoModels
 					? localize('chat.modelPicker.noModels', "No models available")
 					: (name ?? this._getFusionAutoName(models) ?? localize('chat.modelPicker.fusion', "Copilot Fusion"));
-		const showModelLabel = (!comparisonSummary || noModelsAvailable) && (!compact || !modelIcon || noModelsAvailable);
+		const showModelLabel = singleButton || ((!comparisonSummary || noModelsAvailable) && (!compact || !modelIcon || noModelsAvailable));
 		if (showModelLabel) {
 			nameChildren.push(dom.$('span.chat-input-picker-label', undefined, modelLabel));
 		}
 		if (this._badgeIcon) {
 			nameChildren.push(this._badgeIcon);
+		}
+		if (singleButton) {
+			nameChildren.push(renderModelChipChevron());
 		}
 		dom.reset(this._nameButton, ...nameChildren);
 
@@ -972,7 +980,7 @@ export class ModelPickerWidget extends Disposable {
 			const localModelReadout = this._selectedModel && isLocalModelDirectRow(this._selectedModel)
 				? this._getLocalModels()?.getPresentation()?.getDirectModel(this._selectedModel, configurationAccess)?.readout
 				: undefined;
-			renderModelConfigurationButton(this._configButton, shownModel, configurationAccess, !!comparisonSummary || minimal || compact || noModelsAvailable || pendingAutoModel, routingTier?.label, localModelReadout);
+			renderModelConfigurationButton(this._configButton, shownModel, configurationAccess, singleButton || !!comparisonSummary || minimal || compact || noModelsAvailable || pendingAutoModel, routingTier?.label, localModelReadout);
 		}
 		const configVisible = !!this._configButton && this._configButton.style.display !== 'none';
 		this._domNode.classList.toggle('has-config', configVisible);

@@ -21,6 +21,10 @@
 	--modern-ui-connected-well-border: transparent;
 }
 
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench:where(.modern-ui:not(.agent-sessions-workbench)) .part.editor > .content .editor-group-container {
+	--modern-ui-connected-tab-border: var(--modern-ui-editor-tab-custom-border, var(--vscode-modernPanel-border, var(--vscode-editorGroupHeader-tabsBorder, var(--vscode-tab-border, var(--modern-ui-connected-tab-surface)))));
+}
+
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench:is(.hc-black, .hc-light) .part.editor > .content .editor-group-container,
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench:is(.hc-black, .hc-light) .modern-ui-editor-tab-group {
 	--modern-ui-connected-tab-border: var(--vscode-contrastBorder);

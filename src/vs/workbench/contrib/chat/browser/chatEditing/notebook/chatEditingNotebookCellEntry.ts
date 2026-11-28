@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { IObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IDocumentDiff } from '../../../../../../editor/common/diff/documentDiffProvider.js';
 import { DetailedLineRangeMapping } from '../../../../../../editor/common/diff/rangeMapping.js';
@@ -40,9 +40,6 @@ export class ChatEditingNotebookCellEntry extends Disposable {
 	public get diffInfo(): IObservable<IDocumentDiff> {
 		return this._textModelChangeService.diffInfo;
 	}
-	private readonly _maxModifiedLineNumber = observableValue<number>(this, 0);
-	readonly maxModifiedLineNumber = this._maxModifiedLineNumber;
-
 	protected readonly _stateObs = observableValue<ModifiedFileEntryState>(this, ModifiedFileEntryState.Modified);
 	readonly state: IObservable<ModifiedFileEntryState> = this._stateObs;
 	private readonly initialContent: string;
@@ -83,17 +80,11 @@ export class ChatEditingNotebookCellEntry extends Disposable {
 	}
 
 	async acceptAgentEdits(textEdits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel | undefined, metadata: IChatEditMetadata): Promise<void> {
-		const { maxLineNumber } = await this._textModelChangeService.acceptAgentEdits(this.modifiedModel.uri, textEdits, isLastEdits, responseModel, metadata);
+		await this._textModelChangeService.acceptAgentEdits(this.modifiedModel.uri, textEdits, isLastEdits, responseModel, metadata);
 
-		transaction((tx) => {
-			if (!isLastEdits) {
-				this._stateObs.set(ModifiedFileEntryState.Modified, tx);
-				this._maxModifiedLineNumber.set(maxLineNumber, tx);
-
-			} else {
-				this._maxModifiedLineNumber.set(0, tx);
-			}
-		});
+		if (!isLastEdits) {
+			this._stateObs.set(ModifiedFileEntryState.Modified, undefined);
+		}
 	}
 
 	revertMarkdownPreviewState(): void {

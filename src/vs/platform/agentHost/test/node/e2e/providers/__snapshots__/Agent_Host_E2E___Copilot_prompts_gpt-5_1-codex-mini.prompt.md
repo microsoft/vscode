@@ -127,7 +127,7 @@
       "format": {
         "type": "grammar",
         "syntax": "lark",
-        "definition": "start: begin_patch hunk+ end_patch\nbegin_patch: \"*** Begin Patch\" LF\nend_patch: \"*** End Patch\" LF?\n\nhunk: add_hunk | delete_hunk | update_hunk\nadd_hunk: \"*** Add File: \" filename LF add_line+\ndelete_hunk: \"*** Delete File: \" filename LF\nupdate_hunk: \"*** Update File: \" filename LF change_move? change?\n\nfilename: /(.+)/\nadd_line: \"+\" /(.*)/ LF -> line\n\nchange_move: \"*** Move to: \" filename LF\nchange: (change_context | change_line)+ eof_line?\nchange_context: (\"@@\" | \"@@ \" /(.+)/) LF\nchange_line: (\"+\" | \"-\" | \" \") /(.*)/ LF\neof_line: \"*** End of File\" LF\n\n%import common.LF"
+        "definition": "start: begin_patch hunk+ end_patch\nbegin_patch: \"*** Begin Patch\" LF\nend_patch: \"*** End Patch\" LF?\n\nhunk: add_hunk | delete_hunk | update_hunk\nadd_hunk: \"*** Add File: \" filename LF add_line+\ndelete_hunk: \"*** Delete File: \" filename LF\nupdate_hunk: \"*** Update File: \" filename LF (change_move change? | change)\n\nfilename: /(.+)/\nadd_line: \"+\" /(.*)/ LF -> line\n\nchange_move: \"*** Move to: \" filename LF\nchange: (change_context | change_line)+ eof_line?\nchange_context: (\"@@\" | \"@@ \" /(.+)/) LF\nchange_line: (\"+\" | \"-\" | \" \") /(.*)/ LF\neof_line: \"*** End of File\" LF\n\n%import common.LF"
       }
     },
     {
@@ -1333,10 +1333,21 @@
     },
     {
       "name": "isolate_session",
-      "description": "Move only the current chat to a new Git worktree when the user wants to continue this task without changing its current checkout. This preserves the chat and its history; it does not create a separate task or move other chats, even those sharing the same folder. The session workspace will include the new worktree. The original folder is unchanged, and uncommitted edits are not copied except configured worktree include-files. Requires a chat working in one local Git folder. Follow the tool confirmation flow. Make this the final tool call and end the turn after it succeeds; the host then moves this chat and continues its task automatically. Do not poll or repeat the request.",
+      "description": "Move folders of the current chat into new Git worktrees of their own, so that its changes do not touch the user's checkouts. Pass only the folders you are about to change that the working directories list as shared Git checkouts, before any tool that creates, edits or deletes files or runs commands that change files there, or the chat's folder when the user asks to continue this task in a new worktree. Moving the chat's main folder moves the chat to a new worktree; its other folders stay unless you pass them too. Not needed for reading, or for folders that are already in a worktree or not in a Git repository. Only this chat changes: other chats and the original checkouts are left unchanged, and uncommitted edits are not copied except configured worktree include-files. Folders in the same checkout share one worktree. Follow the tool confirmation flow; if the user skips it, nothing moves and you continue where you are. Make this the final tool call and end the turn after it succeeds; the host then moves the folders and continues the task automatically, telling you the new paths. Do not poll or repeat the request.",
       "parameters": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "folders": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Absolute paths of this chat's folders to move into worktrees of their own: only the shared Git checkouts you are about to change, as listed in the working directories.\n\n{minItems: 1}"
+          }
+        },
+        "required": [
+          "folders"
+        ]
       },
       "strict": false,
       "type": "function"

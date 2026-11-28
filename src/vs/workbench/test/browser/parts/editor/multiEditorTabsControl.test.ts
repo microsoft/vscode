@@ -33,9 +33,10 @@ import { DEFAULT_EDITOR_PART_OPTIONS, IEditorGroupMenuIds, IEditorGroupsView, IE
 import { MultiEditorTabsControl } from '../../../../browser/parts/editor/multiEditorTabsControl.js';
 import { EditorAddTabControl } from '../../../../browser/parts/editor/editorAddTabControl.js';
 import { MultiRowEditorControl } from '../../../../browser/parts/editor/multiRowEditorTabsControl.js';
-import { EditorInputCapabilities, EditorsOrder, IEditorPartOptions, Verbosity } from '../../../../common/editor.js';
+import { EditorInputCapabilities, EditorsOrder, IEditorCommandsContext, IEditorPartOptions, Verbosity } from '../../../../common/editor.js';
 import { EditorGroupModel } from '../../../../common/editor/editorGroupModel.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { IModalEditorOptions, IModalEditorOptionsProvider } from '../../../../../platform/editor/common/editor.js';
 import { DecorationsService } from '../../../../services/decorations/browser/decorationsService.js';
 import { IDecorationsService } from '../../../../services/decorations/common/decorations.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
@@ -282,6 +283,28 @@ suite('MultiEditorTabsControl', () => {
 		assert.deepStrictEqual(newWindowTransfers, ['veto: Cannot leave']);
 	});
 
+	function setModalEditorOptions(editor: EditorInput, options: IModalEditorOptions): void {
+		const provider: IModalEditorOptionsProvider = { getModalEditorOptions: () => options };
+		Object.assign(editor, provider);
+	}
+
+	test('a tab whose editor is always modal and cannot move into an editor area is not dragged', async () => {
+		setModalEditorOptions(model.getEditorByIndex(0)!, { alwaysModal: true, canMoveToEditorArea: false });
+
+		await dragTabOutOfWindow(0);
+
+		assert.deepStrictEqual(newWindowTransfers, []);
+	});
+
+	test('a tab whose editor is only always modal, or only cannot move into an editor area, is still dragged', async () => {
+		setModalEditorOptions(model.getEditorByIndex(0)!, { alwaysModal: true });
+		await dragTabOutOfWindow(0);
+		setModalEditorOptions(model.getEditorByIndex(0)!, { canMoveToEditorArea: false });
+		await dragTabOutOfWindow(0);
+
+		assert.deepStrictEqual(newWindowTransfers, ['new window', 'move file0.txt', 'new window', 'move file0.txt']);
+	});
+
 	test('modern tab scrollbars overlay the top edge without changing header or body geometry', async () => {
 		const group = connectedGroup();
 		const root = group.closest<HTMLElement>('.monaco-workbench')!;
@@ -422,7 +445,6 @@ suite('MultiEditorTabsControl', () => {
 					visibleEditors: tabs.every(tab => tab.offsetWidth > 0 && !tab.classList.contains('connected-tab-hidden')),
 					terminalEditor: tabs.map(tab => tab.classList.contains('connected-tab-last')),
 					addTab: {
-						visible: !addTab.classList.contains('hidden'),
 						isLast: addTab === addTab.parentElement!.lastElementChild,
 						terminalEditor: addTab.classList.contains('connected-tab-last'),
 						upperRow: addTab.classList.contains('connected-tab-upper-row'),
@@ -439,7 +461,7 @@ suite('MultiEditorTabsControl', () => {
 				renderedHeight: tabHeight === 'compact' ? 28 : 32,
 				visibleEditors: true,
 				terminalEditor: [false, true],
-				addTab: { visible: true, isLast: true, terminalEditor: false, upperRow: false },
+				addTab: { isLast: true, terminalEditor: false, upperRow: false },
 			}))),
 		});
 	});
@@ -715,22 +737,22 @@ suite('MultiEditorTabsControl', () => {
 					control.updateOptions(oldOptions, partOptions);
 					await layoutConnectedGroup(group, 300);
 					const tabs = container.querySelector<HTMLElement>('.tabs-container')!;
-					const add = container.querySelector<HTMLElement>('.tabs-bar-add-tab')!;
 					for (const visible of [false, true, false, true]) {
 						addMenuVisible = visible;
 						addMenuChange.fire();
 						await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+						const add = container.querySelector<HTMLElement>('.tabs-bar-add-tab');
 						results.push({
 							connected, direction, wrapTabs, visible,
-							hidden: add.classList.contains('hidden'),
-							widthCurrent: Number.parseFloat(tabs.style.getPropertyValue('--last-tab-add-tab-width')) === add.offsetWidth,
+							shown: !!add,
+							widthCurrent: Number.parseFloat(tabs.style.getPropertyValue('--last-tab-add-tab-width')) === (add?.offsetWidth ?? 0),
 							clippingCurrent: Array.from(tabs.querySelectorAll<HTMLElement>('.tab')).some(tab => !!tab.style.clipPath) === (connected && !wrapTabs && visible),
 						});
 					}
 				}
 			}
 		}
-		assert.deepStrictEqual(results, results.map(result => ({ ...result, hidden: !result.visible, widthCurrent: true, clippingCurrent: true })));
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, shown: result.visible, widthCurrent: true, clippingCurrent: true })));
 	});
 
 	test('wrapped fit check includes the terminal gutter and the independent controls row', async () => {
@@ -4964,7 +4986,7 @@ suite('MultiEditorTabsControl', () => {
 	test('the new tab button lists the entry picked last above its entries, as its default entry that a second press picks', async () => {
 		const executed: string[] = [];
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
-			override async executeCommand<R>(id: string): Promise<R> { executed.push(id); return undefined as R; }
+			override async executeCommand<R>(id: string, ...args: unknown[]): Promise<R> { executed.push(`${id} in group ${(args[0] as IEditorCommandsContext | undefined)?.groupId}`); return undefined as R; }
 		}());
 		instantiationService.stub(IMenuService, new class extends TestMenuService {
 			override createMenu(): IMenu {
@@ -4986,7 +5008,7 @@ suite('MultiEditorTabsControl', () => {
 			override hideContextView(): void { const menu = shownMenu; shownMenu = undefined; menu?.onHide?.(true); }
 		}());
 
-		const createButton = () => disposables.add(instantiationService.createInstance(EditorAddTabControl, container, MenuId.for('test.newTabButton'), instantiationService.get(IContextKeyService), { recentFirst: true, defaultEntry: true }));
+		const createButton = () => disposables.add(instantiationService.createInstance(EditorAddTabControl, container, MenuId.for('test.newTabButton'), instantiationService.get(IContextKeyService), { recentFirst: true, defaultEntry: true, context: { groupId: 7 } }));
 		const press = (button: EditorAddTabControl, clientX?: number) => {
 			const bounds = button.element.getBoundingClientRect();
 			button.element.querySelector<HTMLElement>('.action-label')!.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { button: 0, detail: 1, bubbles: true, clientX: clientX ?? bounds.left + bounds.width / 2, clientY: bounds.top + bounds.height / 2 }));
@@ -5032,7 +5054,8 @@ suite('MultiEditorTabsControl', () => {
 			initially: ['test.newTabButton.first', 'test.newTabButton.second'],
 			afterPickingSecond: ['test.newTabButton.second', 'test.newTabButton.first'],
 			inAnotherButton: ['test.newTabButton.second', 'test.newTabButton.first'],
-			executed: ['test.newTabButton.second', 'test.newTabButton.second', 'test.newTabButton.second'],
+			// Each pick runs in the group of the button, also when a second press picks it
+			executed: ['test.newTabButton.second in group 7', 'test.newTabButton.second in group 7', 'test.newTabButton.second in group 7'],
 			menuOpen: false,
 			pressedOutsideControl: true,
 			menuOpenAfterEdgePress: false,

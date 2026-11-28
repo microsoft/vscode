@@ -20,16 +20,19 @@ import { CanvasInput, ICanvasContextService, ICanvasService } from '../../../../
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { ActiveSessionCanvasReferenceContext } from '../../../common/agentsWindowContextKeys.js';
-import { ISessionCanvasRegistryService } from '../common/sessionCanvas.js';
+import { ISessionCanvasCatalogService, ISessionCanvasRegistryService } from '../common/sessionCanvas.js';
+import { SessionCanvasCatalogService } from '../browser/sessionCanvasCatalogService.js';
 import { registerSessionCanvasActions } from './sessionCanvasActions.js';
 import { SessionCanvasContextService, SessionCanvasRegistryService } from './sessionCanvasService.js';
 import { SessionCanvasSerializer } from './sessionCanvasSerializer.js';
 import { PinnedCanvasPageContribution } from './pinnedCanvasPage.js';
 import './pinnedCanvasActions.js';
+import './newCanvasSessionAction.js';
 import { getCanvasReferenceKey } from '../../../../workbench/common/canvasReference.js';
 
 registerSingleton(ICanvasContextService, SessionCanvasContextService, InstantiationType.Delayed);
 registerSingleton(ISessionCanvasRegistryService, SessionCanvasRegistryService, InstantiationType.Delayed);
+registerSingleton(ISessionCanvasCatalogService, SessionCanvasCatalogService, InstantiationType.Delayed);
 
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(CanvasInput.ID, SessionCanvasSerializer);
 

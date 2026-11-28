@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from '../../../base/common/uri.js';
 import { Event } from '../../../base/common/event.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { RequestErrorKind } from '../../github/common/types.js';
@@ -50,6 +49,11 @@ export interface IRefreshSessionGitStateOptions {
 	 * describe, such as edits to files that were already modified, or after a Git operation.
 	 */
 	readonly force?: boolean;
+	/**
+	 * Start the read as soon as no read of the key runs, without waiting out the cooldown since the previous one.
+	 * Set it when the caller changed the checkout, such as with a Git operation, and is waiting on the result.
+	 */
+	readonly immediate?: boolean;
 }
 
 export interface IAgentHostGitStateService {
@@ -65,13 +69,22 @@ export interface IAgentHostGitStateService {
 	readonly onDidChangeSessionGitHubState: Event<string>;
 
 	/**
-	 * Refreshes the git state for a given session.
-	 * @param sessionKey The key of the session for which to refresh the git state.
-	 * @param workingDirectory Optional working directory override; when omitted, the session summary's working directory is used.
+	 * Refreshes the git state for a given session. Resolves once a read of the git state that started after the
+	 * call has published what it read. Reads of a key run one at a time and at most once every 5 seconds, unless
+	 * {@link IRefreshSessionGitStateOptions.immediate} is set. A caller waits for the rest of the cooldown since
+	 * the previous read, but not for the cooldown that follows the read serving it.
+	 *
+	 * A read takes the key's primary working directory when it starts, or, for a subagent session without a working
+	 * directory of its own, its parent session's. A read whose key moved to another directory before it finished
+	 * publishes nothing.
+	 *
+	 * The changeset owner of a folder-only scope that has its own Agent Merge (a folder of the session other than its
+	 * first, or a repository found in one) refreshes through its session, whose read records that folder's state.
+	 * @param sessionKey The key of the session, chat or folder-only changeset owner for which to refresh the git state.
 	 */
-	refreshSessionGitState(sessionKey: string, workingDirectory?: URI, source?: IAgentHostCredentialSource, options?: IRefreshSessionGitStateOptions): Promise<void>;
+	refreshSessionGitState(sessionKey: string, source?: IAgentHostCredentialSource, options?: IRefreshSessionGitStateOptions): Promise<void>;
 
-	/** Returns the latest live or restored Git state for a session or folder-scoped chat. */
+	/** Returns the latest live or restored Git state for a session, folder-scoped chat or folder-only changeset owner. */
 	readonly getSessionGitState?: (sessionKey: string) => ISessionGitState | undefined;
 
 	/** Merges the branch identity known when an isolated worktree materializes into session metadata. */
@@ -80,8 +93,12 @@ export interface IAgentHostGitStateService {
 	/** Publishes and persists Git state for a chat's destination before its workspace changes. */
 	setFolderGitState(sessionKey: string, workingDirectories: readonly string[], gitState: ISessionGitState | undefined): Promise<void>;
 
-	/** Resolves the canonical base branch for a session, preferring the persisted `META_DIFF_BASE_BRANCH` for both isolation modes. */
-	resolveSessionBaseBranchName(sessionKey: string): Promise<string | undefined>;
+	/**
+	 * Resolves the base branch of a session exactly as recorded (e.g. `refs/remotes/origin/main`), preferring the
+	 * persisted `META_DIFF_BASE_BRANCH` for both isolation modes. Branch Changes compares against it;
+	 * `IAgentHostGitService.resolveBaseBranch` parses it into the branch Create PR and Merge target.
+	 */
+	resolveSessionBaseBranchRef(sessionKey: string): Promise<string | undefined>;
 
 	/**
 	 * Returns the GitHub state of the folder a session, chat channel or folder
@@ -111,12 +128,12 @@ export interface IAgentHostGitStateService {
 	recordSessionMerge(sessionKey: string, commit: string): Promise<void>;
 
 	/**
-	 * Refresh git state, then reconcile the actionable GitHub pull request for the current branch.
-	 * @param sessionKey The key of the session for which to check the GitHub pull request.
-	 * @param workingDirectory Optional working directory override; when omitted, the session summary's working directory is used.
+	 * Refresh git state (see {@link refreshSessionGitState}), then reconcile the actionable GitHub pull request for
+	 * the current branch. For a folder-only changeset owner, that is the pull request of the folder's own branch.
+	 * @param sessionKey The key of the session, chat or folder-only changeset owner for which to check the GitHub pull request.
 	 * @returns Why looking up the pull request failed, if it did.
 	 */
-	attachSessionGitHubPullRequest(sessionKey: string, workingDirectory?: URI, source?: IAgentHostCredentialSource): Promise<IPullRequestLookupFailure | void>;
+	attachSessionGitHubPullRequest(sessionKey: string, source?: IAgentHostCredentialSource): Promise<IPullRequestLookupFailure | void>;
 }
 
 /** Why looking up the pull request of a checkout's branch on GitHub failed. */

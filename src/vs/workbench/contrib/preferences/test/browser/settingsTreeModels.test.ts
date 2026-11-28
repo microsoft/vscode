@@ -27,7 +27,7 @@ import { IWorkbenchEnvironmentService } from '../../../../services/environment/c
 import { ISetting, SettingMatchType } from '../../../../services/preferences/common/preferences.js';
 import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
 import { TestProductService, TestUserDataProfileService } from '../../../../test/common/workbenchTestServices.js';
-import { EXP_ASSIGNMENT_SETTING_TAG, POLICY_SETTING_TAG } from '../../common/preferences.js';
+import { AGENTS_WINDOW_SETTING_TAG, EXP_ASSIGNMENT_SETTING_TAG, POLICY_SETTING_TAG } from '../../common/preferences.js';
 import { SettingsTarget } from '../../browser/preferencesWidgets.js';
 import { LayoutSettings, ModernUIDensity } from '../../../../services/layout/browser/layoutService.js';
 import { IManagedSettingsPresentationService, ManagedSettingsPresentationService } from '../../../../services/configuration/common/managedSettingsPresentation.js';
@@ -187,6 +187,88 @@ suite('SettingsTree Agents Window density', () => {
 			editorWorkspace: { value: ModernUIDensity.Default, defaultValue: ModernUIDensity.Default, configured: false },
 			agentsUser: { value: ModernUIDensity.Compact, defaultValue: ModernUIDensity.Default, configured: true },
 		});
+	});
+});
+
+suite('SettingsTree Agents mode presentation', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+	const configurationNode: IConfigurationNode = {
+		id: 'agentsModePresentationTest',
+		properties: {
+			'test.agentsModePresentation': { type: 'boolean', default: true, agentsMode: { default: false }, agentsWindow: { readOnly: true } },
+			'test.agentsOnly': { type: 'boolean', default: true, agentsWindow: { default: false, readOnly: true } },
+			'test.agentsModeReadOnly': { type: 'boolean', default: true, agentsMode: { readOnly: true } },
+		},
+	};
+	suiteSetup(() => registry.registerConfiguration(configurationNode));
+	suiteTeardown(() => registry.deregisterConfigurations([configurationNode]));
+
+	function createModel(isSessionsWindow = false) {
+		const configuration = new class extends TestConfigurationService {
+			// Like the Agents configuration service, which ignores the user's value of a read-only setting
+			readonly lockedValues = new Map<string, unknown>();
+			isSettingAppliedForAllProfiles(): boolean { return false; }
+			override inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
+				return this.lockedValues.has(key) ? { value: this.lockedValues.get(key) as T, defaultValue: this.lockedValues.get(key) as T } : super.inspect<T>(key, overrides);
+			}
+		}({ 'test.agentsModePresentation': true, 'test.agentsOnly': true, 'test.agentsModeReadOnly': true });
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IWorkbenchConfigurationService, configuration);
+		instantiationService.stub(ILanguageService, { isRegisteredLanguageId: () => true });
+		instantiationService.stub(IUserDataProfileService, new TestUserDataProfileService());
+		instantiationService.stub(IProductService, TestProductService);
+		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow });
+		instantiationService.stub(IExperimentalSettingsService, store.add(new ExperimentalSettingsService()));
+		instantiationService.stub(IManagedSettingsService, new NullManagedSettingsService());
+		instantiationService.stub(IManagedSettingsPresentationService, store.add(instantiationService.createInstance(ManagedSettingsPresentationService)));
+		const viewState: ISettingsEditorViewState = { settingsTarget: ConfigurationTarget.USER_LOCAL };
+		const model = store.add(instantiationService.createInstance(SettingsTreeModel, viewState, true));
+		const keys = Object.keys(configurationNode.properties!);
+		model.update({
+			id: 'test', label: 'Test',
+			settings: keys.map(key => new class extends mock<ISetting>() {
+				override key = key;
+				override type = 'boolean';
+				override description = [];
+			}()),
+		});
+		const read = () => keys.map(key => {
+			model.updateElementsByName(key);
+			const element = model.getElementsByName(key)![0];
+			return {
+				value: element.value, scopeValue: element.scopeValue, configured: element.isConfigured, readOnly: element.isAgentsReadOnly,
+				tagged: element.matchesAllTags(new Set([AGENTS_WINDOW_SETTING_TAG])),
+			};
+		});
+		return { viewState, read, lockedValues: configuration.lockedValues };
+	}
+
+	test('opts in to Agents mode metadata without applying Agents window read-only exclusions, then restores editor presentation', () => {
+		const { viewState, read, lockedValues } = createModel();
+		const initial = read();
+		viewState.isAgentsMode = true;
+		lockedValues.set('test.agentsModeReadOnly', { locked: true });
+		const active = read();
+		viewState.isAgentsMode = false;
+		lockedValues.clear();
+		const editable = { value: true, scopeValue: true, configured: true, readOnly: false, tagged: false };
+		assert.deepStrictEqual({ initial, active, restored: read() }, {
+			initial: [editable, editable, editable],
+			active: [{ ...editable, tagged: true }, editable, { value: { locked: true }, scopeValue: { locked: true }, configured: false, readOnly: true, tagged: true }],
+			restored: [editable, editable, editable],
+		});
+	});
+
+	test('preserves Agents window metadata even when Agents mode presentation is requested', () => {
+		const { viewState, read } = createModel(true);
+		viewState.isAgentsMode = true;
+		assert.deepStrictEqual(read(), [
+			{ value: true, scopeValue: true, configured: false, readOnly: true, tagged: true },
+			{ value: true, scopeValue: true, configured: false, readOnly: true, tagged: true },
+			{ value: true, scopeValue: true, configured: true, readOnly: false, tagged: false },
+		]);
 	});
 });
 

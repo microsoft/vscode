@@ -8,10 +8,29 @@ import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../agentHost/common/age
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { extUri, extUriIgnorePathCase } from '../../../../base/common/resources.js';
-import { BrowserViewPresentation, getBrowserViewRemoteFile, BrowserViewStorageScope, getAgentBrowserViewCreationDefaults, getBrowserViewPopupAction, remoteUrlToFileUrl, isBrowserViewAssociatedResourceNavigation, isBrowserViewStorageScopeShareableWithAgent, isInMemoryStorageScope, matchesBrowserViewAudience } from '../../common/browserView.js';
+import { BrowserViewPresentation, getBrowserViewRemoteFile, BrowserViewStorageScope, getAgentBrowserViewCreationDefaults, getBrowserViewPopupAction, remoteUrlToFileUrl, isBrowserViewAssociatedResourceNavigation, isBrowserViewStorageScopeShareableWithAgent, isInMemoryStorageScope, matchesBrowserViewAudience, getBrowserViewAuthenticationOrigin } from '../../common/browserView.js';
 
 suite('BrowserView', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('allows sign-in only for the current or pending top-level origin', () => {
+		const origin = 'https://example.com';
+		assert.deepStrictEqual({
+			sameOriginFrame: getBrowserViewAuthenticationOrigin(`${origin}/private-frame`, origin, undefined),
+			pendingNavigation: getBrowserViewAuthenticationOrigin('https://next.example/private', origin, 'https://next.example'),
+			siblingNavigation: getBrowserViewAuthenticationOrigin(`${origin}/private-frame`, origin, 'https://next.example'),
+			crossOrigin: getBrowserViewAuthenticationOrigin('https://other.example/private', origin, undefined),
+			opaqueOrigin: getBrowserViewAuthenticationOrigin('file:///private', 'null', undefined),
+			invalidUrl: getBrowserViewAuthenticationOrigin('invalid', origin, undefined),
+		}, {
+			sameOriginFrame: origin,
+			pendingNavigation: 'https://next.example',
+			siblingNavigation: origin,
+			crossOrigin: undefined,
+			opaqueOrigin: undefined,
+			invalidUrl: undefined,
+		});
+	});
 
 	test('maps vscode-remote URLs of the session network to file URLs', () => {
 		const network = { authority: 'ssh-remote+Host' };
@@ -209,5 +228,19 @@ suite('BrowserView', () => {
 			fileAuthority: undefined,
 			local: undefined,
 		});
+	});
+
+	test('normalizes leading slashes in remote file paths', () => {
+		for (const path of ['//repo', '///repo']) {
+			assert.deepStrictEqual({
+				remote: getBrowserViewRemoteFile(URI.from({ scheme: 'vscode-remote', authority: 'ssh-remote+a', path, query: 'q=1', fragment: 'top' })),
+				agentHost: getBrowserViewRemoteFile(toAgentHostUri(URI.file('/repo').with({ query: 'q=1', fragment: 'top' }), 'host-a').with({ path })),
+				agentHostWithoutMetadata: getBrowserViewRemoteFile(URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'host-a', path })),
+			}, {
+				remote: { scheme: 'vscode-remote', authority: 'ssh-remote+a', fileUri: URI.file('/repo').with({ query: 'q=1', fragment: 'top' }) },
+				agentHost: { scheme: AGENT_HOST_SCHEME, authority: 'host-a', fileUri: URI.file('/repo').with({ query: 'q=1', fragment: 'top' }) },
+				agentHostWithoutMetadata: { scheme: AGENT_HOST_SCHEME, authority: 'host-a', fileUri: URI.file('/repo') },
+			});
+		}
 	});
 });

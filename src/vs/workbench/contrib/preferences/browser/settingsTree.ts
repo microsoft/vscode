@@ -176,7 +176,7 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 
 	const data = element.isConfigured ?
 		{ ...elementDefaultValue, ...elementScopeValue } :
-		element.hasPolicyValue || element.isAgentsWindowReadOnly ? element.scopeValue :
+		element.hasPolicyValue || element.isAgentsReadOnly ? element.scopeValue :
 			elementDefaultValue;
 
 	const { objectProperties, objectPatternProperties, objectAdditionalProperties } = element.setting;
@@ -1243,6 +1243,11 @@ export class SettingComplexRenderer extends AbstractSettingRenderer implements I
 		template.button.textContent = isLanguageTagSetting
 			? editLanguageSettingLabel
 			: SettingComplexRenderer.EDIT_IN_JSON_LABEL;
+		if (!isLanguageTagSetting && dataElement.isAgentsReadOnly) {
+			DOM.hide(template.button);
+		} else {
+			DOM.show(template.button);
+		}
 
 		const onClickOrKeydown = (e: UIEvent) => {
 			if (isLanguageTagSetting) {
@@ -1320,7 +1325,7 @@ class SettingComplexObjectRenderer extends SettingComplexRenderer implements ITr
 			showAddButton: false,
 			isReadOnly: true,
 		});
-		template.button.parentElement?.classList.toggle('hide', dataElement.hasPolicyValue || dataElement.isAgentsWindowReadOnly);
+		template.button.parentElement?.classList.toggle('hide', dataElement.hasPolicyValue || dataElement.isAgentsReadOnly);
 		super.renderValue(dataElement, template, onChange);
 	}
 }
@@ -1416,7 +1421,7 @@ class SettingArrayRenderer extends AbstractSettingRenderer implements ITreeRende
 		template.listWidget.setValue(value, {
 			showAddButton: getShowAddButtonList(dataElement, value),
 			keySuggester,
-			isReadOnly: dataElement.hasPolicyValue || dataElement.isAgentsWindowReadOnly
+			isReadOnly: dataElement.hasPolicyValue || dataElement.isAgentsReadOnly
 		});
 		template.context = dataElement;
 
@@ -1568,6 +1573,7 @@ class SettingObjectRenderer extends AbstractSettingObjectRenderer implements ITr
 					isDefined(objectPatternProperties)
 				)
 				: true,
+			isReadOnly: dataElement.isAgentsReadOnly,
 			keySuggester: createObjectKeySuggester(dataElement),
 			valueSuggester: createObjectValueSuggester(dataElement),
 			propertyNames
@@ -1661,7 +1667,8 @@ class SettingBoolObjectRenderer extends AbstractSettingObjectRenderer implements
 		const { key } = dataElement.setting;
 
 		template.objectCheckboxWidget!.setValue(items, {
-			settingKey: key
+			settingKey: key,
+			isReadOnly: dataElement.isAgentsReadOnly
 		});
 
 		template.context = dataElement;
@@ -1745,7 +1752,7 @@ abstract class SettingIncludeExcludeRenderer extends AbstractSettingRenderer imp
 
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingIncludeExcludeItemTemplate, onChange: (value: string) => void): void {
 		const value = getIncludeExcludeDisplayValue(dataElement);
-		template.includeExcludeWidget.setValue(value, { isReadOnly: dataElement.hasPolicyValue || dataElement.isAgentsWindowReadOnly });
+		template.includeExcludeWidget.setValue(value, { isReadOnly: dataElement.hasPolicyValue || dataElement.isAgentsReadOnly });
 		template.context = dataElement;
 		template.elementDisposables.add(toDisposable(() => {
 			template.includeExcludeWidget.cancelEdit();
@@ -1816,7 +1823,7 @@ abstract class AbstractSettingTextRenderer extends AbstractSettingRenderer imple
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, onChange: (value: string) => void): void {
 		template.onChange = undefined;
 		template.inputBox.value = dataElement.value;
-		template.inputBox.setEnabled(!dataElement.hasPolicyValue && !dataElement.isAgentsWindowReadOnly);
+		template.inputBox.setEnabled(!dataElement.hasPolicyValue && !dataElement.isAgentsReadOnly);
 		template.inputBox.setAriaLabel(dataElement.setting.key);
 		template.onChange = value => {
 			if (!renderValidations(dataElement, template, false)) {
@@ -1966,7 +1973,7 @@ class SettingEnumRenderer extends AbstractSettingRenderer implements ITreeRender
 
 		template.selectBox.setOptions(displayOptions);
 		template.selectBox.setAriaLabel(dataElement.setting.key);
-		template.selectBox.setEnabled(!dataElement.hasPolicyValue && !dataElement.isAgentsWindowReadOnly);
+		template.selectBox.setEnabled(!dataElement.hasPolicyValue && !dataElement.isAgentsReadOnly);
 
 		let idx = settingEnum.indexOf(dataElement.value);
 		if (idx === -1) {
@@ -2037,7 +2044,7 @@ class SettingNumberRenderer extends AbstractSettingRenderer implements ITreeRend
 			dataElement.value.toString() : '';
 		template.inputBox.step = dataElement.valueType.includes('integer') ? '1' : 'any';
 		template.inputBox.setAriaLabel(dataElement.setting.key);
-		template.inputBox.setEnabled(!dataElement.hasPolicyValue && !dataElement.isAgentsWindowReadOnly);
+		template.inputBox.setEnabled(!dataElement.hasPolicyValue && !dataElement.isAgentsReadOnly);
 		template.onChange = value => {
 			if (!renderValidations(dataElement, template, false)) {
 				onChange(nullNumParseFn(value));
@@ -2120,7 +2127,7 @@ class SettingBoolRenderer extends AbstractSettingRenderer implements ITreeRender
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingBoolItemTemplate, onChange: (value: boolean) => void): void {
 		template.onChange = undefined;
 		template.checkbox.checked = dataElement.value;
-		if (dataElement.hasPolicyValue || dataElement.isAgentsWindowReadOnly) {
+		if (dataElement.hasPolicyValue || dataElement.isAgentsReadOnly) {
 			template.checkbox.disable();
 			template.descriptionElement.classList.add('disabled');
 		} else {
@@ -2238,7 +2245,7 @@ export class SettingTreeRenderers extends Disposable {
 		this.settingActions = [
 			new Action('settings.resetSetting', localize('resetSettingLabel', "Reset Setting"), undefined, undefined, async context => {
 				if (context instanceof SettingsTreeSettingElement) {
-					if (!context.isUntrusted) {
+					if (!context.isUntrusted && !context.isAgentsReadOnly) {
 						this._onDidChangeSetting.fire({
 							key: context.setting.key,
 							value: undefined,

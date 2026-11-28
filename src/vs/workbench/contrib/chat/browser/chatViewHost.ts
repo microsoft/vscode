@@ -161,8 +161,24 @@ export interface IChatViewContribution {
 	readonly host?: IChatViewHost;
 	/** A sessions list that the Chat view shows in place of its own. */
 	readonly sessionsList?: IChatViewSessionsListProvider;
+	/** What takes what is dropped on a chat of the window, such as a session that opens there, in the Chat view or a chat editor. */
+	readonly dropTarget?: IChatViewDropTargetProvider;
 	/** Whether the Chat view shows only its sessions while a host replaces it ({@link IChatViewHostService.sessionsOnly}). */
 	readonly sessionsOnly?: boolean;
+	/** Whether the chats open elsewhere, such as in editors, so the Chat view shows only its sessions even while no host replaces it ({@link IChatViewHostService.sessionsOnly}). */
+	readonly chatsOpenElsewhere?: boolean;
+}
+
+/**
+ * Takes what is dropped on a chat of the window, such as the Chat view's or a chat editor's, ahead of the chat's input around
+ * which it shows, which attaches what is dropped on the input itself.
+ */
+export interface IChatViewDropTargetProvider {
+	/**
+	 * Takes what is dropped on `element`, a chat, until the returned disposable is disposed. `chat` is the chat that it shows
+	 * then; `open` opens the chats of what is dropped, such as of sessions, where the chat says, such as in its place or beside it.
+	 */
+	create(element: HTMLElement, chat: () => URI | undefined, open: (chats: readonly URI[]) => void): IDisposable;
 }
 
 /**
@@ -199,6 +215,8 @@ export interface IChatViewHostService extends IChatViewHost {
 
 	/** The sessions list that the Chat view shows in place of its own: of the contribution registered last that gives one. */
 	readonly sessionsList: IObservable<IChatViewSessionsListProvider | undefined>;
+	/** What takes what is dropped on a chat of the window: of the contribution registered last that gives one. */
+	readonly dropTarget: IObservable<IChatViewDropTargetProvider | undefined>;
 	/**
 	 * Whether a feature is going to give the Chat view a sessions list ({@link sessionsList}) that has not registered yet, such as
 	 * while the window restores. Until it does, the Chat view shows no sessions list, rather than its own that the provided one
@@ -207,10 +225,13 @@ export interface IChatViewHostService extends IChatViewHost {
 	readonly sessionsListExpected: IObservable<boolean>;
 	/**
 	 * Whether the Chat view shows only its sessions, without its chat: while a contribution asks for it
-	 * ({@link IChatViewContribution.sessionsOnly}), a host replaces the Chat view, and the Chat view does not host the chat
-	 * shown last.
+	 * ({@link IChatViewContribution.sessionsOnly}) while a host replaces it and the Chat view does not host the chat shown
+	 * last, or while a contribution has the chats open elsewhere ({@link IChatViewContribution.chatsOpenElsewhere}) and the
+	 * Chat view does not host the chat shown last of a host that replaces it, nor a new chat that it started.
 	 */
 	readonly sessionsOnly: IObservable<boolean>;
+	/** Whether a contribution has the chats open elsewhere, such as in editors ({@link IChatViewContribution.chatsOpenElsewhere}). */
+	readonly chatsOpenElsewhere: IObservable<boolean>;
 
 	/**
 	 * Registers what a feature contributes to the Chat view until the returned disposable is disposed. Of each part, the

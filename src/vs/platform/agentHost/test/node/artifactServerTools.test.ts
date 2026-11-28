@@ -434,16 +434,19 @@ suite('Artifact Server Tools', () => {
 	test('reports what each add and remove call did to every entry', async () => {
 		const recorded: IAgentHostArtifactRecordedReport[] = [];
 		const removed: IAgentHostArtifactRemovedReport[] = [];
-		const { sessionUri, execute, artifacts, startUserTurn } = createHarness({ reportArtifactRecorded: report => recorded.push(report), reportArtifactRemoved: report => removed.push(report) });
+		const announced: { readonly session: string; readonly chat: string; readonly turnId: string | undefined; readonly artifactIds: readonly string[] }[] = [];
+		const { sessionUri, execute, artifacts, startUserTurn } = createHarness({ reportArtifactRecorded: report => recorded.push(report), reportArtifactRemoved: report => removed.push(report), didRecordArtifacts: recording => announced.push(recording) });
 		const pullRequest = { type: 'pullRequest', label: 'Fix', isArtifact: false, link: 'https://github.com/microsoft/vscode/pull/1' };
 		const docs = { type: 'website', label: 'Docs', isArtifact: false, link: 'https://example.com/docs' };
 		await execute(ArtifactServerToolName.AddArtifactOrReference, { items: [pullRequest, docs] });
 		await execute(ArtifactServerToolName.AddArtifactOrReference, { items: [{ ...pullRequest, isArtifact: true }, docs] });
 		startUserTurn();
+		const ids = artifacts().map(artifact => artifact.id);
 		await execute(ArtifactServerToolName.RemoveArtifactOrReference, { id: artifacts()[1].id });
 
 		const shared = { provider: 'copilot', session: sessionUri, chat: buildDefaultChatUri(sessionUri), turnId: undefined, toolCallId: undefined };
-		assert.deepStrictEqual({ recorded, removed }, {
+		const recording = { session: sessionUri, chat: buildDefaultChatUri(sessionUri), turnId: undefined, artifactIds: ids };
+		assert.deepStrictEqual({ recorded, removed, announced }, {
 			recorded: [
 				{ ...shared, source: 'agentTool', kind: SessionArtifactType.PullRequest, isArtifact: false, outcome: 'added', isGitHub: true, batchSize: 2 },
 				{ ...shared, source: 'agentTool', kind: SessionArtifactType.Website, isArtifact: false, outcome: 'added', isGitHub: false, batchSize: 2 },
@@ -451,6 +454,8 @@ suite('Artifact Server Tools', () => {
 				{ ...shared, source: 'agentTool', kind: SessionArtifactType.Website, isArtifact: false, outcome: 'alreadyRecorded', isGitHub: false, batchSize: 2 },
 			],
 			removed: [{ ...shared, turnId: 'turn-1', initiator: 'agentTool', kind: SessionArtifactType.Website, isArtifact: false, isGitHub: false }],
+			// Promoted and already recorded entries are announced like added ones.
+			announced: [recording, recording],
 		});
 	});
 

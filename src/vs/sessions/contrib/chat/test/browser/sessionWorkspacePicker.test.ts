@@ -18,10 +18,13 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { CancellationError, errorHandler } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, ISettableObservable, observableValue, waitForState } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, ISettableObservable, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { IRecentSessionWorkspace, ISessionWorkspacesService } from '../../../../../workbench/contrib/sessions/common/sessionWorkspaces.js';
+import { SESSIONS_WORKSPACES_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, ActionListWidget, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../../platform/actionWidget/browser/actionList.js';
@@ -71,7 +74,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
-import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IDialogService, IFileDialogService, IOpenDialogOptions } from '../../../../../platform/dialogs/common/dialogs.js';
 import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 import { IFileContent, IFileService } from '../../../../../platform/files/common/files.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -160,6 +163,7 @@ function createMockProvider(id: string, opts?: {
 		onDidChangeSessions: opts?.onDidChangeSessions ?? Event.None,
 		onDidMoveChat: Event.None,
 		getSessions: opts?.getSessions ?? (() => []),
+		getSession: () => undefined,
 		createNewSession: () => { throw new Error('Not implemented'); },
 		createQuickChat: () => { throw new Error('Not implemented'); },
 		deleteNewSession: () => { },
@@ -315,6 +319,10 @@ class DispatchingWorkspacePicker extends WorkspacePicker {
 		return this._buildItems();
 	}
 
+	getListOptions(items: readonly IActionListItem<IWorkspacePickerItem>[]): IActionListOptions {
+		return this._buildListOptions(items, undefined);
+	}
+
 	dispatchFolder(folderUri: URI, providerId: string): Promise<boolean> {
 		return this._dispatchPickerItem({ folderUri, providerId });
 	}
@@ -398,7 +406,7 @@ function createTestPicker(
 	fileDialogService: Partial<IFileDialogService> = {},
 	workspacesService: IWorkspacesService = { getRecentlyOpened: async () => ({ workspaces: [], files: [] }), onDidChangeRecentlyOpened: Event.None } as unknown as IWorkspacesService,
 	recentWorkspacesService?: ISessionsRecentWorkspacesService,
-	options?: IWorkspacePickerOptions & { readonly configuration?: Record<string, unknown>; readonly telemetryService?: ITelemetryService; readonly hoverService?: IHoverService; readonly commandService?: Partial<ICommandService> },
+	options?: IWorkspacePickerOptions & { readonly configuration?: Record<string, unknown>; readonly telemetryService?: ITelemetryService; readonly hoverService?: IHoverService; readonly commandService?: Partial<ICommandService>; readonly sessionWorkspacesService?: Partial<ISessionWorkspacesService> },
 	fileService: IFileService = upcastPartial<IFileService>({
 		onDidFilesChange: Event.None,
 		onDidChangeFileSystemProviderRegistrations: Event.None,
@@ -445,6 +453,8 @@ function createTestPicker(
 	instantiationService.stub(IHoverService, options?.hoverService ?? NullHoverService);
 	instantiationService.stub(IKeybindingService, new MockKeybindingService());
 	instantiationService.stub(IAgentHostFilterService, { isDiscovering: false, rediscover: async () => true });
+	instantiationService.stub(ISessionWorkspacesService, options?.sessionWorkspacesService ?? { workspaces: constObservable([]), getWorkspace: () => undefined, touchWorkspace: () => { } });
+	instantiationService.stub(ILabelService, upcastPartial<ILabelService>({ getUriLabel: uri => uri.path }));
 	if (agentHostFilterService) {
 		instantiationService.stub(IAgentHostFilterService, agentHostFilterService);
 		instantiationService.stub(IWorkbenchLayoutService, layoutService ?? {});
@@ -517,6 +527,303 @@ function assertSelectedProvider(picker: WorkspacePicker, expectedProviderId: str
 }
 
 // ---- Tests ------------------------------------------------------------------
+
+suite('WorkspacePicker - Workspaces group', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const app = URI.file('/work/app');
+	const appLib = URI.file('/work/app-lib');
+	const otherLib = URI.file('/other/app-lib');
+	const docs = URI.file('/work/docs');
+	const product: IRecentSessionWorkspace = { uri: URI.file('/ws/product.code-workspace'), name: 'Product', folders: [app, appLib, otherLib], owned: true, icon: 'rocket' };
+	const formerProductUri = URI.file('/ws/old-product.code-workspace');
+	const gone: IRecentSessionWorkspace = { uri: URI.file('/ws/gone.code-workspace'), name: 'Gone', folders: [docs], owned: true, missing: true };
+
+	function setupPicker(enabled = true, allowedFolders?: IObservable<readonly URI[]>) {
+		const touched: URI[] = [];
+		const commands: [string, unknown][] = [];
+		const providersService = store.add(new MockSessionsProvidersService());
+		providersService.setProviders([{ ...createMockProvider('local-agent-host', { group: SESSION_WORKSPACE_GROUP_LOCAL }), supportsLocalWorkspaces: true }]);
+		const workspaces = [product, gone];
+		const picker = createTestPicker(store, providersService, undefined, undefined, DispatchingWorkspacePicker, undefined, undefined, undefined, {
+			restoreFromSessions: false,
+			allowedFolders,
+			configuration: { [SESSIONS_WORKSPACES_ENABLED_SETTING]: enabled },
+			commandService: { executeCommand: async (id: string, arg: unknown) => { commands.push([id, arg]); return undefined; } },
+			sessionWorkspacesService: {
+				workspaces: constObservable(workspaces),
+				// As the service resolves a workspace by its former file too, after a rename
+				getWorkspace: uri => workspaces.find(workspace => extUri.isEqual(workspace.uri, uri) || (workspace === product && extUri.isEqual(formerProductUri, uri))),
+				touchWorkspace: uri => { touched.push(uri); },
+			},
+		});
+		assert.ok(picker instanceof DispatchingWorkspacePicker);
+		const workspaceRows = () => {
+			const items = picker.getItems();
+			const header = items.findIndex(item => item.kind === ActionListItemKind.Header && item.label === 'Workspaces');
+			if (header === -1) {
+				return [];
+			}
+			const end = items.findIndex((item, index) => index > header && item.kind !== ActionListItemKind.Action);
+			return items.slice(header + 1, end);
+		};
+		return { picker, touched, commands, workspaceRows };
+	}
+
+	test('lists workspaces with their folders, and a missing workspace file that cannot be picked', () => {
+		const { workspaceRows } = setupPicker();
+		assert.deepStrictEqual(workspaceRows().map(row => ({ label: row.label, description: row.description, disabled: !!row.disabled, aria: row.item?.ariaLabel, folder: row.item?.folderUri?.path, actions: row.toolbarActions?.map(action => action.id) })), [
+			{ label: 'Product', description: 'app, work/app-lib, other/app-lib', disabled: false, aria: 'Workspace Product, app, work/app-lib, other/app-lib', folder: '/work/app', actions: ['workspacePicker.sessionWorkspace.edit', 'workspacePicker.sessionWorkspace.remove'] },
+			{ label: 'Gone', description: 'Workspace file missing', disabled: false, aria: 'Workspace Gone, Workspace file missing, activate to open Edit Workspace', folder: undefined, actions: ['workspacePicker.sessionWorkspace.edit', 'workspacePicker.sessionWorkspace.remove'] },
+		]);
+	});
+
+	test('activating a missing workspace opens it for editing instead of selecting it', async () => {
+		const { picker, commands, touched, workspaceRows } = setupPicker();
+		const selected = picker.selectedFolderUri?.path;
+		await picker.dispatchItem(workspaceRows()[1].item!);
+		await timeout(0);
+		assert.deepStrictEqual({ folder: picker.selectedFolderUri?.path, workspace: picker.selectedSessionWorkspace, touched, commands: commands.map(([id, uri]) => [id, (uri as URI).path]) }, {
+			folder: selected, workspace: undefined, touched: [], commands: [['sessions.workspaces.edit', '/ws/gone.code-workspace']],
+		});
+	});
+
+	test('shows no Workspaces group while workspaces are off', () => {
+		const { workspaceRows } = setupPicker(false);
+		assert.deepStrictEqual(workspaceRows(), []);
+	});
+
+	test('picking a workspace selects its default folder and its configuration until another folder is picked', async () => {
+		const { picker, touched, workspaceRows } = setupPicker();
+		await picker.dispatchItem(workspaceRows()[0].item!);
+		const picked = { folder: picker.selectedFolderUri?.path, workspace: picker.selectedSessionWorkspace?.name, config: picker.selectedWorkspaceConfig?.uri.path, touched: touched.map(uri => uri.path) };
+		await picker.dispatchFolder(docs, 'local-agent-host');
+		assert.deepStrictEqual([picked, { folder: picker.selectedFolderUri?.path, workspace: picker.selectedSessionWorkspace?.name, config: picker.selectedWorkspaceConfig?.uri.path }], [
+			{ folder: '/work/app', workspace: 'Product', config: '/ws/product.code-workspace', touched: ['/ws/product.code-workspace'] },
+			{ folder: '/work/docs', workspace: undefined, config: undefined },
+		]);
+	});
+
+	test('a workspace pick that the picker refuses neither selects nor records the workspace for a later pick of its folder', async () => {
+		const allowedFolders = observableValue<readonly URI[]>('allowedFolders', [docs]);
+		const { picker, touched } = setupPicker(true, allowedFolders);
+		await picker.dispatchItem({ folderUri: app, providerId: 'local-agent-host', sessionWorkspaceUri: product.uri });
+		allowedFolders.set([app, docs], undefined);
+		await picker.dispatchFolder(app, 'local-agent-host');
+		assert.deepStrictEqual({ folder: picker.selectedFolderUri?.path, workspace: picker.selectedSessionWorkspace?.name, touched }, { folder: '/work/app', workspace: undefined, touched: [] });
+	});
+
+	test('a missing workspace found by typing edits on Enter, and Tab then Enter on its Edit Workspace action edits it', async () => {
+		const { picker, commands } = setupPicker();
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.set(IKeybindingService, new MockKeybindingService());
+		instantiationService.set(IHoverService, NullHoverService);
+		instantiationService.set(IOpenerService, NullOpenerService);
+		// As the picker's delegate: a selected row is dispatched
+		const items = picker.getItems();
+		// The picker's own list, which filters its rows itself here rather than through the action widget service
+		const widget = store.add(instantiationService.createInstance(ActionListWidget<IWorkspacePickerItem>, 'workspacePicker', false, items, { onHide: () => { }, onSelect: item => { void picker.dispatchItem(item); } }, undefined, { ...picker.getListOptions(items), onDidChangeFilter: undefined }));
+		const pressEnter = (target: Element | null) => {
+			for (const type of ['keydown', 'keyup']) {
+				target?.dispatchEvent(new KeyboardEvent(type, { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+			}
+		};
+		const editCommands = () => commands.map(([id, uri]) => `${id} ${(uri as URI).path}`);
+		const wrapper = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+		wrapper.classList.add('action-widget');
+		// As the action widget mounts the list's search above it
+		wrapper.append(widget.filterContainer!, widget.domNode);
+		store.add({ dispose: () => wrapper.remove() });
+		widget.layout(400, 400);
+		// As the user opens the picker, which focuses its search, types the workspace's name and presses Enter
+		widget.focus();
+		const search = wrapper.querySelector<HTMLInputElement>('input.action-list-filter-input')!;
+		search.focus();
+		search.value = 'Gone';
+		search.dispatchEvent(new InputEvent('input', { bubbles: true }));
+		const focused = widget.getFocusedElement()?.label;
+		// What the action widget's Enter keybinding runs (`acceptSelectedCodeAction`), which keybinding dispatch drives
+		widget.acceptSelected();
+		await timeout(0);
+		const onRow = { selected: picker.selectedSessionWorkspace?.name, commands: editCommands() };
+		// What its Down keybinding runs, moving from the search into the list, then Tab into the row's actions
+		widget.focusNext();
+		mainWindow.document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
+		const action = mainWindow.document.activeElement;
+		const actionLabel = action?.getAttribute('aria-label');
+		pressEnter(action);
+		await timeout(0);
+		assert.deepStrictEqual({ focused, onRow, actionLabel, onAction: editCommands() }, {
+			focused: 'Gone',
+			onRow: { selected: undefined, commands: ['sessions.workspaces.edit /ws/gone.code-workspace'] },
+			actionLabel: 'Edit Workspace',
+			onAction: ['sessions.workspaces.edit /ws/gone.code-workspace', 'sessions.workspaces.edit /ws/gone.code-workspace'],
+		});
+	});
+
+	test('selecting the folder of a session keeps or restores its workspace, without touching it', async () => {
+		const { picker, touched, workspaceRows } = setupPicker();
+		const state = () => ({ folder: picker.selectedFolderUri?.path, workspace: picker.selectedSessionWorkspace?.name });
+		await picker.dispatchItem(workspaceRows()[0].item!);
+		touched.length = 0;
+		picker.setSelectedWorkspace(app, { fireEvent: false, origin: WorkspaceSelectionOrigin.SessionSync, sessionWorkspaceUri: product.uri });
+		const synced = state();
+		// A draft syncs its folder before it has the workspace it was requested in
+		picker.setSelectedWorkspace(app, { fireEvent: false, origin: WorkspaceSelectionOrigin.SessionSync });
+		const syncedEarly = state();
+		picker.setSelectedWorkspace(app, { fireEvent: false, origin: WorkspaceSelectionOrigin.RestoredDraft });
+		const restoredWithout = state();
+		picker.setSelectedWorkspace(app, { fireEvent: false, origin: WorkspaceSelectionOrigin.RestoredDraft, sessionWorkspaceUri: formerProductUri });
+		assert.deepStrictEqual({ synced, syncedEarly, restoredWithout, restoredRenamed: state(), touched }, {
+			synced: { folder: '/work/app', workspace: 'Product' },
+			syncedEarly: { folder: '/work/app', workspace: 'Product' },
+			restoredWithout: { folder: '/work/app', workspace: undefined },
+			restoredRenamed: { folder: '/work/app', workspace: 'Product' },
+			touched: [],
+		});
+	});
+
+	test('edits and removes a workspace through the workspace commands', async () => {
+		const { commands, workspaceRows } = setupPicker();
+		const [edit, remove] = workspaceRows()[0].toolbarActions!;
+		await edit.run();
+		await remove.run();
+		assert.deepStrictEqual(commands.map(([id, uri]) => [id, (uri as URI).path]), [
+			['sessions.workspaces.edit', '/ws/product.code-workspace'],
+			['sessions.workspaces.remove', '/ws/product.code-workspace'],
+		]);
+	});
+});
+
+suite('WorkspacePicker - session folders', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	// Folders the mock local agent host resolves
+	const app = URI.file('/agent-host/app');
+	const lib = URI.file('/agent-host/lib');
+	const docs = URI.file('/agent-host/docs');
+	const product: IRecentSessionWorkspace = { uri: URI.file('/ws/product.code-workspace'), name: 'Product', folders: [app, docs], owned: true };
+
+	function setupPicker(options: { supported?: boolean; picked?: URI[] } = {}) {
+		const providersService = store.add(new MockSessionsProvidersService());
+		providersService.setProviders([{ ...createMockProvider('local-agent-host', { group: SESSION_WORKSPACE_GROUP_LOCAL }), supportsLocalWorkspaces: true }]);
+		const supported = observableValue('supported', options.supported ?? true);
+		const dialogs: IOpenDialogOptions[] = [];
+		const picker = createTestPicker(store, providersService, undefined, undefined, DispatchingWorkspacePicker, { showOpenDialog: async dialog => { dialogs.push(dialog); return options.picked; } }, undefined, undefined, {
+			restoreFromSessions: false,
+			supportsSessionFolders: supported,
+			configuration: { [SESSIONS_WORKSPACES_ENABLED_SETTING]: true },
+			sessionWorkspacesService: {
+				workspaces: constObservable([product]),
+				getWorkspace: uri => extUri.isEqual(uri, product.uri) ? product : undefined,
+				touchWorkspace: () => { },
+			},
+		});
+		assert.ok(picker instanceof DispatchingWorkspacePicker);
+		const state = () => ({ folders: picker.sessionFolderUris?.map(folder => folder.path), added: picker.addedSessionFolderUris.map(folder => folder.path) });
+		return { picker, supported, state, dialogs };
+	}
+
+	test('adds picked folders to the session of the selected folder or workspace once each, and removes and resets them', async () => {
+		const { picker, state } = setupPicker({ picked: [lib, app, lib] });
+		await picker.dispatchFolder(app, 'local-agent-host');
+		await picker.promptForSessionFolders();
+		const toFolder = state();
+		picker.removeSessionFolder(lib);
+		const removed = state();
+		await picker.dispatchItem({ folderUri: app, providerId: 'local-agent-host', sessionWorkspaceUri: product.uri });
+		picker.addSessionFolders([lib, docs]);
+		const toWorkspace = state();
+		picker.resetSessionFolders();
+		assert.deepStrictEqual({ toFolder, removed, toWorkspace, reset: state() }, {
+			toFolder: { folders: ['/agent-host/app', '/agent-host/lib'], added: ['/agent-host/lib'] },
+			removed: { folders: undefined, added: [] },
+			toWorkspace: { folders: ['/agent-host/app', '/agent-host/docs', '/agent-host/lib'], added: ['/agent-host/lib'] },
+			reset: { folders: undefined, added: [] },
+		});
+	});
+
+	test('adds only folders on this computer, also when the window is connected to a remote', async () => {
+		const { picker, state, dialogs } = setupPicker({ picked: [lib, URI.from({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+box', path: '/remote/lib' })] });
+		await picker.dispatchFolder(app, 'local-agent-host');
+		await picker.promptForSessionFolders();
+		assert.deepStrictEqual({ fileSystems: dialogs.map(dialog => dialog.availableFileSystems), added: state().added }, {
+			fileSystems: [[Schemas.file]],
+			added: ['/agent-host/lib'],
+		});
+	});
+
+	test('offers adding folders only while the session can work in more folders, and forgets them for another selection', async () => {
+		const { picker, supported, state } = setupPicker({ picked: [lib] });
+		const beforeSelection = picker.canAddSessionFolders;
+		await picker.dispatchFolder(app, 'local-agent-host');
+		const selected = picker.canAddSessionFolders;
+		supported.set(false, undefined);
+		const unsupported = picker.canAddSessionFolders;
+		await picker.promptForSessionFolders();
+		const notAdded = state();
+		supported.set(true, undefined);
+		picker.addSessionFolders([lib]);
+		await picker.dispatchFolder(docs, 'local-agent-host');
+		assert.deepStrictEqual({ beforeSelection, selected, unsupported, notAdded, otherFolder: state() }, {
+			beforeSelection: false,
+			selected: true,
+			unsupported: false,
+			notAdded: { folders: undefined, added: [] },
+			otherFolder: { folders: undefined, added: [] },
+		});
+	});
+
+	test('the composer\'s folder pills stay through a same-folder sync of its draft, which re-selects the folder', async () => {
+		const { picker } = setupPicker();
+		const syncSessionFolderPills = Reflect.get(NewChatWidget.prototype, '_syncSessionFolderPills') as (this: object) => void;
+		let attachments: IChatRequestVariableEntry[] = [];
+		const pillsAtEvents: string[][] = [];
+		const composer = {
+			_syncingSessionFolderPills: false,
+			_sendingSessionFolders: false,
+			uriIdentityService: { extUri },
+			_workspacePicker: picker,
+			_newChatInput: {
+				get attachments() { return attachments; },
+				removeAttachment: (id: string) => { attachments = attachments.filter(attachment => attachment.id !== id); },
+				addAttachments: (...entries: IChatRequestVariableEntry[]) => { attachments = [...attachments, ...entries]; },
+			},
+		};
+		// As the composer syncs its pills on each selection change
+		store.add(picker.onDidChangeSelection(() => {
+			syncSessionFolderPills.call(composer);
+			pillsAtEvents.push(attachments.map(attachment => attachment.name));
+		}));
+		await picker.dispatchFolder(app, 'local-agent-host');
+		picker.addSessionFolders([lib]);
+		pillsAtEvents.length = 0;
+		// As the composer re-selects its draft's folder when the draft's configuration changes
+		picker.setSelectedWorkspace(app, { fireEvent: false, origin: WorkspaceSelectionOrigin.SessionSync, sessionFolders: [app] });
+		assert.deepStrictEqual({ events: pillsAtEvents.length > 0, pillsAtEvents, pills: attachments.map(attachment => attachment.name), folders: picker.sessionFolderUris?.map(folder => folder.path) }, {
+			events: true,
+			pillsAtEvents: pillsAtEvents.map(() => ['lib']),
+			pills: ['lib'],
+			folders: ['/agent-host/app', '/agent-host/lib'],
+		});
+	});
+
+	test('keeps the added folders as its draft syncs its folder, and restores them with a restored draft', async () => {
+		const { picker, state } = setupPicker();
+		await picker.dispatchFolder(app, 'local-agent-host');
+		picker.addSessionFolders([lib]);
+		picker.setSelectedWorkspace(app, { fireEvent: false, origin: WorkspaceSelectionOrigin.SessionSync });
+		const synced = state();
+		picker.setSelectedWorkspace(app, { fireEvent: false, origin: WorkspaceSelectionOrigin.RestoredDraft });
+		const restoredWithout = state();
+		picker.setSelectedWorkspace(app, { fireEvent: false, origin: WorkspaceSelectionOrigin.RestoredDraft, sessionWorkspaceUri: product.uri, sessionFolders: [app, docs, lib] });
+		assert.deepStrictEqual({ synced, restoredWithout, restored: state() }, {
+			synced: { folders: ['/agent-host/app', '/agent-host/lib'], added: ['/agent-host/lib'] },
+			restoredWithout: { folders: undefined, added: [] },
+			restored: { folders: ['/agent-host/app', '/agent-host/docs', '/agent-host/lib'], added: ['/agent-host/lib'] },
+		});
+	});
+});
 
 suite('WorkspacePicker - Dev Container sample telemetry', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -7591,6 +7898,87 @@ function hostEntry(providerId: string): IAgentHostFilterEntry {
 suite('WebWorkspacePicker - Host scope updates', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	function createPhoneTargetPicker(providers: ISessionsProvider[], host: IAgentHostFilterEntry, recents: { uri: URI; providerId: string }[]) {
+		const providersService = disposables.add(new MockSessionsProvidersService());
+		providersService.setProviders(providers);
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, recents.map(recent => ({ ...recent, checked: false })));
+		const workbench = document.body.appendChild(document.createElement('div'));
+		workbench.classList.add('phone-layout');
+		disposables.add(toDisposable(() => workbench.remove()));
+		const changed = disposables.add(new Emitter<void>());
+		const picker = createTestPicker(disposables, providersService, storage, undefined, TestWebWorkspacePicker,
+			undefined, undefined, undefined, { restoreFromSessions: false, searchWorkspaceTargetDirectly: true },
+			undefined, undefined, undefined, upcastPartial<IAgentHostFilterService>({ onDidChange: changed.event, get selectedHost() { return host; } }),
+			upcastPartial<IWorkbenchLayoutService>({ mainContainer: workbench }));
+		const trigger = workbench.appendChild(document.createElement('button'));
+		return { picker, workbench, trigger, changeHost: (next: IAgentHostFilterEntry) => { host = next; changed.fire(); } };
+	}
+
+	test('a phone Cloud target opens repository search even with recents and discards a late result after switching hosts', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const id = 'cloud-creation';
+		const recent = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/example/recent/HEAD' });
+		const pending = new DeferredPromise<ISessionWorkspace | undefined>();
+		let options: Parameters<ISessionWorkspaceBrowseAction['run']>[1];
+		const provider = createMockProvider(id, {
+			group: SESSION_WORKSPACE_GROUP_GITHUB, browseActions: [{
+				providerId: id, group: SESSION_WORKSPACE_GROUP_GITHUB, label: 'Repository', icon: Codicon.github,
+				run: (_current, browseOptions) => { options = browseOptions; return pending.p; },
+			}]
+		});
+		const other = createMockProvider('other');
+		const { picker, trigger, workbench, changeHost } = createPhoneTargetPicker([provider, other],
+			{ ...hostEntry(id), grouped: true, sessionCreationProviderId: id }, [{ uri: recent, providerId: id }]);
+		picker.showPicker(false, trigger, undefined, false);
+		await timeout(0);
+		assert.ok(options);
+		const opened = { recents: options.recentFolders.map(uri => uri.toString()), intermediate: !!workbench.querySelector('[role=dialog]'), expanded: trigger.ariaExpanded };
+		changeHost(hostEntry(other.id));
+		const previous = picker.selectedFolderUri;
+		await pending.complete(provider.resolveWorkspace(recent));
+		await timeout(0);
+		assert.deepStrictEqual({ opened, cancelled: options.token.isCancellationRequested, expanded: trigger.ariaExpanded, selectionChanged: previous !== picker.selectedFolderUri }, {
+			opened: { recents: [recent.toString()], intermediate: false, expanded: 'true' }, cancelled: true, expanded: 'false', selectionChanged: false,
+		});
+	}));
+
+	test('a phone environment target searches only that host and selects a folder without opening another sheet', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const id = 'remote';
+		const queries = new Set<string>();
+		const host = createMockProvider(id, {
+			group: SESSION_WORKSPACE_GROUP_REMOTE, browseActions: [{
+				providerId: id, group: SESSION_WORKSPACE_GROUP_REMOTE, icon: Codicon.folder, label: 'Folders', run: async () => assert.fail('Unexpected folder dialog'),
+				listFolders: async query => {
+					queries.add(query);
+					const workspace = host.resolveWorkspace(URI.file('/projects'));
+					return workspace && query === 'proj' ? [workspace] : [];
+				},
+			}]
+		});
+		const github = createMockProvider('github', {
+			group: SESSION_WORKSPACE_GROUP_GITHUB, browseActions: [{
+				providerId: 'github', group: SESSION_WORKSPACE_GROUP_GITHUB, icon: Codicon.github, label: 'Repository', run: async () => assert.fail('Unexpected GitHub search'),
+			}]
+		});
+		const { picker, workbench, trigger } = createPhoneTargetPicker([host, github], hostEntry(id), [
+			{ uri: URI.file('/notes'), providerId: id }, { uri: URI.file('/other-repository'), providerId: github.id },
+		]);
+		picker.showPicker(false, trigger, undefined, false);
+		await timeout(301);
+		const input = workbench.querySelector<HTMLInputElement>('.mobile-picker-sheet-search-input')!;
+		const opened = { title: workbench.querySelector('[role=dialog]')?.ariaLabel, rows: Array.from(workbench.querySelectorAll('.mobile-picker-sheet-label'), e => e.textContent), shortcuts: workbench.querySelectorAll('.mobile-picker-sheet-header-action').length };
+		input.value = 'proj';
+		input.dispatchEvent(new CustomEvent('input'));
+		await timeout(301);
+		workbench.querySelector<HTMLButtonElement>('.mobile-picker-sheet-item')!.click();
+		await timeout(301);
+		workbench.querySelector<HTMLButtonElement>('.mobile-picker-sheet-primary-action')!.click();
+		await timeout(301);
+		assert.deepStrictEqual({ opened, queries: [...queries], picked: picker.selectedFolderUri?.path, dialogs: workbench.querySelectorAll('[role=dialog]').length }, {
+			opened: { title: 'Choose folder', rows: ['notes'], shortcuts: 0 }, queries: ['', 'proj', 'projects/'], picked: '/projects', dialogs: 0,
+		});
+	}));
+
 	for (const change of ['offline', 'scope', 'dispose'] as const) {
 		test(`dismisses an open mobile workspace picker on ${change}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 			const providersService = disposables.add(new MockSessionsProvidersService());
@@ -8811,7 +9199,7 @@ suite('WorkspacePicker - a composer outside the main window', () => {
 			_pendingWorktreePlacement: observableValue<object | undefined>('pendingWorktreePlacement', undefined),
 			_applyRequestedWorktreePlacement: () => { },
 		};
-		for (const method of ['_selectRequestedNoWorkspace', '_isRequestedAgent', '_seedRequestedTarget', '_syncWorkspacePickerDevContainerMode', 'selectNoWorkspace']) {
+		for (const method of ['_selectRequestedNoWorkspace', '_isRequestedAgent', '_seedRequestedTarget', '_syncWorkspacePickerDevContainerMode', '_getDraftWorkspaceConfig', 'selectNoWorkspace']) {
 			const implementation = Reflect.get(NewChatWidget.prototype, method) as (...args: unknown[]) => unknown;
 			harness[method] = (...args: unknown[]) => implementation.apply(harness, args);
 		}

@@ -75,9 +75,10 @@ function getPermissionResource(e: IToolApprovalEvent): URI | undefined {
 const ALLOW_SESSION_OPTION_ID = 'allow-session';
 const ALLOW_ONCE_OPTION: ConfirmationOption = { id: 'allow-once', label: localize('sessionPermissions.allowOnce', "Allow Once"), kind: ConfirmationOptionKind.Approve };
 const SKIP_OPTION: ConfirmationOption = { id: 'skip', label: localize('sessionPermissions.skip', "Skip"), kind: ConfirmationOptionKind.Deny, group: 2 };
+/** Fallback for kinds without scoped grants. Allow Once stays first because clients make the first approve option the default. */
 const CONFIRMATION_OPTIONS: readonly ConfirmationOption[] = [
-	{ id: ALLOW_SESSION_OPTION_ID, label: localize('sessionPermissions.allowSession', "Allow in this Session"), kind: ConfirmationOptionKind.Approve, group: 1 },
 	ALLOW_ONCE_OPTION,
+	{ id: ALLOW_SESSION_OPTION_ID, label: localize('sessionPermissions.allowSession', "Allow in this Session"), kind: ConfirmationOptionKind.Approve, group: 1 },
 	SKIP_OPTION,
 ];
 const MANAGED_CONFIRMATION_OPTIONS: readonly ConfirmationOption[] = [ALLOW_ONCE_OPTION, SKIP_OPTION];
@@ -594,7 +595,7 @@ export class SessionPermissionManager extends Disposable {
 					: state._meta ? { _meta: state._meta } : {}),
 				// Managed asks are one-time only. Other agents can supply tool-specific
 				// buttons (e.g. ExitPlanMode's `Approve`/`Deny`) via `state.options`;
-				// otherwise the standard session/once/skip set is used.
+				// otherwise the standard once/session/skip set is used.
 				options: e.managedApprovalRequired
 					? oneTimeOptions.slice()
 					: e.requestSandboxBypass && readToolCallMeta(state)['vscode.sandboxPathGrant'] && state.options

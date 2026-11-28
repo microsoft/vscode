@@ -36,6 +36,8 @@ import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/loca
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
 import { IAgentHostPeerChatPersistenceService } from '../../node/agentHostPeerChatStore.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
+import { IAgentHostPullRequestAutopilotService } from '../../node/agentHostPullRequestAutopilot.js';
+import { nullPullRequestAutopilotService } from './pullRequestAutopilotTestUtils.js';
 import { AgentHostChatInputService, IAgentHostChatInputService } from '../../node/agentHostChatInputService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
@@ -52,6 +54,7 @@ import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from '../../n
 import { IAgentHostSessionPromptService } from '../../node/agentHostSessionPromptService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/agentHostToolCallTracker.js';
+import { IFolderIsolationService } from '../../node/chatContributions/folderIsolation/folderIsolation.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { AgentHostTurnService, IAgentHostTurnService } from '../../node/agentHostTurnService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService, type IAgentHostClientConnectionSource } from '../../node/agentHostClientConnectionService.js';
@@ -256,6 +259,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			[IAgentHostAuthenticationService, authenticationService],
 			[IAgentHostLocalTurns, sharedLocalTurns],
 			[ILogService, logService],
+			[IFolderIsolationService, { _serviceBrand: undefined, request: () => { }, onTurnEnd: () => { }, isMoving: () => false, isRequested: () => false } satisfies IFolderIsolationService],
 			[IAgentConfigurationService, configService],
 			[IAgentHostChangesetService, new FakeChangesetService()],
 			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
@@ -298,6 +302,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		const chatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 		services.set(IAgentHostChatContributions, chatContributions);
 		services.set(IAgentHostArtifactEventService, disposables.add(new AgentHostArtifactEventService()));
+		services.set(IAgentHostPullRequestAutopilotService, nullPullRequestAutopilotService);
 		services.set(IAgentHostArtifactIntegrationDirectory, disposables.add(new AgentHostArtifactIntegrationDirectory(disposables.add(new ArtifactIntegrationRegistry()))));
 		services.set(IAgentHostSessionPromptService, {
 			_serviceBrand: undefined,
@@ -594,6 +599,31 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				model: undefined,
 			},
 		}]);
+	});
+
+	test('reports calls to tools the session does not offer apart from built-in failures', () => {
+		setupSession();
+		startTurn('turn-1');
+
+		toolStart('turn-1', 'tc-invented', 'view_range');
+		toolComplete('turn-1', 'tc-invented', { success: false, pastTenseMessage: 'failed', error: { message: 'Tool \'view_range\' does not exist.', code: 'toolNotFound' } });
+		toolStart('turn-1', 'tc-builtin', 'view');
+		toolComplete('turn-1', 'tc-builtin', { success: false, pastTenseMessage: 'failed', error: { message: 'Tool \'view\' does not exist.', code: 'failure' } });
+		completeTurn('turn-1');
+
+		assert.deepStrictEqual({
+			agentHost: agentHostToolEvents().map(({ data }) => ({ toolId: data.toolId, toolSourceKind: data.toolSourceKind, result: data.result, errorCode: data.errorCode })),
+			legacy: toolEvents().map(({ data }) => ({ toolId: data.toolId, toolSourceKind: data.toolSourceKind })),
+		}, {
+			agentHost: [
+				{ toolId: 'sha256:b1b0f926bc4dc5674c68deada71063cce11c72f399077f1252ae347f1939c1e0', toolSourceKind: 'unknown', result: 'error', errorCode: 'toolNotFound' },
+				{ toolId: 'view', toolSourceKind: 'agentHost', result: 'error', errorCode: 'failure' },
+			],
+			legacy: [
+				{ toolId: 'sha256:b1b0f926bc4dc5674c68deada71063cce11c72f399077f1252ae347f1939c1e0', toolSourceKind: 'unknown' },
+				{ toolId: 'view', toolSourceKind: 'agentHost' },
+			],
+		});
 	});
 
 	test('uses the resolved usage model for an in-flight tool call', () => {

@@ -7,7 +7,9 @@ import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
-import { resolveSessionRepositories } from '../../node/agentHostSessionRepositories.js';
+import { getWorkingDirectoryKey } from '../../common/agentHostWorkingDirectories.js';
+import { withSessionRepositories } from '../../common/meta/agentSessionRepositoriesMeta.js';
+import { readNestedRepositoryRoots, resolveSessionRepositories } from '../../node/agentHostSessionRepositories.js';
 import { createNoopGitService } from '../common/sessionTestHelpers.js';
 
 /**
@@ -145,5 +147,18 @@ suite('agentHostSessionRepositories', () => {
 			maxActive: 5,
 			gitRepositories: directories,
 		});
+	});
+
+	test('reads the repositories found in a folder sent with another drive letter case, or on a UNC share, and only those found in folders', () => {
+		// As Windows file URIs: a drive letter, and a UNC share's server in the authority
+		const meta = withSessionRepositories(undefined, {
+			[getWorkingDirectoryKey('file:///C%3A/work')]: [{ root: 'file:///C%3A/work', kind: 'folder' }, { root: 'file:///C%3A/work/docs', kind: 'nested' }],
+			[getWorkingDirectoryKey('file://server/share/work')]: [{ root: 'file://server/share/work/api', kind: 'nested' }],
+		});
+
+		assert.deepStrictEqual(readNestedRepositoryRoots(meta, ['file:///c%3A/work', 'file://server/share/work', 'file:///d%3A/other']).map(root => root.toString()), [
+			'file:///c%3A/work/docs',
+			'file://server/share/work/api',
+		]);
 	});
 });

@@ -22,7 +22,7 @@ import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js
 import { Menus } from '../menus.js';
 import { getLabeledPickerResponsiveItems } from './newChatComposerInput.js';
 import { createNewSessionControlToolbar } from './newSessionConfigToolbars.js';
-import { SharedChatInputComposerBusyContext } from './sharedChatInputComposer.js';
+import { SeparateSessionControlsContext, SharedChatInputComposerBusyContext } from './sharedChatInputComposer.js';
 
 const COMPOSER_INITIALIZING_ACTION_ID = 'sessions.newChatComposer.initializing';
 const COMPOSER_SENDING_ACTION_ID = 'sessions.newChatComposer.sending';
@@ -153,7 +153,7 @@ export function registerSharedChatInputComposerToolbar(): IDisposable {
 				id: COMPOSER_SESSION_CONTROLS_ACTION_ID,
 				title: localize2('sessionsSharedChatInput.sessionControls', "Session Controls"),
 				f1: false,
-				menu: { id: Menus.NewSessionChatInputToolbar, group: 'navigation', order: 0, when: ChatContextKeys.enabled },
+				menu: { id: Menus.NewSessionChatInputToolbar, group: 'navigation', order: 0, when: ContextKeyExpr.and(ChatContextKeys.enabled, SeparateSessionControlsContext.negate()) },
 			});
 		}
 		override run(): void { /* rendered by the action view item */ }

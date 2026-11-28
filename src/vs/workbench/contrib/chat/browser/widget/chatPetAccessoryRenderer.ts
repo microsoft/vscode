@@ -11,8 +11,6 @@ import { ChatPetAccessoryRigPose, getChatPetAccessoryRigFrame, getChatPetAntenna
 
 export const CHAT_PET_ACCESSORY_ATLAS_CELL_SIZE = 64;
 export const CHAT_PET_WIDE_ACCESSORY_ATLAS_CELL_SIZE = 96;
-export const CHAT_PET_ACCESSORY_ATLAS_WIDTH = CHAT_PET_ACCESSORY_ATLAS_CELL_SIZE * 4;
-export const CHAT_PET_ACCESSORY_ATLAS_HEIGHT = CHAT_PET_ACCESSORY_ATLAS_CELL_SIZE * 3;
 
 export interface IChatPetFixedOrientationDecoration {
 	readonly frameBounds: readonly (readonly [number, number, number, number])[];

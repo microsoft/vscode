@@ -74,7 +74,8 @@ function getSessionToolNames(supportsWorkspaceChange: boolean, supportsFork: boo
 		SessionServerToolName.GetSessionContext,
 		SessionServerToolName.DeleteSession,
 		...(supportsFork ? [SessionServerToolName.ForkSession] : []),
-		...(supportsWorkspaceChange ? [SessionServerToolName.IsolateSession] : []),
+		// Offered to every provider that can move a chat's folders into worktrees, also without moving the chat itself
+		SessionServerToolName.IsolateSession,
 	];
 }
 

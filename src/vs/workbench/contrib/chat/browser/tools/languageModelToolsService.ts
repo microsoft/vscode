@@ -1951,16 +1951,19 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	getFullReferenceName(tool: IToolData | IToolSet, toolSet?: IToolSet): string {
+		return this.createFullReferenceNameResolver()(tool, toolSet);
+	}
+
+	createFullReferenceNameResolver(): (tool: IToolData | IToolSet, toolSet?: IToolSet) => string {
+		const fullReferenceNames = new Map<IToolData | IToolSet, string>();
 		for (const [item, toolFullReferenceName] of this.toolsWithFullReferenceName.get()) {
-			if (item === tool) {
-				return toolFullReferenceName;
+			// A tool in several tool sets is named after the first one.
+			if (!fullReferenceNames.has(item)) {
+				fullReferenceNames.set(item, toolFullReferenceName);
 			}
 		}
 
-		if (isToolSet(tool)) {
-			return getToolSetFullReferenceName(tool);
-		}
-		return getToolFullReferenceName(tool, toolSet);
+		return (tool, toolSet) => fullReferenceNames.get(tool) ?? (isToolSet(tool) ? getToolSetFullReferenceName(tool) : getToolFullReferenceName(tool, toolSet));
 	}
 
 	getFullReferenceNameMap(): Map<IToolData | IToolSet, string> {

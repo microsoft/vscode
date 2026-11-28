@@ -1,0 +1,89 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The New split button (newSplitButtonActionViewItem.ts) has the surface of the New button of the Agents window
+(newSessionActionViewItem.css): no fill, a thin border, and the keybinding of its primary action in a chip. Its geometry
+stays that of the filled split buttons of actionbar.css. */
+
+.monaco-action-bar .actions-container .action-item.action-dropdown-item.new-split-button > .action-label.filled-label,
+.monaco-action-bar .actions-container .action-item.action-dropdown-item.new-split-button > .monaco-dropdown .action-label.filled-label,
+.monaco-action-bar .actions-container .action-item.action-dropdown-item.new-split-button > .action-dropdown-item-separator {
+	background-color: var(--vscode-agentsNewSessionButton-background, transparent);
+	border-color: var(--vscode-agentsNewSessionButton-border, var(--vscode-button-border, transparent));
+	border-width: var(--vscode-strokeThickness);
+}
+
+.monaco-action-bar .actions-container .action-item.action-dropdown-item.new-split-button > .action-label.filled-label {
+	border-right-width: 0;
+	border-radius: var(--vscode-cornerRadius-small) 0 0 var(--vscode-cornerRadius-small);
+}
+
+.monaco-action-bar .actions-container .action-item.action-dropdown-item.new-split-button > .monaco-dropdown .action-label.filled-label {
+	display: flex; /* centers the chevron, as the part title sets its action labels to block */
+	border-left-width: 0;
+	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0;
+}
+
+.monaco-action-bar .actions-container .action-item.action-dropdown-item.new-split-button > .action-dropdown-item-separator {
+	border-left-width: 0;
+	border-right-width: 0;
+}
+
+.monaco-action-bar .actions-container .action-item.action-dropdown-item.new-split-button > .action-dropdown-item-separator > div {
+	background-color: var(--vscode-agentsNewSessionButton-border, var(--vscode-button-border, transparent));
+}
+
+.monaco-action-bar .actions-container .action-item.action-dropdown-item.new-split-button .action-label.filled-label {
+	color: var(--vscode-agentsNewSessionButton-foreground, var(--vscode-foreground));
+}
+
+.monaco-action-bar .actions-container .action-item.action-dropdown-item.new-split-button:not(.disabled) .action-label.filled-label:hover {
+	background-color: var(--vscode-agentsNewSessionButton-hoverBackground, var(--vscode-toolbar-hoverBackground));
+}
+
+/* Focus inside the border, as the New button of the Agents window, also in a part title that puts it outside for filled split buttons (paneCompositePart.css) */
+.monaco-action-bar .actions-container .action-item.action-dropdown-item.new-split-button .action-label.filled-label:focus,
+.monaco-workbench .pane-composite-part > .title.has-composite-bar > .title-actions .monaco-action-bar .action-item.filled-split-button.new-split-button .action-label.filled-label:focus {
+	outline-offset: -1px;
+}
+
+/* The keybinding of the primary action of the New split button, as the New button of the Agents window shows it. */
+
+.monaco-action-bar .action-item .action-label > .new-split-button-keybinding {
+	display: inline-block;
+	align-self: center;
+	flex-shrink: 0;
+	margin-left: var(--vscode-spacing-size60);
+	font-family: var(--monaco-monospace-font);
+	font-size: var(--vscode-fontSize-label3, 10px);
+	line-height: 1;
+	padding: 2px 4px;
+	border-radius: var(--vscode-cornerRadius-xSmall);
+	background-color: var(--vscode-keybindingLabel-background);
+	color: var(--vscode-keybindingLabel-foreground);
+}
+
+.monaco-action-bar .action-item .action-label > .new-split-button-keybinding .monaco-keybinding {
+	line-height: 1;
+}
+
+.monaco-action-bar .action-item .action-label > .new-split-button-keybinding .monaco-keybinding > .monaco-keybinding-key {
+	margin: 0 1px;
+	padding: 0;
+	min-width: auto;
+	border: 0;
+	background-color: transparent;
+	box-shadow: none;
+	font-size: inherit;
+	color: inherit;
+}
+
+.monaco-action-bar .action-item .action-label > .new-split-button-keybinding .monaco-keybinding > .monaco-keybinding-key:first-child {
+	margin-left: 0;
+}
+
+.monaco-action-bar .action-item .action-label > .new-split-button-keybinding .monaco-keybinding > .monaco-keybinding-key:last-child {
+	margin-right: 0;
+}

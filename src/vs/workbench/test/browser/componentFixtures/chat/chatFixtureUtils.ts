@@ -228,7 +228,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.defineInstance(IPathService, new TestPathService());
 	reg.defineInstance(IRemoteAgentService, new TestRemoteAgentService());
 	reg.defineInstance(IWorkbenchAssignmentService, new class extends mock<IWorkbenchAssignmentService>() { override async getCurrentExperiments() { return []; } override async getTreatment() { return undefined; } override onDidRefetchAssignments = Event.None; }());
-	reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return testIWorkspace({ id: '', folders: [], configuration: undefined }); } }());
+	reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override onDidChangeWorkspaceFolders = Event.None; override onDidChangeWorkbenchScope = Event.None; override getWorkbenchScope() { return undefined; } override getWorkspace(): IWorkspace { return testIWorkspace({ id: '', folders: [], configuration: undefined }); } }());
 	// `getContainer` stands in for the workbench container that widgets use to host
 	// overflow nodes (suggest widget, post-paste selector); the fixture document body
 	// is the closest equivalent.
@@ -438,7 +438,10 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override async generateTitle() { return undefined; }
 	}());
 	reg.defineInstance(IChatContextService, new class extends mock<IChatContextService>() { }());
-	reg.defineInstance(IChatContextPickService, new class extends mock<IChatContextPickService>() { }());
+	reg.defineInstance(IChatContextPickService, new class extends mock<IChatContextPickService>() {
+		override readonly items = [];
+		override registerChatContextItem() { return Disposable.None; }
+	}());
 	// Needed whenever chat markdown contains a code block; returns no custom renderer so
 	// code blocks fall back to the normal editor-backed CodeBlockPart.
 	reg.defineInstance(IChatOutputRendererService, new class extends mock<IChatOutputRendererService>() {

@@ -6,7 +6,7 @@
 import './media/scm.css';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { append, $, Dimension, trackFocus } from '../../../../base/browser/dom.js';
+import { append, $, AnimationFrameScheduler, Dimension, DisposableResizeObserver, getWindow, trackFocus } from '../../../../base/browser/dom.js';
 import { InputValidationType, ISCMInput, IInputValidation, ISCMViewService, SCMInputChangeReason, ISCMInputValueProviderContext } from '../common/scm.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IContextViewService, IContextMenuService, IOpenContextView } from '../../../../platform/contextview/browser/contextView.js';
@@ -166,10 +166,10 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 	) {
 		super(container, options, menuService, contextKeyService, contextMenuService, keybindingService, commandService, telemetryService);
 
-		this._dropdownAction = new Action(
+		this._dropdownAction = this._register(new Action(
 			'scmInputMoreActions',
 			localize('scmInputMoreActions', "More Actions..."),
-			'codicon-chevron-down');
+			'codicon-chevron-down'));
 
 		this._cancelAction = new MenuItemAction({
 			id: SCMInputWidgetCommandId.CancelAction,
@@ -409,6 +409,9 @@ export class SCMInputWidget {
 
 		const textModel = input.repository.provider.inputBoxTextModel;
 		this.inputEditor.setModel(textModel);
+
+		// The source control was removed, so its pending validation must not run on the disposed text model
+		this.repositoryDisposables.add(textModel.onWillDispose(() => this.input = undefined));
 
 		if (this.configurationService.getValue('editor.wordBasedSuggestions', { resource: textModel.uri }) !== 'off') {
 			this.configurationService.updateValue('editor.wordBasedSuggestions', 'off', { resource: textModel.uri }, ConfigurationTarget.MEMORY);
@@ -677,6 +680,16 @@ export class SCMInputWidget {
 		});
 		this.disposables.add(this.toolbar.onDidChange(() => this.layout()));
 		this.disposables.add(this.toolbar);
+
+		const layoutScheduler = this.disposables.add(new AnimationFrameScheduler(this.element, () => this.layout()));
+		let width: number | undefined;
+		const resizeObserver = this.disposables.add(new DisposableResizeObserver('SCMInputWidget', () => {
+			if (width !== this.element.clientWidth) {
+				width = this.element.clientWidth;
+				layoutScheduler.schedule();
+			}
+		}, getWindow(this.element)));
+		this.disposables.add(resizeObserver.observe(this.element));
 	}
 
 	getContentHeight(): number {

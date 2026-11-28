@@ -20,9 +20,11 @@ import { CustomizationEnablementKind, McpServerStatus } from '../../common/state
 import { AgentHostCompletions, CompletionTriggerCharacter } from '../../node/agentHostCompletions.js';
 import { AgentHostSkillCompletionProvider } from '../../node/agentHostSkillCompletionProvider.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { CopilotSlashCommandCompletionProvider } from '../../node/copilot/copilotSlashCommandCompletionProvider.js';
 import { MockAgent } from './mockAgent.js';
 import { buildMcpResourceUri } from '../../common/mcpResourceUri.js';
 import { withMcpServerDisplayNameMeta } from '../../common/meta/mcpCustomizationMeta.js';
+import { withRuntimePluginEnablement, type IRuntimePluginEnablement } from '../../common/meta/pluginEnablementMeta.js';
 import { createTestAgentChatContext } from './agentChatContextTestUtils.js';
 
 suite('AgentHostSkillCompletionProvider', () => {
@@ -218,6 +220,54 @@ suite('AgentHostSkillCompletionProvider', () => {
 			'/plugin:model-disabled ',
 			'/visible ',
 		]);
+	});
+
+	test('merges runtime and published skills without reintroducing hidden skills', async () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const session = 'copilotcli:/abc';
+		stateManager.createSession({ resource: session, provider: 'copilotcli', title: 't', status: SessionStatus.Idle, createdAt: '2026-01-01T00:00:00Z', modifiedAt: '2026-01-01T00:00:00Z', defaultChat: buildDefaultChatUri(session) });
+		const hidden = skill('hidden', undefined, { disableUserInvocation: true, disableModelInvocation: false });
+		const modelDisabled = skill('model-disabled', undefined, { disableModelInvocation: true });
+		const visible = skill('visible');
+		const published = [plugin('plugin', [hidden, modelDisabled, visible])];
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionCustomizationsChanged, customizations: published });
+
+		const agent = new MockAgent('copilotcli');
+		agent.getSessionCustomizations = async () => published;
+		const completions = disposables.add(new AgentHostCompletions(logService, stateManager));
+		disposables.add(completions.registerProvider(createProvider(agent)));
+		disposables.add(completions.registerProvider(new CopilotSlashCommandCompletionProvider('copilotcli', {
+			getRuntimeSlashCommands: async () => ['plugin:hidden', 'plugin:model-disabled', 'plugin:visible', 'runtime-only']
+				.map(name => ({ name, description: name, kind: 'skill' as const, allowDuringAgentExecution: true })),
+			getSessionCustomizations: async () => published,
+		})));
+		const complete = async () => (await completions.completions({ kind: CompletionItemKind.UserMessage, channel: session, text: '/', offset: 1 }, CancellationToken.None)).items
+			.filter(item => item.attachment._meta?.action === undefined)
+			.map(item => ({ insertText: item.insertText, type: item.attachment.type }));
+
+		const initial = await complete();
+		const invocationFlags = { disableUserInvocation: hidden.disableUserInvocation, disableModelInvocation: hidden.disableModelInvocation };
+		stateManager.dispatchServerAction(session, {
+			type: ActionType.SessionCustomizationsChanged,
+			customizations: [plugin('plugin', [skill('hidden', undefined, { disableModelInvocation: false }), modelDisabled, visible])],
+		});
+		const afterEnablingUserInvocation = await complete();
+
+		assert.deepStrictEqual({ initial, invocationFlags, afterEnablingUserInvocation }, {
+			initial: [
+				{ insertText: '/plugin:model-disabled ', type: MessageAttachmentKind.Resource },
+				{ insertText: '/plugin:visible ', type: MessageAttachmentKind.Resource },
+				{ insertText: '/runtime-only ', type: MessageAttachmentKind.Simple },
+			],
+			invocationFlags: { disableUserInvocation: true, disableModelInvocation: false },
+			afterEnablingUserInvocation: [
+				{ insertText: '/plugin:hidden ', type: MessageAttachmentKind.Resource },
+				{ insertText: '/plugin:model-disabled ', type: MessageAttachmentKind.Resource },
+				{ insertText: '/plugin:visible ', type: MessageAttachmentKind.Resource },
+				{ insertText: '/runtime-only ', type: MessageAttachmentKind.Simple },
+			],
+		});
 	});
 
 	test('offers enabled user-invocable MCP skills by their published server-prefixed names', async () => {
@@ -503,6 +553,38 @@ suite('AgentHostSkillCompletionProvider', () => {
 		assert.deepStrictEqual(result.map(item => item.insertText), ['/enabled:visible-skill ']);
 	});
 
+	test('offers skills of runtime plugins waiting for session start when the user intends them enabled', async () => {
+		function runtimePlugin(name: string, runtime: Partial<IRuntimePluginEnablement>, load: PluginCustomization['load'] = { kind: CustomizationLoadStatus.Loading }): PluginCustomization {
+			return {
+				...plugin(name, [skill(`${name}-skill`)], runtime.effectiveEnabled === true),
+				load,
+				_meta: withRuntimePluginEnablement(undefined, { provider: 'mock', plugin: `${name}@marketplace`, globalEnabled: true, repositorySupported: true, ...runtime }),
+			};
+		}
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [
+			runtimePlugin('pending', {}),
+			runtimePlugin('pending-globally-disabled', { globalEnabled: false }),
+			runtimePlugin('pending-repository-enabled', { globalEnabled: false, repositoryEnabled: true }),
+			runtimePlugin('pending-repository-disabled', { repositoryEnabled: false }),
+			runtimePlugin('pending-repository-inherited', { repositoryEnabled: null }),
+			runtimePlugin('pending-managed-disabled', { managedDesiredEnabled: false }),
+			runtimePlugin('inventory-unavailable', {}, { kind: CustomizationLoadStatus.Error, message: 'unavailable' }),
+			runtimePlugin('settled-disabled', { effectiveEnabled: false }, { kind: CustomizationLoadStatus.Loaded }),
+			runtimePlugin('settled-enabled', { effectiveEnabled: true }, { kind: CustomizationLoadStatus.Loaded }),
+		];
+		const provider = createProvider(agent);
+
+		const result = await run(provider, '/');
+
+		assert.deepStrictEqual(result.map(item => item.insertText), [
+			'/pending:pending-skill ',
+			'/pending-repository-enabled:pending-repository-enabled-skill ',
+			'/pending-repository-inherited:pending-repository-inherited-skill ',
+			'/settled-enabled:settled-enabled-skill ',
+		]);
+	});
+
 	test('returns an empty list when the agent has no session customizations hook', async () => {
 		const agent = new MockAgent('mock');
 		const provider = createProvider(agent);
@@ -559,6 +641,29 @@ suite('AgentHostSkillCompletionProvider', () => {
 			{ insertText: '/skills:alpha ', rangeStart: 4, rangeEnd: 5 },
 			{ insertText: '/skills:beta ', rangeStart: 4, rangeEnd: 5 },
 		]);
+	});
+
+	test('filters skills by the text before the cursor when a slash is typed before existing text', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [plugin('pstack', [skill('poteto-mode'), skill('review')])];
+		const provider = createProvider(agent);
+		const draft = `Let's rebase, get Astra 6 review and address it.`;
+
+		const afterSlash = await run(provider, `/${draft}`, 1);
+		const afterPrefix = await run(provider, `/pot${draft}`, '/pot'.length);
+
+		assert.deepStrictEqual({
+			afterSlash: afterSlash.map(item => ({ insertText: item.insertText, rangeStart: item.rangeStart, rangeEnd: item.rangeEnd })),
+			afterPrefix: afterPrefix.map(item => ({ insertText: item.insertText, rangeStart: item.rangeStart, rangeEnd: item.rangeEnd })),
+		}, {
+			afterSlash: [
+				{ insertText: '/pstack:poteto-mode ', rangeStart: 0, rangeEnd: 1 },
+				{ insertText: '/pstack:review ', rangeStart: 0, rangeEnd: 1 },
+			],
+			afterPrefix: [
+				{ insertText: '/pstack:poteto-mode ', rangeStart: 0, rangeEnd: '/pot'.length },
+			],
+		});
 	});
 
 	test('does not complete slash tokens embedded in non-whitespace text', async () => {

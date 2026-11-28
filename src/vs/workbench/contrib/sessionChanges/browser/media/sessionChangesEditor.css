@@ -266,13 +266,22 @@
 	white-space: nowrap;
 }
 
+/* Its operations lay out in the header row as they would without their own container. */
+.session-changes-editor-header-operations {
+	display: contents;
+}
+
 .session-changes-editor-header-right > .monaco-button,
-.session-changes-editor-header-right > .monaco-button-dropdown {
+.session-changes-editor-header-right > .monaco-button-dropdown,
+.session-changes-editor-header-operations > .monaco-button,
+.session-changes-editor-header-operations > .monaco-button-dropdown {
 	flex: 0 1 auto;
 }
 
 .session-changes-editor-header-right > .monaco-button.secondary,
-.session-changes-editor-header-right > .monaco-button-dropdown > .monaco-button.secondary.monaco-text-button {
+.session-changes-editor-header-right > .monaco-button-dropdown > .monaco-button.secondary.monaco-text-button,
+.session-changes-editor-header-operations > .monaco-button.secondary,
+.session-changes-editor-header-operations > .monaco-button-dropdown > .monaco-button.secondary.monaco-text-button {
 	flex: 0 0 auto;
 }
 

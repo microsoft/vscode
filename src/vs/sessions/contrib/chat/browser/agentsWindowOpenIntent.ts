@@ -107,6 +107,18 @@ function splitDevContainerAuthority(authority: string): { readonly config: strin
 		: { config: remainder.slice(0, separator), parentAuthority: remainder.slice(separator + 1) || undefined };
 }
 
+/** Decodes a Dev Containers authority configuration, or returns undefined when it isn't hex-encoded. */
+function decodeDevContainerConfig(config: string): string | undefined {
+	try {
+		return decodeHex(config).toString();
+	} catch (error) {
+		if (error instanceof SyntaxError) {
+			return undefined;
+		}
+		throw error;
+	}
+}
+
 /**
  * Reads the Docker host's workspace path from a Dev Containers authority
  * configuration. Mirrors `parseAuthority` in the Dev Containers extension: the
@@ -114,14 +126,9 @@ function splitDevContainerAuthority(authority: string): { readonly config: strin
  * opened from a volume or a cloned repository carry no host path.
  */
 function readDevContainerHostPath(config: string): string | undefined {
-	let decoded: string;
-	try {
-		decoded = decodeHex(config).toString();
-	} catch (error) {
-		if (error instanceof SyntaxError) {
-			return undefined;
-		}
-		throw error;
+	const decoded = decodeDevContainerConfig(config);
+	if (decoded === undefined) {
+		return undefined;
 	}
 	if (!decoded.startsWith('{')) {
 		return decoded || undefined;
@@ -132,6 +139,27 @@ function readDevContainerHostPath(config: string): string | undefined {
 	} catch {
 		// A configuration that opens like JSON but does not parse is not a path either.
 		return undefined;
+	}
+}
+
+/**
+ * Whether a Dev Containers authority selects the container this window uses for its source folder: the one of the
+ * folder's default configuration file on the default Docker host. Only the JSON form of the configuration can name
+ * another configuration file or Docker host, with properties besides the host path.
+ */
+export function selectsDefaultDevContainer(remoteAuthority: string): boolean {
+	if (!remoteAuthority.startsWith(DEV_CONTAINER_REMOTE_AUTHORITY_PREFIX)) {
+		return false;
+	}
+	const decoded = decodeDevContainerConfig(splitDevContainerAuthority(remoteAuthority).config);
+	if (!decoded?.startsWith('{')) {
+		return !!decoded;
+	}
+	try {
+		const parsed: unknown = JSON.parse(decoded);
+		return typeof parsed === 'object' && parsed !== null && Object.keys(parsed).join() === 'hostPath';
+	} catch {
+		return false;
 	}
 }
 

@@ -15,9 +15,11 @@ import '@vscode/markdown-editor/commentWidget.css';
 import './markdownEditor.css';
 import { WebviewSyntaxHighlighter } from './syntaxHighlighter';
 import { WebviewLinkPresentationProvider } from './linkPresentationProvider';
-import { markdownEditorHost, markdownEditorRenderer, type CodeBlockEditorProviderDefinition, type MarkdownEditorHost } from '../src/preview/markdownEditorProtocol';
+import { markdownEditorHost, markdownEditorRenderer, type CodeBlockEditorProviderDefinition, type MarkdownEditorConfiguration, type MarkdownEditorHost, type MarkdownEditorVersion } from '../src/preview/markdownEditorProtocol';
 import { createMarkdownEditorRpcConnection, MarkdownEditorRpcTransport } from '../src/preview/markdownEditorRpc';
 import { LazyCodeBlockEditorFactory } from '../src/preview/lazyCodeBlockEditorFactory';
+import { TextOperation, WebEditorClient, diffText, type ContentEdit } from '@vscode/web-editors';
+import type { EditorTextVersions } from './editorTextVersions';
 import { RenameController } from './renameController';
 import { CompletionController } from './completionController';
 import { DiagnosticsController } from './diagnosticsController';
@@ -125,12 +127,15 @@ class Editor extends Disposable {
 	#imagePaste: ImagePasteController | undefined;
 	#view: EditorView | undefined;
 	#embeddedCodeEditorFactory: LazyCodeBlockEditorFactory | undefined;
-	/** Identifies the authoritative text baseline against which local edits are computed. */
-	#editEpoch: number;
+	/** Syncs the editor text with the extension host, merging changes both make at the same time. */
+	readonly #content: WebEditorClient;
+	readonly #versions: EditorTextVersions;
+	/** The text the editor started with, until the host's content arrives. */
+	#initialText: string | undefined;
 	#navigationRevision = 0;
 	#navigationReady = false;
 	#navigationReportScheduled = false;
-	readonly #pendingEdits = new Set<Promise<void>>();
+	#pendingPaste = false;
 	readonly #scrollHost: HTMLElement;
 
 	readonly #comments = new CommentsModel();
@@ -144,10 +149,23 @@ class Editor extends Disposable {
 	readonly #syntaxHighlighter: WebviewSyntaxHighlighter;
 	readonly #linkPresentationProvider: WebviewLinkPresentationProvider | undefined;
 	#disposed = false;
+	#documentReadonly: boolean;
+	#userReadonly: boolean;
+	readonly #readonlyMessage: string;
+	#syncingReadonly = false;
+	#readonlyFeedbackElement: HTMLElement | undefined;
+	#readonlyFeedbackTimeout: ReturnType<typeof setTimeout> | undefined;
+	#readonlyAriaContainer: HTMLElement | undefined;
+	#readonlyAriaRegions: readonly [HTMLElement, HTMLElement] | undefined;
+	#readonlyAriaIndex = 0;
 
 	constructor(host: HTMLElement, initialState: InitialState) {
 		super();
 		this.#scrollHost = host;
+		this.#documentReadonly = initialState.documentReadonly;
+		this.#userReadonly = initialState.readonly;
+		this.#readonlyMessage = initialState.readonlyMessage;
+		this.#mountReadonlyLiveRegion();
 		this.#taskProgressProvider = createTaskProgressProvider(this.model, initialState.taskProgressLabels);
 
 		const messageSecret = document.querySelector<HTMLMetaElement>('meta[name="vscode-markdown-editor-message-secret"]')?.content;
@@ -170,7 +188,16 @@ class Editor extends Disposable {
 		});
 		this.#host = this.#connection.get(markdownEditorHost);
 		this.#syntaxHighlighter = new WebviewSyntaxHighlighter(this.#host);
-		this.#editEpoch = initialState.editEpoch;
+		const content = this.#content = new WebEditorClient({
+			connection: this.#connection,
+			onError: (message, detail) => console.error(`Markdown editor content sync: ${message}`, detail),
+		});
+		this.#versions = {
+			get current() { return content.version; },
+			isCurrent: version => version?.serverRevision === content.version.serverRevision && version.clientRevision === content.version.clientRevision,
+			fromHost: (version, offset) => version && content.mapOffset(version, [], offset),
+		};
+		this.#initialText = initialState.content;
 		this.#linkPresentationProvider = initialState.richLinksEnabled
 			? this._register(new WebviewLinkPresentationProvider(
 				initialState.linkPresentationRules,
@@ -179,7 +206,8 @@ class Editor extends Disposable {
 			: undefined;
 
 		this.model.sourceText.set(new StringValue(initialState.content), undefined);
-		this.model.readonlyMode.set(initialState.readonly, undefined);
+		this.model.readonlyMode.set(this.#documentReadonly || this.#userReadonly, undefined);
+		this.model.lineBreak.set(initialState.lineBreak, undefined);
 		this.model.renderWhitespace.set(initialState.renderWhitespace, undefined);
 
 		this._register(this.#connection.register(markdownEditorRenderer, {
@@ -188,17 +216,6 @@ class Editor extends Disposable {
 				return this.#imagePaste.readClipboardMedia(request, signal);
 			},
 			diagnosticsChanged: () => this.#diagnostics?.refresh(),
-			update: ({ content, editEpoch }) => {
-				// Applying authoritative text maps selection and clears stale pending-paragraph state.
-				this.#editEpoch = editEpoch;
-				this.isUpdatingFromExtension = true;
-				try {
-					this.model.replaceSourceText(new StringValue(content));
-				} finally {
-					this.isUpdatingFromExtension = false;
-				}
-				this.#scheduleSelectionReport();
-			},
 			codeBlockEditorProviders: ({ codeBlockEditorProviders }) => {
 				this.#codeBlockEditorProviders = codeBlockEditorProviders;
 				this.#embeddedCodeEditorFactory?.updateProviders(this.#createIframeProviders(codeBlockEditorProviders));
@@ -206,19 +223,19 @@ class Editor extends Disposable {
 			codeBlockEditorHostTransportMessage: ({ runtimeId, message }) => {
 				this.#codeBlockEditorHostTransports.get(runtimeId)?.acceptMessage(message);
 			},
-			gutterMarkers: ({ markers }) => {
+			gutterMarkers: ({ version, markers }) => {
 				const converted: GutterMarker[] = markers.map(marker => ({
-					range: OffsetRange.fromTo(marker.start, marker.endExclusive),
+					range: this.#rangeFromHost(version, marker.start, marker.endExclusive),
 					type: marker.type,
 				}));
 				this.model.gutterMarkers.set(converted, undefined);
 			},
-			comments: ({ comments, acceptsComments }) => {
+			comments: ({ version, comments, acceptsComments }) => {
 				this.#isUpdatingComments = true;
 				try {
 					this.#comments.set(comments.map(comment => ({
 						id: comment.id,
-						range: OffsetRange.fromTo(comment.start, comment.endExclusive),
+						range: this.#rangeFromHost(version, comment.start, comment.endExclusive),
 						body: comment.body,
 						author: comment.author,
 					})));
@@ -230,15 +247,19 @@ class Editor extends Disposable {
 			revealComment: ({ id }) => {
 				this.#commentsView?.revealComment(id);
 			},
-			revealLinkTarget: ({ start, endExclusive, selectionStart }) => {
-				this.#revealRange(start, endExclusive, { anchor: selectionStart, active: selectionStart }, false);
+			revealLinkTarget: ({ version, start, endExclusive, selectionStart }) => {
+				const range = this.#rangeFromHost(version, start, endExclusive, true);
+				const caret = this.#versions.fromHost(version, selectionStart);
+				if (caret === undefined) {
+					throw new Error('The Markdown document changed during navigation. Try again.');
+				}
+				this.#revealRange(range.start, range.endExclusive, { anchor: caret, active: caret }, false);
 			},
 			captureNavigationState: async (_message, _context, { signal }) => {
-				await this.#drainEdits();
 				signal.throwIfAborted();
 				const selection = this.model.selection.get();
 				return {
-					editEpoch: this.#editEpoch, revision: this.#navigationRevision,
+					version: this.#versions.current, revision: this.#navigationRevision,
 					selection: selection ? { anchor: selection.anchor, active: selection.active } : undefined,
 					scrollTop: this.#scrollHost.scrollTop,
 				};
@@ -260,10 +281,18 @@ class Editor extends Disposable {
 			},
 			command: async ({ command: commandId }) => {
 				if (commandId === 'markdown.editor.triggerSuggest') {
+					if (this.#documentReadonly) {
+						this.#showReadonlyFeedback();
+						return;
+					}
 					await this.#completion?.start();
 					return;
 				}
 				if (commandId === 'markdown.editor.rename') {
+					if (this.#documentReadonly) {
+						this.#showReadonlyFeedback();
+						return;
+					}
 					await this.#rename?.start();
 					return;
 				}
@@ -275,19 +304,38 @@ class Editor extends Disposable {
 			highlightThemeChanged: () => {
 				this.#syntaxHighlighter.themeChanged();
 			},
-			configurationChanged: ({ highlightActiveBlock, renderWhitespace }) => {
-				this.#view?.highlightActiveBlock.set(highlightActiveBlock, undefined);
-				this.model.renderWhitespace.set(renderWhitespace, undefined);
+			configurationChanged: configuration => {
+				applyTypography(configuration);
+				this.#view?.highlightActiveBlock.set(configuration.highlightActiveBlock, undefined);
+				this.#view?.zoomPercent.set(configuration.zoomPercent, undefined);
+				this.model.renderWhitespace.set(configuration.renderWhitespace, undefined);
+				this.model.lineBreak.set(configuration.lineBreak, undefined);
+				this.#setDocumentReadonly(configuration.documentReadonly);
 			},
 			richLinkPresentations: ({ presentations }) => {
 				this.#linkPresentationProvider?.updatePresentations(presentations);
 			},
 		}));
-		this.#createView(host, initialState.content, initialState.highlightActiveBlock);
-		this.#send('ready', this.#host.ready({
-			documentVersion: initialState.documentVersion,
-			editEpoch: this.#editEpoch,
-		}).then(() => {
+		applyTypography(initialState);
+		this.#createView(host, initialState.content, initialState.highlightActiveBlock, initialState.zoomPercent);
+		// The host's edits map the selection precisely; comparing texts would move it past all text between separate changes.
+		this._register(content.onDidApplyHostEdits(({ edits, content: text }) => {
+			if (typeof text === 'string' && this.#initialText === undefined && text !== this.model.sourceText.get().value) {
+				this.#setTextFromHost(text, toStringEdit(edits));
+			}
+		}));
+		this._register(content.onDidChangeContent(({ content: text }) => {
+			if (typeof text !== 'string') {
+				return;
+			}
+			if (this.#initialText !== undefined) {
+				this.#acceptInitialContent(this.#initialText, text);
+			} else if (text !== this.model.sourceText.get().value) {
+				this.#setTextFromHost(text);
+			}
+		}));
+		// The client applies the host's content only once connected; until then, the version it reports for navigation is stale.
+		this.#send('ready', content.onDidConnect.then(() => this.#host.ready({})).then(() => {
 			this.#navigationReady = true;
 			this.#scheduleSelectionReport();
 		}));
@@ -296,8 +344,47 @@ class Editor extends Disposable {
 
 	readonly #onPageHide = (): void => this.dispose();
 
-	#checkNavigationState(state: { editEpoch: number; revision: number }): void {
-		if (this.#disposed || state.editEpoch !== this.#editEpoch || state.revision !== this.#navigationRevision) {
+	/**
+	 * The host's text arrived. Typing that happened before is kept: it is
+	 * merged with the host's changes since the initial text and sent.
+	 */
+	#acceptInitialContent(initialText: string, hostText: string): void {
+		this.#initialText = undefined;
+		const current = this.model.sourceText.get().value;
+		const [hostChange, typed] = TextOperation.transform(diffText(initialText, hostText), diffText(initialText, current));
+		this.#setTextFromHost(hostChange.apply(current));
+		if (!typed.isIdentity) {
+			this.#content.applyEdits([{ kind: 'stringEdits', path: [], stringEdits: typed.toTextEdits() }]);
+		}
+	}
+
+	#setTextFromHost(text: string, edit?: StringEdit): void {
+		// Maps the selection and clears stale pending-paragraph state.
+		this.isUpdatingFromExtension = true;
+		try {
+			this.model.replaceSourceText(new StringValue(text), edit);
+		} finally {
+			this.isUpdatingFromExtension = false;
+		}
+		this.#scheduleSelectionReport();
+	}
+
+	/** Maps a range the host sent into the editor text; offsets that cannot be mapped are kept, or rejected if `strict`. */
+	#rangeFromHost(version: MarkdownEditorVersion, start: number, endExclusive: number, strict = false): OffsetRange {
+		const mappedStart = this.#versions.fromHost(version, start);
+		const mappedEnd = this.#versions.fromHost(version, endExclusive);
+		if (mappedStart === undefined || mappedEnd === undefined) {
+			if (strict) {
+				throw new Error('The Markdown document changed during navigation. Try again.');
+			}
+			const length = this.model.sourceText.get().value.length;
+			return OffsetRange.fromTo(Math.min(start, length), Math.min(Math.max(start, endExclusive), length));
+		}
+		return OffsetRange.fromTo(mappedStart, Math.max(mappedStart, mappedEnd));
+	}
+
+	#checkNavigationState(state: { version: MarkdownEditorVersion; revision: number }): void {
+		if (this.#disposed || !this.#versions.isCurrent(state.version) || state.revision !== this.#navigationRevision) {
 			throw new Error('The Markdown document changed during navigation. Try again.');
 		}
 	}
@@ -318,25 +405,17 @@ class Editor extends Disposable {
 		this.#view?.revealRangeAtTop(OffsetRange.fromTo(start, endExclusive));
 	}
 
-	async #drainEdits(): Promise<void> {
-		while (this.#pendingEdits.size) {
-			await Promise.all(this.#pendingEdits);
-		}
-		if (this.#disposed) { throw new Error('Markdown editor is disposed'); }
-	}
-
 	#scheduleSelectionReport(): void {
 		if (!this.#navigationReady || this.#navigationReportScheduled || this.#disposed) { return; }
 		this.#navigationReportScheduled = true;
 		queueMicrotask(() => {
 			this.#navigationReportScheduled = false;
 			if (this.#disposed) { return; }
-			this.#send('selectionChanged', this.#drainEdits().then(() => {
-				const selection = this.model.selection.get();
-				return this.#host.selectionChanged({
-					editEpoch: this.#editEpoch,
-					selection: selection ? { anchor: selection.anchor, active: selection.active } : undefined,
-				});
+			const selection = this.model.selection.get();
+			// Sent after the edits it depends on; the host maps it into its text.
+			this.#send('selectionChanged', this.#host.selectionChanged({
+				version: this.#versions.current,
+				selection: selection ? { anchor: selection.anchor, active: selection.active } : undefined,
 			}));
 		});
 	}
@@ -353,6 +432,12 @@ class Editor extends Disposable {
 		if (this.#disposed) {
 			return;
 		}
+		this.#hideReadonlyFeedback();
+		this.#readonlyFeedbackElement?.remove();
+		this.#readonlyFeedbackElement = undefined;
+		this.#readonlyAriaContainer?.remove();
+		this.#readonlyAriaContainer = undefined;
+		this.#readonlyAriaRegions = undefined;
 		window.removeEventListener('pagehide', this.#onPageHide);
 		for (const transport of Array.from(this.#codeBlockEditorHostTransports.values())) {
 			transport.dispose();
@@ -360,10 +445,83 @@ class Editor extends Disposable {
 		this.#disposed = true;
 		this.#syntaxHighlighter.dispose();
 		super.dispose();
-		this.#connection.close();
+		this.#content.dispose();
 	}
 
-	#createView(host: HTMLElement, content: string, highlightActiveBlock: boolean): void {
+	#setDocumentReadonly(documentReadonly: boolean): void {
+		if (this.#documentReadonly === documentReadonly) {
+			return;
+		}
+		this.#documentReadonly = documentReadonly;
+		this.#view?.showReadonlyToggle.set(!documentReadonly, undefined);
+		if (!documentReadonly) {
+			this.#hideReadonlyFeedback();
+		}
+		this.#syncingReadonly = true;
+		try {
+			this.model.readonlyMode.set(documentReadonly || this.#userReadonly, undefined);
+		} finally {
+			this.#syncingReadonly = false;
+		}
+	}
+
+	#mountReadonlyLiveRegion(): void {
+		const container = document.createElement('div');
+		container.className = 'md-sr-only';
+		const createRegion = (): HTMLElement => {
+			const region = document.createElement('div');
+			region.setAttribute('role', 'status');
+			region.setAttribute('aria-live', 'polite');
+			region.setAttribute('aria-atomic', 'true');
+			return region;
+		};
+		const first = createRegion();
+		const second = createRegion();
+		container.append(first, second);
+		document.body.appendChild(container);
+		this.#readonlyAriaContainer = container;
+		this.#readonlyAriaRegions = [first, second];
+	}
+
+	#showReadonlyFeedback(): void {
+		if (!this.#documentReadonly || this.#disposed) {
+			return;
+		}
+		if (!this.#readonlyFeedbackElement) {
+			const banner = document.createElement('div');
+			banner.className = 'md-document-readonly-toast';
+			banner.setAttribute('aria-hidden', 'true');
+			banner.textContent = this.#readonlyMessage;
+			document.body.appendChild(banner);
+			this.#readonlyFeedbackElement = banner;
+		}
+		if (this.#readonlyAriaRegions) {
+			const [active, inactive] = this.#readonlyAriaIndex === 0
+				? this.#readonlyAriaRegions
+				: [this.#readonlyAriaRegions[1], this.#readonlyAriaRegions[0]];
+			this.#readonlyAriaIndex = 1 - this.#readonlyAriaIndex;
+			inactive.textContent = '';
+			active.textContent = this.#readonlyMessage;
+		}
+		this.#readonlyFeedbackElement.classList.add('visible');
+		if (this.#readonlyFeedbackTimeout !== undefined) {
+			clearTimeout(this.#readonlyFeedbackTimeout);
+		}
+		this.#readonlyFeedbackTimeout = setTimeout(() => {
+			this.#readonlyFeedbackTimeout = undefined;
+			this.#readonlyFeedbackElement?.classList.remove('visible');
+		}, 2500);
+	}
+
+	#hideReadonlyFeedback(): void {
+		if (this.#readonlyFeedbackTimeout !== undefined) {
+			clearTimeout(this.#readonlyFeedbackTimeout);
+			this.#readonlyFeedbackTimeout = undefined;
+		}
+		this.#readonlyFeedbackElement?.classList.remove('visible');
+	}
+
+	#createView(host: HTMLElement, content: string, highlightActiveBlock: boolean, zoomPercent: number): void {
 		const model = this.model;
 		const scriptNonce = document.querySelector<HTMLMetaElement>('meta[name="vscode-markdown-editor-script-nonce"]')?.content;
 		const iframeBootstrapUrl = new URL(location.href);
@@ -396,11 +554,17 @@ class Editor extends Disposable {
 		const view = this._register(new EditorView(model, {
 			classNames: ['md-theme-vscode-default'],
 			highlightActiveBlock,
+			zoomPercent,
+			showReadonlyToggle: !this.#documentReadonly,
 			presentation: model.readonlyMode.get() ? 'reading' : 'editing',
 			syntaxHighlighter: this.#syntaxHighlighter,
 			linkPresentationProvider: this.#linkPresentationProvider,
 			embeddedCodeEditorFactory,
 			onEmbeddedCodeEditorEdit: (block: CodeBlockAstNode, contentEdit: StringEdit) => {
+				if (this.#documentReadonly) {
+					this.#showReadonlyFeedback();
+					return;
+				}
 				const doc = model.document.get();
 				const blockOffset = findNodeOffsetById(doc, block);
 				if (blockOffset === undefined) { return; }
@@ -416,20 +580,52 @@ class Editor extends Disposable {
 				this.#send('openLink', this.#host.openLink({ href: url }));
 			},
 			onToggleCheckbox: (item, newChecked) => {
+				if (this.#documentReadonly) {
+					this.#showReadonlyFeedback();
+					return;
+				}
 				model.setTaskCheckboxChecked(item, newChecked);
 			},
 		}));
 		this.#view = view;
-		this.#rename = this._register(new RenameController(model, view, this.#host, () => this.#editEpoch));
-		this.#completion = this._register(new CompletionController(model, view, this.#host, () => this.#editEpoch));
-		this.#diagnostics = this._register(new DiagnosticsController(model, view, this.#host, () => this.#editEpoch));
+		const onReadonlyKeyDown = (event: KeyboardEvent): void => {
+			if (this.#documentReadonly && !isNestedEditableTarget(event.target, view.element) && isEditingKeyEvent(event)) {
+				this.#showReadonlyFeedback();
+			}
+		};
+		const onReadonlyClipboardEdit = (event: ClipboardEvent): void => {
+			if (this.#documentReadonly && !isNestedEditableTarget(event.target, view.element)) {
+				event.preventDefault();
+				this.#showReadonlyFeedback();
+			}
+		};
+		view.element.addEventListener('keydown', onReadonlyKeyDown, true);
+		view.element.addEventListener('paste', onReadonlyClipboardEdit, true);
+		view.element.addEventListener('cut', onReadonlyClipboardEdit, true);
+		this._register({
+			dispose: () => {
+				view.element.removeEventListener('keydown', onReadonlyKeyDown, true);
+				view.element.removeEventListener('paste', onReadonlyClipboardEdit, true);
+				view.element.removeEventListener('cut', onReadonlyClipboardEdit, true);
+			},
+		});
+		this.#rename = this._register(new RenameController(model, view, this.#host, this.#versions));
+		this.#completion = this._register(new CompletionController(model, view, this.#host, this.#versions));
+		this.#diagnostics = this._register(new DiagnosticsController(model, view, this.#host, this.#versions));
 
 		// Wire history chords (undo/redo) to the extension so they run against the
 		// backing TextDocument's own undo stack. `record` is deliberately omitted:
 		// the TextDocument owns the history, and a second local stack would drift
 		// from the Edit menu, dirty state and hot exit.
 		this.#controller = this._register(new EditorController(model, view, {
-			clipboardStrategy: this.#imagePaste = this._register(new ImagePasteController(model, view, this.#host, () => this.#editEpoch)),
+			clipboardStrategy: this.#imagePaste = this._register(new ImagePasteController(model, view, this.#host, this.#versions, navigator.clipboard, insert => {
+				this.#pendingPaste = true;
+				try {
+					insert();
+				} finally {
+					this.#pendingPaste = false;
+				}
+			})),
 			keyboardProfile: vscodeLocalKeyboardProfile,
 			forwardedKeyboardProfile: vscodeHostKeyboardProfile,
 			historyStrategy: {
@@ -437,6 +633,16 @@ class Editor extends Disposable {
 				redo: () => this.#send('history redo', this.#host.history({ command: 'redo' })),
 			},
 		}));
+		const onPointerDown = (): void => {
+			const sel = this.model.selection.read(undefined);
+			this.#send('undoEditHint', this.#host.undoEditHint({
+				kind: 'break',
+				version: this.#versions.current,
+				offset: sel?.active,
+			}));
+		};
+		view.element.addEventListener('pointerdown', onPointerDown);
+		this._register({ dispose: () => view.element.removeEventListener('pointerdown', onPointerDown) });
 		let lastEditorFocus: boolean | undefined;
 		const postEditorFocus = (): void => {
 			const focused = document.hasFocus() && document.activeElement === view.element;
@@ -487,7 +693,7 @@ class Editor extends Disposable {
 			if (accepts && !commentController) {
 				commentController = new CommentModeController(model, view, {
 					onSubmit: ({ text, range }) => {
-						this.#send('addComment', this.#host.addComment({ start: range.start, endExclusive: range.endExclusive, text }));
+						this.#send('addComment', this.#host.addComment({ start: range.start, endExclusive: range.endExclusive, text, version: this.#versions.current }));
 					},
 				});
 			} else if (!accepts && commentController) {
@@ -548,10 +754,28 @@ class Editor extends Disposable {
 		window.addEventListener('pagehide', saveScroll);
 		this._register({ dispose: () => { document.removeEventListener('visibilitychange', onHide); window.removeEventListener('pagehide', saveScroll); } });
 
+		// Track the last seen text and selection so we can distinguish pure
+		// caret navigation from typing-induced caret movement and report
+		// deletion direction (Backspace vs Delete) for undo grouping.
+		let previousText = this.model.sourceText.get().value;
+		let previousSelection = this.model.selection.get();
+
 		// Persist the cursor whenever it moves.
 		this._register(autorun((reader) => {
 			const sel = reader.readObservable(this.model.selection);
 			this.#patchViewState({ selection: sel ? { anchor: sel.anchor, active: sel.active } : undefined });
+			const currentText = this.model.sourceText.read(undefined).value;
+			if (currentText === previousText) {
+				if (!this.isUpdatingFromExtension && sel && previousSelection
+					&& (sel.anchor !== previousSelection.anchor || sel.active !== previousSelection.active)) {
+					this.#send('undoEditHint', this.#host.undoEditHint({
+						kind: 'break',
+						version: this.#versions.current,
+						offset: sel.active,
+					}));
+				}
+				previousSelection = sel;
+			}
 			this.#scheduleSelectionReport();
 		}));
 
@@ -562,7 +786,12 @@ class Editor extends Disposable {
 		this._register(autorun((reader) => {
 			const isReadonly = reader.readObservable(this.model.readonlyMode);
 			this.model.presentation.set(isReadonly ? 'reading' : 'editing', undefined);
-			if (!firstReadonly) {
+			if (this.#documentReadonly) {
+				if (!isReadonly) {
+					this.model.readonlyMode.set(true, undefined);
+				}
+			} else if (!firstReadonly && !this.#syncingReadonly) {
+				this.#userReadonly = isReadonly;
 				this.#send('setReadonly', this.#host.setReadonly({ readonly: isReadonly }));
 			}
 			firstReadonly = false;
@@ -571,22 +800,43 @@ class Editor extends Disposable {
 		// Forward user edits to the extension. Edits are ignored by the model while
 		// read-only, so this is a no-op in that mode; keeping it always registered
 		// means unlocking a read-only editor immediately resumes edit forwarding.
-		let previousText = this.model.sourceText.get().value;
+		// Until the host's content arrives, edits are kept and merged with it then.
 		this._register(autorun((reader) => {
 			const text = reader.readObservable(this.model.sourceText).value;
 			if (text !== previousText) {
 				this.#navigationRevision++;
 				this.#scheduleSelectionReport();
 			}
-			if (!this.isUpdatingFromExtension && text !== previousText) {
-				const edit = this.#host.edit({
-					...computeTextEdit(previousText, text),
-					editEpoch: this.#editEpoch,
-				});
-				this.#pendingEdits.add(edit);
-				this.#send('edit', edit.finally(() => this.#pendingEdits.delete(edit)));
+			if (!this.isUpdatingFromExtension && text !== previousText && this.#initialText === undefined) {
+				const edit = computeTextEdit(previousText, text);
+				const version = this.#versions.current;
+				if (this.#pendingPaste) {
+					this.#send('undoEditHint', this.#host.undoEditHint({
+						kind: 'isolated',
+						version,
+						offset: edit.start,
+						length: edit.text.length,
+					}));
+				} else if (edit.text.length === 0 && edit.endExclusive > edit.start && previousSelection) {
+					const deletedLength = edit.endExclusive - edit.start;
+					if (previousSelection.anchor !== previousSelection.active) {
+						this.#send('undoEditHint', this.#host.undoEditHint({ kind: 'isolated' }));
+					} else if (edit.endExclusive === previousSelection.active) {
+						this.#send('undoEditHint', this.#host.undoEditHint({ kind: 'deleteBackward', version, offset: edit.start, length: deletedLength }));
+					} else if (edit.start === previousSelection.active) {
+						this.#send('undoEditHint', this.#host.undoEditHint({ kind: 'deleteForward', version, offset: edit.start, length: deletedLength }));
+					} else {
+						this.#send('undoEditHint', this.#host.undoEditHint({ kind: 'isolated' }));
+					}
+				}
+				this.#content.applyEdits([{
+					kind: 'stringEdits',
+					path: [],
+					stringEdits: [{ offset: edit.start, length: edit.endExclusive - edit.start, newText: edit.text }],
+				}]);
 			}
 			previousText = text;
+			previousSelection = this.model.selection.read(undefined);
 		}));
 
 		// Restore scroll last: content height settles over a few frames (async parse,
@@ -685,15 +935,56 @@ function isInitialState(value: unknown): value is InitialState {
 	const candidate = value as Record<string, unknown>;
 	return typeof candidate.content === 'string'
 		&& isTaskProgressLabels(candidate.taskProgressLabels)
-		&& typeof candidate.documentVersion === 'number'
-		&& typeof candidate.editEpoch === 'number'
-		&& Number.isInteger(candidate.editEpoch)
-		&& candidate.editEpoch >= 0
 		&& typeof candidate.readonly === 'boolean'
+		&& typeof candidate.readonlyMessage === 'string'
+		&& typeof candidate.documentReadonly === 'boolean'
 		&& typeof candidate.highlightActiveBlock === 'boolean'
 		&& typeof candidate.renderWhitespace === 'boolean'
+		&& (candidate.lineBreak === '\n' || candidate.lineBreak === '\r\n')
+		&& (candidate.fontFamily === undefined || typeof candidate.fontFamily === 'string')
+		&& (candidate.fontSize === undefined || (typeof candidate.fontSize === 'number' && Number.isFinite(candidate.fontSize)))
+		&& (candidate.lineHeight === undefined || (typeof candidate.lineHeight === 'number' && Number.isFinite(candidate.lineHeight)))
 		&& typeof candidate.richLinksEnabled === 'boolean'
 		&& Array.isArray(candidate.linkPresentationRules);
+}
+
+function applyTypography({ fontFamily, fontSize, lineHeight }: Pick<MarkdownEditorConfiguration, 'fontFamily' | 'fontSize' | 'lineHeight'>): void {
+	const style = document.documentElement.style;
+	setOptionalStyleProperty(style, '--markdown-font-family', fontFamily);
+	setOptionalStyleProperty(style, '--markdown-font-size', fontSize !== undefined ? `${fontSize}px` : undefined);
+	setOptionalStyleProperty(style, '--markdown-line-height', lineHeight !== undefined ? `${lineHeight}` : undefined);
+}
+
+function setOptionalStyleProperty(style: CSSStyleDeclaration, property: string, value: string | undefined): void {
+	if (value === undefined) {
+		style.removeProperty(property);
+	} else {
+		style.setProperty(property, value);
+	}
+}
+
+function isNestedEditableTarget(target: EventTarget | null, editorRoot: HTMLElement): boolean {
+	const element = target instanceof HTMLElement
+		? target
+		: target instanceof Node
+			? target.parentElement
+			: null;
+	if (!element || element === editorRoot) {
+		return false;
+	}
+	const editable = element.closest('input, textarea, select, [contenteditable="true"], [contenteditable=""]');
+	return editable !== null && editable !== editorRoot;
+}
+
+function isEditingKeyEvent(event: KeyboardEvent): boolean {
+	if (event.metaKey || event.ctrlKey) {
+		const key = event.key.toLowerCase();
+		return key === 'v' || key === 'x' || key === 'z' || key === 'y';
+	}
+	if (event.altKey) {
+		return false;
+	}
+	return event.key.length === 1 || event.key === 'Backspace' || event.key === 'Delete' || event.key === 'Enter';
 }
 
 function computeTextEdit(previousText: string, text: string): { start: number; endExclusive: number; text: string } {
@@ -714,6 +1005,20 @@ function computeTextEdit(previousText: string, text: string): { start: number; e
 		endExclusive: previousEnd,
 		text: text.slice(start, end),
 	};
+}
+
+/** The text edit of a host change, with offsets into the text before it; `undefined` for other kinds of change. */
+function toStringEdit(edits: readonly ContentEdit[]): StringEdit | undefined {
+	if (edits.length !== 1 || edits[0].kind !== 'stringEdits' || edits[0].path.length !== 0) {
+		return undefined;
+	}
+	// The protocol's edits apply one after another; shift each back by what the previous ones inserted.
+	let delta = 0;
+	return new StringEdit(TextOperation.fromTextEdits(edits[0].stringEdits).toTextEdits().map(edit => {
+		const start = edit.offset - delta;
+		delta += edit.newText.length - edit.length;
+		return StringReplacement.replace(new OffsetRange(start, start + edit.length), edit.newText);
+	}));
 }
 
 new Editor(document.getElementById('editor')!, readInitialState());

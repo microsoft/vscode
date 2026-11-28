@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { HookType } from '../../../common/promptSyntax/hookTypes.js';
-import { parseClaudeHooks, resolveClaudeHookType, getClaudeHookTypeName, extractHookCommandsFromItem } from '../../../common/promptSyntax/hookClaudeCompat.js';
+import { parseClaudeHooks, resolveClaudeHookType, extractHookCommandsFromItem } from '../../../common/promptSyntax/hookClaudeCompat.js';
 import { getHookSourceFormat, HookSourceFormat, buildNewHookEntry } from '../../../common/promptSyntax/hookCompatibility.js';
 import { URI } from '../../../../../../base/common/uri.js';
 
@@ -113,16 +113,6 @@ suite('HookClaudeCompat', () => {
 
 		test('returns undefined for camelCase (not Claude format)', () => {
 			assert.strictEqual(resolveClaudeHookType('preToolUse'), undefined);
-		});
-	});
-
-	suite('getClaudeHookTypeName', () => {
-		test('gets PreToolUse for HookType.PreToolUse', () => {
-			assert.strictEqual(getClaudeHookTypeName(HookType.PreToolUse), 'PreToolUse');
-		});
-
-		test('gets UserPromptSubmit for HookType.UserPromptSubmit', () => {
-			assert.strictEqual(getClaudeHookTypeName(HookType.UserPromptSubmit), 'UserPromptSubmit');
 		});
 	});
 

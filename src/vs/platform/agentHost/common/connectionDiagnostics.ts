@@ -81,6 +81,7 @@ export function sanitizeConnectionDiagnosticText(value: string, limit = 1024): s
 		.replace(/((?:https?|wss?):\/\/)[^\s/@]+(?::[^\s/@]*)?@/gi, '$1[redacted]@')
 		.replace(/((?:https?|wss?):\/\/[^\s?#]+)[?#][^\s]*/gi, '$1?[redacted]')
 		.replace(/((?:access[_-]?token|refresh[_-]?token|token|tkn|password|secret|authorization|cookie)\s*["']?\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,;]+)/gi, '$1[redacted]')
+		.replace(/(--[\w-]*(?:token|secret|password)[\w-]*(?:=|\s+))(?!-)("[^"]*"|'[^']*'|[^\s,;]+)/gi, '$1[redacted]')
 		.replace(/\b(?:gh[pousr]_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)\b/g, '[redacted token]')
 		.replace(/[\r\n\t]+/g, ' ')
 		.slice(0, limit);

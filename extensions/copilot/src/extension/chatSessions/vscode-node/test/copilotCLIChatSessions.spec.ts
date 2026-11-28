@@ -57,7 +57,7 @@ beforeAll(() => {
 	(vscodeShim as Record<string, unknown>).workspace = {
 		...((vscodeShim as Record<string, unknown>).workspace as object),
 		workspaceFolders: [],
-		isAgentSessionsWorkspace: false,
+		isAgentManaged: false,
 		isResourceTrusted: async () => true,
 	};
 });

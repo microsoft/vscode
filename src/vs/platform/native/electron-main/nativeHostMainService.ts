@@ -37,7 +37,7 @@ import { IProductService } from '../../product/common/productService.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
 import { defaultWindowState, ICodeWindow, LoadReason } from '../../window/electron-main/window.js';
-import { AGENTS_LAUNCHER_IPC_CHANNEL, AgentsWindowOpenSource, IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowFolderLocation, IWindowOpenable } from '../../window/common/window.js';
+import { AGENTS_LAUNCHER_IPC_CHANNEL, AgentsWindowOpenSource, IAgentsLauncherOptions, IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowFolderLocation, IWindowOpenable } from '../../window/common/window.js';
 import { IFolderLocationsMainService } from '../../windows/electron-main/folderLocationsMainService.js';
 import { defaultBrowserWindowOptions, isBackgroundThrottlingAllowed, isHiddenWindowMode, IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
@@ -395,13 +395,13 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 	}
 
-	async showAgentsLauncher(windowId: number | undefined): Promise<void> {
+	async showAgentsLauncher(windowId: number | undefined, options?: IAgentsLauncherOptions): Promise<void> {
 		this.logService.trace('nativeHostMainService#showAgentsLauncher');
 
 		const agentsWindow = this.windowsMainService.getWindows().find(window => window.config?.isSessionsWindow);
 		if (agentsWindow) {
 			this.logService.trace('nativeHostMainService#showAgentsLauncher: reusing open Agents window');
-			agentsWindow.sendWhenReady(AGENTS_LAUNCHER_IPC_CHANNEL, CancellationToken.None);
+			agentsWindow.sendWhenReady(AGENTS_LAUNCHER_IPC_CHANNEL, CancellationToken.None, options);
 			return;
 		}
 
@@ -412,7 +412,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			cli: this.environmentMainService.args,
 		}, undefined, undefined, AgentsWindowOpenSource.AgentsLauncher);
 		if (windows.length > 0) {
-			windows[0].sendWhenReady(AGENTS_LAUNCHER_IPC_CHANNEL, CancellationToken.None);
+			windows[0].sendWhenReady(AGENTS_LAUNCHER_IPC_CHANNEL, CancellationToken.None, options);
 		}
 	}
 
@@ -823,6 +823,17 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	async setDocumentEdited(windowId: number | undefined, edited: boolean, options?: INativeHostOptions): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.setDocumentEdited(edited);
+	}
+
+	async setWindowAgentsMode(windowId: number | undefined, active: unknown, options?: INativeHostOptions): Promise<void> {
+		if (typeof active !== 'boolean') {
+			return; // the renderer is not trusted to send a boolean: only a real one changes the mode main restores the window in
+		}
+
+		const window = this.codeWindowById(options?.targetWindowId ?? windowId);
+		if (window?.config) {
+			window.config.agentsMode = active || undefined;
+		}
 	}
 
 	async setApplicationBadge(windowId: number | undefined, badge: IApplicationBadge | undefined, options?: INativeHostOptions): Promise<void> {

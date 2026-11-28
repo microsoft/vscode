@@ -6,6 +6,7 @@
 import { DisposableStore, type IDisposable } from '../../../../base/common/lifecycle.js';
 import { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
 import { AdditionalWorktreeLifecycleContribution } from './additionalWorktreeLifecycle/additionalWorktreeLifecycleContribution.js';
+import { FolderIsolationContribution } from './folderIsolation/folderIsolation.js';
 import { ArtifactToolsContribution } from './artifactTools/artifactToolsContribution.js';
 import { ArtifactRunsContribution } from './artifactRuns/artifactRunsContribution.js';
 import { ChatArchiveContribution } from './chatArchive/chatArchiveContribution.js';
@@ -38,7 +39,9 @@ import { TurnAdmissionContribution } from './turnAdmission/turnAdmissionContribu
 import { TurnDelegationContribution } from './turnDelegation/turnDelegationContribution.js';
 import { WorktreeAnnouncementContribution } from './worktreeAnnouncement/worktreeAnnouncementContribution.js';
 import { WorkspaceContextContribution } from './workspaceContext/workspaceContextContribution.js';
+import { WorkingDirectoriesContextContribution } from './workingDirectoriesContext/workingDirectoriesContextContribution.js';
 import { WorktreeFailureContribution } from './worktreeFailure/worktreeFailureContribution.js';
+import { WorktreeGitLfsContribution } from './worktreeGitLfs/worktreeGitLfsContribution.js';
 
 /** Registers all built-in chat contribution constructors. */
 export function registerBuiltInChatContributions(
@@ -57,8 +60,10 @@ export function registerBuiltInChatContributions(
 	registrations.add(contributions.registerContribution(PersistedTurnUsageContribution));
 	registrations.add(contributions.registerContribution(PersistedFailedTurnsContribution));
 	registrations.add(contributions.registerContribution(WorktreeAnnouncementContribution));
+	registrations.add(contributions.registerContribution(WorktreeGitLfsContribution));
 	registrations.add(contributions.registerContribution(CheckpointAndChangesetContribution));
 	registrations.add(contributions.registerContribution(SessionWorkspaceConversionContribution));
+	registrations.add(contributions.registerContribution(FolderIsolationContribution));
 	registrations.add(contributions.registerContribution(ScheduledChatMovesContribution));
 	registrations.add(contributions.registerContribution(QueueDrainContribution));
 	registrations.add(contributions.registerContribution(SessionInputNeededContribution));
@@ -68,6 +73,7 @@ export function registerBuiltInChatContributions(
 	registrations.add(contributions.registerContribution(ChatDraftContribution));
 	registrations.add(contributions.registerContribution(ChatConfigContribution));
 	registrations.add(contributions.registerContribution(MarkdownPlanRichLinksContribution));
+	registrations.add(contributions.registerContribution(WorkingDirectoriesContextContribution));
 	registrations.add(contributions.registerContribution(WorkspaceContextContribution));
 	registrations.add(contributions.registerContribution(ArtifactToolsContribution));
 	registrations.add(contributions.registerContribution(ArtifactRunsContribution));

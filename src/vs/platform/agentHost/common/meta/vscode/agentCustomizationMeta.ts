@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Mutable } from '../../../../../base/common/types.js';
+import { isEqualOrParent, joinPath, relativePath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
-import type { AgentCustomization } from '../../state/protocol/state.js';
+import { CustomizationType, type AgentCustomization, type ChildCustomization } from '../../state/protocol/state.js';
 
 /**
  * Well-known typed view over a custom agent's `_meta` bag (see
@@ -27,6 +28,11 @@ export interface IAgentCustomizationMeta {
 	/** Authored reasoning preference; omitted means inherit the selected model's configuration. */
 	readonly 'vscode.reasoningEffort'?: string;
 	readonly 'vscode.modelPolicy'?: 'preferred' | 'required';
+	/** Guidance for the Assisted permissions judge while this agent is selected (`vscode: assisted-approval-instructions`). */
+	readonly 'vscode.assistedApprovalInstructions'?: string;
+	/** Authored hint shown in the empty chat input while the agent is selected (`argument-hint`). */
+	readonly 'vscode.argumentHint'?: string;
+	readonly 'vscode.welcomeMessage'?: string;
 	/** Client-supplied file URI before host materialization, used only to recover local provenance. */
 	readonly 'vscode.sourceUri'?: string;
 }
@@ -48,6 +54,15 @@ export function readAgentCustomizationMeta(agent: AgentCustomization): IAgentCus
 	if (meta?.['vscode.modelPolicy'] === 'preferred' || meta?.['vscode.modelPolicy'] === 'required') {
 		result['vscode.modelPolicy'] = meta['vscode.modelPolicy'];
 	}
+	if (typeof meta?.['vscode.assistedApprovalInstructions'] === 'string') {
+		result['vscode.assistedApprovalInstructions'] = meta['vscode.assistedApprovalInstructions'];
+	}
+	if (typeof meta?.['vscode.argumentHint'] === 'string') {
+		result['vscode.argumentHint'] = meta['vscode.argumentHint'];
+	}
+	if (typeof meta?.['vscode.welcomeMessage'] === 'string' && meta['vscode.welcomeMessage'].trim()) {
+		result['vscode.welcomeMessage'] = meta['vscode.welcomeMessage'];
+	}
 	if (meta?.['vscode.chatMode'] === 'ask') {
 		result['vscode.chatMode'] = 'ask';
 	}
@@ -56,16 +71,38 @@ export function readAgentCustomizationMeta(agent: AgentCustomization): IAgentCus
 	} else if (typeof meta?.userInvocable === 'boolean') {
 		result.userInvocable = meta.userInvocable;
 	}
-	const sourceUri = meta?.['vscode.sourceUri'];
+	const sourceUri = readCustomizationSourceUri(agent);
+	if (sourceUri !== undefined) {
+		result['vscode.sourceUri'] = sourceUri;
+	}
+	return result;
+}
+
+/** Reads optional client-side provenance without changing the host-authored child URI. */
+export function readCustomizationSourceUri(child: ChildCustomization): string | undefined {
+	const sourceUri = child._meta?.['vscode.sourceUri'];
 	if (typeof sourceUri === 'string') {
 		try {
 			URI.parse(sourceUri, true);
-			result['vscode.sourceUri'] = sourceUri;
+			return sourceUri;
 		} catch {
-			// Malformed optional provenance does not affect the agent's identity.
+			// Malformed optional provenance does not affect the child's identity.
 		}
 	}
-	return result;
+	return undefined;
+}
+
+/** Records the client-side counterpart of a child parsed from a materialized plugin. */
+export function withCustomizationSourceUri(child: ChildCustomization, materializedRoot: URI, sourceRoot: URI): ChildCustomization {
+	if (child.type === CustomizationType.McpServer) {
+		return child;
+	}
+	const resource = URI.parse(child.uri);
+	const path = isEqualOrParent(resource, materializedRoot) ? relativePath(materializedRoot, resource) : undefined;
+	return path === undefined ? child : {
+		...child,
+		_meta: { ...child._meta, 'vscode.sourceUri': joinPath(sourceRoot, path).toString() },
+	};
 }
 
 /**

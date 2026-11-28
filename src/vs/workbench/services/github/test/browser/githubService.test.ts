@@ -8,7 +8,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../base/
 import assert from 'assert';
 import sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
-import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
+import { asGitHubAccount, IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -17,12 +17,13 @@ import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelSc
 import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { GitHubClientOptions } from '../../../../../platform/github/common/githubTypes.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ITelemetryService, TELEMETRY_SETTING_ID, TelemetryLevel } from '../../../../../platform/telemetry/common/telemetry.js';
-import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationGetSessionsOptions, IAuthenticationService } from '../../../authentication/common/authentication.js';
+import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationExtensionsService, IAuthenticationGetSessionsOptions, IAuthenticationService } from '../../../authentication/common/authentication.js';
 import { WorkbenchGitHubService } from '../../browser/githubService.js';
 import { getGitHubClientInternals } from '../../../../../platform/github/test/common/githubClientTestUtils.js';
 
@@ -49,9 +50,11 @@ suite('Workbench GitHub service', () => {
 		const defaultChanged = store.add(new Emitter<IDefaultAccount | null>());
 		const configuration = new TestConfigurationService({ [TELEMETRY_SETTING_ID]: 'all' });
 		store.add(configuration.onDidChangeConfigurationEmitter);
-		const state: { account: IDefaultAccount | null; enterpriseUrl?: string; pendingDefaultAccount?: Promise<IDefaultAccount | null> } = {
+		const state: { account: IDefaultAccount | null; configuredProvider?: IDefaultAccount['authenticationProvider']; enterpriseUrl?: string; pendingDefaultAccount?: Promise<IDefaultAccount | null>; preferences: { [extensionId: string]: string | undefined } } = {
 			account: { authenticationProvider: provider, accountName: 'account', sessionId: 'session', enterprise: false },
+			preferences: {},
 		};
+		const preferenceChanged = store.add(new Emitter<{ extensionIds: string[]; providerId: string }>());
 		const calls: { providerId: string; options: IAuthenticationGetSessionsOptions | undefined }[] = [];
 		const service = store.add(new WorkbenchGitHubService(
 			new class extends mock<IAuthenticationService>() {
@@ -65,17 +68,22 @@ suite('Workbench GitHub service', () => {
 				override readonly onDidChangeDefaultAccount = defaultChanged.event;
 				override get currentDefaultAccount() { return state.account; }
 				override async getDefaultAccount() { return state.pendingDefaultAccount ?? state.account; }
-				override getDefaultAccountAuthenticationProvider() { return state.account?.authenticationProvider ?? provider; }
+				override getDefaultAccountAuthenticationProvider() { return asGitHubAccount(state.account)?.authenticationProvider ?? state.configuredProvider ?? provider; }
 				override resolveGitHubUrl() { return state.enterpriseUrl; }
 			}(),
 			new NullLogService(), telemetryService,
 			new class extends mock<IProductService>() {
 				override readonly applicationName = 'code-insiders';
 				override readonly version = '1.141.0';
+				override readonly defaultChatAgent = { chatExtensionId: 'GitHub.copilot-chat', extensionId: 'GitHub.copilot' } as IProductService['defaultChatAgent'];
 			}(),
 			configuration,
+			new class extends mock<IAuthenticationExtensionsService>() {
+				override readonly onDidChangeAccountPreference = preferenceChanged.event;
+				override getAccountPreference(extensionId: string): string | undefined { return state.preferences[ExtensionIdentifier.toKey(extensionId)]; }
+			}(),
 		));
-		return { service, sessions, state, changed, defaultChanged, calls, configuration };
+		return { service, sessions, state, changed, defaultChanged, preferenceChanged, calls, configuration };
 	}
 
 	for (const selection of ['legacy', 'portable', 'session'] as const) {
@@ -274,6 +282,182 @@ suite('Workbench GitHub service', () => {
 		await assert.rejects(service.acquireDefaultAccountClient(cancellationToken()), { kind: 'authentication' });
 		state.account = null;
 		await assert.rejects(service.acquireDefaultAccountClient(cancellationToken()), { kind: 'authentication' });
+	});
+
+	const microsoftAccount: IDefaultAccount = { authenticationProvider: { id: 'microsoft', name: 'Microsoft', enterprise: false }, accountName: 'alice', sessionId: 'microsoft-session', enterprise: false };
+	const authenticationRequired = { kind: 'authentication', message: 'Sign in to GitHub to load GitHub data.' };
+
+	const githubDefaultAccount: IDefaultAccount = { authenticationProvider: provider, accountName: 'account', sessionId: 'session', enterprise: false };
+	const rows: { name: string; account: IDefaultAccount | null; sessions: AuthenticationSession[]; preferences?: { [extensionId: string]: string }; expected: object }[] = [
+		{ name: 'no GitHub account', account: microsoftAccount, sessions: [], expected: authenticationRequired },
+		{ name: 'one GitHub account without a preference', account: microsoftAccount, sessions: [session('alice-session', 'alice')], expected: { sessionId: 'alice-session' } },
+		{ name: 'two GitHub accounts and a preference', account: microsoftAccount, sessions: [session('alice-session', 'alice'), session('bob-session', 'bob')], preferences: { 'github.copilot': 'bob' }, expected: { sessionId: 'bob-session' } },
+		{ name: 'two GitHub accounts and the first extension preference winning', account: microsoftAccount, sessions: [session('alice-session', 'alice'), session('bob-session', 'bob')], preferences: { 'github.copilot-chat': 'bob', 'github.copilot': 'alice' }, expected: { sessionId: 'bob-session' } },
+		{ name: 'two GitHub accounts and no preference', account: microsoftAccount, sessions: [session('alice-session', 'alice'), session('bob-session', 'bob')], expected: authenticationRequired },
+		{ name: 'one GitHub account and a preference for an account that is not signed in', account: microsoftAccount, sessions: [session('alice-session', 'alice')], preferences: { 'github.copilot': 'carol' }, expected: { sessionId: 'alice-session' } },
+		{ name: 'two GitHub accounts and a preference for an account that is not signed in', account: microsoftAccount, sessions: [session('alice-session', 'alice'), session('bob-session', 'bob')], preferences: { 'github.copilot': 'carol' }, expected: authenticationRequired },
+		{ name: 'no default account and a GitHub repository session', account: null, sessions: [session('alice-session', 'alice')], expected: authenticationRequired },
+	];
+	for (const row of rows) {
+		test(`default client for a non-GitHub default account: ${row.name}`, async () => {
+			const { service, state } = setup(row.sessions);
+			state.account = row.account;
+			state.preferences = row.preferences ?? {};
+			const result = await service.acquireDefaultAccountClient(cancellationToken()).then(
+				client => ({ sessionId: store.add(client).object.authorization.sessionId }),
+				(error: Error & { kind?: string }) => ({ kind: error.kind, message: error.message }));
+			assert.deepStrictEqual(result, row.expected);
+		});
+	}
+
+	test('a Microsoft default account with an enterprise provider does not load GitHub Enterprise data', async () => {
+		const messageFor = async (sessions: AuthenticationSession[]) => {
+			const { service, state } = setup(sessions);
+			state.account = microsoftAccount;
+			state.configuredProvider = { id: 'github-enterprise', name: 'Enterprise', enterprise: true };
+			return service.acquireDefaultAccountClient(cancellationToken()).then(() => undefined, (error: Error) => error.message);
+		};
+		assert.deepStrictEqual({ signedOut: await messageFor([]), signedIn: await messageFor([session()]) }, {
+			signedOut: 'Sign in to GitHub to load GitHub data.',
+			signedIn: 'The GitHub Enterprise URL is unavailable. Sign in and try again.',
+		});
+	});
+
+	test('a configuration change fires default client changes only when it changes the provider and the default account is not a GitHub account', () => {
+		const fires = (account: IDefaultAccount | null, configure: (state: ReturnType<typeof setup>['state']) => void) => {
+			const { state, service, configuration } = setup();
+			state.account = account;
+			let count = 0;
+			const announce = () => configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+				override affectsConfiguration(): boolean { return false; }
+			}());
+			// The first announcement only records the key for this account.
+			announce();
+			store.add(service.onDidChangeDefaultClient(() => count++));
+			announce();
+			const unchanged = count;
+			configure(state);
+			announce();
+			const changed = count - unchanged;
+			announce();
+			return { unchanged, changed, repeated: count - unchanged - changed };
+		};
+		const enterprise = (state: ReturnType<typeof setup>['state']) => {
+			state.configuredProvider = { id: 'github-enterprise', name: 'Enterprise', enterprise: true };
+			state.enterpriseUrl = 'https://example.ghe.com';
+		};
+		assert.deepStrictEqual({
+			microsoft: fires(microsoftAccount, enterprise),
+			github: fires(githubDefaultAccount, enterprise),
+			none: fires(null, enterprise),
+		}, {
+			microsoft: { unchanged: 0, changed: 1, repeated: 0 },
+			github: { unchanged: 0, changed: 0, repeated: 0 },
+			none: { unchanged: 0, changed: 1, repeated: 0 },
+		});
+	});
+
+	test('a Microsoft default account fires default client changes for GitHub sessions and the Copilot account preference only', () => {
+		const { state, changed, preferenceChanged, service } = setup();
+		const fired: string[] = [];
+		store.add(service.onDidChangeDefaultClient(() => fired.push('changed')));
+		const sessionsChange = (providerId: string, event: AuthenticationSessionsChangeEvent) => changed.fire({ providerId, label: providerId, event });
+		const preferenceChange = (providerId: string, extensionId: string) => preferenceChanged.fire({ providerId, extensionIds: [extensionId] });
+		const ignored = () => fired.splice(0);
+
+		state.account = null;
+		preferenceChange('github', 'github.copilot');
+		const noDefaultAccount = ignored();
+		state.account = { authenticationProvider: provider, accountName: 'account', sessionId: 'session', enterprise: false };
+		preferenceChange('github', 'github.copilot');
+		const githubDefaultAccount = ignored();
+
+		state.account = microsoftAccount;
+		sessionsChange('github', { added: [session('added', 'unrelated')], changed: [], removed: [] });
+		sessionsChange('github', { added: [], changed: [], removed: [session('removed', 'unrelated')] });
+		preferenceChange('github', 'github.copilot');
+		preferenceChange('github', 'github.copilot-chat');
+		const fires = ignored();
+		sessionsChange('microsoft', { added: [session('added', 'unrelated')], changed: [], removed: [] });
+		preferenceChange('microsoft', 'github.copilot');
+		preferenceChange('github', 'another.extension');
+		const nonFires = ignored();
+
+		assert.deepStrictEqual({ noDefaultAccount, githubDefaultAccount, fires: fires.length, nonFires }, { noDefaultAccount: [], githubDefaultAccount: [], fires: 4, nonFires: [] });
+	});
+
+	test('after a client was acquired, another account\'s GitHub session fires default client changes for a Microsoft default account only', async () => {
+		const unrelatedSessionFires = async (account: IDefaultAccount, sessions: AuthenticationSession[]) => {
+			const { state, changed, service } = setup(sessions);
+			state.account = account;
+			store.add(await service.acquireDefaultAccountClient(cancellationToken()));
+			let fires = 0;
+			store.add(service.onDidChangeDefaultClient(() => fires++));
+			changed.fire({ providerId: 'github', label: 'github', event: { added: [session('bob-session', 'bob')], changed: [], removed: [] } });
+			return fires;
+		};
+		assert.deepStrictEqual({
+			microsoft: await unrelatedSessionFires(microsoftAccount, [session('alice-session', 'alice')]),
+			github: await unrelatedSessionFires(githubDefaultAccount, [session()]),
+		}, { microsoft: 1, github: 0 });
+	});
+
+	test('a Microsoft default account fires default client changes when the default account appears or disappears', () => {
+		const { state, defaultChanged, service } = setup();
+		const fired: string[] = [];
+		store.add(service.onDidChangeDefaultClient(() => fired.push('changed')));
+		const transition = (account: IDefaultAccount | null) => {
+			state.account = account;
+			defaultChanged.fire(account);
+			return fired.splice(0).length;
+		};
+		assert.deepStrictEqual({
+			toNone: transition(null),
+			toMicrosoft: transition(microsoftAccount),
+			sameMicrosoft: transition({ ...microsoftAccount }),
+			toNoneAgain: transition(null),
+		}, { toNone: 1, toMicrosoft: 1, sameMicrosoft: 0, toNoneAgain: 1 });
+	});
+
+	test('a Microsoft default account follows the account preference on one service instance and retires a request in flight', async () => {
+		const sessions = [session('alice-session', 'alice'), session('bob-session', 'bob')];
+		let gate: Promise<void> | undefined;
+		const { service, state, preferenceChanged } = setup(sessions, undefined, async () => {
+			await gate;
+			return sessions;
+		});
+		state.account = microsoftAccount;
+		const acquire = () => service.acquireDefaultAccountClient(cancellationToken()).then(
+			client => store.add(client).object.authorization.sessionId,
+			(error: Error & { kind?: string }) => `${error.kind}: ${error.message}`);
+		const results = [await acquire()];
+		state.preferences = { 'github.copilot': 'alice' };
+		preferenceChanged.fire({ providerId: 'github', extensionIds: ['github.copilot'] });
+		results.push(await acquire());
+		const releaseGate = new DeferredPromise<void>();
+		gate = releaseGate.p;
+		const inFlight = acquire();
+		await timeout(0);
+		state.preferences = { 'github.copilot': 'bob' };
+		preferenceChanged.fire({ providerId: 'github', extensionIds: ['github.copilot'] });
+		await releaseGate.complete();
+		results.push(await inFlight);
+		gate = undefined;
+		results.push(await acquire());
+		assert.deepStrictEqual(results, [
+			'authentication: Sign in to GitHub to load GitHub data.',
+			'alice-session',
+			'authentication: The selected GitHub account changed. Try again.',
+			'bob-session',
+		]);
+	});
+
+	test('rejects a GitHub default account that is not the current one once its lookup ends', async () => {
+		const { service, state } = setup();
+		state.pendingDefaultAccount = Promise.resolve(state.account);
+		state.account = null;
+		const message = await service.acquireDefaultAccountClient(cancellationToken()).then(() => undefined, (error: Error) => error.message);
+		assert.strictEqual(message, 'The selected GitHub account changed. Try again.');
 	});
 
 	test('acquires a client when the default account is first restored during startup', async () => {

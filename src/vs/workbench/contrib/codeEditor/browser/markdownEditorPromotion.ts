@@ -8,16 +8,18 @@ import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { autorun, derived, derivedOpts, IReader, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { extname, isEqual } from '../../../../base/common/resources.js';
 import { isObject } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ITextModel } from '../../../../editor/common/model.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IBreadcrumbsService } from '../../../browser/parts/editor/breadcrumbs.js';
 import { REOPEN_ACTIVE_EDITOR_WITH_COMMAND_ID } from '../../../browser/parts/editor/editorCommands.js';
 import { getAvailableEditorTypes } from '../../../browser/parts/editor/editorTypePicker.js';
@@ -28,12 +30,14 @@ import { EditorInput } from '../../../common/editor/editorInput.js';
 import { editorsAssociationsSettingId, hiddenEditorTypesSettingId, IEditorResolverService } from '../../../services/editor/common/editorResolverService.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { isVisibleOnboardingTarget, registerOnboardingTargetProvider } from '../../onboarding/browser/spotlight/onboardingTarget.js';
 import { ISpotlightPayload, ISpotlightStep, SPOTLIGHT_PRESENTATION_KIND } from '../../onboarding/browser/spotlight/spotlightTypes.js';
 import { onboardingScenarioRegistry } from '../../onboarding/common/onboardingRegistry.js';
 import { IOnboardingExperiment, IOnboardingScenario } from '../../onboarding/common/onboardingScenario.js';
-import { isOnboardingDeveloperModeEnabled, ONBOARDING_DEVELOPER_MODE_CONFIG } from '../../onboarding/common/onboardingScenarioService.js';
+import { isOnboardingDeveloperModeEnabled, IOnboardingScenarioService, ONBOARDING_DEVELOPER_MODE_CONFIG } from '../../onboarding/common/onboardingScenarioService.js';
 import { WebviewInput } from '../../webviewPanel/browser/webviewEditorInput.js';
+import { countOtherMarkdownEditors, countPreviewExtensions, defaultMarkdownEditorKind, IMarkdownEditorNudgeContext, MarkdownEditorNudgeContextClassification, RECENT_MARKDOWN_EDIT_MS } from './markdownEditorNudgeContext.js';
 
 const MARKDOWN_EDITOR_ID = 'vscode.markdown.editor';
 const MARKDOWN_PREVIEW_EDITOR_ID = 'vscode.markdown.preview.editor';
@@ -48,6 +52,12 @@ const NUDGE_SEEN_KEY = 'markdownEditor.nudge';
 const NudgeOutdatedContext = new RawContextKey<boolean>('markdownEditorNudgeOutdated', false);
 
 const USED_MARKDOWN_EDITOR_STORAGE_KEY = 'markdownEditorPromotion.usedMarkdownEditor';
+const NUDGE_CONTEXT_REPORTED_STORAGE_KEY = 'markdownEditorPromotion.nudgeContextReported';
+const LAST_MARKDOWN_EDIT_STORAGE_KEY = 'markdownEditorPromotion.lastMarkdownEdit';
+/** The editor the empty editor hint last opened an untitled file with (see `emptyEditorHintActions.ts`). */
+const LAST_UNTITLED_EDITOR_STORAGE_KEY = 'emptyEditorHint.lastUntitledEditor';
+/** The time of the last Markdown edit is stored at most this often. */
+const MARKDOWN_EDIT_STORE_INTERVAL_MS = 60 * 60 * 1000;
 
 type MarkdownEditorNudgeKind = 'textEditor' | 'preview';
 
@@ -119,7 +129,7 @@ function sidePreviewResource(preview: WebviewInput): URI | undefined {
  *   the side (the dropdown of the text editor of the previewed file is highlighted, and trying the
  *   Markdown Editor replaces both).
  *
- * "Try Editor" reopens the file in the Markdown Editor without changing the default editor. A nudge
+ * "Try Editor" makes the Markdown Editor the default for Markdown files and reopens the file in it. A nudge
  * shows right when the user opens or switches to the file or preview, never for editors restored at
  * startup or for files edited since they were opened. The onboarding engine shows at most one of the
  * nudges, once, and only for users whose experiment arm enables that nudge.
@@ -137,6 +147,10 @@ export class MarkdownEditorPromotion extends Disposable {
 		@IStorageService storageService: IStorageService,
 		@ICommandService commandService: ICommandService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@ILanguageService languageService: ILanguageService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IExtensionService extensionService: IExtensionService,
+		@IOnboardingScenarioService onboardingService: IOnboardingScenarioService,
 	) {
 		super();
 
@@ -165,11 +179,25 @@ export class MarkdownEditorPromotion extends Disposable {
 		}));
 
 		// Documents changed since they were opened. Reloading from disk is not an edit.
+		let lastMarkdownEditStored = storageService.getNumber(LAST_MARKDOWN_EDIT_STORAGE_KEY, StorageScope.PROFILE, 0);
+		const recordMarkdownEdit = () => {
+			const now = Date.now();
+			if (now - lastMarkdownEditStored >= MARKDOWN_EDIT_STORE_INTERVAL_MS) {
+				lastMarkdownEditStored = now;
+				storageService.store(LAST_MARKDOWN_EDIT_STORAGE_KEY, now, StorageScope.PROFILE, StorageTarget.MACHINE);
+			}
+		};
 		const editedResources = new ResourceSet();
 		const editedResourcesChanged = observableSignal(this);
 		const modelListeners = this._register(new DisposableMap<ITextModel>());
 		const watchModel = (model: ITextModel) => modelListeners.set(model, model.onDidChangeContent(e => {
-			if (!e.isFlush && !editedResources.has(model.uri)) {
+			if (e.isFlush) {
+				return;
+			}
+			if (model.getLanguageId() === 'markdown') {
+				recordMarkdownEdit();
+			}
+			if (!editedResources.has(model.uri)) {
 				editedResources.add(model.uri);
 				editedResourcesChanged.trigger(undefined);
 			}
@@ -280,6 +308,26 @@ export class MarkdownEditorPromotion extends Disposable {
 			return candidate;
 		});
 
+		// Describe who reaches a nudge, once per profile, in every experiment arm. Logged at the
+		// would-show moment, when the experiment's assignment context already flows into telemetry.
+		this._register(onboardingService.onDidReachWouldShow(scenarioId => {
+			const current = nudge.get();
+			// Re-read the flag: another window of this profile may have reported in the meantime.
+			if (!current || NUDGE_SCENARIO_IDS[current.kind] !== scenarioId || storageService.getBoolean(NUDGE_CONTEXT_REPORTED_STORAGE_KEY, StorageScope.PROFILE, false)) {
+				return;
+			}
+			storageService.store(NUDGE_CONTEXT_REPORTED_STORAGE_KEY, true, StorageScope.PROFILE, StorageTarget.MACHINE);
+			const matches = editorResolverService.getEditorMatches(current.resource);
+			const lastMarkdownEdit = storageService.getNumber(LAST_MARKDOWN_EDIT_STORAGE_KEY, StorageScope.PROFILE);
+			telemetryService.publicLog2<IMarkdownEditorNudgeContext, MarkdownEditorNudgeContextClassification>('markdownEditor.nudgeContext', {
+				nudge: current.kind,
+				previewExtensionCount: countPreviewExtensions(extensionService.extensions),
+				otherMarkdownEditorCount: countOtherMarkdownEditors(matches),
+				defaultBefore: defaultMarkdownEditorKind(matches),
+				editedMarkdownRecently: lastMarkdownEdit !== undefined && Date.now() - lastMarkdownEdit < RECENT_MARKDOWN_EDIT_MS,
+				untitledMarkdownEditorUsed: storageService.get(LAST_UNTITLED_EDITOR_STORAGE_KEY, StorageScope.PROFILE) === MARKDOWN_EDITOR_ID,
+			});
+		}));
 		// A shown nudge is bound to the editors it was shown for. It ends when they change.
 		const shownNudge = observableValue<IMarkdownEditorNudge | undefined>(this, undefined);
 		const nudgeOutdated = NudgeOutdatedContext.bindTo(contextKeyService);
@@ -308,6 +356,12 @@ export class MarkdownEditorPromotion extends Disposable {
 			}
 			if (shown.sidePreview) {
 				await shown.sidePreview.group.closeEditor(shown.sidePreview.editor);
+			}
+			// Associate the file's extension only, never a broader pattern of the current default rule
+			// (e.g. `*`), and only if the extension itself is Markdown, not a `.txt` file in Markdown mode.
+			const extension = extname(shown.resource);
+			if (extension && languageService.guessLanguageIdByFilepathOrFirstLine(URI.file(`/file${extension}`)) === 'markdown') {
+				editorResolverService.setDefaultEditor(shown.resource, MARKDOWN_EDITOR_ID, false, { source: 'markdownEditorNudge', associationPattern: `*${extension}` });
 			}
 			await commandService.executeCommand(REOPEN_ACTIVE_EDITOR_WITH_COMMAND_ID, MARKDOWN_EDITOR_ID, {
 				groupId: shown.group.id,

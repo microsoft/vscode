@@ -275,8 +275,10 @@ class InputEditorDecorations extends Disposable {
 			}
 
 			const mode = this.widget.input.currentModeObs.get();
-			const placeholder = mode.argumentHint?.get() ?? mode.description.get() ?? '';
-			const displayPlaceholder = getSandboxPlaceholder(viewModel.inputPlaceholder || placeholder, this.widget.input.sandboxToggleChecked.get());
+			// An agent's own hint is more specific than the session's placeholder.
+			const argumentHint = mode.argumentHint?.get();
+			const placeholder = argumentHint || viewModel.inputPlaceholder || mode.description.get() || '';
+			const displayPlaceholder = getSandboxPlaceholder(placeholder, this.widget.input.sandboxToggleChecked.get());
 
 			const decoration: IDecorationOptions[] = [
 				{

@@ -270,7 +270,8 @@ export class McpServerEditor extends EditorPane {
 							icon: true,
 							label: true,
 							menuActionsOrProvider: { getActions: () => action.menuActions },
-							menuActionClassNames: action.menuActionClassNames
+							menuActionClassNames: action.menuActionClassNames,
+							filledSplitButton: true,
 						},
 						this.contextMenuService);
 				}

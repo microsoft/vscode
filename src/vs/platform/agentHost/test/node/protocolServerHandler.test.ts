@@ -31,6 +31,7 @@ import { supportsAgentHostAutomationHistory, supportsAgentHostAutomationHistoryD
 import { readAgentHostAhpLogDirectory } from '../../common/meta/agentHostDebugLogsMeta.js';
 import { readAgentHostAuthenticationEncryption } from '../../common/meta/agentHostAuthenticationEncryption.js';
 import { supportsAgentHostSessionMove } from '../../common/meta/agentHostSessionMoveMeta.js';
+import { readAgentHostBuild, readAgentHostUpgradeMethod } from '../../common/meta/agentHostUpgradeMeta.js';
 import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { readAgentSandboxCertificate, withAgentSandboxCertificate, type IAgentSandboxCertificateStatus } from '../../common/meta/agentSandboxCertificate.js';
 import { readSessionInitiator, withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
@@ -42,7 +43,7 @@ import { Disposable, DisposableStore, toDisposable } from '../../../../base/comm
 import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { vBoolean, vNumber, vObj, vOptionalProp, vString } from '../../../../base/common/validation.js';
-import { VSBuffer } from '../../../../base/common/buffer.js';
+import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -57,7 +58,7 @@ import { TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { CapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { AgentPolicyError, type IAgent, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentExtensionInventory, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentCreateChatInitialMessageContext, type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
-import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, ListAgentExtensionsExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, StopBackgroundWorkExtensionMethod, AnswerShellAuthenticationExtensionMethod, RegisterGitHubEnvironmentExtensionMethod, UnregisterGitHubEnvironmentExtensionMethod, GitHubEnvironmentChangedNotification, supportsAgentHostArtifactRemoval, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, ListAgentExtensionsExtensionMethod, RemoveSessionArtifactExtensionMethod, DetachSessionsFromWorkspaceExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, StopBackgroundWorkExtensionMethod, AnswerShellAuthenticationExtensionMethod, RegisterGitHubEnvironmentExtensionMethod, UnregisterGitHubEnvironmentExtensionMethod, GitHubEnvironmentChangedNotification, supportsAgentHostArtifactRemoval, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
 import { SessionArtifactType, type ISessionArtifact } from '../../common/sessionArtifacts.js';
 import { supportsAgentHostCopilotExtensions } from '../../common/meta/agentHostCopilotExtensionsMeta.js';
 import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../../common/meta/agentHostSavedChatMeta.js';
@@ -82,6 +83,9 @@ import type { SessionAddedParams, SessionSummaryChangedParams } from '../../comm
 import { parseProtocolMessage, type IProtocolServer, type IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { agentHostStateReceiveLimits } from '../../common/agentHostChannel.js';
 import { ProtocolServerHandler, type IProtocolServerConfig, type IProtocolServerExtension, type IProtocolServerGitHubEnvironment } from '../../node/protocolServerHandler.js';
+import { NullAgentHostClientForwardingService, type IAgentHostClientForwardingService, type IAgentHostForwardingClient } from '../../node/agentHostClientForwarding.js';
+import { ClientForwardingCloseNotification, ClientForwardingDataNotification, OpenClientForwardingExtensionMethod } from '../../common/clientForwardingProtocol.js';
+import { AgentHostClientForwardingCapabilityMetaKey } from '../../common/meta/agentHostClientForwardingMeta.js';
 import { getAgentHostGitHubEnvironmentStatus, type IAgentHostGitHubEnvironmentStatus } from '../../common/meta/agentHostGitHubEnvironmentMeta.js';
 import { MissionControlEnvironment } from '../../node/missionControl/missionControlEnvironment.js';
 import { MissionControlAuthentication, MissionControlSealing, sealMissionControlCredential } from '../../node/missionControl/missionControlAuthentication.js';
@@ -281,6 +285,7 @@ class MockAgentService extends Disposable implements IAgentService {
 	/** Entries `removeSessionArtifact` removes, each for the first request only. */
 	readonly removableArtifacts = new Map<string, ISessionArtifact>();
 	readonly stopBackgroundWorkCalls: { chat: string; id: string }[] = [];
+	readonly detachSessionsFromWorkspaceCalls: string[][] = [];
 	readonly answerShellAuthenticationCalls: { chat: string; requestId: string; answer: string | undefined }[] = [];
 	installSandboxCertificate: ((chat: string, scopeId: string) => Promise<void>) | undefined;
 	rotateSandboxCertificate: ((chat: string, scopeId: string) => Promise<void>) | undefined;
@@ -465,6 +470,14 @@ class MockAgentService extends Disposable implements IAgentService {
 	async stopBackgroundWork(chat: URI, id: string): Promise<boolean> {
 		this.stopBackgroundWorkCalls.push({ chat: chat.toString(), id });
 		return true;
+	}
+	detachSessionsFromWorkspaceError: Error | undefined;
+	async detachSessionsFromWorkspace(workspaceFiles: readonly URI[]): Promise<readonly URI[]> {
+		this.detachSessionsFromWorkspaceCalls.push(workspaceFiles.map(file => file.toString()));
+		if (this.detachSessionsFromWorkspaceError) {
+			throw this.detachSessionsFromWorkspaceError;
+		}
+		return [URI.parse('copilotcli:/session-1')];
 	}
 	async answerShellAuthentication(chat: URI, requestId: string, answer: string | undefined): Promise<boolean> {
 		this.answerShellAuthenticationCalls.push({ chat: chat.toString(), requestId, answer });
@@ -689,7 +702,7 @@ suite('ProtocolServerHandler', () => {
 			clientConnections,
 			devContainerService = disposables.add(new MockDevContainerService()),
 			NullAgentHostOTelService,
-			new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 		));
 	});
 
@@ -794,7 +807,7 @@ suite('ProtocolServerHandler', () => {
 			agentService, stateManager, relayServer, { allowExtensionMethods: false, relayRoots: ['/workspace'] },
 			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
 			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
-			new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 		));
 		const transport = disposables.add(new MockProtocolTransport());
 		relayServer.simulateConnection(transport);
@@ -844,6 +857,7 @@ suite('ProtocolServerHandler', () => {
 				'vscode.automationHistoryDeletionState': true,
 				'vscode.devContainers': true,
 				'vscode.devContainerEnvironments': true,
+				'vscode.devContainerFolderContainers': true,
 				// Offered whether or not moving chats is enabled, so enabling it needs no reconnect.
 				'vscode.sessionMove': true,
 				'vscode.copilotExtensions': true,
@@ -1064,6 +1078,76 @@ suite('ProtocolServerHandler', () => {
 		}
 
 		assert.deepStrictEqual({ confirmations, changes }, { confirmations: [undefined, true], changes: 1 });
+	});
+
+	test('registers only clients advertising client forwarding and routes their agent connections', async () => {
+		const forwardingServer = disposables.add(new MockProtocolServer());
+		const registered: IAgentHostForwardingClient[] = [];
+		const environmentReady = new DeferredPromise<void>();
+		const forwarding: IAgentHostClientForwardingService = {
+			_serviceBrand: undefined,
+			enabled: true,
+			registerClient: client => {
+				registered.push(client);
+				return toDisposable(() => registered.splice(registered.indexOf(client), 1));
+			},
+			whenEnvironmentReady: () => environmentReady.p,
+			settled: () => Promise.resolve(),
+		};
+		disposables.add(new ProtocolServerHandler(
+			agentService, stateManager, forwardingServer, { hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess, environment: { pathStyle: PathStyle.Posix } },
+			disposables.add(new AgentHostFileSystemProvider()), logService, agentHostTelemetryService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, forwarding,
+		));
+		const connect = (clientId: string, meta: Record<string, unknown>) => {
+			const transport = new MockProtocolTransport();
+			forwardingServer.simulateConnection(transport);
+			const initialized = waitForResponse(transport, 1);
+			transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId, _meta: meta }));
+			return { transport, confirmation: initialized.then(response => (response as { result?: { _meta?: Record<string, unknown> } }).result?._meta?.[AgentHostClientForwardingCapabilityMetaKey]) };
+		};
+		const unadvertised = connect('other-client', {});
+		const advertised = connect('dev-container-client', { [AgentHostClientForwardingCapabilityMetaKey]: true });
+		await timeout(0);
+		// The forwarding environment is in place before a client can start the Copilot runtime.
+		const respondedBeforeReady = [!!findResponse(unadvertised.transport.sent, 1), !!findResponse(advertised.transport.sent, 1)];
+		environmentReady.complete();
+		const confirmations = [await unadvertised.confirmation, await advertised.confirmation];
+		const [client] = registered;
+		const received: unknown[] = [];
+		disposables.add(client.onDidReceiveData(({ connection, data }) => received.push(['data', connection, data.toString()])));
+		disposables.add(client.onDidReceiveClose(connection => received.push(['close', connection])));
+
+		const openSent = Event.toPromise(Event.filter(advertised.transport.onDidSend, message => !!findRequest([message], OpenClientForwardingExtensionMethod)));
+		const opened = client.open(7, 'ssh-agent');
+		const openRequest = findRequest([await openSent], OpenClientForwardingExtensionMethod);
+		assert.ok(openRequest);
+		advertised.transport.simulateMessage({ jsonrpc: '2.0', id: openRequest.id, result: {} });
+		await opened;
+		client.sendData(7, VSBuffer.fromString('request'));
+		advertised.transport.simulateMessage(notification(ClientForwardingDataNotification, { connection: 7, data: encodeBase64(VSBuffer.fromString('reply')) }));
+		advertised.transport.simulateMessage(notification(ClientForwardingCloseNotification, { connection: 7 }));
+		const registeredBeforeClose = registered.length;
+		advertised.transport.simulateClose();
+
+		assert.deepStrictEqual({
+			confirmations,
+			respondedBeforeReady,
+			registeredBeforeClose,
+			openParams: openRequest.params,
+			sent: findNotifications(advertised.transport.sent, ClientForwardingDataNotification).map(message => message.params),
+			received,
+			registeredAfterClose: registered.length,
+		}, {
+			confirmations: [undefined, true],
+			respondedBeforeReady: [false, false],
+			registeredBeforeClose: 1,
+			openParams: { connection: 7, socket: 'ssh-agent' },
+			sent: [{ connection: 7, data: encodeBase64(VSBuffer.fromString('request')) }],
+			received: [['data', 7, 'reply'], ['close', 7]],
+			registeredAfterClose: 0,
+		});
 	});
 	test('returns false for MCP authentication without connected clients', async () => {
 		const params: IAgentHostMcpAuthenticationRequest = {
@@ -1386,6 +1470,41 @@ suite('ProtocolServerHandler', () => {
 
 		transport.simulateClose();
 		transport.dispose();
+	});
+
+	test('initialize advertises the upgrade method and build to direct clients only when a managing CLI is present', () => {
+		const originalEnv = process.env.VSCODE_AGENT_HOST_MANAGEMENT_SOCKET;
+		disposables.add(toDisposable(() => {
+			if (originalEnv === undefined) {
+				delete process.env.VSCODE_AGENT_HOST_MANAGEMENT_SOCKET;
+			} else {
+				process.env.VSCODE_AGENT_HOST_MANAGEMENT_SOCKET = originalEnv;
+			}
+		}));
+		const build = { commit: 'host-commit', quality: 'insider', date: '2026-11-19T00:00:00.000Z' };
+		const buildServer = disposables.add(new MockProtocolServer());
+		disposables.add(new ProtocolServerHandler(
+			agentService, stateManager, buildServer, { build },
+			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
+		));
+		const advertised = (clientId: string, relay: boolean) => {
+			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, relay ? clientId : undefined));
+			buildServer.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId }));
+			const { result } = findResponse(transport.sent, 1) as { result: InitializeResult };
+			transport.simulateClose();
+			return { method: readAgentHostUpgradeMethod(result), build: readAgentHostBuild(result), serverInfo: result.serverInfo?.name };
+		};
+		delete process.env.VSCODE_AGENT_HOST_MANAGEMENT_SOCKET;
+		const withoutCli = advertised('client-without-cli', false);
+		process.env.VSCODE_AGENT_HOST_MANAGEMENT_SOCKET = '/tmp/mock-supervisor.sock';
+		assert.deepStrictEqual({ withoutCli, direct: advertised('client-direct', false), relay: advertised('client-relay', true) }, {
+			withoutCli: { method: undefined, build: undefined, serverInfo: 'vscode-agent-host' },
+			direct: { method: '_vscodeUpgrade', build, serverInfo: 'vscode-agent-host' },
+			relay: { method: undefined, build: undefined, serverInfo: 'vscode-agent-host' },
+		});
 	});
 
 	test('_vscodeUpgrade RPC returns MethodNotFound when no supervisor is available', async () => {
@@ -1785,7 +1904,7 @@ suite('ProtocolServerHandler', () => {
 				relay === 'roots' ? { relayRoots: ['/workspace'] } : relay === 'metadata' ? { relayRootMeta: {} } : {},
 				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
 				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
-				new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+				new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 			));
 			const transport = disposables.add(relay === 'transport'
 				? new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'client-tcp-relay', false)
@@ -1819,8 +1938,8 @@ suite('ProtocolServerHandler', () => {
 		const githubEnvironment: IProtocolServerGitHubEnvironment = {
 			get status() { return status; },
 			onDidChangeStatus: onDidChangeStatus.event,
-			async register(accountId, credential) {
-				calls.push(`register ${accountId} ${credential}`);
+			async register(accountId, credential, name) {
+				calls.push(`register ${accountId} ${credential} ${name}`);
 				setStatus({ instanceId: 'instance', registration: { accountId, environmentId: 'environment', name: 'Remote' } });
 				return { environmentId: 'environment', name: 'Remote' };
 			},
@@ -1840,7 +1959,7 @@ suite('ProtocolServerHandler', () => {
 				},
 				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
 				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
-				new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+				new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 			));
 			const clientId = `client-github-environment-${connection.replace(' ', '-')}`;
 			const transport = disposables.add(connection === 'relay transport'
@@ -1856,7 +1975,7 @@ suite('ProtocolServerHandler', () => {
 			const responses = [];
 			for (const message of [
 				request(2, RegisterGitHubEnvironmentExtensionMethod, { accountId: 'account', credential: '' }),
-				request(3, RegisterGitHubEnvironmentExtensionMethod, { accountId: 'account', credential: 'token' }),
+				request(3, RegisterGitHubEnvironmentExtensionMethod, { accountId: 'account', credential: 'token', name: 'nov16' }),
 				request(4, UnregisterGitHubEnvironmentExtensionMethod, { accountId: 'account' }),
 			]) {
 				const response = waitForResponse(transport, responses.length + 2);
@@ -1888,7 +2007,7 @@ suite('ProtocolServerHandler', () => {
 				{ connection: 'relay roots', ...unserved, responses: [notFound, notFound, notFound] },
 				{ connection: 'relay transport', ...unserved, responses: [denied, denied, denied] },
 			],
-			calls: ['register account token', 'unregister account'],
+			calls: ['register account token nov16', 'unregister account'],
 		});
 	});
 
@@ -1977,7 +2096,7 @@ suite('ProtocolServerHandler', () => {
 				agentService, stateManager, relay, { allowExtensionMethods: enabled, relayRootMeta: {} },
 				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
 				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
-				new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+				new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 			));
 			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'state-file-relay', passive));
 			transport.relayAuthenticated = true;
@@ -2019,7 +2138,7 @@ suite('ProtocolServerHandler', () => {
 			agentService, stateManager, localServer, { allowExtensionMethods: false, relayRoots: ['/workspace'], ahpLogDirectory: directory },
 			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
 			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
-			new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 		));
 		const transport = disposables.add(new MockProtocolTransport());
 		localServer.simulateConnection(transport);
@@ -2043,7 +2162,7 @@ suite('ProtocolServerHandler', () => {
 			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
 			managedSettingsService, clientConnections, devContainerService,
 			{ ...NullAgentHostOTelService, diagnosticsEnabled: true, emitFirstResponse: diagnostic => calls.push(diagnostic) },
-			new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 		));
 		const transport = new MockProtocolTransport();
 		localServer.simulateConnection(transport);
@@ -2097,7 +2216,7 @@ suite('ProtocolServerHandler', () => {
 				...NullAgentHostOTelService, diagnosticsEnabled: true,
 				emitUserInteraction: timing => calls.push(timing), flush: async () => { flushed++; }
 			},
-			new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 		));
 		const transport = new MockProtocolTransport();
 		localServer.simulateConnection(transport);
@@ -2175,7 +2294,7 @@ suite('ProtocolServerHandler', () => {
 			{ hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess, allowExtensionMethods: false },
 			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
 			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
-			new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 		));
 		const transport = new MockProtocolTransport(AgentHostTransportKind.MessagePort);
 		localServer.simulateConnection(transport);
@@ -2212,7 +2331,7 @@ suite('ProtocolServerHandler', () => {
 				agentService, stateManager, localServer, { allowExtensionMethods: mode === 'relay' },
 				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
 				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
-				new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+				new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 			));
 			const transport = new MockProtocolTransport(AgentHostTransportKind.Unknown, mode === 'relay' ? `saved-${mode}` : undefined);
 			localServer.simulateConnection(transport);
@@ -2279,7 +2398,7 @@ suite('ProtocolServerHandler', () => {
 				agentService, stateManager, server, { allowExtensionMethods: false },
 				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
 				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
-				new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+				new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 			));
 			const transport = new MockProtocolTransport(AgentHostTransportKind.Unknown, relay ? 'completion-relay' : undefined);
 			server.simulateConnection(transport);
@@ -2339,7 +2458,7 @@ suite('ProtocolServerHandler', () => {
 			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
 			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
 			new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
-			proxyResolver,
+			proxyResolver, NullAgentHostClientForwardingService,
 		));
 		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'scoped-relay', false));
 		transport.relayAuthenticated = true;
@@ -2557,7 +2676,7 @@ suite('ProtocolServerHandler', () => {
 			agentService, stateManager, relay,
 			{ allowExtensionMethods: true },
 			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 		));
 		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'relay-client', false));
 		relay.simulateConnection(transport);
@@ -2628,7 +2747,7 @@ suite('ProtocolServerHandler', () => {
 			agentService, stateManager, disabledServer,
 			{ allowExtensionMethods: false },
 			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 		));
 		const transport = disposables.add(new MockProtocolTransport());
 		disabledServer.simulateConnection(transport);
@@ -2847,7 +2966,7 @@ suite('ProtocolServerHandler', () => {
 				disposables.add(new ProtocolServerHandler(
 					agentService, stateManager, localServer, { allowExtensionMethods },
 					disposables.add(new AgentHostFileSystemProvider()), logService, agentHostTelemetryService, managedSettingsService, clientConnections, devContainerService,
-					NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+					NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 				));
 				const calls: string[][] = [];
 				const forced: boolean[] = [];
@@ -3023,7 +3142,7 @@ suite('ProtocolServerHandler', () => {
 				agentService, stateManager, secondServer, {},
 				fileSystemProvider, logService, agentHostTelemetryService, managedSettingsService,
 				clientConnections, devContainerService, NullAgentHostOTelService,
-				new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+				new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 			));
 			const first = connectClient('worktree-first-endpoint');
 			const second = disposables.add(new MockProtocolTransport());
@@ -3125,6 +3244,52 @@ suite('ProtocolServerHandler', () => {
 			response: { jsonrpc: '2.0', id: 20, result: { stopped: true } },
 			calls: [{ chat: URI.parse(chat).toString(), id: 'shell:3' }],
 		});
+	});
+
+	test('routes detaching sessions from workspaces to the agent service, and refuses it on relay connections', async () => {
+		const transport = connectClient('client-detach-workspace');
+		const workspaceFile = URI.file('/work/agents.code-workspace').toString();
+		const response = waitForResponse(transport, 20);
+		transport.simulateMessage(request(20, DetachSessionsFromWorkspaceExtensionMethod, { workspaceFiles: [workspaceFile] }));
+		const invalid = waitForResponse(transport, 21);
+		transport.simulateMessage(request(21, DetachSessionsFromWorkspaceExtensionMethod, { workspaceFiles: 'not-an-array' }));
+
+		const relay = disposables.add(new MockProtocolServer());
+		const relayHandler = disposables.add(new ProtocolServerHandler(
+			agentService, stateManager, relay,
+			{ allowExtensionMethods: true },
+			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
+		));
+		const relayTransport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'relay-client', false));
+		relay.simulateConnection(relayTransport);
+		relayTransport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'relay-client' }));
+		const relayed = waitForResponse(relayTransport, 20);
+		relayTransport.simulateMessage(request(20, DetachSessionsFromWorkspaceExtensionMethod, { workspaceFiles: [workspaceFile] }));
+		await relayHandler.whenIdle();
+
+		const errorCode = (message: ProtocolMessage) => hasKey(message, { error: true }) ? message.error?.code : undefined;
+		assert.deepStrictEqual({
+			response: await response,
+			invalid: errorCode(await invalid),
+			relayed: errorCode(await relayed),
+			calls: agentService.detachSessionsFromWorkspaceCalls,
+		}, {
+			response: { jsonrpc: '2.0', id: 20, result: { sessions: ['copilotcli:/session-1'] } },
+			invalid: JsonRpcErrorCodes.InvalidParams,
+			relayed: JsonRpcErrorCodes.InvalidRequest,
+			calls: [[workspaceFile]],
+		});
+	});
+
+	test('answers a detach that failed for some sessions with an error the client does not take for an absent method', async () => {
+		const transport = connectClient('client-detach-workspace-failed');
+		agentService.detachSessionsFromWorkspaceError = new Error('Failed to detach 1 of 2 sessions from their workspace');
+		const response = waitForResponse(transport, 20);
+		transport.simulateMessage(request(20, DetachSessionsFromWorkspaceExtensionMethod, { workspaceFiles: [URI.file('/work/agents.code-workspace').toString()] }));
+		const message = await response;
+		const error = hasKey(message, { error: true }) ? message.error : undefined;
+		assert.deepStrictEqual({ code: error?.code === JsonRpcErrorCodes.MethodNotFound ? 'method-not-found' : typeof error?.code, failed: error?.message.includes('1 of 2') }, { code: 'number', failed: true });
 	});
 
 	test('rejects invalid background work stop params before routing', async () => {
@@ -3417,7 +3582,7 @@ suite('ProtocolServerHandler', () => {
 			clientConnections,
 			localDisposables.add(new MockDevContainerService()),
 			NullAgentHostOTelService,
-			new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 		));
 		const transport = new MockProtocolTransport();
 		localServer.simulateConnection(transport);
@@ -3464,7 +3629,7 @@ suite('ProtocolServerHandler', () => {
 			agentService, stateManager, relay,
 			{ allowExtensionMethods: false, relayRoots: [process.cwd()] },
 			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 		));
 		const root = URI.file(process.cwd()).toString();
 		const connect = (lane: string, claimed: string, passive: boolean) => {
@@ -3521,7 +3686,7 @@ suite('ProtocolServerHandler', () => {
 				agentService, stateManager, relay,
 				{ allowExtensionMethods: false, relayRoots: [workspace] },
 				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 			));
 			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'listing-lane', false));
 			relay.simulateConnection(transport);
@@ -3607,7 +3772,7 @@ suite('ProtocolServerHandler', () => {
 					agentService, stateManager, relay,
 					{ allowExtensionMethods: false, relayRootMeta: relay.rootMeta, defaultDirectory: URI.file(roots[0]).toString() },
 					disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-					managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+					managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 				);
 				return relayHandler;
 			},
@@ -3958,7 +4123,7 @@ suite('ProtocolServerHandler', () => {
 					agentService, stateManager, localServer, { allowExtensionMethods: false, relayRoots: endpoint === 'relay' ? ['/workspace'] : undefined },
 					disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
 					managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
-					new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+					new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 				));
 				const transport = disposables.add(new MockProtocolTransport());
 				localServer.simulateConnection(transport);
@@ -4698,7 +4863,7 @@ suite('ProtocolServerHandler', () => {
 		const service = disposables.add(createTestAgentService(logService, fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 		const { stateManager, chatOwnership } = getTestAgentServiceComposition(service);
 		disposables.add(new ProtocolServerHandler(service, stateManager, server, {}, fileSystemProvider, logService, agentHostTelemetryService,
-			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, chatOwnership, proxyResolver));
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, chatOwnership, proxyResolver, NullAgentHostClientForwardingService));
 		const session = 'ahp-session:/retired-turn';
 		stateManager.createSession(makeSessionSummary(session));
 		const channel = buildTurnChangesetUri(session, 'turn-1');
@@ -4877,7 +5042,7 @@ suite('ProtocolServerHandler', () => {
 					agentService, stateManager, relay,
 					{ allowExtensionMethods: false, extension, relayResourceRoots: () => [process.cwd()] },
 					disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-					managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+					managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 				));
 				const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'discovery-client', passive));
 				transport.relayAuthenticated = false;
@@ -4949,7 +5114,7 @@ suite('ProtocolServerHandler', () => {
 					const scopedHandler = disposables.add(new ProtocolServerHandler(
 						agentService, stateManager, relay, { allowExtensionMethods: false, relayResourceRoots: readOnly => readOnly ? [workspace] : [] },
 						disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-						managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+						managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 					));
 					const calls: (string | undefined)[] = [];
 					const resolve = sinon.stub(agentService, 'resolveSessionConfig').callsFake(async params => {
@@ -5408,7 +5573,7 @@ suite('ProtocolServerHandler', () => {
 			const scopedHandler = disposables.add(new ProtocolServerHandler(
 				agentService, stateManager, relay, { scopedRelayCredentials: true, allowExtensionMethods: false, extension, resolveRelayCredentials },
 				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 			));
 			const connect = (clientId: string, passive = false, owner = '123', expiry?: Event<void>, reconnectSubscriptions?: readonly string[]) => {
 				const transport = disposables.add(new class extends MockProtocolTransport {
@@ -6157,7 +6322,7 @@ suite('ProtocolServerHandler', () => {
 						return [process.cwd()];
 					}
 				},
-				fileSystemProvider, logService, telemetryService, managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+				fileSystemProvider, logService, telemetryService, managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 			));
 			let reads = 0;
 			agentService.resourceRead = async () => { reads++; return { data: 'protected', encoding: ContentEncoding.Utf8 }; };
@@ -6553,7 +6718,7 @@ suite('ProtocolServerHandler', () => {
 				agentService, stateManager, relay,
 				{ allowExtensionMethods: false, advertisedModelProviders: ['copilotcli'] },
 				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 			));
 			const connectRelay = () => {
 				const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'model-relay', false, AgentHostClientConnectionKind.WebPubSub));
@@ -6701,7 +6866,7 @@ suite('ProtocolServerHandler', () => {
 			const scopedHandler = disposables.add(new ProtocolServerHandler(
 				agentService, stateManager, relay, { ...config, allowExtensionMethods: false, extension },
 				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 			));
 			const connect = (clientId: string, passive: boolean) => {
 				const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, clientId, passive));
@@ -7155,7 +7320,7 @@ suite('ProtocolServerHandler', () => {
 				allowExtensionMethods: false, extension,
 			},
 			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 		));
 		const active = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'mc-active', false));
 		active.relayAuthenticated = false;
@@ -7248,7 +7413,7 @@ suite('ProtocolServerHandler', () => {
 			const scopedHandler = disposables.add(new ProtocolServerHandler(
 				agentService, stateManager, relay, { sessionConfigAdapter: missionControlSessionConfigAdapter },
 				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 			));
 			const connect = () => {
 				const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'mc-config', false));
@@ -7557,7 +7722,7 @@ suite('ProtocolServerHandler', () => {
 			const scopedHandler = disposables.add(new ProtocolServerHandler(
 				agentService, stateManager, relay, { allowExtensionMethods: false, relayResourceRoots: () => [workspace] },
 				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 			));
 			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'case-plan-lane', false));
 			transport.relayAuthenticated = true;
@@ -7603,7 +7768,7 @@ suite('ProtocolServerHandler', () => {
 			const scopedHandler = disposables.add(new ProtocolServerHandler(
 				agentService, stateManager, relay, { allowExtensionMethods: false, relayResourceRoots: () => [workspace] },
 				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 			));
 			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'plan-lane', false));
 			transport.relayAuthenticated = true;
@@ -7712,7 +7877,7 @@ suite('ProtocolServerHandler', () => {
 			agentService, stateManager, relay,
 			{ allowExtensionMethods: false, relayResourceRoots: () => [] },
 			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 		));
 		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'builtin-skills', false));
 		transport.relayAuthenticated = true;
@@ -7764,7 +7929,7 @@ suite('ProtocolServerHandler', () => {
 			agentService, stateManager, relay,
 			{ allowExtensionMethods: false, relayResourceRoots: () => [] },
 			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 		));
 		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'mcp-lane', false));
 		transport.relayAuthenticated = true;
@@ -7820,7 +7985,7 @@ suite('ProtocolServerHandler', () => {
 			agentService, stateManager, relay,
 			{ allowExtensionMethods: false, relayResourceRoots: () => [] },
 			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 		));
 		let mcpCalls = 0;
 		let fileReads = 0;
@@ -7879,7 +8044,7 @@ suite('ProtocolServerHandler', () => {
 					agentService, stateManager, relay,
 					{ allowExtensionMethods: false, relayRootMeta: {}, relayResourceRoots: () => [workspace, explicit], defaultDirectory: item.defaultDirectory },
 					disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-					managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+					managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 				));
 				const clientId = `default-directory-${item.name}`;
 				const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, item.relay === false ? undefined : clientId, item.passive ?? false));
@@ -7923,7 +8088,7 @@ suite('ProtocolServerHandler', () => {
 			agentService, stateManager, relay,
 			{ allowExtensionMethods: false, relayResourceRoots: () => [] },
 			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 		));
 		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'storage-lane', false));
 		transport.relayAuthenticated = true;
@@ -7957,7 +8122,7 @@ suite('ProtocolServerHandler', () => {
 		const scopedHandler = disposables.add(new ProtocolServerHandler(
 			agentService, stateManager, relay, { allowExtensionMethods: false, relayResourceRoots: () => [] },
 			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 		));
 		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'folder-changes-lane', false));
 		transport.relayAuthenticated = true;
@@ -8010,7 +8175,7 @@ suite('ProtocolServerHandler', () => {
 				agentService, stateManager, relay,
 				{ allowExtensionMethods: false, relayResourceRoots: readOnly => readOnly ? [workspace, content] : [workspace] },
 				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 			));
 			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'scoped-lane', false));
 			transport.relayAuthenticated = true;
@@ -8162,7 +8327,7 @@ suite('ProtocolServerHandler', () => {
 				agentService, stateManager, relay,
 				{ allowExtensionMethods: false, relayRootMeta: {}, relayResourceRoots: () => [root], defaultDirectory: URI.file(home).toString() },
 				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 			));
 			const reads: string[] = [];
 			const writes: string[] = [];
@@ -8248,7 +8413,7 @@ suite('ProtocolServerHandler', () => {
 		disposables.add(new ProtocolServerHandler(
 			agentService, stateManager, relay, { allowExtensionMethods: false },
 			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 		));
 		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'local-client', false));
 		relay.simulateConnection(transport);
@@ -8604,43 +8769,24 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
-	test('unsupported chat actions are rejected, not dispatched', async () => {
+	test('a client\'s chat working-directory actions reach the agent service, which validates them', () => {
 		stateManager.createSession(makeSessionSummary());
-		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
-
-		const cases: readonly { readonly action: ChatAction; readonly channel: string }[] = [
-			{ action: { type: ActionType.ChatWorkingDirectorySet, directory: 'file:///tmp/extra-root' }, channel: defaultChatUri },
-			{ action: { type: ActionType.ChatWorkingDirectoryRemoved, directory: 'file:///tmp/extra-root' }, channel: defaultChatUri },
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady });
+		const transport = connectClient('chat-folders-client', [sessionUri, defaultChatUri]);
+		transport.sent.length = 0;
+		const actions: ChatAction[] = [
+			{ type: ActionType.ChatWorkingDirectorySet, directory: 'file:///tmp/extra-root' },
+			{ type: ActionType.ChatWorkingDirectoryRemoved, directory: 'file:///tmp/extra-root' },
 		];
 
-		for (const [index, { action, channel }] of cases.entries()) {
-			const clientId = `unsupported-client-${index}`;
-			const clientSeq = 100 + index;
-			const transport = connectClient(clientId, [sessionUri, defaultChatUri]);
-			await waitForResponse(transport, 1);
-			transport.sent.length = 0;
-			agentService.handledActions.length = 0;
-
-			transport.simulateMessage(notification('dispatchAction', {
-				channel,
-				clientSeq,
-				action,
-			}));
-
-			// No dispatch: the gate intercepts before reaching the agent service,
-			// so the reducer never runs and synchronized state is untouched.
-			assert.deepStrictEqual(agentService.handledActions, [], `${action.type} must not be dispatched`);
-
-			// Exactly one rejection envelope, preserving the original origin so the
-			// client can reconcile its optimistic action.
-			const actionMsgs = findNotifications(transport.sent, 'action');
-			assert.strictEqual(actionMsgs.length, 1, `${action.type} should emit exactly one envelope`);
-			const envelope = actionMsgs[0].params as unknown as { action: { type: string }; origin: { clientId: string; clientSeq: number }; rejectionReason?: string };
-			assert.strictEqual(envelope.action.type, action.type);
-			assert.ok(envelope.rejectionReason, `${action.type} envelope should carry a rejectionReason`);
-			assert.strictEqual(envelope.origin.clientId, clientId);
-			assert.strictEqual(envelope.origin.clientSeq, clientSeq);
+		for (const [index, action] of actions.entries()) {
+			transport.simulateMessage(notification('dispatchAction', { channel: defaultChatUri, clientSeq: index + 1, action }));
 		}
+
+		assert.deepStrictEqual({
+			handled: agentService.handledActions.slice(-2),
+			rejections: findNotifications(transport.sent, 'action').map(message => (message.params as ActionEnvelope).rejectionReason).filter(reason => reason !== undefined),
+		}, { handled: actions, rejections: [] });
 	});
 
 	test('turn resume reaches the agent service', () => {
@@ -8682,7 +8828,7 @@ suite('ProtocolServerHandler', () => {
 					agentService, stateManager, relay,
 					{ relayResourceRoots: () => [process.cwd()] },
 					disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-					managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+					managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 				));
 				const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'ordered-relay', false));
 				transport.relayAuthenticated = true;
@@ -8717,7 +8863,7 @@ suite('ProtocolServerHandler', () => {
 			agentService, stateManager, relay,
 			{ relayResourceRoots: () => [process.cwd()] },
 			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 		));
 		const connect = (clientId: string) => {
 			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, clientId, false));
@@ -8987,7 +9133,7 @@ suite('ProtocolServerHandler', () => {
 			agentService, stateManager, relay,
 			{ sessionSummaryFilter: summary => !readSessionExternal(summary._meta), sessionListAdapter: toMissionControlSessionList },
 			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 		));
 		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, clientId, false));
 		relay.simulateConnection(transport);
@@ -9262,7 +9408,7 @@ suite('ProtocolServerHandler', () => {
 				agentService, stateManager, relay,
 				{ allowExtensionMethods: false, relayRoots: [workspace], sessionListAdapter: toMissionControlSessionList },
 				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 			));
 			for (let index = 0; index < 101; index++) {
 				agentService.listedSessions.push({
@@ -10551,7 +10697,7 @@ suite('ProtocolServerHandler', () => {
 				const scopedHandler = disposables.add(new ProtocolServerHandler(
 					agentService, stateManager, relay, { allowExtensionMethods: false, relayResourceRoots: () => [workspace] },
 					disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-					managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+					managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 				));
 				const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'relay-chat-workspace', false));
 				transport.relayAuthenticated = true;
@@ -11206,7 +11352,7 @@ suite('ProtocolServerHandler', () => {
 				tracker,
 				localDisposables.add(new MockDevContainerService()),
 				NullAgentHostOTelService,
-				new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+				new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 			)));
 		}
 
@@ -11254,7 +11400,7 @@ suite('ProtocolServerHandler', () => {
 				tracker,
 				localDisposables.add(new MockDevContainerService()),
 				NullAgentHostOTelService,
-				new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+				new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 			));
 			const transport = new MockProtocolTransport();
 			listener.simulateConnection(transport);
@@ -11306,7 +11452,7 @@ suite('ProtocolServerHandler', () => {
 			clientConnections,
 			localDisposables.add(new MockDevContainerService()),
 			NullAgentHostOTelService,
-			new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 		));
 		const counts: number[] = [];
 		localDisposables.add(localHandler.onDidChangeConnectionCount(count => counts.push(count)));
@@ -11358,7 +11504,7 @@ suite('ProtocolServerHandler', () => {
 			clientConnections,
 			localDisposables.add(new MockDevContainerService()),
 			NullAgentHostOTelService,
-			new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 		));
 		const countEvents: number[] = [];
 		localDisposables.add(localHandler.onDidChangeConnectionCount(count => countEvents.push(count)));
@@ -11402,7 +11548,7 @@ suite('ProtocolServerHandler', () => {
 			clientConnections,
 			localDisposables.add(new MockDevContainerService()),
 			NullAgentHostOTelService,
-			new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 		));
 		const countEvents: number[] = [];
 		localDisposables.add(localHandler.onDidChangeConnectionCount(count => countEvents.push(count)));
@@ -11454,7 +11600,7 @@ suite('ProtocolServerHandler', () => {
 			clientConnections,
 			localDisposables.add(new MockDevContainerService()),
 			NullAgentHostOTelService,
-			new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 		));
 		const counts: number[] = [];
 		localDisposables.add(localHandler.onDidChangeConnectionCount(count => counts.push(count)));
@@ -12823,7 +12969,7 @@ suite('ProtocolServerHandler', () => {
 			clientConnections,
 			localDisposables.add(new MockDevContainerService()),
 			NullAgentHostOTelService,
-			new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 		));
 		const secondTransport = new MockProtocolTransport();
 		secondServer.simulateConnection(secondTransport);
@@ -12965,7 +13111,7 @@ suite('ProtocolServerHandler', () => {
 			clientConnections,
 			localDisposables.add(new MockDevContainerService()),
 			NullAgentHostOTelService,
-			new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 		));
 		const counts: number[] = [];
 		localDisposables.add(combinedHandler.onDidChangeConnectionCount(count => counts.push(count)));
@@ -13155,7 +13301,7 @@ suite('ProtocolServerHandler', () => {
 				clientConnections,
 				localDisposables.add(new MockDevContainerService()),
 				NullAgentHostOTelService,
-				new TestHandlerChatOwnership(otlpStateManager, otlpAgentService.chatOwners), proxyResolver,
+				new TestHandlerChatOwnership(otlpStateManager, otlpAgentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 			));
 		});
 
@@ -13330,7 +13476,7 @@ suite('ProtocolServerHandler', () => {
 				clientConnections,
 				localDisposables.add(new MockDevContainerService()),
 				NullAgentHostOTelService,
-				new TestHandlerChatOwnership(dlStateManager, dlAgentService.chatOwners), proxyResolver,
+				new TestHandlerChatOwnership(dlStateManager, dlAgentService.chatOwners), proxyResolver, NullAgentHostClientForwardingService,
 			));
 		});
 

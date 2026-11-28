@@ -31,6 +31,7 @@ import {
 	WorkspaceRemoteAgentHostsSettingId,
 	getEntryTypeConfig,
 	parseWebSocketRemoteAgentHostEntries,
+	type IRemoteAgentHostConnectionAttempt,
 	type IRemoteAgentHostConnectionFactory,
 	type IRemoteAgentHostConnectionInfo,
 	type IRemoteAgentHostConnectOptions,
@@ -80,10 +81,14 @@ interface IConnectionEntry {
 interface IPendingConnectionAttempt {
 	readonly promise: Promise<void>;
 	readonly info: IRemoteAgentHostPendingConnection;
+	/** Dial number within the current retry cycle, starting at one. */
+	readonly attemptNumber: number;
 	readonly observer?: RemoteAgentHostConnectionObserver;
 	readonly previousError?: string;
 	/** Also set when a user explicitly joins an automatic attempt already in flight. */
 	showError: boolean;
+	/** Whether a user explicitly joined this attempt while it was in flight. */
+	userJoined: boolean;
 }
 
 function disposeEntry(entry: IConnectionEntry): void {
@@ -173,6 +178,12 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	private readonly _reconnectTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
 	/** Current reconnect attempt count per address for exponential backoff. */
 	private readonly _reconnectAttempts = new Map<string, number>();
+	/**
+	 * Dials per address since the connection was last established or a user
+	 * started a new dial. Unlike {@link _reconnectAttempts}, the drop that
+	 * starts automatic recovery does not count, so its first dial is number one.
+	 */
+	private readonly _dialAttempts = new Map<string, number>();
 	/**
 	 * Per-address {@link ILabelService} formatter handles for the
 	 * {@link AGENT_HOST_SCHEME}. The formatter advertises the entry's
@@ -388,11 +399,13 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		// starting a second one — that is what produced concurrent remote
 		// bootstraps. Join it instead. A user-initiated request still restores
 		// the retry budget, so pressing reconnect while a slow bootstrap runs
-		// is not silently useless if that bootstrap ultimately fails.
+		// is not silently useless if that bootstrap ultimately fails. Dial
+		// numbering continues from the joined dial.
 		const pending = this._pendingConnects.get(normalized);
 		if (pending) {
 			if (userInitiated) {
 				pending.showError = true;
+				pending.userJoined = true;
 				this._failedReconnects.delete(normalized);
 				this._cancelReconnect(normalized);
 				this._reconnectAttempts.delete(normalized);
@@ -422,7 +435,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		this._cancelReconnect(normalized);
 		if (userInitiated) {
 			// An automatic retry must not resurrect its own exhausted attempt budget.
-			this._reconnectAttempts.delete(normalized);
+			this._resetReconnectAttempts(normalized);
 		}
 
 		// Tear down existing connection if present
@@ -510,13 +523,18 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		const normalized = normalizeRemoteAgentHostAddress(address);
 		// Eagerly clear in-memory state so the UI updates immediately
 		// (the config change listener will reconcile, but this is instant).
-		this._names.delete(normalized);
-		this._tokens.delete(normalized);
-		this._pathStyles.delete(normalized);
+		// A host that stays configured, such as a disconnected tunnel, keeps its
+		// name, token, path style and label: only reconciliation sets them, so
+		// reconnecting it would otherwise show its address instead of its name.
+		if (!this._configuredEntries.get().some(entry => this._entryAddress(entry) === normalized)) {
+			this._names.delete(normalized);
+			this._tokens.delete(normalized);
+			this._pathStyles.delete(normalized);
+			this._clearHostLabelFormatter(normalized);
+		}
 		this._failedReconnects.delete(normalized);
-		this._clearHostLabelFormatter(normalized);
 		this._cancelReconnect(normalized);
-		this._reconnectAttempts.delete(normalized);
+		this._resetReconnectAttempts(normalized);
 		this._removeConnection(normalized);
 	}
 
@@ -587,6 +605,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			this._tokens.clear();
 			this._pathStyles.clear();
 			this._reconnectAttempts.clear();
+			this._dialAttempts.clear();
 			// Drop label formatters for entries no longer represented by an active connection.
 			for (const address of [...this._labelFormatters.keys()]) {
 				this._clearHostLabelFormatter(address);
@@ -600,7 +619,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		for (const address of this._pendingConnects.keys()) {
 			if (!desired.has(address)) {
 				this._cancelReconnect(address);
-				this._reconnectAttempts.delete(address);
+				this._resetReconnectAttempts(address);
 				this._removeConnection(address);
 			}
 		}
@@ -634,7 +653,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			if (!desired.has(address)) {
 				this._logService.info(`[RemoteAgentHost] Disconnecting from ${address}`);
 				this._cancelReconnect(address);
-				this._reconnectAttempts.delete(address);
+				this._resetReconnectAttempts(address);
 				this._removeConnection(address);
 			}
 		}
@@ -669,7 +688,9 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		const userInitiated = factory?.getPendingConnectionInitiation?.(entryToCreate) ?? options.userInitiated;
 		const observer = factory?.getConnectionObserver?.(entryToCreate);
 		const previousError = !userInitiated ? this._entries.get(address)?.lastConnectionError : undefined;
-		const attempt = { promise: pendingConnect.p, info: { address, startedAt: Date.now(), userInitiated }, observer, previousError, showError: userInitiated || !!previousError };
+		const attemptNumber = (this._dialAttempts.get(address) ?? 0) + 1;
+		this._dialAttempts.set(address, attemptNumber);
+		const attempt = { promise: pendingConnect.p, info: { address, startedAt: Date.now(), userInitiated }, attemptNumber, observer, previousError, showError: userInitiated || !!previousError, userJoined: false };
 		this._pendingConnects.set(address, attempt);
 		observer?.('connecting');
 		this._onDidChangePendingConnections.fire();
@@ -731,7 +752,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		const onDiagnostic: ConnectionDiagnosticObserver = event => this._diagnostics.record(address, { ...event, attemptId });
 		const diagnostic = new ConnectionDiagnosticOperation(onDiagnostic, `factory.${entryToCreate.connection.type}`, `userInitiated=${options.userInitiated}`);
 		try {
-			createdConnection = await factory.createConnection(entryToCreate, { ...options, onDiagnostic });
+			createdConnection = await factory.createConnection(entryToCreate, { ...options, hasUserJoined: () => attempt.userJoined, onDiagnostic });
 			diagnostic.succeeded(`clientId=${createdConnection.connection.clientId}`);
 		} catch (err) {
 			diagnostic.failed(err);
@@ -764,7 +785,9 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			// Nothing else reports this failure: no entry was created, so consumers
 			// only learn the address became unavailable from this notification.
 			this._onDidChangeConnections.fire();
-			if (isTerminalConnectError(err) || this._store.isDisposed || !this._remoteAgentHostsEnabled.get() || !this._scheduleReconnect(address, entryToCreate.connectionToken)) {
+			const willRetry = !isTerminalConnectError(err) && !this._store.isDisposed && this._remoteAgentHostsEnabled.get() && this._scheduleReconnect(address, entryToCreate.connectionToken);
+			this._reportConnectionAttempt(factory, entryToCreate, attempt, { error: err, duringHandshake: false, willRetry });
+			if (!willRetry) {
 				observer?.(isCancellationError(err) || this._store.isDisposed || !this._remoteAgentHostsEnabled.get() ? 'disposed' : 'failed');
 			}
 			return;
@@ -873,7 +896,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 					// A soft reconnect that restores the transport settles any
 					// wait started before the drop, which would otherwise sit
 					// until its timeout even though the host is reachable again.
-					this._reconnectAttempts.delete(address);
+					this._resetReconnectAttempts(address);
 					this._resolvePendingConnectionWait(address);
 					this._onDidChangeConnections.fire();
 					break;
@@ -888,7 +911,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 					entry.status = RemoteAgentHostConnectionStatus.fromConnectError(client.connectionError, getAgentHostSupportedProtocolVersions())
 						?? RemoteAgentHostConnectionStatus.incompatible(message, getAgentHostSupportedProtocolVersions());
 					entry.lastConnectionError = undefined;
-					this._reconnectAttempts.delete(address);
+					this._resetReconnectAttempts(address);
 					if (wasReconnecting) {
 						this._rejectPendingConnectionWait(address, client.connectionError ?? new Error(message));
 					}
@@ -914,9 +937,10 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			entry.connected = true;
 			entry.status = RemoteAgentHostConnectionStatus.connected;
 			entry.lastConnectionError = undefined;
-			this._reconnectAttempts.delete(address);
+			this._resetReconnectAttempts(address);
 			this._resolvePendingConnectionWait(address);
 			this._onDidChangeConnections.fire();
+			this._reportConnectionAttempt(factory, entryToCreate, attempt, undefined);
 		} catch (err) {
 			if (!isCurrentEntry()) {
 				if (!store.isDisposed) {
@@ -938,9 +962,10 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 				this._logService.warn(`[RemoteAgentHost] Incompatible with ${address}: ${incompatible.kind === 'incompatible' ? incompatible.message : ''}`);
 				entry.status = incompatible;
 				entry.lastConnectionError = undefined;
-				this._reconnectAttempts.delete(address);
+				this._resetReconnectAttempts(address);
 				this._rejectPendingConnectionWait(address, err);
 				this._onDidChangeConnections.fire();
+				this._reportConnectionAttempt(factory, entryToCreate, attempt, { error: err, duringHandshake: true, willRetry: false });
 				return;
 			}
 
@@ -957,6 +982,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			// restore itself instead of rebuilding from scratch.
 			if (RemoteAgentHostConnectionStatus.isReconnecting(entry.status)) {
 				this._logService.info(`[RemoteAgentHost] Handshake with ${address} was interrupted; the protocol client is restoring the connection`);
+				this._reportConnectionAttempt(factory, entryToCreate, attempt, { error: err, duringHandshake: true, willRetry: true });
 				return;
 			}
 
@@ -971,10 +997,21 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			this._rejectPendingConnectionWait(address, err);
 			this._onDidChangeConnections.fire();
 			// Schedule reconnect if the address is still configured
-			if (isAuthenticationFailureReason(disconnectReason) || createdConnection.reconnectManagedByClient || !this._scheduleReconnect(address, entryToCreate.connectionToken)) {
+			const willRetry = !isAuthenticationFailureReason(disconnectReason) && !createdConnection.reconnectManagedByClient && this._scheduleReconnect(address, entryToCreate.connectionToken);
+			this._reportConnectionAttempt(factory, entryToCreate, attempt, { error: err, duringHandshake: true, willRetry });
+			if (!willRetry) {
 				observer?.('failed');
 			}
 		}
+	}
+
+	private _reportConnectionAttempt(factory: IRemoteAgentHostConnectionFactory, entry: IRemoteAgentHostEntry, attempt: IPendingConnectionAttempt, failure: IRemoteAgentHostConnectionAttempt['failure']): void {
+		factory.reportConnectionAttempt?.(entry, {
+			userInitiated: attempt.info.userInitiated,
+			attempt: attempt.attemptNumber,
+			durationMs: Date.now() - attempt.info.startedAt,
+			failure,
+		});
 	}
 
 	/**
@@ -1044,6 +1081,12 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			clearTimeout(timeout);
 			this._reconnectTimeouts.delete(address);
 		}
+	}
+
+	/** Starts a new retry cycle: restores the retry budget and restarts dial numbering. */
+	private _resetReconnectAttempts(address: string): void {
+		this._reconnectAttempts.delete(address);
+		this._dialAttempts.delete(address);
 	}
 
 	private _getConnectionInfo(address: string): IRemoteAgentHostConnectionInfo | undefined {
@@ -1158,6 +1201,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		}
 		this._reconnectTimeouts.clear();
 		this._reconnectAttempts.clear();
+		this._dialAttempts.clear();
 		for (const pending of this._pendingConnects.values()) {
 			pending.observer?.('disposed');
 		}

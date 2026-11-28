@@ -67,6 +67,8 @@ import { IAgentHostProviderService } from '../../node/agentHostProviderService.j
 import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController, type AutomaticTitleGenerationStrategy } from '../../node/agentHostSessionTitleController.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
+import { IAgentHostPullRequestAutopilotService } from '../../node/agentHostPullRequestAutopilot.js';
+import { nullPullRequestAutopilotService } from './pullRequestAutopilotTestUtils.js';
 import { AgentHostChatInputService, IAgentHostChatInputService } from '../../node/agentHostChatInputService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import type { IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
@@ -81,6 +83,7 @@ import { IAgentHostArchivedChatWorkspaceService } from '../../node/chatContribut
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter, type IAgentHostAskQuestionsToolInvokedEvent, type IAgentHostTurnCompletedEvent } from '../../node/agentHostTelemetryReporter.js';
 import { IAgentHostSessionPromptService } from '../../node/agentHostSessionPromptService.js';
 import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/agentHostToolCallTracker.js';
+import { FolderIsolationService, IFolderIsolationService, type IFolderIsolationHost } from '../../node/chatContributions/folderIsolation/folderIsolation.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { AgentHostTurnService, IAgentHostTurnService } from '../../node/agentHostTurnService.js';
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
@@ -161,13 +164,13 @@ class NoopGitStateService implements IAgentHostGitStateService {
 	readonly onDidRefreshSessionGitState = Event.None;
 	readonly onDidChangeSessionGitHubState = Event.None;
 
-	async refreshSessionGitState(_sessionKey: string, _workingDirectory?: URI): Promise<void> { }
+	async refreshSessionGitState(_sessionKey: string): Promise<void> { }
 	getMaterializedWorktreeMeta(_sessionKey: string, _branchName: string): undefined { return undefined; }
 	async setFolderGitState(): Promise<void> { }
-	async resolveSessionBaseBranchName(_sessionKey: string): Promise<string | undefined> { return undefined; }
+	async resolveSessionBaseBranchRef(_sessionKey: string): Promise<string | undefined> { return undefined; }
 	async setSessionGitHubState(_sessionKey: string, _state: ISessionGitHubState): Promise<void> { }
 	async recordSessionMerge(_sessionKey: string, _commit: string): Promise<void> { }
-	async attachSessionGitHubPullRequest(_sessionKey: string, _workingDirectory?: URI): Promise<void> { }
+	async attachSessionGitHubPullRequest(_sessionKey: string): Promise<void> { }
 }
 
 class NoopWorktreeIsolation extends NullAgentHostWorktreeIsolation { }
@@ -254,6 +257,9 @@ function createTestSideEffects(
 		worktreeIsolation?: IAgentHostWorktreeIsolation;
 		fileService?: IFileService;
 		onDidCreateTurnService?: (turnService: IAgentHostTurnService) => void;
+		/** Moves folders for a real {@link FolderIsolationService}, instead of a service that moves none. */
+		folderIsolationHost?: IFolderIsolationHost;
+		onDidCreateFolderIsolation?: (service: IFolderIsolationService) => void;
 		authenticationService?: IAgentHostAuthenticationService;
 		logService?: ILogService;
 	},
@@ -273,6 +279,7 @@ function createTestSideEffects(
 	const services = new ServiceCollection(
 		[IAgentHostAuthenticationService, authenticationService],
 		[ILogService, logService],
+		[IFolderIsolationService, { _serviceBrand: undefined, request: () => { }, onTurnEnd: () => { }, isMoving: () => false, isRequested: () => false } satisfies IFolderIsolationService],
 		[IAgentConfigurationService, configService],
 		[IAgentHostChangesetService, changesets],
 		[IAgentHostCheckpointService, checkpointService],
@@ -319,6 +326,7 @@ function createTestSideEffects(
 	services.set(IAgentHostProviderService, providerService);
 	const chatOwnership = createTestChatOwnershipService(stateManager);
 	services.set(IAgentHostChatOwnershipService, chatOwnership);
+	services.set(IAgentHostPullRequestAutopilotService, nullPullRequestAutopilotService);
 	services.set(IAgentHostSessionStateStore, sessionStateStore);
 	services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, disposables.add(new AgentHostSubscriptionService(chatOwnership)), chatOwnership, authenticationService, sessionStateStore)));
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
@@ -338,6 +346,11 @@ function createTestSideEffects(
 	const turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
 	services.set(IAgentHostTurnTracker, turnTracker);
 	services.set(IAgentHostToolCallTracker, disposables.add(instantiationService.createInstance(AgentHostToolCallTracker)));
+	if (options.folderIsolationHost) {
+		const folderIsolation = disposables.add(instantiationService.createInstance(FolderIsolationService, options.folderIsolationHost));
+		services.set(IFolderIsolationService, folderIsolation);
+		options.onDidCreateFolderIsolation?.(folderIsolation);
+	}
 	const localTurns = options.localTurns ?? new AgentHostLocalTurns(createTestChatRows(options.sessionDataService, disposables), logService);
 	services.set(IAgentHostLocalTurns, localTurns);
 	const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands));
@@ -3080,6 +3093,45 @@ suite('AgentSideEffects', () => {
 			});
 		});
 
+		test('a first turn cancelled during working-directory resolution announces the provisional session without sending', async () => {
+			setupProvisionalSession();
+			const resolving = new DeferredPromise<void>();
+			const resolved = new DeferredPromise<readonly URI[]>();
+			const announced = new DeferredPromise<{ session: string; workingDirectories: string[] | undefined }>();
+			const localSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+				resolveWorkingDirectoryBeforeSend: () => {
+					resolving.complete();
+					return resolved.p;
+				},
+				announceUnsentProvisionalSession: ({ session, workingDirectories }) => announced.complete({ session, workingDirectories: workingDirectories?.map(uri => uri.toString()) }),
+			});
+			const started = {
+				type: ActionType.ChatTurnStarted,
+				startedAt: '2025-01-01T00:00:00.000Z',
+				turnId: 'turn-1',
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			} as const;
+			stateManager.dispatchClientAction(defaultChatUri, started, { clientId: 'test', clientSeq: 1 });
+
+			localSideEffects.handleAction(defaultChatUri, started);
+			await resolving.p;
+			stateManager.dispatchClientAction(defaultChatUri, { type: ActionType.ChatTurnCancelled, turnId: 'turn-1', duration: 0 }, { clientId: 'test', clientSeq: 2 });
+			resolved.complete([URI.file('/repo.worktrees/feature')]);
+
+			assert.deepStrictEqual({
+				announced: await announced.p,
+				sendMessageCalls: agent.sendMessageCalls,
+				lifecycle: stateManager.getSessionState(sessionUri.toString())?.lifecycle,
+			}, {
+				announced: { session: sessionUri.toString(), workingDirectories: [URI.file('/repo.worktrees/feature').toString()] },
+				sendMessageCalls: [],
+				lifecycle: SessionLifecycle.Creating,
+			});
+		});
+
 		test('AgentSideEffects owns exactly one ChatError when an already-ready session send rejects', async () => {
 			setupSession(); // dispatches SessionReady -> lifecycle Ready
 			agent.sendMessageError = new Error('transient send failure');
@@ -5321,6 +5373,52 @@ suite('AgentSideEffects', () => {
 				heldQueue: ['q-held'],
 				sent: ['after the move'],
 				queueAfter: undefined,
+			});
+		});
+
+		test('a queued message of a chat whose folder isolate_session moves waits until the folder moved, and then launches instead of the continuation', async () => {
+			const moved = new DeferredPromise<URI>();
+			let folderIsolation: IFolderIsolationService | undefined;
+			sideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+				hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+				authenticationService,
+				folderIsolationHost: { validateFolderIsolation: () => { }, isolateChatFolder: () => moved.p },
+				onDidCreateFolderIsolation: service => folderIsolation = service,
+			}, undefined, disposables.add(new AgentHostTelemetryService(telemetryService)));
+			setupSession();
+			disposables.add(sideEffects.registerProgressListener(agent));
+			startTurn('turn-1');
+			folderIsolation!.request(sessionUri, URI.parse(defaultChatUri), 'turn-1', [URI.file('/work/lib')], undefined);
+			const setAction = {
+				type: ActionType.ChatPendingMessageSet as const,
+				kind: PendingMessageKind.Queued,
+				id: 'q-moving',
+				message: { text: 'after the move', origin: { kind: MessageKind.User } },
+			};
+			stateManager.dispatchClientAction(defaultChatUri, setAction, { clientId: 'test', clientSeq: 1 });
+			sideEffects.handleAction(defaultChatUri, setAction);
+
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri),
+				action: chatTurnComplete('turn-1', 1000),
+			});
+			await timeout(0);
+			const whileMoving = {
+				sent: agent.sendMessageCalls.length,
+				queue: stateManager.getChatState(defaultChatUri)?.queuedMessages?.map(message => message.id),
+				moving: folderIsolation!.isMoving(defaultChatUri),
+			};
+			moved.complete(URI.file('/work/lib.worktrees/task'));
+			await waitForSendMessageCalls(1);
+
+			assert.deepStrictEqual({ whileMoving, sent: agent.sendMessageCalls.map(call => call.prompt), moving: folderIsolation!.isMoving(defaultChatUri) }, {
+				whileMoving: { sent: 0, queue: ['q-moving'], moving: true },
+				// The queued message launches once the folder moved, in place of the continuation
+				sent: ['after the move'],
+				moving: false,
 			});
 		});
 
@@ -9325,6 +9423,32 @@ suite('AgentSideEffects', () => {
 
 	suite('session permissions', () => {
 
+		function getToolCall(toolCallId: string) {
+			const part = stateManager.getChatState(defaultChatUri)?.activeTurn?.responseParts.find(part =>
+				part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === toolCallId
+			);
+			return part?.kind === ResponsePartKind.ToolCall ? part.toolCall : undefined;
+		}
+
+		async function startPendingCustomTool(toolCallId: string, options: { readonly managedApprovalRequired?: boolean; readonly clientTool?: boolean } = {}): Promise<void> {
+			const chat = URI.parse(defaultChatUri);
+			const contributor = options.clientTool ? { kind: ToolCallContributorKind.Client, clientId: 'test-client' } as const : undefined;
+			agent.fireProgress({
+				kind: 'action', resource: chat,
+				action: chatToolCallStart('turn-1', toolCallId, 'CustomTool', 'Custom Tool', contributor ? { contributor } : undefined),
+			});
+			agent.fireProgress({
+				kind: 'pending_confirmation', chat,
+				state: {
+					status: ToolCallStatus.PendingConfirmation, toolCallId,
+					toolName: 'CustomTool', displayName: 'Custom Tool',
+					invocationMessage: 'Run custom tool', confirmationTitle: 'Run custom tool?',
+				},
+				permissionKind: AgentPermissionKind.CustomTool, managedApprovalRequired: options.managedApprovalRequired,
+			});
+			await waitForState(stateManager, () => getToolCall(toolCallId)?.status === ToolCallStatus.PendingConfirmation || undefined);
+		}
+
 		test('live sampling tool parts route their custom approval without granting ordinary tool permissions', () => {
 			setupSession();
 			startTurn('turn-1', defaultChatUri);
@@ -9406,7 +9530,7 @@ suite('AgentSideEffects', () => {
 			assert.ok(tc && tc.kind === ResponsePartKind.ToolCall, 'tool call should exist');
 			assert.strictEqual(tc.toolCall.status, ToolCallStatus.PendingConfirmation);
 			assert.ok(Array.isArray(tc.toolCall.options), 'options should be an array');
-			assert.deepStrictEqual(tc.toolCall.options!.map(o => o.id), ['allow-session', 'allow-once', 'skip']);
+			assert.deepStrictEqual(tc.toolCall.options!.map(o => o.id), ['allow-once', 'allow-session', 'skip']);
 		});
 
 		test('ChatToolCallConfirmed with allow-session adds tool to session permissions', async () => {
@@ -9494,6 +9618,94 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(agent.respondToPermissionCalls, [
 				{ requestId: 'tc-perm-3', approved: true },
 			]);
+		});
+
+		test('allow-session auto-approves other pending calls for the same tool', async () => {
+			setupSession();
+			stateManager.setSessionConfig(sessionUri.toString(), {
+				schema: { type: 'object', properties: {} },
+				values: {},
+			});
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+			await startPendingCustomTool('tc-a');
+			await startPendingCustomTool('tc-b');
+
+			const confirmation: ChatAction = {
+				type: ActionType.ChatToolCallConfirmed,
+				turnId: 'turn-1',
+				toolCallId: 'tc-a',
+				approved: true,
+				confirmed: ToolCallConfirmationReason.UserAction,
+				selectedOptionId: 'allow-session',
+			};
+			stateManager.dispatchClientAction(defaultChatUri, confirmation, { clientId: 'test', clientSeq: 2 });
+			sideEffects.handleAction(defaultChatUri, confirmation);
+
+			const toolCall = await waitForState(stateManager, () => {
+				const pending = getToolCall('tc-b');
+				return pending?.status === ToolCallStatus.Running ? pending : undefined;
+			});
+			assert.deepStrictEqual({
+				status: toolCall.status,
+				confirmed: toolCall.confirmed,
+				responses: agent.respondToPermissionCalls,
+			}, {
+				status: ToolCallStatus.Running,
+				confirmed: ToolCallConfirmationReason.Setting,
+				responses: [
+					{ requestId: 'tc-a', approved: true },
+					{ requestId: 'tc-b', approved: true },
+				],
+			});
+		});
+
+		test('switching to Allow All auto-approves pending calls except managed approvals and client tools', async () => {
+			setupSession();
+			stateManager.setSessionConfig(sessionUri.toString(), {
+				schema: {
+					type: 'object',
+					properties: {
+						[SessionConfigKey.AutoApprove]: {
+							type: 'string',
+							title: 'Approvals',
+							enum: ['default', 'autoApprove', 'autopilot'],
+							default: 'default',
+							sessionMutable: true,
+						},
+					},
+				},
+				values: { [SessionConfigKey.AutoApprove]: 'default' },
+			});
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+			await startPendingCustomTool('tc-ordinary');
+			await startPendingCustomTool('tc-managed', { managedApprovalRequired: true });
+			await startPendingCustomTool('tc-client', { clientTool: true });
+
+			stateManager.dispatchClientAction(sessionUri.toString(), {
+				type: ActionType.SessionConfigChanged,
+				config: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
+			}, { clientId: 'test', clientSeq: 2 });
+
+			const toolCall = await waitForState(stateManager, () => {
+				const pending = getToolCall('tc-ordinary');
+				return pending?.status === ToolCallStatus.Running ? pending : undefined;
+			});
+			await timeout(0);
+			assert.deepStrictEqual({
+				status: toolCall.status,
+				confirmed: toolCall.confirmed,
+				managedStatus: getToolCall('tc-managed')?.status,
+				clientStatus: getToolCall('tc-client')?.status,
+				responses: agent.respondToPermissionCalls,
+			}, {
+				status: ToolCallStatus.Running,
+				confirmed: ToolCallConfirmationReason.Setting,
+				managedStatus: ToolCallStatus.PendingConfirmation,
+				clientStatus: ToolCallStatus.PendingConfirmation,
+				responses: [{ requestId: 'tc-ordinary', approved: true }],
+			});
 		});
 
 		test('managed approval bypasses global, session, and per-tool auto-approval', async () => {

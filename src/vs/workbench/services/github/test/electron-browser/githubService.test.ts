@@ -19,7 +19,7 @@ import { ISharedProcessGitHubService } from '../../../../../platform/github/comm
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { IAuthenticationService } from '../../../authentication/common/authentication.js';
+import { IAuthenticationExtensionsService, IAuthenticationService } from '../../../authentication/common/authentication.js';
 import { NativeWorkbenchGitHubService } from '../../electron-browser/githubService.js';
 
 suite('Native workbench GitHub API clients', () => {
@@ -68,6 +68,7 @@ suite('Native workbench GitHub API clients', () => {
 			accounts, new NullLogService(), NullTelemetryService,
 			new class extends mock<IProductService>() { override readonly applicationName = 'test'; override readonly version = '1'; }(),
 			configuration,
+			new class extends mock<IAuthenticationExtensionsService>() { override readonly onDidChangeAccountPreference = Event.None; }(),
 			new class extends mock<ISharedProcessGitHubService>() {
 				override async acquireAnonymousClient(cancellationToken: CancellationToken) {
 					CancellationToken.throwIfCanceled(cancellationToken);

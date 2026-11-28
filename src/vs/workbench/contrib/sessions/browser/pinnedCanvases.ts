@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IObservable, IReader } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import type { ICanvas, ICanvasReference } from '../../../common/canvasReference.js';
+import type { ISession } from '../../../services/sessions/common/session.js';
+import type { ISessionsManagementService } from '../common/sessionsManagement.js';
 
 /** The custom view that shows the selected pinned canvas full-page. */
 export const PINNED_CANVAS_PAGE_ID = 'sessions.customView.canvas';
@@ -21,6 +24,26 @@ export const CanvasesPinnedToSidebarContext = new RawContextKey<string[]>('canva
 
 /** Whether the pinned canvas that an action targets is connected to its live canvas. */
 export const PinnedCanvasConnectedContext = new RawContextKey<boolean>('pinnedCanvasConnected', false, localize('pinnedCanvasConnected', "Whether the targeted pinned canvas is connected to its live canvas"));
+
+/** Whether the user can show or hide the session of the pinned canvas that an action targets in the Sessions list; see {@link getPinnedCanvasListingSession}. */
+export const PinnedCanvasSessionCanToggleListingContext = new RawContextKey<boolean>('pinnedCanvasSessionCanToggleListing', false, localize('pinnedCanvasSessionCanToggleListing', "Whether the session of the targeted pinned canvas can be shown in or hidden from the Sessions list"));
+
+/** Whether the session of the pinned canvas that an action targets is listed in the Sessions list. */
+export const PinnedCanvasSessionInSessionsListContext = new RawContextKey<boolean>('pinnedCanvasSessionInSessionsList', false, localize('pinnedCanvasSessionInSessionsList', "Whether the session of the targeted pinned canvas is listed in the Sessions list"));
+
+/**
+ * The session of `pin` when the user can show or hide it in the Sessions list: it is not done, and it is not an
+ * automation run, which the Sessions list shows by its own rules.
+ */
+export function getPinnedCanvasListingSession(sessionsManagementService: ISessionsManagementService, pin: IPinnedCanvas, reader?: IReader): ISession | undefined {
+	const session = sessionsManagementService.getSession(pin.identity.session);
+	return session && !session.isArchived.read(reader) && !session.isAutomation?.read(reader) ? session : undefined;
+}
+
+/** Whether `session` owns the pinned canvas with `identity`. */
+export function isPinnedCanvasOwnedBy(identity: IPinnedCanvasIdentity, session: Pick<ISession, 'providerId' | 'resource'>): boolean {
+	return identity.providerId === session.providerId && isEqual(identity.session, session.resource);
+}
 
 /**
  * The persisted identity of a pinned canvas. It survives a window reload while the
@@ -117,5 +140,14 @@ export interface IPinnedCanvasService {
 	goToChat(target: PinnedCanvasTarget): Promise<void>;
 
 	/** Closes the live canvas of a pin, which also removes the pin. */
-	closeCanvas(target: PinnedCanvasTarget): Promise<void>;
+	closeCanvas(target: PinnedCanvasTarget, options?: IClosePinnedCanvasOptions): Promise<void>;
+}
+
+export interface IClosePinnedCanvasOptions {
+	/**
+	 * Once the canvas is closed, also marks its chat as done. A session's main chat is
+	 * not marked done on its own, so the whole session is marked done instead. Nothing is
+	 * marked done while it has a request in progress, because that would stop the request.
+	 */
+	readonly markChatDone?: boolean;
 }

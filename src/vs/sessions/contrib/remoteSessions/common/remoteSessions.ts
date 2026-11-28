@@ -8,25 +8,40 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { ModelContextTier, modelContextTiers } from '../../../../platform/agentHost/common/agentModelConfiguration.js';
+import { AgentHostSessionModelOptionsSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostResources } from '../../../../platform/agentHost/common/meta/agentHostResources.js';
+import { ReasoningEffortLevel, reasoningEffortLevels } from '../../../../platform/agentHost/common/reasoningEffort.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { DevContainerHandoffEnabledSettingId } from '../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 
 export const RemoteSessionToolsEnabledSettingId = 'chat.remoteSessions.tools.enabled';
 
 export const remoteSessionToolsWhen = ContextKeyExpr.and(
 	ChatContextKeys.enabled,
 	ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true),
-	ContextKeyExpr.equals(`config.${RemoteSessionToolsEnabledSettingId}`, true),
+	ContextKeyExpr.or(
+		ContextKeyExpr.equals(`config.${RemoteSessionToolsEnabledSettingId}`, true),
+		// Agents that continue work in a Dev Container start and contact its session with these tools.
+		ContextKeyExpr.equals(`config.${DevContainerHandoffEnabledSettingId}`, true),
+	),
 );
 
 export function areRemoteSessionToolsEnabled(configurationService: IConfigurationService): boolean {
 	return !configurationService.getValue<boolean>('chat.disableAIFeatures')
 		&& configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId) === true
-		&& configurationService.getValue<boolean>(RemoteSessionToolsEnabledSettingId) === true;
+		&& (configurationService.getValue<boolean>(RemoteSessionToolsEnabledSettingId) === true
+			|| configurationService.getValue<boolean>(DevContainerHandoffEnabledSettingId) === true);
+}
+
+/** Whether agents can choose a new remote session's reasoning effort and context tier, as they can in the host's `create_session`. */
+export function areRemoteSessionModelOptionsEnabled(configurationService: IConfigurationService): boolean {
+	const value = configurationService.getValue<string>(AgentHostSessionModelOptionsSettingId);
+	return value === 'inline' || value === 'tool';
 }
 
 export interface IRemoteSessionRequirements {
@@ -40,6 +55,11 @@ export interface IRemoteSessionModel {
 	readonly id: string;
 }
 
+/** The model of the chat that creates a remote session, which the session continues on by default. */
+export interface IRemoteSessionSourceModelInfo extends IRemoteSessionModel {
+	readonly reasoningEffort?: ReasoningEffortLevel;
+}
+
 export interface IRemoteSessionWorkspace {
 	readonly uri: URI;
 	readonly isolation: 'folder' | 'worktree';
@@ -51,6 +71,10 @@ export interface ICreateRemoteSessionOptions {
 	readonly title?: string;
 	readonly hostId?: string;
 	readonly model?: IRemoteSessionModel;
+	/** Requires {@link model}; set as an explicit choice over the reasoning effort the session would otherwise start with. */
+	readonly reasoningEffort?: ReasoningEffortLevel;
+	/** Requires {@link model}; set as an explicit choice over the context size the session would otherwise start with. */
+	readonly contextTier?: ModelContextTier;
 	readonly requirements: IRemoteSessionRequirements;
 	readonly workspace?: IRemoteSessionWorkspace;
 }
@@ -77,6 +101,11 @@ export interface ICreatedRemoteSession {
 	readonly openLink: string;
 	readonly host: { readonly id: string; readonly label: string };
 	readonly model: { readonly provider: string; readonly id: string | null };
+	/** The permission ID and mode the session starts with; null where the target has no such setting. */
+	readonly permissions: string | null;
+	readonly mode: string | null;
+	/** Permissions or mode of the creating chat that the target does not offer, with what it uses instead. */
+	readonly notInherited: readonly string[];
 	readonly workspace: {
 		readonly requestedUri: string;
 		readonly uri: string | null;
@@ -89,11 +118,43 @@ export interface ICreatedRemoteSession {
 	readonly status: 'started';
 }
 
+/** A host named for people, as in the Environment picker. */
+export interface IRemoteSessionHostName {
+	readonly label: string;
+	/** For a Dev Container environment, the name of the host that runs the container. */
+	readonly containerHost?: string;
+}
+
+/** Where `createSession` would start the session, for people to approve. */
+export interface IRemoteSessionDestination {
+	/** The host that the options pin, by `hostId` or by an Agent Host workspace URI, if it is available in this window. */
+	readonly host?: IRemoteSessionHostName;
+	/** The host ID or workspace authority that pins the host, also when that host is not available; undefined when placement selects it. */
+	readonly pinnedBy?: string;
+	/**
+	 * A lossless label of the workspace directory on its host: its path, prefixed with `//authority` when it has one,
+	 * decoded through the pinned host's connection, so it names the directory that creation inspects.
+	 */
+	readonly workspace?: string;
+}
+
 export const IRemoteSessionService = createDecorator<IRemoteSessionService>('remoteSessionService');
 
 export interface IRemoteSessionService {
 	readonly _serviceBrand: undefined;
 	listHosts(): readonly IRemoteSessionHost[];
+	/**
+	 * Why `createSession` would not start a session in the workspace on the host now, apart from the
+	 * workspace's existence and trust; empty when it would.
+	 */
+	getHostRejections(hostId: string, workspace: IRemoteSessionWorkspace): readonly string[];
+	/** Describes where `createSession` would start the session with the options, for its approval. */
+	getRequestedDestination(options: ICreateRemoteSessionOptions): IRemoteSessionDestination;
+	/**
+	 * The model the chat runs on, which `createSession` starts the session on when the options name no model and the
+	 * selected host offers it; undefined when the chat's host recorded none.
+	 */
+	getSourceModel(source: URI, token: CancellationToken): Promise<IRemoteSessionSourceModelInfo | undefined>;
 	createSession(options: ICreateRemoteSessionOptions, source: URI, requestId: string, token: CancellationToken): Promise<ICreatedRemoteSession>;
 }
 
@@ -128,8 +189,21 @@ function readMinimum(value: unknown, label: string, integer: boolean): number | 
 	return value;
 }
 
-export function parseCreateRemoteSessionOptions(value: unknown): ICreateRemoteSessionOptions {
-	const input = readObject(value, ['prompt', 'title', 'hostId', 'model', 'requirements', 'workspace'], 'create_remote_session');
+function readChoice<T extends string>(value: unknown, values: readonly T[], label: string): T {
+	const choice = values.find(candidate => candidate === value);
+	if (choice === undefined) {
+		throw new Error(localize('remoteSessions.invalidChoice', "{0} must be one of: {1}.", label, values.join(', ')));
+	}
+	return choice;
+}
+
+/**
+ * @param modelOptions Whether agents can choose the model's reasoning effort and context tier
+ * ({@link areRemoteSessionModelOptionsEnabled}); otherwise those properties are unknown.
+ */
+export function parseCreateRemoteSessionOptions(value: unknown, modelOptions = false): ICreateRemoteSessionOptions {
+	const fields = ['prompt', 'title', 'hostId', 'model', 'requirements', 'workspace'];
+	const input = readObject(value, modelOptions ? [...fields, 'reasoningEffort', 'contextTier'] : fields, 'create_remote_session');
 	const prompt = readText(input.prompt, 'prompt');
 	const title = input.title === undefined ? undefined : readText(input.title, 'title');
 	if (title !== undefined && Array.from(title).length > 200) {
@@ -140,6 +214,11 @@ export function parseCreateRemoteSessionOptions(value: unknown): ICreateRemoteSe
 	if (input.model !== undefined) {
 		const raw = readObject(input.model, ['provider', 'id'], 'model');
 		model = { provider: readText(raw.provider, 'model.provider'), id: readText(raw.id, 'model.id') };
+	}
+	const reasoningEffort = input.reasoningEffort === undefined ? undefined : readChoice(input.reasoningEffort, reasoningEffortLevels, 'reasoningEffort');
+	const contextTier = input.contextTier === undefined ? undefined : readChoice(input.contextTier, modelContextTiers, 'contextTier');
+	if ((reasoningEffort !== undefined || contextTier !== undefined) && !model) {
+		throw new Error(localize('remoteSessions.modelOptionsRequireModel', "{0} and {1} require {2}.", 'reasoningEffort', 'contextTier', 'model'));
 	}
 	const requirements: Record<string, unknown> = input.requirements === undefined ? {} : readObject(input.requirements, ['platform', 'minMemoryGiB', 'minCpuCount'], 'requirements');
 	const platform = requirements.platform;
@@ -169,6 +248,8 @@ export function parseCreateRemoteSessionOptions(value: unknown): ICreateRemoteSe
 	}
 	return {
 		prompt, title, hostId, model, workspace,
+		...(reasoningEffort !== undefined ? { reasoningEffort } : {}),
+		...(contextTier !== undefined ? { contextTier } : {}),
 		requirements: {
 			platform,
 			minMemoryGiB: readMinimum(requirements.minMemoryGiB, 'requirements.minMemoryGiB', false),

@@ -22,6 +22,7 @@ import { IAuxiliaryTitlebarPart } from '../titlebar/titlebarPart.js';
 import { WindowTitle } from '../titlebar/windowTitle.js';
 import { IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { GroupsOrder, IAuxiliaryEditorPart, GroupActivationReason } from '../../../services/editor/common/editorGroupsService.js';
+import { EditorCloseContext } from '../../../common/editor.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts, shouldShowCustomTitleBar } from '../../../services/layout/browser/layoutService.js';
@@ -36,6 +37,8 @@ import { Categories } from '../../../../platform/action/common/actionCommonCateg
 
 export interface IAuxiliaryEditorPartOpenOptions extends IAuxiliaryWindowOpenOptions {
 	readonly state?: IEditorPartUIState;
+	/** A compact window stays compact when it is split (e.g. a chat with a document beside it), instead of leaving compact mode. */
+	readonly compactAllowsSplit?: boolean;
 }
 
 export interface ICreateAuxiliaryEditorPartResult {
@@ -127,6 +130,7 @@ export class AuxiliaryEditorPart {
 		const disposables = new DisposableStore();
 
 		let compact = Boolean(options?.compact);
+		const compactAllowsSplit = Boolean(options?.compactAllowsSplit);
 
 		function computeEditorPartHeightOffset(): number {
 			let editorPartHeightOffset = 0;
@@ -178,7 +182,7 @@ export class AuxiliaryEditorPart {
 			compact = newCompact;
 			auxiliaryWindow.updateOptions({ compact });
 			titlebarPart?.updateOptions({ compact });
-			editorPart.updateOptions({ compact });
+			editorPart.updateOptions({ compact, compactAllowsSplit });
 
 			const oldStatusbarVisible = statusbarVisible;
 			statusbarVisible = !compact && that.configurationService.getValue<boolean>(AuxiliaryEditorPart.STATUS_BAR_VISIBILITY) !== false;
@@ -196,7 +200,7 @@ export class AuxiliaryEditorPart {
 		auxiliaryWindow.container.appendChild(editorPartContainer);
 
 		const editorPart = disposables.add(this.instantiationService.createInstance(AuxiliaryEditorPartImpl, auxiliaryWindow.window.vscodeWindowId, this.editorPartsView, options?.state, label));
-		editorPart.updateOptions({ compact });
+		editorPart.updateOptions({ compact, compactAllowsSplit });
 		disposables.add(this.editorPartsView.registerPart(editorPart));
 		editorPart.create(editorPartContainer);
 
@@ -306,7 +310,9 @@ export class AuxiliaryEditorPart {
 		}));
 
 		disposables.add(editorPart.onDidAddGroup(group => {
-			updateCompact(false); // leave compact mode when a group is added
+			if (!compactAllowsSplit) {
+				updateCompact(false); // leave compact mode when a group is added
+			}
 
 			disposables.add(group.onDidActiveEditorChange(() => {
 				if (group.count > 1) {
@@ -347,6 +353,10 @@ export class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEdi
 	private readonly optionsDisposable = this._register(new MutableDisposable());
 
 	private isCompact = false;
+	private _compactAllowsSplit = false;
+
+	/** Whether the window stays compact when split; restored with the window. */
+	get compactAllowsSplit(): boolean { return this._compactAllowsSplit; }
 
 	constructor(
 		windowId: number,
@@ -372,8 +382,9 @@ export class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEdi
 		super.handleContextKeys();
 	}
 
-	updateOptions(options: { compact: boolean }): void {
+	updateOptions(options: { compact: boolean; compactAllowsSplit?: boolean }): void {
 		this.isCompact = options.compact;
+		this._compactAllowsSplit = !!options.compactAllowsSplit;
 
 		if (options.compact) {
 			if (!this.optionsDisposable.value) {
@@ -389,7 +400,7 @@ export class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEdi
 	}
 
 	override getAddGroupLocation(location: IEditorGroupView): IEditorGroupView {
-		if (this.isCompact) {
+		if (this.isCompact && !this._compactAllowsSplit) {
 			// When in compact mode, we prefer to open groups in the main part
 			// as compact mode is typically meant for showing just 1 editor.
 			return this.editorPartsView.mainPart.activeGroup;
@@ -443,17 +454,17 @@ export class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEdi
 		return; // disabled, auxiliary editor part state is tracked outside
 	}
 
-	close(options?: { preserveFocus?: boolean }): boolean {
+	close(options?: { preserveFocus?: boolean; closeContext?: EditorCloseContext }): boolean {
 		return this.doClose(true /* merge all confirming editors to main part */, options);
 	}
 
-	private doClose(mergeConfirmingEditorsToMainPart: boolean, options?: { preserveFocus?: boolean }): boolean {
+	private doClose(mergeConfirmingEditorsToMainPart: boolean, options?: { preserveFocus?: boolean; closeContext?: EditorCloseContext }): boolean {
 		let result = true;
 		if (mergeConfirmingEditorsToMainPart) {
 
 			// First close all editors that are non-confirming
 			for (const group of this.groups) {
-				group.closeAllEditors({ excludeConfirming: true, force: true });
+				group.closeAllEditors({ excludeConfirming: true, force: true, context: options?.closeContext });
 			}
 
 			// Then merge remaining to main part

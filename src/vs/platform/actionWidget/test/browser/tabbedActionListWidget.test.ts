@@ -905,6 +905,39 @@ suite('TabbedActionListWidget', () => {
 		}, { scrolled: true, backStationary: true, titleStationary: true, iconOnly: true, sharedIconLayout: true, backLabel: `Back (${getTabbedActionListKeybindingLabels(new MockKeybindingService()).back})`, details: true, mainHidden: 'true' });
 	});
 
+	test('details keep the height of a list taller than their own content', async () => {
+		const { widget, contextView } = createWidget(disposables);
+		const anchor = document.createElement('button');
+		anchor.style.cssText = 'position: fixed; top: 0; height: 20px;';
+		document.body.appendChild(anchor);
+		disposables.add({ dispose: () => anchor.remove() });
+		const items = Array.from({ length: 24 }, (_, i) => action(`model ${i}`));
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			sizingTab: 'Models',
+			// The full window height lets the list outgrow the details' cap, as it does in a tall window.
+			createActionList: () => ({ items, listOptions: { anchorPosition: AnchorPosition.BELOW, useFullHeight: true } }),
+			delegate: { onSelect: () => { }, onHide: () => { } },
+		});
+		const popup = contextView.getContextViewElement().querySelector<HTMLElement>('.action-widget')!;
+		const listHeight = popup.offsetHeight;
+		widget.showDetails({
+			label: 'Details',
+			backLabel: 'Back',
+			render: container => {
+				container.style.height = '60px';
+				return { dispose: () => { } };
+			},
+		});
+		await settleLayout();
+		const detailsHeight = popup.offsetHeight;
+		widget.hideDetails();
+		assert.deepStrictEqual({ listTallerThanCap: listHeight > 400, detailsHeight, backHeight: popup.offsetHeight }, { listTallerThanCap: true, detailsHeight: listHeight, backHeight: listHeight });
+	});
+
 	test('details stay anchored after their rendered header height settles', async () => {
 		const view = disposables.add(new ContextView(document.body, ContextViewDOMPosition.ABSOLUTE));
 		const service = upcastPartial<IContextViewService>({
@@ -1527,7 +1560,7 @@ suite('TabbedActionListWidget', () => {
 			body.getAnimations().forEach(animation => animation.finish());
 			await settleLayout();
 			const panelBounds = panel.getBoundingClientRect();
-			const rowBounds = body.querySelector<HTMLElement>('.monaco-list-row[aria-expanded="true"]')!.getBoundingClientRect();
+			const rowBounds = body.querySelector<HTMLElement>('.monaco-list-row.panel-anchor')!.getBoundingClientRect();
 			assert.deepStrictEqual({
 				collapseAnimated,
 				expandAnimated,

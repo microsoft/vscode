@@ -24,6 +24,7 @@ export const enum AccessibleViewProviderId {
 	ChatHtmlPreview = 'chatHtmlPreview',
 	CustomizationMigrations = 'customizationMigrations',
 	CustomizationDiscovery = 'customizationDiscovery',
+	ModelRouters = 'modelRouters',
 	Remotes = 'remotes',
 	McpServerConfiguration = 'mcpServerConfiguration',
 	ChatTerminalOutput = 'chatTerminalOutput',
@@ -34,6 +35,7 @@ export const enum AccessibleViewProviderId {
 	QuickChat = 'quickChat',
 	InlineCompletions = 'inlineCompletions',
 	KeybindingsEditor = 'keybindingsEditor',
+	SandboxProfiles = 'sandboxProfiles',
 	Notebook = 'notebook',
 	ReplEditor = 'replEditor',
 	Editor = 'editor',
@@ -59,6 +61,7 @@ export const enum AccessibleViewProviderId {
 	SessionsChat = 'sessionsChat',
 	ArtifactDetails = 'artifactDetails',
 	SessionsStorageCleanup = 'sessionsStorageCleanup',
+	SessionWorkspaceEditor = 'sessionWorkspaceEditor',
 	SessionsChanges = 'sessionsChanges',
 	EmptyFileEditorSearch = 'emptyFileEditorSearch',
 	SessionsListNotification = 'sessionsListNotification',
@@ -73,6 +76,7 @@ export const enum AccessibleViewProviderId {
 	ChatPetAchievements = 'chatPetAchievements',
 	/** Shared by the jump game's accessibility help and current-state view. */
 	ChatPetJumpGame = 'chatPetJumpGame',
+	ChatPlanNudge = 'chatPlanNudge',
 }
 
 export const enum AccessibleViewType {

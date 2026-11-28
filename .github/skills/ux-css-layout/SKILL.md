@@ -71,6 +71,13 @@ The narrow exception is shared focus/active-outline suppression, where `outline:
 
 Represent semantic state explicitly rather than inferring it from incidental DOM order. For example, a content node ceasing to be `:last-child` does not prove a footer exists: completion widgets can append siblings and leave them mounted while hidden. Let the component that creates/removes the footer own its state class, and test unrelated trailing siblings.
 
+### Clipping ownership and native corners
+
+- Assign rounded clipping to the surface that owns it. If an outer card already clips to its padding edge, a second concentric rounded clip on the content can add offscreen render surfaces on every scroll or keystroke without improving the pixels. Preserve independently positioned webview/notebook overlays that genuinely escape the card's clip; do not remove their clipping mechanically.
+- For a changed rounded clip, compare the painted result and, on frequently repainted surfaces, compositor work during scroll/typing. Tests should establish the owning card's clip and effective border, not require a redundant child radius. Supply a valid border color in the test host: an invalid border shorthand can silently remove the inset being tested.
+- Native-window corner geometry is not an ordinary control radius. CSS normalizes oversized radii to fit a short box, so an item can report the requested radius yet still paint the wrong native curve. Verify zoomed-out docked items as well as floating items; use an appropriately sized frame-relative paint/clipping surface when necessary.
+- Test geometry invalidation on the existing instance. Custom size/radius and theme changes can update CSS without triggering layout. Observe the owning size/theme events and wait for style application instead of relying exclusively on layout callbacks or directly calling the refresh helper in tests.
+
 ## 5. SplitView Layout
 
 **File**: `src/vs/base/browser/ui/splitview/splitview.ts`
@@ -279,10 +286,11 @@ For `IconLabel` and list/tree renderers, this is handled automatically. For cust
 ### Rounded-surface geometry
 
 - Trace the painted perimeter through the production ancestors before changing a radius or overflow rule. Identify the owner of the frame stroke, content paint, material layer, connected cap, and overlays. A child can report the correct radius while an ancestor clips its outline or content paints over it.
-- Match the reference boxes as well as the radius. A pseudo-element positioned inside a host border does not share the host's outer curve merely because it inherits `border-radius`. Use the appropriate border/padding-box geometry; for unequal or elliptical corners, prefer browser-resolved curves over a uniform subtraction.
+- Match the reference boxes as well as the radius. A pseudo-element positioned inside a host border does not share the host's outer curve merely because it inherits `border-radius`. Use the appropriate border/padding-box geometry; for unequal or elliptical corners and fractional border widths, prefer browser-resolved curves over a uniform subtraction.
 - Do not repair an obscured corner by clipping the entire content subtree. Progress indicators and fixed completion widgets may intentionally escape it, and transforms or filters can change fixed-position containing blocks. Isolate decorative paint from interactive content and preserve overlay stacking and hit targets.
 - Repainting an edge must not create a second, inset frame or double-paint a translucent stroke. Align the replacement paint to the original frame and verify the composited result at all exposed corners, including square corners. A computed radius or an overlay hit test alone cannot prove the perimeter is correct.
 - Derive connected caps, clipping fallbacks, and nested frames from the owning surface's semantic radius and effective inset, not a generic default. Honor square/custom radii, asymmetric Activity Bar seams, footer presence, and native window overrides. Check both header and footer ancestors when the Activity Bar can move.
+- At adjoining surfaces, assign each visible edge one owner in every relevant density/theme. If a compact card omits its trailing frame, the adjacent column may need to paint the separator; adding borders to both creates a doubled edge. Verify full-height coverage and that unaffected default/HC layouts do not gain an extra stroke.
 - Verify painted outlines and overlay interactions in the affected browser engines. Include short/narrow panes, retained hidden overlay siblings, footer add/remove, fractional scaling, and the relevant maximized/fullscreen/native-window states. Keep native-platform evidence distinct from a web-only reproduction.
 
 ---
@@ -353,7 +361,9 @@ Codicons are **only ever 16px or 12px** — never `14px` or any in-between value
 | 16 | `--vscode-codiconFontSize` (base) | default icon size |
 | 12 | `--vscode-codiconFontSize-compact` | dense/inline chrome |
 
-**Compact-glyph convention:** when sizing an icon at the compact 12px size, also swap the registered glyph to its `*Compact` variant (e.g. `Codicon.close` → `Codicon.closeCompact`, `Codicon.add` → `Codicon.addCompact`). CSS `font-size` alone only scales the icon — it does **not** change to the visually-optimized compact glyph; that requires changing the registered icon (Action2 `icon:` / `renderIcon`). **Only swap the glyph when no CSS selector targets the original glyph class** (e.g. `.codicon-close`); selectors keyed on the glyph class (`.codicon-add`, `.codicon-chevron-down`) break when the class becomes `-compact`, so update those selectors too (or size via a glyph-independent wrapper class like `.monaco-button`). Some icons (settings/sliders, agent, vm, info, lock, plus) have **no** compact variant — keep the regular glyph at 12px.
+**Compact-glyph convention:** when sizing an icon at the compact 12px size, also use its registered `*Compact` variant when available (e.g. `Codicon.close` → `Codicon.closeCompact`). CSS `font-size` alone scales the regular glyph; it does not select the optically tuned variant. Inspect aliases before declaring a variant missing: `pencil` can use the existing `edit-compact` glyph through the canonical `edit` icon. Use the owning layer's existing resolver, such as [getCompactCodicon](../../../src/vs/workbench/contrib/chat/browser/chatIcons.ts) in Chat, preserving color/modifiers and falling back to the original icon when no variant is registered. Do not invent a `-compact` ID or introduce a cross-layer import to reuse a feature-specific helper.
+
+Audit selectors and tests keyed on the original glyph class when swapping it; update them or use a glyph-independent wrapper. Also verify streaming updates, late tool metadata, restored history, and composite renderers, not only initial standalone rendering. A dependency bump and passing leaf-component tests do not prove every surface uses the new glyph.
 
 ### Stroke — border width
 

@@ -23,6 +23,15 @@
 	outline-offset: -2px;
 }
 
+/* A filled split button keeps the outlines of the split buttons of the Extensions editor: focus outside of its border, hover on it */
+.monaco-workbench .pane-composite-part > .title.has-composite-bar > .title-actions .monaco-action-bar .action-item.filled-split-button .action-label.filled-label {
+	outline-offset: 1px;
+}
+
+.monaco-workbench .pane-composite-part > .title.has-composite-bar > .title-actions .monaco-action-bar .action-item.filled-split-button .action-label.filled-label:hover:not(.disabled) {
+	outline-offset: -1px;
+}
+
 /* Global left actions toolbar: rendered first visually via CSS order */
 /* The separator that ends the composite's title actions separates them from the part's own, so not while it has none */
 .monaco-workbench .pane-composite-part > .title.no-global-actions > .title-actions .monaco-action-bar .action-item:last-child:has(> .action-label.separator) {

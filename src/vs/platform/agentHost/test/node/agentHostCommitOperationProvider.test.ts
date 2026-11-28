@@ -7,7 +7,9 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { buildBranchChangesetUri, buildCompareTurnsChangesetUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, ChangesetKind } from '../../common/changesetUri.js';
+import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
+import { buildBranchChangesetUri, buildCompareTurnsChangesetUri, buildFolderChangesetOwnerUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, ChangesetKind } from '../../common/changesetUri.js';
+import { withSessionRepositories } from '../../common/meta/agentSessionRepositoriesMeta.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { buildDefaultChatUri, SessionStatus, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostCommitOperationContribution } from '../../node/agentHostCommitOperationProvider.js';
@@ -26,7 +28,7 @@ const gitStateWithUncommittedChanges: ISessionGitState = {
 suite('AgentHostCommitOperationContribution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createContribution(isolation?: 'folder' | 'worktree'): AgentHostCommitOperationContribution {
+	function createContribution(isolation?: 'folder' | 'worktree', { workingDirectories = ['file:///repo'], used = false, nestedRepository }: { readonly workingDirectories?: string[]; readonly used?: boolean; readonly nestedRepository?: string } = {}): AgentHostCommitOperationContribution {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		if (isolation) {
 			stateManager.createSession({
@@ -36,13 +38,21 @@ suite('AgentHostCommitOperationContribution', () => {
 				status: SessionStatus.Idle,
 				createdAt: new Date(1).toISOString(),
 				modifiedAt: new Date(1).toISOString(),
-				workingDirectories: ['file:///repo'],
+				workingDirectories,
 				defaultChat: buildDefaultChatUri(sessionKey),
 			});
 			stateManager.setSessionConfig(sessionKey, {
 				schema: { type: 'object', properties: {} },
 				values: { [SessionConfigKey.Isolation]: isolation },
 			});
+			if (used) {
+				stateManager.markSessionUsed(sessionKey);
+			}
+			if (nestedRepository) {
+				stateManager.setSessionMeta(sessionKey, withSessionRepositories(undefined, {
+					[getWorkingDirectoryKey(workingDirectories[0])]: [{ root: nestedRepository, kind: 'nested' }],
+				}));
+			}
 		}
 		return disposables.add(new AgentHostCommitOperationContribution(
 			stateManager,
@@ -56,6 +66,26 @@ suite('AgentHostCommitOperationContribution', () => {
 		const operations = provider.getOperations({ sessionKey, changesetUri: uncommittedChangesetUri, changesetKind: ChangesetKind.Uncommitted, gitState: gitStateWithUncommittedChanges });
 
 		assert.deepStrictEqual(operations?.map(op => op.id), ['commit']);
+	});
+
+	test('advertises commit only on the changesets of one repository: not of several folders or a folder with repositories inside it, but of each folder on its own', () => {
+		const ids = (workingDirectories: string[], nested: boolean, ownerKey?: string) => {
+			const provider = createContribution('folder', { workingDirectories, used: true, nestedRepository: nested ? `${workingDirectories[0]}/docs` : undefined });
+			const changesetUri = ownerKey ? buildUncommittedChangesetUri(ownerKey) : uncommittedChangesetUri;
+			return provider.getOperations({ sessionKey, ownerKey, changesetUri, changesetKind: ChangesetKind.Uncommitted, gitState: gitStateWithUncommittedChanges }).map(op => op.id);
+		};
+
+		assert.deepStrictEqual({
+			oneFolder: ids(['file:///repo'], false),
+			severalFolders: ids(['file:///app', 'file:///api'], false),
+			nestedRepositories: ids(['file:///work'], true),
+			secondFolderOnItsOwn: ids(['file:///app', 'file:///api'], false, buildFolderChangesetOwnerUri(sessionKey, getWorkingDirectoryScopeId(['file:///api']))),
+		}, {
+			oneFolder: ['commit'],
+			severalFolders: [],
+			nestedRepositories: [],
+			secondFolderOnItsOwn: ['commit'],
+		});
 	});
 
 	test('does not advertise commit without uncommitted changes', () => {
@@ -94,6 +124,46 @@ suite('AgentHostCommitOperationContribution', () => {
 		assert.deepStrictEqual(actual, {
 			folder: [[], [], [], [], ['commit']],
 			pullRequest: [[], [], [], [], ['commit']],
+		});
+	});
+
+	test('advertises commit on the branch changeset when working on the base branch without outgoing commits', () => {
+		const provider = createContribution('folder', { used: true });
+		const multiRepositoryProvider = createContribution('folder', { used: true, workingDirectories: ['file:///repo', 'file:///other-repo'] });
+		const onBaseBranch: ISessionGitState = { branchName: 'main', baseBranchName: 'main', baseBranchRef: 'refs/remotes/origin/main', upstreamBranchName: 'origin/main', outgoingChanges: 0, uncommittedChanges: 1 };
+		const onLocalBaseBranch: ISessionGitState = { ...onBaseBranch, baseBranchRef: 'refs/heads/main', upstreamBranchName: undefined, outgoingChanges: undefined };
+		const branchOperations = (gitState: ISessionGitState, contribution = provider) => contribution.getOperations({ sessionKey, changesetUri: branchChangesetUri, changesetKind: ChangesetKind.Branch, gitState }).map(op => op.id);
+
+		const actual = {
+			onBaseBranch: branchOperations(onBaseBranch),
+			baseOnOtherRemote: branchOperations({ ...onBaseBranch, baseBranchRef: 'refs/remotes/upstream/main', upstreamBranchName: 'upstream/main' }),
+			onLocalBaseBranch: branchOperations(onLocalBaseBranch),
+			onLocalBaseBranchWithOutgoingCommits: branchOperations({ ...onLocalBaseBranch, upstreamBranchName: 'origin/main', outgoingChanges: 1 }),
+			withoutBaseBranchRef: branchOperations({ ...onBaseBranch, baseBranchRef: undefined }),
+			sessionChangeset: provider.getOperations({ sessionKey, changesetUri: sessionChangesetUri, changesetKind: ChangesetKind.Session, gitState: onBaseBranch }).map(op => op.id),
+			multipleRepositories: branchOperations(onBaseBranch, multiRepositoryProvider),
+			withOutgoingCommits: branchOperations({ ...onBaseBranch, outgoingChanges: 1 }),
+			withoutUpstream: branchOperations({ ...onBaseBranch, upstreamBranchName: undefined, outgoingChanges: undefined }),
+			upstreamOnOtherRemote: branchOperations({ ...onBaseBranch, upstreamBranchName: 'upstream/main' }),
+			withoutUncommittedChanges: branchOperations({ ...onBaseBranch, uncommittedChanges: 0 }),
+			onOtherBranch: branchOperations({ ...onBaseBranch, branchName: 'feature/test', upstreamBranchName: 'origin/feature/test' }),
+			detachedHead: branchOperations({ ...onBaseBranch, branchName: undefined, isDetachedHead: true }),
+		};
+
+		assert.deepStrictEqual(actual, {
+			onBaseBranch: ['commit'],
+			baseOnOtherRemote: ['commit'],
+			onLocalBaseBranch: ['commit'],
+			onLocalBaseBranchWithOutgoingCommits: ['commit'],
+			withoutBaseBranchRef: [],
+			sessionChangeset: [],
+			multipleRepositories: [],
+			withOutgoingCommits: [],
+			withoutUpstream: [],
+			upstreamOnOtherRemote: [],
+			withoutUncommittedChanges: [],
+			onOtherBranch: [],
+			detachedHead: [],
 		});
 	});
 

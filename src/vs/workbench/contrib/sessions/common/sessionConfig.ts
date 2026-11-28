@@ -3,14 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { constObservable, IObservable } from '../../../../base/common/observable.js';
 import type { ResolveSessionConfigResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 
 export const USE_WORKTREE_SETTING = 'sessions.useWorktree';
 
 export const SESSIONS_DRAFTS_ENABLED_SETTING = 'sessions.drafts.enabled';
 export const SESSIONS_SEND_LATER_ENABLED_SETTING = 'sessions.sendLater.enabled';
+export const SESSIONS_WORKSPACES_ENABLED_SETTING = 'sessions.workspaces.enabled';
+
+/**
+ * Whether the Agents window offers workspaces. Workspaces are Insiders only: Stable never offers them, also when
+ * {@link SESSIONS_WORKSPACES_ENABLED_SETTING}, which Stable does not register, is written into settings.json by hand.
+ * Elsewhere they follow that setting. Read workspaces' enablement only through this.
+ */
+export function observableSessionWorkspacesEnabled(configurationService: IConfigurationService, productService: IProductService): IObservable<boolean> {
+	return productService.quality === 'stable'
+		? constObservable(false)
+		: observableConfigValue(SESSIONS_WORKSPACES_ENABLED_SETTING, false, configurationService);
+}
 
 export const SESSIONS_CHAT_TABS_SETTING = 'sessions.showChatTabs';
+
+/** How the session panes of the Agents window are sized when a pane opens, moves or closes. */
+export const SESSIONS_SPLIT_SIZING_SETTING = 'sessions.splitSizing';
 
 export const SESSIONS_DETAILS_POSITION_SETTING = 'sessions.experimental.detailsPosition';
 export const SESSIONS_FLOATING_DETAILS_SETTING = 'sessions.experimental.floatingDetails';

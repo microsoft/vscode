@@ -21,7 +21,14 @@ export interface IAgentDecisionsRequest {
 export type IAgentDecisionContext =
 	| { readonly kind: 'text'; readonly text: string }
 	/** A JSON object, or an array of JSON objects. */
-	| { readonly kind: 'json'; readonly value: object };
+	| { readonly kind: 'json'; readonly value: IAgentDecisionJsonObject | IAgentDecisionJsonObject[] };
+
+/** A JSON value as the contract types it, so `undefined` is not allowed. */
+type AgentDecisionJsonValue = null | boolean | number | string | AgentDecisionJsonValue[] | IAgentDecisionJsonObject;
+
+interface IAgentDecisionJsonObject {
+	readonly [key: string]: AgentDecisionJsonValue;
+}
 
 export type IAgentDecisionQuestion =
 	| { readonly kind: 'boolean'; readonly name: string; readonly instructions: string; readonly whenTrue?: string; readonly whenFalse?: string }
