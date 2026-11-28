@@ -37,9 +37,19 @@ export class FileWatcherManager {
 		const parentDirWatchers: DirWatcherEntry[] = [];
 		this.#fileWatchers.set(id, { watcher, dirWatchers: parentDirWatchers });
 
-		if (listeners.create) { watcher.onDidCreate(listeners.create); }
-		if (listeners.change) { watcher.onDidChange(listeners.change); }
-		if (listeners.delete) { watcher.onDidDelete(listeners.delete); }
+		// The `*` pattern also matches the direct children of `uri` when `uri` is a directory.
+		// Those events are not about `uri` itself, so don't forward them: otherwise deleting
+		// a file inside a linked folder would report the folder itself as deleted.
+		const watchedUri = uri.toString();
+		const forwardIfWatchedResource = (listener: () => void) => (changed: vscode.Uri) => {
+			if (Utils.dirname(changed).toString() !== watchedUri) {
+				listener();
+			}
+		};
+
+		if (listeners.create) { watcher.onDidCreate(forwardIfWatchedResource(listeners.create)); }
+		if (listeners.change) { watcher.onDidChange(forwardIfWatchedResource(listeners.change)); }
+		if (listeners.delete) { watcher.onDidDelete(forwardIfWatchedResource(listeners.delete)); }
 
 		if (watchParentDirs && uri.scheme !== Schemes.untitled) {
 			// We need to watch the parent directories too for when these are deleted / created
