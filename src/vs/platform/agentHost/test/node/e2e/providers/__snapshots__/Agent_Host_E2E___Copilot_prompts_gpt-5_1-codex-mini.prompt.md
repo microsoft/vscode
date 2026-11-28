@@ -1309,6 +1309,29 @@
       "type": "function"
     },
     {
+      "name": "fork_session",
+      "description": "Fork a session or nested session into a new nested session of the same session, as the user's Fork action does. The fork copies the conversation up to its last completed turn (this chat's running turn is not included) and keeps its agent, model and folders; the source is unchanged. Use it when the user asks to fork or branch the conversation, for example to try another approach without losing the current one. To start new or delegated work without the conversation history, use `create_session` instead.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "session": {
+            "type": "string",
+            "description": "The session or nested session to fork: an `agent-host-session://` link or a session URI from `list_sessions`. A link carrying a chat id forks that nested session. Omit to fork the chat this tool runs in."
+          },
+          "prompt": {
+            "type": "string",
+            "description": "Optional message to start the fork with. Omit to create the fork without starting a turn."
+          },
+          "title": {
+            "type": "string",
+            "description": "Optional short title for the fork.\n\n{maxLength: 200}"
+          }
+        }
+      },
+      "strict": false,
+      "type": "function"
+    },
+    {
       "name": "isolate_session",
       "description": "Move folders of the current chat into new Git worktrees of their own, so that its changes do not touch the user's checkouts. Pass only the folders you are about to change that the working directories list as shared Git checkouts, before any tool that creates, edits or deletes files or runs commands that change files there, or the chat's folder when the user asks to continue this task in a new worktree. Moving the chat's main folder moves the chat to a new worktree; its other folders stay unless you pass them too. Not needed for reading, or for folders that are already in a worktree or not in a Git repository. Only this chat changes: other chats and the original checkouts are left unchanged, and uncommitted edits are not copied except configured worktree include-files. Folders in the same checkout share one worktree. Follow the tool confirmation flow; if the user skips it, nothing moves and you continue where you are. Make this the final tool call and end the turn after it succeeds; the host then moves the folders and continues the task automatically, telling you the new paths. Do not poll or repeat the request.",
       "parameters": {

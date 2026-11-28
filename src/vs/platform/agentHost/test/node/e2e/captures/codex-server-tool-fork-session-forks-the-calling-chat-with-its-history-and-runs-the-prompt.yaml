@@ -1,0 +1,73 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "FORK_SEED".
+    response:
+      content: FORK_SEED
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "FORK_SEED".
+        - role: assistant
+          content: FORK_SEED
+        - role: user
+          content: Call fork_session exactly once with prompt "Reply exactly FORK_PROMPT" and title "Forked Chat", then reply exactly "forked".
+    response:
+      content:
+        - type: text
+          text: I’ll fork this chat now with your exact prompt and title.
+        - type: tool_use
+          id: toolcall_0
+          name: fork_session
+          input:
+            prompt: Reply exactly FORK_PROMPT
+            title: Forked Chat
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "FORK_SEED".
+        - role: assistant
+          content: FORK_SEED
+        - role: user
+          content: Call fork_session exactly once with prompt "Reply exactly FORK_PROMPT" and title "Forked Chat", then reply exactly "forked".
+        - role: assistant
+          content: I’ll fork this chat now with your exact prompt and title.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: fork_session
+              input:
+                prompt: Reply exactly FORK_PROMPT
+                title: Forked Chat
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Forked into a new nested session and started it with the prompt (agent-host-session://codex/${uuid_0}?chat=${uuid_1}).
+    response:
+      content: forked
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "FORK_SEED".
+        - role: assistant
+          content: FORK_SEED
+        - role: user
+          content: Reply exactly FORK_PROMPT
+    response:
+      content: FORK_PROMPT
+      stopReason: end_turn

@@ -12,6 +12,8 @@ import { NullLogService } from '../../../log/common/log.js';
 import product from '../../../product/common/product.js';
 import { IWillDeleteSessionDataEvent } from '../../common/sessionDataService.js';
 import { createNullSessionDataService, createNoopGitService } from '../common/sessionTestHelpers.js';
+import { AgentServiceCallbackAdapter } from '../../node/agentServiceFoundation.js';
+import type { IAgentServiceCallbacks } from '../../node/agentService.js';
 import { createTestAgentService } from './agentServiceTestUtils.js';
 
 suite('AgentServiceComposition', () => {
@@ -43,5 +45,29 @@ suite('AgentServiceComposition', () => {
 
 		assert.strictEqual(cleanup.length, expectedSessionDataCleanupParticipants);
 		await Promise.all(cleanup);
+	});
+
+	test('callback adapter forwards every argument of the fork_session accessor calls', async () => {
+		const calls: unknown[][] = [];
+		const adapter = new AgentServiceCallbackAdapter();
+		adapter.bind({
+			sessionServerToolAccessor: {
+				startPrompt: async (...args: unknown[]) => { calls.push(['startPrompt', ...args]); },
+				supportsChatForks: (...args: unknown[]) => { calls.push(['supportsChatForks', ...args]); return true; },
+			},
+		} as unknown as IAgentServiceCallbacks);
+		const session = URI.parse('copilot:/s1');
+		const chat = URI.parse('copilot:/s1/chat');
+		const delegation = { sourceSession: 'copilot:/s0' };
+		const credentials = { token: 'token' };
+		const agent = { uri: 'file:///agents/reviewer.agent.md' };
+
+		await adapter.sessionServerToolAccessor.startPrompt(session, chat, 'prompt', delegation, credentials as never, agent as never);
+		adapter.sessionServerToolAccessor.supportsChatForks(session, chat);
+
+		assert.deepStrictEqual(calls, [
+			['startPrompt', session, chat, 'prompt', delegation, credentials, agent],
+			['supportsChatForks', session, chat],
+		]);
 	});
 });

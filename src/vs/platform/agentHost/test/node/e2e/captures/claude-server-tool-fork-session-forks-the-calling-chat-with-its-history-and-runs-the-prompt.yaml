@@ -1,0 +1,118 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-5.5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "FORK_SEED".
+    response:
+      content: FORK_SEED
+      stopReason: end_turn
+  - request:
+      model: claude-opus-5.5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "FORK_SEED".
+        - role: assistant
+          content: FORK_SEED
+        - role: user
+          content: Call fork_session exactly once with prompt "Reply exactly FORK_PROMPT" and title "Forked Chat", then reply exactly "forked".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: ToolSearch
+          input:
+            query: select:mcp__host__fork_session
+            max_results: 1
+      stopReason: tool_use
+  - request:
+      model: claude-opus-5.5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "FORK_SEED".
+        - role: assistant
+          content: FORK_SEED
+        - role: user
+          content: Call fork_session exactly once with prompt "Reply exactly FORK_PROMPT" and title "Forked Chat", then reply exactly "forked".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: ToolSearch
+              input:
+                query: select:mcp__host__fork_session
+                max_results: 1
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content:
+                - type: tool_reference
+            - type: text
+              text: Tool loaded.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: mcp__host__fork_session
+          input:
+            prompt: Reply exactly FORK_PROMPT
+            title: Forked Chat
+      stopReason: tool_use
+  - request:
+      model: claude-opus-5.5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "FORK_SEED".
+        - role: assistant
+          content: FORK_SEED
+        - role: user
+          content: Call fork_session exactly once with prompt "Reply exactly FORK_PROMPT" and title "Forked Chat", then reply exactly "forked".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: ToolSearch
+              input:
+                query: select:mcp__host__fork_session
+                max_results: 1
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content:
+                - type: tool_reference
+            - type: text
+              text: Tool loaded.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: mcp__host__fork_session
+              input:
+                prompt: Reply exactly FORK_PROMPT
+                title: Forked Chat
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: Forked into a new nested session and started it with the prompt (agent-host-session://claude/${uuid_0}?chat=${uuid_1}).
+    response:
+      content: forked
+      stopReason: end_turn
+  - request:
+      model: claude-opus-5.5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "FORK_SEED".
+        - role: assistant
+          content: FORK_SEED
+        - role: user
+          content: Reply exactly FORK_PROMPT
+    response:
+      content: FORK_PROMPT
+      stopReason: end_turn
