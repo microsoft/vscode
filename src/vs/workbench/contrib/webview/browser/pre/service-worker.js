@@ -43,10 +43,17 @@ perfMark('scriptStart');
 /** @type {number} */
 const resolveTimeout = 30_000;
 
+/**
+ * How often requests that hold a host resource slot check whether the frames
+ * they were sent to still exist.
+ * @type {number}
+ */
+const removedClientCheckInterval = 250;
+
 
 /**
  * @template T
- * @typedef {{ status: 'ok', value: T } | { status: 'timeout' }} RequestStoreResult
+ * @typedef {{ status: 'ok', value: T } | { status: 'timeout' } | { status: 'cancelled' }} RequestStoreResult
  */
 
 
@@ -106,6 +113,92 @@ class RequestStore {
 		entry.resolve({ status: 'ok', value: result });
 		this.map.delete(requestId);
 		return true;
+	}
+
+	/**
+	 * Stops waiting for the result of a request.
+	 *
+	 * @param {number} requestId
+	 */
+	cancel(requestId) {
+		const entry = this.map.get(requestId);
+		if (entry) {
+			entry.resolve({ status: 'cancelled' });
+			this.map.delete(requestId);
+		}
+	}
+}
+
+/**
+ * Notices when clients are removed. Service workers get no event for that, so
+ * this lists the clients on an interval, but only while something is watched.
+ */
+class ClientRemovalWatcher {
+	/**
+	 * @param {number} checkInterval
+	 */
+	constructor(checkInterval) {
+		this.checkInterval = checkInterval;
+		/** @type {Set<{ readonly clientIds: readonly string[], readonly onRemoved: () => void }>} */
+		this.watches = new Set();
+		this.isCheckScheduled = false;
+	}
+
+	/**
+	 * Calls `onRemoved` once none of the given clients exists anymore.
+	 *
+	 * @param {readonly string[]} clientIds
+	 * @param {() => void} onRemoved
+	 * @returns {() => void} A function that stops watching.
+	 */
+	watch(clientIds, onRemoved) {
+		const watch = { clientIds, onRemoved };
+		this.watches.add(watch);
+		this.scheduleCheck();
+		return () => {
+			this.watches.delete(watch);
+		};
+	}
+
+	scheduleCheck() {
+		if (this.isCheckScheduled || !this.watches.size) {
+			return;
+		}
+
+		this.isCheckScheduled = true;
+		setTimeout(async () => {
+			try {
+				await this.check();
+			} finally {
+				this.isCheckScheduled = false;
+				this.scheduleCheck();
+			}
+		}, this.checkInterval);
+	}
+
+	async check() {
+		// Only check the watches that exist before listing the clients: clients
+		// added after that may be missing from the list.
+		const watches = [...this.watches];
+		if (!watches.length) {
+			return;
+		}
+
+		/** @type {Set<string>} */
+		let existingClientIds;
+		try {
+			const clients = await sw.clients.matchAll({ includeUncontrolled: true });
+			existingClientIds = new Set(clients.map(client => client.id));
+		} catch {
+			return; // Check again after the next interval
+		}
+
+		for (const watch of watches) {
+			if (this.watches.has(watch) && !watch.clientIds.some(clientId => existingClientIds.has(clientId))) {
+				this.watches.delete(watch);
+				watch.onRemoved();
+			}
+		}
 	}
 }
 
@@ -224,6 +317,8 @@ function trackReadableStreamLifetime(stream, onDidFinish) {
 const resourceRequestStore = new RequestStore();
 
 const hostResourceResponseBodySemaphore = new AsyncSemaphore(maxActiveHostResourceResponseBodies);
+
+const clientRemovalWatcher = new ClientRemovalWatcher(removedClientCheckInterval);
 
 /**
  * Safari fallback: map of active chunk-based streaming responses.
@@ -467,6 +562,11 @@ async function processResourceRequest(
 			return requestTimeout();
 		}
 
+		if (result.status === 'cancelled') {
+			releaseHostResourceResponseBody();
+			return notFound();
+		}
+
 		/** @type {Record<string, string>} */
 		const accessControlHeaders = {
 			'Access-Control-Allow-Origin': '*',
@@ -576,22 +676,26 @@ async function processResourceRequest(
 		}
 	}
 
-	/** @type {Client[] | undefined} */
-	let parentClients;
-	if (webviewId) {
-		parentClients = await getOuterIframeClient(webviewId);
-		if (!parentClients.length) {
-			console.log('Could not find parent client for request');
-			return notFound();
-		}
-	}
-
-	const releaseHostResourceResponseBody = shouldLimitHostResourceResponseBodies && webviewId
+	const holdsHostResourceSlot = shouldLimitHostResourceResponseBodies && !!webviewId;
+	const releaseHostResourceResponseBody = holdsHostResourceSlot
 		? await hostResourceResponseBodySemaphore.acquire()
 		: () => { };
 
-	const { requestId, promise } = resourceRequestStore.create();
 	try {
+		// Look for the frames only once the request has a slot: the webview may have
+		// been removed while the request waited, and then nobody would answer it.
+		/** @type {Client[] | undefined} */
+		let parentClients;
+		if (webviewId) {
+			parentClients = await getOuterIframeClient(webviewId);
+			if (!parentClients.length) {
+				console.log('Could not find parent client for request');
+				releaseHostResourceResponseBody();
+				return notFound();
+			}
+		}
+
+		const { requestId, promise } = resourceRequestStore.create();
 		if (parentClients) {
 			for (const parentClient of parentClients) {
 				parentClient.postMessage({
@@ -607,7 +711,13 @@ async function processResourceRequest(
 			}
 		}
 
+		// Nobody answers once the frames the request was sent to are gone. Stop
+		// waiting then, instead of keeping the slot until the request times out.
+		const stopWatchingParentClients = parentClients && holdsHostResourceSlot
+			? clientRemovalWatcher.watch(parentClients.map(client => client.id), () => resourceRequestStore.cancel(requestId))
+			: () => { };
 		const entry = await promise;
+		stopWatchingParentClients();
 		try {
 			return resolveResourceEntry(entry, cached, releaseHostResourceResponseBody);
 		} catch (error) {
