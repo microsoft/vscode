@@ -29,12 +29,16 @@ import { NewSplitButtonActionViewItem } from '../newSplitButton/newSplitButtonAc
 /** The shared sessions list of an editor window, embedded in the Chat view, as the Chat view acts on it. */
 export class ChatViewSessionsListControl implements IChatViewSessionsListControl {
 
+	readonly onDidChangeSearchMode: Event<boolean>;
+
 	constructor(
 		private readonly _view: SessionsView,
 		private readonly _helpHint: IDisposable | undefined,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-	) { }
+	) {
+		this.onDidChangeSearchMode = Event.map(Event.any(this._view.onDidChangeSearchMode, this._view.onDidChangeBodyVisibility), () => this.searchOpen);
+	}
 
 	setVisible(visible: boolean): void { this._view.setVisible(visible); }
 	layout(height: number, width: number): void {
@@ -59,9 +63,6 @@ export class ChatViewSessionsListControl implements IChatViewSessionsListControl
 	getFocus(): IAgentSession[] { return []; }
 	openFind(): void { this._view.openFind(); }
 	get searchOpen() { return this._view.isBodyVisible() && this._view.searchOpen; }
-	get onDidChangeSearchMode() {
-		return Event.map(Event.any(this._view.onDidChangeSearchMode, this._view.onDidChangeBodyVisibility), () => this.searchOpen);
-	}
 	/**
 	 * The New menu shows as the "New" split button, which runs New Chat and shows its keybinding, only in a title that fits it
 	 * by the width it needs; other titles, which would cover or clip it, show it as the stock split button.
