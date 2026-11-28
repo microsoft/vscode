@@ -2637,8 +2637,8 @@ export class CommandCenter {
 	}
 
 	@command('git.commitAmend', { repository: true })
-	async commitAmend(repository: Repository): Promise<void> {
-		await this.commitWithAnyInput(repository, { amend: true });
+	async commitAmend(repository: Repository, postCommitCommand?: string | null): Promise<void> {
+		await this.commitWithAnyInput(repository, { amend: true, postCommitCommand });
 	}
 
 	@command('git.commitSigned', { repository: true })
