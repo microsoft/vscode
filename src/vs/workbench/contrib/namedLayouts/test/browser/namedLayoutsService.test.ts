@@ -533,6 +533,28 @@ suite('NamedLayoutsService', () => {
 		assert.deepStrictEqual({ active: service.activeLayout.name, parts: window.parts }, { active: 'Default', parts: partsState(false, Position.LEFT) });
 	});
 
+	test('a window that switches to a profile with its own storage before its editors restored applies the default layout only once they restored, as editors still open into the editor groups that applying it can merge, and ends Zen mode then', async () => {
+		const whenRestored = new DeferredPromise<void>();
+		const debugParts = partsState(false, Position.RIGHT);
+		const { service, window, storageService, switchProfile } = createWindow({ layout: { name: 'Debug', ...debugParts, editorGroups: twoGroups }, parts: debugParts, editorGroups: twoGroups, zenMode: true, whenRestored: whenRestored.p });
+		storageService.store('workbench.namedLayouts.defaultLayout', JSON.stringify({ ...partsState(true, Position.BOTTOM), editorGroups: singleGroup }), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		switchProfile({ id: 'work' });
+		await timeout(0);
+		const beforeRestored = { active: service.activeLayout.name, zenMode: window.zenMode, editorGroupsApplied: window.editorGroupsApplied };
+
+		whenRestored.complete();
+		await service.saveLayout();
+
+		assert.deepStrictEqual({ beforeRestored, active: service.activeLayout.name, zenMode: window.zenMode, parts: window.parts, editorGroups: window.editorGroups, defaultLayout: defaultLayoutState(storageService) }, {
+			beforeRestored: { active: 'Default', zenMode: true, editorGroupsApplied: 0 },
+			active: 'Default',
+			zenMode: false,
+			parts: partsState(true, Position.BOTTOM),
+			editorGroups: singleGroup,
+			defaultLayout: null,
+		});
+	});
+
 	test('lists the default layout first and the others by name, also those that another window creates, and ignores what is stored that is not valid', async () => {
 		const { service, window, storeFromOtherWindow } = createWindow();
 		const zeta = (await service.createLayout('Zeta'))!;

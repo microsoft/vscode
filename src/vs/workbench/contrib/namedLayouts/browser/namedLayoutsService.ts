@@ -68,6 +68,9 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	private storedLayouts: readonly INamedLayout[];
 	private activeLayoutId: string;
 
+	/** Whether the window switched to a profile with its own storage before it restored, so that it applies its default layout once it restored. */
+	private applyDefaultLayoutWhenRestored = false;
+
 	/**
 	 * The state of the active layout as this window started with it, applied or saved it last. Saving writes only what differs from it,
 	 * so that what another window saved into the same layout meanwhile is kept. Undefined until the window restored its layout.
@@ -100,8 +103,11 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 
 		// The `Restored` phase can start before slow editors restored, while editors still open into groups that applying a layout could merge
 		this.whenRestored = Promise.all([this.layoutService.whenRestored, extensionService.whenInstalledExtensionsRegistered()]).then(() => {
-			// Part sizes are stored per profile, and other windows can have changed the active layout, so the window applies what differs from it
-			if (this.isEnabled() && this.activeLayoutId !== DEFAULT_NAMED_LAYOUT_ID) {
+			if (this.applyDefaultLayoutWhenRestored) {
+				this.showFullArrangement();
+				this.applyDefaultLayout();
+			} else if (this.isEnabled() && this.activeLayoutId !== DEFAULT_NAMED_LAYOUT_ID) {
+				// Part sizes are stored per profile, and other windows can have changed the active layout, so the window applies what differs from it
 				this.applyChanges(this.readLayoutState(this.activeLayoutId));
 			}
 			this.baseline = this.captureState();
@@ -264,17 +270,26 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 
 	/**
 	 * Named layouts are stored per profile. When the window switches to a profile with its own storage, which does not have the
-	 * active layout, the window applies its default layout before the storage switches. Otherwise the window would keep the
+	 * active layout, the default layout becomes the active layout before the storage switches. Otherwise the window would keep the
 	 * arrangement of the active layout as its default layout, as when another window deletes the active layout, and lose the
-	 * stored state of the default layout. This happens also while named layouts are disabled. The storage of the previous
-	 * profile closes as the switch starts, so what changed since the active layout was saved last is not saved.
+	 * stored state of the default layout. The window applies that state right away, or once it restored, as editors still open
+	 * into the editor groups that applying it can merge. This happens also while named layouts are disabled. The storage of the
+	 * previous profile closes as the switch starts, so what changed since the active layout was saved last is not saved.
 	 */
 	private onDidChangeProfile({ previous, profile }: DidChangeUserDataProfileEvent): void {
 		// The storage service keeps the storage, and with it the layouts, when both profiles use the default storage
 		const storageSwitches = previous.id !== profile.id && !(isProfileUsingDefaultStorage(previous) && isProfileUsingDefaultStorage(profile));
-		if (storageSwitches && this.activeLayoutId !== DEFAULT_NAMED_LAYOUT_ID) {
+		if (!storageSwitches || this.activeLayoutId === DEFAULT_NAMED_LAYOUT_ID) {
+			return;
+		}
+
+		// While a named layout is active, the window has a baseline once it restored
+		if (this.baseline) {
 			this.showFullArrangement();
 			this.applyDefaultLayout();
+		} else {
+			this.activeLayoutId = DEFAULT_NAMED_LAYOUT_ID;
+			this.applyDefaultLayoutWhenRestored = true;
 		}
 	}
 
