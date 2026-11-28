@@ -43,20 +43,23 @@ export class SelectBoxNative extends Disposable implements ISelectBoxDelegate {
 
 		this.styles = styles;
 
-		this.registerListeners();
+		this.registerListeners(selectBoxOptions?.nativeActivation === true);
 		this.setOptions(options, selected);
 	}
 
-	private registerListeners() {
-		this._register(Gesture.addTarget(this.selectElement));
-		[EventType.Tap].forEach(eventType => {
-			this._register(dom.addDisposableListener(this.selectElement, eventType, (e) => {
-				this.selectElement.focus();
-			}));
-		});
+	private registerListeners(nativeActivation: boolean) {
+		if (nativeActivation) {
+			this._register(Gesture.ignoreTarget(this.selectElement));
+		} else {
+			this._register(Gesture.addTarget(this.selectElement));
+			this._register(dom.addDisposableListener(this.selectElement, EventType.Tap, () => this.selectElement.focus()));
+		}
 
 		this._register(dom.addStandardDisposableListener(this.selectElement, 'click', (e) => {
-			dom.EventHelper.stop(e, true);
+			e.stopPropagation();
+			if (!nativeActivation) {
+				e.preventDefault();
+			}
 		}));
 
 		this._register(dom.addStandardDisposableListener(this.selectElement, 'change', (e) => {

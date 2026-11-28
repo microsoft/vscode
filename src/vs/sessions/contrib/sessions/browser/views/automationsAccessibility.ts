@@ -4,11 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../nls.js';
-import { getActiveElement, isHTMLElement } from '../../../../../base/browser/dom.js';
-import { isEqual } from '../../../../../base/common/resources.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
-import { AccessibleViewRegistry, IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { getAutomationAfterDate } from '../../../../../platform/agentHost/common/automationDisableConditions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -25,16 +22,16 @@ import { automationTriggerSummary } from '../../../../../workbench/contrib/chat/
 import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
-import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { AutomationsCustomViewFocusContext, CustomViewAllowsPanelContext } from '../../../../common/agentsWindowContextKeys.js';
 import { SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
-import { formatAutomationRunStatus as formatRunStatus, formatUnavailableAutomationsMessage, getAutomationsViewContent, getAutomationOwnershipGroups, getAutomationRemoteStatusPresentation, hasEmptyAutomationSection } from './automationCataloguePresentation.js';
-import { automationRunWithLocalProgress, isLocalAutomationRunStarting } from './automationRunProgress.js';
+import { formatUnavailableAutomationsMessage, getAutomationsViewContent, getAutomationOwnershipGroups, getAutomationRemoteStatusPresentation, hasEmptyAutomationSection } from './automationCataloguePresentation.js';
+import { createAutomationsFocusRestorer, getAccessibleAutomationRuns, getAccessibleRunLines } from './automationAccessibleContent.js';
 
-class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplementation {
+export class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly type = AccessibleViewType.Help;
 	readonly priority = 106;
 	readonly name = 'sessions-automations-help';
@@ -45,7 +42,7 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 		const automationService = accessor.get(IAutomationService);
 		const agentPluginService = accessor.get(IAgentPluginService);
 		const configurationService = accessor.get(IConfigurationService);
-		const restoreFocus = createFocusRestorer(layoutService);
+		const restoreFocus = createAutomationsFocusRestorer(layoutService);
 		const templates = readAutomationTemplates(agentPluginService.plugins.get());
 		const { automations } = getAutomationsViewContent(
 			automationService.automations.get(), [],
@@ -106,7 +103,7 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 	}
 }
 
-class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementation {
+export class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementation {
 	readonly type = AccessibleViewType.View;
 	readonly priority = 106;
 	readonly name = 'sessions-automations-view';
@@ -122,7 +119,7 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 		const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
 		const missionControlEnvironmentService = accessor.get(IMissionControlEnvironmentService);
 		const storageService = accessor.get(IStorageService);
-		const restoreFocus = createFocusRestorer(layoutService);
+		const restoreFocus = createAutomationsFocusRestorer(layoutService);
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.Automations,
 			{ type: AccessibleViewType.View },
@@ -132,12 +129,7 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 					getShowSharedAutomationsByOthers(storageService),
 					configurationService.getValue<boolean>(SESSIONS_SEND_LATER_ENABLED_SETTING) === true,
 				);
-				const sessions = sessionsManagementService.getSessions();
-				const hasCatalogedSession = (resource: URI) => sessions.some(session => isEqual(session.resource, resource));
-				const hasSession = (resource: URI) => sessionsManagementService.getSession(resource) !== undefined;
-				const startingAutomationIds = new Set(runs
-					.filter(run => isLocalAutomationRunStarting(run, hasCatalogedSession, hasSession))
-					.map(run => run.automationId));
+				const { historyRuns, startingAutomationIds } = getAccessibleAutomationRuns(runs, automationService, sessionsManagementService);
 				const catalogueState = automationService.catalogueState.get();
 				const unavailableProviders = automationService.unavailableProviders.get();
 				const remoteManagementEnabled = configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)
@@ -151,16 +143,7 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 				);
 				return buildAutomationsAccessibleContent(
 					automations,
-					runs.filter(run => {
-						const retainedHistory = automationService.getAutomationHistoryState?.(run.automationId) !== undefined;
-						return retainedHistory || (
-							!isLocalAutomationRunStarting(run, hasCatalogedSession, hasSession)
-							&& (
-								!!run.externalResource
-								|| (!!run.sessionResource && hasCatalogedSession(run.sessionResource))
-							)
-						);
-					}),
+					historyRuns,
 					catalogueState === 'unavailable' && remoteStatusPresentation.suppressedAllReasons ? 'ready' : catalogueState,
 					readAutomationTemplates(agentPluginService.plugins.get()),
 					remoteStatusPresentation.visibleUnavailableProviders,
@@ -176,17 +159,6 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 			AccessibilityVerbositySettingId.Automations,
 		);
 	}
-}
-
-function createFocusRestorer(layoutService: IWorkbenchLayoutService): () => void {
-	const focusedElement = getActiveElement();
-	return () => {
-		if (isHTMLElement(focusedElement) && focusedElement.isConnected && focusedElement.checkVisibility()) {
-			focusedElement.focus();
-		} else {
-			layoutService.focusPart(Parts.CUSTOM_VIEW_GRID_PART);
-		}
-	};
 }
 
 export function buildAutomationsAccessibleContent(automations: readonly IAutomationDescriptor[], runs: readonly IAutomationRun[], catalogueState: AutomationCatalogueState, templates: readonly IAutomationTemplate[] = readAutomationTemplates([]), unavailableProviders: readonly IAutomationProviderDescriptor[] = [], historyState?: AutomationCatalogueState, chatModels: Iterable<IChatModel> = [], historyName?: (id: string) => string | undefined, retainedHistoryState?: (id: string) => AutomationHistoryState | undefined, canDeleteRetainedHistory?: (id: string) => boolean, startingAutomationIds: ReadonlySet<string> = new Set()): string {
@@ -277,45 +249,10 @@ export function buildAutomationsAccessibleContent(automations: readonly IAutomat
 	} else if (historyState === 'error') {
 		lines.push(localize('automationsAccessibleView.historyError', "Run history could not be refreshed. Use Refresh to try again."));
 	}
-	if (runs.length === 0) {
-		if (catalogueState === 'ready' && (historyState === undefined || historyState === 'ready') && automations.length > 0) {
-			lines.push(localize('automationsAccessibleView.noRuns', "No runs."));
-		}
-	} else {
-		const automationNames = new Map(automations.map(automation => [automation.id, automation.name]));
-		const announcedHistoryOwners = new Set<string>();
-		for (const historyRun of runs) {
-			const run = automationRunWithLocalProgress(historyRun, chatModels);
-			const name = automationNames.get(run.automationId) ?? historyName?.(run.automationId) ?? localize('automationsAccessibleView.unknown', "Unknown automation");
-			lines.push(localize(
-				'automationsAccessibleView.run',
-				"{0}, {1}, started {2}",
-				name,
-				formatRunStatus(run),
-				new Date(run.startedAt).toLocaleString(),
-			));
-			if (run.errorMessage) {
-				lines.push(localize('automationsAccessibleView.runError', "Error: {0}", run.errorMessage));
-			}
-			if (run.externalResource) {
-				lines.push(localize('automationsAccessibleView.externalRun', "Open on GitHub: {0}", run.externalResource.toString()));
-			}
-			const retainedState = retainedHistoryState?.(run.automationId);
-			if (retainedState && !announcedHistoryOwners.has(run.automationId)) {
-				announcedHistoryOwners.add(run.automationId);
-				const available = canDeleteRetainedHistory?.(run.automationId) === true;
-				lines.push(retainedState === 'deleting'
-					? localize('automationsAccessibleView.historyDeleting', "Deleting run history for {0}.", name)
-					: retainedState === 'interrupted'
-						? available
-							? localize('automationsAccessibleView.historyDeleteRetry', "Run history deletion for {0} was interrupted. Use the run context menu to retry.", name)
-							: localize('automationsAccessibleView.historyDeleteRetryUnavailable', "Run history deletion for {0} was interrupted. Retry is currently unavailable.", name)
-						: available
-							? localize('automationsAccessibleView.historyRetained', "Run history for {0} is retained. Use the run context menu to delete it.", name)
-							: localize('automationsAccessibleView.historyRetainedUnavailable', "Run history for {0} is retained. Deletion is currently unavailable.", name));
-			}
-		}
+	if (runs.length === 0 && catalogueState === 'ready' && (historyState === undefined || historyState === 'ready') && automations.length > 0) {
+		lines.push(localize('automationsAccessibleView.noRuns', "No runs."));
 	}
+	lines.push(...getAccessibleRunLines(automations, runs, chatModels, historyName, retainedHistoryState, canDeleteRetainedHistory));
 	return lines.join('\n');
 }
 
@@ -352,5 +289,3 @@ function formatTime(hour: number, minute: number): string {
 	return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' });
 }
 
-AccessibleViewRegistry.register(new AutomationsCustomViewAccessibilityHelp());
-AccessibleViewRegistry.register(new AutomationsCustomViewAccessibleView());

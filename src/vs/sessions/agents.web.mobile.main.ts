@@ -278,8 +278,7 @@ import './contrib/aquarium/browser/aquarium.contribution.js';
 // Sessions list
 import './contrib/sessions/browser/sessions.contribution.js';
 
-// Coupling debt: sessions.contribution.ts registers the automations custom view,
-// whose contribution takes IAutomationService in its constructor.
+// Phone Automations uses the same provider catalogue and commands as the regular entry.
 import './contrib/automations/browser/automations.contribution.js';
 
 // Changes

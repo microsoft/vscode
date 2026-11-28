@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { status } from '../../../../base/browser/ui/aria/aria.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { basename, dirname, isEqual, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -30,7 +33,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import type { IAutomationDescriptor } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AUTOMATION_BLUEPRINT_FILE_SUFFIX, AutomationBlueprintParseError, automationToBlueprint, createAutomationBlueprintFileName, parseAutomationBlueprint, serializeAutomationBlueprint } from '../../../../workbench/contrib/chat/common/automations/automationBlueprint.js';
-import { IAutomationDialogResult, IAutomationDialogService } from '../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
+import { AutomationDialogCreateInitialValues, IAutomationDialogResult, IAutomationDialogService } from '../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { IAutomationRunDispatch, IAutomationRunner } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { type IAutomationRefreshOptions, IAutomationService, type IUpdateAutomationOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { hasAutomationEventTrigger } from '../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
@@ -419,6 +422,25 @@ export async function refreshAutomations(automationService: IAutomationService, 
 	}
 }
 
+export function registerAutomationCatalogueRefresh(store: DisposableStore, automationService: IAutomationService, logService: ILogService): void {
+	const scheduler = store.add(new RunOnceScheduler(() => void refresh(), 60_000));
+	const refresh = async () => {
+		scheduler.cancel();
+		await refreshAutomations(automationService, logService, undefined, { background: true });
+		if (!store.isDisposed && !automationService.isRefreshing?.get()) {
+			scheduler.schedule();
+		}
+	};
+	store.add(autorun(reader => {
+		if (automationService.isRefreshing?.read(reader)) {
+			scheduler.cancel();
+		} else {
+			scheduler.schedule();
+		}
+	}));
+	void refresh();
+}
+
 async function setAutomationEnabled(accessor: ServicesAccessor, automation: IAutomationDescriptor, enabled: boolean): Promise<void> {
 	const automationService = accessor.get(IAutomationService);
 	if (automation.enabled === enabled || !automationService.canUpdateAutomation(automation.id)) {
@@ -432,8 +454,15 @@ async function setAutomationEnabled(accessor: ServicesAccessor, automation: IAut
 		await showAutomationsDisabled(dialogService);
 		return;
 	}
-	if (!enabled && automation.ownership === 'repository') {
-		const confirmed = await dialogService.confirm({
+	const cancelsScheduledChat = !enabled && automation.schedule.interval === 'once' && automation.purpose === 'scheduledChat';
+	if (!enabled && (automation.ownership === 'repository' || cancelsScheduledChat)) {
+		const confirmed = await dialogService.confirm(cancelsScheduledChat ? {
+			type: 'warning',
+			message: localize('confirmCancelScheduledChat', "Cancel scheduled chat \"{0}\"?", automation.name),
+			detail: localize('cancelScheduledChatDetail', "The message will not be sent. This cannot be undone."),
+			primaryButton: localize('cancelDelivery', "Cancel Delivery"),
+			cancelButton: localize('keepScheduled', "Keep Scheduled"),
+		} : {
 			type: 'warning',
 			message: localize('confirmDisableSharedAutomation', "Disable automation \"{0}\"?", automation.name),
 			detail: getSharedAutomationWarning('disable'),
@@ -547,7 +576,7 @@ registerAction2(class NewAutomationAction extends Action2 {
 	constructor() {
 		super(AutomationCommands.createManually);
 	}
-	override async run(accessor: ServicesAccessor): Promise<void> {
+	override async run(accessor: ServicesAccessor, options?: { readonly initialValues?: AutomationDialogCreateInitialValues }): Promise<void> {
 		const automationDialogService = accessor.get(IAutomationDialogService);
 		const automationService = accessor.get(IAutomationService);
 		const configurationService = accessor.get(IConfigurationService);
@@ -559,6 +588,7 @@ registerAction2(class NewAutomationAction extends Action2 {
 			return;
 		}
 		await automationDialogService.showAutomationDialog({
+			...(options?.initialValues && { initialValues: options.initialValues }),
 			commit: async result => {
 				if (result.kind === 'create') {
 					await withAutomationDialogPersistenceTelemetry(telemetryService, 'create', () =>

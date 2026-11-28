@@ -261,6 +261,7 @@
 
 .monaco-workbench.mobile-workbench .notifications-list-container .notification-list-item .notification-list-item-buttons-container .monaco-button {
 	min-height: var(--mobile-target);
+	align-content: center;
 	border-radius: var(--vscode-cornerRadius-circle);
 	padding: 0 var(--vscode-spacing-size160);
 }

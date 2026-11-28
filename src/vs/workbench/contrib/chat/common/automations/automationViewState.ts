@@ -8,6 +8,7 @@ import { IObservable, observableFromEvent } from '../../../../../base/common/obs
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 
 const showSharedByOthersStorageKey = 'sessions.automations.showSharedByOthers';
+export const SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY = 'sessions.automations.showDisabled';
 
 export function getShowSharedAutomationsByOthers(storageService: IStorageService): boolean {
 	return storageService.getBoolean(showSharedByOthersStorageKey, StorageScope.PROFILE, false);

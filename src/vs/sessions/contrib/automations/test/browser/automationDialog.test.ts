@@ -19,7 +19,8 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Action, IAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { CancellationError, getErrorMessage } from '../../../../../base/common/errors.js';
-import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -43,7 +44,7 @@ import { IContext } from '../../../../../platform/contextkey/common/contextkey.j
 import { ContextViewHandler } from '../../../../../platform/contextview/browser/contextViewService.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
-import { ResultKind } from '../../../../../platform/keybinding/common/keybindingResolver.js';
+import { NoMatchingKb, ResultKind } from '../../../../../platform/keybinding/common/keybindingResolver.js';
 import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
@@ -75,7 +76,9 @@ import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SessionTypeAuth
 import { IAutomationSessionConfiguration, ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { AutomationDialogService } from '../../browser/automationDialogService.js';
+import { registerMobileSheetNavigation } from '../../../../../workbench/contrib/sessions/browser/mobile/mobileSheetNavigation.js';
+import { DefaultAutomationDialogService } from '../../browser/defaultAutomationDialogService.js';
+import { MobileAutomationDialogService } from '../../../mobile/browser/mobileAutomationDialogService.js';
 import { AutomationCustomizationSelection, AutomationIsolationGroupActionViewItem, AutomationSessionDraftSynchronizer, buildAutomationDisableConditions, canSelectAutomationWorkspace, getAutomationDialogProviders, getAutomationEndDateError, IFormState, IValidationState, isAutomationDialogPopupTarget, MobileAutomationsWorkspacePicker, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from '../../browser/automationDialog.js';
 import { AutomationInputCompletions } from '../../browser/automationInputCompletions.js';
 import { AutomationIsolationModel } from '../../common/isolationGroupModel.js';
@@ -110,7 +113,7 @@ suite('Automation dialog creation', () => {
 		assert.deepStrictEqual(actual, { session: true, chat: true });
 	});
 
-	function openDialog(options: IShowAutomationDialogOptions = {}, cloudConfigurationOrChoices?: IAutomationProviderConfiguration | IAutomationService['getCustomizationChoices'], sessionOverrides?: Partial<ISessionsManagementService>, repository?: IGitRepository, cloudCreatable = true, cloudEnabledAtOpen = true, canUpdate = true, inputEditorOptions?: IChatInputPartOptions['inputEditorOptions'], automationOverrides?: Partial<IAutomationService>) {
+	function openDialog({ phoneNavigation, softDispatch, ...options }: IShowAutomationDialogOptions & { phoneNavigation?: Parameters<typeof registerMobileSheetNavigation>[1]; softDispatch?: IKeybindingService['softDispatch'] } = {}, cloudConfigurationOrChoices?: IAutomationProviderConfiguration | IAutomationService['getCustomizationChoices'], sessionOverrides?: Partial<ISessionsManagementService>, repository?: IGitRepository, cloudCreatable = true, cloudEnabledAtOpen = true, canUpdate = true, inputEditorOptions?: IChatInputPartOptions['inputEditorOptions'], automationOverrides?: Partial<IAutomationService>) {
 		const cloudConfiguration = typeof cloudConfigurationOrChoices === 'function' ? undefined : cloudConfigurationOrChoices;
 		const getCustomizationChoices = typeof cloudConfigurationOrChoices === 'function' ? cloudConfigurationOrChoices : undefined;
 		const configurationService = new TestConfigurationService();
@@ -198,6 +201,9 @@ suite('Automation dialog creation', () => {
 			getCustomizationChoices,
 			...automationOverrides,
 		}));
+		if (softDispatch) {
+			instantiationService.stub(IKeybindingService, 'softDispatch', softDispatch);
+		}
 		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 		let targetModel: AutomationIsolationModel | undefined;
 		let selectedWorkspace: URI | undefined;
@@ -253,12 +259,15 @@ suite('Automation dialog creation', () => {
 			return child;
 		});
 		disposables.add(toDisposable(() => createChild.restore()));
-		const result = instantiationService.createInstance(AutomationDialogService).showAutomationDialog(options);
 		const container = instantiationService.get(IWorkbenchLayoutService).activeContainer;
-		const buttons = Array.from(container.querySelectorAll<HTMLElement>('.automation-dialog-footer-actions .monaco-button'));
+		if (phoneNavigation) {
+			disposables.add(registerMobileSheetNavigation(container, phoneNavigation));
+		}
+		const result = instantiationService.createInstance(phoneNavigation ? MobileAutomationDialogService : DefaultAutomationDialogService).showAutomationDialog(options);
+		const buttons = Array.from(container.querySelectorAll<HTMLElement>(phoneNavigation ? '.automation-phone-form-header .monaco-button' : '.automation-dialog-footer-actions .monaco-button'));
 		const saveButton = buttons.find(button => button.textContent === (options.existing ? 'Save' : 'Create'))!;
 		const cancelButton = buttons.find(button => button.textContent === 'Cancel')
-			?? Array.from(container.querySelectorAll<HTMLElement>('.dialog-buttons .monaco-button')).find(button => button.textContent === 'Close')!;
+			?? Array.from(container.querySelectorAll<HTMLElement>('.dialog-buttons .monaco-button, .mobile-picker-sheet-done')).find(button => button.textContent === 'Close' || button.textContent === 'Done')!;
 		disposables.add(toDisposable(() => cancelButton.click()));
 		const nameInput = container.querySelector<HTMLInputElement>('.automation-form-input-host input')!;
 		return {
@@ -1703,17 +1712,26 @@ suite('Automation dialog creation', () => {
 			schedule: { interval: 'once', runAt: '2027-01-01T10:00:00.000Z', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
 		};
 		let commits = 0;
-		const dialog = openDialog({ existing, commit: async () => { commits++; } });
-		const presentation = {
-			editable: !!dialog.container.querySelector('input, textarea, select'),
-			scheduleVisible: dialog.container.textContent?.includes(existing.schedule.runAt!),
-			promptVisible: dialog.container.textContent?.includes(existing.prompt),
-			saveButton: !!dialog.saveButton,
-		};
-		dialog.cancelButton.click();
-		assert.deepStrictEqual({ presentation, result: await dialog.result, commits }, {
-			presentation: { editable: false, scheduleVisible: true, promptVisible: true, saveButton: false },
-			result: undefined, commits: 0,
+		const results = [];
+		for (const phoneNavigation of [undefined, () => Disposable.None]) {
+			const dialog = openDialog({ existing, commit: async () => { commits++; }, phoneNavigation });
+			const presentation = {
+				phone: !!phoneNavigation,
+				surface: dialog.container.querySelector('.monaco-dialog-box') ? 'dialog' : dialog.container.querySelector('.mobile-picker-sheet') ? 'sheet' : undefined,
+				editable: !!dialog.container.querySelector('input, textarea, select'),
+				scheduleVisible: dialog.container.textContent?.includes(existing.schedule.runAt!),
+				promptVisible: dialog.container.textContent?.includes(existing.prompt),
+				saveButton: !!dialog.saveButton,
+			};
+			dialog.cancelButton.click();
+			results.push({ presentation, result: await dialog.result });
+		}
+		assert.deepStrictEqual({ results, commits }, {
+			results: [
+				{ presentation: { phone: false, surface: 'dialog', editable: false, scheduleVisible: true, promptVisible: true, saveButton: false }, result: undefined },
+				{ presentation: { phone: true, surface: 'sheet', editable: false, scheduleVisible: true, promptVisible: true, saveButton: false }, result: undefined },
+			],
+			commits: 0,
 		});
 	});
 
@@ -2780,6 +2798,7 @@ suite('Automation dialog creation', () => {
 				await committed.p;
 			}
 		});
+
 		dialog.setPrompt('Review changes');
 		dialog.saveButton.click();
 		await started.p;
@@ -2803,6 +2822,69 @@ suite('Automation dialog creation', () => {
 		});
 		void committed.complete();
 		assert.deepStrictEqual((await dialog.result)?.kind, 'create');
+	});
+
+	test('phone Back discards a draft but cannot interrupt a commit', async () => {
+		let back: (() => void) | undefined;
+		const phoneNavigation = (dismiss: () => void) => {
+			back = dismiss;
+			return toDisposable(() => {
+				if (back === dismiss) {
+					back = undefined;
+				}
+			});
+		};
+		const draft = openDialog({ phoneNavigation });
+		draft.setPrompt('Discard this draft');
+		back!();
+		const discarded = await draft.result;
+
+		const started = new DeferredPromise<void>();
+		const committed = new DeferredPromise<void>();
+		const dialog = openDialog({
+			phoneNavigation,
+			commit: async () => {
+				void started.complete();
+				await committed.p;
+			},
+		});
+		dialog.setPrompt('Save this schedule');
+		dialog.saveButton.click();
+		await started.p;
+		back!();
+		const stayedOpen = !!dialog.container.querySelector('.automation-phone-form') && !!back;
+		void committed.complete();
+		const saved = await dialog.result;
+		assert.deepStrictEqual({ discarded, stayedOpen, saved: saved?.kind, back }, { discarded: undefined, stayedOpen: true, saved: 'create', back: undefined });
+	});
+
+	test('phone form is a page that blocks workbench keybindings and closes on Escape', async () => {
+		const dialog = openDialog({
+			phoneNavigation: () => Disposable.None,
+			softDispatch: event => event.keyCode === KeyCode.KeyS
+				? { kind: ResultKind.KbFound, commandId: 'workbench.action.files.save', commandArgs: undefined, isBubble: false }
+				: NoMatchingKb,
+		});
+		const page = dialog.container.querySelector<HTMLElement>('.automation-phone-form')!;
+		const press = (type: 'keydown' | 'keyup', key: string, keyCode: number) => {
+			const event = new KeyboardEvent(type, { key, keyCode, bubbles: true, cancelable: true });
+			dialog.nameInput.dispatchEvent(event);
+			return event;
+		};
+		const presentation = {
+			desktopDialog: !!dialog.container.querySelector('.monaco-dialog-modal-block, .monaco-dialog-box'),
+			role: page.getAttribute('role'),
+			modal: page.getAttribute('aria-modal'),
+			label: page.getAttribute('aria-label'),
+			workbenchKeybindingBlocked: press('keydown', 's', 83).defaultPrevented,
+			typingBlocked: press('keydown', 'a', 65).defaultPrevented,
+		};
+		press('keydown', 'Escape', 27);
+		press('keyup', 'Escape', 27);
+		assert.deepStrictEqual({ presentation, result: await dialog.result, open: page.isConnected }, {
+			presentation: { desktopDialog: false, role: 'dialog', modal: 'true', label: 'New automation', workbenchKeybindingBlocked: true, typingBlocked: false },
+			result: undefined, open: false,
+		});
 	});
 
 	test('shows commit errors inline, preserves input, and supports retry', async () => {

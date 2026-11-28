@@ -36,6 +36,20 @@ import { SessionsChatAccessibilityHelp } from '../../chat/browser/sessionsChatAc
 import './mobileAttachmentContext.js';
 import './mobileBackgroundNotifier.js';
 import { mobileConfigurationDefaults } from './mobileConfigurationDefaults.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { localize2 } from '../../../../nls.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
+import { ChatAutomationsEnabledContext } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { IAutomationDialogService } from '../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
+import { MobileAutomationDialogService } from './mobileAutomationDialogService.js';
+import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../workbench/contrib/sessions/browser/automationsConstants.js';
+import { ICustomViewService } from '../../../../workbench/contrib/sessions/browser/customView.js';
+import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../browser/workbench.js';
+import { MobileAutomationsAccessibilityHelp, MobileAutomationsAccessibleView } from './mobileAutomationsAccessibility.js';
+import { MobileAutomationsContribution } from './mobileAutomationsView.js';
 
 // Phone design language. Imported here, at the end of the mobile entry point,
 // so these stylesheets are evaluated after every shared stylesheet: a phone rule
@@ -61,6 +75,7 @@ registerSingleton(IActionWidgetService, MobileActionWidgetService, Instantiation
 
 // Simple picks and prompts are bottom sheets; quick access keeps the shared controller.
 registerSingleton(IQuickInputService, MobileQuickInputService, InstantiationType.Delayed);
+registerSingleton(IAutomationDialogService, MobileAutomationDialogService, InstantiationType.Delayed);
 
 // Shortcuts still work with a paired keyboard, but labels stop advertising them.
 registerSingleton(IKeybindingService, MobileKeybindingService, InstantiationType.Eager);
@@ -78,3 +93,18 @@ registerSingleton(IChatViewFactory, MobileChatViewFactory, InstantiationType.Del
 registerSingleton(IChatEditPresentationService, MobileChatEditPresenter, InstantiationType.Delayed);
 registerSingleton(IChatAttachmentWidgetRegistry, ChatAttachmentWidgetRegistry, InstantiationType.Delayed);
 AccessibleViewRegistry.register(new SessionsChatAccessibilityHelp(undefined, false));
+AccessibleViewRegistry.register(new MobileAutomationsAccessibilityHelp());
+AccessibleViewRegistry.register(new MobileAutomationsAccessibleView());
+registerWorkbenchContribution2('sessions.mobile.automations', MobileAutomationsContribution, WorkbenchPhase.BlockRestore);
+registerAction2(class extends Action2 {
+	constructor() {
+		super({ id: 'sessionsView.manageAutomations', title: localize2('manageAutomations', "Manage Automations"), precondition: ChatAutomationsEnabledContext });
+	}
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		if (accessor.get(IContextKeyService).contextMatchesRules(ChatAutomationsEnabledContext)) {
+			const views = accessor.get(ICustomViewService);
+			await accessor.get(ICommandService).executeCommand(CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID);
+			views.showCustomView(AUTOMATIONS_CUSTOM_VIEW_ID);
+		}
+	}
+});

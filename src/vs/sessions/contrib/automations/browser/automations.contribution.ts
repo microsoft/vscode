@@ -25,11 +25,9 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { IAutomationDialogService } from '../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { IAutomationRunner } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
-import { AutomationDialogService } from './automationDialogService.js';
 import { AutomationRunner } from './automationRunner.js';
 import { ProviderAutomationService } from './providerAutomationService.js';
 import { AutomationToolsContribution } from './automationTools.js';
@@ -45,7 +43,6 @@ const initialProvidersSettled = observableFromPromise(
 
 registerSingleton(IAutomationService, new SyncDescriptor(ProviderAutomationService, [initialProvidersSettled], true));
 registerSingleton(IAutomationRunner, AutomationRunner, InstantiationType.Delayed);
-registerSingleton(IAutomationDialogService, AutomationDialogService, InstantiationType.Delayed);
 
 registerWorkbenchContribution2(AutomationToolsContribution.ID, AutomationToolsContribution, WorkbenchPhase.Eventually);
 

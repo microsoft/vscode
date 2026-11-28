@@ -5,10 +5,13 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
-import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
-import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
-import { AUTOMATIONS_MODAL_SETTING, AutomationsEditorInput } from '../../../automations/browser/automationsEditorInput.js';
+import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { markAllAutomationRunsRead } from '../../../automations/browser/automationRunHistory.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { isMobile, isWeb } from '../../../../../base/common/platform.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -37,9 +40,7 @@ import { ISessionsPartService } from '../../../../../workbench/services/sessions
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { getMainWindowHost, ISessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
-import { ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
 import { INewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { WorkspaceSelectionOrigin } from '../../../../../workbench/services/sessions/common/workspaceSelection.js';
 import { AICustomizationManagementCommands } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
@@ -483,25 +484,24 @@ registerAction2(class OpenSessionToTheSideAction extends Action2 {
 
 registerWorkbenchContribution2(SessionsArchiveActionsContribution.ID, SessionsArchiveActionsContribution, WorkbenchPhase.BlockStartup);
 
-registerAction2(class ManageAutomationsAction extends Action2 {
+registerAction2(class MarkAllRunsReadAction extends Action2 {
 	constructor() {
 		super({
-			id: 'sessionsView.manageAutomations',
-			title: localize2('manageAutomations', "Manage Automations"),
-			menu: []
+			id: 'sessions.automations.markAllRead',
+			title: localize2('markAllAutomationRunsRead', "Mark All as Read"),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext),
+			menu: {
+				id: Menus.AutomationsContext,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext),
+			},
 		});
 	}
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-		if (configurationService.getValue<boolean>(AUTOMATIONS_MODAL_SETTING) === true) {
-			if (configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) !== true || configurationService.getValue<boolean>(ChatAIDisabledSettingId)) {
-				return;
-			}
-			accessor.get(ICustomViewService).hideCustomView();
-			await accessor.get(IEditorService).openEditor(AutomationsEditorInput.getOrCreate(), { pinned: true });
-			return;
-		}
-		accessor.get(ICustomViewService).showCustomView(AUTOMATIONS_CUSTOM_VIEW_ID);
+		await markAllAutomationRunsRead(
+			accessor.get(IAutomationService), accessor.get(ISessionsManagementService), accessor.get(IUriIdentityService),
+			accessor.get(IChatService).chatModels.get(), accessor.get(ILogService), accessor.get(IDialogService),
+			accessor.get(IConfigurationService), accessor.get(IStorageService),
+		);
 	}
 });
 
