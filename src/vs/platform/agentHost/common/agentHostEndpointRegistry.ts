@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { vEnum, vLiteral, vNumber, vObj, vOptionalProp, vString, vUnion } from '../../../base/common/validation.js';
+import { vBoolean, vEnum, vLiteral, vNumber, vObj, vOptionalProp, vString, vUnion } from '../../../base/common/validation.js';
 import type { RemoteAgentHostLocationPreference } from './remoteAgentHostLocationPreference.js';
 
 /**
@@ -57,6 +57,12 @@ export interface IAgentHostEndpointMetadata {
 	readonly endpoint: AgentHostEndpointAddress;
 	readonly quality?: string;
 	readonly tunnelName?: string;
+	/**
+	 * Whether the agent host forwards what clients offer to the processes it
+	 * starts (`code agent host --client-forwarding`). Absent when it does not,
+	 * and from writers that predate it.
+	 */
+	readonly clientForwarding?: boolean;
 }
 
 /**
@@ -86,6 +92,7 @@ const entryValidator = vObj({
 	endpoint: endpointAddressValidator,
 	quality: vOptionalProp(vString()),
 	tunnelName: vOptionalProp(vString()),
+	clientForwarding: vOptionalProp(vBoolean()),
 });
 
 /**
@@ -121,6 +128,7 @@ export function parseAgentHostEndpointMetadataEntry(raw: unknown): IAgentHostEnd
 		endpoint: content.endpoint,
 		quality: content.quality,
 		tunnelName: content.tunnelName,
+		...(content.clientForwarding ? { clientForwarding: true } : {}),
 	};
 }
 

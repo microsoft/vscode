@@ -42,7 +42,6 @@ import { getAppNodeModulesUri } from './appNodeModules.js';
 import { toWslcCommand } from './devContainerEngine.js';
 import { hasDevContainerEnvironmentVolume, IPreparedDevContainerEnvironment, prepareDevContainerEnvironment, readDevContainerEnvironmentTestConfiguration, removeDevContainerEnvironment } from './devContainerEnvironments.js';
 import { checked, getDevContainerSampleVolumeLabel, IPreparedDevContainerSample, prepareDevContainerSample } from './devContainerSamples.js';
-import { AGENT_HOST_CLIENT_FORWARDING_ENV } from './agentHostClientForwarding.js';
 import { IDevContainerSandboxConfiguration, isDevContainerSandboxSupported, parseDevContainerSandboxConfiguration, prepareDevContainerSandboxConfiguration } from './devContainerSandbox.js';
 import { buildCreateDevContainerCacheCommand, buildLinkDevContainerServerCacheCommand, canAddDevContainerServerCacheMount, devContainerServerCacheMount, getDevContainerCliCachePath, getDevContainerServerCachePath } from './devContainerServerCache.js';
 import { DevContainerShell, IDevContainerShellResult } from './devContainerShell.js';
@@ -55,6 +54,7 @@ import {
 	ISshExec,
 	buildAgentHostSpawnCommand,
 	buildAgentRelayCommand,
+	cliVersionSupportsClientForwarding,
 	filterLiveAgentHostEndpoints,
 	formatAgentHostUrlHost,
 	getRemoteCLIDataDir,
@@ -467,18 +467,24 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				reportCacheStatus: message => this._reportOutput(config.connectionId, `${message}\n`),
 			});
 			const { cliBin } = cliInstallation;
+			// The client's own CLI and the latest one dev builds use have the option; an older fallback CLI does not.
+			const clientForwarding = cliInstallation.fallbackVersion === undefined || cliVersionSupportsClientForwarding(cliInstallation.fallbackVersion);
+			if (!clientForwarding) {
+				this._logService.warn(`${LOG_PREFIX} Fallback CLI ${cliInstallation.fallbackVersion} cannot start an Agent Host that forwards Git credentials and agents`);
+			}
 			const cliDataDir = getRemoteCLIDataDir(serverDataFolderName);
 			const initial = await runAgentEndpoints(exec, cliBin, cliDataDir);
 			const live = await filterLiveAgentHostEndpoints(exec, initial.endpoints);
-			let endpoint = selectAgentHostEndpoint(live, this._productService.quality, undefined);
+			// Only an Agent Host started with forwarding forwards, not, e.g., one a remote editor's server started.
+			let endpoint = selectAgentHostEndpoint(clientForwarding ? live.filter(entry => entry.clientForwarding) : live, this._productService.quality, undefined);
 			if (!endpoint) {
 				const sessionId = this._telemetryService.sessionId;
-				// Lets the Agent Host forward the Git configuration, identity, credentials and agents of clients offering them.
-				const spawnCommand = `${VSCODE_REMOTE_CONTAINERS_SESSION_ENV}=${shellEscape(sessionId)} ${AGENT_HOST_CLIENT_FORWARDING_ENV}=1 ${buildAgentHostSpawnCommand(
+				const spawnCommand = `${VSCODE_REMOTE_CONTAINERS_SESSION_ENV}=${shellEscape(sessionId)} ${buildAgentHostSpawnCommand(
 					cliBin,
 					serverDataFolderName,
 					initial.userDataPath,
 					telemetryLevelToAgentHostValue(this._telemetryService.telemetryLevel),
+					{ clientForwarding },
 				)}`;
 				// The Agent Host keeps this command running, so it cannot share the startup shell.
 				void this._createExec(config.connectionId, execSelector, tokenSource.token, sandboxEnvironment)(spawnCommand, { ignoreExitCode: true }).catch(error => {

@@ -372,12 +372,35 @@ export function buildAgentEndpointsCommand(cliBin: string, cliDataDir: string, u
  * selection path is still relying on. `--new-instance` guarantees a
  * genuinely new process/registry entry every time this command runs,
  * leaving all existing standalone/editor entries untouched.
+ *
+ * `clientForwarding` passes `--client-forwarding`, which only CLIs that
+ * {@link cliVersionSupportsClientForwarding} accept.
  */
-export function buildAgentHostSpawnCommand(cliBin: string, serverDataFolderName: string, userDataPath: string, telemetryLevel: TelemetryConfiguration, idleTimeoutSec = 300): string {
+export function buildAgentHostSpawnCommand(cliBin: string, serverDataFolderName: string, userDataPath: string, telemetryLevel: TelemetryConfiguration, options: { readonly idleTimeoutSec?: number; readonly clientForwarding?: boolean } = {}): string {
+	const idleTimeoutSec = options.idleTimeoutSec ?? 300;
 	if (!Number.isSafeInteger(idleTimeoutSec) || idleTimeoutSec <= 0) {
 		throw new Error(`Unsafe idle timeout value for shell interpolation: ${JSON.stringify(idleTimeoutSec)}`);
 	}
-	return `${buildAgentHostBaseCommand(cliBin, serverDataFolderName, telemetryLevel)} --new-instance --user-data-dir ${shellEscape(userDataPath)} --idle-timeout ${idleTimeoutSec}`;
+	return `${buildAgentHostBaseCommand(cliBin, serverDataFolderName, telemetryLevel)} --new-instance --user-data-dir ${shellEscape(userDataPath)} --idle-timeout ${idleTimeoutSec}${options.clientForwarding ? ' --client-forwarding' : ''}`;
+}
+
+/**
+ * Whether a CLI that prints `version` for `--version`, e.g.,
+ * `code-insiders 1.149.0 (commit <sha>)`, accepts `agent host --client-forwarding`:
+ * CLIs from 1.149 on and those built from sources, which print `dev`, do.
+ * Builds of an Insiders version share it, so this treats all 1.149 builds as
+ * supporting it.
+ */
+export function cliVersionSupportsClientForwarding(version: string): boolean {
+	const match = /^\S+ (?:(?<major>\d+)\.(?<minor>\d+)\.\d+|(?<dev>dev)) \(commit /.exec(version.trim());
+	if (!match?.groups) {
+		return false;
+	}
+	const { major, minor, dev } = match.groups;
+	if (dev) {
+		return true;
+	}
+	return Number(major) > 1 || (Number(major) === 1 && Number(minor) >= 149);
 }
 
 /**

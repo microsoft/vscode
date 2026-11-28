@@ -76,6 +76,7 @@ The legacy `metadata.json` fallback holds a JSON **array** of these same entry o
 | `endpoint` | Discriminated union describing how to connect: `{ "type": "socket", "path": string }` for a Windows named pipe or Unix domain socket (used by the editor today), or `{ "type": "tcp", "host": string, "port": number }` for a TCP listener (used by the standalone CLI). |
 | `quality` | Optional. Product quality of a standalone CLI endpoint. Not part of entry identity. |
 | `tunnelName` | Optional. Tunnel name associated with a standalone CLI endpoint. Not part of entry identity. |
+| `clientForwarding` | Optional. `true` when a standalone CLI endpoint was started with `code agent host --client-forwarding`, so its agent host forwards what clients offer to the processes it starts; omitted otherwise. Not part of entry identity. |
 
 Readers must treat every entry and field as untrusted input:
 

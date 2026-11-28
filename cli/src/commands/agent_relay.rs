@@ -203,6 +203,7 @@ mod tests {
 			},
 			quality: None,
 			tunnel_name: None,
+			client_forwarding: false,
 		}
 	}
 

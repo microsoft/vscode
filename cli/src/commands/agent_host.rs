@@ -133,6 +133,7 @@ fn decide_foreground_action(
 		port,
 		token,
 		instance_id,
+		client_forwarding,
 	} = decision
 	else {
 		return ForegroundAction::SpawnFresh;
@@ -148,7 +149,13 @@ fn decide_foreground_action(
 	// matches the running supervisor. If it differs, error out with a
 	// clear message instead of silently sharing a differently-bound
 	// supervisor.
-	if let Some(conflict) = detect_config_conflict(args, host.as_deref(), port, token.as_deref()) {
+	if let Some(conflict) = detect_config_conflict(
+		args,
+		host.as_deref(),
+		port,
+		token.as_deref(),
+		client_forwarding,
+	) {
 		return ForegroundAction::ConflictError(format!(
 			"Agent host already running on {host_str}:{port} (PID {pid}), but {conflict}.\n\
 			 Use `{application_name} agent kill` to stop it, or pass `--replace` to take over.",
@@ -325,6 +332,7 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 			without_connection_token: true,
 			connection_token: None,
 			connection_token_file: None,
+			client_forwarding: args.client_forwarding,
 		},
 		// The backend counts as activity while it runs, so the idle timeout
 		// can't kill agent sessions that are still working after the last
@@ -769,12 +777,22 @@ fn print_manage_banner_line() {
 /// `running_host` may be `None` when the registry entry doesn't record a
 /// host; in that case we conservatively skip the host comparison (the
 /// supervisor is most likely loopback, which is the default).
+///
+/// A supervisor started with `--client-forwarding` is still compatible with
+/// a request without it: it forwards only to clients offering it.
 fn detect_config_conflict(
 	args: &AgentHostArgs,
 	running_host: Option<&str>,
 	running_port: u16,
 	running_token: Option<&str>,
+	running_client_forwarding: bool,
 ) -> Option<String> {
+	if args.client_forwarding && !running_client_forwarding {
+		return Some(
+			"--client-forwarding conflicts with the running supervisor (started without it)"
+				.to_string(),
+		);
+	}
 	if let (Some(requested), Some(running)) = (args.host.as_deref(), running_host) {
 		if requested != running {
 			return Some(format!(
@@ -1504,12 +1522,17 @@ mod tests {
 	}
 
 	fn reusable_decision() -> AgentHostReuseDecision {
+		reusable_decision_with_client_forwarding(false)
+	}
+
+	fn reusable_decision_with_client_forwarding(client_forwarding: bool) -> AgentHostReuseDecision {
 		AgentHostReuseDecision::Reuse {
 			pid: 4242,
 			host: Some("127.0.0.1".to_string()),
 			port: 9000,
 			token: Some("tok".to_string()),
 			instance_id: "instance-existing".to_string(),
+			client_forwarding,
 		}
 	}
 
@@ -1592,6 +1615,36 @@ mod tests {
 		}
 	}
 
+	#[test]
+	fn decide_foreground_action_reuses_for_client_forwarding_only_a_forwarding_supervisor() {
+		let forwarding_args = AgentHostArgs {
+			client_forwarding: true,
+			..Default::default()
+		};
+		let actions = [
+			decide_foreground_action(&forwarding_args, reusable_decision()),
+			decide_foreground_action(
+				&forwarding_args,
+				reusable_decision_with_client_forwarding(true),
+			),
+			decide_foreground_action(
+				&AgentHostArgs::default(),
+				reusable_decision_with_client_forwarding(true),
+			),
+		];
+		assert!(
+			matches!(
+				&actions,
+				[
+					ForegroundAction::ConflictError(message),
+					ForegroundAction::ReuseBanner { .. },
+					ForegroundAction::ReuseBanner { .. },
+				] if message.contains("--client-forwarding")
+			),
+			"{actions:?}"
+		);
+	}
+
 	/// The core `--new-instance` contract: it must win over every other
 	/// branch, in particular `--replace`'s kill path, so that passing
 	/// both flags together can never remove an existing entry.
@@ -1668,6 +1721,7 @@ mod tests {
 			},
 			quality: None,
 			tunnel_name: None,
+			client_forwarding: false,
 		};
 		agent_host_registry::publish_agent_host_endpoint(&log, &user_data_path, &editor).unwrap();
 
@@ -1696,6 +1750,7 @@ mod tests {
 				port: standalone_port,
 				token: Some("standalone-tok".to_string()),
 				instance_id: "standalone-existing".to_string(),
+				client_forwarding: false,
 			}
 		);
 		assert_eq!(

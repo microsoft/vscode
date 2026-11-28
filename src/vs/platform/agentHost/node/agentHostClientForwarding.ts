@@ -30,7 +30,10 @@ import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { shellEscape } from './sshRemoteAgentHostHelpers.js';
 
-/** Set to `1` by a launcher, e.g., for Dev Containers, to have the agent host forward what its clients offer. */
+/**
+ * Set to `1` by the VS Code CLI for the server of an agent host started with `code agent host --client-forwarding`, as
+ * the Dev Container launcher does, to have the agent host forward what its clients offer.
+ */
 export const AGENT_HOST_CLIENT_FORWARDING_ENV = 'VSCODE_AGENT_HOST_CLIENT_FORWARDING';
 
 export const IAgentHostClientForwardingService = createDecorator<IAgentHostClientForwardingService>('agentHostClientForwardingService');

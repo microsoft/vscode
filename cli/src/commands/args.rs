@@ -295,13 +295,22 @@ pub struct AgentHostArgs {
 	#[clap(long)]
 	pub foreground: bool,
 
+	/// Forward what clients offer, such as their Git credentials and SSH and
+	/// GPG agents, to the processes the agent host starts. Recorded in the
+	/// agent host's registry entry; an existing agent host is only reused
+	/// when it was started with this flag too. Used by the Dev Container
+	/// launcher.
+	#[clap(long, hide = true)]
+	pub client_forwarding: bool,
+
 	/// Alias for `code tunnel`: expose remote editor and agent host access.
 	#[clap(
 		long,
 		group = "remote_host",
 		conflicts_with_all = [
 			"host", "port", "connection_token", "connection_token_file",
-			"without_connection_token", "replace", "new_instance", "foreground", "idle_timeout"
+			"without_connection_token", "replace", "new_instance", "foreground", "idle_timeout",
+			"client_forwarding"
 		]
 	)]
 	pub tunnel: bool,
@@ -313,7 +322,7 @@ pub struct AgentHostArgs {
 		conflicts_with_all = [
 			"host", "port", "connection_token", "connection_token_file",
 			"without_connection_token", "replace", "new_instance", "idle_timeout",
-			"random_name", "tunnel_id", "host_token", "cluster", "tunnel_name"
+			"random_name", "tunnel_id", "host_token", "cluster", "tunnel_name", "client_forwarding"
 		]
 	)]
 	pub github_environment: bool,
@@ -1324,6 +1333,7 @@ mod tests {
 				vec!["--host-token", "token"],
 				vec!["--cluster", "cluster"],
 				vec!["--tunnel-name", "name"],
+				vec!["--client-forwarding"],
 			] {
 				let mut argv = command.clone();
 				argv.push("--github-environment");
@@ -1434,6 +1444,7 @@ mod tests {
 				vec!["--new-instance"],
 				vec!["--foreground"],
 				vec!["--idle-timeout", "300"],
+				vec!["--client-forwarding"],
 			] {
 				let mut argv = command.clone();
 				argv.push("--tunnel");
@@ -1463,6 +1474,7 @@ mod tests {
 				"--foreground",
 				"--idle-timeout",
 				"300",
+				"--client-forwarding",
 			]);
 			let args = parse_agent_host_args(&argv);
 			assert_eq!(
@@ -1475,6 +1487,7 @@ mod tests {
 					args.new_instance,
 					args.foreground,
 					args.idle_timeout,
+					args.client_forwarding,
 				),
 				(
 					false,
@@ -1484,7 +1497,8 @@ mod tests {
 					true,
 					true,
 					true,
-					Some(300)
+					Some(300),
+					true
 				)
 			);
 		}

@@ -63,6 +63,10 @@ pub const STARTUP_TIMEOUT: Duration = Duration::from_secs(30);
 /// CLI and may therefore advertise the management RPC method to clients.
 pub const MANAGEMENT_SOCKET_ENV: &str = "VSCODE_AGENT_HOST_MANAGEMENT_SOCKET";
 const GITHUB_ENVIRONMENT_OPTIONS_ENV: &str = "VSCODE_CLI_GITHUB_ENVIRONMENT_OPTIONS";
+/// Set to `1` for the server of an agent host started with
+/// `--client-forwarding`, and removed otherwise, so only the flag turns
+/// forwarding on. Read and removed by the agent host the server starts.
+const AGENT_HOST_CLIENT_FORWARDING_ENV: &str = "VSCODE_AGENT_HOST_CLIENT_FORWARDING";
 const GITHUB_ENVIRONMENT_READY_PREFIX: &str = "__VSCODE_GITHUB_ENVIRONMENT_READY__:";
 
 #[derive(Clone, Serialize)]
@@ -130,6 +134,9 @@ pub struct AgentHostConfig {
 	pub without_connection_token: bool,
 	pub connection_token: Option<String>,
 	pub connection_token_file: Option<String>,
+	/// Whether the agent host forwards what clients offer to the processes
+	/// it starts, see `code agent host --client-forwarding`.
+	pub client_forwarding: bool,
 }
 
 /// State of the running VS Code server process. The process itself is
@@ -352,6 +359,11 @@ impl AgentHostManager {
 		if let Some(ct) = &self.config.connection_token_file {
 			cmd.arg("--connection-token-file");
 			cmd.arg(ct);
+		}
+		if self.config.client_forwarding {
+			cmd.env(AGENT_HOST_CLIENT_FORWARDING_ENV, "1");
+		} else {
+			cmd.env_remove(AGENT_HOST_CLIENT_FORWARDING_ENV);
 		}
 		cmd.env(MANAGEMENT_SOCKET_ENV, &self.management_socket_path);
 		cmd.env_remove("VSCODE_DEV");
@@ -1263,16 +1275,19 @@ impl AgentHostSidecar {
 		// character-equal without spuriously flagging hostname-vs-IP
 		// equivalents as a config conflict.
 		let host = host_label.unwrap_or_else(|| bound_addr.ip().to_string());
-		let entry = AgentHostEndpointMetadata::new_standalone(
-			pid,
-			instance_id.clone(),
-			host,
-			bound_addr.port(),
-			public_token.clone().unwrap_or_default(),
-			AGENT_HOST_PROTOCOL_VERSION.to_string(),
-			VSCODE_CLI_QUALITY.map(str::to_string),
-			None,
-		);
+		let entry = AgentHostEndpointMetadata {
+			client_forwarding: manager.config.client_forwarding,
+			..AgentHostEndpointMetadata::new_standalone(
+				pid,
+				instance_id.clone(),
+				host,
+				bound_addr.port(),
+				public_token.clone().unwrap_or_default(),
+				AGENT_HOST_PROTOCOL_VERSION.to_string(),
+				VSCODE_CLI_QUALITY.map(str::to_string),
+				None,
+			)
+		};
 
 		// Registry publish does blocking filesystem I/O (write a temp file and
 		// atomically rename it into place); run it on a blocking-safe thread so
@@ -1516,6 +1531,8 @@ pub enum AgentHostReuseDecision {
 		/// This entry's stable identity within the registry, used by
 		/// `--replace` to scope removal to exactly this instance.
 		instance_id: String,
+		/// Whether the supervisor was started with `--client-forwarding`.
+		client_forwarding: bool,
 	},
 }
 
@@ -1543,6 +1560,7 @@ pub async fn classify_agent_host(
 				Some(selected.connection_token)
 			},
 			instance_id: selected.instance_id,
+			client_forwarding: selected.client_forwarding,
 		},
 		None => AgentHostReuseDecision::SpawnFresh,
 	}
@@ -2388,6 +2406,7 @@ mod tests {
 				without_connection_token: true,
 				connection_token: None,
 				connection_token_file: None,
+				client_forwarding: false,
 			},
 			activity,
 		)
@@ -2465,6 +2484,30 @@ mod tests {
 			server_data_dir.display()
 		)));
 		assert!(!argv.contains("--user-data-dir\n"));
+	}
+
+	#[cfg(unix)]
+	#[tokio::test]
+	async fn client_forwarding_reaches_only_the_server_of_a_forwarding_agent_host() {
+		let mut seen = Vec::new();
+		for client_forwarding in [true, false] {
+			let dir = tempfile::tempdir().unwrap();
+			let mut manager = make_test_manager(dir.path());
+			Arc::get_mut(&mut manager).unwrap().config.client_forwarding = client_forwarding;
+			let env = dir.path().join("env");
+			let server = start_fake_server(
+				&manager,
+				dir.path(),
+				&format!(
+					"printf '%s' \"${{{AGENT_HOST_CLIENT_FORWARDING_ENV}-unset}}\" > '{}'",
+					env.display()
+				),
+			)
+			.await;
+			server.await.unwrap();
+			seen.push(std::fs::read_to_string(env).unwrap());
+		}
+		assert_eq!(seen, ["1", "unset"]);
 	}
 
 	#[cfg(unix)]
@@ -3309,6 +3352,7 @@ mod tests {
 				port,
 				token: Some("registry-tok".to_string()),
 				instance_id: "instance-registry".to_string(),
+				client_forwarding: false,
 			}
 		);
 	}
@@ -3331,6 +3375,7 @@ mod tests {
 			},
 			quality: None,
 			tunnel_name: None,
+			client_forwarding: false,
 		};
 		agent_host_registry::publish_agent_host_endpoint(
 			&log::Logger::test(),
@@ -3440,6 +3485,7 @@ mod tests {
 			},
 			quality: Some("stable".to_string()),
 			tunnel_name: None,
+			client_forwarding: false,
 		}
 	}
 
@@ -3463,6 +3509,7 @@ mod tests {
 			},
 			quality: Some("stable".to_string()),
 			tunnel_name: None,
+			client_forwarding: false,
 		}
 	}
 
@@ -3500,6 +3547,7 @@ mod tests {
 			},
 			quality: None,
 			tunnel_name: None,
+			client_forwarding: false,
 		};
 		let gw: AgentHostGatewayEndpoint = (&entry).into();
 		assert_eq!(gw.endpoint_kind, "socket");

@@ -118,6 +118,7 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		protocolVersion: '1',
 		connectionToken: 'token',
 		endpoint: { type: 'tcp', host: '127.0.0.1', port: 1234 },
+		clientForwarding: true,
 	}];
 	containerSessionIds: string[] = [NullTelemetryService.sessionId];
 	endpointPollsBeforeAvailable = 0;
@@ -154,6 +155,8 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	linkedBeforeLifecycle: boolean | undefined;
 	cacheSetupError: Error | undefined;
 	cliCacheSetupError: Error | undefined;
+	/** The `--version` output of a fallback CLI, used because installing the client's own CLI fails. */
+	fallbackCliVersion: string | undefined;
 	cacheMountConfigured = false;
 	hostDirectoryOwnedByCurrentUser = true;
 	readonly checkedHostDirectories: string[] = [];
@@ -448,6 +451,20 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 			}
 			if (command.includes('/etc/alpine-release')) {
 				return { stdout: this._libc, stderr: '', code: 0 };
+			}
+			if (this.fallbackCliVersion !== undefined) {
+				if (command.startsWith('test -x ')) {
+					return { stdout: '', stderr: '', code: 1 };
+				}
+				if (command.includes('curl -fsSL')) {
+					throw new Error('CLI download failed');
+				}
+				if (command.includes('ls -1t')) {
+					return { stdout: `~/.vscode-server-oss/code-insiders-${'0'.repeat(40)}\n`, stderr: '', code: 0 };
+				}
+				if (command.endsWith(' --version')) {
+					return { stdout: `${this.fallbackCliVersion}\n`, stderr: '', code: 0 };
+				}
 			}
 			if (this._forceCliInstall && command.includes('--version &&')) {
 				return { stdout: '', stderr: '', code: 1 };
@@ -1597,11 +1614,30 @@ suite('Dev Container Agent Host Main Service', () => {
 		}, { sharedServer: true, warning: true, cacheCommands: 0, privateDownloads: 1 });
 	});
 
-	test('starts a new Agent Host that forwards what its clients offer, e.g., their Git identity', async () => {
-		const service = store.add(new TestDevContainerAgentHostMainService());
-		service.endpointPollsBeforeAvailable = 1;
-		await service.connect({ connectionId: 'forwarding', workspaceFolder: '/workspace', name: 'Project Dev Container' });
-		assert.deepStrictEqual(service.separateExecs.map(({ command }) => command.includes(` ${AGENT_HOST_CLIENT_FORWARDING_ENV}=1 `)), [true]);
+	test('starts or reuses only an Agent Host that forwards what its clients offer, unless an older fallback CLI cannot start one', async () => {
+		const results: Record<string, unknown> = {};
+		for (const { label, commit, fallbackCliVersion } of [
+			{ label: 'own CLI', commit: 'a'.repeat(40), fallbackCliVersion: undefined },
+			{ label: 'dev build', commit: undefined, fallbackCliVersion: undefined },
+			{ label: '1.148 fallback', commit: 'a'.repeat(40), fallbackCliVersion: `code-insiders 1.148.0 (commit ${'0'.repeat(40)})` },
+			{ label: '1.149 fallback', commit: 'a'.repeat(40), fallbackCliVersion: `code-insiders 1.149.0 (commit ${'0'.repeat(40)})` },
+		]) {
+			const service = store.add(new TestDevContainerAgentHostMainService('', false, undefined, process.env, true, [], new Set(), '/tmp', new NullLogService(), commit));
+			service.fallbackCliVersion = fallbackCliVersion;
+			// E.g., the Agent Host a remote editor's server started.
+			service.endpoints = [{ ...service.endpoints[0], clientForwarding: undefined }];
+			await service.connect({ connectionId: label, workspaceFolder: '/workspace', name: 'Project Dev Container' });
+			results[label] = {
+				spawned: service.separateExecs.map(({ command }) => ({ flag: command.endsWith(' --client-forwarding'), variable: command.includes(AGENT_HOST_CLIENT_FORWARDING_ENV) })),
+				relaysTo: service.relayCommand?.match(/ agent relay '(?<instance>[^']+)'/)?.groups?.instance,
+			};
+		}
+		assert.deepStrictEqual(results, {
+			'own CLI': { spawned: [{ flag: true, variable: false }], relaysTo: 'spawned-instance' },
+			'dev build': { spawned: [{ flag: true, variable: false }], relaysTo: 'spawned-instance' },
+			'1.148 fallback': { spawned: [], relaysTo: 'instance' },
+			'1.149 fallback': { spawned: [{ flag: true, variable: false }], relaysTo: 'spawned-instance' },
+		});
 	});
 
 	test('adds the exact bind-mounted repository root to Git safe.directory only when host-owned', async () => {
