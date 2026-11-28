@@ -1752,16 +1752,16 @@ export abstract class CompactButtonActionViewItem extends BaseActionViewItem {
 	}
 }
 
-/** Styles a New button of the Agents window, the New split button of the sessions header or the New button of the titlebar, as the experiment picked. */
-function applyNewSessionButtonStyle(element: HTMLElement, style: NewSessionButtonStyle): void {
-	element.classList.toggle('lightweight', style === 'lightweight' || style === 'lightweightWithKeybindingBackground');
-	element.classList.toggle('lightweight-keybinding-background', style === 'lightweightWithKeybindingBackground');
-}
-
 /**
  * Renders the new-session action as the compact "New" pill of the titlebar.
  */
 export class NewSessionActionViewItem extends CompactButtonActionViewItem {
+
+	/** Styles a New button of the Agents window, also the New split button of the sessions header, as the experiment picked. */
+	static applyStyle(element: HTMLElement, style: NewSessionButtonStyle): void {
+		element.classList.toggle('lightweight', style === 'lightweight' || style === 'lightweightWithKeybindingBackground');
+		element.classList.toggle('lightweight-keybinding-background', style === 'lightweightWithKeybindingBackground');
+	}
 
 	constructor(
 		action: IAction,
@@ -1790,7 +1790,7 @@ export class NewSessionActionViewItem extends CompactButtonActionViewItem {
 	}
 
 	protected override configureButton(button: Button): void {
-		this._register(autorun(reader => applyNewSessionButtonStyle(button.element, this.newSessionButtonStyle.read(reader))));
+		this._register(autorun(reader => NewSessionActionViewItem.applyStyle(button.element, this.newSessionButtonStyle.read(reader))));
 	}
 
 	protected override getHoverContent(keybindingLabel: string | undefined): string {
@@ -1886,7 +1886,7 @@ export class NewSessionSplitButtonActionViewItem extends NewSplitButtonActionVie
 		if (!element) {
 			return;
 		}
-		this._register(autorun(reader => applyNewSessionButtonStyle(element, this.newSessionButtonStyle.read(reader))));
+		this._register(autorun(reader => NewSessionActionViewItem.applyStyle(element, this.newSessionButtonStyle.read(reader))));
 		if (this.label) {
 			this._register(markOnboardingTarget(this.label, 'sessions.newSession.button', { onDidActivate: this.onDidRunNewSession.event }));
 		}
