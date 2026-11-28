@@ -163,6 +163,8 @@ export const sessionsListConfigurationProperties = {
 		default: false,
 		scope: ConfigurationScope.APPLICATION,
 		tags: ['experimental'],
+		// Insiders only: see `observableSessionWorkspacesEnabled`, which also ignores a value written by hand in Stable
+		included: product.quality !== 'stable',
 		description: localize('sessions.workspaces.enabled', "Controls whether the Agents window offers workspaces: named sets of folders, saved as workspace files, that sessions start in together. Working in several folders in a session does not need workspaces."),
 	},
 } satisfies IStringDictionary<IConfigurationPropertySchema>;
