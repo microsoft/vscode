@@ -453,6 +453,46 @@ suite('domainMatcher', () => {
 			assert.strictEqual(isDomainAllowed('evil.com', [], ['evil.com']), false);
 		});
 
+		test('denies explicit local-address patterns as a class without widening allow patterns', () => {
+			const localDomains = [
+				'localhost', '127.0.0.1', '0.0.0.0', '127.0.0.2', '127.1.2.3',
+				'127.0.0.0', '127.255.255.255', '[::1]', '[::]',
+				'[::ffff:7f00:1]', '[::ffff:7f00:2]', '[::ffff:0:0]', '[::7f00:1]',
+			];
+			const deniedPatterns = [
+				'localhost', '127.0.0.1', '127.0.0.2', '0.0.0.0', '::1', '[::]',
+				'::ffff:127.0.0.1', '[::ffff:0.0.0.0]', 'http://127.1:8080/', 'LOCALHOST.',
+			];
+			const otherDomains = [
+				'allowed.example.test', 'localhost.example.test', 'sub.localhost', '127.example.test',
+				'127.0.0.1.example.test', '126.255.255.255', '128.0.0.1', '0.0.0.1',
+				'10.0.0.1', '169.254.1.1', '[fe80::1]', '[::ffff:8000:1]',
+			];
+			const otherPatterns = [
+				'*.localhost', '*.127.0.0.1', '127.0.0.256', '127.example.test',
+				'0.0.0.1', '127.0.0.0/8',
+			];
+
+			assert.deepStrictEqual({
+				permittedLocalDomains: deniedPatterns.map(pattern => ({
+					pattern,
+					domains: localDomains.filter(domain => isDomainAllowed(domain, [], [pattern])),
+				})),
+				exactIpv4Allow: localDomains.filter(domain => isDomainAllowed(domain, ['127.0.0.1'], [])),
+				exactLocalhostAllow: localDomains.filter(domain => isDomainAllowed(domain, ['localhost'], [])),
+				denyPrecedence: localDomains.filter(domain => isDomainAllowed(domain, ['*'], ['::1'])),
+				otherDomains: otherDomains.filter(domain => isDomainAllowed(domain, [], ['127.0.0.1'])),
+				otherPatterns: otherPatterns.filter(pattern => isDomainAllowed('127.0.0.2', [], [pattern])),
+			}, {
+				permittedLocalDomains: deniedPatterns.map(pattern => ({ pattern, domains: [] })),
+				exactIpv4Allow: ['127.0.0.1', '[::ffff:7f00:1]', '[::7f00:1]'],
+				exactLocalhostAllow: ['localhost'],
+				denyPrecedence: [],
+				otherDomains,
+				otherPatterns,
+			});
+		});
+
 		test('wildcard allowed with specific deny', () => {
 			assert.strictEqual(isDomainAllowed('safe.com', ['*'], ['evil.com']), true);
 			assert.strictEqual(isDomainAllowed('evil.com', ['*'], ['evil.com']), false);

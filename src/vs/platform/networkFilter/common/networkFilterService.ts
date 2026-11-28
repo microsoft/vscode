@@ -33,6 +33,7 @@ function isFilteredNetworkScheme(uri: URI): boolean {
  * When both domain lists are empty, all domains are denied outside sandboxing.
  * When a domain appears on the denied list it is always blocked, even if it
  * also matches an entry on the allowed list.
+ * An explicit localhost, loopback, or unspecified-address deny entry blocks the whole local-host class.
  */
 export interface IAgentNetworkFilterService {
 	readonly _serviceBrand: undefined;

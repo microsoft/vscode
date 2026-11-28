@@ -185,6 +185,21 @@ function normalizeEmbeddedIpv4(value: string): string | undefined {
 	return `${high >>> 8}.${high & 0xff}.${low >>> 8}.${low & 0xff}`;
 }
 
+function isLoopbackOrUnspecifiedHost(domain: string | undefined): boolean {
+	if (!domain) {
+		return false;
+	}
+
+	const address = normalizeEmbeddedIpv4(domain) ?? domain;
+	if (address === 'localhost' || address === '0.0.0.0' || address === '[::1]' || address === '[::]') {
+		return true;
+	}
+
+	const octets = address.split('.');
+	return octets.length === 4 && octets[0] === '127'
+		&& octets.every(octet => /^(?:0|[1-9]\d{0,2})$/.test(octet) && Number(octet) <= 255);
+}
+
 /**
  * Extracts the domain portion from a pattern string.
  * If the pattern contains `://`, it is parsed as a URI and the authority is returned.
@@ -240,12 +255,20 @@ export function extractDomainFromUri(uri: URI): string | undefined {
 	return normalizeUriAuthority(uri.authority);
 }
 
+/** Checks explicit deny entries, including the loopback and unspecified-host class. */
+export function isDomainDenied(domain: string, deniedPatterns: readonly string[]): boolean {
+	const isLocalHost = isLoopbackOrUnspecifiedHost(domain);
+	return deniedPatterns.some(pattern => matchesDomainPattern(domain, pattern)
+		|| (isLocalHost && isLoopbackOrUnspecifiedHost(normalizeDomainPattern(pattern))));
+}
+
 /**
  * Determines whether a domain is allowed based on allow and deny lists.
  *
  * Rules:
  * - If both lists are empty, the domain is denied (restrictive default).
  * - Denied patterns take precedence: if the domain matches any denied pattern, it is blocked.
+ * - Explicit loopback, unspecified-address, or bare localhost deny patterns block that entire host class.
  * - If only denied patterns are configured (allowed is empty), any non-denied domain is allowed.
  * - If allowed patterns are configured, the domain must match at least one to be allowed.
  *
@@ -261,7 +284,7 @@ export function isDomainAllowed(domain: string, allowedPatterns: readonly string
 	}
 
 	// Denied patterns take precedence.
-	if (deniedPatterns.some(pattern => matchesDomainPattern(domain, pattern))) {
+	if (isDomainDenied(domain, deniedPatterns)) {
 		return false;
 	}
 

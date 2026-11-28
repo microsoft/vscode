@@ -195,6 +195,53 @@ suite('FetchWebPageTool', () => {
 		});
 	});
 
+	test('blocks local-address forms before web content extraction', async () => {
+		const deniedUrls = [
+			'http://localhost:8080/',
+			'http://127.0.0.1:8080/',
+			'http://0:8080/',
+			'http://[::1]:8080/',
+			'http://[::ffff:127.0.0.1]:8080/',
+			'http://[::]:8080/',
+			'http://127.0.0.2:8080/',
+			'http://127.1.2.3:8080/',
+		];
+		const allowedUrl = 'http://allowed.example.test:8080/';
+		const webContentMap = new ResourceMap<string>(
+			deniedUrls.map(url => [URI.parse(url), 'Local test content'] as const)
+		);
+		webContentMap.set(URI.parse(allowedUrl), 'Allowed test content');
+		const extractor = new TestWebContentExtractorService(webContentMap);
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.NetworkFilter, true);
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, []);
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['localhost', '127.0.0.1']);
+		const networkFilterService = disposables.add(new AgentNetworkFilterService(configService));
+		const tool = new FetchWebPageTool(
+			extractor,
+			new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()),
+			new MockTrustedDomainService(),
+			new MockChatService(),
+			new TestContextService(),
+			networkFilterService,
+		);
+
+		const result = await tool.invoke(
+			{ callId: 'test-local-addresses', toolId: 'fetch-page', parameters: { urls: [...deniedUrls, allowedUrl] }, context: undefined },
+			() => Promise.resolve(0),
+			{ report: () => { } },
+			CancellationToken.None,
+		);
+
+		assert.deepStrictEqual({
+			content: result.content.map(part => part.value),
+			requestedUris: extractor.requestedUris.map(uri => uri.toString()),
+		}, {
+			content: [...deniedUrls.map(url => networkFilterService.formatError(URI.parse(url))), 'Allowed test content'],
+			requestedUris: [allowedUrl],
+		});
+	});
+
 	test('blocks wildcard-denied mapped IPv6 before web content extraction', async () => {
 		const urls = [
 			'http://[::ffff:127.0.0.1]/private',
