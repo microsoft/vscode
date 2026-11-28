@@ -31,10 +31,12 @@ export function getPromptSlashCommandFilterText(name: string): string | undefine
 
 	// Word suffixes go before the commands so that a later word of the name ranks like
 	// the start of a command, but only as many as keep the commands matchable: the
-	// shortest suffixes are kept, the longest dropped.
+	// shortest suffixes are kept, the longest dropped. The shortest suffix is always
+	// kept, so that a command too long for the window stays matchable by its last word
+	// while its start, with the plugin prefix, still fits.
 	let remaining = maxPromptSlashCommandFilterTextLength - commands.length;
 	let firstSuffix = wordSuffixes.length;
-	while (firstSuffix > 0 && wordSuffixes[firstSuffix - 1].length + 1 <= remaining) {
+	while (firstSuffix > 0 && (firstSuffix === wordSuffixes.length || wordSuffixes[firstSuffix - 1].length + 1 <= remaining)) {
 		firstSuffix--;
 		remaining -= wordSuffixes[firstSuffix].length + 1;
 	}

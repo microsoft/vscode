@@ -1209,15 +1209,20 @@ suite('prompt slash command matching', () => {
 
 	test('keeps long hyphenated plugin commands matchable by their plugin prefix', () => {
 		const matches = (name: string, patterns: string[]) => {
-			const filterText = getPromptSlashCommandFilterText(name)!;
+			// Without a filter text, the suggest widget matches against the label.
+			const filterText = getPromptSlashCommandFilterText(name) ?? `/${name}`;
 			return patterns.map(pattern => !!fuzzyScore(pattern, pattern.toLowerCase(), 0, filterText, filterText.toLowerCase(), 0, FuzzyScoreOptions.default));
 		};
 		assert.deepStrictEqual([
 			matches('example-dev-tools:migration-example-platform-version-four-to-version-five-guide', ['/example-dev-tools', '/example-dev-tools:migration', '/platform-version', '/qqq']),
 			matches('dev-tools:migrate-platform-from-version-four-to-five', ['/dev-tools', '/dev-tools migrate', '/version-four', '/qqq']),
+			matches(`${'a'.repeat(128)}-summary`, [`/${'a'.repeat(32)}`, '/summary', '/qqq']),
+			matches(`${'a'.repeat(64)}:${'b'.repeat(56)}-summary`, [`/${'a'.repeat(64)}`, '/summary', '/qqq']),
 		], [
 			[true, true, true, false],
 			[true, true, true, false],
+			[true, true, false],
+			[true, true, false],
 		]);
 	});
 
