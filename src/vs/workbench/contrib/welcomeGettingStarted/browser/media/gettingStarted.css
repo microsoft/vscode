@@ -652,6 +652,8 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent > .steps-container {
 	height: 100%;
+	/* Let the details page scroll before the title and footer squeeze the steps out of view. */
+	min-height: 8em;
 	align-self: center;
 	grid-area: steps;
 }
