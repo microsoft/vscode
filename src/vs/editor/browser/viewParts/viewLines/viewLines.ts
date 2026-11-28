@@ -104,6 +104,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 	private readonly _textRangeRestingSpot: HTMLElement;
 	private readonly _visibleLines: VisibleLinesCollection<ViewLine>;
 	private readonly domNode: FastDomNode<HTMLElement>;
+	private _viewGpuContext: ViewGpuContext | undefined;
 
 	// --- config
 	private _lineHeight: number;
@@ -127,7 +128,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 	private _stickyScrollEnabled: boolean;
 	private _maxNumberStickyLines: number;
 
-	constructor(context: ViewContext, viewGpuContext: ViewGpuContext | undefined, linesContent: FastDomNode<HTMLElement>) {
+	constructor(context: ViewContext, linesContent: FastDomNode<HTMLElement>) {
 		super(context);
 
 		const conf = this._context.configuration;
@@ -147,7 +148,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 		this._linesContent = linesContent;
 		this._textRangeRestingSpot = document.createElement('div');
 		this._visibleLines = new VisibleLinesCollection(this._context, {
-			createLine: () => new ViewLine(viewGpuContext, this._viewLineOptions),
+			createLine: () => new ViewLine(this._viewGpuContext, this._viewLineOptions),
 		});
 		this.domNode = this._visibleLines.domNode;
 
@@ -181,6 +182,17 @@ export class ViewLines extends ViewPart implements IViewLines {
 
 	public getDomNode(): FastDomNode<HTMLElement> {
 		return this.domNode;
+	}
+
+	/**
+	 * Render lines with `viewGpuContext`, which the view replaces when
+	 * `editor.experimentalGpuAcceleration` changes. The lines rendered so far,
+	 * and their DOM nodes, are discarded.
+	 */
+	public setViewGpuContext(viewGpuContext: ViewGpuContext | undefined): void {
+		this._viewGpuContext = viewGpuContext;
+		this._visibleLines.onFlushed(new viewEvents.ViewFlushedEvent(), true);
+		this.forceShouldRender();
 	}
 
 	// ---- begin view event handlers
